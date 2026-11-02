@@ -217,12 +217,44 @@ it('checks every tool against owner scope, frozen denial and current policy befo
   ]);
   const frozen = await policy.snapshot(owner, thread, request);
   expect(frozen.tools.map((item) => item.id)).toEqual(TOOL_IDS);
+  await pool.query('SELECT ai_working_file_write($1,$2,$3,0,$4,$5,$6,$6,NULL,NULL,$7)', [
+    owner,
+    thread,
+    'policy.txt',
+    'Original',
+    randomUUID(),
+    request,
+    'Fixture',
+  ]);
+  expect(
+    (
+      await db.query<{ allowed: boolean }>(
+        "SELECT has_function_privilege('asalab_app','public.ai_working_file_write_internal(uuid,uuid,text,integer,text,uuid,uuid,uuid,uuid,integer,text)','EXECUTE') AS allowed",
+      )
+    ).rows[0]?.allowed,
+  ).toBe(false);
   for (const id of TOOL_IDS) {
     expect(await policy.allowed(owner, thread, request, id)).toBe(true);
     await save(rules(true).map((item) => ({ ...item, enabled: item.id !== id })));
     expect(await policy.allowed(owner, thread, request, id)).toBe(false);
     if (id === 'read_working_file')
       expect(await policy.allowed(owner, thread, request, 'edit_working_file')).toBe(false);
+    if (id === 'create_working_file' || id === 'edit_working_file' || id === 'read_working_file') {
+      // Initial application admission succeeded above, then the administrator denied
+      // the tool. The SQL effect boundary must refuse a new version independently.
+      await expect(
+        pool.query('SELECT ai_working_file_write($1,$2,$3,$4,$5,$6,$7,$7,NULL,NULL,$8)', [
+          owner,
+          thread,
+          id === 'create_working_file' ? 'denied.txt' : 'policy.txt',
+          id === 'create_working_file' ? 0 : 1,
+          'Denied mutation',
+          randomUUID(),
+          request,
+          'Denied',
+        ]),
+      ).rejects.toMatchObject({ code: '42501' });
+    }
     await expect(policy.assertAllowed(owner, thread, request, id)).rejects.toMatchObject({
       code: 'ai_tool_disabled',
     });

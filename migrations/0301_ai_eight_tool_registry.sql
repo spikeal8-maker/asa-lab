@@ -52,3 +52,38 @@ BEGIN
 END;$$;
 REVOKE ALL ON FUNCTION public.ai_tool_policy_permit(uuid,uuid,uuid,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.ai_tool_policy_permit(uuid,uuid,uuid,text) TO asalab_app;
+-- Serialize version creation with policy changes. Human restore and an already
+-- admitted image completion retain their existing null-request semantics.
+ALTER FUNCTION public.ai_working_file_write(uuid,uuid,text,integer,text,uuid,uuid,uuid,uuid,integer,text) RENAME TO ai_working_file_write_internal;
+REVOKE ALL ON FUNCTION public.ai_working_file_write_internal(uuid,uuid,text,integer,text,uuid,uuid,uuid,uuid,integer,text) FROM PUBLIC,asalab_app;
+CREATE FUNCTION public.ai_working_file_write(p_owner uuid,p_thread uuid,p_name text,p_expected integer,p_content text,p_operation uuid,p_request uuid,p_anchor uuid,p_source uuid,p_block integer,p_summary text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+BEGIN
+ IF p_request IS NOT NULL AND NOT public.ai_tool_policy_permit(p_owner,p_thread,p_request,CASE WHEN p_expected=0 THEN 'create_working_file' ELSE 'edit_working_file' END) THEN RAISE EXCEPTION 'AI_FILE_DENIED' USING ERRCODE='42501'; END IF;
+ RETURN public.ai_working_file_write_internal(p_owner,p_thread,p_name,p_expected,p_content,p_operation,p_request,p_anchor,p_source,p_block,p_summary);
+END;$$;
+REVOKE ALL ON FUNCTION public.ai_working_file_write(uuid,uuid,text,integer,text,uuid,uuid,uuid,uuid,integer,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.ai_working_file_write(uuid,uuid,text,integer,text,uuid,uuid,uuid,uuid,integer,text) TO asalab_app;
+
+-- Check the current policy atomically with job admission, not at completion.
+CREATE OR REPLACE FUNCTION public.ai_tool_policy_image_admission_guard() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE parent uuid;
+BEGIN
+ SELECT parent_request_id INTO parent FROM public.ai_tool_image_receipts WHERE owner_principal_id=NEW.owner_principal_id AND thread_id=NEW.thread_id AND child_request_id=NEW.request_id;
+ IF parent IS NOT NULL THEN
+  IF NOT public.ai_tool_policy_permit(NEW.owner_principal_id,NEW.thread_id,parent,'generate_image') THEN RAISE EXCEPTION 'AI_IMAGE_DISABLED' USING ERRCODE='42501'; END IF;
+ ELSE
+  PERFORM 1 FROM public.ai_tool_policy_settings WHERE singleton_key FOR SHARE;
+  IF NOT EXISTS(SELECT 1 FROM public.ai_tool_policy_settings s,jsonb_array_elements(s.tools) x WHERE s.singleton_key AND x->>'id'='generate_image' AND x->>'enabled'='true') THEN RAISE EXCEPTION 'AI_IMAGE_DISABLED' USING ERRCODE='42501'; END IF;
+ END IF;
+ RETURN NEW;
+END;$$;
+CREATE FUNCTION public.ai_tool_policy_binding_admission_guard() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+BEGIN
+ IF NOT public.ai_tool_policy_permit(NEW.owner_principal_id,NEW.thread_id,NEW.parent_request_id,'edit_working_file') THEN RAISE EXCEPTION 'AI_FILE_DENIED' USING ERRCODE='42501'; END IF;
+ RETURN NEW;
+END;$$;
+REVOKE ALL ON FUNCTION public.ai_tool_policy_binding_admission_guard() FROM PUBLIC,asalab_app;
+CREATE TRIGGER ai_tool_policy_binding_admission_guard BEFORE INSERT ON public.ai_image_file_bindings FOR EACH ROW EXECUTE FUNCTION public.ai_tool_policy_binding_admission_guard();

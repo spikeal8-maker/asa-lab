@@ -382,7 +382,7 @@ const upgradeArtifacts = [
   [
     '0301',
     '0301_ai_eight_tool_registry.sql',
-    '03168fb17865db9e6e012779c6f25a4103cc7659fdf3e75b0ca34b1ff90a68d0',
+    'aebccc874cb4a428dc5b575c3bbe1419be1a17eca074ce1ddd5ef491108431ef',
   ],
 ] as const;
 
