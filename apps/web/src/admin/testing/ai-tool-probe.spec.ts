@@ -130,6 +130,8 @@ it('uses actual server evidence and reports an empty result instead of a green s
   await render();
   await submit();
   expect(host.textContent).toContain('пустую выдачу');
+  await render('weather');
+  expect(host.querySelector('.asa-ai-probe-activity')).toBeNull();
 });
 it('never starts a paid request for disabled tools or unsaved settings', async () => {
   await render('weather', false);
@@ -154,6 +156,7 @@ it('blocks double submits and recovers an uncertain request with GET only', asyn
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   });
   expect(streamAiRequest).toHaveBeenCalledOnce();
+  expect(host.textContent).toContain('Модель выполняет проверку');
   const request = vi.mocked(streamAiRequest).mock.calls[0]![2];
   await act(async () => reject(new Error('lost stream')));
   expect(sessionStorage.getItem('asa-ai-tool-probe:v1:admin-a')).toContain(request);

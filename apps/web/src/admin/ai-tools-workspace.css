@@ -308,3 +308,24 @@
     padding: 10px 0 0;
   }
 }
+
+.asa-ai-probe-running::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: #0877b3;
+  animation: ai-probe-pulse 1.4s ease-in-out infinite;
+}
+@keyframes ai-probe-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asa-ai-probe-running::before {
+    animation: none;
+  }
+}

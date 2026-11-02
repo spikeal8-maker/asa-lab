@@ -460,7 +460,7 @@ export function AdminAiToolProbe({
   const recentActivities = [...new Map(activities.map((item) => [item.tool, item])).values()];
   const shown = result?.tool === tool ? result : null;
   return (
-    <section className="asa-ai-tool-probe" aria-label="Проверка инструмента">
+    <section className="asa-ai-tool-probe" aria-label="Проверка инструмента" aria-busy={busy}>
       <header>
         <h3>Проверить</h3>
         <InfoHint label="Что проверяется">
@@ -534,7 +534,7 @@ export function AdminAiToolProbe({
               !prompt.trim()
             }
           >
-            Проверить инструмент
+            {busy ? 'Проверяем…' : 'Проверить инструмент'}
           </button>
           {pending ? (
             <>
@@ -559,7 +559,7 @@ export function AdminAiToolProbe({
         ) : null}
       </form>
       {error ? <p role="alert">{error}</p> : null}
-      {activities.length ? (
+      {activities.length && (shown || pending?.tool === tool) ? (
         <p className="asa-ai-probe-activity" role="status">
           {recentActivities
             .map(
@@ -590,7 +590,12 @@ export function AdminAiToolProbe({
           ) : null}
         </div>
       ) : null}
-      {pending && !shown ? (
+      {busy ? (
+        <p className="asa-ai-probe-running" role="status">
+          Модель выполняет проверку…
+        </p>
+      ) : null}
+      {pending && !shown && !busy ? (
         <p role="status">
           Есть незавершённая проверка: {AI_TOOL_LABELS[pending.tool]}. Проверьте её результат.
         </p>

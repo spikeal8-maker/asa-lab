@@ -48,8 +48,8 @@ export function AdminAiTools({
   const [testing, setTesting] = useState(false);
   const tabs = useRef<HTMLElement>(null);
   useEffect(() => {
-    onDirtyChange?.(policyDirty || webDirty || imageDirty);
-  }, [policyDirty, webDirty, imageDirty, onDirtyChange]);
+    onDirtyChange?.(policyDirty || webDirty || imageDirty || testing);
+  }, [policyDirty, webDirty, imageDirty, testing, onDirtyChange]);
 
   return (
     <section className="asa-ai-tools-workspace" aria-label="Настройки инструментов">
