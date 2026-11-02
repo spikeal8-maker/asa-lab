@@ -97,6 +97,9 @@ test('collection picker disables editing during add and remove and refreshes suc
   await collectionApp.openProjects();
   const dialog = await collectionApp.openPicker();
   const checkbox = dialog.getByRole('checkbox', { name: COLLECTIONS[1].title, exact: true });
+  const row = dialog.locator('li').filter({
+    has: page.getByRole('checkbox', { name: COLLECTIONS[1].title, exact: true }),
+  });
   await expect(checkbox).not.toBeChecked();
   await dialog.getByPlaceholder('Новая подборка').fill('Будущая подборка');
   for (const inside of [true, false]) {
@@ -121,9 +124,7 @@ test('collection picker disables editing during add and remove and refreshes suc
     pending.release();
     await expect(checkbox).toBeEnabled();
     await expect(checkbox).toBeChecked({ checked: inside });
-    await expect(dialog.locator('li').filter({ has: checkbox }).locator('small')).toHaveText(
-      inside ? 'работ: 1' : 'пусто',
-    );
+    await expect(row.locator('small')).toHaveText(inside ? 'работ: 1' : 'пусто');
   }
   expect(collectionApp.requests.filter((entry) => entry.operation === 'toggle')).toHaveLength(2);
 });
@@ -135,6 +136,9 @@ test('collection picker toggle rejection preserves selection and permits a succe
   await collectionApp.openProjects({ holding: [COLLECTIONS[0].id] });
   const dialog = await collectionApp.openPicker();
   const checkbox = dialog.getByRole('checkbox', { name: COLLECTIONS[0].title, exact: true });
+  const row = dialog.locator('li').filter({
+    has: page.getByRole('checkbox', { name: COLLECTIONS[0].title, exact: true }),
+  });
   await expect(checkbox).toBeChecked();
   const pending = collectionApp.pauseNext('toggle', 503);
   await checkbox.click();
@@ -143,15 +147,11 @@ test('collection picker toggle rejection preserves selection and permits a succe
   pending.release();
   await expect(checkbox).toBeEnabled();
   await expect(checkbox).toBeChecked();
-  await expect(dialog.locator('li').filter({ has: checkbox }).locator('small')).toHaveText(
-    'работ: 2',
-  );
+  await expect(row.locator('small')).toHaveText('работ: 2');
   expectPickerLayout(await capturePickerGeometry(page, info, 'toggle-rejected'));
   await checkbox.click();
   await expect(checkbox).not.toBeChecked();
-  await expect(dialog.locator('li').filter({ has: checkbox }).locator('small')).toHaveText(
-    'работ: 1',
-  );
+  await expect(row.locator('small')).toHaveText('работ: 1');
 });
 
 test('collection picker creates a trimmed title and adds the project while pending controls stay disabled', async ({
