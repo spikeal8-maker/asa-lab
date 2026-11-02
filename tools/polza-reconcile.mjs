@@ -11,20 +11,16 @@ import {
   inspectPolzaState,
   reconcilePolza,
   PolzaSetupError,
+  credentialDecryptable,
 } from './polza-reconcile-core.mjs';
 
 const USAGE = [
   'Usage:',
   '  node tools/polza-reconcile.mjs --check --model polza/deepseek/deepseek-v4.1-flash',
-  '  node tools/polza-reconcile.mjs --apply --model polza/deepseek/deepseek-v4.1-flash --actor <platform-admin-uuid> [--enable-stt]',
+  '  node tools/polza-reconcile.mjs --apply --model polza/deepseek/deepseek-v4.1-flash --actor "$ASA_POLZA_ACTOR" [--enable-stt]',
   'Check is strictly read-only. Apply requires an existing encrypted key and a platform administrator.',
   'The catalog refresh only reads provider model metadata; no chat, audio or image generation is sent.',
 ].join('\n');
-
-function encryptionKeyPresent() {
-  const key = String(process.env.ASA_SETTINGS_ENCRYPTION_KEY ?? '').trim();
-  return /^[a-f0-9]{64}$/i.test(key) || /^[A-Za-z0-9_-]{43}$/.test(key);
-}
 
 function summary(model, report, changes = []) {
   return {
@@ -65,7 +61,7 @@ async function main() {
     const read = async () => {
       const [runtimeResult, catalogResult, policyResult, availabilityResult] = await Promise.all([
         pool.query(
-          'SELECT enabled, transcription_enabled, (api_key_ciphertext IS NOT NULL) AS configured FROM public.ai_polza_runtime()',
+          'SELECT enabled, transcription_enabled, api_key_ciphertext, api_key_iv, api_key_auth_tag FROM public.ai_polza_runtime()',
         ),
         pool.query('SELECT public.ai_polza_catalog_runtime() AS value'),
         pool.query('SELECT public.ai_generation_policy_runtime() AS value'),
@@ -80,8 +76,11 @@ async function main() {
         provider: {
           enabled: runtime.enabled,
           transcriptionEnabled: runtime.transcription_enabled,
-          keyConfigured: runtime.configured,
-          encryptionReady: encryptionKeyPresent(),
+          keyConfigured: typeof runtime.api_key_ciphertext === 'string',
+          encryptionReady: credentialDecryptable(
+            runtime,
+            process.env.ASA_SETTINGS_ENCRYPTION_KEY,
+          ),
         },
         catalog: catalogResult.rows[0]?.value,
         policy: policyResult.rows[0]?.value,
