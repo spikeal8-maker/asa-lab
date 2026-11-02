@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
+import { createHash } from 'node:crypto';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 let admin: pg.Pool;
@@ -33,7 +34,9 @@ afterAll(async () => {
   await Promise.all([admin.end(), app.end()]);
 });
 
-async function fixture() {
+const taskPdf = Buffer.from('%PDF-1.4\nEssay exact instruction file\n%%EOF');
+const taskHash = createHash('sha256').update(taskPdf).digest('hex');
+async function fixture(withMedia = false) {
   const client = await admin.connect();
   try {
     await client.query('BEGIN');
@@ -66,7 +69,7 @@ async function fixture() {
     }
     const activity = await client.query(
       `SELECT * FROM learning_activity_create($1,$2,'school','private','essay',$3,$4,
-        'graded',10,$5::jsonb,NULL,NULL,NULL,NULL,$6)`,
+        'graded',10,$5::jsonb,NULL,NULL,NULL,NULL,$6,NULL::jsonb,$7::jsonb)`,
       [
         teacherPrincipal,
         teacher.tenantId,
@@ -74,15 +77,38 @@ async function fixture() {
         'Объясните своими словами.',
         JSON.stringify(policies),
         key('create'),
+        withMedia
+          ? JSON.stringify([{ type: 'file', name: 'Условия.pdf', contentHash: taskHash }])
+          : null,
       ],
     );
     expect(activity.rows[0].result_code).toBe('ok');
-    const published = await client.query('SELECT * FROM learning_activity_publish($1,$2,$3,1,$4)', [
-      teacherPrincipal,
-      teacher.tenantId,
-      activity.rows[0].activity_id,
-      key('publish'),
-    ]);
+    let activityRevision = 1;
+    if (withMedia) {
+      const uploaded = await client.query(
+        'SELECT * FROM learning_activity_draft_task_file_set($1,$2,$3,$4,$5,$6)',
+        [
+          teacherPrincipal,
+          teacher.tenantId,
+          activity.rows[0].activity_id,
+          activityRevision,
+          taskPdf,
+          'Условия.pdf',
+        ],
+      );
+      expect(uploaded.rows[0].result_code).toBe('ok');
+      activityRevision = Number(uploaded.rows[0].draft_revision);
+    }
+    const published = await client.query(
+      'SELECT * FROM learning_activity_publish($1,$2,$3,$4,$5)',
+      [
+        teacherPrincipal,
+        teacher.tenantId,
+        activity.rows[0].activity_id,
+        activityRevision,
+        key('publish'),
+      ],
+    );
     expect(published.rows[0].result_code).toBe('ok');
     const version = published.rows[0].activity_version_id as string;
     const course = await client.query(
@@ -121,7 +147,7 @@ async function fixture() {
       key('course-publish'),
     ]);
     expect(release.rows[0].result_code).toBe('ok');
-    const runs: Array<{ id: string; course: string; assignment: string }> = [];
+    const runs: Array<{ id: string; course: string; assignment: string; lesson: string }> = [];
     for (let delivery = 0; delivery < 2; delivery++) {
       const assigned = await client.query(
         "SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,1,'whole_class','{}'::uuid[],$4)",
@@ -129,7 +155,7 @@ async function fixture() {
       );
       expect(assigned.rows[0].result_code).toBe('ok');
       const children = await client.query(
-        'SELECT id,source_classroom_assignment_id FROM activity_runs WHERE source_course_run_id=$1 ORDER BY source_course_block_id',
+        'SELECT id,source_classroom_assignment_id,source_course_lesson_id FROM activity_runs WHERE source_course_run_id=$1 ORDER BY source_course_block_id',
         [assigned.rows[0].run_id],
       );
       expect(children.rows).toHaveLength(2);
@@ -138,6 +164,7 @@ async function fixture() {
           id: String(row.id),
           course: String(assigned.rows[0].run_id),
           assignment: String(row.source_classroom_assignment_id),
+          lesson: String(row.source_course_lesson_id),
         })),
       );
     }
@@ -271,6 +298,32 @@ describe('written-response exact Course academic chain', () => {
       [data.runs.map((item) => item.id)],
     );
     expect(projects.rows[0].count).toBe(0);
+    const completionFor = async (course: string) => {
+      const result = await admin.query(
+        `SELECT learning_course_completion_internal(enrollment.id) AS result
+         FROM course_enrollments enrollment WHERE enrollment.course_run_id=$1
+           AND enrollment.learner_identity_id=(SELECT learner_identity_id FROM activity_participations WHERE id=$2)`,
+        [course, first.participationId],
+      );
+      return result.rows[0].result;
+    };
+    const marked = await app.query(
+      'SELECT * FROM classroom_course_material_progress_set($1,$2,$3,true)',
+      [data.seat.id, run.course, run.lesson],
+    );
+    expect(marked.rows[0].result_code).toBe('ok');
+    expect((await completionFor(run.course)).completed).toBe(false);
+    const second = data.runs[1]!;
+    const secondAttempt = otherStarts[0]!.attempt!;
+    await save(data.seat.principal, second.id, secondAttempt.id, 0, 'Второй обязательный ответ');
+    await submit(data.seat.principal, second.id, secondAttempt.id, 1);
+    const secondReview = await app.query(
+      "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'accepted',9,NULL,NULL,NULL,$5)",
+      [teacherAccount, teacherPrincipal, data.classroomId, secondAttempt.id, key('review-second')],
+    );
+    expect(secondReview.rows[0].result_code).toBe('ok');
+    expect((await completionFor(run.course)).completed).toBe(true);
+    expect((await completionFor(data.runs[2]!.course)).completed).toBe(false);
   });
 
   it('returns for revision with a new linked attempt and preserves frozen text and all result history', async () => {
@@ -331,7 +384,7 @@ describe('written-response exact Course academic chain', () => {
   });
 
   it('enforces Seat/Account stable links, current access and teacher scope before every answer or receipt', async () => {
-    const data = await fixture();
+    const data = await fixture(true);
     const run = data.runs[0]!;
     const first = await start(data.seat.principal, run.id);
     const saveRequest = key('private-save');
@@ -359,15 +412,25 @@ describe('written-response exact Course academic chain', () => {
       [accountId, first.participationId],
     );
     expect((await read(accountPrincipal, run.id)).attempt?.text).toBe('Личный ответ');
+    const media = (actor: string) =>
+      app.query("SELECT * FROM learning_essay_media_read($1,$2,'file',$3)", [
+        actor,
+        run.id,
+        taskHash,
+      ]);
+    expect((await media(accountPrincipal)).rows[0].media_bytes).toEqual(taskPdf);
     await admin.query("UPDATE accounts SET status='suspended' WHERE id=$1", [accountId]);
     expect((await read(accountPrincipal, run.id)).resultCode).toBe('forbidden');
+    expect((await media(accountPrincipal)).rows).toHaveLength(0);
     expect((await read(data.seat.principal, run.id)).attempt?.text).toBe('Личный ответ');
+    expect((await media(data.seat.principal)).rows[0].media_bytes).toEqual(taskPdf);
     await admin.query("UPDATE accounts SET status='active' WHERE id=$1", [accountId]);
     await admin.query(
       "UPDATE learner_identity_links SET status='inactive',disabled_at=now() WHERE account_id=$1",
       [accountId],
     );
     expect((await read(accountPrincipal, run.id)).resultCode).toBe('forbidden');
+    expect((await media(accountPrincipal)).rows).toHaveLength(0);
     expect((await read(data.seat.principal, run.id)).attempt?.text).toBe('Личный ответ');
     await admin.query("UPDATE classroom_student_seats SET status='suspended' WHERE id=$1", [
       data.seat.id,
@@ -379,5 +442,82 @@ describe('written-response exact Course academic chain', () => {
     await expect(
       app.query('SELECT response_text FROM learning_essay_drafts'),
     ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('redacts scheduled task content on exact reads and Course list metadata until effective opening, without hiding teacher evidence', async () => {
+    const data = await fixture(true);
+    const run = data.runs[0]!;
+    await admin.query(
+      "UPDATE activity_runs SET operational_overrides=jsonb_build_object('opensAt',now()+interval '1 day') WHERE id=$1",
+      [run.id],
+    );
+    const scheduled = await read(data.seat.principal, run.id);
+    expect(scheduled).toMatchObject({
+      resultCode: 'ok',
+      instructions: null,
+      goal: null,
+      blocks: null,
+      canStart: false,
+      canEdit: false,
+      attempt: null,
+    });
+    expect((await start(data.seat.principal, run.id)).resultCode).toBe('not_available');
+    expect(
+      (
+        await app.query("SELECT * FROM learning_essay_media_read($1,$2,'file',$3)", [
+          data.seat.principal,
+          run.id,
+          taskHash,
+        ])
+      ).rows,
+    ).toHaveLength(0);
+    const metadata = await app.query(
+      `SELECT learning_essay_attempt_read($1,occurrence.activity_run_id) AS essay_context
+       FROM classroom_course_activity_occurrences_for_seat($2) occurrence WHERE occurrence.activity_run_id=$3`,
+      [data.seat.principal, data.seat.id, run.id],
+    );
+    expect(metadata.rows[0].essay_context).toMatchObject({
+      instructions: null,
+      goal: null,
+      blocks: null,
+    });
+    await admin.query(
+      "UPDATE activity_runs SET operational_overrides=jsonb_build_object('opensAt',now()) WHERE id=$1",
+      [run.id],
+    );
+    expect(await read(data.seat.principal, run.id)).toMatchObject({
+      instructions: 'Объясните своими словами.',
+      canStart: true,
+    });
+    const openMedia = await app.query("SELECT * FROM learning_essay_media_read($1,$2,'file',$3)", [
+      data.seat.principal,
+      run.id,
+      taskHash,
+    ]);
+    expect(openMedia.rows[0].media_bytes).toEqual(taskPdf);
+    const first = await start(data.seat.principal, run.id);
+    await save(
+      data.seat.principal,
+      run.id,
+      first.attempt!.id,
+      0,
+      'Сданный ответ до переноса открытия',
+    );
+    await submit(data.seat.principal, run.id, first.attempt!.id, 1);
+    await admin.query(
+      "UPDATE activity_runs SET operational_overrides=jsonb_build_object('opensAt',now()+interval '1 day') WHERE id=$1",
+      [run.id],
+    );
+    expect(await read(data.seat.principal, run.id)).toMatchObject({
+      instructions: null,
+      goal: null,
+      blocks: null,
+      canEdit: false,
+    });
+    const teacherEvidence = await app.query(
+      'SELECT * FROM learning_teacher_exact_essay_submission($1,$2,$3)',
+      [teacherAccount, data.classroomId, first.attempt!.id],
+    );
+    expect(teacherEvidence.rows[0].response_text).toBe('Сданный ответ до переноса открытия');
   });
 });

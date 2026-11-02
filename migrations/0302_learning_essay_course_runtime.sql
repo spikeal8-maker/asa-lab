@@ -14,7 +14,12 @@ ALTER TABLE public.learning_submissions
       AND payload_manifest->>'kind' = 'essay'
       AND jsonb_typeof(payload_manifest->'text') = 'string'
       AND length(payload_manifest->>'text') BETWEEN 1 AND 40000
-      AND payload_manifest->>'textHash' = payload_digest),false)
+      AND payload_manifest->>'textHash' = payload_digest
+      AND encode(public.digest(convert_to(payload_manifest->>'text','UTF8'),'sha256'),'hex') = payload_digest
+      AND CASE WHEN jsonb_typeof(payload_manifest->'draftRevision')='number'
+        AND (payload_manifest->>'draftRevision') ~ '^[0-9]{1,10}$'
+        THEN (payload_manifest->>'draftRevision')::bigint BETWEEN 0 AND 2147483646
+        ELSE false END),false)
   );
 
 CREATE TABLE public.learning_essay_drafts (
@@ -145,11 +150,22 @@ $$;
 CREATE FUNCTION public.learning_essay_attempt_read(p_actor uuid,p_run uuid)
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path=pg_catalog,pg_temp AS $$
-DECLARE scope jsonb; current_attempt record; version record; response jsonb;
+DECLARE scope jsonb; current_attempt record; version record; response jsonb; content_visible boolean; task_blocks jsonb;
 BEGIN
   scope:=public.learning_essay_access(p_actor,p_run);
   IF scope IS NULL THEN RETURN jsonb_build_object('resultCode','forbidden'); END IF;
+  content_visible:=(scope#>>'{effective,values,opensAt}')::timestamptz IS NULL
+    OR (scope#>>'{effective,values,opensAt}')::timestamptz<=now();
   SELECT * INTO version FROM public.learning_activity_versions WHERE id=(scope->>'versionId')::uuid;
+  IF content_visible THEN
+    SELECT COALESCE(jsonb_agg(CASE WHEN entry.value->>'type' IN ('image','file')
+      THEN entry.value||jsonb_build_object('src','/api/learning/essay/runs/'||p_run::text||
+        '/media/'||(entry.value->>'type')||'/'||(entry.value->>'contentHash'))
+      ELSE entry.value END ORDER BY entry.position),'[]'::jsonb) INTO task_blocks
+    FROM jsonb_array_elements(CASE WHEN version.blocks_snapshot_present THEN version.blocks
+      ELSE public.learning_activity_task_blocks(NULL,version.instructions) END)
+      WITH ORDINALITY AS entry(value,position);
+  END IF;
   SELECT attempt.*,draft.revision,draft.response_text,draft.saved_at,
     submission.id AS submission_id,submission.payload_digest,
     review.review_decision,review.feedback
@@ -164,8 +180,11 @@ BEGIN
     ORDER BY attempt.attempt_number DESC LIMIT 1;
   response:=jsonb_build_object('resultCode','ok','activityRunId',p_run,
     'participationId',scope->'participationId','activityVersionId',version.id,
-    'title',version.title,'instructions',version.instructions,'goal',version.goal,
-    'blocks',version.blocks,'resultMode',version.result_mode,'maxPoints',version.max_points,
+    'title',version.title,
+    'instructions',CASE WHEN content_visible THEN version.instructions END,
+    'goal',CASE WHEN content_visible THEN version.goal END,
+    'blocks',task_blocks,
+    'resultMode',version.result_mode,'maxPoints',version.max_points,
     'canStart',(scope->>'writable')::boolean AND (current_attempt.id IS NULL
       OR (current_attempt.state='closed' AND current_attempt.review_decision='changes_requested')),
     'canEdit',COALESCE((scope->>'writable')::boolean AND current_attempt.state='in_progress',false),
@@ -179,6 +198,23 @@ BEGIN
   RETURN response;
 END;
 $$;
+
+-- A command receipt freezes acknowledgement, not today's content/access policy.
+-- Replays retain their exact Attempt/revision but never restore a later-hidden
+-- task or resurrect an editable state after Submit or review.
+CREATE FUNCTION public.learning_essay_receipt_view(p_scope jsonb,p_response jsonb)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+  SELECT p_response || jsonb_build_object('canStart',false,'canEdit',
+    (p_scope->>'writable')::boolean AND EXISTS(SELECT 1 FROM public.learning_attempts attempt
+      WHERE attempt.id=(p_response#>>'{attempt,id}')::uuid
+        AND attempt.tenant_id=(p_scope->>'tenantId')::uuid
+        AND attempt.activity_participation_id=(p_scope->>'participationId')::uuid
+        AND attempt.state='in_progress')) || CASE
+      WHEN (p_scope#>>'{effective,values,opensAt}')::timestamptz>now()
+      THEN jsonb_build_object('instructions',NULL,'goal',NULL,'blocks',NULL)
+      ELSE '{}'::jsonb END;
+$$;
+REVOKE ALL ON FUNCTION public.learning_essay_receipt_view(jsonb,jsonb) FROM PUBLIC,asalab_app;
 
 CREATE FUNCTION public.learning_essay_attempt_start(p_actor uuid,p_run uuid,p_request varchar)
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
@@ -196,7 +232,7 @@ BEGIN
     WHERE actor_principal_id=p_actor AND request_id=p_request;
   IF receipt.request_digest IS NOT NULL THEN
     IF receipt.request_digest<>fingerprint THEN RETURN jsonb_build_object('resultCode','request_conflict'); END IF;
-    RETURN receipt.response;
+    RETURN public.learning_essay_receipt_view(scope,receipt.response);
   END IF;
   IF NOT (scope->>'writable')::boolean THEN RETURN jsonb_build_object('resultCode','not_available'); END IF;
   SELECT attempt.*,draft.response_text,review.review_decision INTO prior
@@ -255,7 +291,7 @@ BEGIN
     WHERE actor_principal_id=p_actor AND request_id=p_request;
   IF receipt.request_digest IS NOT NULL THEN
     IF receipt.request_digest<>fingerprint THEN RETURN jsonb_build_object('resultCode','request_conflict'); END IF;
-    RETURN receipt.response;
+    RETURN public.learning_essay_receipt_view(scope,receipt.response);
   END IF;
   SELECT * INTO attempt FROM public.learning_attempts item WHERE item.id=p_attempt
     AND item.activity_participation_id=(scope->>'participationId')::uuid
@@ -291,7 +327,7 @@ BEGIN
     WHERE actor_principal_id=p_actor AND request_id=p_request;
   IF receipt.request_digest IS NOT NULL THEN
     IF receipt.request_digest<>fingerprint THEN RETURN jsonb_build_object('resultCode','request_conflict'); END IF;
-    RETURN receipt.response;
+    RETURN public.learning_essay_receipt_view(scope,receipt.response);
   END IF;
   SELECT * INTO attempt FROM public.learning_attempts item WHERE item.id=p_attempt
     AND item.activity_participation_id=(scope->>'participationId')::uuid
@@ -301,7 +337,7 @@ BEGIN
     RETURN jsonb_build_object('resultCode','not_available'); END IF;
   SELECT * INTO draft FROM public.learning_essay_drafts item WHERE item.attempt_id=p_attempt FOR UPDATE;
   IF draft.revision IS DISTINCT FROM p_expected THEN RETURN jsonb_build_object('resultCode','draft_revision_conflict'); END IF;
-  IF length(btrim(draft.response_text))=0 THEN RETURN jsonb_build_object('resultCode','response_required'); END IF;
+  IF draft.response_text ~ '^[[:space:]]*$' THEN RETURN jsonb_build_object('resultCode','response_required'); END IF;
   IF EXISTS(SELECT 1 FROM public.learning_submissions WHERE tenant_id=(scope->>'tenantId')::uuid
     AND client_request_id=p_request) THEN RETURN jsonb_build_object('resultCode','request_conflict'); END IF;
   text_hash:=encode(public.digest(convert_to(draft.response_text,'UTF8'),'sha256'),'hex');
@@ -354,6 +390,28 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 $$;
 REVOKE ALL ON FUNCTION public.learning_teacher_exact_essay_submission(uuid,uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.learning_teacher_exact_essay_submission(uuid,uuid,uuid) TO asalab_app;
+
+CREATE FUNCTION public.learning_essay_media_read(p_actor uuid,p_run uuid,p_role varchar,p_hash varchar)
+RETURNS TABLE(media_bytes bytea,content_type varchar)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE scope jsonb;
+BEGIN
+  IF p_role IS NULL OR p_role NOT IN ('image','file') OR p_hash IS NULL
+    OR p_hash !~ '^[0-9a-f]{64}$' THEN RETURN; END IF;
+  scope:=public.learning_essay_access(p_actor,p_run);
+  IF scope IS NULL OR (scope#>>'{effective,values,opensAt}')::timestamptz>now() THEN RETURN; END IF;
+  RETURN QUERY SELECT media.bytes,media.content_type::varchar
+    FROM public.learning_activity_version_media media
+    JOIN public.learning_activity_versions version ON version.id=media.activity_version_id
+      AND version.tenant_id=media.tenant_id AND version.canonical_kind='essay'
+    WHERE media.tenant_id=(scope->>'tenantId')::uuid AND version.id=(scope->>'versionId')::uuid
+      AND media.role=CASE WHEN p_role='image' THEN 'task-image' ELSE 'task-file' END
+      AND media.content_hash=p_hash AND version.blocks_snapshot_present
+      AND version.blocks @> jsonb_build_array(jsonb_build_object('type',p_role,'contentHash',p_hash));
+END;
+$$;
+REVOKE ALL ON FUNCTION public.learning_essay_media_read(uuid,uuid,varchar,varchar) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.learning_essay_media_read(uuid,uuid,varchar,varchar) TO asalab_app;
 
 
 -- Typed adapters preserve all existing Project guards and canonical result commands.

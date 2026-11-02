@@ -179,6 +179,7 @@ interface CourseActivityOccurrenceRow {
   goal: string | null;
   task_blocks: { present: boolean; blocks: unknown[] | null } | null;
   module_key: string;
+  activity_kind?: string | null;
   essay_context?: {
     resultCode: string;
     activityRunId: string;
@@ -298,6 +299,7 @@ function courseActivityOccurrenceMap(
       row.essay_context.activityVersionId === row.learning_activity_version_id
         ? row.essay_context
         : null;
+    const essayKind = row.activity_kind === 'essay';
     const origin = origins?.courseWork(row.seat_id, row.activity_run_id, row.block_id) ?? null;
     const exact = origin?.classroomAssignmentId === row.classroom_assignment_id ? origin : null;
     const originPresent =
@@ -315,8 +317,8 @@ function courseActivityOccurrenceMap(
     const exactNotStarted =
       row.project_id === null && !originPresent && row.not_started_visible === true;
     let occurrenceCanonicalState: CanonicalLearningSurfaceState | null = null;
-    if (essay && exactRunCanonicalState !== null) {
-      occurrenceCanonicalState = exactRunCanonicalState;
+    if (essayKind) {
+      occurrenceCanonicalState = essay ? exactRunCanonicalState : null;
     } else if (participation === null && courseProjectionsByRun.has(runKey)) {
       // A conflicting run cannot borrow a sibling's handout result.
       occurrenceCanonicalState = null;
@@ -367,43 +369,47 @@ function courseActivityOccurrenceMap(
       classroomAssignmentId: row.classroom_assignment_id,
       requirement,
       learningActivityVersionId: row.learning_activity_version_id,
-      ...(essay ? { activityKind: 'essay' as const } : {}),
+      ...(essayKind ? { activityKind: 'essay' as const } : {}),
       title: row.title,
-      goal: essay
-        ? essay.goal
+      goal: essayKind
+        ? (essay?.goal ?? null)
         : exact
           ? exact.goal
           : row.task_blocks?.present && row.task_blocks.blocks === null
             ? null
             : (row.goal ?? null),
-      blocks: essay
-        ? essay.blocks
+      blocks: essayKind
+        ? (essay?.blocks ?? null)
         : exact?.blocksSnapshotPresent
           ? exact.blocks
           : row.task_blocks?.present
             ? row.task_blocks.blocks
             : undefined,
-      moduleKey: essay ? null : row.module_key,
+      moduleKey: essayKind ? null : row.module_key,
       sampleImage:
         row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
-      projectId: exact?.projectId ?? (legacyAllowed ? row.project_id : null),
-      submittedAt: essay
-        ? (essay.attempt?.submittedAt ?? null)
+      projectId: essayKind ? null : (exact?.projectId ?? (legacyAllowed ? row.project_id : null)),
+      submittedAt: essayKind
+        ? (essay?.attempt?.submittedAt ?? null)
         : exact
           ? exact.submittedAt
           : !legacyAllowed || row.submitted_at === null
             ? null
             : isoDate(row.submitted_at),
-      snapshotRevision: exact
-        ? exact.snapshotRevision
-        : !legacyAllowed || row.snapshot_revision === null
-          ? null
-          : Number(row.snapshot_revision),
-      updatedAt: exact
-        ? exact.updatedAt
-        : !legacyAllowed || row.work_updated_at === null
-          ? null
-          : isoDate(row.work_updated_at),
+      snapshotRevision: essayKind
+        ? null
+        : exact
+          ? exact.snapshotRevision
+          : !legacyAllowed || row.snapshot_revision === null
+            ? null
+            : Number(row.snapshot_revision),
+      updatedAt: essayKind
+        ? null
+        : exact
+          ? exact.updatedAt
+          : !legacyAllowed || row.work_updated_at === null
+            ? null
+            : isoDate(row.work_updated_at),
       canonicalState: occurrenceCanonicalState,
       workOriginAmbiguous,
     });
@@ -1446,6 +1452,8 @@ export class ClassroomJoinController {
       this.canonical().forAccountCourseRuns(context.accountId),
       this.requirePool().query(
         `SELECT occurrence.*,
+                (SELECT typed_version.canonical_kind FROM learning_activity_versions typed_version
+                  WHERE typed_version.id=occurrence.learning_activity_version_id) AS activity_kind,
                 CASE WHEN EXISTS(SELECT 1 FROM learning_activity_versions essay_version
                   WHERE essay_version.id=occurrence.learning_activity_version_id
                     AND essay_version.canonical_kind='essay')
@@ -1649,6 +1657,8 @@ export class ClassroomJoinController {
       this.canonical().forSeatCourseRuns(seat.seat_id),
       this.requirePool().query(
         `SELECT occurrence.*,
+                (SELECT typed_version.canonical_kind FROM learning_activity_versions typed_version
+                  WHERE typed_version.id=occurrence.learning_activity_version_id) AS activity_kind,
                 CASE WHEN EXISTS(SELECT 1 FROM learning_activity_versions essay_version
                   WHERE essay_version.id=occurrence.learning_activity_version_id
                     AND essay_version.canonical_kind='essay')

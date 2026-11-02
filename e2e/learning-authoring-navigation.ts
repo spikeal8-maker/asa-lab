@@ -98,7 +98,7 @@ export async function addCourseBlock(page: Page, label: string): Promise<void> {
   await editor.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
   await editor
     .getByRole('menu', { name: 'Добавить содержимое урока' })
-    .getByRole('menuitem', { name: '+ ' + label, exact: true })
+    .getByRole('menuitem', { name: '+ ' + (label === 'Практика' ? 'Задание' : label), exact: true })
     .click();
 }
 

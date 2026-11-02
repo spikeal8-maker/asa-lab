@@ -6142,6 +6142,32 @@ paths:
         '401': { description: No active Account or StudentSeat session }
         '404': { description: Exact activity or learner authority unavailable }
         '503': { description: Learning dependency unavailable }
+  /api/learning/essay/runs/{activityRunId}/media/{role}/{contentHash}:
+    parameters:
+      - { name: activityRunId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: role, in: path, required: true, schema: { type: string, enum: [image, file] } }
+      - {
+          name: contentHash,
+          in: path,
+          required: true,
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' },
+        }
+    get:
+      operationId: readEssayInstructionMedia
+      summary: Read exact pinned instruction image or PDF after current learner and opening checks
+      description: This route reads teacher instruction assets only. It does not implement student file responses. Closed or repeated command receipts cannot bypass current access or scheduled content visibility.
+      responses:
+        '200':
+          description: Private immutable instruction bytes with no-store and nosniff headers
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+        '400': { description: Invalid Run, role or content hash }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Unavailable scope, unopened instructions or unmatched pinned asset }
+        '503': { description: Learning dependency unavailable }
   /api/learning/essay/runs/{activityRunId}/start:
     parameters:
       - name: activityRunId
@@ -9756,6 +9782,7 @@ components:
       additionalProperties: false
       required: [source, assignment, moduleKey, resultMode, maxPoints, policies, learnerRuntime]
       properties:
+        kind: { type: string, enum: [project, essay, manual, quiz, file] }
         source:
           type: object
           additionalProperties: false

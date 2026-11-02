@@ -78,6 +78,7 @@ const SEAT_FIRST_ROUTES = new Set([
   'POST /api/learning/projects/:projectId/submit',
   'POST /api/learning/work/runs/:activityRunId/start',
   'GET /api/learning/essay/runs/:activityRunId',
+  'GET /api/learning/essay/runs/:activityRunId/media/:role/:contentHash',
   'POST /api/learning/essay/runs/:activityRunId/start',
   'PUT /api/learning/essay/runs/:activityRunId/draft',
   'POST /api/learning/essay/runs/:activityRunId/submit',

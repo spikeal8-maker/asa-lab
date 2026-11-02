@@ -9,8 +9,9 @@ import {
   Post,
   Put,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
@@ -110,6 +111,45 @@ export class LearningEssayAttemptsController {
   @Get(':activityRunId')
   read(@Req() request: FastifyRequest, @Param('activityRunId') runId: string) {
     return this.command(request, runId, 'read');
+  }
+
+  @Get(':activityRunId/media/:role/:contentHash')
+  async media(
+    @Req() request: FastifyRequest,
+    @Param('activityRunId') runId: string,
+    @Param('role') role: string,
+    @Param('contentHash') contentHash: string,
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ) {
+    if (
+      !UUID.test(runId) ||
+      !['image', 'file'].includes(role) ||
+      !/^[a-f0-9]{64}$/.test(contentHash)
+    )
+      reject('validation_error', 400);
+    const seat = await this.seatContext.resolve(request.cookies[STUDENT_SESSION_COOKIE]);
+    const account = seat ? null : await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!seat && !account) reject('unauthorized', 401);
+    if (!this.pool) reject('database_unavailable', 503);
+    const result = await this.pool.query<{ media_bytes: Buffer; content_type: string }>(
+      'SELECT * FROM learning_essay_media_read($1,$2,$3,$4)',
+      [(seat ?? account!).principalId, runId, role, contentHash],
+    );
+    const row = result.rows[0];
+    if (
+      !row ||
+      !Buffer.isBuffer(row.media_bytes) ||
+      (role === 'file'
+        ? row.content_type !== 'application/pdf'
+        : !['image/png', 'image/jpeg', 'image/webp'].includes(row.content_type))
+    )
+      reject('learning_media_unavailable', 404);
+    reply
+      .header('content-type', row.content_type)
+      .header('cache-control', 'private, no-store')
+      .header('x-content-type-options', 'nosniff');
+    if (role === 'file') reply.header('content-disposition', 'attachment; filename="material.pdf"');
+    return reply.send(row.media_bytes);
   }
 
   @Post(':activityRunId/start')

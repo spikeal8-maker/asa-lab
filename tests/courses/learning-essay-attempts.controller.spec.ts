@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { LearningEssayAttemptsController } from '../../apps/api/src/learning-essay-attempts.controller.js';
@@ -24,6 +24,44 @@ function fixture(response: unknown = { resultCode: 'ok', activityRunId: RUN }) {
 }
 
 describe('written-response HTTP boundary', () => {
+  it('serves instruction bytes only through the exact learner Run, role and digest proof', async () => {
+    const target = fixture();
+    const bytes = Buffer.from('%PDF-1.4 test');
+    target.query.mockResolvedValueOnce({
+      rows: [{ media_bytes: bytes, content_type: 'application/pdf' }],
+    } as never);
+    const reply = { header: vi.fn().mockReturnThis(), send: vi.fn().mockReturnValue('sent') };
+    await expect(
+      target.controller.media(
+        request,
+        RUN,
+        'file',
+        'a'.repeat(64),
+        reply as unknown as FastifyReply,
+      ),
+    ).resolves.toBe('sent');
+    expect(target.query).toHaveBeenCalledWith(
+      'SELECT * FROM learning_essay_media_read($1,$2,$3,$4)',
+      ['seat-owner', RUN, 'file', 'a'.repeat(64)],
+    );
+    expect(reply.header).toHaveBeenCalledWith('cache-control', 'private, no-store');
+    expect(reply.header).toHaveBeenCalledWith('x-content-type-options', 'nosniff');
+    expect(reply.send).toHaveBeenCalledWith(bytes);
+  });
+
+  it('rejects unsupported media roles and safe absence before returning any bytes', async () => {
+    const target = fixture();
+    const reply = { header: vi.fn().mockReturnThis(), send: vi.fn() } as unknown as FastifyReply;
+    await expect(
+      target.controller.media(request, RUN, 'svg', 'a'.repeat(64), reply),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(target.query).not.toHaveBeenCalled();
+    target.query.mockResolvedValueOnce({ rows: [] });
+    await expect(
+      target.controller.media(request, RUN, 'image', 'a'.repeat(64), reply),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(reply.send).not.toHaveBeenCalled();
+  });
   it('uses the authenticated Seat independently of the linked Account and ignores client identity', async () => {
     const target = fixture();
     await expect(target.controller.read(request, RUN)).resolves.toEqual({ activityRunId: RUN });
