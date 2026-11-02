@@ -75,3 +75,27 @@ Preview catalog: `http://127.0.0.1:4612/#/explore` (20 real isolated publication
 House model: `http://127.0.0.1:4612/#/public-projects/94686ae6-f667-4bcd-ba9f-5321597ddaec`.
 The examples are local, not working-site content. Account state, test credentials
 and full run logs stay outside Git in the operations report directory.
+
+## Final integration receipt
+
+Product build and emitted graph passed on
+`2452b85545ab172edc04a5109d757b7b5b10412b`, after conflict-free convergence with
+Main `c3537033`. Web typecheck and changed-source lint passed. The package now
+exports pure `document` and `operations` subpaths, avoiding module-provider/SDK
+side effects in the public viewer. The emitted-graph guard was not weakened.
+
+- Existing publication/Worker graph: PASS, 27 chunks, 5,953,263 raw bytes,
+  zero forbidden executable editor/electronics sources. This graph conservatively
+  includes both viewer families and shared application dependencies, not initial
+  page transfer size.
+- 3D viewer static closure: nine chunks, 3,770,150 raw bytes including shared React/
+  bootstrap and Three.js. Geometry/fonts account for the largest lazy runtime chunk.
+  No authoring shell, toolbar, panels or project persistence hooks in that closure.
+- Initial application entry contains neither `SceneRuntime` nor `ThreeDPresentation`.
+  Heavy 3D rendering starts only for a requested project view/hover.
+- Focused regression after import isolation: selection-model, hover lease and
+  publication provenance tests passed. The public/private pointer browser regression
+  passed before this import-only isolation; the canonical algorithms were unchanged.
+
+Owner visual acceptance remains pending. Cloud CI and working-site deployment
+are separate from these completed local checks.
