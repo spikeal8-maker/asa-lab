@@ -66,3 +66,25 @@ save/load remains lossless; user text stays verbatim. Use focused unit/runtime
 checks first, then one exact-source focused gate and actual browser fixture in
 isolated CI. Independent source and actual-evidence review before integration.
 Do not claim all programme completion or deployment.
+
+## Owner-approved explicit input list
+
+The owner subsequently approved an explicit list of input ports in Arduino
+settings for cases such as digitalRead(x). Add a persisted per-board
+arduinoInputPins string array, using the existing ProductionStateValue contract.
+The generator accepts that list alongside inferred unambiguous input roles;
+unknown computed input reads rely on the declared list without inventing modes
+or adding a new generation rejection. Keep inferred and manually selected roles
+clear in the UI. Input priority preserves buttons and analog sensors.
+
+Additional causal paths: ArduinoCodePanel.tsx, arduino-program-state.ts,
+workbench.css only for scoped settings presentation, testing/arduino-program-state.spec.ts,
+testing/arduino-inactive-blocks.spec.ts and a focused native settings fixture
+under electronics/testing. Root may later select a separate full browser journey.
+No domain/schema migration or controller change is needed for this string array.
+Keep the existing top toolbar and Code controls fitted on desktop/mobile.
+Settings, generated source and block document persist atomically; changing ports
+must not reload/reset the live workspace. Board switching, undo/redo and old
+projects preserve their data, while user-authored text stays byte-for-byte intact.
+Adapt only the obsolete inactive-test assumption that empty generated setup has
+no default pin directions; retain every actual inactive-block exclusion assertion.
