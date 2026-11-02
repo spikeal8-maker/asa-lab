@@ -59,19 +59,26 @@ async function main() {
   try {
     const service = new AiPolzaService(pool);
     const read = async () => {
-      const [runtimeResult, catalogResult, policyResult, availabilityResult] = await Promise.all([
+      const [runtimeResult, catalogResult, policyResult] = await Promise.all([
         pool.query(
           'SELECT enabled, transcription_enabled, api_key_ciphertext, api_key_iv, api_key_auth_tag FROM public.ai_polza_runtime()',
         ),
         pool.query('SELECT public.ai_polza_catalog_runtime() AS value'),
         pool.query('SELECT public.ai_generation_policy_runtime() AS value'),
-        pool.query(
-          "SELECT public.ai_model_available('polza', $1::varchar, statement_timestamp()) AS available",
-          [options.model],
-        ),
       ]);
       const runtime = runtimeResult.rows[0];
       if (!runtime) throw new PolzaSetupError('POLZA_RUNTIME_MISSING');
+      const catalog = catalogResult.rows[0]?.value;
+      // ai_model_available() is intentionally not granted to the app role.
+      // For Polza its positive branch is equivalent to the saved key,
+      // credential-current catalog and an active, selected chat entry.
+      const entry = catalog?.items?.find((item) => item.id === options.model);
+      const modelAvailable =
+        typeof runtime.api_key_ciphertext === 'string' &&
+        catalog?.credentialCurrent === true &&
+        entry?.active === true &&
+        entry?.kind === 'chat' &&
+        entry?.selected === true;
       return {
         provider: {
           enabled: runtime.enabled,
@@ -79,9 +86,9 @@ async function main() {
           keyConfigured: typeof runtime.api_key_ciphertext === 'string',
           encryptionReady: credentialDecryptable(runtime, process.env.ASA_SETTINGS_ENCRYPTION_KEY),
         },
-        catalog: catalogResult.rows[0]?.value,
+        catalog,
         policy: policyResult.rows[0]?.value,
-        modelAvailable: availabilityResult.rows[0]?.available === true,
+        modelAvailable,
       };
     };
     const initial = await read();
