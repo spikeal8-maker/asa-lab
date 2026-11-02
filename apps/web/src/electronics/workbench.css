@@ -4973,6 +4973,10 @@ html.arduino-palette-resizing * {
   .workbench-toolbar-group:not(.right) > * {
     flex-shrink: 0;
   }
+  .workbench-toolbar-group:not(.right) .workbench-tool,
+  .workbench-toolbar-group:not(.right) .workbench-wire-color {
+    height: 100%;
+  }
   .workbench-toolbar-group.right,
   .workbench-simulation-time {
     flex-shrink: 0;
@@ -4981,6 +4985,64 @@ html.arduino-palette-resizing * {
     position: fixed;
     top: calc(var(--wb-header-height) + var(--wb-toolbar-height));
     left: 8px;
+  }
+}
+
+/* Compact desktop: spend the row on controls and complete labels, not gaps. */
+@media (min-width: 981px) and (max-width: 1459px) {
+  .workbench-breadboard-tools .workbench-tool {
+    width: 36px;
+    height: 100%;
+  }
+  .workbench-breadboard-tools .workbench-toolbar-gap {
+    width: 0;
+  }
+  .workbench-breadboard-tools .workbench-wire-color {
+    flex-basis: 40px;
+    width: 40px;
+    min-width: 40px;
+    height: 100%;
+    padding: 0;
+  }
+  .workbench-breadboard-tools .workbench-wire-color summary {
+    width: 40px;
+    height: 100%;
+    padding: 0 3px;
+  }
+  .workbench-breadboard-tools .workbench-wire-color summary > span {
+    flex-basis: 20px;
+    width: 20px;
+    height: 20px;
+  }
+  .workbench-breadboard-tools .workbench-wire-color svg {
+    width: 10px;
+    margin-left: 2px;
+  }
+  .workbench-breadboard-tools .workbench-wire-style {
+    flex-basis: 44px;
+    width: 44px;
+    gap: 0;
+    padding: 0;
+  }
+  .workbench-toolbar-group.right {
+    gap: 2px;
+    padding: 0 2px;
+  }
+  .workbench-toolbar-group.right .workbench-pill {
+    width: max-content;
+    min-width: 0;
+    gap: 3px;
+    padding: 0 2px;
+  }
+  .workbench-toolbar-group.right .workbench-pill:last-child {
+    width: max-content;
+    padding: 0 2px;
+  }
+  .workbench-simulation-clock-button {
+    padding: 0;
+  }
+  .workbench-simulation-time {
+    padding: 0 2px;
   }
 }
 
