@@ -24,6 +24,7 @@ import zlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from deployment.paths import atomic_bytes
+from deployment import operational
 from resource_sampling import ResourceSampler
 from memory_sampling import CAPTURE_SECONDS, capture_memory
 
@@ -40,6 +41,7 @@ DATABASE_DIAGNOSTICS = json.loads((Path(__file__).resolve().parent.parent /
 # public diagnostic projection (two different rows can have identical messages).
 DATABASE_NATIVE_KEYS = {table: ('event_hash',) if table == 'max_webhook_events' else ('id',)
                         for table in DATABASE_DIAGNOSTICS['sources']}
+DATABASE_NATIVE_KEYS.update({table: ('owner_principal_id', 'request_id') for table in ('ai_image_jobs','ai_usage_journal')})
 DATABASE_IDENTITY_LIMIT = 256
 DATABASE_BATCH_ROWS = 128
 DATABASE_BATCH_BYTES = 4 * 1024 * 1024
@@ -223,6 +225,7 @@ def subsystem(source: str, payload=None, origin="") -> str:
     if source in ("postgres", "migration"): return "database"
     if source.startswith("minio"): return "storage"
     if source == "tunnel": return "network"
+    if origin in ('ai_image_jobs', 'ai_usage_journal'): return 'diagnostics'
     if origin in ("product_analytics_events", "classroom_activity_events", "grade_change_events"):
         return {"product_analytics_events": "analytics", "classroom_activity_events": "classrooms", "grade_change_events": "learning"}[origin]
     if source == "auth": return "access"
@@ -561,7 +564,7 @@ class Collector:
                 self.set_state('history:audit', audit)
             else:
                 self.set_state('history:audit', dict(generation=uuid.uuid4().hex, cursor=max(active, default=''),
-                    checked=len(active), total=len(active), lastCompletedAt=now(), deadline=time.time()+900, state='complete'))
+                    checked=len(active), total=len(active), lastCompletedAt=now(), deadline=time.time()+900, state='complete', incomplete=False))
             self.db.execute('DELETE FROM history_mapping_changes')
         except (ValueError, TypeError, KeyError, IndexError, OSError, EOFError, sqlite3.Error, zlib.error) as exc:
             if continuous:
@@ -819,11 +822,21 @@ class Collector:
             CASE WHEN a.atthasmissing THEN to_jsonb(a.attmissingval)->0 ELSE 'null'::jsonb END)
             FROM pg_attribute a WHERE a.attrelid='public."{table}"'::regclass
             AND a.attnum>0 AND NOT a.attisdropped)::text'''
+        projection = DATABASE_DIAGNOSTICS['sources'][table].get('projection')
+        columns = '*'
+        if projection is not None:
+            # AI prompts, output/storage keys, profile snapshots and model names
+            # never cross the PostgreSQL subprocess boundary in the first place.
+            names = {column, *DATABASE_NATIVE_KEYS[table]}
+            if not isinstance(projection, dict) or any(not re.fullmatch('[a-z_]{1,64}', name) for name in (*projection, *projection.values())):
+                raise ValueError('Invalid closed database projection')
+            columns = ','.join(f'"{name}"' for name in sorted(names)) + ',' + ','.join(f'"{source}" AS "{name}"' for name, source in projection.items())
+            defaults_sql = "'{}'::text"
         # Limit before encoding. The doubled UTF-8 length also bounds CSV quote
         # escaping; the extra allowance covers separators and the final trailer.
         sql = f'''BEGIN READ ONLY; SET LOCAL statement_timeout='15s';
             COPY (WITH candidates AS MATERIALIZED (
-                SELECT * FROM public."{table}" WHERE {condition} ORDER BY {order} LIMIT {DATABASE_BATCH_ROWS + 1}
+                SELECT {columns} FROM public."{table}" WHERE {condition} ORDER BY {order} LIMIT {DATABASE_BATCH_ROWS + 1}
             ), encoded AS MATERIALIZED (
                 SELECT row_to_json(t)::text AS raw, {defaults_sql} AS defaults,
                     row_number() OVER (ORDER BY {order}) AS n FROM candidates t
@@ -867,7 +880,7 @@ class Collector:
         if not getattr(self, "postgres", None):
             self.status("database-events", "unavailable", "Canonical PostgreSQL was not identified")
             return
-        tables = {table: rule['timeColumn'] for table, rule in DATABASE_DIAGNOSTICS['sources'].items()}
+        tables = {table: rule['timeColumn'] for table, rule in DATABASE_DIAGNOSTICS['sources'].items() if not rule.get('operational')}
         if history is True:
             turn = self.state('database:history:turn', 0) % len(tables)
             self.set_state('database:history:turn', turn + 1)
@@ -930,8 +943,33 @@ class Collector:
         self.status('database-history' if history is True else "database-events", 'error' if failures else 'pending' if pending else 'ok',
                     f'{failures} table sources require attention' if failures else f'{pending} database sources have queued backlog' if pending else '')
 
+    def operational_database(self):
+        for table, rule in DATABASE_DIAGNOSTICS['sources'].items():
+            if not rule.get('operational'): continue
+            source, key = 'database-events:' + table, 'db:operational:' + table
+            if not getattr(self, 'postgres', None):
+                self.status(source, 'unavailable', 'Canonical PostgreSQL was not identified')
+                continue
+            try:
+                # These ledgers have no updated_at. Reconcile bounded retained
+                # pages continuously, so long-queued jobs' late outcomes are
+                # observed instead of waiting for a six-hour historical pass.
+                cutoff = (datetime.now(UTC)-timedelta(days=self.config.get('retentionDays',30))).isoformat()
+                column = rule['timeColumn']
+                rows, more, after = self.database_batch(table, f'"{column}">=TIMESTAMPTZ \'{cutoff}\'', self.state(key))
+                observed = now()
+                for value, defaults in rows: self.add_database_row(table, value, defaults, observed)
+                self.set_state(key, after if more else None)
+                self.status(source, 'pending' if more else 'ok', 'Bounded AI ledger reconciliation queued' if more else 'Typed AI ledger observed; silent worker exception causes are not recorded by this source', observed if not more else None)
+            except Exception:
+                self.status(source, 'error', 'AI diagnostic projection unavailable; no raw rows persisted')
+
     def files(self):
-        configured = [{"source": "updates", "path": str(self.root / ".asa" / "logs")}, *self.config.get("fileSources", [])]
+        if not any(item['source'] == 'updates' for item in self.config.get('fileSources', [])):
+            # Retire only the old implicit missing .asa/logs health row. Retained
+            # event/history bytes and explicitly configured file sources survive.
+            self.db.execute("DELETE FROM sources WHERE name='updates'")
+        configured = [*self.config.get("fileSources", [])]
         if os.name == "nt" and self.config.get("includeDockerDesktop", True):
             configured.append({"source": "docker-desktop", "path": str(Path(os.environ.get("LOCALAPPDATA", "")) / "Docker" / "log")})
         cutoff = time.time() - self.config.get("retentionDays", 30) * 86400
@@ -1622,7 +1660,8 @@ class Collector:
         audit = self.state('history:audit', {})
         audit_public = {k:v for k,v in audit.items() if k not in ('boundary',)}
         if audit and audit.get('state') != 'complete' and time.time() > audit.get('deadline', 0): audit_public['state'] = 'overdue'
-        catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), historyAudit=audit_public, sources=sources, segments=segments)
+        catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), historyAudit=audit_public, sources=sources, segments=segments,
+            requiredSources=operational.required_sources(self.config, DATABASE_DIAGNOSTICS['sources'], 'windows' if os.name == 'nt' else 'linux'))
         atomic_bytes(self.store / 'catalog.json', json.dumps(catalog, ensure_ascii=False).encode('utf-8'))
         self.verified_metadata = {s['file']: s for s in segments}
         # The resource spool remains replayable until both index and catalog
@@ -1657,6 +1696,8 @@ class Collector:
             self.database(history=True)
             self.checkpoint()
             self.files()
+            operational.collect(self, normalize)
+            self.operational_database()
             self.windows(background=True)
             self.linux()
             self.lifecycle()
@@ -1843,7 +1884,7 @@ def main():
             raise ValueError('Invalid installation project')
         # The running collector needs public installation identity, not .env
         # credentials. Canonical Docker labels are checked on every cycle.
-        install = SimpleNamespace(root=args.root, state=args.root / '.asa', project=installation['project'])
+        install = SimpleNamespace(root=args.root, state=args.root / '.asa', project=installation['project'], settings=installation)
         safe_paths(install)
         validate_config(install)
         for key, lower, upper in (("retentionDays", 1, 365), ("maxBytes", 16 * 1024 * 1024, 10 * 1024 * 1024 * 1024), ("intervalSeconds", 10, 300)):

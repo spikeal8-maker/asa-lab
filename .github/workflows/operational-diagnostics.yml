@@ -1,0 +1,102 @@
+name: Operational Diagnostic Sources
+on:
+  push:
+    branches: [main, fix/operational-diagnostic-sources-20261102]
+    paths:
+      - 'tools/collect_logs.py'
+      - 'tools/deployment/**'
+      - 'tools/test_operational_database.py'
+      - 'tools/docker-update.*'
+      - 'tools/asa_manager.py'
+      - 'apps/api/src/database-diagnostic-contract.json'
+      - 'apps/api/src/log-subsystems.ts'
+      - 'apps/api/src/operational-diagnostics.spec.ts'
+      - '.github/workflows/operational-diagnostics.yml'
+  pull_request:
+    paths:
+      - 'tools/collect_logs.py'
+      - 'tools/deployment/**'
+      - 'tools/test_operational_database.py'
+      - 'tools/docker-update.*'
+      - 'tools/asa_manager.py'
+      - 'apps/api/src/database-diagnostic-contract.json'
+      - 'apps/api/src/log-subsystems.ts'
+      - 'apps/api/src/operational-diagnostics.spec.ts'
+      - '.github/workflows/operational-diagnostics.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: operational-diagnostics-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  sources:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Same operational adapter and protected writer checks as the local runner
+        run: python -m unittest tools.deployment.test_operational tools.deployment.test_collector tools.deployment.test_contracts tools.deployment.test_backup_mounts
+      - run: python tools/test_collect_logs.py
+      - name: Native source updater syntax
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens=$null; $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path tools/docker-update.ps1),[ref]$tokens,[ref]$errors) | Out-Null
+          if ($errors) { throw 'Source updater syntax invalid' }
+      - name: Linux source updater syntax
+        if: runner.os == 'Linux'
+        run: sh -n tools/docker-update.sh
+  database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17.7
+        env:
+          POSTGRES_USER: operational_ci
+          POSTGRES_PASSWORD: operational-ci-only
+          POSTGRES_DB: asa_operational_test
+        options: >-
+          --health-cmd "pg_isready -U operational_ci -d asa_operational_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Closed AI projection against actual PostgreSQL before stdout
+        env:
+          ASA_OPERATIONAL_DATABASE_TEST: '1'
+          ASA_OPERATIONAL_TEST_CONTAINER: ${{ job.services.postgres.id }}
+        run: python tools/test_operational_database.py
+  reader-projection:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run apps/api/src/operational-diagnostics.spec.ts
