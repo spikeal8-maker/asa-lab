@@ -34,6 +34,7 @@ jobs:
   gate:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     outputs:
       revision: ${{ steps.source.outputs.revision }}
     steps:
@@ -43,13 +44,21 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           REVISION: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
-          gh api "repos/$REPOSITORY/actions/runs?head_sha=$REVISION&branch=main&per_page=100" > /tmp/runs.json
           python - <<'PY'
-          import json, os
-          runs = json.load(open('/tmp/runs.json'))['workflow_runs']
-          required = [r for r in runs if r['name'] == 'ASA Lab Governance and Code Gates' and r['head_sha'] == os.environ['REVISION']]
-          required.sort(key=lambda r: (r['run_number'], r.get('run_attempt', 0)), reverse=True)
-          assert required and required[0]['status'] == 'completed' and required[0]['conclusion'] == 'success', 'Exact-SHA general CI is not green'
+          import json, os, subprocess, time
+          for attempt in range(90):
+              runs = json.loads(subprocess.check_output(['gh', 'api', 'repos/' + os.environ['REPOSITORY'] + '/actions/runs?head_sha=' + os.environ['REVISION'] + '&branch=main&per_page=100']))['workflow_runs']
+              complete = True
+              for name in ('ASA Lab Governance and Code Gates', 'Runtime Image Security'):
+                  required = sorted((r for r in runs if r['name'] == name and r['head_sha'] == os.environ['REVISION'] and r['head_branch'] == 'main'), key=lambda r: (r['run_number'], r.get('run_attempt', 0)), reverse=True)
+                  if not required or required[0]['status'] != 'completed':
+                      complete = False
+                  else:
+                      assert required[0]['conclusion'] == 'success', 'Exact-SHA required CI failed: ' + name
+              if complete:
+                  break
+              assert attempt < 89, 'Timed out waiting for exact-SHA security/general CI'
+              time.sleep(20)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('revision=' + os.environ['REVISION'] + '\n')
           PY
@@ -64,6 +73,7 @@ jobs:
       matrix:
         include:
           - { service: api, file: Dockerfile.api, target: runtime }
+          - { service: postgres, file: infra/postgres/Dockerfile, target: runtime }
           - { service: web, file: Dockerfile.web, target: runtime }
           - { service: scratch, file: infra/scratch-editor/Dockerfile, target: '' }
           - { service: minio, file: infra/minio/Dockerfile, target: '' }
@@ -85,8 +95,8 @@ jobs:
           file: ${{ matrix.file }}
           target: ${{ matrix.target }}
           platforms: linux/amd64
-          push: ${{ matrix.service != 'web' }}
-          load: ${{ matrix.service == 'web' }}
+          push: ${{ !contains(fromJSON('["api","web","postgres"]'), matrix.service) }}
+          load: ${{ contains(fromJSON('["api","web","postgres"]'), matrix.service) }}
           tags: ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ needs.gate.outputs.revision }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           build-args: |
@@ -95,6 +105,33 @@ jobs:
             ASA_BLOCKS_RUNTIME_ORIGIN=http://localhost:4613
           cache-from: type=gha,scope=portable-${{ matrix.service }}
           cache-to: type=gha,scope=portable-${{ matrix.service }},mode=max
+      - name: Qualify the actual published PostgreSQL image
+        if: matrix.service == 'postgres'
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/postgres:${{ needs.gate.outputs.revision }}
+        run: python tools/deployment/ci_postgres_security_smoke.py "$IMAGE"
+      - name: Scan the actual runtime image before publication
+        if: contains(fromJSON('["api","web","postgres"]'), matrix.service)
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ needs.gate.outputs.revision }}
+        run: |
+          curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-64bit.tar.gz -o "$RUNNER_TEMP/trivy.tar.gz"
+          printf '%s  %s\n' c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0 "$RUNNER_TEMP/trivy.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/trivy.tar.gz" -C "$RUNNER_TEMP" trivy
+          "$RUNNER_TEMP/trivy" image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --timeout 10m --format json --output scan-published-runtime.json "$IMAGE"
+          python - <<'PY'
+          import json
+          operating_system = json.load(open('scan-published-runtime.json')).get('Metadata', {}).get('OS', {})
+          assert operating_system.get('Family') in ('debian', 'alpine')
+          assert not operating_system.get('EOSL', False)
+          PY
+      - name: Retain actual publication scan evidence
+        if: always() && contains(fromJSON('["api","web","postgres"]'), matrix.service)
+        uses: actions/upload-artifact@v4
+        with:
+          name: published-security-${{ matrix.service }}-${{ needs.gate.outputs.revision }}
+          path: scan-published-runtime.json
+          if-no-files-found: warn
       - name: Export encrypted symbols from the exact web build
         if: matrix.service == 'web'
         uses: docker/build-push-action@v6
@@ -127,11 +164,11 @@ jobs:
           path: .asa/web-symbols/*.json
           if-no-files-found: error
           retention-days: 90
-      - name: Publish verified web image
-        if: matrix.service == 'web'
+      - name: Publish scanned runtime image
+        if: contains(fromJSON('["api","web","postgres"]'), matrix.service)
         env:
-          WEB_IMAGE: ghcr.io/${{ github.repository }}/web:${{ needs.gate.outputs.revision }}
-        run: docker push "$WEB_IMAGE"
+          IMAGE: ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ needs.gate.outputs.revision }}
+        run: docker push "$IMAGE"
   publish:
     needs: [gate, build]
     permissions:

@@ -14,7 +14,13 @@ services:
       options:
         max-size: '10m'
         max-file: '5'
-    image: postgres:17.7-bookworm
+    build:
+      context: .
+      dockerfile: infra/postgres/Dockerfile
+      target: runtime
+      args:
+        ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
+    image: ${ASA_POSTGRES_IMAGE:-asa-lab-postgres:${ASA_IMAGE_TAG:-local}}
     # Lock waits are useful; SQL text, bind values and error context are not logs.
     command:
       [

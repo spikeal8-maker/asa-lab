@@ -16,6 +16,11 @@ REPOSITORY = "spikeal8-maker/asa-lab"
 REGISTRY = f"ghcr.io/{REPOSITORY}"
 LEGACY_SERVICES = ("api", "web", "scratch", "minio")
 SERVICES = (*LEGACY_SERVICES, "search")
+V3_SERVICES = (*SERVICES, "postgres")
+# Versioned compatibility input: the original 17.7 CI/release baseline, never
+# today's candidate. Historical primary/mirror identity is in the 545 receipt.
+LEGACY_POSTGRES_IMAGES = {version: "docker.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854"
+                          for version in ("asa-deployment-v1", "asa-deployment-v2")}
 MOSCOW = dt.timezone(dt.timedelta(hours=3))
 DEFAULT_WINDOW = {"weekday": 6, "start": "03:00", "end": "05:00", "utcOffsetMinutes": 180}
 
@@ -192,7 +197,7 @@ def in_window(window, now=None, reserve_minutes=0):
 
 
 def validate_release(payload):
-    require(isinstance(payload, dict) and payload.get("format") in ("asa-deployment-v1", "asa-deployment-v2"),
+    require(isinstance(payload, dict) and payload.get("format") in ("asa-deployment-v1", "asa-deployment-v2", "asa-deployment-v3"),
             "RELEASE", "Unsupported release manifest.")
     require(payload.get("repository") == REPOSITORY, "RELEASE", "Foreign release repository.")
     require(re.fullmatch(r"[a-f0-9]{40}", payload.get("revision", "")), "RELEASE", "Invalid release SHA.")
@@ -201,7 +206,7 @@ def validate_release(payload):
     require(payload.get("platform") == "linux/amd64", "RELEASE", "Unsupported image platform.")
     require(type(payload.get("publicationRunId")) is int and payload["publicationRunId"] > 0,
             "RELEASE", "Publication workflow ID is required.")
-    expected_services = LEGACY_SERVICES if payload["format"] == "asa-deployment-v1" else SERVICES
+    expected_services = {"asa-deployment-v1": LEGACY_SERVICES, "asa-deployment-v2": SERVICES, "asa-deployment-v3": V3_SERVICES}[payload["format"]]
     require(set(payload.get("images", {})) == set(expected_services), "RELEASE", "Incomplete image set.")
     for name in expected_services:
         ref = payload["images"][name]

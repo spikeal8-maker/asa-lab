@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-ARG NODE_IMAGE=node:22.23.2-bookworm-slim
+ARG NODE_IMAGE=node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
 
 FROM ${NODE_IMAGE} AS workspace
 
@@ -54,14 +54,28 @@ RUN python -c "import gzip, json, sqlite3, tempfile, zipfile; db = sqlite3.conne
 
 FROM ${NODE_IMAGE} AS runtime
 
+ARG ASA_SECURITY_PATCHSET=2026-11-02
+
 # Validate compressed speech duration before any potentially billable Polza request.
 # ffprobe runs on bounded in-memory input; no audio is written to disk.
 RUN apt-get update \
+    && test -n "$ASA_SECURITY_PATCHSET" \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends ffmpeg python3 python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=workspace /workspace/tools/ai-document-requirements.txt /opt/asa-document-requirements.txt
-RUN python3 -m venv /opt/asa-document-python && /opt/asa-document-python/bin/pip install --no-cache-dir -r /opt/asa-document-requirements.txt
+# The document worker needs installed wheels, not the bootstrap packaging tools.
+# Remove unused setuptools after installation; keep the document-reader smoke below.
+RUN python3 -m venv /opt/asa-document-python \
+    && /opt/asa-document-python/bin/pip install --no-cache-dir -r /opt/asa-document-requirements.txt \
+    && /opt/asa-document-python/bin/pip uninstall -y setuptools
+
+# npm/npx are build-time package managers, never used by the Node runtime entrypoints.
+# Remove the unused tool instead of excluding its vulnerabilities from scans.
+# workspace/browser/test stages retain their package-management tooling.
+RUN rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
 ARG ASA_BUILD_REVISION=unknown
 LABEL org.opencontainers.image.revision="${ASA_BUILD_REVISION}"
