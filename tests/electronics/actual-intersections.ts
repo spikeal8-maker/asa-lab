@@ -97,6 +97,15 @@ export async function observeActualIntersections(selector: string) {
   };
   // Detect even change-and-revert while the rendering observation is pending.
   const relevant = (record: MutationRecord) => {
+    // Reassigning the same attribute value queues a record without changing it.
+    // A change-and-revert still has a record whose old value differs from the final value.
+    if (
+      record.type === 'attributes' &&
+      record.target instanceof Element &&
+      record.oldValue ===
+        record.target.getAttributeNS(record.attributeNamespace, record.attributeName!)
+    )
+      return false;
     if (
       record.type === 'attributes' &&
       record.attributeName === 'data-time-ms' &&
@@ -115,6 +124,7 @@ export async function observeActualIntersections(selector: string) {
   });
   mutations.observe(document, {
     attributes: true,
+    attributeOldValue: true,
     childList: true,
     characterData: true,
     subtree: true,

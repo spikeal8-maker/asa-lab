@@ -237,6 +237,58 @@ try {
   for (const frame of live.frames)
     assert.deepEqual(frame, { width: 40, clipWidth: 40, owned: Array(5).fill(true) });
 
+  const editor = await readFile('apps/web/src/pages/SchematicEditor.tsx', 'utf8');
+  const resize = editor.match(/const resize = \(\) => \{[\s\S]*?\n {4}\};/)?.[0];
+  assert.ok(resize, 'exact production viewport resize callback exists');
+  for (const mutation of ['noop', 'keyboard-revert', 'add-remove', 'remove-add']) {
+    await liveFixture('[data-keyboard-open="true"]{width:38px!important}');
+    await page.addScriptTag({
+      content: `(() => { const shellRef = { current: document.querySelector('#clip') };
+        const visible = window.visualViewport;
+        ${resize}
+        resize();
+        globalThis.fixtureResize = resize; })();`,
+    });
+    const pending = page.evaluate(async (mutation) => {
+      const clip = document.querySelector('#clip');
+      const pending = globalThis.observeActualIntersections('button');
+      queueMicrotask(() => {
+        globalThis.fixtureResize();
+        if (mutation === 'keyboard-revert') {
+          clip.dataset.keyboardOpen = 'true';
+          clip.dataset.keyboardOpen = 'false';
+        } else if (mutation === 'add-remove') {
+          clip.setAttribute('data-probe', '');
+          clip.removeAttribute('data-probe');
+        } else if (mutation === 'remove-add') {
+          clip.removeAttribute('data-keyboard-open');
+          clip.dataset.keyboardOpen = 'false';
+        }
+      });
+      const capture = await pending;
+      return capture.read(([button], [intersection]) => {
+        const rect = button.getBoundingClientRect();
+        return {
+          width: rect.width,
+          clipWidth: intersection.width,
+          owned: [
+            [3, 3],
+            [37, 3],
+            [3, 25],
+            [37, 25],
+            [20, 14],
+          ].every(([x, y]) => {
+            const hit = document.elementFromPoint(rect.left + x, rect.top + y);
+            return hit === button || button.contains(hit);
+          }),
+        };
+      });
+    }, mutation);
+    if (mutation === 'noop')
+      assert.deepEqual(await pending, { width: 40, clipWidth: 40, owned: true });
+    else await assert.rejects(pending, /Actual intersection capture changed/, mutation);
+  }
+
   // Continuous telemetry and paint must not hide an actual clipping mutation,
   // including change-and-revert that a final geometry fingerprint cannot see.
   for (const mutation of [
@@ -280,7 +332,7 @@ try {
     );
   }
   log(
-    'PASS: six clipping/ownership adversaries; shrink, replacement, reorder reject stale captures; continuous clock and exact production infinite pulse retain geometry/all five native hits; live shrink/revert, CSS-dependent telemetry/revert and content mutations reject',
+    'PASS: six clipping/ownership adversaries; shrink, replacement, reorder reject stale captures; continuous clock, production pulse and exact resize no-op retain geometry/all five native hits; keyboard/add/remove reverts, live shrink/revert, CSS-dependent telemetry/revert and content mutations reject',
   );
 } finally {
   await browser?.close();
