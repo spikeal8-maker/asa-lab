@@ -3,7 +3,7 @@ import type { PublicUser } from '../api';
 import { ChessEditor } from './ChessEditor';
 import { ChessHome } from './ChessHome';
 import { ChessOnlineLobby } from './ChessOnlineLobby';
-import { ChessNetworkLobby } from './ChessNetworkLobby';
+import { ChessSectionHeader } from './ChessSectionHeader';
 import { gameAccessApi, gameAccessMessage } from '../games/game-access-api';
 import { startLivePoll } from './live-poll';
 import { ChessPuzzleTrainer } from './ChessPuzzleTrainer';
@@ -18,6 +18,121 @@ import {
 import './chess-training.css';
 import './chess-review.css';
 import './chess-theme.css';
+
+type NetworkLobbyComponent = (typeof import('./ChessNetworkLobby'))['ChessNetworkLobby'];
+let loadedNetworkLobby: NetworkLobbyComponent | null = null;
+let networkLobbyLoad: Promise<NetworkLobbyComponent> | null = null;
+
+function keepNetworkLoadErrorLocal(event: Event): void {
+  const reason = (event as CustomEvent<unknown>).detail;
+  if (!(reason instanceof Error)) return;
+  const address = reason.message.match(
+    /https?:\/\/[^\s]+|\/assets\/ChessNetworkLobby-[\w-]+\.(?:js|css)/,
+  )?.[0];
+  if (!address) return;
+  try {
+    const url = new URL(address, window.location.href);
+    if (
+      url.origin === window.location.origin &&
+      /^\/assets\/ChessNetworkLobby-[\w-]+\.(?:js|css)$/.test(url.pathname)
+    )
+      event.preventDefault();
+  } catch {
+    /* Unknown failures retain the application's existing recovery policy. */
+  }
+}
+
+function loadNetworkLobby(): Promise<NetworkLobbyComponent> {
+  if (loadedNetworkLobby) return Promise.resolve(loadedNetworkLobby);
+  if (!networkLobbyLoad) {
+    // Own only this optional chunk's failure, including a reply after route exit.
+    window.addEventListener('asa-optional-preload-error', keepNetworkLoadErrorLocal);
+    networkLobbyLoad = import('./ChessNetworkLobby')
+      .then((module) => {
+        loadedNetworkLobby = module.ChessNetworkLobby;
+        return loadedNetworkLobby;
+      })
+      .finally(() => {
+        networkLobbyLoad = null;
+        window.removeEventListener('asa-optional-preload-error', keepNetworkLoadErrorLocal);
+      });
+  }
+  return networkLobbyLoad;
+}
+
+/** A cold offline entry never poisons the browser's module cache with a failed import. */
+function ChessNetworkRoute(props: Parameters<NetworkLobbyComponent>[0]) {
+  const [Lobby, setLobby] = useState<NetworkLobbyComponent | null>(() => loadedNetworkLobby);
+  const [online, setOnline] = useState(() => navigator.onLine !== false);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine !== false);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+  useEffect(() => {
+    if (Lobby || !online || failed || navigator.onLine === false) return;
+    let current = true;
+    const deadline = window.setTimeout(() => {
+      if (!current) return;
+      current = false;
+      setFailed(true);
+    }, 15_000);
+    void loadNetworkLobby().then(
+      (component) => {
+        window.clearTimeout(deadline);
+        if (current) setLobby(() => component);
+      },
+      () => {
+        window.clearTimeout(deadline);
+        if (current) setFailed(true);
+      },
+    );
+    return () => {
+      current = false;
+      window.clearTimeout(deadline);
+    };
+  }, [online, Lobby, failed]);
+  if (Lobby) return <Lobby {...props} />;
+  return (
+    <main className="asa-online-shell">
+      <ChessSectionHeader
+        user={props.user}
+        title="Онлайн-шахматы"
+        status={{
+          kind: !online || failed ? 'error' : 'saving',
+          label: !online ? 'Нет подключения' : failed ? 'Не удалось загрузить' : 'Загружаем',
+        }}
+        onExit={props.onExit}
+        onHome={props.onHome}
+      />
+      <section className="asa-online-card">
+        <p role={!online || failed ? 'alert' : 'status'}>
+          {!online
+            ? 'Для загрузки сетевых шахмат нужно подключение.'
+            : failed
+              ? 'Не удалось загрузить сетевые шахматы. Повторная загрузка обновит страницу.'
+              : 'Загружаем сетевые шахматы…'}
+        </p>
+        {failed && (
+          <button
+            type="button"
+            disabled={!online}
+            onClick={() => {
+              if (navigator.onLine !== false) window.location.reload();
+            }}
+          >
+            Повторить загрузку сетевых шахмат
+          </button>
+        )}
+      </section>
+    </main>
+  );
+}
 
 interface ChessModuleExperienceProps {
   projectId: string;
@@ -154,7 +269,7 @@ export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.El
   }
   if (route.page === 'network') {
     return (
-      <ChessNetworkLobby user={props.user} onExit={props.onBack} onHome={() => navigate('home')} />
+      <ChessNetworkRoute user={props.user} onExit={props.onBack} onHome={() => navigate('home')} />
     );
   }
   if (route.page === 'online') {

@@ -1,6 +1,13 @@
 import { mkdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Browser,
+  type Page,
+  type Route,
+} from '@playwright/test';
 import type pg from 'pg';
 import { e2eAdminPool, seedTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
@@ -93,7 +100,7 @@ interface ClassFixture {
   code: string;
 }
 
-test('cold offline lobby recovers durable invitation and live game without reload or forced navigation', async ({
+test('cold offline module and cached API lobby recover invitation and live game without forced reload', async ({
   browser,
   page,
   baseURL,
@@ -126,6 +133,23 @@ test('cold offline lobby recovers durable invitation and live game without reloa
     const networkHash = await page.evaluate(
       () => location.hash.split('/').slice(0, 3).join('/') + '/network',
     );
+    await page.context().setOffline(true);
+    await page.evaluate((hash) => {
+      location.hash = hash;
+    }, networkHash);
+    // First entry has no network chunk cached. Stay on the loaded Chess shell offline,
+    // then let the real online event load it and restore the durable invitation in place.
+    await expect(
+      page.getByText('Для загрузки сетевых шахмат нужно подключение.', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Главная', exact: true })).toBeEnabled();
+    await expect(page.getByTestId('asa-chess-board')).toHaveCount(0);
+    await expect(page.getByText('Подключено', { exact: true })).toHaveCount(0);
+    await page.context().setOffline(false);
+    await expect(page.getByLabel('Ваш код приглашения')).toHaveText(code);
+    // The chunk is now cached: a second offline entry exercises the original API/history
+    // bootstrap failure and explicit retry, separately from initial module loading.
+    await page.getByRole('button', { name: 'Главная', exact: true }).click();
     await page.context().setOffline(true);
     await page.evaluate((hash) => {
       location.hash = hash;
@@ -173,6 +197,165 @@ test('cold offline lobby recovers durable invitation and live game without reloa
     await admin.end();
   }
 });
+test('failed optional network chunk stays local until explicit user reload restores real invitation', async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(120000);
+  if (
+    process.env['CI'] !== 'true' ||
+    !process.env['APP_TEST_DATABASE_URL'] ||
+    !new URL(process.env['APP_TEST_DATABASE_URL']).pathname.endsWith('_test')
+  )
+    throw new Error('Isolated CI Chess network stack required');
+  const admin = e2eAdminPool();
+  const origin = new URL(baseURL!).origin;
+  try {
+    await loginWithOrganization(page, await seedTeacher(admin, 'chess-network-chunk-retry'));
+    const created = await post(page.request, origin, 'invites', {
+      scope: 'platform',
+      initialMs: 600000,
+      incrementMs: 0,
+      colorPreference: 'white',
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    const code = (await created.json()).invite.code;
+    await openChessGame(page, 'Восстановление загрузки сетевых шахмат');
+    const projectHash = await page.evaluate(() => location.hash.split('/').slice(0, 3).join('/'));
+    const documentRequests: string[] = [];
+    page.on('request', (request) => {
+      if (request.isNavigationRequest() && request.resourceType() === 'document')
+        documentRequests.push(request.url());
+    });
+    // Fault injection is limited to one optional static JavaScript chunk; every API remains real.
+    const optionalChunk = (url: URL) =>
+      url.origin === origin && /^\/assets\/ChessNetworkLobby-[^/]+\.js$/.test(url.pathname);
+    let failedChunks = 0;
+    await page.route(
+      optionalChunk,
+      async (route) => {
+        failedChunks++;
+        await route.abort('failed');
+      },
+      { times: 1 },
+    );
+    await page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    await expect(
+      page.getByText('Не удалось загрузить сетевые шахматы. Повторная загрузка обновит страницу.', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(failedChunks).toBe(1);
+    expect(documentRequests).toEqual([]);
+    expect(await page.evaluate(() => location.hash)).toBe(`${projectHash}/network`);
+    await expect(page.getByRole('button', { name: 'Главная', exact: true })).toBeEnabled();
+    await expect(
+      page.getByRole('button', { name: 'Вернуться к играм', exact: true }),
+    ).toBeEnabled();
+    await expect(page.getByRole('heading', { name: 'Онлайн-шахматы', exact: true })).toBeVisible();
+    await page.unroute(optionalChunk);
+    const reloaded = page.waitForEvent('domcontentloaded');
+    await page
+      .getByRole('button', { name: 'Повторить загрузку сетевых шахмат', exact: true })
+      .click();
+    await reloaded;
+    await expect(page.getByLabel('Ваш код приглашения')).toHaveText(code);
+    expect(documentRequests).toHaveLength(1);
+    expect(await page.evaluate(() => location.hash)).toBe(`${projectHash}/network`);
+  } finally {
+    await admin.end();
+  }
+});
+
+test('stalled optional network chunk reaches a finite local deadline and explicit reload recovers', async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(90000);
+  if (
+    process.env['CI'] !== 'true' ||
+    !process.env['APP_TEST_DATABASE_URL'] ||
+    !new URL(process.env['APP_TEST_DATABASE_URL']).pathname.endsWith('_test')
+  )
+    throw new Error('Isolated CI Chess network stack required');
+  const admin = e2eAdminPool();
+  const origin = new URL(baseURL!).origin;
+  const optionalChunk = (url: URL) =>
+    url.origin === origin && /^\/assets\/ChessNetworkLobby-[^/]+\.js$/.test(url.pathname);
+  let heldRoute: Route | undefined;
+  let releaseHeld: (() => void) | undefined;
+  const hold = new Promise<void>((resolve) => {
+    releaseHeld = resolve;
+  });
+  try {
+    await loginWithOrganization(page, await seedTeacher(admin, 'chess-network-chunk-deadline'));
+    const created = await post(page.request, origin, 'invites', {
+      scope: 'platform',
+      initialMs: 600000,
+      incrementMs: 0,
+      colorPreference: 'white',
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    const code = (await created.json()).invite.code;
+    await openChessGame(page, 'Ограниченное ожидание сетевых шахмат');
+    const projectHash = await page.evaluate(() => location.hash.split('/').slice(0, 3).join('/'));
+    const documentRequests: string[] = [];
+    page.on('request', (request) => {
+      if (request.isNavigationRequest() && request.resourceType() === 'document')
+        documentRequests.push(request.url());
+    });
+    // Hold only the optional static module, not an API or the application's real data.
+    await page.route(
+      optionalChunk,
+      async (route) => {
+        heldRoute = route;
+        await hold;
+      },
+      { times: 1 },
+    );
+    await page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    await expect.poll(() => Boolean(heldRoute)).toBe(true);
+    await expect(page.getByText('Загружаем сетевые шахматы…', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Главная', exact: true })).toBeEnabled();
+    await expect(
+      page.getByRole('button', { name: 'Вернуться к играм', exact: true }),
+    ).toBeEnabled();
+    // The route's real deadline is 15 seconds: observe its outcome instead of sleeping.
+    await expect(
+      page.getByText('Не удалось загрузить сетевые шахматы. Повторная загрузка обновит страницу.', {
+        exact: true,
+      }),
+    ).toBeVisible({ timeout: 20000 });
+    expect(documentRequests).toEqual([]);
+    expect(await page.evaluate(() => location.hash)).toBe(`${projectHash}/network`);
+    const lateFailure = page.waitForEvent('requestfailed', {
+      predicate: (request) => optionalChunk(new URL(request.url())),
+    });
+    await heldRoute!.abort('failed');
+    heldRoute = undefined;
+    releaseHeld!();
+    await lateFailure;
+    await page.unroute(optionalChunk);
+    const retry = page.getByRole('button', {
+      name: 'Повторить загрузку сетевых шахмат',
+      exact: true,
+    });
+    await expect(retry).toBeEnabled();
+    expect(documentRequests).toEqual([]);
+    const reloaded = page.waitForEvent('domcontentloaded');
+    await retry.click();
+    await reloaded;
+    await expect(page.getByLabel('Ваш код приглашения')).toHaveText(code);
+    expect(documentRequests).toHaveLength(1);
+    expect(await page.evaluate(() => location.hash)).toBe(`${projectHash}/network`);
+  } finally {
+    await heldRoute?.abort('failed').catch(() => undefined);
+    releaseHeld?.();
+    await page.unroute(optionalChunk);
+    await admin.end();
+  }
+});
+
 interface IssuedSeat {
   id: string;
   studentCode: string;
@@ -650,7 +833,23 @@ test('two pupils finish white and black checkmates with personal outcomes on des
             exact: true,
           }),
         ).toHaveCount(0);
-        await expect(learner.page.locator('[data-square="e1"]')).toBeDisabled();
+        const terminalKing = learner.page.locator('[data-square="e1"]');
+        await expect(terminalKing).toBeDisabled();
+        const kingGlyph = terminalKing.locator('.asa-chess-piece-glyph');
+        await learner.page.mouse.move(0, 0);
+        const idleTransform = await kingGlyph.evaluate(
+          (element) => getComputedStyle(element).transform,
+        );
+        await terminalKing.hover();
+        const hoverTransform = await kingGlyph.evaluate(async (element) => {
+          // Two animation frames expose the old 100ms hover transition without a timed sleep.
+          await new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          );
+          return getComputedStyle(element).transform;
+        });
+        expect(hoverTransform).toBe(idleTransform);
+        await learner.page.mouse.move(0, 0);
         await expect(
           learner.page.getByRole('button', { name: 'Сдаться', exact: true }),
         ).toBeDisabled();

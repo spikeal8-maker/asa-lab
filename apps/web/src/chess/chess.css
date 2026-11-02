@@ -415,7 +415,8 @@
   /* Noto Symbols 2 v25: font ascent/descent = 1.069/.630em.
      Center the ink, rather than the font's asymmetric line box:
      offset = (ink ascent - ink descent - 1.069 + .630) / 2. */
-  --chess-ink-offset: 0.139875em;
+  /* Whole-pixel raster correction balances Windows/Linux baseline rounding. */
+  --chess-ink-offset: calc(0.139875em + 1px);
   transform: translateY(var(--chess-ink-offset));
   transform-origin: center;
   transition: transform 100ms ease;
@@ -423,12 +424,7 @@
 }
 
 .asa-chess-piece[data-piece-type='bishop'] .asa-chess-piece-glyph {
-  --chess-ink-offset: 0.12425em;
-}
-
-.asa-chess-piece[data-piece-type='queen'] .asa-chess-piece-glyph {
-  /* Balance the queen's top-heavy raster bounds on Windows and Linux. */
-  --chess-ink-offset: calc(0.139875em + 1px);
+  --chess-ink-offset: calc(0.12425em + 1px);
 }
 
 .asa-chess-piece[data-piece-type='knight'] .asa-chess-piece-glyph,
@@ -447,8 +443,8 @@
   -webkit-text-stroke: 0.45px #0b1d27;
 }
 
-.asa-chess-square:hover .asa-chess-piece-glyph,
-.asa-chess-square:focus-visible .asa-chess-piece-glyph {
+.asa-chess-square:not(:disabled):hover .asa-chess-piece-glyph,
+.asa-chess-square:not(:disabled):focus-visible .asa-chess-piece-glyph {
   transform: translateY(var(--chess-ink-offset)) scale(1.04);
 }
 
