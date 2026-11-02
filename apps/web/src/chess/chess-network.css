@@ -46,6 +46,7 @@
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
+.asa-network-code-entry,
 .asa-network-history {
   grid-column: 1/-1;
 }

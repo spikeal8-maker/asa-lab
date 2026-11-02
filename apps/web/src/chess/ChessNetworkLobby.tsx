@@ -838,7 +838,7 @@ export function ChessNetworkLobby({
             </section>
           )}
           {access?.allowed && !loading && lobby?.available !== false && (
-            <section className="asa-online-card">
+            <section className="asa-online-card asa-network-code-entry">
               <h2>Приглашение по коду</h2>
               <p>Отправьте код сопернику или введите его код.</p>
               {loading ? (
