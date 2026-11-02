@@ -330,6 +330,10 @@ for (const width of [320, 390, 1024, 1440]) {
       if (width < 1120)
         await page.getByRole('button', { name: 'Открыть историю диалогов', exact: true }).click();
       await page.getByRole('button', { name: 'Файлы учебного проекта', exact: true }).click();
+      // History opens at the latest reply; private image bytes load only on visibility.
+      await page
+        .getByRole('button', { name: 'Открыть: Схема подключения.png', exact: true })
+        .scrollIntoViewIfNeeded();
       const image = page.getByRole('img', { name: 'Схема подключения.png' });
       await expect(image).toBeVisible();
       await expect
@@ -359,6 +363,9 @@ for (const width of [320, 390, 1024, 1440]) {
         await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Черновик сохранён');
         await page.getByRole('button', { name: 'Открыть историю диалогов', exact: true }).click();
         await page.getByRole('button', { name: 'Файлы учебного проекта', exact: true }).click();
+        await page
+          .getByRole('button', { name: 'Открыть: Схема подключения.png', exact: true })
+          .scrollIntoViewIfNeeded();
         await expect(page.locator('.chat-saved-file').first()).toContainText(
           'Миниатюра недоступна',
         );
@@ -774,7 +781,8 @@ for (const selection of ['single', 'switch', 'switch-error', 'retry'] as const) 
       await expect(send).toBeDisabled();
       expect(fake.requests).toHaveLength(0);
       if (selection === 'retry') {
-        await page.getByRole('button', { name: 'Обновить переписку' }).click();
+        // Explicitly reselecting the same thread retries only its failed history GET.
+        await page.getByRole('button', { name: 'Диалог 0', exact: true }).click();
         await expect.poll(() => releases.length).toBe(2);
       }
       releases[1]!();
@@ -2142,8 +2150,9 @@ for (const width of [320, 390]) {
     await fixture(page);
     await page.goto('/#/ai');
 
+    // Real 128×128 RGB PNG: valid IDAT CRC/zlib stream for createImageBitmap in the worker.
     const pixel = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==',
+      'iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAA+UlEQVR4nO3RMQ0AMAzAsPIau4HePRg9YikAInnOfVps1g/iAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEC7D3GJxlW/L8PeAAAAAElFTkSuQmCC',
       'base64',
     );
     const details = page.locator('details.chat-tools-menu');

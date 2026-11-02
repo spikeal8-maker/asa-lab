@@ -30,6 +30,19 @@ const evidence = {
 };
 const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1]);
 
+it('retains byte-exact HTML without substitutions while still rejecting missing private assets', () => {
+  const code =
+    '<!doctype html>\n<html lang="ru"><meta charset="utf-8"><title>Игра</title><body><button onclick="play()">Играть</button></body></html>';
+  expect(embedPreviewImages(code, new Map())).toBe(code);
+  const unrelatedAssets = new Map([[url, 'data:image/png;base64,iVBORw0KGgo=']]);
+  expect(embedPreviewImages(code, unrelatedAssets)).toBe(code);
+  const external = '<img src="https://example.org/unrelated.png">\n';
+  expect(embedPreviewImages(external, unrelatedAssets)).toBe(external);
+  expect(() => embedPreviewImages('<img src="/api/ai/private/image">', new Map())).toThrow(
+    'image_unavailable',
+  );
+});
+
 it('uses only a completed image receipt from this thread, carries Seat proof and embeds it in preview and downloadable HTML', async () => {
   const threadId = '11111111-1111-4111-8111-111111111111';
   const requestId = '33333333-3333-4333-8333-333333333333';

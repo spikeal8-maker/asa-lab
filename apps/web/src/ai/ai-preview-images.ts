@@ -78,6 +78,7 @@ export function embedPreviewImages(code: string, images: PreviewImages): string 
   if (code.length > 200_000) throw new Error('image_limit');
   const document = parse(code);
   let total = 0;
+  let replaced = false;
   function visit(node: DefaultTreeAdapterMap['node'], depth: number): void {
     if (depth > 64) throw new Error('image_limit');
     if ('tagName' in node && node.tagName === 'img') {
@@ -88,13 +89,14 @@ export function embedPreviewImages(code: string, images: PreviewImages): string 
         total += data.length;
         if (total > TOTAL_LIMIT) throw new Error('image_limit');
         src.value = data;
+        replaced = true;
         node.attrs = node.attrs.filter((a) => a.name !== 'srcset');
       }
     }
     if ('childNodes' in node) for (const child of node.childNodes) visit(child, depth + 1);
   }
   visit(document, 0);
-  return serialize(document);
+  return replaced ? serialize(document) : code;
 }
 
 export async function loadPreviewImages(
