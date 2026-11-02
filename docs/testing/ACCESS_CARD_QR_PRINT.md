@@ -42,3 +42,22 @@ Offline diagnosis used the exact privately retained SVG and reconstructed
 trace belongs in this document or Git. Offline geometry/pixel checks are not
 the real Account/API/browser acceptance: that remains the normal exact-source
 Access A journey in GitHub General CI. No server deployment is implied.
+
+The separate existing Classroom composition fixture also includes an eight-character
+Student Code. After widening the QR column, two equal code columns clipped that
+code and its divider/padding: `scrollWidth=259`, `clientWidth=253`. Print now sizes
+the Class Code column to its content and gives the remaining width to Student Code.
+Account cards retain their one-column rule. Fonts, full code text, card dimensions
+and the 21mm long-host QR are preserved.
+
+The original Classroom print-size assertion now expects the intended 21mm instead
+of the removed 16mm rule. Its existing DPR3 long-label scenarios remain, with
+additional DPR1 and DPR2 scenarios and identical clipping/QR checks. A local
+real-component harness reused the fixture's seat generator and full composition
+checker for regular/long origins at DPR1/2/3. With the declared monospace fallback
+represented by Courier New, it reproduces the exact 259/253 failure before this
+repair and 253/253 afterwards. The original independent QR decoder, quiet-zone
+and monochrome checks pass all six cases. The same
+full checker also reports unchanged Windows-specific brand/name font-height
+differences before and after; those are not counted as a complete composition PASS.
+The Linux Classroom CI must run its original assertions without exceptions.

@@ -541,6 +541,7 @@ surfaces:
     - apps/web/src/components/StudentAccessCards.tsx
     - apps/web/src/components/student-access.css
     - e2e/student-access-cards.spec.ts
+    - e2e/classroom-owner-ui.spec.ts
   invariants:
   - IDA-AUTH-001
   - IDA-SEAT-001
@@ -558,6 +559,7 @@ surfaces:
     - apps/web/src/components/StudentAccessCards.tsx
     - apps/web/src/components/student-access.css
     - e2e/student-access-cards.spec.ts
+    - e2e/classroom-owner-ui.spec.ts
     commands: []
     invariants: [IDA-AUTH-001, IDA-CRED-001]
     tests: [TST-ASA-ACCESS-A-CORE-001, TST-ASA-ACCESS-A-E2E-001]

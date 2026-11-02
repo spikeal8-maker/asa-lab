@@ -471,6 +471,8 @@
     font-size: 9pt;
   }
   body.student-access-printing .student-access-codes {
+    /* Class and pupil codes have different intrinsic widths; do not halve the row. */
+    grid-template-columns: max-content minmax(0, 1fr);
     gap: 1.5mm;
     padding-top: 0.15mm;
     border-top: 0.2mm solid #abb5be;

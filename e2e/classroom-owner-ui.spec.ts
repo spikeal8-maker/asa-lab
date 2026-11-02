@@ -276,7 +276,7 @@ test.describe('Access-card QR raster regression', () => {
               vector: svg.innerHTML,
             };
           });
-          expect(print.width).toBeCloseTo(((print.longSite ? 16 : 20) * 96) / 25.4, 1);
+          expect(print.width).toBeCloseTo(((print.longSite ? 21 : 20) * 96) / 25.4, 1);
           expect(print.height).toBeCloseTo(print.width, 1);
           expect(print.cardHeight).toBeCloseTo((27 * 96) / 25.4, 1);
           expect(print.count).toBe(20);
@@ -383,13 +383,20 @@ test.describe('Printed access-card composition', () => {
     }
   });
 
-  for (const longSite of [false, true]) {
-    test(`long names and class remain complete, ${longSite ? 'long' : 'regular'} site`, async ({
+  for (const [longSite, deviceScaleFactor] of [
+    [false, 3],
+    [true, 3],
+    [false, 1],
+    [true, 1],
+    [false, 2],
+    [true, 2],
+  ] as const) {
+    test(`long names and class remain complete, ${longSite ? 'long' : 'regular'} site${deviceScaleFactor === 3 ? '' : ` at DPR ${deviceScaleFactor}`}`, async ({
       browser,
     }) => {
       const context = await browser.newContext({
         viewport: { width: 1280, height: 900 },
-        deviceScaleFactor: 3,
+        deviceScaleFactor,
       });
       const page = await context.newPage();
       try {
