@@ -11,6 +11,9 @@ components:
     sources:
     - apps/web/src/electronics/ArduinoCodePanel.tsx
     - apps/web/src/electronics/arduino-blocks.ts
+    - apps/web/src/electronics/arduino-block-schema.ts
+    - apps/web/src/electronics/arduino-block-definitions.ts
+    - apps/web/src/electronics/arduino-block-appearance.ts
     - apps/web/src/electronics/arduino-block-ui.ts
     - apps/web/src/electronics/arduino-pin-inputs.ts
     tests:
@@ -78,6 +81,7 @@ components:
     - apps/web/src/electronics/testing/component-hit-testing.spec.ts
     - apps/web/src/electronics/testing/workbench-presentation.spec.ts
     - apps/web/src/electronics/testing/workbench-header-time.spec.ts
+    - apps/web/src/electronics/testing/emergency-toolbar.browser.mjs
     - apps/web/src/electronics/testing/simulation-speed-control.spec.ts
     - apps/web/src/electronics/testing/simulation-speed.browser.mjs
     - apps/web/src/electronics/testing/native-led-diagnostic.spec.ts

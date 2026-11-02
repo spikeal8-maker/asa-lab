@@ -5173,9 +5173,10 @@ html.arduino-palette-resizing * {
     line-height: 1;
     border-radius: 5px;
   }
-  .workbench-toolbar-group.right .workbench-pill.emergency-copy::after {
-    content: 'JSON';
+  .workbench-toolbar-group.right .workbench-pill.emergency-copy {
     font-size: 11px;
+    line-height: 1.2;
+    white-space: normal;
   }
   .workbench-mobile-library-toggle {
     border: 1px solid #c8d6df;

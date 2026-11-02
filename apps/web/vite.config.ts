@@ -235,6 +235,14 @@ export default defineConfig(({ command }) => {
           replacement: resolve(repositoryRoot, 'contexts/electronics/index.ts'),
         },
         {
+          find: '@asa-lab/three-d/document',
+          replacement: resolve(repositoryRoot, 'contexts/three-d/domain/document.ts'),
+        },
+        {
+          find: '@asa-lab/three-d/operations',
+          replacement: resolve(repositoryRoot, 'contexts/three-d/domain/operations.ts'),
+        },
+        {
           find: '@asa-lab/three-d',
           replacement: resolve(repositoryRoot, 'contexts/three-d/index.ts'),
         },
@@ -287,6 +295,11 @@ export default defineConfig(({ command }) => {
               : 'assets/[name]-[hash][extname]';
           },
           manualChunks(id) {
+            // The public viewer needs pure geometry data, not the module provider
+            // and its SDK dependencies absorbed into the recovery/engine chunks.
+            if (id.includes('/contexts/three-d/domain/document.')) {
+              return 'three-d-document';
+            }
             // Static block metadata is shared with read-only publication code.
             // Keep Rollup from absorbing it into the solver's dependency chunk.
             if (id.includes('/contexts/electronics/domain/arduino-block-support.')) {

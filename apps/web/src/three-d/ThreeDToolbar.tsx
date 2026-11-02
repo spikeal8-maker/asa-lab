@@ -107,6 +107,7 @@ export interface ThreeDToolbarProps {
   readonly stlUnavailableReason?: string;
   readonly onExportJson: () => void;
   readonly sendControl: ReactNode;
+  readonly publicationControl?: ReactNode;
   readonly additiveSelection: boolean;
   readonly onToggleAdditiveSelection: () => void;
 }
@@ -150,6 +151,7 @@ export function ThreeDToolbar({
   stlUnavailableReason,
   onExportJson,
   sendControl,
+  publicationControl,
   additiveSelection,
   onToggleAdditiveSelection,
 }: ThreeDToolbarProps): JSX.Element {
@@ -409,6 +411,7 @@ export function ThreeDToolbar({
         </div>
 
         <div className="asa3d-actions" aria-label="Файлы и публикация">
+          {publicationControl}
           <button
             type="button"
             className="asa3d-text-action"

@@ -5,6 +5,7 @@ import {
   publicArduinoBlocks,
   PUBLIC_ELECTRONICS_PROPERTIES,
   PUBLIC_ELECTRONICS_EDITOR_PROPERTIES,
+  PUBLIC_THREE_D_NODE_FIELDS,
   type PublicProjectDisplayArtifact,
   type PublicArtifactProvenance,
 } from '@asa-lab/contracts';
@@ -72,7 +73,7 @@ function rawWithinBounds(value: unknown): boolean {
 export function createPublicArtifactAdapters(
   registry: ModuleRegistry,
 ): ReadonlyMap<string, Adapter> {
-  return new Map([
+  return new Map<string, Adapter>([
     [
       'electronics',
       (document, provenance) => {
@@ -155,6 +156,27 @@ export function createPublicArtifactAdapters(
           components: simulationComponents,
         });
         return simulation.ok ? simulation.artifact : validated.artifact;
+      },
+    ],
+    [
+      'three-d',
+      (document, provenance) => {
+        if (!rawWithinBounds(document)) return null;
+        const entry = registry.get('three-d');
+        if (!entry?.provider) return null;
+        const parsed = validationMessage(entry, document);
+        if (!parsed.ok) return null;
+        const source = parsed.document as { nodes: Record<string, unknown>[] };
+        const result = validatePublicProjectDisplayArtifact({
+          schemaVersion: 4,
+          status: 'display',
+          viewerFamily: 'three-d',
+          provenance,
+          capabilities: { readOnly: true, interactive: true, download: false },
+          units: 'mm',
+          nodes: source.nodes.map((node) => pick(node, PUBLIC_THREE_D_NODE_FIELDS)),
+        });
+        return result.ok ? result.artifact : null;
       },
     ],
   ]);
