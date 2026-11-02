@@ -39,7 +39,7 @@ export function imageGenerationStatusShape(value: unknown): value is AiImageGene
   );
 }
 const labels: Record<AiImageGenerationJob['state'], string> = {
-  admitted: 'Задание принято…',
+  admitted: 'В очереди. Изображение начнёт создаваться, когда освободится видеокарта.',
   submitting: 'Передаём задание модели…',
   unknown: 'Проверяю изображение…',
   running: 'Создаём изображение…',
@@ -48,6 +48,11 @@ const labels: Record<AiImageGenerationJob['state'], string> = {
   failed: AI_IMAGE_UNAVAILABLE,
   cancelled: 'Задание отменено.',
 };
+function jobLabel(job: AiImageGenerationJob): string {
+  return job.state === 'admitted' && job.queuePaused
+    ? 'Очередь приостановлена: проверяем неопределённый результат генерации. Задание можно отменить.'
+    : labels[job.state];
+}
 export function AiImageGeneration({
   threadId,
   seatId,
@@ -369,7 +374,7 @@ export function AiImageGeneration({
         (job
           ? job.cancelRequested && !terminal(job)
             ? 'Отмена запрошена. Проверяем состояние задания…'
-            : labels[job.state]
+            : jobLabel(job)
           : status && (!status.enabled || !status.ready)
             ? AI_IMAGE_UNAVAILABLE
             : status && status.remainingToday < 1
@@ -519,7 +524,7 @@ export function AiImageGeneration({
           (job
             ? job.cancelRequested && !terminal(job)
               ? 'Отмена запрошена. Проверяем состояние задания…'
-              : labels[job.state]
+              : jobLabel(job)
             : status
               ? !status.enabled
                 ? AI_IMAGE_UNAVAILABLE

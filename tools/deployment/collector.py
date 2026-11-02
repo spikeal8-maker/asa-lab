@@ -1,6 +1,7 @@
 """Own-installation diagnostic runner lifecycle; never elevates privileges."""
 
 import argparse
+from copy import copy
 import datetime as dt
 import getpass
 import hashlib
@@ -10,6 +11,7 @@ from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import sys
+from types import SimpleNamespace
 import tempfile
 import time
 from contextlib import contextmanager
@@ -49,7 +51,7 @@ def command(args, *, allow_missing=False):
 
 def digest(root):
     value = hashlib.sha256()
-    for name in ("collect_logs.py", "collect-windows-logs.ps1", "resource_sampling.py", "memory_sampling.py"):
+    for name in ("collect_logs.py", "collect-windows-logs.ps1", "resource_sampling.py", "memory_sampling.py", "deployment/operational.py"):
         path = root / "tools" / name
         value.update(name.encode()); value.update(path.read_bytes())
     return value.hexdigest()
@@ -81,6 +83,10 @@ def safe_paths(install):
 
 
 def validate_config(install):
+    require(install.settings.get('collectorMode') in (None, 'system-root'),
+            'COLLECTOR_RUNNER_MODE', 'Unknown persisted collector mode.')
+    require(install.settings.get('collectorMode') != 'system-root' or not WINDOWS,
+            'COLLECTOR_RUNNER_MODE', 'System-root collection is supported only on Linux.')
     config = read_json(install.state / "log-collector.json", {})
     require(type(config.get('version', 1)) is int and config.get("version", 1) == 1, "COLLECTOR_CONFIG", "Unsupported collector configuration version.")
     require(config.get("project", install.project) == install.project, "COLLECTOR_PROJECT", "Collector project differs from the canonical installation.")
@@ -93,10 +99,118 @@ def validate_config(install):
                 re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", item["source"]) and
                 isinstance(item.get("path"), str) and Path(item["path"]).is_absolute(),
                 "COLLECTOR_CONFIG", "File sources require a bounded name and an absolute path.")
+    from .operational import configuration
+    try: configuration(config, install.state/'log-collector.json')
+    except (OSError, ValueError) as exc:
+        raise Blocked('COLLECTOR_CONFIG', 'Operational source configuration is invalid or not root controlled.', 'Correct the private operator configuration; no source was contacted.') from None
     return config
 
 
-def linux_operator():
+def root_runner_paths(install):
+    """A root service may execute only a root-controlled installation, never user code."""
+    paths = {install.root, install.root / '.env', Path(sys.executable).resolve(), Path(sys.executable).parent}
+    for path in sys.path:
+        if path:
+            paths.add(Path(path).absolute())
+            paths.add(Path(path).resolve())
+    tools = install.root / 'tools'
+    require(tools.is_dir(), 'COLLECTOR_ROOT_TRUST', 'Collector runtime directory is absent.')
+    contract = install.root / 'apps/api/src/database-diagnostic-contract.json'
+    require(contract.is_file(), 'COLLECTOR_ROOT_TRUST', 'Collector database diagnostic contract is absent.')
+    paths.add(contract)
+    # Include directories, bytecode and support files too: an untrusted cached
+    # module or redirected package directory must not become a root import.
+    paths.update(tools.rglob('*'))
+    diagnostics = install.state / 'diagnostics'
+    paths.add(diagnostics)
+    if diagnostics.exists(): paths.update(diagnostics.rglob('*'))
+    operations = install.state/'operations'
+    paths.add(operations)
+    if operations.exists(): paths.update(operations.rglob('*'))
+    config = read_json(install.state/'log-collector.json', {})
+    operational_config = config.get('operationalSources', {})
+    require(isinstance(operational_config, dict), 'COLLECTOR_ROOT_TRUST', 'Operational configuration must be a mapping.')
+    external = operational_config.get('backupSuccessReceipt')
+    require(external is None or isinstance(external,str) and Path(external).is_absolute(), 'COLLECTOR_ROOT_TRUST', 'Configured backup input must be one absolute path.')
+    if external: paths.add(Path(external))
+    for name in ('installation.json', 'log-collector.json', 'collector-runner.json'):
+        paths.add(install.state / name)
+    for path in list(paths):
+        paths.update(path.parents)
+    for path in sorted(paths, key=str):
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            continue
+        require(not path.is_symlink() and info.st_uid == 0 and info.st_mode & 0o022 == 0,
+                'COLLECTOR_ROOT_TRUST', 'Root collector requires root-owned, non-writable runtime/config paths and parents.',
+                'Use a root-controlled canonical installation; ownership and permissions are not changed automatically.')
+
+
+def docker_group_gid():
+    import grp
+    try:
+        return grp.getgrnam('docker').gr_gid
+    except KeyError:
+        return 0
+
+
+def docker_socket_gid():
+    try:
+        return Path('/var/run/docker.sock').stat().st_gid
+    except FileNotFoundError:
+        return 0
+
+
+def verify_reader_gid(gid):
+    require(gid not in (docker_group_gid(), docker_socket_gid()), 'COLLECTOR_READER_GROUP',
+            'Docker socket group cannot be the log reader group.')
+
+
+def select_root_mode(install, reader_gid):
+    require(not WINDOWS and os.geteuid() == 0, 'COLLECTOR_ROOT_AUTHORITY',
+            'System-root collection must be explicitly configured by an existing root administrator.')
+    require(type(reader_gid) is int and reader_gid > 0, 'COLLECTOR_READER_GROUP',
+            'Root collection requires an explicit nonzero API reader GID.')
+    safe_paths(install)
+    root_runner_paths(install)
+    validate_config(install)
+    configured = install.env.get('ASA_LOG_READER_GID')
+    require(configured is None or configured.isdecimal() and int(configured) == reader_gid,
+            'COLLECTOR_READER_GROUP', 'Selected reader GID differs from the existing API log reader group.')
+    previous = read_json(install.state / 'collector-runner.json', {})
+    require(not previous or previous.get('mode') == 'system-root' and previous.get('owner') == 'root'
+            and previous.get('root') == str(install.root) and previous.get('project') == install.project,
+            'COLLECTOR_RUNNER_OWNER', 'An existing nonroot collector is not converted to root automatically.')
+    require(install.settings.get('collectorMode') in (None, 'system-root') and
+            install.settings.get('collectorReaderGid', reader_gid) == reader_gid,
+            'COLLECTOR_RUNNER_IDENTITY', 'Persisted collector mode or reader GID differs.')
+    verify_reader_gid(reader_gid)
+    settings = {'format': 'asa-installation-v1',
+                'profile': install.profile, 'project': install.project, **install.settings,
+                'collectorMode': 'system-root', 'collectorReaderGid': reader_gid}
+    # Validate the proposed identity before committing any configuration. In
+    # particular an unregistered legacy service must not leave root mode saved.
+    candidate = copy(install)
+    candidate.settings = settings
+    identity = runner_identity(candidate)
+    unit = Path('/etc/systemd/system') / identity['name']
+    require(not unit.is_symlink(), 'COLLECTOR_RUNNER_IDENTITY', 'Collector service unit must not be a symlink.')
+    if unit.exists():
+        verify_systemd_unit(unit.read_text(), identity, sys.executable)
+        require(unit.stat().st_uid == 0, 'COLLECTOR_RUNNER_OWNER', 'System collector unit is not root owned.')
+    install.state.mkdir(mode=0o700, parents=True, exist_ok=True)
+    atomic_json(install.state / 'installation.json', settings)
+
+
+def linux_operator(install=None):
+    if install is not None and install.settings.get('collectorMode') == 'system-root':
+        require(os.geteuid() == 0, 'COLLECTOR_ROOT_AUTHORITY', 'Maintain the persisted root collector as root; no sudo is run.')
+        gid = install.settings.get('collectorReaderGid')
+        require(type(gid) is int and gid > 0, 'COLLECTOR_READER_GROUP', 'Missing nonzero persisted root collector reader GID.')
+        root_runner_paths(install)
+        verify_reader_gid(gid)
+        return SimpleNamespace(pw_name='root', pw_uid=0, pw_gid=gid)
     import pwd
     name = os.environ.get("SUDO_USER") if os.geteuid() == 0 else getpass.getuser()
     require(bool(name) and name != "root", "COLLECTOR_OPERATOR", "A nonroot Docker operator is required.",
@@ -179,10 +293,10 @@ def _prepare_host(install):
     for path in (base, store, private): path.mkdir(parents=True, exist_ok=True)
     changed = False
     if not WINDOWS:
-        operator = linux_operator()
+        operator = linux_operator(install)
         configured = install.env.get("ASA_LOG_READER_GID")
         require(configured is None or configured.isdecimal() and int(configured) == operator.pw_gid,
-                "COLLECTOR_READER_GROUP", "Reader GID must be the nonzero primary group of the Docker operator.")
+                "COLLECTOR_READER_GROUP", "Reader GID must match the selected operator or explicit root reader group.")
         gid = int(configured) if configured else operator.pw_gid
         if records.get('api'):
             actual_groups, code = command(['docker', 'exec', records['api']['id'], 'id', '-G'], allow_missing=True)
@@ -207,8 +321,8 @@ def _prepare_host(install):
 def finalize_permissions(install):
     if WINDOWS: return
     safe_paths(install)
-    operator = linux_operator(); gid = int(install.env['ASA_LOG_READER_GID'])
-    require(gid == operator.pw_gid and gid > 0, 'COLLECTOR_READER_GROUP', 'Persisted reader group differs from operator primary group.')
+    operator = linux_operator(install); gid = int(install.env['ASA_LOG_READER_GID'])
+    require(gid == operator.pw_gid and gid > 0, 'COLLECTOR_READER_GROUP', 'Persisted reader group differs from selected collector reader group.')
     groups = install.compose('exec', '-T', 'api', 'id', '-G', capture=True).split()
     require(str(gid) in groups, 'COLLECTOR_READER_GROUP', 'Do not migrate existing log access before API has the new group.')
     base = install.state / 'diagnostics'; store, private = base / 'store', base / 'private'
@@ -243,16 +357,20 @@ def runner_identity(install):
         sid = command(['powershell.exe', '-NoProfile', '-Command', '[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value'])[0]
         mode, name = "windows-task", "ASA-Lab-Logs-" + install.project
     else:
-        operator = linux_operator()
+        operator = linux_operator(install)
         owner = operator.pw_name
-        mode = persisted.get("mode", "system" if os.geteuid() == 0 else "user")
-        require(mode in ("user", "system"), "COLLECTOR_RUNNER_MODE", "Unknown collector runner mode.")
-        require(mode != "system" or os.geteuid() == 0, "COLLECTOR_RUNNER_PERMISSION", "The existing system runner needs administrator maintenance.",
+        root_mode = install.settings.get('collectorMode') == 'system-root'
+        mode = persisted.get("mode", 'system-root' if root_mode else "system" if os.geteuid() == 0 else "user")
+        require(mode in ("user", "system", "system-root") and (mode == 'system-root') == root_mode,
+                "COLLECTOR_RUNNER_MODE", "Unknown or inconsistent collector runner mode.")
+        require(mode not in ("system", "system-root") or os.geteuid() == 0, "COLLECTOR_RUNNER_PERMISSION", "The existing system runner needs administrator maintenance.",
                 "Run the authorized update with existing administrator privileges; automatic sudo is disabled.")
         name = persisted.get("name", "asa-log-collector-" + install.project + ".service")
         require(name in ("asa-log-collector-" + install.project + ".service", "asa-log-collector.service"),
                 "COLLECTOR_RUNNER_IDENTITY", "Unexpected collector unit name.")
-        if not persisted and Path("/etc/systemd/system/asa-log-collector.service").exists():
+        legacy = Path("/etc/systemd/system/asa-log-collector.service")
+        if not persisted and (legacy.exists() or legacy.is_symlink()):
+            require(not root_mode, "COLLECTOR_RUNNER_OWNER", "Existing legacy collector must be reviewed before root mode is selected.")
             mode, name = "system", "asa-log-collector.service"
         require(mode != 'user' or os.geteuid() == operator.pw_uid, 'COLLECTOR_RUNNER_OWNER',
                 'Maintain the existing user service as its nonroot owner; root user services are not substituted.')
@@ -330,7 +448,7 @@ def systemd_paths(identity, python):
 
 def systemd_unit(identity, python):
     root, script = systemd_paths(identity, python)
-    system = identity['mode'] == 'system'
+    system = identity['mode'] in ('system', 'system-root')
     owner_line = f'User={identity["owner"]}\n' if system else ''
     # WorkingDirectory's parser takes a raw absolute path, unlike ExecStart's
     # quoted argv parser. Literal interior spaces are valid in both forms.
@@ -359,9 +477,9 @@ def verify_systemd_unit(text, identity, python):
     expected = f'"{python}" "{script}" --root "{root}"'
     require(values.get(('Service', 'ExecStart')) == expected and
             values.get(('Service', 'WorkingDirectory')) == root and
-            values.get(('Service', 'User')) == (identity['owner'] if identity['mode'] == 'system' else None) and
+            values.get(('Service', 'User')) == (identity['owner'] if identity['mode'] in ('system', 'system-root') else None) and
             values.get(('Service', 'NoNewPrivileges')) == 'true',
-            'COLLECTOR_RUNNER_IDENTITY', 'Existing service is not this installation\'s unprivileged collector.',
+            'COLLECTOR_RUNNER_IDENTITY', 'Existing service is not this installation\'s selected collector.',
             'Inspect the exact unit as its operator. A historical quoted WorkingDirectory requires manual owned-unit repair; no service was changed.')
 
 
@@ -375,7 +493,7 @@ def systemd_property(identity, property_name, signature):
     name = identity['name']
     require(re.fullmatch(r'[a-z0-9_.-]+', name), 'COLLECTOR_RUNNER_IDENTITY', 'Unexpected systemd unit name.')
     encoded = ''.join(c if c.isascii() and c.isalnum() else f'_{ord(c):02x}' for c in name)
-    args = ['busctl', '--system' if identity['mode'] == 'system' else '--user', '--json=short',
+    args = ['busctl', '--system' if identity['mode'] in ('system', 'system-root') else '--user', '--json=short',
             '--no-pager', '--allow-interactive-authorization=no', 'get-property', 'org.freedesktop.systemd1',
             '/org/freedesktop/systemd1/unit/' + encoded, 'org.freedesktop.systemd1.Service', property_name]
     try:
@@ -425,8 +543,8 @@ def verify_effective_empty(identity):
 
 def verify_effective_owner(effective, identity):
     owner = effective['User']
-    require(owner == identity['owner'] if identity['mode'] == 'system' else owner in ('', identity['owner']),
-            'COLLECTOR_RUNNER_OWNER', 'Loaded service user differs from the unprivileged collector operator.')
+    require(owner == identity['owner'] if identity['mode'] in ('system', 'system-root') else owner in ('', identity['owner']),
+            'COLLECTOR_RUNNER_OWNER', 'Loaded service user differs from the selected collector operator.')
     require(effective['NoNewPrivileges'] == 'yes' and effective['WorkingDirectory'] == identity['root'],
             'COLLECTOR_RUNNER_IDENTITY', 'Loaded service privileges or working directory differ from this collector.')
 
@@ -437,7 +555,7 @@ def verify_systemd_state(identity, path, python, *, owned_unloaded=False):
         require(path.exists() and not path.is_symlink(), 'COLLECTOR_RUNNER_IDENTITY', 'Missing owned partial unit.')
         verify_systemd_unit(path.read_text(), identity, python)
         require(path.stat().st_uid == 0, 'COLLECTOR_RUNNER_OWNER', 'Partial system unit is not root owned.')
-    ctl = ["systemctl"] + ([] if identity["mode"] == "system" else ["--user"])
+    ctl = ["systemctl"] + ([] if identity["mode"] in ("system", "system-root") else ["--user"])
     properties = ['FragmentPath', 'DropInPaths', 'ExecStartPre', 'ExecStartPost', 'ExecStop', 'ExecStopPost', 'EnvironmentFiles', 'LoadState', 'Transient', 'ExecStart', 'User', 'NoNewPrivileges', 'WorkingDirectory', 'ActiveState', 'SubState']
     raw, code = command(ctl + ['show', '--all', identity['name'], *['--property=' + key for key in properties]], allow_missing=True)
     effective = {}
@@ -495,7 +613,7 @@ def reconcile_runner(install, identity, restart):
             finally: xml.unlink(missing_ok=True)
         ps_scheduler(install, "start", identity)
         return "Requires the logged-in Docker Desktop operator session"
-    system = identity["mode"] == "system"
+    system = identity["mode"] in ("system", "system-root")
     require(not system or os.geteuid() == 0, "COLLECTOR_RUNNER_PERMISSION", "System runner maintenance requires existing root privileges.")
     directory = Path("/etc/systemd/system") if system else Path.home() / ".config" / "systemd" / "user"
     path = directory / identity["name"]
@@ -598,7 +716,7 @@ def _reconcile(install, *, wait_seconds=30):
         detail = reconcile_runner(install, identity, restart)
         atomic_json(install.state / "collector-runner.json", identity)
         if not WINDOWS and os.geteuid() == 0:
-            operator = linux_operator(); os.chown(install.state / 'collector-runner.json', operator.pw_uid, operator.pw_gid)
+            operator = linux_operator(install); os.chown(install.state / 'collector-runner.json', operator.pw_uid, operator.pw_gid)
         deadline = time.monotonic() + wait_seconds
         while True:
             observed = status(install)
@@ -615,7 +733,7 @@ def _reconcile(install, *, wait_seconds=30):
         safe_paths(install)
         atomic_json(install.state / "collector-operation.json", {"at": dt.datetime.now(dt.timezone.utc).isoformat(), **result})
         if not WINDOWS and os.geteuid() == 0:
-            operator = linux_operator(); os.chown(install.state / 'collector-operation.json', operator.pw_uid, operator.pw_gid)
+            operator = linux_operator(install); os.chown(install.state / 'collector-operation.json', operator.pw_uid, operator.pw_gid)
     except (OSError, Blocked):
         result = {**result, 'state': 'degraded', 'receiptWritten': False}
     print(f"COLLECTOR {result['state']}: {result['detail']}")
@@ -627,10 +745,18 @@ def main(argv=None):
     parser.add_argument("action", choices=("prepare", "reconcile", "status"))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--profile", choices=("base", "dev", "production", "staging"))
+    parser.add_argument('--mode', choices=('system-root',), help='Explicit root-operated Linux runner, prepare only')
+    parser.add_argument('--reader-gid', type=int, help='Nonzero read-only API group, selected with --mode')
     args = parser.parse_args(argv)
     try:
+        require((args.mode is None) == (args.reader_gid is None) and
+                (args.mode is None or args.action == 'prepare'), 'COLLECTOR_ARGUMENT',
+                'Mode and reader GID must be selected together during prepare; status/reconcile never select a new mode.')
         plain_paths(args.root, ())
         install = Installation(args.root, args.profile)
+        if args.mode:
+            select_root_mode(install, args.reader_gid)
+            install = Installation(install.root, install.profile)
         if args.action == "status": result = status(install)
         elif args.action == "prepare": result = prepare(install)
         else: result = reconcile(install)

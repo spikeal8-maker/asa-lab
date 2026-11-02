@@ -96,6 +96,14 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
   vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
 
@@ -105,6 +113,7 @@ afterEach(async () => {
   root = null;
   container = null;
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('V-UX2A authored assignment list', () => {
@@ -433,6 +442,22 @@ describe('V-UX2A authored assignment list', () => {
     expect(findButton('Настройки')).toBeDefined();
     expect(findButton('Назначить')).toBeDefined();
     expect(findButton('← Задания')).toBeDefined();
+    const actions = container.querySelector('[aria-label="Действия задания"]')!;
+    for (const label of [
+      '← Задания',
+      'Сохранить',
+      'Предпросмотр',
+      'Назначить',
+      'Настройки',
+      'Опубликовать',
+    ]) {
+      expect(actions.contains(findButton(label)!)).toBe(true);
+    }
+    expect(container.querySelector('.assignment-document-meta button')).toBeNull();
+    expect(
+      container.querySelector<HTMLTextAreaElement>('[aria-label="Название задания"]')?.rows,
+    ).toBe(1);
+    expect(container.querySelector<HTMLTextAreaElement>('[aria-label="Содержание"]')?.rows).toBe(1);
 
     await act(async () => {
       findButton('← Задания')?.click();
@@ -478,7 +503,7 @@ describe('V-UX2A authored assignment list', () => {
       );
       title?.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    expect(container.textContent).toContain('Есть несохранённые изменения');
+    expect(container.textContent).toContain('Не сохранено');
     const confirm = vi.mocked(window.confirm).mockReturnValue(false);
     expect((leaveGuard as unknown as () => boolean)()).toBe(false);
     await act(async () => findButton('← Задания')?.click());

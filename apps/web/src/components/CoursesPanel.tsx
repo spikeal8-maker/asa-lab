@@ -385,6 +385,7 @@ function SectionFormDialog({
 }
 
 function LessonEditor({
+  onRegisterNestedLeaveGuard,
   sections,
   sectionId,
   lesson,
@@ -401,6 +402,7 @@ function LessonEditor({
   readonly assignments: readonly LibraryAssignment[];
   readonly onSave: (input: CourseLessonInput) => Promise<void>;
   readonly onDelete: (() => Promise<void>) | null;
+  readonly onRegisterNestedLeaveGuard: (id: string, guard: (() => boolean) | null) => void;
   readonly onDirty: () => void;
   readonly saveBlockedMessage: string | null;
   readonly diagnosticFocus?: CourseDiagnosticFocus | null;
@@ -640,6 +642,7 @@ function LessonEditor({
             </p>
           ) : null}
           <CanonicalPracticePicker
+            onRegisterNestedLeaveGuard={onRegisterNestedLeaveGuard}
             value={assignmentId.startsWith('lav:') ? assignmentId.slice(4) : ''}
             onChange={(versionId, practiceTitle) => {
               if (!title.trim()) setTitle(practiceTitle);
@@ -651,6 +654,7 @@ function LessonEditor({
       ) : null}
 
       <LessonBlockEditor
+        onRegisterNestedLeaveGuard={onRegisterNestedLeaveGuard}
         blocks={blocks}
         activities={[]}
         onChange={(value) => {
@@ -1034,7 +1038,16 @@ function CourseEditor({
     },
     [onSectionWorkChange],
   );
+  const nestedLeaveGuards = useRef(new Map<string, () => boolean>());
+  const registerNestedLeaveGuard = useCallback((id: string, guard: (() => boolean) | null) => {
+    if (guard) nestedLeaveGuards.current.set(id, guard);
+    else nestedLeaveGuards.current.delete(id);
+  }, []);
+  function nestedCanLeave(): boolean {
+    return [...nestedLeaveGuards.current.values()].every((guard) => guard());
+  }
   function canLeave(): boolean {
+    if (!nestedCanLeave()) return false;
     if (
       writing ||
       publishing ||
@@ -1147,6 +1160,7 @@ function CourseEditor({
     return null;
   }, [sections, selectedLessonId]);
   function withSavedDraft(action: () => void): void {
+    if (!nestedCanLeave()) return;
     if (unavailableMessage) {
       setNotice(null);
       setError(unavailableMessage);
@@ -2047,6 +2061,7 @@ function CourseEditor({
               <div className="course-workspace">
                 {newLessonSectionId ? (
                   <LessonEditor
+                    onRegisterNestedLeaveGuard={registerNestedLeaveGuard}
                     key={'new-' + newLessonSectionId}
                     sections={sections}
                     sectionId={newLessonSectionId}
@@ -2060,6 +2075,7 @@ function CourseEditor({
                   />
                 ) : selected ? (
                   <LessonEditor
+                    onRegisterNestedLeaveGuard={registerNestedLeaveGuard}
                     key={selected.lesson.id + '-' + selected.lesson.position + '-' + editorEpoch}
                     sections={sections}
                     sectionId={selected.section.id}
