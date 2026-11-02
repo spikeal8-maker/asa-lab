@@ -2106,7 +2106,15 @@ export function AiChatPage({
                       key={currentId + ':' + (seatId ?? '')}
                       threadId={currentId}
                       seatId={seatId}
-                      refreshKey={messages.length + ':' + busy}
+                      refreshKey={
+                        messages.length +
+                        ':' +
+                        busy +
+                        ':' +
+                        imageJob?.requestId +
+                        ':' +
+                        imageJob?.state
+                      }
                       busy={busy}
                       onSources={receiveWorkingSources}
                       messages={messages}

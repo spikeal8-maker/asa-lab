@@ -32,14 +32,14 @@ surfaces:
   - id: SURF-AI-LOCAL-IMAGES
     routes: [/api/ai/image-generation/status, /api/admin/v1/ai/images, '/api/ai/threads/:threadId/image-generations', '/api/ai/threads/:threadId/image-generations/:requestId', '/api/ai/threads/:threadId/image-generations/:requestId/cancel', '/api/ai/threads/:threadId/image-generations/:requestId/image']
     implementation:
-      files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, apps/api/src/ai-text-history.ts, packages/contracts/src/ai-image-generation.ts, migrations/0264_ai_local_image_generation.sql, migrations/0280_ai_image_six_presets.sql, apps/web/src/admin/AdminAiImages.tsx, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/ai/AiGeneratedImage.tsx, apps/web/src/ai/read-generated-image.ts, apps/web/src/ai/ai-image-generation.css]
+      files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, apps/api/src/ai-text-history.ts, packages/contracts/src/ai-image-generation.ts, migrations/0264_ai_local_image_generation.sql, migrations/0280_ai_image_six_presets.sql, migrations/0294_ai_image_file_binding.sql, apps/api/src/ai-native-tools.ts, apps/web/src/admin/AdminAiImages.tsx, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/ai/AiGeneratedImage.tsx, apps/web/src/ai/read-generated-image.ts, apps/web/src/ai/ai-image-generation.css]
     invariants: [AI-IMAGE-JOB-001, AI-OWNER-001, AI-SESSION-001, AI-ADMISSION-001, AI-REPLAY-001, AI-USAGE-001]
     tests: [TST-AI-IMAGE-CORE-001, TST-AI-IMAGE-E2E-001]
     controls:
       - id: CTRL-AI-LOCAL-IMAGES
         label: Generate and recover a private local GPU image without replaying dispatch or exposing another owner
         change_class: L3_CRITICAL
-        files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, migrations/0264_ai_local_image_generation.sql, migrations/0280_ai_image_six_presets.sql, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/admin/AdminAiImages.tsx]
+        files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, migrations/0264_ai_local_image_generation.sql, migrations/0280_ai_image_six_presets.sql, migrations/0294_ai_image_file_binding.sql, apps/api/src/ai-native-tools.ts, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/admin/AdminAiImages.tsx]
         invariants: [AI-IMAGE-JOB-001, AI-OWNER-001, AI-REPLAY-001, AI-USAGE-001]
         tests: [TST-AI-IMAGE-CORE-001, TST-AI-IMAGE-E2E-001]
 

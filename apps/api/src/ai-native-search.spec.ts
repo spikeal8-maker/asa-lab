@@ -36,6 +36,7 @@ function fixture(
   imageReady = true,
   createAfterSearch = false,
   multipleSearch = false,
+  createBeforeImage = false,
 ) {
   let admitted = false;
   let answer: string | null = null;
@@ -190,37 +191,34 @@ function fixture(
     if (isToolModelUrl(address)) {
       const round = requests.filter((item) => isToolModelUrl(item.url)).length;
       const packet =
-        round === 1 &&
-        (mode === 'auto' || tool === 'generate_image') &&
-        toolsCapable &&
-        disabledTools.length < 3
+        createBeforeImage && round <= 2
           ? {
               message: {
                 tool_calls: [
                   {
-                    function: {
-                      name: tool,
-                      arguments:
-                        tool === 'generate_image'
-                          ? {
+                    function:
+                      round === 1
+                        ? {
+                            name: 'create_working_file',
+                            arguments: {
+                              name: 'forest.html',
+                              content: '<h1>Лес</h1><img src="ASA_GENERATED_IMAGE_PENDING">',
+                            },
+                          }
+                        : {
+                            name: 'generate_image',
+                            arguments: {
                               prompt: 'Синий замок в лесу',
                               size: 1024,
                               model: 'flux2-klein-4b-fp8-izo-v1',
-                            }
-                          : tool === 'weather'
-                            ? { city: 'Казань' }
-                            : tool === 'read_page'
-                              ? { url: toolQuery }
-                              : { query: toolQuery },
-                    },
+                              target: {
+                                name: 'forest.html',
+                                expectedVersion: 1,
+                                placeholder: 'ASA_GENERATED_IMAGE_PENDING',
+                              },
+                            },
+                          },
                   },
-                  ...(multipleSearch
-                    ? [
-                        {
-                          function: { name: 'image_search', arguments: { query: 'Другие котики' } },
-                        },
-                      ]
-                    : []),
                 ],
               },
               done: true,
@@ -228,31 +226,61 @@ function fixture(
               eval_count: 2,
               model: 'fixture:8b',
             }
-          : round === 2 && createAfterSearch
+          : round === 1 &&
+              (mode === 'auto' || tool === 'generate_image') &&
+              toolsCapable &&
+              disabledTools.length < 3
             ? {
                 message: {
                   tool_calls: [
                     {
                       function: {
-                        name: 'create_working_file',
-                        arguments: {
-                          name: 'cats.html',
-                          content: '<h1>Котики</h1><img src="https://images.example.org/cat.jpg">',
-                        },
+                        name: tool,
+                        arguments:
+                          tool === 'generate_image'
+                            ? {
+                                prompt: 'Синий замок в лесу',
+                                size: 1024,
+                                model: 'flux2-klein-4b-fp8-izo-v1',
+                              }
+                            : tool === 'weather'
+                              ? { city: 'Казань' }
+                              : tool === 'read_page'
+                                ? { url: toolQuery }
+                                : { query: toolQuery },
                       },
                     },
+                    ...(multipleSearch
+                      ? [
+                          {
+                            function: {
+                              name: 'image_search',
+                              arguments: { query: 'Другие котики' },
+                            },
+                          },
+                        ]
+                      : []),
                   ],
                 },
                 done: true,
-                prompt_eval_count: 20,
-                eval_count: 5,
+                prompt_eval_count: 10,
+                eval_count: 2,
                 model: 'fixture:8b',
               }
-            : round === 2 && chooseRead
+            : round === 2 && createAfterSearch
               ? {
                   message: {
                     tool_calls: [
-                      { function: { name: 'read_page', arguments: { sourceIds: [1] } } },
+                      {
+                        function: {
+                          name: 'create_working_file',
+                          arguments: {
+                            name: 'cats.html',
+                            content:
+                              '<h1>Котики</h1><img src="https://images.example.org/cat.jpg">',
+                          },
+                        },
+                      },
                     ],
                   },
                   done: true,
@@ -260,13 +288,25 @@ function fixture(
                   eval_count: 5,
                   model: 'fixture:8b',
                 }
-              : {
-                  message: { content: 'Ответ по источнику' },
-                  done: true,
-                  prompt_eval_count: 20,
-                  eval_count: 5,
-                  model: 'fixture:8b',
-                };
+              : round === 2 && chooseRead
+                ? {
+                    message: {
+                      tool_calls: [
+                        { function: { name: 'read_page', arguments: { sourceIds: [1] } } },
+                      ],
+                    },
+                    done: true,
+                    prompt_eval_count: 20,
+                    eval_count: 5,
+                    model: 'fixture:8b',
+                  }
+                : {
+                    message: { content: 'Ответ по источнику' },
+                    done: true,
+                    prompt_eval_count: 20,
+                    eval_count: 5,
+                    model: 'fixture:8b',
+                  };
       return toolProviderResponse(provider, packet);
     }
     if (address.includes('/search?'))
@@ -291,6 +331,7 @@ function fixture(
   });
   const images = {
     nativeSchemaReady: vi.fn(async () => true),
+    fileBindingReady: vi.fn(async () => createBeforeImage),
     status: vi.fn(async () => ({
       enabled: imageReady,
       ready: imageReady,
@@ -918,6 +959,70 @@ describe.each(TOOL_PROVIDERS)('%s internet executor', (provider) => {
 });
 
 describe.each(TOOL_PROVIDERS)('%s native image executor', (provider) => {
+  it('creates HTML first and atomically delegates exact image insertion without a second user turn', async () => {
+    const f = fixture(
+      'off',
+      'generate_image',
+      '',
+      [],
+      'complete',
+      true,
+      'Создай сайт с новой картинкой',
+      false,
+      provider,
+      true,
+      false,
+      false,
+      true,
+    );
+    vi.spyOn(f.service.workingFiles, 'ready').mockResolvedValue(true);
+    vi.spyOn(f.service.workingFiles, 'list').mockResolvedValue([]);
+    const write = vi.spyOn(f.service.workingFiles, 'write').mockResolvedValue({
+      id: 'file',
+      name: 'forest.html',
+      version: 1,
+      content: '',
+      anchorRequestId: REQUEST,
+      sourceMessageId: null,
+      sourceBlock: null,
+      updatedAt: '',
+    });
+    await f.send();
+    expect(write).toHaveBeenCalledOnce();
+    expect(f.images.createFromTool.mock.calls[0]?.[7]).toEqual({
+      name: 'forest.html',
+      expectedVersion: 1,
+      placeholder: 'ASA_GENERATED_IMAGE_PENDING',
+    });
+    const calls = f.requests.filter((r) => isToolModelUrl(r.url));
+    expect(calls).toHaveLength(2);
+    expect(JSON.stringify(calls[0]?.body)).toContain('СНАЧАЛА');
+    expect(JSON.stringify(calls[0]?.body)).toContain('ASA_GENERATED_IMAGE_PENDING');
+    expect(JSON.stringify(calls[1]?.body)).toContain('forest.html');
+    const count = f.fetchImpl.mock.calls.length;
+    expect((await f.send()).replayed).toBe(true);
+    expect(f.fetchImpl).toHaveBeenCalledTimes(count);
+  });
+  it('does not advertise automatic file insertion on the older schema', async () => {
+    const f = fixture(
+      'off',
+      'generate_image',
+      '',
+      [],
+      'complete',
+      true,
+      'Создай картинку',
+      false,
+      provider,
+    );
+    vi.spyOn(f.service.workingFiles, 'ready').mockResolvedValue(true);
+    vi.spyOn(f.service.workingFiles, 'list').mockResolvedValue([]);
+    await f.send();
+    const wire = JSON.stringify(f.requests.find((r) => isToolModelUrl(r.url))!.body);
+    expect(wire).not.toContain('ASA_GENERATED_IMAGE_PENDING');
+    expect(f.images.createFromTool.mock.calls[0]?.[7]).toBeUndefined();
+  });
+
   it('retains generator failure identity and finishes its activity without submitting twice', async () => {
     const f = fixture(
       'off',

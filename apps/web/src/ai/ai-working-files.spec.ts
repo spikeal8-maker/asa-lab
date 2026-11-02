@@ -12,7 +12,7 @@ vi.mock('./ai-download', async (original) => ({
   downloadBlob: vi.fn(),
 }));
 
-it('updates the same file card, retains viewing controls and loads the new version in the isolated runtime', async () => {
+it('refreshes the same file on image completion without another message and retains isolated viewing controls', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const host = document.createElement('div');
   document.body.append(host);
@@ -60,14 +60,15 @@ it('updates the same file card, retains viewing controls and loads the new versi
       }),
     );
   try {
-    await act(async () => render('1'));
+    await act(async () => render('1:false:image:running'));
     const card = host.querySelector('dialog');
     expect(card).not.toBeNull();
     expect(anchor.contains(card)).toBe(true);
     expect(mount.querySelector('dialog')).toBeNull();
     expect(host.querySelector('iframe')?.getAttribute('sandbox')).toBe('allow-scripts');
     head = 2;
-    await act(async () => render('2'));
+    // Native image completion enriches the existing acknowledgement: no new history row.
+    await act(async () => render('1:false:image:complete'));
     expect(host.querySelector('dialog')).toBe(card);
     expect(host.querySelector('iframe')?.getAttribute('sandbox')).toBe('allow-scripts');
     expect(host.querySelector('iframe')?.getAttribute('srcdoc')).toContain('Змейка');

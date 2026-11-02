@@ -68,6 +68,7 @@ const expectedPending = [
   '0287', // Bounded document extraction with private originals.
   '0288', // Private working files and immutable revisions.
   '0289', // Polza text provider and bounded model catalogue.
+  '0294', // Exact owner-bound generated-image HTML binding.
 ];
 
 interface Identity {
