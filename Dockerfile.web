@@ -3,6 +3,17 @@
 ARG NODE_IMAGE=node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
 ARG CADDY_IMAGE=caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
 
+# Compiler and upstream source are immutable inputs; patched modules remain on
+# the same Caddy minor release. Go's checksum database verifies module downloads.
+FROM golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9 AS security-caddy
+ENV GOTOOLCHAIN=local CGO_ENABLED=0
+WORKDIR /src
+ADD --checksum=sha256:86e39de5fa0bc433a9cd574a00e7751059903401f3389c61f8937fd0ad0180f5 https://codeload.github.com/caddyserver/caddy/tar.gz/refs/tags/v2.11.7 /tmp/caddy.tar.gz
+RUN tar -xzf /tmp/caddy.tar.gz --strip-components=1 \
+    && go get github.com/go-jose/go-jose/v4@v4.1.6 golang.org/x/net@v0.60.0 \
+    && go build -mod=readonly -trimpath -ldflags '-s -w -X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.7' -o /out/caddy ./cmd/caddy \
+    && go version -m /out/caddy > /out/caddy-build-info.txt
+
 FROM ${NODE_IMAGE} AS build
 
 ENV PNPM_HOME=/pnpm
@@ -42,6 +53,9 @@ ENV XDG_DATA_HOME=/tmp/caddy-data
 RUN test -n "$ASA_SECURITY_PATCHSET" \
     && apk upgrade --no-cache \
     && setcap -r /usr/bin/caddy
+
+COPY --from=security-caddy /out/caddy /usr/bin/caddy
+COPY --from=security-caddy /out/caddy-build-info.txt /usr/share/asa-caddy-build-info.txt
 
 COPY docker/web/Caddyfile /etc/caddy/Caddyfile
 COPY --chmod=0555 docker/web/start.sh /usr/local/bin/asa-web-start

@@ -44,7 +44,7 @@ not an acceptance criterion for this new baseline.
 Existing general/electronics CI transports intentionally continue to use their
 previous immutable fixtures. Passing those jobs alone does **not** qualify the
 new runtime inputs. The `Runtime Image Security` workflow builds API/web with
-their new default inputs and pulls the exact candidate PostgreSQL digest. Its
+their new default inputs and builds the PostgreSQL derivative from its pinned upstream digest. Its
 checkout, build revision and artifact identity all use the same PR head SHA (or
 the dispatch SHA), rather than labelling an implicit PR merge-tree as head code.
 
@@ -90,3 +90,52 @@ Web and PostgreSQL remain blocked pending a separate derived-image slice.
 `apk upgrade` cannot repair Go libraries statically compiled into Caddy, and
 `apt-get upgrade` cannot repair the bundled gosu binary. Do not ignore these
 findings, declare this source production-ready, or deploy it as a completed fix.
+
+## Patched compiled dependencies and managed PostgreSQL transport
+
+The follow-up candidate rebuilds Caddy **2.11.7**, with exactly go-jose **4.1.6**
+and x/net **0.60.0**, and gosu **1.19** using official Go **1.27.3**. The compiler
+image is pinned by its official registry index digest. Both upstream source
+archives have explicit Docker `ADD --checksum` SHA-256 pins recorded in
+`infra/security-runtime-images.json`. Go uses its normal authenticated module
+checksum database, `GOTOOLCHAIN=local` prevents implicit compiler downloads,
+and `go build -mod=readonly` rejects additional unresolved build dependencies.
+The upstream module graph plus the two exact patch requirements select the
+Caddy dependency versions. This intentionally patches the upstream module
+sources during the build; it is an ASA derivative, not an unmodified official
+Caddy binary. Build-info files in both runtime images record the actual compiler
+and selected modules. No scanner ignore rule or severity downgrade is added.
+
+Primary inputs: [Go releases](https://go.dev/dl/?mode=json),
+[Caddy source](https://github.com/caddyserver/caddy/tree/v2.11.7),
+[go-jose 4.1.6](https://github.com/go-jose/go-jose/releases/tag/v4.1.6),
+[x/net 0.60.0](https://pkg.go.dev/golang.org/x/net@v0.60.0),
+[gosu source](https://github.com/tianon/gosu/tree/1.19).
+
+PostgreSQL remains **17.11/bookworm** with the official entrypoint, database
+path, initialization and runtime user behavior. Only gosu is replaced and OS
+packages refreshed. `compose.yaml` builds that derivative for source installs;
+`ASA_POSTGRES_IMAGE` selects an immutable release image for managed installs.
+Manifest **v3** adds PostgreSQL to the five v2 components and records the actual
+GHCR digest. v1/v2 manifests remain valid and select the pinned official base
+instead of requiring a new local derivative. They do not retroactively gain
+this gosu fix. The release CI builds/publishes PostgreSQL alongside the other
+components and checks all v3 image digests after Compose resolves.
+
+The real disposable PostgreSQL CI smoke initializes a fresh isolated volume
+through the root entrypoint, checks PID 1 is the non-root postgres UID, writes
+a sentinel, reopens it through root stepdown, then reopens the same data as the
+non-root Compose user. It publishes no ports, uses no external network and
+cleans up only its uniquely named CI container/volume. Caddy CI validates the
+real configuration with the rebuilt binary and verifies compiler/module build
+info. These tests have to pass in the exact source candidate run; source-only
+unit tests are not substitutes.
+
+`Runtime Image Security` now runs for every main commit, plus relevant pull
+requests. Publication waits for the exact main SHA's latest general and runtime
+security workflows to succeed. API/web/PostgreSQL are loaded locally on the
+isolated release runner, scanned **before** their push, and that same image is
+pushed only if the High/Critical fixable and OS-support checks succeed. Scan
+artifacts are retained on failure. The stable manifest is promoted only after
+all image builds/scans and the existing backup/restore smoke complete. This
+source candidate has not deployed any PostgreSQL or Caddy binary to a server.

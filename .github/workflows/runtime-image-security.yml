@@ -1,11 +1,21 @@
 name: Runtime Image Security
 
 'on':
+  push:
+    branches: [main]
   pull_request:
     paths:
       - Dockerfile.api
       - Dockerfile.web
       - compose.yaml
+      - infra/postgres/Dockerfile
+      - tools/deployment/**
+      - tools/test_ci_image_transport.py
+      - pnpm-lock.yaml
+      - package.json
+      - apps/api/package.json
+      - tools/ai-document-requirements.txt
+      - .github/workflows/portable-release.yml
       - infra/security-runtime-images.json
       - tools/runtime_image_baseline.py
       - tools/deployment/test_runtime_image_baseline.py
@@ -36,15 +46,13 @@ jobs:
           python-version: '3.11'
       - run: python -m unittest discover -s tools/deployment -p test_runtime_image_baseline.py -v
       - uses: docker/setup-buildx-action@v3
-      - name: Build exact candidate runtime defaults or pull pinned PostgreSQL
+      - name: Build exact candidate runtime defaults
         env:
           SERVICE: ${{ matrix.service }}
           REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           if [ "$SERVICE" = postgres ]; then
-            image=$(python tools/runtime_image_baseline.py --image postgres)
-            docker pull "$image"
-            docker tag "$image" "asa-security:$SERVICE"
+            docker build --target runtime --build-arg "ASA_BUILD_REVISION=$REVISION" -f infra/postgres/Dockerfile -t "asa-security:$SERVICE" .
           else
             docker build --target runtime --build-arg "ASA_BUILD_REVISION=$REVISION" -f "Dockerfile.$SERVICE" -t "asa-security:$SERVICE" .
           fi
@@ -61,6 +69,17 @@ jobs:
             web) docker run --rm --entrypoint /usr/bin/caddy "asa-security:$SERVICE" version | grep -E '^v2\.11\.7([[:space:]]|$)' ;;
             postgres) test "$(docker run --rm --entrypoint postgres "asa-security:$SERVICE" --version | awk '{print $3}')" = 17.11 ;;
           esac
+      - name: Verify real PostgreSQL initialization, stepdown and existing data
+        if: matrix.service == 'postgres'
+        run: python tools/deployment/ci_postgres_security_smoke.py asa-security:postgres
+      - name: Verify rebuilt Caddy configuration and compiled dependency evidence
+        if: matrix.service == 'web'
+        run: |
+          docker run --rm --entrypoint /usr/bin/caddy asa-security:web validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          docker run --rm --entrypoint cat asa-security:web /usr/share/asa-caddy-build-info.txt | tee caddy-build-info.txt
+          grep -F 'go1.27.3' caddy-build-info.txt
+          grep -F 'github.com/go-jose/go-jose/v4' caddy-build-info.txt | grep -F 'v4.1.6'
+          grep -F 'golang.org/x/net' caddy-build-info.txt | grep -F 'v0.60.0'
       - name: Install checksum-pinned official Trivy
         run: |
           curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-64bit.tar.gz -o "$RUNNER_TEMP/trivy.tar.gz"

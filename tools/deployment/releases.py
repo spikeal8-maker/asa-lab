@@ -53,7 +53,7 @@ def assert_ci(release):
             and publication.get("head_branch") == "main"
             and publication.get("status") == "completed" and publication.get("conclusion") == "success",
             "CI_BLOCKED", "The exact publication workflow has not succeeded.", "Wait for its completion; do not bypass publication verification.")
-    for name in ("ASA Lab Governance and Code Gates",):
+    for name in (("ASA Lab Governance and Code Gates", "Runtime Image Security") if release["format"] == "asa-deployment-v3" else ("ASA Lab Governance and Code Gates",)):
         candidates = sorted((r for r in runs if r.get("name") == name and r.get("head_sha") == revision
                              and r.get("head_branch") == "main"),
                             key=lambda r: (r.get("run_number", 0), r.get("run_attempt", 0)), reverse=True)
@@ -74,6 +74,11 @@ def fetch_images(release):
 
 def apply_release_environment(install, release):
     install.process_env.update({"ASA_BUILD_REVISION": release["revision"], "ASA_EXPECTED_SCHEMA_VERSION": str(release["schema"])})
+    if "postgres" not in release["images"]:
+        # v1/v2 releases predate the managed PostgreSQL derivative. Preserve their
+        # official PostgreSQL selection instead of requiring a nonexistent local build.
+        from runtime_image_baseline import runtime_defaults
+        install.process_env["ASA_POSTGRES_IMAGE"] = runtime_defaults()["postgres"]
     for service in release["images"]:
         install.process_env[f"ASA_{service.upper()}_IMAGE"] = release["images"][service]
 

@@ -490,7 +490,9 @@ def check_offline(receipt):
             values = re.findall(r"^ARG " + name + r"=([^\n]+)$", text, re.M)
             require(values == [expected], "Original image default changed: " + path + ":" + name)
     compose = parse_yaml(read("compose.yaml"))
-    require(compose["services"]["postgres"]["image"] == RUNTIME_DEFAULTS["postgres"],
+    require(compose["services"]["postgres"]["image"] == "${ASA_POSTGRES_IMAGE:-asa-lab-postgres:${ASA_IMAGE_TAG:-local}}"
+            and compose["services"]["postgres"]["build"]["dockerfile"] == "infra/postgres/Dockerfile"
+            and "ARG POSTGRES_IMAGE=" + RUNTIME_DEFAULTS["postgres"] + "\n" in read("infra/postgres/Dockerfile"),
             "Original PostgreSQL default changed")
     package = json.loads(read("package.json"))
     for name, expected in contract["gate_scripts"].items():
@@ -654,7 +656,7 @@ def check_models(receipt, general=False, electronics=False):
     original = docker_json([*base, "--profile", "test", "config", "--format", "json"])
     transported = docker_json([*base, *transport, "--profile", "test", "config", "--format", "json"])
     expected = receipt["images"]["postgres"]["reference"]
-    require(original["services"]["postgres"]["image"] == RUNTIME_DEFAULTS["postgres"],
+    require(original["services"]["postgres"]["image"] == "asa-lab-postgres:" + os.environ.get("ASA_IMAGE_TAG", "local"),
             "Original PostgreSQL default changed")
     require(transported["services"]["postgres"]["image"] == expected,
             "Composed PostgreSQL transport is not the pinned image")
@@ -712,7 +714,7 @@ def check_challenges(receipt):
     from io import StringIO
     from unittest.mock import patch
 
-    source = {path: read(path) for path in [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+    source = {path: read(path) for path in [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json", "infra/postgres/Dockerfile",
               *receipt["semantic_contract"]["dockerfile_defaults"],
               *receipt["semantic_contract"]["workflows"]]}
     general = ".github/workflows/spec-validation.yml"
@@ -906,7 +908,7 @@ def check_challenges(receipt):
             parent = parent[key]
         parent[path[-1]] = value
         challenge(name, {TRANSPORT: json.dumps(changed)}, False)
-    original = {"services": {"postgres": {"image": RUNTIME_DEFAULTS["postgres"]},
+    original = {"services": {"postgres": {"image": "asa-lab-postgres:local"},
                              "test-runner": {"command": "pnpm gate:data"}}}
     for changed_service in (False, True):
         transported = deepcopy(original)
@@ -1004,7 +1006,7 @@ def check_electronics_challenges(receipt):
     from io import StringIO
     from unittest.mock import patch
 
-    paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+    paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json", "infra/postgres/Dockerfile",
              *receipt["semantic_contract"]["dockerfile_defaults"],
              *receipt["semantic_contract"]["workflows"]]
     source = {path: read(path) for path in paths}
@@ -1134,7 +1136,7 @@ def check_electronics_challenges(receipt):
         runtime(name, lambda: prepare_electronics_postgres(effective), False, env, system, architecture)
     runtime("extra overlay setting", lambda: check_electronics_overlay(effective), False,
             overlay=general_overlay_text(effective) + "    privileged: true\n")
-    original_model = {"services": {"postgres": {"image": RUNTIME_DEFAULTS["postgres"]},
+    original_model = {"services": {"postgres": {"image": "asa-lab-postgres:" + context["ASA_IMAGE_TAG"]},
         "test-runner": {"command": "pnpm gate:electronics-m1:browser"}}}
     for drift in [False, True]:
         model = deepcopy(original_model)
@@ -1176,7 +1178,7 @@ def check_qualification_challenges(receipt):
     from io import StringIO
     from unittest.mock import patch
 
-    paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+    paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json", "infra/postgres/Dockerfile",
              *receipt["semantic_contract"]["dockerfile_defaults"],
              *receipt["semantic_contract"]["workflows"]]
     source = {path: read(path) for path in paths}

@@ -36,7 +36,25 @@ class RuntimeImageBaselineTests(unittest.TestCase):
             source = (ROOT / filename).read_text(encoding='utf-8')
             self.assertIn('ARG NODE_IMAGE=' + defaults['node'] + '\n', source)
         self.assertIn('ARG CADDY_IMAGE=' + defaults['caddy'] + '\n', (ROOT / 'Dockerfile.web').read_text())
-        self.assertIn('image: ' + defaults['postgres'] + '\n', (ROOT / 'compose.yaml').read_text())
+        self.assertIn('ARG POSTGRES_IMAGE=' + defaults['postgres'] + '\n', (ROOT / 'infra/postgres/Dockerfile').read_text())
+        self.assertIn('image: ${ASA_POSTGRES_IMAGE:-asa-lab-postgres:${ASA_IMAGE_TAG:-local}}', (ROOT / 'compose.yaml').read_text())
+
+    def test_rebuilt_go_tools_use_pinned_sources_and_compiler(self):
+        inputs = json.loads(BASELINE.read_text())['buildInputs']
+        for path, tool in [('Dockerfile.web', 'caddy'), ('infra/postgres/Dockerfile', 'gosu')]:
+            source = (ROOT / path).read_text()
+            self.assertIn('FROM ' + inputs['goImage'] + ' AS security-' + tool, source)
+            self.assertRegex(inputs['goImage'], r'^golang:1\.27\.3-bookworm@sha256:[a-f0-9]{64}$')
+            self.assertIn('ADD --checksum=sha256:' + inputs[tool]['sha256'] + ' ' + inputs[tool]['url'], source)
+            self.assertIn('GOTOOLCHAIN=local CGO_ENABLED=0', source)
+            self.assertIn('go build -mod=readonly', source)
+        web = (ROOT / 'Dockerfile.web').read_text()
+        self.assertIn('github.com/go-jose/go-jose/v4@' + inputs['caddy']['goJose'], web)
+        self.assertIn('golang.org/x/net@' + inputs['caddy']['xNet'], web)
+        workflow = (ROOT / '.github/workflows/runtime-image-security.yml').read_text()
+        self.assertIn('ci_postgres_security_smoke.py asa-security:postgres', workflow)
+        self.assertIn('-f infra/postgres/Dockerfile', workflow)
+        self.assertIn('branches: [main]', workflow)
 
     def test_mutable_or_major_upgrades_are_rejected(self):
         original = json.loads(BASELINE.read_text())
