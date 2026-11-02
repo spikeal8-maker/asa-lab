@@ -82,6 +82,12 @@ and explicit `local_check.eligible: false`.
 The existing spec, config and `e2e/fixtures/project-collections.ts` remain
 byte-preserved and source-bound with checkout line-ending normalization. Browser
 spec changes, additions, removals or fixture/config changes use broad checks.
+The same concrete spec covers both current callers: MyProjectsPage at `#/projects`
+and CreatorHomePage through useHomeProjectActions at `#/home`. The original 16
+MyProjects cases remain intact; eight Home cases cover empty and long-populated
+collection lists at 1440/1024/390/320 using the actual project menu and the same
+dialog layout oracles, screenshots and close/reopen checks. Home uses exact typed
+personal-module and public-shelf GET fixtures; other requests still fail closed.
 There is no browser-family discovery or new-browser admission in the local
 profile. The concrete spec remains `CI_NOT_RUN` locally; its actual final-source
 browser execution is required in isolated CI. Controlled REST fixtures establish
@@ -130,7 +136,7 @@ records. No unrelated executed check, incomplete receipt or integration/release
 claim is accepted. The job then builds only `web:build` and its Nx dependencies,
 and runs the exact catalog browser command for
 `e2e/project-collections-baseline.spec.ts` on supported Ubuntu 24.04/Chromium.
-All 16 browser cases must actually pass without skips, and source proof is
+All 24 browser cases must actually pass without skips, and source proof is
 repeated after browser execution. PostgreSQL/RLS, full lint/typecheck and the
 repository build are absent from this shadow route; General CI retains them.
 
@@ -159,7 +165,7 @@ The separately reviewed CI applicability extension uses the existing v1 effect
 proof only for Account Confirmation, Learning E1 and Public Projects Publication.
 It does not alter the canonical SHADOW risk, unknowns, plan or deferred mandatory
 IDs. All four General jobs and `ASA / required` remain fully enforced. The
-source-bound local checks and concrete 16-case browser route remain separate
+source-bound local checks and concrete 24-case browser route remain separate
 verification obligations; applicability does not establish their success.
 
 Each focused workflow checks the exact event HEAD, comparable base and clean

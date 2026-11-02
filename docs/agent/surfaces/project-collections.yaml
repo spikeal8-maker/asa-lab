@@ -2,10 +2,13 @@ schema_version: 1.0.0
 context: identity
 surfaces:
   - id: SURF-PROJECT-COLLECTION-PICKER
-    routes: ['#/projects']
+    routes: ['#/projects', '#/home']
     implementation:
       files:
         - apps/web/src/components/CollectPicker.tsx
+        - apps/web/src/pages/MyProjectsPage.tsx
+        - apps/web/src/pages/CreatorHomePage.tsx
+        - apps/web/src/modules/useHomeProjectActions.tsx
         - apps/web/src/components/collect-picker.css
         - apps/web/src/components/CollectPicker.spec.ts
         - e2e/project-collections-baseline.spec.ts
@@ -34,6 +37,9 @@ surfaces:
         change_class: L2_DOMAIN_MUTATION
         files:
           - apps/web/src/components/CollectPicker.tsx
+          - apps/web/src/pages/MyProjectsPage.tsx
+          - apps/web/src/pages/CreatorHomePage.tsx
+          - apps/web/src/modules/useHomeProjectActions.tsx
           - apps/web/src/components/CollectPicker.spec.ts
         invariants: [IDA-AUTH-001]
         tests: *picker_tests
