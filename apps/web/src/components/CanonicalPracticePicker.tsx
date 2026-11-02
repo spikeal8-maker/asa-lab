@@ -161,6 +161,7 @@ export function CanonicalPracticePicker({
               <CourseEditorDialog
                 open
                 screen
+                showHeader={false}
                 returnFocusRef={createButtonRef}
                 title="Новое задание для урока"
                 closeLabel="Вернуться к уроку"

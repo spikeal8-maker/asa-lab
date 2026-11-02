@@ -2169,14 +2169,6 @@
   padding: 0;
   overflow: auto;
 }
-.course-inline-task-dialog .course-dialog-header {
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px 16px;
-}
-.course-inline-task-dialog .course-dialog-header h3 {
-  overflow-wrap: anywhere;
-}
 .course-inline-task-dialog .assignment-document-topbar {
   top: 0;
 }
@@ -2186,20 +2178,4 @@
   margin: 0;
   padding: 0;
   border: 0;
-}
-.course-inline-task-dialog .assignment-document-actions {
-  flex-wrap: wrap;
-}
-.course-inline-task-dialog .assignment-document-actions button {
-  white-space: normal;
-}
-@media (max-width: 760px) {
-  .course-inline-task-dialog .assignment-document-topbar {
-    /* The standalone bank's negative margins assume surrounding page padding. */
-    margin-inline: 0;
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .course-inline-task-dialog .assignment-document-actions {
-    justify-content: flex-start;
-  }
 }

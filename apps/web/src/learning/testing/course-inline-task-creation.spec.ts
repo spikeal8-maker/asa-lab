@@ -27,7 +27,7 @@ async function flush() {
 }
 function button(label: string) {
   const value = [...document.querySelectorAll('button')].find(
-    (item) => item.textContent?.trim() === label,
+    (item) => (item.getAttribute('aria-label') ?? item.textContent?.trim()) === label,
   );
   if (!value) throw new Error('Missing button ' + label);
   return value;
@@ -114,6 +114,14 @@ afterAll(() => {
   testGlobal.IS_REACT_ACT_ENVIRONMENT = false;
 });
 beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
   guards.clear();
   parentSubmit.mockClear();
   pinChange.mockClear();
@@ -194,16 +202,29 @@ afterEach(async () => {
   root = null;
   container?.remove();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 it('creates and inserts the confirmed published version without submitting or replacing the lesson form', async () => {
   await mount();
-  expect(button('Опубликовать и добавить в урок').disabled).toBe(true);
+  const dialog = document.querySelector('[aria-label="Новое задание для урока"]')!;
+  expect(dialog.querySelector('.course-dialog-header')).toBeNull();
+  expect(dialog.querySelectorAll('[aria-label="Вернуться к уроку"]')).toHaveLength(1);
+  expect(document.activeElement).toBe(button('Вернуться к уроку'));
+  expect(
+    dialog.querySelector('[aria-label="Действия задания"]')?.contains(button('Добавить в урок')),
+  ).toBe(true);
+  expect(
+    [...dialog.querySelectorAll('button')].some(
+      (item) => item.textContent?.trim() === 'Опубликовать',
+    ),
+  ).toBe(false);
+  expect(button('Добавить в урок').disabled).toBe(true);
   await readyDraft();
   await click('Создать задание');
   expect(parentSubmit).not.toHaveBeenCalled();
   expect(api.createActivityDraft).toHaveBeenCalledTimes(1);
   expect(container.querySelector('[data-testid="saved-pin"]')?.textContent).toBe('');
-  await click('Опубликовать и добавить в урок');
+  await click('Добавить в урок');
   expect(api.publishAuthoredActivity).toHaveBeenCalledWith(rootId, 1, 'publish:' + rootId + ':1');
   expect(api.previewAuthoredActivityVersion).toHaveBeenCalledWith(rootId, versionId);
   expect(container.querySelector('[data-testid="saved-pin"]')?.textContent).toBe(versionId);
@@ -265,7 +286,7 @@ it('keeps the authored draft and rejects an unavailable module at insertion even
   await mount();
   await readyDraft();
   vi.mocked(api.listModules).mockResolvedValue({ ok: true, status: 200, data: { items: [] } });
-  await click('Опубликовать и добавить в урок');
+  await click('Добавить в урок');
   expect(document.body.textContent).toContain('Опубликованное задание сейчас недоступно');
   expect(document.querySelector('[aria-label="Название задания"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="saved-pin"]')?.textContent).toBe('');
@@ -275,7 +296,7 @@ it('keeps the authored draft and rejects an unavailable module at insertion even
     status: 200,
     data: { items: [module] },
   } as never);
-  await click('Опубликовать и добавить в урок');
+  await click('Добавить в урок');
   expect(container.querySelector('[data-testid="saved-pin"]')?.textContent).toBe(versionId);
   expect(api.createActivityDraft).toHaveBeenCalledTimes(1);
   expect(vi.mocked(api.publishAuthoredActivity).mock.calls.map((call) => call[2])).toEqual([
@@ -296,7 +317,7 @@ it('ignores verification that finishes after the owning lesson is unmounted', as
         complete = resolve;
       }),
   );
-  await click('Опубликовать и добавить в урок');
+  await click('Добавить в урок');
   expect(canLeaveParent()).toBe(false);
   await act(async () => {
     root?.unmount();
@@ -322,7 +343,7 @@ it('keeps the entire course publication operation locked during post-publication
         complete = resolve;
       }),
   );
-  await click('Опубликовать и добавить в урок');
+  await click('Добавить в урок');
   expect(api.publishAuthoredActivity).toHaveBeenCalledTimes(1);
   expect(api.authoredActivity).toHaveBeenCalledTimes(1);
   expect(api.previewAuthoredActivityVersion).not.toHaveBeenCalled();

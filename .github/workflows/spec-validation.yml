@@ -322,3 +322,25 @@ jobs:
           path: reports/playwright/access-a-summary.json
           retention-days: 14
           if-no-files-found: error
+
+  required:
+    name: ASA / required
+    needs: [governance, code, postgres-tests, access-a-browser]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      ASA_REQUIRED_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_REQUIRED_NEEDS_JSON: ${{ toJSON(needs) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Require all four exact-source General results
+        run: python tools/ci_required.py
