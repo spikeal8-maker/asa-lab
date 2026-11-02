@@ -3106,14 +3106,6 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
 
   await createPublishedProjectActivityAfterLogin(
     page,
-    electronicsTitle,
-    'electronics',
-    'completion',
-    electronicsSample,
-    electronicsGoal,
-  );
-  await createPublishedProjectActivityAfterLogin(
-    page,
     threeDTitle,
     'three-d',
     'completion',
@@ -3187,7 +3179,107 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await editor.getByLabel('Текст блока', { exact: true }).fill('Перед Electronics');
 
   await addCourseBlock(page, 'Практика');
-  await selectCoursePractice(page, electronicsTitle);
+  await editor.getByRole('button', { name: 'Создать задание для урока', exact: true }).click();
+  const inlineAuthor = page.getByRole('dialog', { name: 'Новое задание для урока', exact: true });
+  await expect(inlineAuthor).toBeVisible();
+  await expect(
+    inlineAuthor.getByRole('button', { name: 'Опубликовать и добавить в урок', exact: true }),
+  ).toBeDisabled();
+  await inlineAuthor.getByLabel('Среда задания', { exact: true }).selectOption('electronics');
+  await inlineAuthor.getByLabel('Название задания', { exact: true }).fill(electronicsTitle);
+  await inlineAuthor.getByLabel('Цель задания', { exact: true }).fill(electronicsGoal);
+  await inlineAuthor
+    .getByLabel('Содержание', { exact: true })
+    .fill('Соберите цепь, сохраните проект и сдайте точную редакцию.');
+  await inlineAuthor.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  await inlineAuthor.getByLabel('Файл схемы или изображения', { exact: true }).setInputFiles({
+    name: 'course-activity-sample.png',
+    mimeType: 'image/png',
+    buffer: electronicsSample,
+  });
+  page.once('dialog', (dialog) => void dialog.dismiss());
+  await inlineAuthor.getByRole('button', { name: 'Вернуться к уроку', exact: true }).click();
+  await expect(inlineAuthor).toBeVisible();
+  await expect(inlineAuthor.getByLabel('Название задания', { exact: true })).toHaveValue(
+    electronicsTitle,
+  );
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const action = inlineAuthor.getByRole('button', {
+      name: 'Опубликовать и добавить в урок',
+      exact: true,
+    });
+    await action.scrollIntoViewIfNeeded();
+    await expect(action).toBeVisible();
+    const bounds = (await action.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    const inlineLayout = await inlineAuthor.evaluate((element) => {
+      const bounds = (selector: string) => {
+        const node = element.querySelector(selector);
+        if (!node) return null;
+        const rect = node.getBoundingClientRect();
+        return { x: rect.x, right: rect.right, width: rect.width };
+      };
+      const topbar = element.querySelector('.assignment-document-topbar');
+      return {
+        viewportWidth: innerWidth,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        topbar: bounds('.assignment-document-topbar'),
+        saveState: bounds('.assignment-document-save-state'),
+        topbarMarginInline: topbar ? getComputedStyle(topbar).marginInline : null,
+      };
+    });
+    expect(inlineLayout.scrollWidth, JSON.stringify(inlineLayout)).toBeLessThanOrEqual(
+      inlineLayout.clientWidth,
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `${evidenceDir}/course-inline-task-author-${width}.png`,
+      fullPage: false,
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await inlineAuthor.getByRole('button', { name: 'Создать задание', exact: true }).click();
+  await expect(
+    inlineAuthor.getByText('Черновик сохранён. Публикация — отдельное действие.'),
+  ).toBeVisible();
+  await inlineAuthor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+  const inlinePreview = inlineAuthor.getByRole('dialog', {
+    name: 'Как увидит ученик',
+    exact: true,
+  });
+  await inlinePreview
+    .getByRole('button', { name: `Открыть образец: ${electronicsTitle}`, exact: true })
+    .click();
+  const inlineLightbox = page.getByRole('dialog', {
+    name: `Образец: ${electronicsTitle}`,
+    exact: true,
+  });
+  await expect(inlineLightbox).toBeVisible();
+  await inlineLightbox.getByRole('button', { name: 'Закрыть', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(inlineLightbox).toBeHidden();
+  await expect(inlineAuthor).toBeVisible();
+  await inlinePreview.getByRole('button', { name: 'Закрыть предпросмотр', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(inlinePreview).toBeHidden();
+  await expect(inlineAuthor).toBeVisible();
+  await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
+  await inlineAuthor
+    .getByRole('button', { name: 'Опубликовать и добавить в урок', exact: true })
+    .click();
+  await expect(inlineAuthor).toBeHidden();
+  await expect(
+    editor.getByRole('button', { name: 'Создать задание для урока', exact: true }).first(),
+  ).toBeFocused();
+  await expect(page.locator('#root')).not.toHaveAttribute('inert', '');
+  await expect(editor.locator('.course-practice-picker').first()).toContainText(electronicsTitle);
+  await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
+  await expect(editor.getByLabel('Текст блока', { exact: true })).toHaveValue('Перед Electronics');
 
   await addCourseBlock(page, 'Врезка');
   await editor.getByLabel('Текст врезки', { exact: true }).fill('Между двумя практиками');

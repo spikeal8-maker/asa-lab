@@ -1021,6 +1021,77 @@ export function App(): JSX.Element {
   const canManageClasses = canTeachHere && portalSession.navigation.classroomManagement;
   const canAuthor = portalSession.navigation.contentAuthoring === true && !isSeatLearner;
 
+  const navigate = (section: CreatorPortalSection): void => {
+    if (section === 'home') setView({ kind: 'home' });
+    else if (section === 'projects') setView({ kind: 'my-projects' });
+    else if (section === 'games') setView({ kind: 'games' });
+    else if (section === 'ai') setView({ kind: 'ai' });
+    else if (section === 'learning') setView({ kind: 'learning' });
+    else if (section === 'knowledge') setView({ kind: 'knowledge' });
+    else if (section === 'collections') setView({ kind: 'collections' });
+    else if (section === 'gallery') setView({ kind: 'public-projects' });
+    else if (section === 'challenges') setView({ kind: 'challenges' });
+    else if (section === 'classes') setView({ kind: 'classrooms' });
+    else if (section === 'help') setView({ kind: 'help' });
+    else {
+      setAccountPanel(maxVerificationDue ? 'security' : 'profile');
+      setView({ kind: 'account' });
+    }
+  };
+
+  const renderPortalHeader = (active: CreatorPortalSection): JSX.Element => (
+    <PortalHeader
+      session={portalSession}
+      active={active}
+      seatLearner={isSeatLearner}
+      classroomBadge={canManageClasses ? awaitingReview : undefined}
+      unfinishedCount={unfinished}
+      maxVerificationDue={!isSeatLearner && maxVerificationDue}
+      {...(session.kind === 'student'
+        ? {
+            seatSession: session.session,
+            onSeatChanged: (updated: ClassroomStudentSession) => {
+              const seatId = session.session.student.seatId;
+              const expiresAt = session.session.expiresAt;
+              setSession((current) =>
+                current.kind === 'student' &&
+                current.session.student.seatId === seatId &&
+                current.session.expiresAt === expiresAt &&
+                updated.student.seatId === seatId
+                  ? { kind: 'student', session: updated }
+                  : current,
+              );
+            },
+            seatAvatarUrl: seatAvatar(
+              session.session.student.seatId,
+              session.session.student.avatarKey,
+            ).src,
+          }
+        : {})}
+      canTeach={hasTeachingCapability}
+      {...(adminAccess.kind === 'granted'
+        ? {
+            adminNavigation: {
+              active: adminRoute,
+              activeSection: adminSection ?? 'overview',
+              items: adminNavigationItems(adminAccess.profile),
+              onOpen: () => openAdminSection('overview'),
+              onNavigate: openAdminSection,
+            },
+          }
+        : {})}
+      onNavigate={navigate}
+      onBeforeExit={mayLeaveLearning}
+      onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
+      onWorkspaceChanged={() => applyView({ kind: 'home' })}
+      onLoggedOut={() => {
+        setSession({ kind: 'anonymous' });
+        if (isPublicProjectView(view)) setPublicViewState({ kind: 'entry' });
+        else setPublicView({ kind: 'entry' });
+      }}
+    />
+  );
+
   if (view.kind === 'editor') {
     const game = isGameModule(view.moduleKey) || view.returnTo.kind === 'games';
     const onBack = (): void =>
@@ -1030,7 +1101,7 @@ export function App(): JSX.Element {
           ? { kind: 'games' }
           : view.returnTo,
       );
-    return (
+    const editor = (
       <SchoolTimeProvider timeZone={portalSession.timeZone}>
         <EditorErrorBoundary
           key={view.projectId}
@@ -1054,27 +1125,40 @@ export function App(): JSX.Element {
         </EditorErrorBoundary>
       </SchoolTimeProvider>
     );
+    if (view.moduleKey !== 'chess') return editor;
+    return (
+      <PresentationProvider
+        key={
+          session.kind === 'student'
+            ? `seat:${session.session.student.seatId}:${session.session.expiresAt}`
+            : `account:${portalSession.user.id}`
+        }
+        actor={portalSession.user.id}
+        seat={isSeatLearner}
+        {...(session.kind === 'student' ? { expiresAt: session.session.expiresAt } : {})}
+      >
+        <QuickProjectCreation
+          key={`${portalSession.user.id}:${portalSession.activeWorkspace.workspaceId}`}
+          contextKey={`${portalSession.user.id}:${portalSession.activeWorkspace.workspaceId}`}
+          onCreated={(project) =>
+            setView({
+              kind: 'editor',
+              projectId: project.id,
+              moduleKey: project.moduleKey,
+              returnTo: { kind: 'home' },
+            })
+          }
+        >
+          <div className="portal-shell asa-chess-portal">
+            {renderPortalHeader('games')}
+            <div className="asa-chess-portal-content">{editor}</div>
+          </div>
+        </QuickProjectCreation>
+      </PresentationProvider>
+    );
   }
 
   const active = sectionForView(view, hasTeachingCapability);
-
-  const navigate = (section: CreatorPortalSection): void => {
-    if (section === 'home') setView({ kind: 'home' });
-    else if (section === 'projects') setView({ kind: 'my-projects' });
-    else if (section === 'games') setView({ kind: 'games' });
-    else if (section === 'ai') setView({ kind: 'ai' });
-    else if (section === 'learning') setView({ kind: 'learning' });
-    else if (section === 'knowledge') setView({ kind: 'knowledge' });
-    else if (section === 'collections') setView({ kind: 'collections' });
-    else if (section === 'gallery') setView({ kind: 'public-projects' });
-    else if (section === 'challenges') setView({ kind: 'challenges' });
-    else if (section === 'classes') setView({ kind: 'classrooms' });
-    else if (section === 'help') setView({ kind: 'help' });
-    else {
-      setAccountPanel(maxVerificationDue ? 'security' : 'profile');
-      setView({ kind: 'account' });
-    }
-  };
 
   return (
     <PresentationProvider
@@ -1114,58 +1198,7 @@ export function App(): JSX.Element {
             >
               Перейти к содержанию
             </a>
-            <PortalHeader
-              session={portalSession}
-              active={active}
-              seatLearner={isSeatLearner}
-              classroomBadge={canManageClasses ? awaitingReview : undefined}
-              unfinishedCount={unfinished}
-              maxVerificationDue={!isSeatLearner && maxVerificationDue}
-              {...(session.kind === 'student'
-                ? {
-                    seatSession: session.session,
-                    onSeatChanged: (updated: ClassroomStudentSession) => {
-                      const seatId = session.session.student.seatId;
-                      const expiresAt = session.session.expiresAt;
-                      setSession((current) =>
-                        current.kind === 'student' &&
-                        current.session.student.seatId === seatId &&
-                        current.session.expiresAt === expiresAt &&
-                        updated.student.seatId === seatId
-                          ? { kind: 'student', session: updated }
-                          : current,
-                      );
-                    },
-                    seatAvatarUrl: seatAvatar(
-                      session.session.student.seatId,
-                      session.session.student.avatarKey,
-                    ).src,
-                  }
-                : {})}
-              canTeach={hasTeachingCapability}
-              {...(adminAccess.kind === 'granted'
-                ? {
-                    adminNavigation: {
-                      active: adminRoute,
-                      activeSection: adminSection ?? 'overview',
-                      items: adminNavigationItems(adminAccess.profile),
-                      onOpen: () => openAdminSection('overview'),
-                      onNavigate: openAdminSection,
-                    },
-                  }
-                : {})}
-              onNavigate={navigate}
-              onBeforeExit={mayLeaveLearning}
-              onSessionChanged={(updated) =>
-                setSession({ kind: 'authenticated', session: updated })
-              }
-              onWorkspaceChanged={() => applyView({ kind: 'home' })}
-              onLoggedOut={() => {
-                setSession({ kind: 'anonymous' });
-                if (isPublicProjectView(view)) setPublicViewState({ kind: 'entry' });
-                else setPublicView({ kind: 'entry' });
-              }}
-            />
+            {renderPortalHeader(active)}
             {adminRoute ? (
               <Suspense
                 fallback={

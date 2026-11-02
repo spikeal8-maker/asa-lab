@@ -30,6 +30,20 @@ const send = (onDelta = vi.fn()) =>
 afterEach(() => vi.resetAllMocks());
 
 describe('native AI SSE transport', () => {
+  it('ignores connection and periodic heartbeat comments across network boundaries', async () => {
+    const result = { messages: [], replayed: false, stopped: false };
+    const payload =
+      ': connected\n\n' +
+      ': heartbeat\n\n'.repeat(5) +
+      frame('delta', { text: 'Ответ' }) +
+      ': heartbeat\n\n' +
+      frame('done', result);
+    respond(Array.from(new TextEncoder().encode(payload), (byte) => Uint8Array.of(byte)));
+    const onDelta = vi.fn();
+    await expect(send(onDelta)).resolves.toEqual(result);
+    expect(onDelta).toHaveBeenCalledExactlyOnceWith('Ответ');
+  });
+
   it('sends the explicit internet mode only for the new operation, without endpoint or credentials', async () => {
     respond([frame('done', { messages: [], replayed: false, stopped: false })]);
     await streamAiRequest(

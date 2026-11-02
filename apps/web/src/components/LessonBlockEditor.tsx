@@ -255,8 +255,10 @@ function blockLabel(block: LessonBlock): string {
 export function LessonBlockEditor({
   blocks,
   onChange,
+  onRegisterNestedLeaveGuard,
 }: {
   readonly blocks: readonly LessonBlock[];
+  readonly onRegisterNestedLeaveGuard?: (id: string, guard: (() => boolean) | null) => void;
   readonly activities: readonly LessonActivityOption[];
   readonly onChange: (blocks: LessonBlock[]) => void;
 }): JSX.Element {
@@ -618,6 +620,7 @@ export function LessonBlockEditor({
             {block.type === 'activity' ? (
               <div data-course-field="learningActivityVersionId">
                 <CanonicalPracticePicker
+                  {...(onRegisterNestedLeaveGuard ? { onRegisterNestedLeaveGuard } : {})}
                   value={block.learningActivityVersionId}
                   onChange={(versionId) =>
                     onChange(setLessonActivityVersion(blocks, block.id, versionId))

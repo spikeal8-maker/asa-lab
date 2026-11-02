@@ -17,7 +17,7 @@ async function login(page: Page): Promise<void> {
 
 async function createChessProject(page: Page, title: string): Promise<void> {
   await openChessGame(page, title);
-  await expect(page.getByRole('heading', { name: /Добро пожаловать/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Ваш следующий ход/ })).toBeVisible();
   await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/home$/);
   await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
   await page.getByRole('button', { name: 'Открыть доску', exact: true }).click();
@@ -86,7 +86,7 @@ test('teacher creates, plays, reloads and versions an ASA Chess project', async 
 
   await page.getByRole('button', { name: 'Главная', exact: true }).click();
   await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/home$/);
-  await expect(page.getByRole('heading', { name: /Добро пожаловать/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Ваш следующий ход/ })).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(
@@ -115,7 +115,9 @@ test('ASA Bot makes a legal persisted reply', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Игра с ASA Bot' })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByTestId('asa-chess-board')).toHaveCount(0);
-  await page.getByText('Росток ASA', { exact: true }).click();
+  await page.getByRole('button', { name: /Начальный/ }).click();
+  await page.locator('.asa-chess-bot-profile-grid label').filter({ hasText: 'Росток ASA' }).click();
+  await page.getByText('Подробнее о сопернике', { exact: true }).click();
   await expect(page.getByText('Профиль не откалиброван по серии партий.')).toBeVisible();
   await page.getByRole('button', { name: 'Начать партию' }).click();
   await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/play\/game$/);

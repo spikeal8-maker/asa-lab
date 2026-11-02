@@ -193,3 +193,135 @@
     min-height: auto;
   }
 }
+
+/* The portal owns account identity; Chess owns only its game toolbar. */
+.asa-chess-portal-content {
+  min-width: 0;
+  margin-left: var(--portal-sidebar-width, 240px);
+}
+.asa-chess-portal-content
+  :where(
+    .asa-chess-shell,
+    .asa-online-shell,
+    .asa-puzzle-shell,
+    .asa-review-shell,
+    .asa-chess-home-shell
+  ) {
+  min-height: calc(100dvh - var(--portal-header-height, 56px));
+}
+.asa-chess-portal-content .editor-header-avatar,
+.asa-chess-portal-content .editor-header-brand-mark,
+.asa-chess-portal-content .editor-header-brand-name {
+  display: none;
+}
+.asa-chess-portal-content .editor-header-brand {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+  justify-content: center;
+}
+.asa-chess-portal-content .editor-header-brand::before {
+  content: '←';
+  font-size: 22px;
+}
+.asa-chess-portal-content .editor-header {
+  position: relative;
+  top: auto;
+  box-shadow: none;
+  background: #fff;
+}
+.asa-chess-portal-content .asa-chess-workspace {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  padding: 20px;
+}
+.asa-chess-difficulty {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0 16px;
+}
+.asa-chess-difficulty button {
+  display: grid;
+  gap: 5px;
+  text-align: left;
+  min-height: 64px;
+}
+.asa-chess-difficulty button small {
+  font-weight: 400;
+  color: #627985;
+}
+.asa-chess-bot-profile-grid > label[hidden] {
+  display: none;
+}
+.asa-chess-bot-profile-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 1100px) {
+  .asa-chess-portal-content .asa-chess-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .asa-chess-portal-content {
+    grid-column: 1 / -1;
+  }
+  .asa-chess-portal-content .asa-chess-workspace {
+    padding: 12px;
+  }
+  .asa-chess-difficulty {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asa-chess-difficulty button {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+.asa-chess-portal:has(.portal-sidebar.collapsed) > .asa-chess-portal-content {
+  margin-left: 80px;
+}
+@media (max-width: 1023px) {
+  .asa-chess-portal > .asa-chess-portal-content,
+  .asa-chess-portal:has(.portal-sidebar.collapsed) > .asa-chess-portal-content {
+    margin-left: 0;
+  }
+}
+.asa-chess-difficulty button {
+  border: 1px solid #cbdbe3;
+  border-radius: 9px;
+  padding: 12px;
+  background: #f7fafc;
+  color: #0b3558;
+  cursor: pointer;
+}
+.asa-chess-difficulty button.selected {
+  border-color: #0a91b6;
+  background: #e6f5fa;
+  box-shadow: inset 0 0 0 1px #0a91b6;
+}
+.asa-chess-bot-profile-grid strong {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.asa-chess-bot-profile-detail summary {
+  cursor: pointer;
+  padding-block: 6px;
+}
+.asa-chess-portal-content .asa-chess-shell {
+  background: #f3f7fa;
+}
+/* Respond to the actual game area, including an expanded ASA sidebar. */
+.asa-chess-portal-content {
+  container: asa-chess-page / inline-size;
+}
+@container asa-chess-page (max-width: 1000px) {
+  .asa-puzzle-layout,
+  .asa-review-layout,
+  .asa-online-game-layout,
+  .asa-chess-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
