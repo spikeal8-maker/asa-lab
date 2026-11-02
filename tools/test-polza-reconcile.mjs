@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createCipheriv } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   POLZA_MODEL_ID,
@@ -249,4 +250,16 @@ test('credential check rejects foreign encryption key and tampered ciphertext wi
     false,
   );
   assert.equal(credentialDecryptable(null, key.toString('hex')), false);
+});
+
+test('published API image explicitly contains both portable operator modules', () => {
+  const dockerfile = readFileSync(new URL('../Dockerfile.api', import.meta.url), 'utf8');
+  assert.match(
+    dockerfile,
+    /COPY --from=workspace .*\/tools\/polza-reconcile-core\.mjs \.\/tools\/polza-reconcile-core\.mjs/,
+  );
+  assert.match(
+    dockerfile,
+    /COPY --from=workspace .*\/tools\/polza-reconcile\.mjs \.\/tools\/polza-reconcile\.mjs/,
+  );
 });
