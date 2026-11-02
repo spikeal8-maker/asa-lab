@@ -445,10 +445,33 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       const box = await inspector.boundingBox();
       if (!box) throw new Error('Inspector missing');
       const x = box.x + box.width / 2;
+      const beforeNativeScroll = await geometry(page);
       await nativeDrag(
         page,
         Array.from({ length: 9 }, (_, i) => [{ x, y: box.y + box.height * (0.85 - i * 0.075) }]),
       );
+      const afterNativeScroll = await geometry(page);
+      const nativeScrollEvents = await page.evaluate(
+        () =>
+          (
+            window as Window & {
+              properties952?: { type: string; trusted: boolean; touches?: number }[];
+            }
+          ).properties952!,
+      );
+      journal['nativeScroll'] = {
+        before: beforeNativeScroll,
+        after: afterNativeScroll,
+        events: nativeScrollEvents,
+      };
+      write();
+      expect(
+        nativeScrollEvents.some(
+          (event) => event.type === 'touchmove' && event.trusted && event.touches === 1,
+        ),
+      ).toBe(true);
+      if (beforeNativeScroll.scrollHeight > beforeNativeScroll.clientHeight)
+        expect(afterNativeScroll.scrollTop).toBeGreaterThan(beforeNativeScroll.scrollTop);
       await value.scrollIntoViewIfNeeded();
       await expect(value).toBeInViewport({ ratio: 1 });
       const scrolled = await checkpoint('internal-scrolled-field', initial);
@@ -547,6 +570,12 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       write();
       expect(after.parts).toEqual(before.parts);
       expect(after.matrix).not.toEqual(before.matrix);
+      const beforeViewBox = before.viewBox!.trim().split(/\s+/).map(Number);
+      const afterViewBox = after.viewBox!.trim().split(/\s+/).map(Number);
+      // Fingers separate: zoom-in must shrink BOTH SVG world dimensions.
+      // Translation alone can change x/y and the CTM without changing these.
+      expect(afterViewBox[2]).toBeLessThan(beforeViewBox[2]!);
+      expect(afterViewBox[3]).toBeLessThan(beforeViewBox[3]!);
       expect(after.scale).toBe(before.scale);
       expect(after.canvasClass).not.toMatch(/placing|wiring/);
       const receipts = await page.evaluate(
