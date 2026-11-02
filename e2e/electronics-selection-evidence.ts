@@ -12,6 +12,44 @@ export type EvidenceStamp = {
   workerCount: number;
 };
 
+// Fence the actual asynchronous collection interval, not just its final state.
+// A write already pending before GET can finish without changing writeEpoch.
+export async function collectCompletedEvidence<T>(
+  current: () => EvidenceStamp,
+  collect: () => Promise<{
+    server: { draft: { revision: number } };
+    expectedDraft: { revision: number };
+    evidence: T;
+  }>,
+  verifyFresh: () => Promise<void>,
+) {
+  const before = structuredClone(current());
+  const collected = await collect();
+  const after = structuredClone(current());
+  if (
+    before.pendingWrites !== 0 ||
+    after.pendingWrites !== 0 ||
+    !isDeepStrictEqual({ ...before, checkpoint: 'complete' }, after)
+  ) {
+    // Do not seal old observer data with a newer Worker prefix, or a pre-write
+    // GET with a post-write epoch. A single fresh mandatory verification is
+    // required; an ongoing/racing write is a failure, never a retry loop.
+    const freshBefore = structuredClone(current());
+    if (freshBefore.pendingWrites !== 0)
+      throw new Error('Cannot verify completed evidence during a pending write');
+    await verifyFresh();
+    if (!isDeepStrictEqual(freshBefore, current()))
+      throw new Error('Completed evidence changed during mandatory verification');
+    return undefined;
+  }
+  return sealCompletedEvidence(
+    after,
+    collected.server,
+    collected.expectedDraft,
+    collected.evidence,
+  );
+}
+
 // A point-in-time receipt, not a cache of assumed current server state.
 // The caller must invalidate its stamp for every subsequent write/worker delivery.
 export function sealCompletedEvidence<T>(

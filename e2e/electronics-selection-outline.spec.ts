@@ -3,7 +3,11 @@ import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { PNG } from 'pngjs';
-import { sealCompletedEvidence, type EvidenceStamp } from './electronics-selection-evidence';
+import {
+  collectCompletedEvidence,
+  sealCompletedEvidence,
+  type EvidenceStamp,
+} from './electronics-selection-evidence';
 import { expect, test, type Page, type TestInfo, type Request } from '@playwright/test';
 import type pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
@@ -1899,19 +1903,25 @@ for (const width of [1440, 1024, 390, 320])
           ),
         ).toBe(true);
         expect(puts).toHaveLength(1);
-        const finalReadEpoch = writeEpoch;
-        lastServer = await server(page, projectId);
-        expect((lastServer as Awaited<ReturnType<typeof server>>).draft).toEqual(saved.draft);
-        failures.assertEmpty();
-        await checkpoint('complete');
         completedExpectedDraft = saved.draft;
-        if (writeEpoch === finalReadEpoch && pendingWrites.size === 0)
-          completedEvidence = sealCompletedEvidence(
-            evidenceStamp(),
-            lastServer as Awaited<ReturnType<typeof server>>,
-            saved.draft,
-            { server: lastServer, observer: lastObserver, storage: lastLocalStorage },
-          );
+        completedEvidence = await collectCompletedEvidence(
+          evidenceStamp,
+          async () => {
+            lastServer = await server(page, projectId);
+            expect((lastServer as Awaited<ReturnType<typeof server>>).draft).toEqual(saved.draft);
+            failures.assertEmpty();
+            await checkpoint('complete');
+            return {
+              server: lastServer as Awaited<ReturnType<typeof server>>,
+              expectedDraft: saved.draft,
+              evidence: { server: lastServer, observer: lastObserver, storage: lastLocalStorage },
+            };
+          },
+          async () => {
+            lastServer = await server(page, projectId);
+            expect((lastServer as Awaited<ReturnType<typeof server>>).draft).toEqual(saved.draft);
+          },
+        );
       } catch (error) {
         retainPrimary(error);
         throw error;
