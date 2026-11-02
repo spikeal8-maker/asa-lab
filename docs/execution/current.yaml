@@ -9254,90 +9254,28 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: teacher_review_stream_waiting_foreign_integration
+      checkpoint: visible_course_task_creation_selected
       selected_slice:
-        id: LRN-E1-TEACHER-EXACT-REVIEW-STREAM
-        status: waiting_foreign_integration
-        owner_wait_order: Сначала чужие изменения; очередь Курсов подождёт.
-        owner_wait_date_local: '2026-11-02'
-        owner_wait_evidence: https://github.com/spikeal8-maker/asa-lab/issues/179#issuecomment-6564378342
-        preserved_candidate:
-          state: uncommitted_unverified
-          worktree: E:/ASA-previews/learning-ci-runner-20261101
-          branch: codex/courses-teacher-review-stream-20261101
-          base_head: e2a2ecab01b63869d2629bb4301ff0ad6f4e20c5
-          files: 18
-          backup: E:/ASA-previews/teacher-stream-wip-20261101T214832Z
-          manifest_sha256: 7b52b6249036ca95a860189f6e39bad33f14a0b2e3d005c2796c6866ed8ffd1d
-          formal_ci: not_run
-        owner_authorization: Owner explicitly commissioned continued Courses completion after green-gated PR900 integration on 2026-11-01.
-        normative_ref: Learning UX sections 25-26 and Teacher Learner Oversight sections 1.2-3; E1-FIX-13 exact practice review
-        scope: >-
-          Deliver an exact-practice review stream inside the assignment journal:
-          choose a real runtime occurrence, filter canonical learner states, review
-          the immutable submission and move previous/next without reopening the list.
-          Reuse the existing review commands and ReviewDetail rather than WorkPreview
-          or a second grading engine. This is not all course embedded-entry or profile-return acceptance.
-        read_model_dependency: >-
-          Existing teacher gradebook rows omit exact run identity and collapse
-          shared-handout siblings. Existing review-context lacks descriptive origin
-          metadata. Add one authorized batched read of exact runtime origins with
-          frozen course/lesson/block labels and expose exact teacher projections.
-          Never pair collapsed rows by position or guess a matching latest draft.
-        migration:
-          candidate_path: migrations/0289_learning_teacher_review_queue.sql
-          allocation_rule: Recheck remote frontier and unfinished paths before writing and publication; 0289 is not an exclusive reservation. Report occupied number before changing selection.
-          preservation: Additive read accessor only, existing staff scope and fixed search_path; preserve every published migration and existing grants. No data rewrite or new writer.
+        id: LRN-E1-VISIBLE-COURSE-TASK-CREATION
+        status: in_progress
+        owner_authorization: Owner resumed development on 2026-11-02 and explicitly prioritised visible buttons for creating tasks inside courses over further invisible backend work.
+        scope: Reuse the canonical authored activity editor from the course practice picker; create, save, publish and select the exact new practice without losing the course lesson draft. No new academic runtime or migration.
         expected_write_paths:
-        - apps/api/src/learning-canonical-projection.service.ts
-        - apps/api/src/learning-canonical-projection.service.spec.ts
-        - apps/api/src/learning-assessments.controller.ts
-        - apps/api/src/learning-assessments.controller.spec.ts
-        - apps/web/src/App.tsx
-        - apps/web/src/api.ts
-        - apps/web/src/components/ClassroomGradebook.tsx
-        - apps/web/src/components/ClassroomReviewStream.tsx
-        - apps/web/src/components/ClassroomLearningReview.tsx
-        - apps/web/src/components/classroom-gradebook.css
-        - apps/web/src/learning/use-learning-destination.ts
-        - apps/web/src/pages/ClassroomPage.tsx
-        - e2e/learning-course-01.spec.ts
-        - tests/courses/course-activity-blocks.pg.spec.ts
-        - migrations/0289_learning_teacher_review_queue.sql
-        - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
-        - tests/migration/course-structure-forward-upgrade.pg.spec.ts
-        - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+        - apps/web/src/components/CanonicalPracticePicker.tsx
+        - apps/web/src/pages/AuthoredMaterialsPage.tsx
+        - apps/web/src/components/CoursesPanel.tsx
+        - apps/web/src/learning/testing/course-visible-authoring.spec.ts
+        - apps/web/src/learning/testing/course-inline-task-creation.spec.ts
+        - apps/web/src/components/courses-panel.css
         acceptance:
-        - Authorized batched metadata and canonical exact-run state only; no per-row HTTP loading, invented grade/state or completed-to-accepted equivalence.
-        - Identical activity titles remain distinguishable through real course/lesson/block origin or safe distribution metadata, not UUIDs as primary labels; foreign or incoherent origin labels never leak.
-        - Bounded queue pages and continuation beyond30 learners; no artificial class ceiling. State filters and selection use exact seat/run identity.
-        - Previous/next and refresh preserve the exact learner/run, frozen workflow attempt and submitted evidence; no latest-draft substitution or late-response overwrite.
-        - Dirty, busy and uncertain-response navigation is guarded; confirmed review refreshes the queue without automatic unconfirmed advance. Preserve requestId replay, expectedResultId conflict and append-only correction history.
-        - Reuse the existing App registerLearningLeaveGuard for portal exits and guard ClassroomPage local desktop/mobile tab switches; nested close, journal modes and assignment switches cannot bypass review protection.
-        - Existing journal cells and uniquely scoped conditions remain available; new exact stream hides handout-scoped LearningConditions rather than retargeting those mutations.
-        - Real browser shared-handout siblings and two learners exercise the fourth review-context parameter through HTTP, exact submission versus newer draft, return/resubmit, stale correction and lost-response retry.
-        - Actual1440/1024/390/320 layout and keyboard evidence, including long labels and applicable empty/loading/error states; no page overflow or lost controls.
-        - Full registered Learning, repository and applicable Classroom/Account/Public gates, migration prefix/checksum and second-apply-zero proof, new independent security/source and visual QA before integration.
-        constraints:
-        - Only listed paths; new components are optional extraction to reuse canonical review. No profile workflow, whole-course UI rewrite, notifications, permission model, workflow or timeout/retry changes.
-        - Read browsing/filter/navigation creates no academic records; only explicit existing canonical review commands may mutate results. No Project bytes in queue metadata.
-        - Preserve PR900 Usage, PR904 completion, PR906 media, PR908 exact selector and all46 existing browser identities/assertions; extend the existing teacher case rather than dropping coverage.
-        - Historical staged E1 helper in an old owner worktree already exists in accepted main; preserve that worktree. Other selected source and migration-fixture paths were clean in79 registered root worktrees.
-        - No local services, Docker, live database, deployment or owner acceptance; isolated CI only. Report a scope gap before expanding source paths or authority.
-        - New bounded executor and independent reviewers; executor reports and stops after this visible stream, controller continues remaining Courses outcomes.
-        guard_scope_amendment: >-
-          Controller adds App.tsx and ClassroomPage.tsx on main before product edits:
-          the existing leave-guard is currently wired only to AssignmentLibraryPage,
-          so a journal-only guard cannot fulfill normal SPA exit protection. Reuse
-          that mechanism; no new guard framework or global click interception.
-        guard_path_coordination: >-
-          Read-only inspection of80 registered root worktrees found no App WIP.
-          The sole staged ClassroomPage patch in teacher-587-review-fixes-20261018
-          implements roster accessibility and persistent journal/profile layout
-          already integrated on main in1c41341a492f0318cec49b5ab8d32eb622c6e54d.
-          Current main retains those features and later profile improvements.
-          Preserve the historical worktree/index untouched and all accepted behavior;
-          the selected new leave-guard wiring is not a replay of that old patch.
+        - A visible create-task action opens the existing canonical editor within the course workflow.
+        - Saving and publication use existing server commands; only a confirmed published supported project version can be inserted.
+        - Closing, error, busy and dirty navigation preserve or guard both author and lesson drafts.
+        - Exact saved lesson content survives reopening; no fake Quiz support or unsupported task types advertised.
+        - Focused mounted interaction checks and required Learning browser evidence distinguish implementation from installed owner acceptance.
+        preserved_work: Draft PR918,923,927,928,939 remain preserved; no merge, migration renumbering or foreign WIP edits in this slice.
+        previous_wait_resolution: Owner explicitly changed order; fresh remote main dfee5badd299d318a8e51ff0cbf88e9656333a5d observed with successful General workflow. Root ClassroomPage and classroom E2E/CSS WIP preserved. This slice avoids those paths and all migration fixtures; no migration allocation applies.
+        historical_checkpoint: https://github.com/spikeal8-maker/asa-lab/issues/179#issuecomment-6582162186
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
@@ -16675,32 +16613,6 @@ integration:
     - docs/testing/**
 
 blocking:
-  - id: LRN-TEACHER-STREAM-FOREIGN-FIRST-20261102
-    kind: execution_blocker
-    lane: learning
-    task_id: TASK-LRN-COURSE-001
-    blocks:
-      - bounded_implementation
-      - candidate_commit
-      - candidate_push
-      - source_integration
-    allows:
-      - readonly_diagnostics
-      - documentation_update
-      - preserve_existing_wip
-    reason: >-
-      Owner explicitly ordered foreign changes first on2026-11-02; teacher review
-      stream waits. Root ClassroomPage composition WIP is absent from main; AI
-      candidate6c3943c4 has competing0289 and the same three migration fixture edits.
-      Preserve all worktrees and the18-file uncommitted queue candidate; no new
-      queue source mutation, commit, push or integration until reconciliation.
-    unblock_requires: >-
-      Foreign owners integrate or explicitly reconcile/retire the overlapping
-      changes first, or owner explicitly approves another order. Then obtain fresh
-      remote main and actual WIP evidence, select a nonconflicting unmerged migration
-      number canonically and recover before a new bounded executor resumes. A text
-      change alone cannot close this blocker.
-    evidence: https://github.com/spikeal8-maker/asa-lab/issues/179#issuecomment-6564378342
   - id: ELECTRONICS-836-COMMITTED-RESULT-QUALIFICATION
     kind: deployment_blocker
     lane: electronics-committed-result-consumers
