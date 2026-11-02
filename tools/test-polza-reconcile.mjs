@@ -144,10 +144,10 @@ test('reconciles one model without removing other selected models, default or po
   assert.deepEqual(result.changes, ['selection', 'policy']);
   assert.equal(result.report.chatReady, true);
   assert.equal(result.report.transcriptionEnabled, false);
-  assert.deepEqual(h.state.catalog.items.filter((m) => m.selected).map((m) => m.id), [
-    OTHER,
-    MODEL,
-  ]);
+  assert.deepEqual(
+    h.state.catalog.items.filter((m) => m.selected).map((m) => m.id),
+    [OTHER, MODEL],
+  );
   assert.deepEqual(h.state.policy.allowedModels, ['ollama-local', OTHER, MODEL]);
   assert.equal(h.state.policy.defaultModel, 'ollama-local');
   assert.deepEqual(h.state.policy.providerOrder, { ollama: 0, polza: 5 });
@@ -240,7 +240,13 @@ test('credential check rejects foreign encryption key and tampered ciphertext wi
   assert.equal(credentialDecryptable(runtime, key.toString('hex')), true);
   assert.equal(credentialDecryptable(runtime, 'f5'.repeat(32)), false);
   assert.equal(credentialDecryptable(runtime, ''), false);
-  assert.equal(credentialDecryptable({ ...runtime, api_key_auth_tag: 'bad' }, key.toString('hex')), false);
-  assert.equal(credentialDecryptable({ ...runtime, api_key_ciphertext: null }, key.toString('hex')), false);
+  assert.equal(
+    credentialDecryptable({ ...runtime, api_key_auth_tag: 'bad' }, key.toString('hex')),
+    false,
+  );
+  assert.equal(
+    credentialDecryptable({ ...runtime, api_key_ciphertext: null }, key.toString('hex')),
+    false,
+  );
   assert.equal(credentialDecryptable(null, key.toString('hex')), false);
 });
