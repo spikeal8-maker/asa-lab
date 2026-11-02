@@ -1052,18 +1052,11 @@
   position: sticky;
   top: 56px;
   z-index: 25;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  min-height: 54px;
-  margin: -2px 0 18px;
-  padding: 7px 10px;
+  margin: 0 0 10px;
+  padding: 6px;
   border: 1px solid #dce5ea;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 5px 18px rgba(25, 43, 54, 0.06);
-  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.97);
 }
 .assignment-document-back {
   min-height: 34px;
@@ -1102,13 +1095,27 @@
 }
 .assignment-document-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+  min-width: 0;
 }
 .assignment-document-actions button {
-  min-height: 34px;
-  padding: 0 10px;
+  flex: 0 1 auto;
+  margin: 0;
+  width: auto;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 4px 8px;
+  border-radius: 6px;
   font-size: 12px;
+  line-height: 1.3;
+  white-space: normal;
+}
+.assignment-document-actions .assignment-document-save-state {
+  margin-left: auto;
+  max-width: 100%;
+  font-size: 11px;
 }
 .assignment-document-message {
   width: min(820px, 100%);
@@ -1128,9 +1135,9 @@
 }
 .assignment-document-canvas {
   box-sizing: border-box;
-  width: min(880px, 100%);
+  width: min(960px, 100%);
   margin: 0 auto;
-  padding: 30px 44px 56px;
+  padding: 16px 20px 24px;
   border: 1px solid #e2e8ec;
   border-radius: 12px;
   background: #fff;
@@ -1140,6 +1147,7 @@
 .assignment-document-goal-field,
 .assignment-document-body-field {
   display: block;
+  margin: 0 0 6px;
 }
 .assignment-document-title-field textarea,
 .assignment-document-goal-field input,
@@ -1153,33 +1161,57 @@
   outline: none;
 }
 .assignment-document-title-field textarea {
-  min-height: 54px;
-  max-height: 180px;
-  padding: 2px 0 6px;
-  overflow: hidden;
+  min-height: 32px;
+  max-height: none;
+  padding: 2px 0 4px;
+  overflow-y: auto;
   resize: none;
   field-sizing: content;
-  font-size: clamp(27px, 3vw, 36px);
-  font-weight: 760;
+  font-size: 20px;
+  font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.035em;
 }
 .assignment-document-goal-field input {
-  min-height: 40px;
+  min-height: 32px;
   padding: 4px 0;
   color: #65737c;
-  font-size: 16px;
+  font-size: 14px;
+  font-weight: 400;
   line-height: 1.45;
 }
 .assignment-document-body-field {
-  margin-top: 18px;
+  margin-top: 8px;
 }
 .assignment-document-body-field textarea {
-  min-height: 150px;
-  padding: 6px 0;
+  min-height: 64px;
+  max-height: none;
+  padding: 4px 0;
+  overflow-y: auto;
   resize: vertical;
-  font-size: 16px;
-  line-height: 1.65;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.assignment-document-environment {
+  display: grid;
+  grid-template-columns: auto minmax(140px, 220px) minmax(0, 1fr);
+  gap: 6px 10px;
+  align-items: center;
+  margin: 0 0 10px;
+}
+.assignment-document-environment > span {
+  font-size: 12px;
+}
+.assignment-document-environment select {
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.assignment-document-environment small {
+  color: #65737c;
+  font-size: 11px;
+  line-height: 1.4;
 }
 .assignment-document-title-field textarea::placeholder,
 .assignment-document-goal-field input::placeholder,
@@ -1466,8 +1498,8 @@
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-top: 18px;
-  padding: 10px 0;
+  margin-top: 10px;
+  padding: 8px 0;
   border-top: 1px solid #e9eef1;
   color: #63747e;
   font-size: 11.5px;
@@ -1735,39 +1767,34 @@
 }
 @media (max-width: 760px) {
   .assignment-document-topbar {
-    top: 56px;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 6px;
-    margin-inline: -4px;
+    margin-inline: 0;
     padding: 6px;
-    border-radius: 8px;
-  }
-  .assignment-document-save-state {
-    justify-self: end;
-    font-size: 10px;
   }
   .assignment-document-actions {
-    grid-column: 1/-1;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 100%;
+    gap: 4px;
   }
-  .assignment-document-actions button:first-child {
-    display: inline-flex;
+  .assignment-document-actions button {
+    min-height: 36px;
+    padding: 4px 7px;
+  }
+  .assignment-document-actions .assignment-document-save-state {
+    margin-left: 0;
   }
   .assignment-document-canvas {
     width: 100%;
-    padding: 18px 12px 42px;
+    padding: 12px 12px 20px;
     border: 0;
     border-radius: 0;
     box-shadow: none;
   }
   .assignment-document-title-field textarea {
-    font-size: 27px;
+    font-size: 18px;
   }
-  .assignment-document-body-field textarea {
-    min-height: 130px;
-    font-size: 15px;
+  .assignment-document-environment {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .assignment-document-environment small {
+    grid-column: 1 / -1;
   }
   .task-document-block {
     padding-right: 8px;
