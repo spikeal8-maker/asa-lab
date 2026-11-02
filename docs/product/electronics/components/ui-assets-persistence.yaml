@@ -76,6 +76,8 @@ components:
     - apps/web/src/electronics/testing/spdt-active-shadow.browser.mjs
     - apps/web/src/electronics/testing/workbench-native-wheel.spec.ts
     - e2e/electronics-native-wheel.spec.ts
+    - e2e/electronics-mobile-properties.spec.ts
+    - apps/web/src/electronics/testing/mobile-properties.spec.ts
     - apps/web/src/electronics/testing/psu-setpoint-persistence.spec.ts
     - apps/web/src/electronics/testing/asset-recovery.spec.ts
     - apps/web/src/electronics/testing/component-hit-testing.spec.ts
@@ -158,6 +160,8 @@ components:
     - apps/web/src/electronics/testing/component-help-content.spec.ts
     - apps/web/src/electronics/testing/component-information.spec.ts
     - apps/web/src/electronics/testing/workbench-presentation.spec.ts
+    - apps/web/src/electronics/testing/mobile-properties.spec.ts
+    - e2e/electronics-mobile-properties.spec.ts
     dependencies:
     - electronics.ui.catalog
     - electronics.engine.device-model
