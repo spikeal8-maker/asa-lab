@@ -349,6 +349,11 @@ const upgradeArtifacts = [
     '0295_learning_quiz_policy_authority.sql',
     '476451b2f0f31d60be2295e0189cc0484e746c8c4bae2d3492673d73ad8e4c03',
   ],
+  [
+    '0296',
+    '0296_learning_quiz_attempt_state.sql',
+    '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -444,6 +449,11 @@ const preservedTables = [
   'course_enrollments',
   'activity_runs',
   'activity_participations',
+  'learning_attempts',
+  'learning_submissions',
+  'learning_evaluations',
+  'assessment_results',
+  'gradebook_entries',
   'projects',
   'project_drafts',
   'project_versions',
@@ -467,20 +477,22 @@ async function preservedData(pool: pg.Pool) {
     // Normalize only known additive columns; all old and unknown future fields
     // remain covered by the strict before/after equality below.
     const addedColumns =
-      table === 'projects'
-        ? [...copiedProjectOriginFields]
-        : table === 'project_publication_state'
-          ? [
-              'acquisition_allowed',
-              'acquisition_version',
-              'reactions_enabled',
-              'reactions_version',
-              'comments_enabled',
-              'comments_admin_enabled',
-              'comments_version',
-              'pinned_comment_id',
-            ]
-          : [];
+      table === 'learning_attempts'
+        ? ['expires_at']
+        : table === 'projects'
+          ? [...copiedProjectOriginFields]
+          : table === 'project_publication_state'
+            ? [
+                'acquisition_allowed',
+                'acquisition_version',
+                'reactions_enabled',
+                'reactions_version',
+                'comments_enabled',
+                'comments_admin_enabled',
+                'comments_version',
+                'pinned_comment_id',
+              ]
+            : [];
     result[table] = (
       await pool.query(
         `SELECT to_jsonb(snapshot_row) - $1::text[] AS value
@@ -724,6 +736,19 @@ async function seedOldContracts(pool: pg.Pool, client: pg.PoolClient) {
     )
   ).rows;
   expect(participation).toHaveLength(1);
+  // A real historical Attempt exists before the new nullable expiry column.
+  // Preserve its complete old row, not a fabricated post-upgrade snapshot.
+  await pool.query(
+    `INSERT INTO learning_attempts
+    (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
+     seat_id,learner_identity_id,activity_participation_id,attempt_number,state)
+    SELECT run.tenant_id,run.classroom_id,run.source_classroom_assignment_id,
+      run.learning_activity_version_id,$2,part.learner_identity_id,part.id,1,'closed'
+    FROM activity_participations part JOIN activity_runs run ON run.id=part.activity_run_id
+    WHERE part.id=$1`,
+    [participation[0].id, seat],
+  );
+
   // This historical command reads app.tenant_id. Keep its context and decision
   // on one connection/transaction; a prior autocommit query cannot supply it.
   try {
@@ -825,6 +850,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       expect(before.course_versions).toHaveLength(1);
       expect(before.course_enrollments).toHaveLength(1);
       expect(before.activity_participations).toHaveLength(1);
+      expect(before.learning_attempts).toHaveLength(1);
       expect(before.project_versions).toHaveLength(1);
       expect(before.ai_paid_operation_quota).toHaveLength(2);
       const threads = (await pool.query('SELECT * FROM ai_assistant_threads ORDER BY id')).rows;
@@ -906,6 +932,17 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         })),
       );
       expect(await preservedData(pool)).toEqual(before);
+      expect(
+        (await pool.query('SELECT expires_at FROM learning_attempts ORDER BY id')).rows,
+      ).toEqual(before.learning_attempts!.map(() => ({ expires_at: null })));
+      expect(
+        (
+          await pool.query(`SELECT
+        (SELECT count(*) FROM quiz_attempt_states) AS states,
+        (SELECT count(*) FROM quiz_attempt_start_receipts) AS receipts`)
+        ).rows[0],
+      ).toEqual({ states: '0', receipts: '0' });
+
       expect(
         (
           await pool.query(

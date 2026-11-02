@@ -73,6 +73,7 @@ const expectedPending = [
   '0292', // Publication author avatars and projects-only catalog projection.
   '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
   '0295', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+  '0296', // Exact Quiz Start and answer state; historical rows remain unchanged.
 ];
 
 interface Identity {

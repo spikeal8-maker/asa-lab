@@ -164,6 +164,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0292', // Publication author avatars and projects-only catalog projection.
         '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
         '0295', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+        '0296', // Exact Quiz Start and answer state; historical rows remain unchanged.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -487,6 +488,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0292', // Publication author avatars and projects-only catalog projection.
           '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
           '0295', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+          '0296', // Exact Quiz Start and answer state; historical rows remain unchanged.
         ]);
         expect(
           await applyIsolatedTestPlan(
@@ -539,7 +541,14 @@ describe('Course Builder structure forward upgrade', () => {
       expect(
         (await pool.query('SELECT * FROM learning_attempts WHERE id=$1', [legacyAttemptId]))
           .rows[0],
-      ).toEqual(legacyAttemptBefore);
+      ).toEqual({ ...legacyAttemptBefore, expires_at: null });
+      expect(
+        (
+          await pool.query(`SELECT
+        (SELECT count(*) FROM quiz_attempt_states) AS states,
+        (SELECT count(*) FROM quiz_attempt_start_receipts) AS receipts`)
+        ).rows[0],
+      ).toEqual({ states: '0', receipts: '0' });
 
       const draftAfter = (
         await pool.query(

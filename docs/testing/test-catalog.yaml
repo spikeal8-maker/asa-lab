@@ -26,6 +26,16 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-LRN-QUIZ-ATTEMPT-STATE-001
+    title: Exact Quiz Start replay, confirmed answer revision, identity isolation and server deadline without academic result writes
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:learning-quiz-attempt-state
+    timeout_seconds: 300
+    owner: learning
+    artifacts: [vitest-report, postgresql-isolation-report]
   - id: TST-AI-TOKEN-BUDGETS-CORE-001
     title: Soft monthly model budgets, actual journal settlement, retained unknowns, complete native rounds, own-principal privacy and independent CAS settings
     suite: authorization
