@@ -1270,48 +1270,60 @@ async function exerciseExactReviewStream(
     )
   ).rows[0].learning_activity_version_id;
   const courseId = (
-    await admin.query("SELECT course_save($1,NULL,$2,NULL,NULL,'private') AS id", [
-      actor.principal_id,
-      'Курс точной проверки с одинаковыми названиями практик',
-    ])
+    await commandInTenant((client) =>
+      client.query("SELECT course_save($1,NULL,$2,NULL,NULL,'private') AS id", [
+        actor.principal_id,
+        'Курс точной проверки с одинаковыми названиями практик',
+      ]),
+    )
   ).rows[0].id;
   expect(courseId).toBeTruthy();
   const section = (
-    await admin.query('SELECT section_id FROM course_outline_v3($1,$2,$3,$4) LIMIT 1', [
-      courseId,
-      actor.principal_id,
-      actor.account_id,
-      identity.tenantId,
-    ])
-  ).rows[0].section_id;
-  await admin.query(
-    "SELECT course_lesson_save_v3($1,$2,$3,NULL,$4,NULL,$5::jsonb,'material',NULL,15,NULL)",
-    [
-      actor.principal_id,
-      courseId,
-      section,
-      'Один урок с повторяющимися названиями и точными позициями',
-      JSON.stringify([
-        { id: 'review-first', type: 'activity', learningActivityVersionId: version },
+    await commandInTenant((client) =>
+      client.query('SELECT section_id FROM course_outline_v3($1,$2,$3,$4) LIMIT 1', [
+        courseId,
+        actor.principal_id,
+        actor.account_id,
+        identity.tenantId,
       ]),
-    ],
+    )
+  ).rows[0].section_id;
+  expect(section).toBeTruthy();
+  const savedLesson = await commandInTenant((client) =>
+    client.query(
+      "SELECT course_lesson_save_v3($1,$2,$3,NULL,$4,NULL,$5::jsonb,'material',NULL,15,NULL) AS id",
+      [
+        actor.principal_id,
+        courseId,
+        section,
+        'Один урок с повторяющимися названиями и точными позициями',
+        JSON.stringify([
+          { id: 'review-first', type: 'activity', learningActivityVersionId: version },
+        ]),
+      ],
+    ),
   );
+  expect(savedLesson.rows[0].id).toBeTruthy();
   const revision = (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId]))
     .rows[0].draft_revision;
   expect(
     (
-      await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
-        actor.principal_id,
-        courseId,
-        revision,
-        'review:publish:' + crypto.randomUUID(),
-      ])
+      await commandInTenant((client) =>
+        client.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+          actor.principal_id,
+          courseId,
+          revision,
+          'review:publish:' + crypto.randomUUID(),
+        ]),
+      )
     ).rows[0].result_code,
   ).toBe('ok');
   const assigned = (
-    await admin.query(
-      "SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,1,'whole_class',NULL,$4)",
-      [actor.principal_id, classId, courseId, 'review:assign:' + crypto.randomUUID()],
+    await commandInTenant((client) =>
+      client.query(
+        "SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,1,'whole_class',NULL,$4)",
+        [actor.principal_id, classId, courseId, 'review:assign:' + crypto.randomUUID()],
+      ),
     )
   ).rows[0];
   expect(assigned.result_code).toBe('ok');
