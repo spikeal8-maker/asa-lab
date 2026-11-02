@@ -134,6 +134,12 @@ export async function runQualification() {
       source.fullElectronicsQualification === false,
     'reviewed source receipt',
   );
+  const runnerBytes = readFileSync(fileURLToPath(import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  need(
+    /^[a-f0-9]{64}$/.test(source.runnerSha256) &&
+      createHash('sha256').update(runnerBytes).digest('hex') === source.runnerSha256,
+    'executable runner differs from verified source receipt',
+  );
   const imageProof = readFileSync(resolve(directory, 'built-images.jsonl'), 'utf8')
     .trim()
     .split('\n')

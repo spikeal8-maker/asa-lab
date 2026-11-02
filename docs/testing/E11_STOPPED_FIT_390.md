@@ -12,10 +12,18 @@ whose delta is this fixed CI/documentation slice; product, migration, dependency
 or full-workflow changes stop before Docker. Only newly created receipts under
 this job's owned reports directory may be untracked; tracked changes are denied.
 The new workflow accepts no inputs.
-Its exact source and commands are hashed; the existing immutable transport guard
+The workflow and actual runner executable bytes have separate reviewed SHA256
+pins. Both are checked before a source receipt or Docker proof is admitted; the
+runner also verifies its executable bytes against that receipt before runtime I/O.
+The existing immutable transport guard
 admits only this additional workflow/browser pair after those checks. R4 and UI679
 workflows, image receipts, overlays and strict full-suite requirements remain
 unchanged. No environment spoof or alternate transport proof is used.
+
+These pins detect drift within the reviewed contract. The validator module itself
+is trusted code at the independently reviewed commit: an owner who rewrites that
+validator and its pins can change the policy. Such a change requires a new review;
+this is not cryptographic protection against an owner replacing the validator.
 
 After independent exact-SHA review, the controller must first confirm that this
 workflow is registered on the default branch: [GitHub requires that for manual
