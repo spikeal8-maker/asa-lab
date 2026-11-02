@@ -1539,7 +1539,9 @@ a.btn-ghost {
   background: #fff;
   box-shadow: 0 8px 30px rgb(9 43 75 / 14%);
   color: #18334b;
-  font: 13px/1.5 system-ui, sans-serif;
+  font:
+    13px/1.5 system-ui,
+    sans-serif;
 }
 
 .asa-release-update > span {
