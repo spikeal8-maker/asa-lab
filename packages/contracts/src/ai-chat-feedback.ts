@@ -1,3 +1,5 @@
+import { AI_TOOL_IDS, type AiToolId } from './ai-tools.js';
+
 /** Public chat feedback never includes provider diagnostics or connection details. */
 export const AI_TEXT_UNAVAILABLE = 'Извините, текстовая модель сейчас недоступна.';
 export const AI_IMAGE_UNAVAILABLE = 'Извините, генератор изображений сейчас недоступен.';
@@ -17,17 +19,8 @@ export function aiPublicErrorMessage(code: string, fallback = AI_TEXT_UNAVAILABL
   return fallback;
 }
 
-export const AI_CHAT_TOOLS = [
-  'web_search',
-  'image_search',
-  'weather',
-  'read_page',
-  'generate_image',
-  'create_working_file',
-  'read_working_file',
-  'edit_working_file',
-] as const;
-export type AiChatTool = (typeof AI_CHAT_TOOLS)[number];
+export const AI_CHAT_TOOLS = AI_TOOL_IDS;
+export type AiChatTool = AiToolId;
 export interface AiToolActivity {
   readonly tool: AiChatTool;
   readonly state: 'running' | 'complete';
