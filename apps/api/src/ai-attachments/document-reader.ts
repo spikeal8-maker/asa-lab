@@ -9,6 +9,17 @@ export const DOCUMENT_TYPES: Readonly<Record<string, string>> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 let active = 0;
+/** Installation-owned executable only; never derive commands from an uploaded document. */
+export function documentPythonExecutable(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  const configured = env.ASA_DOCUMENT_PYTHON;
+  if (configured === undefined) return platform === 'win32' ? 'python' : 'python3';
+  if (!configured.trim() || /[\0\r\n]/.test(configured))
+    throw new Error('Invalid document Python configuration.');
+  return configured.trim();
+}
 export async function readDocument(
   bytes: Buffer,
   extension: string,
@@ -28,9 +39,9 @@ export async function readDocument(
   try {
     const text = await new Promise<string>((resolve, reject) => {
       const child = spawn(
-        process.platform === 'win32' ? 'python' : '/opt/asa-document-python/bin/python',
+        documentPythonExecutable(),
         ['-I', join(__dirname, 'document-reader.py'), extension],
-        { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true },
+        { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, shell: false },
       );
       const chunks: Buffer[] = [];
       let size = 0;
