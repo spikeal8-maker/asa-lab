@@ -4,8 +4,8 @@
   "candidate": "692b76095dd0cdf0c9f6f8e18a503d37668940f8",
   "workflow": ".github/workflows/electronics-ui-679-557.yml",
   "runner": "tools/run-electronics-836-runtime-three.mjs",
-  "runnerSha256": "a4f08c92ac4011c7e76ec732ebe05117d6935bd7e5a89303abfb622e45e1798c",
-  "workflowSha256": "4a3205ae1ef218d36cc914f9ac92615b997bf7b76957d3f5e04f67509d69fc2c",
+  "runnerSha256": "9ee77a186b8ccb9c6c55cb418aa87c1f3b377ac6e0d510afe2a3ab66492dc9bd",
+  "workflowSha256": "91ae639b4d3bb644ce11f3665ee43b18d87d3d0d1a852604ff7aa4d6a5d17f30",
   "cases": [
     {
       "file": "electronics-selection-outline.spec.ts",

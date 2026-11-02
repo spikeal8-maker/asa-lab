@@ -68,7 +68,17 @@ The unchanged image guard verifies original Node/Caddy/PostgreSQL identities,
 the Compose image-only overlay and exact API/Web revision labels. Its actual
 three built-image receipts and PostgreSQL receipt are retained and checked against
 the source receipt's complete base-layer identities. Runtime readiness must match
-the exact candidate SHA/schema300. A later product baseline requires one explicitly
+the exact candidate SHA/schema300, including expectedSchemaVersion300 and
+synchronized=true. Only the closed three-case profile exports the canonical
+ASA_EXPECTED_SCHEMA_VERSION assignment to GITHUB_ENV before Compose. The fixed
+--expected-schema command revalidates the exact Git/source receipt and emits only
+that single bounded integer assignment; the original six-case environment is unchanged.
+Before asserting readiness, the runner retains runtime-readiness.json with only
+HTTP status, closed ready/not_ready status, exact revision or null, bounded numeric
+actual/expected schema or null, and boolean synchronization or null, bound to the
+source SHA/schema. Arbitrary response text, fields and headers are excluded.
+The receipt joins the final artifact inventory even when readiness fails, before
+any discovery or native execution. A later product baseline requires one explicitly
 authorized repin and review; arbitrary main drift is rejected.
 
 Discovery freezes exactly three file/describe/title/project identities. Execution
@@ -89,7 +99,14 @@ Missing/partial/stale proof yields `FAIL_OR_INCOMPLETE`. The JSON always states
 
 ## Status and limits
 
-Native qualification: **NOT_RUN**. Required independent review: **PENDING**.
+Native qualification for this repair: **NOT_RUN**. Required independent review: **PENDING**.
+The earlier exact8d63 diagnostic run41535936121 failed its strict runtime metadata
+assertion before discovery; zero browser cases ran. The response fields were not
+retained, so no specific observed null value is claimed. Source analysis found the
+missing expected-schema environment assignment: the canonical API returns null
+synchronization when expectedSchemaVersion is absent. Its isolated Linux cross-UID
+permissions regression passed. Neither that result nor this source repair is native
+three-case acceptance; the new exact-SHA diagnostic run remains controller-selected.
 This source slice does not classify all remaining26 full-suite failures as
 unrelated, lift blocker836, or authorize VM100 production update. The exact native
 three-case receipts must be independently reviewed; broader relevant failures and

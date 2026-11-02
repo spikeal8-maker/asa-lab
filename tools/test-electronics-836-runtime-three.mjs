@@ -1,13 +1,18 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import process from 'node:process';
 import test from 'node:test';
 import { fileURLToPath, URL } from 'node:url';
 import {
   expectedCases,
+  readinessReceipt,
+  retainReadiness,
   selector,
   validateImages,
+  validateReadiness,
   validateReport,
 } from './run-electronics-836-runtime-three.mjs';
 
@@ -37,6 +42,141 @@ function report() {
   };
 }
 const first = (r) => r.suites[0].specs[0].tests[0];
+
+const source = { revision: 'a'.repeat(40), schema: 300 };
+const ready = () => ({
+  status: 'ready',
+  deployment: {
+    revision: source.revision,
+    schemaVersion: 300,
+    expectedSchemaVersion: 300,
+    synchronized: true,
+  },
+});
+
+test('readiness requires the exact runtime revision, actual and expected schema, and synchronization', () => {
+  validateReadiness(readinessReceipt(200, ready(), source), source);
+  for (const change of [
+    { revision: 'b'.repeat(40) },
+    { revision: null },
+    { schemaVersion: 299 },
+    { schemaVersion: null },
+    { schemaVersion: '300' },
+    { expectedSchemaVersion: 299 },
+    { expectedSchemaVersion: null },
+    { expectedSchemaVersion: undefined },
+    { expectedSchemaVersion: '300' },
+    { synchronized: null },
+    { synchronized: false },
+    { synchronized: 'true' },
+  ]) {
+    const data = ready();
+    Object.assign(data.deployment, change);
+    assert.throws(() => validateReadiness(readinessReceipt(200, data, source), source));
+  }
+  for (const [status, data] of [
+    [503, ready()],
+    [200, { ...ready(), status: 'not_ready' }],
+    [200, null],
+    [200, {}],
+  ])
+    assert.throws(() => validateReadiness(readinessReceipt(status, data, source), source));
+});
+
+test('readiness receipts project only closed typed fields and exclude arbitrary payload and headers', () => {
+  const data = {
+    ...ready(),
+    secret: 'NEVER_RETAIN_SECRET',
+    dependencies: { token: 'NEVER_RETAIN_SECRET' },
+  };
+  data.deployment.token = 'NEVER_RETAIN_SECRET';
+  assert.deepEqual(readinessReceipt(200, data, source), {
+    sourceRevision: source.revision,
+    sourceSchema: 300,
+    httpStatus: 200,
+    status: 'ready',
+    deployment: ready().deployment,
+  });
+  const invalid = readinessReceipt(
+    '200',
+    {
+      status: 'NEVER_RETAIN_SECRET',
+      deployment: {
+        revision: 'NEVER_RETAIN_SECRET',
+        schemaVersion: true,
+        expectedSchemaVersion: 1e20,
+        synchronized: { secret: 'NEVER_RETAIN_SECRET' },
+      },
+    },
+    source,
+  );
+  assert.deepEqual(invalid, {
+    sourceRevision: source.revision,
+    sourceSchema: 300,
+    httpStatus: null,
+    status: null,
+    deployment: {
+      revision: null,
+      schemaVersion: null,
+      expectedSchemaVersion: null,
+      synchronized: null,
+    },
+  });
+  assert.doesNotMatch(
+    JSON.stringify([invalid, readinessReceipt(200, data, source)]),
+    /NEVER_RETAIN_SECRET/,
+  );
+});
+
+test('actual receipt files survive failed readiness checks before any discovery, including malformed JSON', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'asa836-readiness-'));
+  assert.ok(folder.startsWith(join(tmpdir(), 'asa836-readiness-')));
+  try {
+    for (const [name, status, data] of [
+      ['valid', 200, ready()],
+      [
+        'missing-expected',
+        200,
+        {
+          ...ready(),
+          deployment: { ...ready().deployment, expectedSchemaVersion: null, synchronized: null },
+        },
+      ],
+      [
+        'wrong-expected',
+        200,
+        {
+          ...ready(),
+          deployment: { ...ready().deployment, expectedSchemaVersion: 299, synchronized: true },
+        },
+      ],
+      ['http-failure', 503, ready()],
+      ['malformed', 200, null],
+    ]) {
+      const path = join(folder, name + '.json');
+      const response = {
+        status,
+        headers: { secret: 'NEVER_RETAIN_SECRET' },
+        async json() {
+          if (name === 'malformed') throw new SyntaxError('NEVER_RETAIN_SECRET');
+          return data;
+        },
+      };
+      if (name === 'valid') await retainReadiness(response, source, path);
+      else
+        await assert.rejects(
+          retainReadiness(response, source, path),
+          /runtime readiness|runtime revision\/schema/,
+        );
+      const receipt = JSON.parse(readFileSync(path, 'utf8'));
+      assert.deepEqual(receipt, readinessReceipt(status, data, source));
+      assert.doesNotMatch(readFileSync(path, 'utf8'), /NEVER_RETAIN_SECRET/);
+      await assert.rejects(retainReadiness(response, source, path), /EEXIST/);
+    }
+  } finally {
+    rmSync(folder, { recursive: true });
+  }
+});
 
 test('only the three original literal identities are selected', () => {
   assert.equal(expectedCases.length, 3);

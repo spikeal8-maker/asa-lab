@@ -119,6 +119,49 @@ function filesIn(path) {
   });
 }
 
+export function readinessReceipt(httpStatus, data, source) {
+  const schema = (value) =>
+    Number.isSafeInteger(value) && value >= 0 && value <= 1000000 ? value : null;
+  const deployment = data?.deployment;
+  return {
+    sourceRevision: source.revision,
+    sourceSchema: source.schema,
+    httpStatus:
+      Number.isInteger(httpStatus) && httpStatus >= 100 && httpStatus <= 599 ? httpStatus : null,
+    status: ['ready', 'not_ready'].includes(data?.status) ? data.status : null,
+    deployment: {
+      revision:
+        typeof deployment?.revision === 'string' && /^[a-f0-9]{40}$/.test(deployment.revision)
+          ? deployment.revision
+          : null,
+      schemaVersion: schema(deployment?.schemaVersion),
+      expectedSchemaVersion: schema(deployment?.expectedSchemaVersion),
+      synchronized: typeof deployment?.synchronized === 'boolean' ? deployment.synchronized : null,
+    },
+  };
+}
+
+export function validateReadiness(receipt, source) {
+  need(receipt.httpStatus === 200, 'runtime readiness');
+  need(
+    receipt.status === 'ready' &&
+      receipt.deployment.revision === source.revision &&
+      receipt.deployment.schemaVersion === source.schema &&
+      receipt.deployment.expectedSchemaVersion === source.schema &&
+      receipt.deployment.synchronized === true,
+    'runtime revision/schema',
+  );
+}
+
+export async function retainReadiness(response, source, path) {
+  // Never retain response text/headers or arbitrary API fields, even on failure.
+  const data = await response.json().catch(() => null);
+  const receipt = readinessReceipt(response.status, data, source);
+  writeFileSync(path, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
+  validateReadiness(receipt, source);
+  return receipt;
+}
+
 export async function runQualification() {
   need(process.argv.length === 2, 'no arguments, filters or commands');
   need(
@@ -169,21 +212,7 @@ export async function runQualification() {
       'built-images.jsonl|postgres-image.json|source.json',
     'stale/foreign output',
   );
-  const response = await fetch('http://web:8080/health/ready', {
-    redirect: 'error',
-    signal: AbortSignal.timeout(10000),
-  });
-  need(response.status === 200, 'runtime readiness');
-  const data = await response.json();
-  need(
-    data.status === 'ready' &&
-      data.deployment?.revision === source.revision &&
-      data.deployment.schemaVersion === source.schema &&
-      data.deployment.synchronized === true,
-    'runtime revision/schema',
-  );
   const output = resolve(directory, 'playwright');
-  mkdirSync(output);
   const invoke = (args, env = process.env, stdio = 'pipe') =>
     spawnSync(
       'pnpm',
@@ -199,6 +228,12 @@ export async function runQualification() {
     );
   let failure;
   try {
+    const response = await fetch('http://web:8080/health/ready', {
+      redirect: 'error',
+      signal: AbortSignal.timeout(10000),
+    });
+    await retainReadiness(response, source, resolve(directory, 'runtime-readiness.json'));
+    mkdirSync(output);
     const discovery = invoke(['--list', '--reporter=json']);
     writeFileSync(resolve(directory, 'discovery-all.json'), discovery.stdout ?? '');
     need(!discovery.error && discovery.status === 0, 'discovery process');

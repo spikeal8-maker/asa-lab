@@ -219,6 +219,7 @@ describe('additive workflow retains existing execution protections', () => {
     const actual = structuredClone(scoped.jobs.browser);
     const additions = [
       'Verify closed subset and exact three-case source before Docker',
+      'Configure exact three-case schema from verified source receipt',
       'Retain verified three-case image identities',
       'Three original 836 journeys only, unchanged assertions',
     ];
@@ -228,12 +229,17 @@ describe('additive workflow retains existing execution protections', () => {
       {
         name: additions[1],
         if: "${{ inputs.evidence_subset == '836-runtime-three-v1' }}",
+        run: 'python3 tools/electronics_836_three_source.py --expected-schema >> "$GITHUB_ENV"',
+      },
+      {
+        name: additions[2],
+        if: "${{ inputs.evidence_subset == '836-runtime-three-v1' }}",
         run:
           'python3 tools/test_ci_image_transport.py --electronics-built-images > reports/electronics-836-three/built-images.jsonl\n' +
           'python3 tools/test_ci_image_transport.py --electronics-pulled-postgres > reports/electronics-836-three/postgres-image.json\n',
       },
       {
-        name: additions[2],
+        name: additions[3],
         if: "${{ inputs.evidence_subset == '836-runtime-three-v1' }}",
         run: browser.steps
           .find((step) => step.name === 'Six existing native cases, unchanged assertions')!
@@ -249,6 +255,13 @@ describe('additive workflow retains existing execution protections', () => {
     expect(actual.steps.findIndex((step) => step.name === additions[0])).toBeLessThan(
       actual.steps.findIndex((step) => step.name === 'Prepare writable evidence directories'),
     );
+    expect(actual.steps.findIndex((step) => step.name === additions[1])).toBeLessThan(
+      actual.steps.findIndex((step) => step.run?.includes('docker compose')),
+    );
+    expect(
+      parse(readFileSync('compose.yaml', 'utf8')).services.api.environment
+        .ASA_EXPECTED_SCHEMA_VERSION,
+    ).toBe('${ASA_EXPECTED_SCHEMA_VERSION:-}');
     actual.steps = actual.steps.filter((step) => !additions.includes(step.name));
     expect(actual).toEqual(browser);
     expect(scoped.concurrency).toEqual({

@@ -150,6 +150,26 @@ finally:
                     contract.require_pair(ROOT, {**ENV, **change})
             source.assert_not_called()
 
+    def test_expected_schema_is_one_bounded_assignment_from_revalidated_exact_receipt(self):
+        with tempfile.TemporaryDirectory(prefix='asa836-schema-') as folder:
+            root = Path(folder)
+            receipt = {'revision': 'a'*40, 'schema': 300, 'scope': contract.SUBSET}
+            def put_receipt(value):
+                put(root, contract.DIRECTORY+'/source.json', json.dumps(value))
+            with patch.object(contract, 'require_pair', return_value=receipt) as validated:
+                with self.assertRaises(ValueError):contract.expected_schema_assignment(root, ENV)
+                put_receipt(receipt)
+                self.assertEqual(contract.expected_schema_assignment(root, ENV), 'ASA_EXPECTED_SCHEMA_VERSION=300')
+                validated.assert_called_with(root, ENV)
+                for changed in [{**receipt, 'schema': 299}, {**receipt, 'revision': 'b'*40}, {}]:
+                    put_receipt(changed)
+                    with self.assertRaisesRegex(ValueError, 'receipt changed'):
+                        contract.expected_schema_assignment(root, ENV)
+            for schema in (299, '300', True, None, '300\nFOREIGN=1'):
+                bad = {**receipt, 'schema': schema};put_receipt(bad)
+                with patch.object(contract, 'require_pair', return_value=bad), self.assertRaisesRegex(ValueError, 'fixed source schema'):
+                    contract.expected_schema_assignment(root, ENV)
+
     def test_actual_clean_git_mutants_cannot_change_runner_workflow_or_product(self):
         with tempfile.TemporaryDirectory(prefix='asa836-git-') as folder:
             root = Path(folder).resolve()
@@ -174,7 +194,13 @@ finally:
                 revision = git('rev-parse', 'HEAD')
                 return contract.source_identity(root, {**ENV, 'GITHUB_SHA': revision, 'ASA_ELECTRONICS_EXPECTED_SHA': revision})
             with patch.object(contract, 'BASE', base):
-                self.assertEqual(check()['schema'], 300)
+                receipt = check()
+                self.assertEqual(receipt['schema'], 300)
+                put(root, contract.DIRECTORY+'/source.json', json.dumps(receipt))
+                revision = git('rev-parse', 'HEAD')
+                actual_env = {**ENV, 'GITHUB_SHA': revision, 'ASA_ELECTRONICS_EXPECTED_SHA': revision}
+                self.assertEqual(contract.expected_schema_assignment(root, actual_env), 'ASA_EXPECTED_SCHEMA_VERSION=300')
+                (root/contract.DIRECTORY/'source.json').unlink()
                 runner, workflow = (ROOT/contract.RUNNER).read_bytes(), (ROOT/contract.WORKFLOW).read_bytes()
                 for name, changed in [('arbitrary-command', runner+b"\nspawnSync('arbitrary-command', []);\n"),
                                       ('retry-seven', runner.replace(b'--retries=0', b'--retries=7'))]:

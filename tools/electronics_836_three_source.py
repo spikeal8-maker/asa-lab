@@ -16,8 +16,8 @@ from urllib.parse import urlsplit, parse_qs
 BASE = '692b76095dd0cdf0c9f6f8e18a503d37668940f8'
 WORKFLOW = '.github/workflows/electronics-ui-679-557.yml'
 RUNNER = 'tools/run-electronics-836-runtime-three.mjs'
-RUNNER_SHA256 = 'a4f08c92ac4011c7e76ec732ebe05117d6935bd7e5a89303abfb622e45e1798c'
-WORKFLOW_SHA256 = '4a3205ae1ef218d36cc914f9ac92615b997bf7b76957d3f5e04f67509d69fc2c'
+RUNNER_SHA256 = '9ee77a186b8ccb9c6c55cb418aa87c1f3b377ac6e0d510afe2a3ab66492dc9bd'
+WORKFLOW_SHA256 = '91ae639b4d3bb644ce11f3665ee43b18d87d3d0d1a852604ff7aa4d6a5d17f30'
 CONTRACT = 'docs/product/electronics/evidence/836-three-case-qualification/contract.json'
 DIRECTORY = 'reports/electronics-836-three'
 SUBSET = '836-runtime-three-v1'
@@ -114,6 +114,15 @@ def json_file(path):
     need(path.is_file() and not path.is_symlink(), 'missing or linked evidence: '+path.name)
     need(path.stat().st_size <= 32*1024*1024, 'oversized JSON evidence')
     return json.loads(path.read_text(encoding='utf-8'))
+
+
+def expected_schema_assignment(root, env=os.environ):
+    # Recheck the exact source, not just a numeric value read from an old file.
+    receipt = require_pair(root, env)
+    need(json_file(root/DIRECTORY/'source.json') == receipt, 'source receipt changed before schema export')
+    schema = receipt['schema']
+    need(type(schema) is int and schema == 300, 'fixed source schema required')
+    return f'ASA_EXPECTED_SCHEMA_VERSION={schema}'
 
 
 def json_lines(path):
@@ -358,8 +367,11 @@ def main():
     elif sys.argv[1:] == ['--artifacts']:
         proof = validate_artifacts(root)
         (root/DIRECTORY/'original-journeys.json').write_text(json.dumps(proof, indent=2)+'\n')
+    elif sys.argv[1:] == ['--expected-schema']:
+        # A single bounded assignment; the closed workflow appends it to GITHUB_ENV.
+        print(expected_schema_assignment(root))
     else:
-        raise SystemExit('Only fixed --executables, --source or --artifacts is supported')
+        raise SystemExit('Only fixed --executables, --source, --expected-schema or --artifacts is supported')
 
 
 if __name__ == '__main__':
