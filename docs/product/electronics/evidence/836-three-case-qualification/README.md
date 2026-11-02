@@ -57,6 +57,13 @@ rewriting the validator itself. There is no self-referential hash cycle. The
 runtime runner also checks its own bytes and the guard's bytes against the fresh
 source receipt before runtime requests, execution or evidence writes.
 
+The source receipt directory is created **before** the existing isolated
+`reports`/`e2e/artifacts` permission step. That unchanged step also makes the new
+directory writable by container UID1000 when the host runner has another UID.
+The POSIX regression proves denial before that step and actual child-UID writing
+after it, using disposable temporary files only on isolated GitHub Linux runners.
+It is explicitly skipped on Windows; no WSL, local engine or server is started.
+
 The unchanged image guard verifies original Node/Caddy/PostgreSQL identities,
 the Compose image-only overlay and exact API/Web revision labels. Its actual
 three built-image receipts and PostgreSQL receipt are retained and checked against

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import struct
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -63,6 +64,71 @@ class TraceFixture:
 
 
 class SourceContracts(unittest.TestCase):
+    def test_source_directory_is_created_before_existing_isolated_permissions_step(self):
+        workflow = (ROOT/contract.WORKFLOW).read_text(encoding='utf-8')
+        self.assertLess(workflow.index('- name: Verify closed subset and exact three-case source before Docker'),
+                        workflow.index('- name: Prepare writable evidence directories'))
+        self.assertIn('mkdir -p e2e/artifacts/electronics-simulation reports\n          chmod -R 0777 e2e/artifacts reports\n', workflow)
+
+    @unittest.skipUnless(sys.platform.startswith('linux') and os.environ.get('GITHUB_ACTIONS') == 'true',
+                         'Actual differing-UID permission proof requires isolated GitHub Linux')
+    def test_actual_linux_different_uid_cannot_write_old_0755_but_can_after_workflow_preparation(self):
+        # No sudo outside isolated CI. The child immediately drops all groups and
+        # UID/GID; its only writes are disposable fixture artifacts, removed by it.
+        host_uid = os.geteuid()
+        target_uid = 1000 if host_uid != 1000 else 65534
+        prefix = [sys.executable] if host_uid == 0 else ['/usr/bin/sudo', '-n', '/usr/bin/python3']
+        child = '''import os, pathlib, sys
+assert os.geteuid() == 0
+uid = int(sys.argv[2]); os.setgroups([]); os.setgid(uid); os.setuid(uid)
+path = pathlib.Path(sys.argv[1])/'playwright'; created = False
+try:
+    path.mkdir(); created = True
+    (path/'execution.json').write_text('{}')
+    assert (path/'execution.json').read_text() == '{}'
+    print(os.geteuid())
+except PermissionError:
+    raise SystemExit(73)
+finally:
+    if created:
+        (path/'execution.json').unlink(missing_ok=True); path.rmdir()
+'''
+        workflow = (ROOT/contract.WORKFLOW).read_text(encoding='utf-8')
+        source_at = workflow.index('- name: Verify closed subset and exact three-case source before Docker')
+        permissions_at = workflow.index('- name: Prepare writable evidence directories')
+        prepare = 'mkdir -p e2e/artifacts/electronics-simulation reports\nchmod -R 0777 e2e/artifacts reports\n'
+        self.assertIn(prepare.replace('\n', '\n          ').rstrip(), workflow)
+        with tempfile.TemporaryDirectory(prefix='asa836-permissions-') as folder:
+            root = Path(folder).resolve()
+            self.assertTrue(root.is_relative_to(Path(tempfile.gettempdir()).resolve()))
+            root.chmod(0o755)
+            def probe(directory):
+                return subprocess.run([*prefix, '-c', child, str(directory), str(target_uid)],
+                                      capture_output=True, text=True, timeout=10)
+            old_mask = os.umask(0o022)
+            try:
+                denied = root/'before'/contract.DIRECTORY
+                denied.mkdir(parents=True)
+                self.assertEqual(denied.stat().st_mode & 0o777, 0o755)
+                self.assertEqual(probe(denied).returncode, 73, 'old directory must deny the other UID')
+                actual = root/'actual'; actual.mkdir()
+                private = actual/'private'; private.mkdir(mode=0o700)
+                report = actual/contract.DIRECTORY
+                for _, operation in sorted([(source_at, 'source'), (permissions_at, 'permissions')]):
+                    if operation == 'source':
+                        report.mkdir(parents=True)
+                        (report/'source.json').write_text('{}')
+                    else:
+                        subprocess.run(['/bin/bash', '-e', '-c', prepare], cwd=actual, check=True,
+                                       capture_output=True, timeout=10)
+                self.assertEqual(report.stat().st_mode & 0o777, 0o777)
+                self.assertEqual(private.stat().st_mode & 0o777, 0o700)
+                allowed = probe(report)
+                self.assertEqual(allowed.returncode, 0, allowed.stderr)
+                self.assertEqual(allowed.stdout.strip(), str(target_uid))
+            finally:
+                os.umask(old_mask)
+
     def test_actual_reviewed_executable_bytes_and_workflow_are_pinned(self):
         contract.executable_identity(ROOT)
         with tempfile.TemporaryDirectory(prefix='asa836-bytes-') as folder:

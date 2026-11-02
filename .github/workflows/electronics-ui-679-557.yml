@@ -145,13 +145,13 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - name: Verify closed subset and exact three-case source before Docker
+        run: python3 tools/electronics_836_three_source.py --source
+
       - name: Prepare writable evidence directories
         run: |
           mkdir -p e2e/artifacts/electronics-simulation reports
           chmod -R 0777 e2e/artifacts reports
-
-      - name: Verify closed subset and exact three-case source before Docker
-        run: python3 tools/electronics_836_three_source.py --source
 
       - name: Prepare and verify image-only PostgreSQL transport
         # The existing transport pair is unchanged. Only the new subset needs

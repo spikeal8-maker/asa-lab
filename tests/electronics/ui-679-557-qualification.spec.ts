@@ -246,6 +246,9 @@ describe('additive workflow retains existing execution protections', () => {
     expect(actual.steps.findIndex((step) => step.name === additions[0])).toBeLessThan(
       actual.steps.findIndex((step) => step.run?.includes('docker compose')),
     );
+    expect(actual.steps.findIndex((step) => step.name === additions[0])).toBeLessThan(
+      actual.steps.findIndex((step) => step.name === 'Prepare writable evidence directories'),
+    );
     actual.steps = actual.steps.filter((step) => !additions.includes(step.name));
     expect(actual).toEqual(browser);
     expect(scoped.concurrency).toEqual({
