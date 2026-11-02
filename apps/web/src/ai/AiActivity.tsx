@@ -2,23 +2,71 @@ import {
   AI_TOOL_ACTIVITY_LABELS,
   aiImageDimensions,
   type AiChatTool,
+  type AiToolActivity,
   type AiImageStoredSize,
 } from '@asa-lab/contracts';
+import { AiChatIcon, type AiChatIconName } from './AiChatIcon';
+
+const TOOL_ICONS: Record<AiChatTool, AiChatIconName> = {
+  web_search: 'search',
+  image_search: 'image',
+  weather: 'sun',
+  read_page: 'file',
+  generate_image: 'sparkles',
+  create_working_file: 'file',
+  read_working_file: 'file',
+  edit_working_file: 'edit',
+};
+const TOOL_NAMES: Record<AiChatTool, string> = {
+  web_search: 'Поиск в интернете',
+  image_search: 'Поиск изображений',
+  weather: 'Проверка погоды',
+  read_page: 'Чтение страниц',
+  generate_image: 'Подготовка изображения',
+  create_working_file: 'Создание файла',
+  read_working_file: 'Чтение рабочего файла',
+  edit_working_file: 'Изменение файла',
+};
+
+/** A bounded, ephemeral trace for this response only; never invent a completed call. */
+export function updateToolActivities(
+  current: readonly AiToolActivity[],
+  event: AiToolActivity,
+): readonly AiToolActivity[] {
+  if (event.state === 'running') {
+    if (current.some((item) => item.tool === event.tool && item.state === 'running'))
+      return current;
+    return [...current, event].slice(-16);
+  }
+  let index = current.length - 1;
+  while (
+    index >= 0 &&
+    !(current[index]?.tool === event.tool && current[index]?.state === 'running')
+  )
+    index -= 1;
+  return index < 0 ? current : current.map((item, i) => (i === index ? event : item));
+}
 
 export function AiActivity({
   image = false,
   responding = false,
-  tool,
+  activities = [],
   imageSize,
 }: {
   image?: boolean;
   responding?: boolean;
-  tool?: AiChatTool | undefined;
+  activities?: readonly AiToolActivity[];
   imageSize?: AiImageStoredSize | undefined;
 }): JSX.Element {
+  const running = activities.some((item) => item.state === 'running');
   const dimensions = image ? aiImageDimensions(imageSize ?? 1024) : null;
   return (
-    <div className={`ai-activity${image ? ' ai-activity-image' : ''}`} role="status">
+    <div
+      className={`ai-activity${image ? ' ai-activity-image' : ''}`}
+      role="status"
+      aria-live="polite"
+      aria-atomic="false"
+    >
       {image ? (
         <div
           className="ai-activity-canvas"
@@ -45,22 +93,48 @@ export function AiActivity({
           </svg>
         </div>
       ) : null}
-      <div className="ai-activity-caption">
-        <span className="ai-activity-dots" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </span>
-        <span>
-          {image
-            ? 'Создаю изображение…'
-            : tool
-              ? AI_TOOL_ACTIVITY_LABELS[tool]
-              : responding
-                ? 'Отвечаю…'
-                : 'Обдумываю ответ…'}
-        </span>
-      </div>
+      {activities.length ? (
+        <ol className="ai-activity-steps" aria-label="Действия ИИ">
+          {activities.map((activity, index) => (
+            <li
+              key={index}
+              className="ai-activity-step"
+              data-tool={activity.tool}
+              data-state={activity.state}
+            >
+              <span className="ai-activity-step-icon" aria-hidden="true">
+                <AiChatIcon name={TOOL_ICONS[activity.tool]} size={16} />
+              </span>
+              <span className="ai-activity-step-label">
+                {activity.state === 'running'
+                  ? activity.tool === 'web_search'
+                    ? 'Ищу в интернете…'
+                    : AI_TOOL_ACTIVITY_LABELS[activity.tool]
+                  : TOOL_NAMES[activity.tool]}
+              </span>
+              {activity.state === 'running' ? (
+                <span className="ai-tool-spinner" aria-hidden="true" />
+              ) : (
+                <span className="ai-tool-complete" aria-label="Вызов завершён">
+                  <AiChatIcon name="check" size={14} />
+                </span>
+              )}
+            </li>
+          ))}
+        </ol>
+      ) : null}
+      {!running || image ? (
+        <div className="ai-activity-caption">
+          <span className="ai-activity-dots" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <span>
+            {image ? 'Создаю изображение…' : responding ? 'Отвечаю…' : 'Обдумываю ответ…'}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { call, type ApiResult } from '../api-call';
 import { AiChatWorkspace } from './AiChatWorkspace';
+import { updateToolActivities } from './AiActivity';
 import { streamAiRequest } from './stream-ai-request';
 
 vi.mock('../api-call', () => ({ call: vi.fn() }));
@@ -292,7 +293,7 @@ describe('first-send lifecycle', () => {
   });
 });
 
-it('shows a tool while it executes, keeps the composer editable, then clears its activity', async () => {
+it('retains completed tool steps until the response finishes while keeping the composer editable', async () => {
   let finish!: (value: { messages: never[]; replayed: boolean; stopped: boolean }) => void;
   const waiting = new Promise<{ messages: never[]; replayed: boolean; stopped: boolean }>((r) => {
     finish = r;
@@ -308,6 +309,18 @@ it('shows a tool while it executes, keeps the composer editable, then clears its
   expect(composer().disabled).toBe(false);
   await act(async () => args[10]?.({ tool: 'read_page', state: 'complete' }));
   expect(host.textContent).not.toContain('Читаю выбранные страницы');
+  expect(
+    host.querySelector('[data-tool="read_page"][data-state="complete"]')?.textContent,
+  ).toContain('Чтение страниц');
+  expect(host.textContent).toContain('Обдумываю ответ');
+  await act(async () => args[10]?.({ tool: 'image_search', state: 'running' }));
+  expect(host.querySelectorAll('.ai-activity-step')).toHaveLength(2);
+  expect(host.textContent).toContain('Ищу изображения');
+  expect(host.querySelector('[data-tool="read_page"][data-state="complete"]')).not.toBeNull();
+  expect(host.querySelector('.ai-tool-spinner')).not.toBeNull();
+  await act(async () => args[10]?.({ tool: 'image_search', state: 'complete' }));
+  expect(host.querySelector('.ai-tool-spinner')).toBeNull();
+  expect(host.querySelectorAll('.ai-tool-complete')).toHaveLength(2);
   await act(async () => finish({ messages: [], replayed: false, stopped: false }));
   expect(host.querySelector('.ai-activity')).toBeNull();
 });
@@ -552,3 +565,17 @@ it.each([false, true])(
     }
   },
 );
+
+it('bounds the tool trace, ignores unknown completions and preserves genuine repeated calls', () => {
+  let trace: readonly import('@asa-lab/contracts').AiToolActivity[] = [];
+  expect(updateToolActivities(trace, { tool: 'image_search', state: 'complete' })).toBe(trace);
+  trace = updateToolActivities(trace, { tool: 'web_search', state: 'running' });
+  expect(updateToolActivities(trace, { tool: 'web_search', state: 'running' })).toBe(trace);
+  for (let i = 0; i < 20; i++) {
+    trace = updateToolActivities(trace, { tool: 'web_search', state: 'complete' });
+    trace = updateToolActivities(trace, { tool: 'web_search', state: 'running' });
+  }
+  expect(trace).toHaveLength(16);
+  expect(trace.at(-1)).toEqual({ tool: 'web_search', state: 'running' });
+  expect(trace.slice(0, -1).every((item) => item.state === 'complete')).toBe(true);
+});

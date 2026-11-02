@@ -12,9 +12,11 @@ it('announces every tool without exposing request payloads or provider details',
   const root = createRoot(host);
   try {
     for (const tool of AI_CHAT_TOOLS) {
-      await act(async () => root.render(createElement(AiActivity, { tool })));
+      await act(async () =>
+        root.render(createElement(AiActivity, { activities: [{ tool, state: 'running' }] })),
+      );
       expect(host.querySelector('[role=status]')?.textContent).toContain(
-        AI_TOOL_ACTIVITY_LABELS[tool],
+        tool === 'web_search' ? 'Ищу в интернете…' : AI_TOOL_ACTIVITY_LABELS[tool],
       );
       expect(host.querySelector('.ai-activity-canvas')).toBeNull();
     }

@@ -1665,6 +1665,48 @@
   margin: 18px 0;
   color: var(--ai-muted);
 }
+.asa-ai-layout .ai-activity:not(.ai-activity-image) {
+  padding-inline-start: 12px;
+}
+.asa-ai-layout .ai-activity-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+.asa-ai-layout .ai-activity-step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 22px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.asa-ai-layout .ai-activity-step-icon,
+.asa-ai-layout .ai-tool-complete {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.asa-ai-layout .ai-activity-step-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.asa-ai-layout .ai-tool-spinner {
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ai-tool-spin 0.8s linear infinite;
+}
+@keyframes ai-tool-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .asa-ai-layout .ai-activity-caption {
   display: flex;
   align-items: center;
@@ -1762,6 +1804,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .asa-ai-layout .ai-tool-spinner,
   .asa-ai-layout .ai-activity-dots i,
   .asa-ai-layout .ai-activity-canvas,
   .asa-ai-layout .ai-activity-orb {

@@ -27,7 +27,7 @@ import { AiCopyButton } from './AiCopyButton';
 import { imageModelLabel } from './image-model-label';
 import { AiImagePrompt } from './AiImagePrompt';
 import { AiChatTooltips } from './AiChatTooltips';
-import { AiActivity } from './AiActivity';
+import { AiActivity, updateToolActivities } from './AiActivity';
 import { AiCompactSelect } from './AiCompactSelect';
 import { AiVoiceInput, type AiVoiceController, type AiVoiceMode } from './AiVoiceInput';
 import { mergeVoiceTranscript } from './voice-transcript-draft';
@@ -331,7 +331,7 @@ export function AiChatPage({
   const composerBusy = busy || imageUi.busy;
   const interactionBusy = composerBusy || creatingChat || threadActionBusy || preparingImages;
   const [loading, setLoading] = useState(true);
-  const [toolActivity, setToolActivity] = useState<AiToolActivity | null>(null);
+  const [toolActivities, setToolActivities] = useState<readonly AiToolActivity[]>([]);
   const [error, setError] = useState<string | null>(null);
   function dismissModelNotice() {
     setError((value) =>
@@ -1161,7 +1161,7 @@ export function AiChatPage({
     setPendingMessage({ requestId, text });
     setStreamedText('');
     setBusy(true);
-    setToolActivity(null);
+    setToolActivities([]);
     setError(null);
     const version = ++selectedVersion.current;
     try {
@@ -1229,7 +1229,7 @@ export function AiChatPage({
           frozenNativeImage,
           (activity) => {
             if (version === selectedVersion.current)
-              setToolActivity(activity.state === 'running' ? activity : null);
+              setToolActivities((current) => updateToolActivities(current, activity));
           },
         );
         if (version !== selectedVersion.current) return;
@@ -1311,7 +1311,7 @@ export function AiChatPage({
       setPendingMessage(null);
       setStreamedText('');
       setBusy(false);
-      setToolActivity(null);
+      setToolActivities([]);
     }
   }
 
@@ -1396,7 +1396,7 @@ export function AiChatPage({
     const version = ++selectedVersion.current;
     requestBusy.current = true;
     setBusy(true);
-    setToolActivity(null);
+    setToolActivities([]);
     setError(null);
     setPendingMessage(null);
     setStreamedText('');
@@ -1416,7 +1416,7 @@ export function AiChatPage({
         aiScopeHeaders(seatId),
         (activity) => {
           if (version === selectedVersion.current)
-            setToolActivity(activity.state === 'running' ? activity : null);
+            setToolActivities((current) => updateToolActivities(current, activity));
         },
       );
       if (version !== selectedVersion.current) return;
@@ -1446,7 +1446,7 @@ export function AiChatPage({
       activeStream.current = null;
       requestBusy.current = false;
       setBusy(false);
-      setToolActivity(null);
+      setToolActivities([]);
       setStreamedText('');
     }
     void refreshThreads();
@@ -2093,7 +2093,7 @@ export function AiChatPage({
                     </article>
                   ) : null}
                   {busy ? (
-                    <AiActivity responding={Boolean(streamedText)} tool={toolActivity?.tool} />
+                    <AiActivity responding={Boolean(streamedText)} activities={toolActivities} />
                   ) : null}
                   {imageUi.busy && imageJob?.threadId === currentId && imageJob.prompt ? (
                     <AiImagePrompt
