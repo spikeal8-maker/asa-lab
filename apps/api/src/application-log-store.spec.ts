@@ -36,6 +36,126 @@ function event(code: string) {
 }
 
 describe('application-owned logging without host services', () => {
+  it('persists accepted HTTP 429 correlation through the real controller emit and native reader', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-native-429-'));
+    let store: ApplicationLogStore | undefined;
+    const output = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      vi.resetModules();
+      vi.stubEnv('ASA_APPLICATION_LOG_STORE', root);
+      const { applicationLogStore } = await import('./application-log-store.js');
+      const { ClientDiagnosticsController } = await import('./client-diagnostics.controller.js');
+      const controller = new ClientDiagnosticsController();
+      store = applicationLogStore()!;
+      const request = {
+        id: '10000000-0000-4000-8000-000000000001',
+        ip: '127.0.0.1',
+        raw: { socket: { remoteAddress: '127.0.0.1' } },
+        headers: {},
+      } as unknown as Parameters<typeof controller.report>[0];
+      const body = {
+        code: 'request_failed',
+        module: 'electronics',
+        revision: 'abcdef0',
+        phase: 'request',
+        method: 'PUT',
+        httpStatus: 429,
+        relatedRequestId: '20000000-0000-4000-8000-000000000002',
+        operation: 'electronics_draft_write',
+        failureKind: 'http',
+        clientAttemptId: '30000000-0000-4000-8000-000000000003',
+      };
+      expect(() =>
+        controller.report(request, { ...body, url: 'PRIVATE', prompt: 'PRIVATE' }),
+      ).toThrow();
+      expect(store.counters.accepted).toBe(0);
+      expect(controller.report(request, body)).toEqual({ accepted: true });
+      await store.close();
+      const result = await queryLogs(
+        root,
+        { ...filter, source: 'api', module: 'electronics' },
+        100,
+      );
+      expect(result.items).toHaveLength(1);
+      expect(JSON.parse(result.items[0]!.message)).toMatchObject({
+        kind: 'client_diagnostic',
+        level: 'error',
+        requestId: request.id,
+        untrustedClientReport: true,
+        httpStatus: 429,
+        relatedRequestId: body.relatedRequestId,
+        operation: body.operation,
+        failureKind: 'http',
+        clientAttemptId: body.clientAttemptId,
+      });
+      expect(result.items[0]!.message).not.toContain('PRIVATE');
+      expect(store.counters).toMatchObject({ accepted: 1, persisted: 1, dropped: 0, failures: 0 });
+    } finally {
+      await store?.close();
+      output.mockRestore();
+      vi.unstubAllEnvs();
+      vi.resetModules();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rechecks closed client request fields at the writer boundary without expanding other producers', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-native-request-context-'));
+    const store = new ApplicationLogStore(root);
+    const invalid = [
+      { httpStatus: 99 },
+      { httpStatus: 600 },
+      { httpStatus: 429.5 },
+      { httpStatus: '429' },
+      { httpStatus: null },
+      { httpStatus: { text: 'PRIVATE' } },
+      { relatedRequestId: 'PRIVATE' },
+      { relatedRequestId: ['10000000-0000-4000-8000-000000000001'] },
+      { operation: 'https://PRIVATE?token=PRIVATE' },
+      { operation: ['project_save'] },
+      { failureKind: 'PRIVATE' },
+      { failureKind: { message: 'PRIVATE' } },
+    ];
+    try {
+      for (const detail of invalid)
+        store.enqueue(
+          JSON.stringify({
+            kind: 'client_diagnostic',
+            time: new Date().toISOString(),
+            module: 'portal',
+            code: 'request_failed',
+            ...detail,
+            url: 'PRIVATE',
+            prompt: 'PRIVATE',
+            responseBody: 'PRIVATE',
+          }),
+        );
+      store.enqueue(
+        JSON.stringify({
+          kind: 'server_error',
+          module: 'portal',
+          httpStatus: 429,
+          relatedRequestId: '10000000-0000-4000-8000-000000000001',
+          operation: 'other_api',
+          failureKind: 'http',
+        }),
+      );
+      await store.close();
+      const result = await queryLogs(root, filter, 100);
+      expect(result.items).toHaveLength(invalid.length + 1);
+      for (const row of result.items) {
+        const body = JSON.parse(row.message);
+        for (const field of ['httpStatus', 'relatedRequestId', 'operation', 'failureKind'])
+          expect(body).not.toHaveProperty(field);
+        expect(row.message).not.toMatch(/PRIVATE|responseBody/);
+      }
+      expect(store.counters.dropped).toBe(0);
+    } finally {
+      await store.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('does not mark a healthy idle application writer stale or rewrite its evidence timestamp', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-native-idle-'));
     const store = new ApplicationLogStore(root);

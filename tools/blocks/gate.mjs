@@ -84,6 +84,7 @@ const focused = [
     'node',
     '--test',
     'tools/blocks/checks.test.mjs',
+    'tools/blocks/browser/product-aliases.test.mjs',
     'tools/blocks/host.test.mjs',
     'infra/scratch-editor/tests/editor-autosave.test.mjs',
     'tools/blocks/recovery.test.mjs',

@@ -122,6 +122,7 @@ export function logSubsystem(
   if (source === 'postgres' || source === 'migration') return 'database';
   if (source.startsWith('minio')) return 'storage';
   if (source === 'tunnel') return 'network';
+  if (origin === 'ai_image_jobs' || origin === 'ai_usage_journal') return 'diagnostics';
   if (origin === 'product_analytics_events') return 'analytics';
   if (origin === 'classroom_activity_events') return 'classrooms';
   if (origin === 'grade_change_events') return 'learning';

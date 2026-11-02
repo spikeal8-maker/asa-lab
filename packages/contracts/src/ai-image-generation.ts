@@ -82,6 +82,8 @@ export interface AiImageGenerationJob {
   readonly prompt: string;
   readonly createdAt: string;
   readonly cancelRequested: boolean;
+  /** Waiting for reconciliation of an uncertain GPU outcome; no foreign job details. */
+  readonly queuePaused?: boolean;
   readonly errorCode: string | null;
   readonly image: AiGeneratedImage | null;
 }

@@ -1,5 +1,6 @@
 import {
   ASA_CHESS_PUZZLES,
+  ASA_BOT_PROFILES,
   parseFen,
   validateChessDocument,
   type ChessDocument,
@@ -9,7 +10,6 @@ import { useEffect, useState } from 'react';
 import { api, type Project, type PublicUser } from '../api';
 import { EditorHeader } from '../components/editor-chrome/EditorHeader';
 import { ChessBoard } from './ChessBoard';
-import { chessAvatarText } from './ChessEditorHeader';
 import { buildChessHomeSummary } from './chess-home-ui';
 import { chessNetworkApi } from './chess-network-api';
 import { startLivePoll } from './live-poll';
@@ -116,19 +116,6 @@ function ChessHomeNavigation(props: ChessHomeNavigationProps): JSX.Element {
             </button>
           ))}
       </nav>
-      <div className="asa-chess-home-sidebar-footer">
-        <button type="button" className="asa-chess-home-projects" onClick={props.onBack}>
-          <span aria-hidden="true">←</span>
-          <span>
-            <strong>Все проекты</strong>
-            <small>Вернуться в ASA Lab</small>
-          </span>
-        </button>
-        <div className="asa-chess-home-user">
-          <span>{chessAvatarText(props.user.displayName)}</span>
-          <strong>{props.user.displayName}</strong>
-        </div>
-      </div>
     </aside>
   );
 }
@@ -139,6 +126,7 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
   const [document, setDocument] = useState<ChessDocument | null>(null);
   const [position, setPosition] = useState<ChessPosition | null>(null);
   const [notice, setNotice] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [networkAllowed, setNetworkAllowed] = useState(false);
   useEffect(
     () =>
@@ -182,12 +170,26 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
     return () => {
       active = false;
     };
-  }, [props.projectId]);
+  }, [props.projectId, loadAttempt]);
 
   if (state !== 'ready' || !document || !position || !project) {
     return (
       <main className="asa-chess-home-loading" role="status" aria-live="polite">
-        {state === 'error' ? notice : 'Загружаем шахматный центр…'}
+        <div>
+          <p>{state === 'error' ? notice : 'Загружаем шахматный центр…'}</p>
+          {state === 'error' && (
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setState('loading');
+                setLoadAttempt((attempt) => attempt + 1);
+              }}
+            >
+              Повторить загрузку
+            </button>
+          )}
+        </div>
       </main>
     );
   }
@@ -220,11 +222,6 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
             onActivate: props.onOpenBoard,
           },
         ]}
-        avatar={{
-          label: `Пользователь ${props.user.displayName}`,
-          text: chessAvatarText(props.user.displayName),
-          title: props.user.displayName,
-        }}
       />
 
       <div className="asa-chess-home-body">
@@ -233,8 +230,8 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
           <header className="asa-chess-home-welcome">
             <div>
               <span>Шахматный центр ASA Lab</span>
-              <h1 id="asa-chess-home-title">Добро пожаловать, {firstName}</h1>
-              <p>Играйте, решайте задачи и разбирайте ошибки — весь прогресс хранится в проекте.</p>
+              <h1 id="asa-chess-home-title">Ваш следующий ход, {firstName}</h1>
+              <p>Выберите соперника, продолжите партию или потренируйте тактику.</p>
             </div>
             <div className="asa-chess-home-rating" aria-label="Рейтинг задач">
               <span aria-hidden="true">♜</span>
@@ -247,28 +244,15 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
 
           <div className="asa-chess-home-hero-grid">
             <article className="asa-chess-home-card asa-chess-home-play-card">
-              <div className="asa-chess-home-card-copy">
-                <span className="asa-chess-home-kicker">Продолжить проект</span>
-                <h2>Партия и анализ</h2>
-                <p>
-                  {summary.halfMoves === 0
-                    ? 'Начните новую партию или откройте свободную доску.'
-                    : `В текущей позиции записано ${summary.halfMoves} полуходов.`}
-                </p>
-                <div className="asa-chess-home-play-actions">
-                  <button type="button" className="is-primary" onClick={props.onOpenBoard}>
-                    <span aria-hidden="true">♞</span> Продолжить на доске
-                  </button>
-                  {networkAllowed && (
-                    <button type="button" onClick={props.onOpenOnline}>
-                      Играть онлайн
-                    </button>
-                  )}
-                  <button type="button" onClick={props.onOpenBot}>
-                    Выбрать бота
-                  </button>
+              <header className="asa-chess-home-board-heading">
+                <div>
+                  <span className="asa-chess-home-kicker">Ваша доска</span>
+                  <h2>{project.title}</h2>
                 </div>
-              </div>
+                <span>
+                  {summary.halfMoves ? `${summary.completedMoves} ходов` : 'Начальная позиция'}
+                </span>
+              </header>
               <div className="asa-chess-home-mini-board" aria-label="Текущая позиция проекта">
                 <ChessBoard
                   position={position}
@@ -282,33 +266,84 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
                   onMove={() => undefined}
                 />
               </div>
+              <button
+                type="button"
+                className="is-primary asa-chess-home-resume"
+                onClick={props.onOpenBoard}
+              >
+                {summary.halfMoves ? 'Продолжить на доске' : 'Перейти к доске'}{' '}
+                <span aria-hidden="true">→</span>
+              </button>
             </article>
-
-            <article className="asa-chess-home-card asa-chess-home-puzzle-card">
-              <div className="asa-chess-home-puzzle-board" aria-hidden="true">
-                <ChessBoard
-                  position={puzzlePosition}
-                  orientation={puzzlePosition.turn}
-                  selectedSquare={null}
-                  legalMoves={[]}
-                  disabled
-                  testId="asa-chess-home-puzzle"
-                  onSquare={() => undefined}
-                  onMove={() => undefined}
-                />
-              </div>
-              <div>
-                <span className="asa-chess-home-kicker">Рекомендуемая задача</span>
-                <h2>{nextPuzzle.title}</h2>
-                <p>
-                  Ход за {puzzlePosition.turn === 'white' ? 'белых' : 'чёрных'}. Найдите лучший ход
-                  в позиции.
-                </p>
-                <button type="button" className="is-primary" onClick={props.onOpenTraining}>
-                  Решать задачу
+            <aside className="asa-chess-home-modes" aria-label="Выберите режим игры">
+              <section className="asa-chess-home-card asa-chess-home-mode-card">
+                <span className="asa-chess-home-kicker">Играть в шахматы</span>
+                <h2>С кем сыграем?</h2>
+                <button
+                  className="asa-chess-home-mode is-primary"
+                  type="button"
+                  onClick={props.onOpenBot}
+                >
+                  <span aria-hidden="true">♟</span>
+                  <span>
+                    <strong>Против компьютера</strong>
+                    <small>3 уровня · {ASA_BOT_PROFILES.length} профилей ботов</small>
+                  </span>
+                  <span aria-hidden="true">→</span>
                 </button>
-              </div>
-            </article>
+                {networkAllowed ? (
+                  <button
+                    className="asa-chess-home-mode"
+                    type="button"
+                    onClick={props.onOpenOnline}
+                  >
+                    <span aria-hidden="true">♞</span>
+                    <span>
+                      <strong>Играть онлайн</strong>
+                      <small>Пригласите доступного соперника</small>
+                    </span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                ) : (
+                  <p className="asa-chess-home-access-note">
+                    Сетевой режим сейчас недоступен. Можно играть с ботом или на одном устройстве.
+                  </p>
+                )}
+                <button className="asa-chess-home-mode" type="button" onClick={props.onOpenBoard}>
+                  <span aria-hidden="true">♔</span>
+                  <span>
+                    <strong>На одном устройстве</strong>
+                    <small>Откройте доску и выберите «Новая»</small>
+                  </span>
+                  <span aria-hidden="true">→</span>
+                </button>
+              </section>
+              <article className="asa-chess-home-card asa-chess-home-puzzle-card">
+                <div className="asa-chess-home-puzzle-board" aria-hidden="true">
+                  <ChessBoard
+                    position={puzzlePosition}
+                    orientation={puzzlePosition.turn}
+                    selectedSquare={null}
+                    legalMoves={[]}
+                    disabled
+                    testId="asa-chess-home-puzzle"
+                    onSquare={() => undefined}
+                    onMove={() => undefined}
+                  />
+                </div>
+                <div>
+                  <span className="asa-chess-home-kicker">Задача для вас</span>
+                  <h2>{nextPuzzle.title}</h2>
+                  <p>
+                    Ход за {puzzlePosition.turn === 'white' ? 'белых' : 'чёрных'}. Найдите лучший
+                    ход.
+                  </p>
+                  <button type="button" onClick={props.onOpenTraining}>
+                    Решать задачу →
+                  </button>
+                </div>
+              </article>
+            </aside>
           </div>
 
           <div className="asa-chess-home-feature-grid">
@@ -324,6 +359,10 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
               </div>
               <div
                 className="asa-chess-home-progress"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={summary.totalPuzzles}
+                aria-valuenow={summary.solvedPuzzles}
                 aria-label={`Решено ${summary.learningPercent}%`}
               >
                 <span style={{ width: `${summary.learningPercent}%` }} />
@@ -353,7 +392,7 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
               </span>
               <div>
                 <small>ASA Bot</small>
-                <h2>{summary.botName ?? '12 профилей соперников'}</h2>
+                <h2>{summary.botName ?? 'Выберите свой уровень'}</h2>
               </div>
               <p>Выберите подходящий уровень и сыграйте локальную учебную партию.</p>
               <button type="button" onClick={props.onOpenBot}>
