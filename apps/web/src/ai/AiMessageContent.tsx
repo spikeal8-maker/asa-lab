@@ -20,7 +20,13 @@ import 'katex/dist/katex.min.css';
 import './ai-text-complete.css';
 import { codeDownloadFormat, downloadBlob } from './ai-download';
 import { readWebEvidence } from './ai-web-evidence';
-import { usePreviewImages } from './ai-preview-images';
+import {
+  embedPreviewImages,
+  loadPreviewImages,
+  previewImageCandidates,
+  usePreviewImages,
+  type GeneratedPreviewAssets,
+} from './ai-preview-images';
 
 function flattenText(node: ReactNode): string {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -47,6 +53,7 @@ interface ContentProps {
   readonly pending?: boolean;
   readonly webSearch?: unknown;
   readonly previewEvidence?: readonly unknown[];
+  readonly generatedAssets?: GeneratedPreviewAssets;
   readonly seatId?: string | undefined;
 }
 
@@ -55,6 +62,7 @@ const CodeHeaderContext = createContext<ContentProps['codeHeader']>(undefined);
 const CodeImagesContext = createContext<{
   evidence: readonly unknown[];
   seatId?: string | undefined;
+  generatedAssets?: GeneratedPreviewAssets;
 }>({ evidence: [] });
 // Stable renderer identity keeps a running app alive when the surrounding chat
 // rerenders (typing, focus, provider status). Inline component functions remount it.
@@ -109,7 +117,47 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
     pending || !previewable ? '' : code,
     imageContext.evidence,
     imageContext.seatId,
+    imageContext.generatedAssets,
   );
+  const downloadAbort = useRef<AbortController>();
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
+  useEffect(() => {
+    setDownloading(false);
+    setDownloadError('');
+    return () => downloadAbort.current?.abort();
+  }, [code, imageContext.seatId, imageContext.generatedAssets?.threadId]);
+  async function downloadFile(): Promise<void> {
+    if (pending || downloading) return;
+    downloadAbort.current?.abort();
+    const controller = new AbortController();
+    downloadAbort.current = controller;
+    setDownloading(true);
+    setDownloadError('');
+    try {
+      const candidates = file.name.endsWith('.html')
+        ? previewImageCandidates(code, imageContext.evidence, imageContext.generatedAssets)
+        : [];
+      const ready = candidates.every((candidate) => candidate.refs.every((ref) => images.has(ref)));
+      const assets = ready
+        ? images
+        : await loadPreviewImages(candidates, imageContext.seatId, controller.signal);
+      controller.signal.throwIfAborted();
+      if (!candidates.every((candidate) => candidate.refs.every((ref) => assets.has(ref))))
+        throw new Error('image_unavailable');
+      downloadBlob(
+        new Blob([file.name.endsWith('.html') ? embedPreviewImages(code, assets) : code], {
+          type: file.mime,
+        }),
+        file.name,
+      );
+    } catch {
+      if (!controller.signal.aborted)
+        setDownloadError('Не удалось подготовить файл с изображениями. Попробуйте ещё раз.');
+    } finally {
+      if (!controller.signal.aborted) setDownloading(false);
+    }
+  }
   const preview = useMemo(
     () =>
       previewable && !pending
@@ -269,9 +317,9 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
           <AiCopyButton text={code} label="Копировать код" />
           <button
             type="button"
-            disabled={pending}
+            disabled={pending || downloading}
             data-ai-tooltip={pending ? 'Доступно после завершения ответа' : 'Скачать ' + file.name}
-            onClick={() => downloadBlob(new Blob([code], { type: file.mime }), file.name)}
+            onClick={() => void downloadFile()}
             aria-label={'Скачать код: ' + file.name}
           >
             <AiChatIcon name="download" size={17} />
@@ -312,6 +360,11 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
           {children}
         </pre>
       </div>
+      {downloadError && (
+        <p role="status" className="asa-ai-preview-notice">
+          {downloadError}
+        </p>
+      )}
       {previewable && !pending && !preview && (
         <p className="asa-ai-preview-notice">
           Предпросмотр недоступен для этого блока. Код можно скопировать или скачать.
@@ -357,6 +410,7 @@ export function AiMessageContent({
   codeHeader,
   hideCodeBlocks,
   previewEvidence,
+  generatedAssets,
   seatId,
 }: ContentProps): JSX.Element {
   const evidence = readWebEvidence(webSearch);
@@ -372,7 +426,7 @@ export function AiMessageContent({
         <CodePendingContext.Provider value={pending}>
           <CodeHeaderContext.Provider value={codeHeader}>
             <CodeImagesContext.Provider
-              value={{ evidence: previewEvidence ?? [webSearch], seatId }}
+              value={{ evidence: previewEvidence ?? [webSearch], seatId, generatedAssets }}
             >
               <ReactMarkdown
                 skipHtml

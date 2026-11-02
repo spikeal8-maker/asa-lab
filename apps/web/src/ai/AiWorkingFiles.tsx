@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { createAiScopeCall } from './ai-scope-api';
 import { AiMessageContent } from './AiMessageContent';
 import { AiChatIcon } from './AiChatIcon';
+import type { AiGeneratedImage } from '@asa-lab/contracts';
 
 export interface WorkingFileInfo {
   id: string;
@@ -13,6 +14,7 @@ export interface WorkingFileInfo {
   content?: string;
   sourceMessageId: string | null;
   sourceBlock: number | null;
+  updatedAt?: string;
   versions?: { version: number; summary: string; createdAt: string }[];
 }
 export function AiWorkingFiles({
@@ -30,7 +32,15 @@ export function AiWorkingFiles({
   refreshKey: string;
   busy: boolean;
   onSources: (files: WorkingFileInfo[]) => void;
-  messages: readonly { id: string; requestId: string; role: string; webSearch?: unknown }[];
+  messages: readonly {
+    id: string;
+    requestId: string;
+    role: string;
+    content?: string;
+    createdAt?: string;
+    webSearch?: unknown;
+    generatedImages?: readonly AiGeneratedImage[];
+  }[];
   targets: Readonly<Record<string, HTMLElement>>;
   latestRequestId: string | undefined;
 }): JSX.Element | null {
@@ -45,6 +55,7 @@ export function AiWorkingFiles({
   const [collapsed, setCollapsed] = useState(false);
   const seenFile = useRef(false);
   const previousTurn = useRef(latestRequestId);
+  const seenVersion = useRef<string>();
   const base = '/api/ai/threads/' + encodeURIComponent(threadId) + '/working-files';
   useEffect(() => {
     const controller = new AbortController();
@@ -63,7 +74,22 @@ export function AiWorkingFiles({
     return () => controller.abort();
   }, [base, call, refreshKey, refresh, onSources]);
   const head = files.find((f) => f.name === name);
+  // A new version belongs beside its saving reply, not forever beside v1.
+  // Timestamps only choose presentation; all file access remains server-owned.
+  const updatedAt = Date.parse(head?.updatedAt ?? '');
+  const savingReply = Number.isFinite(updatedAt)
+    ? messages.find((m) => m.role === 'assistant' && Date.parse(m.createdAt ?? '') >= updatedAt)
+    : undefined;
+  const mentionedReply = [...messages]
+    .reverse()
+    .find(
+      (m) =>
+        m === savingReply ||
+        (m.role === 'assistant' && head && m.content?.includes('`' + head.name + '`')),
+    );
   const anchor =
+    mentionedReply ??
+    savingReply ??
     messages.find((m) => m.id === head?.sourceMessageId) ??
     messages.find((m) => m.requestId === head?.anchorRequestId && m.role === 'assistant') ??
     messages.find((m) => m.requestId === head?.anchorRequestId) ??
@@ -72,16 +98,22 @@ export function AiWorkingFiles({
   const target = anchor ? targets[anchor.id] : undefined;
   useEffect(() => {
     if (!head) return;
+    const versionKey = head.id + ':' + head.version;
     if (!seenFile.current) {
       seenFile.current = true;
       previousTurn.current = latestRequestId;
       setCollapsed(Boolean(latestRequestId && latestRequestId !== head.anchorRequestId));
+    } else if (seenVersion.current !== versionKey) {
+      previousTurn.current = latestRequestId;
+      setCollapsed(false);
+      setVersion(null);
     } else if (previousTurn.current !== latestRequestId) {
       previousTurn.current = latestRequestId;
       setCollapsed(true);
       setVersion(null);
     }
-  }, [head?.id, latestRequestId]);
+    seenVersion.current = versionKey;
+  }, [head?.id, head?.version, latestRequestId]);
   useEffect(() => {
     if (!head || collapsed || !target) return;
     const controller = new AbortController();
@@ -150,6 +182,10 @@ export function AiWorkingFiles({
       <AiMessageContent
         key={file.id}
         seatId={seatId}
+        generatedAssets={{
+          threadId,
+          images: messages.flatMap((message) => message.generatedImages ?? []),
+        }}
         previewEvidence={[
           ...messages.map((message) => message.webSearch),
           anchor?.webSearch,

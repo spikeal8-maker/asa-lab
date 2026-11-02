@@ -1,4 +1,6 @@
-import { parse, type DefaultTreeAdapterMap } from 'parse5';
+import { parse, serialize, type DefaultTreeAdapterMap } from 'parse5';
+import type { AiGeneratedImage } from '@asa-lab/contracts';
+import { generatedImagePath, readGeneratedImage } from './read-generated-image';
 import { useEffect, useState } from 'react';
 import { fetchWithSessionRefresh } from '../session-fetch';
 import { aiScopeHeaders } from './ai-scope-api';
@@ -8,9 +10,22 @@ export type PreviewImages = ReadonlyMap<string, string>;
 const EMPTY: PreviewImages = new Map();
 const IMAGE_LIMIT = 2 * 1024 * 1024;
 const TOTAL_LIMIT = 6 * 1024 * 1024;
+export interface GeneratedPreviewAssets {
+  readonly threadId: string;
+  readonly images: readonly AiGeneratedImage[];
+}
+interface PreviewImageCandidate {
+  path: string;
+  refs: string[];
+  generated?: { image: AiGeneratedImage; threadId: string };
+}
 
 /** Generated HTML selects only from typed evidence; it never supplies a fetch URL. */
-export function previewImageCandidates(code: string, evidence: readonly unknown[]) {
+export function previewImageCandidates(
+  code: string,
+  evidence: readonly unknown[],
+  generated?: GeneratedPreviewAssets,
+): PreviewImageCandidate[] {
   if (code.length > 200_000) return [];
   const references = new Set<string>();
   let nodes = 0;
@@ -24,7 +39,7 @@ export function previewImageCandidates(code: string, evidence: readonly unknown[
   }
   visit(parse(code), 0);
   const seen = new Set<string>();
-  return evidence
+  const candidates: PreviewImageCandidate[] = evidence
     .slice(-20)
     .flatMap((item) => readWebEvidence(item)?.images ?? [])
     .flatMap((image) => {
@@ -36,6 +51,50 @@ export function previewImageCandidates(code: string, evidence: readonly unknown[
       return [{ path: image.thumbnailUrl, refs }];
     })
     .slice(0, 5);
+  // Only exact receipts from this selected thread may introduce private assets.
+  // Never fetch a URL invented by generated code, including other thread paths.
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (generated && uuid.test(generated.threadId)) {
+    for (const image of generated.images.slice(-20)) {
+      if (
+        !uuid.test(image.requestId) ||
+        image.mimeType !== 'image/png' ||
+        !Number.isSafeInteger(image.sizeBytes) ||
+        image.sizeBytes < 1 ||
+        image.sizeBytes > 4 * 1024 * 1024
+      )
+        continue;
+      const path = generatedImagePath(generated.threadId, image.requestId);
+      if (image.downloadUrl !== path || !references.has(path) || seen.has(path)) continue;
+      seen.add(path);
+      candidates.push({ path, refs: [path], generated: { image, threadId: generated.threadId } });
+    }
+  }
+  return candidates.slice(0, 5);
+}
+
+/** Explicit downloads retain original HTML behavior and embed only validated assets. */
+export function embedPreviewImages(code: string, images: PreviewImages): string {
+  if (code.length > 200_000) throw new Error('image_limit');
+  const document = parse(code);
+  let total = 0;
+  function visit(node: DefaultTreeAdapterMap['node'], depth: number): void {
+    if (depth > 64) throw new Error('image_limit');
+    if ('tagName' in node && node.tagName === 'img') {
+      const src = node.attrs.find((a) => a.name === 'src' && !a.namespace);
+      const data = src && images.get(src.value);
+      if (src?.value.startsWith('/api/ai/') && !data) throw new Error('image_unavailable');
+      if (src && data && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(data)) {
+        total += data.length;
+        if (total > TOTAL_LIMIT) throw new Error('image_limit');
+        src.value = data;
+        node.attrs = node.attrs.filter((a) => a.name !== 'srcset');
+      }
+    }
+    if ('childNodes' in node) for (const child of node.childNodes) visit(child, depth + 1);
+  }
+  visit(document, 0);
+  return serialize(document);
 }
 
 export async function loadPreviewImages(
@@ -50,11 +109,21 @@ export async function loadPreviewImages(
   for (const candidate of candidates.slice(0, 5)) {
     signal.throwIfAborted();
     try {
-      const response = await fetchImpl(candidate.path, {
-        headers: aiScopeHeaders(seatId),
-        signal,
-        redirect: 'error',
-      });
+      const response = candidate.generated
+        ? new Response(
+            await readGeneratedImage(
+              candidate.generated.image,
+              candidate.generated.threadId,
+              seatId,
+              signal,
+            ),
+            { headers: { 'content-type': 'image/png' } },
+          )
+        : await fetchImpl(candidate.path, {
+            headers: aiScopeHeaders(seatId),
+            signal,
+            redirect: 'error',
+          });
       const type = response.headers.get('content-type')?.split(';')[0]?.trim();
       if (
         !response.ok ||
@@ -74,7 +143,11 @@ export async function loadPreviewImages(
           const part = await reader.read();
           if (part.done) break;
           size += part.value.byteLength;
-          if (size > IMAGE_LIMIT || total + size > TOTAL_LIMIT) throw new Error('image_limit');
+          if (
+            size > (candidate.generated ? 4 * 1024 * 1024 : IMAGE_LIMIT) ||
+            total + size > TOTAL_LIMIT
+          )
+            throw new Error('image_limit');
           chunks.push(part.value);
         }
       } finally {
@@ -116,8 +189,9 @@ export function usePreviewImages(
   code: string,
   evidence: readonly unknown[],
   seatId?: string,
+  generated?: GeneratedPreviewAssets,
 ): PreviewImages {
-  const key = JSON.stringify([seatId, previewImageCandidates(code, evidence)]);
+  const key = JSON.stringify([seatId, previewImageCandidates(code, evidence, generated)]);
   const [state, setState] = useState<{ key: string; images: PreviewImages }>();
   useEffect(() => {
     const controller = new AbortController();

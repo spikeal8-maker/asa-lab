@@ -47,6 +47,10 @@ it.each(TOOL_PROVIDERS)(
         return new Response(JSON.stringify({ capabilities: ['completion', 'tools'] }));
       expect(isToolModelUrl(String(url))).toBe(true);
       const body = JSON.parse(String(init?.body));
+      expect(JSON.stringify(body)).toContain(
+        '/image-generations/44444444-4444-4444-8444-444444444444/image',
+      );
+      expect(JSON.stringify(body)).toContain('Не подменяй её придуманными внешними фотографиями');
       expect(
         body.tools.map(
           (t: { name?: string; function?: { name: string } }) => t.name ?? t.function?.name,
@@ -89,6 +93,28 @@ it.each(TOOL_PROVIDERS)(
       encryptionKey: TOOL_TEST_ROOT,
     });
     vi.spyOn(service.workingFiles, 'ready').mockResolvedValue(true);
+    vi.spyOn(service, 'messages').mockResolvedValue([
+      {
+        id: 'image-message',
+        role: 'assistant',
+        requestId: 'old-request',
+        createdAt: '2026-11-02T00:00:00Z',
+        content: '',
+        generatedImages: [
+          {
+            requestId: '44444444-4444-4444-8444-444444444444',
+            width: 1024,
+            height: 1024,
+            mimeType: 'image/png',
+            sizeBytes: 100,
+            downloadUrl:
+              '/api/ai/threads/' +
+              thread +
+              '/image-generations/44444444-4444-4444-8444-444444444444/image',
+          },
+        ],
+      },
+    ]);
     vi.spyOn(service.workingFiles, 'list').mockResolvedValue([]);
     const file = {
       id: 'file',
