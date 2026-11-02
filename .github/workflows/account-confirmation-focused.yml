@@ -131,6 +131,8 @@ jobs:
         run: pnpm exec vitest run apps/api/src/application-log-store.spec.ts apps/api/src/admin-logs.worker.spec.ts apps/api/src/admin-logs.service.spec.ts apps/api/src/admin-logs.controller.spec.ts
       - name: Real database, session and HTTP regressions
         run: pnpm test:auth-confirmation:pg --reporter=default --reporter=json --outputFile=reports/auth-confirmation-postgres.json
+      - name: Joint supported-prefix history and rejected out-of-order upgrade
+        run: pnpm exec vitest run tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts --maxWorkers=1
       - name: Verified email isolated PostgreSQL proof
         run: pnpm test:email-verification:pg
       - name: Unified user catalog isolated PostgreSQL proof

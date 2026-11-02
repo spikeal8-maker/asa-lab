@@ -8,11 +8,14 @@ surfaces:
         - migrations/0294_ai_image_durable_queue.sql
         - tests/admin/ai-image-queue.pg.spec.ts
         - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
+        - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+        - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+        - .github/workflows/account-confirmation-focused.yml
         - docs/deployment/AI_IMAGE_QUEUE.md
         - docs/agent/surfaces/ai-assistant.yaml
         - docs/testing/test-catalog.yaml
     invariants: &school_migration_invariants [AI-IMAGE-JOB-001, AI-OWNER-001, AI-REPLAY-001]
-    tests: &school_migration_tests [TST-AI-SCHOOL-CANONICAL-MIGRATIONS-001]
+    tests: &school_migration_tests [TST-AI-SCHOOL-CANONICAL-MIGRATIONS-001, TST-JOINT-PREFIX-CANONICAL-MIGRATIONS-001]
     controls:
       - id: CTRL-AI-SCHOOL-CANONICAL-MIGRATIONS
         change_class: L3_CRITICAL
