@@ -12,7 +12,9 @@ import { HomeShelf } from '../creator-portal/HomeShelf';
 import { HomePublicShelves } from '../creator-portal/HomePublicShelves';
 import { creatorViewToHref, type CreatorPortalSection } from '../creator-portal/navigation';
 import { ModuleGlyph } from '../modules/ModuleGlyph';
+import { ProjectModuleIcon } from '../modules/ProjectModuleIcon';
 import { ProjectCard } from '../modules/ProjectCard';
+import { useHomeProjectActions } from '../modules/useHomeProjectActions';
 
 const PROJECTS_PER_MODULE = 10;
 const ORDER: readonly HomeModule[] = ['three-d', 'electronics', 'blocks'];
@@ -36,6 +38,7 @@ export function CreatorHomePage({
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [error, setError] = useState(false);
   const [reload, setReload] = useState(0);
+  const projectActions = useHomeProjectActions(() => setReload((n) => n + 1));
   const sequence = useRef(0);
   useEffect(() => {
     const request = ++sequence.current;
@@ -138,7 +141,7 @@ export function CreatorHomePage({
                     disabled={busy}
                     onClick={() => create(key)}
                   >
-                    <span aria-hidden="true">＋</span>
+                    <ProjectModuleIcon moduleKey={key} size={28} />
                     <span>
                       {key === 'three-d'
                         ? 'Создать модель'
@@ -160,6 +163,7 @@ export function CreatorHomePage({
                           month: 'short',
                         })}
                         footerLabel=""
+                        menuItems={projectActions.menuItems(project)}
                         open={{
                           href: creatorViewToHref({
                             kind: 'editor',
@@ -199,6 +203,7 @@ export function CreatorHomePage({
       >
         Все мои проекты <span aria-hidden="true">›</span>
       </PortalLink>
+      {projectActions.dialogs}
       <HomePublicShelves
         key={`${session.user.id}:${session.activeWorkspace.workspaceId}`}
         onGallery={() => onNavigate('gallery')}

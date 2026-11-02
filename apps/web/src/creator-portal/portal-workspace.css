@@ -496,3 +496,8 @@
     justify-items: stretch;
   }
 }
+.portal-create-options strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
