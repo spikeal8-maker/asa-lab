@@ -173,22 +173,85 @@ describe('additive workflow retains existing execution protections', () => {
   it('copies focused, benchmark, pinned transport and runtime commands without weakening', () => {
     const original = parse(readFileSync('.github/workflows/electronics-r4-m1-focused.yml', 'utf8'));
     const scoped = parse(readFileSync('.github/workflows/electronics-ui-679-557.yml', 'utf8'));
-    expect(scoped.on).toEqual({ workflow_dispatch: null });
+    expect(scoped.on).toEqual({
+      workflow_dispatch: {
+        inputs: {
+          evidence_subset: {
+            description: 'Closed targeted evidence only; never full Electronics acceptance',
+            required: false,
+            type: 'choice',
+            default: 'ui-679-557-six',
+            options: ['ui-679-557-six', '836-runtime-three-v1'],
+          },
+        },
+      },
+    });
     expect(scoped.permissions).toEqual(original.permissions);
     expect(scoped.env).toEqual(original.env);
     expect(Object.keys(scoped.jobs)).toEqual(['focused', 'benchmark', 'browser']);
-    for (const job of ['focused', 'benchmark'])
-      expect(scoped.jobs[job]).toEqual(original.jobs[job]);
+    expect(scoped.jobs.benchmark).toEqual(original.jobs.benchmark);
+    const focused = structuredClone(scoped.jobs.focused);
+    expect(focused.steps.pop()).toEqual({
+      name: 'Three-case harness adversarial contracts',
+      if: "${{ inputs.evidence_subset == '836-runtime-three-v1' }}",
+      run:
+        'python3 tools/electronics_836_three_source.py --executables\n' +
+        'node --test tools/test-electronics-836-runtime-three.mjs\n' +
+        'python3 tools/test_electronics_836_three_source.py\n' +
+        'pnpm exec vitest run tests/electronics/ui-679-557-qualification.spec.ts --maxWorkers=1\n',
+    });
+    expect(focused).toEqual(original.jobs.focused);
     const browser = structuredClone(original.jobs.browser);
-    browser.name = 'Scoped six-case UI qualification (not full Electronics)';
+    browser.name =
+      "Targeted ${{ inputs.evidence_subset || 'ui-679-557-six' }} (not full Electronics)";
     browser.env.ASA_ELECTRONICS_QUALIFICATION_PROFILE = 'strict-real-time';
     browser.env.ASA_ELECTRONICS_BROWSER_GATE = 'gate:electronics-ui-679-557:browser';
+    browser.env.ASA_ELECTRONICS_EVIDENCE_SUBSET =
+      "${{ inputs.evidence_subset || 'ui-679-557-six' }}";
     for (const step of browser.steps) {
-      if (step.name === 'Selected Electronics browser qualification')
+      if (step.name === 'Selected Electronics browser qualification') {
         step.name = 'Six existing native cases, unchanged assertions';
+        step.if = "${{ inputs.evidence_subset != '836-runtime-three-v1' }}";
+      }
       if (step.name === 'Upload browser evidence')
         step.with.name = 'electronics-ui-679-557-browser-${{ github.run_id }}';
     }
-    expect(scoped.jobs.browser).toEqual(browser);
+    const actual = structuredClone(scoped.jobs.browser);
+    const additions = [
+      'Verify closed subset and exact three-case source before Docker',
+      'Retain verified three-case image identities',
+      'Three original 836 journeys only, unchanged assertions',
+    ];
+    const extra = actual.steps.filter((step) => additions.includes(step.name));
+    expect(extra).toEqual([
+      { name: additions[0], run: 'python3 tools/electronics_836_three_source.py --source' },
+      {
+        name: additions[1],
+        if: "${{ inputs.evidence_subset == '836-runtime-three-v1' }}",
+        run:
+          'python3 tools/test_ci_image_transport.py --electronics-built-images > reports/electronics-836-three/built-images.jsonl\n' +
+          'python3 tools/test_ci_image_transport.py --electronics-pulled-postgres > reports/electronics-836-three/postgres-image.json\n',
+      },
+      {
+        name: additions[2],
+        if: "${{ inputs.evidence_subset == '836-runtime-three-v1' }}",
+        run: browser.steps
+          .find((step) => step.name === 'Six existing native cases, unchanged assertions')!
+          .run.replace(
+            'test-runner pnpm "$ASA_ELECTRONICS_BROWSER_GATE"',
+            '-e ASA_ELECTRONICS_EVIDENCE_SUBSET test-runner node tools/run-electronics-836-runtime-three.mjs',
+          ),
+      },
+    ]);
+    expect(actual.steps.findIndex((step) => step.name === additions[0])).toBeLessThan(
+      actual.steps.findIndex((step) => step.run?.includes('docker compose')),
+    );
+    actual.steps = actual.steps.filter((step) => !additions.includes(step.name));
+    expect(actual).toEqual(browser);
+    expect(scoped.concurrency).toEqual({
+      group:
+        "electronics-ui-679-557-${{ github.ref }}${{ inputs.evidence_subset == '836-runtime-three-v1' && '-836-runtime-three-v1' || '' }}",
+      'cancel-in-progress': true,
+    });
   });
 });

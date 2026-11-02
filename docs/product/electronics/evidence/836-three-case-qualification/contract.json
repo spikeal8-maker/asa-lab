@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "scope": "836-runtime-three-v1",
+  "candidate": "692b76095dd0cdf0c9f6f8e18a503d37668940f8",
+  "workflow": ".github/workflows/electronics-ui-679-557.yml",
+  "runner": "tools/run-electronics-836-runtime-three.mjs",
+  "runnerSha256": "a4f08c92ac4011c7e76ec732ebe05117d6935bd7e5a89303abfb622e45e1798c",
+  "workflowSha256": "335367756bbd5d0233abdf241863dd2f93d9823309d16658a1a9f47f1cbe1082",
+  "cases": [
+    {
+      "file": "electronics-selection-outline.spec.ts",
+      "suites": [],
+      "title": "E11 stopped-fit: native outward selection, real DC and whole save reopen at 1440px",
+      "scenario": "stopped-fit"
+    },
+    {
+      "file": "electronics-selection-outline.spec.ts",
+      "suites": [],
+      "title": "E11 running-controls: native outward selection, real DC and whole save reopen at 1440px",
+      "scenario": "running-controls"
+    },
+    {
+      "file": "electronics-interactions.spec.ts",
+      "suites": [
+        "asset recovery in the built editor"
+      ],
+      "title": "a failed catalog owner image recovers without placing or saving a component"
+    }
+  ],
+  "defaultSubset": "ui-679-557-six",
+  "fullElectronicsQualification": false,
+  "releaseAccepted": false,
+  "nativeQualification": "NOT_RUN",
+  "independentReview": "PENDING"
+}

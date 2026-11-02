@@ -1,9 +1,18 @@
 name: Electronics UI 679-557 scoped qualification
-run-name: Electronics UI six cases ${{ github.sha }}
+run-name: Electronics targeted ${{ inputs.evidence_subset || 'ui-679-557-six' }} ${{ github.sha }}
 
 # Additive technical qualification only; the full Electronics workflow is unchanged.
 on:
   workflow_dispatch:
+    inputs:
+      evidence_subset:
+        description: Closed targeted evidence only; never full Electronics acceptance
+        required: false
+        type: choice
+        default: ui-679-557-six
+        options:
+          - ui-679-557-six
+          - 836-runtime-three-v1
 
 permissions:
   contents: read
@@ -12,7 +21,7 @@ env:
   NX_SKIP_NX_CACHE: 'true'
 
 concurrency:
-  group: electronics-ui-679-557-${{ github.ref }}
+  group: electronics-ui-679-557-${{ github.ref }}${{ inputs.evidence_subset == '836-runtime-three-v1' && '-836-runtime-three-v1' || '' }}
   cancel-in-progress: true
 
 jobs:
@@ -53,6 +62,14 @@ jobs:
 
       - name: Mandatory classroom qualification adversarial tests
         run: pnpm exec vitest run tests/electronics/classroom-qualification.spec.ts --maxWorkers=1
+
+      - name: Three-case harness adversarial contracts
+        if: ${{ inputs.evidence_subset == '836-runtime-three-v1' }}
+        run: |
+          python3 tools/electronics_836_three_source.py --executables
+          node --test tools/test-electronics-836-runtime-three.mjs
+          python3 tools/test_electronics_836_three_source.py
+          pnpm exec vitest run tests/electronics/ui-679-557-qualification.spec.ts --maxWorkers=1
 
   benchmark:
     name: Electronics E-OPT benchmark integrity
@@ -105,7 +122,7 @@ jobs:
           retention-days: 14
 
   browser:
-    name: Scoped six-case UI qualification (not full Electronics)
+    name: Targeted ${{ inputs.evidence_subset || 'ui-679-557-six' }} (not full Electronics)
     needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 50
@@ -115,6 +132,7 @@ jobs:
       ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       ASA_ELECTRONICS_QUALIFICATION_PROFILE: strict-real-time
       ASA_ELECTRONICS_BROWSER_GATE: gate:electronics-ui-679-557:browser
+      ASA_ELECTRONICS_EVIDENCE_SUBSET: ${{ inputs.evidence_subset || 'ui-679-557-six' }}
       ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
       COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
       ASA_TEST_UID: '1000'
@@ -132,7 +150,13 @@ jobs:
           mkdir -p e2e/artifacts/electronics-simulation reports
           chmod -R 0777 e2e/artifacts reports
 
+      - name: Verify closed subset and exact three-case source before Docker
+        run: python3 tools/electronics_836_three_source.py --source
+
       - name: Prepare and verify image-only PostgreSQL transport
+        # The existing transport pair is unchanged. Only the new subset needs
+        # its additional exact-source/runner proof before any Docker operation.
+        # Keep the original six-case path and commands intact.
         run: |
           python3 tools/test_ci_image_transport.py --prepare-electronics-postgres
           python3 tools/test_ci_image_transport.py --electronics-compose-model-check
@@ -153,6 +177,12 @@ jobs:
       - name: Verify original PostgreSQL image identity
         run: python3 tools/test_ci_image_transport.py --electronics-pulled-postgres
 
+      - name: Retain verified three-case image identities
+        if: ${{ inputs.evidence_subset == '836-runtime-three-v1' }}
+        run: |
+          python3 tools/test_ci_image_transport.py --electronics-built-images > reports/electronics-836-three/built-images.jsonl
+          python3 tools/test_ci_image_transport.py --electronics-pulled-postgres > reports/electronics-836-three/postgres-image.json
+
       - name: Apply isolated migrations
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
@@ -167,10 +197,18 @@ jobs:
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
       - name: Six existing native cases, unchanged assertions
+        if: ${{ inputs.evidence_subset != '836-runtime-three-v1' }}
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner
           pnpm "$ASA_ELECTRONICS_BROWSER_GATE"
+
+      - name: Three original 836 journeys only, unchanged assertions
+        if: ${{ inputs.evidence_subset == '836-runtime-three-v1' }}
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e ASA_ELECTRONICS_EVIDENCE_SUBSET test-runner
+          node tools/run-electronics-836-runtime-three.mjs
 
       - name: Show isolated stack state
         if: always()
