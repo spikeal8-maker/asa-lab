@@ -777,3 +777,24 @@ documents:
     authority: development_shadow_selection_invariants
     context_role: compact
     read_when: [development_tooling, shadow_test_selection]
+
+  - id: DEVEX-LOCAL-UI-PROFILE-CONTRACT
+    path: docs/architecture/DEVEX_LOCAL_UI_PROFILE_CONTRACT.md
+    scope: development
+    lanes: [devex-engine]
+    kind: architecture_contract
+    status: canonical
+    authority: local_ui_effect_verification_boundaries
+    revision: '1.0'
+    context_role: escalation
+    read_when: [local_ui_effect_proof, local_test_execution]
+
+  - id: PROJECTS-UI-UX-SPEC
+    path: docs/product/ASA_PROJECTS_UI_UX_SPEC.md
+    scope: identity
+    lanes: [admin-auth]
+    kind: product_spec
+    status: canonical
+    authority: projects_ui_ux_target
+    context_role: escalation
+    read_when: [project_collection_picker_ui]

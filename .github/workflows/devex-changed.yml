@@ -1,0 +1,244 @@
+name: ASA DevEx changed UI shadow
+
+"on":
+  pull_request: {}
+  push:
+    branches: [main]
+
+# The existing General workflow remains mandatory. This read-only shadow
+# provides early feedback; it never publishes an integration/release approval.
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: devex-ui-shadow-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "true"
+  NX_SKIP_NX_CACHE: "true"
+  NX_DAEMON: "false"
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+
+jobs:
+  collect-picker:
+    name: Changed UI shadow — full General CI retained
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # No path filters: every PR gets an honest selection result. Unrelated
+      # changes take this cheap fallback before installing any dependencies.
+      - name: Classify exact Git changes
+        id: changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          def git(*args):
+              return subprocess.check_output(['git', *args])
+          head, base = os.environ['SOURCE_SHA'], os.environ['BASE_SHA']
+          if not all(re.fullmatch(r'[0-9a-f]{40}', sha) and sha != '0' * 40 for sha in (head, base)):
+              raise SystemExit('Missing or invalid exact source/base SHA; no verification authorized')
+          if git('rev-parse', 'HEAD').decode().strip() != head or git('rev-parse', '--verify', base + '^{commit}').decode().strip() != base:
+              raise SystemExit('Checkout/base differs from the event source')
+          if git('status', '--porcelain', '--untracked-files=all'):
+              raise SystemExit('Checkout is dirty before classification')
+          merge_base = git('merge-base', base, head).decode().strip()
+          tokens = git('diff', '--name-status', '-z', '--no-renames', merge_base, head, '--').decode('utf-8').split('\0')
+          if tokens[-1] != '' or len(tokens[:-1]) % 2:
+              raise SystemExit('Malformed Git change set')
+          changes = list(zip(tokens[:-1:2], tokens[1:-1:2]))
+          production = {'apps/web/src/components/CollectPicker.tsx', 'apps/web/src/components/collect-picker.css'}
+          candidate = bool(changes) and all(
+              (status == 'M' and path in production) or
+              (status == 'A' and re.fullmatch(r'apps/web/src/components/CollectPicker\.[A-Za-z0-9][A-Za-z0-9-]*\.spec\.ts', path))
+              for status, path in changes)
+          directory = Path('.asa/devex')
+          directory.mkdir(parents=True, exist_ok=True)
+          selection = {'source_sha': head, 'base_sha': base, 'merge_base': merge_base,
+                       'changes': [{'status': status, 'path': path} for status, path in changes],
+                       'route': 'CANDIDATE_REQUIRES_PROOF' if candidate else 'FULL_CI_REQUIRED',
+                       'checks_executed': 0, 'full_ci': 'CI_PENDING',
+                       'integration_ready': False, 'release_ready': False}
+          (directory / 'ci-selection.json').write_text(json.dumps(selection, indent=2) + '\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'candidate={str(candidate).lower()}\nmerge_base={merge_base}\n')
+          PY
+
+      - uses: pnpm/action-setup@v4
+        if: steps.changes.outputs.candidate == 'true'
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.candidate == 'true'
+        with:
+          node-version: "22"
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        if: steps.changes.outputs.candidate == 'true'
+        with:
+          python-version: "3.13"
+      - name: Install exact dependencies for candidate only
+        if: steps.changes.outputs.candidate == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          python -m pip install --disable-pip-version-check -r tools/requirements.txt
+
+      - name: Prove the existing CollectPicker effect
+        id: proof
+        if: steps.changes.outputs.candidate == 'true'
+        env:
+          MERGE_BASE: ${{ steps.changes.outputs.merge_base }}
+        shell: bash
+        run: |
+          node tools/devex-local-ui.mjs --prove "$MERGE_BASE" > .asa/devex/ci-proof.json
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          proof = json.loads(Path('.asa/devex/ci-proof.json').read_text())
+          if type(proof.get('eligible')) is not bool:
+              raise SystemExit('Malformed effect proof')
+          eligible = proof['eligible']
+          if eligible and (proof.get('profile_id') != 'collect-picker-presentation-v1' or proof.get('version') != 1 or
+                           proof.get('ci_test_files') != ['e2e/project-collections-baseline.spec.ts']):
+              raise SystemExit('Candidate has no trusted concrete browser baseline')
+          path = Path('.asa/devex/ci-selection.json')
+          selection = json.loads(path.read_text())
+          selection['route'] = 'COLLECT_PICKER_SHADOW' if eligible else 'FULL_CI_REQUIRED'
+          selection['fallback_reason'] = proof.get('fallback_reason')
+          path.write_text(json.dumps(selection, indent=2) + '\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'eligible={str(eligible).lower()}\n')
+          PY
+
+      # Same canonical local runner and catalog commands as the developer.
+      # The read-only token is needed solely for its mandatory preflight.
+      - name: Run three source-bound local checks
+        id: local
+        if: steps.proof.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm dev:check --changed --base "$BASE_SHA" --output .asa/devex/ci-check.json
+
+      - name: Validate the current local receipt
+        id: receipt
+        if: steps.proof.outputs.eligible == 'true'
+        env:
+          MERGE_BASE: ${{ steps.changes.outputs.merge_base }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          def require(condition, reason):
+              if not condition:
+                  raise SystemExit(reason)
+          report = json.loads(Path('.asa/devex/ci-check.json').read_text())
+          proof = json.loads(Path('.asa/devex/ci-proof.json').read_text())
+          expected = ['TST-COLLECT-PICKER-FORMAT-001', 'TST-COLLECT-PICKER-LINT-001', 'TST-COLLECT-PICKER-UNIT-001']
+          require(subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip() == os.environ['SOURCE_SHA'], 'Checkout source changed')
+          require(report.get('git') == {'head': os.environ['SOURCE_SHA'], 'base': os.environ['BASE_SHA'], 'merge_base': os.environ['MERGE_BASE']}, 'Receipt source/base mismatch')
+          require(report.get('status') == 'LOCAL_PASS' and report.get('local_status') == 'PASS' and report.get('preflight_passed') is True, 'Local checks did not pass')
+          require(report.get('local_selected_ids') == expected, 'Local selection is incomplete or broader than the pilot')
+          executed = [item for item in report.get('checks', []) if item.get('state') != 'NOT_RUN']
+          require(len(executed) == 3 and {item.get('id') for item in executed} == set(expected) and all(item.get('state') == 'PASS' for item in executed), 'Selected checks failed, missing or duplicated')
+          require(proof.get('eligible') is True and proof.get('profile_id') == 'collect-picker-presentation-v1', 'Effect proof not eligible')
+          require(re.fullmatch(r'[0-9a-f]{64}', proof.get('source_digest', '')) is not None and report.get('local_profile') == proof, 'Effect proof/source digest changed')
+          require(report.get('ci_only_files') == [{'path': 'e2e/project-collections-baseline.spec.ts', 'state': 'CI_NOT_RUN', 'test_id': 'TST-COLLECT-PICKER-BROWSER-001'}], 'Concrete browser obligation missing')
+          require('TST-COLLECT-PICKER-BROWSER-001' in report.get('deferred_mandatory_ids', []), 'Browser check was waived')
+          require(report.get('ci_status') == 'CI_PENDING' and report.get('full_ci') == 'NOT_RUN' and report.get('release_status') == 'RELEASE_NOT_READY' and report.get('integration_ready') is False and report.get('release_ready') is False, 'Local receipt falsely claims full readiness')
+          PY
+
+      - name: Install supported Chromium
+        if: steps.proof.outputs.eligible == 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Build only the Web dependency closure
+        id: build
+        if: steps.proof.outputs.eligible == 'true'
+        run: pnpm exec nx run web:build
+      - name: Run the concrete built-SPA browser journey
+        id: browser
+        if: steps.proof.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          pnpm exec playwright test --config playwright.settings-ui.config.ts e2e/project-collections-baseline.spec.ts | tee .asa/devex/ci-browser.log
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          text = re.sub(r'\x1b\[[0-9;]*m', '', Path('.asa/devex/ci-browser.log').read_text())
+          if not re.search(r'\b16 passed\b', text) or re.search(r'\b[1-9][0-9]* (?:failed|skipped|flaky|interrupted|timed out)\b', text):
+              raise SystemExit('Concrete browser run is incomplete; expected all 16 cases without skips')
+          PY
+      - name: Recheck bound source after browser execution
+        id: final-source
+        if: steps.proof.outputs.eligible == 'true'
+        env:
+          MERGE_BASE: ${{ steps.changes.outputs.merge_base }}
+        shell: bash
+        run: |
+          node tools/devex-local-ui.mjs --prove "$MERGE_BASE" > .asa/devex/ci-proof-after.json
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          before = json.loads(Path('.asa/devex/ci-proof.json').read_text())
+          after = json.loads(Path('.asa/devex/ci-proof-after.json').read_text())
+          if before != after or after.get('eligible') is not True or subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip() != os.environ['SOURCE_SHA'] or subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=all']):
+              raise SystemExit('Bound source changed during isolated CI')
+          PY
+
+      - name: Record honest shadow outcome
+        if: always()
+        env:
+          LOCAL_RESULT: ${{ steps.receipt.outcome }}
+          BROWSER_RESULT: ${{ steps.browser.outcome }}
+          SOURCE_RESULT: ${{ steps.final-source.outcome }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('.asa/devex/ci-selection.json')
+          if not path.is_file():
+              raise SystemExit('Classification failed; no shadow verification result exists')
+          result = json.loads(path.read_text())
+          eligible = result['route'] == 'COLLECT_PICKER_SHADOW'
+          receipt = Path('.asa/devex/ci-check.json')
+          checks = json.loads(receipt.read_text()).get('checks', []) if receipt.is_file() else []
+          result['checks'] = [{key: item.get(key) for key in ('id', 'state', 'duration_s', 'exit_code')} for item in checks]
+          result['checks_executed'] = sum(item.get('exit_code') is not None or (item.get('state') == 'FAIL' and str(item.get('reason', '')).startswith('timeout after ')) for item in checks)
+          result['local_result'] = os.environ['LOCAL_RESULT']
+          result['browser_result'] = os.environ['BROWSER_RESULT']
+          result['status'] = ('FOCUSED_PASS' if eligible and all(os.environ[key] == 'success' for key in ('LOCAL_RESULT', 'BROWSER_RESULT', 'SOURCE_RESULT')) else 'FULL_CI_REQUIRED' if result['route'] == 'FULL_CI_REQUIRED' else 'BLOCKED')
+          Path('.asa/devex/ci-result.json').write_text(json.dumps(result, indent=2) + '\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f"DevEx shadow: **{result['status']}** on `{result['source_sha']}`.\n\n")
+              summary.write('The unchanged full General CI remains mandatory. Integration/release readiness: **false**.\n')
+              if not eligible:
+                  summary.write('No narrow test success is claimed; use the full General CI result.\n')
+          PY
+      - name: Preserve source-bound shadow evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devex-ui-shadow-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .asa/devex/ci-selection.json
+            .asa/devex/ci-proof.json
+            .asa/devex/ci-proof-after.json
+            .asa/devex/ci-result.json
+            .asa/devex/ci-browser.log
+            reports/playwright/settings-ui
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

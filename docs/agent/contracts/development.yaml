@@ -4,6 +4,8 @@ domain: development
 registry_document_id: DEVELOPMENT-DOMAIN-CONTRACT
 master_documents:
 - DOCSYSTEM-MAINTENANCE
+- DEVEX-LOCAL-UI-PROFILE-CONTRACT
+- PROJECTS-UI-UX-SPEC
 invariants:
 - id: DEVEX-SHADOW-001
   statement: Plans derive from verified Git changes, a freshly generated Nx graph,
@@ -37,7 +39,9 @@ invariants:
     against source fingerprints. Local execution is default-deny, with explicit order,
     resource groups and predecessor IDs in the existing Test Catalog. Shared groups
     serialize; different groups at the same order may execute independently. Unknown
-    coverage or mandatory pending checks prevent whole-plan PASS. Formal DB/browser
+    coverage or mandatory pending checks prevent whole-plan PASS. LOCAL_PASS and
+    exit 0 qualify only actual selected local checks; CI_PENDING, RELEASE_NOT_READY
+    and release_ready/integration_ready false retain every integration/release obligation. Formal DB/browser
     checks remain NOT_RUN for isolated CI. Full CI and owner acceptance are separate.
     Reports bind a unique run ID to Git and source bytes, stay ignored below .asa/devex,
     reject symlinks and junctions, and say not_saved when persistence is not permitted.
@@ -47,3 +51,20 @@ invariants:
   applies_to:
   - local_test_execution
   - report_persistence
+- id: DEVEX-LOCAL-EFFECT-001
+  statement: Versioned local presentation proofs select fixed scoped catalog checks
+    without changing canonical plan ranks, unknowns or mandatory CI. Profile v1
+    supports only owned primitive px min-height and readonly dialog aria-busy
+    effects, deterministic formatting and additive component regressions. All
+    other production bytes and baseline tests remain unchanged. Unsupported shapes
+    use broad local checks. Actual failures override pending CI; reports preserve
+    source binding, deferred checks and release_ready false. A local proof does
+    not establish browser/layout acceptance or a speed gain.
+  master_refs:
+  - document: DEVEX-LOCAL-UI-PROFILE-CONTRACT
+    section: 2. collect-picker-presentation-v1
+  - document: PROJECTS-UI-UX-SPEC
+    section: 59. Кнопки
+  applies_to:
+  - local_test_execution
+  - local_ui_effect_proof

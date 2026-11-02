@@ -1546,3 +1546,70 @@ tests:
     timeout_seconds: 300
     owner: devex-engine
     artifacts: [test-report]
+
+  - id: TST-COLLECT-PICKER-FORMAT-001
+    title: Collection picker production and complete component test-family formatting
+    suite: static
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-local-ui.mjs --format
+    local_check:
+      eligible: true
+      reason: Fixed owned production and test-family files only; no runtime.
+      order: 10
+      group: workspace
+      after: []
+    timeout_seconds: 60
+    owner: devex-engine
+    artifacts: [console-report]
+
+  - id: TST-COLLECT-PICKER-LINT-001
+    title: Collection picker production component and complete test-family ESLint
+    suite: static
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-local-ui.mjs --lint
+    local_check:
+      eligible: true
+      reason: Fixed owned TypeScript component and test-family files only; no runtime.
+      order: 20
+      group: workspace
+      after: [TST-COLLECT-PICKER-FORMAT-001]
+    timeout_seconds: 120
+    owner: devex-engine
+    artifacts: [console-report]
+
+  - id: TST-COLLECT-PICKER-UNIT-001
+    title: Actual collection picker busy, create, mutation and close lifecycle
+    suite: integration
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-local-ui.mjs --components
+    local_check:
+      eligible: true
+      reason: Actual production React component with jsdom and mocked API; no server, browser or database.
+      order: 30
+      group: workspace
+      after: [TST-COLLECT-PICKER-LINT-001]
+    timeout_seconds: 120
+    owner: devex-engine
+    artifacts: [vitest-report]
+
+  # Requires the built Web SPA. Controlled REST proves UI behavior only;
+  # existing real authorization/RLS/data journeys remain separate and mandatory.
+  - id: TST-COLLECT-PICKER-BROWSER-001
+    title: Built My Projects collection picker lifecycle and four viewport geometry with controlled REST
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test --config playwright.settings-ui.config.ts e2e/project-collections-baseline.spec.ts
+    local_check:
+      eligible: false
+      reason: Isolated CI browser verification only.
+    timeout_seconds: 300
+    owner: devex-engine
+    artifacts: [playwright-report, collection-picker-screenshots, collection-picker-geometry]
