@@ -46,6 +46,20 @@
 	redir @publicAlias https://asa-lab.ru{uri} 308
 	@portal not path /internal/blocks/*
 	header @portal X-Frame-Options DENY
+	# The HTML entry is served here, not by the API security-header hook.
+	# Keep API and embedded-editor policies authoritative on their own responses.
+	@portalContent {
+		not path /api/* /health/* /internal/blocks/*
+	}
+	header @portalContent {
+		# Enforce the document-boundary restrictions now. A script-src policy
+		# must first be qualified against intentional sandboxed srcdoc games,
+		# Monaco/blob workers and the browser-side WASM toolchain.
+		Content-Security-Policy "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'"
+		# Diagnostic only: do not silently break existing educational runtimes.
+		# Reports stay in browser diagnostics; no third-party collector receives them.
+		Content-Security-Policy-Report-Only "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' https://st.max.ru; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self' blob:; worker-src 'self' blob:; frame-src 'self'; manifest-src 'self'"
+	}
 	# Embedded component assets share the ASA entry point; this is not a second site.
 	handle_path /internal/blocks/* {
 		header X-Frame-Options SAMEORIGIN
