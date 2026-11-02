@@ -1,4 +1,5 @@
 import { writeFileSync } from 'node:fs';
+import { isDeepStrictEqual } from 'node:util';
 import {
   devices,
   expect,
@@ -283,62 +284,82 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       `[data-testid="schematic-component"][data-component-id="${id}"] > .workbench-part`,
     );
     const before = (await committed(target, project)).document;
+    const incidentWireIds = before.connections
+      .filter((wire) => wire.from.componentId === id || wire.to.componentId === id)
+      .map((wire) => wire.id);
     const ownership = () =>
-      locator.evaluate(async (node, id) => {
-        const rect = node.getBoundingClientRect();
-        let x = rect.x + rect.width / 2,
-          y = rect.y + rect.height / 2;
-        let alpha: number | null = null;
-        let href: string | null = null;
-        // The measured LED bbox center is between its leads. The visible dome
-        // is at (.5,.25) in the active owner image; verify its actual alpha.
-        if (id === 'led') {
-          const image = node.querySelector<SVGImageElement>(
-            '.workbench-led-asset[data-led-asset-active="true"],.workbench-led-asset:not([data-led-asset-active])',
-          );
-          if (!image) throw new Error('Active LED owner image missing');
-          href = image.href.baseVal;
-          const bitmap = new Image();
-          bitmap.src = href;
-          await bitmap.decode();
-          const canvas = document.createElement('canvas');
-          canvas.width = bitmap.naturalWidth;
-          canvas.height = bitmap.naturalHeight;
-          const context = canvas.getContext('2d')!;
-          context.drawImage(bitmap, 0, 0);
-          alpha = context.getImageData(
-            Math.floor(canvas.width * 0.5),
-            Math.floor(canvas.height * 0.25),
-            1,
-            1,
-          ).data[3]!;
-          const body = image.getBoundingClientRect();
-          x = body.x + body.width * 0.5;
-          y = body.y + body.height * 0.25;
-        }
-        const hit = document.elementFromPoint(x, y);
-        const canvas = node.closest('.workbench-canvas');
-        const gridFallback =
-          !!hit && (hit === canvas || hit.classList.contains('workbench-grid-hit'));
-        const terminal = !!hit?.closest('[data-terminal-id],[data-terminal-component-id]');
-        return {
-          x,
-          y,
-          width: rect.width,
-          height: rect.height,
-          alpha,
-          href,
-          gridFallback,
-          terminal,
-          owned:
-            !terminal &&
-            !!hit &&
-            (id !== 'led' || (alpha ?? 0) >= 16) &&
-            (node.contains(hit) || (id === 'led' && gridFallback)),
-          inspector: !!hit?.closest('.workbench-inspector'),
-          hit: hit?.outerHTML.slice(0, 250) ?? null,
-        };
-      }, id);
+      locator.evaluate(
+        async (node, { id, incidentWireIds }) => {
+          const rect = node.getBoundingClientRect();
+          let x = rect.x + rect.width / 2,
+            y = rect.y + rect.height / 2;
+          let alpha: number | null = null;
+          let href: string | null = null;
+          // The measured LED bbox center is between its leads. The visible dome
+          // is at (.5,.25) in the active owner image; verify its actual alpha.
+          if (id === 'led') {
+            const image = node.querySelector<SVGImageElement>(
+              '.workbench-led-asset[data-led-asset-active="true"],.workbench-led-asset:not([data-led-asset-active])',
+            );
+            if (!image) throw new Error('Active LED owner image missing');
+            href = image.href.baseVal;
+            const bitmap = new Image();
+            bitmap.src = href;
+            await bitmap.decode();
+            const canvas = document.createElement('canvas');
+            canvas.width = bitmap.naturalWidth;
+            canvas.height = bitmap.naturalHeight;
+            const context = canvas.getContext('2d')!;
+            context.drawImage(bitmap, 0, 0);
+            alpha = context.getImageData(
+              Math.floor(canvas.width * 0.5),
+              Math.floor(canvas.height * 0.25),
+              1,
+              1,
+            ).data[3]!;
+            const body = image.getBoundingClientRect();
+            x = body.x + body.width * 0.5;
+            y = body.y + body.height * 0.25;
+          }
+          const hit = document.elementFromPoint(x, y);
+          const canvas = node.closest('.workbench-canvas');
+          const gridFallback =
+            !!hit && (hit === canvas || hit.classList.contains('workbench-grid-hit'));
+          const terminal = !!hit?.closest('[data-terminal-id],[data-terminal-component-id]');
+          // Stage's wire handler resolves an ordinary foreground alpha silhouette
+          // before the transparent wire target. Restrict this to the validated LED
+          // dome and an incident saved wire in this same canvas/hit layer.
+          const wireForegroundFallback =
+            id === 'led' &&
+            (alpha ?? 0) >= 16 &&
+            node.parentElement?.getAttribute('data-component-type') === 'led-5mm' &&
+            node.parentElement?.getAttribute('data-hit-mask-status') === 'ready' &&
+            hit instanceof SVGPathElement &&
+            hit.classList.contains('workbench-wire-hit') &&
+            hit.closest('.workbench-canvas') === canvas &&
+            !!hit.closest('.workbench-wire-hit-layer') &&
+            incidentWireIds.includes(hit.getAttribute('data-wire-id') ?? '');
+          return {
+            x,
+            y,
+            width: rect.width,
+            height: rect.height,
+            alpha,
+            href,
+            gridFallback,
+            wireForegroundFallback,
+            terminal,
+            owned:
+              !terminal &&
+              !!hit &&
+              (id !== 'led' || (alpha ?? 0) >= 16) &&
+              (node.contains(hit) || (id === 'led' && gridFallback) || wireForegroundFallback),
+            inspector: !!hit?.closest('.workbench-inspector'),
+            hit: hit?.outerHTML.slice(0, 250) ?? null,
+          };
+        },
+        { id, incidentWireIds },
+      );
     await expect(locator).toBeVisible();
     await expect(
       target.locator(`[data-testid="schematic-component"][data-component-id="${id}"]`),
@@ -875,7 +896,7 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
         ),
       };
       return ![220, 680, 681].includes(resistor?.value ?? NaN) ||
-        JSON.stringify(normalized) !== JSON.stringify(expected)
+        !isDeepStrictEqual(normalized, expected)
         ? [{ index, document }]
         : [];
     });
@@ -884,8 +905,10 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       replies as { status: number; raw: string; requestRaw: string }[]
     ).flatMap((row, index) =>
       row.status !== 200 ||
-      JSON.stringify(JSON.parse(row.raw).draft.document) !==
-        JSON.stringify(JSON.parse(row.requestRaw).document)
+      !isDeepStrictEqual(
+        JSON.parse(row.raw).draft.document as SchematicDocument,
+        JSON.parse(row.requestRaw).document as SchematicDocument,
+      )
         ? [{ index, ...row }]
         : [],
     );
