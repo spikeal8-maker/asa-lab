@@ -239,7 +239,9 @@ export function PortalHeader({
     if (!mobileOpen) return;
     const previousOverflow = document.body.style.overflow;
     const background = [
-      ...document.querySelectorAll<HTMLElement>('.portal-shell > main, .portal-header'),
+      ...document.querySelectorAll<HTMLElement>(
+        '.portal-shell > main, .portal-shell > .asa-chess-portal-content, .portal-header',
+      ),
     ];
     const previousInert = background.map((element) => element.inert);
     background.forEach((element) => {

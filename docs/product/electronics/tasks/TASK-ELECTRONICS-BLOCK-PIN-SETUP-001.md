@@ -88,3 +88,20 @@ must not reload/reset the live workspace. Board switching, undo/redo and old
 projects preserve their data, while user-authored text stays byte-for-byte intact.
 Adapt only the obsolete inactive-test assumption that empty generated setup has
 no default pin directions; retain every actual inactive-block exclusion assertion.
+
+## Selected full browser acceptance
+
+The source candidate now requires the planned actual isolated-CI journey, not
+another local app deployment. A new bounded test author may add
+ e2e/electronics-block-pin-setup.spec.ts and the relevant subsystem test mapping
+with canonical generated output only if required. Use existing real login/seed,
+project API, editor, simulation and Save/reopen helpers/patterns; no route mocks
+for product behavior. Desktop1536x864 and mobile390x844 cover the exact owner
+blocks, setup-only modes, per-board explicit inputs, Apply/Cancel/Escape, literal
+and calculated ports, real generated source, immediate Save/reopen and whole
+blocks/source/config equality, undo/redo, text byte preservation, keyboard/native
+hit/scrolling and no lost controls. Keep the source candidate byte-exact; test
+author reports a product defect instead of changing it. Reuse the existing owner
+fixture; do not repeatedly download it or change owner data. No retries, added
+product deadlines, server, Docker Desktop or foreign changes. Temporary scoped
+CI transport/runner stays outside main and receives its own review.
