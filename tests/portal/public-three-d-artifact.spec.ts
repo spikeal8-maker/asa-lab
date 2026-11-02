@@ -4,8 +4,8 @@ import {
   PUBLIC_THREE_D_NODE_FIELDS,
   PUBLIC_THREE_D_PRIMITIVES,
   validatePublicThreeDArtifact,
-} from './public-three-d-artifact';
-import { validatePublicProjectDisplayArtifact } from './public-project-display-artifact';
+} from '../../packages/contracts/src/public-three-d-artifact';
+import { validatePublicProjectDisplayArtifact } from '../../packages/contracts/src/public-project-display-artifact';
 
 function artifact(primitive: (typeof PRIMITIVE_KINDS)[number] = 'box') {
   const node = createThreeDNode(primitive, 'shape-1');
