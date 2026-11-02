@@ -27,12 +27,20 @@ failure or a defect in100 simultaneous legitimate classroom admissions.
 
 ## Bounded correction
 
-The runner now executes the same nine core suites and the unchanged likes suite
-in two sequential Playwright invocations. Each uses the existing owned
+The first two-partition candidate was insufficient. In the controller's composed
+`a69` run `41368028089`, job `125032280772`,24 core cases passed but all four
+Electronics-player cases failed at the real `authorStorageState` login
+(`organization-login.ts:40`, expected200, received429). The shared core lifecycle
+still consumed the generic budget; fail-closed execution never reached likes.
+That failure is retained, not called successful qualification.
+
+The runner now executes each of the same ten unchanged spec files in its own
+sequential Playwright invocation. Each uses the existing owned
 `e2e/server.mjs`, `reuseExistingServer:false`, isolated `_test` PostgreSQL and the
 same immutable built application. External-server mode is refused. The first
-child must exit successfully before the second starts; failure is not retried.
-Separate core/likes output directories retain both invocations' evidence.
+child must exit successfully before the next starts; failure is not retried.
+Ten distinct spec-named output directories retain every invocation's evidence.
+No process reset occurs within a spec file or an individual scenario.
 
 All browser test files are unchanged, including Account signup201, real Seat
 join200, ownership, reactions, moderation and privacy assertions. Production
