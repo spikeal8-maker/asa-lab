@@ -14,84 +14,88 @@
     window.location.reload();
   });
 
-  // A successful Docker switch cannot replace JavaScript already running in a tab.
-  // Detect the new hashed entry and ask the user to reload; never discard work silently.
-  const entryPattern = /^\/assets\/index-[\w-]+\.js$/;
-  const currentEntry = document
-    .querySelector('script[type="module"][src]')
-    ?.getAttribute('src');
-  if (!entryPattern.test(currentEntry ?? '')) return;
+  // In production this script precedes the hashed Vite module in index.html.
+  // Read the entry only after parsing completes; otherwise the monitor never starts.
+  function beginReleaseMonitor() {
+    const entryPattern = /^\/assets\/index-[\w-]+\.js$/;
+    const currentEntry = document
+      .querySelector('script[type="module"][src]')
+      ?.getAttribute('src');
+    if (!entryPattern.test(currentEntry ?? '')) return;
 
-  const checkIntervalMs = 300_000;
-  let lastCheck = -checkIntervalMs;
-  let checking = false;
-  let notice = null;
-  let dismissedEntry = '';
+    const checkIntervalMs = 300_000;
+    let lastCheck = -checkIntervalMs;
+    let checking = false;
+    let notice = null;
+    let dismissedEntry = '';
 
-  function showUpdateNotice(nextEntry) {
-    if (notice || nextEntry === dismissedEntry || !document.body) return;
-    notice = document.createElement('aside');
-    notice.className = 'asa-release-update';
-    notice.setAttribute('role', 'status');
-    notice.setAttribute('aria-live', 'polite');
+    function showUpdateNotice(nextEntry) {
+      if (notice || nextEntry === dismissedEntry || !document.body) return;
+      notice = document.createElement('aside');
+      notice.className = 'asa-release-update';
+      notice.setAttribute('role', 'status');
+      notice.setAttribute('aria-live', 'polite');
 
-    const message = document.createElement('span');
-    message.textContent = 'Доступна новая версия ASA Lab. Сохраните работу перед обновлением.';
-    notice.appendChild(message);
+      const message = document.createElement('span');
+      message.textContent = 'Доступна новая версия ASA Lab. Сохраните работу перед обновлением.';
+      notice.appendChild(message);
 
-    const actions = document.createElement('div');
-    actions.className = 'asa-release-update-actions';
+      const actions = document.createElement('div');
+      actions.className = 'asa-release-update-actions';
 
-    const reload = document.createElement('button');
-    reload.type = 'button';
-    reload.textContent = 'Обновить';
-    reload.addEventListener('click', () => window.location.reload());
-    actions.appendChild(reload);
+      const reload = document.createElement('button');
+      reload.type = 'button';
+      reload.textContent = 'Обновить';
+      reload.addEventListener('click', () => window.location.reload());
+      actions.appendChild(reload);
 
-    const later = document.createElement('button');
-    later.type = 'button';
-    later.textContent = 'Позже';
-    later.addEventListener('click', () => {
-      dismissedEntry = nextEntry;
-      notice?.remove();
-      notice = null;
-    });
-    actions.appendChild(later);
-    notice.appendChild(actions);
-    document.body.appendChild(notice);
-  }
-
-  async function checkRelease() {
-    if (document.visibilityState === 'hidden' || checking || notice) return;
-    const now = Date.now();
-    if (now - lastCheck < checkIntervalMs) return;
-    checking = true;
-    lastCheck = now;
-    try {
-      const response = await fetch('/', {
-        cache: 'no-store',
-        credentials: 'same-origin',
-        headers: { Accept: 'text/html' },
+      const later = document.createElement('button');
+      later.type = 'button';
+      later.textContent = 'Позже';
+      later.addEventListener('click', () => {
+        dismissedEntry = nextEntry;
+        notice?.remove();
+        notice = null;
       });
-      if (!response.ok) return;
-      const html = new DOMParser().parseFromString(await response.text(), 'text/html');
-      const nextEntry = html.querySelector('script[type="module"][src]')?.getAttribute('src');
-      if (entryPattern.test(nextEntry ?? '') && nextEntry !== currentEntry) {
-        showUpdateNotice(nextEntry);
-      }
-    } catch {
-      // An offline check must never interrupt an ongoing project or a chat draft.
-    } finally {
-      checking = false;
+      actions.appendChild(later);
+      notice.appendChild(actions);
+      document.body.appendChild(notice);
     }
+
+    async function checkRelease() {
+      if (document.visibilityState === 'hidden' || checking || notice) return;
+      const now = Date.now();
+      if (now - lastCheck < checkIntervalMs) return;
+      checking = true;
+      lastCheck = now;
+      try {
+        const response = await fetch('/', {
+          cache: 'no-store',
+          credentials: 'same-origin',
+          headers: { Accept: 'text/html' },
+        });
+        if (!response.ok) return;
+        const html = new DOMParser().parseFromString(await response.text(), 'text/html');
+        const nextEntry = html.querySelector('script[type="module"][src]')?.getAttribute('src');
+        if (entryPattern.test(nextEntry ?? '') && nextEntry !== currentEntry) {
+          showUpdateNotice(nextEntry);
+        }
+      } catch {
+        // Offline, failed or non-HTML responses must not interrupt the current work.
+      } finally {
+        checking = false;
+      }
+    }
+
+    window.addEventListener('focus', () => void checkRelease());
+    document.addEventListener('visibilitychange', () => void checkRelease());
+    window.setInterval(() => void checkRelease(), checkIntervalMs);
+    void checkRelease();
   }
 
-  window.addEventListener('focus', () => void checkRelease());
-  document.addEventListener('visibilitychange', () => void checkRelease());
-  window.setInterval(() => void checkRelease(), checkIntervalMs);
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => void checkRelease(), { once: true });
+    document.addEventListener('DOMContentLoaded', beginReleaseMonitor, { once: true });
   } else {
-    void checkRelease();
+    beginReleaseMonitor();
   }
 })();
