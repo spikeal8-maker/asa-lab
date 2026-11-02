@@ -4,6 +4,7 @@ import type {
   ChessNetworkAccess,
   ChessNetworkAction,
   ChessNetworkInvite,
+  ChessNetworkLobby,
   ChessNetworkPolicy,
   ChessNetworkScope,
 } from '@asa-lab/contracts';
@@ -102,6 +103,99 @@ export class ChessNetworkService {
             )
           : [],
       };
+    });
+  }
+  async lobby(source: ChessNetworkSource, scope: ChessNetworkScope): Promise<ChessNetworkLobby> {
+    if (!['classroom', 'school', 'platform'].includes(scope))
+      throw new ChessNetworkError('INVALID_COMMAND', 'Некорректный круг соперников.', 400);
+    return this.repository.transaction(source, async (tx) => {
+      this.consumeRead(tx.actorId);
+      const snapshot = await tx.query<ChessNetworkLobby>('SELECT games.chess_lobby($1) data', [
+        scope,
+      ]);
+      const face = (player: ChessNetworkLobby['players'][number], circle: ChessNetworkScope) => ({
+        ...player,
+        avatarUrl: `/api/games/chess/players/${encodeURIComponent(player.playerId)}/avatar?scope=${circle}&v=${encodeURIComponent(player.avatarRevision ?? 'default')}`,
+      });
+      return {
+        ...snapshot,
+        players: snapshot.players.map((player) => face(player, scope)),
+        incoming: snapshot.incoming.map((item) => ({
+          ...item,
+          from: face(item.from, item.invite.scope),
+        })),
+        outgoing: snapshot.outgoing.map((item) => ({
+          ...item,
+          to: face(item.to, item.invite.scope),
+        })),
+      };
+    });
+  }
+  async avatar(source: ChessNetworkSource, target: string, scope: ChessNetworkScope) {
+    networkId(target);
+    if (!['classroom', 'school', 'platform'].includes(scope))
+      throw new ChessNetworkError('INVALID_COMMAND', 'Некорректный круг соперников.', 400);
+    return this.repository.transaction(source, async (tx) => {
+      this.consumeRead(tx.actorId);
+      const value = await tx.query<{
+        dataUrl: string | null;
+        avatarKey: string | null;
+        seed: string;
+      }>('SELECT games.chess_avatar($1,$2) data', [target, scope]);
+      let hash = 2166136261;
+      for (const character of value.seed) {
+        hash ^= character.codePointAt(0) ?? 0;
+        hash = Math.imul(hash, 16777619);
+      }
+      const chosen = /^asa-avatar-(\d{2})$/.exec(value.avatarKey ?? '');
+      const index =
+        chosen && Number(chosen[1]) >= 1 && Number(chosen[1]) <= 67
+          ? Number(chosen[1])
+          : (Math.abs(hash) % 67) + 1;
+      return {
+        dataUrl: value.dataUrl,
+        defaultPath: `/assets/avatars/default/avatar-${String(index).padStart(2, '0')}.webp`,
+      };
+    });
+  }
+  async challenge(
+    source: ChessNetworkSource,
+    command: string,
+    target: string,
+    input: NetworkInviteInput,
+  ) {
+    networkId(target);
+    createNetworkChess(input.initialMs, input.incrementMs, this.now());
+    return this.repository.transaction(source, async (tx) => {
+      this.consumeRead(tx.actorId);
+      return this.result(
+        tx,
+        await tx.query<RefResult>(
+          'SELECT games.chess_challenge_create($1,$2,$3,$4,$5,$6,$7,$8,$9) data',
+          [
+            command,
+            fingerprint('challenge', target, null, input),
+            randomUUID(),
+            randomBytes(12).toString('hex').toUpperCase(),
+            target,
+            input.scope,
+            input.initialMs,
+            input.incrementMs,
+            input.colorPreference,
+          ],
+        ),
+      );
+    });
+  }
+  async decline(source: ChessNetworkSource, command: string, id: string, version: number) {
+    networkId(id);
+    return this.repository.transaction(source, async (tx) => {
+      this.consumeRead(tx.actorId);
+      const result = await tx.query<{ replayed?: boolean }>(
+        'SELECT games.chess_challenge_decline($1,$2,$3,$4) data',
+        [command, fingerprint('decline', id, version, {}), id, version],
+      );
+      return { replayed: result.replayed === true };
     });
   }
   async legacyAllowed(source: ChessNetworkSource): Promise<boolean> {

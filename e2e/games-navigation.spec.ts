@@ -83,6 +83,8 @@ async function fixture(page: Page, failList = false) {
       return json(route, { motion: 'system', sidebar: 'expanded', revision: 1 });
     if (/^\/api\/learning\/projects\/[^/]+\/context$/.test(path))
       return json(route, { state: 'not_learning', projectId: path.split('/')[4] });
+    if (path === '/api/games/chess/lobby')
+      return json(route, { players: [], incoming: [], outgoing: [], limit: 100 });
     if (path === '/api/account/avatar') return json(route, { avatarDataUrl: null });
     if (path === '/api/modules') return json(route, { items: modules });
     if (path === '/api/games/access')
@@ -438,5 +440,115 @@ test('personal network entry has platform opponents without a school selector', 
   await expect(
     page.getByRole('combobox', { name: 'Круг соперников для партии' }).locator('option'),
   ).toHaveText(['Мой класс', 'Моя школа']);
+  expect(state.errors).toEqual([]);
+});
+
+test('scoped online lobby renders avatars and delivers targeted challenges without copying a code', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  const peer = {
+    playerId: '00000000-0000-4000-8000-000000000021',
+    displayAlias: 'Игрок 7a38f2',
+    avatarUrl: '/assets/avatars/default/avatar-07.webp',
+  };
+  const sender = {
+    playerId: '00000000-0000-4000-8000-000000000022',
+    displayAlias: 'Игрок c120e4',
+    avatarUrl: '/assets/avatars/default/avatar-03.webp',
+  };
+  const invite = {
+    id: '00000000-0000-4000-8000-000000000023',
+    code: 'ABCDEF0123456789ABCDEF01',
+    scope: 'classroom',
+    status: 'open',
+    version: 1,
+    initialMs: 600000,
+    incrementMs: 5000,
+    expiresAt: Date.now() + 60000,
+    colorPreference: 'white',
+    matchId: null,
+  };
+  let available = true;
+  let pending = false;
+  let incoming = true;
+  let chosen = '';
+  await page.route('**/api/games/chess/access', (route) =>
+    route.fulfill({
+      json: {
+        player: { playerId: 'self', displayAlias: 'Ваш игрок' },
+        allowed: true,
+        reason: 'allowed',
+        scopes: ['classroom', 'school'],
+      },
+    }),
+  );
+  await page.route('**/api/games/chess/history*', (route) =>
+    route.fulfill({ json: { matches: [], invites: [], nextCursor: null } }),
+  );
+  await page.route('**/api/games/chess/lobby', (route) =>
+    route.fulfill({
+      json: {
+        available,
+        players: [peer],
+        incoming: incoming ? [{ invite, from: sender }] : [],
+        outgoing: pending ? [{ invite, to: peer }] : [],
+        limit: 100,
+      },
+    }),
+  );
+  await page.route(`**/api/games/chess/players/${peer.playerId}/challenge`, (route) => {
+    chosen = route.request().postDataJSON().scope;
+    pending = true;
+    return route.fulfill({ json: { invite, replayed: false } });
+  });
+  await page.route(`**/api/games/chess/challenges/${invite.id}/decline`, (route) => {
+    incoming = false;
+    return route.fulfill({ json: { replayed: false } });
+  });
+  await page.route(`**/api/games/chess/invites/${invite.code}`, (route) =>
+    route.fulfill({ json: { invite } }),
+  );
+  await page.goto('/#/games');
+  await page.getByRole('button', { name: 'Играть: Шахматы', exact: true }).click();
+  await page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
+  const list = page.getByRole('region', { name: 'Игроки в сети', exact: true });
+  const player = list.locator(`[data-player-id="${peer.playerId}"]`);
+  await expect(
+    player.getByRole('button', { name: 'Пригласить играть', exact: true }),
+  ).toBeEnabled();
+  await expect(player.getByRole('img')).toHaveAttribute('src', peer.avatarUrl);
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await player.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() =>
+        player
+          .locator('img')
+          .evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0),
+      )
+      .toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `reports/games/chess-redesign/online-avatars-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await list.getByRole('button', { name: 'Отклонить', exact: true }).click();
+  await expect(list.getByRole('region', { name: 'Входящие вызовы', exact: true })).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'Круг соперников для партии' }).selectOption('school');
+  await expect(list.getByRole('heading', { name: 'Игроки в сети · Моя школа' })).toBeVisible();
+  await player.getByRole('button', { name: 'Пригласить играть', exact: true }).click();
+  expect(chosen).toBe('school');
+  await expect(player.getByRole('button', { name: 'Вызов отправлен', exact: true })).toBeDisabled();
+  available = false;
+  pending = false;
+  await page.reload();
+  await expect(
+    page.getByText('У вас уже идёт партия. Вернитесь к ней через историю.', { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('.asa-network-player-list')).toHaveCount(0);
   expect(state.errors).toEqual([]);
 });

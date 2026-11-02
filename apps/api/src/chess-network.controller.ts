@@ -12,6 +12,7 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UseFilters,
   type ArgumentsHost,
   type ExceptionFilter,
@@ -155,6 +156,79 @@ export class ChessNetworkController {
   async access(@Req() request: FastifyRequest) {
     const source = await this.source(request);
     return this.run(() => this.service!.access(source));
+  }
+  @Post('lobby')
+  @Header('Cache-Control', 'private, no-store')
+  async lobby(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    const source = await this.source(request);
+    const input = body(raw, ['scope']);
+    if (typeof input['scope'] !== 'string' || !scopes.includes(input['scope']))
+      reject(400, 'INVALID_COMMAND', 'Некорректный круг соперников.');
+    return this.run(() => this.service!.lobby(source, input['scope'] as ChessNetworkScope));
+  }
+  @Get('players/:playerId/avatar')
+  async avatar(
+    @Req() request: FastifyRequest,
+    @Param('playerId') id: string,
+    @Query('scope') scope: string,
+    @Res() reply: FastifyReply,
+  ) {
+    reply.header('Cache-Control', 'private, no-store').header('X-Content-Type-Options', 'nosniff');
+    const source = await this.source(request);
+    if (!scopes.includes(scope)) reject(400, 'INVALID_COMMAND', 'Некорректный круг соперников.');
+    const value = await this.run(() =>
+      this.service!.avatar(source, id, scope as ChessNetworkScope),
+    );
+    const image = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(
+      value.dataUrl ?? '',
+    );
+    if (image && value.dataUrl!.length <= 300000) {
+      const bytes = Buffer.from(image[2]!, 'base64');
+      const raster =
+        image[1] === 'png'
+          ? bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+          : image[1] === 'jpeg'
+            ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
+            : bytes.subarray(0, 4).toString() === 'RIFF' &&
+              bytes.subarray(8, 12).toString() === 'WEBP';
+      if (raster) return reply.type(`image/${image[1]}`).send(bytes);
+    }
+    return reply.header('Location', value.defaultPath).status(302).send();
+  }
+  @Post('players/:playerId/challenge')
+  async challenge(
+    @Req() request: FastifyRequest,
+    @Param('playerId') target: string,
+    @Headers('idempotency-key') command: unknown,
+    @Body() raw: unknown,
+  ) {
+    const source = await this.source(request);
+    const input = body(raw, ['scope', 'initialMs', 'incrementMs', 'colorPreference']);
+    if (
+      typeof input['scope'] !== 'string' ||
+      !scopes.includes(input['scope']) ||
+      typeof input['colorPreference'] !== 'string' ||
+      !['white', 'black', 'random'].includes(input['colorPreference']) ||
+      typeof input['initialMs'] !== 'number' ||
+      typeof input['incrementMs'] !== 'number'
+    )
+      reject(400, 'INVALID_COMMAND', 'Некорректный вызов.');
+    return this.run(() =>
+      this.service!.challenge(source, key(command), target, input as unknown as NetworkInviteInput),
+    );
+  }
+  @Post('challenges/:inviteId/decline')
+  async decline(
+    @Req() request: FastifyRequest,
+    @Param('inviteId') id: string,
+    @Headers('idempotency-key') command: unknown,
+    @Body() raw: unknown,
+  ) {
+    const source = await this.source(request);
+    const input = body(raw, ['expectedVersion']);
+    return this.run(() =>
+      this.service!.decline(source, key(command), id, version(input['expectedVersion'])),
+    );
   }
   @Get('policy/:classroomId')
   @Header('Cache-Control', 'private, no-store')
