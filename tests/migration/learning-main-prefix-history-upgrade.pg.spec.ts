@@ -380,8 +380,8 @@ const upgradeArtifacts = [
     '0ea57787d707326f9222fb906bc7d826a91d417c3efdeeb6251c6a3156b6cd26',
   ],
   [
-    '0302',
-    '0302_learning_essay_course_runtime.sql',
+    '0301',
+    '0301_learning_essay_course_runtime.sql',
     '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
   ],
 ] as const;
