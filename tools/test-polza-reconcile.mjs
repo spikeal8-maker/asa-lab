@@ -263,3 +263,14 @@ test('published API image explicitly contains both portable operator modules', (
     /COPY --from=workspace .*\/tools\/polza-reconcile\.mjs \.\/tools\/polza-reconcile\.mjs/,
   );
 });
+
+test('a selected inactive model is never silently cleared to select a new one', async () => {
+  const state = fixture();
+  state.catalog.items[0].active = false;
+  const h = harness(state);
+  await assert.rejects(reconcilePolza(options(), h.operations), {
+    code: 'EXISTING_SELECTION_INCOMPATIBLE',
+  });
+  assert.deepEqual(h.calls, ['read']);
+  assert.equal(h.state.catalog.items[0].selected, true);
+});
