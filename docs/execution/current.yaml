@@ -9300,7 +9300,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: essay_server_implementation_selected_compact_validation_pending
+      checkpoint: essay_typed_ui_implementation_compact_repository_pending
       selected_slice:
         id: LRN-E1-ESSAY-COURSE-VERTICAL
         status: in_progress
@@ -9354,18 +9354,19 @@ parallel_lanes:
         - Existing assessment authority and journal publish actual results; required Course completion follows exact selected accepted results rather than reading instructions.
         - Actor, stable LearnerIdentity, class and tenant isolation fail closed; preserve existing independent Seat versus linked Account authority and all project protections.
         - Actual author-to-learner-to-teacher browser evidence at 320,390,1024,1440 verifies compact actions, long Russian content, reload, review and journal; focused and repository gates plus independent final source and visual reviews are required.
-        dependencies: Compact PR960 final source f3e736b9 is frozen with independent source approval but final browser and repository checks pending. The separate essay executor may implement non-overlapping server/domain/PG work and its independent learner/reviewer components, API client and mounted tests while this validation completes. Hold AuthoredMaterialsPage, CanonicalPracticePicker, LessonBlockEditor, shared author CSS, existing compact author tests and browser journeys until the dependency is accepted and integrated; then perform one controlled convergence before those authoring edits. Do not integrate the essay candidate before that dependency. This is not a compact acceptance or release claim.
+        dependencies: Compact PR960 candidate f3e736b9 is frozen with independent source approval,46 actual browser journeys PASS and20 actual four-width normal/long/saved screenshots reviewed PASS; aggregate workflow and repository conclusion are still pending. After preserving its own coherent checkpoint, the separate essay executor may import that exact reviewed candidate as a stacked code dependency and continue the selected author, learner and reviewer implementation. Preserve the candidate source and all assertions; this permits development, not acceptance or integration. Do not integrate the essay candidate until PR960 has its required green gates and is integrated in main. Perform one controlled final convergence with actual main before final gates and independent review.
         migration_allocation: Published frontier is0300 at main3b542f32f. Fresh99-worktree audit found AI and Chess private0301 files, so0302 is provisional for isolated development only, not an exclusive reservation. Preserve both foreign0301 files; recheck final frontier and resolve the dependency before source integration. Never publish or deploy an out-of-order migration history.
         audit_evidence: Fresh99-worktree audit found no dirty API/domain/learning runtime paths. Follow-up101-worktree audits found no dirty Account verification guard/spec, ClassroomJoin controller/spec, LessonBlockEditor or canonical state; these necessary typed delivery and Seat admission dependencies are included explicitly. Preserve historic Oct4 format-only overlapping snapshots unchanged. Chess has separate dirty package.json and untracked0301; package.json is excluded here. Put new HTTP regressions under tests/courses already selected by the existing focused command, without weakening tests or changing the foreign package draft.
         constraints: Essay uses the canonical mixed-lesson activity block; retain project-only defaults for legacy assignment lessons and picker callers. Extend only the exact StudentSeat route allowlist with negative Account and suspended Seat tests; do not bypass unverified Account protections. No existing published SQL changes, tenant or RLS model changes, protected data edits, dependency/workflow/timeout/retry changes, new service, local test stack, owner runtime, backup or deployment actions. Manual remains teacher observation; unsupported Quiz/file options cannot publish fake working activities. Preserve owner ClassroomPage and related E2E/CSS WIP.
         programme_next: After verified essay integration continue preserved Quiz policy and attempt foundations, all eight normative question types, exact finalization and manual-mixed review, then real bounded immutable learner file upload and download. Preserve existing project journeys. The commissioned result is all four working types through the journal; a single integrated slice does not finish the programme or provide owner acceptance.
       pending_validation_slice:
         id: LRN-E1-COMPACT-AUTHORING
-        status: awaiting_final_ci
+        status: awaiting_repository_and_aggregate_ci
         candidate_sha: f3e736b9ed52639132908d293f588759e516820a
         pr: 960
         source_review: approved
-        browser_review: pending_final_candidate
+        browser_review: approved_real46_journeys_and20_four_width_images
+        browser_evidence: E:/ASA-previews/qa-courses-compact-f3e736-20261102/QA.md; SHA256 B5C7E0581353681631B6EDB39202042A74D5264A081A13CE66BCD9AB77E6BC42; installed acceptance NOT_RUN.
         kind: repair
         owner_authorization: Owner explicitly requires compact, tidy Course authoring screens on 2026-11-02; all buttons together, no inflated panels or oversized text, usable on small screens. This follows the visible task creation already merged in PR943.
         scope: Compact the canonical task authoring workspace and its inline Course entry. One coherent action toolbar, no duplicated heading/back controls, restrained typography and content-driven field heights. Reuse existing editor commands and guards.
