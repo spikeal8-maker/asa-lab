@@ -97,6 +97,13 @@ export async function createProjectCollectionsFixture(page: Page) {
   await page.route('**/*', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    // The portal's optional MAX bootstrap is unrelated to this controlled UI journey.
+    if (
+      url.href === 'https://st.max.ru/js/max-web-app.js' &&
+      request.method() === 'GET' &&
+      request.resourceType() === 'script'
+    )
+      return route.fulfill({ status: 200, contentType: 'application/javascript', body: '' });
     if (url.origin !== origin) {
       unexpected.push(`Outside fixture origin: ${request.method()} ${url.href}`);
       return route.abort();

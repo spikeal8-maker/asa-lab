@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { main } from './dev-check.mjs';
 import { runPython } from './devex-python.mjs';
 import prettier from 'prettier';
+import ts from 'typescript';
 import {
   PROFILE,
   currentTests,
@@ -137,8 +138,67 @@ test('mandatory CI keeps B and C separate from the protected code alias', () => 
   assert.ok(!packageJson.scripts['gate:code'].includes('test:dev-check'));
 });
 
-const component = fs.readFileSync(path.join(root, PROFILE.component), 'utf8');
-const style = fs.readFileSync(path.join(root, PROFILE.style), 'utf8');
+// Controlled baselines retain the real component, but cannot assume which
+// supported presentation value the product currently uses.
+function componentFixture(source) {
+  const ast = ts.createSourceFile(
+    PROFILE.component,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const dialogs = [];
+  const visit = (node) => {
+    if (
+      ts.isJsxOpeningElement(node) &&
+      node.attributes.properties.some(
+        (attribute) =>
+          ts.isJsxAttribute(attribute) &&
+          attribute.name.getText(ast) === 'role' &&
+          attribute.initializer &&
+          ts.isStringLiteral(attribute.initializer) &&
+          attribute.initializer.text === 'dialog',
+      )
+    )
+      dialogs.push(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(ast);
+  assert.equal(dialogs.length, 1, 'controlled fixture needs the unique owned dialog');
+  const busy = dialogs[0].attributes.properties.filter(
+    (attribute) => ts.isJsxAttribute(attribute) && attribute.name.getText(ast) === 'aria-busy',
+  );
+  assert.ok(busy.length <= 1, 'duplicate production aria-busy is not a supported fixture');
+  if (!busy.length) return source;
+  const initializer = busy[0].initializer;
+  const expression = initializer && ts.isJsxExpression(initializer) ? initializer.expression : null;
+  const readonly =
+    initializer && ts.isStringLiteral(initializer)
+      ? ['true', 'false'].includes(initializer.text)
+      : expression &&
+        ((ts.isIdentifier(expression) && expression.text === 'busy') ||
+          expression.kind === ts.SyntaxKind.TrueKeyword ||
+          expression.kind === ts.SyntaxKind.FalseKeyword ||
+          (ts.isPrefixUnaryExpression(expression) &&
+            expression.operator === ts.SyntaxKind.ExclamationToken &&
+            ts.isIdentifier(expression.operand) &&
+            expression.operand.text === 'busy'));
+  assert.ok(readonly, 'only supported readonly production aria-busy may enter this fixture');
+  return source.slice(0, busy[0].getFullStart()) + source.slice(busy[0].end);
+}
+function styleFixture(source) {
+  const height =
+    /(\.collect-picker-create input\s*\{[^}]*?\bmin-height:\s*)[-+]?(?:\d+(?:\.\d*)?|\.\d+)px(?=\s*;)/g;
+  assert.equal(
+    [...source.matchAll(height)].length,
+    1,
+    'controlled fixture needs one owned primitive px height',
+  );
+  return source.replace(height, (_match, prefix) => `${prefix}34px`);
+}
+const component = componentFixture(fs.readFileSync(path.join(root, PROFILE.component), 'utf8'));
+const style = styleFixture(fs.readFileSync(path.join(root, PROFILE.style), 'utf8'));
 const withBusy = (value) => component.replace('role="dialog"', `role="dialog" aria-busy=${value}`);
 
 test('real component proof accepts reusable readonly effects and deterministic Prettier reflow', async () => {
