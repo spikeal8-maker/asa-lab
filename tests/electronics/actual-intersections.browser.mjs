@@ -1,6 +1,7 @@
-/* global document */
+/* global document, requestAnimationFrame, queueMicrotask, getComputedStyle */
 import assert from 'node:assert/strict';
 import { log } from 'node:console';
+import { readFile } from 'node:fs/promises';
 import { chromium } from '@playwright/test';
 import { createServer } from 'vite';
 
@@ -171,8 +172,115 @@ try {
     );
     await stale.dispose();
   }
+  const productionCss = await readFile('apps/web/src/electronics/workbench.css', 'utf8');
+  const pulse = productionCss.slice(
+    productionCss.indexOf('@keyframes workbench-simulation-running-pulse'),
+    productionCss.indexOf('.workbench-toolbar-group.right .workbench-pill.simulate.running:hover'),
+  );
+  assert.match(pulse, /animation: workbench-simulation-running-pulse 1\.9s ease-in-out infinite/);
+  const liveFixture = async (extraCss = '') => {
+    await page.setContent(`<style>
+      body{margin:0}button{border:0;padding:0;width:40px;height:28px}
+      ${pulse}${extraCss}
+      </style><div id="clip" class="workbench-toolbar-group right"
+      style="overflow:hidden;width:40px;height:28px" data-time-ms="52.5">
+      <button class="workbench-pill simulate running">A</button></div>`);
+    // Install the very same browser-serializable helper, so mutations can run
+    // in the capture's pending task rather than racing separate protocol calls.
+    await page.addScriptTag({ content: observeActualIntersections.toString() });
+  };
+  await liveFixture();
+  const live = await page.evaluate(async () => {
+    const clip = document.querySelector('#clip');
+    let ticks = 0;
+    let running = true;
+    const tick = () => {
+      clip.setAttribute('data-time-ms', String(52.5 + ++ticks * 25));
+      if (running) requestAnimationFrame(tick);
+    };
+    const shadows = [];
+    const frames = [];
+    try {
+      requestAnimationFrame(tick);
+      for (let frame = 0; frame < 3; frame++) {
+        const pending = globalThis.observeActualIntersections('button');
+        queueMicrotask(tick);
+        const capture = await pending;
+        frames.push(
+          capture.read(([button], [intersection]) => {
+            const rect = button.getBoundingClientRect();
+            shadows.push(getComputedStyle(button).boxShadow);
+            return {
+              width: rect.width,
+              clipWidth: intersection.width,
+              owned: [
+                [3, 3],
+                [37, 3],
+                [3, 25],
+                [37, 25],
+                [20, 14],
+              ].map(([x, y]) => {
+                const hit = document.elementFromPoint(rect.left + x, rect.top + y);
+                return hit === button || button.contains(hit);
+              }),
+            };
+          }),
+        );
+      }
+      return { frames, ticks, shadows };
+    } finally {
+      running = false;
+    }
+  });
+  assert.ok(live.ticks >= 3, 'clock updated during every pending capture');
+  assert.ok(new Set(live.shadows).size > 1, 'exact production infinite pulse is moving');
+  for (const frame of live.frames)
+    assert.deepEqual(frame, { width: 40, clipWidth: 40, owned: Array(5).fill(true) });
+
+  // Continuous telemetry and paint must not hide an actual clipping mutation,
+  // including change-and-revert that a final geometry fingerprint cannot see.
+  for (const mutation of [
+    'shrink',
+    'shrink-revert',
+    'css-telemetry-revert',
+    'css-escaped-telemetry-revert',
+    'css-class-revert',
+    'content',
+  ]) {
+    await liveFixture(
+      mutation === 'css-class-revert'
+        ? '.narrow{width:38px!important}'
+        : mutation === 'css-escaped-telemetry-revert'
+          ? '[data-time-\\6ds="77.5"]{width:38px!important}'
+          : mutation === 'css-telemetry-revert'
+            ? '[data-time-ms="77.5"]{width:38px!important}'
+            : '',
+    );
+    await assert.rejects(
+      page.evaluate(async (mutation) => {
+        const clip = document.querySelector('#clip');
+        const pending = globalThis.observeActualIntersections('button');
+        queueMicrotask(() => {
+          clip.setAttribute('data-time-ms', '77.5');
+          if (mutation.includes('telemetry-revert')) clip.setAttribute('data-time-ms', '52.5');
+          else if (mutation === 'css-class-revert') {
+            clip.classList.add('narrow');
+            clip.classList.remove('narrow');
+          } else if (mutation === 'content') clip.querySelector('button').textContent = 'B';
+          else {
+            clip.style.width = '38px';
+            if (mutation === 'shrink-revert') clip.style.width = '40px';
+          }
+        });
+        const capture = await pending;
+        return capture.read(() => true);
+      }, mutation),
+      /Actual intersection capture changed/,
+      mutation,
+    );
+  }
   log(
-    'PASS: normal clip, fixed escape, transformed containing block, popup-local clip, viewport clip, occlusion; 2px ancestor shrink, replacement, reorder reject stale captures; native five-point ownership retained',
+    'PASS: six clipping/ownership adversaries; shrink, replacement, reorder reject stale captures; continuous clock and exact production infinite pulse retain geometry/all five native hits; live shrink/revert, CSS-dependent telemetry/revert and content mutations reject',
   );
 } finally {
   await browser?.close();
