@@ -72,7 +72,13 @@ export function CollectPicker({
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="collect-title">
+      <div
+        className="modal"
+        role="dialog"
+        aria-busy={busy}
+        aria-modal="true"
+        aria-labelledby="collect-title"
+      >
         <h2 id="collect-title">Добавить в коллекцию</h2>
         <p>«{title}»</p>
 
