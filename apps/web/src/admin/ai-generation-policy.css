@@ -485,3 +485,10 @@
     min-height: 44px;
   }
 }
+.asa-ai-model-hint {
+  display: grid;
+  gap: 6px;
+}
+.asa-settings-compact .asa-ai-policy-heading {
+  flex-wrap: wrap;
+}

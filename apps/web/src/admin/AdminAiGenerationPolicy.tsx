@@ -401,19 +401,6 @@ export function AdminAiGenerationPolicy({
             : 'Настройки моделей'
       }
     >
-      {section === 'settings' ? (
-        <button
-          type="button"
-          className="asa-ai-tools-refresh"
-          onClick={() =>
-            document
-              .getElementById('ai-tool-policies-title')
-              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }
-        >
-          К инструментам помощника
-        </button>
-      ) : null}
       {loading ? <p role="status">Загружаем настройки ответов…</p> : null}
       {error ? (
         <div role="alert" className="asa-cloud-error">
@@ -556,6 +543,19 @@ export function AdminAiGenerationPolicy({
                 ) : (
                   <p>Выберите модели подключения. Показ пользователям задаётся в Настройках.</p>
                 )}
+                {section === 'settings' ? (
+                  <button
+                    type="button"
+                    className="asa-ai-tools-refresh"
+                    onClick={() =>
+                      document
+                        .getElementById('ai-tool-policies-title')
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }
+                  >
+                    К инструментам помощника
+                  </button>
+                ) : null}
               </div>
               {section !== 'connections' ? (
                 <label className="asa-cloud-field asa-ai-policy-default">
@@ -727,29 +727,31 @@ export function AdminAiGenerationPolicy({
                                 </span>
                               </label>
                               <InfoHint label={'Сведения о модели ' + model.label}>
-                                {model.inputModalities ? (
-                                  <span
-                                    className="asa-ai-model-vision"
-                                    title="Возможности выбранной модели по серверному каталогу API"
-                                  >
-                                    {model.inputModalities.includes('image')
-                                      ? 'Vision · читает изображения'
-                                      : 'Только текст'}
-                                  </span>
-                                ) : null}
-                                {model.id !== model.label ? (
-                                  <small title={model.id}>{model.id}</small>
-                                ) : null}
-                                <small>
-                                  {(!preference(model.id).eligible
-                                    ? 'Запрещена у провайдера'
-                                    : model.unavailableReason) ??
-                                    (!model.selectable
-                                      ? 'Модель недоступна'
-                                      : model.ready
-                                        ? 'Подключение готово'
-                                        : 'Сначала настройте подключение')}
-                                </small>
+                                <div className="asa-ai-model-hint">
+                                  {model.inputModalities ? (
+                                    <span
+                                      className="asa-ai-model-vision"
+                                      title="Возможности выбранной модели по серверному каталогу API"
+                                    >
+                                      {model.inputModalities.includes('image')
+                                        ? 'Vision · читает изображения'
+                                        : 'Только текст'}
+                                    </span>
+                                  ) : null}
+                                  {model.id !== model.label ? (
+                                    <small title={model.id}>{model.id}</small>
+                                  ) : null}
+                                  <small>
+                                    {(!preference(model.id).eligible
+                                      ? 'Запрещена у провайдера'
+                                      : model.unavailableReason) ??
+                                      (!model.selectable
+                                        ? 'Модель недоступна'
+                                        : model.ready
+                                          ? 'Подключение готово'
+                                          : 'Сначала настройте подключение')}
+                                  </small>
+                                </div>
                               </InfoHint>
                             </>
                           ) : null}
