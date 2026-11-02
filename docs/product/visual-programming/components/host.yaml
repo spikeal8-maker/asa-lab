@@ -19,10 +19,13 @@ components:
       - path: infra/scratch-editor/host/main.js
         symbols: [requiredExports]
       - infra/scratch-editor/host/host.css
+      - tools/blocks/browser/product-bundle.mjs
+      - tools/blocks/browser/product-aliases.mjs
     tests:
       - .github/workflows/scratch-focused.yml
       - tools/verify-blocks-host-shell.mjs
       - tools/blocks/checks.test.mjs
+      - tools/blocks/browser/product-aliases.test.mjs
       - tools/blocks/storage-library.test.mjs
       - e2e/blocks-product-integration.spec.ts
     task: VSCR-M1-002A
