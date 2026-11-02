@@ -36,6 +36,8 @@ export type SafeTaskBlock =
   | { type: 'file'; name: string; contentHash: string; src?: string };
 
 export interface AuthoredActivityDraft {
+  /** Explicit on new typed tasks; omitted only by historical author clients. */
+  kind?: 'project' | 'essay' | 'manual' | 'quiz' | 'file';
   quizVersionId?: string | null;
   starterProjectVersionId?: string | null;
   title: string;
@@ -55,7 +57,56 @@ export interface AuthoredActivityDraft {
   };
 }
 
+export interface EssayLearningResponse {
+  activityRunId: string;
+  participationId: string;
+  activityVersionId: string;
+  title: string;
+  instructions: string | null;
+  goal: string | null;
+  blocks: SafeTaskBlock[] | null;
+  resultMode: 'ungraded' | 'completion' | 'graded';
+  maxPoints: number | null;
+  canStart: boolean;
+  canEdit: boolean;
+  attempt: {
+    id: string;
+    number: number;
+    state: LearningAttemptState;
+    revisionOfAttemptId: string | null;
+    revision: number;
+    text: string;
+    savedAt: string;
+    submittedAt: string | null;
+    submissionId: string | null;
+    digest: string | null;
+    reviewDecision: 'accepted' | 'changes_requested' | 'incomplete' | 'excused' | null;
+    feedback: string | null;
+  } | null;
+}
+
+export type ExactLearningSubmission =
+  | {
+      kind: 'essay';
+      submissionId: string;
+      sourceRevision: number;
+      digest: string;
+      text: string;
+    }
+  | {
+      /** Missing only on historical Project responses. */
+      kind?: 'project';
+      submissionId: string;
+      projectVersionId: string;
+      sourceRevision: number | null;
+      digest: string;
+      moduleKey: string;
+      document: unknown;
+      preview: import('@asa-lab/module-sdk').ModulePreviewDescriptor | null;
+    };
+
 export interface AuthoredActivityLearnerPreview {
+  kind?: string;
   source: {
     kind: 'draft' | 'published';
     id: string | null;
@@ -366,7 +417,7 @@ export function visibilityLabel(value: string): string {
 export interface PublishedCoursePin {
   /** JSON pointer into this exact immutable outline, never a mutable root. */
   pointer: string;
-  pinKind: 'project' | 'manual';
+  pinKind: 'project' | 'essay' | 'manual';
   available: boolean;
   activityId: string | null;
   versionId: string | null;
@@ -586,7 +637,8 @@ export interface CourseActivityOccurrence {
   title: string;
   goal: string | null;
   blocks?: SafeTaskBlock[] | null | undefined;
-  moduleKey: string;
+  activityKind?: 'project' | 'essay';
+  moduleKey: string | null;
   sampleImage: string | null;
   projectId: string | null;
   submittedAt: string | null;
@@ -2130,7 +2182,7 @@ export const api = {
       `/api/learning/activities/${encodeURIComponent(id)}/draft`,
       {
         method: 'PUT',
-        body: JSON.stringify({ ...draft, expectedRevision }),
+        body: JSON.stringify({ ...draft, kind: undefined, expectedRevision }),
       },
     ),
   saveAuthoredActivityDraftSample: (id: string, expectedRevision: number, imageDataUrl: string) =>
@@ -2175,7 +2227,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({
         ...draft,
-        kind: draft.moduleKey === null ? 'manual' : 'project',
+        kind: draft.kind ?? (draft.moduleKey === null ? 'manual' : 'project'),
         scope: 'personal',
         visibility: 'private',
         requestId,
@@ -2361,15 +2413,7 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/students/${encodeURIComponent(seatId)}/review-context${activityRunId === undefined ? '' : `?activityRunId=${encodeURIComponent(activityRunId)}`}`,
     ),
   exactLearningSubmission: (classroomId: string, attemptId: string) =>
-    call<{
-      submissionId: string;
-      projectVersionId: string;
-      sourceRevision: number | null;
-      digest: string;
-      moduleKey: string;
-      document: unknown;
-      preview: import('@asa-lab/module-sdk').ModulePreviewDescriptor | null;
-    }>(
+    call<ExactLearningSubmission>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/attempts/${encodeURIComponent(attemptId)}/submission`,
     ),
   selectLearningAttempt: (
@@ -3062,6 +3106,29 @@ export const api = {
     call<LearningStartReceipt>(
       `/api/learning/work/runs/${encodeURIComponent(activityRunId)}/start`,
       { method: 'POST', body: JSON.stringify({ requestId }) },
+    ),
+  readEssayLearning: (activityRunId: string) =>
+    call<EssayLearningResponse>(`/api/learning/essay/runs/${encodeURIComponent(activityRunId)}`),
+  startEssayLearning: (activityRunId: string, requestId: string) =>
+    call<EssayLearningResponse>(
+      `/api/learning/essay/runs/${encodeURIComponent(activityRunId)}/start`,
+      { method: 'POST', body: JSON.stringify({ requestId }) },
+    ),
+  saveEssayLearning: (
+    activityRunId: string,
+    input: { requestId: string; attemptId: string; expectedRevision: number; text: string },
+  ) =>
+    call<EssayLearningResponse>(
+      `/api/learning/essay/runs/${encodeURIComponent(activityRunId)}/draft`,
+      { method: 'PUT', body: JSON.stringify(input) },
+    ),
+  submitEssayLearning: (
+    activityRunId: string,
+    input: { requestId: string; attemptId: string; expectedRevision: number },
+  ) =>
+    call<EssayLearningResponse>(
+      `/api/learning/essay/runs/${encodeURIComponent(activityRunId)}/submit`,
+      { method: 'POST', body: JSON.stringify(input) },
     ),
   submitLearningProject: (
     projectId: string,

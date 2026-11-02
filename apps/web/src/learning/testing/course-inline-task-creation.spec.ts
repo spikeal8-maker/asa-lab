@@ -158,7 +158,7 @@ beforeEach(() => {
     data: {
       id: rootId,
       title: saved.title,
-      kind: 'project',
+      kind: saved.kind ?? 'project',
       draftRevision: 1,
       draftSampleImage: null,
       currentPublishedVersionId: versionId,
@@ -175,6 +175,7 @@ beforeEach(() => {
     ok: true,
     status: 200,
     data: {
+      kind: saved.kind ?? 'project',
       source: {
         kind: 'published',
         id: versionId,
@@ -189,7 +190,7 @@ beforeEach(() => {
         blocks: [],
         sampleImage: null,
       },
-      moduleKey: 'electronics',
+      moduleKey: saved.moduleKey,
       resultMode: 'completion',
       maxPoints: null,
       policies: {},
@@ -204,6 +205,43 @@ afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
+it('creates a written response without an environment and inserts its exact published version into the same lesson', async () => {
+  await mount();
+  await fill('Тип задания', 'essay');
+  expect(document.querySelector('[aria-label="Среда задания"]')).toBeNull();
+  expect(
+    [...document.querySelectorAll('[aria-label="Тип задания"] option')].map((item) =>
+      item.getAttribute('value'),
+    ),
+  ).toEqual(['project', 'essay']);
+  await fill('Название задания', 'Объясните решение');
+  await fill('Содержание', 'Напишите ответ своими словами.');
+  expect(button('Добавить в урок').disabled).toBe(false);
+  await click('Добавить в урок');
+  expect(api.createActivityDraft).toHaveBeenCalledWith(
+    expect.objectContaining({ kind: 'essay', moduleKey: null }),
+    expect.any(String),
+  );
+  expect(window.confirm).not.toHaveBeenCalled();
+  expect(api.publishAuthoredActivity).toHaveBeenCalledTimes(1);
+  expect(pinChange).toHaveBeenCalledWith([
+    { id: 'practice', type: 'activity', learningActivityVersionId: versionId },
+  ]);
+  expect(container.querySelector('[data-testid="saved-pin"]')?.textContent).toBe(versionId);
+  expect(parentSubmit).not.toHaveBeenCalled();
+});
+
+it('does not infer a manual activity from an empty explicit project environment', async () => {
+  await mount();
+  await fill('Название задания', 'Практика без выбранной среды');
+  expect((document.querySelector('[aria-label="Тип задания"]') as HTMLSelectElement).value).toBe(
+    'project',
+  );
+  expect(button('Создать задание').disabled).toBe(true);
+  expect(button('Добавить в урок').disabled).toBe(true);
+  expect(api.createActivityDraft).not.toHaveBeenCalled();
+});
+
 it('creates and inserts the confirmed published version without submitting or replacing the lesson form', async () => {
   await mount();
   const dialog = document.querySelector('[aria-label="Новое задание для урока"]')!;

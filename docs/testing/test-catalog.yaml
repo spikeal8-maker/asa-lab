@@ -26,6 +26,16 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-LEARNING-ESSAY-COURSE-001
+    title: Written Course responses preserve exact publication, learner authority, revisions, immutable evidence, rework and canonical journal results
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/courses/learning-essay-course-runtime.pg.spec.ts tests/courses/learning-essay-attempts.controller.spec.ts --maxWorkers=1
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
   - id: TST-PUBLICATION-BROWSER-ISOLATION-001
     title: Publication browser partitions preserve every scenario and use sequential owned API lifecycles without retry or limiter changes
     suite: integration

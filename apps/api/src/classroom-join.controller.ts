@@ -179,6 +179,15 @@ interface CourseActivityOccurrenceRow {
   goal: string | null;
   task_blocks: { present: boolean; blocks: unknown[] | null } | null;
   module_key: string;
+  activity_kind?: string | null;
+  essay_context?: {
+    resultCode: string;
+    activityRunId: string;
+    activityVersionId: string;
+    goal: string | null;
+    blocks: unknown[] | null;
+    attempt: { submittedAt: string | null } | null;
+  } | null;
   sample_image: string | null;
   project_id: string | null;
   submitted_at: Date | string | null;
@@ -203,7 +212,8 @@ interface CourseActivityOccurrenceView {
   title: string;
   goal: string | null;
   blocks?: unknown[] | null | undefined;
-  moduleKey: string;
+  activityKind?: 'project' | 'essay';
+  moduleKey: string | null;
   sampleImage: string | null;
   projectId: string | null;
   submittedAt: string | null;
@@ -283,6 +293,13 @@ function courseActivityOccurrenceMap(
       canonicalRun.state.provenance.activityRunId === row.activity_run_id
         ? canonicalRun.surface
         : null;
+    const essay =
+      row.essay_context?.resultCode === 'ok' &&
+      row.essay_context.activityRunId === row.activity_run_id &&
+      row.essay_context.activityVersionId === row.learning_activity_version_id
+        ? row.essay_context
+        : null;
+    const essayKind = row.activity_kind === 'essay';
     const origin = origins?.courseWork(row.seat_id, row.activity_run_id, row.block_id) ?? null;
     const exact = origin?.classroomAssignmentId === row.classroom_assignment_id ? origin : null;
     const originPresent =
@@ -300,7 +317,9 @@ function courseActivityOccurrenceMap(
     const exactNotStarted =
       row.project_id === null && !originPresent && row.not_started_visible === true;
     let occurrenceCanonicalState: CanonicalLearningSurfaceState | null = null;
-    if (participation === null && courseProjectionsByRun.has(runKey)) {
+    if (essayKind) {
+      occurrenceCanonicalState = essay ? exactRunCanonicalState : null;
+    } else if (participation === null && courseProjectionsByRun.has(runKey)) {
       // A conflicting run cannot borrow a sibling's handout result.
       occurrenceCanonicalState = null;
     } else if (exact) {
@@ -350,36 +369,47 @@ function courseActivityOccurrenceMap(
       classroomAssignmentId: row.classroom_assignment_id,
       requirement,
       learningActivityVersionId: row.learning_activity_version_id,
+      ...(essayKind ? { activityKind: 'essay' as const } : {}),
       title: row.title,
-      goal: exact
-        ? exact.goal
-        : row.task_blocks?.present && row.task_blocks.blocks === null
-          ? null
-          : (row.goal ?? null),
-      blocks: exact?.blocksSnapshotPresent
-        ? exact.blocks
-        : row.task_blocks?.present
-          ? row.task_blocks.blocks
-          : undefined,
-      moduleKey: row.module_key,
+      goal: essayKind
+        ? (essay?.goal ?? null)
+        : exact
+          ? exact.goal
+          : row.task_blocks?.present && row.task_blocks.blocks === null
+            ? null
+            : (row.goal ?? null),
+      blocks: essayKind
+        ? (essay?.blocks ?? null)
+        : exact?.blocksSnapshotPresent
+          ? exact.blocks
+          : row.task_blocks?.present
+            ? row.task_blocks.blocks
+            : undefined,
+      moduleKey: essayKind ? null : row.module_key,
       sampleImage:
         row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
-      projectId: exact?.projectId ?? (legacyAllowed ? row.project_id : null),
-      submittedAt: exact
-        ? exact.submittedAt
-        : !legacyAllowed || row.submitted_at === null
-          ? null
-          : isoDate(row.submitted_at),
-      snapshotRevision: exact
-        ? exact.snapshotRevision
-        : !legacyAllowed || row.snapshot_revision === null
-          ? null
-          : Number(row.snapshot_revision),
-      updatedAt: exact
-        ? exact.updatedAt
-        : !legacyAllowed || row.work_updated_at === null
-          ? null
-          : isoDate(row.work_updated_at),
+      projectId: essayKind ? null : (exact?.projectId ?? (legacyAllowed ? row.project_id : null)),
+      submittedAt: essayKind
+        ? (essay?.attempt?.submittedAt ?? null)
+        : exact
+          ? exact.submittedAt
+          : !legacyAllowed || row.submitted_at === null
+            ? null
+            : isoDate(row.submitted_at),
+      snapshotRevision: essayKind
+        ? null
+        : exact
+          ? exact.snapshotRevision
+          : !legacyAllowed || row.snapshot_revision === null
+            ? null
+            : Number(row.snapshot_revision),
+      updatedAt: essayKind
+        ? null
+        : exact
+          ? exact.updatedAt
+          : !legacyAllowed || row.work_updated_at === null
+            ? null
+            : isoDate(row.work_updated_at),
       canonicalState: occurrenceCanonicalState,
       workOriginAmbiguous,
     });
@@ -1422,6 +1452,10 @@ export class ClassroomJoinController {
       this.canonical().forAccountCourseRuns(context.accountId),
       this.requirePool().query(
         `SELECT occurrence.*,
+                learning_course_activity_kind_for_viewer($2,occurrence.activity_run_id) AS activity_kind,
+                CASE WHEN learning_course_activity_kind_for_viewer($2,occurrence.activity_run_id)='essay'
+                  THEN learning_essay_attempt_read($2,occurrence.activity_run_id)
+                  ELSE NULL END AS essay_context,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
                 learning_course_academic_result_visible(
                   $2, occurrence.seat_id, occurrence.activity_run_id
@@ -1620,6 +1654,10 @@ export class ClassroomJoinController {
       this.canonical().forSeatCourseRuns(seat.seat_id),
       this.requirePool().query(
         `SELECT occurrence.*,
+                learning_course_activity_kind_for_viewer(principal_for_seat($1),occurrence.activity_run_id) AS activity_kind,
+                CASE WHEN learning_course_activity_kind_for_viewer(principal_for_seat($1),occurrence.activity_run_id)='essay'
+                  THEN learning_essay_attempt_read(principal_for_seat($1),occurrence.activity_run_id)
+                  ELSE NULL END AS essay_context,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
                 learning_course_academic_result_visible(
                   principal_for_seat($1), occurrence.seat_id, occurrence.activity_run_id
