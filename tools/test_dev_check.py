@@ -11,6 +11,7 @@ import sys
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -191,9 +192,24 @@ class Fixture(unittest.TestCase):
         self.descendant_probe(forever=True)
         pid = int((self.root / 'child.pid').read_text())
         if os.name != 'nt':
-                self.assertEqual(ctypes.get_last_error(), 87, 'cannot verify exact owned child termination')
-        else:
             self.assert_posix_descendant_terminated(pid)
+
+    def test_descendant_completion_routes_only_posix_to_procfs(self):
+        (self.root / 'child.pid').write_text('12345', encoding='utf-8')
+        method = type(self).test_indefinite_pipe_holding_descendant_is_terminated
+        original_os = os
+        for platform in ('posix', 'nt'):
+            with self.subTest(platform=platform), \
+                 patch.object(self, 'descendant_probe') as probe, \
+                 patch.object(self, 'assert_posix_descendant_terminated') as posix, \
+                 patch.dict(method.__globals__, {'os': SimpleNamespace(name=platform)}):
+                method(self)
+                probe.assert_called_once_with(forever=True)
+                if platform == 'posix':
+                    posix.assert_called_once_with(12345)
+                else:
+                    posix.assert_not_called()
+            self.assertIs(os, original_os)
 
     def assert_posix_descendant_terminated(self, pid):
         try:

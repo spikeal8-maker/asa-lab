@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import type { ThreeDDocument } from '@asa-lab/three-d';
 import { SceneRuntime } from './viewport/SceneRuntime';
 import { geometryResultIsCurrent } from './geometry/result-state';
+import { hoverCameraDirection } from './hover-camera-direction';
 import './three-d-presentation.css';
 
 export interface ThreeDPresentationHandle {
@@ -39,13 +40,7 @@ export const ThreeDPresentation = forwardRef<
         runtime.current?.fitToScene();
       },
       pointer: (x, y) => {
-        const yaw = (x * Math.PI) / 5,
-          pitch = Math.PI / 4 - (y * Math.PI) / 12;
-        runtime.current?.setCameraDirection({
-          x: Math.sin(yaw) * Math.cos(pitch),
-          y: Math.sin(pitch),
-          z: Math.cos(yaw) * Math.cos(pitch),
-        });
+        runtime.current?.setCameraDirection(hoverCameraDirection(x, y));
         runtime.current?.fitToScene();
       },
     }),

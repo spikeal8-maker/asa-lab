@@ -486,6 +486,28 @@
 .public-project-card-meta svg[fill='currentColor'] {
   color: #c83d68;
 }
+.public-project-card
+  :is(
+    .public-project-author,
+    .publication-module,
+    .public-project-card-date,
+    .public-project-card-marks > span,
+    .public-project-card-body h2,
+    .public-project-card-meta
+  ) {
+  text-shadow:
+    0 0 2px rgb(255 255 255 / 100%),
+    0 0 5px rgb(255 255 255 / 95%),
+    0 0 10px rgb(255 255 255 / 80%),
+    0 0 18px rgb(255 255 255 / 50%);
+  filter: drop-shadow(0 0 3px rgb(255 255 255 / 95%)) drop-shadow(0 0 7px rgb(255 255 255 / 60%));
+}
+.public-project-card .public-project-avatar {
+  box-shadow:
+    0 0 3px 2px rgb(255 255 255 / 95%),
+    0 0 9px 5px rgb(255 255 255 / 70%),
+    0 0 18px 8px rgb(255 255 255 / 35%);
+}
 .publication-module {
   display: inline-block;
   align-self: flex-start;
