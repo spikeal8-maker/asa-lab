@@ -2,22 +2,17 @@
 // Playwright invocation owns e2e/server.mjs (reuseExistingServer=false).
 import process from 'node:process';
 export const publicationBrowserPartitions = [
-  {
-    name: 'core',
-    files: [
-      'e2e/publication-comments.spec.ts',
-      'e2e/student-project-policy.spec.ts',
-      'e2e/public-projects.spec.ts',
-      'e2e/public-project-electronics-viewer.spec.ts',
-      'e2e/public-project-electronics-player.spec.ts',
-      'e2e/public-project-copy.spec.ts',
-      'e2e/public-project-admin-moderation.spec.ts',
-      'e2e/gallery.spec.ts',
-      'e2e/project-hub.spec.ts',
-    ],
-  },
-  { name: 'likes', files: ['e2e/publication-likes.spec.ts'] },
-];
+  'publication-comments',
+  'student-project-policy',
+  'public-projects',
+  'public-project-electronics-viewer',
+  'public-project-electronics-player',
+  'public-project-copy',
+  'public-project-admin-moderation',
+  'gallery',
+  'project-hub',
+  'publication-likes',
+].map((name) => ({ name, files: [`e2e/${name}.spec.ts`] }));
 
 export function runPublicationBrowserPartitions(run, env = process.env) {
   if (env.ASA_E2E_EXTERNAL === 'true') {

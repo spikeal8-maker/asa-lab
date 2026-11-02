@@ -9,7 +9,7 @@ import {
   runPublicationBrowserPartitions,
 } from './projects-publication-partitions.mjs';
 
-test('keeps the original ten browser suites exactly once, with likes in its own lifecycle', () => {
+test('keeps every original browser suite exactly once in ten separate lifecycles', () => {
   assert.deepEqual(publicationBrowserPartitions.flatMap((p) => p.files).sort(), [
     'e2e/gallery.spec.ts',
     'e2e/project-hub.spec.ts',
@@ -22,7 +22,8 @@ test('keeps the original ten browser suites exactly once, with likes in its own 
     'e2e/publication-likes.spec.ts',
     'e2e/student-project-policy.spec.ts',
   ]);
-  assert.deepEqual(publicationBrowserPartitions[1].files, ['e2e/publication-likes.spec.ts']);
+  assert.equal(publicationBrowserPartitions.length, 10);
+  assert.ok(publicationBrowserPartitions.every((partition) => partition.files.length === 1));
 });
 
 test('waits for each child to exit, preserves distinct artifacts and never retries', () => {
@@ -42,28 +43,33 @@ test('waits for each child to exit, preserves distinct artifacts and never retri
     pids.push(Number(child.stdout));
     return child.status;
   }, {});
-  assert.equal(pids.length, 2);
-  assert.notEqual(pids[0], pids[1]);
-  assert.deepEqual(outputs, [
-    '--output=reports/playwright/projects-publication/core',
-    '--output=reports/playwright/projects-publication/likes',
-  ]);
+  assert.equal(pids.length, 10);
+  assert.equal(new Set(pids).size, 10);
+  assert.equal(new Set(outputs).size, 10);
+  assert.deepEqual(
+    outputs,
+    publicationBrowserPartitions.map(
+      ({ name }) => `--output=reports/playwright/projects-publication/${name}`,
+    ),
+  );
 });
 
 test('a failed or unfinished child prevents the next partition', () => {
-  for (const status of [1, null, undefined]) {
-    let calls = 0;
-    assert.throws(() =>
-      runPublicationBrowserPartitions(() => {
-        calls++;
-        return status;
-      }, {}),
-    );
-    assert.equal(calls, 1);
+  for (const failedIndex of [0, 4, 9]) {
+    for (const status of [1, null, undefined]) {
+      let calls = 0;
+      assert.throws(() =>
+        runPublicationBrowserPartitions(() => {
+          const index = calls++;
+          return index === failedIndex ? status : 0;
+        }, {}),
+      );
+      assert.equal(calls, failedIndex + 1);
+    }
   }
 });
 
-test('refuses an external server before running either partition', () => {
+test('refuses an external server before running any partition', () => {
   let calls = 0;
   assert.throws(() =>
     runPublicationBrowserPartitions(
