@@ -1,6 +1,45 @@
 schema_version: 1.0.0
 context: ai-assistant
 surfaces:
+  - id: SURF-AI-SCHOOL-CANONICAL-MIGRATIONS
+    routes: [cli:gate:ai-image-queue, cli:db:migrate:check]
+    implementation:
+      files: &school_migration_files
+        - migrations/0294_ai_image_durable_queue.sql
+        - tests/admin/ai-image-queue.pg.spec.ts
+        - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
+        - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+        - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+        - .github/workflows/account-confirmation-focused.yml
+        - docs/deployment/AI_IMAGE_QUEUE.md
+        - docs/agent/surfaces/ai-assistant.yaml
+        - docs/testing/test-catalog.yaml
+    invariants: &school_migration_invariants [AI-IMAGE-JOB-001, AI-OWNER-001, AI-REPLAY-001]
+    tests: &school_migration_tests [TST-AI-SCHOOL-CANONICAL-MIGRATIONS-001, TST-JOINT-PREFIX-CANONICAL-MIGRATIONS-001]
+    controls:
+      - id: CTRL-AI-SCHOOL-CANONICAL-MIGRATIONS
+        change_class: L3_CRITICAL
+        files: *school_migration_files
+        invariants: *school_migration_invariants
+        tests: *school_migration_tests
+  - id: SURF-AI-CI-FIXTURE-STARTUP
+    routes: [ci:ai-chat-focused, cli:ai-attachments:minio-fixture]
+    implementation:
+      files: &fixture_files
+        - .github/workflows/ai-chat-focused.yml
+        - tests/ai-attachments/minio-fixture.mjs
+        - tests/ai-attachments/minio-fixture.test.mjs
+        - docs/agent/surfaces/ai-assistant.yaml
+        - docs/testing/test-catalog.yaml
+    invariants: &fixture_invariants [AI-ATTACHMENT-OWNER-001, AI-ATTACHMENT-BYTES-001]
+    tests: &fixture_tests [TST-AI-FIXTURE-STARTUP-001, TST-AI-ATTACHMENTS-S3-001]
+    controls:
+      - id: CTRL-AI-CI-FIXTURE-STARTUP
+        label: Bound and await owned disposable fixture startup before reporting real S3 readiness
+        change_class: L3_CRITICAL
+        files: *fixture_files
+        invariants: *fixture_invariants
+        tests: *fixture_tests
   - id: SURF-AI-MONTHLY-TOKEN-BUDGETS
     routes: ['#/admin/ai?section=settings', /api/admin/v1/ai/token-budgets, /api/ai/token-budgets]
     implementation:

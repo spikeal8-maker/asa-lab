@@ -7,7 +7,7 @@ import { e2eAdminPool, seedTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
 
 const EVIDENCE = 'e2e/artifacts/public-projects/electronics-viewer';
-const WIDTHS = [320, 360, 390, 430, 768, 1024, 1440];
+const WIDTHS = [320, 360, 390, 430, 768, 1024, 1100, 1101, 1440];
 const headers = (page: Page) => ({ origin: new URL(page.url()).origin });
 function publicScriptEvidence(page: Page, revision: string) {
   const index = JSON.parse(
@@ -295,20 +295,60 @@ test('editor-created immutable Electronics publication is a real inert responsiv
     await expect(
       guest.locator('.workbench-stage, .workbench-inspector, .workbench-save-state'),
     ).toHaveCount(0);
+    const layoutEvidence: unknown[] = [];
+    const detail = guest.getByTestId('public-project-detail');
+    const description = guest.getByTestId('public-project-description');
+    await expect(description).toHaveText('Настоящая схема, собранная в редакторе.');
     for (const width of WIDTHS) {
       await guest.setViewportSize({ width, height: 900 });
       await expect
         .poll(() => guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
         .toBe(true);
-      const viewer = await guest.getByTestId('public-electronics-viewer').boundingBox();
-      const sideBySide = await guest
-        .getByTestId('public-project-detail')
-        .evaluate((element) => element.classList.contains('has-description'));
-      expect(viewer!.width).toBeGreaterThan(
-        width >= 900 && sideBySide ? Math.min(width, 1180) * 0.5 : Math.min(width, 1180) * 0.8,
-      );
+      await expect(description).toBeVisible();
+      const [workspace, stage, viewer, sidebar, text] = await Promise.all([
+        detail.locator('.public-project-workspace').boundingBox(),
+        detail.locator('.public-project-stage-column').boundingBox(),
+        guest.getByTestId('public-electronics-viewer').boundingBox(),
+        guest
+          .getByRole('complementary', { name: 'Об авторе и проекте', exact: true })
+          .boundingBox(),
+        description.boundingBox(),
+      ]);
+      expect(workspace).not.toBeNull();
+      expect(stage).not.toBeNull();
+      expect(viewer).not.toBeNull();
+      expect(sidebar).not.toBeNull();
+      expect(text).not.toBeNull();
+      expect(workspace!.width).toBeGreaterThan(Math.min(width, 1200) * 0.8);
+      // The native viewer fills its real stage column, independent of description
+      // text or obsolete flags. The current desktop sidebar is a separate slot.
+      expect(Math.abs(viewer!.x - stage!.x)).toBeLessThanOrEqual(2);
+      expect(Math.abs(viewer!.width - stage!.width)).toBeLessThanOrEqual(4);
+      expect(viewer!.x).toBeGreaterThanOrEqual(0);
+      expect(viewer!.x + viewer!.width).toBeLessThanOrEqual(width);
+      expect(text!.x).toBeGreaterThanOrEqual(sidebar!.x);
+      expect(text!.x + text!.width).toBeLessThanOrEqual(sidebar!.x + sidebar!.width + 1);
+      expect(text!.width).toBeGreaterThanOrEqual(Math.min(sidebar!.width, 240));
+      expect(text!.x + text!.width).toBeLessThanOrEqual(width);
+      expect(
+        await description.evaluate((element) => element.scrollHeight <= element.clientHeight + 1),
+      ).toBe(true);
+      if (width > 1100) {
+        expect(stage!.width).toBeGreaterThanOrEqual(workspace!.width * (2 / 3));
+        expect(sidebar!.x).toBeGreaterThanOrEqual(stage!.x + stage!.width);
+        expect(text!.x).toBeGreaterThanOrEqual(viewer!.x + viewer!.width);
+      } else {
+        expect(Math.abs(stage!.width - workspace!.width)).toBeLessThanOrEqual(2);
+        expect(sidebar!.y).toBeGreaterThanOrEqual(stage!.y + stage!.height - 1);
+        expect(text!.y).toBeGreaterThanOrEqual(viewer!.y + viewer!.height - 1);
+      }
+      layoutEvidence.push({ width, workspace, stage, viewer, sidebar, description: text });
       if ([320, 390, 1440].includes(width)) await capture(guest, `normal-${width}`);
     }
+    await test.info().attach('electronics-description-stage-layout.json', {
+      body: JSON.stringify(layoutEvidence),
+      contentType: 'application/json',
+    });
     const fitted = await scene.getAttribute('viewBox');
     await guest.getByTestId('public-electronics-zoom-in').click();
     await expect(scene).not.toHaveAttribute('viewBox', fitted!);

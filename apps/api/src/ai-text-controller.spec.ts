@@ -44,7 +44,9 @@ function fixture(state: 'resolved' | 'invalid_session' | 'unavailable_owner' = '
     hijack: vi.fn(),
     raw: {
       writeHead: vi.fn(),
+      flushHeaders: vi.fn(),
       once: vi.fn(),
+      off: vi.fn(),
       write: vi.fn(),
       end: vi.fn(),
       writableEnded: false,

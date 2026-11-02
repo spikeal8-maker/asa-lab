@@ -5,7 +5,7 @@ registry_document_id: AI-ASSISTANT-DOMAIN-CONTRACT
 master_documents: [AI-ASSISTANT-SPEC, IDENTITY-ACCESS-V22]
 invariants:
   - id: AI-IMAGE-JOB-001
-    statement: Local ComfyUI generation has canonical owner and school admission, independent UTC daily GPU quota and durable bounded global slots. A fixed native recipe is dispatched once after SQL CAS; uncertain dispatch is observed by its existing identity and never retried. Unknown jobs retain their slot. Only exact owned outputs become bounded metadata-stripped PNGs in private integrity-checked storage and owner-bound history/downloads. Cancellation never interrupts other GPU jobs. Deletion clears private prompts and schedules recoverable output cleanup while quota and usage tombstones survive. Readiness does not prove GPU quality; saving settings performs no generation.
+    statement: Local ComfyUI generation has canonical owner and school admission, independent UTC daily GPU quota, a durable bounded fair waiting queue with per-owner limits, and a separate single active GPU slot. A fixed native recipe is dispatched once after SQL CAS; uncertain dispatch is observed by its existing identity and never retried. Unknown jobs retain their slot. Only exact owned outputs become bounded metadata-stripped PNGs in private integrity-checked storage and owner-bound history/downloads. Cancellation never interrupts other GPU jobs. Deletion clears private prompts and schedules recoverable output cleanup while quota and usage tombstones survive. Readiness does not prove GPU quality; saving settings performs no generation.
     master_refs:
       - document: AI-ASSISTANT-SPEC
         section: AI-IMAGE-JOB-001

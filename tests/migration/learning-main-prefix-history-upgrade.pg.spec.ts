@@ -319,6 +319,36 @@ const upgradeArtifacts = [
     '0288_learning_course_academic_result_access.sql',
     '73c0aad46e2767de51a270e48e15f184dfe7fe43a8ad47992be6ac878ee1b6f4',
   ],
+  [
+    '0289',
+    '0289_publication_comments.sql',
+    '01bafc7722d6e904462211c9cc4c5d00bccd140f23c216b8825698d08f2e06d7',
+  ],
+  [
+    '0290',
+    '0290_publication_discussion_reactions.sql',
+    'f0ca6f9a9d15c6cff52005f18dcb160559ef251b82f27f5a1e7a2351bd13d165',
+  ],
+  [
+    '0291',
+    '0291_publication_comment_avatars.sql',
+    'f90e4584f6055d0f0be89a04de826e14738cc83fb967b067bc50700e33aa98e7',
+  ],
+  [
+    '0292',
+    '0292_publication_author_catalog.sql',
+    'fd615abbc8445fb3f5bfa4a5c6654127f59b2fd20449df533a64345ab946faaa',
+  ],
+  [
+    '0293',
+    '0293_public_projects_catalog_sort.sql',
+    '31fde2d6f1f29ef4709ff5767426f5ef2cc802e41753cbe19983e4343fbe1891',
+  ],
+  [
+    '0294',
+    '0294_ai_image_durable_queue.sql',
+    '0ea57787d707326f9222fb906bc7d826a91d417c3efdeeb6251c6a3156b6cd26',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -435,7 +465,16 @@ async function preservedData(pool: pg.Pool) {
       table === 'projects'
         ? [...copiedProjectOriginFields]
         : table === 'project_publication_state'
-          ? ['acquisition_allowed', 'acquisition_version', 'reactions_enabled', 'reactions_version']
+          ? [
+              'acquisition_allowed',
+              'acquisition_version',
+              'reactions_enabled',
+              'reactions_version',
+              'comments_enabled',
+              'comments_admin_enabled',
+              'comments_version',
+              'pinned_comment_id',
+            ]
           : [];
     result[table] = (
       await pool.query(
@@ -783,7 +822,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       expect(
         (
           await pool.query(
-            'SELECT acquisition_allowed, acquisition_version, reactions_enabled, reactions_version FROM project_publication_state ORDER BY id',
+            'SELECT acquisition_allowed, acquisition_version, reactions_enabled, reactions_version, comments_enabled, comments_admin_enabled, comments_version, pinned_comment_id FROM project_publication_state ORDER BY id',
           )
         ).rows,
       ).toEqual(
@@ -792,6 +831,10 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
           acquisition_version: 0,
           reactions_enabled: true,
           reactions_version: 0,
+          comments_enabled: true,
+          comments_admin_enabled: true,
+          comments_version: 0,
+          pinned_comment_id: null,
         })),
       );
       expect(await preservedData(pool)).toEqual(before);

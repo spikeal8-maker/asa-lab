@@ -506,13 +506,45 @@ export class AiChatController {
       'X-Content-Type-Options': 'nosniff',
     });
     const canceled = new AbortController();
-    reply.raw.once('close', () => canceled.abort());
-    const event = (type: string, data: unknown): void => {
-      if (!reply.raw.writableEnded && !reply.raw.destroyed) {
-        reply.raw.write('event: ' + type + '\n' + 'data: ' + JSON.stringify(data) + '\n\n');
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
+    let disconnected = false;
+    const cleanup = (): void => {
+      if (heartbeat !== undefined) clearInterval(heartbeat);
+      reply.raw.off('close', disconnect);
+      reply.raw.off('error', disconnect);
+    };
+    const disconnect = (): void => {
+      disconnected = true;
+      cleanup();
+      canceled.abort();
+    };
+    const write = (frame: string): void => {
+      if (reply.raw.writableEnded || reply.raw.destroyed) disconnect();
+      if (!disconnected) {
+        try {
+          reply.raw.write(frame);
+        } catch {
+          disconnect();
+        }
       }
     };
+    reply.raw.once('close', disconnect);
+    reply.raw.once('error', disconnect);
+    const event = (type: string, data: unknown): void => {
+      write('event: ' + type + '\n' + 'data: ' + JSON.stringify(data) + '\n\n');
+    };
     try {
+      if (reply.raw.writableEnded || reply.raw.destroyed) {
+        disconnect();
+        return;
+      }
+      // Queued models can take longer than a proxy's response-header/idle timeout.
+      // Comments carry no chat data and are ignored by the SSE event parser.
+      reply.raw.flushHeaders();
+      write(': connected\n\n');
+      if (disconnected) return;
+      heartbeat = setInterval(() => write(': heartbeat\n\n'), 15_000);
+      heartbeat.unref();
       const result = await this.ai.sendStream(
         owner,
         threadId,
@@ -551,7 +583,8 @@ export class AiChatController {
           : 'Не удалось получить ответ модели. Сообщение сохранено.';
       event('error', { code, message });
     } finally {
-      reply.raw.end();
+      cleanup();
+      if (!disconnected && !reply.raw.writableEnded && !reply.raw.destroyed) reply.raw.end();
     }
   }
 

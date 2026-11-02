@@ -235,7 +235,8 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
       await expect(frame.getByRole('button', { name: 'Start project', exact: true })).toBeVisible();
       await expect(frame.getByRole('button', { name: 'Stop project', exact: true })).toBeVisible();
     };
-    for (const width of [1440, 1120, 1024, 390, 320]) {
+    const layoutEvidence = [];
+    for (const width of [1440, 1120, 1101, 1100, 1024, 1023, 390, 320]) {
       await guest.setViewportSize({ width, height: 900 });
       await expect
         .poll(() => guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
@@ -243,20 +244,55 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
       await expect(frame.getByRole('button', { name: 'Start project', exact: true })).toBeVisible();
       await assertStageFits();
       const pageLayout = await guest.getByTestId('public-project-detail').evaluate((article) => {
-        const player = article.querySelector('.public-project-viewer')!.getBoundingClientRect();
-        const notes = article.querySelector('.public-project-about')!.getBoundingClientRect();
+        const rect = (selector: string) => {
+          const bounds = article.querySelector(selector)!.getBoundingClientRect();
+          return {
+            left: bounds.left,
+            right: bounds.right,
+            top: bounds.top,
+            bottom: bounds.bottom,
+            width: bounds.width,
+            height: bounds.height,
+          };
+        };
         return {
-          playerRight: player.right,
-          playerBottom: player.bottom,
-          playerTop: player.top,
-          notesLeft: notes.left,
-          notesTop: notes.top,
+          player: rect('[aria-label="Просмотр проекта"]'),
+          sidebar: rect('aside[aria-label="Об авторе и проекте"]'),
+          author: rect('.public-project-authorline'),
+          notes: rect('[aria-label="О проекте"]'),
         };
       });
-      if (width >= 900) {
-        expect(pageLayout.playerRight).toBeLessThanOrEqual(pageLayout.notesLeft);
-        expect(Math.abs(pageLayout.playerTop - pageLayout.notesTop)).toBeLessThan(2);
-      } else expect(pageLayout.playerBottom).toBeLessThan(pageLayout.notesTop);
+      layoutEvidence.push({ width, ...pageLayout });
+      for (const bounds of Object.values(pageLayout)) {
+        expect(bounds.width).toBeGreaterThan(0);
+        expect(bounds.height).toBeGreaterThan(0);
+      }
+      expect(pageLayout.notes.left).toBeGreaterThanOrEqual(pageLayout.sidebar.left);
+      expect(pageLayout.notes.right).toBeLessThanOrEqual(pageLayout.sidebar.right + 1);
+      expect(pageLayout.notes.top).toBeGreaterThanOrEqual(pageLayout.sidebar.top);
+      expect(pageLayout.notes.bottom).toBeLessThanOrEqual(pageLayout.sidebar.bottom + 1);
+      // The accepted Publications workspace aligns the player with the whole
+      // author/about sidebar. Description follows its author header on desktop;
+      // it is not the top edge of the workspace (public-projects.spec.ts).
+      expect(Math.abs(pageLayout.author.top - pageLayout.sidebar.top)).toBeLessThan(2);
+      if (width > 1100) {
+        expect(pageLayout.player.right).toBeLessThanOrEqual(pageLayout.sidebar.left);
+        expect(Math.abs(pageLayout.player.top - pageLayout.sidebar.top)).toBeLessThan(2);
+        expect(pageLayout.author.bottom).toBeLessThan(pageLayout.notes.top);
+        expect(pageLayout.player.width).toBeGreaterThan(Math.min(width, 1180) * 0.5);
+      } else {
+        expect(pageLayout.player.bottom).toBeLessThan(pageLayout.sidebar.top);
+        expect(pageLayout.player.width).toBeGreaterThan(width * 0.8);
+        // The existing min-width:1024px about rule pins it to column one,
+        // below the author, even inside the <=1100px two-column sidebar.
+        if (width > 600 && width < 1024) {
+          expect(pageLayout.author.right).toBeLessThanOrEqual(pageLayout.notes.left);
+          expect(Math.abs(pageLayout.author.top - pageLayout.notes.top)).toBeLessThan(2);
+        } else {
+          expect(pageLayout.author.bottom).toBeLessThan(pageLayout.notes.top);
+          expect(Math.abs(pageLayout.author.left - pageLayout.notes.left)).toBeLessThan(2);
+        }
+      }
       await expect(
         guest.getByRole('button', { name: 'Обновить публикацию', exact: true }),
       ).toHaveCount(0);
@@ -427,6 +463,7 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
           sourceUnchanged: true,
           fullscreen: true,
           writeRequests: 0,
+          layout: layoutEvidence,
         },
         null,
         2,

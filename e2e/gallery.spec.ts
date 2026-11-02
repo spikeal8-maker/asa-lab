@@ -12,9 +12,27 @@ test('legacy Gallery entry opens the canonical anonymous Public Projects catalog
 }) => {
   await page.goto('/#/gallery');
   await expect(page).toHaveURL(/#\/explore$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Проекты', exact: true })).toBeVisible();
-  await expect(page.getByRole('searchbox')).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      level: 1,
+      name: 'Идеи, схемы и программы сообщества ASA Lab',
+      exact: true,
+    }),
+  ).toBeVisible();
+  const search = page.getByRole('searchbox', { name: 'Поиск по названию и описанию', exact: true });
+  await expect(search).toBeVisible();
   await expect(page.getByTestId('gallery')).toHaveCount(0);
+  const query = `gallery-cutover-${randomUUID()}`;
+  const response = page.waitForResponse((candidate) => {
+    const url = new URL(candidate.url());
+    return url.pathname === '/api/public-projects' && url.searchParams.get('q') === query;
+  });
+  await search.fill(query);
+  await page.getByRole('button', { name: 'Найти', exact: true }).click();
+  const result = await response;
+  expect(result.status()).toBe(200);
+  expect((await result.json()).items).toEqual([]);
+  await expect.poll(() => new URL(page.url()).hash).toBe(`#/explore?q=${query}`);
 });
 
 test('legacy detail never resolves an original Project, including its owner and an anonymous visitor', async ({

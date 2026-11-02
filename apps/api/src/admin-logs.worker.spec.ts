@@ -8,7 +8,13 @@ import { execFileSync } from 'node:child_process';
 import { Worker } from 'node:worker_threads';
 import { resolve } from 'node:path';
 import databaseContract from './database-diagnostic-contract.json';
-import { queryLogs, exportLogs, type LogFilter, type LogEntry } from './admin-logs.worker.js';
+import {
+  queryLogs,
+  exportLogs,
+  readLogCatalog,
+  type LogFilter,
+  type LogEntry,
+} from './admin-logs.worker.js';
 import { DiagnosticsQualityController } from './diagnostics-quality.controller.js';
 import { QUALITY_COUNTERS } from './analytics-envelope.js';
 import { logFilter } from './admin-logs.controller.js';
@@ -36,6 +42,24 @@ function zipMembers(zip: Buffer): Map<string, Buffer> {
 }
 
 describe('retained log reader and archive', () => {
+  it('leaves unknown optional required-coverage metadata unknown without breaking legacy queries', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-required-reader-'));
+    try {
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({
+          version: 1,
+          sources: [],
+          segments: [],
+          requiredSources: { version: 99, policy: 'unknown', sources: [] },
+        }),
+      );
+      expect((await readLogCatalog(root))?.requiredSources).toBeUndefined();
+      expect(await queryLogs(root, filter, 100)).toMatchObject({ items: [], partial: false });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it('preserves previously classified truncated editor JSON without trusting host or database hints', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-editor-truncated-'));
     try {

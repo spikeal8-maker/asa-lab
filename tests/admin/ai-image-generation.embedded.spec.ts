@@ -180,9 +180,9 @@ it('upgrades the complete 0279 ledger preserving saved endpoint, controls and le
   expect(settings).toMatchObject({
     enabled: true,
     daily_limit: 17,
-    global_concurrency: 2,
+    global_concurrency: 1,
     sizes: AI_IMAGE_PRESETS.map((p) => p.id),
-    revision: 3,
+    revision: 4,
     comfy_revision: 2,
     comfy_base_url: 'http://192.168.12.20:8188',
   });
@@ -338,9 +338,13 @@ it('admits local image without any text keys, dispatches once, unknown keeps glo
     s.create(owner, thread, { requestId: id, prompt: 'different', size: 768 }),
   ).rejects.toThrow();
   await expect(s.get(stranger, thread, id)).rejects.toThrow();
-  await expect(
-    s.create(owner, thread, { requestId: randomUUID(), prompt: 'other', size: 768 }),
-  ).rejects.toThrow();
+  const waiting = await s.create(owner, thread, {
+    requestId: randomUUID(),
+    prompt: 'other',
+    size: 768,
+  });
+  expect(waiting.state).toBe('admitted');
+  await s.cancel(owner, thread, waiting.requestId);
   await s.sweep();
   expect((await s.get(owner, thread, id)).state).toBe('unknown');
   const rows = (
@@ -369,7 +373,7 @@ it('cancellation never interrupts or refunds unknown; deleted receipt denies UUI
   await service().cancel(owner, thread, row.request_id);
   expect(transport.cancelPending).not.toHaveBeenCalled();
   await pool.query('SELECT ai_chat_delete($1,$2)', [owner, thread]);
-  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toHaveLength(1);
+  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toHaveLength(2);
   await expect(
     service().create(owner, thread, {
       requestId: row.request_id,
@@ -425,10 +429,10 @@ it('unknown immutable PUT is never retried; verified image persists in history a
   await expireImageLeases();
   await s.sweep();
   expect(blobs.remove).toHaveBeenCalledTimes(1);
-  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toHaveLength(2);
+  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toHaveLength(3);
   expect(
     (await db.query("SELECT * FROM ai_usage_journal WHERE provider='comfyui'")).rows,
-  ).toHaveLength(2);
+  ).toHaveLength(3);
 });
 it('disabled image settings and archived threads fail before another dispatch; admin CAS replay is immutable', async () => {
   await config(false);
@@ -672,6 +676,8 @@ it('deleting an uncertain storing job releases only the finished GPU slot while 
       })
     ).state,
   ).toBe('submitting');
+  // The scheduler observes active GPU work before lower-priority object cleanup.
+  await s.sweep();
   let lateObjectPresent = true;
   blobs.remove.mockImplementationOnce(async () => {
     lateObjectPresent = false;
@@ -728,13 +734,13 @@ it('deleting an uncertain storing job releases only the finished GPU slot while 
   ).toBe('unknown');
   const thirdThread = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [fresh]))
     .rows[0]!.id;
-  await expect(
-    s.create(fresh, thirdThread, {
-      requestId: randomUUID(),
-      prompt: 'Must wait for known terminal GPU result',
-      size: 768,
-    }),
-  ).rejects.toMatchObject({ code: 'ai_image_not_admitted', status: 429 });
+  const waiting = await s.create(fresh, thirdThread, {
+    requestId: randomUUID(),
+    prompt: 'Must wait for known terminal GPU result',
+    size: 768,
+  });
+  expect(waiting).toMatchObject({ state: 'admitted', queuePaused: true });
+  await s.cancel(fresh, thirdThread, waiting.requestId);
 });
 it('cleanup_done defensively closes historical deleted storing rows without erasing their uncertain PUT tombstone', async () => {
   const j = (
@@ -849,6 +855,9 @@ it('atomically turns an admitted local text request into one owner-scoped image 
     new AbortController().signal,
     parsed.arguments.model as typeof fp8Settings.recipe,
   );
+  expect(job.state).toBe('admitted');
+  expect(transport.dispatch.mock.calls.length).toBe(before);
+  await service().sweep();
   expect(
     (
       await db.query<{ size: number }>('SELECT size FROM ai_image_jobs WHERE request_id=$1', [
@@ -1080,4 +1089,60 @@ it('pins FP8 admission and digest, preserves old-client config, rejects active p
     ]),
   ).rejects.toThrow(/AI_CONFIG_CHANGED/);
   expect((await service().get(actor, chat, requestId)).state).toBe('failed');
+});
+it('does not let 121 recurring uncertain-PUT tombstones starve a free GPU and still cleans during active observation', async () => {
+  await db.query(
+    "UPDATE ai_image_jobs SET state='failed' WHERE state IN('admitted','submitting','unknown','running','storing')",
+  );
+  await config();
+  const actor = await identity();
+  const chat = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [actor]))
+    .rows[0]!.id;
+  await db.query(
+    `INSERT INTO ai_image_jobs(owner_principal_id,request_id,thread_id,provider_id,marker,seed,prompt,payload_digest,graph_digest,size,settings_snapshot,state,cancel_requested,sha256,size_bytes,put_started,put_uncertain,cleanup_required,created_at)
+    SELECT $1,gen_random_uuid(),$2,p.id,'ASA_'||replace(p.id::text,'-',''),1,NULL,$3,$3,768,'{}','cancelled',true,$3,3,true,true,true,clock_timestamp()-interval '1 day'
+    FROM (SELECT gen_random_uuid() AS id FROM generate_series(1,121)) p`,
+    [actor, chat, 'a'.repeat(64)],
+  );
+  const request = randomUUID();
+  await pool.query('SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,true,$6,$7)', [
+    actor,
+    chat,
+    request,
+    'Accepted after 121 cleanup tombstones',
+    randomUUID(),
+    'b'.repeat(64),
+    'flux2-klein-4b-v1',
+  ]);
+  const s = service();
+  const dispatched = transport.dispatch.mock.calls.length;
+  const removed = blobs.remove.mock.calls.length;
+  await s.sweep();
+  expect(transport.dispatch.mock.calls.length).toBe(dispatched + 1);
+  expect((await s.get(actor, chat, request)).state).toBe('submitting');
+  expect(blobs.remove.mock.calls.length).toBe(removed);
+  const waiting = await s.create(actor, chat, {
+    requestId: randomUUID(),
+    prompt: 'Must not overlap active GPU',
+    size: 768,
+  });
+  expect(waiting.state).toBe('admitted');
+  transport.recover.mockResolvedValueOnce({ state: 'running' });
+  await s.sweep();
+  await db.query(
+    "UPDATE ai_image_jobs SET lease_until=clock_timestamp()+interval '2 minutes' WHERE request_id=$1",
+    [request],
+  );
+  await s.sweep();
+  expect(blobs.remove.mock.calls.length).toBe(removed + 1);
+  expect(transport.dispatch.mock.calls.length).toBe(dispatched + 1);
+  expect((await s.get(actor, chat, request)).state).toBe('running');
+  expect(
+    (
+      await db.query<{ count: number }>(
+        "SELECT count(*)::int AS count FROM ai_image_jobs WHERE owner_principal_id=$1 AND state='cancelled' AND cleanup_required AND put_uncertain",
+        [actor],
+      )
+    ).rows[0]!.count,
+  ).toBe(121);
 });
