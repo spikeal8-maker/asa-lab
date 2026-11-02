@@ -5,6 +5,10 @@ import { parseElectronicsDocument } from '../contexts/electronics/domain/documen
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher } from './seed';
 
+// Playwright owns tracing for every browser.newContext below, including the
+// fresh reopen. Retain its combined trace on success as well as failure.
+test.use({ trace: { mode: 'on', screenshots: true, snapshots: true, sources: true } });
+
 // Initial API fixture only. Every measured edit/Save/gesture uses native UI input.
 const parsed = parseElectronicsDocument({
   schemaVersion: 4,
@@ -748,11 +752,9 @@ for (const [width, height] of [
       hasTouch: phone,
       isMobile: phone,
     });
-    await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
     try {
       await journey(await context.newPage(), info, phone);
     } finally {
-      await context.tracing.stop({ path: info.outputPath('native-trace.zip') });
       await context.close();
     }
   });
