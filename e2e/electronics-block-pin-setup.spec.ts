@@ -358,10 +358,37 @@ async function boardIsolation(page: Page, info: TestInfo) {
   await activate(dialog.getByRole('button', { name: 'Применить', exact: true }));
   assertModes(await generated(page), ['2', 'A1']);
   const baseline = await save(page, id);
-  const edited = page.locator(
-    '[data-testid="arduino-block-workspace"] [data-id="settings-comment"] .blocklyEditableText',
-  );
-  await edited.scrollIntoViewIfNeeded();
+  const blockWorkspace = page.getByTestId('arduino-block-workspace');
+  const edited = blockWorkspace.locator('[data-id="settings-comment"] .blocklyEditableField');
+  await expect(edited).toHaveCount(1);
+  await expect(edited).toBeVisible();
+  const programGeometry = () =>
+    blockWorkspace.locator('.blocklyDraggable[data-id]').evaluateAll((elements) =>
+      elements
+        .filter((element) => !element.closest('.blocklyFlyout'))
+        .map((element) => ({
+          id: element.getAttribute('data-id'),
+          transform: element.getAttribute('transform'),
+          fields: Array.from(
+            element.querySelectorAll('.blocklyFieldText'),
+            (field) => field.textContent,
+          ),
+        })),
+    );
+  const beforeCenter = await programGeometry();
+  // Use the pupil's native viewport control, preserving saved block coordinates.
+  await activate(blockWorkspace.locator('g.blocklyZoomReset'));
+  await expect
+    .poll(() =>
+      edited.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return element.contains(
+          document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2),
+        );
+      }),
+    )
+    .toBe(true);
+  expect(await programGeometry()).toEqual(beforeCenter);
   await activate(edited);
   const field = page.locator('input.blocklyHtmlInput');
   await expect(field).toBeVisible();
