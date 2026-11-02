@@ -66,3 +66,27 @@ upgrade and backup/restore all require their own qualification. Caddy's minor
 version change needs actual runtime/browser checks, including the CSP rollout,
 Scratch, workers/WASM and AI previews. No test-server or school deployment is
 performed by this source slice.
+
+## First exact candidate scan and bounded API repair
+
+Run [41508985118](https://github.com/spikeal8-maker/asa-lab/actions/runs/41508985118)
+scanned source `f9c9cbb4e348735f69af0dd4629bcc1c07dff106`. All three scans
+installed Trivy and downloaded its database successfully; these are real
+fixable High/Critical failures, not infrastructure failures. Debian/Alpine OS
+findings were zero. Remaining counts were API 12 (10 bundled npm findings and
+two venv setuptools findings), web 6 (Caddy's compiled Go/module dependencies),
+and PostgreSQL 26 (the official image's `gosu` binary).
+
+The bounded API repair removes unused npm/npx from the final runtime image and
+uninstalls setuptools after document dependencies have been installed. Node,
+application packages and build/test package managers remain present. The
+existing real document-reader tests run **after** removal in the Docker build;
+CI additionally imports pypdf/defusedxml and verifies that unused tools are
+absent. Runtime entrypoint/migration/seed scripts invoke Node directly. This is
+attack-surface removal, not a scanner exclusion. The next exact image scan must
+confirm the result; no successful API image result is claimed in advance.
+
+Web and PostgreSQL remain blocked pending a separate derived-image slice.
+`apk upgrade` cannot repair Go libraries statically compiled into Caddy, and
+`apt-get upgrade` cannot repair the bundled gosu binary. Do not ignore these
+findings, declare this source production-ready, or deploy it as a completed fix.

@@ -53,7 +53,11 @@ jobs:
           SERVICE: ${{ matrix.service }}
         run: |
           case "$SERVICE" in
-            api) test "$(docker run --rm --entrypoint node "asa-security:$SERVICE" --version)" = v22.23.4 ;;
+            api)
+              test "$(docker run --rm --entrypoint node "asa-security:$SERVICE" --version)" = v22.23.4
+              docker run --rm --entrypoint /bin/sh "asa-security:$SERVICE" -ec '! command -v npm && ! command -v npx'
+              docker run --rm --entrypoint /opt/asa-document-python/bin/python "asa-security:$SERVICE" -c "import importlib.util, pypdf, defusedxml; assert importlib.util.find_spec('setuptools') is None"
+              ;;
             web) docker run --rm --entrypoint /usr/bin/caddy "asa-security:$SERVICE" version | grep -E '^v2\.11\.7([[:space:]]|$)' ;;
             postgres) test "$(docker run --rm --entrypoint postgres "asa-security:$SERVICE" --version | awk '{print $3}')" = 17.11 ;;
           esac
