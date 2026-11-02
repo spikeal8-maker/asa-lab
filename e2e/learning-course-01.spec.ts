@@ -3120,7 +3120,7 @@ test('Written Course response: compact author, Seat and Account drafts, immutabl
     mimeType: 'application/pdf',
     buffer: essayPdf,
   });
-  await expect(author.getByText('PDF добавлен в содержание задания.')).toBeVisible();
+  await expect(author.getByText('essay-instructions.pdf · ожидает сохранения')).toBeVisible();
   await author.getByRole('button', { name: 'Настройки', exact: true }).click();
   const settings = author.getByRole('dialog', { name: 'Настройки', exact: true });
   await expect(settings.getByLabel('Среда проекта', { exact: true })).toHaveCount(0);
@@ -3140,7 +3140,15 @@ test('Written Course response: compact author, Seat and Account drafts, immutabl
     await page.screenshot({ path: `${evidenceDir}/essay-author-${width}.png`, fullPage: false });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
+  const essayFileSaved = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      /\/api\/learning\/activities\/[^/]+\/draft-task-file$/.test(new URL(response.url()).pathname),
+  );
   await author.getByRole('button', { name: 'Добавить в урок', exact: true }).click();
+  const essayFileReceipt = await essayFileSaved;
+  expect(essayFileReceipt.ok()).toBe(true);
+  expect((await essayFileReceipt.json()).contentHash).toMatch(/^[a-f0-9]{64}$/);
   await expect(author).toBeHidden();
   await expect(editor.locator('.course-pinned-practice')).toContainText('Письменный ответ');
   const roots = await page.request.get('/api/learning/activities');
