@@ -179,3 +179,14 @@ tests:
     timeout_seconds: 3000
     owner: electronics-team
     artifacts: [electronics-ui-679-557, playwright-report, electronics-simulation]
+
+  - id: TST-E11-STOPPED-FIT-390-SINGLE-001
+    title: One original stopped-fit390 E11 case without whole-suite acceptance
+    suite: e2e
+    level: system
+    phase_available: PHASE-5
+    required_for: [TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001]
+    command: node tools/run-e11-stopped-fit-390.mjs
+    timeout_seconds: 1500
+    owner: electronics-team
+    artifacts: [e11-stopped-fit-390, native-png-pairs, raw-lifecycle-worker-trace]
