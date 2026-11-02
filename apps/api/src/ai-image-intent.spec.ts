@@ -46,6 +46,15 @@ it.each([
   "Create a picture, don't automatically generate it",
   'Do not ever generate new images',
   'Create a site without new image generation',
+  'Сделай сайт с картинками. Генерацию не используй',
+  'Создай картинку, генерацию не надо',
+  'Создай картинку, генерацию не нужно',
+  'Создай сайт с изображениями, генерировать запрещено',
+  'Создай сайт с изображениями, генерировать новые изображения не нужно',
+  'Создай сайт с картинками, генерация запрещена',
+  'Создай сайт с картинками, генерация недопустима',
+  'Create a picture. Image generation is prohibited',
+  'Create a picture. Generating new images is not allowed',
 ])(
   'vetoes clear generation prohibitions before acquisition and after failed search: %s',
   (prompt) => {

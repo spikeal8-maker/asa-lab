@@ -612,6 +612,15 @@ describe('native local internet tools', () => {
     'Найди картинки, не нужно генерировать новые изображения',
     'Создай картинку, не нужно генерировать',
     "Find images, don't automatically generate them",
+    'Сделай сайт с картинками. Генерацию не используй',
+    'Создай сайт с картинками. Генерацию не надо',
+    'Создай картинку, генерацию не нужно',
+    'Создай сайт с изображениями, генерировать запрещено',
+    'Создай сайт с изображениями, генерировать не нужно',
+    'Создай сайт с картинками, генерация запрещена',
+    'Создай сайт с картинками, генерация недопустима',
+    'Create a picture. Image generation is prohibited',
+    'Create a picture. Generating new images is not allowed',
   ])(
     'respects an explicit generation prohibition even after empty retrieval: %s',
     async (userPrompt) => {

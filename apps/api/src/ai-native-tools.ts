@@ -52,7 +52,17 @@ export function imageGenerationForbidden(prompt: string): boolean {
     /(?:не\s+(?:(?:нужно|надо|следует|стоит|можно|хочу|нужн[аоы])\s+)?(?:(?:использовать|используй|применять|применяй|делать|запускать|запускай|включать|включай)\s+)?(?:(?:мне|нам|тебе|вообще|сейчас|снова|ничего|новую|новой|новые|никакую|самостоятельно|дополнительно)\s+){0,4}(?:с?генер\p{L}*|созда\p{L}*|рис\p{L}*)|без\s+(?:(?:новой|любой|дополнительной|самостоятельной)\s+){0,3}генерац\p{L}*)/iu;
   const english =
     /(?:do\s+not|don['’]t|never|no\s+need\s+to|should\s+not|must\s+not)\s+(?:(?:please|ever|again|also|automatically|actually|try\s+to)\s+){0,4}(?:generat\w*|draw|create|use\s+(?:new\s+)?generation)|without\s+(?:(?:new|any|additional|image)\s+){0,3}generation/iu;
-  return russian.test(prompt) || english.test(prompt);
+  // Explicit bans can put the acquisition method before the prohibition.
+  const reversedRussian =
+    /(?:генерац\p{L}*|с?генер\p{L}*)(?:\s+(?:(?:новые|новое|новых|никакие)\s+)?(?:изображени\p{L}*|картин\p{L}*|фотограф\p{L}*))?\s+(?:не\s+(?:нужно|надо|следует|стоит|нужна|нужны|используй|использовать|запускай|запускать|применяй|применять)|запрещен[аоы]?|недопустим[аоы]?)/iu;
+  const reversedEnglish =
+    /(?:generat(?:e|ing|ion)|draw(?:ing)?|render(?:ing)?|paint(?:ing)?)(?:\s+(?:new\s+)?(?:images?|pictures?))?\s+(?:is\s+)?(?:not\s+(?:allowed|needed|permitted)|forbidden|prohibited|disallowed|unacceptable|do\s+not\s+use|don['’]t\s+use)/iu;
+  return (
+    russian.test(prompt) ||
+    english.test(prompt) ||
+    reversedRussian.test(prompt) ||
+    reversedEnglish.test(prompt)
+  );
 }
 
 /** Read-only parallel announcements are executed serially by the shared server. */
