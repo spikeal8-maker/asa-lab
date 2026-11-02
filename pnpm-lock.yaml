@@ -185,6 +185,9 @@ importers:
       '@asa-lab/electronics':
         specifier: workspace:*
         version: link:../../contexts/electronics
+      '@asa-lab/games':
+        specifier: workspace:*
+        version: link:../../contexts/games
       '@asa-lab/identity':
         specifier: workspace:*
         version: link:../../contexts/identity
@@ -363,6 +366,18 @@ importers:
       '@asa-lab/module-sdk':
         specifier: workspace:*
         version: link:../../packages/module-sdk
+
+  contexts/games:
+    dependencies:
+      '@asa-lab/chess':
+        specifier: workspace:*
+        version: link:../chess
+      '@asa-lab/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
 
   contexts/identity: {}
 

@@ -1,3 +1,8 @@
+import { publicArduinoBlocks } from './public-arduino-blocks.js';
+import {
+  validatePublicThreeDArtifact,
+  type PublicThreeDArtifact,
+} from './public-three-d-artifact.js';
 import type { PublicArtifact, PublicArtifactProvenance } from './public-artifact.js';
 import { validatePublicArtifact } from './public-artifact.js';
 export type PublicDisplayComponentKind =
@@ -85,7 +90,10 @@ export interface ElectronicsSimulationArtifact extends Omit<
   readonly components: readonly PublicSimulationComponent[];
 }
 export type PublicProjectDisplayArtifact =
-  PublicArtifact | ElectronicsDisplayArtifact | ElectronicsSimulationArtifact;
+  | PublicArtifact
+  | ElectronicsDisplayArtifact
+  | ElectronicsSimulationArtifact
+  | PublicThreeDArtifact;
 /** Only canonical physical configuration and inert native presentation inputs. */
 export const PUBLIC_ELECTRONICS_PROPERTIES = Object.freeze([
   'mirrorX',
@@ -128,6 +136,7 @@ export const PUBLIC_ELECTRONICS_PROPERTIES = Object.freeze([
   'timePerDivisionMs',
   'triggerLevelVolt',
   'meterRange',
+  'arduinoBlocks',
   'arduinoSource',
   'arduinoCodeMode',
   'cells',
@@ -213,6 +222,12 @@ export function validatePublicProjectDisplayArtifact(
 ):
   | { readonly ok: true; readonly artifact: PublicProjectDisplayArtifact }
   | { readonly ok: false; readonly reason: 'invalid-public-artifact' } {
+  if (
+    input &&
+    typeof input === 'object' &&
+    Object.getOwnPropertyDescriptor(input, 'schemaVersion')?.value === 4
+  )
+    return validatePublicThreeDArtifact(input);
   const v1 = validatePublicArtifact(input);
   if (v1.ok) return v1;
   if (
@@ -435,7 +450,9 @@ function validateSimulationArtifact(
       if ('stateProperties' in c) {
         const properties = object(c.stateProperties, [], [...PUBLIC_ELECTRONICS_PROPERTIES]);
         if (
-          ('arduinoSource' in properties || 'arduinoCodeMode' in properties) &&
+          ('arduinoSource' in properties ||
+            'arduinoCodeMode' in properties ||
+            'arduinoBlocks' in properties) &&
           c.componentTypeId !== 'arduino-uno' &&
           c.variantId !== 'arduino-uno'
         )
@@ -446,7 +463,14 @@ function validateSimulationArtifact(
         )
           throw Error();
         for (const [key, value] of Object.entries(properties)) {
-          if (key === 'arduinoSource') {
+          if (key === 'arduinoBlocks') {
+            if (
+              typeof value !== 'string' ||
+              publicArduinoBlocks(value) !== value ||
+              !['blocks', 'blocks-text'].includes(String(properties.arduinoCodeMode))
+            )
+              throw Error();
+          } else if (key === 'arduinoSource') {
             if (
               typeof value !== 'string' ||
               !value.trim() ||

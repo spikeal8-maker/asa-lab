@@ -421,3 +421,44 @@ Scratch asset-copy и физический экспорт этим решени�
 версии не переписываются ради исправления текущего публичного представления.
 Решение заменяет прежнее условие публичности этого поля в публикациях Account,
 но не разрешает обходить видимость проектов или раскрывать школьные сведения.
+
+### Owner clarification — 2026-11-01: learner comment eligibility
+
+The owner explicitly requested a comments section beneath public publications and
+clarified that learner participation requires configured permission, or eventually
+an approved rating threshold. Comment permission is separate from publication
+permission: permission to publish does not automatically permit comments. Class
+and individual learner controls are required. Guest access is read-only. Existing
+proposal allows the publication owner to close discussion and platform moderation
+to manage comments; exact enforcement must be implemented server-side.
+
+Rating-based eligibility is deferred until a rating formula/threshold policy is
+approved and real rating data exists; do not invent scores or silently grant access.
+This clarification resolves the learner default direction, not R8-04 activation,
+all audience/moderation/rate-limit decisions, storage/API implementation or release
+acceptance. Comments remain unavailable until the bounded comments task is selected
+and its prerequisites and server authorization are verified. No fake comment input
+or fabricated comment count may stand in for implementation.
+
+### Owner implementation request — 2026-11-01: complete discussion slice
+
+The owner subsequently selected real comments storage, independent class and
+learner permissions, author closing and admin moderation, with isolated verification
+and visual examples, explicitly without deploying the site. Selection is recorded
+as `TASK-PROJ-R8-04-COMMENTS-001` in the execution control plane. Personal Accounts
+may write, guests read, classroom participation defaults OFF and each Seat may
+inherit/allow/deny. Publication permission does not grant comment permission.
+Rating-based access remains deferred. Implementation, verification and rollout
+boundaries: `evidence/publication-comments-20261101.md`. This is not production
+deployment, owner acceptance or release certification.
+
+### Owner implementation request — 2026-11-02: interactive 3D publications
+
+The owner requested 3D publication, confirmed rotation/zoom, and additionally asked
+for genuine pointer-driven model previews in the public catalog, Creator Home and
+My Projects. The selected slice is `TASK-PROJ-R7-04A-3D-001`. Reuse canonical geometry,
+publish only the exact immutable geometry projection, and retain native image
+fallback. Hover loads on demand with one active preview, reduced-motion support
+and explicit resource cleanup. This does not grant download/edit permissions or
+authorize production deployment. Implementation evidence:
+`evidence/public-three-d-viewer-20261102.md`.

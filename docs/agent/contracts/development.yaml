@@ -1,0 +1,49 @@
+schema_version: 1.0.0
+contract_id: DEVEX-DOMAIN
+domain: development
+registry_document_id: DEVELOPMENT-DOMAIN-CONTRACT
+master_documents:
+- DOCSYSTEM-MAINTENANCE
+invariants:
+- id: DEVEX-SHADOW-001
+  statement: Plans derive from verified Git changes, a freshly generated Nx graph,
+    existing Surface Maps and executable Test Catalogs. Unknown coverage blocks selection
+    and retains conservative fallback checks. SHADOW plans never execute, waive, or
+    report PASS for selected checks.
+  master_refs:
+  - document: DOCSYSTEM-MAINTENANCE
+    section: 3. Единственные источники истины
+  applies_to:
+  - test_planning
+  - git_diff
+  - dependency_analysis
+- id: DEVEX-RISK-001
+  statement: Mapped control rank and critical minimums cannot be downgraded by UI
+    scope. Partial routing and unavailable previous dependency graphs remain explicit
+    unknowns. No execution state is copied into contracts.
+  master_refs:
+  - document: DOCSYSTEM-MAINTENANCE
+    section: 5. Классы изменений
+  applies_to:
+  - critical_checks
+  - review
+  - failure_recovery
+- id: DEVEX-LOCAL-CHECK-001
+  statement: Changed local checks use one fresh canonical preflight before dependency
+    analysis or tests. PLAN_VALID verifies observed diff scope only and grants no
+    edit or publication permission. Every affected canonical lane retains execution
+    blockers and handoff requirements; known dirty paths are classified as verification
+    input, never inferred ownership. Existing catalog IDs and commands are rechecked
+    against source fingerprints. Local execution is default-deny, with explicit order,
+    resource groups and predecessor IDs in the existing Test Catalog. Shared groups
+    serialize; different groups at the same order may execute independently. Unknown
+    coverage or mandatory pending checks prevent whole-plan PASS. Formal DB/browser
+    checks remain NOT_RUN for isolated CI. Full CI and owner acceptance are separate.
+    Reports bind a unique run ID to Git and source bytes, stay ignored below .asa/devex,
+    reject symlinks and junctions, and say not_saved when persistence is not permitted.
+  master_refs:
+  - document: DOCSYSTEM-MAINTENANCE
+    section: 3. Единственные источники истины
+  applies_to:
+  - local_test_execution
+  - report_persistence

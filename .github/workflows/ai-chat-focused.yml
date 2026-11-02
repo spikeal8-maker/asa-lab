@@ -225,7 +225,7 @@ jobs:
 
   browser:
     name: AI desktop and mobile browser
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -256,7 +256,7 @@ jobs:
 
   usage-overview-browser:
     name: AI usage overview real API and built Web
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:

@@ -311,22 +311,62 @@ const upgradeArtifacts = [
   ],
   [
     '0287',
-    '0287_ai_document_inputs.sql',
-    '06b1ddc2f6122ba1a4cf3e9add5559f3dee93ffb5e9f1ef4e87a0ca077cb884f',
+    '0287_publication_copy_counts.sql',
+    'ed604dbc0034caac069c261457bfb699f5e1c8cd06b1b20d7c7910af4b96718b',
   ],
   [
     '0288',
-    '0288_ai_working_files.sql',
-    '25c78c0b59acfe665b1d5f930f110198fc68b0f14904c724db0fe3f354ee50d3',
+    '0288_learning_course_academic_result_access.sql',
+    '73c0aad46e2767de51a270e48e15f184dfe7fe43a8ad47992be6ac878ee1b6f4',
   ],
   [
     '0289',
-    '0289_ai_polza_text_provider.sql',
-    '0e0176431307c6d67751a601b292570c470fdd1a536535b8b4e737c33c3b77f0',
+    '0289_publication_comments.sql',
+    '01bafc7722d6e904462211c9cc4c5d00bccd140f23c216b8825698d08f2e06d7',
+  ],
+  [
+    '0290',
+    '0290_publication_discussion_reactions.sql',
+    'f0ca6f9a9d15c6cff52005f18dcb160559ef251b82f27f5a1e7a2351bd13d165',
+  ],
+  [
+    '0291',
+    '0291_publication_comment_avatars.sql',
+    'f90e4584f6055d0f0be89a04de826e14738cc83fb967b067bc50700e33aa98e7',
+  ],
+  [
+    '0292',
+    '0292_publication_author_catalog.sql',
+    'fd615abbc8445fb3f5bfa4a5c6654127f59b2fd20449df533a64345ab946faaa',
+  ],
+  [
+    '0293',
+    '0293_public_projects_catalog_sort.sql',
+    '31fde2d6f1f29ef4709ff5767426f5ef2cc802e41753cbe19983e4343fbe1891',
   ],
   [
     '0294',
-    '0294_ai_image_file_binding.sql',
+    '0294_games_chess_network.sql',
+    '04bdaf9176c814494b4d136e228b3d2e83d033a371ee3a8c82dc1be9ac01f129',
+  ],
+  [
+    '0295',
+    '0295_ai_document_inputs.sql',
+    '9ac5de8c47d85a11c2913308ec08a607b6bd70a09ab8601c955976b1251f620e',
+  ],
+  [
+    '0296',
+    '0296_ai_working_files.sql',
+    '25c78c0b59acfe665b1d5f930f110198fc68b0f14904c724db0fe3f354ee50d3',
+  ],
+  [
+    '0297',
+    '0297_ai_polza_text_provider.sql',
+    '0e0176431307c6d67751a601b292570c470fdd1a536535b8b4e737c33c3b77f0',
+  ],
+  [
+    '0298',
+    '0298_ai_image_file_binding.sql',
     'c42c970943bf6b89fcd341cd656bf1b36d1ed4114b27d72719c15ee5fe394a30',
   ],
 ] as const;

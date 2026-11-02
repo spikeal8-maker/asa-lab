@@ -156,10 +156,18 @@ describe('Course Builder structure forward upgrade', () => {
         '0284', // Encrypted Polza credential and bounded STT admission.
         '0285', // Existing public author name projection, immutable history preserved.
         '0286', // Bounded search retrieval settings.
-        '0287', // Bounded document extraction with private originals.
-        '0288', // Private working files and immutable revisions.
-        '0289', // Polza text provider and bounded model catalogue.
-        '0294', // Exact owner-bound generated-image HTML binding.
+        '0287', // Durable successful-publication-copy aggregate.
+        '0288', // Separate authorization for published Course academic results.
+        '0289', // Publication discussions and independent learner permission.
+        '0290', // Comment likes, pinning and ordering.
+        '0291', // Guarded Account/Seat comment avatars.
+        '0292', // Public author avatars and projects-only catalog projection.
+        '0293', // Catalog sorting before pagination.
+        '0294', // Accepted additive games-network schema in Main.
+        '0295', // Bounded document extraction with private originals.
+        '0296', // Private working files and immutable revisions.
+        '0297', // Polza text provider and bounded model catalogue.
+        '0298', // Exact owner-bound generated-image HTML binding.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -475,10 +483,18 @@ describe('Course Builder structure forward upgrade', () => {
           '0284', // Encrypted Polza credential and bounded STT admission.
           '0285', // Existing public author name projection, immutable history preserved.
           '0286', // Bounded search retrieval settings.
-          '0287', // Bounded document extraction with private originals.
-          '0288', // Private working files and immutable revisions.
-          '0289', // Polza text provider and bounded model catalogue.
-          '0294', // Exact owner-bound generated-image HTML binding.
+          '0287', // Durable successful-publication-copy aggregate.
+          '0288', // Exact academic-result authorization independent of Project files.
+          '0289', // Publication discussions and independent learner permission.
+          '0290', // Comment likes, pinning and ordering.
+          '0291', // Guarded Account/Seat comment avatars.
+          '0292', // Public author avatars and projects-only catalog projection.
+          '0293', // Catalog sorting before pagination.
+          '0294', // Accepted additive games-network schema in Main.
+          '0295', // Bounded document extraction with private originals.
+          '0296', // Private working files and immutable revisions.
+          '0297', // Polza text provider and bounded model catalogue.
+          '0298', // Exact owner-bound generated-image HTML binding.
         ]);
         expect(
           await applyIsolatedTestPlan(

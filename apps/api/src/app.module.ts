@@ -1,3 +1,5 @@
+import { PublicationCommentsController } from './publication-comments.controller.js';
+import { ChessNetworkController } from './chess-network.controller.js';
 import { AiImageService } from './ai-image.service.js';
 import { AiPolzaService } from './ai-polza.service.js';
 import { AI_POLZA_SERVICE, AdminPolzaController, AiSttController } from './ai-polza.controller.js';
@@ -297,6 +299,7 @@ export class AppModule {
         GalleryController,
         ProjectPublicationController,
         PublicProjectsController,
+        PublicationCommentsController,
         PublicScratchPlayerController,
         PublicProjectReportsController,
         CollectionsController,
@@ -312,6 +315,7 @@ export class AppModule {
         BlocksRuntimeController,
         CheckersClassroomController,
         ChessLiveController,
+        ChessNetworkController,
         VersionController,
         ProductAnalyticsController,
       ],

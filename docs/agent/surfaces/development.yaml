@@ -1,0 +1,65 @@
+schema_version: 1.0.0
+context: development
+surfaces:
+- id: SURF-DEVELOPMENT-SHADOW-PLANNER
+  routes:
+  - cli:devex:plan
+  implementation:
+    files: &id001
+    - tools/devex_plan.py
+    - tools/devex-dependencies.mjs
+    - tools/devex-python.mjs
+    - tools/test-devex-python.mjs
+    - tools/test_devex_plan.py
+    - tools/test-devex-dependencies.mjs
+    - tools/test_devex_plan_integration.py
+    - tools/gate-governance.sh
+    - package.json
+    - docs/testing/test-catalog.yaml
+    - docs/agent/contracts/development.yaml
+    - docs/agent/surfaces/development.yaml
+    - docs/agent/document-registry.yaml
+    - docs/testing/evidence/devex-shadow-control-set-20261030.json
+  invariants:
+  - DEVEX-SHADOW-001
+  - DEVEX-RISK-001
+  tests: &id002
+  - TST-DEVEX-SHADOW-UNIT-001
+  - TST-DEVEX-SHADOW-INTEGRATION-001
+  controls:
+  - id: CTRL-DEVELOPMENT-SHADOW-SELECTION
+    change_class: L3_CRITICAL
+    files: *id001
+    invariants:
+    - DEVEX-SHADOW-001
+    - DEVEX-RISK-001
+    tests: *id002
+- id: SURF-DEVELOPMENT-LOCAL-CHECKS
+  routes:
+  - cli:dev:check
+  implementation:
+    files: &local_files
+    - tools/dev_check.py
+    - tools/dev-check.mjs
+    - tools/test_dev_check.py
+    - tools/test-dev-check.mjs
+    - tools/run_task_tests.py
+    - tools/validate_test_catalog.py
+    - tools/test_validate_test_catalog.py
+    - tools/gate-governance.sh
+    - package.json
+    - docs/testing/test-catalog.yaml
+    - docs/agent/contracts/development.yaml
+    - docs/agent/surfaces/development.yaml
+    - .github/workflows/spec-validation.yml
+  invariants: &local_invariants
+  - DEVEX-RISK-001
+  - DEVEX-LOCAL-CHECK-001
+  tests: &local_tests
+  - TST-DEVEX-CHECK-001
+  controls:
+  - id: CTRL-DEVELOPMENT-LOCAL-CHECKS
+    change_class: L3_CRITICAL
+    files: *local_files
+    invariants: *local_invariants
+    tests: *local_tests

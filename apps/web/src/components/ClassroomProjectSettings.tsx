@@ -5,9 +5,11 @@ type Override = 'inherit' | 'allow' | 'deny';
 interface Policy {
   publish: boolean;
   download: boolean;
+  comments?: boolean;
   version: number;
   publishOverride?: Override;
   downloadOverride?: Override;
+  commentsOverride?: Override;
 }
 export function ClassroomProjectSettings({
   classroomId,
@@ -66,9 +68,17 @@ export function ClassroomProjectSettings({
         ? {
             publishOverride: draft.publishOverride,
             downloadOverride: draft.downloadOverride,
+            ...(typeof policy.comments === 'boolean'
+              ? { commentsOverride: draft.commentsOverride ?? 'inherit' }
+              : {}),
             expectedVersion: policy.version,
           }
-        : { publish: draft.publish, download: draft.download, expectedVersion: policy.version };
+        : {
+            publish: draft.publish,
+            download: draft.download,
+            ...(typeof policy.comments === 'boolean' ? { comments: draft.comments ?? false } : {}),
+            expectedVersion: policy.version,
+          };
       const result = await call<Policy>(path, { method: 'PUT', body: JSON.stringify(input) });
       if (token !== generation.current) return;
       if (result.ok) {
@@ -93,14 +103,28 @@ export function ClassroomProjectSettings({
       {!draft && !error ? <p role="status">Загружаем разрешения проектов…</p> : null}
       {draft ? (
         <>
-          {(['publish', 'download'] as const).map((key) => (
+          {(['publish', 'download', 'comments'] as const).map((key) => (
             <label className="classroom-games-settings-row" key={key}>
-              {key === 'publish' ? 'Публикация проектов' : 'Скачивание проектов'}
+              {key === 'publish'
+                ? 'Публикация проектов'
+                : key === 'comments'
+                  ? 'Комментарии под публикациями'
+                  : 'Скачивание проектов'}
               {seatId ? (
                 <select
-                  aria-label={key === 'publish' ? 'Публикация проектов' : 'Скачивание проектов'}
+                  aria-label={
+                    key === 'publish'
+                      ? 'Публикация проектов'
+                      : key === 'comments'
+                        ? 'Комментарии под публикациями'
+                        : 'Скачивание проектов'
+                  }
                   value={draft[`${key}Override`] ?? 'inherit'}
-                  disabled={readOnly || busy}
+                  disabled={
+                    readOnly ||
+                    busy ||
+                    (key === 'comments' && typeof policy?.comments !== 'boolean')
+                  }
                   onChange={(event) =>
                     setDraft({ ...draft, [`${key}Override`]: event.target.value })
                   }
@@ -112,13 +136,21 @@ export function ClassroomProjectSettings({
               ) : (
                 <input
                   type="checkbox"
-                  checked={draft[key]}
-                  disabled={readOnly || busy}
+                  checked={draft[key] ?? false}
+                  disabled={
+                    readOnly ||
+                    busy ||
+                    (key === 'comments' && typeof policy?.comments !== 'boolean')
+                  }
                   onChange={(event) => setDraft({ ...draft, [key]: event.target.checked })}
                 />
               )}
             </label>
           ))}
+          <p className="classroom-games-help">
+            Комментарии разрешаются отдельно от публикаций. Индивидуальный запрет отменяет
+            разрешение класса. Доступ по рейтингу пока не используется.
+          </p>
           <p className="classroom-games-help">
             Получение копий действует только при общем разрешении администратора платформы и
             согласии автора. «Разрешить» для класса или ученика не отменяет общий запрет.

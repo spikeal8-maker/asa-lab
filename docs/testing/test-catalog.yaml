@@ -292,6 +292,12 @@ tests:
     owner: admin-auth
     artifacts: [owner-evidence-report, production-version-report, recovery-report]
   - id: TST-ARCH-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared governance resources serialize and different groups may run independently.
+      order: 10
+      group: governance
+      after: []
     title: Architecture foundation validation
     suite: governance
     level: repository
@@ -369,6 +375,12 @@ tests:
     artifacts: [console-report]
 
   - id: TST-FORMAT-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 10
+      group: workspace
+      after: []
     title: Repository formatting
     suite: static
     level: repository
@@ -380,6 +392,12 @@ tests:
     artifacts: [console-report]
 
   - id: TST-LINT-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 20
+      group: workspace
+      after: []
     title: Repository lint
     suite: static
     level: repository
@@ -391,6 +409,12 @@ tests:
     artifacts: [console-report]
 
   - id: TST-TYPE-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 30
+      group: workspace
+      after: []
     title: Strict TypeScript typecheck
     suite: static
     level: repository
@@ -413,6 +437,12 @@ tests:
     artifacts: [nx-project-graph, console-report]
 
   - id: TST-BUILD-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 50
+      group: workspace
+      after: ["TST-TYPE-001"]
     title: Production build
     suite: static
     level: repository
@@ -424,6 +454,12 @@ tests:
     artifacts: [build-manifest]
 
   - id: TST-CONTRACT-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 40
+      group: workspace
+      after: []
     title: OpenAPI and JSON Schema validation
     suite: contracts
     level: repository
@@ -479,6 +515,9 @@ tests:
     artifacts: [console-report]
 
   - id: TST-MIGRATION-001
+    local_check:
+      eligible: false
+      reason: Formal database checks require isolated CI; local Docker and working databases are never started.
     title: Database migration smoke against isolated PostgreSQL
     suite: integration
     level: database
@@ -501,6 +540,9 @@ tests:
     artifacts: [junit]
 
   - id: TST-RLS-001
+    local_check:
+      eligible: false
+      reason: Formal database checks require isolated CI; local Docker and working databases are never started.
     title: Runtime database role and RLS defense-in-depth
     suite: authorization
     level: database
@@ -523,6 +565,12 @@ tests:
     artifacts: [authorization-matrix, junit]
 
   - id: TST-SECRET-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared security resources serialize and different groups may run independently.
+      order: 10
+      group: security
+      after: []
     title: Secret scanning
     suite: security
     level: repository
@@ -1446,5 +1494,55 @@ tests:
     required_for: [TASK-DEVEX-ENGINE-001]
     command: python tools/test_ci_metrics.py
     timeout_seconds: 60
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-SHADOW-UNIT-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared python-tests resources serialize and different groups may run independently.
+      order: 10
+      group: python-tests
+      after: []
+    title: Shadow selection fail-closed, Git diff and independent required-check controls without Node dependencies
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: python tools/test_devex_plan.py
+    timeout_seconds: 120
+    owner: devex-engine
+    artifacts: [test-report]
+  - id: TST-DEVEX-SHADOW-INTEGRATION-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 20
+      group: workspace
+      after: []
+    title: Real Nx graph, TypeScript import parser and historical shadow selection controls
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:devex-plan:integration
+    timeout_seconds: 300
+    owner: devex-engine
+    artifacts: [shadow-control-report]
+
+  - id: TST-DEVEX-CHECK-001
+    title: Changed local runner preflight, actual subprocess failure and timeout, safe scheduling and isolated Python bootstrap
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:dev-check
+    local_check:
+      eligible: true
+      reason: Owned temporary execution fixtures only; no application server, browser or database.
+      order: 20
+      group: workspace
+      after: []
+    timeout_seconds: 300
     owner: devex-engine
     artifacts: [test-report]

@@ -65,6 +65,13 @@ export type {
   PublicDisplayVisualProperties,
 } from './public-project-display-artifact.js';
 export type { PublicScratchPlayerBootstrap } from './public-scratch-player';
+export {
+  validatePublicThreeDArtifact,
+  PUBLIC_THREE_D_NODE_FIELDS,
+  PUBLIC_THREE_D_LIMITS,
+  PUBLIC_THREE_D_PRIMITIVES,
+} from './public-three-d-artifact.js';
+export type { PublicThreeDArtifact, PublicThreeDNode } from './public-three-d-artifact.js';
 
 export type {
   AiOllamaCloudModel,
@@ -102,3 +109,14 @@ export {
   isAiToolActivity,
 } from './ai-chat-feedback.js';
 export type { AiChatTool, AiToolActivity } from './ai-chat-feedback.js';
+
+export { publicArduinoBlocks } from './public-arduino-blocks.js';
+
+export type {
+  ChessNetworkScope,
+  ChessNetworkPolicy,
+  ChessNetworkAccess,
+  ChessNetworkInvite,
+  ChessNetworkMatch,
+  ChessNetworkAction,
+} from './chess-network.js';

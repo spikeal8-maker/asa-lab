@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { ModulePreviewFigure, ModulePreviewShape } from '@asa-lab/module-sdk';
 import { projectSnapshotUrl, type ModuleSummary, type Project } from '../api';
+import { ThreeDHoverPreview } from '../three-d/ThreeDHoverPreview';
 import './project-preview.css';
 
 /**
@@ -153,6 +154,25 @@ export function ProjectPreviewFigure({
  * figure covers the gap.
  */
 export function ProjectPreview({
+  project,
+  module,
+  fallback,
+}: {
+  project: Project;
+  module?: ModuleSummary | undefined;
+  fallback: ReactNode;
+}): JSX.Element {
+  const content = <ProjectStaticPreview project={project} module={module} fallback={fallback} />;
+  return project.moduleKey === 'three-d' ? (
+    <ThreeDHoverPreview source={{ kind: 'project', id: project.id, version: project.updatedAt }}>
+      {content}
+    </ThreeDHoverPreview>
+  ) : (
+    content
+  );
+}
+
+function ProjectStaticPreview({
   project,
   module,
   fallback,

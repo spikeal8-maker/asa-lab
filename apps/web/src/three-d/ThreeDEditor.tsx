@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { selectionBounds, type PrimitiveKind, type ShapeOperation } from '@asa-lab/three-d';
-import type { PublicUser } from '../api';
+import { api, type Project, type PublicUser } from '../api';
+import { ProjectProperties } from '../components/ProjectProperties';
 import { AsaLabMark } from '../brand/AsaLabBrand';
 import { EditorAvatar, useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 import { CheckIcon } from '../electronics/workbench-icons';
@@ -18,7 +19,11 @@ import { VersionHistory } from '../components/VersionHistory';
 import { ThreeViewport, type ThreeViewportHandle } from './viewport/ThreeViewport';
 import { ViewCube } from './viewport/ViewCube';
 import type { CameraViewState } from './viewport/SceneRuntime';
-import { registerProjectSnapshotSource, startProjectSnapshots } from '../modules/project-snapshot';
+import {
+  captureProjectSnapshot,
+  registerProjectSnapshotSource,
+  startProjectSnapshots,
+} from '../modules/project-snapshot';
 import './three-d.css';
 
 interface ThreeDEditorProps {
@@ -49,6 +54,8 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
   const viewportRef = useRef<ThreeViewportHandle>(null);
   const [geometryState, setGeometryState] = useState<GeometryResultState | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [publicationProject, setPublicationProject] = useState<Project | null>(null);
+  const [openingPublication, setOpeningPublication] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
   const [alignmentOpen, setAlignmentOpen] = useState(false);
@@ -362,6 +369,52 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
           }
         }}
         onExportJson={() => downloadThreeDJson(document, controller.title)}
+        publicationControl={
+          <button
+            type="button"
+            className="asa3d-text-action"
+            disabled={
+              openingPublication ||
+              controller.saveState !== 'saved' ||
+              !geometryResultIsCurrent(geometryState, document)
+            }
+            title={
+              controller.saveState !== 'saved'
+                ? 'Дождитесь сохранения модели'
+                : 'Публикация модели в каталоге проектов'
+            }
+            onClick={() => {
+              void (async () => {
+                if (openingPublication || controller.saveState !== 'saved') return;
+                setOpeningPublication(true);
+                setExportError(null);
+                try {
+                  const captured = await captureProjectSnapshot(projectId);
+                  if (!captured) throw Error('Модель ещё готовится. Дождитесь завершения расчёта.');
+                  const saved = await api.saveProjectSnapshot(
+                    projectId,
+                    captured.image,
+                    captured.sourceRevision,
+                  );
+                  if (!saved.ok)
+                    throw Error(saved.error.message || 'Не удалось сохранить изображение модели.');
+                  const result = await api.openProject(projectId);
+                  if (!result.ok)
+                    throw Error(result.error.message || 'Не удалось открыть публикацию.');
+                  setPublicationProject(result.data.project);
+                } catch (error) {
+                  setExportError(
+                    error instanceof Error ? error.message : 'Не удалось открыть публикацию.',
+                  );
+                } finally {
+                  setOpeningPublication(false);
+                }
+              })();
+            }}
+          >
+            {openingPublication ? 'Подготовка…' : 'Публикация'}
+          </button>
+        }
         sendControl={
           <VersionHistory
             projectId={projectId}
@@ -585,6 +638,18 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
         />
       </section>
 
+      {publicationProject && (
+        <ProjectProperties
+          project={publicationProject}
+          initialSection="publication"
+          onClose={() => setPublicationProject(null)}
+          onSaved={() => {
+            void api.openProject(projectId).then((result) => {
+              if (result.ok) controller.setTitle(result.data.project.title);
+            });
+          }}
+        />
+      )}
       {exportError && (
         <div className="asa3d-notice" role="alert">
           <span>{exportError}</span>

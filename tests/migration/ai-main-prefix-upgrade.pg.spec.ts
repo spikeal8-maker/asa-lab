@@ -65,10 +65,18 @@ const expectedPending = [
   '0284', // Isolated Polza STT credentials and bounded speech admission.
   '0285', // Existing public author name projection, immutable history preserved.
   '0286', // Bounded search retrieval settings.
-  '0287', // Bounded document extraction with private originals.
-  '0288', // Private working files and immutable revisions.
-  '0289', // Polza text provider and bounded model catalogue.
-  '0294', // Exact owner-bound generated-image HTML binding.
+  '0287', // Durable successful-publication-copy aggregate.
+  '0288', // Exact Course academic-result visibility without Project byte access.
+  '0289', // Persistent publication discussions and independent learner permission.
+  '0290', // Comment likes, pinning and stable ordering.
+  '0291', // Guarded Account/Seat comment avatars.
+  '0292', // Publication author avatars and projects-only catalog projection.
+  '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
+  '0294', // Accepted additive games-network schema in Main.
+  '0295', // Bounded document extraction with private originals.
+  '0296', // Private working files and immutable revisions.
+  '0297', // Polza text provider and bounded model catalogue.
+  '0298', // Exact owner-bound generated-image HTML binding.
 ];
 
 interface Identity {
@@ -133,13 +141,17 @@ async function legacySnapshot(db: pg.Pool) {
     project_snapshots: [],
     project_publications: [],
     project_reactions: ['publication_id'],
-    // 0275 consent and 0283 reaction controls add only explicit default columns. Keep every old field
+    // Consent, reaction and discussion controls add only explicit default columns. Keep every old field
     // (and any unrecognized future field) in the strict preserved-data comparison.
     project_publication_state: [
       'acquisition_allowed',
       'acquisition_version',
       'reactions_enabled',
       'reactions_version',
+      'comments_enabled',
+      'comments_admin_enabled',
+      'comments_version',
+      'pinned_comment_id',
     ],
     project_publication_revisions: [
       'module_key',
@@ -783,6 +795,22 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         })),
       );
       expect(await legacySnapshot(db)).toEqual(before);
+      // Check the new discussion defaults independently; do not hide data
+      // mutations by excluding added columns from the old-byte comparison.
+      expect(
+        (
+          await db.query(
+            'SELECT comments_enabled,comments_admin_enabled,comments_version,pinned_comment_id FROM public.project_publication_state ORDER BY id',
+          )
+        ).rows,
+      ).toEqual(
+        before.project_publication_state!.map(() => ({
+          comments_enabled: true,
+          comments_admin_enabled: true,
+          comments_version: 0,
+          pinned_comment_id: null,
+        })),
+      );
       for (const table of [
         'ai_assistant_threads',
         'ai_assistant_messages',

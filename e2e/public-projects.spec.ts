@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { expect, test, type APIResponse, type Browser, type Page } from '@playwright/test';
 import type pg from 'pg';
 import { e2eAdminPool, seedTeacher } from './seed';
@@ -12,6 +12,152 @@ import { loginWithOrganization } from './organization-login';
 const EVIDENCE = 'e2e/artifacts/public-projects';
 const WIDTHS = [320, 360, 390, 430, 768, 1024, 1440] as const;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
+test('preview cards have no vignette or added strips and electronics uses a white background', async ({
+  page,
+}) => {
+  await page.goto('/#/explore');
+  await register(page, 'Автор проверки превью');
+  await ok(
+    await page.request.patch('/api/account/avatar', {
+      headers: { origin: origin(page) },
+      data: {
+        avatarDataUrl:
+          'data:image/webp;base64,' +
+          readFileSync('apps/web/public/assets/avatars/default/avatar-01.webp').toString('base64'),
+      },
+    }),
+  );
+  const title =
+    'Длинное название электронной схемы для проверки сокращения рядом с лайками ' +
+    randomUUID().slice(0, 8);
+  const image = await raster(page, 'Preview');
+  const projectId = await createProject(page, title, image);
+  try {
+    const published = await publish(page, projectId);
+    const data = await publication(page, published.publicationId);
+    const original = await imageHash(page, data.preview.url);
+    await page.goto('/#/explore');
+    await page.getByRole('searchbox').fill(title);
+    await page.getByRole('button', { name: 'Найти', exact: true }).click();
+    const card = page.getByTestId('public-project-card').filter({ hasText: title });
+    await expect(card).toBeVisible();
+    await expect(
+      page.getByRole('heading', {
+        name: 'Идеи, схемы и программы сообщества ASA Lab',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page.locator('.public-projects-results')).toHaveCount(0);
+    await page.getByRole('combobox', { name: 'Сортировка проектов' }).selectOption('likes');
+    await expect(page).toHaveURL(/sort=likes/);
+    await expect(card).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Шахматы', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Шашки', exact: true })).toHaveCount(0);
+    await expect(card.locator('.public-project-author')).toHaveText('Автор проверки превью');
+    await expect
+      .poll(() =>
+        card
+          .locator('.public-project-avatar img')
+          .evaluate((image: HTMLImageElement) => Boolean(image.complete && image.naturalWidth)),
+      )
+      .toBe(true);
+    for (const width of [3840, 2560, 1920, 1440, 1024, 1023, 601, 600, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expectNoOverflow(page);
+      const columns = await page
+        .getByTestId('public-project-grid')
+        .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+      expect(columns).toBe(4);
+      const authorStyle = await card.locator('.public-project-author').evaluate((element) => ({
+        wrapping: getComputedStyle(element).whiteSpace,
+        overflow: getComputedStyle(element).textOverflow,
+      }));
+      expect(authorStyle).toEqual({ wrapping: 'nowrap', overflow: 'ellipsis' });
+      await card.hover();
+      const date = card.locator('.public-project-card-date');
+      expect(await date.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
+      expect(await date.textContent()).not.toContain('Опубликовано');
+      const authorBox = await card.locator('.public-project-author').boundingBox();
+      const dateBox = await date.boundingBox();
+      expect(Math.abs(dateBox!.x - authorBox!.x)).toBeLessThan(1);
+      expect(dateBox!.y).toBeGreaterThanOrEqual(authorBox!.y + authorBox!.height - 1);
+      await page.mouse.move(0, 0);
+      expect(await date.evaluate((element) => getComputedStyle(element).opacity)).toBe('0');
+      const chipsBox = await page.getByRole('group', { name: 'Среда проекта' }).boundingBox();
+      const sortBox = await page
+        .getByRole('combobox', { name: 'Сортировка проектов' })
+        .boundingBox();
+      expect(
+        Math.abs(chipsBox!.y + chipsBox!.height / 2 - sortBox!.y - sortBox!.height / 2),
+      ).toBeLessThan(2);
+      expect(chipsBox!.x + chipsBox!.width).toBeLessThanOrEqual(sortBox!.x);
+      const toolsBox = await page.locator('.public-projects-tools').boundingBox();
+      expect(sortBox!.width).toBeLessThanOrEqual(148);
+      expect(Math.abs(sortBox!.x + sortBox!.width - toolsBox!.x - toolsBox!.width)).toBeLessThan(1);
+      const bounds = await card.boundingBox();
+      expect(Math.abs(bounds!.width / bounds!.height - 4 / 3)).toBeLessThan(0.025);
+      const catalogBox = await page.getByTestId('public-project-catalog').boundingBox();
+      if (width >= 1920) {
+        expect(catalogBox!.width).toBeGreaterThan(width - 350);
+        expect(bounds!.width).toBeGreaterThan((width - 420) / 4);
+      }
+      const titleBox = await card.getByTestId('public-project-card-title').boundingBox();
+      const countsBox = await card.locator('.public-project-card-meta').boundingBox();
+      expect(titleBox!.x + titleBox!.width).toBeLessThanOrEqual(countsBox!.x);
+      expect(
+        Math.abs(titleBox!.y + titleBox!.height / 2 - countsBox!.y - countsBox!.height / 2),
+      ).toBeLessThan(2);
+      const titleStyle = await card
+        .getByTestId('public-project-card-title')
+        .evaluate((element) => ({
+          overflow: getComputedStyle(element).textOverflow,
+          wrapping: getComputedStyle(element).whiteSpace,
+          truncated: element.scrollWidth > element.clientWidth,
+        }));
+      expect(titleStyle.overflow).toBe('ellipsis');
+      expect(titleStyle.wrapping).toBe('nowrap');
+      if (width <= 390) expect(titleStyle.truncated).toBe(true);
+      const labels = await card
+        .locator(
+          '.public-project-card-body h2, .public-project-card-meta, .public-project-author, .publication-module',
+        )
+        .evaluateAll((elements) => elements.map((element) => getComputedStyle(element).textShadow));
+      expect(labels.every((shadow) => shadow !== 'none' && shadow.includes('255, 255, 255'))).toBe(
+        true,
+      );
+      const styles = await card.evaluate((el) => ({
+        vignette: getComputedStyle(el.querySelector('.public-project-card-cover')!, '::after')
+          .content,
+        background: getComputedStyle(el.querySelector('.publication-preview')!).backgroundColor,
+        strip: getComputedStyle(el.querySelector('.public-project-card-body')!).backgroundColor,
+        fit: getComputedStyle(el.querySelector('.publication-preview img')!).objectFit,
+        filter: getComputedStyle(el.querySelector('.publication-preview img')!).filter,
+      }));
+      expect(styles).toEqual({
+        vignette: 'none',
+        background: 'rgb(255, 255, 255)',
+        strip: 'rgba(0, 0, 0, 0)',
+        fit: 'contain',
+        filter: 'none',
+      });
+      await card.screenshot({ path: `${EVIDENCE}/no-vignette-${width}.png` });
+    }
+    expect(await imageHash(page, data.preview.url)).toBe(original);
+    await page.goto(`/#/public-projects/${published.publicationId}`);
+    await expect(page.locator('.public-project-detail-author')).toHaveText('Автор проверки превью');
+    await expect
+      .poll(() =>
+        page
+          .locator('.public-project-detail-avatar img')
+          .evaluate((image: HTMLImageElement) => Boolean(image.complete && image.naturalWidth)),
+      )
+      .toBe(true);
+  } finally {
+    await page.request.delete(`/api/projects/${projectId}/publication`, {
+      headers: { origin: origin(page) },
+    });
+  }
+});
 let admin: pg.Pool;
 
 interface Publication {
@@ -164,7 +310,11 @@ async function openPublicationDialog(page: Page, title: string) {
 
 async function expectPublicImage(page: Page): Promise<void> {
   const image = page.getByTestId('public-project-preview');
-  await expect(image).toBeVisible();
+  const live = page.locator('.public-three-d-stage[data-ready="true"] canvas');
+  await expect
+    .poll(async () => (await live.isVisible()) || (await image.isVisible()), { timeout: 30000 })
+    .toBe(true);
+  if (await live.isVisible()) return;
   await expect
     .poll(() =>
       image.evaluate((element) => {
@@ -392,12 +542,45 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
   await ok(snapshot);
   const snapshotBytes = await snapshot.body();
   expect(snapshotBytes.length).toBeGreaterThan(1000);
-  const sourceHash = createHash('sha256').update(snapshotBytes).digest('hex');
+  // Native card captures exclude the workplane/selection helpers on a white
+  // background; the live authoring document must still keep its grid enabled.
+  const snapshotCorners = await page.evaluate(async (url) => {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d')!;
+    context.drawImage(image, 0, 0);
+    return [
+      [3, 3],
+      [canvas.width - 4, 3],
+      [3, canvas.height - 4],
+      [canvas.width - 4, canvas.height - 4],
+    ].map(([x, y]) => [...context.getImageData(x!, y!, 1, 1).data]);
+  }, `/api/projects/${projectId}/snapshot`);
+  expect(
+    snapshotCorners.every(
+      (rgba) => rgba.slice(0, 3).every((value) => value >= 250) && rgba[3] === 255,
+    ),
+  ).toBe(true);
+  expect(
+    (await (await page.request.get(`/api/projects/${projectId}`)).json()).draft.document.grid
+      .visible,
+  ).toBe(true);
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  const dialog = await openPublicationDialog(page, title);
+  await page.getByRole('button', { name: 'Публикация', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Публикация проекта', exact: true });
+  await expect(dialog).toBeVisible();
+  const publicationSnapshot = await page.request.get(`/api/projects/${projectId}/snapshot`);
+  await ok(publicationSnapshot);
+  const sourceHash = createHash('sha256')
+    .update(await publicationSnapshot.body())
+    .digest('hex');
   await dialog
     .getByLabel('Описание проекта')
     .fill('Параллелепипед создан в настоящем 3D редакторе. Превью сохранено самим редактором.');
@@ -413,10 +596,50 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
   const guestContext = await browser.newContext();
   try {
     const guest = await guestContext.newPage();
+    const privateReads: string[] = [];
+    guest.on('request', (request) => {
+      if (new URL(request.url()).pathname.startsWith('/api/projects/'))
+        privateReads.push(request.url());
+    });
     await guest.goto('/#/explore');
+    const publicCard = guest.getByTestId('public-project-card').filter({ hasText: title });
+    await expect(publicCard).toBeVisible();
+    await expect(guest.locator('.three-d-hover-live canvas')).toHaveCount(0);
+    await publicCard.hover();
+    await expect(publicCard.locator('.three-d-hover-live')).toHaveClass(/is-ready/);
+    const hoverCanvas = publicCard.locator('.three-d-hover-live canvas');
+    const hoverBefore = createHash('sha256')
+      .update(await hoverCanvas.screenshot())
+      .digest('hex');
+    const bounds = (await publicCard.boundingBox())!;
+    await guest.mouse.move(bounds.x + bounds.width * 0.85, bounds.y + bounds.height * 0.3);
+    await expect
+      .poll(async () =>
+        createHash('sha256')
+          .update(await hoverCanvas.screenshot())
+          .digest('hex'),
+      )
+      .not.toBe(hoverBefore);
+    await guest.mouse.move(0, 0);
+    await expect(guest.locator('.three-d-hover-live canvas')).toHaveCount(0);
+    expect(privateReads).toEqual([]);
     await guest.getByRole('link', { name: `Открыть проект «${title}»` }).click();
     await expect(guest).toHaveURL(new RegExp(`#/public-projects/${publicationId}$`));
     await expect(guest.getByTestId('public-project-title')).toHaveText(title);
+    const liveModel = guest.getByTestId('public-three-d-viewer');
+    await expect(liveModel.locator('.public-three-d-stage')).toHaveAttribute('data-ready', 'true');
+    const canvas = liveModel.locator('canvas');
+    const cameraBefore = createHash('sha256')
+      .update(await canvas.screenshot())
+      .digest('hex');
+    await guest.getByRole('button', { name: 'Повернуть модель вправо', exact: true }).click();
+    await expect
+      .poll(async () =>
+        createHash('sha256')
+          .update(await canvas.screenshot())
+          .digest('hex'),
+      )
+      .not.toBe(cameraBefore);
     await expectPublicImage(guest);
     const dto = await publication(guest, publicationId);
     expect(dto.moduleKey).toBe('three-d');
@@ -446,6 +669,47 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
   } finally {
     await guestContext.close();
   }
+  const before = (await (await page.request.get(`/api/projects/${projectId}`)).json()).draft;
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    if (
+      ['PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
+      new URL(request.url()).pathname.startsWith('/api/projects/')
+    )
+      writes.push(request.url());
+  });
+  for (const route of ['home', 'projects']) {
+    await page.goto(`/#/${route}`);
+    const card = page.getByTestId('project-card').filter({ hasText: title });
+    await expect(card).toBeVisible();
+    await card.hover();
+    await expect(card.locator('.three-d-hover-live')).toHaveClass(/is-ready/);
+    const canvas = card.locator('.three-d-hover-live canvas');
+    const first = createHash('sha256')
+      .update(await canvas.screenshot())
+      .digest('hex');
+    const box = (await card.boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.85, box.y + box.height * 0.3);
+    await expect
+      .poll(async () =>
+        createHash('sha256')
+          .update(await canvas.screenshot())
+          .digest('hex'),
+      )
+      .not.toBe(first);
+    await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(1);
+    await page.mouse.move(0, 0);
+    await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await card.hover();
+    await page.waitForTimeout(250);
+    await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+  }
+  expect((await (await page.request.get(`/api/projects/${projectId}`)).json()).draft).toEqual(
+    before,
+  );
+  expect(writes).toEqual([]);
 });
 
 test('ordinary Account publishes in UI; anonymous V1 survives draft V2 until explicit update and revoke', async ({
@@ -682,13 +946,9 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         const top = cards[0].getBoundingClientRect().top;
         return cards.filter((card) => Math.abs(card.getBoundingClientRect().top - top) < 2).length;
       });
-      expect(rowCount).toBeLessThanOrEqual(4);
-      if (width === 320) expect(rowCount).toBe(1);
-      if (width >= 360 && width <= 768) expect(rowCount).toBe(2);
-      if (width === 1024) expect(rowCount).toBe(3);
-      if (width === 1440) expect(rowCount).toBe(4);
+      expect(rowCount).toBe(4);
       const searchBounds = await guest.getByRole('search').boundingBox();
-      expect(searchBounds!.width).toBeLessThanOrEqual(width >= 768 ? 400 : width);
+      expect(searchBounds!.width).toBeLessThanOrEqual(260);
       expect(
         (await guest.getByTestId('public-project-card').first().boundingBox())!.y,
       ).toBeLessThan(400);
@@ -722,20 +982,20 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         const module = card.querySelector('.publication-module')!.getBoundingClientRect();
         const likes = card.querySelector('.public-project-card-meta')!.getBoundingClientRect();
         return {
-          square: Math.abs(bounds.width - bounds.height),
+          aspect: Math.abs(bounds.width / bounds.height - 4 / 3),
           titleInside: footer.top >= cover.top && footer.bottom <= cover.bottom,
           fullBleed: Math.abs(cover.height - (bounds.height - 2)),
           identityFits: identity.right <= module.left && identity.left >= cover.left,
           likesInside: likes.bottom <= cover.bottom && likes.right <= cover.right,
-          titleOnly: card.querySelector('.public-project-card-body')!.children.length === 1,
+          titleAndCounts: card.querySelector('.public-project-card-body')!.children.length === 2,
         };
       });
-      expect(cardGeometry.square).toBeLessThan(3);
+      expect(cardGeometry.aspect).toBeLessThan(0.025);
       expect(cardGeometry.titleInside).toBe(true);
       expect(cardGeometry.fullBleed).toBeLessThan(1);
       expect(cardGeometry.identityFits).toBe(true);
       expect(cardGeometry.likesInside).toBe(true);
-      expect(cardGeometry.titleOnly).toBe(true);
+      expect(cardGeometry.titleAndCounts).toBe(true);
       // Date is discoverable with pointer and keyboard, without an extra footer row.
       await guest.mouse.move(0, 0);
       await visualCard.locator('a').evaluate((element: HTMLElement) => element.blur());
@@ -808,6 +1068,7 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
           workspace: rect('[aria-label="Просмотр проекта"]'),
           actions: rect('[aria-label="Действия с проектом"]'),
           about: rect('[aria-label="О проекте"]'),
+          sidebar: rect('.public-project-sidebar'),
           nestedScroll: [...article.querySelectorAll('*')].some((element) => {
             const style = getComputedStyle(element);
             return (
@@ -818,18 +1079,19 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         };
       });
       expect(geometry.heading.bottom).toBeLessThanOrEqual(geometry.workspace.top);
-      expect(geometry.workspace.bottom).toBeLessThanOrEqual(geometry.actions.top);
-      if (width >= 900) {
-        expect(geometry.workspace.right).toBeLessThanOrEqual(geometry.about.left);
-        expect(Math.abs(geometry.workspace.top - geometry.about.top)).toBeLessThan(2);
+      expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.workspace.top);
+      if (width > 1100) {
+        expect(geometry.workspace.right).toBeLessThanOrEqual(geometry.sidebar.left);
+        expect(Math.abs(geometry.workspace.top - geometry.sidebar.top)).toBeLessThan(2);
         expect(geometry.workspace.width).toBeGreaterThan(Math.min(width, 1180) * 0.5);
       } else {
-        expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.about.top);
+        expect(geometry.workspace.bottom).toBeLessThanOrEqual(geometry.sidebar.top);
         expect(geometry.workspace.width).toBeGreaterThan(width * 0.8);
       }
-      await expect(guest.getByTestId('public-project-detail').locator('aside, figure')).toHaveCount(
-        0,
-      );
+      await expect(
+        guest.getByTestId('public-project-detail').locator('aside.public-project-sidebar'),
+      ).toHaveCount(1);
+      await expect(guest.getByTestId('public-project-detail').locator('figure')).toHaveCount(0);
       expect(geometry.nestedScroll).toBe(false);
       await guest.screenshot({ path: `${EVIDENCE}/detail-${width}.png`, fullPage: true });
       if ([320, 390, 1440].includes(width)) {

@@ -57,5 +57,35 @@ class BranchPresence(unittest.TestCase):
             self.assertFalse(catalog._checkout_contains_task_branch("codex/access"))
 
 
+class LocalEligibility(unittest.TestCase):
+    def test_default_is_ineligible_and_false_cannot_define_order(self):
+        errors = []
+        catalog.validate_local_checks([{'id': 'A'}, {'id': 'B', 'local_check': {
+            'eligible': False, 'reason': 'CI only', 'order': 1}}], errors)
+        self.assertEqual(len(errors), 1)
+
+    def test_invalid_types_groups_dependencies_and_cycles(self):
+        def entry(test_id, **changes):
+            return {'id': test_id, 'local_check': {
+                'eligible': True, 'reason': 'safe', 'order': 10, 'group': 'owned', 'after': [], **changes}}
+        for tests in ([entry('A', eligible='yes')], [entry('A', order=True)],
+                      [entry('A', group='../outside')], [entry('A', after=['MISSING'])],
+                      [entry('A', after=['B']), entry('B', after=['A'])],
+                      [entry('A', after=['B']), entry('B', order=20)],
+                      [entry('A', arbitrary='command')]):
+            with self.subTest(tests=tests):
+                errors = []
+                catalog.validate_local_checks(tests, errors)
+                self.assertTrue(errors)
+
+    def test_valid_explicit_ordering(self):
+        tests = [{'id': key, 'local_check': {'eligible': True, 'reason': 'safe',
+                  'order': order, 'group': 'workspace', 'after': after}}
+                 for key, order, after in [('A', 10, []), ('B', 20, ['A'])]]
+        errors = []
+        catalog.validate_local_checks(tests, errors)
+        self.assertEqual(errors, [])
+
+
 if __name__ == "__main__":
     unittest.main()

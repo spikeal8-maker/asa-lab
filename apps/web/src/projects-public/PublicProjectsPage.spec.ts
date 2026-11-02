@@ -3,6 +3,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { PublicProjectListView } from '../creator-portal/navigation';
+import { creatorViewFromHash, creatorViewToHash } from '../creator-portal/navigation';
 import { PublicProjectsPage } from './PublicProjectsPage';
 import { publicProjectsApi, type PublicProject } from './api';
 
@@ -25,6 +26,7 @@ const work: PublicProject = {
   featured: true,
   pinned: true,
   likeCount: 7,
+  copyCount: 3,
   publishedAt: '2026-10-30T00:00:00Z',
   preview: null,
   capabilities: { viewer: 'static', canCopy: false, downloadFormats: [] },
@@ -94,13 +96,43 @@ it('keeps immutable card navigation, actual likes and editorial metadata without
   expect(card.querySelector('[aria-label="7 нравится"]')).not.toBeNull();
   expect(card.querySelector('[data-testid="public-project-featured"]')).not.toBeNull();
   expect(card.querySelector('[data-testid="public-project-pinned"]')).not.toBeNull();
-  expect(host.querySelector('.public-projects-results')?.textContent).toContain('Показано 1');
+  expect(host.querySelector('.public-projects-results')).toBeNull();
   expect(host.textContent).not.toMatch(/просмотров|комментариев|ремиксов/);
   await act(async () => card.click());
   expect(onOpen).toHaveBeenCalledWith('published');
 });
 
-it('places identity and real likes on the preview, with a separate title overlay', async () => {
+it('keeps sorting with search and category changes and restores it from the URL', async () => {
+  const view: PublicProjectListView = {
+    kind: 'public-projects',
+    search: 'схема',
+    module: 'electronics',
+    sort: 'likes',
+  };
+  expect(creatorViewFromHash(creatorViewToHash(view))).toEqual(view);
+  expect(creatorViewFromHash('#/explore?sort=unknown')).toEqual({ kind: 'public-projects' });
+  await render(view);
+  expect(publicProjectsApi.list).toHaveBeenLastCalledWith({
+    search: 'схема',
+    module: 'electronics',
+    sort: 'likes',
+  });
+  const select = host.querySelector<HTMLSelectElement>('select')!;
+  expect(select.value).toBe('likes');
+  await act(async () => {
+    select.value = 'oldest';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  expect(onView).toHaveBeenLastCalledWith({ ...view, sort: 'oldest' });
+  await act(async () => category('Все').click());
+  expect(onView).toHaveBeenLastCalledWith({
+    kind: 'public-projects',
+    search: 'схема',
+    sort: 'likes',
+  });
+});
+
+it('places identity on the preview and keeps the title and counters in one bottom row', async () => {
   await render({ kind: 'public-projects' });
   const cover = host.querySelector('.public-project-card-cover')!;
   expect(cover.querySelector('.public-project-author')?.textContent).toBe(work.authorLabel);
@@ -109,10 +141,52 @@ it('places identity and real likes on the preview, with a separate title overlay
     work.authorLabel,
   );
   expect(cover.querySelector('[aria-label="7 нравится"]')).not.toBeNull();
+  expect(cover.querySelector('[aria-label="3 добавлений в свои проекты"]')).not.toBeNull();
   expect(cover.querySelector('time')?.getAttribute('datetime')).toBe(work.publishedAt);
   const footer = host.querySelector('.public-project-card-body')!;
-  expect(footer.children).toHaveLength(1);
+  expect(footer.children).toHaveLength(2);
   expect(footer.querySelector('h2')?.getAttribute('title')).toBe(work.title);
+  expect(
+    footer.querySelector('.public-project-card-meta [aria-label="7 нравится"]'),
+  ).not.toBeNull();
   expect(footer.querySelector('.public-project-author, time')).toBeNull();
   expect(host.textContent).not.toMatch(/скачиваний|загрузок/);
+});
+
+it('does not fabricate a count when an older server omits copy statistics', async () => {
+  const legacy = { ...work };
+  Reflect.deleteProperty(legacy, 'copyCount');
+  vi.mocked(publicProjectsApi.list).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { items: [legacy], nextOffset: null },
+  });
+  await render({ kind: 'public-projects' });
+  expect(host.querySelector('[title="Добавили к себе"]')).toBeNull();
+});
+
+it('shows the real author avatar, keeps initials on failure and ignores stale games filters', async () => {
+  vi.mocked(publicProjectsApi.list).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      items: [
+        {
+          ...work,
+          authorLabel: 'Анна Петрова',
+          authorAvatarUrl: '/api/public-projects/published/author-avatar',
+        },
+      ],
+      nextOffset: null,
+    },
+  });
+  await render({ kind: 'public-projects', module: 'chess' });
+  expect(publicProjectsApi.list).toHaveBeenLastCalledWith({});
+  expect(category('Шахматы')).toBeUndefined();
+  expect(category('Шашки')).toBeUndefined();
+  const avatar = host.querySelector('.public-project-avatar img')!;
+  expect(avatar.getAttribute('src')).toBe('/api/public-projects/published/author-avatar');
+  expect(host.querySelector('.public-project-author')?.textContent).toBe('Анна Петрова');
+  await act(async () => avatar.dispatchEvent(new Event('error')));
+  expect(host.querySelector('.public-project-avatar')?.textContent).toBe('АП');
 });
