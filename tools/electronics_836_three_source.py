@@ -191,16 +191,38 @@ class Trace:
         need(self.entries, 'trace has no actual network entries')
 
     def body(self, container):
-        if isinstance(container.get('text'), str):
-            return json.loads(container['text'])
-        resource = container.get('_sha1', '')
-        need(re.fullmatch(r'[0-9a-f]{40}(?:\.[a-zA-Z0-9]+)?', resource), 'missing trace response body')
-        need(self.archive.getinfo('resources/'+resource).file_size <= 8*1024*1024,
-             'oversized trace body')
-        data = self.archive.read('resources/'+resource)  # zipfile verifies CRC.
+        need(isinstance(container, dict), 'invalid trace body container')
+        text = container.get('text')
+        need('text' not in container or isinstance(text, str), 'invalid inline trace body')
+        def object_body(data):
+            need(len(data) <= 8*1024*1024, 'oversized trace body')
+            def invalid_constant(_):
+                raise ValueError('non-JSON trace body constant')
+            value = json.loads(data, parse_constant=invalid_constant)
+            need(isinstance(value, dict), 'trace body must be a JSON object')
+            return value
+        if '_sha1' not in container:
+            need(isinstance(text, str) and text != '', 'missing trace response body')
+            return object_body(text.encode('utf-8'))
+        # Playwright HAR postData uses text='' alongside its authenticated resource.
+        # A supplied resource is always checked, even when inline text is nonempty.
+        resource = container['_sha1']
+        need(isinstance(resource, str) and re.fullmatch(r'[0-9a-f]{40}(?:\.[a-zA-Z0-9]+)?', resource),
+             'invalid trace body reference')
+        try:
+            need(self.archive.getinfo('resources/'+resource).file_size <= 8*1024*1024,
+                 'oversized trace body')
+            data = self.archive.read('resources/'+resource)  # zipfile verifies CRC.
+        except KeyError:
+            raise ValueError('missing trace body resource') from None
         need(len(data) <= 8*1024*1024 and hashlib.sha1(data).hexdigest() == resource[:40],
              'trace body identity')
-        return json.loads(data)
+        value = object_body(data)
+        if text:
+            inline = object_body(text.encode('utf-8'))
+            canonical = lambda body: json.dumps(body, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False)
+            need(canonical(inline) == canonical(value), 'conflicting inline/resource trace bodies')
+        return value
 
     def close(self):
         self.archive.close()

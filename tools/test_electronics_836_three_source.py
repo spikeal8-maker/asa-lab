@@ -357,6 +357,47 @@ class OriginalEvidenceContracts(unittest.TestCase):
                 archive.writestr('../escape', 'denied')
             with self.assertRaises(ValueError):contract.Trace(path)
 
+    def test_actual_har_empty_text_resource_and_inline_json_objects_fail_closed(self):
+        with tempfile.TemporaryDirectory(prefix='asa836-har-body-') as folder:
+            root = Path(folder)
+            payload = b'{"baseRevision":1,"document":{"components":[]},"mutationId":"synthetic"}'
+            key = hashlib.sha1(payload).hexdigest()+'.json'
+            actual = {'_sha1': key, 'mimeType': 'application/json', 'params': [], 'text': ''}
+            def read(container, resources):
+                path = root/'trace.zip'
+                entry = {'request': {'method': 'PUT', 'url': 'http://web:8080/api/projects/fixture/draft', 'postData': container}}
+                with zipfile.ZipFile(path, 'w') as archive:
+                    archive.writestr('0.network', json.dumps({'type':'resource-snapshot','snapshot':entry})+'\n')
+                    for name, data in resources.items():archive.writestr('resources/'+name, data)
+                trace = contract.Trace(path)
+                try:return trace.body(trace.entries[0]['request']['postData'])
+                finally:trace.close()
+            expected = json.loads(payload)
+            self.assertEqual(read(actual, {key:payload}), expected)
+            self.assertEqual(read({'_sha1':key}, {key:payload}), expected)
+            self.assertEqual(read({'text':payload.decode()}, {}), expected)
+            self.assertEqual(read({**actual,'text':json.dumps(expected,indent=2)}, {key:payload}), expected)
+            for container, resources in [
+                ({'text':''}, {}), ({'text':None}, {}), ({'text':{}}, {}),
+                (actual, {}), (actual, {key:b'{"different":true}'}),
+                ({**actual,'_sha1':None}, {key:payload}),
+                ({**actual,'_sha1':'../foreign'}, {}),
+                ({**actual,'_sha1':'x'*40+'.json'}, {}),
+                ({**actual,'text':'{"baseRevision":2}'}, {key:payload}),
+                ({**actual,'text':'not JSON'}, {key:payload}),
+                ({**actual,'text':' '}, {key:payload}),
+                ({**actual,'text':None}, {key:payload}),
+                ({'text':payload.decode(),'_sha1':key}, {}),
+            ]:
+                with self.subTest(container=container), self.assertRaises(ValueError):read(container,resources)
+            for data in (b'not JSON', b'[]', b'null', b'"scalar"', b'1', b'{"value":NaN}'):
+                ref = hashlib.sha1(data).hexdigest()+'.json'
+                with self.subTest(data=data), self.assertRaises(ValueError):read({'text':'','_sha1':ref},{ref:data})
+                with self.subTest(inline=data), self.assertRaises(ValueError):read({'text':data.decode()}, {})
+            boolean = b'{"value":true}';ref = hashlib.sha1(boolean).hexdigest()+'.json'
+            with self.assertRaisesRegex(ValueError,'conflicting inline/resource'):
+                read({'text':'{"value":1}','_sha1':ref},{ref:boolean})
+
     def test_actual_artifact_entrypoint_binds_each_original_trace_raw_png_and_worker(self):
         with tempfile.TemporaryDirectory(prefix='asa836-complete-') as folder:
             root = Path(folder)
@@ -396,7 +437,16 @@ class OriginalEvidenceContracts(unittest.TestCase):
                     put(root,str((case_dir/'ordinary-image-recovery-native.png').relative_to(root)),png(1440,1000))
                 trace=case_dir/'trace.zip'
                 with zipfile.ZipFile(trace,'w') as archive:
+                    resources = {}
+                    for entry in entries:
+                        containers = [entry['request']['postData']] if entry['request']['method']=='PUT' else []
+                        if 'content' in entry['response']:containers.append(entry['response']['content'])
+                        for container in containers:
+                            data = container['text'].encode();ref = hashlib.sha1(data).hexdigest()+'.json'
+                            resources[ref] = data
+                            container.update(text='', _sha1=ref, mimeType='application/json', params=[])
                     archive.writestr('0.network',''.join(json.dumps({'type':'resource-snapshot','snapshot':entry})+'\n' for entry in entries))
+                    for ref,data in resources.items():archive.writestr('resources/'+ref,data)
                 reports.append({'file':case['file'],'title':case['title'],'tests':[{'results':[{'attachments':[{'name':'trace','path':str(trace)}]}]}]})
             put(root,contract.DIRECTORY+'/execution.json',json.dumps({'suites':[{'specs':reports}]}))
             self.assertEqual(len(contract.validate_artifacts(root)),3)

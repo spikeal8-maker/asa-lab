@@ -101,6 +101,11 @@ unchanged empty document, zero project PUT and complete original observation.
 PNG chunks/raster and selected trace-network resources are validated with the
 standard library. ZIP paths, duplicates and size bounds fail closed; no extraction
 is performed. Every retained file is listed with size/SHA256 in `qualification.json`.
+For Playwright HAR bodies, text='' plus _sha1 uses the CRC/SHA1-checked resource.
+A supplied resource is always verified; missing/tampered/malformed references,
+non-object or invalid JSON and contradictory nonempty inline/resource bodies fail.
+Valid inline-only JSON objects remain supported. Synthetic complete three-case
+fixtures exercise externalized request and response bodies without captured data.
 Missing/partial/stale proof yields `FAIL_OR_INCOMPLETE`. The JSON always states
 `fullElectronicsQualification: false` and `releaseAccepted: false`.
 
@@ -118,6 +123,11 @@ The later c46 diagnostic run41541581358 also executed zero native cases: schema
 export failed before Docker because preparation had already changed tracked report
 file modes. This ordering repair retains strict source checks; its actual Linux
 prefix regression and next native attempt remain CI/controller evidence.
+The subsequent runtime92 diagnostic41546649313 executed all three native cases
+successfully, then failed artifact validation on this HAR empty-inline form.
+Its historical workflow remains FAIL_OR_INCOMPLETE. Offline revalidation must
+separately identify runtime92 and the reviewed reader SHA; original source.json,
+qualification.json and captured bytes must never be rewritten to imply old CI passed.
 This source slice does not classify all remaining26 full-suite failures as
 unrelated, lift blocker836, or authorize VM100 production update. The exact native
 three-case receipts must be independently reviewed; broader relevant failures and
