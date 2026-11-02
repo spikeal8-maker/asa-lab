@@ -30,6 +30,9 @@
   position: absolute;
   top: -4px;
   right: -4px;
+  background: #fff;
+  color: #067cae;
+  box-shadow: 0 0 0 2px #0877b3;
 }
 .game-card-invitation {
   display: flex;

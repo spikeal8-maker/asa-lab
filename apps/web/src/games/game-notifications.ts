@@ -104,8 +104,7 @@ export function useGameInvitations(): Snapshot {
 }
 
 /** One authenticated App owner, including editors. Navigation never restarts delivery. */
-export function usePortalGameNotifications(actor: string): Snapshot {
-  const value = useGameInvitations();
+export function usePortalGameNotifications(actor: string): void {
   useEffect(() => {
     if (snapshot.actor !== actor) publish({ ...empty, actor });
     if (!actor) return;
@@ -172,5 +171,4 @@ export function usePortalGameNotifications(actor: string): Snapshot {
       if (snapshot.actor === actor) publish(empty);
     };
   }, [actor]);
-  return value.actor === actor ? value : empty;
 }
