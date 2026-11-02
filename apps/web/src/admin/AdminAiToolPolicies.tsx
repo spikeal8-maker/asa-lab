@@ -1,3 +1,4 @@
+import { InfoHint } from '../components/InfoHint';
 import { AI_TOOL_IDS, AI_TOOL_LABELS, type AiToolId } from '@asa-lab/contracts';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
@@ -258,10 +259,12 @@ export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenie
     <section className="asa-ai-tools" aria-labelledby="ai-tool-policies-title">
       <div className="asa-ai-tools-heading">
         <h2 id="ai-tool-policies-title">Инструменты помощника</h2>
-        <p>
-          Разрешения действуют для подключённых моделей и проверяются сервером перед вызовом.
-          Включение инструмента не заменяет настройку подключения и проверку прав пользователя.
-        </p>
+        <InfoHint label="Как работают разрешения инструментов">
+          <p>
+            Разрешения действуют для подключённых моделей и проверяются сервером перед вызовом.
+            Включение инструмента не заменяет настройку подключения и проверку прав пользователя.
+          </p>
+        </InfoHint>
         {configuration ? (
           <button
             type="button"
@@ -318,44 +321,59 @@ export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenie
                     </label>
                     <h3>{TOOL_LABELS[id]}</h3>
                     <span
-                      className={tool.enabled ? 'asa-ai-tool-status ready' : 'asa-ai-tool-status'}
+                      className={
+                        tool.enabled && tool.available
+                          ? 'asa-ai-tool-status ready'
+                          : 'asa-ai-tool-status'
+                      }
                     >
-                      {tool.enabled ? 'Включён' : 'Выключен'}
+                      {!tool.enabled
+                        ? 'Выключен'
+                        : tool.available
+                          ? 'Настроено'
+                          : 'Нужно настроить'}
                     </span>
                   </div>
-                  <p className="asa-ai-tool-reason">
-                    {tool.available
-                      ? 'Настроено · доступность проверяется при вызове.'
-                      : tool.reason || 'Причина недоступности не указана сервером.'}
-                  </p>
+                  <div className="asa-ai-tool-reason">
+                    <InfoHint label={'Состояние и описание: ' + TOOL_LABELS[id]}>
+                      <p>
+                        {tool.available
+                          ? 'Настроено · доступность проверяется при вызове.'
+                          : tool.reason || 'Причина недоступности не указана сервером.'}
+                      </p>
+                      <dl className="asa-ai-tool-hint">
+                        <dt>Когда используется</dt>
+                        <dd>
+                          {tool.usageDescription || 'Сервер не указал условия использования.'}
+                        </dd>
+                        <dt>Параметры запроса</dt>
+                        <dd>
+                          {tool.parameters.length
+                            ? tool.parameters.join(' · ')
+                            : 'Параметры не указаны сервером.'}
+                        </dd>
+                        <dt>Результат</dt>
+                        <dd>
+                          {tool.resultDescription || 'Описание результата не указано сервером.'}
+                        </dd>
+                        <dt>Неизменяемые ограничения</dt>
+                        <dd>
+                          {tool.hardLimits.length ? (
+                            <ul>
+                              {tool.hardLimits.map((limit) => (
+                                <li key={limit}>{limit}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            'Ограничения не указаны сервером.'
+                          )}
+                        </dd>
+                      </dl>
+                    </InfoHint>
+                  </div>
                   <details>
-                    <summary>Описание и инструкции</summary>
-                    <dl>
-                      <dt>Когда используется</dt>
-                      <dd>{tool.usageDescription || 'Сервер не указал условия использования.'}</dd>
-                      <dt>Параметры запроса</dt>
-                      <dd>
-                        {tool.parameters.length
-                          ? tool.parameters.join(' · ')
-                          : 'Параметры не указаны сервером.'}
-                      </dd>
-                      <dt>Результат</dt>
-                      <dd>
-                        {tool.resultDescription || 'Описание результата не указано сервером.'}
-                      </dd>
-                      <dt>Неизменяемые ограничения</dt>
-                      <dd>
-                        {tool.hardLimits.length ? (
-                          <ul>
-                            {tool.hardLimits.map((limit) => (
-                              <li key={limit}>{limit}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          'Ограничения не указаны сервером.'
-                        )}
-                      </dd>
-                    </dl>
+                    <summary>Инструкции</summary>
+
                     <label className="asa-ai-tool-instructions">
                       Дополнительные инструкции
                       <textarea

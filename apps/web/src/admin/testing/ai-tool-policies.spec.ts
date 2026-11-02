@@ -113,10 +113,20 @@ async function save() {
 it('loads actual server state and presents immutable limits alongside editable controls', async () => {
   vi.mocked(call).mockResolvedValueOnce({ ok: true, status: 200, data: fixture() });
   await render();
-  expect(card('Погода').textContent).toContain('Прогноз с источником');
-  expect(card('Погода').textContent).toContain('Когда пользователь спрашивает прогноз');
-  expect(card('Погода').textContent).toContain('Только проверенные данные');
-  expect(card('Поиск изображений').textContent).toContain('Локальная Ollama');
+  await act(async () =>
+    card('Погода').querySelector<HTMLButtonElement>('.info-hint-trigger')!.click(),
+  );
+  expect(document.querySelector('[role=tooltip]')?.textContent).toContain('Прогноз с источником');
+  expect(document.querySelector('[role=tooltip]')?.textContent).toContain(
+    'Когда пользователь спрашивает прогноз',
+  );
+  expect(document.querySelector('[role=tooltip]')?.textContent).toContain(
+    'Только проверенные данные',
+  );
+  await act(async () =>
+    card('Поиск изображений').querySelector<HTMLButtonElement>('.info-hint-trigger')!.click(),
+  );
+  expect(document.querySelector('[role=tooltip]')?.textContent).toContain('Локальная Ollama');
   expect(card('Поиск изображений').querySelector('input')!.disabled).toBe(false);
   expect(card('Видео — скоро').querySelector('input')).toBeNull();
 });
@@ -182,7 +192,7 @@ it('does not invent current settings when endpoint is missing and routes access 
     status: 403,
     error: { code: 'forbidden', message: 'private' },
   });
-  await act(async () => host.querySelector('button')!.click());
+  await act(async () => host.querySelector<HTMLButtonElement>('.asa-cloud-error button')!.click());
   expect(denied).toHaveBeenCalledOnce();
 });
 

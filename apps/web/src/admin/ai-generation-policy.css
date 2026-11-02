@@ -414,3 +414,74 @@
     gap: 6px;
   }
 }
+/* One provider/model row; the provider legend occupies the left-hand column. */
+.asa-settings-compact .asa-ai-policy-models > fieldset {
+  position: relative;
+  padding: 0 0 0 290px;
+  min-height: 44px;
+}
+.asa-settings-compact .asa-ai-policy-models legend {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 270px;
+  min-height: 44px;
+}
+.asa-settings-compact .asa-ai-policy-model-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-height: 44px;
+  gap: 4px;
+  padding: 0;
+}
+.asa-settings-compact .asa-ai-policy-model-row > .info-hint-trigger {
+  grid-column: 3;
+  grid-row: 1;
+}
+.asa-settings-compact .asa-ai-policy-model strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.asa-settings-compact .asa-ai-policy-model {
+  min-width: 0;
+}
+.asa-settings-compact .asa-ai-policy-model > span {
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+.asa-settings-compact .asa-ai-reorder button {
+  width: 32px;
+  height: 36px;
+  min-height: 36px;
+}
+.asa-settings-compact .asa-ai-policy-heading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.asa-settings-compact .asa-ai-policy-heading h2 {
+  font-size: 16px;
+}
+.asa-settings-compact form {
+  gap: 10px;
+}
+.asa-settings-compact .asa-cloud-bottom {
+  padding-top: 6px;
+  margin-top: 0;
+}
+@media (max-width: 800px) {
+  .asa-settings-compact .asa-ai-policy-models {
+    overflow-x: auto;
+  }
+  .asa-settings-compact .asa-ai-policy-models > fieldset {
+    min-width: 580px;
+    box-sizing: border-box;
+  }
+}
+@media (pointer: coarse) {
+  .asa-settings-compact .asa-ai-reorder button {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+}
