@@ -7,6 +7,7 @@ import { AdminAiTools } from '../AdminAiTools';
 import { call } from '../admin-api';
 
 vi.mock('../admin-api', () => ({ call: vi.fn() }));
+vi.mock('../AdminAiToolProbe', () => ({ AdminAiToolProbe: () => null }));
 vi.mock('../AdminAiImages', () => ({ AdminAiImages: () => null }));
 const policy = {
   schemaVersion: 1,
@@ -56,7 +57,13 @@ beforeEach(async () => {
   document.body.append(host);
   root = createRoot(host);
   await act(async () =>
-    root.render(createElement(AdminAiTools, { onAccessDenied: vi.fn(), onDirtyChange: dirty })),
+    root.render(
+      createElement(AdminAiTools, {
+        principalId: 'test-admin',
+        onAccessDenied: vi.fn(),
+        onDirtyChange: dirty,
+      }),
+    ),
   );
 });
 afterEach(async () => {
@@ -75,17 +82,25 @@ async function enter(selector: string, value: string) {
   });
 }
 
-it('retains unsaved tool permissions and network drafts across tool tabs, saving all eight permissions', async () => {
+it('retains instruction and network drafts across tool tabs without exposing switches in the detailed editor', async () => {
   await enter('[aria-label="Результатов поиска"]', '5');
   await select('weather');
   const weather = host.querySelector<HTMLElement>('article[aria-label="Погода"]')!;
-  await act(async () => weather.querySelector<HTMLInputElement>('input')!.click());
+  expect(weather.querySelector('input[type=checkbox]')).toBeNull();
+  const area = weather.querySelector('textarea')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      area,
+      'Краткий прогноз.',
+    );
+    area.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   await select('web_search');
   expect(host.querySelector<HTMLInputElement>('[aria-label="Результатов поиска"]')!.value).toBe(
     '5',
   );
   expect(weather.hidden).toBe(true);
-  expect(weather.querySelector<HTMLInputElement>('input')!.checked).toBe(false);
+  expect(weather.querySelector('textarea')!.value).toBe('Краткий прогноз.');
   expect(dirty).toHaveBeenLastCalledWith(true);
   await act(async () =>
     host
@@ -97,7 +112,10 @@ it('retains unsaved tool permissions and network drafts across tool tabs, saving
   const payload = JSON.parse(String(writes[0]![1]!.body));
   expect(payload.expectedConfigurationVersion).toBe(7);
   expect(payload.tools.map((tool: { id: string }) => tool.id)).toEqual(AI_TOOL_IDS);
-  expect(payload.tools.find((tool: { id: string }) => tool.id === 'weather').enabled).toBe(false);
+  expect(payload.tools.find((tool: { id: string }) => tool.id === 'weather')).toMatchObject({
+    enabled: true,
+    instructions: 'Краткий прогноз.',
+  });
   // Saving access must not also submit the unsaved network configuration.
   expect(writes[0]![0]).toBe('/api/admin/v1/ai/tool-policy');
 });

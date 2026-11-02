@@ -30,9 +30,11 @@ export function AdminAiWebSearch({
   onAccessDenied,
   selectedTool,
   onDirtyChange,
+  presentation = 'all',
 }: {
   readonly onAccessDenied: () => void;
   readonly selectedTool?: AiToolId;
+  readonly presentation?: 'all' | 'parameters' | 'switches';
   readonly onDirtyChange?: (dirty: boolean) => void;
 }): JSX.Element {
   const [config, setConfig] = useState<AiWebSearchAdminConfig | null>(null);
@@ -209,7 +211,7 @@ export function AdminAiWebSearch({
 
   return (
     <section
-      className="asa-ai-web-admin asa-cloud-connection"
+      className={'asa-ai-web-admin asa-cloud-connection asa-ai-network-' + presentation}
       aria-label="Настройки интернет-поиска"
     >
       {loading ? <p role="status">Загружаем настройки поиска…</p> : null}
@@ -228,7 +230,7 @@ export function AdminAiWebSearch({
       {config ? (
         <form onSubmit={(event) => void save(event)} className="asa-cloud-form">
           <div className="asa-ai-web-section-heading">
-            <h3>Параметры</h3>
+            <h3>{presentation === 'switches' ? 'Сетевые сервисы' : 'Параметры сети'}</h3>
             <InfoHint label="Общие настройки сетевых инструментов">
               <p>
                 Поиск, чтение страниц, поиск изображений и погода используют общий сетевой доступ и
@@ -238,7 +240,7 @@ export function AdminAiWebSearch({
             </InfoHint>
           </div>
           <div className="asa-ai-web-common">
-            <label className="asa-cloud-enabled">
+            <label className="asa-cloud-enabled" hidden={presentation === 'parameters'}>
               <input
                 type="checkbox"
                 checked={enabled}
@@ -247,7 +249,10 @@ export function AdminAiWebSearch({
               />
               Доступ в интернет
             </label>
-            <label className="asa-cloud-field asa-ai-web-admin-limit">
+            <label
+              className="asa-cloud-field asa-ai-web-admin-limit"
+              hidden={presentation === 'switches'}
+            >
               <span>
                 Операций в час{' '}
                 <InfoHint label="Как работает часовой лимит">
@@ -269,6 +274,12 @@ export function AdminAiWebSearch({
               />
             </label>
           </div>
+          {presentation === 'parameters' && !enabled ? (
+            <p role="status">
+              Доступ в интернет выключен.{' '}
+              <a href="#/admin/ai?section=settings">Включить в Настройках →</a>
+            </p>
+          ) : null}
           {search && !config.configured ? (
             <p role="status">
               Не настроен адрес SearxNG на сервере. Проверьте конфигурацию поискового сервиса.
@@ -277,7 +288,7 @@ export function AdminAiWebSearch({
           <fieldset
             className="asa-ai-web-retrieval"
             disabled={busy || !retrievalSupported}
-            hidden={!search && !pages}
+            hidden={presentation === 'switches' || (!search && !pages)}
           >
             <legend>
               Выдача и чтение{' '}
@@ -347,7 +358,7 @@ export function AdminAiWebSearch({
           {!retrievalSupported && (search || pages) ? (
             <p role="status">Для настройки выдачи и чтения требуется обновление схемы поиска.</p>
           ) : null}
-          <div hidden={!search && !pages}>
+          <div hidden={presentation === 'switches' || (!search && !pages)}>
             {policySupported ? (
               <>
                 <div className="asa-ai-web-admin-domains">
@@ -427,7 +438,7 @@ export function AdminAiWebSearch({
           <section
             className="asa-ai-web-admin-weather"
             aria-label="Прогноз погоды"
-            hidden={!show('weather')}
+            hidden={presentation === 'parameters' || !show('weather')}
           >
             <label className="asa-cloud-consent">
               <input
@@ -463,7 +474,11 @@ export function AdminAiWebSearch({
               className="asa-cloud-apply"
               disabled={busy || loading || !validLimit || !validPolicy || !validRetrieval}
             >
-              {busy ? 'Сохраняем…' : 'Сохранить параметры сети'}
+              {busy
+                ? 'Сохраняем…'
+                : presentation === 'switches'
+                  ? 'Сохранить доступ в интернет'
+                  : 'Сохранить параметры сети'}
             </button>
             {notice ? (
               <span role="status" className="asa-cloud-confirmed">

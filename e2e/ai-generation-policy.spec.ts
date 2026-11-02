@@ -176,6 +176,13 @@ async function adminFixture(page: Page) {
           hardLimits: ['Проверка доступа на сервере'],
         })),
       });
+    if (path === '/api/ai/status')
+      return json({
+        enabled: true,
+        canGenerate: true,
+        model: 'ollama',
+        modelChoices: [{ id: 'ollama', label: 'Локальная тестовая модель' }],
+      });
     if (path === '/api/admin/v1/ai/images')
       return json({
         configurationVersion: 1,
@@ -554,3 +561,77 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
   ).toBeVisible();
   expect(fixture.errors).toEqual([]);
 });
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`AI selected tool probe reports real activity and empty evidence at ${width}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await adminFixture(page);
+    let sends = 0;
+    await page.route('**/api/ai/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === '/api/ai/status')
+        return route.fulfill({
+          json: {
+            enabled: true,
+            model: 'ollama',
+            modelChoices: [{ id: 'ollama', label: 'Тестовая локальная модель' }],
+          },
+        });
+      if (path === '/api/ai/threads')
+        return route.fulfill({ json: { id: '10000000-0000-4000-8000-000000000001' } });
+      if (route.request().method() === 'PATCH') return route.fulfill({ json: {} });
+      if (path.endsWith('/messages/stream')) {
+        sends++;
+        const input = route.request().postDataJSON();
+        const evidence = {
+          schemaVersion: 1,
+          provider: 'searxng',
+          mode: 'web',
+          status: 'empty',
+          query: 'Проверка',
+          retrievedAt: '2026-11-03T00:00:00Z',
+          sources: [],
+          images: [],
+        };
+        const frame = (event: string, value: unknown) =>
+          `event: ${event}\ndata: ${JSON.stringify(value)}\n\n`;
+        return route.fulfill({
+          contentType: 'text/event-stream',
+          body:
+            frame('activity', { tool: 'web_search', state: 'running' }) +
+            frame('activity', { tool: 'web_search', state: 'complete' }) +
+            frame('done', {
+              messages: [
+                {
+                  role: 'assistant',
+                  requestId: input.requestId,
+                  content: 'По запросу ничего не найдено.',
+                  webSearch: evidence,
+                },
+              ],
+              replayed: false,
+              stopped: false,
+            }),
+        });
+      }
+      return route.fulfill({
+        status: 404,
+        json: { error: { code: 'missing', message: 'Not used' } },
+      });
+    });
+    await page.goto('/#/admin/ai?section=tools');
+    const panel = page.getByRole('region', { name: 'Проверка инструмента', exact: true });
+    await panel
+      .getByRole('textbox', { name: 'Запрос для проверки' })
+      .fill('Проверка пустой выдачи');
+    await panel.getByRole('button', { name: 'Проверить инструмент', exact: true }).click();
+    await expect(
+      panel.getByText('Инструмент вернул пустую выдачу.', { exact: true }),
+    ).toBeVisible();
+    expect(sends).toBe(1);
+    await noOverflow(page);
+    await page.screenshot({ path: testInfo.outputPath(`probe-${width}.png`), fullPage: true });
+  });
+}

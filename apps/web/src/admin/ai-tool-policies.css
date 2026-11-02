@@ -189,3 +189,68 @@
 .asa-ai-tools [hidden] {
   display: none !important;
 }
+
+/* Settings owns the switches; the tool editor owns only instructions. */
+.asa-ai-tools-switches .asa-ai-tool-card,
+.asa-ai-tools-all .asa-ai-tool-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px auto auto 28px;
+  gap: 8px;
+}
+.asa-ai-tools .asa-ai-tool-card > h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.asa-ai-tools .asa-ai-tool-card > a {
+  font-size: 12px;
+  color: #12699c;
+}
+.asa-ai-tools .asa-ai-tool-card > details {
+  grid-column: 1 / -1;
+}
+.asa-ai-tools-detail .asa-ai-tool-card {
+  display: block;
+  padding: 0;
+  border: 0;
+  min-height: 0;
+}
+.asa-ai-tools-detail .asa-ai-tools-heading {
+  gap: 4px 8px;
+}
+.asa-ai-tools-detail .asa-ai-tools-heading h2 {
+  font-size: 17px;
+}
+.asa-ai-tools-detail .asa-ai-tool-instructions {
+  margin: 0;
+}
+.asa-ai-tools-detail .asa-ai-tool-instructions textarea {
+  min-height: 52px;
+  padding: 6px 8px;
+}
+.asa-ai-tools-detail .asa-ai-tools-actions {
+  justify-content: flex-end;
+}
+.asa-ai-tools-detail .asa-ai-tools-refresh {
+  margin-left: auto;
+}
+@media (max-width: 600px) {
+  .asa-ai-tools-switches .asa-ai-tool-card,
+  .asa-ai-tools-all .asa-ai-tool-card {
+    grid-template-columns: minmax(0, 1fr) 44px 28px;
+    gap: 2px 4px;
+  }
+  .asa-ai-tools-switches .asa-ai-tool-card > .asa-ai-tool-status,
+  .asa-ai-tools-all .asa-ai-tool-card > .asa-ai-tool-status {
+    grid-row: 2;
+    grid-column: 1;
+    justify-self: start;
+  }
+  .asa-ai-tools-switches .asa-ai-tool-card > a,
+  .asa-ai-tools-all .asa-ai-tool-card > a {
+    grid-row: 2;
+    grid-column: 2 / -1;
+  }
+  .asa-ai-tools .asa-ai-tool-toggle {
+    justify-self: center;
+  }
+}

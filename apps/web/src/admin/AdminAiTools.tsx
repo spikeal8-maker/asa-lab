@@ -1,5 +1,7 @@
 import { AI_TOOL_LABELS, type AiToolId } from '@asa-lab/contracts';
 import { useEffect, useRef, useState } from 'react';
+import { AdminAiToolProbe } from './AdminAiToolProbe';
+import type { ToolPolicyConfiguration } from './AdminAiToolPolicies';
 import { AdminAiToolPolicies } from './AdminAiToolPolicies';
 import { AdminAiWebSearch } from './AdminAiWebSearch';
 import { AdminAiImages } from './AdminAiImages';
@@ -21,14 +23,29 @@ const NETWORK = new Set<AiToolId>(['web_search', 'read_page', 'image_search', 'w
 export function AdminAiTools({
   onAccessDenied,
   onDirtyChange,
+  principalId,
 }: {
+  readonly principalId: string;
   readonly onAccessDenied: () => void;
   readonly onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const [selected, setSelected] = useState<AiToolId>('web_search');
+  const [selected, setSelected] = useState<AiToolId>(() => {
+    try {
+      const pending = JSON.parse(
+        sessionStorage.getItem('asa-ai-tool-probe:v1:' + principalId) ?? 'null',
+      );
+      if (pending && ORDER.includes(pending.tool)) return pending.tool;
+    } catch {
+      /* Ignore an invalid local UI checkpoint. */
+    }
+    const value = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('tool');
+    return ORDER.includes(value as AiToolId) ? (value as AiToolId) : 'web_search';
+  });
   const [policyDirty, setPolicyDirty] = useState(false);
   const [webDirty, setWebDirty] = useState(false);
   const [imageDirty, setImageDirty] = useState(false);
+  const [configuration, setConfiguration] = useState<ToolPolicyConfiguration | null>(null);
+  const [testing, setTesting] = useState(false);
   const tabs = useRef<HTMLElement>(null);
   useEffect(() => {
     onDirtyChange?.(policyDirty || webDirty || imageDirty);
@@ -51,6 +68,7 @@ export function AdminAiTools({
             aria-selected={selected === id}
             aria-controls="ai-tool-settings"
             tabIndex={selected === id ? 0 : -1}
+            disabled={testing}
             onClick={() => setSelected(id)}
             onKeyDown={(event) => {
               const next =
@@ -63,7 +81,7 @@ export function AdminAiTools({
                       : event.key === 'End'
                         ? ORDER.length - 1
                         : null;
-              if (next === null) return;
+              if (next === null || testing) return;
               event.preventDefault();
               setSelected(ORDER[next]!);
               tabs.current?.querySelectorAll<HTMLButtonElement>('[role=tab]')[next]?.focus();
@@ -74,30 +92,43 @@ export function AdminAiTools({
         ))}
       </nav>
       <div id="ai-tool-settings" role="tabpanel" aria-labelledby={'ai-tool-tab-' + selected}>
-        <h2 className="asa-ai-tool-page-title">{AI_TOOL_LABELS[selected]}</h2>
-        <AdminAiToolPolicies
-          onAccessDenied={onAccessDenied}
-          selectedTool={selected}
-          onDirtyChange={setPolicyDirty}
-        />
-        <div hidden={!NETWORK.has(selected)}>
-          <AdminAiWebSearch
+        <div className="asa-ai-tool-editor">
+          <AdminAiToolPolicies
             onAccessDenied={onAccessDenied}
             selectedTool={selected}
-            onDirtyChange={setWebDirty}
+            presentation="detail"
+            onConfigurationChange={setConfiguration}
+            onDirtyChange={setPolicyDirty}
           />
+          <div hidden={!NETWORK.has(selected)}>
+            <AdminAiWebSearch
+              onAccessDenied={onAccessDenied}
+              selectedTool={selected}
+              presentation="parameters"
+              onDirtyChange={setWebDirty}
+            />
+          </div>
+          <div hidden={selected !== 'generate_image'}>
+            <AdminAiImages onAccessDenied={onAccessDenied} onDirtyChange={setImageDirty} />
+            <a href="#/admin/ai?section=comfyui">Подключение генератора и тестовое изображение →</a>
+          </div>
+          {!NETWORK.has(selected) && selected !== 'generate_image' ? (
+            <p className="asa-ai-tool-footnote">
+              Форматы, размеры и проверка версий ограничиваются сервером. Их действующие ограничения
+              доступны в подсказке рядом с состоянием; произвольное изменение этих пределов пока не
+              поддерживается.
+            </p>
+          ) : null}
         </div>
-        <div hidden={selected !== 'generate_image'}>
-          <AdminAiImages onAccessDenied={onAccessDenied} onDirtyChange={setImageDirty} />
-          <a href="#/admin/ai?section=comfyui">Подключение генератора и тестовое изображение →</a>
-        </div>
-        {!NETWORK.has(selected) && selected !== 'generate_image' ? (
-          <p className="asa-ai-tool-footnote">
-            Форматы, размеры и проверка версий ограничиваются сервером. Их действующие ограничения
-            доступны в подсказке рядом с состоянием; произвольное изменение этих пределов пока не
-            поддерживается.
-          </p>
-        ) : null}
+        <AdminAiToolProbe
+          key={principalId}
+          principalId={principalId}
+          tool={selected}
+          rule={configuration?.tools.find((item) => item.id === selected)}
+          unsaved={policyDirty || webDirty || imageDirty}
+          onBusyChange={setTesting}
+          onAccessDenied={onAccessDenied}
+        />
       </div>
     </section>
   );

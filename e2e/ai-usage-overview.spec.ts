@@ -16,17 +16,13 @@ test('eight tool switches persist through real API and reload on desktop and mob
     const endpoint = '/api/admin/v1/ai/tool-policy';
     const before = await (await page.request.get(endpoint)).json();
     expect(before.tools.map((item: { id: string }) => item.id)).toEqual(AI_TOOL_IDS);
-    await page.goto('/#/admin/ai?section=tools');
+    await page.goto('/#/admin/ai?section=settings');
     // Registration uses the real API. Reload after the hash navigation so the
     // application resolves that new session instead of retaining its guest state.
     await page.reload();
-    const section = page.getByRole('region', { name: 'Доступ и поведение', exact: true });
+    const section = page.getByRole('region', { name: 'Инструменты помощника', exact: true });
     await expect(section).toBeVisible();
     for (const id of AI_TOOL_IDS) {
-      await page
-        .getByRole('tablist', { name: 'Инструменты помощника' })
-        .getByRole('tab', { name: AI_TOOL_LABELS[id], exact: true })
-        .click();
       const card = section.getByRole('article', { name: AI_TOOL_LABELS[id], exact: true });
       await card
         .getByRole('checkbox')
@@ -48,10 +44,6 @@ test('eight tool switches persist through real API and reload on desktop and mob
       for (const colorScheme of ['light', 'dark'] as const) {
         await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
         for (const id of AI_TOOL_IDS) {
-          await page
-            .getByRole('tablist', { name: 'Инструменты помощника' })
-            .getByRole('tab', { name: AI_TOOL_LABELS[id], exact: true })
-            .click();
           const checkbox = section
             .getByRole('article', { name: AI_TOOL_LABELS[id], exact: true })
             .getByRole('checkbox');

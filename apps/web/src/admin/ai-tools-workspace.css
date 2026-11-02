@@ -118,3 +118,193 @@
     justify-self: start;
   }
 }
+
+/* One compact editor and one test area, rather than a vertical sequence of cards. */
+#ai-tool-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  padding-top: 8px;
+}
+.asa-ai-tool-editor,
+.asa-ai-tool-probe {
+  min-width: 0;
+}
+.asa-ai-tool-editor .asa-ai-web-admin {
+  padding: 8px 0 0;
+  margin: 8px 0 0;
+}
+.asa-ai-tool-editor .asa-ai-web-section-heading {
+  display: none;
+}
+.asa-ai-tool-editor .asa-cloud-field > span {
+  font-size: 12px;
+  min-height: 28px;
+}
+.asa-ai-tool-editor .asa-ai-web-common {
+  gap: 6px;
+}
+.asa-ai-tool-editor .asa-ai-web-retrieval {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.asa-ai-tool-editor .asa-ai-web-retrieval legend {
+  display: none;
+}
+.asa-ai-tool-editor .asa-ai-web-retrieval-grid {
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+}
+.asa-ai-tool-editor .asa-ai-web-admin .asa-cloud-form {
+  gap: 6px;
+}
+.asa-ai-tool-editor .asa-ai-web-admin-domains {
+  gap: 8px;
+}
+.asa-ai-tool-editor .asa-ai-web-admin textarea {
+  min-height: 48px;
+  height: 48px;
+  padding: 5px 8px;
+  line-height: 1.3;
+}
+.asa-ai-tool-editor .asa-cloud-field :is(input, select) {
+  min-height: 34px;
+  padding: 4px 8px;
+}
+.asa-ai-tool-editor .asa-cloud-bottom {
+  padding-top: 6px;
+  gap: 6px;
+}
+.asa-ai-tool-editor .asa-ai-tool-footnote {
+  margin: 8px 0;
+}
+.asa-ai-tool-editor .asa-image-enabled-field {
+  display: none;
+}
+.asa-ai-tool-editor .asa-image-settings-form,
+.asa-ai-tool-editor .asa-image-settings-details {
+  gap: 8px;
+  padding: 0;
+}
+.asa-ai-tool-editor .asa-image-settings-fields {
+  grid-template-columns: minmax(0, 1fr);
+}
+.asa-ai-tool-editor .asa-image-settings-panel {
+  padding: 0;
+  border: 0;
+}
+.asa-ai-tool-editor .asa-image-panel-heading {
+  display: none;
+}
+.asa-ai-tool-probe {
+  border-left: 1px solid var(--border, #dce5ec);
+  padding-left: 20px;
+}
+.asa-ai-tool-probe header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.asa-ai-tool-probe h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.asa-ai-tool-probe form {
+  display: grid;
+  gap: 8px;
+}
+.asa-ai-tool-probe label {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+.asa-ai-tool-probe :is(select, input, textarea) {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border, #b9c9d6);
+  border-radius: 8px;
+  font: inherit;
+  color: inherit;
+  background: var(--surface, white);
+  padding: 7px 9px;
+}
+.asa-ai-tool-probe textarea {
+  resize: vertical;
+  min-height: 76px;
+}
+.asa-ai-probe-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.asa-ai-probe-actions button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--border, #b9c9d6);
+  border-radius: 8px;
+  background: var(--surface, white);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+.asa-ai-probe-actions button[type='submit'] {
+  background: #0877b3;
+  color: white;
+  border-color: #0877b3;
+}
+.asa-ai-probe-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.asa-ai-tool-probe small,
+.asa-ai-probe-activity {
+  font-size: 11px;
+  color: var(--muted, #52697b);
+}
+.asa-ai-tool-probe p {
+  font-size: 12px;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.asa-ai-probe-result {
+  max-height: 380px;
+  overflow: auto;
+  padding: 10px;
+  margin-top: 12px;
+  background: #f0f8fe;
+  border: 1px solid #d9eaf6;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.asa-ai-probe-result > p {
+  white-space: pre-wrap;
+}
+.asa-ai-probe-result pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+.asa-ai-probe-result strong {
+  font-size: 12px;
+}
+.asa-ai-probe-result img {
+  max-width: 100%;
+}
+.asa-ai-network-switches .asa-ai-web-retrieval,
+.asa-ai-network-switches .asa-ai-web-admin-description {
+  display: none;
+}
+@media (max-width: 980px) {
+  #ai-tool-settings {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .asa-ai-tool-probe {
+    border-left: 0;
+    border-top: 1px solid var(--border, #dce5ec);
+    padding: 10px 0 0;
+  }
+}

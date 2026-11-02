@@ -9,7 +9,7 @@ type ToolId = AiToolId;
 const TOOL_IDS = AI_TOOL_IDS;
 const ENDPOINT = '/api/admin/v1/ai/tool-policy';
 
-interface ToolPolicy {
+export interface ToolPolicy {
   readonly id: ToolId;
   readonly label: string;
   readonly enabled: boolean;
@@ -22,7 +22,7 @@ interface ToolPolicy {
   readonly hardLimits: readonly string[];
 }
 
-interface ToolPolicyConfiguration {
+export interface ToolPolicyConfiguration {
   readonly schemaVersion: 1;
   readonly configurationVersion: number;
   readonly tools: readonly ToolPolicy[];
@@ -86,9 +86,13 @@ export function AdminAiToolPolicies({
   onAccessDenied,
   selectedTool,
   onDirtyChange,
+  presentation = 'all',
+  onConfigurationChange,
 }: {
   readonly onAccessDenied: () => void;
   readonly selectedTool?: AiToolId;
+  readonly presentation?: 'all' | 'switches' | 'detail';
+  readonly onConfigurationChange?: (configuration: ToolPolicyConfiguration | null) => void;
   readonly onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [configuration, setConfiguration] = useState<ToolPolicyConfiguration | null>(null);
@@ -267,26 +271,73 @@ export function AdminAiToolPolicies({
     onDirtyChange?.(changed);
   }, [changed, onDirtyChange]);
 
+  useEffect(() => {
+    onConfigurationChange?.(configuration);
+  }, [configuration, onConfigurationChange]);
+  const selected = configuration?.tools.find((tool) => tool.id === selectedTool);
+  const detail = presentation === 'detail';
+  const status = (tool: ToolPolicy) =>
+    !tool.enabled ? 'Выключен' : tool.available ? 'Настроено' : 'Нужно настроить';
+  const help = (tool: ToolPolicy) => (
+    <InfoHint label={'Состояние и описание: ' + TOOL_LABELS[tool.id]}>
+      <p>
+        {tool.available
+          ? 'Настроено · доступность проверяется при вызове.'
+          : tool.reason || 'Причина недоступности не указана сервером.'}
+      </p>
+      <dl className="asa-ai-tool-hint">
+        <dt>Когда используется</dt>
+        <dd>{tool.usageDescription || 'Сервер не указал условия использования.'}</dd>
+        <dt>Параметры запроса</dt>
+        <dd>
+          {tool.parameters.length ? tool.parameters.join(' · ') : 'Параметры не указаны сервером.'}
+        </dd>
+        <dt>Результат</dt>
+        <dd>{tool.resultDescription || 'Описание результата не указано сервером.'}</dd>
+        <dt>Неизменяемые ограничения</dt>
+        <dd>
+          {tool.hardLimits.length ? (
+            <ul>
+              {tool.hardLimits.map((limit) => (
+                <li key={limit}>{limit}</li>
+              ))}
+            </ul>
+          ) : (
+            'Ограничения не указаны сервером.'
+          )}
+        </dd>
+      </dl>
+    </InfoHint>
+  );
   return (
-    <section className="asa-ai-tools" aria-labelledby="ai-tool-policies-title">
+    <section
+      className={'asa-ai-tools asa-ai-tools-' + presentation}
+      aria-labelledby="ai-tool-policies-title"
+    >
       <div className="asa-ai-tools-heading">
         <h2 id="ai-tool-policies-title">
-          {selectedTool ? 'Доступ и поведение' : 'Инструменты помощника'}
+          {detail && selectedTool ? TOOL_LABELS[selectedTool] : 'Инструменты помощника'}
         </h2>
-        <InfoHint label="Как работают разрешения инструментов">
-          <p>
-            Разрешения действуют для подключённых моделей и проверяются сервером перед вызовом.
-            Включение инструмента не заменяет настройку подключения и проверку прав пользователя.
-          </p>
-        </InfoHint>
+        {detail && selected ? (
+          help(selected)
+        ) : (
+          <InfoHint label="Как работают разрешения инструментов">
+            <p>
+              Разрешения действуют для подключённых моделей и проверяются сервером перед вызовом.
+              Включение инструмента не заменяет настройку подключения и проверку прав пользователя.
+            </p>
+          </InfoHint>
+        )}
+        {detail && selected ? <span className="asa-ai-tool-status">{status(selected)}</span> : null}
         {configuration ? (
           <button
             type="button"
             className="asa-ai-tools-refresh"
+            aria-label="Обновить состояние инструментов"
             disabled={loading || busy}
             onClick={reloadCurrent}
           >
-            Обновить состояние инструментов
+            Обновить
           </button>
         ) : null}
       </div>
@@ -321,6 +372,20 @@ export function AdminAiToolPolicies({
             {TOOL_IDS.map((id) => {
               const tool = configuration.tools.find((item) => item.id === id)!;
               const edit = edits.find((item) => item.id === id)!;
+              const instruction = (
+                <label className="asa-ai-tool-instructions">
+                  Инструкция для модели
+                  <textarea
+                    rows={2}
+                    value={edit.instructions}
+                    maxLength={3000}
+                    disabled={busy || !writable}
+                    onChange={(event) => update(id, 'instructions', event.target.value)}
+                    aria-label={'Дополнительные инструкции: ' + TOOL_LABELS[id]}
+                    placeholder="Когда и как использовать инструмент"
+                  />
+                </label>
+              );
               return (
                 <article
                   className="asa-ai-tool-card"
@@ -328,100 +393,48 @@ export function AdminAiToolPolicies({
                   aria-label={TOOL_LABELS[id]}
                   hidden={selectedTool !== undefined && selectedTool !== id}
                 >
-                  <div className="asa-ai-tool-card-title">
-                    <label className="asa-ai-tool-toggle">
-                      <input
-                        type="checkbox"
-                        checked={edit.enabled}
-                        disabled={busy || !writable}
-                        onChange={(event) => update(id, 'enabled', event.target.checked)}
-                      />{' '}
-                      <span className="asa-ai-tool-toggle-text">Включить инструмент</span>
-                    </label>
-                    <h3>{TOOL_LABELS[id]}</h3>
-                    <span
-                      className={
-                        tool.enabled && tool.available
-                          ? 'asa-ai-tool-status ready'
-                          : 'asa-ai-tool-status'
-                      }
-                    >
-                      {!tool.enabled
-                        ? 'Выключен'
-                        : tool.available
-                          ? 'Настроено'
-                          : 'Нужно настроить'}
-                    </span>
-                  </div>
-                  <div className="asa-ai-tool-reason">
-                    <InfoHint label={'Состояние и описание: ' + TOOL_LABELS[id]}>
-                      <p>
-                        {tool.available
-                          ? 'Настроено · доступность проверяется при вызове.'
-                          : tool.reason || 'Причина недоступности не указана сервером.'}
-                      </p>
-                      <dl className="asa-ai-tool-hint">
-                        <dt>Когда используется</dt>
-                        <dd>
-                          {tool.usageDescription || 'Сервер не указал условия использования.'}
-                        </dd>
-                        <dt>Параметры запроса</dt>
-                        <dd>
-                          {tool.parameters.length
-                            ? tool.parameters.join(' · ')
-                            : 'Параметры не указаны сервером.'}
-                        </dd>
-                        <dt>Результат</dt>
-                        <dd>
-                          {tool.resultDescription || 'Описание результата не указано сервером.'}
-                        </dd>
-                        <dt>Неизменяемые ограничения</dt>
-                        <dd>
-                          {tool.hardLimits.length ? (
-                            <ul>
-                              {tool.hardLimits.map((limit) => (
-                                <li key={limit}>{limit}</li>
-                              ))}
-                            </ul>
-                          ) : (
-                            'Ограничения не указаны сервером.'
-                          )}
-                        </dd>
-                      </dl>
-                    </InfoHint>
-                  </div>
-                  <details open={selectedTool !== undefined}>
-                    <summary>Инструкция для модели</summary>
-
-                    <label className="asa-ai-tool-instructions">
-                      Дополнительные инструкции
-                      <textarea
-                        value={edit.instructions}
-                        maxLength={3000}
-                        disabled={busy || !writable}
-                        onChange={(event) => update(id, 'instructions', event.target.value)}
-                        aria-label={'Дополнительные инструкции: ' + TOOL_LABELS[id]}
-                      />
-                      <small>
-                        {edit.instructions.length} / 3000 символов. Инструкции не могут отменить
-                        ограничения и фильтры.
-                      </small>
-                    </label>
-                  </details>
+                  {!detail ? (
+                    <>
+                      <h3>{TOOL_LABELS[id]}</h3>
+                      {help(tool)}
+                      <span
+                        className={
+                          'asa-ai-tool-status' + (tool.enabled && tool.available ? ' ready' : '')
+                        }
+                      >
+                        {status(tool)}
+                      </span>
+                      <a href={'#/admin/ai?section=tools&tool=' + id}>Настроить</a>
+                      <label className="asa-ai-tool-toggle">
+                        <span className="asa-ai-tool-toggle-text">Включить инструмент</span>
+                        <input
+                          type="checkbox"
+                          checked={edit.enabled}
+                          disabled={busy || !writable}
+                          onChange={(event) => update(id, 'enabled', event.target.checked)}
+                        />
+                      </label>
+                    </>
+                  ) : null}
+                  {presentation !== 'switches' ? (
+                    detail ? (
+                      instruction
+                    ) : (
+                      <details>
+                        <summary>Инструкция для модели</summary>
+                        {instruction}
+                      </details>
+                    )
+                  ) : null}
                 </article>
               );
             })}
-            <article
-              className="asa-ai-tool-card asa-ai-tool-future"
-              aria-label="Видео — скоро"
-              hidden={selectedTool !== undefined}
-            >
-              <div className="asa-ai-tool-card-title">
+            {presentation === 'all' ? (
+              <article className="asa-ai-tool-card asa-ai-tool-future" aria-label="Видео — скоро">
                 <h3>Видео — скоро</h3>
-                <span className="asa-ai-tool-status">Недоступен</span>
-              </div>
-              <p>Инструмент пока не подключён. Настроек включения нет.</p>
-            </article>
+                <span>Пока недоступен</span>
+              </article>
+            ) : null}
           </div>
           <div className="asa-ai-tools-actions">
             {!writable ? (
@@ -435,7 +448,7 @@ export function AdminAiToolPolicies({
               className="asa-cloud-apply"
               disabled={busy || loading || invalid || conflict || !changed || !writable}
             >
-              {busy ? 'Сохраняем…' : 'Сохранить инструменты'}
+              {busy ? 'Сохраняем…' : detail ? 'Сохранить инструкцию' : 'Сохранить инструменты'}
             </button>
             {notice ? (
               <span role="status" className="asa-cloud-confirmed">
