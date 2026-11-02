@@ -590,7 +590,8 @@ export function ScratchWorkspace({
     if (!loaded) createDefaultArduinoBlocks(workspace);
     applyArduinoBlockDefaults(workspace);
     refreshToolbox();
-    keepWorkspaceClearOfFlyout(workspace, flyoutWidthRef.current);
+    // Position only newly created defaults. Loaded coordinates are saved user data.
+    if (!loaded) keepWorkspaceClearOfFlyout(workspace, flyoutWidthRef.current);
 
     const handleZoomReset = (event: Event): void => {
       if (!(event.target instanceof Element) || !event.target.closest('.blocklyZoomReset')) return;
