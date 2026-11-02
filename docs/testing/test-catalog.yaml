@@ -26,6 +26,16 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-JOINT-PREFIX-CANONICAL-MIGRATIONS-001
+    title: Real historical Course and joint Learning prefixes reach the complete canonical tail while preserving data, defaults, ACL, ledger and rejected unsupported history
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/migration/course-structure-forward-upgrade.pg.spec.ts tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts --maxWorkers=1
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
   - id: TST-AI-SCHOOL-CANONICAL-MIGRATIONS-001
     title: Canonical published migrations and byte-preserved unreleased queue upgrade school schema 286 through 294 with exact ledger and owned uncertain jobs intact
     suite: integration
