@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { useEffect, useLayoutEffect, useId, useRef, useState, type JSX } from 'react';
+import { createPortal } from 'react-dom';
+import { AuthoredMaterialsPage } from '../pages/AuthoredMaterialsPage';
+import { CourseEditorDialog } from './CourseEditorDialog';
 import { api, type AuthoredActivityLearnerPreview } from '../api';
 import { AssignmentView } from './AssignmentView';
 
@@ -68,10 +71,42 @@ export function PinnedPracticePreview({ versionId }: { readonly versionId: strin
 export function CanonicalPracticePicker({
   value,
   onChange,
+  onRegisterNestedLeaveGuard,
 }: {
+  readonly onRegisterNestedLeaveGuard?: (id: string, guard: (() => boolean) | null) => void;
   readonly value: string;
   readonly onChange: (versionId: string, title: string) => void;
 }): JSX.Element {
+  const editorId = useId();
+  const [creating, setCreating] = useState(false);
+  const createButtonRef = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (!creating) return;
+    // Keep body-based image/preview portals usable, while the preserved app
+    // (including the lesson form) is outside the keyboard and accessibility tree.
+    const background =
+      createButtonRef.current?.closest<HTMLElement>('#root') ??
+      createButtonRef.current?.closest<HTMLElement>('form');
+    const wasInert = background?.inert ?? false;
+    const previousOverflow = document.documentElement.style.overflow;
+    if (background) background.inert = true;
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      if (background) background.inert = wasInert;
+      document.documentElement.style.overflow = previousOverflow;
+      const trigger = createButtonRef.current;
+      if (trigger?.isConnected) trigger.focus();
+    };
+  }, [creating]);
+  const authorLeaveGuard = useRef<(() => boolean) | null>(null);
+  const registerGuard = useRef(onRegisterNestedLeaveGuard);
+  registerGuard.current = onRegisterNestedLeaveGuard;
+  useEffect(() => () => registerGuard.current?.(editorId, null), [editorId]);
+  function closeAuthor(): void {
+    if (!authorLeaveGuard.current?.()) return;
+    registerGuard.current?.(editorId, null);
+    setCreating(false);
+  }
   const latestChange = useRef(onChange);
   latestChange.current = onChange;
   const mounted = useRef(true);
@@ -107,6 +142,76 @@ export function CanonicalPracticePicker({
   }, [open]);
   return (
     <div className="course-practice-picker">
+      <button
+        ref={createButtonRef}
+        type="button"
+        className="btn-primary"
+        onClick={() => {
+          authorLeaveGuard.current = null;
+          registerGuard.current?.(editorId, () => authorLeaveGuard.current?.() ?? false);
+          setCreating(true);
+        }}
+      >
+        Создать задание для урока
+      </button>
+      {creating
+        ? createPortal(
+            <div onSubmit={(event) => event.stopPropagation()}>
+              <CourseEditorDialog
+                open
+                screen
+                returnFocusRef={createButtonRef}
+                title="Новое задание для урока"
+                closeLabel="Вернуться к уроку"
+                className="course-inline-task-dialog"
+                onClose={closeAuthor}
+              >
+                <AuthoredMaterialsPage
+                  embedded
+                  onRegisterLeaveGuard={(guard) => {
+                    authorLeaveGuard.current = guard;
+                  }}
+                  courseCreation={{
+                    onClose: () => {
+                      registerGuard.current?.(editorId, null);
+                      setCreating(false);
+                    },
+                    onPublished: async (rootId, versionId) => {
+                      const [result, modules] = await Promise.all([
+                        api.previewAuthoredActivityVersion(rootId, versionId),
+                        api.listModules(),
+                      ]);
+                      if (!result.ok) throw new Error(result.error.message);
+                      if (!modules.ok) throw new Error(modules.error.message);
+                      if (
+                        result.data.moduleKey === null ||
+                        result.data.source.kind !== 'published' ||
+                        result.data.source.id !== versionId ||
+                        !modules.data.items.some(
+                          (module) =>
+                            module.moduleKey === result.data.moduleKey &&
+                            module.creatable &&
+                            module.learningCapabilities?.assignable === true,
+                        )
+                      ) {
+                        throw new Error(
+                          'Опубликованное задание сейчас недоступно для добавления в курс.',
+                        );
+                      }
+                      if (!mounted.current) return;
+                      latestChange.current(versionId, result.data.assignment.title);
+                      registerGuard.current?.(editorId, null);
+                      setCreating(false);
+                      setOpen(false);
+                      setItems(null);
+                    },
+                  }}
+                />
+              </CourseEditorDialog>
+            </div>,
+            document.body,
+          )
+        : null}
       {value ? (
         <PinnedPracticePreview versionId={value} />
       ) : (
