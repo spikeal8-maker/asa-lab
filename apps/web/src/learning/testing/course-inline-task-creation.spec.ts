@@ -3,6 +3,7 @@ import { act, createElement, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { api, type AuthoredActivityDraft, type LessonBlock } from '../../api';
+import * as authorModule from '../../pages/AuthoredMaterialsPage';
 import { LessonBlockEditor } from '../../components/LessonBlockEditor';
 
 const rootId = '11111111-1111-4111-8111-111111111111';
@@ -308,4 +309,83 @@ it('ignores verification that finishes after the owning lesson is unmounted', as
   expect(pinChange).not.toHaveBeenCalled();
   expect(guards.size).toBe(0);
   expect(container.inert).toBe(false);
+});
+
+it('keeps the entire course publication operation locked during post-publication list refresh', async () => {
+  await mount();
+  await readyDraft();
+  await click('Создать задание');
+  let complete!: (value: Awaited<ReturnType<typeof api.authoredActivities>>) => void;
+  vi.mocked(api.authoredActivities).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  await click('Опубликовать и добавить в урок');
+  expect(api.publishAuthoredActivity).toHaveBeenCalledTimes(1);
+  expect(api.authoredActivity).toHaveBeenCalledTimes(1);
+  expect(api.previewAuthoredActivityVersion).not.toHaveBeenCalled();
+  const title = document.querySelector<HTMLTextAreaElement>('[aria-label="Название задания"]')!;
+  expect(title.matches(':disabled')).toBe(true);
+  expect(button('Сохранить').matches(':disabled')).toBe(true);
+  expect(canLeaveParent()).toBe(false);
+  expect(container.inert).toBe(true);
+  await click('Вернуться к уроку');
+  expect(document.querySelector('[aria-label="Название задания"]')).toBe(title);
+  expect(title.value).toBe('Новая практика прямо из курса');
+  expect(window.confirm).not.toHaveBeenCalled();
+  expect(pinChange).not.toHaveBeenCalled();
+  await act(async () => {
+    complete({ ok: true, status: 200, data: { items: [] } });
+    await flush();
+  });
+  expect(pinChange).toHaveBeenCalledTimes(1);
+  expect(container.querySelector('[data-testid="saved-pin"]')?.textContent).toBe(versionId);
+});
+
+it('rejects an old author completion after that creation screen was replaced in the same picker', async () => {
+  const OriginalAuthor = authorModule.AuthoredMaterialsPage;
+  let captured!: NonNullable<Parameters<typeof OriginalAuthor>[0]['courseCreation']>;
+  vi.spyOn(authorModule, 'AuthoredMaterialsPage').mockImplementation((props) => {
+    captured = props.courseCreation!;
+    return createElement(OriginalAuthor, props);
+  });
+  await mount();
+  await readyDraft();
+  await click('Создать задание');
+  const oldSession = captured;
+  const result = await api.previewAuthoredActivityVersion(rootId, versionId);
+  let complete!: (value: Awaited<ReturnType<typeof api.previewAuthoredActivityVersion>>) => void;
+  vi.mocked(api.previewAuthoredActivityVersion).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  // Retain the actual callback to model a delayed owner completion independently
+  // of the normal publication/navigation lock. The picker itself stays mounted.
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = oldSession.onPublished(rootId, versionId);
+    await flush();
+  });
+  await act(async () => {
+    oldSession.onClose();
+  });
+  await click('Создать задание для урока');
+  await fill('Среда задания', 'electronics');
+  await fill('Название задания', 'Следующее задание');
+  const replacementTitle = document.querySelector('[aria-label="Название задания"]');
+  await act(async () => {
+    complete(result);
+    await pending;
+    await flush();
+  });
+  expect(document.querySelector('[aria-label="Название задания"]')).toBe(replacementTitle);
+  expect((replacementTitle as HTMLTextAreaElement).value).toBe('Следующее задание');
+  expect(pinChange).not.toHaveBeenCalled();
+  expect(container.querySelector('[data-testid="saved-pin"]')?.textContent).toBe('');
+  expect(guards.size).toBe(1);
+  expect(container.inert).toBe(true);
 });

@@ -394,6 +394,8 @@ export function AuthoredMaterialsPage({
   const [modulesLoading, setModulesLoading] = useState(true);
   const assignableModules = modules.filter(isAssignableModule);
   const [busy, setBusy] = useState(false);
+  const courseOperationRef = useRef(false);
+  const [courseOperationBusy, setCourseOperationBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState<AuthoredActivityDraft>(initial);
@@ -518,8 +520,9 @@ export function AuthoredMaterialsPage({
     setScreen('editor');
   }
 
-  async function save(event?: FormEvent) {
+  async function save(event?: FormEvent, insideCourseOperation = false) {
     event?.preventDefault();
+    if (courseOperationRef.current && !insideCourseOperation) return null;
     if (courseCreation && !canAssignDraftModule) return null;
     if (busy || !draft.title.trim() || (!opened && !canSaveDraftModule)) return null;
     if (
@@ -834,46 +837,60 @@ export function AuthoredMaterialsPage({
   }
   async function publish(addToCourse = false): Promise<string | null> {
     if (!canPublish || (addToCourse && !canAssignDraftModule)) return null;
-    const saved = await save();
-    if (!saved) return null;
-    setBusy(true);
-    const result = await api.publishAuthoredActivity(
-      saved.id,
-      saved.revision,
-      'publish:' + saved.id + ':' + saved.revision,
-    );
-    if (result.ok) {
-      setPublishedVersionId(result.data.id);
-      setPreview(null);
-      setNotice(
-        'Опубликована версия ' + result.data.versionNumber + '. Материал остаётся закрытым.',
-      );
-      await open(saved.id);
-      setNotice(
-        'Опубликована версия ' + result.data.versionNumber + '. Материал остаётся закрытым.',
-      );
-      await refresh();
-      onChanged?.();
-      if (addToCourse && courseCreation) {
-        setBusy(true);
-        try {
-          await courseCreation.onPublished(saved.id, result.data.id);
-        } catch (problem) {
-          setError(
-            problem instanceof Error
-              ? problem.message
-              : 'Не удалось добавить задание в урок. Повторите попытку.',
-          );
-          setBusy(false);
-          return null;
-        }
-      }
-      setBusy(false);
-      return result.data.id;
+    if (courseCreation && (courseOperationRef.current || busy)) return null;
+    if (courseCreation) {
+      // Helpers below have their own busy state. It must not release this
+      // complete save/publish/refresh/verification operation's navigation lock.
+      courseOperationRef.current = true;
+      setCourseOperationBusy(true);
     }
-    setError(result.error.message);
-    setBusy(false);
-    return null;
+    try {
+      const saved = await save(undefined, true);
+      if (!saved) return null;
+      setBusy(true);
+      const result = await api.publishAuthoredActivity(
+        saved.id,
+        saved.revision,
+        'publish:' + saved.id + ':' + saved.revision,
+      );
+      if (result.ok) {
+        setPublishedVersionId(result.data.id);
+        setPreview(null);
+        setNotice(
+          'Опубликована версия ' + result.data.versionNumber + '. Материал остаётся закрытым.',
+        );
+        await open(saved.id);
+        setNotice(
+          'Опубликована версия ' + result.data.versionNumber + '. Материал остаётся закрытым.',
+        );
+        await refresh();
+        onChanged?.();
+        if (addToCourse && courseCreation) {
+          setBusy(true);
+          try {
+            await courseCreation.onPublished(saved.id, result.data.id);
+          } catch (problem) {
+            setError(
+              problem instanceof Error
+                ? problem.message
+                : 'Не удалось добавить задание в урок. Повторите попытку.',
+            );
+            setBusy(false);
+            return null;
+          }
+        }
+        setBusy(false);
+        return result.data.id;
+      }
+      setError(result.error.message);
+      setBusy(false);
+      return null;
+    } finally {
+      if (courseCreation) {
+        courseOperationRef.current = false;
+        setCourseOperationBusy(false);
+      }
+    }
   }
   async function previewAsLearner(source: 'draft' | 'published') {
     if (!opened) {
@@ -1008,6 +1025,7 @@ export function AuthoredMaterialsPage({
   const hasUnsavedEditorChanges = opened === null ? newDraftDirty : draftDirty;
 
   function canLeaveEditor(): boolean {
+    if (courseOperationRef.current) return false;
     if (screen !== 'editor') return true;
     if (busy) return false;
     if (hasUnsavedEditorChanges) {
@@ -1032,6 +1050,7 @@ export function AuthoredMaterialsPage({
       screen !== 'editor' ||
       (!hasUnsavedEditorChanges &&
         !busy &&
+        !courseOperationBusy &&
         assignmentAttempt.current?.value.submittedDueAt === undefined)
     )
       return;
@@ -1041,7 +1060,7 @@ export function AuthoredMaterialsPage({
     };
     window.addEventListener('beforeunload', warnBeforeUnload);
     return () => window.removeEventListener('beforeunload', warnBeforeUnload);
-  }, [screen, hasUnsavedEditorChanges, busy, assignVersionId]);
+  }, [screen, hasUnsavedEditorChanges, busy, courseOperationBusy, assignVersionId]);
 
   function returnToList(): void {
     if (!canLeaveEditor()) return;
@@ -1208,15 +1227,16 @@ export function AuthoredMaterialsPage({
         : draft.resultMode === 'completion'
           ? 'Выполнение'
           : 'Без оценки';
-    const saveState = busy
-      ? 'Сохраняем…'
-      : error
-        ? 'Проверьте ошибку'
-        : hasUnsavedEditorChanges
-          ? 'Есть несохранённые изменения'
-          : opened
-            ? 'Сохранено'
-            : 'Новый черновик';
+    const saveState =
+      busy || courseOperationBusy
+        ? 'Сохраняем…'
+        : error
+          ? 'Проверьте ошибку'
+          : hasUnsavedEditorChanges
+            ? 'Есть несохранённые изменения'
+            : opened
+              ? 'Сохранено'
+              : 'Новый черновик';
 
     return (
       <Root className="authored-materials assignment-document-shell" aria-label="Редактор задания">
@@ -1239,7 +1259,7 @@ export function AuthoredMaterialsPage({
             }
           }}
         >
-          <CourseCreationFields active={!!courseCreation} busy={busy}>
+          <CourseCreationFields active={!!courseCreation} busy={busy || courseOperationBusy}>
             <header className="assignment-document-topbar">
               <button
                 type="button"

@@ -78,7 +78,15 @@ export function CanonicalPracticePicker({
   readonly onChange: (versionId: string, title: string) => void;
 }): JSX.Element {
   const editorId = useId();
-  const [creating, setCreating] = useState(false);
+  const sessionRef = useRef(0);
+  const [creationSession, setCreationSession] = useState<number | null>(null);
+  const creating = creationSession !== null;
+  function endCreation(session: number): void {
+    if (sessionRef.current !== session) return;
+    sessionRef.current += 1;
+    registerGuard.current?.(editorId, null);
+    setCreationSession(null);
+  }
   const createButtonRef = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => {
     if (!creating) return;
@@ -101,11 +109,16 @@ export function CanonicalPracticePicker({
   const authorLeaveGuard = useRef<(() => boolean) | null>(null);
   const registerGuard = useRef(onRegisterNestedLeaveGuard);
   registerGuard.current = onRegisterNestedLeaveGuard;
-  useEffect(() => () => registerGuard.current?.(editorId, null), [editorId]);
+  useLayoutEffect(
+    () => () => {
+      sessionRef.current += 1;
+      registerGuard.current?.(editorId, null);
+    },
+    [editorId],
+  );
   function closeAuthor(): void {
     if (!authorLeaveGuard.current?.()) return;
-    registerGuard.current?.(editorId, null);
-    setCreating(false);
+    if (creationSession !== null) endCreation(creationSession);
   }
   const latestChange = useRef(onChange);
   latestChange.current = onChange;
@@ -142,18 +155,6 @@ export function CanonicalPracticePicker({
   }, [open]);
   return (
     <div className="course-practice-picker">
-      <button
-        ref={createButtonRef}
-        type="button"
-        className="btn-primary"
-        onClick={() => {
-          authorLeaveGuard.current = null;
-          registerGuard.current?.(editorId, () => authorLeaveGuard.current?.() ?? false);
-          setCreating(true);
-        }}
-      >
-        Создать задание для урока
-      </button>
       {creating
         ? createPortal(
             <div onSubmit={(event) => event.stopPropagation()}>
@@ -167,20 +168,22 @@ export function CanonicalPracticePicker({
                 onClose={closeAuthor}
               >
                 <AuthoredMaterialsPage
+                  key={creationSession}
                   embedded
                   onRegisterLeaveGuard={(guard) => {
-                    authorLeaveGuard.current = guard;
+                    if (creationSession === sessionRef.current) authorLeaveGuard.current = guard;
                   }}
                   courseCreation={{
                     onClose: () => {
-                      registerGuard.current?.(editorId, null);
-                      setCreating(false);
+                      if (creationSession !== null) endCreation(creationSession);
                     },
                     onPublished: async (rootId, versionId) => {
+                      if (!mounted.current || creationSession !== sessionRef.current) return;
                       const [result, modules] = await Promise.all([
                         api.previewAuthoredActivityVersion(rootId, versionId),
                         api.listModules(),
                       ]);
+                      if (!mounted.current || creationSession !== sessionRef.current) return;
                       if (!result.ok) throw new Error(result.error.message);
                       if (!modules.ok) throw new Error(modules.error.message);
                       if (
@@ -198,10 +201,8 @@ export function CanonicalPracticePicker({
                           'Опубликованное задание сейчас недоступно для добавления в курс.',
                         );
                       }
-                      if (!mounted.current) return;
                       latestChange.current(versionId, result.data.assignment.title);
-                      registerGuard.current?.(editorId, null);
-                      setCreating(false);
+                      if (creationSession !== null) endCreation(creationSession);
                       setOpen(false);
                       setItems(null);
                     },
@@ -226,6 +227,19 @@ export function CanonicalPracticePicker({
         }}
       >
         {value ? 'Заменить практику' : 'Выбрать практику'}
+      </button>
+      <button
+        ref={createButtonRef}
+        type="button"
+        className="btn-primary"
+        onClick={() => {
+          authorLeaveGuard.current = null;
+          registerGuard.current?.(editorId, () => authorLeaveGuard.current?.() ?? false);
+          sessionRef.current += 1;
+          setCreationSession(sessionRef.current);
+        }}
+      >
+        Создать задание для урока
       </button>
       {open ? (
         <div className="course-practice-options" aria-label="Выбор практики">
