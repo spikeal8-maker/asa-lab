@@ -151,7 +151,7 @@ export function runQualification() {
   };
   const all = validateReport(discover("discovery-all"), false, false);
   const grep = selectorFor(all);
-  validateReport(discover("discovery-five", ["--grep", grep]));
+  validateReport(discover("discovery-seven", ["--grep", grep]));
   const resultPath = resolve(directory, "execution.json");
   const child = invoke(
     ["--grep", grep, "--workers=1", "--retries=0", "--reporter=list,json"],
@@ -186,7 +186,7 @@ export function runQualification() {
   );
   if (failure) throw failure;
   console.log(
-    "Scoped Electronics 532 qualification: five cases PASS; full Electronics suite NOT_RUN by this command.",
+    "Scoped Electronics 944/870 qualification: seven cases PASS; full Electronics suite NOT_RUN by this command.",
   );
 }
 
