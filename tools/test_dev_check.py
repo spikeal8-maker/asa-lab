@@ -89,6 +89,21 @@ class Fixture(unittest.TestCase):
         self.assertIn('timeout', result['reason'])
         self.assertLess(result['duration_s'], 8)
 
+    def windows_process_api(self):
+        import ctypes
+        from ctypes import wintypes as w
+        api = ctypes.WinDLL('kernel32', use_last_error=True)
+        api.OpenProcess.argtypes, api.OpenProcess.restype = [w.DWORD, w.BOOL, w.DWORD], w.HANDLE
+        api.WaitForSingleObject.argtypes, api.WaitForSingleObject.restype = [w.HANDLE, w.DWORD], w.DWORD
+        api.CloseHandle.argtypes, api.CloseHandle.restype = [w.HANDLE], w.BOOL
+        return api
+
+    def assert_windows_child_terminated(self, api, handle):
+        # Job termination initiates asynchronous process teardown. Pipe EOF is
+        # not a process-signaling barrier; wait on the retained exact child.
+        self.assertEqual(api.WaitForSingleObject(handle, 1000), 0,
+                         'owned child did not terminate within the bounded completion wait')
+
     def descendant_probe(self, *, forever=False):
         child = ('import os, time\nfrom pathlib import Path\n'
                  'Path("child.pid").write_text(str(os.getpid()))\n'
@@ -102,8 +117,26 @@ class Fixture(unittest.TestCase):
         entry = {'id': 'TST-EXITED-LAUNCHER-001', 'command': 'python launcher.py', 'timeout_seconds': 1}
         results, failures, jobs, processes = [], [], [], []
         original_job, original_popen = run_task_tests.WindowsJob, run_task_tests.subprocess.Popen
+        api = self.windows_process_api() if os.name == 'nt' else None
+        child_handle = None
+        child_handle_lock = threading.Lock()
+        def retain_child():
+            nonlocal child_handle
+            with child_handle_lock:
+                if api is not None and child_handle is None and (self.root / 'child.pid').exists():
+                    pid = int((self.root / 'child.pid').read_text())
+                    child_handle = api.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE, before termination
+                    self.assertTrue(child_handle, 'cannot retain the exact owned child before cleanup')
+                    self.addCleanup(api.CloseHandle, child_handle)
+        class ObservedJob(original_job):
+            def terminate(job):
+                retain_child()
+                return super().terminate()
+            def close(job):
+                retain_child()
+                return super().close()
         def create_job():
-            job = original_job()
+            job = ObservedJob()
             jobs.append(job)
             return job
         def create_process(*args, **kwargs):
@@ -144,6 +177,9 @@ class Fixture(unittest.TestCase):
         self.assertIn('timeout after 1s', results[0]['reason'])
         self.assertLess(results[0]['duration_s'], 3)
         print(f'Owned descendant ({"indefinite" if forever else "4s marker"}): {results[0]["duration_s"]}s')
+        if api is not None:
+            self.assertIsNotNone(child_handle, 'child handle was not retained before cleanup')
+            self.assert_windows_child_terminated(api, child_handle)
         return started
 
     def test_fast_exited_launcher_cannot_leave_late_marker(self):
@@ -154,20 +190,7 @@ class Fixture(unittest.TestCase):
     def test_indefinite_pipe_holding_descendant_is_terminated(self):
         self.descendant_probe(forever=True)
         pid = int((self.root / 'child.pid').read_text())
-        if os.name == 'nt':
-            import ctypes
-            from ctypes import wintypes as w
-            api = ctypes.WinDLL('kernel32', use_last_error=True)
-            api.OpenProcess.argtypes, api.OpenProcess.restype = [w.DWORD, w.BOOL, w.DWORD], w.HANDLE
-            api.WaitForSingleObject.argtypes, api.WaitForSingleObject.restype = [w.HANDLE, w.DWORD], w.DWORD
-            api.CloseHandle.argtypes = [w.HANDLE]
-            handle = api.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE, exact owned child
-            if handle:
-                try:
-                    self.assertEqual(api.WaitForSingleObject(handle, 0), 0, 'owned child is still running')
-                finally:
-                    api.CloseHandle(handle)
-            else:
+        if os.name != 'nt':
                 self.assertEqual(ctypes.get_last_error(), 87, 'cannot verify exact owned child termination')
         else:
             self.assert_posix_descendant_terminated(pid)
@@ -200,6 +223,21 @@ class Fixture(unittest.TestCase):
         with patch.object(Path, 'read_text', side_effect=PermissionError('cannot read exact owned child')):
             with self.assertRaises(PermissionError):
                 self.assert_posix_descendant_terminated(12345)
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows process completion wait negative control')
+    def test_child_completion_wait_rejects_a_truly_live_process(self):
+        api = self.windows_process_api()
+        # This exact owned process stays suspended, so its handle is genuinely
+        # unsignaled and its command cannot create descendants or execute code.
+        process = subprocess.Popen([sys.executable, '-c', 'raise RuntimeError("must stay suspended")'],
+                                   cwd=self.root, creationflags=0x4)
+        try:
+            with self.assertRaisesRegex(AssertionError, 'bounded completion wait'):
+                self.assert_windows_child_terminated(api, int(process._handle))
+            self.assertIsNone(process.poll())
+        finally:
+            process.kill()
+            process.wait(timeout=1)
 
     @unittest.skipUnless(os.name == 'nt', 'Windows kill-on-close fallback')
     def test_job_termination_failure_still_closes_job_and_kills_descendant(self):
