@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { addNativeUsage, nativeTools, parseNativeToolCalls } from './ai-native-tools';
+import {
+  addNativeUsage,
+  nativeTools,
+  parseNativeToolCalls,
+  parseNativeToolBatch,
+} from './ai-native-tools';
+import { workingFileTools } from './ai-working-files';
+
+it('accepts only bounded independently validated image-search/file-read batches, with no mixed mutations', () => {
+  const search = { function: { name: 'image_search', arguments: { query: 'cats' } } };
+  const read = { function: { name: 'read_working_file', arguments: { name: 'cats.html' } } };
+  const offered = [...nativeTools({ search: true, weather: false }), ...workingFileTools()];
+  expect(parseNativeToolBatch([search, read], offered).map((c) => c.name)).toEqual([
+    'image_search',
+    'read_working_file',
+  ]);
+  for (const raw of [
+    [...Array(5).fill(search)],
+    [
+      search,
+      {
+        function: {
+          name: 'create_working_file',
+          arguments: { name: 'cats.html', content: '<h1>Cats</h1>' },
+        },
+      },
+    ],
+    [search, { function: { name: 'read_working_file', arguments: { name: '../secrets' } } }],
+  ])
+    expect(() => parseNativeToolBatch(raw, offered)).toThrow('AI_TOOL_CALL_INVALID');
+});
 
 describe('native image tool admission', () => {
   const offered = nativeTools({ imageSizes: [768], search: false, weather: false });

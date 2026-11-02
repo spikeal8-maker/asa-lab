@@ -337,6 +337,41 @@ it('dismisses a model failure when the user edits without refreshing or automati
   expect(host.textContent).not.toContain('Извините, текстовая модель сейчас недоступна.');
   expect(streamAiRequest).toHaveBeenCalledTimes(1);
 });
+
+it('keeps the same uncertain UUID on explicit replay, shows the saved state and assigns a new UUID only to a changed message', async () => {
+  const complete = pendingCreation();
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation((path, init) =>
+    path.includes('/attachments?') ? Promise.resolve(ok({ items: [] })) : original(path, init),
+  );
+  vi.mocked(streamAiRequest).mockImplementation(async (_thread, text, requestId) => ({
+    messages: [
+      {
+        id: 'user-' + requestId,
+        role: 'user',
+        content: text,
+        requestId,
+        state: 'complete',
+        createdAt: '2026-11-02T00:00:00Z',
+      },
+    ] as never[],
+    replayed: true,
+    stopped: false,
+  }));
+  await mount();
+  await submit('Найди картинки и добавь в сайт');
+  await act(async () => complete());
+  expect(host.textContent).toContain('Сообщение сохранено, но ответ пока не завершён.');
+  expect(host.textContent).not.toContain('Запрос уже был принят');
+  expect(host.querySelectorAll('.chat-user-bubble')).toHaveLength(1);
+  const first = vi.mocked(streamAiRequest).mock.calls[0]?.[2];
+  await submit('Найди картинки и добавь в сайт');
+  expect(vi.mocked(streamAiRequest).mock.calls[1]?.[2]).toBe(first);
+  expect(host.querySelectorAll('.chat-user-bubble')).toHaveLength(1);
+  await submit('Найди другие картинки и добавь в сайт');
+  expect(vi.mocked(streamAiRequest).mock.calls[2]?.[2]).not.toBe(first);
+  expect(streamAiRequest).toHaveBeenCalledTimes(3);
+});
 it('dismisses a model failure immediately after choosing a different model without a new request', async () => {
   const complete = pendingCreation();
   const original = vi.mocked(call).getMockImplementation()!;

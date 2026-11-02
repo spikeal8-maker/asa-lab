@@ -31,23 +31,28 @@ export function toolProviderResponse(
     };
     prompt_eval_count: number;
     eval_count: number;
+    done?: boolean;
   },
 ): Response {
   if (provider === 'ollama') return new Response(JSON.stringify(packet) + '\n');
   const event = (data: unknown) => 'data: ' + JSON.stringify(data) + '\n\n';
-  const call = packet.message.tool_calls?.[0]?.function;
+  const calls = packet.message.tool_calls?.map((call) => call.function) ?? [];
   const body =
     provider === 'openai'
-      ? (call
-          ? event({
-              type: 'response.output_item.done',
-              output_index: 0,
-              item: {
-                type: 'function_call',
-                name: call.name,
-                arguments: JSON.stringify(call.arguments),
-              },
-            })
+      ? (calls.length
+          ? calls
+              .map((call, index) =>
+                event({
+                  type: 'response.output_item.done',
+                  output_index: index,
+                  item: {
+                    type: 'function_call',
+                    name: call.name,
+                    arguments: JSON.stringify(call.arguments),
+                  },
+                }),
+              )
+              .join('')
           : event({ type: 'response.output_text.delta', delta: packet.message.content })) +
         event({
           type: 'response.completed',
@@ -61,17 +66,15 @@ export function toolProviderResponse(
       : event({
           choices: [
             {
-              delta: call
+              delta: calls.length
                 ? {
-                    tool_calls: [
-                      {
-                        index: 0,
-                        function: { name: call.name, arguments: JSON.stringify(call.arguments) },
-                      },
-                    ],
+                    tool_calls: calls.map((call, index) => ({
+                      index,
+                      function: { name: call.name, arguments: JSON.stringify(call.arguments) },
+                    })),
                   }
                 : { content: packet.message.content },
-              finish_reason: call ? 'tool_calls' : 'stop',
+              finish_reason: calls.length ? 'tool_calls' : 'stop',
             },
           ],
           usage: {

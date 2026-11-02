@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { nativeTools } from './ai-native-tools';
+import { workingFileTools } from './ai-working-files';
 import {
   OllamaError,
   ollamaBaseUrl,
@@ -8,6 +9,47 @@ import {
   describeOllamaModel,
   streamOllamaText,
 } from './ai-ollama';
+
+it.each(['valid', 'escaped', 'file_limit', 'frame_limit'] as const)(
+  'admits bounded working-file envelopes without weakening file validation: %s',
+  async (kind) => {
+    const content =
+      kind === 'valid'
+        ? '<main>' + 'Котики '.repeat(7000) + '</main>'
+        : kind === 'escaped'
+          ? '\t'.repeat(96_000)
+          : kind === 'file_limit'
+            ? 'x'.repeat(96_001)
+            : 'x'.repeat(1024 * 1024);
+    const payload =
+      JSON.stringify({
+        message: {
+          tool_calls: [
+            {
+              function: { name: 'create_working_file', arguments: { name: 'cats.html', content } },
+            },
+          ],
+        },
+        done: true,
+      }) + '\n';
+    const request = streamOllamaText({
+      baseUrl: 'http://127.0.0.1:11434',
+      model: 'fixture:8b',
+      context: [],
+      instructions: '',
+      tools: workingFileTools(),
+      signal: new AbortController().signal,
+      onDelta: () => undefined,
+      fetchImpl: async () => new Response(payload),
+    });
+    if (kind === 'valid' || kind === 'escaped')
+      expect((await request).toolCalls?.[0]?.arguments.content).toBe(content);
+    else
+      await expect(request).rejects.toMatchObject({
+        code: kind === 'file_limit' ? 'ai_tool_call_invalid' : 'ai_ollama_invalid',
+      });
+  },
+);
 
 it.each(['images', 'mixed', 'overflow', 'invalid'] as const)(
   'bounds Qwen multi-frame tool announcements: %s',

@@ -13,7 +13,7 @@ import {
 } from './ai-model-catalog.js';
 import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
 import {
-  parseNativeToolCalls,
+  parseNativeToolBatch,
   type NativeToolCall,
   type NativeToolDefinition,
   type NativeToolResult,
@@ -336,7 +336,7 @@ export async function streamProviderText({
       }
       if (
         (functionCalls.size > 0 && !tools?.length) ||
-        functionCalls.size > 1 ||
+        functionCalls.size > 4 ||
         [...functionCalls.values()].some((c) => c.name.length > 80 || c.arguments.length > 131072)
       )
         throw new ProviderStreamError(
@@ -467,7 +467,7 @@ export async function streamProviderText({
   let toolCalls: readonly NativeToolCall[] | undefined;
   if (functionCalls.size && !signal.aborted && providerState !== 'stopped') {
     try {
-      toolCalls = parseNativeToolCalls(
+      toolCalls = parseNativeToolBatch(
         [...functionCalls.values()].map((c) => ({
           function: { name: c.name, arguments: JSON.parse(c.arguments) },
         })),

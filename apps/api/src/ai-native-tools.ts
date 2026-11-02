@@ -27,6 +27,59 @@ export interface NativeToolResult {
   readonly call: NativeToolCall;
   readonly content: string;
 }
+
+/** Server admission for acquisition tools; ordinary site requests search first. */
+export function imageGenerationRequested(prompt: string): boolean {
+  const image =
+    /изображени|картин|фотограф|фото|иллюстрац|баннер|логотип|\b(?:image|picture|photo|illustration|banner|logo)\b/iu.test(
+      prompt,
+    );
+  const explicit = /сгенер|генерац|нарису|\b(?:generat(?:e|ed|ing)|draw|paint|render)\b/iu.test(
+    prompt,
+  );
+  const standalone =
+    !/сайт|страниц|\b(?:site|website|page|html)\b/iu.test(prompt) &&
+    /созда|сдела|\bcreate\b/iu.test(prompt);
+  // An alternative to searching is a fallback, not permission to skip retrieval.
+  const searchFirst =
+    !/не (?:используй|делай) поиск|без поиска|do not (?:use )?search|no search/iu.test(prompt) &&
+    /интернет|найд|поиск|\b(?:internet|search|find|online)\b/iu.test(prompt);
+  return image && (explicit || standalone) && !searchFirst && !imageGenerationForbidden(prompt);
+}
+
+export function imageGenerationForbidden(prompt: string): boolean {
+  return /не (?:генерируй|генерировать|создавай|рисуй)|без генерац|do not (?:generate|draw)|don['’]t (?:generate|draw)/iu.test(
+    prompt,
+  );
+}
+
+/** Read-only parallel announcements are executed serially by the shared server. */
+export function parseNativeToolBatch(
+  raw: unknown,
+  offered: readonly NativeToolDefinition[],
+): readonly NativeToolCall[] {
+  if (!Array.isArray(raw) || !raw.length || raw.length > 4) throw new Error('AI_TOOL_CALL_INVALID');
+  const calls = raw.flatMap((call) => parseNativeToolCalls([call], offered));
+  if (
+    calls.length > 1 &&
+    calls.some((call) => !['image_search', 'read_working_file'].includes(call.name))
+  )
+    throw new Error('AI_TOOL_CALL_INVALID');
+  return calls;
+}
+
+export function artifactMutationRequested(prompt: string, hasFiles: boolean): boolean {
+  return (
+    (/сайт|страниц|\.html\b|\b(?:website|page|site|html)\b/iu.test(prompt) ||
+      (hasFiles &&
+        /картин|изображ|фото|туда|в него|фон|цвет|заголов|кноп|обнов|додел|\b(?:image|photo|background|color|title|update|finish|it)\b/iu.test(
+          prompt,
+        ))) &&
+    /созда|сдела|додел|добав|обнов|измени|поменя|исправ|передел|не вижу|\b(?:create|build|make|add|update|edit|change|fix|finish)\b/iu.test(
+      prompt,
+    )
+  );
+}
 export function nativeTools(options: {
   imageFileTarget?: boolean;
   imageSizes?: readonly number[];
@@ -42,7 +95,7 @@ export function nativeTools(options: {
       function: {
         name: 'generate_image',
         description:
-          'Создать НОВОЕ изображение моделью FLUX.2 Klein 4B. Пойми просьбу по смыслу, в том числе опечатки и уточнения предыдущего изображения. Составь полноценное описание сцены для генератора. Это text-to-image: не обещай редактирование прежних пикселей. Не вызывай для обсуждения возможностей или поиска готовых картинок.',
+          'Создать НОВОЕ изображение моделью FLUX.2 Klein 4B только по явной просьбе сгенерировать или нарисовать его либо после фактически пустого/недоступного поиска. Для сайта с картинками по умолчанию сначала image_search. Альтернатива «из интернета или сгенерируй» означает сначала поиск. Это text-to-image: не обещай редактирование прежних пикселей. Не вызывай для обсуждения возможностей или поиска готовых картинок.',
         parameters: {
           type: 'object',
           additionalProperties: false,

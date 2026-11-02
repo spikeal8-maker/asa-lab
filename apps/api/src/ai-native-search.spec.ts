@@ -22,6 +22,11 @@ const originalCloud = cloudAdapter.streamProviderText;
 const OWNER = '11111111-1111-4111-8111-111111111111';
 const THREAD = '22222222-2222-4222-8222-222222222222';
 const REQUEST = '33333333-3333-4333-8333-333333333333';
+function toolNames(body: Record<string, unknown> | undefined): unknown[] {
+  return ((body?.tools ?? []) as { name?: string; function?: { name: string } }[]).map(
+    (tool) => tool.name ?? tool.function?.name,
+  );
+}
 
 function fixture(
   mode: 'auto' | 'off',
@@ -37,6 +42,7 @@ function fixture(
   createAfterSearch = false,
   multipleSearch = false,
   createBeforeImage = false,
+  scenario?: 'edit-sequential' | 'edit-batch' | 'claim' | 'fallback' | 'fallback-forbidden',
 ) {
   let admitted = false;
   let answer: string | null = null;
@@ -190,6 +196,88 @@ function fixture(
     requests.push({ url: address, body });
     if (isToolModelUrl(address)) {
       const round = requests.filter((item) => isToolModelUrl(item.url)).length;
+      if (scenario) {
+        const read = { function: { name: 'read_working_file', arguments: { name: 'cats.html' } } };
+        const search = { function: { name: 'image_search', arguments: { query: 'cats' } } };
+        const edit = {
+          function: {
+            name: 'edit_working_file',
+            arguments: {
+              name: 'cats.html',
+              expectedVersion: 1,
+              edits: [
+                {
+                  oldText: '<h1>Cats</h1>',
+                  newText: '<h1>Cats</h1><img src="https://images.example.org/cat.jpg">',
+                },
+              ],
+            },
+          },
+        };
+        const create = {
+          function: {
+            name: 'create_working_file',
+            arguments: {
+              name: 'forest.html',
+              content: '<h1>Forest</h1><img src="ASA_GENERATED_IMAGE_PENDING">',
+            },
+          },
+        };
+        const generate = {
+          function: {
+            name: 'generate_image',
+            arguments: {
+              prompt: 'Лес',
+              size: 1024,
+              model: 'flux2-klein-4b-fp8-izo-v1',
+              target: {
+                name: 'forest.html',
+                expectedVersion: 1,
+                placeholder: 'ASA_GENERATED_IMAGE_PENDING',
+              },
+            },
+          },
+        };
+        const batch =
+          scenario === 'edit-batch'
+            ? round === 1
+              ? [search, read]
+              : round === 2
+                ? [edit]
+                : null
+            : scenario === 'edit-sequential'
+              ? round === 1
+                ? [read]
+                : round === 2
+                  ? [search]
+                  : round === 3
+                    ? [edit]
+                    : null
+              : scenario === 'fallback'
+                ? round === 1
+                  ? [search]
+                  : round === 2
+                    ? [create]
+                    : round === 3
+                      ? [generate]
+                      : null
+                : scenario === 'fallback-forbidden' && round === 1
+                  ? [search]
+                  : null;
+        return toolProviderResponse(provider, {
+          message: batch
+            ? { tool_calls: batch }
+            : {
+                content:
+                  scenario === 'claim'
+                    ? 'Готово, сайт обновлён.```html\n<h1>Fake</h1>\n```'
+                    : 'Обновлён `cats.html`.',
+              },
+          prompt_eval_count: 10,
+          eval_count: 2,
+          done: true,
+        });
+      }
       const packet =
         createBeforeImage && round <= 2
           ? {
@@ -312,26 +400,28 @@ function fixture(
     if (address.includes('/search?'))
       return new Response(
         JSON.stringify({
-          results: [
-            {
-              title: 'Источник',
-              url: 'https://example.org/news',
-              content: 'Факт',
-              ...(createAfterSearch
-                ? {
-                    thumbnail_src: 'https://tse1.mm.bing.net/th?id=cat',
-                    img_src: 'https://images.example.org/cat.jpg',
-                  }
-                : {}),
-            },
-          ],
+          results: scenario?.startsWith('fallback')
+            ? []
+            : [
+                {
+                  title: 'Источник',
+                  url: 'https://example.org/news',
+                  content: 'Факт',
+                  ...(createAfterSearch || scenario
+                    ? {
+                        thumbnail_src: 'https://tse1.mm.bing.net/th?id=cat',
+                        img_src: 'https://images.example.org/cat.jpg',
+                      }
+                    : {}),
+                },
+              ],
         }),
       );
     throw new Error('Unexpected network request: ' + address);
   });
   const images = {
     nativeSchemaReady: vi.fn(async () => true),
-    fileBindingReady: vi.fn(async () => createBeforeImage),
+    fileBindingReady: vi.fn(async () => createBeforeImage || scenario === 'fallback'),
     status: vi.fn(async () => ({
       enabled: imageReady,
       ready: imageReady,
@@ -346,7 +436,9 @@ function fixture(
   const service = new AiChatService({ query } as unknown as pg.Pool, {
     fetchImpl,
     encryptionKey: TOOL_TEST_ROOT,
-    ...(tool === 'generate_image' ? { images: images as unknown as AiImageService } : {}),
+    ...(tool === 'generate_image' || scenario
+      ? { images: images as unknown as AiImageService }
+      : {}),
   });
   const deltas: string[] = [];
   const activities: AiToolActivity[] = [];
@@ -364,13 +456,177 @@ function fixture(
       [],
       mode,
       undefined,
-      tool === 'generate_image' ? { mode: 'auto', size: 1024 } : undefined,
+      tool === 'generate_image' || scenario ? { mode: 'auto', size: 1024 } : undefined,
       (activity) => activities.push(activity),
     );
   return { service, send, calls, requests, fetchImpl, deltas, images, client, activities };
 }
 
 describe('native local internet tools', () => {
+  it.each(
+    TOOL_PROVIDERS.flatMap((provider) =>
+      ['edit-batch', 'edit-sequential'].map((scenario) => ({
+        provider,
+        scenario: scenario as 'edit-batch' | 'edit-sequential',
+      })),
+    ),
+  )(
+    'serializes read/search/edit with exact version and one receipt per announced call: $provider $scenario',
+    async ({ provider, scenario }) => {
+      const f = fixture(
+        'auto',
+        'image_search',
+        'cats',
+        [],
+        'complete',
+        true,
+        'Добавь картинки из интернета в сайт или сгенерируй сам',
+        false,
+        provider,
+        true,
+        false,
+        false,
+        false,
+        scenario,
+      );
+      vi.spyOn(f.service.workingFiles, 'ready').mockResolvedValue(true);
+      const file = {
+        id: 'file',
+        name: 'cats.html',
+        version: 1,
+        content: '<h1>Cats</h1>',
+        anchorRequestId: REQUEST,
+        sourceMessageId: null,
+        sourceBlock: null,
+        updatedAt: '',
+      };
+      vi.spyOn(f.service.workingFiles, 'list').mockResolvedValue([file]);
+      vi.spyOn(f.service.workingFiles, 'read').mockResolvedValue(file);
+      const write = vi
+        .spyOn(f.service.workingFiles, 'write')
+        .mockResolvedValue({ ...file, version: 2 });
+      await f.send();
+      expect(write).toHaveBeenCalledOnce();
+      expect(write.mock.calls[0]?.slice(0, 5)).toEqual([
+        OWNER,
+        THREAD,
+        'cats.html',
+        1,
+        '<h1>Cats</h1><img src="https://images.example.org/cat.jpg">',
+      ]);
+      expect(f.images.createFromTool).not.toHaveBeenCalled();
+      const model = f.requests.filter((r) => isToolModelUrl(r.url));
+      expect(toolNames(model[0]?.body)).not.toContain('generate_image');
+      expect(f.requests.filter((r) => r.url.includes('/search?'))).toHaveLength(1);
+      const final = JSON.stringify(model.at(-1)?.body);
+      // Read results and search results occur once, even after resetting the file-loop buffer.
+      const messages = model.at(-1)?.body?.messages as
+        { role: string; tool_name?: string; content: string }[] | undefined;
+      if (provider === 'ollama')
+        expect(
+          messages?.filter((m) => m.role === 'tool' && m.tool_name === 'read_working_file'),
+        ).toHaveLength(1);
+      expect(final).toContain('previewUpdated');
+      const network = f.fetchImpl.mock.calls.length;
+      await f.send();
+      expect(f.fetchImpl).toHaveBeenCalledTimes(network);
+      expect(write).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(TOOL_PROVIDERS)(
+    'does not persist or stream an invented file-update claim: %s',
+    async (provider) => {
+      const f = fixture(
+        'auto',
+        'image_search',
+        '',
+        [],
+        'complete',
+        true,
+        'Теперь доделай сайт.',
+        false,
+        provider,
+        true,
+        false,
+        false,
+        false,
+        'claim',
+      );
+      vi.spyOn(f.service.workingFiles, 'ready').mockResolvedValue(true);
+      vi.spyOn(f.service.workingFiles, 'list').mockResolvedValue([]);
+      await f.send();
+      expect(f.deltas).toEqual([]);
+      expect(f.calls.find((c) => c.sql.includes('ai_chat_finish'))?.params[3]).toBe(
+        'Не удалось сохранить изменения в рабочем файле. Сайт пока не обновлён.',
+      );
+    },
+  );
+
+  it.each(TOOL_PROVIDERS)(
+    'offers generation only after a real empty search and binds its file: %s',
+    async (provider) => {
+      const f = fixture(
+        'auto',
+        'image_search',
+        '',
+        [],
+        'complete',
+        true,
+        'Создай сайт с картинками',
+        false,
+        provider,
+        true,
+        false,
+        false,
+        false,
+        'fallback',
+      );
+      vi.spyOn(f.service.workingFiles, 'ready').mockResolvedValue(true);
+      vi.spyOn(f.service.workingFiles, 'list').mockResolvedValue([]);
+      vi.spyOn(f.service.workingFiles, 'write').mockResolvedValue({
+        id: 'f',
+        name: 'forest.html',
+        version: 1,
+        anchorRequestId: REQUEST,
+        sourceMessageId: null,
+        sourceBlock: null,
+        updatedAt: '',
+      });
+      await f.send();
+      const model = f.requests.filter((r) => isToolModelUrl(r.url));
+      expect(toolNames(model[0]?.body)).not.toContain('generate_image');
+      expect(toolNames(model[1]?.body)).toContain('generate_image');
+      expect(f.images.createFromTool).toHaveBeenCalledOnce();
+      expect(f.images.createFromTool.mock.calls[0]?.[7]).toMatchObject({
+        name: 'forest.html',
+        expectedVersion: 1,
+      });
+    },
+  );
+
+  it('respects an explicit generation prohibition even after empty retrieval', async () => {
+    const f = fixture(
+      'auto',
+      'image_search',
+      '',
+      [],
+      'complete',
+      true,
+      'Найди изображения в интернете, не генерируй',
+      false,
+      'ollama',
+      true,
+      false,
+      false,
+      false,
+      'fallback-forbidden',
+    );
+    await f.send();
+    const model = f.requests.filter((r) => isToolModelUrl(r.url));
+    expect(toolNames(model[1]?.body)).not.toContain('generate_image');
+    expect(f.images.createFromTool).not.toHaveBeenCalled();
+  });
   it.each(TOOL_PROVIDERS)(
     'searches images then durably creates an artifact through %s with one search and explicit deferred queries',
     async (provider) => {
@@ -967,7 +1223,7 @@ describe.each(TOOL_PROVIDERS)('%s native image executor', (provider) => {
       [],
       'complete',
       true,
-      'Создай сайт с новой картинкой',
+      'Создай сайт с новой сгенерированной картинкой',
       false,
       provider,
       true,

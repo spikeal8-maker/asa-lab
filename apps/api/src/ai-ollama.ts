@@ -3,9 +3,13 @@
  * Adapted from IZO_ASA/backend/app/integrations/ollama.py (main 51543df2).
  */
 import { isIP } from 'node:net';
+// One working-file call may contain 96k characters / 131072 UTF-8 bytes,
+// escaped up to six times in JSON. The independent file validator still owns
+// those content limits; this closed transport budget admits the valid envelope.
+const MAX_OLLAMA_EVENT_CHARS = 1024 * 1024;
 import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
 import {
-  parseNativeToolCalls,
+  parseNativeToolBatch,
   type NativeToolCall,
   type NativeToolDefinition,
   type NativeToolResult,
@@ -438,7 +442,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
       while (boundary >= 0) {
         // Bound each NDJSON event, not the entire HTTP chunk. One LAN read
         // can legitimately contain hundreds of short Ollama token events.
-        if (boundary > 16 * 1024)
+        if (boundary > MAX_OLLAMA_EVENT_CHARS)
           throw new OllamaError('ai_ollama_invalid', 503, 'Слишком большое событие Ollama.', text);
         frame(buffer.slice(0, boundary).trimEnd());
         buffer = buffer.slice(boundary + 1);
@@ -447,7 +451,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
         if (done || signal.aborted) break;
         boundary = buffer.indexOf('\n');
       }
-      if (!done && buffer.length > 16 * 1024)
+      if (!done && buffer.length > MAX_OLLAMA_EVENT_CHARS)
         throw new OllamaError('ai_ollama_invalid', 503, 'Слишком большое событие Ollama.', text);
     }
     if (!done && !signal.aborted && buffer.trim()) frame(buffer.trim());
@@ -475,12 +479,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
     if (!done || lengthLimited)
       throw new OllamaError('ai_tool_call_invalid', 503, 'Вызов инструмента не завершён.');
     try {
-      // Qwen may announce several image searches in separate stream frames.
-      // Validate every call, but never admit a batch containing mutations. The
-      // executor performs one search and explicitly declines the extra queries.
-      toolCalls = rawCalls.flatMap((call) => parseNativeToolCalls([call], args.tools ?? []));
-      if (toolCalls.length > 1 && toolCalls.some((call) => call.name !== 'image_search'))
-        throw new Error('AI_TOOL_CALL_INVALID');
+      toolCalls = parseNativeToolBatch(rawCalls, args.tools ?? []);
     } catch {
       throw new OllamaError(
         'ai_tool_call_invalid',

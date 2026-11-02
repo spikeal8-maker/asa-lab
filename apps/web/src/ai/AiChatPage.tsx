@@ -1253,7 +1253,9 @@ export function AiChatPage({
           clearFiles();
         } else {
           setDraft((value) => value || text);
-          setError('Запрос уже был принят. Повторная платная генерация не выполнялась.');
+          setError(
+            'Сообщение сохранено, но ответ пока не завершён. Повторная отправка этого сообщения не запустит модель заново. Можно отправить новое уточнение.',
+          );
         }
       } catch (problem) {
         if (problem instanceof AiStreamClientError && problem.code === 'ai_student_denied') {
