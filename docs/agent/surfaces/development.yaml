@@ -58,12 +58,15 @@ surfaces:
     - docs/agent/surfaces/development.yaml
     - .github/workflows/spec-validation.yml
     - .github/workflows/devex-changed.yml
+    - tools/ci_required.py
+    - tools/test_ci_required.py
   invariants: &local_invariants
   - DEVEX-RISK-001
   - DEVEX-LOCAL-CHECK-001
   - DEVEX-LOCAL-EFFECT-001
   tests: &local_tests
   - TST-DEVEX-CHECK-001
+  - TST-DEVEX-CI-REQUIRED-001
   controls:
   - id: CTRL-DEVELOPMENT-LOCAL-CHECKS
     change_class: L3_CRITICAL

@@ -1570,6 +1570,17 @@ tests:
     owner: devex-engine
     artifacts: [shadow-control-report]
 
+  - id: TST-DEVEX-CI-REQUIRED-001
+    title: Exact-source General aggregate rejects missing skipped cancelled failed and inapplicable mandatory jobs
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: python tools/test_ci_required.py
+    timeout_seconds: 60
+    owner: devex-engine
+    artifacts: [test-report]
+
   - id: TST-DEVEX-CHECK-001
     title: Changed local runner preflight, actual subprocess failure and timeout, safe scheduling and isolated Python bootstrap
     suite: governance
