@@ -79,9 +79,15 @@ export function parsePolzaOptions(argv) {
     }
   }
   requireValid(!(seen.has('--apply') && seen.has('--check')), 'CONFLICTING_MODE');
-  requireValid(typeof options.model === 'string' && POLZA_MODEL_ID.test(options.model), 'MODEL_ID_INVALID');
+  requireValid(
+    typeof options.model === 'string' && POLZA_MODEL_ID.test(options.model),
+    'MODEL_ID_INVALID',
+  );
   if (options.mode === 'apply') {
-    requireValid(typeof options.actor === 'string' && ACTOR_ID.test(options.actor), 'ADMIN_ACTOR_REQUIRED');
+    requireValid(
+      typeof options.actor === 'string' && ACTOR_ID.test(options.actor),
+      'ADMIN_ACTOR_REQUIRED',
+    );
   } else {
     requireValid(options.actor === null && !options.enableStt, 'CHECK_MUST_BE_READ_ONLY');
   }
@@ -177,7 +183,10 @@ export async function reconcilePolza(options, operations) {
   const changes = [];
   let state = await operations.read();
   let report = inspectPolzaState(state, options.model);
-  requireValid(report.providerEnabled && report.keyConfigured && report.encryptionReady, 'CREDENTIAL_NOT_READY');
+  requireValid(
+    report.providerEnabled && report.keyConfigured && report.encryptionReady,
+    'CREDENTIAL_NOT_READY',
+  );
 
   if (!report.catalogCurrent || !report.modelActive) {
     await operations.refresh();
