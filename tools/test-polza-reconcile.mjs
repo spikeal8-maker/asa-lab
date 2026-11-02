@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createCipheriv } from 'node:crypto';
 import { test } from 'node:test';
 import {
   POLZA_MODEL_ID,
@@ -8,6 +9,7 @@ import {
   selectedModelIds,
   extendGenerationPolicy,
   reconcilePolza,
+  credentialDecryptable,
 } from './polza-reconcile-core.mjs';
 
 const MODEL = 'polza/deepseek/deepseek-v4.1-flash';
@@ -220,4 +222,25 @@ test('policy validation and selected ID merger reject incompatible state safely'
     () => inspectPolzaState({ ...state, policy: { ...state.policy, revision: '7' } }, MODEL),
     { code: 'GENERATION_POLICY_INVALID' },
   );
+});
+
+test('credential check rejects foreign encryption key and tampered ciphertext without exposing key', () => {
+  const key = Buffer.from('a4'.repeat(32), 'hex');
+  const iv = Buffer.from('b3'.repeat(12), 'hex');
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([
+    cipher.update('pza_TestCredentialSynthetic12345', 'utf8'),
+    cipher.final(),
+  ]);
+  const runtime = {
+    api_key_ciphertext: ciphertext.toString('base64url'),
+    api_key_iv: iv.toString('base64url'),
+    api_key_auth_tag: cipher.getAuthTag().toString('base64url'),
+  };
+  assert.equal(credentialDecryptable(runtime, key.toString('hex')), true);
+  assert.equal(credentialDecryptable(runtime, 'f5'.repeat(32)), false);
+  assert.equal(credentialDecryptable(runtime, ''), false);
+  assert.equal(credentialDecryptable({ ...runtime, api_key_auth_tag: 'bad' }, key.toString('hex')), false);
+  assert.equal(credentialDecryptable({ ...runtime, api_key_ciphertext: null }, key.toString('hex')), false);
+  assert.equal(credentialDecryptable(null, key.toString('hex')), false);
 });
