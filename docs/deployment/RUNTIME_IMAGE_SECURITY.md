@@ -161,3 +161,14 @@ and their PostgreSQL derivative. Unknown legacy installations must fail closed;
 they must not silently receive today's PostgreSQL baseline or a raw image ID
 instead of an immutable manifest reference. This slice does not implement or
 claim that later activation/installation step.
+
+The bridge prefetches the exact legacy PostgreSQL manifest before source selection
+or maintenance, even on a fresh host or a host that previously pulled only the
+mirror alias. It checks Linux/amd64 and the official PostgreSQL 17.7 version,
+not an application revision label. On an existing installation it compares the
+running container's config identity with the pulled immutable manifest's image
+identity. An equivalent mirror/tag alias is accepted; a different current image
+(such as PostgreSQL 17.11) is **preserved** and blocks the operation with
+`POSTGRES_MIGRATION_REQUIRED` before source switching, backup or downtime.
+An explicit migration is required to change it. Resolved Compose must retain
+the same versioned legacy manifest; overlays cannot silently replace PostgreSQL.

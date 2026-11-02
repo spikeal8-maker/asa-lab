@@ -3,13 +3,15 @@ import io
 import json
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment.contracts import Blocked, LEGACY_SERVICES, LEGACY_POSTGRES_IMAGES, REGISTRY, SERVICES, V3_SERVICES, validate_release
+import asa_manager
 from deployment.release_channel import publication_channel
-from deployment.releases import apply_release_environment, assert_ci, validate_resolved_images
+from deployment.releases import apply_release_environment, assert_ci, fetch_images, validate_resolved_images
 
 
 def candidate(version):
@@ -71,6 +73,76 @@ class PostgresReleaseTransportTests(unittest.TestCase):
             install.compose.return_value = json.dumps({'services': services})
             with self.assertRaisesRegex(Blocked, 'postgres'):
                 validate_resolved_images(install, release)
+
+    def test_fresh_and_mirror_only_legacy_hosts_pull_and_attest_postgres_first(self):
+        release = candidate(2)
+        reference = LEGACY_POSTGRES_IMAGES[release['format']]
+        image_id = 'sha256:' + 'c' * 64
+        for mirror_only in (False, True):
+            install = MagicMock() if mirror_only else None
+            if install:
+                install.identity.return_value = {'postgres': {'id': 'owned-pg-container', 'image': 'mirror.gcr.io/library/postgres@sha256:' + 'd' * 64}}
+            def docker(args, **kwargs):
+                if '{{.Id}}' in args or '{{.Image}}' in args:
+                    return image_id
+                if '{{.Os}}/{{.Architecture}}' in args:
+                    return 'linux/amd64'
+                if '--version' in args:
+                    return 'postgres (PostgreSQL) 17.7 (Debian 17.7-3.pgdg12+1)'
+                return release['revision']
+            with self.subTest(mirror_only=mirror_only), patch('deployment.releases.run', side_effect=docker) as runner:
+                fetch_images(release, install=install)
+                self.assertEqual(runner.call_args_list[0].args[0], ['docker', 'pull', '--platform', 'linux/amd64', reference])
+                postgres_checks = [c.args[0] for c in runner.call_args_list if reference in c.args[0]]
+                self.assertTrue(any('--version' in args for args in postgres_checks))
+                self.assertFalse(any('org.opencontainers.image.revision' in ' '.join(args) for args in postgres_checks))
+
+    def test_changed_current_postgres_is_preserved_and_requires_explicit_migration(self):
+        install = MagicMock()
+        install.identity.return_value = {'postgres': {'id': 'owned-pg-container'}}
+        def docker(args, **kwargs):
+            if '{{.Id}}' in args:
+                return 'sha256:' + 'c' * 64
+            if '{{.Image}}' in args:
+                return 'sha256:' + 'd' * 64
+            if '--version' in args:
+                return 'postgres (PostgreSQL) 17.7'
+            return 'linux/amd64'
+        with patch('deployment.releases.run', side_effect=docker), self.assertRaises(Blocked) as error:
+            fetch_images(candidate(2), install=install)
+        self.assertEqual(error.exception.code, 'POSTGRES_MIGRATION_REQUIRED')
+        install.compose.assert_not_called()
+
+    def test_failed_legacy_pull_stops_update_before_source_backup_or_downtime(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = MagicMock(root=Path(directory), state=Path(directory), settings={}, profile='dev')
+            release = candidate(2)
+            install.readiness.return_value = {'revision': release['revision'], 'schema': release['schema']}
+            install.env = {name: 'http://127.0.0.1:4610' for name in ('ASA_UPDATE_ENTRY_ORIGIN', 'ASA_BLOCKS_PARENT_ORIGIN', 'ASA_BLOCKS_RUNTIME_ORIGIN')}
+            with patch.object(asa_manager, 'doctor'), patch.object(asa_manager, 'clean_checkout'), patch.object(asa_manager, 'assert_ci'), \
+                    patch.object(asa_manager, 'discover_release', return_value=release), \
+                    patch('deployment.releases.run', side_effect=Blocked('PULL_UNAVAILABLE', 'synthetic missing legacy image', 'test')), \
+                    patch.object(asa_manager, 'selected_source') as source, patch.object(asa_manager, 'export_backup') as backup, self.assertRaises(Blocked) as error:
+                asa_manager.update(install)
+            self.assertEqual(error.exception.code, 'PULL_UNAVAILABLE')
+            source.assert_not_called()
+            backup.assert_not_called()
+            install.compose.assert_not_called()
+
+    def test_legacy_overlay_cannot_replace_postgres(self):
+        for version in (1, 2):
+            release = candidate(version)
+            services = {name: {'image': ref} for name, ref in release['images'].items()}
+            services.update({'postgres': {'image': LEGACY_POSTGRES_IMAGES[release['format']], 'environment': {}},
+                             'migration': {'image': release['images']['api']}, 'minio-init': {'image': release['images']['minio']}})
+            install = MagicMock(profile='dev')
+            with patch('deployment.releases.attest_embedded_editor'), patch('deployment.releases.attest_database_targets'):
+                install.compose.return_value = json.dumps({'services': services})
+                validate_resolved_images(install, release)
+                services['postgres']['image'] = 'postgres:17.11-bookworm'
+                install.compose.return_value = json.dumps({'services': services})
+                with self.assertRaisesRegex(Blocked, 'legacy postgres'):
+                    validate_resolved_images(install, release)
 
     def test_v3_requires_latest_successful_security_for_the_exact_main_sha(self):
         general = {'name': 'ASA Lab Governance and Code Gates', 'head_sha': 'a' * 40,

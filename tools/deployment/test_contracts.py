@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from deployment.contracts import (Blocked, DEFAULT_WINDOW, REGISTRY, SERVICES, atomic_json,
+from deployment.contracts import (Blocked, DEFAULT_WINDOW, REGISTRY, SERVICES, LEGACY_POSTGRES_IMAGES, atomic_json,
                                   attest_database_targets, attest_embedded_editor, attest_proxy_policy, proxy_provenance_diagnostic, exact_origin, in_window, inventory_files, read_env, safe_member,
                                   validate_release, verify_backup, verify_embedded_entry_http)
 from deployment.backup import recovery_configuration
@@ -170,7 +170,7 @@ class ReleaseTests(unittest.TestCase):
         services = {name: {"image": candidate["images"][name]} for name in SERVICES}
         services["migration"] = {"image": candidate["images"]["api"]}
         services["minio-init"] = {"image": candidate["images"]["minio"]}
-        services["postgres"] = {"environment": {}}
+        services["postgres"] = {"environment": {}, "image": LEGACY_POSTGRES_IMAGES[candidate["format"]]}
         config = {"services": services}
         install = MagicMock(profile="dev")
         install.compose.return_value = json.dumps(config)

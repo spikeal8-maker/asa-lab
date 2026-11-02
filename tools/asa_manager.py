@@ -195,7 +195,7 @@ def update(install, *, check=False, scheduled=False, fresh=False):
             'trigger':'automatic' if scheduled else 'manual', 'phase':'verify_entry',
             'selected':release, 'previous':before}))
         return
-    fetch_images(release)
+    fetch_images(release, install=None if fresh else install)
     selected_source(install, release, existing=not fresh)
     install = Installation(install.root, install.profile)
     selected_preparation = prepare_collector(install)

@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 import tempfile
 import urllib.request
@@ -62,7 +63,33 @@ def assert_ci(release):
                 "Resolve that exact workflow; do not bypass the gate or update to another SHA silently.")
 
 
-def fetch_images(release):
+def legacy_postgres_reference(release):
+    require(release.get("format") in LEGACY_POSTGRES_IMAGES, "POSTGRES_BASELINE",
+            "Unknown legacy PostgreSQL baseline; an explicit migration plan is required.")
+    return LEGACY_POSTGRES_IMAGES[release["format"]]
+
+
+def fetch_legacy_postgres(release, install=None):
+    reference = legacy_postgres_reference(release)
+    # Pull before source selection, backup or downtime, including fresh/mirror-only hosts.
+    run(["docker", "pull", "--platform", "linux/amd64", reference])
+    image_id = run(["docker", "image", "inspect", "--format", "{{.Id}}", reference], capture=True)
+    require(re.fullmatch(r"sha256:[a-f0-9]{64}", image_id), "POSTGRES_IDENTITY", "Legacy PostgreSQL image identity is unavailable.")
+    platform = run(["docker", "image", "inspect", "--format", "{{.Os}}/{{.Architecture}}", reference], capture=True)
+    require(platform == "linux/amd64", "POSTGRES_PLATFORM", "Legacy PostgreSQL platform differs.")
+    version = run(["docker", "run", "--rm", "--network", "none", "--entrypoint", "postgres", reference, "--version"], capture=True)
+    require(version.split()[:3] == ["postgres", "(PostgreSQL)", "17.7"], "POSTGRES_VERSION", "Legacy PostgreSQL version differs from its attested baseline.")
+    if install is not None:
+        record = install.identity()["postgres"]
+        current_id = run(["docker", "inspect", "--format", "{{.Image}}", record["id"]], capture=True)
+        require(current_id == image_id, "POSTGRES_MIGRATION_REQUIRED",
+                "The existing PostgreSQL image differs from the historical release baseline; it is preserved.",
+                "Prepare an explicit PostgreSQL migration before applying this legacy release; do not substitute images.")
+
+
+def fetch_images(release, install=None):
+    if "postgres" not in release["images"]:
+        fetch_legacy_postgres(release, install)
     for service in release["images"]:
         reference = release["images"][service]
         print(f"IMAGE {service}: downloading missing layers", flush=True)
@@ -77,7 +104,7 @@ def apply_release_environment(install, release):
     if "postgres" not in release["images"]:
         # v1/v2 releases predate the managed PostgreSQL derivative. Preserve their
         # original versioned PostgreSQL selection, never today's security candidate.
-        install.process_env["ASA_POSTGRES_IMAGE"] = LEGACY_POSTGRES_IMAGES[release["format"]]
+        install.process_env["ASA_POSTGRES_IMAGE"] = legacy_postgres_reference(release)
     for service in release["images"]:
         install.process_env[f"ASA_{service.upper()}_IMAGE"] = release["images"][service]
 
@@ -86,6 +113,10 @@ def validate_resolved_images(install, release):
     config = json.loads(install.compose("config", "--format", "json", capture=True))
     attest_embedded_editor(config, install.env.get('ASA_UPDATE_ENTRY_ORIGIN'), install.profile)
     attest_database_targets(config, config["services"]["postgres"]["environment"])
+    if "postgres" not in release["images"]:
+        require(config["services"]["postgres"]["image"] == legacy_postgres_reference(release),
+                "IMAGE_OVERRIDE", "Compose overrides the pinned legacy postgres image.",
+                "Preserve the versioned legacy PostgreSQL reference; use an explicit migration for another image.")
     for service in (*release["images"], "migration"):
         expected = release["images"]["api" if service == "migration" else service]
         require(config["services"][service]["image"] == expected, "IMAGE_OVERRIDE", f"Compose overrides the pinned {service} image.",
