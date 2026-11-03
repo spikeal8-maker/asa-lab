@@ -80,8 +80,8 @@ function decodeRenderedQrPixels(png: PNG, rasterScale = 1): string {
 const printQrRasterScale = 300 / 96;
 
 function assertPrintQrSampling(png: PNG, cssBox: { width: number; height: number }): void {
-  // Locator screenshots enclose the SVG in whole CSS pixels; rasterization can add
-  // one device pixel. A 96-DPI PNG is far outside this explicit rounding allowance.
+  // Keep the bounded crop/raster rounding allowance. A 96-DPI PNG remains far
+  // outside the required 300-DPI dimensions; no decoder fallback can relax this.
   const tolerance = 2 * printQrRasterScale + 1;
   if (
     !Number.isFinite(cssBox.width) ||
@@ -119,6 +119,7 @@ async function decodePrintedQr(page: Page, qr: Locator): Promise<string> {
   // Refuse a custom-screen context rather than silently changing its semantics.
   expect(original.screenWidth).toBe(originalViewport!.width);
   expect(original.screenHeight).toBe(originalViewport!.height);
+  await qr.scrollIntoViewIfNeeded();
   const cssBox = await qr.boundingBox();
   expect(cssBox).not.toBeNull();
   const lowResolution = PNG.sync.read(await qr.screenshot({ scale: 'device' }));
@@ -128,6 +129,7 @@ async function decodePrintedQr(page: Page, qr: Locator): Promise<string> {
   expect(() => assertPrintQrSampling(lowResolution, cssBox!)).toThrow(/300 DPI/);
 
   const cdp = await page.context().newCDPSession(page);
+  let observedPrintPng: { width: number; height: number } | null = null;
   let sampled: { width: number; height: number } | null = null;
   let restored: typeof original;
   try {
@@ -144,9 +146,26 @@ async function decodePrintedQr(page: Page, qr: Locator): Promise<string> {
     expect(printBox).not.toBeNull();
     expect(printBox!.width).toBe(cssBox!.width);
     expect(printBox!.height).toBe(cssBox!.height);
-    const png = PNG.sync.read(await qr.screenshot({ scale: 'device' }));
+    const scroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
+    // Chromium samples with the capturing session's emulation parameters. The
+    // Playwright locator uses its original DPR-1 session, so capture the actual
+    // SVG through the same temporary session that owns the 300-DPI override.
+    const capture = await cdp.send('Page.captureScreenshot', {
+      format: 'png',
+      fromSurface: true,
+      captureBeyondViewport: true,
+      clip: {
+        x: printBox!.x + scroll.x,
+        y: printBox!.y + scroll.y,
+        width: printBox!.width,
+        height: printBox!.height,
+        scale: 1,
+      },
+    });
+    const png = PNG.sync.read(Buffer.from(capture.data, 'base64'));
+    observedPrintPng = { width: png.width, height: png.height };
     assertPrintQrSampling(png, printBox!);
-    sampled = { width: png.width, height: png.height };
+    sampled = observedPrintPng;
 
     const border = qrQuietBorder(png.width, png.height, printQrRasterScale);
     expect(border).toBe(13);
@@ -189,9 +208,11 @@ async function decodePrintedQr(page: Page, qr: Locator): Promise<string> {
     await test.info().attach('printed-qr-raster-resolution', {
       body: Buffer.from(
         JSON.stringify({
-          dpi: 300,
+          requestedPrintDpi: 300,
           css: { width: cssBox!.width, height: cssBox!.height },
           png96: { width: lowResolution.width, height: lowResolution.height },
+          observedPrintPng,
+          printSamplingVerified: sampled !== null,
           png300: sampled,
           restoredAfterDetach: restored,
           actualPdfAcceptance: 'NOT_RUN',
