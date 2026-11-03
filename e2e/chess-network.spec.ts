@@ -66,7 +66,7 @@ test('private history loads the 26th real durable match after reload', async ({
     // Teacher is not a participant and cannot see pupils' private history.
     expect((await (await page.request.get('/api/games/chess/history')).json()).matches).toEqual([]);
     await openChessGame(a.page, 'История из 26 реальных партий');
-    await a.page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    await a.page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
     await a.page.reload();
     const history = a.page
       .getByRole('heading', { name: 'Мои сетевые партии', exact: true })
@@ -242,7 +242,7 @@ test('failed optional network chunk stays local until explicit user reload resto
       },
       { times: 1 },
     );
-    await page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    await page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
     await expect(
       page.getByText('Не удалось загрузить сетевые шахматы. Повторная загрузка обновит страницу.', {
         exact: true,
@@ -316,7 +316,7 @@ test('stalled optional network chunk reaches a finite local deadline and explici
       },
       { times: 1 },
     );
-    await page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    await page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
     await expect.poll(() => Boolean(heldRoute)).toBe(true);
     await expect(page.getByText('Загружаем сетевые шахматы…', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Главная', exact: true })).toBeEnabled();
@@ -508,14 +508,72 @@ test('real two-pupil Chess, teacher controls, reconnect/history and all opponent
     }
     await page.setViewportSize({ width: 1440, height: 900 });
     await openChessGame(a.page, 'Реальная сетевая партия — белые');
-    await a.page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    await a.page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
     await openChessGame(b.page, 'Реальная сетевая партия — чёрные');
-    await b.page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    await b.page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
     await a.page.getByLabel('Ваш цвет', { exact: true }).selectOption('white');
-    await a.page.getByRole('button', { name: 'Создать приглашение', exact: true }).click();
-    const code = (await a.page.getByLabel('Ваш код приглашения').innerText()).trim();
-    await b.page.getByLabel('Код приглашения', { exact: true }).fill(code);
-    await b.page.getByRole('button', { name: 'Принять приглашение', exact: true }).click();
+    const avatarSaved = await b.page.request.put('/api/class-join/me/avatar', {
+      headers: { origin },
+      data: { avatarKey: 'asa-avatar-07' },
+    });
+    expect(avatarSaved.ok(), await avatarSaved.text()).toBe(true);
+    const bPlayer = (await (await b.page.request.get('/api/games/chess/access')).json()).player;
+    const peer = a.page.locator(`[data-player-id="${bPlayer.playerId}"]`);
+    const currentLobby = await (
+      await post(a.page.request, origin, 'lobby', { scope: 'classroom' })
+    ).json();
+    const expectedAvatar = currentLobby.players.find(
+      (p: { playerId: string }) => p.playerId === bPlayer.playerId,
+    ).avatarUrl;
+    await expect(peer.locator('img')).toHaveAttribute('src', expectedAvatar, { timeout: 15000 });
+
+    await expect(
+      peer.getByRole('button', { name: 'Пригласить играть', exact: true }),
+    ).toBeEnabled();
+    await expect(peer.locator('img')).toHaveAttribute(
+      'src',
+      new RegExp(`/players/${bPlayer.playerId}/avatar`),
+    );
+    await expect
+      .poll(() =>
+        peer
+          .locator('img')
+          .evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0),
+      )
+      .toBe(true);
+    const avatar = await a.page.request.get(
+      `/api/games/chess/players/${bPlayer.playerId}/avatar?scope=classroom`,
+      { maxRedirects: 0 },
+    );
+    expect(avatar.status()).toBe(302);
+    expect(avatar.headers()['location']).toBe('/assets/avatars/default/avatar-07.webp');
+    for (const width of [1440, 1024, 390, 320]) {
+      await a.page.setViewportSize({ width, height: 900 });
+      expect(await a.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await a.page.screenshot({
+        path: `${evidence}/class-lobby-avatars-${width}.png`,
+        fullPage: true,
+      });
+    }
+    await a.page.setViewportSize({ width: 1440, height: 900 });
+    // Recipient can be elsewhere on the portal; the common header owns delivery.
+    await b.page.goto(`${origin}/#/games`);
+    await peer.getByRole('button', { name: 'Пригласить играть', exact: true }).click();
+    const invitedGame = b.page.getByRole('button', {
+      name: 'Посмотреть приглашения: Шахматы',
+      exact: true,
+    });
+    await expect(invitedGame).toContainText('Вас приглашают играть', { timeout: 15000 });
+    await expect(
+      b.page.getByRole('link', { name: 'Игры', exact: true }).locator('.game-invitation-badge'),
+    ).toHaveText('1');
+    await invitedGame.click();
+
+    const received = b.page.getByRole('region', { name: 'Входящие вызовы' });
+    await expect(received.locator('img')).toBeVisible({ timeout: 15000 });
+    await received.getByRole('button', { name: 'Принять вызов', exact: true }).click();
     await expect(a.page.getByTestId('asa-chess-board')).toBeVisible();
     await a.page.locator('[data-square="e2"]').click();
     await a.page.locator('[data-square="e4"]').click();
@@ -619,6 +677,16 @@ test('real two-pupil Chess, teacher controls, reconnect/history and all opponent
       crossTenant.id,
     ]);
     expect(stored.rows[0].status).toBe('aborted');
+    expect((await post(a.page.request, origin, 'lobby', { scope: 'classroom' })).status()).toBe(
+      403,
+    );
+    expect(
+      (
+        await a.page.request.get(
+          `/api/games/chess/players/${bPlayer.playerId}/avatar?scope=classroom`,
+        )
+      ).status(),
+    ).toBe(403);
     // Network OFF still leaves local board playable; games OFF removes an already mounted board.
     await a.page.goto(a.page.url().replace(/\/network$/, '/play/game'));
     await expect(a.page.getByTestId('asa-chess-board').locator('[data-square="e2"]')).toBeEnabled();
@@ -725,7 +793,7 @@ test('two pupils finish white and black checkmates with personal outcomes on des
       learner.page.on('pageerror', (error) => errors.push(error.message));
       await learner.page.setViewportSize({ width: 390, height: 900 });
       await openChessGame(learner.page, 'Партия до мата');
-      await learner.page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+      await learner.page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
     }
     async function readMatch(view: Page, id: string) {
       const response = await view.request.get(`/api/games/chess/matches/${id}`);
