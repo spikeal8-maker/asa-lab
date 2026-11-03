@@ -178,6 +178,16 @@ jobs:
       # makes a local PASS mean the same thing as this job.
       # Observe the disposable test container; keep the mandatory gate itself
       # byte-for-byte unchanged, including command, environment and exit status.
+      - name: Web cache native hasher in protected test image
+        env:
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: |
+          export ASA_TEST_UID="$(id -u)" ASA_TEST_GID="$(id -g)"
+          test "$ASA_TEST_UID" -ne 0
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test run --rm --no-deps test-runner pnpm exec vitest run tests/production/nx-web-cache.spec.ts --maxWorkers=1
+
       - name: Capture disposable test container output
         env:
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}

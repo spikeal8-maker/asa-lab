@@ -6,9 +6,6 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 
 const require = createRequire(import.meta.url);
-// Exercise the installed, pinned Nx hasher rather than reproducing its rules.
-const { NativeTaskHasherImpl } = require('nx/src/hasher/native-task-hasher-impl.js');
-const { WorkspaceContext } = require('nx/src/native/index.js');
 const root = resolve(import.meta.dirname, '../..');
 const project = JSON.parse(readFileSync(join(root, 'apps/web/project.json'), 'utf8'));
 const nx = JSON.parse(readFileSync(join(root, 'nx.json'), 'utf8'));
@@ -51,8 +48,8 @@ afterAll(() => {
 // Use the same native workspace file-map API as Nx production graph creation.
 // Keep its cache outside the checkout and reuse it across isolated invocations.
 const workspaceCache = fixture();
-const workspaceContext = new WorkspaceContext(root, workspaceCache);
-const { externalReferences } = workspaceContext.getWorkspaceFiles({ 'apps/web': 'web' });
+const workspaceData = fixture();
+const taskCache = fixture();
 
 const environment = {
   ...process.env,
@@ -66,24 +63,38 @@ const environment = {
   NODE_ENV: 'production',
 };
 async function hash(env: Record<string, string | undefined> = environment) {
-  const hasher = new NativeTaskHasherImpl(root, nx, graph, externalReferences, {
-    selectivelyHashTsConfig: false,
-  });
-  return (await hasher.hashTask(task, taskGraph, env, root)).value;
+  return isolatedHash(env);
 }
 
-// Nx memoizes runtime commands within an invocation. A Git HEAD change between
-// builds needs separate invocations without changing the actual repository.
+// Exercise the installed, pinned Nx hasher in a fresh process for every build.
+// This isolates native loading from Vitest and Nx's runtime-command memoization.
 function isolatedHash(env: Record<string, string | undefined>) {
   const script = `
     const { root, nx, graph, task, taskGraph, implementation, native, workspaceCache } = JSON.parse(process.argv[1]);
-    const { NativeTaskHasherImpl } = require(implementation);
-    const { WorkspaceContext } = require(native);
-    const workspaceContext = new WorkspaceContext(root, workspaceCache);
-    const { externalReferences } = workspaceContext.getWorkspaceFiles({'apps/web': 'web'});
-    const hasher = new NativeTaskHasherImpl(root, nx, graph,
-      externalReferences, {selectivelyHashTsConfig: false});
-    hasher.hashTask(task, taskGraph, process.env, root).then(result => process.stdout.write(result.value));
+    let binding;
+    async function run() {
+      binding = require(native);
+      if (binding.IS_WASM === true || typeof binding.WorkspaceContext !== 'function')
+        throw new Error('Native workspace backend unavailable');
+      const { NativeTaskHasherImpl } = require(implementation);
+      const workspaceContext = new binding.WorkspaceContext(root, workspaceCache);
+      const { externalReferences } = workspaceContext.getWorkspaceFiles({'apps/web': 'web'});
+      const hasher = new NativeTaskHasherImpl(root, nx, graph,
+        externalReferences, {selectivelyHashTsConfig: false});
+      const result = await hasher.hashTask(task, taskGraph, process.env, root);
+      // Retain the native context until its asynchronous hash has resolved.
+      return {value: result.value, workspaceContext};
+    }
+    run().then(({value}) => process.stdout.write(value)).catch(error => {
+      console.error('Nx cache-test backend failure: ' + JSON.stringify({
+        platform: process.platform, arch: process.arch, node: process.version,
+        wasm: binding?.IS_WASM ?? null,
+        workspaceContext: typeof binding?.WorkspaceContext,
+        taskHasher: typeof binding?.TaskHasher,
+        error: error.name, code: error.code ?? null
+      }));
+      process.exitCode = 1;
+    });
   `;
   return execFileSync(
     process.execPath,
@@ -101,7 +112,19 @@ function isolatedHash(env: Record<string, string | undefined>) {
         workspaceCache,
       }),
     ],
-    { env, cwd: root, encoding: 'utf8', windowsHide: true },
+    {
+      env: {
+        ...env,
+        // Load the trusted installed binding in place; this is not task caching.
+        NX_SKIP_NATIVE_FILE_CACHE: 'true',
+        NX_WORKSPACE_DATA_DIRECTORY: workspaceData,
+        NX_CACHE_DIRECTORY: taskCache,
+        NX_SKIP_NX_CACHE: 'true',
+      },
+      cwd: root,
+      encoding: 'utf8',
+      windowsHide: true,
+    },
   );
 }
 
