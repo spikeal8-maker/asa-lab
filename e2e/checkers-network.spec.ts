@@ -426,7 +426,8 @@ test('two real pupils finish normal Checkers games for both sides with honest re
     !new URL(process.env['APP_TEST_DATABASE_URL']).pathname.endsWith('_test')
   )
     throw Error('Isolated Checkers CI required');
-  const { chooseCheckersBotMove, validateCheckersDocument } = await import('@asa-lab/checkers');
+  const { chooseCheckersBotMove, validateCheckersDocument } =
+    await import('../contexts/checkers/dist/index.js');
   const admin = e2eAdminPool();
   const contexts: Awaited<ReturnType<Browser['newContext']>>[] = [];
   const origin = new URL(baseURL!).origin;

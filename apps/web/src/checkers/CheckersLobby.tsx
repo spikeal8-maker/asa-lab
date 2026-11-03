@@ -76,6 +76,8 @@ export function CheckersLobby({
             <p>
               <strong>Незавершённая партия</strong>
               <br />
+              {model.resume.title}
+              <br />
               {model.resume.detail}
             </p>
           )}
@@ -88,13 +90,18 @@ export function CheckersLobby({
             <p aria-label={model.learningProgressLabel}>{model.learningProgressLabel}</p>
             {model.classPlayAvailable && (
               <button type="button" onClick={() => onOpen('class-play')}>
-                Учебные партии класса
+                Открыть игры класса
               </button>
             )}
+            {model.assignments.length > 0 && <h2>Назначенные задания</h2>}
             {model.assignments.map((item) => (
-              <button type="button" key={item.id} onClick={() => onOpen(item.id)}>
-                {item.title}
-              </button>
+              <article key={item.id}>
+                <h3>{item.title}</h3>
+                <p>{item.description}</p>
+                <button type="button" onClick={() => onOpen(item.id)}>
+                  Открыть
+                </button>
+              </article>
             ))}
             {model.teacherFeedback && <p>{model.teacherFeedback}</p>}
           </details>

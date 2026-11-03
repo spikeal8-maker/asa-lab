@@ -315,7 +315,11 @@ test('two players share one device, reload the local match and finish with a rem
   });
 
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Локальная партия' })).toBeVisible();
+  await expect(page.getByLabel('Доска для русских шашек, 8 на 8')).toHaveAttribute(
+    'data-orientation',
+    'dark',
+  );
+  await page.getByRole('button', { name: 'Вернуться в кабинет шашек', exact: true }).click();
   await expect(page.getByText(/Игра вдвоём · ход тёмных/)).toBeVisible();
   await page.getByRole('button', { name: 'Продолжить партию' }).click();
   await expect(page.getByLabel('Доска для русских шашек, 8 на 8')).toHaveAttribute(
@@ -458,6 +462,7 @@ test('teacher assigns real class work and sees the learner evidence after comple
   await studentPage.goto(
     `/#/classrooms/${classroom.classroom.id}/projects/${projectId}?title=${encodeURIComponent(classroom.classroom.title)}`,
   );
+  await studentPage.getByText('Обучение и задания', { exact: true }).click();
   await expect(studentPage.getByRole('heading', { name: 'Назначенные задания' })).toBeVisible();
   await expect(studentPage.getByText('Серии взятий · практика').first()).toBeVisible();
   await studentPage
@@ -595,6 +600,7 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
   const route = `/#/classrooms/${classroom.classroom.id}/projects/${projectId}`;
 
   await firstPage.goto(route);
+  await firstPage.getByText('Обучение и задания', { exact: true }).click();
   await expect(firstPage.getByText('Персональная серия для Ани').first()).toBeVisible();
   await expect(firstPage.getByText('Группа тактиков · общий набор').first()).toBeVisible();
   await firstPage.getByRole('button', { name: 'Открыть игры класса' }).click();
@@ -622,6 +628,7 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
   await expect(firstPage.getByText('Вызов отправлен однокласснику')).toBeVisible();
 
   await secondPage.goto(route);
+  await secondPage.getByText('Обучение и задания', { exact: true }).click();
   await expect(secondPage.getByText('Персональная серия для Ани')).toHaveCount(0);
   await expect(secondPage.getByText('Группа тактиков · общий набор').first()).toBeVisible();
   await secondPage.getByRole('button', { name: 'Открыть игры класса' }).click();
@@ -636,7 +643,9 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
     .click();
 
   await firstPage.reload();
-  await firstPage.getByRole('button', { name: 'Открыть игры класса' }).click();
+  await expect(
+    firstPage.getByRole('heading', { name: 'Вызовы только своим одноклассникам' }),
+  ).toBeVisible();
   await firstPage
     .getByRole('article')
     .filter({ hasText: 'Борис Диагональ' })
@@ -679,7 +688,9 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
   expect(authoredText.status()).toBe(400);
 
   await secondPage.reload();
-  await secondPage.getByRole('button', { name: 'Открыть игры класса' }).click();
+  await expect(
+    secondPage.getByRole('heading', { name: 'Вызовы только своим одноклассникам' }),
+  ).toBeVisible();
   await secondPage
     .getByRole('article')
     .filter({ hasText: 'Аня Комбинация' })

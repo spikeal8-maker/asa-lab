@@ -16,3 +16,24 @@
 .asa-chess-portal-content .checkers-experience {
   min-height: calc(100dvh - var(--portal-header-height, 56px));
 }
+.asa-chess-portal-content .editor-header-avatar,
+.asa-chess-portal-content .editor-header-brand-mark,
+.asa-chess-portal-content .editor-header-brand-name {
+  display: none;
+}
+.asa-chess-portal-content .editor-header-brand {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+  justify-content: center;
+}
+.asa-chess-portal-content .editor-header-brand::before {
+  content: '←';
+  font-size: 22px;
+}
+.asa-chess-portal-content .editor-header {
+  position: relative;
+  top: auto;
+  box-shadow: none;
+  background: #fff;
+}

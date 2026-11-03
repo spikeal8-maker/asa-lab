@@ -2,7 +2,8 @@ import { beforeAll, afterAll, describe } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import type pg from 'pg';
 import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
-import { checkersNetworkStorageContract, type NetworkSql } from './checkers-storage-contract';
+import { checkersNetworkStorageContract } from './checkers-storage-contract';
+import type { NetworkSql } from './storage-contract';
 describe('Checkers network migrated SQL — disposable embedded PostgreSQL', () => {
   let db: PGlite;
   let admin: NetworkSql;
