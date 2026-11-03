@@ -114,6 +114,116 @@ def run_cli(root: Path, *arguments: str, env: dict[str, str] | None = None):
 
 
 class AgentContextTests(unittest.TestCase):
+    def test_bulk_validation_reuses_reads_without_changing_lane_contexts(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            snapshot = available("AGENTS.md", "docs/product/electronics/README.md")
+            with patch.object(MODULE, "_git_status", return_value=snapshot):
+                expected = [
+                    MODULE.build_context(root, document, item)
+                    for item in MODULE.collect_lanes(document)
+                ]
+            observed = []
+            render = MODULE.render_text
+
+            def capture(context):
+                observed.append(context)
+                return render(context)
+
+            with (
+                patch.object(MODULE, "_git_status", return_value=snapshot) as git,
+                patch.object(MODULE, "load_registry", wraps=MODULE.load_registry) as registry,
+                patch.object(MODULE, "render_text", side_effect=capture),
+            ):
+                errors = MODULE.validate_all(root, document)
+            self.assertEqual(errors, [])
+            self.assertEqual(observed, expected)
+            git.assert_called_once_with(root)
+            registry.assert_called_once_with(root)
+
+    def test_bulk_validation_reads_fresh_git_and_registry_on_next_invocation(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            observed = []
+            render = MODULE.render_text
+
+            def capture(context):
+                observed.append(context)
+                return render(context)
+
+            with (
+                patch.object(MODULE, "_git_status", side_effect=[available(), available("AGENTS.md")]) as git,
+                patch.object(MODULE, "load_registry", wraps=MODULE.load_registry) as registry,
+                patch.object(MODULE, "render_text", side_effect=capture),
+            ):
+                self.assertEqual(MODULE.validate_all(root, document), [])
+                (root / MODULE.DOCUMENT_REGISTRY).write_text("documents: []\n", encoding="utf-8")
+                self.assertEqual(MODULE.validate_all(root, document), [])
+            count = len(MODULE.collect_lanes(document))
+            before, after = observed[:count], observed[count:]
+            self.assertEqual(len(after), count)
+            self.assertTrue(all(not item["recovery"]["required"] for item in before))
+            self.assertTrue(all(item["recovery"]["required"] for item in after))
+            self.assertTrue(all(item["dirty"]["shared_paths"] == ["AGENTS.md"] for item in after))
+            self.assertEqual(before[-1]["document_routes"]["read_if_needed"][0]["id"], "ELECTRONICS-MASTER")
+            self.assertEqual(after[-1]["document_routes"]["read_if_needed"], [])
+            self.assertEqual(git.call_count, 2)
+            self.assertEqual(registry.call_count, 2)
+
+    def test_standalone_context_still_reads_fresh_state_by_default(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            with patch.object(MODULE, "_git_status", side_effect=[available(), available("AGENTS.md")]):
+                before = MODULE.build_context(root, document, lane(document))
+                (root / MODULE.DOCUMENT_REGISTRY).write_text("documents: []\n", encoding="utf-8")
+                after = MODULE.build_context(root, document, lane(document))
+            self.assertFalse(before["recovery"]["required"])
+            self.assertTrue(after["recovery"]["required"])
+            self.assertTrue(before["document_routes"]["read_if_needed"])
+            self.assertEqual(after["document_routes"]["read_if_needed"], [])
+
+    def test_bulk_validation_unknown_git_fails_every_lane(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            unknown = {"state": "unavailable", "message": "git failed", "paths": None}
+            with patch.object(MODULE, "_git_status", return_value=unknown):
+                errors = MODULE.validate_all(root, document)
+            self.assertEqual(errors, [
+                f"lane {item['id']} git status is unavailable; working-tree intersections are unknown"
+                for item in MODULE.collect_lanes(document)
+            ])
+
+    def test_bulk_validation_rejects_registry_corrupted_after_success(self):
+        for content in ("documents: [\n", "documents: {}\n"):
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                document = fixture(root)
+                with patch.object(MODULE, "_git_status", return_value=available()):
+                    self.assertEqual(MODULE.validate_all(root, document), [])
+                    (root / MODULE.DOCUMENT_REGISTRY).write_text(content, encoding="utf-8")
+                    errors = MODULE.validate_all(root, document)
+                self.assertTrue(errors)
+                self.assertTrue(all(MODULE.DOCUMENT_REGISTRY in error for error in errors))
+
+    def test_bulk_validation_checks_later_lanes_after_errors_and_keeps_budget(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            document["task"]["checkpoint"] = "x" * MODULE.MAX_RENDERED_CHARS
+            document["parallel_lanes"][0]["task"] = None
+            document["parallel_lanes"].append({"id": "last", "task": {}, "gates": {}})
+            with patch.object(MODULE, "_git_status", return_value=available()):
+                errors = MODULE.validate_all(root, document)
+            self.assertEqual(len(errors), 3)
+            self.assertIn("lane primary context is", errors[0])
+            self.assertIn(f"maximum is {MODULE.MAX_RENDERED_CHARS}", errors[0])
+            self.assertEqual(errors[1], "lane electronics has no task mapping")
+            self.assertEqual(errors[2], "lane last has no gate commands")
+
     def test_scratch_routes_to_selected_card_without_preloading_master(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
