@@ -764,8 +764,16 @@ class Collector:
             actual = canonical["Config"]["Labels"].get("com.docker.compose.project.working_dir", "")
             if os.path.normcase(os.path.abspath(actual)) != os.path.normcase(str(self.root)):
                 raise RuntimeError("Collector root differs from the canonical installation")
-            if any(c['Config']['Labels'].get('com.docker.compose.project.working_dir') != actual for c in inspected):
-                raise RuntimeError('Mixed installation roots; collection stopped')
+            if any(c['Config']['Labels'].get('com.docker.compose.project.working_dir') != actual or
+                   c['Config']['Labels'].get('com.docker.compose.project') != project for c in inspected):
+                raise RuntimeError('Mixed installation roots/projects; collection stopped')
+            observed_services = [c['Config']['Labels'].get('com.docker.compose.service') for c in inspected]
+            previous_services = operational.compose_service_ids(self.state('docker:required-services', []))
+            required_services = operational.compose_service_ids(previous_services, observed_services)
+            self.set_state('docker:required-services', required_services)
+            for service in set(previous_services) - set(observed_services):
+                self.status(service + ':recent', 'unavailable',
+                            'Previously observed canonical Compose service is absent from the current inventory')
             if getattr(self, 'sampler', None):
                 self.sampler.set_targets(tuple(c['Id'] for c in inspected if c.get('State', {}).get('Running', True)), canonical['Id'])
             self.postgres = canonical["Id"]
@@ -1715,7 +1723,8 @@ class Collector:
         audit_public = {k:v for k,v in audit.items() if k not in ('boundary',)}
         if audit and audit.get('state') != 'complete' and time.time() > audit.get('deadline', 0): audit_public['state'] = 'overdue'
         catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), historyAudit=audit_public, sources=sources, segments=segments,
-            requiredSources=operational.required_sources(self.config, DATABASE_DIAGNOSTICS['sources'], 'windows' if os.name == 'nt' else 'linux'))
+            requiredSources=operational.required_sources(self.config, DATABASE_DIAGNOSTICS['sources'],
+                'windows' if os.name == 'nt' else 'linux', self.state('docker:required-services', [])))
         atomic_bytes(self.store / 'catalog.json', json.dumps(catalog, ensure_ascii=False).encode('utf-8'))
         self.verified_metadata = {s['file']: s for s in segments}
         # The resource spool remains replayable until both index and catalog
