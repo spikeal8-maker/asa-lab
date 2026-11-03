@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_f_minimal_entry_selected
+      checkpoint: package_f_diagnostic_marker_repair
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,26 +111,27 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ca07246b5c74f5dc5bb3b05b8055c2d8c0b8aa65
+      convergence_baseline_sha: 9e75103c17bbacfa989e3d73dc555ef4a554e32e
       head_sha: null
-      observed_at: '2026-11-03T05:48:05Z'
+      observed_at: '2026-11-03T06:13:55Z'
       main:
         branch: main
-        sha: ca07246b5c74f5dc5bb3b05b8055c2d8c0b8aa65
+        sha: 9e75103c17bbacfa989e3d73dc555ef4a554e32e
       observation_note: >-
-        D remains partial: accepted addressed focused routing PR967 and release-consumer protection PR969;
-        source82029c57 General41565687242 all5 and Main50b1dc15 General41579600641 succeeded.
-        Conditional General still waits for dirty tools/test_ci_image_transport.py in old D13.
-        Owner authorized one scoped coordination on3November; current Electronics chat did not confirm
-        ownership or release. No foreign WIP actions or additional messages are authorized here.
-        Independent E-WEB-CACHE-001 source4821f638 is published in PR974, focused11PASS, critical reviewPASS,
-        required sourceCI still pending. Its executor stopped; continue observing that exact SHA unchanged.
-        Owner expressly permits independent safe E/F/G work while D is blocked. Select only independent
-        F-MINIMAL-ENTRY-001: align the two existing entry documents with one exact-path preflight and honest
-        verify-plan semantics. F paths do not intersect E or D; E integration still requires successful CI.
-        Mainca07246b full General41582814382 succeeded before this selection. Preserve full main/release
-        and uncached owner-evidence gates. Product UI pilots remain unmerged; no release or runtime claim.
-        Fetch main before writes; recover exact source and CI before the next bounded action.
+        D remains partial; accepted routing PR967 and release protection PR969 are preserved. Conditional
+        General still waits for dirty tools/test_ci_image_transport.py in old D13. One scoped coordination
+        did not confirm ownership or release; no foreign WIP actions or additional messages.
+        E repair source90f73f7d is published in PR974 after normal Main convergence, focused11PASS and new
+        independent reviewPASS. Production WorkspaceContext replaces unavailable test-only API, and one
+        unconditional early concrete Vitest step preserves every original General gate/control. Linux/full
+        sourceCI41588340385 is pending unchanged. Previous4821 own Data failure remains recorded, not waived.
+        F sourcec1962aaf PR975 has own Governance41586783684 FAIL: delivery guidance omitted the required
+        diagnostic marker pnpm agent:context --scope <lane>. Other Scratch/CLA/shadow checks passed.
+        Select only F-DIAGNOSTIC-MARKER-REPAIR-001: restore the exact example as optional SAFE_ACTION
+        diagnosis in the existing delivery document, without restoring six startup commands or changing its
+        validator. E executor stopped and its pending source is immutable; paths do not intersect.
+        Owner authorizes independent E/F/G. Keep full Main/release and uncached owner evidence. No release,
+        runtime, database, Docker or network action. Fetch main before writes and recover exact source/CI.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -143,14 +144,24 @@ parallel_lanes:
     programme:
       id: ASA-DEVEX-ENGINE-001
       selected_slice: F
-      selected_subslice: F-MINIMAL-ENTRY-001
+      selected_subslice: F-DIAGNOSTIC-MARKER-REPAIR-001
       verification_pending_slices:
         - id: E-WEB-CACHE-001
-          source_sha: 4821f6389afdb794db2efb24e5b93a692bdf40dc
+          source_sha: 90f73f7dc0710c184a43b531f5a2b60945861b85
           pr: 974
           independent_review: PASS
           ci_status: pending
-          general_run: 41584888372
+          previous_failed_source_sha: 4821f6389afdb794db2efb24e5b93a692bdf40dc
+          previous_failure_classification: own_regression_test_linux_api
+          general_run: 41588340385
+          integration_status: pending_required_ci
+        - id: F-MINIMAL-ENTRY-001
+          source_sha: c1962aaf853486858c125ded3de26257b651acae
+          pr: 975
+          independent_review: PASS
+          ci_status: failed_governance
+          failure_classification: own_documented_diagnostic_marker_missing
+          general_run: 41586783684
           integration_status: pending_required_ci
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
