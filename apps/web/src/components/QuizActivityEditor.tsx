@@ -402,6 +402,7 @@ export function QuizActivityEditor({
                         setError(result.error.message);
                         return;
                       }
+                      setError(null);
                       setRows((current) =>
                         current.map((item) =>
                           item.key === row.key
@@ -425,16 +426,6 @@ export function QuizActivityEditor({
               ) : (
                 <p>Закреплённый вопрос другого автора — только чтение.</p>
               )}
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => {
-                  setRows((current) => current.filter((item) => item.key !== row.key));
-                  onDirty(true);
-                }}
-              >
-                Убрать из теста
-              </button>
             </div>
           ) : null}
           <fieldset disabled={disabled || loading || !!row.pinnedVersion || row.changedElsewhere}>
@@ -603,32 +594,33 @@ export function QuizActivityEditor({
                 ) : null}
               </div>
             )}
-            <div className="quiz-actions">
-              <button
-                type="button"
-                disabled={index === 0}
-                onClick={() => {
-                  setRows((current) => {
-                    const next = [...current];
-                    [next[index - 1], next[index]] = [next[index]!, next[index - 1]!];
-                    return next;
-                  });
-                  onDirty(true);
-                }}
-              >
-                Выше
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRows((current) => current.filter((item) => item.key !== row.key));
-                  onDirty(true);
-                }}
-              >
-                Удалить вопрос
-              </button>
-            </div>
           </fieldset>
+          <div className="quiz-actions">
+            <button
+              type="button"
+              disabled={disabled || loading || index === 0}
+              onClick={() => {
+                setRows((current) => {
+                  const next = [...current];
+                  [next[index - 1], next[index]] = [next[index]!, next[index - 1]!];
+                  return next;
+                });
+                onDirty(true);
+              }}
+            >
+              Выше
+            </button>
+            <button
+              type="button"
+              disabled={disabled || loading}
+              onClick={() => {
+                setRows((current) => current.filter((item) => item.key !== row.key));
+                onDirty(true);
+              }}
+            >
+              Удалить вопрос
+            </button>
+          </div>
         </details>
       ))}
       <button

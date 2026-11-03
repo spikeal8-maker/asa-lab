@@ -45,6 +45,37 @@ export function QuizResponsePlayer({
   callbacks.current = { onChanged, onRegisterLeaveGuard };
   const startRequest = useRef(crypto.randomUUID());
   const submitRequest = useRef<{ version: number; id: string } | null>(null);
+  function adoptAttempt(next: LearningQuizAttempt, restoreEditableDraft = false) {
+    const local = recovery.get(scope);
+    const open = ['created', 'in_progress', 'working', 'active'].includes(next.state);
+    const sameAttempt = local?.attemptId === next.attemptId;
+    const sameAnswers = local && JSON.stringify(local.answers) === JSON.stringify(next.answers);
+    clock.current = { server: Date.parse(next.serverNow), local: Date.now() };
+    setResponse((previous) => (previous ? { ...previous, attempt: next } : previous));
+    if (restoreEditableDraft && open && local && sameAttempt) {
+      setAnswers(local.answers);
+      setUnsent(null);
+      if (local.version !== next.version && !sameAnswers) {
+        setConflict(true);
+        setError(
+          'Попытка изменена в другом окне. Несохранённые ответы сохранены ниже; сначала загрузите актуальную версию.',
+        );
+      }
+      return;
+    }
+    // Every terminal adoption renders the immutable server answers. A failed-save
+    // draft stays separately recoverable, never inside the official submission.
+    setAnswers(next.answers);
+    if (local && (!sameAttempt || !sameAnswers)) setUnsent(local);
+    else {
+      recovery.delete(scope);
+      setUnsent(null);
+    }
+    if (!open) {
+      setConflict(false);
+      setError(null);
+    }
+  }
   useEffect(() => {
     const generation = ++session.current;
     let active = true;
@@ -67,29 +98,8 @@ export function QuizResponsePlayer({
         }
         setResponse(result.data);
         const attempt = result.data.attempt;
-        const local = recovery.get(scope);
-        if (attempt) {
-          clock.current = { server: Date.parse(attempt.serverNow), local: Date.now() };
-          if (
-            local &&
-            (local.attemptId !== attempt.attemptId ||
-              !['created', 'in_progress', 'working', 'active'].includes(attempt.state))
-          ) {
-            setUnsent(local);
-            setAnswers(attempt.answers);
-          } else if (local && local.attemptId === attempt.attemptId) {
-            setAnswers(local.answers);
-            if (
-              local.version !== attempt.version &&
-              JSON.stringify(local.answers) !== JSON.stringify(attempt.answers)
-            ) {
-              setConflict(true);
-              setError(
-                'Попытка изменена в другом окне. Несохранённые ответы сохранены ниже; сначала загрузите актуальную версию.',
-              );
-            }
-          } else setAnswers(attempt.answers);
-        } else setAnswers({});
+        if (attempt) adoptAttempt(attempt, true);
+        else setAnswers({});
       })
       .catch(() => {
         if (active) setError('Не удалось открыть тест. Повторите загрузку.');
@@ -160,12 +170,8 @@ export function QuizResponsePlayer({
         if (!result.ok) throw new Error(result.error.message);
         if (!isCurrent()) return;
         savedAttempt = result.data.attempt;
-        setResponse({ ...state.response, attempt: savedAttempt });
-        setAnswers(savedAttempt.answers);
+        adoptAttempt(savedAttempt);
         startRequest.current = crypto.randomUUID();
-        const local = recovery.get(scope);
-        if (local && local.attemptId !== savedAttempt.attemptId) setUnsent(local);
-        clock.current = { server: Date.parse(savedAttempt.serverNow), local: Date.now() };
         await callbacks.current.onChanged();
         return;
       }
@@ -211,11 +217,7 @@ export function QuizResponsePlayer({
         );
         if (!result.ok) throw new Error(result.error.message);
         if (!isCurrent()) return;
-        recovery.delete(scope);
-        setResponse((previous) =>
-          previous ? { ...previous, attempt: result.data.attempt } : previous,
-        );
-        setAnswers(result.data.attempt.answers);
+        adoptAttempt(result.data.attempt);
         await callbacks.current.onChanged();
       }
     } catch (problem) {
@@ -249,9 +251,7 @@ export function QuizResponsePlayer({
     const timer = setTimeout(() => {
       void api.readQuizAttempt(attempt.attemptId).then((result) => {
         if (live.current && session.current === generation && result.ok)
-          setResponse((previous) =>
-            previous ? { ...previous, attempt: result.data.attempt } : previous,
-          );
+          adoptAttempt(result.data.attempt);
       });
     }, 1500);
     return () => clearTimeout(timer);

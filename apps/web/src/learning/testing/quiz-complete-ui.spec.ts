@@ -2,7 +2,12 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api, type LearningQuizAttempt } from '../../api';
+import {
+  api,
+  type AuthoredQuestionPayload,
+  type AuthoredQuizPayload,
+  type LearningQuizAttempt,
+} from '../../api';
 import { QuizResponsePlayer } from '../../components/QuizResponsePlayer';
 import { QuizQuestionFields, QUIZ_TYPES } from '../../components/QuizQuestionFields';
 import { QuizActivityEditor, type SaveQuizContent } from '../../components/QuizActivityEditor';
@@ -200,6 +205,69 @@ describe('Quiz mounted learner controls', () => {
     expect(container.textContent).toContain('Время истекло');
     expect(api.submitQuizAttempt).not.toHaveBeenCalled();
   });
+  it('adopts the server expiry submission and keeps a failed-save draft separately', async () => {
+    server = { ...server, expiresAt: new Date(Date.now() + 1000).toISOString() };
+    vi.mocked(api.saveQuizAnswers).mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: { code: 'unavailable', message: 'save failed' },
+    });
+    vi.spyOn(api, 'readQuizAttempt').mockImplementation(async () =>
+      ok({ attempt: { ...server, state: 'submitted' } }),
+    );
+    await mount(createElement(QuizResponsePlayer, { activityRunId: 'run', onChanged: changed }));
+    await input(container.querySelector('textarea')!, 'FAILED LOCAL B');
+    await click('Сохранить ответы');
+    expect(container.querySelector('textarea')!.value).toBe('FAILED LOCAL B');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1501);
+    });
+    expect(api.readQuizAttempt).toHaveBeenCalledWith('attempt');
+    expect(container.querySelector('textarea')!.value).toBe('official');
+    expect(container.querySelector('textarea')!.disabled).toBe(true);
+    expect(container.querySelector('pre')!.textContent).toContain('FAILED LOCAL B');
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(api.submitQuizAttempt).not.toHaveBeenCalled();
+  });
+  it('keeps native radio groups independent for two mounted players with the same question version', async () => {
+    server = {
+      ...server,
+      answers: {},
+      questions: [
+        {
+          id: 'shared-version',
+          type: 'single_choice',
+          promptBlocks: [{ type: 'text', text: 'Общий вопрос' }],
+          maxPoints: 1,
+          options: [
+            { id: 'a', label: 'А' },
+            { id: 'b', label: 'Б' },
+          ],
+        },
+      ],
+      questionOrder: ['shared-version'],
+    };
+    await mount(
+      createElement(
+        'div',
+        null,
+        createElement(QuizResponsePlayer, { activityRunId: 'run-one', onChanged: changed }),
+        createElement(QuizResponsePlayer, { activityRunId: 'run-two', onChanged: changed }),
+      ),
+    );
+    const radios = [...container.querySelectorAll<HTMLInputElement>('input[type=radio]')];
+    expect(new Set(radios.map((radio) => radio.name)).size).toBe(2);
+    await act(async () => {
+      radios[0]!.click();
+    });
+    await act(async () => {
+      radios[3]!.click();
+    });
+    expect(radios.map((radio) => radio.checked)).toEqual([true, false, false, true]);
+  });
   it('keeps unsent answers separate from a new attempt and requires an explicit choice', async () => {
     await mount(createElement(QuizResponsePlayer, { activityRunId: 'run', onChanged: changed }));
     await input(container.querySelector('textarea')!, 'OLD UNSENT');
@@ -269,6 +337,168 @@ describe('Quiz mounted learner controls', () => {
 });
 
 describe('Quiz compact draft author', () => {
+  const questionPayload: AuthoredQuestionPayload = {
+    questionType: 'short_text',
+    promptBlocks: [{ type: 'text', text: 'Исходный вопрос' }],
+    responseSchema: {},
+    answerKey: { accepted: ['ответ'] },
+    maxPoints: 1,
+    subject: null,
+    ageBand: null,
+    tags: [],
+  };
+  it('recovers a failed source-draft read without losing another edited question or blocking Save', async () => {
+    let save: SaveQuizContent | null = null;
+    let sourceReads = 0;
+    vi.spyOn(api, 'quizDraft').mockResolvedValue(
+      ok({
+        id: 'quiz',
+        draftRevision: 1,
+        latestVersionId: null,
+        draft: {
+          title: 'Тест',
+          instructions: null,
+          questions: [
+            { questionVersionId: 'pin', maxPoints: 1, required: true },
+            { questionId: 'other', questionDraftRevision: 1, maxPoints: 1, required: true },
+          ],
+          shuffleQuestions: false,
+          shuffleOptions: false,
+        },
+        versions: [],
+      }),
+    );
+    vi.spyOn(api, 'authoredQuestionVersion').mockResolvedValue(
+      ok({
+        id: 'pin',
+        questionId: 'source',
+        type: 'short_text',
+        promptBlocks: questionPayload.promptBlocks,
+        responseSchema: {},
+        maxPoints: 1,
+        answerKey: { accepted: ['ответ'] },
+      }),
+    );
+    vi.spyOn(api, 'questionDraft').mockImplementation(async (id) => {
+      if (id === 'source' && ++sourceReads === 1)
+        return { ok: false, status: 503, error: { code: 'unavailable', message: 'read failed' } };
+      return ok({
+        id,
+        draftRevision: 1,
+        latestVersionId: id === 'source' ? 'pin' : null,
+        draft: {
+          ...questionPayload,
+          promptBlocks: [
+            { type: 'text', text: id === 'other' ? 'Другой вопрос' : 'Исходный вопрос' },
+          ],
+        },
+        versions: [],
+      });
+    });
+    const write = vi
+      .spyOn(api, 'saveQuestionDraft')
+      .mockImplementation(async (id) => ok({ code: 'ok', id, draftRevision: 2 }));
+    const saveQuiz = vi
+      .spyOn(api, 'saveQuizDraft')
+      .mockResolvedValue(ok({ code: 'ok', id: 'quiz', draftRevision: 2 }));
+    await mount(
+      createElement(QuizActivityEditor, {
+        quizId: 'quiz',
+        title: 'Тест',
+        instructions: null,
+        disabled: false,
+        registerSave: (value) => {
+          save = value;
+        },
+        onDirty: vi.fn(),
+      }),
+    );
+    await input(
+      container.querySelector<HTMLTextAreaElement>('[aria-label="Текст вопроса 2"]')!,
+      'Сохранить другую правку',
+    );
+    await click('Редактировать исходный черновик');
+    expect(container.querySelector('[role="alert"]')!.textContent).toBe('read failed');
+    await click('Редактировать исходный черновик');
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    await act(async () => {
+      await save!();
+    });
+    expect(write).toHaveBeenCalledWith(
+      'other',
+      1,
+      null,
+      expect.objectContaining({
+        promptBlocks: [{ type: 'text', text: 'Сохранить другую правку' }],
+      }),
+      expect.any(String),
+    );
+    expect(saveQuiz).toHaveBeenCalled();
+  });
+  it('reorders two immutable bank pins and preserves exact identities and order after reopen', async () => {
+    let save: SaveQuizContent | null = null;
+    let payload: AuthoredQuizPayload = {
+      title: 'Порядок',
+      instructions: null,
+      questions: [
+        { questionVersionId: 'pin-a', maxPoints: 1, required: true },
+        { questionVersionId: 'pin-b', maxPoints: 1, required: true },
+      ],
+      shuffleQuestions: false,
+      shuffleOptions: false,
+    };
+    vi.spyOn(api, 'quizDraft').mockImplementation(async () =>
+      ok({ id: 'quiz', draftRevision: 1, latestVersionId: null, draft: payload, versions: [] }),
+    );
+    vi.spyOn(api, 'authoredQuestionVersion').mockImplementation(async (id) =>
+      ok({
+        id,
+        questionId: `source-${id}`,
+        type: 'short_text',
+        promptBlocks: [{ type: 'text', text: id }],
+        responseSchema: {},
+        maxPoints: 1,
+        answerKey: { accepted: ['ответ'] },
+      }),
+    );
+    vi.spyOn(api, 'saveQuizDraft').mockImplementation(async (_id, _revision, _head, next) => {
+      payload = next;
+      return ok({ code: 'ok', id: 'quiz', draftRevision: 2 });
+    });
+    const writeQuestion = vi.spyOn(api, 'saveQuestionDraft');
+    const props = {
+      quizId: 'quiz',
+      title: 'Порядок',
+      instructions: null,
+      disabled: false,
+      registerSave: (value: SaveQuizContent | null) => {
+        save = value;
+      },
+      onDirty: vi.fn(),
+    };
+    await mount(createElement(QuizActivityEditor, props));
+    const moves = [...container.querySelectorAll<HTMLButtonElement>('button')].filter(
+      (item) => item.textContent === 'Выше',
+    );
+    expect(moves[1]!.disabled).toBe(false);
+    expect(moves[1]!.closest('fieldset')).toBeNull();
+    await act(async () => {
+      moves[1]!.click();
+    });
+    await act(async () => {
+      await save!();
+    });
+    expect(payload.questions.map((item) => item.questionVersionId)).toEqual(['pin-b', 'pin-a']);
+    expect(writeQuestion).not.toHaveBeenCalled();
+    await unmount();
+    await mount(createElement(QuizActivityEditor, props));
+    const summaries = [...container.querySelectorAll('summary')].filter((item) =>
+      item.textContent?.startsWith('Вопрос '),
+    );
+    expect(summaries[0]!.textContent).toContain('pin-b');
+    expect(summaries[1]!.textContent).toContain('pin-a');
+    expect([...container.querySelectorAll('fieldset')].every((item) => item.disabled)).toBe(true);
+  });
   it('reuses an exact bank version without creating or editing a question', async () => {
     let save: SaveQuizContent | null = null;
     const items = Object.keys(QUIZ_TYPES).map((type, index) => ({

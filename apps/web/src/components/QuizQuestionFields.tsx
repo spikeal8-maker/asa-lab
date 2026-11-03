@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import type { QuizAnswer, QuizAttemptQuestion, QuizQuestionType } from '../api';
 
 export const QUIZ_TYPES: Record<QuizQuestionType, string> = {
@@ -23,6 +24,7 @@ export function QuizQuestionFields({
   readonly onChange: (answer: QuizAnswer) => void;
   readonly disabled?: boolean;
 }): JSX.Element {
+  const responseGroup = useId();
   const options = question.responseSchema?.options ?? question.options ?? [];
   const value = answer && 'value' in answer ? answer.value : null;
   const values = answer && 'values' in answer ? answer.values : [];
@@ -44,7 +46,7 @@ export function QuizQuestionFields({
           <label key={option.id}>
             <input
               type={question.type === 'multiple_choice' ? 'checkbox' : 'radio'}
-              name={`quiz-${question.id}`}
+              name={`quiz-${responseGroup}`}
               disabled={disabled}
               checked={
                 question.type === 'multiple_choice'
