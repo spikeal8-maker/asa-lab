@@ -149,7 +149,7 @@ test('cold offline module and cached API lobby recover invitation and live game 
     await expect(page.getByLabel('Ваш код приглашения')).toHaveText(code);
     // The chunk is now cached: a second offline entry exercises the original API/history
     // bootstrap failure and explicit retry, separately from initial module loading.
-    await page.getByRole('button', { name: 'Главная', exact: true }).click();
+    await page.getByRole('button', { name: '← Шахматы', exact: true }).click();
     await page.context().setOffline(true);
     await page.evaluate((hash) => {
       location.hash = hash;

@@ -173,6 +173,7 @@ test('real two-pupil Checkers, teacher controls, reconnect/history and all oppon
     expect(avatarSaved.ok(), await avatarSaved.text()).toBe(true);
     const bPlayer = (await (await b.page.request.get('/api/games/checkers/access')).json()).player;
     const peer = a.page.locator(`[data-player-id="${bPlayer.playerId}"]`);
+    await expect(peer.locator('img')).toBeVisible({ timeout: 15000 });
     const currentLobby = await (
       await post(a.page.request, origin, 'lobby', { scope: 'classroom' })
     ).json();
@@ -536,6 +537,10 @@ test('two real pupils finish normal Checkers games for both sides with honest re
       expect(illegal.status()).toBe(409);
       await winner.emulateMedia({ reducedMotion: 'reduce' });
       await winner.reload();
+      await expect(
+        winner.getByRole('heading', { name: 'Мои сетевые партии', exact: true }),
+      ).toBeVisible();
+      await winner.locator(`button[data-match-id="${match.id}"]`).click();
       await expect(winner.locator('[data-outcome="win"]')).toBeVisible();
       await expect(winner.locator('[data-victory-effect="active"]')).toHaveCount(0);
       const history = await (await loser.request.get('/api/games/checkers/history')).json();
