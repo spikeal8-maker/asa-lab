@@ -83,8 +83,19 @@ async function fixture(page: Page, failList = false) {
       return json(route, { motion: 'system', sidebar: 'expanded', revision: 1 });
     if (/^\/api\/learning\/projects\/[^/]+\/context$/.test(path))
       return json(route, { state: 'not_learning', projectId: path.split('/')[4] });
-    if (path === '/api/games/chess/notifications')
+    if (path === '/api/games/chess/notifications' || path === '/api/games/checkers/notifications')
       return json(route, { playerId: 'fixture-player', incoming: [] });
+    if (path === '/api/games/checkers/access')
+      return json(route, {
+        player: { playerId: 'fixture-player', displayAlias: 'Ваш игрок' },
+        allowed: true,
+        reason: 'allowed',
+        scopes: ['platform'],
+      });
+    if (path === '/api/games/checkers/history')
+      return json(route, { matches: [], invites: [], nextCursor: null });
+    if (path === '/api/games/checkers/lobby')
+      return json(route, { available: true, players: [], incoming: [], outgoing: [], limit: 100 });
     if (path === '/api/games/chess/lobby')
       return json(route, { players: [], incoming: [], outgoing: [], limit: 100 });
     if (path === '/api/account/avatar') return json(route, { avatarDataUrl: null });
@@ -617,4 +628,178 @@ test('game invitations reach the shared navigation and game card, ping once and 
   await expect(page).toHaveURL(/#\/chess\/old-chess\/network$/);
   incoming = [];
   await expect(page.locator('.portal-game-announcement')).toBeEmpty({ timeout: 12000 });
+});
+
+test('Checkers compact home has direct modes and a calibrated square board on all viewports', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.goto('/#/games');
+  await page.getByRole('button', { name: 'Играть: Шашки', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Шашки', exact: true })).toBeVisible();
+  mkdirSync('reports/games/checkers-redesign', { recursive: true });
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(
+      page.getByRole('button', { name: 'Играть с компьютером', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Играть с человеком', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Вдвоём на одном устройстве', exact: true }),
+    ).toBeVisible();
+    const board = page.getByRole('grid', { name: 'Доска для русских шашек, 8 на 8' });
+    const bounds = await board.boundingBox();
+    expect(Math.abs(bounds!.width - bounds!.height)).toBeLessThan(1);
+    await expect(board.locator('[data-piece-id]')).toHaveCount(24);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `reports/games/checkers-redesign/home-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await page.getByRole('button', { name: 'Играть с компьютером', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Игра с компьютером', exact: true }),
+  ).toBeVisible();
+  await page.getByLabel('Средний', { exact: true }).check();
+  await expect(page.getByLabel('Средний', { exact: true })).toBeChecked();
+  await page.screenshot({ path: 'reports/games/checkers-redesign/bot-320.png', fullPage: true });
+  await page.reload();
+  await expect(
+    page.getByRole('heading', { name: 'Игра с компьютером', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: '← Шашки', exact: true }).click();
+  await page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Онлайн-шашки', exact: true })).toBeVisible();
+  await expect(page.getByText('Соперники: Вся платформа', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Круг соперников', { exact: true })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Онлайн-шашки', exact: true })).toBeVisible();
+  expect(state.errors).toEqual([]);
+});
+
+test('pending invitations distinguish both games and Checkers capture paths require an explicit choice', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  const expiresAt = Date.now() + 600000;
+  await page.route('**/api/games/*/notifications', (route) => {
+    const game = new URL(route.request().url()).pathname.includes('/checkers/')
+      ? 'checkers'
+      : 'chess';
+    return route.fulfill({
+      json: { playerId: 'fixture-player', incoming: [{ id: `${game}-invite`, expiresAt }] },
+    });
+  });
+  await page.goto('/#/games');
+  const chess = page.getByRole('button', { name: 'Посмотреть приглашения: Шахматы', exact: true });
+  const checkers = page.getByRole('button', { name: 'Посмотреть приглашения: Шашки', exact: true });
+  await expect(chess.locator('.game-invitation-badge')).toHaveText('1');
+  await expect(checkers.locator('.game-invitation-badge')).toHaveText('1');
+  await expect(
+    page.getByRole('link', { name: 'Игры', exact: true }).locator('.game-invitation-badge'),
+  ).toHaveText('2');
+  const position = {
+    schemaVersion: 1,
+    ruleset: 'russian-64',
+    mode: 'position',
+    sideToMove: 'light',
+    result: '*',
+    moveHistory: [],
+    pieces: [
+      { id: 'p0', side: 'light', kind: 'king', square: 'a1' },
+      { id: 'p1', side: 'dark', kind: 'man', square: 'b2' },
+      { id: 'p2', side: 'dark', kind: 'man', square: 'g7' },
+      { id: 'p3', side: 'dark', kind: 'man', square: 'e3' },
+      { id: 'p4', side: 'dark', kind: 'man', square: 'b6' },
+    ],
+  };
+  const match = {
+    id: 'path-match',
+    status: 'active',
+    version: 1,
+    sequence: 1,
+    scope: 'platform',
+    white: { playerId: 'fixture-player', displayAlias: 'Белые' },
+    black: { playerId: 'opponent', displayAlias: 'Чёрные' },
+    viewerColor: 'white',
+    position,
+    moves: [],
+    whiteRemainingMs: 600000,
+    blackRemainingMs: 600000,
+    activeColor: 'white',
+    serverNowMs: Date.now(),
+    result: '*',
+    termination: '',
+    drawOfferedBy: null,
+    updatedAt: Date.now(),
+  };
+  await page.route('**/api/games/checkers/history', (route) =>
+    route.fulfill({ json: { matches: [match], invites: [], nextCursor: null } }),
+  );
+  await page.route('**/api/games/checkers/matches/path-match', (route) =>
+    route.fulfill({ json: { match } }),
+  );
+  const submitted: unknown[] = [];
+  await page.route('**/api/games/checkers/matches/path-match/commands', (route) => {
+    submitted.push(route.request().postDataJSON());
+    return route.fulfill({
+      json: { match: { ...match, version: 2, sequence: 2 }, replayed: false },
+    });
+  });
+  await checkers.click();
+  await expect(page).toHaveURL(/#\/checkers\/old-checkers\/network$/);
+  await page.locator('[data-square="a1"]').click();
+  await page.locator('[data-square="h8"]').click();
+  const choice = page.getByRole('dialog', { name: 'Выберите путь взятия' });
+  await expect(choice).toBeVisible();
+  expect(submitted).toEqual([]);
+  await expect(choice.getByRole('button', { name: 'a1 × c3 × h8', exact: true })).toBeVisible();
+  await choice.getByRole('button', { name: 'a1 × d4 × h8', exact: true }).click();
+  await expect.poll(() => submitted.length).toBe(1);
+  expect(submitted[0]).toMatchObject({
+    action: 'move',
+    path: ['a1', 'd4', 'h8'],
+    expectedVersion: 1,
+  });
+  expect(state.errors).toEqual([]);
+});
+
+test('a stalled Checkers inbox does not suppress a completed Chess invitation', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  let release: (() => void) | undefined;
+  await page.route('**/api/games/checkers/notifications', async (route) => {
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await route.abort().catch(() => undefined);
+  });
+  await page.route('**/api/games/chess/notifications', (route) =>
+    route.fulfill({
+      json: {
+        playerId: 'fixture-player',
+        incoming: [{ id: 'available-chess', expiresAt: Date.now() + 600000 }],
+      },
+    }),
+  );
+  try {
+    await page.goto('/#/games');
+    const chess = page.getByRole('button', {
+      name: 'Посмотреть приглашения: Шахматы',
+      exact: true,
+    });
+    await expect(chess.locator('.game-invitation-badge')).toHaveText('1', { timeout: 16000 });
+    await expect(
+      page.getByRole('button', { name: 'Посмотреть приглашения: Шашки', exact: true }),
+    ).toHaveCount(0);
+    expect(state.errors).toEqual([]);
+  } finally {
+    release?.();
+  }
 });

@@ -303,7 +303,7 @@ function ClassroomNetworkSettings({
   }
   return (
     <fieldset className="classroom-network-settings" aria-busy={busy}>
-      <legend>Сетевая игра в шахматы</legend>
+      <legend>Сетевая игра в шахматы и шашки</legend>
       {!policy && !error && <p role="status">Загружаем настройки сети…</p>}
       {policy && (
         <>

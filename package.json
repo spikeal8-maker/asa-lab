@@ -174,7 +174,11 @@
     "test:dev-check": "node --test tools/test-dev-check.mjs && node tools/devex-python.mjs tools/test_dev_check.py",
     "test:chess-network": "vitest run contexts/games/testing apps/api/src/chess-network.controller.spec.ts apps/web/src/chess/testing/chess-network-api.spec.ts tests/games-network/chess-network.embedded.spec.ts",
     "test:chess-network:pg": "vitest run tests/games-network/chess-network.pg.spec.ts",
-    "e2e:chess-network": "playwright test e2e/chess-network.spec.ts"
+    "e2e:chess-network": "playwright test e2e/chess-network.spec.ts",
+    "test:checkers-network": "vitest run contexts/games/testing/checkers-network.spec.ts apps/api/src/checkers-network.controller.spec.ts tests/games-network/checkers-network.embedded.spec.ts apps/web/src/games/game-notifications.spec.ts",
+    "test:checkers-network:pg": "vitest run tests/games-network/checkers-network.pg.spec.ts",
+    "gate:checkers-network": "corepack pnpm gate:chess-r1 && corepack pnpm test:checkers && corepack pnpm test:checkers-network && corepack pnpm test:games",
+    "gate:checkers-network:browser": "node tools/checkers-browser-gate.mjs"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",

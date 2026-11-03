@@ -13,7 +13,8 @@ export function GamesPage({
   onOpenGame: (id: string, game: GameKey) => void;
 }): JSX.Element {
   const invitations = useGameInvitations();
-  const chessInvites = invitations.incoming.length;
+  const invitesFor = (game: GameKey) =>
+    invitations.incoming.filter((item) => (item.game ?? 'chess') === game).length;
   const [modules, setModules] = useState<ModuleSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [admissions, setAdmissions] = useState<Partial<Record<GameKey, GameAdmission>>>({});
@@ -61,8 +62,8 @@ export function GamesPage({
     try {
       const save = await openGame(game);
       if (mounted.current) {
-        if (game === 'chess' && chessInvites > 0)
-          window.location.hash = `#/chess/${encodeURIComponent(save.id)}/network`;
+        if (invitesFor(game) > 0)
+          window.location.hash = `#/${game}/${encodeURIComponent(save.id)}/network`;
         else onOpenGame(save.id, game);
       }
     } catch (failure) {
@@ -120,7 +121,8 @@ export function GamesPage({
                 module.availability === 'active' &&
                 module.creatable,
             );
-          const invited = game.key === 'chess' && chessInvites > 0;
+          const gameInvites = invitesFor(game.key);
+          const invited = gameInvites > 0;
           const label =
             opening === game.key
               ? 'Открываем…'
@@ -149,7 +151,7 @@ export function GamesPage({
                 <span className="game-card-title">{game.title}</span>
                 {invited && (
                   <span className="game-card-invitation">
-                    <GameInvitationBadge count={chessInvites} pulse={invitations.pulse} />
+                    <GameInvitationBadge count={gameInvites} pulse={invitations.pulses[game.key]} />
                     Вас приглашают играть
                   </span>
                 )}

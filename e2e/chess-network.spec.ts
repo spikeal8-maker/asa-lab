@@ -149,7 +149,7 @@ test('cold offline module and cached API lobby recover invitation and live game 
     await expect(page.getByLabel('Ваш код приглашения')).toHaveText(code);
     // The chunk is now cached: a second offline entry exercises the original API/history
     // bootstrap failure and explicit retry, separately from initial module loading.
-    await page.getByRole('button', { name: 'Главная', exact: true }).click();
+    await page.getByRole('button', { name: '← Шахматы', exact: true }).click();
     await page.context().setOffline(true);
     await page.evaluate((hash) => {
       location.hash = hash;
@@ -488,7 +488,10 @@ test('real two-pupil Chess, teacher controls, reconnect/history and all opponent
       .getByRole('navigation', { name: 'Разделы класса' })
       .getByRole('button', { name: 'Настройки', exact: true })
       .click();
-    const network = page.getByRole('group', { name: 'Сетевая игра в шахматы', exact: true });
+    const network = page.getByRole('group', {
+      name: 'Сетевая игра в шахматы и шашки',
+      exact: true,
+    });
     await network.getByLabel('Разрешить сетевую игру', { exact: true }).check();
     await network.getByLabel('Круг соперников', { exact: true }).selectOption('classroom');
     await network.getByRole('button', { name: 'Сохранить сетевой режим', exact: true }).click();

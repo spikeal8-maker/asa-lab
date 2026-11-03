@@ -82,7 +82,7 @@ def backup_directory(install, *, create=False):
 def save_settings(install, enabled=False):
     previous = install.settings
     backup = backup_directory(install, create=True)
-    atomic_json(install.state / "installation.json", {
+    private_atomic_json(install.state / "installation.json", {
         **previous, "format": "asa-installation-v1", "profile": install.profile,
         "project": install.project, "automaticUpdates": enabled,
         "window": previous.get("window", DEFAULT_WINDOW),

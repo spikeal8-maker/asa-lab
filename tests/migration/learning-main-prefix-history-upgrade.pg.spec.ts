@@ -392,7 +392,12 @@ const upgradeArtifacts = [
   [
     '0303',
     '0303_publication_owner_editor.sql',
-    '6b33460fe0ac40295e4760659db0953288f473807d9f4753387591476c0fee56',
+    '92818d6ea4dff20e5201e7e4e228678067048155714c89ce9d6f3270792bf60c',
+  ],
+  [
+    '0304',
+    '0304_games_checkers_network.sql',
+    'ecb1283c5adea892895b540f2e04d75a74ab51c54660110bf5a8269f56b3279d',
   ],
 ] as const;
 
