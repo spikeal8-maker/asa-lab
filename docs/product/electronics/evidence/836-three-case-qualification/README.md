@@ -95,7 +95,14 @@ E11 proof requires complete original journeys, whole-document CAS/revision,
 cookies-only reopen with empty pre-app storage, both fulfilled lifecycle actions,
 one user PUT after seed, and the actual final GET after lifecycle preserving the
 saved revision. Original native PNG pairs, worker journal bytes/count and traces
-are retained. Catalog proof requires native error/load and HTTP404/retry200,
+are retained. The original stopped-fit scope is nine families (resistor, button,
+switch, LED, lamp, supply, meter, UNO and board); running-controls records running
+PNG pairs only for LED/lamp. Both also require the cookies-reopen resistor pair.
+Exact phase/family sets, pair counts and filenames are checked; missing, duplicate
+or extra pairs fail. Original measurement-only supplemental rows share phase/id
+with a pair and have a separate closed, finite-number shape; they are not PNG pairs.
+The proof explicitly reports these scopes and does not claim nine-family running
+pixel coverage. Catalog proof requires native error/load and HTTP404/retry200,
 unchanged empty document, zero project PUT and complete original observation.
 
 PNG chunks/raster and selected trace-network resources are validated with the
@@ -106,6 +113,16 @@ A supplied resource is always verified; missing/tampered/malformed references,
 non-object or invalid JSON and contradictory nonempty inline/resource bodies fail.
 Valid inline-only JSON objects remain supported. Synthetic complete three-case
 fixtures exercise externalized request and response bodies without captured data.
+The pure read-only validate_artifacts(explicit_root) also supports retained-corpus
+replay: only exact /workspace/reports/electronics-836-three/playwright/<fixed-case>/<fixed-file>
+paths (or that exact owned relative path) map under the supplied absolute root.
+Case directories are fixed to the original three Playwright identities. Other
+absolute prefixes, traversal, alternate filenames/cases and symlink/reparse-point
+ancestors or artifacts fail closed. Captured execution/raw/source/qualification
+JSON is not rewritten, and no generic replay CLI or source attestation is minted.
+Replay evidence must separately bind the observed runtime revision, reviewed
+reader revision and original archive/selected-file hashes; the old workflow result
+and full-qualification flags remain historical.
 Missing/partial/stale proof yields `FAIL_OR_INCOMPLETE`. The JSON always states
 `fullElectronicsQualification: false` and `releaseAccepted: false`.
 

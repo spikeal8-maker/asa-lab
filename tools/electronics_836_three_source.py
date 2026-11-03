@@ -1,6 +1,7 @@
 """Closed CI-only 836 qualification. Standard library; never invokes Docker."""
 import hashlib
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -33,6 +34,11 @@ CASES = [
     for scenario in ('stopped-fit', 'running-controls')
 ] + [{'file': 'electronics-interactions.spec.ts', 'suites': ['asset recovery in the built editor'],
       'title': 'a failed catalog owner image recovers without placing or saving a component'}]
+CASE_DIRECTORIES = {
+    'stopped-fit': 'electronics-selection-outl-407aa-whole-save-reopen-at-1440px',
+    'running-controls': 'electronics-selection-outl-aff02-whole-save-reopen-at-1440px',
+    'catalog': 'electronics-interactions-a-247f4-acing-or-saving-a-component',
+}
 
 
 def need(value, message):
@@ -129,6 +135,40 @@ def json_lines(path):
     need(path.is_file() and not path.is_symlink(), 'missing or linked journal')
     need(path.stat().st_size <= 64*1024*1024, 'oversized journal')
     return [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line]
+
+
+def validation_file(root, relative):
+    """Only existing regular files below an explicit, link-free replay root."""
+    root = Path(root)
+    need(root.is_absolute() and '..' not in root.parts, 'absolute validation root required')
+    parts = relative.split('/')
+    need(all(p not in ('', '.', '..') and '\\' not in p and ':' not in p for p in parts),
+         'unsafe validation path')
+    path = root
+    for parent in [*reversed(root.parents), root]:
+        info = parent.lstat()
+        need(stat.S_ISDIR(info.st_mode) and not stat.S_ISLNK(info.st_mode)
+             and not getattr(info, 'st_file_attributes', 0) & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0),
+             'linked validation root/parent')
+    for i, part in enumerate(parts):
+        path = path/part
+        info = path.lstat()
+        need(not stat.S_ISLNK(info.st_mode)
+             and not getattr(info, 'st_file_attributes', 0) & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0),
+             'linked validation artifact/parent')
+        plain = stat.S_ISREG(info.st_mode) and info.st_nlink == 1 if i == len(parts)-1 else stat.S_ISDIR(info.st_mode)
+        need(plain, 'non-regular validation artifact')
+    return path
+
+
+def artifact_file(root, declared, case, filename):
+    need(case in CASE_DIRECTORIES and isinstance(filename, str)
+         and filename not in ('', '.', '..') and not any(c in filename for c in ('/', '\\', ':', '\0')),
+         'invalid fixed artifact identity')
+    relative = DIRECTORY+'/playwright/'+CASE_DIRECTORIES[case]+'/'+filename
+    need(isinstance(declared, str) and declared in (relative, '/workspace/'+relative),
+         'artifact path differs from original workspace/case/filename')
+    return validation_file(root, relative)
 
 
 def png_identity(path):
@@ -312,8 +352,8 @@ def validate_catalog(rows, trace):
 
 
 def validate_artifacts(root):
-    directory = root/DIRECTORY
-    execution = json_file(directory/'execution.json')
+    root = Path(root)
+    execution = json_file(validation_file(root, DIRECTORY+'/execution.json'))
     # Node validates exact file/describe/title/project/attempt identities before this command.
     reports = []
     def visit(suite):
@@ -330,37 +370,51 @@ def validate_artifacts(root):
         attachments = selected[0]['tests'][0]['results'][0]['attachments']
         traces = [a for a in attachments if a.get('name') == 'trace']
         need(len(traces) == 1, 'one actual trace per case')
-        path = Path(traces[0]['path'])
-        if not path.is_absolute():
-            path = root/path
-        need(path.resolve().is_relative_to((directory/'playwright').resolve()), 'trace escaped owned output')
+        case_key = case.get('scenario', 'catalog')
+        def captured(declared, filename):return artifact_file(root, declared, case_key, filename)
+        def fixed(filename):return captured(DIRECTORY+'/playwright/'+CASE_DIRECTORIES[case_key]+'/'+filename, filename)
+        path = captured(traces[0]['path'], 'trace.zip')
         trace = Trace(path)
         try:
             if 'scenario' in case:
                 scenario = case['scenario']
-                raw = json_file(path.parent/f'e11-outline-{scenario}-1440-raw.json')
-                lifecycle = json_lines(path.parent/f'e11-outline-{scenario}-1440-lifecycle.jsonl')
+                raw = json_file(fixed(f'e11-outline-{scenario}-1440-raw.json'))
+                lifecycle = json_lines(fixed(f'e11-outline-{scenario}-1440-lifecycle.jsonl'))
                 result = validate_e11(raw, lifecycle, trace, scenario)
-                worker = path.parent/f'e11-outline-{scenario}-1440-worker.jsonl'
+                worker = fixed(f'e11-outline-{scenario}-1440-worker.jsonl')
                 need(worker.is_file() and not worker.is_symlink()
                      and sha(worker.read_bytes()) == raw['workerJournal']['sha256']
                      and len(json_lines(worker)) == raw['workerJournal']['count'], 'worker bytes/count differ')
                 phase = 'fit' if scenario == 'stopped-fit' else 'running'
-                families = ['resistor','button','switch','led','lamp','supply','meter','uno','board']
-                for selected_phase, family in [(phase, family) for family in families]+[('cookies-reopen', 'resistor')]:
-                    pairs = [r for r in raw['output'] if r.get('phase') == selected_phase and r.get('id') == family]
-                    need(len(pairs) == 1, 'missing native PNG pair')
+                families = ['resistor','button','switch','led','lamp','supply','meter','uno','board'] if scenario == 'stopped-fit' else ['led','lamp']
+                required = [(phase, family) for family in families]+[('cookies-reopen', 'resistor')]
+                pairs = [r for r in raw['output'] if 'beforePath' in r or 'afterPath' in r]
+                need(len(pairs) == len(required) and {(r.get('phase'),r.get('id')) for r in pairs} == set(required),
+                     'native PNG phase/family set differs from original scenario')
+                measurement_keys = {'phase','id','dimensions','measuredScale','expectedPx'}
+                measurements = [r for r in raw['output'] if 'beforePath' not in r and 'afterPath' not in r
+                                and (r.get('phase') in ('fit','running','cookies-reopen') or set(r) == measurement_keys)]
+                seen = set()
+                for row in measurements:
+                    identity = (row.get('phase'),row.get('id'))
+                    dimensions = row.get('dimensions')
+                    need(set(row) == measurement_keys and identity in required and identity not in seen
+                         and isinstance(dimensions, dict) and set(dimensions) == {'body','pin','ordinary'}
+                         and all(type(v) in (int,float) and math.isfinite(v)
+                                 for v in [*dimensions.values(),row['measuredScale'],row['expectedPx']]),
+                         'native supplemental measurement shape/identity differs')
+                    seen.add(identity)
+                for pair in pairs:
+                    selected_phase, family = pair['phase'], pair['id']
                     for key in ('beforePath', 'afterPath'):
-                        png = Path(pairs[0][key])
-                        if not png.is_absolute():
-                            png = root/png
                         state = 'unselected' if key == 'beforePath' else 'selected'
-                        need(png.resolve().parent == path.parent.resolve()
-                             and png.name == f'{selected_phase}-{family}-{state}.png', 'native PNG escaped case/identity')
+                        png = captured(pair[key], f'{selected_phase}-{family}-{state}.png')
                         png_identity(png)
+                result['nativePngScope'] = dict(phase=phase, families=families,
+                                              cookiesReopenFamilies=['resistor'], pairs=len(required))
             else:
-                result = validate_catalog(json_lines(path.parent/'ordinary-image-recovery-native.jsonl'), trace)
-                need(png_identity(path.parent/'ordinary-image-recovery-native.png')['width'] == 1440,
+                result = validate_catalog(json_lines(fixed('ordinary-image-recovery-native.jsonl')), trace)
+                need(png_identity(fixed('ordinary-image-recovery-native.png'))['width'] == 1440,
                      'catalog native screenshot width')
             proof.append({'title': case['title'], **result})
         finally:

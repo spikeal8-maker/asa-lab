@@ -404,17 +404,22 @@ class OriginalEvidenceContracts(unittest.TestCase):
             directory = root/contract.DIRECTORY
             reports = []
             for index, case in enumerate(contract.CASES):
-                case_dir = directory/'playwright'/str(index)
+                case_dir = directory/'playwright'/contract.CASE_DIRECTORIES[case.get('scenario', 'catalog')]
                 case_dir.mkdir(parents=True)
                 if index < 2:
                     raw, lifecycle, entries = complete_e11()
                     scenario = case['scenario']; raw['scenario'] = scenario
                     phase = 'fit' if scenario == 'stopped-fit' else 'running'
-                    for selected_phase,family in [(phase,family) for family in ['resistor','button','switch','led','lamp','supply','meter','uno','board']]+[('cookies-reopen','resistor')]:
+                    families = ['resistor','button','switch','led','lamp','supply','meter','uno','board'] if scenario=='stopped-fit' else ['led','lamp']
+                    for selected_phase,family in [(phase,family) for family in families]+[('cookies-reopen','resistor')]:
                         pair = {'phase':selected_phase,'id':family}
                         for state,key in [('unselected','beforePath'),('selected','afterPath')]:
-                            pair[key] = str(put(root,str((case_dir/f'{selected_phase}-{family}-{state}.png').relative_to(root)),png()))
+                            relative = (case_dir/f'{selected_phase}-{family}-{state}.png').relative_to(root).as_posix()
+                            put(root,relative,png());pair[key] = '/workspace/'+relative
                         raw['output'].append(pair)
+                        if family in ['resistor','button','switch']:
+                            raw['output'].append(dict(phase=selected_phase,id=family,
+                                dimensions=dict(body=2,pin=2,ordinary=0),measuredScale=1,expectedPx=1))
                     worker = put(root,str((case_dir/f'e11-outline-{scenario}-1440-worker.jsonl').relative_to(root)),b'')
                     raw['workerJournal'].update(sha256=contract.sha(worker.read_bytes()),count=0)
                     put(root,str((case_dir/f'e11-outline-{scenario}-1440-raw.json').relative_to(root)),json.dumps(raw))
@@ -447,13 +452,86 @@ class OriginalEvidenceContracts(unittest.TestCase):
                             container.update(text='', _sha1=ref, mimeType='application/json', params=[])
                     archive.writestr('0.network',''.join(json.dumps({'type':'resource-snapshot','snapshot':entry})+'\n' for entry in entries))
                     for ref,data in resources.items():archive.writestr('resources/'+ref,data)
-                reports.append({'file':case['file'],'title':case['title'],'tests':[{'results':[{'attachments':[{'name':'trace','path':str(trace)}]}]}]})
-            put(root,contract.DIRECTORY+'/execution.json',json.dumps({'suites':[{'specs':reports}]}))
-            self.assertEqual(len(contract.validate_artifacts(root)),3)
-            worker=directory/'playwright/1/e11-outline-running-controls-1440-worker.jsonl'
+                reports.append({'file':case['file'],'title':case['title'],'tests':[{'results':[{'attachments':[{'name':'trace','path':'/workspace/'+trace.relative_to(root).as_posix()}]}]}]})
+            execution = put(root,contract.DIRECTORY+'/execution.json',json.dumps({'suites':[{'specs':reports}]}))
+            before = {p.relative_to(root).as_posix():contract.sha(p.read_bytes()) for p in root.rglob('*') if p.is_file()}
+            proof = contract.validate_artifacts(root)
+            self.assertEqual(len(proof),3)
+            self.assertEqual(proof[0]['nativePngScope'],dict(phase='fit',families=['resistor','button','switch','led','lamp','supply','meter','uno','board'],cookiesReopenFamilies=['resistor'],pairs=10))
+            self.assertEqual(proof[1]['nativePngScope'],dict(phase='running',families=['led','lamp'],cookiesReopenFamilies=['resistor'],pairs=3))
+            self.assertEqual({p.relative_to(root).as_posix():contract.sha(p.read_bytes()) for p in root.rglob('*') if p.is_file()},before)
+            for scenario in ['stopped-fit','running-controls']:
+                raw_path=directory/'playwright'/contract.CASE_DIRECTORIES[scenario]/f'e11-outline-{scenario}-1440-raw.json'
+                original=raw_path.read_bytes();raw=json.loads(original)
+                for kind in ['missing','duplicate','foreign-family','wrong-phase','no-cookie-pair']:
+                    changed=deepcopy(raw)
+                    pairs=[r for r in changed['output'] if 'beforePath' in r]
+                    if kind=='missing':changed['output'].remove(pairs[0])
+                    elif kind=='duplicate':changed['output'].append(deepcopy(pairs[0]))
+                    elif kind=='foreign-family':pairs[0]['id']='foreign'
+                    elif kind=='wrong-phase':pairs[0]['phase']='running' if scenario=='stopped-fit' else 'fit'
+                    else:changed['output'].remove(pairs[-1])
+                    raw_path.write_text(json.dumps(changed))
+                    try:
+                        with self.subTest(scenario=scenario,kind=kind), self.assertRaisesRegex(ValueError,'phase/family set'):
+                            contract.validate_artifacts(root)
+                    finally:raw_path.write_bytes(original)
+                measurement=next(r for r in raw['output'] if 'dimensions' in r)
+                for kind in ['duplicate','unknown-shape','unknown-family','non-number']:
+                    changed=deepcopy(raw);extra=deepcopy(measurement)
+                    if kind!='duplicate':changed['output'].remove(measurement)
+                    if kind=='unknown-shape':extra['extra']='not original schema'
+                    elif kind=='unknown-family':extra['id']='foreign'
+                    elif kind=='non-number':extra['measuredScale']='invalid'
+                    changed['output'].append(extra);raw_path.write_text(json.dumps(changed))
+                    try:
+                        with self.subTest(kind=kind), self.assertRaisesRegex(ValueError,'supplemental measurement'):
+                            contract.validate_artifacts(root)
+                    finally:raw_path.write_bytes(original)
+                changed=deepcopy(raw);pair=next(r for r in changed['output'] if 'beforePath' in r)
+                valid=pair['beforePath']
+                for bad in [valid.replace('/workspace/','/foreign/'),valid.replace('/playwright/','/playwright/../playwright/'),
+                            valid.replace('/workspace/','/workspace//'),valid.replace('unselected.png','selected.png'),
+                            valid.replace(contract.CASE_DIRECTORIES[scenario],contract.CASE_DIRECTORIES['catalog']),
+                            'C:\\foreign\\trace.png']:
+                    pair['beforePath']=bad;raw_path.write_text(json.dumps(changed))
+                    try:
+                        with self.subTest(bad=bad), self.assertRaisesRegex(ValueError,'artifact path differs'):
+                            contract.validate_artifacts(root)
+                    finally:raw_path.write_bytes(original)
+            original=execution.read_bytes();declared=json.loads(original)['suites'][0]['specs'][0]['tests'][0]['results'][0]['attachments'][0]['path']
+            for bad in [declared.replace(contract.CASE_DIRECTORIES['stopped-fit'],contract.CASE_DIRECTORIES['running-controls']),
+                        declared.replace('/workspace/','/foreign/'),declared.replace('/playwright/','/playwright/../playwright/'),
+                        declared.replace('trace.zip','foreign.zip'),'C:/foreign/trace.zip']:
+                changed=json.loads(original);changed['suites'][0]['specs'][0]['tests'][0]['results'][0]['attachments'][0]['path']=bad
+                execution.write_text(json.dumps(changed))
+                try:
+                    with self.subTest(trace=bad), self.assertRaisesRegex(ValueError,'artifact path differs'):contract.validate_artifacts(root)
+                finally:execution.write_bytes(original)
+            png_path=directory/'playwright'/contract.CASE_DIRECTORIES['running-controls']/'running-led-selected.png'
+            before_png=png_path.read_bytes();png_path.unlink()
+            try:
+                with self.assertRaises(FileNotFoundError):contract.validate_artifacts(root)
+            finally:png_path.write_bytes(before_png)
+            worker=directory/'playwright'/contract.CASE_DIRECTORIES['running-controls']/'e11-outline-running-controls-1440-worker.jsonl'
             worker.write_text('{"foreign":"tail"}\n')
             with self.assertRaisesRegex(ValueError,'worker bytes/count'):
                 contract.validate_artifacts(root)
+
+    @unittest.skipUnless(os.name=='posix', 'Actual POSIX symlink replay-root/parent/file semantics')
+    def test_replay_mapping_rejects_root_parent_file_links_and_foreign_paths(self):
+        with tempfile.TemporaryDirectory(prefix='asa836-replay-links-') as folder:
+            parent=Path(folder);root=parent/'root';root.mkdir()
+            relative=contract.DIRECTORY+'/playwright/'+contract.CASE_DIRECTORIES['stopped-fit']+'/trace.zip'
+            file=put(root,relative,b'fixture')
+            self.assertEqual(contract.artifact_file(root,'/workspace/'+relative,'stopped-fit','trace.zip'),file)
+            self.assertEqual(contract.artifact_file(root,relative,'stopped-fit','trace.zip'),file)
+            alias=parent/'alias';alias.symlink_to(root,target_is_directory=True)
+            with self.assertRaisesRegex(ValueError,'linked validation root'):contract.artifact_file(alias,relative,'stopped-fit','trace.zip')
+            file.unlink();outside=put(parent,'outside',b'fixture');file.symlink_to(outside)
+            with self.assertRaisesRegex(ValueError,'linked validation artifact'):contract.artifact_file(root,relative,'stopped-fit','trace.zip')
+            file.unlink();file.parent.rmdir();file.parent.symlink_to(parent,target_is_directory=True)
+            with self.assertRaisesRegex(ValueError,'linked validation artifact'):contract.artifact_file(root,relative,'stopped-fit','trace.zip')
 
     def test_actual_default_six_cli_remains_an_offline_no_op_and_unknown_is_denied(self):
         for subset, expected in [('ui-679-557-six', 0), ('foreign', 1)]:
