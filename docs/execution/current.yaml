@@ -9392,64 +9392,63 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: quiz_foundation_recovery_essay_browser_pending
+      checkpoint: complete_quiz_vertical_with_verified_parent_integration_repairs
       selected_slice:
-        id: LRN-QUIZ-FOUNDATION-RECOVERY
+        id: LRN-QUIZ-COMPLETE-COURSE-VERTICAL
         status: in_progress
-        kind: integration
-        owner_authorization: The owner commissioned all four compact Course assignment kinds through submission, review and journal, and explicitly requires reuse of the existing two-week core. Recover the already reviewed Q1 and Q2 sources rather than writing another attempt engine.
-        scope: Restore independent Quiz policies on LearningActivityVersion and the existing exact persisted Quiz Start, read and answer-save implementation on the reviewed Essay dependency. Preserve current core and compatibility. Content authoring, final submission, expiry finalization, eight question types and player follow as separate bounded parts of the same commissioned programme.
+        kind: implementation
+        owner_authorization: Owner renewed the complete compact assignment and Course authoring programme and explicitly authorized verified source integration into main on2026-11-03. Reuse the existing core; deliver visible desktop and phone functionality.
+        scope: One complete Quiz vertical across author question and Quiz drafts, publication and exact Course composition, class delivery, persisted learner player, immutable submission, automatic and manual assessment and the existing journal. All eight normative question types are included.
         source_inputs:
-        - pr: 923
-          sha: 3aa71ccb6bd7ebd8ab6b61f46b56caa010a392da
-        - pr: 928
-          sha: d948938454166d38b41d74fa214ac0272f5de2ce
-        expected_write_paths:
-        - apps/api/src/account-verification.guard.ts
-        - apps/api/src/account-verification.guard.spec.ts
-        - apps/api/src/app.module.ts
-        - apps/api/src/learning-quiz-attempts.controller.ts
-        - apps/api/src/learning-quiz-attempts.controller.spec.ts
-        - docs/testing/test-catalog.yaml
-        - package.json
-        - schemas/openapi.yaml
-        - migrations/0302_learning_quiz_policy_authority.sql
-        - migrations/0303_learning_quiz_attempt_state.sql
-        - tests/courses/learning-activity-version-convergence.pg.spec.ts
-        - tests/courses/quiz-attempt-state.pg.spec.ts
-        - tests/courses/quiz-engine.pg.spec.ts
-        - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
-        - tests/migration/course-structure-forward-upgrade.pg.spec.ts
-        - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+        - pr: 966
+          sha: 2d97266087b1cd11d8388cbfe02804e35eb8cb83
+        - pr: 939
+          sha: 4cc9938224a89a4cbfd556fd9b42dada3ca0bd46
+          use: Unfinished design provenance only; never apply its SQL wholesale.
+        expected_write_areas:
+        - Existing Learning authoring, Question bank and Quiz controllers, contracts and compact web editor.
+        - Existing Quiz attempt state, submission, assessment, reminders expiry sweep and canonical journal review.
+        - Additive forward SQL and strict migration-prefix fixtures, focused HTTP, mounted, PostgreSQL and real browser evidence.
+        - docs/product/learning/execution/LRN-QUIZ-COURSE-VERTICAL_EXECUTION_SPEC.md and relevant API/test contracts.
         acceptance:
-        - Port Q1 policy authority and defaults while retaining the seven current Essay validation lines in learning_activity_normalize_draft. Published QuizVersion content and old histories remain immutable.
-        - Reuse Q2 exact stable LearnerIdentity and Account or Seat authority, frozen key-free questions and order, effective conditions, existing participation activation and audit.
-        - Preserve dense canonical ordinals, separate physical legacy Quiz counters, GREATEST bigint allocation and overflow rejection before activation; existing published partial indexes remain unchanged.
-        - Answer saves retain bounded validation, revisions and acknowledged server state; deadlines use the existing server authority. This slice does not claim final submission or complete Quiz readiness.
-        - Keep all current Essay routes, guards, controller registration, review, journal and completion behavior. No broad unverified Account exception or learner answer-key exposure.
-        - Preserve strict supported and unsupported migration histories and all negative tests. Run focused HTTP, guard and type checks, actual isolated Learning and full General gates and independent exact-source review.
-        dependencies: Essay PR964 source251eb3 is frozen and source-approved, both actual Learning regression commands passed including the complete Essay PostgreSQL suite, and real browser journeys are running. The separate Quiz executor may develop on that exact stacked dependency without touching its UI. Do not integrate Quiz recovery until the Essay candidate has its required green evidence and is integrated in main. Recheck actual main and direct shared invariants before the final convergence.
-        migration_allocation: Published main692b76095 is still0300. The reviewed Essay candidate owns only a private forward0301 copy; provisional Quiz302 and303 follow that dependency for isolated development. Private claims are not exclusive reservations. At final integration allocate from actual published history and confirmed dependency order, never edit published SQL or backfill under an applied frontier.
-        audit_evidence: Fresh101-worktree audit found no dirty proposed recovery paths, including package.json and all three prefix fixtures. Earlier foreign package WIP is no longer dirty; recheck before writing and preserve every foreign draft. Historical Quiz branches remain provenance inputs, not automatic merge targets.
-        constraints: One bounded Q1 and Q2 recovery executor only. Carry current Essay guards forward instead of replacing the normalizer blindly. Expected paths are forecasts under direct_main; necessary same-scope helpers may change after a real overlap check, with the actual final diff reviewed. Do not begin a general core refactor, content editor, player, final-submit worker, learner-file feature, unrelated repair, tenant or RLS model change, dependency or workflow change, owner runtime operation or destructive data action. Preserve owner ClassroomPage and its related WIP. Do not weaken existing assertions, limits, timeouts or retries. If package becomes foreign-dirty, place equivalent HTTP coverage under the already selected tests/courses tree.
-        programme_next: Continue canonical Quiz content editing and publication using the existing bank and useful unfinished Q3 source, exact persisted submission and expiry, all eight normative types including pending manual review, compact player and real journal journey. Then complete the immutable learner-file vertical. The commissioned endpoint remains all four working kinds; this foundation is not a user-ready Quiz or whole-programme acceptance.
-      pending_validation_slice:
-        id: LRN-E1-ESSAY-COURSE-VERTICAL
-        status: browser_and_repository_pending
+        - Write DB-000 physical schema reuse proof and exact required SQL, constraints, indexes, FK actions and RLS in the execution spec before new physical implementation. No second academic runtime or general core refactor.
+        - Persist incomplete Question and Quiz author drafts and reopen them without fake publication. Publish immutable exact QuestionVersion and QuizVersion pins atomically; author-only draft references cannot enter published content.
+        - Support single_choice, multiple_choice, boolean, numeric, short_text, matching, ordering and long_text_manual through creation, learner interaction and assessment. Keep answer keys private until the pinned feedback policy permits release.
+        - Reuse the same compact assignment creator and Course composition. Native keyboard-accessible controls, compact grouped actions and usable320,390,1024,1440 layouts; no expanded decorative panels.
+        - Preserve existing stable Account and StudentSeat identity, activation, immutable policies, dense attempt ordinals, saved server answers, revision conflicts, replay and server-authoritative deadlines.
+        - Submit the existing attempt idempotently using confirmed answers. Extend the existing bounded lifecycle-managed expiry sweep for auto_submit or expire_without_submission; no duplicate attempts, new timer service or fabricated grades.
+        - Reuse existing five-type grading rules and extend matching and ordering deterministically. Manual pending work cannot produce final selected grades or course completion; teacher review uses the existing ClassroomGradebook seam.
+        - Prove the complete authored Course to class to learner to review and journal journey in isolated actual PostgreSQL and browser runs, plus full required exact-head gates and independent review.
+        dependencies: Essay957 and foundation2d both have successful full General and Learning workflows and independent source approval. Stacked development is allowed on these reviewed dependencies. Their separate bounded final integration repairs must preserve actual newly published Chess301302, reallocate private forward files and repeat affected exact-head checks. Do not integrate this child until both dependencies are accepted in main.
+        migration_allocation: Published main currently includes Chess0301 and0302. Essay303 and Quiz foundation304305 are provisional dependency allocations, not exclusive reservations. Allocate this slice from the actual published frontier and accepted dependency order; never edit published SQL.
+        constraints: Expected areas are forecasts, not per-file permission leases. Inspect real unfinished overlaps before writing and preserve foreign drafts, especially owner ClassroomPage and related classroom WIP. No learner-file feature, Python runner, tenant or RLS model change, unrelated repair, new dependency or workflow, deployment, owner database or protected assets in this slice. Preserve existing tests, limits, retries and timeouts.
+        programme_next: After accepted Quiz integration complete immutable learner-file answers, then the combined four-kind Course authoring, composition and class journey acceptance. The programme does not end at this slice.
+      pending_validation_slices:
+      - id: LRN-E1-ESSAY-COURSE-VERTICAL
         source_pr: 964
-        source_sha: 251eb3eda64f31ecb4d79698fa61f31c84e7fc7c
+        source_sha: 957a9aef51bfdeb2a61360cdc6dfa238b7d1608b
         source_review: approved
-        learning_run: 41531315635
-        general_run: 41531315914
-        actual_regression_commands: success_both_partitions
-        actual_essay_pg_cases: 4
-        browser_journeys: running_not_yet_accepted
-        scope: Complete compact Essay creation, exact Course pin and class delivery, Account and Seat persisted text, immutable submission, rework with preserved history, exact teacher review, grade and journal, required-result completion, scheduled content and media authorization.
-        acceptance_limit: Require actual author, learner, frozen review and journal evidence at320,390,1024,1440 and all required exact-head gates before integration. No installed or owner acceptance is inferred from source or PostgreSQL checks.
-        migration: migrations/0301_learning_essay_course_runtime.sql
-        migration_sha256: 6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d
-        migration_allocation: Our private0302 was renamed byte-identically to fresh0301 after verifying published main still0300. Foreign private301 files were untouched and have no exclusive reservation. Recheck the real published and applied frontier before integration or any separately authorized installation operation.
-        repair_policy: Only confirmed A or B defects may receive a separate bounded repair. Coordinate any real path overlap with the active Quiz writer; do not hide regressions or start unrelated cleanup.
+        learning_run: 41535567410
+        general_run: 41535567605
+        exact_head_gates: success
+        browser_journeys_passed: 47
+        responsive_visuals: 16 images at320,390,1024,1440; exact frozen review and journal accepted.
+        status: final_integration_repair
+        remaining: One controlled convergence with published Chess301302, private forward migration reallocation and current-tail fixtures; repeat affected checks and independent exact-source review before integration.
+        owner_acceptance: pending
+        deployment: not_run
+      - id: LRN-QUIZ-FOUNDATION-RECOVERY
+        source_pr: 966
+        source_sha: 2d97266087b1cd11d8388cbfe02804e35eb8cb83
+        source_review: approved
+        learning_run: 41539126101
+        general_run: 41539125989
+        exact_head_gates: success
+        browser_journeys_passed: 47
+        actual_regression: Each partition114files1240PASS and1diagnosticSKIP; Quiz state13,policy10,HTTP5 pass.
+        status: waiting_parent_final_integration
+        remaining: Inherit final Essay dependency once, reconcile private forward ordinals and strict fixtures, repeat affected exact-head gates and independent review, then integrate after the parent.
+        acceptance_limit: Persisted Quiz foundation only; no complete editor, submission, grading or installed readiness claim.
         owner_acceptance: pending
         deployment: not_run
       owner_acceptance: pending
