@@ -9430,35 +9430,37 @@ parallel_lanes:
         - Submit the existing attempt idempotently using confirmed answers. Extend the existing bounded lifecycle-managed expiry sweep for auto_submit or expire_without_submission; no duplicate attempts, new timer service or fabricated grades.
         - Reuse existing five-type grading rules and extend matching and ordering deterministically. Manual pending work cannot produce final selected grades or course completion; teacher review uses the existing ClassroomGradebook seam.
         - Prove the complete authored Course to class to learner to review and journal journey in isolated actual PostgreSQL and browser runs, plus full required exact-head gates and independent review.
-        dependencies: Essay957 and foundation2d both have successful full General and Learning workflows and independent source approval. Stacked development is allowed on these reviewed dependencies. Their separate bounded final integration repairs must preserve actual newly published Chess301302, reallocate private forward files and repeat affected exact-head checks. Do not integrate this child until both dependencies are accepted in main.
-        migration_allocation: Published main currently includes Chess0301 and0302. Essay303 and Quiz foundation304305 are provisional dependency allocations, not exclusive reservations. Allocate this slice from the actual published frontier and accepted dependency order; never edit published SQL.
+        dependencies: Essay957 and foundation2d have successful General and Learning workflows and independent source approval. Their final integration candidates Essay045dbcc and foundation2e3e002 are also source-approved; Essay045 has fresh47 browser passes and General governance, code and data success while Access is finishing. Full Quiz inherits both candidates. Integrate these dependencies together with the complete Quiz in one joint candidate after its own final exact-head repository, focused, browser and independent-review evidence; separate parent merges are no longer prerequisites. Do not infer acceptance from inherited receipts alone.
+        integration_strategy: Published publication0303 intersected the provisional private Essay303 after its final convergence. One controlled additional convergence is selected for the joint candidate against actual main01b6cc2fc, preserving all published SQL and foreign product changes. Renumber only private dependency files and update strict current-prefix fixtures, then test the joint result once rather than repeating equivalent parent-only cycles. Do not integrate conflicting parent PRs separately. If another published ordinal intersection invalidates this final convergence, stop integration for an owner integration window instead of chasing main indefinitely; independent development may continue.
+        migration_allocation: Actual published main01b6cc2fc ends at0303_publication_owner_editor.sql. Provisional joint order is Essay304, Quiz policy305, Quiz attempt state306 and complete Quiz307. Verify the actual published frontier before convergence; private claims are not reservations. Preserve every published byte and historical checksum, and attest byte identity of private dependency SQL across renames.
         constraints: Expected areas are forecasts, not per-file permission leases. Inspect real unfinished overlaps before writing and preserve foreign drafts, especially owner ClassroomPage and related classroom WIP. No learner-file feature, Python runner, tenant or RLS model change, unrelated repair, new dependency or workflow, deployment, owner database or protected assets in this slice. Preserve existing tests, limits, retries and timeouts.
         programme_next: After accepted Quiz integration complete immutable learner-file answers, then the combined four-kind Course authoring, composition and class journey acceptance. The programme does not end at this slice.
       pending_validation_slices:
       - id: LRN-E1-ESSAY-COURSE-VERTICAL
         source_pr: 964
-        source_sha: 957a9aef51bfdeb2a61360cdc6dfa238b7d1608b
+        source_sha: 045dbcc1442530fadc962c383e924aaa62e843cd
         source_review: approved
-        learning_run: 41535567410
-        general_run: 41535567605
-        exact_head_gates: success
+        learning_run: 41617317893
+        general_run: 41617317904
+        exact_head_gates: focused_success_repository_access_pending
         browser_journeys_passed: 47
         responsive_visuals: 16 images at320,390,1024,1440; exact frozen review and journal accepted.
-        status: final_integration_repair
-        remaining: One controlled convergence with published Chess301302, private forward migration reallocation and current-tail fixtures; repeat affected checks and independent exact-source review before integration.
+        status: joint_candidate_dependency
+        remaining: Preserve the reviewed Essay SQL and UI in the complete Quiz joint candidate; rename its private migration after newly published publication303 and require the joint exact-head evidence. Do not repeat a separate parent-only integration cycle.
         owner_acceptance: pending
         deployment: not_run
       - id: LRN-QUIZ-FOUNDATION-RECOVERY
         source_pr: 966
-        source_sha: 2d97266087b1cd11d8388cbfe02804e35eb8cb83
+        source_sha: 2e3e00211ee91993331d05a67fed06b6368a1f83
         source_review: approved
-        learning_run: 41539126101
-        general_run: 41539125989
-        exact_head_gates: success
-        browser_journeys_passed: 47
-        actual_regression: Each partition114files1240PASS and1diagnosticSKIP; Quiz state13,policy10,HTTP5 pass.
-        status: waiting_parent_final_integration
-        remaining: Inherit final Essay dependency once, reconcile private forward ordinals and strict fixtures, repeat affected exact-head gates and independent review, then integrate after the parent.
+        learning_run: 41617902701
+        general_run: 41617902840
+        exact_head_gates: pending
+        previous_approved_receipt: Source2d972660 with General41539125989 and Learning41539126101 SUCCESS;47 actual browser cases and114files1240PASS per partition.
+        previous_browser_journeys_passed: 47
+        previous_actual_regression: Source2d each partition114files1240PASS and1diagnosticSKIP; Quiz state13,policy10,HTTP5 pass.
+        status: joint_candidate_dependency
+        remaining: Preserve the independently reviewed foundation SQL and controller blobs in the complete Quiz joint candidate, rename private forward files and require the joint exact-head evidence. No separate parent merge is required.
         acceptance_limit: Persisted Quiz foundation only; no complete editor, submission, grading or installed readiness claim.
         owner_acceptance: pending
         deployment: not_run
