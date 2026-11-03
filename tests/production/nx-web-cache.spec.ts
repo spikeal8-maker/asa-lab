@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 const require = createRequire(import.meta.url);
 // Exercise the installed, pinned Nx hasher rather than reproducing its rules.
 const { NativeTaskHasherImpl } = require('nx/src/hasher/native-task-hasher-impl.js');
-const { testOnlyTransferFileMap } = require('nx/src/native/index.js');
+const { WorkspaceContext } = require('nx/src/native/index.js');
 const root = resolve(import.meta.dirname, '../..');
 const project = JSON.parse(readFileSync(join(root, 'apps/web/project.json'), 'utf8'));
 const nx = JSON.parse(readFileSync(join(root, 'nx.json'), 'utf8'));
@@ -48,6 +48,12 @@ afterAll(() => {
   }
 });
 
+// Use the same native workspace file-map API as Nx production graph creation.
+// Keep its cache outside the checkout and reuse it across isolated invocations.
+const workspaceCache = fixture();
+const workspaceContext = new WorkspaceContext(root, workspaceCache);
+const { externalReferences } = workspaceContext.getWorkspaceFiles({ 'apps/web': 'web' });
+
 const environment = {
   ...process.env,
   VITE_ASA_BUILD_REVISION: 'a'.repeat(40),
@@ -60,13 +66,9 @@ const environment = {
   NODE_ENV: 'production',
 };
 async function hash(env: Record<string, string | undefined> = environment) {
-  const hasher = new NativeTaskHasherImpl(
-    root,
-    nx,
-    graph,
-    testOnlyTransferFileMap({ web: [] }, []),
-    { selectivelyHashTsConfig: false },
-  );
+  const hasher = new NativeTaskHasherImpl(root, nx, graph, externalReferences, {
+    selectivelyHashTsConfig: false,
+  });
   return (await hasher.hashTask(task, taskGraph, env, root)).value;
 }
 
@@ -74,11 +76,13 @@ async function hash(env: Record<string, string | undefined> = environment) {
 // builds needs separate invocations without changing the actual repository.
 function isolatedHash(env: Record<string, string | undefined>) {
   const script = `
-    const { root, nx, graph, task, taskGraph, implementation, native } = JSON.parse(process.argv[1]);
+    const { root, nx, graph, task, taskGraph, implementation, native, workspaceCache } = JSON.parse(process.argv[1]);
     const { NativeTaskHasherImpl } = require(implementation);
-    const { testOnlyTransferFileMap } = require(native);
+    const { WorkspaceContext } = require(native);
+    const workspaceContext = new WorkspaceContext(root, workspaceCache);
+    const { externalReferences } = workspaceContext.getWorkspaceFiles({'apps/web': 'web'});
     const hasher = new NativeTaskHasherImpl(root, nx, graph,
-      testOnlyTransferFileMap({web: []}, []), {selectivelyHashTsConfig: false});
+      externalReferences, {selectivelyHashTsConfig: false});
     hasher.hashTask(task, taskGraph, process.env, root).then(result => process.stdout.write(result.value));
   `;
   return execFileSync(
@@ -94,6 +98,7 @@ function isolatedHash(env: Record<string, string | undefined>) {
         taskGraph,
         implementation: require.resolve('nx/src/hasher/native-task-hasher-impl.js'),
         native: require.resolve('nx/src/native/index.js'),
+        workspaceCache,
       }),
     ],
     { env, cwd: root, encoding: 'utf8', windowsHide: true },

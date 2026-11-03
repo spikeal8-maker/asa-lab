@@ -89,6 +89,9 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Web cache native hasher regressions
+        run: pnpm exec vitest run tests/production/nx-web-cache.spec.ts --maxWorkers=1
+
       - name: Set up Python for observability checks
         uses: actions/setup-python@v5
         with:
