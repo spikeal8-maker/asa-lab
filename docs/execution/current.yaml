@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_d_parallel_ui_ci_measured
+      checkpoint: package_e_web_cache_correctness_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,22 +111,24 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 4be7dca052e3b02cfb11bb9ab15e86c565f4d553
+      convergence_baseline_sha: 50b1dc159e654823de3e319f3c0f9528971e10ef
       head_sha: null
-      observed_at: '2026-11-02T20:52:53Z'
+      observed_at: '2026-11-03T05:12:25Z'
       main:
         branch: main
-        sha: 4be7dca052e3b02cfb11bb9ab15e86c565f4d553
+        sha: 50b1dc159e654823de3e319f3c0f9528971e10ef
       observation_note: >-
-        D partial delivered in PR 945: scoped CollectPicker checks, concrete sixteen-case browser shadow and
-        exact-source ASA / required aggregate. Source 6176394ff255e911ccb4e93788b9ea47e7c065ba passed all five
-        General jobs and independent critical review before integration. Real same-SHA L0/L1 pilots in Draft
-        PRs 948 and 956 passed scoped and full routes; those product changes remain unmerged. Single-pair
-        feedback gains are measured, while parallel mode increases runner cost and full General remains mandatory.
-        Canonical risk, unknowns and mandatory full General remain intact. Conditional General activation still
-        waits for tools/test_ci_image_transport.py release; owner declined handoff messages and foreign WIP operations.
-        PR 916 compatibility is inherited. Fetch main before writes. No D completion, release readiness,
-        deployment or owner acceptance.
+        D remains partial: addressed focused routing PR967 sourcef503764c passed full General41540467267
+        and independent review, merged900f2e10. Release-consumer prerequisite PR969 source82029c57
+        passed General41565687242 all5, Portable and Operational checks plus critical independent review,
+        merged50b1dc15 with identical tested tree. Main50b1dc15 General41579600641 also succeeded.
+        Conditional General still waits for dirty tools/test_ci_image_transport.py in old D13.
+        Owner on3November authorized one scoped coordination; current Electronics chat did not confirm
+        ownership or release. No foreign WIP actions or additional messages are authorized by this entry.
+        Owner expressly permits independent safe E/F/G work while D is blocked. Select only bounded
+        E-WEB-CACHE-001: correct Web Nx cache inputs and prove cold/warm reuse and identity invalidation.
+        D is not complete; preserve full main/release gates and mandatory uncached owner evidence.
+        Product UI pilots remain unmerged. No runtime, production, live database or host network actions.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -138,7 +140,8 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: D
+      selected_slice: E
+      selected_subslice: E-WEB-CACHE-001
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
