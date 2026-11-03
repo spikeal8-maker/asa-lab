@@ -574,6 +574,9 @@ test('game invitations reach the shared navigation and game card, ping once and 
   );
   await page.goto('/#/games');
   await expect(page.getByRole('button', { name: 'Играть: Шахматы', exact: true })).toBeVisible();
+  // The global polite announcement must not add an empty status to unrelated page feedback.
+  await expect(page.getByRole('status')).toHaveCount(0);
+  await expect(page.locator('.portal-game-announcement')).toHaveAttribute('aria-live', 'polite');
   await page.getByRole('heading', { name: 'Игры', exact: true }).click();
   incoming = [{ id: 'new-real-invitation', expiresAt: Date.now() + 600000 }];
   const card = page.getByRole('button', { name: 'Посмотреть приглашения: Шахматы', exact: true });

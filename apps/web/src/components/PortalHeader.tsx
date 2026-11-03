@@ -471,7 +471,7 @@ export function PortalHeader({
 
   return (
     <>
-      <span className="portal-game-announcement" role="status" aria-live="polite">
+      <span className="portal-game-announcement" aria-live="polite">
         {gameCount ? `Вас приглашают в шахматы. Приглашений: ${gameCount}. Откройте Игры.` : ''}
       </span>
       <header className="portal-header portal-header-ai-navigation">
