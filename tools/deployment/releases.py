@@ -3,8 +3,8 @@
 import datetime as dt
 import json
 import os
-from pathlib import Path
 import re
+from pathlib import Path
 import tempfile
 import urllib.request
 import uuid
@@ -13,12 +13,29 @@ from .contracts import REGISTRY, REPOSITORY, SERVICES, Blocked, attest_database_
 from .system import run
 
 
-def discover_release():
-    reference = f"{REGISTRY}/deployment:stable"
-    print("RELEASE fetching the published stable manifest", flush=True)
+def validate_deployment_digest(value):
+    require(isinstance(value, str) and re.fullmatch(r"sha256:[a-f0-9]{64}", value),
+            "RELEASE_SELECTOR", "Deployment selection must be a canonical sha256 digest, not a tag, path or repository.")
+    return value
+
+
+def discover_release(deployment_digest=None):
+    reference = (f"{REGISTRY}/deployment@{validate_deployment_digest(deployment_digest)}"
+                 if deployment_digest is not None else f"{REGISTRY}/deployment:stable")
+    print(f"RELEASE deployment={reference}" if deployment_digest is not None
+          else "RELEASE fetching the published stable manifest", flush=True)
     run(["docker", "pull", reference])
     # Pin the local ID after pulling: a simultaneous pull cannot change selection.
-    image_id = run(["docker", "image", "inspect", "--format", "{{.Id}}", reference], capture=True)
+    if deployment_digest is None:
+        image_id = run(["docker", "image", "inspect", "--format", "{{.Id}}", reference], capture=True)
+    else:
+        record = json.loads(run(["docker", "image", "inspect", "--format",
+                                '{"id":{{json .Id}},"digests":{{json .RepoDigests}}}', reference], capture=True))
+        require(isinstance(record, dict) and isinstance(record.get("digests"), list)
+                and reference in record["digests"] and isinstance(record.get("id"), str)
+                and re.fullmatch(r"sha256:[a-f0-9]{64}", record["id"]),
+                "RELEASE_DIGEST_MISMATCH", "Docker did not attest the exact requested deployment digest.")
+        image_id = record["id"]
     container = run(["docker", "create", "--network", "none", "--label", "asa.operation=release-manifest",
                      image_id, "/not-executed"], capture=True)
     try:
@@ -80,20 +97,33 @@ def _completed_run(run):
 
 def _successful_jobs(run, required):
     _completed_run(run)
-    jobs = _ci_pages(f"/{run['id']}/attempts/{run['run_attempt']}/jobs", "jobs")
-    names = [job.get("name") for job in jobs]
-    require(all(isinstance(name, str) for name in names) and len(set(names)) == len(names),
-            "CI_BLOCKED", "Missing or duplicate CI job names.")
-    required = set(required)
-    if run["path"] == ".github/workflows/spec-validation.yml" and "ASA / required" in names:
-        required.add("ASA / required")
-    require(required <= set(names), "CI_BLOCKED", "Required CI jobs are missing from the latest attempt.")
+    # A failed-job retry keeps successful jobs from earlier attempts of this
+    # same run/SHA. Never fall back past a newer unsuccessful execution.
+    jobs = _ci_pages(f"/{run['id']}/jobs?filter=all", "jobs")
+    latest, executions = {}, set()
     for job in jobs:
         require(type(job.get("run_id")) is int and job["run_id"] == run["id"] and type(job.get("run_attempt")) is int
-                and job["run_attempt"] == run["run_attempt"] and job.get("head_sha") == run["head_sha"],
-                "CI_BLOCKED", "CI jobs do not belong to the exact run, source and latest attempt.")
-        if job["name"] not in required:
-            continue
+                and 1 <= job["run_attempt"] <= run["run_attempt"] and job.get("head_sha") == run["head_sha"],
+                "CI_BLOCKED", "CI jobs do not belong to the exact run, source and bounded attempts.")
+        name, attempt = job.get("name"), job["run_attempt"]
+        require(isinstance(name, str) and bool(name) and (name, attempt) not in executions,
+                "CI_BLOCKED", "Missing or ambiguous CI job execution identity.")
+        executions.add((name, attempt))
+        require(job.get("status") in ("queued", "in_progress", "completed", "waiting", "pending", "requested")
+                and (job.get("conclusion") in ("success", "failure", "neutral", "cancelled", "skipped",
+                                               "timed_out", "action_required", "stale", "startup_failure")
+                     if job["status"] == "completed" else job.get("conclusion") is None),
+                "CI_BLOCKED", "Malformed CI job status or conclusion.")
+        if name not in latest or attempt > latest[name]["run_attempt"]:
+            latest[name] = job
+    require(any(job["run_attempt"] == run["run_attempt"] for job in jobs),
+            "CI_BLOCKED", "No job evidence for the current workflow attempt.")
+    required = set(required)
+    if run["path"] == ".github/workflows/spec-validation.yml" and "ASA / required" in latest:
+        required.add("ASA / required")
+    require(required <= latest.keys(), "CI_BLOCKED", "Required CI jobs have no execution evidence.")
+    for name in required:
+        job = latest[name]
         try:
             start = dt.datetime.fromisoformat(job["started_at"].replace("Z", "+00:00"))
             end = dt.datetime.fromisoformat(job["completed_at"].replace("Z", "+00:00"))

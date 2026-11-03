@@ -203,6 +203,86 @@ class ReleaseTests(unittest.TestCase):
             return io.BytesIO(json.dumps(payload).encode())
         return respond
 
+    @classmethod
+    def ci_retry_fixture(cls, kind):
+        fixture = cls.ci_fixture()
+        fixture[kind]["run_attempt"] = 2
+        name = "PostgreSQL tests and RLS" if kind == "general" else "publish"
+        previous = next(job for job in fixture[kind + "_jobs"] if job["name"] == name)
+        retried = {**previous, "id": 9999, "run_attempt": 2,
+                   "started_at": "2026-11-02T10:02:00Z", "completed_at": "2026-11-02T10:03:00Z"}
+        fixture[kind + "_jobs"].append(retried)
+        return fixture, previous, retried
+
+    def test_partial_retry_retains_actual_same_source_successes(self):
+        for kind in ("general", "publication"):
+            for reverse in (False, True):
+                fixture, previous, retried = self.ci_retry_fixture(kind)
+                previous["conclusion"] = "failure"
+                if reverse:
+                    fixture[kind + "_jobs"].reverse()
+                with self.subTest(kind=kind, reverse=reverse), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)):
+                    assert_ci(release())
+
+    def test_newer_nonpassing_retry_overrides_previous_success(self):
+        for kind in ("general", "publication"):
+            for result in ("failure", "cancelled", "skipped", "timed_out", "neutral", "queued", "in_progress", "waiting"):
+                fixture, previous, retried = self.ci_retry_fixture(kind)
+                if result in ("queued", "in_progress", "waiting"):
+                    retried.update(status=result, conclusion=None, started_at=None, completed_at=None, runner_id=0)
+                else:
+                    retried["conclusion"] = result
+                self.assertEqual(previous["conclusion"], "success")
+                with self.subTest(kind=kind, result=result), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+                    assert_ci(release())
+
+    def test_every_retry_row_is_source_bound_and_unambiguous(self):
+        for kind in ("general", "publication"):
+            for row in ("previous", "retried"):
+                for change in ({"run_id": 77}, {"head_sha": "c" * 40}, {"run_attempt": 0}, {"run_attempt": 3},
+                               {"run_attempt": True}, {"run_attempt": "2"}, {"name": None}, {"name": ""},
+                               {"status": "unknown"}, {"conclusion": None}):
+                    fixture, previous, retried = self.ci_retry_fixture(kind)
+                    (previous if row == "previous" else retried).update(change)
+                    with self.subTest(kind=kind, row=row, change=change), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+                        assert_ci(release())
+            for duplicate_id in (False, True):
+                fixture, previous, retried = self.ci_retry_fixture(kind)
+                fixture[kind + "_jobs"].append({**retried, "id": retried["id"] if duplicate_id else 9998})
+                with self.subTest(kind=kind, duplicate_id=duplicate_id), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+                    assert_ci(release())
+
+    def test_partial_retry_cannot_hide_missing_job_or_current_attempt(self):
+        for kind in ("general", "publication"):
+            for missing in ("required", "current_attempt"):
+                fixture, previous, retried = self.ci_retry_fixture(kind)
+                name = "Governance contracts" if kind == "general" else "gate"
+                if missing == "required":
+                    fixture[kind + "_jobs"] = [job for job in fixture[kind + "_jobs"] if job["name"] != name]
+                else:
+                    fixture[kind + "_jobs"] = [job for job in fixture[kind + "_jobs"] if job["run_attempt"] < 2]
+                with self.subTest(kind=kind, missing=missing), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+                    assert_ci(release())
+
+    def test_aggregate_newer_failure_overrides_older_success(self):
+        fixture, previous, retried = self.ci_retry_fixture("general")
+        aggregate = next(job for job in fixture["general_jobs"] if job["name"] == "ASA / required")
+        fixture["general_jobs"].append({**aggregate, "id": 9998, "run_attempt": 2, "conclusion": "failure"})
+        with patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+            assert_ci(release())
+
+    def test_partial_retry_job_pages_cannot_be_truncated(self):
+        for kind in ("general", "publication"):
+            fixture, previous, retried = self.ci_retry_fixture(kind)
+            base = self.ci_response(fixture)
+            def truncated(request, **kwargs):
+                if f"/{fixture[kind]['id']}/jobs?" in request.full_url:
+                    return io.BytesIO(json.dumps({"total_count": 99, "jobs": fixture[kind + "_jobs"]}).encode())
+                return base(request, **kwargs)
+            with self.subTest(kind=kind), patch("deployment.releases.urllib.request.urlopen", side_effect=truncated), self.assertRaises(Blocked) as denied:
+                assert_ci(release())
+            self.assertEqual(denied.exception.code, "CI_UNAVAILABLE")
+
     def test_overall_success_cannot_hide_skipped_general_job(self):
         fixture = self.ci_fixture()
         fixture["general_jobs"][2]["conclusion"] = "skipped"
@@ -301,7 +381,7 @@ class ReleaseTests(unittest.TestCase):
             with self.subTest(change=change), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
                 assert_ci(release())
 
-    def test_paginated_general_and_jobs_are_complete_and_attempt_specific(self):
+    def test_paginated_general_and_jobs_are_complete_and_bound(self):
         fixture = self.ci_fixture()
         general = fixture["general"]
         runs = [{**general, "id": 2000 + i, "name": "Other workflow"} for i in range(100)] + [general]
@@ -315,14 +395,15 @@ class ReleaseTests(unittest.TestCase):
             seen.append(parsed.path + "?" + parsed.query)
             if parsed.path.endswith("/actions/runs"):
                 rows, key = runs, "workflow_runs"
-            elif parsed.path.endswith("/11/attempts/1/jobs"):
+            elif parsed.path.endswith("/11/jobs"):
+                self.assertEqual(parse_qs(parsed.query)["filter"], ["all"])
                 rows, key = jobs, "jobs"
             else:
                 return base(request, **kwargs)
             return io.BytesIO(json.dumps({"total_count": len(rows), key: rows[(page - 1) * 100:page * 100]}).encode())
         with patch("deployment.releases.urllib.request.urlopen", side_effect=paginated):
             assert_ci(release())
-        self.assertTrue(any("/11/attempts/1/jobs?per_page=100&page=2" in path for path in seen))
+        self.assertTrue(any("/11/jobs?filter=all&per_page=100&page=2" in path for path in seen))
         self.assertTrue(any("head_sha=" in path and "page=2" in path for path in seen))
 
     def test_truncated_duplicate_and_oversized_api_listings_block(self):
