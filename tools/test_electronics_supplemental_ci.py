@@ -164,20 +164,34 @@ class Transport(unittest.TestCase):
         guard.prepare(control,candidate,{**env,'RUNNER_TEMP':str(temporary),'GITHUB_ENV':str(put(root,'github-env',''))})
         self.assertEqual(git(candidate,'config','core.filemode'),'true')
         before={name:(candidate/name).read_bytes() for name in TRACKED_EVIDENCE}
+        old_proof=candidate/guard.OUTPUT/'source.json'
+        proof_bytes=old_proof.read_bytes()
+        self.assertEqual(old_proof.stat().st_mode&0o777,0o644)
         subprocess.run(['chmod','-R','0777','e2e/artifacts','reports'],cwd=candidate,check=True,capture_output=True)
         self.assertTrue(set(TRACKED_EVIDENCE)<=set(git(candidate,'diff','--name-only').splitlines()))
         self.assertEqual(before,{name:(candidate/name).read_bytes() for name in TRACKED_EVIDENCE})
+        self.assertEqual(old_proof.stat().st_mode&0o777,0o777)
+        self.assertEqual(old_proof.read_bytes(),proof_bytes)
         with self.assertRaisesRegex(ValueError,'CANDIDATE_SOURCE_DIRTY'):
             guard.candidate_source(control,candidate,env,prepared=True)
-        # Restore only synthetic fixture modes, never a repository or real evidence tree.
-        for name in TRACKED_EVIDENCE:(candidate/name).chmod(0o644)
+        # The negative prefix also chmods the UNTRACKED source proof. Do not reuse
+        # that contaminated tree as the independent fresh positive fixture.
+        old_candidate=candidate
+        root,control,candidate,env,git=self.fixture()
+        self.assertNotEqual(candidate,old_candidate)
+        temporary=root/'runner-temp';temporary.mkdir()
+        guard.prepare(control,candidate,{**env,'RUNNER_TEMP':str(temporary),'GITHUB_ENV':str(put(root,'github-env',''))})
+        fresh_proof=candidate/guard.OUTPUT/'source.json'
+        fresh_bytes=fresh_proof.read_bytes()
+        self.assertEqual(fresh_proof.stat().st_mode&0o777,0o644)
         self.assertEqual(git(candidate,'diff','--name-only'),'')
         text=(ROOT/guard.WORKFLOW).read_text()
         commands=re.findall(r'^        run: (chmod[^\n]+)$',text,re.M)
         self.assertEqual(commands,['chmod 0777 '+guard.OUTPUT])
         subprocess.run(commands[0].split(),cwd=candidate,check=True,capture_output=True)
         self.assertEqual((candidate/guard.OUTPUT).stat().st_mode&0o777,0o777)
-        self.assertEqual((candidate/guard.OUTPUT/'source.json').stat().st_mode&0o777,0o644)
+        self.assertEqual(fresh_proof.stat().st_mode&0o777,0o644)
+        self.assertEqual(fresh_proof.read_bytes(),fresh_bytes)
         self.assertEqual(git(candidate,'diff','--name-only'),'')
         guard.candidate_source(control,candidate,env,prepared=True)
         for name in [*TRACKED_EVIDENCE,'product.txt','compose.yaml']:
@@ -186,6 +200,35 @@ class Transport(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'CANDIDATE_SOURCE_DIRTY'):
                     guard.candidate_source(control,candidate,env,prepared=True)
                 path.chmod(0o644)
+        guard.candidate_source(control,candidate,env,prepared=True)
+
+    @unittest.skipUnless(sys.platform=='linux' and os.geteuid()==0,
+        'actual root-to-UID1000 readability requires Linux root; no sudo or identity spoof')
+    def test_actual_fresh_root_owned_proof_is_readable_by_distinct_numeric_uid1000(self):
+        root,control,candidate,env,git=self.fixture()
+        temporary=root/'runner-temp';temporary.mkdir()
+        guard.prepare(control,candidate,{**env,'RUNNER_TEMP':str(temporary),'GITHUB_ENV':str(put(root,'github-env',''))})
+        report=candidate/guard.OUTPUT;proof=report/'source.json';before=proof.read_bytes()
+        self.assertEqual(proof.stat().st_uid,0)
+        self.assertEqual(proof.stat().st_mode&0o777,0o644)
+        # Traverse only this newly created public synthetic fixture, never the staged source.
+        for directory in [root,candidate,candidate/'reports']:directory.chmod(0o755)
+        commands=re.findall(r'^        run: (chmod[^\n]+)$',(ROOT/guard.WORKFLOW).read_text(),re.M)
+        self.assertEqual(commands,['chmod 0777 '+guard.OUTPUT])
+        subprocess.run(commands[0].split(),cwd=candidate,check=True,capture_output=True)
+        code=('import os,sys,json,hashlib; from pathlib import Path; p=Path(sys.argv[1]); '
+            'b=p.read_bytes(); '
+            'receipt={"uid":os.getuid(),"gid":os.getgid(),"mode":p.stat().st_mode&0o777,'
+            '"sha256":hashlib.sha256(b).hexdigest()}; '
+            'f=(p.parent/"uid1000-synthetic.json").open("x"); json.dump(receipt,f); f.close(); '
+            'print(json.dumps(receipt))')
+        child=subprocess.run([sys.executable,'-B','-c',code,str(proof)],cwd=root,
+            user=1000,group=1000,extra_groups=[],check=True,capture_output=True,text=True)
+        self.assertEqual(json.loads(child.stdout),{'uid':1000,'gid':1000,'mode':0o644,'sha256':guard.sha(before)})
+        self.assertEqual(proof.read_bytes(),before)
+        self.assertEqual(proof.stat().st_mode&0o777,0o644)
+        self.assertEqual((report/'uid1000-synthetic.json').stat().st_uid,1000)
+        self.assertEqual(git(candidate,'diff','--name-only'),'')
         guard.candidate_source(control,candidate,env,prepared=True)
 
     @unittest.skipUnless(os.name=='posix','descriptor permission contract requires POSIX')

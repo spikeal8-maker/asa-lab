@@ -75,6 +75,16 @@ modes are still rejected. Public failure diagnostics now expose only a closed
 phase/code, never exception text, Docker output, paths or response payloads.
 This source repair is not a successful rerun or decoded evidence claim.
 
+The first isolated H03 Linux probe of2cdb954a ran11 tests:10PASS and1FAIL.
+Its prefix fixture reused an untracked `source.json` changed to0777 by the old
+recursive negative challenge. Restoring tracked file modes did not restore that
+proof. The corrected regression uses separate fresh Git fixtures, asserts the
+old proof's0777 contamination and preserves the new proof's0644 mode and bytes.
+A Linux-root-only test additionally reads the fresh root-owned proof and creates
+its own synthetic output as numeric UID/GID1000 in a separate child process.
+It changes no account/service configuration and uses no sudo or CI identity spoof.
+The original H03 failure remains evidence; corrected Linux execution is pending.
+
 Offline focused checks (no Docker/network):
 
 ```text
