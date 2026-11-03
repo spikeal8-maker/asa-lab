@@ -48,9 +48,15 @@ jobs:
           REVISION: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           python - <<'PY'
-          import os, sys
+          import os, re, sys
           sys.path.insert(0, 'tools')
           from deployment.releases import assert_general_ci
+          from deployment.system import run
+          from deployment.contracts import require
+          latest = run(['git', 'ls-remote', 'origin', 'refs/heads/main'], capture=True)
+          main = re.fullmatch(r'([0-9a-f]{40})\trefs/heads/main', latest)
+          require(main and main[1] == os.environ.get('REVISION'), 'STALE_RELEASE',
+                  'Candidate is not the current main; stop before building release images.')
           assert_general_ci(os.environ['REVISION'])
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('revision=' + os.environ['REVISION'] + '\n')

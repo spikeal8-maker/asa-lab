@@ -103,3 +103,6 @@
     height: 340px;
   }
 }
+.public-three-d-stage .three-d-presentation canvas {
+  touch-action: none;
+}
