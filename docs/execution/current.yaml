@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_f_minimal_entry_selected
+      checkpoint: package_e_cache_linux_portability_repair
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,26 +111,27 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ca07246b5c74f5dc5bb3b05b8055c2d8c0b8aa65
+      convergence_baseline_sha: 2f1c1423e15f520d618d1aad15e6639046b74a00
       head_sha: null
-      observed_at: '2026-11-03T05:48:05Z'
+      observed_at: '2026-11-03T06:02:18Z'
       main:
         branch: main
-        sha: ca07246b5c74f5dc5bb3b05b8055c2d8c0b8aa65
+        sha: 2f1c1423e15f520d618d1aad15e6639046b74a00
       observation_note: >-
-        D remains partial: accepted addressed focused routing PR967 and release-consumer protection PR969;
-        source82029c57 General41565687242 all5 and Main50b1dc15 General41579600641 succeeded.
-        Conditional General still waits for dirty tools/test_ci_image_transport.py in old D13.
-        Owner authorized one scoped coordination on3November; current Electronics chat did not confirm
-        ownership or release. No foreign WIP actions or additional messages are authorized here.
-        Independent E-WEB-CACHE-001 source4821f638 is published in PR974, focused11PASS, critical reviewPASS,
-        required sourceCI still pending. Its executor stopped; continue observing that exact SHA unchanged.
-        Owner expressly permits independent safe E/F/G work while D is blocked. Select only independent
-        F-MINIMAL-ENTRY-001: align the two existing entry documents with one exact-path preflight and honest
-        verify-plan semantics. F paths do not intersect E or D; E integration still requires successful CI.
-        Mainca07246b full General41582814382 succeeded before this selection. Preserve full main/release
-        and uncached owner-evidence gates. Product UI pilots remain unmerged; no release or runtime claim.
-        Fetch main before writes; recover exact source and CI before the next bounded action.
+        D remains partial: accepted focused routing PR967 and release protection PR969; full Mainca07246b
+        General41582814382 succeeded. Conditional General still waits for dirty tools/test_ci_image_transport.py
+        in old D13. One owner-authorized coordination did not establish ownership or release; no foreign WIP edits.
+        E source4821f638 PR974 has a categoryA failure in Datajob125750487182: all11 new cache regressions
+        call testOnlyTransferFileMap, absent from the Linux build of pinnedNx23.1.2; other9585tests passed.
+        The known-failing run41584888372 was cancelled after evidence preservation to avoid further waste;
+        cancellation does not erase the recorded own failure or grant acceptance. Product cache configuration
+        and helper remain unchanged. Select only E-CI-PORTABILITY-REPAIR-001: production native file-map API
+        plus one unconditional concrete early Vitest step in the existing General code job. Preserve original
+        required steps, job controls and protected gates; do not edit the occupied image guard or dependencies.
+        F sourcec1962aaf PR975 has focused27PASS2WindowsplatformSKIP and independent reviewPASS; exact-source
+        CI continues unchanged. Its executor stopped and its two doc paths do not intersect this E repair.
+        Owner permits independent E/F/G; G is deferred until the bounded E repair is verified. No release,
+        production, database, Docker or host-network action. Fetch main before writes and recover exact CI.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -142,15 +143,23 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: F
-      selected_subslice: F-MINIMAL-ENTRY-001
+      selected_slice: E
+      selected_subslice: E-CI-PORTABILITY-REPAIR-001
       verification_pending_slices:
         - id: E-WEB-CACHE-001
           source_sha: 4821f6389afdb794db2efb24e5b93a692bdf40dc
           pr: 974
           independent_review: PASS
-          ci_status: pending
+          ci_status: failed_data_gate
+          failure_classification: own_regression_test_linux_api
           general_run: 41584888372
+          integration_status: pending_required_ci
+        - id: F-MINIMAL-ENTRY-001
+          source_sha: c1962aaf853486858c125ded3de26257b651acae
+          pr: 975
+          independent_review: PASS
+          ci_status: pending
+          general_run: 41586783684
           integration_status: pending_required_ci
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
