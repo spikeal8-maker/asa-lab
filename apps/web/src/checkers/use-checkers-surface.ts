@@ -12,20 +12,22 @@ const surfaces = new Set([
   'class',
   'teacher',
 ]);
-function fromHash<T extends string>(id: string): T {
-  const match = /^#\/checkers\/([^/]+)\/([^/?]+)/.exec(window.location.hash);
+export function checkersSurfaceRoute(id: string, hash: string): string | null {
+  const match = /^#\/checkers\/([^/]+)\/([^/?]+)/.exec(hash);
   try {
-    return (
-      match && decodeURIComponent(match[1]!) === id && surfaces.has(match[2]!) ? match[2]! : 'home'
-    ) as T;
+    return match && decodeURIComponent(match[1]!) === id && surfaces.has(match[2]!)
+      ? match[2]!
+      : null;
   } catch {
-    return 'home' as T;
+    return null;
   }
 }
 export function useCheckersSurface<T extends string>(id: string): [T, Dispatch<SetStateAction<T>>] {
-  const [surface, setSurface] = useState<T>(() => fromHash<T>(id));
+  const [surface, setSurface] = useState<T>(
+    () => (checkersSurfaceRoute(id, window.location.hash) ?? 'home') as T,
+  );
   useEffect(() => {
-    const sync = () => setSurface(fromHash<T>(id));
+    const sync = () => setSurface((checkersSurfaceRoute(id, window.location.hash) ?? 'home') as T);
     window.addEventListener('hashchange', sync);
     window.addEventListener('popstate', sync);
     return () => {

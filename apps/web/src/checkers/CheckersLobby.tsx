@@ -82,6 +82,7 @@ export function CheckersLobby({
             </p>
           )}
           <p>Русские шашки · 64 клетки · обязательное взятие</p>
+          {model.teacherFeedback && <p>{model.teacherFeedback}</p>}
           <details>
             <summary>Обучение и задания</summary>
             <button type="button" onClick={() => onOpen('learning-path')}>
@@ -103,7 +104,6 @@ export function CheckersLobby({
                 </button>
               </article>
             ))}
-            {model.teacherFeedback && <p>{model.teacherFeedback}</p>}
           </details>
           <small>{projectTitle}</small>
         </section>

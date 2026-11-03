@@ -1,4 +1,4 @@
-import { useCheckersSurface } from './use-checkers-surface';
+import { checkersSurfaceRoute, useCheckersSurface } from './use-checkers-surface';
 import * as CheckersDomain from '@asa-lab/checkers';
 import type {
   CheckersAssignment,
@@ -791,6 +791,9 @@ function TeacherEventDialog({
 export function CheckersModuleExperience(props: CheckersModuleExperienceProps): JSX.Element {
   const checkers = useCheckersProject(props.projectId, props.user);
   const [surface, setSurface] = useCheckersSurface<CheckersSurface>(props.projectId);
+  const [explicitEntry] = useState(
+    () => checkersSurfaceRoute(props.projectId, window.location.hash) !== null,
+  );
   const [activePuzzle, setActivePuzzle] = useState<CheckersPuzzle | null>(null);
   const [attempt, setAttempt] = useState<CheckersPuzzleAttempt | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -807,9 +810,9 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
   const [reviewPly, setReviewPly] = useState(0);
 
   useEffect(() => {
-    if (checkers.project?.scope !== 'classroom') return;
+    if (explicitEntry || checkers.project?.scope !== 'classroom') return;
     setSurface(resolveCheckersLandingSurface(checkers.project.scope, checkers.canManageClassroom));
-  }, [checkers.canManageClassroom, checkers.project?.scope]);
+  }, [explicitEntry, checkers.canManageClassroom, checkers.project?.scope]);
 
   useEffect(() => {
     if (surface !== 'class' || checkers.project?.scope !== 'classroom') return;
