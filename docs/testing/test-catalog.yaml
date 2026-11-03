@@ -26,6 +26,16 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-LEARNING-ESSAY-COURSE-001
+    title: Written Course responses preserve exact publication, learner authority, revisions, immutable evidence, rework and canonical journal results
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/courses/learning-essay-course-runtime.pg.spec.ts tests/courses/learning-essay-attempts.controller.spec.ts --maxWorkers=1
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
   - id: TST-PUBLICATION-BROWSER-ISOLATION-001
     title: Publication browser partitions preserve every scenario and use sequential owned API lifecycles without retry or limiter changes
     suite: integration
@@ -55,6 +65,16 @@ tests:
     command: pnpm gate:ai-image-queue
     timeout_seconds: 1200
     owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-LRN-QUIZ-ATTEMPT-STATE-001
+    title: Exact Quiz Start replay, confirmed answer revision, identity isolation and server deadline without academic result writes
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/courses/quiz-attempt-state.pg.spec.ts tests/courses/learning-quiz-attempts.controller.spec.ts apps/api/src/account-verification.guard.spec.ts
+    timeout_seconds: 300
+    owner: learning
     artifacts: [vitest-report, postgresql-isolation-report]
   - id: TST-AI-TOKEN-BUDGETS-CORE-001
     title: Soft monthly model budgets, actual journal settlement, retained unknowns, complete native rounds, own-principal privacy and independent CAS settings

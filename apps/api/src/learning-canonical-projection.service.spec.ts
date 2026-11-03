@@ -41,20 +41,22 @@ function poolWith(...rows: Array<Record<string, unknown>>): pg.Pool {
 }
 
 describe('LRN-M0-007 canonical projection boundary', () => {
-  it('runs direct project, course project and quiz evidence through the same resolver boundary', async () => {
-    const rows = (['direct_project', 'course_project', 'quiz'] as const).map((kind, index) => ({
-      ...base,
-      kind,
-      classroomAssignmentId: `40000000-0000-4000-8000-00000000000${index + 1}`,
-      legacyWork:
-        kind === 'quiz'
-          ? null
-          : {
-              projectId: `70000000-0000-4000-8000-00000000000${index + 1}`,
-              startedAt: '2026-08-20T10:00:00.000Z',
-              submittedAt: null,
-            },
-    }));
+  it('runs project, quiz and project-free essay evidence through the same resolver boundary', async () => {
+    const rows = (['direct_project', 'course_project', 'quiz', 'essay'] as const).map(
+      (kind, index) => ({
+        ...base,
+        kind,
+        classroomAssignmentId: `40000000-0000-4000-8000-00000000000${index + 1}`,
+        legacyWork:
+          kind === 'quiz' || kind === 'essay'
+            ? null
+            : {
+                projectId: `70000000-0000-4000-8000-00000000000${index + 1}`,
+                startedAt: '2026-08-20T10:00:00.000Z',
+                submittedAt: null,
+              },
+      }),
+    );
     const pool = poolWith(...rows);
     const result = await new LearningCanonicalProjectionService(pool, {}).forTeacher(
       'a0000000-0000-4000-8000-000000000001',
@@ -62,14 +64,14 @@ describe('LRN-M0-007 canonical projection boundary', () => {
       '2026-08-21T00:00:00.000Z',
     );
 
-    expect(result.size).toBe(3);
+    expect(result.size).toBe(4);
     expect(
       rows.map(
         (row) =>
           result.get(canonicalProjectionKey(base.seatId, row.classroomAssignmentId))?.surface
             .workflowState,
       ),
-    ).toEqual(['in_progress', 'in_progress', 'not_started']);
+    ).toEqual(['in_progress', 'in_progress', 'not_started', 'not_started']);
     expect(pool.query).toHaveBeenCalledTimes(1);
   });
 
