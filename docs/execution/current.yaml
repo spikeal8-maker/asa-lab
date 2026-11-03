@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_f_diagnostic_marker_repair
+      checkpoint: package_g_release_queue_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,27 +111,29 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 9e75103c17bbacfa989e3d73dc555ef4a554e32e
+      convergence_baseline_sha: 2c2f5ab4a1d6fd35b7529a1a71c96ed1040ad6fa
       head_sha: null
-      observed_at: '2026-11-03T06:13:55Z'
+      observed_at: '2026-11-03T06:24:44Z'
       main:
         branch: main
-        sha: 9e75103c17bbacfa989e3d73dc555ef4a554e32e
+        sha: 2c2f5ab4a1d6fd35b7529a1a71c96ed1040ad6fa
       observation_note: >-
-        D remains partial; accepted routing PR967 and release protection PR969 are preserved. Conditional
+        D remains partial: accepted routing PR967 and full-release protection PR969 preserved. Conditional
         General still waits for dirty tools/test_ci_image_transport.py in old D13. One scoped coordination
-        did not confirm ownership or release; no foreign WIP actions or additional messages.
-        E repair source90f73f7d is published in PR974 after normal Main convergence, focused11PASS and new
-        independent reviewPASS. Production WorkspaceContext replaces unavailable test-only API, and one
-        unconditional early concrete Vitest step preserves every original General gate/control. Linux/full
-        sourceCI41588340385 is pending unchanged. Previous4821 own Data failure remains recorded, not waived.
-        F sourcec1962aaf PR975 has own Governance41586783684 FAIL: delivery guidance omitted the required
-        diagnostic marker pnpm agent:context --scope <lane>. Other Scratch/CLA/shadow checks passed.
-        Select only F-DIAGNOSTIC-MARKER-REPAIR-001: restore the exact example as optional SAFE_ACTION
-        diagnosis in the existing delivery document, without restoring six startup commands or changing its
-        validator. E executor stopped and its pending source is immutable; paths do not intersect.
-        Owner authorizes independent E/F/G. Keep full Main/release and uncached owner evidence. No release,
-        runtime, database, Docker or network action. Fetch main before writes and recover exact source/CI.
+        did not confirm ownership or release; no foreign WIP action or additional message.
+        E source90f73f7d PR974 has focused11PASS and new independent reviewPASS. Actual early Linux native
+        hasher step in General41588340385/codejob125760482159 succeeded at06:16:35Z in3seconds; full General
+        remains pending on the unchanged source. Previous4821 own Data failure is retained, not waived.
+        F repaired sourcecb023dc6 PR975 has unchanged validatorPASS and new independent reviewPASS; full
+        General41589321193 is pending unchanged. Previousc196 missing-marker GovernanceFAIL is retained.
+        Both code executors stopped. Owner permits independent E/F/G while D is blocked. Select only
+        G-RELEASE-QUEUE-001: preserve pending verified release candidates with the platform's bounded max
+        workflow-concurrency queue, retaining the existing single publication group and cancel-in-progress false.
+        Reuse PR969 native-job/full-source release verifier; do not duplicate it or weaken STALE_RELEASE,
+        immutable image, Main, migration or updater controls. Exact G paths are portable-release workflow and
+        its existing deployment contract tests. No paid service, repository settings or runtime action.
+        Full Main/release and uncached owner evidence remain required; no release/deployment acceptance.
+        Fetch main before writes and recover actual source/CI before integration.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -143,8 +145,8 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: F
-      selected_subslice: F-DIAGNOSTIC-MARKER-REPAIR-001
+      selected_slice: G
+      selected_subslice: G-RELEASE-QUEUE-001
       verification_pending_slices:
         - id: E-WEB-CACHE-001
           source_sha: 90f73f7dc0710c184a43b531f5a2b60945861b85
@@ -156,12 +158,13 @@ parallel_lanes:
           general_run: 41588340385
           integration_status: pending_required_ci
         - id: F-MINIMAL-ENTRY-001
-          source_sha: c1962aaf853486858c125ded3de26257b651acae
+          source_sha: cb023dc6cea4249f43b3893b54f6add543c9652b
           pr: 975
           independent_review: PASS
-          ci_status: failed_governance
-          failure_classification: own_documented_diagnostic_marker_missing
-          general_run: 41586783684
+          ci_status: pending
+          previous_failed_source_sha: c1962aaf853486858c125ded3de26257b651acae
+          previous_failure_classification: own_documented_diagnostic_marker_missing
+          general_run: 41589321193
           integration_status: pending_required_ci
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
