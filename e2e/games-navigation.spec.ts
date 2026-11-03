@@ -768,3 +768,38 @@ test('pending invitations distinguish both games and Checkers capture paths requ
   });
   expect(state.errors).toEqual([]);
 });
+
+test('a stalled Checkers inbox does not suppress a completed Chess invitation', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  let release: (() => void) | undefined;
+  await page.route('**/api/games/checkers/notifications', async (route) => {
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await route.abort().catch(() => undefined);
+  });
+  await page.route('**/api/games/chess/notifications', (route) =>
+    route.fulfill({
+      json: {
+        playerId: 'fixture-player',
+        incoming: [{ id: 'available-chess', expiresAt: Date.now() + 600000 }],
+      },
+    }),
+  );
+  try {
+    await page.goto('/#/games');
+    const chess = page.getByRole('button', {
+      name: 'Посмотреть приглашения: Шахматы',
+      exact: true,
+    });
+    await expect(chess.locator('.game-invitation-badge')).toHaveText('1', { timeout: 16000 });
+    await expect(
+      page.getByRole('button', { name: 'Посмотреть приглашения: Шашки', exact: true }),
+    ).toHaveCount(0);
+    expect(state.errors).toEqual([]);
+  } finally {
+    release?.();
+  }
+});

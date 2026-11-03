@@ -448,21 +448,23 @@ test('two real pupils finish normal Checkers games for both sides with honest re
         for (const actor of [a, b])
           await actor.page.getByRole('button', { name: 'К приглашениям', exact: true }).click();
       }
-      const created = await post(a.page.request, origin, 'invites', {
-        scope: 'classroom',
-        initialMs: 600000,
-        incrementMs: 0,
-        colorPreference: 'white',
-      });
-      expect(created.status(), await created.text()).toBe(201);
-      const accepted = await post(
-        b.page.request,
-        origin,
-        `invites/${(await created.json()).invite.code}/accept`,
-        {},
+      await a.page.getByLabel('Ваш цвет', { exact: true }).selectOption('white');
+      await a.page.getByRole('button', { name: 'Создать приглашение', exact: true }).click();
+      const code = (await a.page.getByLabel('Ваш код приглашения').innerText()).trim();
+      await b.page.getByLabel('Код приглашения', { exact: true }).fill(code);
+      const acceptance = b.page.waitForResponse(
+        (response) =>
+          response.url().endsWith(`/invites/${code}/accept`) &&
+          response.request().method() === 'POST',
       );
+      await b.page.getByRole('button', { name: 'Принять приглашение', exact: true }).tap();
+      const accepted = await acceptance;
       expect(accepted.status(), await accepted.text()).toBe(201);
       let match = (await accepted.json()).match;
+      for (const actor of [a, b])
+        await expect(
+          actor.page.getByRole('grid', { name: 'Доска для русских шашек, 8 на 8' }),
+        ).toBeVisible();
       // No custom position or database edits: every move goes through a real board and server.
       for (let ply = 0; ply < 160 && match.status === 'active'; ply++) {
         const parsed = validateCheckersDocument(match.position);

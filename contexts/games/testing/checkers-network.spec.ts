@@ -103,4 +103,19 @@ describe('authoritative Russian-64 network adapter', () => {
     expect(() => createNetworkCheckers(NaN, 0, 1000)).toThrow();
     expect(() => createNetworkCheckers(60000, 0, Infinity)).toThrow();
   });
+  it('freezes a revoked game at the abort time without refunding time or ticking after reload', () => {
+    const game = record();
+    const before = checkersNetworkMatchView(game, 'a', 31000);
+    const aborted = {
+      ...game,
+      status: 'aborted' as const,
+      updatedAt: 31000,
+      termination: 'security_abort',
+    };
+    expect(before.whiteRemainingMs).toBe(30000);
+    expect(checkersNetworkMatchView(aborted, 'a', 31000).whiteRemainingMs).toBe(30000);
+    expect(checkersNetworkMatchView(aborted, 'b', 91000).whiteRemainingMs).toBe(30000);
+    expect(checkersNetworkMatchView(aborted, 'b', 91000).blackRemainingMs).toBe(60000);
+    expect(checkersNetworkMatchView(aborted, 'b', 91000).result).toBe('*');
+  });
 });

@@ -1,6 +1,6 @@
 import type { GameKey } from './game-catalog';
 import { useEffect, useSyncExternalStore } from 'react';
-import { call } from '../api-call';
+import { call, type ApiResult } from '../api-call';
 import { startLivePoll } from '../chess/live-poll';
 
 interface Invitation {
@@ -124,11 +124,14 @@ export function usePortalGameNotifications(actor: string): void {
         pending = controller;
         let timer: ReturnType<typeof setTimeout> | undefined;
         const games = ['chess', 'checkers'] as const;
+        const completed: {
+          game: GameKey;
+          result: ApiResult<{ playerId: string; incoming: Invitation[] }>;
+        }[] = [];
         const results = await Promise.race([
           Promise.all(
-            games.map(async (game) => ({
-              game,
-              result: await call<{ playerId: string; incoming: Invitation[] }>(
+            games.map(async (game) => {
+              const result = await call<{ playerId: string; incoming: Invitation[] }>(
                 `/api/games/${game}/notifications`,
                 {
                   method: 'GET',
@@ -136,13 +139,17 @@ export function usePortalGameNotifications(actor: string): void {
                   cache: 'no-store',
                   signal: controller.signal,
                 },
-              ),
-            })),
+              );
+              const response = { game, result };
+              completed.push(response);
+              return response;
+            }),
           ),
-          new Promise<null>((resolve) => {
+          new Promise<typeof completed>((resolve) => {
             timer = setTimeout(() => {
               controller.abort();
-              resolve(null);
+              // A stalled optional inbox must not discard the other game's response.
+              resolve([...completed]);
             }, 12000);
           }),
         ]);

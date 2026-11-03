@@ -187,7 +187,12 @@ export function checkersNetworkMatchView(
 ): CheckersNetworkMatch {
   const t = timing(record.state, now),
     state = record.state;
-  const elapsed = record.status === 'active' ? t.elapsed : 0;
+  const elapsed =
+    record.status === 'active'
+      ? t.elapsed
+      : record.status === 'aborted'
+        ? timing(state, record.updatedAt).elapsed
+        : 0;
   return {
     id: record.id,
     status: record.status,
