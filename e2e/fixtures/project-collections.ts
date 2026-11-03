@@ -160,6 +160,11 @@ export async function createProjectCollectionsFixture(page: Page) {
       return reply({ accepted: true }, 202);
     }
     if (method === 'GET') {
+      // The shared portal polls its private game inbox even outside Games.
+      if (path === '/api/games/chess/notifications' && url.search === '') {
+        expect(request.headers()['x-game-presence']).toBe('1');
+        return reply({ playerId: 'collections-game-player', incoming: [] });
+      }
       if (path === '/api/auth/me')
         return reply({
           authenticated: true,
