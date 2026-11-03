@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -639,11 +640,51 @@ def reconcile_runner(install, identity, restart):
 
 def status(install):
     """Pure observation: does not create directories, locks, files or services."""
-    identity = read_json(install.state / "collector-runner.json", {})
-    process = read_json(install.state / "diagnostics" / "store" / "collector-process.json", {})
-    health = read_json(install.state / "diagnostics" / "store" / "collector-health.json", {})
-    expected = digest(install.root)
+    def regular_inputs(names, *, optional=False):
+        plain_paths(install.root, names)
+        for name in names:
+            try:
+                info = (install.root / name).lstat()
+            except FileNotFoundError:
+                if optional: continue
+                raise
+            if not stat.S_ISREG(info.st_mode):
+                raise ValueError('Status input must be an ordinary file')
+
+    def unavailable(code, reason):
+        return {"state": "unavailable", "code": code, "reason": reason,
+                "process": {}, "cycle": {}, "mode": None, "scriptDigest": None,
+                "detail": ("Collector source contract unavailable; required five-source inputs were not attested."
+                           if code == 'COLLECTOR_SOURCE_CONTRACT' else
+                           "Collector status unavailable; configuration or metadata could not be safely validated.")}
+    try:
+        safe_paths(install)
+        regular_inputs(('.asa/log-collector.json', '.asa/collector-runner.json',
+                        '.asa/diagnostics/store/collector-process.json',
+                        '.asa/diagnostics/store/collector-health.json'), optional=True)
+        validate_config(install)
+        identity = read_json(install.state / "collector-runner.json", {})
+        process = read_json(install.state / "diagnostics" / "store" / "collector-process.json", {})
+        health = read_json(install.state / "diagnostics" / "store" / "collector-health.json", {})
+        require(not identity or identity.get('root') == str(install.root) and identity.get('project') == install.project
+                and identity.get('mode') in ('user', 'system', 'system-root', 'windows-task'),
+                'COLLECTOR_STATUS_IDENTITY', 'Collector registration differs from the canonical installation.')
+    except (Blocked, OSError, ValueError, TypeError):
+        return unavailable('COLLECTOR_STATUS_CONFIG', 'invalid_unreadable_or_unsafe_metadata')
+    try:
+        regular_inputs(tuple('tools/' + name for name in
+                    ('collect_logs.py', 'collect-windows-logs.ps1', 'resource_sampling.py',
+                     'memory_sampling.py', 'deployment/operational.py')))
+        expected = digest(install.root)
+    except FileNotFoundError:
+        return unavailable('COLLECTOR_SOURCE_CONTRACT', 'missing_input')
+    except OSError:
+        return unavailable('COLLECTOR_SOURCE_CONTRACT', 'unreadable_input')
+    except ValueError:
+        return unavailable('COLLECTOR_SOURCE_CONTRACT', 'unsafe_input_path')
     fresh = False
+    if 'checkedAt' in process and not isinstance(process['checkedAt'], str):
+        return unavailable('COLLECTOR_STATUS_CONFIG', 'invalid_heartbeat_timestamp')
     try:
         age = time.time() - dt.datetime.fromisoformat(process["checkedAt"].replace("Z", "+00:00")).timestamp()
         fresh = (0 <= age < 90 and process.get('root') == str(install.root) and process.get('project') == install.project
