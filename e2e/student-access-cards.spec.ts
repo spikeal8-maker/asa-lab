@@ -18,18 +18,20 @@ test.afterAll(async () => {
 async function decodeRenderedQr(qr: Locator, path?: string): Promise<string> {
   const pngBytes = await qr.screenshot(path ? { path } : undefined);
   const png = PNG.sync.read(pngBytes);
-  const rgba = new Uint8ClampedArray(png.data.buffer, png.data.byteOffset, png.data.byteLength);
-  const decoded = jsQR(rgba, png.width, png.height, { inversionAttempts: 'dontInvert' });
-  expect(decoded, 'rendered QR must decode independently from qrcode-generator').not.toBeNull();
+  return decodeRenderedQrPixels(png);
+}
 
-  // The rendered SVG owns a white quiet zone. Prove it survived rasterization
-  // instead of trusting the encoder's module matrix or React props.
-  const border = Math.min(4, Math.floor(Math.min(png.width, png.height) / 8));
+function assertQrQuietZone(
+  rgba: Uint8ClampedArray,
+  width: number,
+  height: number,
+  border: number,
+): void {
   let quietZoneIntact = true;
-  for (let y = 0; y < png.height && quietZoneIntact; y += 1) {
-    for (let x = 0; x < png.width; x += 1) {
-      if (x >= border && x < png.width - border && y >= border && y < png.height - border) continue;
-      const offset = (y * png.width + x) * 4;
+  for (let y = 0; y < height && quietZoneIntact; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (x >= border && x < width - border && y >= border && y < height - border) continue;
+      const offset = (y * width + x) * 4;
       if (rgba[offset]! < 245 || rgba[offset + 1]! < 245 || rgba[offset + 2]! < 245) {
         quietZoneIntact = false;
         break;
@@ -37,6 +39,22 @@ async function decodeRenderedQr(qr: Locator, path?: string): Promise<string> {
     }
   }
   expect(quietZoneIntact, 'rendered QR quiet zone must not be cropped').toBe(true);
+}
+
+function qrQuietBorder(width: number, height: number, rasterScale: number): number {
+  // Keep the original four CSS pixels at print resolution: ceil(4 * 300 / 96) = 13.
+  return Math.min(Math.ceil(4 * rasterScale), Math.floor(Math.min(width, height) / 8));
+}
+
+function decodeRenderedQrPixels(png: PNG, rasterScale = 1): string {
+  const rgba = new Uint8ClampedArray(png.data.buffer, png.data.byteOffset, png.data.byteLength);
+  const decoded = jsQR(rgba, png.width, png.height, { inversionAttempts: 'dontInvert' });
+  expect(decoded, 'rendered QR must decode independently from qrcode-generator').not.toBeNull();
+
+  // The rendered SVG owns a white quiet zone. Prove it survived rasterization
+  // instead of trusting the encoder's module matrix or React props.
+  const border = qrQuietBorder(png.width, png.height, rasterScale);
+  assertQrQuietZone(rgba, png.width, png.height, border);
 
   // Print acceptance is monochrome. Threshold the rendered pixels to strict
   // black/white and independently decode again.
@@ -57,6 +75,131 @@ async function decodeRenderedQr(qr: Locator, path?: string): Promise<string> {
     decoded!.data,
   );
   return decoded!.data;
+}
+
+const printQrRasterScale = 300 / 96;
+
+function assertPrintQrSampling(png: PNG, cssBox: { width: number; height: number }): void {
+  // Locator screenshots enclose the SVG in whole CSS pixels; rasterization can add
+  // one device pixel. A 96-DPI PNG is far outside this explicit rounding allowance.
+  const tolerance = 2 * printQrRasterScale + 1;
+  if (
+    !Number.isFinite(cssBox.width) ||
+    !Number.isFinite(cssBox.height) ||
+    cssBox.width <= 0 ||
+    cssBox.height <= 0 ||
+    Math.abs(png.width - cssBox.width * printQrRasterScale) > tolerance ||
+    Math.abs(png.height - cssBox.height * printQrRasterScale) > tolerance
+  ) {
+    throw new Error('Printed QR must be captured at 300 DPI, verified from PNG and CSS dimensions');
+  }
+}
+
+async function decodePrintedQr(page: Page, qr: Locator): Promise<string> {
+  expect(
+    await page.evaluate(
+      () =>
+        matchMedia('print').matches && document.body.classList.contains('student-access-printing'),
+    ),
+    '300-DPI capture is restricted to the existing print phase',
+  ).toBe(true);
+  const originalViewport = page.viewportSize();
+  const original = await page.evaluate(() => ({
+    width: innerWidth,
+    height: innerHeight,
+    dpr: devicePixelRatio,
+    screenWidth: screen.width,
+    screenHeight: screen.height,
+  }));
+  expect(original.dpr, 'screen checks remain at DPR 1').toBe(1);
+  expect(originalViewport).not.toBeNull();
+  expect(original.width).toBe(originalViewport!.width);
+  expect(original.height).toBe(originalViewport!.height);
+  // Public viewport restoration also restores screen=viewport in these cases.
+  // Refuse a custom-screen context rather than silently changing its semantics.
+  expect(original.screenWidth).toBe(originalViewport!.width);
+  expect(original.screenHeight).toBe(originalViewport!.height);
+  const cssBox = await qr.boundingBox();
+  expect(cssBox).not.toBeNull();
+  const lowResolution = PNG.sync.read(await qr.screenshot({ scale: 'device' }));
+  expect(Math.abs(lowResolution.width - cssBox!.width)).toBeLessThanOrEqual(2);
+  expect(Math.abs(lowResolution.height - cssBox!.height)).toBeLessThanOrEqual(2);
+  // A real screenshot from this print phase must not masquerade as 300-DPI evidence.
+  expect(() => assertPrintQrSampling(lowResolution, cssBox!)).toThrow(/300 DPI/);
+
+  const cdp = await page.context().newCDPSession(page);
+  let sampled: { width: number; height: number } | null = null;
+  let restored: typeof original;
+  try {
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: original.width,
+      height: original.height,
+      deviceScaleFactor: printQrRasterScale,
+      screenWidth: original.screenWidth,
+      screenHeight: original.screenHeight,
+      mobile: false,
+    });
+    expect(await page.evaluate(() => devicePixelRatio)).toBe(printQrRasterScale);
+    const printBox = await qr.boundingBox();
+    expect(printBox).not.toBeNull();
+    expect(printBox!.width).toBe(cssBox!.width);
+    expect(printBox!.height).toBe(cssBox!.height);
+    const png = PNG.sync.read(await qr.screenshot({ scale: 'device' }));
+    assertPrintQrSampling(png, printBox!);
+    sampled = { width: png.width, height: png.height };
+
+    const border = qrQuietBorder(png.width, png.height, printQrRasterScale);
+    expect(border).toBe(13);
+    const croppedQuietZone = new Uint8ClampedArray(png.data);
+    // This mark is outside the old four-device-pixel strip but inside four CSS
+    // pixels at 300 DPI. A silently weakened quiet-zone check would miss it.
+    const marked = (Math.floor(png.height / 2) * png.width + 12) * 4;
+    croppedQuietZone[marked] = croppedQuietZone[marked + 1] = croppedQuietZone[marked + 2] = 0;
+    expect(() => assertQrQuietZone(croppedQuietZone, png.width, png.height, border)).toThrow(
+      /quiet zone must not be cropped/,
+    );
+    return decodeRenderedQrPixels(png, printQrRasterScale);
+  } finally {
+    try {
+      await cdp.detach();
+    } finally {
+      // Detach can discard shared Chromium emulation. Playwright 1.55 caches its
+      // last metrics, so restoring the same viewport once could be a no-op.
+      // Force a bounded public-API round trip, then verify the actual final state.
+      try {
+        await page.setViewportSize({
+          width: originalViewport!.width + 1,
+          height: originalViewport!.height,
+        });
+      } finally {
+        await page.setViewportSize(originalViewport!);
+      }
+      restored = await page.evaluate(() => ({
+        width: innerWidth,
+        height: innerHeight,
+        dpr: devicePixelRatio,
+        screenWidth: screen.width,
+        screenHeight: screen.height,
+      }));
+      expect(restored, 'actual metrics after CDP detach and public viewport restoration').toEqual(
+        original,
+      );
+      expect(page.viewportSize()).toEqual(originalViewport);
+    }
+    await test.info().attach('printed-qr-raster-resolution', {
+      body: Buffer.from(
+        JSON.stringify({
+          dpi: 300,
+          css: { width: cssBox!.width, height: cssBox!.height },
+          png96: { width: lowResolution.width, height: lowResolution.height },
+          png300: sampled,
+          restoredAfterDetach: restored,
+          actualPdfAcceptance: 'NOT_RUN',
+        }),
+      ),
+      contentType: 'application/json',
+    });
+  }
 }
 
 async function registerTeacher(page: Page): Promise<void> {
@@ -344,7 +487,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
     .first()
     .getByTestId('class-join-qr');
   await expect(printedFirstQr).toBeVisible();
-  expect(await decodeRenderedQr(printedFirstQr)).toBe(decodedA);
+  expect(await decodePrintedQr(page, printedFirstQr)).toBe(decodedA);
   for (const host of [
     new URL(portalOrigin).host,
     'classroom-really-long-installation-name.example.org',
@@ -614,7 +757,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
       .getByTestId('class-join-qr')
       .first();
     await expect(printedSquare).toBeVisible();
-    expect(await decodeRenderedQr(printedSquare)).toBe(decoded);
+    expect(await decodePrintedQr(page, printedSquare)).toBe(decoded);
     await page.evaluate(() => document.body.classList.remove('student-access-printing'));
     await page.emulateMedia({ media: 'screen' });
     const obsolete = await page.request.post('/api/class-join/resolve', {
@@ -1217,7 +1360,7 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
     expect(accountPrint.instructionDisplay).not.toBe('none');
     expect(accountPrint.text).toContain('Вход через аккаунт');
     expect(accountPrint.text).not.toContain('acc:');
-    expect(await decodeRenderedQr(printedAccount.getByTestId('class-join-qr'))).toBe(
+    expect(await decodePrintedQr(page, printedAccount.getByTestId('class-join-qr'))).toBe(
       `${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`,
     );
     await assertPrintedTextZones(page, 'mixed Account/code cards with original class labels');
@@ -1238,7 +1381,7 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
         }
       }, host);
       await assertPrintedTextZones(page, `mixed Account/code cards, long class, host=${host}`);
-      expect(await decodeRenderedQr(printedAccount.getByTestId('class-join-qr'))).toBe(
+      expect(await decodePrintedQr(page, printedAccount.getByTestId('class-join-qr'))).toBe(
         `${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`,
       );
     }
