@@ -456,13 +456,14 @@ test('editor-created immutable Electronics publication is a real inert responsiv
       await seat
         .getByTestId('public-electronics-scene')
         .evaluate((el) => getComputedStyle(el).touchAction),
-    ).toBe('pan-y');
+    ).toBe('none');
     const touch = await seatContext.newCDPSession(seat);
     const touchBox = await seat.getByTestId('public-electronics-scene').boundingBox();
     const x = touchBox!.x + touchBox!.width / 2,
       y = touchBox!.y + Math.min(touchBox!.height / 2, 250);
     const seatScene = seat.getByTestId('public-electronics-scene');
     const beforeTouch = await seatScene.getAttribute('viewBox');
+    const pageBeforeTouch = await seat.evaluate(() => scrollY);
     await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
     for (let step = 1; step <= 6; step++)
       await touch.send('Input.dispatchTouchEvent', {
@@ -471,6 +472,7 @@ test('editor-created immutable Electronics publication is a real inert responsiv
       });
     await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await expect(seatScene).not.toHaveAttribute('viewBox', beforeTouch!);
+    const beforeVertical = await seatScene.getAttribute('viewBox');
     await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
     for (let step = 1; step <= 6; step++)
       await touch.send('Input.dispatchTouchEvent', {
@@ -478,7 +480,41 @@ test('editor-created immutable Electronics publication is a real inert responsiv
         touchPoints: [{ x, y: y - step * 25 }],
       });
     await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await expect.poll(() => seat.evaluate(() => scrollY)).toBeGreaterThan(0);
+    await expect(seatScene).not.toHaveAttribute('viewBox', beforeVertical!);
+    expect(await seat.evaluate(() => scrollY)).toBe(pageBeforeTouch);
+    const widthBeforePinch = Number((await seatScene.getAttribute('viewBox'))!.split(' ')[2]);
+    await touch.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [
+        { x: x - 25, y, id: 0 },
+        { x: x + 25, y, id: 1 },
+      ],
+    });
+    for (let step = 1; step <= 6; step++) {
+      await touch.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [
+          { x: x - 25 - step * 7, y, id: 0 },
+          { x: x + 25 + step * 7, y, id: 1 },
+        ],
+      });
+    }
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect
+      .poll(async () => Number((await seatScene.getAttribute('viewBox'))!.split(' ')[2]))
+      .toBeLessThan(widthBeforePinch * 0.8);
+    // Page scrolling remains native outside the viewer, rather than stealing model gestures.
+    await touch.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: 3, y: 600 }],
+    });
+    for (let step = 1; step <= 6; step++)
+      await touch.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: 3, y: 600 - step * 35 }],
+      });
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect.poll(() => seat.evaluate(() => scrollY)).toBeGreaterThan(pageBeforeTouch);
     await touch.detach();
     await assertSeatScripts('seat-after-touch-and-scroll');
 
