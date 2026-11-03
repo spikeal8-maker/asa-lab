@@ -199,6 +199,32 @@ describe('canonical Quiz persistence HTTP boundary', () => {
       response: { error: { code: 'quiz_attempt_conflict' } },
     });
   });
+  it('submits only exact persisted Attempt revision and reads run with Seat-first authority', async () => {
+    const f = fixture();
+    await expect(
+      f.controller.submit(request, id, { requestId: 'quiz:submit:1', expectedVersion: 2 }),
+    ).resolves.toMatchObject({ attempt: { attemptId: id } });
+    expect(f.pool.query.mock.calls.at(-1)?.[1]).toEqual(['seat-principal', id, 2, 'quiz:submit:1']);
+    expect(f.accounts.resolve).not.toHaveBeenCalled();
+    await expect(
+      f.controller.submit(request, id, {
+        requestId: 'quiz:submit:1',
+        expectedVersion: 2,
+        answers: {},
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    f.pool.query.mockResolvedValueOnce({
+      rows: [{ response: { participationId: id, attempt: null } }],
+    });
+    expect(await f.controller.run(request, id)).toMatchObject({
+      participationId: id,
+      attempt: null,
+    });
+    f.pool.query.mockResolvedValueOnce({ rows: [{ result_code: 'quiz_attempt_conflict' }] });
+    await expect(
+      f.controller.submit(request, id, { requestId: 'quiz:submit:1', expectedVersion: 1 }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
   it('rejects invalid version, oversized answers, extra fields and anonymous sessions before querying', async () => {
     const f = fixture();
     for (const body of [

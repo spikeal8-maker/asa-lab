@@ -324,9 +324,7 @@ RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,pg_temp AS $$
                 THEN abs((p_response ->> 'value')::numeric
                           - (p_key ->> 'value')::numeric)
                      <= COALESCE((p_key ->> 'tolerance')::numeric, 0)
-                WHEN 'ordering' THEN p_response->'values'=p_key->'values'
-            WHEN 'matching' THEN p_response->'values' @> p_key->'values' AND p_key->'values' @> p_response->'values'
-            ELSE false
+                ELSE false
             END
             WHEN 'short_text' THEN EXISTS (
                 SELECT 1 FROM jsonb_array_elements_text(
@@ -1493,6 +1491,7 @@ BEGIN
  'quizVersionId',qversion,'maxPoints',CASE WHEN old_payload->>'resultMode'='graded' THEN total ELSE NULL END) WHERE id=r;
  END IF;
  SELECT * INTO result FROM public.learning_activity_publish_before_quiz(a,t,r,expected,req);
+ IF result.result_code<>'ok' AND old_payload IS NOT NULL THEN RAISE EXCEPTION USING ERRCODE='P3001',MESSAGE=result.result_code; END IF;
  IF old_payload IS NOT NULL THEN UPDATE public.learning_activities SET draft_payload=old_payload WHERE id=r; END IF;
  RETURN QUERY SELECT result.result_code::varchar,result.activity_version_id::uuid,result.version_number::integer,result.content_digest::varchar,result.reused::boolean;
 END; $$;

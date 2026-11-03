@@ -266,6 +266,8 @@ describe('central account verification API guard', () => {
     ['POST', '/api/learning/activity-participations/:participationId/attempts'],
     ['GET', '/api/learning/attempts/:attemptId'],
     ['PATCH', '/api/learning/attempts/:attemptId/quiz-answers'],
+    ['POST', '/api/learning/attempts/:attemptId/submit'],
+    ['GET', '/api/learning/quiz/runs/:activityRunId'],
   ])(
     'keeps Quiz persistence Seat-first but verifies an Account on %s %s',
     async (method, route) => {
@@ -292,7 +294,7 @@ describe('central account verification API guard', () => {
         seatCookie: 'valid-seat',
         resolveSeat: true,
         method: 'POST',
-        route: '/api/learning/attempts/:attemptId/submit',
+        route: '/api/learning/attempts/:attemptId/grading',
         failure: new Error('required'),
       });
       await expect(unrelated.guard.canActivate(unrelated.context)).rejects.toThrow('required');

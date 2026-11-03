@@ -85,6 +85,8 @@ const SEAT_FIRST_ROUTES = new Set([
   'POST /api/learning/activity-participations/:participationId/attempts',
   'GET /api/learning/attempts/:attemptId',
   'PATCH /api/learning/attempts/:attemptId/quiz-answers',
+  'POST /api/learning/attempts/:attemptId/submit',
+  'GET /api/learning/quiz/runs/:activityRunId',
 ]);
 
 /** Only identity proof, recovery and narrowly scoped configuration use this. */

@@ -457,8 +457,8 @@ export class LearningActivitiesController {
       throw new HttpException(error('validation_error', 'Проверьте владельца активности.'), 400);
     }
     const createSql = `SELECT result_code, activity_id, draft_revision
-         FROM learning_activity_quiz_create(
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18,$19
+         FROM ${draft.quizDraftId ? 'learning_activity_quiz_create' : 'learning_activity_create'}(
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb${draft.quizDraftId ? ',$18,$19' : ''}
          )`;
     const createParams = [
       context.principalId,
@@ -478,8 +478,7 @@ export class LearningActivitiesController {
       requestId,
       draft.goal === undefined ? null : JSON.stringify(draft.goal),
       draft.blocks === undefined ? null : JSON.stringify(draft.blocks),
-      draft.quizDraftId,
-      draft.quizDraftRevision,
+      ...(draft.quizDraftId ? [draft.quizDraftId, draft.quizDraftRevision] : []),
     ];
     const pool = this.requirePool();
     const result =
@@ -1081,8 +1080,8 @@ export class LearningActivitiesController {
     }
     const result = await this.requirePool().query(
       `SELECT result_code, draft_revision
-         FROM learning_activity_quiz_draft_put(
-           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16
+         FROM ${draft.quizDraftId ? 'learning_activity_quiz_draft_put' : 'learning_activity_draft_put'}(
+           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13::jsonb,$14::jsonb${draft.quizDraftId ? ',$15,$16' : ''}
          )`,
       [
         context.principalId,
@@ -1099,8 +1098,7 @@ export class LearningActivitiesController {
         draft.starterProjectVersionId,
         draft.goal === undefined ? null : JSON.stringify(draft.goal),
         draft.blocks === undefined ? null : JSON.stringify(draft.blocks),
-        draft.quizDraftId,
-        draft.quizDraftRevision,
+        ...(draft.quizDraftId ? [draft.quizDraftId, draft.quizDraftRevision] : []),
       ],
     );
     const row = result.rows[0];
