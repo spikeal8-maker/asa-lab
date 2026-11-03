@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_g_early_stale_candidate
+      checkpoint: package_d_waiting_guard_after_f_g_feedback_repairs
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,28 +111,34 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 38a570ae95013e368bb27ac42aba7472f6b0fa5c
+      convergence_baseline_sha: ff90d55c4859201555c451b5c24f9689bfbd4045
       head_sha: null
-      observed_at: '2026-11-03T09:58:25Z'
+      observed_at: '2026-11-03T10:52:19Z'
       main:
         branch: main
-        sha: 38a570ae95013e368bb27ac42aba7472f6b0fa5c
+        sha: ff90d55c4859201555c451b5c24f9689bfbd4045
       observation_note: >-
-        Prior E974/F975/G978 remain accepted. F invocation snapshot source2bb0cffa PR979 passed75focused
-        tests with2existingWindowsSkips and independent critical review. Controlled same-final-SHA validation
-        13.267s to0.150s preserved all116contexts byte-for-byte; actual totalpreflight17.509s has a different
-        historicalbaseline and is not a controlled end-to-end claim. Full General41615102443 remains pending;
-        no integration or release claimed. F author stopped. Select only independent G-EARLY-STALE-CANDIDATE-001:
-        .github/workflows/portable-release.yml and tools/deployment/test_contracts.py. Reject stale candidates
-        in existing gate before build using actual origin/main identity; retain final pre-stable STALE_RELEASE,
-        queue max and PR969 actual publish-job proof. Missing/malformed remote or incomplete General must
-        fail closed. Workflow overall success with publish skipped remains no publication evidence.
-        D still waits for confirmed owner release of dirty tools/test_ci_image_transport.py in old D13.
-        No foreign WIP, whole-file copy, ownership transfer, additional message or guard edit authorized.
-        E General task replay depends on the versioned D contract: do not override pinned uncached evidence
-        or add ineffective prewarming. Actual root/linked-agent token counters are available for scoped metrics.
-        Fetch main before writes and recover exact Git/CI. Preserve full Main/release/RLS/auth/migration gates.
-        No production, database, local Docker, host networking, release or owner acceptance action authorized.
+        Accepted F invocation snapshot PR979 source57dbfa2e passed General41615953580 all5 native jobs
+        and independent final-source review before merge237e71e7. Accepted G early stale PR980 source92669603
+        passed General41616930713 all5, Portable41616930583 all3, Operational41616930640 all4 and independent
+        L3review before mergeff90d55c. Earlier E974/F975/G978 remain accepted; no repeat audit performed.
+        F implementation2bb0cffa measured validate_all13.267s to0.150s at one SHA, preserving116contexts
+        byte-for-byte while Git/registry reads fell116to1 each. Final57db owns the same two file contents.
+        Actual fullpreflight17.509s has a different historicalsnapshot, not controlled whole-cycle savings.
+        Both final code jobs executed98fresh canonical gate tasks plus18fresh API prep tasks, cachehits0.
+        G rejects stale/unverifiable main before revisionoutput/builds; real Git stale rejection1.090s,
+        zero revisionoutput. Preserve final pre-stable check, queue max and PR969 actual publish-job proof;
+        overall workflow success with publish skipped never proves publication. Historical late-build exposure
+        is not measured savings. No manual CI reruns, net runner saving or token reduction claimed.
+        Select D conditional General, still awaiting owner-confirmed release of old D13 dirty guard
+        tools/test_ci_image_transport.py,15addedlines on16cbed5d. One authorized contact did not confirm
+        ownership/release. No foreign WIP, whole-file copy, ownership transfer, further message or guard edit.
+        Repeat exact8path preflight; only genuine SAFE_TO_START permits D writes. E deterministic General
+        caching depends on that versioned contract; no pinned uncached proof override or ineffective prewarm.
+        Actual scoped root/linked-agent token telemetry is collected as metadata, not byte estimates or billing.
+        Full Main/release/RLS/auth/migration evidence remains mandatory; postmerge Main CI is a separate check.
+        L0-L3 comparable real trials follow completed D, not a premature fast-CI claim. Fetch main before writes
+        and recover exact Git/CI. No release, owner acceptance, production, database, local Docker or network action.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -144,16 +150,9 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: G
-      selected_subslice: G-EARLY-STALE-CANDIDATE-001
-      verification_pending_slices:
-        - id: F-PREFLIGHT-INVOCATION-SNAPSHOT-001
-          source_sha: 2bb0cffa25895b993aa823b90866667900c3783e
-          pr: 979
-          independent_review: PASS
-          ci_status: pending_required_ci
-          general_run: 41615102443
-          integration_status: pending_required_ci
+      selected_slice: D
+      selected_subslice: D-CONDITIONAL-GENERAL-CONTRACT-001
+      verification_pending_slices: []
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
@@ -207,6 +206,18 @@ parallel_lanes:
           integrated_sha: 9caddfbeff635507f9b10deaf9ea5bb08da9d22c
           pr: 974
           exact_source_general_run: 41596023473
+          independent_review: approved
+        - id: F-PREFLIGHT-INVOCATION-SNAPSHOT-001
+          source_sha: 57dbfa2ec9037f2029e6dc90383fedb687f98661
+          integrated_sha: 237e71e7d2f8ab31f1366dfbc41bd182aea05942
+          pr: 979
+          exact_source_general_run: 41615953580
+          independent_review: approved
+        - id: G-EARLY-STALE-CANDIDATE-001
+          source_sha: 92669603d1264e2ee8c357d76ec151d22fd10362
+          integrated_sha: ff90d55c4859201555c451b5c24f9689bfbd4045
+          pr: 980
+          exact_source_general_run: 41616930713
           independent_review: approved
       completed_slices:
         - id: PREFLIGHT
