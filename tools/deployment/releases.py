@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 import tempfile
 import urllib.request
@@ -11,12 +12,29 @@ from .contracts import REGISTRY, REPOSITORY, SERVICES, Blocked, attest_database_
 from .system import run
 
 
-def discover_release():
-    reference = f"{REGISTRY}/deployment:stable"
-    print("RELEASE fetching the published stable manifest", flush=True)
+def validate_deployment_digest(value):
+    require(isinstance(value, str) and re.fullmatch(r"sha256:[a-f0-9]{64}", value),
+            "RELEASE_SELECTOR", "Deployment selection must be a canonical sha256 digest, not a tag, path or repository.")
+    return value
+
+
+def discover_release(deployment_digest=None):
+    reference = (f"{REGISTRY}/deployment@{validate_deployment_digest(deployment_digest)}"
+                 if deployment_digest is not None else f"{REGISTRY}/deployment:stable")
+    print(f"RELEASE deployment={reference}" if deployment_digest is not None
+          else "RELEASE fetching the published stable manifest", flush=True)
     run(["docker", "pull", reference])
     # Pin the local ID after pulling: a simultaneous pull cannot change selection.
-    image_id = run(["docker", "image", "inspect", "--format", "{{.Id}}", reference], capture=True)
+    if deployment_digest is None:
+        image_id = run(["docker", "image", "inspect", "--format", "{{.Id}}", reference], capture=True)
+    else:
+        record = json.loads(run(["docker", "image", "inspect", "--format",
+                                '{"id":{{json .Id}},"digests":{{json .RepoDigests}}}', reference], capture=True))
+        require(isinstance(record, dict) and isinstance(record.get("digests"), list)
+                and reference in record["digests"] and isinstance(record.get("id"), str)
+                and re.fullmatch(r"sha256:[a-f0-9]{64}", record["id"]),
+                "RELEASE_DIGEST_MISMATCH", "Docker did not attest the exact requested deployment digest.")
+        image_id = record["id"]
     container = run(["docker", "create", "--network", "none", "--label", "asa.operation=release-manifest",
                      image_id, "/not-executed"], capture=True)
     try:
