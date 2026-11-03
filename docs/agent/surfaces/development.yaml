@@ -58,6 +58,9 @@ surfaces:
     - docs/agent/surfaces/development.yaml
     - .github/workflows/spec-validation.yml
     - .github/workflows/devex-changed.yml
+    - .github/workflows/account-confirmation-focused.yml
+    - .github/workflows/learning-e1-focused.yml
+    - .github/workflows/projects-publication.yml
     - tools/ci_required.py
     - tools/test_ci_required.py
   invariants: &local_invariants

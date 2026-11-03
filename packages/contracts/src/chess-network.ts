@@ -44,3 +44,17 @@ export interface ChessNetworkMatch {
   updatedAt: number;
 }
 export type ChessNetworkAction = 'move' | 'resign' | 'draw-offer' | 'draw-accept' | 'draw-decline';
+
+export interface ChessLobbyPlayer {
+  playerId: string;
+  displayAlias: string;
+  avatarUrl: string;
+  avatarRevision?: string;
+}
+export interface ChessNetworkLobby {
+  available: boolean;
+  players: ChessLobbyPlayer[];
+  incoming: { invite: ChessNetworkInvite; from: ChessLobbyPlayer }[];
+  outgoing: { invite: ChessNetworkInvite; to: ChessLobbyPlayer }[];
+  limit: number;
+}

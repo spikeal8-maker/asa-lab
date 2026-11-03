@@ -145,6 +145,70 @@ checkout, контейнеры или БД. `update` заранее скачив
 менеджер: повторите ту же команду. При расписании повтор произойдёт следующим
 разрешённым запуском. До повтора контейнеры остаются на прежней версии.
 
+### Один immutable deployment на нескольких узлах
+
+Для согласованного H03 → School либо длительного qualification используйте один
+и тот же **deployment OCI digest**, а не меняющийся `stable`:
+
+```sh
+python3 tools/asa_manager.py check --profile production --deployment-digest sha256:ПОЛНЫЕ_64_LOWERCASE_HEX
+python3 tools/asa_manager.py update --profile production --deployment-digest sha256:ПОЛНЫЕ_64_LOWERCASE_HEX
+```
+
+Замените placeholder настоящим опубликованным digest. Допустима только строка
+`sha256:` и64 lowercase hex; полный image reference, tag, registry, JSON и путь
+не принимаются. Repository всегда канонический
+`ghcr.io/spikeal8-maker/asa-lab/deployment@DIGEST`. Перед извлечением манифеста
+проверяется точное Docker RepoDigests соответствие, затем используется локальный
+image ID. При mismatch нет fallback на stable. Без аргумента и без pending
+continuation сохраняется прежний stable default, включая zero-argument discovery
+существующего MCP adapter. Реальный OCI/Docker прогон нового selector этим source
+изменением не выполнен; совпадение RepoDigests требуется и на реальном daemon.
+
+`check` не сохраняет approval или выбор для последующего отдельного update:
+повторите тот же digest явно на обоих узлах. CI/publication, schema, ancestry,
+downgrade, identity/origin, locks, backup, data и readiness guards не обходятся.
+Каждая попытка заново извлекает выбранный artifact и проверяет exact CI; старый
+check/receipt не даёт разрешения на новую попытку и не имеет бессрочного TTL.
+
+При переключении checkout, требующем `RETRY_NEW_MANAGER`, explicit digest и
+fingerprint проверенного манифеста атомарно сохраняются в private
+`.asa/release-selection.json` **до** Git switch. Selector-aware continuation без
+аргумента прочитает тот же digest и заново выполнит preflight/CI. Другой digest,
+изменившийся манифест или некорректный checkpoint дают STOP без замены записи.
+Pending выбор удаляется только после принятого update либо полностью проверенного
+NO_CHANGE; failed/check-only попытки его сохраняют. Не удаляйте/переписывайте
+checkpoint вручную для обхода отказа. Это continuation, не вечная настройка
+расписания: после завершения обычный scheduled update снова использует stable.
+На Linux до switch дополнительно fsync каталогов state/root; отказ flush не
+допускает switch. На Windows file flush/atomic replace поддерживают обычный
+process restart; отдельная power-loss квалификация файловой системы не заявлена.
+
+Если CLI checkpoint конфликтует с externally pinned MCP discovery, менеджер
+отказывает с `RELEASE_SELECTOR_TRANSPORT` до мутаций. Используйте canonical CLI
+через существующий разрешённый admin executor с тем же digest. Этот срез не
+расширяет MCP schema/backend и не выбирает одну из двух привязок молча.
+
+**Bootstrap старой установки без selector.** Сам старый manager неизвестный флаг
+не поддерживает. Разместите отдельно approved clean canonical checkout с
+selector-aware manager и полным его stdlib tooling; старые исходники/manifest не
+переписывайте вручную. Поддерживаемый существующим `--root` путь:
+
+```sh
+python3 /APPROVED-TOOLS/tools/asa_manager.py check --root /CANONICAL-INSTALL --profile production --deployment-digest sha256:ПОЛНЫЕ_64_LOWERCASE_HEX
+python3 /APPROVED-TOOLS/tools/asa_manager.py update --root /CANONICAL-INSTALL --profile production --deployment-digest sha256:ПОЛНЫЕ_64_LOWERCASE_HEX
+```
+
+Здесь code/imports берутся из approved tool checkout, а `.env`, identity, Compose,
+state, данные и guarded Git switch принадлежат только `--root` установке.
+Проверки её canonical origin/чистоты/history продолжают действовать. После RETRY
+повторите тот же selector-aware tool command; можно использовать установленный
+manager только если он уже поддерживает selector. Если выбранный старый release
+его ещё не содержит, продолжайте approved совместимым внешним tool с `--root`,
+не запускайте старый CLI без флага: старый код pending pin не понимает.
+Это source-supported bootstrap, не подтверждение реальной установки/обновления
+старой School VM или произвольной совместимости любого будущего tooling.
+
 После перехода на готовые образы старые `asa-lab up` и `docker-update` блокируют
 пересборку этой установки. Не запускайте прямой `docker compose up`: он не
 читает закреплённый манифест из `.asa/installed-release.json`.

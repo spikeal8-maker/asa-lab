@@ -381,17 +381,27 @@ const upgradeArtifacts = [
   ],
   [
     '0301',
-    '0301_learning_essay_course_runtime.sql',
-    '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
+    '0301_games_chess_lobby.sql',
+    'f64f992a4b6f0d98a9e7e33666e7c67083c4ff274a0780311159ae6ac84514f2',
   ],
   [
     '0302',
-    '0302_learning_quiz_policy_authority.sql',
-    '85b4df00292bc47058616fe20054301a8a533a5ae3474daf8dbd3edc951fed39',
+    '0302_games_chess_notifications.sql',
+    '43fb00c4ee7cdff378ffcaa1acd803a2b312eabc9d3211181c23bd238ba05a6d',
   ],
   [
     '0303',
-    '0303_learning_quiz_attempt_state.sql',
+    '0303_learning_essay_course_runtime.sql',
+    '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
+  ],
+  [
+    '0304',
+    '0304_learning_quiz_policy_authority.sql',
+    '85b4df00292bc47058616fe20054301a8a533a5ae3474daf8dbd3edc951fed39',
+  ],
+  [
+    '0305',
+    '0305_learning_quiz_attempt_state.sql',
     '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
   ],
   [
