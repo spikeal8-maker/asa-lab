@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: independent_e_f_g_integrated_d_waiting_guard
+      checkpoint: package_f_preflight_invocation_snapshot
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,30 +111,28 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 9caddfbeff635507f9b10deaf9ea5bb08da9d22c
+      convergence_baseline_sha: 94deef205460271393e559962bcd8caf1fcc71be
       head_sha: null
-      observed_at: '2026-11-03T08:09:15Z'
+      observed_at: '2026-11-03T09:49:22Z'
       main:
         branch: main
-        sha: 9caddfbeff635507f9b10deaf9ea5bb08da9d22c
+        sha: 94deef205460271393e559962bcd8caf1fcc71be
       observation_note: >-
-        Independent bounded F PR975 source cb023dc6 passed full General41589321193 and review before
-        merge9ce041a2. G PR978 source6a6b50cd passed full General41590658339, Portable/Operational and
-        review before mergeec534c8d. E PR974 sourceaaf00ad5 passed full General41596023473 all5 and
-        independent review before merge9caddfbe. Its actual merged tree equals the tested source tree:
-        protected-image focused11PASS, full Vitest9596PASS21existingSKIP, separate RLS16PASS, code98fresh
-        Nx executions with literal uncached evidence. Earlier own E4821 and90 failures remain recorded;
-        they were repaired, not waived. These partial results do not complete whole packages or the programme.
-        E historical same-SHA4821 local cold44.477s versus warm7.577s proves safe reuse, not causal CI savings.
-        F paired entry sixcalls18593bytes29.236s versus onecall4483bytes34.551s reduces output75.9percent
-        but is slower; actual model tokens are unavailable. Automatic duplicate General runs remain unresolved.
-        Select D-CONDITIONAL-GENERAL-CONTRACT-001, pending fresh exact-eight-path preflight and actual
-        guard release. The one owner-authorized scoped contact did not establish ownership or confirm release
-        of dirty tools/test_ci_image_transport.py in old D13. No foreign WIP operations, ownership transfer,
-        whole-file copy, additional message or guard edit is authorized. WAITING_HANDOFF forbids D writes.
-        Preserve full Main/release gates, ASA required fail-closed semantics and existing PR969 release evidence.
-        No release, owner acceptance, production, database, deployment, local Docker or network action claimed.
-        Fetch main before writes and recover exact Git/CI; postmerge Main conclusions are separate observations.
+        Prior E974/F975/G978 are integrated with exact-source full CI and independent reviews; no repeat audit.
+        D conditional General remains blocked by dirty tools/test_ci_image_transport.py in old D13. The one
+        authorized coordination did not confirm owner release; no foreign WIP or guard operations allowed.
+        Owner on2026-11-03 prioritizes measured end-to-end savings. Select only independent bounded
+        F-PREFLIGHT-INVOCATION-SNAPSHOT-001: tools/agent_context.py and tools/test_agent_context.py.
+        Actual unchanged preflight31.666s includes controlplane18.490s and93worktrees7.915s; validation of
+        116lanes repeats identical Git status116times8.230s and registry116times4.059s. Reuse only fresh
+        invocation-local snapshots in bulk validation, preserving all lanes, errors, render budgets, worktree
+        overlap, remote CI and recovery gates; no persistent cache or skip. Require negative freshness/error
+        regressions, measured before/after stages, exact-source mandatory CI and independent review.
+        General deterministic task replay still depends on versioned D contract; do not override pinned
+        uncached evidence or add useless prewarming. G early stale rejection is next independently authorized
+        candidate, not part of this F slice. Preserve final stable freshness and existing PR969 publication proof.
+        Fetch main before writes and recover exact Git/CI. Full Main/release/RLS/auth/migration checks remain;
+        no release, owner acceptance, production, database, Docker runtime or network operation authorized.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -146,8 +144,8 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: D
-      selected_subslice: D-CONDITIONAL-GENERAL-CONTRACT-001
+      selected_slice: F
+      selected_subslice: F-PREFLIGHT-INVOCATION-SNAPSHOT-001
       verification_pending_slices: []
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
