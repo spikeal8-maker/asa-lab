@@ -66,6 +66,16 @@ tests:
     timeout_seconds: 1200
     owner: ai-assistant
     artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-LRN-QUIZ-COMPLETE-COURSE-001
+    title: Eight-type persistent Quiz authoring, exact Attempt submission, automatic and pending manual journal results, saved-answer expiry and narrow author/Seat authority
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/courses/quiz-complete-course.pg.spec.ts tests/courses/learning-content.controller.spec.ts tests/courses/learning-quiz-attempts.controller.spec.ts apps/api/src/account-verification.guard.spec.ts apps/web/src/learning/testing/quiz-complete-ui.spec.ts
+    timeout_seconds: 300
+    owner: learning
+    artifacts: [vitest-report, postgresql-isolation-report]
   - id: TST-LRN-QUIZ-ATTEMPT-STATE-001
     title: Exact Quiz Start replay, confirmed answer revision, identity isolation and server deadline without academic result writes
     suite: authorization

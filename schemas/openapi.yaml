@@ -15,6 +15,249 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/learning/questions:
+    get:
+      operationId: listCanonicalQuestionContent
+      summary: list authorized Question content using existing immutable bank and version authority
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+    post:
+      operationId: createCanonicalQuestionContent
+      summary: create authorized Question content using existing immutable bank and version authority
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningContentCommand' }
+      responses:
+        '201': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/questions/{rootId}:
+    get:
+      operationId: readCanonicalQuestionContent
+      summary: read authorized Question content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/questions/{rootId}/draft:
+    put:
+      operationId: saveCanonicalQuestionContent
+      summary: save authorized Question content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningContentCommand' }
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/questions/{rootId}/publish:
+    post:
+      operationId: publishCanonicalQuestionContent
+      summary: publish authorized Question content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningContentCommand' }
+      responses:
+        '201': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/questions/versions/{versionId}:
+    get:
+      operationId: readVersionCanonicalQuestionContent
+      summary: readVersion authorized Question content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: versionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quizzes:
+    get:
+      operationId: listCanonicalQuizContent
+      summary: list authorized Quiz content using existing immutable bank and version authority
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+    post:
+      operationId: createCanonicalQuizContent
+      summary: create authorized Quiz content using existing immutable bank and version authority
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningContentCommand' }
+      responses:
+        '201': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quizzes/{rootId}:
+    get:
+      operationId: readCanonicalQuizContent
+      summary: read authorized Quiz content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quizzes/{rootId}/draft:
+    put:
+      operationId: saveCanonicalQuizContent
+      summary: save authorized Quiz content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningContentCommand' }
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quizzes/{rootId}/publish:
+    post:
+      operationId: publishCanonicalQuizContent
+      summary: publish authorized Quiz content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningContentCommand' }
+      responses:
+        '201': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quizzes/versions/{versionId}:
+    get:
+      operationId: readVersionCanonicalQuizContent
+      summary: readVersion authorized Quiz content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: versionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quiz/runs/{activityRunId}:
+    get:
+      operationId: readCanonicalCourseQuiz
+      summary: Read current authorized Quiz participation and its latest persisted Attempt
+      parameters:
+        - in: path
+          name: activityRunId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          {
+            description: Participation and last confirmed Attempt; scheduled content stays redacted,
+          }
+        '401': { description: No active Seat or Account }
+        '404': { description: Exact current actor scope unavailable }
+  /api/learning/attempts/{attemptId}/submit:
+    post:
+      operationId: submitCanonicalQuizAttempt
+      summary: Freeze confirmed answers of this exact existing Attempt; never allocate another Attempt
+      description: Same request and expected answer revision replay once. Server expiry uses frozen expirationPolicy and last saved answers. Mixed manual questions remain provisional and produce no final journal grade until teacher review.
+      parameters:
+        - in: path
+          name: attemptId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId, expectedVersion]
+              properties:
+                requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+                expectedVersion: { type: integer, minimum: 1, maximum: 2147483647 }
+      responses:
+        '200': { description: Same persisted Attempt with terminal or provisional state }
+        '400': { description: Invalid request; client answers are forbidden here }
+        '401': { description: No active Seat or Account }
+        '404': { description: Attempt unavailable to current actor }
+        '409': { description: Answer revision, request or terminal state conflict }
   /api/learning/activity-participations/{participationId}/attempts:
     post:
       operationId: startCanonicalQuizAttempt
@@ -96,7 +339,7 @@ paths:
                 expectedVersion: { type: integer, minimum: 1, maximum: 2147483646 }
                 answers:
                   type: object
-                  description: Frozen question-version UUID keys. Multiple choice uses values array; other supported types use value. Missing questions are unanswered. JSON map is limited to 262144 UTF-8 bytes.
+                  description: Frozen question-version UUID keys. Multiple choice and ordering use stable ID values arrays; matching uses stable leftId:rightId pairs; scalar and long_text_manual use value. Missing questions are unanswered. JSON map is limited to 262144 UTF-8 bytes.
                   additionalProperties:
                     type: object
                     additionalProperties: false
@@ -8022,6 +8265,17 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    LearningContentCommand:
+      type: object
+      additionalProperties: false
+      required: [requestId]
+      properties:
+        requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+        expectedRevision: { type: [integer, 'null'], minimum: 0, maximum: 2147483647 }
+        expectedHeadId: { type: [string, 'null'], format: uuid }
+        payload:
+          type: [object, 'null']
+          description: Bounded incomplete Question or Quiz author draft; publication validates all eight types and exact immutable references. No runtime attempt/time/pass policy belongs in Quiz content.
     QuizAttemptState:
       type: object
       additionalProperties: false
@@ -8072,9 +8326,24 @@ components:
               type:
                 {
                   type: string,
-                  enum: [single_choice, multiple_choice, boolean, numeric, short_text],
+                  enum:
+                    [
+                      single_choice,
+                      multiple_choice,
+                      boolean,
+                      numeric,
+                      short_text,
+                      matching,
+                      ordering,
+                      long_text_manual,
+                    ],
                 }
               promptBlocks: { type: array, items: { type: object } }
+              responseSchema:
+                {
+                  type: object,
+                  description: Key-free stable options/left/right labels for matching and ordering,
+                }
               maxPoints: { type: integer, minimum: 1 }
               options:
                 type: [array, 'null']
@@ -8089,6 +8358,20 @@ components:
         optionOrder:
           { type: object, additionalProperties: { type: array, items: { type: string } } }
         lastSavedAt: { type: [string, 'null'], format: date-time }
+        submittedAt: { type: [string, 'null'], format: date-time }
+        feedback:
+          type: array
+          description: Frozen per-question correctness/points, only after immediate or permitted after_close release; never answer keys. Absent in score_only.
+          items: { type: object }
+        result:
+          type: [object, 'null']
+          additionalProperties: false
+          properties:
+            points: { type: [integer, 'null'] }
+            maxPoints: { type: [integer, 'null'] }
+            outcome: { type: string }
+            provisional: { type: boolean }
+
     LearningEssaySubmitRequest:
       type: object
       additionalProperties: false
@@ -9830,6 +10113,8 @@ components:
         policies: { $ref: '#/components/schemas/LearningActivityPolicySnapshot' }
         moduleKey: { type: [string, 'null'], pattern: '^[a-z0-9-]{1,64}$' }
         quizVersionId: { type: [string, 'null'], format: uuid }
+        quizDraftId: { type: [string, 'null'], format: uuid }
+        quizDraftRevision: { type: [integer, 'null'], minimum: 1, maximum: 2147483647 }
         starterProjectVersionId: { type: [string, 'null'], format: uuid }
         sourceTeacherAssignmentId: { type: [string, 'null'], format: uuid }
         scope: { type: string, enum: [personal, school], default: personal }
@@ -9847,6 +10132,8 @@ components:
         policies: { $ref: '#/components/schemas/LearningActivityPolicySnapshot' }
         moduleKey: { type: [string, 'null'], pattern: '^[a-z0-9-]{1,64}$' }
         quizVersionId: { type: [string, 'null'], format: uuid }
+        quizDraftId: { type: [string, 'null'], format: uuid }
+        quizDraftRevision: { type: [integer, 'null'], minimum: 1, maximum: 2147483647 }
         starterProjectVersionId: { type: [string, 'null'], format: uuid }
     LearningActivityPublishRequest:
       type: object

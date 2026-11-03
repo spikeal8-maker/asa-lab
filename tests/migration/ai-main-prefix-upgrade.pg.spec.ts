@@ -82,6 +82,7 @@ const expectedPending = [
   '0301', // Written Course responses reuse the canonical academic chain.
   '0302', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
   '0303', // Exact Quiz Start and answer state; historical rows remain unchanged.
+  '0306', // Complete eight-type Quiz Course vertical; immutable published history preserved.
 ];
 
 interface Identity {

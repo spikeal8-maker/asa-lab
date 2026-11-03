@@ -15,6 +15,7 @@ const secondSelectors = [
   'e2e/learning-learner-submits-project-assignment.spec.ts',
   'e2e/learning-surface-convergence.spec.ts',
   'e2e/learning-teacher-assigns-activity.spec.ts',
+  'e2e/learning-quiz-course.spec.ts',
 ];
 
 // Fixed identities and order; locations must come from this checkout's CLI.
@@ -78,6 +79,9 @@ const manifest = {
     'teacher selects two learners and the third learner cannot see the assignment',
     'learner exact published task image stays pinned across v1 and v2',
     'A6 PDF material stays readable through exact direct assignment versions',
+  ],
+  'learning-quiz-course.spec.ts': [
+    'Complete Quiz Course: inline eight-type author, exact versions, Seat and Account saved answers, automatic and manual journal at four widths',
   ],
 };
 const root = process.cwd();
@@ -362,7 +366,7 @@ function execution(report, destination, expected) {
 }
 
 function main() {
-  // CI executes the complete 32 + 15 identity matrix in two isolated jobs.
+  // CI executes the complete 32 + 16 identity matrix in two isolated jobs.
   // Local invocation without a phase retains the exact original all-cases behavior.
   const phase = process.env.LEARNING_E1_BATCH ?? 'all';
   check(
@@ -554,7 +558,7 @@ function main() {
         status: firstExitCode === null ? 'NOT_RUN' : firstExitCode ? 'FAIL' : 'PASS',
       },
       second: {
-        cases: 15,
+        cases: 16,
         exitCode: secondExitCode,
         status: secondExitCode === null ? 'NOT_RUN' : secondExitCode ? 'FAIL' : 'PASS',
       },

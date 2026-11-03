@@ -33,6 +33,8 @@ Draft save keeps existing activity revision authority. Quiz content commands hav
 independent expected draft revisions and immutable scoped replay receipts.
 
 ```sql
+ALTER TABLE question_versions DROP CONSTRAINT question_versions_type_check;
+ALTER TABLE question_versions ADD CONSTRAINT question_versions_type_check CHECK (question_type IN ('single_choice','multiple_choice','boolean','numeric','short_text','matching','ordering','long_text_manual'));
 -- Q3a: existing Question bank and private Quiz content roots/drafts/versions.
 -- Draft numbering is provisional. No learner delivery or public publication.
 -- Existing immutable rows/digests are never rewritten.
@@ -164,3 +166,21 @@ auto/manual review→journal at the existing four widths including 320/390, no p
 overflow, existing Project/Essay journeys retained. All gates retain full assertions.
 Final dependency convergence happens once, then exact-SHA focused and General gates
 and independent review. No installed/owner acceptance claim from CI alone.
+
+## Frozen shuffle detail
+
+Quiz content_flags store shuffleQuestions/shuffleOptions. On Start, the server
+allocates the Attempt UUID once and orders question/option IDs by stable md5(UUID,
+ID) when requested; normal false ordering stays mapped.position/option.ordinality.
+The resulting order and key-free content are stored in existing immutable Q2
+snapshots. Reload/replay never re-randomizes. No policy moves into QuizVersion.
+
+## Delivery adapters and feedback
+
+Existing learning_direct_assignment_activity_list/create also admit an exact Quiz
+LAV with null module and non-null immutable QuizVersion; Project guards stay as-is.
+This keeps the existing author toolbar Assign action real. No new handout model.
+Immediate feedback returns frozen per-question correctness/points; score_only returns
+totals without per-question feedback; after_close withholds both until actual closure.
+No learner reader joins answer keys. expire_without_submission uses existing expired
+Attempt state, with no Submission/Evaluation/Result or invented completion.

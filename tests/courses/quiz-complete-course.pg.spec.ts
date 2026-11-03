@@ -150,7 +150,7 @@ async function fixture(
       },
       { values: ['b', 'a'] },
     ],
-    ...(input.manual === false ? [] : [['long_text_manual', {}, {}]]),
+    ...(input.manual === false ? [] : [['long_text_manual', {}, {}] as const]),
   ] as const) {
     const created = (
       await admin.query(
@@ -159,7 +159,7 @@ async function fixture(
       )
     ).rows[0];
     expect(created.result_code).toBe('ok');
-    otherQuestions[type] = created.question_version_id;
+    otherQuestions[String(type)] = created.question_version_id;
   }
   const quiz = (
     await admin.query(
@@ -491,13 +491,152 @@ describe('Complete canonical Quiz Course vertical', () => {
       expect((await save(f.student.principal, id, 2, {})).result_code).toBe('quiz_attempt_closed');
       await app.query('SELECT learning_quiz_expiry_sweep()');
       await app.query('SELECT learning_quiz_expiry_sweep()');
-      expect((await read(f.student.principal, id)).state).toBe('closed');
+      expect((await read(f.student.principal, id)).state).toBe(
+        expirationPolicy === 'auto_submit' ? 'closed' : 'expired',
+      );
       const count = expirationPolicy === 'auto_submit' ? '1' : '0';
       expect(await academicCounts(f.assignment)).toMatchObject({
         submissions: count,
         results: count,
         grades: count,
       });
+    }
+  });
+  it('denies another actor and classroom on new submit/frozen-reader paths and keeps manual work out of selected completion', async () => {
+    const f = await fixture();
+    const begun = await start(f.student.principal, f.part);
+    const id = begun.attempt.attemptId;
+    expect((await submit(outsiderPrincipal, id, 1)).result_code).toBe('forbidden');
+    expect((await submit(ownerPrincipal, id, 1)).result_code).toBe('forbidden');
+    expect(
+      (await app.query('SELECT learning_quiz_run_read($1,$2) AS value', [outsiderPrincipal, f.run]))
+        .rows[0].value,
+    ).toBeNull();
+    expect(await academicCounts(f.assignment)).toMatchObject({
+      submissions: '0',
+      results: '0',
+      grades: '0',
+    });
+    await save(f.student.principal, id, 1, allAnswers(f));
+    const request = req();
+    expect((await submit(f.student.principal, id, 2, request)).result_code).toBe('ok');
+    expect((await submit(f.student.principal, id, 3, request)).result_code).not.toBe('ok');
+    expect(
+      (
+        await app.query('SELECT learning_teacher_exact_quiz_submission($1,$2,$3) AS value', [
+          learnerAccount,
+          f.classroom,
+          id,
+        ])
+      ).rows[0].value,
+    ).toBeNull();
+    expect(
+      (
+        await app.query('SELECT learning_teacher_exact_quiz_submission($1,$2,$3) AS value', [
+          ownerAccount,
+          randomUUID(),
+          id,
+        ])
+      ).rows[0].value,
+    ).toBeNull();
+    expect(
+      (await admin.query('SELECT * FROM learning_selected_result_internal($1)', [f.part])).rows,
+    ).toEqual([]);
+    expect(await academicCounts(f.assignment)).toMatchObject({
+      submissions: '1',
+      results: '0',
+      grades: '0',
+    });
+  });
+  it('serializes save versus submit: frozen Submission contains precisely one confirmed revision', async () => {
+    const f = await fixture({ manual: false });
+    const begun = await start(f.student.principal, f.part);
+    const id = begun.attempt.attemptId;
+    const answers = allAnswers(f);
+    const [saved, submitted] = await Promise.all([
+      save(f.student.principal, id, 1, answers),
+      submit(learnerPrincipal, id, 1),
+    ]);
+    if (saved.result_code === 'ok') {
+      expect(submitted.result_code).toBe('quiz_attempt_conflict');
+      expect((await submit(f.student.principal, id, 2)).result_code).toBe('ok');
+    } else {
+      expect(saved.result_code).toBe('quiz_attempt_closed');
+      expect(submitted.result_code).toBe('ok');
+    }
+    const payload = (
+      await admin.query('SELECT payload_manifest FROM learning_submissions WHERE attempt_id=$1', [
+        id,
+      ])
+    ).rows[0].payload_manifest;
+    expect(payload.sourceRevision).toBe(saved.result_code === 'ok' ? 2 : 1);
+    expect(payload.answers).toEqual(saved.result_code === 'ok' ? answers : {});
+    expect(await academicCounts(f.assignment)).toMatchObject({
+      submissions: '1',
+      results: '1',
+      grades: '1',
+    });
+  });
+  it('enforces after_close feedback on canonical reads without leaking keys before or after submission', async () => {
+    const policy = policies();
+    policy.feedbackReleasePolicy.mode = 'after_close';
+    const f = await fixture({ manual: false, policy });
+    const begun = await start(f.student.principal, f.part);
+    const id = begun.attempt.attemptId;
+    await save(f.student.principal, id, 1, allAnswers(f));
+    const done = await submit(f.student.principal, id, 2);
+    expect(done.result_code).toBe('ok');
+    expect(done.attempt).not.toHaveProperty('result');
+    expect(JSON.stringify(await read(f.student.principal, id))).not.toContain('answerKey');
+    await admin.query("UPDATE classroom_assignments SET status='closed' WHERE id=$1", [
+      f.assignment,
+    ]);
+    const released = await read(f.student.principal, id);
+    expect(released.result).toMatchObject({ points: 7, provisional: false });
+    expect(released.feedback).toHaveLength(7);
+    expect(JSON.stringify(released)).not.toContain('answerKey');
+  });
+  it('preserves all original five grader rules, negative decimal tolerance and wrong matching/ordering', async () => {
+    for (const [type, response, key, expected] of [
+      ['single_choice', { value: 'b' }, { value: 'a' }, false],
+      ['boolean', { value: false }, { value: true }, false],
+      ['multiple_choice', { values: ['b', 'a'] }, { values: ['a', 'b'] }, true],
+      ['multiple_choice', { values: ['a'] }, { values: ['a', 'b'] }, false],
+      ['numeric', { value: -1.25 }, { value: -1.2, tolerance: 0.05 }, true],
+      ['numeric', { value: -1.26 }, { value: -1.2, tolerance: 0.05 }, false],
+      ['numeric', { value: 'invalid' }, { value: 1 }, false],
+      ['short_text', { value: ' ANSWER ' }, { accepted: ['answer'] }, true],
+      ['matching', { values: ['l1:r2', 'l2:r1'] }, { values: ['l1:r1', 'l2:r2'] }, false],
+      ['ordering', { values: ['a', 'b'] }, { values: ['b', 'a'] }, false],
+    ] as const) {
+      expect(
+        (
+          await admin.query(
+            'SELECT learning_quiz_answer_correct_internal($1,$2::jsonb,$3::jsonb) AS value',
+            [type, JSON.stringify(response), JSON.stringify(key)],
+          )
+        ).rows[0].value,
+      ).toBe(expected);
+    }
+  });
+  it('releases immediate per-question feedback while score_only exposes totals without correctness', async () => {
+    for (const mode of ['immediate', 'score_only']) {
+      const policy = policies();
+      policy.feedbackReleasePolicy.mode = mode;
+      const f = await fixture({ manual: false, policy });
+      const begun = await start(f.student.principal, f.part);
+      const id = begun.attempt.attemptId;
+      expect(begun.attempt).not.toHaveProperty('feedback');
+      await save(f.student.principal, id, 1, allAnswers(f));
+      const done = await submit(f.student.principal, id, 2);
+      expect(done.result_code).toBe('ok');
+      expect(done.attempt.result.points).toBe(7);
+      if (mode === 'immediate')
+        expect(done.attempt.feedback).toEqual(
+          expect.arrayContaining([expect.objectContaining({ correct: true, points: 1 })]),
+        );
+      else expect(done.attempt).not.toHaveProperty('feedback');
+      expect(JSON.stringify(done.attempt)).not.toContain('answerKey');
     }
   });
 });

@@ -150,6 +150,7 @@ BEGIN
  IF jsonb_typeof(p_answer_key->'value') IS DISTINCT FROM 'number' OR
  (p_answer_key?'tolerance' AND (jsonb_typeof(p_answer_key->'tolerance') IS DISTINCT FROM 'number' OR (p_answer_key->>'tolerance')::numeric<0)) THEN RETURN 'invalid_answer_key'; END IF;
  PERFORM (p_answer_key->>'value')::double precision;
+ IF p_answer_key?'tolerance' THEN PERFORM (p_answer_key->>'tolerance')::double precision; END IF;
  ELSIF p_question_type='short_text' THEN
  IF jsonb_typeof(p_answer_key->'accepted') IS DISTINCT FROM 'array' THEN RETURN 'invalid_answer_key'; END IF;
  IF jsonb_array_length(p_answer_key->'accepted') NOT BETWEEN 1 AND 40 OR EXISTS(SELECT 1 FROM jsonb_array_elements(p_answer_key->'accepted') x
@@ -623,7 +624,10 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
   'responseSchema',CASE WHEN q.question_type IN('single_choice','multiple_choice') THEN jsonb_build_object('options',
    COALESCE((SELECT jsonb_agg(jsonb_build_object('id',o.value->>'id','label',o.value->>'label') ORDER BY o.ordinality)
     FROM jsonb_array_elements(q.response_schema->'options') WITH ORDINALITY o(value,ordinality)),'[]'::jsonb))
-  WHEN q.question_type IN('matching','ordering') THEN q.response_schema
+  WHEN q.question_type='matching' THEN jsonb_build_object(
+ 'left',(SELECT jsonb_agg(jsonb_build_object('id',o->>'id','label',o->>'label')) FROM jsonb_array_elements(q.response_schema->'left') o),
+ 'right',(SELECT jsonb_agg(jsonb_build_object('id',o->>'id','label',o->>'label')) FROM jsonb_array_elements(q.response_schema->'right') o))
+  WHEN q.question_type='ordering' THEN jsonb_build_object('options',(SELECT jsonb_agg(jsonb_build_object('id',o->>'id','label',o->>'label')) FROM jsonb_array_elements(q.response_schema->'options') o))
   WHEN q.question_type='numeric' THEN '{"input":"number"}'::jsonb
   WHEN q.question_type='short_text' THEN '{"input":"text"}'::jsonb ELSE '{}'::jsonb END)
  FROM public.question_versions q WHERE q.id=v;
@@ -821,7 +825,6 @@ BEGIN
  IF head IS DISTINCT FROM h THEN RETURN jsonb_build_object('code','head_conflict'); END IF;
  SELECT x.payload INTO payload FROM public.quiz_author_drafts x WHERE x.quiz_id=r;
  IF NULLIF(trim(payload->>'title'),'') IS NULL OR jsonb_array_length(COALESCE(payload->'questions','[]'::jsonb))=0 THEN RETURN jsonb_build_object('code','invalid_quiz'); END IF;
- IF COALESCE((payload->>'shuffleQuestions')::boolean,false) OR COALESCE((payload->>'shuffleOptions')::boolean,false) THEN RETURN jsonb_build_object('code','unsupported_content_feature'); END IF;
  -- Lock every own Question root in sorted order before validating or publishing
  -- any child. Other-owner school references never acquire edit/key privileges.
  FOR qid IN SELECT DISTINCT (x.value->>'questionId')::uuid FROM jsonb_array_elements(payload->'questions') x
@@ -888,13 +891,13 @@ BEGIN
   INTO resolved FROM jsonb_array_elements(resolved) WITH ORDINALITY x(value,ordinality);
  INSERT INTO public.quiz_versions(tenant_id,owner_principal_id,learning_activity_version_id,title,instructions,question_count,total_points,attempt_limit,time_limit_minutes,pass_threshold_basis_points,feedback_release_policy,content_digest)
  VALUES(t,a,NULL,trim(payload->>'title'),NULLIF(payload->>'instructions',''),jsonb_array_length(resolved),total::integer,NULL,NULL,NULL,NULL,
- encode(sha256(convert_to(jsonb_build_object('title',trim(payload->>'title'),'instructions',NULLIF(payload->>'instructions',''),'questions',resolved,'shuffleQuestions',false,'shuffleOptions',false)::text,'UTF8')),'hex')) RETURNING id INTO v;
+ encode(sha256(convert_to(jsonb_build_object('title',trim(payload->>'title'),'instructions',NULLIF(payload->>'instructions',''),'questions',resolved,'shuffleQuestions',COALESCE((payload->>'shuffleQuestions')::boolean,false),'shuffleOptions',COALESCE((payload->>'shuffleOptions')::boolean,false))::text,'UTF8')),'hex')) RETURNING id INTO v;
  FOR entry IN SELECT value FROM jsonb_array_elements(resolved) LOOP
   position:=position+1;
   INSERT INTO public.quiz_version_questions(tenant_id,quiz_version_id,question_version_id,position,required,max_points)
    VALUES(t,v,(entry->>'versionId')::uuid,position,(entry->>'required')::boolean,(entry->>'maxPoints')::integer);
  END LOOP;
- INSERT INTO public.quiz_version_lineage(tenant_id,quiz_id,version_number,quiz_version_id,representation) VALUES(t,r,number::integer,v,'content');
+ INSERT INTO public.quiz_version_lineage(tenant_id,quiz_id,version_number,quiz_version_id,representation,content_flags) VALUES(t,r,number::integer,v,'content',jsonb_build_object('shuffleQuestions',COALESCE((payload->>'shuffleQuestions')::boolean,false),'shuffleOptions',COALESCE((payload->>'shuffleOptions')::boolean,false)));
  answer:=jsonb_build_object('code','ok','id',r,'draftRevision',rev,'versionId',v,'versionNumber',number,'totalPoints',total,'reused',false);
  PERFORM public.learning_content_remember_internal(a,t,k,op,r,rev,req,digest,h,answer);
  RETURN answer;
@@ -1276,6 +1279,7 @@ BEGIN
  ELSE
    v_seconds:=(v_scope#>>'{policy,attemptPolicy,timeLimitMinutes}')::bigint*60;v_time_source:='activity_version';
  END IF;
+ v_attempt:=gen_random_uuid();
  -- Build only the learner allowlist: even extra response_schema/option keys
  -- authored in old content can never disclose an answer key through this DTO.
  SELECT jsonb_agg(jsonb_build_object('id',q.id,'type',q.question_type,'promptBlocks',q.prompt_blocks,
@@ -1283,12 +1287,12 @@ BEGIN
  'left',(SELECT jsonb_agg(jsonb_build_object('id',o->>'id','label',o->>'label')) FROM jsonb_array_elements(q.response_schema->'left') o),
  'right',(SELECT jsonb_agg(jsonb_build_object('id',o->>'id','label',o->>'label')) FROM jsonb_array_elements(q.response_schema->'right') o))
  WHEN q.question_type='ordering' THEN jsonb_build_object('options',(SELECT jsonb_agg(jsonb_build_object('id',o->>'id','label',o->>'label')) FROM jsonb_array_elements(q.response_schema->'options') o)) ELSE '{}'::jsonb END,'options',CASE WHEN q.question_type IN ('single_choice','multiple_choice')
-       THEN (SELECT jsonb_agg(jsonb_build_object('id',o.value->>'id','label',o.value->>'label') ORDER BY o.ordinality)
+       THEN (SELECT jsonb_agg(jsonb_build_object('id',o.value->>'id','label',o.value->>'label') ORDER BY CASE WHEN (v_scope->>'shuffleOptions')::boolean THEN NULL ELSE o.ordinality END, md5(v_attempt::text||(o.value->>'id')))
          FROM jsonb_array_elements(q.response_schema->'options') WITH ORDINALITY o(value,ordinality))
-       ELSE NULL END) ORDER BY mapped.position),
-   jsonb_agg(q.id ORDER BY mapped.position),
+       ELSE NULL END) ORDER BY CASE WHEN (v_scope->>'shuffleQuestions')::boolean THEN NULL ELSE mapped.position END, md5(v_attempt::text||q.id::text)),
+   jsonb_agg(q.id ORDER BY CASE WHEN (v_scope->>'shuffleQuestions')::boolean THEN NULL ELSE mapped.position END, md5(v_attempt::text||q.id::text)),
    COALESCE(jsonb_object_agg(q.id::text,CASE WHEN q.question_type IN ('single_choice','multiple_choice')
-     THEN (SELECT jsonb_agg(o.value->>'id' ORDER BY o.ordinality)
+     THEN (SELECT jsonb_agg(o.value->>'id' ORDER BY CASE WHEN (v_scope->>'shuffleOptions')::boolean THEN NULL ELSE o.ordinality END, md5(v_attempt::text||(o.value->>'id')))
        FROM jsonb_array_elements(q.response_schema->'options') WITH ORDINALITY o(value,ordinality))
      ELSE '[]'::jsonb END),'{}'::jsonb)
  INTO v_questions,v_order,v_options
@@ -1324,9 +1328,9 @@ BEGIN
    VALUES((v_scope->>'tenantId')::uuid,NULL,'activity_participation',p_part,'participation.activated',
      jsonb_build_object('actorPrincipalId',p_actor,'source','meaningful_learner_interaction'));
  END IF;
- INSERT INTO public.learning_attempts(tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
+ INSERT INTO public.learning_attempts(id,tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
    seat_id,learner_identity_id,activity_participation_id,attempt_number,state,started_at,expires_at,effective_conditions_at_start)
- VALUES((v_scope->>'tenantId')::uuid,(v_scope->>'classroomId')::uuid,(v_scope->>'assignmentId')::uuid,
+ VALUES(v_attempt,(v_scope->>'tenantId')::uuid,(v_scope->>'classroomId')::uuid,(v_scope->>'assignmentId')::uuid,
    (v_scope->>'activityVersionId')::uuid,(v_scope->>'seatId')::uuid,(v_scope->>'learnerIdentityId')::uuid,
    p_part,v_number,'in_progress',v_now,CASE WHEN v_seconds IS NULL THEN NULL ELSE v_now+make_interval(secs=>v_seconds::double precision) END,
    v_effective||jsonb_build_object('timeLimitSeconds',v_seconds,'timeLimitSource',v_time_source)) RETURNING id INTO v_attempt;
@@ -1389,6 +1393,10 @@ BEGIN
      OR (v_question->>'type'='numeric' AND jsonb_typeof(v_value)<>'number')
      OR (v_question->>'type' IN('short_text','long_text_manual') AND (jsonb_typeof(v_value)<>'string' OR length(v_value#>>'{}')>12000)) THEN
      RETURN QUERY SELECT 'invalid_answers'::varchar,NULL::jsonb; RETURN; END IF;
+   IF v_question->>'type'='numeric' THEN
+     BEGIN PERFORM (v_value#>>'{}')::double precision;
+     EXCEPTION WHEN numeric_value_out_of_range THEN RETURN QUERY SELECT 'invalid_answers'::varchar,NULL::jsonb; RETURN; END;
+   END IF;
    IF v_question->>'type' IN('ordering','matching') THEN
      IF EXISTS(SELECT 1 FROM jsonb_array_elements(v_value) x WHERE jsonb_typeof(x)<>'string')
        OR jsonb_array_length(v_value)>40
@@ -1528,7 +1536,7 @@ BEGIN
  AND v.tenant_id=attempt.tenant_id AND v.canonical_kind='quiz';
  IF version.id IS NULL THEN RETURN 'not_found'; END IF;
  IF p_expiry AND COALESCE(state.policy_snapshot#>>'{attemptPolicy,expirationPolicy}','auto_submit')='expire_without_submission' THEN
- UPDATE public.learning_attempts SET state='closed',evaluated_at=now_at WHERE id=p_attempt; RETURN 'ok'; END IF;
+ UPDATE public.learning_attempts SET state='expired',evaluated_at=NULL WHERE id=p_attempt; RETURN 'ok'; END IF;
  FOR q IN SELECT value FROM jsonb_array_elements(state.selected_questions_jsonb) LOOP
  SELECT k.answer_key INTO key FROM public.question_answer_keys k WHERE k.tenant_id=attempt.tenant_id AND k.question_version_id=(q->>'id')::uuid;
  IF key IS NULL THEN RAISE EXCEPTION 'Missing frozen question key'; END IF;
@@ -1549,6 +1557,7 @@ BEGIN
  effective:=attempt.effective_conditions_at_start;
  INSERT INTO public.learning_submissions(tenant_id,attempt_id,project_id,project_version_id,payload_manifest,payload_digest,client_request_id,late_state)
  VALUES(attempt.tenant_id,p_attempt,NULL,NULL,payload,digest,p_request,CASE WHEN (effective#>>'{values,dueAt}')::timestamptz<now_at THEN 'late' ELSE 'on_time' END);
+ UPDATE public.learning_attempts SET state='submitted',submitted_at=now_at WHERE id=p_attempt;
  INSERT INTO public.learning_evaluations(tenant_id,attempt_id,evaluator_kind,status,points,max_points,evidence)
  VALUES(attempt.tenant_id,p_attempt,'automatic','completed',total::integer,maximum::integer,jsonb_build_object('grader','quiz-v1','provisional',pending>0,'scoring',evidence,'submissionDigest',digest));
  UPDATE public.learning_attempts SET state=CASE WHEN pending>0 THEN 'evaluating' ELSE 'closed' END,
@@ -2015,7 +2024,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION learning_quiz_attempt_read(p_actor uuid,p_attempt uuid)
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
-DECLARE result jsonb; release boolean; v_scope jsonb; v_attempt public.learning_attempts%ROWTYPE; v_state public.quiz_attempt_states%ROWTYPE;
+DECLARE result jsonb; feedback jsonb; release boolean; v_scope jsonb; v_attempt public.learning_attempts%ROWTYPE; v_state public.quiz_attempt_states%ROWTYPE;
 BEGIN
  SELECT attempt.* INTO v_attempt FROM public.learning_attempts attempt WHERE attempt.id=p_attempt;
  IF v_attempt.id IS NULL OR v_attempt.activity_participation_id IS NULL THEN RETURN NULL; END IF;
@@ -2042,12 +2051,15 @@ BEGIN
  SELECT jsonb_build_object('points',ev.points,'maxPoints',ev.max_points,'outcome','pending','provisional',true) INTO result
  FROM public.learning_evaluations ev WHERE ev.attempt_id=p_attempt AND ev.evaluator_kind='automatic' ORDER BY ev.created_at DESC LIMIT 1;
  END IF;
+ IF COALESCE(v_state.policy_snapshot#>>'{feedbackReleasePolicy,mode}','immediate')<>'score_only' THEN
+ SELECT sub.payload_manifest->'scoring' INTO feedback FROM public.learning_submissions sub WHERE sub.attempt_id=p_attempt AND sub.tenant_id=v_attempt.tenant_id;
+ END IF;
  RETURN jsonb_build_object('attemptId',v_attempt.id,'participationId',v_attempt.activity_participation_id,
  'activityRunId',v_scope->'activityRunId','activityVersionId',v_attempt.learning_activity_version_id,
  'attemptNumber',v_state.participation_attempt_number,'state',v_attempt.state,'startedAt',v_attempt.started_at,
  'expiresAt',v_attempt.expires_at,'serverNow',clock_timestamp(),'version',v_state.version,'answers',v_state.answers_jsonb,
  'questions',v_state.selected_questions_jsonb,'questionOrder',v_state.question_order_jsonb,'optionOrder',v_state.option_order_jsonb,
- 'lastSavedAt',v_state.last_saved_at,'submittedAt',v_attempt.submitted_at,'result',result);
+ 'lastSavedAt',v_state.last_saved_at,'submittedAt',v_attempt.submitted_at,'result',result)||CASE WHEN feedback IS NOT NULL THEN jsonb_build_object('feedback',feedback) ELSE '{}'::jsonb END;
  END IF;
  RETURN result;
 END;
@@ -2100,3 +2112,225 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 $$;
 REVOKE ALL ON FUNCTION learning_quiz_assignment_kind(uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION learning_quiz_assignment_kind(uuid,uuid) TO asalab_app;
+
+CREATE OR REPLACE FUNCTION learning_quiz_scope_internal(p_actor uuid,p_part uuid)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+ SELECT jsonb_build_object('tenantId',part.tenant_id,'participationId',part.id,
+   'learnerIdentityId',part.learner_identity_id,'classroomId',run.classroom_id,
+   'assignmentId',run.source_classroom_assignment_id,'activityRunId',run.id,
+   'activityVersionId',version.id,'quizVersionId',quiz.id,'seatId',current_seat.id,
+   'policy',version.policy_snapshot,'contentDigest',quiz.content_digest,
+   'shuffleQuestions',COALESCE((SELECT (l.content_flags->>'shuffleQuestions')::boolean FROM public.quiz_version_lineage l WHERE l.quiz_version_id=quiz.id),false),
+   'shuffleOptions',COALESCE((SELECT (l.content_flags->>'shuffleOptions')::boolean FROM public.quiz_version_lineage l WHERE l.quiz_version_id=quiz.id),false),
+   'timeOverrideSeconds',part.time_limit_override_seconds,
+   'runTimeMinutes',run.runtime_policy_snapshot#>'{explicit,timeLimitMinutes}',
+   'effective',public.learning_effective_conditions_internal(run.id,part.id),
+   'available',part.status IN ('assigned','active') AND NOT part.excused AND run.lifecycle_status='active'
+     AND classroom.status='active' AND handout.status='open'
+     AND (run.source_kind<>'course' OR course.status='open')
+     AND (part.source_course_enrollment_id IS NULL OR enrollment.status='active'))
+ FROM public.activity_participations part
+ JOIN public.learner_identities learner ON learner.tenant_id=part.tenant_id
+   AND learner.school_id=part.school_id AND learner.id=part.learner_identity_id AND learner.state='active'
+ JOIN public.activity_runs run ON run.tenant_id=part.tenant_id AND run.school_id=part.school_id
+   AND run.id=part.activity_run_id
+ JOIN public.classrooms classroom ON classroom.tenant_id=run.tenant_id AND classroom.id=run.classroom_id
+ JOIN public.classroom_assignments handout ON handout.tenant_id=run.tenant_id
+   AND handout.classroom_id=run.classroom_id AND handout.id=run.source_classroom_assignment_id
+ JOIN public.learning_activity_versions version ON version.tenant_id=run.tenant_id
+   AND version.id=run.learning_activity_version_id AND version.canonical_kind='quiz'
+ JOIN public.quiz_versions quiz ON quiz.tenant_id=version.tenant_id
+   AND quiz.id=version.quiz_version_id
+ LEFT JOIN public.classroom_course_runs course ON course.tenant_id=run.tenant_id AND course.id=run.source_course_run_id
+ LEFT JOIN public.course_enrollments enrollment ON enrollment.tenant_id=part.tenant_id
+   AND enrollment.id=part.source_course_enrollment_id AND enrollment.learner_identity_id=part.learner_identity_id
+ JOIN public.principals actor ON actor.id=p_actor
+ JOIN LATERAL (
+   SELECT seat.id FROM public.classroom_student_seats seat
+   JOIN public.learner_identity_links seat_link ON seat_link.tenant_id=part.tenant_id
+     AND seat_link.school_id=part.school_id AND seat_link.learner_identity_id=part.learner_identity_id
+     AND seat_link.link_kind='student_seat' AND seat_link.seat_id=seat.id AND seat_link.status='active'
+   WHERE seat.tenant_id=part.tenant_id AND seat.classroom_id=run.classroom_id AND seat.status='active'
+     AND ((actor.kind='student_seat' AND actor.seat_id=seat.id)
+       OR (actor.kind='account' AND seat.account_id=actor.account_id
+         AND EXISTS (SELECT 1 FROM public.accounts account WHERE account.id=actor.account_id AND account.status='active')
+         AND EXISTS (
+         SELECT 1 FROM public.learner_identity_links account_link
+         WHERE account_link.tenant_id=part.tenant_id AND account_link.school_id=part.school_id
+           AND account_link.learner_identity_id=part.learner_identity_id
+           AND account_link.link_kind='account' AND account_link.account_id=actor.account_id
+           AND account_link.status='active')))
+   ORDER BY seat.id LIMIT 1
+ ) current_seat ON true
+ WHERE part.id=p_part;
+$$;
+
+CREATE OR REPLACE FUNCTION learning_direct_assignment_activity_list(
+    p_actor_principal_id uuid, p_tenant_id uuid, p_classroom_id uuid
+)
+RETURNS TABLE (
+    activity_id uuid, activity_version_id uuid, title varchar,
+    instructions varchar, kind varchar, module_key varchar
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT activity.id, version.id, version.title, version.instructions,
+           version.canonical_kind, version.module_key
+      FROM public.principals principal
+      JOIN public.classroom_memberships membership
+        ON membership.account_id=principal.account_id
+       AND membership.classroom_id=p_classroom_id
+       AND membership.member_role IN ('owner','co_teacher')
+      JOIN public.classrooms classroom
+        ON classroom.tenant_id=membership.tenant_id
+       AND classroom.id=membership.classroom_id
+       AND classroom.status='active'
+      JOIN public.learning_activities activity
+        ON activity.tenant_id=classroom.tenant_id
+       AND activity.owner_principal_id=p_actor_principal_id
+       AND activity.archived_at IS NULL
+       AND activity.reusable_authored_content=true
+       AND activity.current_published_version_id IS NOT NULL
+      JOIN public.learning_activity_versions version
+        ON version.tenant_id=activity.tenant_id
+       AND version.id=activity.current_published_version_id
+       AND version.activity_id=activity.id
+       AND version.canonical_contract_version=1
+       AND (version.canonical_kind='project' OR (version.canonical_kind='quiz' AND version.module_key IS NULL AND version.quiz_version_id IS NOT NULL))
+     WHERE principal.id=p_actor_principal_id
+       AND principal.kind='account'
+       AND classroom.tenant_id=p_tenant_id
+       AND NOT EXISTS (
+         SELECT 1 FROM public.learning_migration_compatibility_activity_versions compatibility
+          WHERE compatibility.learning_activity_version_id=version.id)
+     ORDER BY activity.created_at DESC, activity.id;
+$$;
+
+CREATE OR REPLACE FUNCTION learning_direct_assignment_create(
+    p_actor_principal_id uuid,
+    p_tenant_id uuid,
+    p_classroom_id uuid,
+    p_learning_activity_version_id uuid,
+    p_due_at timestamptz,
+    p_audience_type varchar,
+    p_named_seat_ids uuid[],
+    p_request_id varchar
+)
+RETURNS TABLE (
+    result_code varchar, classroom_assignment_id uuid, activity_run_id uuid,
+    audience_id uuid, assigned_count integer, reused boolean
+)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE
+    v_source record;
+    v_handout uuid;
+    v_run record;
+    v_audience record;
+    v_learner_ids uuid[] := ARRAY[]::uuid[];
+BEGIN
+    IF p_request_id IS NULL OR p_request_id !~ '^[A-Za-z0-9._:-]{8,80}$'
+       OR p_audience_type NOT IN ('whole_class','named_learners')
+       OR (p_audience_type='whole_class' AND COALESCE(cardinality(p_named_seat_ids),0)<>0)
+       OR (p_audience_type='named_learners' AND (
+            COALESCE(cardinality(p_named_seat_ids),0)=0
+            OR cardinality(p_named_seat_ids)<>(
+                SELECT count(DISTINCT seat_id) FROM unnest(p_named_seat_ids) seat_id))) THEN
+        RETURN QUERY SELECT 'invalid_request'::varchar,NULL::uuid,NULL::uuid,NULL::uuid,0,false;
+        RETURN;
+    END IF;
+
+    SELECT classroom.tenant_id, classroom.school_id, membership.user_id,
+           activity.source_teacher_assignment_id, activity.owner_principal_id,
+           version.id AS version_id
+      INTO v_source
+      FROM public.principals principal
+      JOIN public.classroom_memberships membership
+        ON membership.account_id=principal.account_id
+       AND membership.classroom_id=p_classroom_id
+       AND membership.member_role IN ('owner','co_teacher')
+      JOIN public.classrooms classroom
+        ON classroom.tenant_id=membership.tenant_id
+       AND classroom.id=membership.classroom_id
+       AND classroom.status='active'
+      JOIN public.learning_activity_versions version
+        ON version.id=p_learning_activity_version_id
+       AND version.tenant_id=classroom.tenant_id
+       AND version.canonical_contract_version=1
+       AND (version.canonical_kind='project' OR (version.canonical_kind='quiz' AND version.module_key IS NULL AND version.quiz_version_id IS NOT NULL))
+      JOIN public.learning_activities activity
+        ON activity.tenant_id=version.tenant_id
+       AND activity.id=version.activity_id
+       AND activity.owner_principal_id=p_actor_principal_id
+       AND activity.reusable_authored_content=true
+       AND activity.archived_at IS NULL
+     WHERE principal.id=p_actor_principal_id
+       AND principal.kind='account'
+       AND classroom.tenant_id=p_tenant_id
+       AND NOT EXISTS (
+         SELECT 1 FROM public.learning_migration_compatibility_activity_versions compatibility
+          WHERE compatibility.learning_activity_version_id=version.id);
+    IF v_source.version_id IS NULL THEN
+        RETURN QUERY SELECT 'forbidden'::varchar,NULL::uuid,NULL::uuid,NULL::uuid,0,false;
+        RETURN;
+    END IF;
+
+    -- The established ActivityRun/Audience commands enforce FORCE-RLS through
+    -- the transaction-local tenant setting. The actor/classroom/activity join
+    -- above proves this tenant before any canonical runtime write is attempted.
+    PERFORM set_config('app.tenant_id',p_tenant_id::text,true);
+
+    IF p_audience_type='named_learners' THEN
+        IF EXISTS (
+            SELECT 1 FROM unnest(p_named_seat_ids) requested(seat_id)
+             WHERE NOT EXISTS (
+               SELECT 1 FROM public.classroom_student_seats seat
+                WHERE seat.id=requested.seat_id
+                  AND seat.tenant_id=v_source.tenant_id
+                  AND seat.classroom_id=p_classroom_id
+                  AND seat.status IN ('issued','active'))
+        ) THEN
+            RETURN QUERY SELECT 'named_learner_ineligible'::varchar,
+                                NULL::uuid,NULL::uuid,NULL::uuid,0,false;
+            RETURN;
+        END IF;
+        PERFORM public.learning_audience_ensure_seat_identity(seat_id)
+          FROM unnest(p_named_seat_ids) seat_id;
+        SELECT array_agg(DISTINCT link.learner_identity_id ORDER BY link.learner_identity_id)
+          INTO v_learner_ids
+          FROM unnest(p_named_seat_ids) requested(seat_id)
+          JOIN public.learner_identity_links link
+            ON link.seat_id=requested.seat_id AND link.status='active';
+    END IF;
+
+    -- A request owns one delivery. A deliberate new request creates a new run
+    -- even for the same material/class, without changing previous audiences.
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_actor_principal_id::text||p_request_id, 1108));
+    SELECT run.source_classroom_assignment_id INTO v_handout FROM public.activity_runs run
+     WHERE run.tenant_id=v_source.tenant_id AND run.created_by_principal_id=p_actor_principal_id
+       AND run.creation_request_id='vsrun:'||p_request_id;
+    IF v_handout IS NULL THEN
+        INSERT INTO public.classroom_assignments(tenant_id,classroom_id,learning_activity_version_id,
+          due_at,created_by)
+        VALUES(v_source.tenant_id,p_classroom_id,p_learning_activity_version_id,p_due_at,v_source.user_id)
+        RETURNING id INTO v_handout;
+    END IF;
+
+    SELECT * INTO v_run FROM public.activity_run_create(
+      p_actor_principal_id,v_handout,p_learning_activity_version_id,'direct',
+      NULL,NULL,NULL,p_due_at,NULL,NULL,
+      (SELECT grading_scheme_version_id FROM public.classroom_grading_schemes WHERE classroom_id=p_classroom_id),
+      '{}'::jsonb,'vsrun:'||p_request_id);
+    IF v_run.result_code<>'ok' THEN
+        RAISE EXCEPTION 'learning direct assignment run failed: %',v_run.result_code;
+    END IF;
+    SELECT * INTO v_audience FROM public.learning_audience_create(
+      p_actor_principal_id,'activity_run',v_run.activity_run_id,p_audience_type,
+      CASE WHEN p_audience_type='whole_class' THEN 'dynamic' ELSE 'snapshot' END,
+      v_learner_ids,'vsaudience:'||p_request_id);
+    IF v_audience.result_code<>'ok' THEN
+        RAISE EXCEPTION 'learning direct assignment audience failed: %',v_audience.result_code;
+    END IF;
+    RETURN QUERY SELECT 'ok'::varchar,v_handout,v_run.activity_run_id,
+      v_audience.audience_id,v_audience.created_count+v_audience.independent_count,
+      (v_run.reused AND v_audience.reused);
+END;
+$$;
