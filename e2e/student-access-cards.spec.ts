@@ -110,8 +110,12 @@ async function decodePrintedQr(page: Page, qr: Locator): Promise<string> {
     dpr: devicePixelRatio,
     screenWidth: screen.width,
     screenHeight: screen.height,
+    printMedia: matchMedia('print').matches,
+    printingClass: document.body.classList.contains('student-access-printing'),
   }));
   expect(original.dpr, 'screen checks remain at DPR 1').toBe(1);
+  expect(original.printMedia, 'actual print media before capture').toBe(true);
+  expect(original.printingClass, 'existing print app class before capture').toBe(true);
   expect(originalViewport).not.toBeNull();
   expect(original.width).toBe(originalViewport!.width);
   expect(original.height).toBe(originalViewport!.height);
@@ -193,12 +197,17 @@ async function decodePrintedQr(page: Page, qr: Locator): Promise<string> {
       } finally {
         await page.setViewportSize(originalViewport!);
       }
+      // Session teardown clears rendered media too. Re-send the existing print
+      // selection through Playwright even when its cached value is already print.
+      await page.emulateMedia({ media: 'print' });
       restored = await page.evaluate(() => ({
         width: innerWidth,
         height: innerHeight,
         dpr: devicePixelRatio,
         screenWidth: screen.width,
         screenHeight: screen.height,
+        printMedia: matchMedia('print').matches,
+        printingClass: document.body.classList.contains('student-access-printing'),
       }));
       expect(restored, 'actual metrics after CDP detach and public viewport restoration').toEqual(
         original,
@@ -209,6 +218,7 @@ async function decodePrintedQr(page: Page, qr: Locator): Promise<string> {
       body: Buffer.from(
         JSON.stringify({
           requestedPrintDpi: 300,
+          beforePrintCapture: original,
           css: { width: cssBox!.width, height: cssBox!.height },
           png96: { width: lowResolution.width, height: lowResolution.height },
           observedPrintPng,
