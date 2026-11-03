@@ -1622,6 +1622,65 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       canonicalState: null,
       workOriginAmbiguous: true,
     });
+    // Essay proof is independent of Project provenance and cannot fall back
+    // to generic task fields when scheduled or when an Account link is denied.
+    originRows = [];
+    presenceRows = [];
+    Object.assign(occurrenceRows[0], {
+      activity_kind: 'essay',
+      project_id: null,
+      shared_assignment: false,
+      academic_result_visible: false,
+      not_started_visible: false,
+      modern_provenance: { modernCourseRun: false, projectReadable: false },
+      goal: 'Скрытая цель из общего адаптера',
+      task_blocks: { present: true, blocks: [{ type: 'paragraph', text: 'Скрытая инструкция' }] },
+      essay_context: {
+        resultCode: 'ok',
+        activityRunId: activityRunA,
+        activityVersionId: versionA,
+        goal: null,
+        blocks: null,
+        attempt: null,
+      },
+    });
+    for (const payload of [
+      await controller.courseRuns(seatRequest()),
+      await controller.accountCourseRuns(accountRequest),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences[0]).toMatchObject({
+        activityKind: 'essay',
+        moduleKey: null,
+        goal: null,
+        blocks: null,
+        projectId: null,
+      });
+    }
+    for (const proof of [
+      { resultCode: 'forbidden' },
+      {
+        resultCode: 'ok',
+        activityRunId: activityRunB,
+        activityVersionId: versionA,
+        goal: 'Неверный Run',
+        blocks: [{ type: 'paragraph', text: 'Неверный Run' }],
+        attempt: null,
+      },
+    ]) {
+      Object.assign(occurrenceRows[0], { essay_context: proof });
+      for (const payload of [
+        await controller.courseRuns(seatRequest()),
+        await controller.accountCourseRuns(accountRequest),
+      ]) {
+        expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences[0]).toMatchObject({
+          activityKind: 'essay',
+          moduleKey: null,
+          goal: null,
+          blocks: null,
+          canonicalState: null,
+        });
+      }
+    }
   });
 
   it('rejects legacy shared Course Activity start and submit before either mutation', async () => {

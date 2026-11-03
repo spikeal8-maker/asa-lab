@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, type GradebookEntry, type LearningReviewContext } from '../api';
+import {
+  api,
+  type ExactLearningSubmission,
+  type GradebookEntry,
+  type LearningReviewContext,
+} from '../api';
 import { ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
 import { LearningConditions } from './LearningConditions';
 import { LegacyLearningReview } from './LegacyLearningReview';
 import { useLearningDestination } from '../learning/use-learning-destination';
-import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import './classroom-gradebook.css';
 import { ManualClassroomJournal } from './ManualClassroomJournal';
 
@@ -38,15 +42,7 @@ function score(item: GradebookEntry) {
   if (item.canonicalState?.selectedResult?.completionValue === true) return 'Выполнено';
   return null;
 }
-type Frozen = {
-  submissionId: string;
-  projectVersionId: string;
-  sourceRevision: number | null;
-  digest: string;
-  moduleKey: string;
-  document: unknown;
-  preview: ModulePreviewDescriptor | null;
-};
+type Frozen = ExactLearningSubmission;
 
 function ReviewDetail({
   classroomId,
@@ -141,7 +137,7 @@ function ReviewDetail({
           <h3>
             {item.displayLabel} · {item.assignmentTitle}
           </h3>
-          <p>Официальная проверка точной сдачи. Значки проекта не являются оценками.</p>
+          <p>Проверяется зафиксированная сдача.</p>
         </div>
         <button className="btn-secondary" onClick={onClose}>
           Закрыть проверку
@@ -180,7 +176,11 @@ function ReviewDetail({
           ) : null}
           <label>
             Попытка{' '}
-            <select value={attemptId ?? ''} onChange={(event) => setAttemptId(event.target.value)}>
+            <select
+              aria-label="Попытка"
+              value={attemptId ?? ''}
+              onChange={(event) => setAttemptId(event.target.value)}
+            >
               {context.attempts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.number} · {LABELS[a.state] ?? a.state}
@@ -199,19 +199,32 @@ function ReviewDetail({
                 <strong>Сданная версия</strong> · ревизия сохранения{' '}
                 {frozen.sourceRevision ?? 'не записана в legacy'} · попытка {attempt?.number}
               </p>
-              <code data-testid="submission-version-id">{frozen.projectVersionId}</code>
-              {frozen.preview?.figure ? (
-                <ProjectPreviewFigure
-                  figure={frozen.preview.figure}
-                  label="Точный снимок сданной работы"
-                />
+              {frozen.kind === 'essay' ? (
+                <p
+                  data-testid="submission-essay-text"
+                  style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
+                >
+                  {frozen.text}
+                </p>
               ) : (
-                <p>Визуальный предпросмотр для этого снимка недоступен.</p>
+                <>
+                  <code data-testid="submission-version-id">{frozen.projectVersionId}</code>
+                  {frozen.preview?.figure ? (
+                    <ProjectPreviewFigure
+                      figure={frozen.preview.figure}
+                      label="Точный снимок сданной работы"
+                    />
+                  ) : (
+                    <p>Визуальный предпросмотр для этого снимка недоступен.</p>
+                  )}
+                </>
               )}
               <details>
                 <summary>Содержимое и контрольная сумма сдачи</summary>
                 <p>{frozen.digest}</p>
-                <pre>{JSON.stringify(frozen.document, null, 2)}</pre>
+                {frozen.kind !== 'essay' ? (
+                  <pre>{JSON.stringify(frozen.document, null, 2)}</pre>
+                ) : null}
               </details>
             </div>
           ) : null}

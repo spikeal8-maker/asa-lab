@@ -94,6 +94,7 @@ import { ClassroomParticipantsController } from './classroom-participants.contro
 import { ClassroomObservationController } from './classroom-observation.controller.js';
 import { LearningWorkContextController } from './learning-work-context.controller.js';
 import { LearningStartController } from './learning-start.controller.js';
+import { LearningEssayAttemptsController } from './learning-essay-attempts.controller.js';
 import { LearningRemindersService } from './learning-reminders.service.js';
 import { GalleryController } from './gallery.controller.js';
 import {
@@ -296,6 +297,7 @@ export class AppModule {
         ClassroomObservationController,
         LearningWorkContextController,
         LearningStartController,
+        LearningEssayAttemptsController,
         GalleryController,
         ProjectPublicationController,
         PublicProjectsController,

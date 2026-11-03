@@ -927,7 +927,8 @@ export class LearningActivitiesController {
     const pool = this.requirePool();
     const result = await pool.query(
       `SELECT result_code,activity_id,source_kind,source_id,draft_revision,version_number,
-              title,instructions,module_key,result_mode,max_points,policy_snapshot,content_digest,goal
+              title,instructions,module_key,result_mode,max_points,policy_snapshot,content_digest,goal,
+              (SELECT kind FROM learning_activity_get($1,$2,$3)) AS activity_kind
          FROM learning_activity_preview_with_goal_as_author($1,$2,$3,$4,$5,$6)`,
       [context.principalId, context.tenantId, activityId, source, versionId, draftRevision],
     );
@@ -999,6 +1000,7 @@ export class LearningActivitiesController {
     }
 
     return {
+      ...(typeof row['activity_kind'] === 'string' ? { kind: row['activity_kind'] } : {}),
       source: {
         kind: String(row['source_kind']) as 'draft' | 'published',
         id: row['source_id'] ? String(row['source_id']) : null,

@@ -172,6 +172,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0300', // Unreleased durable image queue follows every published canonical migration.
         '0301', // Scoped Chess presence and recipient-bound challenges.
         '0302', // Private portal invitation notifications.
+        '0303', // Written Course responses reuse the canonical academic chain.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -503,6 +504,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0300', // Unreleased durable image queue follows every published canonical migration.
           '0301', // Scoped Chess presence and recipient-bound challenges.
           '0302', // Private portal invitation notifications.
+          '0303', // Written Course responses reuse the canonical academic chain.
         ]);
         expect(
           await applyIsolatedTestPlan(
