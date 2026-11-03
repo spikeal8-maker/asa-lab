@@ -201,7 +201,7 @@ function ReviewDetail({
                 {frozen.sourceRevision ?? 'не записана в legacy'} · попытка {attempt?.number}
               </p>
               {frozen.kind === 'quiz' ? (
-                <div data-testid="submission-quiz-answers">
+                <div className="quiz-player" data-testid="submission-quiz-answers">
                   <p>
                     Автоматические баллы: {frozen.autoPoints}
                     {frozen.manualPending

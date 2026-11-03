@@ -2,7 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api, type LearningQuizAttempt, type QuizAnswer } from '../../api';
+import { api, type LearningQuizAttempt } from '../../api';
 import { QuizResponsePlayer } from '../../components/QuizResponsePlayer';
 import { QuizQuestionFields, QUIZ_TYPES } from '../../components/QuizQuestionFields';
 import { QuizActivityEditor, type SaveQuizContent } from '../../components/QuizActivityEditor';
@@ -200,9 +200,145 @@ describe('Quiz mounted learner controls', () => {
     expect(container.textContent).toContain('Время истекло');
     expect(api.submitQuizAttempt).not.toHaveBeenCalled();
   });
+  it('keeps unsent answers separate from a new attempt and requires an explicit choice', async () => {
+    await mount(createElement(QuizResponsePlayer, { activityRunId: 'run', onChanged: changed }));
+    await input(container.querySelector('textarea')!, 'OLD UNSENT');
+    await unmount();
+    server = { ...server, state: 'evaluated' };
+    vi.spyOn(api, 'startQuizLearning').mockImplementation(async () =>
+      ok({
+        attempt: { ...server, attemptId: 'next-attempt', state: 'in_progress', answers: {} },
+        reused: false,
+      }),
+    );
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await mount(createElement(QuizResponsePlayer, { activityRunId: 'run', onChanged: changed }));
+    await click('Новая попытка');
+    expect(api.startQuizLearning).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    await click('Новая попытка');
+    expect(container.querySelector('textarea')!.value).toBe('');
+    expect(container.textContent).toContain('OLD UNSENT');
+    expect(api.saveQuizAnswers).not.toHaveBeenCalled();
+  });
+  it('ignores a late Start response after switching the run in the same mounted player', async () => {
+    let finish: ((result: Awaited<ReturnType<typeof api.startQuizLearning>>) => void) | undefined;
+    vi.spyOn(api, 'startQuizLearning').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    vi.mocked(api.readQuizLearning).mockImplementation(async (id) =>
+      ok({
+        participationId: id,
+        attempt: id === 'first' ? null : server,
+        title: id,
+        instructions: id,
+      }),
+    );
+    await mount(createElement(QuizResponsePlayer, { activityRunId: 'first', onChanged: changed }));
+    await click('Начать тест');
+    await act(async () => {
+      root!.render(
+        createElement(QuizResponsePlayer, { activityRunId: 'second', onChanged: changed }),
+      );
+      await flush();
+    });
+    await act(async () => {
+      finish!(
+        ok({
+          attempt: {
+            ...server,
+            questions: [
+              {
+                ...server.questions[0]!,
+                promptBlocks: [{ type: 'text', text: 'STALE FIRST QUESTION' }],
+              },
+            ],
+          },
+          reused: false,
+        }),
+      );
+      await flush();
+    });
+    expect(container.textContent).toContain('second');
+    expect(container.textContent).not.toContain('STALE FIRST QUESTION');
+    expect(changed).not.toHaveBeenCalled();
+  });
 });
 
 describe('Quiz compact draft author', () => {
+  it('reuses an exact bank version without creating or editing a question', async () => {
+    let save: SaveQuizContent | null = null;
+    const items = Object.keys(QUIZ_TYPES).map((type, index) => ({
+      id: `root-${index}`,
+      versionId: `version-${index}`,
+      type: type as keyof typeof QUIZ_TYPES,
+      promptBlocks: [{ type: 'text', text: `Банк ${index}` }],
+      responseSchema: {
+        left: [{ id: 'l', label: 'Левая часть' }],
+        right: [{ id: 'r', label: 'Правая часть' }],
+      },
+      maxPoints: 2,
+      scope: 'school' as const,
+      subject: null,
+      ageBand: null,
+      tags: [],
+      publishedAt: '2026-11-03T00:00:00Z',
+    }));
+    vi.spyOn(api, 'listQuestionBank').mockResolvedValue(ok({ items }));
+    const createQuestion = vi.spyOn(api, 'createQuestionDraft');
+    let savedPayload: unknown;
+    vi.spyOn(api, 'createQuizDraft').mockImplementation(async (payload) => {
+      savedPayload = payload;
+      return ok({ code: 'ok', id: 'quiz-bank', draftRevision: 1 });
+    });
+    const props = {
+      title: 'Из банка',
+      instructions: null,
+      disabled: false,
+      registerSave: (value: SaveQuizContent | null) => {
+        save = value;
+      },
+      onDirty: vi.fn(),
+    };
+    await mount(createElement(QuizActivityEditor, { ...props, quizId: null }));
+    await click('Из банка');
+    expect(container.querySelectorAll('li')).toHaveLength(8);
+    await input(
+      container.querySelector<HTMLInputElement>('[aria-label="Найти вопрос в банке"]')!,
+      'Банк 5',
+    );
+    await click('Добавить закреплённый вопрос');
+    await act(async () => {
+      await save!();
+    });
+    expect(savedPayload).toMatchObject({
+      questions: [{ questionVersionId: 'version-5', maxPoints: 2, required: true }],
+    });
+    expect(createQuestion).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Правильные ответы этого вопроса закрыты');
+    await unmount();
+    vi.spyOn(api, 'quizDraft').mockResolvedValue(
+      ok({
+        id: 'quiz-bank',
+        draftRevision: 1,
+        latestVersionId: null,
+        draft: savedPayload as never,
+        versions: [],
+      }),
+    );
+    vi.spyOn(api, 'authoredQuestionVersion').mockResolvedValue({
+      ok: false,
+      status: 403,
+      error: { code: 'forbidden', message: 'Ключ закрыт' },
+    });
+    await mount(createElement(QuizActivityEditor, { ...props, quizId: 'quiz-bank' }));
+    expect(container.textContent).toContain('Банк 5');
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(createQuestion).not.toHaveBeenCalled();
+  });
   it('saves an incomplete question and reopens it through the existing Save hook', async () => {
     let save: SaveQuizContent | null = null;
     let questionPayload: unknown;

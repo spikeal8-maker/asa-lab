@@ -55,6 +55,8 @@ export function QuizResponsePlayer({
     setError(null);
     setConflict(false);
     setUnsent(null);
+    startRequest.current = crypto.randomUUID();
+    submitRequest.current = null;
     void api
       .readQuizLearning(activityRunId)
       .then((result) => {
@@ -144,6 +146,13 @@ export function QuizResponsePlayer({
     try {
       let savedAttempt = state.response.attempt;
       if (kind === 'start') {
+        if (
+          recovery.has(scope) &&
+          !window.confirm(
+            'Начать новую попытку? Несохранённые ответы предыдущего редактирования останутся отдельно для копирования.',
+          )
+        )
+          return;
         const result = await api.startQuizLearning(
           state.response.participationId,
           startRequest.current,
@@ -153,6 +162,9 @@ export function QuizResponsePlayer({
         savedAttempt = result.data.attempt;
         setResponse({ ...state.response, attempt: savedAttempt });
         setAnswers(savedAttempt.answers);
+        startRequest.current = crypto.randomUUID();
+        const local = recovery.get(scope);
+        if (local && local.attemptId !== savedAttempt.attemptId) setUnsent(local);
         clock.current = { server: Date.parse(savedAttempt.serverNow), local: Date.now() };
         await callbacks.current.onChanged();
         return;
@@ -366,7 +378,23 @@ export function QuizResponsePlayer({
                   </button>
                 </div>
               ) : (
-                <p>{attempt.state === 'submitted' ? 'Тест сдан' : 'Попытка завершена'}</p>
+                <div>
+                  <p>
+                    {conflict
+                      ? 'Сохранение остановлено до разрешения конфликта'
+                      : expired && attempt.state === 'in_progress'
+                        ? 'Ожидаем серверное завершение'
+                        : attempt.state === 'submitted' || attempt.state === 'evaluating'
+                          ? 'Тест сдан'
+                          : 'Попытка завершена'}
+                  </p>
+                  {!conflict &&
+                  !['in_progress', 'submitted', 'evaluating'].includes(attempt.state) ? (
+                    <button type="button" disabled={busy} onClick={() => void perform('start')}>
+                      Новая попытка
+                    </button>
+                  ) : null}
+                </div>
               )}
               {attempt.result ? (
                 <p>

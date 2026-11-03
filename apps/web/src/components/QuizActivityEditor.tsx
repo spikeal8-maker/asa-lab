@@ -5,6 +5,7 @@ import {
   type AuthoredQuizPayload,
   type QuizAnswer,
   type QuizQuestionType,
+  type QuestionBankItem,
 } from '../api';
 import { QUIZ_TYPES, QuizQuestionFields } from './QuizQuestionFields';
 import './quiz-learning.css';
@@ -18,6 +19,7 @@ type Row = {
   payload: AuthoredQuestionPayload;
   saved: string | null;
   pinnedVersion?: string;
+  changedElsewhere?: boolean;
 };
 function emptyQuestion(type: QuizQuestionType = 'single_choice'): AuthoredQuestionPayload {
   return {
@@ -69,13 +71,18 @@ export function QuizActivityEditor({
 }): JSX.Element {
   const [rows, setRows] = useState<Row[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [bank, setBank] = useState<QuestionBankItem[] | null>(null);
+  const [bankOpen, setBankOpen] = useState(false);
+  const [bankSearch, setBankSearch] = useState('');
+  const [bankError, setBankError] = useState<string | null>(null);
+  const [shuffle, setShuffle] = useState({ questions: false, options: false });
   const [loading, setLoading] = useState(quizId !== null);
   const [error, setError] = useState<string | null>(null);
   const root = useRef<{ id: string; revision: number; head: string | null; saved: string } | null>(
     null,
   );
-  const state = useRef({ rows, title, instructions });
-  state.current = { rows, title, instructions };
+  const state = useRef({ rows, title, instructions, shuffle });
+  state.current = { rows, title, instructions, shuffle };
   const operation = useRef(false);
   const request = useRef(new Map<string, string>());
   const callbacks = useRef({ registerSave, onDirty });
@@ -151,6 +158,11 @@ export function QuizActivityEditor({
                   saved: null,
                 };
             }
+            const bank = await api.listQuestionBank();
+            const safeBankQuestion = bank.ok
+              ? bank.data.items.find((item) => item.versionId === reference.questionVersionId)
+              : null;
+            if (safeBankQuestion) return bankRow(safeBankQuestion, reference.maxPoints);
             throw new Error(
               'Закреплённый вопрос недоступен. Состав теста сохранён; повторите загрузку.',
             );
@@ -165,6 +177,9 @@ export function QuizActivityEditor({
             head: question.data.latestVersionId,
             payload: question.data.draft,
             saved: JSON.stringify(question.data.draft),
+            changedElsewhere:
+              reference.questionDraftRevision !== undefined &&
+              reference.questionDraftRevision !== question.data.draftRevision,
           };
         }),
       );
@@ -176,6 +191,10 @@ export function QuizActivityEditor({
         saved: JSON.stringify(quiz.data.draft),
       };
       setRows(loaded);
+      setShuffle({
+        questions: quiz.data.draft.shuffleQuestions,
+        options: quiz.data.draft.shuffleOptions,
+      });
       setLoading(false);
       callbacks.current.onDirty(false);
     })().catch((problem) => {
@@ -207,6 +226,10 @@ export function QuizActivityEditor({
       try {
         const savedRows: Row[] = [];
         for (const row of state.current.rows) {
+          if (row.changedElsewhere)
+            throw new Error(
+              'Вопрос изменён в другом окне. Подтвердите использование его текущей ревизии.',
+            );
           if (row.pinnedVersion) {
             savedRows.push(row);
             continue;
@@ -246,8 +269,8 @@ export function QuizActivityEditor({
             maxPoints: row.payload.maxPoints,
             required: true,
           })),
-          shuffleQuestions: false,
-          shuffleOptions: false,
+          shuffleQuestions: state.current.shuffle.questions,
+          shuffleOptions: state.current.shuffle.options,
         };
         const previous = root.current;
         if (previous && previous.saved === JSON.stringify(payload))
@@ -281,9 +304,56 @@ export function QuizActivityEditor({
     setRows((current) => current.map((row) => (row.key === key ? { ...row, payload } : row)));
     onDirty(true);
   }
+  function bankRow(item: QuestionBankItem, maxPoints: number | null = item.maxPoints): Row {
+    return {
+      key: crypto.randomUUID(),
+      id: null,
+      revision: 0,
+      head: null,
+      pinnedVersion: item.versionId,
+      saved: null,
+      payload: {
+        questionType: item.type,
+        promptBlocks: item.promptBlocks.map((block) => ({ type: 'text', text: block.text ?? '' })),
+        responseSchema: item.responseSchema,
+        answerKey: {},
+        maxPoints,
+        subject: null,
+        ageBand: null,
+        tags: [],
+      },
+    };
+  }
   return (
     <section className="quiz-editor" aria-label="Вопросы теста">
       <h3>Вопросы теста</h3>
+      <details>
+        <summary>Порядок вопросов и вариантов</summary>
+        <label>
+          <input
+            type="checkbox"
+            checked={shuffle.questions}
+            disabled={disabled || loading}
+            onChange={(event) => {
+              setShuffle((current) => ({ ...current, questions: event.target.checked }));
+              onDirty(true);
+            }}
+          />
+          Перемешивать вопросы
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={shuffle.options}
+            disabled={disabled || loading}
+            onChange={(event) => {
+              setShuffle((current) => ({ ...current, options: event.target.checked }));
+              onDirty(true);
+            }}
+          />
+          Перемешивать варианты ответа
+        </label>
+      </details>
       {loading ? <p role="status">Открываем вопросы…</p> : null}
       {error ? <p role="alert">{error}</p> : null}
       {rows.map((row, index) => (
@@ -298,6 +368,28 @@ export function QuizActivityEditor({
             {row.payload.promptBlocks[0]?.text || 'Без текста'} · {row.payload.maxPoints ?? '—'}{' '}
             балл(а)
           </summary>
+          {row.changedElsewhere ? (
+            <div role="alert">
+              <p>
+                Вопрос изменён в другом окне. Показана текущая редакция; состав сохранённого теста
+                ещё не изменён.
+              </p>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  setRows((current) =>
+                    current.map((item) =>
+                      item.key === row.key ? { ...item, changedElsewhere: false } : item,
+                    ),
+                  );
+                  onDirty(true);
+                }}
+              >
+                Использовать текущую ревизию вопроса
+              </button>
+            </div>
+          ) : null}
           {row.pinnedVersion ? (
             <div className="quiz-actions">
               {row.id ? (
@@ -345,7 +437,7 @@ export function QuizActivityEditor({
               </button>
             </div>
           ) : null}
-          <fieldset disabled={disabled || loading || !!row.pinnedVersion}>
+          <fieldset disabled={disabled || loading || !!row.pinnedVersion || row.changedElsewhere}>
             <legend>Вопрос {index + 1}</legend>
             <label>
               Тип вопроса
@@ -450,7 +542,11 @@ export function QuizActivityEditor({
                 </div>
               ) : null,
             )}
-            {row.payload.questionType === 'long_text_manual' ? (
+            {row.pinnedVersion && !row.id ? (
+              <p>
+                Правильные ответы этого вопроса закрыты. Проверка использует закреплённую версию.
+              </p>
+            ) : row.payload.questionType === 'long_text_manual' ? (
               <p>Ответ проверяет преподаватель. Автоматический итог до проверки не выставляется.</p>
             ) : (
               <div>
@@ -557,6 +653,79 @@ export function QuizActivityEditor({
       >
         Добавить вопрос
       </button>
+      <button
+        type="button"
+        disabled={disabled || loading}
+        onClick={() => {
+          setBankOpen(!bankOpen);
+          if (bankOpen || bank) return;
+          setBankError(null);
+          void api
+            .listQuestionBank()
+            .then((result) => {
+              if (result.ok) setBank(result.data.items);
+              else setBankError(result.error.message);
+            })
+            .catch(() => setBankError('Не удалось открыть банк вопросов.'));
+        }}
+      >
+        Из банка
+      </button>
+      {bankOpen ? (
+        <div aria-label="Банк вопросов">
+          <label>
+            Найти вопрос
+            <input
+              aria-label="Найти вопрос в банке"
+              value={bankSearch}
+              onChange={(event) => setBankSearch(event.target.value)}
+            />
+          </label>
+          {bankError ? (
+            <p role="alert">{bankError}</p>
+          ) : !bank ? (
+            <p role="status">Загружаем банк вопросов…</p>
+          ) : (
+            <ul>
+              {bank
+                .filter((item) =>
+                  item.promptBlocks.some((block) =>
+                    (block.text ?? '')
+                      .toLocaleLowerCase('ru-RU')
+                      .includes(bankSearch.trim().toLocaleLowerCase('ru-RU')),
+                  ),
+                )
+                .map((item) => (
+                  <li key={item.versionId}>
+                    <span>
+                      {QUIZ_TYPES[item.type]} ·{' '}
+                      {item.promptBlocks.map((block) => block.text ?? '').join(' ')} ·{' '}
+                      {item.maxPoints} балл(а)
+                    </span>
+                    <button
+                      type="button"
+                      disabled={
+                        disabled || rows.some((row) => row.pinnedVersion === item.versionId)
+                      }
+                      onClick={() => {
+                        const row = bankRow(item);
+                        setRows((current) => [...current, row]);
+                        setExpanded(row.key);
+                        onDirty(true);
+                        setBankOpen(false);
+                      }}
+                    >
+                      Добавить закреплённый вопрос
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
+          <small>
+            В тест добавляется опубликованная версия. Изменения исходного вопроса её не заменяют.
+          </small>
+        </div>
+      ) : null}
       <small>
         Незаконченные вопросы сохраняются в черновике. Публикация проверяет вопросы и правильные
         ответы.
