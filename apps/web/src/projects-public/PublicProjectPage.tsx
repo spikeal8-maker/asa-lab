@@ -9,6 +9,7 @@ import { PublicationArtifact } from './PublicationArtifact';
 import { PublicProjectTitle } from './PublicProjectTitle';
 import { SharePublicationLink } from './SharePublicationLink';
 import { PublicAuthorAvatar } from './PublicAuthorAvatar';
+import { PublicationOwnerActions } from './PublicationOwnerActions';
 import { PUBLIC_PROJECT_LICENSES, publicModuleName } from './presentation';
 import './public-projects.css';
 
@@ -147,6 +148,13 @@ export function PublicProjectPage({
               <PublicProjectTitle key={publication.revisionId} title={publication.title} />
             </div>
             <div className="public-project-commandbar" aria-label="Действия с проектом">
+              {authenticated ? (
+                <PublicationOwnerActions
+                  key={publication.publicationId}
+                  publicationId={publication.publicationId}
+                  onUpdated={() => void reload()}
+                />
+              ) : null}
               <CopyPublicProject
                 key={publication.revisionId}
                 publication={publication}

@@ -466,10 +466,11 @@ class ReleaseTests(unittest.TestCase):
             with self.subTest(replacement=new), self.assertRaises(AssertionError):
                 self.assert_publication_concurrency(workflow.replace(old, new))
 
-    def test_publication_gate_executes_the_same_full_general_verifier(self):
+    def publication_gate_script(self, workflow=None):
         # This single reviewed heredoc is tested in stdlib-only deployment CI.
         # Exact layout bounds deliberately reject drift instead of parsing YAML.
-        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/portable-release.yml").read_text()
+        if workflow is None:
+            workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/portable-release.yml").read_text()
         start, end = "\n  gate:\n", "\n  build:\n"
         self.assertEqual(workflow.count(start), 1)
         self.assertEqual(workflow.count(end), 1)
@@ -489,19 +490,107 @@ class ReleaseTests(unittest.TestCase):
         body, tail = body.split(closing, 1)
         self.assertEqual(tail, "")
         self.assertTrue(body and all(line.startswith(" " * 10) for line in body.splitlines()))
-        script = "\n".join(line[10:] for line in body.splitlines())
+        return "\n".join(line[10:] for line in body.splitlines())
+
+    def run_publication_gate(self, remote, revision="a" * 40, general_error=None, script=None):
+        script = self.publication_gate_script() if script is None else script
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "output"
-            with patch.dict(os.environ, {"REVISION": "a" * 40, "GITHUB_OUTPUT": str(output)}), \
-                    patch("deployment.releases.assert_general_ci") as verify:
-                exec(compile(script, "portable-release-gate", "exec"), {})
-            verify.assert_called_once_with("a" * 40)
-            self.assertEqual(output.read_text(), "revision=" + "a" * 40 + "\n")
-            output.unlink()
-            with patch.dict(os.environ, {"REVISION": "a" * 40, "GITHUB_OUTPUT": str(output)}), \
-                    patch("deployment.releases.assert_general_ci", side_effect=Blocked("CI_BLOCKED", "partial", "wait")), self.assertRaises(Blocked):
-                exec(compile(script, "portable-release-gate", "exec"), {})
-            self.assertFalse(output.exists())
+            environment = {"GITHUB_OUTPUT": str(output)}
+            if revision is not None:
+                environment["REVISION"] = revision
+            order = []
+            def current_main(*args, **kwargs):
+                order.append("main")
+                self.assertFalse(output.exists())
+                if isinstance(remote, Exception):
+                    raise remote
+                return remote
+            def general(candidate):
+                order.append("general")
+                self.assertEqual(candidate, revision)
+                self.assertFalse(output.exists())
+                if general_error:
+                    raise general_error
+            failure = None
+            with patch.dict(os.environ, environment, clear=True), patch.object(sys, "path", list(sys.path)), \
+                    patch("deployment.system.run", side_effect=current_main) as command, \
+                    patch("deployment.releases.assert_general_ci", side_effect=general):
+                try:
+                    exec(compile(script, "portable-release-gate", "exec"), {})
+                except Blocked as problem:
+                    failure = problem
+            command.assert_called_once_with(['git', 'ls-remote', 'origin', 'refs/heads/main'], capture=True)
+            return failure, output.read_text() if output.exists() else "", order
+
+    def test_publication_gate_executes_the_same_full_general_verifier(self):
+        failure, output, order = self.run_publication_gate("a" * 40 + "\trefs/heads/main")
+        self.assertIsNone(failure)
+        self.assertEqual(order, ["main", "general"])
+        self.assertEqual(output, "revision=" + "a" * 40 + "\n")
+
+    def test_publication_gate_rejects_stale_or_unverifiable_main_before_general_and_output(self):
+        for remote in ("b" * 40 + "\trefs/heads/main", "", "a" * 39 + "\trefs/heads/main",
+                       "g" * 40 + "\trefs/heads/main", "a" * 40 + "\trefs/heads/other",
+                       "a" * 40, "a" * 40 + " refs/heads/main",
+                       ("a" * 40 + "\trefs/heads/main\n") * 2):
+            with self.subTest(remote=remote):
+                failure, output, order = self.run_publication_gate(remote)
+                self.assertIsNotNone(failure)
+                self.assertEqual(failure.code, "STALE_RELEASE")
+                self.assertEqual((output, order), ("", ["main"]))
+        for revision in (None, "", "a" * 39, "g" * 40, "a" * 40 + "\n"):
+            with self.subTest(revision=revision):
+                failure, output, order = self.run_publication_gate("a" * 40 + "\trefs/heads/main", revision)
+                self.assertEqual(failure.code, "STALE_RELEASE")
+                self.assertEqual((output, order), ("", ["main"]))
+
+    def test_stale_regression_detects_removed_or_late_early_check(self):
+        script = self.publication_gate_script()
+        early = script[script.index("latest = "):script.index("assert_general_ci(os.environ")]
+        general = "assert_general_ci(os.environ['REVISION'])\n"
+        for broken in (script.replace(early, ""), script.replace(general, "").replace(early, general + early)):
+            with self.subTest(script=broken), self.assertRaises(AssertionError):
+                failure, output, order = self.run_publication_gate("b" * 40 + "\trefs/heads/main", script=broken)
+                self.assertIsNotNone(failure)
+                self.assertEqual(failure.code, "STALE_RELEASE")
+                self.assertEqual((output, order), ("", ["main"]))
+
+    def test_publication_gate_tool_or_incomplete_general_failure_emits_no_revision(self):
+        problem = Blocked("COMMAND", "ls-remote failed", "retry")
+        failure, output, order = self.run_publication_gate(problem)
+        self.assertIs(failure, problem)
+        self.assertEqual((output, order), ("", ["main"]))
+        problem = Blocked("CI_BLOCKED", "partial", "wait")
+        failure, output, order = self.run_publication_gate("a" * 40 + "\trefs/heads/main", general_error=problem)
+        self.assertIs(failure, problem)
+        self.assertEqual((output, order), ("", ["main", "general"]))
+
+    def test_main_advance_after_early_gate_is_still_blocked_immediately_before_stable(self):
+        self.assertIsNone(self.run_publication_gate("a" * 40 + "\trefs/heads/main")[0])
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/portable-release.yml").read_text()
+        self.assertIn("\n  build:\n    needs: [gate, contracts]\n", workflow)
+        self.assertIn("\n  publish:\n    needs: [gate, build]\n", workflow)
+        late = """      - name: Prevent a delayed workflow from rolling the channel backward
+        run: |
+          python - <<'PY'
+          import os, sys
+          sys.path.insert(0, 'tools')
+          from deployment.system import run
+          from deployment.contracts import require
+          latest = run(['git', 'ls-remote', 'origin', 'refs/heads/main'], capture=True).split()[0]
+          require(latest == os.environ['ASA_BUILD_REVISION'], 'STALE_RELEASE',
+                  'Main advanced during the build; keep stable unchanged and publish the next green main.')
+          PY
+"""
+        promotion = "      - uses: docker/build-push-action@v6\n"
+        self.assertEqual(workflow.count(late + promotion), 1)
+        self.assertIn("/deployment:stable", workflow.split(late + promotion, 1)[1])
+        script = "\n".join(line[10:] for line in late.splitlines()[3:-1])
+        with patch.dict(os.environ, {"ASA_BUILD_REVISION": "a" * 40}), patch.object(sys, "path", list(sys.path)), \
+                patch("deployment.system.run", return_value="b" * 40 + "\trefs/heads/main"), self.assertRaises(Blocked) as failure:
+            exec(compile(script, "portable-release-final-guard", "exec"), {})
+        self.assertEqual(failure.exception.code, "STALE_RELEASE")
 
     def test_pinned_set(self):
         self.assertEqual(validate_release(release())["schema"], 159)

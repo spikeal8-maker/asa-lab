@@ -391,23 +391,28 @@ const upgradeArtifacts = [
   ],
   [
     '0303',
-    '0303_learning_essay_course_runtime.sql',
-    '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
+    '0303_publication_owner_editor.sql',
+    '6b33460fe0ac40295e4760659db0953288f473807d9f4753387591476c0fee56',
   ],
   [
     '0304',
-    '0304_learning_quiz_policy_authority.sql',
-    '85b4df00292bc47058616fe20054301a8a533a5ae3474daf8dbd3edc951fed39',
+    '0304_learning_essay_course_runtime.sql',
+    '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
   ],
   [
     '0305',
-    '0305_learning_quiz_attempt_state.sql',
-    '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
+    '0305_learning_quiz_policy_authority.sql',
+    '85b4df00292bc47058616fe20054301a8a533a5ae3474daf8dbd3edc951fed39',
   ],
   [
     '0306',
-    '0306_learning_quiz_complete_course.sql',
-    '66e1f583d0ade3fe6c81c401feb4754e63bfb6708f86bbbfd68b651accf9e866',
+    '0306_learning_quiz_attempt_state.sql',
+    '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
+  ],
+  [
+    '0307',
+    '0307_learning_quiz_complete_course.sql',
+    '2c421f3ac970b63c46dcec9c3f2951af9307134a50d26ba00d448350b5c55b42',
   ],
 ] as const;
 

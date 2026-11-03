@@ -25,7 +25,7 @@ matching/ordering. Manual questions have no automatic final grade.
 Existing immutable versions cannot store incomplete questions or Quiz composition.
 Add only author draft/lineage/receipt storage from preserved Q3; do not create another
 Attempt, Submission, gradebook or identity engine. The exact additive DDL below is
-the approved design for the new forward migration (number provisional 0306).
+the approved design for the new forward migration (number 0307 after the published 0303 frontier).
 Draft payloads hold bounded incomplete content. Publication validates complete definitions.
 Author Quiz references stay in learning_activities.draft_payload.quizDraftId, not a
 new bridge table. Published LAVs contain only an exact immutable quizVersionId.
@@ -196,3 +196,13 @@ helper filters learner result lists and redacts learner canonical evidence grade
 fields. Teacher evidence and server completion/selected-result authority stay
 unchanged. Course Quiz occurrences join the same per-Run projection map as Essay
 and Project; no Project-origin proof is invented.
+
+## Final joint convergence
+
+Actual main bbf905d1d publishes 0303_publication_owner_editor.sql. Preserve every
+published SQL byte. Private dependencies rename without content changes to Essay
+0304, Q1 0305 and Q2 0306; the complete Quiz forward migration is 0307. Strict
+upgrade receipts retain all historical assertions and add exact published 0303 and
+unchanged private dependency hashes before the new 0307 checksum. No owner database
+was touched. This is the one controlled additional convergence authorized by the
+controller after a real new published ordinal intersection.
