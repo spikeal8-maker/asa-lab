@@ -129,6 +129,7 @@ parallel_lanes:
         E-WEB-CACHE-001: correct Web Nx cache inputs and prove cold/warm reuse and identity invalidation.
         D is not complete; preserve full main/release gates and mandatory uncached owner evidence.
         Product UI pilots remain unmerged. No runtime, production, live database or host network actions.
+        Fetch main before writes; recover exact source and CI before selecting the next bounded action.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
