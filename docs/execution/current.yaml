@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_d_waiting_guard_after_f_g_feedback_repairs
+      checkpoint: package_d_preflight_and_required_context_candidate
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -109,36 +109,64 @@ parallel_lanes:
         Owner confirms progression after C on 2026-11-02: separate LOCAL_PASS from CI_PENDING and RELEASE_NOT_READY,
         prove bounded checks on real small UI changes, repair browser runner compatibility and measure edit-to-result,
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
+        On 2026-11-03 the owner reprioritized recovery first, then protected PR integration and existing addressed CI.
+        Owner explicitly approves independent development of tools/test_ci_image_transport.py in this isolated
+        branch while the D13 physical checkout, index, HEAD and all WIP remain untouched. A matching relative path
+        alone is an integration risk, not a perpetual development veto. Initial minimal preflight/policy repair is
+        authorized after independent read-only verification of exact own paths and physical isolation. Unknown
+        status, physical overlap, filesystem aliases and unplanned scope remain blocked. This coordination is
+        usable only after acceptance on canonical main and never substitutes for merge-candidate CI, required
+        GitHub checks/review or release evidence. Production, live data, local Docker, network and secrets stay prohibited.
+        The owner subsequently authorizes minimal GitHub main protection: ordinary changes through PR,
+        strict ASA / required from GitHub Actions, admin enforcement and no bypass, force push or deletion.
+        No second account, access grant or formal GitHub approval requirement is authorized; independent
+        technical review of critical exact-SHA changes remains required. Live GitHub restrictions apply
+        even where legacy direct_main metadata describes PRs as optional.
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/.codex/worktrees/devex-engine-20261030/ASA-lab
+          branch: codex/recovery-delivery-20261103
+        peer:
+          worktree: E:/ASA-previews/electronics-classroom-d13-candidate-20261019
+          branch: codex/electronics-classroom-d2-d4-649
+          head: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+          path_sha256:
+            tools/test_ci_image_transport.py: ced65c7414d4283a546cad5aef843365d8d0efcbc5a67c350f0c0063cb5314a9
+        paths:
+          - tools/test_ci_image_transport.py
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ff90d55c4859201555c451b5c24f9689bfbd4045
+      convergence_baseline_sha: 98d7fbb42ae9e53113cb45ada4b4301334de9c27
       head_sha: null
-      observed_at: '2026-11-03T10:52:19Z'
+      observed_at: '2026-11-03T16:35:11Z'
       main:
         branch: main
-        sha: ff90d55c4859201555c451b5c24f9689bfbd4045
+        sha: 98d7fbb42ae9e53113cb45ada4b4301334de9c27
       observation_note: >-
-        Accepted F invocation snapshot PR979 source57dbfa2e passed General41615953580 all5 native jobs
-        and independent final-source review before merge237e71e7. Accepted G early stale PR980 source92669603
-        passed General41616930713 all5, Portable41616930583 all3, Operational41616930640 all4 and independent
-        L3review before mergeff90d55c. Earlier E974/F975/G978 remain accepted; no repeat audit performed.
-        F implementation2bb0cffa measured validate_all13.267s to0.150s at one SHA, preserving116contexts
-        byte-for-byte while Git/registry reads fell116to1 each. Final57db owns the same two file contents.
-        Actual fullpreflight17.509s has a different historicalsnapshot, not controlled whole-cycle savings.
-        Both final code jobs executed98fresh canonical gate tasks plus18fresh API prep tasks, cachehits0.
-        G rejects stale/unverifiable main before revisionoutput/builds; real Git stale rejection1.090s,
-        zero revisionoutput. Preserve final pre-stable check, queue max and PR969 actual publish-job proof;
-        overall workflow success with publish skipped never proves publication. Historical late-build exposure
-        is not measured savings. No manual CI reruns, net runner saving or token reduction claimed.
-        Select D conditional General, still awaiting owner-confirmed release of old D13 dirty guard
-        tools/test_ci_image_transport.py,15addedlines on16cbed5d. One authorized contact did not confirm
-        ownership/release. No foreign WIP, whole-file copy, ownership transfer, further message or guard edit.
-        Repeat exact8path preflight; only genuine SAFE_TO_START permits D writes. E deterministic General
-        caching depends on that versioned contract; no pinned uncached proof override or ineffective prewarm.
-        Actual scoped root/linked-agent token telemetry is collected as metadata, not byte estimates or billing.
-        Full Main/release/RLS/auth/migration evidence remains mandatory; postmerge Main CI is a separate check.
-        L0-L3 comparable real trials follow completed D, not a premature fast-CI claim. Fetch main before writes
-        and recover exact Git/CI. No release, owner acceptance, production, database, local Docker or network action.
+        Main98d7fbb4 passed General41668252953 all5 actual jobs and Publications41668252727.
+        Portable41673912975 passed both host contracts and source-image smoke: clean boot, verified complete
+        backup, PostgreSQL/object checksum restore into asalab_delivery_restore_test, restricted-role login,
+        ACL/RLS and origin checks. Existing real PostgreSQL supported0225-prefix upgrade reaches0304 and
+        verifies preserved ledger/checksums and zero-apply rerun; no current SQL repair or historical migration
+        rewrite selected. Prior E974/F975/G978/F979/G980 remain accepted without repeated audit or tests.
+        Owner's new explicit isolated-development consent supersedes indefinite D13 logical-path waiting;
+        foreign guard remains15addedlines on16cbed5d, with its byte fingerprint pinned above. This PR changes
+        the preflight prerequisite and records consent; it does not implement D or import foreign WIP.
+        A bounded CI admission repair separates working-push aggregate display names from the unchanged
+        PR/main ASA / required context; all four native mandatory jobs and fail-closed checks remain intact.
+        After policy/consent acceptance, repeat exact8path D preflight; genuine SAFE_TO_START is required.
+        The initial protection snapshot had no required checks/reviews or rulesets. Owner-authorized minimal
+        protection is now applied and read back: strict ASA / required app15368, mandatory PR, zero formal
+        approvals, admin enforcement; all other parameters are unchanged and before/restore payloads saved.
+        General41686002301 passed all5 exactcf262 jobs, yet cancelled duplicate push41685995018 left a second
+        same-name failed required context. This candidate fixes that confirmed admission collision without
+        changing protection or tools/ci_required.py; new final-SHA CI and positive admission remain pending.
+        Full Main/release/RLS/auth/migration evidence and exact merged-tree checks remain mandatory. No deployment,
+        forced publication, working database, local Docker or network action; owner acceptance remains pending.
+        Fetch main before writes and recover exact Git/CI; this dated snapshot grants no edit or release authority.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
