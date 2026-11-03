@@ -8341,8 +8341,28 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
           expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
           const beforeZoom = await page.locator('.workbench-canvas').getAttribute('viewBox');
           if (width < 500) {
-            await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
-            await page.mouse.wheel(0, -100);
+            const session = await page.context().newCDPSession(page);
+            const center = { x: stage.x + stage.width / 2, y: stage.y + stage.height / 2 };
+            const radius = Math.min(stage.width, stage.height) / 8;
+            try {
+              await session.send('Input.dispatchTouchEvent', {
+                type: 'touchStart',
+                touchPoints: [
+                  { id: 1, x: center.x - radius, y: center.y },
+                  { id: 2, x: center.x + radius, y: center.y },
+                ],
+              });
+              await session.send('Input.dispatchTouchEvent', {
+                type: 'touchMove',
+                touchPoints: [
+                  { id: 1, x: center.x - radius * 1.2, y: center.y },
+                  { id: 2, x: center.x + radius * 1.2, y: center.y },
+                ],
+              });
+            } finally {
+              await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+              await session.detach();
+            }
           } else {
             await page.getByRole('button', { name: 'Увеличить масштаб', exact: true }).click();
           }
