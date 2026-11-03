@@ -389,6 +389,12 @@ const upgradeArtifacts = [
     '0302_games_chess_notifications.sql',
     '43fb00c4ee7cdff378ffcaa1acd803a2b312eabc9d3211181c23bd238ba05a6d',
   ],
+
+  [
+    '0304',
+    '0304_games_checkers_network.sql',
+    'ecb1283c5adea892895b540f2e04d75a74ab51c54660110bf5a8269f56b3279d',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

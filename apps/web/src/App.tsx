@@ -129,6 +129,7 @@ import './electronics/portal.css';
 import './modules/project-hub.css';
 import './modules/classroom-hub.css';
 import './account.css';
+import './games/game-portal.css';
 import { historyEntryIndex, pushSettingsAwareLocation } from './components/settings-navigation';
 import {
   createPortalHistoryGuard,
@@ -1133,7 +1134,7 @@ export function App(): JSX.Element {
         </EditorErrorBoundary>
       </SchoolTimeProvider>
     );
-    if (view.moduleKey !== 'chess') return editor;
+    if (!game) return editor;
     return (
       <PresentationProvider
         key={

@@ -122,3 +122,5 @@ export type {
   ChessNetworkMatch,
   ChessNetworkAction,
 } from './chess-network.js';
+
+export type { CheckersNetworkMatch, CheckersNetworkPosition } from './checkers-network.js';

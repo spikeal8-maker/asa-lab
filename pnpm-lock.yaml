@@ -369,6 +369,9 @@ importers:
 
   contexts/games:
     dependencies:
+      '@asa-lab/checkers':
+        specifier: workspace:*
+        version: link:../checkers
       '@asa-lab/chess':
         specifier: workspace:*
         version: link:../chess

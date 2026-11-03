@@ -37,7 +37,10 @@ describe('API application factory', () => {
       for (let index = 0; index < 901; index++) {
         const response = await http.inject({
           method: 'GET',
-          url: '/api/games/chess/notifications',
+          url:
+            index % 2 === 0
+              ? '/api/games/chess/notifications'
+              : '/api/games/checkers/notifications',
           headers: { 'x-game-presence': '1' },
         });
         // This fixture deliberately has no DB: route exists and fails closed.

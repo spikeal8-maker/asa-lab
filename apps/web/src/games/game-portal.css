@@ -1,0 +1,18 @@
+/* Both games enter the same portal. This must load before optional game chunks. */
+.asa-chess-portal-content {
+  min-width: 0;
+  margin-left: var(--portal-sidebar-width, 240px);
+  container: asa-chess-page / inline-size;
+}
+.asa-chess-portal:has(.portal-sidebar.collapsed) > .asa-chess-portal-content {
+  margin-left: 80px;
+}
+@media (max-width: 1023px) {
+  .asa-chess-portal > .asa-chess-portal-content,
+  .asa-chess-portal:has(.portal-sidebar.collapsed) > .asa-chess-portal-content {
+    margin-left: 0;
+  }
+}
+.asa-chess-portal-content .checkers-experience {
+  min-height: calc(100dvh - var(--portal-header-height, 56px));
+}

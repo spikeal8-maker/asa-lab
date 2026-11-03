@@ -1,3 +1,4 @@
+import { useCheckersSurface } from './use-checkers-surface';
 import * as CheckersDomain from '@asa-lab/checkers';
 import type {
   CheckersAssignment,
@@ -31,6 +32,11 @@ import {
   type CreateCheckersAssignmentInput,
 } from './use-checkers-project';
 import './checkers.css';
+
+const CheckersNetworkLobby = lazy(async () => {
+  const module = await import('./CheckersNetworkLobby');
+  return { default: module.CheckersNetworkLobby };
+});
 
 const CheckersLocalSetup = lazy(async () => {
   const module = await import('./CheckersLocalSetup');
@@ -66,7 +72,16 @@ interface CheckersModuleExperienceProps {
 }
 
 type CheckersSurface =
-  'home' | 'play' | 'learning' | 'bots' | 'bot-campaign' | 'local' | 'review' | 'class' | 'teacher';
+  | 'home'
+  | 'play'
+  | 'learning'
+  | 'bots'
+  | 'bot-campaign'
+  | 'local'
+  | 'review'
+  | 'class'
+  | 'teacher'
+  | 'network';
 
 export function resolveCheckersLandingSurface(
   projectScope: 'personal' | 'classroom',
@@ -775,7 +790,7 @@ function TeacherEventDialog({
 
 export function CheckersModuleExperience(props: CheckersModuleExperienceProps): JSX.Element {
   const checkers = useCheckersProject(props.projectId, props.user);
-  const [surface, setSurface] = useState<CheckersSurface>('home');
+  const [surface, setSurface] = useCheckersSurface<CheckersSurface>(props.projectId);
   const [activePuzzle, setActivePuzzle] = useState<CheckersPuzzle | null>(null);
   const [attempt, setAttempt] = useState<CheckersPuzzleAttempt | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -1262,6 +1277,16 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
         }}
       />
     );
+  } else if (surface === 'network') {
+    content = (
+      <Suspense fallback={<p role="status">Загружаем сетевые шашки…</p>}>
+        <CheckersNetworkLobby
+          user={props.user}
+          onExit={props.onBack}
+          onHome={() => setSurface('home')}
+        />
+      </Suspense>
+    );
   } else if (surface === 'local') {
     content = (
       <Suspense fallback={null}>
@@ -1514,6 +1539,7 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
     content = (
       <CheckersLobby
         projectTitle={checkers.projectTitle}
+        position={document.game}
         onBack={props.onBack}
         model={{
           studentName: props.user.displayName,
@@ -1534,7 +1560,8 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
             : {}),
         }}
         onOpen={(id) => {
-          if (id === 'bot-play') setSurface('bots');
+          if (id === 'network') setSurface('network');
+          else if (id === 'bot-play') setSurface('bots');
           else if (id === 'local-play') {
             setLocalAutoFlipChoice(
               document.activeMatch.mode === 'local' ? document.activeMatch.localAutoFlip : true,

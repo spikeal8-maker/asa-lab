@@ -159,15 +159,13 @@ describe('Checkers presentation contract', () => {
       }),
     );
 
-    expect(markup).toContain('Выберите, как хотите играть');
-    expect(markup).toContain('Играть с ботом');
-    expect(markup).toContain('Играть вдвоём');
-    expect(markup).toContain('Играть с другом');
-    expect(markup).toContain('Играть в классе');
+    expect(markup).toContain('С кем сыграем?');
+    expect(markup).toContain('Играть с компьютером');
+    expect(markup).toContain('Играть с человеком');
+    expect(markup).toContain('Вдвоём на одном устройстве');
+    expect(markup).toContain('Учебные партии класса');
     expect(markup).toContain('Задачи и обучение');
-    expect(markup).toContain('Мои партии');
-    expect(markup).toContain('Играть на одном устройстве');
-    expect(markup).toContain('Будет в CK-106');
+    expect(markup).not.toContain('Будет в CK-106');
     expect(markup).not.toContain('>Продолжить<');
   });
 

@@ -1,8 +1,10 @@
+import type { GameKey } from './game-catalog';
 import { useEffect, useSyncExternalStore } from 'react';
 import { call } from '../api-call';
 import { startLivePoll } from '../chess/live-poll';
 
 interface Invitation {
+  game?: GameKey;
   id: string;
   expiresAt: number;
 }
@@ -10,8 +12,9 @@ interface Snapshot {
   actor: string;
   incoming: Invitation[];
   pulse: number;
+  pulses: Record<GameKey, number>;
 }
-const empty: Snapshot = { actor: '', incoming: [], pulse: 0 };
+const empty: Snapshot = { actor: '', incoming: [], pulse: 0, pulses: { chess: 0, checkers: 0 } };
 let snapshot = empty;
 const listeners = new Set<() => void>();
 const subscribe = (listener: () => void) => {
@@ -62,7 +65,7 @@ function ping(): void {
 }
 
 /** Persist delivery, not read-state: opening a page must never hide a pending invitation. */
-export function claimNewInvitations(playerId: string, incoming: Invitation[]): boolean {
+function claimBatch(playerId: string, incoming: Invitation[]): Invitation[] {
   const key = `asa:game-alerts:v1:${playerId}`;
   let old = memory.get(key) ?? [];
   try {
@@ -92,7 +95,10 @@ export function claimNewInvitations(playerId: string, incoming: Invitation[]): b
   } catch {
     /* Keep in-memory dedup. */
   }
-  return fresh.length > 0;
+  return fresh;
+}
+export function claimNewInvitations(playerId: string, incoming: Invitation[]): boolean {
+  return claimBatch(playerId, incoming).length > 0;
 }
 
 export function useGameInvitations(): Snapshot {
@@ -117,13 +123,22 @@ export function usePortalGameNotifications(actor: string): void {
         const controller = new AbortController();
         pending = controller;
         let timer: ReturnType<typeof setTimeout> | undefined;
-        const result = await Promise.race([
-          call<{ playerId: string; incoming: Invitation[] }>('/api/games/chess/notifications', {
-            method: 'GET',
-            headers: { 'x-game-presence': '1' },
-            cache: 'no-store',
-            signal: controller.signal,
-          }),
+        const games = ['chess', 'checkers'] as const;
+        const results = await Promise.race([
+          Promise.all(
+            games.map(async (game) => ({
+              game,
+              result: await call<{ playerId: string; incoming: Invitation[] }>(
+                `/api/games/${game}/notifications`,
+                {
+                  method: 'GET',
+                  headers: { 'x-game-presence': '1' },
+                  cache: 'no-store',
+                  signal: controller.signal,
+                },
+              ),
+            })),
+          ),
           new Promise<null>((resolve) => {
             timer = setTimeout(() => {
               controller.abort();
@@ -133,26 +148,51 @@ export function usePortalGameNotifications(actor: string): void {
         ]);
         clearTimeout(timer);
         if (!isCurrent() || snapshot.actor !== actor) return;
-        if (!result?.ok) {
+        const valid =
+          results?.flatMap(({ game, result }) =>
+            result.ok &&
+            result.data &&
+            typeof result.data.playerId === 'string' &&
+            Array.isArray(result.data.incoming)
+              ? [{ game, data: result.data }]
+              : [],
+          ) ?? [];
+        const data = valid[0]?.data;
+        if (!data) {
           publish({ ...snapshot, incoming: [] });
           return;
         }
-        const data = result.data;
-        if (!data || typeof data.playerId !== 'string' || !Array.isArray(data.incoming)) return;
-        const incoming = data.incoming
-          .filter(
-            (item) =>
-              typeof item.id === 'string' &&
-              Number.isFinite(item.expiresAt) &&
-              item.expiresAt > Date.now(),
-          )
-          .slice(0, 8);
+        const incoming = valid
+          .filter((item) => item.data.playerId === data.playerId)
+          .flatMap(({ game, data }) =>
+            data.incoming
+              .filter(
+                (item) =>
+                  !!item &&
+                  typeof item.id === 'string' &&
+                  Number.isFinite(item.expiresAt) &&
+                  item.expiresAt > Date.now(),
+              )
+              .slice(0, 8)
+              .map((item) => ({ ...item, game })),
+          );
         const deliver = () => {
           if (!isCurrent() || snapshot.actor !== actor || document.visibilityState === 'hidden')
             return;
-          const fresh = claimNewInvitations(data.playerId, incoming);
-          publish({ actor, incoming, pulse: snapshot.pulse + (fresh ? 1 : 0) });
-          if (fresh) ping();
+          const fresh = claimBatch(data.playerId, incoming);
+          publish({
+            actor,
+            incoming,
+            pulse: snapshot.pulse + (fresh.length ? 1 : 0),
+            pulses: {
+              chess:
+                snapshot.pulses.chess +
+                (fresh.some((item) => (item.game ?? 'chess') === 'chess') ? 1 : 0),
+              checkers:
+                snapshot.pulses.checkers + (fresh.some((item) => item.game === 'checkers') ? 1 : 0),
+            },
+          });
+          if (fresh.length) ping();
         };
         if (navigator.locks)
           await navigator.locks.request(`asa-game-alerts:${data.playerId}`, deliver);

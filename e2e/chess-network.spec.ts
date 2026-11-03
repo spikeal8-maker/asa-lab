@@ -488,7 +488,10 @@ test('real two-pupil Chess, teacher controls, reconnect/history and all opponent
       .getByRole('navigation', { name: 'Разделы класса' })
       .getByRole('button', { name: 'Настройки', exact: true })
       .click();
-    const network = page.getByRole('group', { name: 'Сетевая игра в шахматы', exact: true });
+    const network = page.getByRole('group', {
+      name: 'Сетевая игра в шахматы и шашки',
+      exact: true,
+    });
     await network.getByLabel('Разрешить сетевую игру', { exact: true }).check();
     await network.getByLabel('Круг соперников', { exact: true }).selectOption('classroom');
     await network.getByRole('button', { name: 'Сохранить сетевой режим', exact: true }).click();
