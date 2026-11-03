@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_d_waiting_accepted_preflight_coordination
+      checkpoint: package_d_preflight_and_required_context_candidate
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -117,6 +117,11 @@ parallel_lanes:
         status, physical overlap, filesystem aliases and unplanned scope remain blocked. This coordination is
         usable only after acceptance on canonical main and never substitutes for merge-candidate CI, required
         GitHub checks/review or release evidence. Production, live data, local Docker, network and secrets stay prohibited.
+        The owner subsequently authorizes minimal GitHub main protection: ordinary changes through PR,
+        strict ASA / required from GitHub Actions, admin enforcement and no bypass, force push or deletion.
+        No second account, access grant or formal GitHub approval requirement is authorized; independent
+        technical review of critical exact-SHA changes remains required. Live GitHub restrictions apply
+        even where legacy direct_main metadata describes PRs as optional.
       shared_path_coordination:
         status: owner_approved
         purpose: isolated_development_only
@@ -149,10 +154,16 @@ parallel_lanes:
         rewrite selected. Prior E974/F975/G978/F979/G980 remain accepted without repeated audit or tests.
         Owner's new explicit isolated-development consent supersedes indefinite D13 logical-path waiting;
         foreign guard remains15addedlines on16cbed5d, with its byte fingerprint pinned above. This PR changes
-        only the preflight prerequisite and records consent; it does not implement D or import foreign WIP.
+        the preflight prerequisite and records consent; it does not implement D or import foreign WIP.
+        A bounded CI admission repair separates working-push aggregate display names from the unchanged
+        PR/main ASA / required context; all four native mandatory jobs and fail-closed checks remain intact.
         After policy/consent acceptance, repeat exact8path D preflight; genuine SAFE_TO_START is required.
-        GitHub branch protection observation has required_status_checks=null, required_pull_request_reviews=null,
-        enforce_admins=true and no rulesets: owner administrative action is still needed for enforced integration.
+        The initial protection snapshot had no required checks/reviews or rulesets. Owner-authorized minimal
+        protection is now applied and read back: strict ASA / required app15368, mandatory PR, zero formal
+        approvals, admin enforcement; all other parameters are unchanged and before/restore payloads saved.
+        General41686002301 passed all5 exactcf262 jobs, yet cancelled duplicate push41685995018 left a second
+        same-name failed required context. This candidate fixes that confirmed admission collision without
+        changing protection or tools/ci_required.py; new final-SHA CI and positive admission remain pending.
         Full Main/release/RLS/auth/migration evidence and exact merged-tree checks remain mandatory. No deployment,
         forced publication, working database, local Docker or network action; owner acceptance remains pending.
         Fetch main before writes and recover exact Git/CI; this dated snapshot grants no edit or release authority.
