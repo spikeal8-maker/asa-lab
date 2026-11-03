@@ -1,4 +1,5 @@
 import { installNativeSaveInputObserver } from '../tests/electronics/native-oracle-contracts';
+import { visibleControlOverflow } from './helpers/visible-control-overflow';
 import { createInterface } from 'node:readline';
 import { appendFileSync, createReadStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -7911,13 +7912,7 @@ test.describe('owner D3-D6 acceptance', () => {
 
     const horizontalOverflow = await panel
       .locator('input, select, button')
-      .evaluateAll((controls) =>
-        controls.some((control) => {
-          const box = control.getBoundingClientRect();
-          const panel = control.closest('.workbench-inspector')?.getBoundingClientRect();
-          return Boolean(panel && (box.left < panel.left - 1 || box.right > panel.right + 1));
-        }),
-      );
+      .evaluateAll(visibleControlOverflow);
     expect(horizontalOverflow).toBe(false);
 
     await page.screenshot({ path: 'reports/interactions/mobile-component-inspector-compact.png' });
@@ -8344,7 +8339,17 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
             initialViewBox!,
           );
           expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
-          await page.getByRole('button', { name: 'Увеличить масштаб', exact: true }).click();
+          const beforeZoom = await page.locator('.workbench-canvas').getAttribute('viewBox');
+          if (width < 500) {
+            await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
+            await page.mouse.wheel(0, -100);
+          } else {
+            await page.getByRole('button', { name: 'Увеличить масштаб', exact: true }).click();
+          }
+          await expect(page.locator('.workbench-canvas')).not.toHaveAttribute(
+            'viewBox',
+            beforeZoom!,
+          );
           // The resistor legitimately has a native painted path. Keep Shift/
           // right-button controls on it, separate from the owner-image probe.
           const point = await part(page, 'field-resistor')
