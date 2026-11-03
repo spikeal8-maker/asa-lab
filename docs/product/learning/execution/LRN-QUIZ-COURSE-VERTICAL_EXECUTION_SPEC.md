@@ -126,7 +126,7 @@ requestId) locks Attempt then quiz_attempt_states; duplicate replay verifies sam
 request and revision. Save/submit/expiry serialize on the same Attempt row.
 
 attemptPolicy.expirationPolicy = auto_submit | expire_without_submission;
-missing normalizes to auto_submit. Freeze it in existing Q2 policy_snapshot. Existing
+missing defaults to auto_submit at Start without changing existing author policy snapshots. Freeze it in existing Q2 policy_snapshot. Existing
 expires_at is the authority. Extend existing LearningRemindersService with a bounded
 idempotent SQL expiry sweep (FOR UPDATE SKIP LOCKED); no new service. Saved server
 answers only. No answer mutation after expiry. Client timestamps never authorize.
@@ -184,3 +184,15 @@ Immediate feedback returns frozen per-question correctness/points; score_only re
 totals without per-question feedback; after_close withholds both until actual closure.
 No learner reader joins answer keys. expire_without_submission uses existing expired
 Attempt state, with no Submission/Evaluation/Result or invented completion.
+
+Manual completion overlays feedback.manualPending=false from the existing final
+AssessmentResult. Immutable Submission scoring stays unchanged; aggregate-only
+teacher review does not invent per-question manual correctness or points.
+
+Canonical Quiz after_close conservatively withholds both grade totals and question
+feedback until closure. This applies only to new Q2 Attempt state; historical legacy
+five-type submissions keep their previous total-score semantics. Shared release
+helper filters learner result lists and redacts learner canonical evidence grade
+fields. Teacher evidence and server completion/selected-result authority stay
+unchanged. Course Quiz occurrences join the same per-Run projection map as Essay
+and Project; no Project-origin proof is invented.

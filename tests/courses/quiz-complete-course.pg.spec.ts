@@ -448,6 +448,20 @@ describe('Complete canonical Quiz Course vertical', () => {
       points: 8,
       provisional: false,
     });
+    const finalFeedback = (await read(f.student.principal, id)).feedback;
+    expect(
+      finalFeedback.find(
+        (item: { questionVersionId: string }) =>
+          item.questionVersionId === f.otherQuestions['long_text_manual'],
+      ),
+    ).toMatchObject({ points: null, correct: null, manualPending: false });
+    expect(
+      (
+        await admin.query('SELECT payload_manifest FROM learning_submissions WHERE attempt_id=$1', [
+          id,
+        ])
+      ).rows[0].payload_manifest.manualPending,
+    ).toBe(1);
   });
   it('grades existing five rules plus matching/ordering automatically without creating a second Attempt', async () => {
     const f = await fixture({ manual: false });
@@ -587,6 +601,42 @@ describe('Complete canonical Quiz Course vertical', () => {
     const done = await submit(f.student.principal, id, 2);
     expect(done.result_code).toBe('ok');
     expect(done.attempt).not.toHaveProperty('result');
+    expect(
+      (await app.query('SELECT * FROM learning_results_for_seat($1)', [f.student.id])).rows,
+    ).toEqual([]);
+    expect(
+      (
+        await app.query('SELECT * FROM learning_results_for_account($1) WHERE assignment_id=$2', [
+          learnerAccount,
+          f.assignment,
+        ])
+      ).rows,
+    ).toEqual([]);
+    for (const [sql, param] of [
+      ['learning_canonical_evidence_for_seat', f.student.id],
+      ['learning_canonical_evidence_for_account', learnerAccount],
+    ]) {
+      const row = (await app.query(`SELECT evidence FROM ${sql}($1)`, [param])).rows.find(
+        (entry: { evidence: { activityRunId: string } }) => entry.evidence.activityRunId === f.run,
+      );
+      expect(row.evidence.selectedRevision).toMatchObject({
+        rawPoints: null,
+        maxPoints: null,
+        percentageBasisPoints: null,
+        outcome: null,
+      });
+    }
+    expect(
+      (
+        await app.query('SELECT evidence FROM learning_canonical_evidence_for_teacher($1,$2)', [
+          ownerAccount,
+          f.classroom,
+        ])
+      ).rows.find(
+        (entry: { evidence: { activityRunId: string } }) => entry.evidence.activityRunId === f.run,
+      ).evidence.selectedRevision.rawPoints,
+    ).toBe(7);
+
     expect(JSON.stringify(await read(f.student.principal, id))).not.toContain('answerKey');
     await admin.query("UPDATE classroom_assignments SET status='closed' WHERE id=$1", [
       f.assignment,
@@ -594,6 +644,27 @@ describe('Complete canonical Quiz Course vertical', () => {
     const released = await read(f.student.principal, id);
     expect(released.result).toMatchObject({ points: 7, provisional: false });
     expect(released.feedback).toHaveLength(7);
+    expect(
+      (await app.query('SELECT raw_points FROM learning_results_for_seat($1)', [f.student.id]))
+        .rows,
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ raw_points: 7 })]));
+    expect(
+      (
+        await app.query(
+          'SELECT raw_points FROM learning_results_for_account($1) WHERE assignment_id=$2',
+          [learnerAccount, f.assignment],
+        )
+      ).rows,
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ raw_points: 7 })]));
+    const visible = (
+      await app.query('SELECT evidence FROM learning_canonical_evidence_for_seat($1)', [
+        f.student.id,
+      ])
+    ).rows.find(
+      (entry: { evidence: { activityRunId: string } }) => entry.evidence.activityRunId === f.run,
+    );
+    expect(visible.evidence.selectedRevision.rawPoints).toBe(7);
+
     expect(JSON.stringify(released)).not.toContain('answerKey');
   });
   it('preserves all original five grader rules, negative decimal tolerance and wrong matching/ordering', async () => {
@@ -638,5 +709,25 @@ describe('Complete canonical Quiz Course vertical', () => {
       else expect(done.attempt).not.toHaveProperty('feedback');
       expect(JSON.stringify(done.attempt)).not.toContain('answerKey');
     }
+  });
+  it('keeps scheduled Quiz instructions and questions unavailable through current run readers', async () => {
+    const f = await fixture({ runOpensAt: '2099-01-01T00:00:00.000Z' });
+    const value = (
+      await app.query('SELECT learning_quiz_run_read($1,$2) AS value', [f.student.principal, f.run])
+    ).rows[0].value;
+    expect(value).toMatchObject({
+      canStart: false,
+      title: null,
+      instructions: null,
+      goal: null,
+      blocks: null,
+      attempt: null,
+    });
+    expect((await start(f.student.principal, f.part)).result_code).toBe('not_available');
+    expect(await academicCounts(f.assignment)).toMatchObject({
+      submissions: '0',
+      results: '0',
+      grades: '0',
+    });
   });
 });

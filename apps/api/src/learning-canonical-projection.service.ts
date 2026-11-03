@@ -298,7 +298,9 @@ export class LearningCanonicalProjectionService {
       // Handout-keyed canonical state may collapse sibling Activity Runs.
       // Preserve every learner/Run participation independently of work origin.
       if (
-        (evidence.kind === 'course_project' || evidence.kind === 'essay') &&
+        (evidence.kind === 'course_project' ||
+          evidence.kind === 'essay' ||
+          evidence.kind === 'quiz') &&
         evidence.activityRunId &&
         evidence.participation
       ) {

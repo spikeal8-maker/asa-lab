@@ -10297,8 +10297,8 @@ components:
         versionId: { type: string, format: uuid }
         title: { type: string }
         instructions: { type: [string, 'null'] }
-        kind: { type: string, const: project }
-        moduleKey: { type: string }
+        kind: { type: string, enum: [project, quiz] }
+        moduleKey: { type: [string, 'null'] }
     LearningAssignableActivityCollection:
       type: object
       additionalProperties: false

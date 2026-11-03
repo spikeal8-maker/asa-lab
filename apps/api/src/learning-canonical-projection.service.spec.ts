@@ -41,6 +41,31 @@ function poolWith(...rows: Array<Record<string, unknown>>): pg.Pool {
 }
 
 describe('LRN-M0-007 canonical projection boundary', () => {
+  it('retains exact Quiz Course Run applicability without a Project for both learner identities', async () => {
+    const run = '80000000-0000-4000-8000-000000000001';
+    const service = new LearningCanonicalProjectionService(
+      poolWith({
+        ...base,
+        kind: 'quiz',
+        activityRunId: run,
+        participation: { applicable: true, status: 'assigned', excused: false },
+      }),
+      {},
+    );
+    for (const snapshot of [
+      await service.forSeatCourseRuns(base.seatId),
+      await service.forAccountCourseRuns('90000000-0000-4000-8000-000000000001'),
+    ]) {
+      const key = canonicalCourseParticipationKey(base.seatId, run);
+      expect(snapshot.participationByRun.get(key)).toEqual({
+        classroomAssignmentId: base.classroomAssignmentId,
+        applicable: true,
+        excused: false,
+      });
+      expect(snapshot.courseProjectionsByRun.get(key)?.surface.activityRunId).toBe(run);
+    }
+  });
+
   it('runs project, quiz and project-free essay evidence through the same resolver boundary', async () => {
     const rows = (['direct_project', 'course_project', 'quiz', 'essay'] as const).map(
       (kind, index) => ({

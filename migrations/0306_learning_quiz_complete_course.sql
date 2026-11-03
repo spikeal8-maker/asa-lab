@@ -334,7 +334,7 @@ RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,pg_temp AS $$
                  WHERE lower(trim(accepted.value)) = lower(trim(p_response ->> 'value'))
             )
             WHEN 'ordering' THEN p_response->'values'=p_key->'values'
-            WHEN 'matching' THEN p_response->'values' @> p_key->'values' AND p_key->'values' @> p_response->'values'
+            WHEN 'matching' THEN (p_response->'values') @> (p_key->'values') AND (p_key->'values') @> (p_response->'values')
             ELSE false
  END,false);
 $$;
@@ -1013,7 +1013,6 @@ BEGIN
         v_origin := 'quiz_version';
         v_max := CASE WHEN p_result_mode = 'graded' THEN COALESCE(v_quiz.total_points,v_max) ELSE NULL END;
         IF v_policy#>>'{attemptPolicy,expirationPolicy}' IS NOT NULL AND v_policy#>>'{attemptPolicy,expirationPolicy}' NOT IN('auto_submit','expire_without_submission') THEN RETURN QUERY SELECT 'invalid_draft'::varchar,NULL::jsonb,NULL::varchar; RETURN; END IF;
-        v_policy:=jsonb_set(v_policy,'{attemptPolicy}',COALESCE(NULLIF(v_policy->'attemptPolicy','null'::jsonb),'{}'::jsonb)||jsonb_build_object('expirationPolicy',COALESCE(v_policy#>>'{attemptPolicy,expirationPolicy}','auto_submit')));
         -- QuizVersion supplies immutable content/points, never runtime policy.
         -- Preserve the existing six-key object-or-null contract. Optional numeric
         -- settings stay absent/null; there is no undocumented numeric default.
@@ -1337,7 +1336,8 @@ BEGIN
  INSERT INTO public.quiz_attempt_states(tenant_id,attempt_id,participation_attempt_number,selected_questions_jsonb,question_order_jsonb,
    option_order_jsonb,content_snapshot,policy_snapshot)
  VALUES((v_scope->>'tenantId')::uuid,v_attempt,(v_count+1)::integer,v_questions,v_order,v_options,
-   jsonb_build_object('quizVersionId',v_scope->'quizVersionId','contentDigest',v_scope->'contentDigest'),v_scope->'policy');
+   jsonb_build_object('quizVersionId',v_scope->'quizVersionId','contentDigest',v_scope->'contentDigest'),
+ jsonb_set(v_scope->'policy','{attemptPolicy}',COALESCE(NULLIF(v_scope#>'{policy,attemptPolicy}','null'::jsonb),'{}'::jsonb)||jsonb_build_object('expirationPolicy',COALESCE(v_scope#>>'{policy,attemptPolicy,expirationPolicy}','auto_submit'))));
  INSERT INTO public.quiz_attempt_start_receipts(tenant_id,participation_id,request_id,attempt_id)
  VALUES((v_scope->>'tenantId')::uuid,p_part,p_request,v_attempt);
  RETURN QUERY SELECT 'ok'::varchar,public.learning_quiz_attempt_read(p_actor,v_attempt),false;
@@ -2040,10 +2040,7 @@ BEGIN
    'answers',v_state.answers_jsonb,'questions',v_state.selected_questions_jsonb,
    'questionOrder',v_state.question_order_jsonb,'optionOrder',v_state.option_order_jsonb,
    'lastSavedAt',v_state.last_saved_at,'submittedAt',v_attempt.submitted_at);
- release:=COALESCE(v_state.policy_snapshot#>>'{feedbackReleasePolicy,mode}','immediate')<>'after_close'
- OR (v_attempt.effective_conditions_at_start#>>'{values,closesAt}')::timestamptz<=clock_timestamp()
- OR EXISTS(SELECT 1 FROM public.activity_runs r JOIN public.classroom_assignments h ON h.id=r.source_classroom_assignment_id
- WHERE r.id=(v_scope->>'activityRunId')::uuid AND (r.lifecycle_status<>'active' OR h.status='closed'));
+ release:=public.learning_quiz_feedback_released_internal(p_attempt);
  IF release AND v_attempt.state IN('evaluating','closed') THEN
  SELECT jsonb_build_object('points',ar.raw_points,'maxPoints',ar.max_points,'outcome',ar.outcome,'provisional',false) INTO result
  FROM public.assessment_results ar WHERE ar.attempt_id=p_attempt ORDER BY ar.revision_number DESC LIMIT 1;
@@ -2052,7 +2049,7 @@ BEGIN
  FROM public.learning_evaluations ev WHERE ev.attempt_id=p_attempt AND ev.evaluator_kind='automatic' ORDER BY ev.created_at DESC LIMIT 1;
  END IF;
  IF COALESCE(v_state.policy_snapshot#>>'{feedbackReleasePolicy,mode}','immediate')<>'score_only' THEN
- SELECT sub.payload_manifest->'scoring' INTO feedback FROM public.learning_submissions sub WHERE sub.attempt_id=p_attempt AND sub.tenant_id=v_attempt.tenant_id;
+ SELECT CASE WHEN result->>'provisional'='false' THEN (SELECT jsonb_agg(item||jsonb_build_object('manualPending',false)) FROM jsonb_array_elements(sub.payload_manifest->'scoring') item) ELSE sub.payload_manifest->'scoring' END INTO feedback FROM public.learning_submissions sub WHERE sub.attempt_id=p_attempt AND sub.tenant_id=v_attempt.tenant_id;
  END IF;
  RETURN jsonb_build_object('attemptId',v_attempt.id,'participationId',v_attempt.activity_participation_id,
  'activityRunId',v_scope->'activityRunId','activityVersionId',v_attempt.learning_activity_version_id,
@@ -2091,7 +2088,7 @@ CREATE FUNCTION learning_teacher_exact_quiz_submission(p_account uuid,p_class uu
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
  SELECT jsonb_build_object('kind','quiz','submissionId',s.id,'sourceRevision',s.payload_manifest->'sourceRevision',
  'digest',s.payload_digest,'questions',s.payload_manifest->'questions','answers',s.payload_manifest->'answers',
- 'autoPoints',s.payload_manifest->'autoPoints','manualPending',s.payload_manifest->'manualPending')
+ 'autoPoints',s.payload_manifest->'autoPoints','manualPending',CASE WHEN EXISTS(SELECT 1 FROM public.assessment_results final WHERE final.attempt_id=a.id) THEN '0'::jsonb ELSE s.payload_manifest->'manualPending' END)
  FROM public.learning_attempts a JOIN public.learning_submissions s ON s.attempt_id=a.id AND s.tenant_id=a.tenant_id
  JOIN public.activity_participations p ON p.id=a.activity_participation_id AND p.tenant_id=a.tenant_id AND p.learner_identity_id=a.learner_identity_id
  JOIN public.activity_runs r ON r.id=p.activity_run_id AND r.tenant_id=a.tenant_id AND r.classroom_id=a.classroom_id AND r.learning_activity_version_id=a.learning_activity_version_id
@@ -2333,4 +2330,138 @@ BEGIN
       v_audience.audience_id,v_audience.created_count+v_audience.independent_count,
       (v_run.reused AND v_audience.reused);
 END;
+$$;
+
+-- One release decision is shared by all learner read models. Teacher evidence is unchanged.
+CREATE FUNCTION learning_quiz_feedback_released_internal(p_attempt uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+ SELECT CASE WHEN state.attempt_id IS NULL THEN true ELSE
+ COALESCE(state.policy_snapshot#>>'{feedbackReleasePolicy,mode}','immediate')<>'after_close'
+ OR COALESCE((a.effective_conditions_at_start#>>'{values,closesAt}')::timestamptz<=clock_timestamp(),false)
+ OR r.lifecycle_status<>'active' OR h.status='closed' END
+ FROM public.learning_attempts a LEFT JOIN public.quiz_attempt_states state ON state.attempt_id=a.id AND state.tenant_id=a.tenant_id
+ LEFT JOIN public.activity_participations p ON p.id=a.activity_participation_id AND p.tenant_id=a.tenant_id
+ LEFT JOIN public.activity_runs r ON r.id=p.activity_run_id AND r.tenant_id=p.tenant_id
+ LEFT JOIN public.classroom_assignments h ON h.id=r.source_classroom_assignment_id AND h.tenant_id=r.tenant_id
+ WHERE a.id=p_attempt;
+$$;
+REVOKE ALL ON FUNCTION learning_quiz_feedback_released_internal(uuid) FROM PUBLIC,asalab_app;
+CREATE FUNCTION learning_quiz_learner_evidence_internal(p_evidence jsonb) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE selected uuid; field text; projection jsonb:=p_evidence; hidden jsonb:='{"rawPoints":null,"maxPoints":null,"percentageBasisPoints":null,"displayGrade":null,"outcome":null}'::jsonb;
+BEGIN
+ IF p_evidence->>'kind' IS DISTINCT FROM 'quiz' THEN RETURN p_evidence; END IF;
+ selected:=COALESCE(p_evidence->>'selectedAttemptId',p_evidence#>>'{selectedRevision,attemptId}',p_evidence#>>'{selectedResult,attemptId}')::uuid;
+ IF selected IS NULL OR public.learning_quiz_feedback_released_internal(selected) THEN RETURN p_evidence; END IF;
+ FOREACH field IN ARRAY ARRAY['selectedRevision','selectedResult'] LOOP
+ IF jsonb_typeof(projection->field)='object' THEN projection:=jsonb_set(projection,ARRAY[field],(projection->field)||hidden); END IF;
+ END LOOP;
+ RETURN projection;
+END; $$;
+REVOKE ALL ON FUNCTION learning_quiz_learner_evidence_internal(jsonb) FROM PUBLIC,asalab_app;
+
+CREATE OR REPLACE FUNCTION learning_canonical_evidence_for_seat(p_seat_id uuid)
+RETURNS TABLE (evidence jsonb)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT public.learning_quiz_learner_evidence_internal(projected.evidence)
+      FROM public.classroom_student_seats seat
+      CROSS JOIN LATERAL public.learning_canonical_evidence_internal(
+          seat.classroom_id, seat.id, false
+      ) projected
+     WHERE seat.id = p_seat_id AND seat.status = 'active';
+$$;
+
+CREATE OR REPLACE FUNCTION learning_canonical_evidence_for_account(p_account_id uuid)
+RETURNS TABLE (evidence jsonb)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT public.learning_quiz_learner_evidence_internal(projected.evidence)
+      FROM public.classroom_student_seats seat
+      CROSS JOIN LATERAL public.learning_canonical_evidence_internal(
+          seat.classroom_id, seat.id, false
+      ) projected
+     WHERE seat.account_id = p_account_id AND seat.status = 'active';
+$$;
+
+CREATE OR REPLACE FUNCTION learning_results_for_seat(p_seat_id uuid)
+RETURNS TABLE(classroom_title varchar,assignment_id uuid,assignment_title varchar,attempt_number integer,state varchar,
+ raw_points integer,max_points integer,percentage_basis_points integer,display_grade varchar,outcome varchar,feedback varchar,published_at timestamptz)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+ SELECT classroom.title,assignment.id,COALESCE(version.title,task.title,lesson.assignment_title,quiz.title),
+   attempt.attempt_number,COALESCE(result.review_decision,attempt.state),result.raw_points,result.max_points,result.percentage_basis_points,
+   CASE WHEN run.id IS NOT NULL THEN public.learning_grade_label_for_run(run.id,result.percentage_basis_points)
+     ELSE public.grade_label_for_classroom(classroom.id,result.percentage_basis_points) END,
+   result.outcome,result.feedback,result.published_at
+ FROM public.classroom_student_seats seat JOIN public.classrooms classroom ON classroom.id=seat.classroom_id
+ JOIN public.classroom_assignments assignment ON assignment.classroom_id=classroom.id
+ LEFT JOIN public.activity_runs run ON run.source_classroom_assignment_id=assignment.id
+ LEFT JOIN public.learning_activity_versions version ON version.id=run.learning_activity_version_id
+ LEFT JOIN public.learner_identity_links link ON link.seat_id=seat.id AND link.status='active' AND link.school_id=run.school_id AND link.tenant_id=run.tenant_id
+ LEFT JOIN public.activity_participations part ON part.activity_run_id=run.id AND part.learner_identity_id=link.learner_identity_id
+ LEFT JOIN LATERAL public.learning_selected_result_internal(part.id) selected ON true
+ LEFT JOIN public.gradebook_entries grade ON grade.classroom_assignment_id=assignment.id AND grade.seat_id=seat.id
+ JOIN public.assessment_results result ON result.id=CASE WHEN run.id IS NOT NULL THEN selected.result_id ELSE grade.assessment_result_id END
+ JOIN public.learning_attempts attempt ON attempt.id=result.attempt_id
+ LEFT JOIN public.teacher_assignments task ON task.id=assignment.assignment_id
+ LEFT JOIN public.classroom_course_run_lessons lesson ON lesson.classroom_assignment_id=assignment.id
+ LEFT JOIN public.quiz_versions quiz ON quiz.id=assignment.quiz_version_id
+ WHERE public.learning_quiz_feedback_released_internal(attempt.id) AND seat.id=p_seat_id AND seat.status='active' AND (run.id IS NULL OR public.learning_direct_assignment_seat_visible(seat.id,assignment.id))
+ ORDER BY result.published_at DESC,assignment.id;
+$$;
+
+CREATE OR REPLACE FUNCTION quiz_assignments_for_seat(p_seat_id uuid)
+RETURNS TABLE (
+    classroom_assignment_id uuid,
+    classroom_title varchar,
+    quiz_version_id uuid,
+    quiz_title varchar,
+    quiz_instructions varchar,
+    due_at timestamptz,
+    assignment_status varchar,
+    attempt_limit integer,
+    attempts_used integer,
+    time_limit_minutes integer,
+    total_points integer,
+    pass_threshold_basis_points integer,
+    question_version_id uuid,
+    question_type varchar,
+    prompt_blocks jsonb,
+    response_schema jsonb,
+    question_max_points integer,
+    question_position integer,
+    latest_state varchar,
+    latest_points integer,
+    latest_percentage_basis_points integer
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT assignment.id, classroom.title, quiz.id, quiz.title, quiz.instructions,
+           assignment.due_at, assignment.status, quiz.attempt_limit,
+           (SELECT count(*)::integer FROM public.learning_attempts counted
+             WHERE counted.classroom_assignment_id = assignment.id
+               AND counted.seat_id = seat.id),
+           quiz.time_limit_minutes, quiz.total_points,
+           quiz.pass_threshold_basis_points, question.id, question.question_type,
+           question.prompt_blocks, question.response_schema, mapped.max_points,
+           mapped.position, latest.state, CASE WHEN public.learning_quiz_feedback_released_internal(latest.id) THEN result.raw_points END,
+           CASE WHEN public.learning_quiz_feedback_released_internal(latest.id) THEN result.percentage_basis_points END
+      FROM public.classroom_student_seats seat
+      JOIN public.classrooms classroom ON classroom.id = seat.classroom_id
+      JOIN public.classroom_assignments assignment
+        ON assignment.tenant_id = seat.tenant_id
+       AND assignment.classroom_id = seat.classroom_id
+       AND assignment.quiz_version_id IS NOT NULL
+      JOIN public.quiz_versions quiz ON quiz.id = assignment.quiz_version_id
+      JOIN public.quiz_version_questions mapped ON mapped.quiz_version_id = quiz.id
+      JOIN public.question_versions question ON question.id = mapped.question_version_id
+      LEFT JOIN LATERAL (
+          SELECT attempt.* FROM public.learning_attempts attempt
+           WHERE attempt.classroom_assignment_id = assignment.id
+             AND attempt.seat_id = seat.id
+           ORDER BY attempt.attempt_number DESC LIMIT 1
+      ) latest ON true
+      LEFT JOIN public.assessment_results result ON result.attempt_id = latest.id
+     WHERE seat.id = p_seat_id
+       AND seat.status = 'active'
+       AND quiz.learning_activity_version_id IS NOT NULL
+       AND (assignment.status = 'open' OR latest.id IS NOT NULL)
+     ORDER BY assignment.created_at DESC, mapped.position;
 $$;

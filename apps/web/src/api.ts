@@ -901,8 +901,8 @@ export interface LearningAssignableActivity {
   versionId: string;
   title: string;
   instructions: string | null;
-  kind: 'project';
-  moduleKey: string;
+  kind: 'project' | 'quiz';
+  moduleKey: string | null;
 }
 
 export interface ClassroomAssignmentProgress {
@@ -1210,6 +1210,14 @@ export interface LearningQuizAttempt {
   serverNow: string;
   lastSavedAt: string | null;
   result?: { points: number | null; maxPoints: number; outcome: string; provisional: boolean };
+  /** Present only when the server releases per-question feedback. Never includes keys. */
+  feedback?: Array<{
+    questionVersionId: string;
+    points: number | null;
+    correct: boolean | null;
+    maxPoints: number;
+    manualPending: boolean;
+  }>;
 }
 export interface AuthoredQuestionPayload {
   questionType: QuizQuestionType;
