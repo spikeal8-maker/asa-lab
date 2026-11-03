@@ -60,6 +60,22 @@ export class LearningContentController {
     if (!value) fail('not_found', 404);
     return value;
   }
+  @Get('quizzes/:rootId/versions/:versionId')
+  async quizVersion(
+    @Req() request: FastifyRequest,
+    @Param('rootId') rootId: string,
+    @Param('versionId') versionId: string,
+  ) {
+    if (!UUID.test(rootId) || !UUID.test(versionId)) fail('invalid_id', 400);
+    const context = await this.context(request);
+    const result = await this.pool!.query(
+      "SELECT learning_content_author_read($1,$2,'quiz',$3,$4) AS content",
+      [context.principalId, context.tenantId, rootId, versionId],
+    );
+    const value = result.rows[0]?.['content'];
+    if (!value) fail('not_found', 404);
+    return value;
+  }
   @Get(':contentKind(questions|quizzes)/versions/:versionId')
   async version(
     @Req() request: FastifyRequest,

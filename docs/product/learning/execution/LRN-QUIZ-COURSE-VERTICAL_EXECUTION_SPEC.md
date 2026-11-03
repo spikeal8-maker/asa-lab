@@ -206,3 +206,21 @@ upgrade receipts retain all historical assertions and add exact published 0303 a
 unchanged private dependency hashes before the new 0307 checksum. No owner database
 was touched. This is the one controlled additional convergence authorized by the
 controller after a real new published ordinal intersection.
+
+## Bounded independent-review corrections
+
+Every newly introduced content validator, ownership/definition reader, request
+fingerprint, private Question publisher and receipt writer is revoked from PUBLIC
+and asalab_app. Only guarded learning_content_author_read/write entry points grant
+application execution; their definer-owner calls retain internal access. Restricted
+role tests actually attempt receipt forgery/private definition read/private publish
+and require permission denial, then publish successfully through the guarded entry.
+
+The actual author client URL is /api/learning/quizzes/{rootId}/versions/{versionId}.
+Both UUIDs bind the immutable version to the owned root in SQL. The Fastify test
+calls the real frontend client URL builder and tests exact/mismatched root handling;
+PG tests enforce the actual root/version relationship and foreign-owner denial.
+
+For new canonical Quiz after_close, learner canonical evidence also masks
+completionValue alongside points/outcome. The internal selection/completion source
+and teacher evidence remain unchanged; release restores learner fields after close.

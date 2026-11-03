@@ -624,6 +624,7 @@ describe('Complete canonical Quiz Course vertical', () => {
         maxPoints: null,
         percentageBasisPoints: null,
         outcome: null,
+        completionValue: null,
       });
     }
     expect(
@@ -664,6 +665,7 @@ describe('Complete canonical Quiz Course vertical', () => {
       (entry: { evidence: { activityRunId: string } }) => entry.evidence.activityRunId === f.run,
     );
     expect(visible.evidence.selectedRevision.rawPoints).toBe(7);
+    expect(visible.evidence.selectedRevision.completionValue).toBe(true);
 
     expect(JSON.stringify(released)).not.toContain('answerKey');
   });
@@ -729,5 +731,121 @@ describe('Complete canonical Quiz Course vertical', () => {
       results: '0',
       grades: '0',
     });
+  });
+  it('denies restricted-role receipt forgery and private helpers while guarded publication still works with exact root/version ownership', async () => {
+    async function write(
+      kind: string,
+      action: string,
+      id: string | null,
+      revision: number | null,
+      payload: unknown,
+    ) {
+      return (
+        await app.query(
+          'SELECT learning_content_author_write($1,$2,$3,$4,$5,$6,$7,$8::jsonb,NULL) AS value',
+          [
+            ownerPrincipal,
+            owner.tenantId,
+            kind,
+            action,
+            id,
+            revision,
+            req(),
+            JSON.stringify(payload),
+          ],
+        )
+      ).rows[0].value;
+    }
+    const question = await write('question', 'create', null, null, {
+      questionType: 'boolean',
+      promptBlocks: [{ type: 'text', text: 'Private bank question' }],
+      responseSchema: {},
+      answerKey: { value: true },
+      maxPoints: 1,
+    });
+    expect(question.code).toBe('ok');
+    const qversion = await write('question', 'publish', question.id, 1, null);
+    expect(qversion.code).toBe('ok');
+    const quiz = await write('quiz', 'create', null, null, {
+      title: 'Protected receipts',
+      questions: [{ questionVersionId: qversion.versionId, required: true }],
+    });
+    expect(quiz.code).toBe('ok');
+    const forged = req();
+    await expect(
+      app.query(
+        `SELECT learning_content_remember_internal($1,$2,'quiz','quiz.publish',$3,1,$4,$5,NULL,$6::jsonb)`,
+        [
+          ownerPrincipal,
+          owner.tenantId,
+          quiz.id,
+          forged,
+          'f'.repeat(64),
+          JSON.stringify({ code: 'ok', versionId: randomUUID() }),
+        ],
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+    expect(
+      (
+        await admin.query('SELECT * FROM learning_content_command_receipts WHERE request_id=$1', [
+          forged,
+        ])
+      ).rows,
+    ).toEqual([]);
+    await expect(
+      app.query('SELECT learning_question_safe_definition_internal($1)', [qversion.versionId]),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      app.query('SELECT learning_question_publish_internal($1,$2,$3,1,$4,NULL,false)', [
+        ownerPrincipal,
+        owner.tenantId,
+        question.id,
+        req(),
+      ]),
+    ).rejects.toMatchObject({ code: '42501' });
+    expect(
+      (
+        await app.query("SELECT learning_content_author_read($1,$2,'question',$3,$4) AS value", [
+          outsiderPrincipal,
+          owner.tenantId,
+          question.id,
+          qversion.versionId,
+        ])
+      ).rows[0].value,
+    ).toBeNull();
+    const published = await write('quiz', 'publish', quiz.id, 1, null);
+    expect(published.code).toBe('ok');
+    const other = await write('quiz', 'create', null, null, { title: 'Other root', questions: [] });
+    expect(other.code).toBe('ok');
+    expect(
+      (
+        await app.query("SELECT learning_content_author_read($1,$2,'quiz',$3,$4) AS value", [
+          ownerPrincipal,
+          owner.tenantId,
+          quiz.id,
+          published.versionId,
+        ])
+      ).rows[0].value,
+    ).toMatchObject({ id: published.versionId, quizId: quiz.id });
+    expect(
+      (
+        await app.query("SELECT learning_content_author_read($1,$2,'quiz',$3,$4) AS value", [
+          ownerPrincipal,
+          owner.tenantId,
+          other.id,
+          published.versionId,
+        ])
+      ).rows[0].value,
+    ).toBeNull();
+    expect(
+      (
+        await app.query("SELECT learning_content_author_read($1,$2,'quiz',$3,$4) AS value", [
+          outsiderPrincipal,
+          owner.tenantId,
+          quiz.id,
+          published.versionId,
+        ])
+      ).rows[0].value,
+    ).toBeNull();
   });
 });

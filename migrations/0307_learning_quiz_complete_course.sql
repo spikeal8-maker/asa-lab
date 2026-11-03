@@ -638,7 +638,7 @@ DECLARE root_id uuid:=r; payload jsonb; rev integer; base uuid; head uuid; versi
 BEGIN
  IF NOT public.learning_author_can_use_tenant(a,t) THEN RETURN NULL; END IF;
  IF v IS NOT NULL THEN
-  IF k='quiz' THEN SELECT l.quiz_id INTO root_id FROM public.quiz_version_lineage l WHERE l.quiz_version_id=v AND l.tenant_id=t;
+  IF k='quiz' THEN SELECT l.quiz_id INTO root_id FROM public.quiz_version_lineage l WHERE l.quiz_version_id=v AND l.tenant_id=t AND (r IS NULL OR l.quiz_id=r);
   ELSE SELECT q.question_id INTO root_id FROM public.question_versions q WHERE q.id=v AND q.tenant_id=t AND (r IS NULL OR q.question_id=r); END IF;
  END IF;
  IF root_id IS NULL AND v IS NOT NULL THEN RETURN NULL; END IF;
@@ -2348,7 +2348,7 @@ $$;
 REVOKE ALL ON FUNCTION learning_quiz_feedback_released_internal(uuid) FROM PUBLIC,asalab_app;
 CREATE FUNCTION learning_quiz_learner_evidence_internal(p_evidence jsonb) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
-DECLARE selected uuid; field text; projection jsonb:=p_evidence; hidden jsonb:='{"rawPoints":null,"maxPoints":null,"percentageBasisPoints":null,"displayGrade":null,"outcome":null}'::jsonb;
+DECLARE selected uuid; field text; projection jsonb:=p_evidence; hidden jsonb:='{"rawPoints":null,"maxPoints":null,"percentageBasisPoints":null,"displayGrade":null,"outcome":null,"completionValue":null}'::jsonb;
 BEGIN
  IF p_evidence->>'kind' IS DISTINCT FROM 'quiz' THEN RETURN p_evidence; END IF;
  selected:=COALESCE(p_evidence->>'selectedAttemptId',p_evidence#>>'{selectedRevision,attemptId}',p_evidence#>>'{selectedResult,attemptId}')::uuid;
@@ -2465,3 +2465,24 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
        AND (assignment.status = 'open' OR latest.id IS NOT NULL)
      ORDER BY assignment.created_at DESC, mapped.position;
 $$;
+
+-- Content helpers are callable only by the guarded SECURITY DEFINER author entry points.
+-- The application role cannot forge immutable command receipts or read private definitions through an internal RPC.
+REVOKE ALL ON FUNCTION
+ public.learning_content_json_valid_internal(jsonb),
+ public.learning_content_draft_valid_internal(varchar,jsonb),
+ public.learning_question_publishable_internal(varchar,jsonb),
+ public.learning_content_owned_internal(uuid,uuid,varchar,uuid),
+ public.learning_question_safe_definition_internal(uuid),
+ public.learning_content_request_digest_internal(text,text,uuid,integer,jsonb,uuid),
+ public.learning_content_remember_internal(uuid,uuid,varchar,varchar,uuid,integer,varchar,varchar,uuid,jsonb),
+ public.learning_question_publish_internal(uuid,uuid,uuid,integer,varchar,uuid,boolean)
+ FROM PUBLIC,asalab_app;
+REVOKE ALL ON FUNCTION
+ public.learning_content_author_read(uuid,uuid,varchar,uuid,uuid),
+ public.learning_content_author_write(uuid,uuid,varchar,varchar,uuid,integer,varchar,jsonb,uuid)
+ FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION
+ public.learning_content_author_read(uuid,uuid,varchar,uuid,uuid),
+ public.learning_content_author_write(uuid,uuid,varchar,varchar,uuid,integer,varchar,jsonb,uuid)
+ TO asalab_app;

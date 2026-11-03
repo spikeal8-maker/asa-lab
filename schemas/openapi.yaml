@@ -199,6 +199,25 @@ paths:
         '403': { description: Author capability unavailable }
         '404': { description: Content not owned or unavailable }
         '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quizzes/{rootId}/versions/{versionId}:
+    get:
+      operationId: readExactAuthoredQuizVersion
+      summary: Read an owned immutable QuizVersion bound to this exact Quiz root
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: versionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          { description: Exact owned immutable Quiz content, with key-free question definitions }
+        '400': { description: Invalid root or version identifier }
+        '401': { description: No Account session }
+        '404': { description: Unavailable root, version or mismatched binding }
   /api/learning/quizzes/versions/{versionId}:
     get:
       operationId: readVersionCanonicalQuizContent
