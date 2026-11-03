@@ -47,7 +47,7 @@ production Docker/browser/data evidence выполняются в GitHub Actions
 pnpm agent:preflight --check
 ```
 
-Для известного направления или локальной правки сразу сузь контекст:
+Для известного направления или локальной правки выбери одну подходящую команду:
 
 ```bash
 pnpm agent:preflight --scope <lane> --check
@@ -55,6 +55,17 @@ pnpm agent:preflight --path <repo-path> --check
 pnpm agent:preflight --surface <SURF-ID> --check
 pnpm agent:preflight --control <CTRL-ID> --check
 ```
+
+Если план файлов уже известен, передай каждый точный repository-relative путь
+отдельным `--planned-path` в той же команде:
+
+```bash
+pnpm agent:preflight --scope <lane> --check --planned-path <file-a> --planned-path <file-b>
+```
+
+Это сужает проверку пересечений до полного плана изменения. Реальные пересечения,
+неизвестное состояние чужого worktree, recovery и blockers по-прежнему запрещают
+запись. При изменении плана проверь его до записи новых путей.
 
 Preflight безопасно обновляет только remote-tracking `origin/main`, затем одним
 пакетом показывает branch/HEAD/divergence, dirty paths, blockers, gates,
@@ -67,7 +78,14 @@ execution state.
 писать пока нельзя: результат точно различает `RECOVERY_REQUIRED`,
 `WAITING_HANDOFF`, execution blocker, неактуальный Git snapshot или повреждение
 control plane. Сначала выполни указанное `SAFE_ACTION`; не повторяй прерванную
-команду автоматически.
+команду автоматически. Другой ненулевой exit code также не разрешает запись.
+
+Перед публикацией используй отдельный `--verify-plan --diff-base <known-ancestor>`
+с полным тем же списком `--planned-path`, как описано в
+[`AGENT_CHANGE_WORKFLOW.md` §3](docs/delivery/AGENT_CHANGE_WORKFLOW.md).
+`--check` и `--verify-plan` взаимоисключающие. Результат `PLAN_VALID` проверяет
+только scope diff: он не разрешает новые edits, не очищает recovery и не отменяет
+`WAITING_HANDOFF` или другие blockers.
 
 Низкоуровневые `pnpm agent:context` и `pnpm agent:recover` остаются для
 диагностики и повторного запроса, но больше не являются обязательной цепочкой
@@ -102,18 +120,18 @@ plane. Стандартный preflight уже запускает эту про�
 
 ## 4. Проверь Git
 
-Команды ниже относятся к выбранной работе в `main`. Для существующей feature-ветки
-оставайся в её checkout, получи `origin/main` и удалённую task branch через fetch,
-проверь divergence и пересечения; не переключайся в `main` автоматически.
+Preflight уже обновил `origin/main` и показал branch/HEAD/divergence и dirty paths.
+Используй этот snapshot; повторное чтение нужно при изменении состояния или для
+диагностики. Для выбранной работы в `main` обнови саму рабочую ветку fast-forward:
 
 ```bash
-git remote -v
-git status --short --branch
-git fetch origin refs/heads/main:refs/remotes/origin/main
 git switch main
 git pull --ff-only origin main
-git rev-parse HEAD
 ```
+
+Для существующей feature-ветки оставайся в её checkout, получи её удалённый ref
+через fetch и проверь divergence и пересечения; не переключайся в `main`
+автоматически. После изменения Git-состояния восстанови актуальный snapshot.
 
 Не удалять untracked backups, credentials и owner screenshots. Не использовать
 force-push, reset --hard, rebase опубликованной истории или tag без отдельного
@@ -128,21 +146,22 @@ force-push, reset --hard, rebase опубликованной истории и�
 
 ## 5. Проверь параллельную работу
 
-Проверь `git status`, существующие worktree и затрагиваемые файлы. Не удаляй и
-не перезаписывай чужие незавершённые изменения. Lane и `owned_paths` можно
-использовать как подсказки о расположении модулей, но не как запрет записи.
+Проверь из результата preflight рабочее дерево, существующие worktree и
+пересечения с точным планом файлов. Не удаляй и не перезаписывай чужие
+незавершённые изменения. Lane и `owned_paths` можно использовать как подсказки
+о расположении модулей, но не как запрет записи.
 
 ## 6. Чтение по задаче
 
 ```text
 AGENTS.md
-→ pnpm agent:context --scope <lane>
-→ документы и точные разделы из вывода
+→ scoped context из уже выполненного preflight
+→ документы и точные разделы из его вывода
 → GitHub Issue только если нужен полный scope
 ```
 
-Для локальных изменений Account/Auth/Profile/StudentSeat сначала используй самый узкий
-`agent:context --path/--surface/--control`. Он автоматически подаёт компактный
+Для локальных изменений Account/Auth/Profile/StudentSeat выбери preflight с одним
+узким selector `--path`, `--surface` или `--control` и `--check`. Его context подаёт компактный
 `docs/agent/contracts/identity.yaml`; полный `ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md` читается
 только по указанным escalation-разделам. P/U/R обозначения — сценарии, способы входа и
 scoped обязанности, а не глобальные типы аккаунта. Личный Account не требует школы, а
@@ -166,7 +185,7 @@ Review определяется семантикой выбранного изм
 ### Visual Programming / Scratch
 
 Открой [Scratch router](docs/product/visual-programming/README.md), затем точную
-task card из `pnpm agent:context --scope visual-programming`. Card ведёт прямо к
+task card из context уже выполненного preflight для visual-programming. Card ведёт прямо к
 одному component entry, нужной секции D0 и source/tests. Master, ADR, roadmap,
 AGENT_GUIDE и остальные cards читаются только для конкретного нерешённого вопроса.
 
