@@ -1582,10 +1582,20 @@ export function WorkbenchStage({
         <button type="button" onClick={c.fitScene} aria-label="Подогнать проект">
           <FitIcon />
         </button>
-        <button type="button" onClick={() => c.zoomBy(1.18)} aria-label="Увеличить масштаб">
+        <button
+          className="workbench-stage-zoom-step"
+          type="button"
+          onClick={() => c.zoomBy(1.18)}
+          aria-label="Увеличить масштаб"
+        >
           <ZoomInIcon />
         </button>
-        <button type="button" onClick={() => c.zoomBy(0.85)} aria-label="Уменьшить масштаб">
+        <button
+          className="workbench-stage-zoom-step"
+          type="button"
+          onClick={() => c.zoomBy(0.85)}
+          aria-label="Уменьшить масштаб"
+        >
           <ZoomOutIcon />
         </button>
         <span aria-label={`Масштаб ${Math.round(c.viewport.zoom * 100)} процентов`}>

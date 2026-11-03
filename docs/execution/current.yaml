@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_d_collect_picker_pilot_and_addressed_ci_selected
+      checkpoint: package_g_early_stale_candidate
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,21 +111,28 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: dfee5badd299d318a8e51ff0cbf88e9656333a5d
+      convergence_baseline_sha: 38a570ae95013e368bb27ac42aba7472f6b0fa5c
       head_sha: null
-      observed_at: '2026-11-02T16:25:09Z'
+      observed_at: '2026-11-03T09:58:25Z'
       main:
         branch: main
-        sha: dfee5badd299d318a8e51ff0cbf88e9656333a5d
+        sha: 38a570ae95013e368bb27ac42aba7472f6b0fa5c
       observation_note: >-
-        Dated C integration: PR 912 merged as 413590622e6c8638e06eb629b8bd8dd87558bcc2 after independent review
-        approved source 879184a5c68c165532153d546139b7050dc6b93d and General 41350335177 succeeded in all four jobs.
-        The real package.json handoff was resolved by its author; foreign checkouts and D13 WIP were untouched.
-        Select D: finish the bounded CollectPicker pilot with concrete registered browser spec, then implement
-        addressed CI alongside existing gates and compare old/new verification on the same source SHA. C is not reopened.
-        Product UI improvements require separate agreement and remain outside the main DevEx PR. Reuse PR 916 for Ubuntu
-        browser compatibility; do not duplicate it. Known contracts lint baseline repair is already accepted on main. Fetch main before writes. Canonical SHADOW risk and mandatory CI obligations
-        remain intact. No demonstrated UI speed gain, deployment or owner acceptance is claimed.
+        Prior E974/F975/G978 remain accepted. F invocation snapshot source2bb0cffa PR979 passed75focused
+        tests with2existingWindowsSkips and independent critical review. Controlled same-final-SHA validation
+        13.267s to0.150s preserved all116contexts byte-for-byte; actual totalpreflight17.509s has a different
+        historicalbaseline and is not a controlled end-to-end claim. Full General41615102443 remains pending;
+        no integration or release claimed. F author stopped. Select only independent G-EARLY-STALE-CANDIDATE-001:
+        .github/workflows/portable-release.yml and tools/deployment/test_contracts.py. Reject stale candidates
+        in existing gate before build using actual origin/main identity; retain final pre-stable STALE_RELEASE,
+        queue max and PR969 actual publish-job proof. Missing/malformed remote or incomplete General must
+        fail closed. Workflow overall success with publish skipped remains no publication evidence.
+        D still waits for confirmed owner release of dirty tools/test_ci_image_transport.py in old D13.
+        No foreign WIP, whole-file copy, ownership transfer, additional message or guard edit authorized.
+        E General task replay depends on the versioned D contract: do not override pinned uncached evidence
+        or add ineffective prewarming. Actual root/linked-agent token counters are available for scoped metrics.
+        Fetch main before writes and recover exact Git/CI. Preserve full Main/release/RLS/auth/migration gates.
+        No production, database, local Docker, host networking, release or owner acceptance action authorized.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -137,10 +144,70 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: D
+      selected_slice: G
+      selected_subslice: G-EARLY-STALE-CANDIDATE-001
+      verification_pending_slices:
+        - id: F-PREFLIGHT-INVOCATION-SNAPSHOT-001
+          source_sha: 2bb0cffa25895b993aa823b90866667900c3783e
+          pr: 979
+          independent_review: PASS
+          ci_status: pending_required_ci
+          general_run: 41615102443
+          integration_status: pending_required_ci
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
+      partial_slices:
+        - id: D-PARALLEL-UI-CI
+          source_sha: 6176394ff255e911ccb4e93788b9ea47e7c065ba
+          integrated_sha: 4be7dca052e3b02cfb11bb9ab15e86c565f4d553
+          pr: 945
+          exact_source_general_run: 41510340520
+          independent_review: approved
+          real_ui_pilots:
+            - change_class: L0
+              pr: 948
+              source_sha: 1bb2501bdaca88cc3c8d25daac081de058ced85c
+              scoped_ci_run: 41499682067
+              full_ci_run: 41499681853
+              full_ci_jobs_passed: 4
+            - change_class: L1
+              pr: 956
+              source_sha: f1381233e81fcf738127bbe718781e874663ad0f
+              scoped_ci_run: 41503951850
+              full_ci_run: 41503951810
+              full_ci_jobs_passed: 4
+          source_general_jobs_passed: 5
+        - id: F-MINIMAL-ENTRY-001
+          source_sha: cb023dc6cea4249f43b3893b54f6add543c9652b
+          integrated_sha: 9ce041a292e4bb8463ca368b71aa595eb5ae6df1
+          pr: 975
+          exact_source_general_run: 41589321193
+          independent_review: approved
+        - id: G-RELEASE-QUEUE-001
+          source_sha: 6a6b50cd7eacdd5849a476c66e79781e2e27f464
+          integrated_sha: ec534c8da79fe080358534b6f5cff001c8c90421
+          pr: 978
+          exact_source_general_run: 41590658339
+          independent_review: approved
+        - id: D-ADDRESSED-FOCUSED-ROUTING-001
+          source_sha: f503764c3d7060da3a51331ecf7fc2436df7e1df
+          integrated_sha: 900f2e10b7abf180a26b465ad5e2b9e1a5cc0aee
+          pr: 967
+          exact_source_general_run: 41540467267
+          independent_review: approved
+        - id: G-FULL-RELEASE-EVIDENCE-001
+          source_sha: 82029c5745a9b8d47f9a49302c61275056e2f491
+          integrated_sha: 50b1dc159e654823de3e319f3c0f9528971e10ef
+          pr: 969
+          exact_source_general_run: 41565687242
+          independent_review: approved
+        - id: E-WEB-CACHE-001
+          source_sha: aaf00ad5bc6c09d5906208e4dbd5914eab429589
+          integrated_sha: 9caddfbeff635507f9b10deaf9ea5bb08da9d22c
+          pr: 974
+          exact_source_general_run: 41596023473
+          independent_review: approved
       completed_slices:
         - id: PREFLIGHT
           source_sha: bbf6bb3223e1cbb9d4196741787b26e09eae7e34
@@ -7557,30 +7624,35 @@ parallel_lanes:
       - docs/product/games-platform/**
       - docs/product/ASA_CHECKERS_ONLINE_PLAY.md
     task:
-      id: TASK-CHESS-NETWORK-001
-      issue: 67
+      id: TASK-CHECKERS-NETWORK-001
+      issue: 250
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_selected_casual_network_teacher_scope_vertical
+      checkpoint: owner_selected_checkers_chess_parity_vertical
       owner_acceptance: pending
       context_hints:
-        - docs/product/games-platform/CHESS_NETWORK_DELIVERY.md
+        - docs/product/games-platform/R1_DELIVERY_BRIEF.md
       repair_scope: >-
-        One casual Chess network vertical: platform-owned game identities and matches,
-        teacher game access plus separate network off/classroom/school/platform policy,
-        bilateral current authorization, private invitations, authoritative play,
-        reconnect and durable finish/history, real two-user PostgreSQL/Chromium CI.
+        Owner explicitly requested Checkers parity with the completed Chess vertical:
+        compact ASA home/board and direct bot/local/network entry; real Russian-64
+        network matches, shared verified game identities and current teacher game/network
+        class/school/platform restrictions including linked personal Accounts; scoped
+        online players with avatars, directed invitations and per-game portal badges,
+        one-shot notification audio, authoritative rules/clocks, reconnect and durable
+        terminal history. Preserve existing lessons, assignments and local/bot play.
+        This owner-selected scope supersedes the old R1 private-invite-only UI limit.
       next_action: >-
-        Author one bounded candidate under CHESS_NETWORK_DELIVERY; focused/data/browser
-        gates and NEW independent L3 review before integration. Preserve offline
-        admission, old Chess Live compatibility, calibration candidate and foreign lanes.
+        Deliver one bounded Checkers parity candidate, reuse existing Games identity,
+        network policy and notification safety mechanisms, add focused real two-user
+        PostgreSQL/Chromium evidence and NEW independent L3 exact-SHA review. Follow
+        normal checked publication to main; no installation or live database actions.
       exclusions:
-        - Rated matchmaking, social directory, Checkers migration, unrelated cleanup.
-        - Existing tenant/RLS/Auth weakening or synthetic Games tenant.
-        - Local Docker or live database, deployment, backup or host network operations.
+        - Rated play, matchmaking queues, new infrastructure and unrelated cleanup.
+        - Tenant/RLS/Auth weakening or synthetic Games tenant.
+        - Local Docker, working database, deployment, backup or host network changes.
     revisions:
       kind: observed_snapshot
       convergence_baseline_sha: 32ae3ad3948b1dd098ac517cb7bb692cec7d98f7
@@ -16127,8 +16199,8 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001.md
-    task:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-PRODUCTION-CPU-001.md
+    previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
       branch: main
@@ -16150,11 +16222,42 @@ parallel_lanes:
       analysis_result: 16complete_states_equal_saved_originals_and_complete_response_repeats_equal_except_computeMs_owned_and_prepared_paths_active
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
+    task:
+      id: TASK-ELECTRONICS-PRODUCTION-CPU-001
+      issue: 539
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: analysis/inventory
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: production_worker_native_cpu_attribution_selected
+      owner_acceptance: pending
+      owner_authorization: Owner explicitly resumes remaining plan and20 timing speed delay failures; one bounded native production Worker CPU profile after two negative repair experiments; no product edits or timing acceptance. No yield replacement, clock change, cap increase, server or foreign changes.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-PRODUCTION-CPU-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+      previous_experiment:
+        task_id: TASK-ELECTRONICS-INTERPRETER-HOT-LOOP-001
+        status: completed_negative_no_product_activation
+        candidate_sha: 5943e737dc6338f6beb9311c5c87122ce1bd28da
+        independent_review: APPROVE_negative_evidence_only
+        result: Full320responses_equal_but_no_speed_gain_2145.70ms_before_2178.20ms_after_zero_timing_failures_closed
+        report: docs/product/electronics/evidence/interpreter-arity-20261103/REPORT.md
+      queue_copy_experiment:
+        task_id: TASK-ELECTRONICS-EVENT-QUEUE-COPY-001
+        status: completed_negative_no_product_activation
+        candidate_sha: 00ddd883a5f8f92996c7b786067d051231b124a4
+        independent_review: APPROVE_negative_evidence_only
+        result: Full320responses_equal_but_no_consistent_gain_median13.45ms_before_14.90ms_after_zero_timing_failures_closed
+        report: docs/product/electronics/evidence/event-queue-copy-20261103/REPORT.md
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Electronics R4-M1 Focused
         commands:
-          - pnpm validate:electronics-agent-docs
+          - pnpm gate:electronics-m1
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
@@ -16180,17 +16283,22 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: owner_selected_four_native_toolbar_hit_failures
+      checkpoint: source_f641_four_native_journeys_and_general_verified_in_main
+      accepted_candidate_sha: f64141870b52458ad19b82b51582c47cb14460ea
+      independent_review: APPROVE_final_source_and_four_selected_actual_journeys
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
+      browser_run: 41525333022
+      general_run: 41527917133
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-COMPACT-CONTROLS-001.md
       repair_scope: CSS-only desktop toolbar packing and strengthened existing native oracle; preserve all original four Code journeys and all mobile/emergency-caption behavior.
       owner_authorization: Repair remaining Electronics failures easiest first; no server or foreign changes. Desktop-only authorship starts after this selection is published; inherit independently reviewed8080 caption source while its separate General finishes, without concurrent edits to the mobile caption.
-      next_action: One bounded author preserves accepted main, reproduces original1374/1181 clock/tool overlap in actual Header, fixes desktop packing, verifies native controls and original four Code journeys; new independent review and exact CI before integration.
+      next_action: The original four desktop/blocks Code journeys pass with87 selected compact phases, complete captions, native hit ownership and whole intent receipts. Mobile emergency E01 also passes. Broader fifth text-mobile qualification remains in Task870; owner acceptance and deployment are separate.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
@@ -16268,17 +16376,22 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: medium
       semantic_change: 'yes'
-      checkpoint: independent_mobile_ui_candidate_selected_while944_ci_pending
+      checkpoint: source_b77_general_and_three_native_journeys_verified_in_main
+      accepted_candidate_sha: b77a43e0d473cef72bf182b0700f19867f6dbdaa
+      independent_review: APPROVE_final_source_recipe_and_actual_three
+      report: docs/product/electronics/evidence/mobile-properties-952-20261103/REPORT.md
+      browser_run: 41539218485
+      general_run: 41542126607
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-PROPERTIES-001.md
       scope: Phone component properties collapsed square by default, compact expandable inspector, original property editing and native pinch preserved; hide phone zoom buttons. Desktop remains expanded. No physics or deployment changes.
       owner_authorization: Owner explicitly requests restoring phone component properties, compact collapse/expand, desktop immediate display and removal of phone zoom controls on2026-11-02.
-      next_action: New bounded executor may prepare isolated candidate while944/870 frozen CI runs; publish only after944 integration and fresh source/native review. No mutation of frozen candidate.
+      next_action: Exact sourceb77a43e0 General41542126607 passes all four jobs; native three-case41539218485 and independent review pass complete phone390, phone568 and desktop1536 journeys, Save/server-only reopen, touch scaling and metadata preservation. Controller integrates the seven bounded source files without regressing the newer pin-settings journey in main. Physical OS-keyboard and settled partial-code interaction remain evidence limits; owner acceptance and deployment are separate.
       integration_order: Source preparation only in independent worktree; main integration follows verified944 pin initialization.
     gates:
       focused:
@@ -16318,17 +16431,22 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: source2b2ff317_independent_review_pass_full_browser_acceptance_selected
+      checkpoint: source_f641_general_and_seven_browser_verified_in_main
+      accepted_candidate_sha: f64141870b52458ad19b82b51582c47cb14460ea
+      independent_review: APPROVE_final_source_and_actual_seven
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
+      browser_run: 41525333022
+      general_run: 41527917133
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PIN-SETUP-001.md
       scope: Generated explicit pinMode in setup, simplified computed commands and legacy preservation. Owner explicitly chooses all canonical GPIO as OUTPUT except button/sensor input ports; no whole-program range analysis. Owner also approves a persisted per-board input-port list in Arduino settings for computed input numbers.
       owner_authorization: Owner urgently requests computed pin initialization repair for public project7ad29bb5 on2026-11-02, then explicitly instructs configuring all ports as outputs except ports assigned as inputs for buttons. Owner subsequently approves an explicit input-port list in Arduino settings. No server or foreign changes.
-      next_action: Source2b2ff317 independently approved with102tests and author105tests. New bounded test author adds actual desktop/mobile owner-project settings and Save-reopen journey; keep reviewed production source unchanged. Canonical CI and actual browser evidence remain required.
+      next_action: Verified source is integrated by the controller with original five scoped journeys and both owner settings journeys green. Owner acceptance and deployment remain separate; default-height mobile Reset and broader raw/empty/corrupt Task865 preservation are still open.
     gates:
       focused:
         workflow: Electronics M1 Focused Gate
@@ -16431,15 +16549,15 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: low
       semantic_change: 'no'
-      checkpoint: selected_fixed_menu_actual_intersection_oracle_repair
-      accepted_candidate_sha: a85c5a2a68db9fe83755e2b0168aa7fadde69f74
+      checkpoint: all_96_current_compact_phases_verified_in_main
+      accepted_candidate_sha: 31f1b7b41f8fe62290cb9eec33e63d236d14a920
       source_review_evidence: done
-      independent_review: APPROVE_initial_header_only_not_full_journeys
-      report: docs/product/electronics/evidence/toolbar-oracle-870/GATES.md
+      independent_review: APPROVE_source_and_combined_87_plus_9_actual_phases
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
       owner_acceptance: pending
       execution_role: bounded_test_executor_then_new_independent_review
       context_hints:
@@ -16447,9 +16565,9 @@ parallel_lanes:
       owner_authorization: Owner continues remainingprogramme simplest first; actual frozenCI proves first four header assertions stale after accepted text tool and one-row policy. Test-only alignment, no product or generic paused timedAPI repair.
       acceptance_boundary: Actual_clipping_measurement_only_all_original_95_phases_and_five_native_points_retained
       current_repair_scope: Correct only the compact-case clipping collector/assertion to browser-computed actual intersections; preserve ancestor diagnostics, all bounds tolerances and genuine clipping/ownership tests. No product edits.
-      current_failure: Scoped41365631046 text-desktop-compact981-native-open falsely compares viewport-fixed purple bottom162 against uninvolved scroll-group bottom95 while all5nativepoints are owned.
-      current_evidence: Independent actual raw_PNG_and5_serverless_adversarial_cases_CONFIRM_ORACLE_FALSE_POSITIVE; both_fixed_menu_and_overflow_preexist_c353.
-      current_next_action: New bounded test-only executor preserves95originalphases/intents; one batched observer per capture, adversarial clipping and occlusion coverage, canonical browser-digest-only generation; new exact-source and actual review; STOP.
+      current_failure: No remaining compact-control qualification failure is demonstrated.
+      current_evidence: Run41525333022 independently approves87 compact phases and run41537679267 on identical relevant main31 source independently approves remaining9 text-mobile phases, 72 control observations and360 owned native points. Together96 cover historical95 plus981-native-closed; single attempts, retry0, unchanged whole intent receipts. This is viewport qualification, not phone-hardware or elapsed-clock proof.
+      current_next_action: Source and all preserved original compact cases are technically qualified. Owner acceptance, deployment and the separate runtime timing programme remain open; no further oracle mutation is selected.
       deployment: prohibited_by_owner
       database_actions: none_live
     gates:

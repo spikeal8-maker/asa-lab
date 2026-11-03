@@ -87,6 +87,36 @@ def history_error(reason):
     return RuntimeError(f"Diagnostic history/index inconsistency: {reason}; private payloads were preserved; restore a consistent diagnostic snapshot")
 
 
+def verify_successor_retirements(retired, metadata, ledger, key):
+    """Verify typed operator authority in core code; no incident-tool dependency at startup."""
+    try:
+        canonical = lambda value: json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
+        bindings = {}
+        for batch_id, batch in ledger.items():
+            if batch.get('kind') != 'verified-successor-v1' or not isinstance(batch.get('fileBindings'), dict) or len(batch['fileBindings']) > 32:
+                raise ValueError('invalid successor ledger')
+            proof = batch.get('ledgerProof')
+            value = {k:v for k,v in batch.items() if k != 'ledgerProof'}
+            if batch.get('metadataSha256') != batch_id or not isinstance(proof, str) or not hmac.compare_digest(proof, hmac.new(key, b'asa-retired-successor-ledger-v1\0'+canonical(value), hashlib.sha256).hexdigest()):
+                raise ValueError('invalid successor ledger proof')
+            for name, digest in batch['fileBindings'].items():
+                if name in retired:
+                    if name in bindings and bindings[name] != digest: raise ValueError('conflicting successor bindings')
+                    bindings[name] = digest
+        for name in retired:
+            meta = metadata.get(name, {})
+            if name not in bindings and 'retirementAuthority' not in meta and 'retirementAuthorityProof' not in meta: continue
+            if name not in bindings: raise ValueError('missing successor ledger binding')
+            if name in bindings and hashlib.sha256(canonical(meta)).hexdigest() != bindings[name]: raise ValueError('binding differs')
+            if meta.get('retirementAuthority', {}).get('kind') != 'verified-successor-v1': raise ValueError('wrong authority')
+            value = {k:v for k,v in meta.items() if k != 'retirementAuthorityProof'}
+            proof = meta.get('retirementAuthorityProof')
+            if not isinstance(proof, str) or not hmac.compare_digest(proof, hmac.new(key, b'asa-retired-successor-v1\0'+canonical(value), hashlib.sha256).hexdigest()):
+                raise ValueError('wrong authority proof')
+    except (ValueError, TypeError, KeyError, AttributeError):
+        raise history_error('retired successor authority is invalid') from None
+
+
 def immutable_segment_bytes(path, data):
     """Link a complete, flushed file into its final name without replacement."""
     from deployment.paths import plain_paths
@@ -1255,6 +1285,10 @@ class Collector:
             with opener(file, 'rb') as stream: raw = stream.read(4*1024*1024+1)
             if len(raw) != meta.get('rawBytes') or hashlib.sha256(raw).hexdigest() != meta.get('sha256'):
                 raise ValueError('affected immutable segment checksum differs')
+            if meta.get('retirementAuthority', {}).get('kind') == 'verified-successor-v1':
+                with file.open('rb') as stream: data = stream.read(8*1024*1024+1)
+                if len(data) != meta.get('bytes') or len(data) > 8*1024*1024 or hashlib.sha256(data).hexdigest() != meta['retirementAuthority']['predecessorCompressedSha256']:
+                    raise ValueError('affected successor-authorized file bytes differ')
             if mapping:
                 first,last = map(int, file.name.split('.')[0].split('-')[1:])
                 rows = self.db.execute('SELECT id FROM events WHERE seq BETWEEN ? AND ? ORDER BY seq', (first,last)).fetchall()
@@ -1336,7 +1370,11 @@ class Collector:
             raw = gzip.decompress(data) if meta["file"].endswith(".gz") else data
             if len(raw) != meta["rawBytes"] or hashlib.sha256(raw).hexdigest() != meta["sha256"]:
                 raise RuntimeError("Compaction original failed verification; originals preserved")
-            events.extend(json.loads(line) for line in raw.splitlines())
+            original_events = [json.loads(line) for line in raw.splitlines()]
+            if len(original_events) != meta['count']:
+                raise RuntimeError("Compaction original count differs; originals preserved")
+            self.verify_affected_segment(meta)
+            events.extend(original_events)
         if len(events) != intent["count"] or len({e["id"] for e in events}) != len(events):
             raise RuntimeError("Compaction identities failed verification; originals preserved")
         for event in events:
@@ -1350,6 +1388,17 @@ class Collector:
         finally: self.reader_format = old_format
         segments = self.state("segments", {})
         retired = self.state("retired:segments", {})
+        # Original mapping is still present and verified here. Persist its exact
+        # metadata in the SAME transaction as retirement/remapping, before the
+        # durable intent is removed. Newly written originals need not have been
+        # in the previous catalog or the process-local verification cache.
+        retired_metadata = self.state('retired:metadata', {})
+        for original in intent['originals']:
+            prior = retired_metadata.get(original['file'])
+            if prior is not None and prior != original:
+                raise history_error('compaction original retirement metadata differs')
+            retired_metadata[original['file']] = dict(original)
+        self.set_state('retired:metadata', retired_metadata)
         for offset, event in enumerate(events):
             self.db.execute("UPDATE events SET seq=? WHERE id=?", (intent["first"]+offset, bytes.fromhex(event["id"])))
         for original in intent["originals"]:
@@ -1463,6 +1512,8 @@ class Collector:
         self.db.commit()
         retired = self.state("retired:segments", {})
         retired_metadata = self.state('retired:metadata', {})
+        successor_ledger = self.state('retired:successor-recovery:v1', {})
+        verify_successor_retirements(retired, retired_metadata, successor_ledger, self.verification_key)
         # Resolve every existing legacy retirement before any cleanup or fresh
         # publication. Unverifiable debt must not disappear behind active quota.
         for name in retired:
@@ -1556,6 +1607,9 @@ class Collector:
                 retired.setdefault(segment["file"], None)
             else: canonical.append(segment)
         canonical, retired = self.compact(canonical, retired)
+        # finish_compaction committed original metadata; do not overwrite that
+        # durable addition with publish()'s earlier pre-compaction local snapshot.
+        retired_metadata.update({name:meta for name,meta in self.state('retired:metadata', {}).items() if name in retired})
         segments = []
         for meta in canonical:
             if meta["last"] < cutoff:

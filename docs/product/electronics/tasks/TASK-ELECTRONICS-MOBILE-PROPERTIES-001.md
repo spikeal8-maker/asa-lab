@@ -47,6 +47,14 @@ component artwork, SVG owner assets, solver, interpreter, schema, dependencies,
 workflow, server, deployment or unrelated refactor. Source may not modify the
 frozen944/870 candidate or another worktree's WIP. Root owns execution metadata.
 
+The bounded CSS packaging repair may move only this task's new 92-line suffix
+from workbench.css into workbench-mobile-properties.css and import it immediately
+after workbench.css in apps/web/src/pages/SchematicEditor.tsx. Preserve the old
+stylesheet prefix and the extracted rules byte-for-byte and retain their cascade
+order. Add the new file to the UI subsystem source mapping. Do not raise the
+hygiene threshold, renew its baseline, or clean up existing styles. This addresses
+the task-caused General Code gate failure; native browser proof remains required.
+
 Use focused rendering/controller tests first. Then actual phone Chromium touch
 at390x844 and568x320 plus desktop1536x864: default collapse, native expansion and
 collapse, complete captions/control bounds and internal scroll owner, actual

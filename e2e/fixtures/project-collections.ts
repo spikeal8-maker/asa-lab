@@ -2,6 +2,8 @@ import { test as base, expect, type Page, type TestInfo } from '@playwright/test
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { telemetryReceipt } from './telemetry-receipts';
+import type { api, Project } from '../../apps/web/src/api';
+import type { PublicProjectList } from '../../apps/web/src/projects-public/api';
 
 // This fixture runs the actual built SPA with controlled REST, without a
 // listening server. It does not provide authorization, RLS or persistence evidence.
@@ -13,6 +15,12 @@ const origin = 'http://127.0.0.1:4612';
 const accountId = '20000000-0000-4000-8000-000000000001';
 const workspaceId = '10000000-0000-4000-8000-000000000001';
 const timestamp = '2026-10-30T12:00:00.000Z';
+
+type HomeProjectList = Extract<Awaited<ReturnType<typeof api.listProjects>>, { ok: true }>['data'];
+type HomeKnowledgeList = Extract<
+  Awaited<ReturnType<typeof api.publicKnowledge>>,
+  { ok: true }
+>['data'];
 
 export interface CollectionRecord {
   id: string;
@@ -57,6 +65,7 @@ export async function createProjectCollectionsFixture(page: Page) {
   let collections = COLLECTIONS.map((entry) => ({ ...entry }));
   let holding = new Set<string>();
   let options: ProjectCollectionsOptions = {};
+  let entry: 'projects' | 'home' = 'projects';
   let created = 0;
   const controls = new Map<
     CollectionOperation,
@@ -151,6 +160,11 @@ export async function createProjectCollectionsFixture(page: Page) {
       return reply({ accepted: true }, 202);
     }
     if (method === 'GET') {
+      // The shared portal polls its private game inbox even outside Games.
+      if (path === '/api/games/chess/notifications' && url.search === '') {
+        expect(request.headers()['x-game-presence']).toBe('1');
+        return reply({ playerId: 'collections-game-player', incoming: [] });
+      }
       if (path === '/api/auth/me')
         return reply({
           authenticated: true,
@@ -183,7 +197,50 @@ export async function createProjectCollectionsFixture(page: Page) {
             },
           ],
         });
-      if (path === '/api/projects')
+      if (entry === 'home' && path === '/api/projects') {
+        const module = url.searchParams.get('module');
+        if (
+          (module === 'three-d' || module === 'electronics' || module === 'blocks') &&
+          url.search ===
+            `?${new URLSearchParams({ scope: 'personal', module, limit: '10', excludeGames: 'true' })}`
+        ) {
+          const project: Project = {
+            id: PROJECT_ID,
+            scope: 'personal',
+            classroomId: null,
+            moduleKey: 'electronics',
+            title: options.longContent ? LONG_PROJECT_TITLE : PROJECT_TITLE,
+            status: 'active',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            preview: null,
+            snapshotRevision: null,
+            copiedFrom: null,
+          };
+          const response: HomeProjectList = {
+            items: module === 'electronics' && !options.emptyProjects ? [project] : [],
+            nextCursor: null,
+          };
+          return reply(response);
+        }
+      }
+      if (
+        entry === 'home' &&
+        path === '/api/public-projects' &&
+        url.search === '?offset=0&limit=24&catalog=projects'
+      ) {
+        const response: PublicProjectList = { items: [], nextOffset: null };
+        return reply(response);
+      }
+      if (
+        entry === 'home' &&
+        path === '/api/gallery/knowledge' &&
+        url.search === '?offset=0&limit=10'
+      ) {
+        const response: HomeKnowledgeList = { items: [], nextOffset: null };
+        return reply(response);
+      }
+      if (path === '/api/projects' && entry === 'projects')
         return reply({
           items: options.emptyProjects
             ? []
@@ -264,12 +321,23 @@ export async function createProjectCollectionsFixture(page: Page) {
       return control.requested;
     },
     async openProjects(next: ProjectCollectionsOptions = {}) {
+      entry = 'projects';
       options = next;
       collections = (next.collections ?? COLLECTIONS).map((entry) => ({ ...entry }));
       holding = new Set(next.holding ?? []);
       await page.goto('/#/projects');
       await expect(page.getByRole('heading', { name: 'Мои проекты', exact: true })).toBeVisible();
       if (!next.emptyProjects) await expect(page.getByTestId('project-card')).toHaveCount(1);
+    },
+    async openHome(next: ProjectCollectionsOptions = {}) {
+      entry = 'home';
+      options = next;
+      collections = (next.collections ?? COLLECTIONS).map((item) => ({ ...item }));
+      holding = new Set(next.holding ?? []);
+      await page.goto('/#/home');
+      await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
+      await expect(page.getByTestId('creator-recent-projects')).toBeVisible();
+      await expect(page.getByTestId('project-card')).toHaveCount(next.emptyProjects ? 0 : 1);
     },
     async openPicker() {
       await page.getByTestId('project-card').hover();

@@ -1,393 +1,160 @@
 .asa-chess-home-shell {
   min-width: 0;
+  max-width: 1200px;
+  padding: 16px 24px 28px;
+  margin: auto;
   color: #0b3558;
-  background: #f3f7fa;
 }
 .asa-chess-home-shell *,
 .asa-chess-home-shell *::before,
 .asa-chess-home-shell *::after {
   box-sizing: border-box;
 }
-.asa-chess-home-body {
-  min-width: 0;
-}
-.asa-chess-home-sidebar {
-  padding: 0 clamp(16px, 3vw, 36px);
-  border-bottom: 1px solid #d9e5ec;
-  background: #fff;
-}
-.asa-chess-home-brand,
-.asa-chess-home-sidebar-footer {
-  display: none;
-}
-.asa-chess-home-sidebar nav {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  padding-block: 8px;
-}
-.asa-chess-home-sidebar button {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 7px;
-  border: 0;
-  border-radius: 8px;
-  padding: 10px 13px;
-  min-height: 44px;
-  color: #486579;
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-}
-.asa-chess-home-sidebar button small {
-  display: none;
-}
-.asa-chess-home-sidebar button.is-selected {
-  color: #087fa4;
-  background: #e6f5fa;
-}
-.asa-chess-home-nav-icon {
-  font-size: 21px;
-  line-height: 1;
-}
-.asa-chess-home-content {
-  max-width: 1320px;
-  padding: 28px clamp(16px, 3vw, 36px) 40px;
-  margin: auto;
-  min-width: 0;
-}
-.asa-chess-home-content * {
-  min-width: 0;
-}
-.asa-chess-home-welcome {
+.asa-chess-home-title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 24px;
-}
-.asa-chess-home-welcome > div > span,
-.asa-chess-home-kicker {
-  color: #087fa4;
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-.asa-chess-home-welcome h1 {
-  margin: 6px 0 8px;
-  font-size: clamp(25px, 2.5vw, 36px);
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-}
-.asa-chess-home-welcome p {
-  margin: 0;
-  font-size: 14px;
-  color: #627985;
-  line-height: 1.5;
-}
-.asa-chess-home-rating {
-  display: flex;
-  align-items: center;
   gap: 12px;
-  padding: 12px 18px;
-  background: #fff;
-  border: 1px solid #d9e5ec;
-  border-radius: 12px;
-  flex-shrink: 0;
+  margin-bottom: 14px;
 }
-.asa-chess-home-rating > span {
-  font-size: 30px;
-  color: #087fa4;
-}
-.asa-chess-home-rating div {
-  display: grid;
-  gap: 2px;
-}
-.asa-chess-home-rating small {
-  font-size: 11px;
-  color: #627985;
-}
-.asa-chess-home-rating strong {
+.asa-chess-home-title-row h1 {
+  margin: 0;
   font-size: 24px;
-}
-.asa-chess-home-hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 1fr);
-  gap: 24px;
-  align-items: start;
-}
-.asa-chess-home-card {
-  border: 1px solid #d9e5ec;
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 3px 12px #102a4305;
-}
-.asa-chess-home-card h2 {
-  margin: 6px 0 12px;
-  font-size: 22px;
   line-height: 1.3;
-  overflow-wrap: anywhere;
 }
-.asa-chess-home-card p {
-  color: #627985;
-  line-height: 1.55;
-  font-size: 14px;
-}
-.asa-chess-home-card button:not(.asa-chess-square) {
-  min-height: 44px;
-  border: 1px solid #cbdbe3;
-  border-radius: 9px;
-  background: #fff;
-  padding: 10px 14px;
+.asa-chess-home-title-row button {
+  border: 0;
+  background: transparent;
+  color: #486579;
+  min-height: 36px;
+  padding: 6px;
   font: inherit;
-  font-weight: 650;
-  color: #0b3558;
   cursor: pointer;
 }
-.asa-chess-home-card button:not(.asa-chess-square):hover {
-  border-color: #0a91b6;
-  background: #f0fafc;
+.asa-chess-home-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 1fr);
+  grid-template-areas: 'board modes' 'board tools';
+  grid-template-rows: auto 1fr;
+  gap: 16px 24px;
+  align-items: start;
 }
-.asa-chess-home-card button:not(.asa-chess-square).is-primary {
+.asa-chess-home-board-panel {
+  grid-area: board;
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+.asa-chess-home-board-panel .asa-chess-board {
+  width: 100%;
+  max-width: 580px;
+  margin: auto;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+}
+.asa-chess-home-modes {
+  grid-area: modes;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.asa-chess-home-start {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 14px 16px;
+  border: 1px solid #087fa4;
+  border-radius: 10px;
   background: #087fa4;
-  border-color: #087fa4;
   color: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
-.asa-chess-home-card button:not(.asa-chess-square).is-primary:hover {
+.asa-chess-home-start:hover {
   background: #066d8d;
+}
+.asa-chess-home-start > span:first-child {
+  font-size: 30px;
+}
+.asa-chess-home-start > span:last-child {
+  display: grid;
+  gap: 4px;
+}
+.asa-chess-home-start strong {
+  font-size: 16px;
+  line-height: 1.3;
+}
+.asa-chess-home-start small {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  opacity: 0.9;
+}
+.asa-chess-home-start.is-secondary {
+  background: #fff;
+  color: #0b3558;
+  border-color: #cbdbe3;
+}
+.asa-chess-home-start.is-secondary:hover {
+  background: #e6f5fa;
+}
+.asa-chess-home-access-note {
+  margin: 0;
+  font-size: 12px;
+  color: #627985;
+}
+.asa-chess-home-resume {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #cbdbe3;
+  border-radius: 8px;
+  background: #fff;
+  color: #0b3558;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.asa-chess-home-tools {
+  grid-area: tools;
+  display: grid;
+  align-content: start;
+  border-top: 1px solid #d9e5ec;
+  min-width: 0;
+}
+.asa-chess-home-tools button {
+  display: grid;
+  gap: 4px;
+  min-height: 64px;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid #d9e5ec;
+  background: transparent;
+  color: #0b3558;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.asa-chess-home-tools button:hover strong {
+  color: #087fa4;
+}
+.asa-chess-home-tools strong {
+  font-size: 14px;
+}
+.asa-chess-home-tools small {
+  font-size: 12px;
+  color: #627985;
+  line-height: 1.4;
 }
 .asa-chess-home-shell button:focus-visible {
   outline: 3px solid #0a91b6;
   outline-offset: 3px;
-}
-.asa-chess-home-play-card {
-  padding: 18px;
-  display: grid;
-  gap: 16px;
-}
-.asa-chess-home-board-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.asa-chess-home-board-heading h2 {
-  margin: 3px 0 0;
-  font-size: 18px;
-}
-.asa-chess-home-board-heading > span {
-  color: #627985;
-  font-size: 12px;
-  flex-shrink: 0;
-}
-.asa-chess-home-mini-board {
-  max-width: 480px;
-  width: 100%;
-  margin: auto;
-  pointer-events: none;
-}
-.asa-chess-home-mini-board .asa-chess-board {
-  width: 100%;
-  max-width: none;
-  border: 0;
-  border-radius: 6px;
-  box-shadow: none;
-}
-.asa-chess-home-resume {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.asa-chess-home-modes {
-  display: grid;
-  gap: 20px;
-}
-.asa-chess-home-mode-card {
-  padding: 24px;
-}
-.asa-chess-home-mode-card h2 {
-  margin-bottom: 20px;
-  font-size: 26px;
-}
-.asa-chess-home-card .asa-chess-home-mode {
-  display: grid;
-  width: 100%;
-  grid-template-columns: 32px minmax(0, 1fr) 16px;
-  align-items: center;
-  gap: 12px;
-  text-align: left;
-  padding: 16px;
-  margin-top: 12px;
-}
-.asa-chess-home-mode > span:first-child {
-  font-size: 30px;
-}
-.asa-chess-home-mode > span:nth-child(2) {
-  display: grid;
-  gap: 5px;
-}
-.asa-chess-home-mode strong {
-  font-size: 16px;
-}
-.asa-chess-home-mode small {
-  font-size: 12px;
-  font-weight: 400;
-  opacity: 0.85;
-  line-height: 1.45;
-}
-.asa-chess-home-access-note {
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #f3f7fa;
-}
-.asa-chess-home-puzzle-card {
-  display: grid;
-  grid-template-columns: minmax(90px, 0.7fr) minmax(0, 1fr);
-  gap: 18px;
-  padding: 20px;
-  align-items: center;
-}
-.asa-chess-home-puzzle-card h2 {
-  font-size: 18px;
-}
-.asa-chess-home-puzzle-card p {
-  font-size: 12px;
-}
-.asa-chess-home-puzzle-board {
-  pointer-events: none;
-  width: 100%;
-}
-.asa-chess-home-puzzle-board .asa-chess-board {
-  width: 100%;
-  border: 0;
-  box-shadow: none;
-  border-radius: 4px;
-}
-.asa-chess-home-puzzle-board .asa-chess-coordinate {
-  display: none;
-}
-.asa-chess-home-feature-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
-  margin-top: 24px;
-}
-.asa-chess-home-feature {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  align-content: start;
-  gap: 12px;
-  padding: 22px;
-}
-.asa-chess-home-feature-icon {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: #e6f5fa;
-  color: #087fa4;
-  font-size: 24px;
-}
-.asa-chess-home-feature h2 {
-  font-size: 17px;
-  margin: 4px 0 0;
-}
-.asa-chess-home-feature small {
-  color: #627985;
-  font-size: 12px;
-}
-.asa-chess-home-feature > p,
-.asa-chess-home-feature > button,
-.asa-chess-home-feature > .asa-chess-home-progress {
-  grid-column: 1 / -1;
-}
-.asa-chess-home-feature > p {
-  margin: 0;
-}
-.asa-chess-home-progress {
-  height: 8px;
-  background: #e4edf2;
-  border-radius: 8px;
-  overflow: hidden;
-}
-.asa-chess-home-progress span {
-  display: block;
-  height: 100%;
-  background: #0a91b6;
-  border-radius: inherit;
-}
-.asa-chess-home-lower-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-  gap: 20px;
-  margin-top: 20px;
-}
-.asa-chess-home-activity,
-.asa-chess-home-stats {
-  padding: 22px;
-}
-.asa-chess-home-activity > header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 14px;
-}
-.asa-chess-home-activity h2 {
-  font-size: 18px;
-}
-.asa-chess-home-activity ol {
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 8px;
-}
-.asa-chess-home-activity li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px;
-  background: #f3f7fa;
-  border-radius: 6px;
-}
-.asa-chess-home-activity li small {
-  color: #627985;
-}
-.asa-chess-home-empty-activity {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-}
-.asa-chess-home-empty-activity > span {
-  font-size: 36px;
-  color: #087fa4;
-}
-.asa-chess-home-stats dl {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-.asa-chess-home-stats dl div {
-  background: #f3f7fa;
-  border-radius: 8px;
-  padding: 12px 6px;
-  text-align: center;
-}
-.asa-chess-home-stats dt {
-  font-size: 12px;
-  color: #627985;
-}
-.asa-chess-home-stats dd {
-  font-size: 24px;
-  font-weight: 750;
-  margin: 4px 0 0;
-}
-.asa-chess-home-stats p {
-  font-size: 12px;
 }
 .asa-chess-home-loading {
   min-height: 50vh;
@@ -395,82 +162,37 @@
   place-items: center;
   padding: 24px;
 }
-@media (max-width: 1100px) {
-  .asa-chess-home-hero-grid {
+@container asa-chess-page (max-width: 650px) {
+  .asa-chess-home-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'modes' 'board' 'tools';
     gap: 16px;
-    grid-template-columns: minmax(0, 1.1fr) minmax(260px, 1fr);
-  }
-  .asa-chess-home-content {
-    padding: 20px 16px 32px;
-  }
-  .asa-chess-home-mode-card {
-    padding: 18px;
-  }
-  .asa-chess-home-puzzle-card {
-    grid-template-columns: 1fr;
-  }
-  .asa-chess-home-puzzle-board {
-    display: none;
-  }
-  .asa-chess-home-feature-grid {
-    gap: 12px;
-  }
-  .asa-chess-home-feature {
-    padding: 16px;
   }
 }
 @media (max-width: 760px) {
-  .asa-chess-home-content {
-    padding: 20px 12px 28px;
-  }
-  .asa-chess-home-sidebar {
-    padding-inline: 8px;
-  }
-  .asa-chess-home-sidebar button {
-    padding-inline: 10px;
-  }
-  .asa-chess-home-welcome {
-    align-items: flex-start;
-    gap: 10px;
-    margin-bottom: 18px;
-  }
-  .asa-chess-home-rating {
-    padding: 8px;
-  }
-  .asa-chess-home-rating > span,
-  .asa-chess-home-rating small {
-    display: none;
-  }
-  .asa-chess-home-rating strong {
-    font-size: 20px;
-  }
-  .asa-chess-home-hero-grid,
-  .asa-chess-home-feature-grid,
-  .asa-chess-home-lower-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .asa-chess-home-play-card {
+  .asa-chess-home-shell {
     padding: 12px;
   }
-  .asa-chess-home-board-heading {
-    align-items: flex-start;
+  .asa-chess-home-title-row {
+    margin-bottom: 10px;
   }
-  .asa-chess-home-board-heading > span {
-    font-size: 10px;
+  .asa-chess-home-title-row h1 {
+    font-size: 22px;
   }
-  .asa-chess-home-modes {
+  .asa-chess-home-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'modes' 'board' 'tools';
     gap: 16px;
   }
-  .asa-chess-home-puzzle-card {
-    grid-template-columns: minmax(90px, 0.6fr) minmax(0, 1fr);
-    padding: 16px;
-    gap: 12px;
+  .asa-chess-home-start {
+    min-height: 60px;
+    padding: 10px 12px;
+    gap: 10px;
   }
-  .asa-chess-home-puzzle-board {
-    display: block;
+  .asa-chess-home-start strong {
+    font-size: 15px;
   }
-  .asa-chess-home-activity > header {
-    align-items: flex-start;
-    flex-direction: column;
+  .asa-chess-home-start small {
+    font-size: 11px;
   }
 }

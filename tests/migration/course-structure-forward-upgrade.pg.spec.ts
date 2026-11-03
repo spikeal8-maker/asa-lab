@@ -170,9 +170,11 @@ describe('Course Builder structure forward upgrade', () => {
         '0298', // Exact owner-bound generated-image HTML binding.
         '0299', // Selected Polza token budget catalog before publication.
         '0300', // Unreleased durable image queue follows every published canonical migration.
-        '0301', // Written Course responses reuse the canonical academic chain.
-        '0302', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
-        '0303', // Exact Quiz Start and answer state; historical rows remain unchanged.
+        '0301', // Scoped Chess presence and recipient-bound challenges.
+        '0302', // Private portal invitation notifications.
+        '0303', // Written Course responses reuse the canonical academic chain.
+        '0304', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+        '0305', // Exact Quiz Start and answer state; historical rows remain unchanged.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -502,9 +504,11 @@ describe('Course Builder structure forward upgrade', () => {
           '0298', // Exact owner-bound generated-image HTML binding.
           '0299', // Selected Polza token budget catalog before publication.
           '0300', // Unreleased durable image queue follows every published canonical migration.
-          '0301', // Written Course responses reuse the canonical academic chain.
-          '0302', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
-          '0303', // Exact Quiz Start and answer state; historical rows remain unchanged.
+          '0301', // Scoped Chess presence and recipient-bound challenges.
+          '0302', // Private portal invitation notifications.
+          '0303', // Written Course responses reuse the canonical academic chain.
+          '0304', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+          '0305', // Exact Quiz Start and answer state; historical rows remain unchanged.
         ]);
         expect(
           await applyIsolatedTestPlan(
