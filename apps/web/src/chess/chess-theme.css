@@ -325,3 +325,63 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.asa-chess-setup-page {
+  min-height: calc(100dvh - var(--portal-header-height, 56px));
+  background: #f3f7fa;
+  color: #0b3558;
+}
+.asa-chess-setup-page .asa-chess-bot-page-body {
+  max-width: 850px;
+  padding: 20px 24px;
+}
+.asa-chess-setup-page .asa-chess-bot-page-body > header h1 {
+  font-size: 26px;
+  margin: 10px 0 16px;
+}
+.asa-chess-setup-back {
+  min-height: 36px;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: #486579;
+  font: inherit;
+  cursor: pointer;
+}
+.asa-chess-start-options {
+  margin-top: 16px;
+  border-top: 1px solid #d9e5ec;
+  padding-top: 12px;
+}
+.asa-chess-start-options > summary {
+  cursor: pointer;
+  color: #486579;
+  padding-bottom: 12px;
+  font-size: 14px;
+}
+@media (max-width: 760px) {
+  .asa-chess-setup-page .asa-chess-bot-page-body {
+    padding: 12px;
+  }
+  .asa-chess-setup-page .asa-chess-new-game-panel {
+    padding: 16px;
+  }
+  .asa-chess-setup-page .asa-chess-difficulty {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .asa-chess-setup-page .asa-chess-difficulty button {
+    display: grid;
+    padding: 10px 6px;
+    gap: 6px;
+    font-size: 11px;
+  }
+  .asa-chess-setup-page .asa-chess-difficulty button small {
+    font-size: 10px;
+  }
+}
+.asa-chess-optional-bots > summary {
+  padding-block: 8px;
+  cursor: pointer;
+  color: #486579;
+  font-size: 14px;
+}

@@ -97,6 +97,115 @@ describe('Chess Games API trust boundary', () => {
       });
       expect(noKey.statusCode).toBe(400);
       expect(noKey.json().error.code).toBe('VALIDATION_FAILED');
+      const notifications = vi
+        .spyOn(ChessNetworkService.prototype, 'notifications')
+        .mockResolvedValue({ playerId: 'safe-player', incoming: [] });
+      try {
+        const accountCalls = f.accounts.resolve.mock.calls.length;
+        for (const headers of [
+          {},
+          { 'x-game-presence': '0' },
+          { 'x-game-presence': '1', 'sec-fetch-site': 'cross-site' },
+        ]) {
+          const blocked = await adapter
+            .getInstance()
+            .inject({ method: 'GET', url: '/api/games/chess/notifications', headers });
+          expect(blocked.statusCode).toBe(403);
+        }
+        expect(f.accounts.resolve.mock.calls.length).toBe(accountCalls);
+        const forged = await adapter.getInstance().inject({
+          method: 'GET',
+          url: '/api/games/chess/notifications?playerId=other',
+          headers: { 'x-game-presence': '1' },
+        });
+        expect(forged.statusCode).toBe(400);
+        expect(notifications).not.toHaveBeenCalled();
+        const alerts = await adapter.getInstance().inject({
+          method: 'GET',
+          url: '/api/games/chess/notifications',
+          headers: { 'x-game-presence': '1', 'sec-fetch-site': 'same-origin' },
+        });
+        expect(alerts.statusCode).toBe(200);
+        expect(alerts.headers['cache-control']).toBe('private, no-store');
+        expect(alerts.json()).toEqual({ playerId: 'safe-player', incoming: [] });
+        expect(notifications).toHaveBeenCalledWith(expect.objectContaining({ kind: 'account' }));
+      } finally {
+        notifications.mockRestore();
+      }
+      const avatar = vi.spyOn(ChessNetworkService.prototype, 'avatar');
+      const lobby = vi.spyOn(ChessNetworkService.prototype, 'lobby');
+      try {
+        avatar.mockResolvedValueOnce({
+          dataUrl: null,
+          defaultPath: '/assets/avatars/default/avatar-07.webp',
+        });
+        const redirected = await adapter.getInstance().inject({
+          method: 'GET',
+          url: '/api/games/chess/players/00000000-0000-4000-8000-000000000001/avatar?scope=classroom',
+        });
+        expect(redirected.statusCode).toBe(302);
+        expect(redirected.headers['location']).toBe('/assets/avatars/default/avatar-07.webp');
+        expect(redirected.headers['cache-control']).toBe('private, no-store');
+        avatar.mockResolvedValueOnce({
+          dataUrl:
+            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jfL8AAAAASUVORK5CYII=',
+          defaultPath: '/assets/avatars/default/avatar-07.webp',
+        });
+        const raster = await adapter.getInstance().inject({
+          method: 'GET',
+          url: '/api/games/chess/players/00000000-0000-4000-8000-000000000001/avatar?scope=classroom',
+        });
+        expect(raster.headers['content-type']).toBe('image/png');
+        expect(raster.headers['x-content-type-options']).toBe('nosniff');
+        expect(raster.rawPayload.subarray(0, 8)).toEqual(
+          Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+        );
+        avatar.mockRejectedValueOnce(new ChessNetworkError('POLICY_DENIED', 'Restricted', 403));
+        const deniedAvatar = await adapter.getInstance().inject({
+          method: 'GET',
+          url: '/api/games/chess/players/00000000-0000-4000-8000-000000000001/avatar?scope=platform',
+        });
+        expect(deniedAvatar.statusCode).toBe(403);
+        expect(deniedAvatar.headers['cache-control']).toBe('private, no-store');
+        const forgedLobby = await adapter.getInstance().inject({
+          method: 'POST',
+          url: '/api/games/chess/lobby',
+          payload: { scope: 'classroom', classroomId: 'foreign' },
+        });
+        expect(forgedLobby.statusCode).toBe(400);
+        expect(lobby).not.toHaveBeenCalled();
+        lobby.mockResolvedValueOnce({
+          available: true,
+          players: [],
+          incoming: [],
+          outgoing: [],
+          limit: 100,
+        });
+        const listed = await adapter.getInstance().inject({
+          method: 'POST',
+          url: '/api/games/chess/lobby',
+          payload: { scope: 'classroom' },
+        });
+        expect(listed.statusCode).toBe(201);
+        expect(lobby).toHaveBeenCalledWith(
+          expect.objectContaining({ kind: 'account' }),
+          'classroom',
+        );
+        const challengeWithoutKey = await adapter.getInstance().inject({
+          method: 'POST',
+          url: '/api/games/chess/players/00000000-0000-4000-8000-000000000001/challenge',
+          payload: {
+            scope: 'platform',
+            initialMs: 600000,
+            incrementMs: 0,
+            colorPreference: 'white',
+          },
+        });
+        expect(challengeWithoutKey.statusCode).toBe(400);
+      } finally {
+        avatar.mockRestore();
+        lobby.mockRestore();
+      }
     } finally {
       action.mockRestore();
       await app.close();

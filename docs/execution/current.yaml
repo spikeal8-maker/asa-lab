@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_f_preflight_invocation_snapshot
+      checkpoint: package_g_early_stale_candidate
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,28 +111,28 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 94deef205460271393e559962bcd8caf1fcc71be
+      convergence_baseline_sha: 38a570ae95013e368bb27ac42aba7472f6b0fa5c
       head_sha: null
-      observed_at: '2026-11-03T09:49:22Z'
+      observed_at: '2026-11-03T09:58:25Z'
       main:
         branch: main
-        sha: 94deef205460271393e559962bcd8caf1fcc71be
+        sha: 38a570ae95013e368bb27ac42aba7472f6b0fa5c
       observation_note: >-
-        Prior E974/F975/G978 are integrated with exact-source full CI and independent reviews; no repeat audit.
-        D conditional General remains blocked by dirty tools/test_ci_image_transport.py in old D13. The one
-        authorized coordination did not confirm owner release; no foreign WIP or guard operations allowed.
-        Owner on2026-11-03 prioritizes measured end-to-end savings. Select only independent bounded
-        F-PREFLIGHT-INVOCATION-SNAPSHOT-001: tools/agent_context.py and tools/test_agent_context.py.
-        Actual unchanged preflight31.666s includes controlplane18.490s and93worktrees7.915s; validation of
-        116lanes repeats identical Git status116times8.230s and registry116times4.059s. Reuse only fresh
-        invocation-local snapshots in bulk validation, preserving all lanes, errors, render budgets, worktree
-        overlap, remote CI and recovery gates; no persistent cache or skip. Require negative freshness/error
-        regressions, measured before/after stages, exact-source mandatory CI and independent review.
-        General deterministic task replay still depends on versioned D contract; do not override pinned
-        uncached evidence or add useless prewarming. G early stale rejection is next independently authorized
-        candidate, not part of this F slice. Preserve final stable freshness and existing PR969 publication proof.
-        Fetch main before writes and recover exact Git/CI. Full Main/release/RLS/auth/migration checks remain;
-        no release, owner acceptance, production, database, Docker runtime or network operation authorized.
+        Prior E974/F975/G978 remain accepted. F invocation snapshot source2bb0cffa PR979 passed75focused
+        tests with2existingWindowsSkips and independent critical review. Controlled same-final-SHA validation
+        13.267s to0.150s preserved all116contexts byte-for-byte; actual totalpreflight17.509s has a different
+        historicalbaseline and is not a controlled end-to-end claim. Full General41615102443 remains pending;
+        no integration or release claimed. F author stopped. Select only independent G-EARLY-STALE-CANDIDATE-001:
+        .github/workflows/portable-release.yml and tools/deployment/test_contracts.py. Reject stale candidates
+        in existing gate before build using actual origin/main identity; retain final pre-stable STALE_RELEASE,
+        queue max and PR969 actual publish-job proof. Missing/malformed remote or incomplete General must
+        fail closed. Workflow overall success with publish skipped remains no publication evidence.
+        D still waits for confirmed owner release of dirty tools/test_ci_image_transport.py in old D13.
+        No foreign WIP, whole-file copy, ownership transfer, additional message or guard edit authorized.
+        E General task replay depends on the versioned D contract: do not override pinned uncached evidence
+        or add ineffective prewarming. Actual root/linked-agent token counters are available for scoped metrics.
+        Fetch main before writes and recover exact Git/CI. Preserve full Main/release/RLS/auth/migration gates.
+        No production, database, local Docker, host networking, release or owner acceptance action authorized.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -144,9 +144,16 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: F
-      selected_subslice: F-PREFLIGHT-INVOCATION-SNAPSHOT-001
-      verification_pending_slices: []
+      selected_slice: G
+      selected_subslice: G-EARLY-STALE-CANDIDATE-001
+      verification_pending_slices:
+        - id: F-PREFLIGHT-INVOCATION-SNAPSHOT-001
+          source_sha: 2bb0cffa25895b993aa823b90866667900c3783e
+          pr: 979
+          independent_review: PASS
+          ci_status: pending_required_ci
+          general_run: 41615102443
+          integration_status: pending_required_ci
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
@@ -16187,7 +16194,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-EVENT-QUEUE-COPY-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-PRODUCTION-CPU-001.md
     previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
@@ -16211,20 +16218,20 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-EVENT-QUEUE-COPY-001
+      id: TASK-ELECTRONICS-PRODUCTION-CPU-001
       issue: 539
       branch: main
       base_branch: main
       pr: null
       status: in_progress
-      kind: repair
-      risk: high
+      kind: analysis/inventory
+      risk: medium
       semantic_change: 'no'
-      checkpoint: second_local_event_queue_copy_repair_selected
+      checkpoint: production_worker_native_cpu_attribution_selected
       owner_acceptance: pending
-      owner_authorization: Owner explicitly resumes remaining plan and20 timing speed delay failures; one bounded redundant event queue copy repair with complete parity, actual production measurements and independent review. No yield replacement, clock change, cap increase, server or foreign changes.
+      owner_authorization: Owner explicitly resumes remaining plan and20 timing speed delay failures; one bounded native production Worker CPU profile after two negative repair experiments; no product edits or timing acceptance. No yield replacement, clock change, cap increase, server or foreign changes.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-EVENT-QUEUE-COPY-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-PRODUCTION-CPU-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
       previous_experiment:
@@ -16234,6 +16241,13 @@ parallel_lanes:
         independent_review: APPROVE_negative_evidence_only
         result: Full320responses_equal_but_no_speed_gain_2145.70ms_before_2178.20ms_after_zero_timing_failures_closed
         report: docs/product/electronics/evidence/interpreter-arity-20261103/REPORT.md
+      queue_copy_experiment:
+        task_id: TASK-ELECTRONICS-EVENT-QUEUE-COPY-001
+        status: completed_negative_no_product_activation
+        candidate_sha: 00ddd883a5f8f92996c7b786067d051231b124a4
+        independent_review: APPROVE_negative_evidence_only
+        result: Full320responses_equal_but_no_consistent_gain_median13.45ms_before_14.90ms_after_zero_timing_failures_closed
+        report: docs/product/electronics/evidence/event-queue-copy-20261103/REPORT.md
     gates:
       focused:
         workflow: Electronics R4-M1 Focused

@@ -2,6 +2,7 @@ import type {
   ChessNetworkAccess,
   ChessNetworkAction,
   ChessNetworkInvite,
+  ChessNetworkLobby,
   ChessNetworkMatch,
   ChessNetworkPolicy,
   ChessNetworkScope,
@@ -65,6 +66,25 @@ async function command<T>(url: string, input: unknown, method = 'POST'): Promise
 }
 export const chessNetworkApi = {
   access: () => request<ChessNetworkAccess>(`${path}/access`, { cache: 'no-store' }),
+  lobby: (scope: ChessNetworkScope) =>
+    request<ChessNetworkLobby>(`${path}/lobby`, {
+      method: 'POST',
+      body: JSON.stringify({ scope }),
+      cache: 'no-store',
+    }),
+  challenge: (
+    playerId: string,
+    input: {
+      scope: ChessNetworkScope;
+      initialMs: number;
+      incrementMs: number;
+      colorPreference: 'white' | 'black' | 'random';
+    },
+  ) => command<CommandResult>(`${path}/players/${encodeURIComponent(playerId)}/challenge`, input),
+  decline: (id: string, expectedVersion: number) =>
+    command<CommandResult>(`${path}/challenges/${encodeURIComponent(id)}/decline`, {
+      expectedVersion,
+    }),
   history: (cursor?: string) =>
     request<{
       matches: ChessNetworkMatch[];

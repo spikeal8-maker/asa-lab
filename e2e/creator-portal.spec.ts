@@ -162,7 +162,7 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   // Opening a chess project lands on the module's own home, which offers the
   // menu; the board itself belongs to the play surface a step further in.
   await expect(page).toHaveURL(new RegExp(`#\\/chess\\/${chessProjectId}\\/home$`));
-  await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Шахматы', exact: true })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
 
