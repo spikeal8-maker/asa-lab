@@ -7624,30 +7624,35 @@ parallel_lanes:
       - docs/product/games-platform/**
       - docs/product/ASA_CHECKERS_ONLINE_PLAY.md
     task:
-      id: TASK-CHESS-NETWORK-001
-      issue: 67
+      id: TASK-CHECKERS-NETWORK-001
+      issue: 250
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_selected_casual_network_teacher_scope_vertical
+      checkpoint: owner_selected_checkers_chess_parity_vertical
       owner_acceptance: pending
       context_hints:
-        - docs/product/games-platform/CHESS_NETWORK_DELIVERY.md
+        - docs/product/games-platform/R1_DELIVERY_BRIEF.md
       repair_scope: >-
-        One casual Chess network vertical: platform-owned game identities and matches,
-        teacher game access plus separate network off/classroom/school/platform policy,
-        bilateral current authorization, private invitations, authoritative play,
-        reconnect and durable finish/history, real two-user PostgreSQL/Chromium CI.
+        Owner explicitly requested Checkers parity with the completed Chess vertical:
+        compact ASA home/board and direct bot/local/network entry; real Russian-64
+        network matches, shared verified game identities and current teacher game/network
+        class/school/platform restrictions including linked personal Accounts; scoped
+        online players with avatars, directed invitations and per-game portal badges,
+        one-shot notification audio, authoritative rules/clocks, reconnect and durable
+        terminal history. Preserve existing lessons, assignments and local/bot play.
+        This owner-selected scope supersedes the old R1 private-invite-only UI limit.
       next_action: >-
-        Author one bounded candidate under CHESS_NETWORK_DELIVERY; focused/data/browser
-        gates and NEW independent L3 review before integration. Preserve offline
-        admission, old Chess Live compatibility, calibration candidate and foreign lanes.
+        Deliver one bounded Checkers parity candidate, reuse existing Games identity,
+        network policy and notification safety mechanisms, add focused real two-user
+        PostgreSQL/Chromium evidence and NEW independent L3 exact-SHA review. Follow
+        normal checked publication to main; no installation or live database actions.
       exclusions:
-        - Rated matchmaking, social directory, Checkers migration, unrelated cleanup.
-        - Existing tenant/RLS/Auth weakening or synthetic Games tenant.
-        - Local Docker or live database, deployment, backup or host network operations.
+        - Rated play, matchmaking queues, new infrastructure and unrelated cleanup.
+        - Tenant/RLS/Auth weakening or synthetic Games tenant.
+        - Local Docker, working database, deployment, backup or host network changes.
     revisions:
       kind: observed_snapshot
       convergence_baseline_sha: 32ae3ad3948b1dd098ac517cb7bb692cec7d98f7
