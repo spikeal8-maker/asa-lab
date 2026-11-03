@@ -17,6 +17,7 @@ from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIR
 from test_database_diagnostics import DatabaseDiagnosticTests  # Included by the canonical collector test runner.
 from test_database_identity import ActualDatabaseIdentityTests, DatabaseIdentityUnitTests
 from test_database_progress import ActualDatabaseProgressTests, DatabaseProgressUnitTests, response
+from test_compose_required_sources import ObservedComposePolicyTests
 
 
 def system_classification_fixture(root, compressed):
@@ -922,7 +923,7 @@ class CollectorTests(unittest.TestCase):
             def command(args, **kwargs):
                 if args[1] == 'ps': return b'new-container\npostgres-container'
                 if args[1] == 'inspect':
-                    records = [dict(Id=cid, Created=created.isoformat(), Config=dict(Labels={'com.docker.compose.service': service, 'com.docker.compose.project.working_dir': str(collector.root)})) for cid, service in [('new-container', 'api'), ('postgres-container', 'postgres')]]
+                    records = [dict(Id=cid, Created=created.isoformat(), Config=dict(Labels={'com.docker.compose.project': 'asa-lab-dev', 'com.docker.compose.service': service, 'com.docker.compose.project.working_dir': str(collector.root)})) for cid, service in [('new-container', 'api'), ('postgres-container', 'postgres')]]
                     return '\n'.join(json.dumps(c) for c in records).encode()
                 calls.append(args)
                 return (now() + ' ERROR startup failure\n').encode()
