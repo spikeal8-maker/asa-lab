@@ -1,3 +1,4 @@
+import { usePortalGameNotifications } from './games/game-notifications';
 import {
   PresentationProvider,
   usePresentationSessionLifetime,
@@ -177,6 +178,13 @@ function publicViewFromHash(): PublicView {
 
 export function App(): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
+  usePortalGameNotifications(
+    session.kind === 'authenticated'
+      ? `account:${session.session.user.id}`
+      : session.kind === 'student'
+        ? `seat:${session.session.student.seatId}`
+        : '',
+  );
   usePresentationSessionLifetime(
     session.kind === 'checking'
       ? undefined

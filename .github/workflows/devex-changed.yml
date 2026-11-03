@@ -177,8 +177,8 @@ jobs:
           import re
           from pathlib import Path
           text = re.sub(r'\x1b\[[0-9;]*m', '', Path('.asa/devex/ci-browser.log').read_text())
-          if not re.search(r'\b16 passed\b', text) or re.search(r'\b[1-9][0-9]* (?:failed|skipped|flaky|interrupted|timed out)\b', text):
-              raise SystemExit('Concrete browser run is incomplete; expected all 16 cases without skips')
+          if not re.search(r'\b24 passed\b', text) or re.search(r'\b[1-9][0-9]* (?:failed|skipped|flaky|interrupted|timed out)\b', text):
+              raise SystemExit('Concrete browser run is incomplete; expected all 24 cases without skips')
           PY
       - name: Recheck bound source after browser execution
         id: final-source

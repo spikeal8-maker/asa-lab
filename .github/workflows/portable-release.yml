@@ -15,6 +15,7 @@ permissions:
 concurrency:
   group: asa-stable-release
   cancel-in-progress: false
+  queue: max
 
 jobs:
   contracts:
@@ -37,19 +38,20 @@ jobs:
     outputs:
       revision: ${{ steps.source.outputs.revision }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
       - id: source
         env:
           GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
           REVISION: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
-          gh api "repos/$REPOSITORY/actions/runs?head_sha=$REVISION&branch=main&per_page=100" > /tmp/runs.json
           python - <<'PY'
-          import json, os
-          runs = json.load(open('/tmp/runs.json'))['workflow_runs']
-          required = [r for r in runs if r['name'] == 'ASA Lab Governance and Code Gates' and r['head_sha'] == os.environ['REVISION']]
-          required.sort(key=lambda r: (r['run_number'], r.get('run_attempt', 0)), reverse=True)
-          assert required and required[0]['status'] == 'completed' and required[0]['conclusion'] == 'success', 'Exact-SHA general CI is not green'
+          import os, sys
+          sys.path.insert(0, 'tools')
+          from deployment.releases import assert_general_ci
+          assert_general_ci(os.environ['REVISION'])
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('revision=' + os.environ['REVISION'] + '\n')
           PY

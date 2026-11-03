@@ -26,7 +26,9 @@ const schoolPendingFiles = [
   '0298_ai_image_file_binding.sql',
   '0299_ai_polza_token_budget_catalog.sql',
   '0300_ai_image_durable_queue.sql',
-  '0301_learning_essay_course_runtime.sql',
+  '0301_games_chess_lobby.sql',
+  '0302_games_chess_notifications.sql',
+  '0303_learning_essay_course_runtime.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
@@ -43,7 +45,9 @@ const canonicalSqlDigests = {
   '0298': 'c42c970943bf6b89fcd341cd656bf1b36d1ed4114b27d72719c15ee5fe394a30',
   '0299': '12b080915d4808056f4ba5d9995631aa6c93f41d2c37c3b314621090400b1fac',
   '0300': '0ea57787d707326f9222fb906bc7d826a91d417c3efdeeb6251c6a3156b6cd26',
-  '0301': '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
+  '0301': 'f64f992a4b6f0d98a9e7e33666e7c67083c4ff274a0780311159ae6ac84514f2',
+  '0302': '43fb00c4ee7cdff378ffcaa1acd803a2b312eabc9d3211181c23bd238ba05a6d',
+  '0303': '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
 };
 const beginSql = 'SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,$6,$7,$8) AS value';
 const transport = {
@@ -162,7 +166,7 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
       try {
         // Prove a forward upgrade from the actual school schema, not only an empty DB.
         const migrations = planMigrations('migrations');
-        expect(migrations.at(-1)?.version).toBe('0301');
+        expect(migrations.at(-1)?.version).toBe('0303');
         await applyPlan(
           client,
           migrations.filter((m: { version: string }) => m.version <= '0286'),

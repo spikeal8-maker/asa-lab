@@ -995,6 +995,17 @@ class CollectorTests(unittest.TestCase):
             collector.db.close()
 
 
+def load_tests(loader, tests, pattern):
+    # Existing explicit collector CI entrypoint must run the new regression files;
+    # broad discovery already selects them and must not run them twice.
+    import fnmatch
+    if not pattern or not fnmatch.fnmatch('test_retired_metadata_atomic.py', pattern):
+        import test_retired_metadata_atomic, test_retired_successor_recovery
+        tests.addTests(loader.loadTestsFromModule(test_retired_metadata_atomic))
+        tests.addTests(loader.loadTestsFromModule(test_retired_successor_recovery))
+    return tests
+
+
 if __name__ == '__main__':
     if len(sys.argv) == 4 and sys.argv[1] == '--write-editor-store':
         c, _, _ = editor_classification_fixture(Path(sys.argv[2]), sys.argv[3] == 'gzip')

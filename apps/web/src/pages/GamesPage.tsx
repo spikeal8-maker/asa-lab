@@ -1,3 +1,5 @@
+import { useGameInvitations } from '../games/game-notifications';
+import { GameInvitationBadge } from '../games/GameInvitationBadge';
 import { useEffect, useRef, useState } from 'react';
 import { api, type ModuleSummary } from '../api';
 import { GAMES, type GameKey } from '../games/game-catalog';
@@ -10,6 +12,8 @@ export function GamesPage({
 }: {
   onOpenGame: (id: string, game: GameKey) => void;
 }): JSX.Element {
+  const invitations = useGameInvitations();
+  const chessInvites = invitations.incoming.length;
   const [modules, setModules] = useState<ModuleSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [admissions, setAdmissions] = useState<Partial<Record<GameKey, GameAdmission>>>({});
@@ -56,7 +60,11 @@ export function GamesPage({
     setError(null);
     try {
       const save = await openGame(game);
-      if (mounted.current) onOpenGame(save.id, game);
+      if (mounted.current) {
+        if (game === 'chess' && chessInvites > 0)
+          window.location.hash = `#/chess/${encodeURIComponent(save.id)}/network`;
+        else onOpenGame(save.id, game);
+      }
     } catch (failure) {
       if (mounted.current)
         setError(
@@ -72,7 +80,7 @@ export function GamesPage({
     <main className="portal-content games-page" id="main-content" tabIndex={-1}>
       <header className="games-heading">
         <h1>Игры</h1>
-        <p>Шахматы и шашки для самостоятельной тренировки.</p>
+        <p>Играйте с компьютером, друзьями или вдвоём на одном устройстве.</p>
         <div className="games-heading-actions">
           <a href="#/learning">Моё обучение</a>
           {modules !== null && modules.length > 0 ? (
@@ -112,19 +120,22 @@ export function GamesPage({
                 module.availability === 'active' &&
                 module.creatable,
             );
+          const invited = game.key === 'chess' && chessInvites > 0;
           const label =
             opening === game.key
               ? 'Открываем…'
               : modules === null
                 ? 'Загрузка…'
                 : enabled
-                  ? 'Играть'
+                  ? invited
+                    ? 'Посмотреть приглашения'
+                    : 'Играть'
                   : 'Сейчас недоступно';
           return (
             <button
               key={game.key}
               type="button"
-              className={`game-card game-card--${game.key}`}
+              className={`game-card game-card--${game.key}${invited ? ' game-card--invited' : ''}`}
               disabled={!enabled || opening !== null}
               onClick={() => void play(game.key)}
               aria-label={`${label}: ${game.title}`}
@@ -136,6 +147,12 @@ export function GamesPage({
               <span className="game-card-art" aria-hidden="true" />
               <span className="game-card-body">
                 <span className="game-card-title">{game.title}</span>
+                {invited && (
+                  <span className="game-card-invitation">
+                    <GameInvitationBadge count={chessInvites} pulse={invitations.pulse} />
+                    Вас приглашают играть
+                  </span>
+                )}
                 <span className="game-card-description">{game.description}</span>
                 {admission && !admission.granted ? (
                   <span className="game-card-reason" id={`game-${game.key}-admission-reason`}>
