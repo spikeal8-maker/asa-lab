@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_e_web_cache_correctness_selected
+      checkpoint: package_f_minimal_entry_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,25 +111,26 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 50b1dc159e654823de3e319f3c0f9528971e10ef
+      convergence_baseline_sha: ca07246b5c74f5dc5bb3b05b8055c2d8c0b8aa65
       head_sha: null
-      observed_at: '2026-11-03T05:12:25Z'
+      observed_at: '2026-11-03T05:48:05Z'
       main:
         branch: main
-        sha: 50b1dc159e654823de3e319f3c0f9528971e10ef
+        sha: ca07246b5c74f5dc5bb3b05b8055c2d8c0b8aa65
       observation_note: >-
-        D remains partial: addressed focused routing PR967 sourcef503764c passed full General41540467267
-        and independent review, merged900f2e10. Release-consumer prerequisite PR969 source82029c57
-        passed General41565687242 all5, Portable and Operational checks plus critical independent review,
-        merged50b1dc15 with identical tested tree. Main50b1dc15 General41579600641 also succeeded.
+        D remains partial: accepted addressed focused routing PR967 and release-consumer protection PR969;
+        source82029c57 General41565687242 all5 and Main50b1dc15 General41579600641 succeeded.
         Conditional General still waits for dirty tools/test_ci_image_transport.py in old D13.
-        Owner on3November authorized one scoped coordination; current Electronics chat did not confirm
-        ownership or release. No foreign WIP actions or additional messages are authorized by this entry.
-        Owner expressly permits independent safe E/F/G work while D is blocked. Select only bounded
-        E-WEB-CACHE-001: correct Web Nx cache inputs and prove cold/warm reuse and identity invalidation.
-        D is not complete; preserve full main/release gates and mandatory uncached owner evidence.
-        Product UI pilots remain unmerged. No runtime, production, live database or host network actions.
-        Fetch main before writes; recover exact source and CI before selecting the next bounded action.
+        Owner authorized one scoped coordination on3November; current Electronics chat did not confirm
+        ownership or release. No foreign WIP actions or additional messages are authorized here.
+        Independent E-WEB-CACHE-001 source4821f638 is published in PR974, focused11PASS, critical reviewPASS,
+        required sourceCI still pending. Its executor stopped; continue observing that exact SHA unchanged.
+        Owner expressly permits independent safe E/F/G work while D is blocked. Select only independent
+        F-MINIMAL-ENTRY-001: align the two existing entry documents with one exact-path preflight and honest
+        verify-plan semantics. F paths do not intersect E or D; E integration still requires successful CI.
+        Mainca07246b full General41582814382 succeeded before this selection. Preserve full main/release
+        and uncached owner-evidence gates. Product UI pilots remain unmerged; no release or runtime claim.
+        Fetch main before writes; recover exact source and CI before the next bounded action.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -141,8 +142,16 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: E
-      selected_subslice: E-WEB-CACHE-001
+      selected_slice: F
+      selected_subslice: F-MINIMAL-ENTRY-001
+      verification_pending_slices:
+        - id: E-WEB-CACHE-001
+          source_sha: 4821f6389afdb794db2efb24e5b93a692bdf40dc
+          pr: 974
+          independent_review: PASS
+          ci_status: pending
+          general_run: 41584888372
+          integration_status: pending_required_ci
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
