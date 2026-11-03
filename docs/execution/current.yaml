@@ -16187,7 +16187,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-EVENT-QUEUE-COPY-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-PRODUCTION-CPU-001.md
     previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
@@ -16211,20 +16211,20 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-EVENT-QUEUE-COPY-001
+      id: TASK-ELECTRONICS-PRODUCTION-CPU-001
       issue: 539
       branch: main
       base_branch: main
       pr: null
       status: in_progress
-      kind: repair
-      risk: high
+      kind: analysis/inventory
+      risk: medium
       semantic_change: 'no'
-      checkpoint: second_local_event_queue_copy_repair_selected
+      checkpoint: production_worker_native_cpu_attribution_selected
       owner_acceptance: pending
-      owner_authorization: Owner explicitly resumes remaining plan and20 timing speed delay failures; one bounded redundant event queue copy repair with complete parity, actual production measurements and independent review. No yield replacement, clock change, cap increase, server or foreign changes.
+      owner_authorization: Owner explicitly resumes remaining plan and20 timing speed delay failures; one bounded native production Worker CPU profile after two negative repair experiments; no product edits or timing acceptance. No yield replacement, clock change, cap increase, server or foreign changes.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-EVENT-QUEUE-COPY-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-PRODUCTION-CPU-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
       previous_experiment:
@@ -16234,6 +16234,13 @@ parallel_lanes:
         independent_review: APPROVE_negative_evidence_only
         result: Full320responses_equal_but_no_speed_gain_2145.70ms_before_2178.20ms_after_zero_timing_failures_closed
         report: docs/product/electronics/evidence/interpreter-arity-20261103/REPORT.md
+      queue_copy_experiment:
+        task_id: TASK-ELECTRONICS-EVENT-QUEUE-COPY-001
+        status: completed_negative_no_product_activation
+        candidate_sha: 00ddd883a5f8f92996c7b786067d051231b124a4
+        independent_review: APPROVE_negative_evidence_only
+        result: Full320responses_equal_but_no_consistent_gain_median13.45ms_before_14.90ms_after_zero_timing_failures_closed
+        report: docs/product/electronics/evidence/event-queue-copy-20261103/REPORT.md
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
