@@ -35,6 +35,8 @@ export function QuizResponsePlayer({
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [expiryRetry, setExpiryRetry] = useState(0);
+  const [expiryRetryReady, setExpiryRetryReady] = useState(false);
   const [now, setNow] = useState(Date.now());
   const clock = useRef({ server: Date.now(), local: Date.now() });
   const live = useRef(false);
@@ -239,26 +241,62 @@ export function QuizResponsePlayer({
     const timer = setTimeout(() => void performRef.current('save'), 700);
     return () => clearTimeout(timer);
   }, [answers, dirty, editable, busy, error]);
-  // Only the server can expire/finalize an Attempt. Poll read when the server deadline is reached.
+  const adoptAttemptRef = useRef(adoptAttempt);
+  adoptAttemptRef.current = adoptAttempt;
+  const expiryAttemptId = attempt?.attemptId;
+  const expiryAttemptState = attempt?.state;
+  // Serial bounded reads: a transient failure must not strand the expired player.
+  // Only the server can finalize the Attempt; retries never submit or grade locally.
   useEffect(() => {
+    setExpiryRetryReady(false);
     if (
       !expired ||
-      !attempt ||
-      (!editable && !['created', 'in_progress', 'working', 'active'].includes(attempt.state))
+      !expiryAttemptId ||
+      !expiryAttemptState ||
+      !['created', 'in_progress', 'working', 'active'].includes(expiryAttemptState)
     )
       return;
     const generation = session.current;
-    const timer = setTimeout(() => {
-      void api.readQuizAttempt(attempt.attemptId).then((result) => {
-        if (live.current && session.current === generation && result.ok)
-          adoptAttempt(result.data.attempt);
-      });
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [expired, attempt, editable]);
+    let cancelled = false;
+    let reads = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const delays = [1500, 3000, 6000, 10000];
+    const isCurrent = () => !cancelled && live.current && session.current === generation;
+    const poll = async () => {
+      if (!isCurrent()) return;
+      reads++;
+      try {
+        const result = await api.readQuizAttempt(expiryAttemptId);
+        if (!isCurrent()) return;
+        if (result.ok) {
+          adoptAttemptRef.current(result.data.attempt);
+          if (!['created', 'in_progress', 'working', 'active'].includes(result.data.attempt.state))
+            return;
+        }
+      } catch {
+        // Network rejection and HTTP errors use the same bounded retry schedule.
+      }
+      if (!isCurrent()) return;
+      if (reads < delays.length) timer = setTimeout(() => void poll(), delays[reads]!);
+      else setExpiryRetryReady(true);
+    };
+    timer = setTimeout(() => void poll(), delays[0]!);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [expired, expiryAttemptId, expiryAttemptState, scope, expiryRetry]);
   return (
     <section className="quiz-player" aria-label="Прохождение теста">
       {error ? <p role="alert">{error}</p> : null}
+      {expiryRetryReady ? (
+        <div role="status">
+          <p>Окончательный статус ещё не получен.</p>
+          <button type="button" onClick={() => setExpiryRetry((value) => value + 1)}>
+            Повторить получение итога
+          </button>
+        </div>
+      ) : null}
       {unsent ? (
         <details>
           <summary>Несохранённые ответы предыдущего редактирования</summary>
@@ -302,6 +340,7 @@ export function QuizResponsePlayer({
               {(attempt.questionOrder ?? attempt.questions.map((question) => question.id)).map(
                 (id, index) => {
                   const question = attempt.questions.find((item) => item.id === id);
+                  const feedback = attempt.feedback?.find((item) => item.questionVersionId === id);
                   return question ? (
                     <fieldset key={id} disabled={!editable || busy}>
                       <legend>
@@ -328,6 +367,24 @@ export function QuizResponsePlayer({
                           })
                         }
                       />
+                      {feedback ? (
+                        <p data-testid="quiz-question-feedback">
+                          {feedback.manualPending
+                            ? 'Ожидает проверки'
+                            : feedback.correct === null
+                              ? question.type === 'long_text_manual' &&
+                                attempt.result &&
+                                !attempt.result.provisional
+                                ? 'Проверено преподавателем'
+                                : 'Ожидает проверки'
+                              : feedback.correct
+                                ? 'Верно'
+                                : 'Неверно'}
+                          {feedback.points !== null
+                            ? ` · ${feedback.points} из ${feedback.maxPoints} балл(а)`
+                            : ''}
+                        </p>
+                      ) : null}
                     </fieldset>
                   ) : null;
                 },

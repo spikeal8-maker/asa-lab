@@ -122,6 +122,86 @@ afterEach(async () => {
 });
 
 describe('Quiz mounted learner controls', () => {
+  it.each(['in_progress', 'score_only', 'after_close_not_released'])(
+    'does not fabricate per-question feedback when the server omits it: %s',
+    async (mode) => {
+      server = { ...server, state: mode === 'in_progress' ? 'in_progress' : 'evaluated' };
+      if (mode === 'score_only')
+        server.result = { points: 7, maxPoints: 9, outcome: 'passed', provisional: false };
+      await mount(createElement(QuizResponsePlayer, { activityRunId: 'run', onChanged: changed }));
+      expect(container.querySelector('[data-testid="quiz-question-feedback"]')).toBeNull();
+      expect(container.textContent).not.toContain('Ожидает проверки');
+      if (mode === 'score_only') expect(container.textContent).toContain('7 из 9');
+    },
+  );
+  it.each(['immediate', 'after_close_released'])(
+    'renders only released feedback matched by immutable question version: %s',
+    async () => {
+      server = {
+        ...server,
+        state: 'evaluated',
+        questions: [{ ...server.questions[0]!, type: 'short_text' }],
+        feedback: [
+          {
+            questionVersionId: 'unrelated-version',
+            points: 999,
+            correct: true,
+            maxPoints: 999,
+            manualPending: false,
+          },
+          { questionVersionId: 'q', points: 0, correct: false, maxPoints: 4, manualPending: false },
+        ],
+        result: { points: 2, maxPoints: 10, outcome: 'failed', provisional: false },
+      };
+      await mount(createElement(QuizResponsePlayer, { activityRunId: 'run', onChanged: changed }));
+      const feedback = container.querySelectorAll('[data-testid="quiz-question-feedback"]');
+      expect(feedback).toHaveLength(1);
+      expect(feedback[0]!.textContent).toBe('Неверно · 0 из 4 балл(а)');
+      expect(container.textContent).toContain('2 из 10');
+      expect(container.textContent).not.toContain('999');
+    },
+  );
+  it('shows released correct and pending manual feedback without inventing a final total', async () => {
+    server = {
+      ...server,
+      state: 'submitted',
+      questions: [
+        { ...server.questions[0]!, id: 'auto', type: 'short_text' },
+        server.questions[0]!,
+      ],
+      questionOrder: ['auto', 'q'],
+      feedback: [
+        { questionVersionId: 'auto', points: 4, correct: true, maxPoints: 4, manualPending: false },
+        { questionVersionId: 'q', points: null, correct: null, maxPoints: 4, manualPending: true },
+      ],
+    };
+    await mount(createElement(QuizResponsePlayer, { activityRunId: 'run', onChanged: changed }));
+    expect(
+      [...container.querySelectorAll('[data-testid="quiz-question-feedback"]')].map(
+        (item) => item.textContent,
+      ),
+    ).toEqual(['Верно · 4 из 4 балл(а)', 'Ожидает проверки']);
+    expect(container.textContent).not.toContain('Результат');
+    expect(container.textContent).not.toContain('4 из 8');
+  });
+  it('shows teacher completion for final aggregate review without inventing a per-question manual score', async () => {
+    server = {
+      ...server,
+      state: 'evaluated',
+      feedback: [
+        { questionVersionId: 'q', points: null, correct: null, maxPoints: 4, manualPending: false },
+      ],
+      result: { points: 8, maxPoints: 10, outcome: 'passed', provisional: false },
+    };
+    await mount(createElement(QuizResponsePlayer, { activityRunId: 'run', onChanged: changed }));
+    expect(container.querySelector('[data-testid="quiz-question-feedback"]')!.textContent).toBe(
+      'Проверено преподавателем',
+    );
+    expect(container.textContent).toContain('8 из 10');
+    expect(container.textContent).not.toContain('Ожидает проверки');
+    expect(container.textContent).not.toContain('0 из 4');
+    expect(container.textContent).not.toContain('Неверно');
+  });
   it('renders all eight response types without author keys', async () => {
     await mount(
       createElement(
@@ -231,6 +311,167 @@ describe('Quiz mounted learner controls', () => {
     expect(container.querySelector('pre')!.textContent).toContain('FAILED LOCAL B');
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(api.submitQuizAttempt).not.toHaveBeenCalled();
+  });
+  it.each(['http_error', 'network_rejection'])(
+    'retries a failed expiry read serially and adopts official answers with a separate unsent draft: %s',
+    async (failure) => {
+      server = { ...server, expiresAt: new Date(Date.now() + 1000).toISOString() };
+      vi.mocked(api.saveQuizAnswers).mockResolvedValue({
+        ok: false,
+        status: 503,
+        error: { code: 'unavailable', message: 'save failed' },
+      });
+      const read = vi.spyOn(api, 'readQuizAttempt');
+      if (failure === 'network_rejection') read.mockRejectedValueOnce(new Error('network'));
+      else
+        read.mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          error: { code: 'unavailable', message: 'read failed' },
+        });
+      read.mockImplementation(async () => ok({ attempt: { ...server, state: 'submitted' } }));
+      await mount(createElement(QuizResponsePlayer, { activityRunId: 'run', onChanged: changed }));
+      await input(container.querySelector('textarea')!, 'RETRY LOCAL B');
+      await click('Сохранить ответы');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500);
+      });
+      expect(read).toHaveBeenCalledTimes(1);
+      expect(container.querySelector('textarea')!.value).toBe('RETRY LOCAL B');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2999);
+      });
+      expect(read).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(read).toHaveBeenCalledTimes(2);
+      expect(container.querySelector('textarea')!.value).toBe('official');
+      expect(container.querySelector('pre')!.textContent).toContain('RETRY LOCAL B');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30000);
+      });
+      expect(read).toHaveBeenCalledTimes(2);
+      expect(api.submitQuizAttempt).not.toHaveBeenCalled();
+    },
+  );
+  it('bounds automatic expiry reads and permits an explicit retry after exhaustion', async () => {
+    server = { ...server, expiresAt: new Date(Date.now() - 1000).toISOString() };
+    const read = vi.spyOn(api, 'readQuizAttempt').mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: { code: 'unavailable', message: 'read failed' },
+    });
+    await mount(createElement(QuizResponsePlayer, { activityRunId: 'run', onChanged: changed }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(read).toHaveBeenCalledTimes(4);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(read).toHaveBeenCalledTimes(4);
+    read.mockResolvedValue(ok({ attempt: { ...server, state: 'submitted' } }));
+    await click('Повторить получение итога');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    expect(read).toHaveBeenCalledTimes(5);
+    expect(container.textContent).toContain('Тест сдан');
+  });
+  it('never overlaps expiry reads or applies an old session result after switching runs', async () => {
+    server = { ...server, expiresAt: new Date(Date.now() - 1000).toISOString() };
+    let finish: ((result: Awaited<ReturnType<typeof api.readQuizAttempt>>) => void) | undefined;
+    const read = vi.spyOn(api, 'readQuizAttempt').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    vi.mocked(api.readQuizLearning).mockImplementation(async (id) =>
+      ok({
+        participationId: id,
+        title: id,
+        instructions: id,
+        attempt:
+          id === 'first'
+            ? server
+            : {
+                ...server,
+                attemptId: 'second-attempt',
+                expiresAt: null,
+                questions: [
+                  {
+                    ...server.questions[0]!,
+                    promptBlocks: [{ type: 'text', text: 'SECOND SESSION' }],
+                  },
+                ],
+              },
+      }),
+    );
+    await mount(createElement(QuizResponsePlayer, { activityRunId: 'first', onChanged: changed }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      root!.render(
+        createElement(QuizResponsePlayer, { activityRunId: 'second', onChanged: changed }),
+      );
+      await flush();
+    });
+    await act(async () => {
+      finish!(
+        ok({
+          attempt: {
+            ...server,
+            state: 'submitted',
+            questions: [
+              { ...server.questions[0]!, promptBlocks: [{ type: 'text', text: 'STALE EXPIRY' }] },
+            ],
+          },
+        }),
+      );
+      await flush();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain('SECOND SESSION');
+    expect(container.textContent).not.toContain('STALE EXPIRY');
+    await unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+  it('does not schedule another expiry read when an in-flight request rejects after unmount', async () => {
+    server = { ...server, expiresAt: new Date(Date.now() - 1000).toISOString() };
+    let rejectRead: ((error: Error) => void) | undefined;
+    const read = vi.spyOn(api, 'readQuizAttempt').mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectRead = reject;
+        }),
+    );
+    await mount(createElement(QuizResponsePlayer, { activityRunId: 'run', onChanged: changed }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    await unmount();
+    await act(async () => {
+      rejectRead!(new Error('late network failure'));
+      await flush();
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(changed).not.toHaveBeenCalled();
   });
   it('keeps native radio groups independent for two mounted players with the same question version', async () => {
     server = {
