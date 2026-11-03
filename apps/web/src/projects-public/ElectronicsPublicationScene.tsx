@@ -15,6 +15,7 @@ import { ordinaryLedVisualState } from '../electronics/component-result-presenta
 import { PublicElectronicsRuntime, publicSimulationDocument } from './electronics-public-runtime';
 import { componentTransform } from '../electronics/workbench-model';
 import { roundedWirePath, wirePoints } from '../electronics/workbench-geometry';
+import { panZoomPublicView } from './public-view-gesture';
 
 const PublishedBlocks = lazy(() =>
   import('./PublicArduinoBlocks').then((m) => ({ default: m.PublicArduinoBlocks })),
@@ -150,7 +151,20 @@ export function ElectronicsPublicationScene({
     };
   }, [artifact, inputs]);
   const [view, setView] = useState(scene.fit);
-  const drag = useRef<{ id: number; x: number; y: number } | null>(null);
+  const pointers = useRef(
+    new Map<number, { x: number; y: number; originX: number; originY: number; input: boolean }>(),
+  );
+  const multi = useRef(false);
+  const suppressInput = useRef(false);
+  useEffect(() => {
+    const clear = () => {
+      pointers.current.clear();
+      multi.current = false;
+      suppressInput.current = true;
+    };
+    window.addEventListener('blur', clear);
+    return () => window.removeEventListener('blur', clear);
+  }, []);
   const zoom = (factor: number) =>
     setView((current) => {
       const width = Math.max(
@@ -276,7 +290,7 @@ export function ElectronicsPublicationScene({
           viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`}
           tabIndex={0}
           role={artifact.schemaVersion === 3 ? 'group' : 'img'}
-          aria-label="Схема. Стрелки перемещают, плюс и минус меняют масштаб, Home вписывает схему. На сенсорном экране перемещайте схему по горизонтали."
+          aria-label="Схема. Перемещайте одним пальцем, меняйте масштаб двумя пальцами. Стрелки перемещают, плюс и минус меняют масштаб, Home вписывает схему."
           onKeyDown={(event) => {
             const direction = {
               ArrowLeft: [-1, 0],
@@ -297,36 +311,75 @@ export function ElectronicsPublicationScene({
               else zoom(event.key === '-' ? 1.25 : 0.8);
             }
           }}
-          onPointerDown={(event) => {
+          onPointerDownCapture={(event) => {
             if (event.button !== 0) return;
-            drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
-            event.currentTarget.setPointerCapture(event.pointerId);
+            if (pointers.current.size === 0) {
+              multi.current = false;
+              suppressInput.current = false;
+            }
+            const interactive =
+              event.target instanceof Element &&
+              Boolean(event.target.closest('[data-public-input]'));
+            pointers.current.set(event.pointerId, {
+              x: event.clientX,
+              y: event.clientY,
+              originX: event.clientX,
+              originY: event.clientY,
+              input: interactive,
+            });
+            if (pointers.current.size > 1) {
+              multi.current = true;
+              suppressInput.current = true;
+              for (const c of scene.components)
+                if (c.component.kind === 'button') input(c.component.id, { state: false });
+              for (const id of pointers.current.keys()) event.currentTarget.setPointerCapture(id);
+            } else if (interactive) return;
+            else event.currentTarget.setPointerCapture(event.pointerId);
+            event.preventDefault();
+            event.stopPropagation();
           }}
-          onPointerMove={(event) => {
-            const start = drag.current;
-            if (!start || start.id !== event.pointerId) return;
+          onPointerMoveCapture={(event) => {
+            const previous = pointers.current.get(event.pointerId);
+            if (!previous) return;
+            const before = [...pointers.current.values()];
+            const next = { ...previous, x: event.clientX, y: event.clientY };
+            pointers.current.set(event.pointerId, next);
+            if (Math.hypot(next.x - next.originX, next.y - next.originY) > 6)
+              suppressInput.current = true;
+            if (!multi.current && previous.input) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const after = [...pointers.current.values()];
+            if (multi.current && after.length < 2) return;
+            const a = before[0]!,
+              b = before[1],
+              c = after[0]!,
+              d = after[1];
+            const from = b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : a;
+            const to = d ? { x: (c.x + d.x) / 2, y: (c.y + d.y) / 2 } : c;
+            const distance = b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+            const nextDistance = d ? Math.hypot(c.x - d.x, c.y - d.y) : 0;
+            const factor = distance > 4 && nextDistance > 4 ? distance / nextDistance : 1;
             const rect = event.currentTarget.getBoundingClientRect();
-            const dx = event.clientX - start.x;
-            const dy = event.clientY - start.y;
-            drag.current = { ...start, x: event.clientX, y: event.clientY };
-            if (rect.width && rect.height)
-              setView((current) => {
-                const scale = Math.min(rect.width / current.width, rect.height / current.height);
-                return {
-                  ...current,
-                  x: current.x - dx / scale,
-                  y: current.y - (event.pointerType === 'touch' ? 0 : dy / scale),
-                };
-              });
+            setView((current) =>
+              panZoomPublicView(current, rect, from, to, factor, scene.fit.width),
+            );
           }}
-          onPointerUp={() => {
-            drag.current = null;
+          onPointerUpCapture={(event) => {
+            pointers.current.delete(event.pointerId);
+            if (multi.current) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
           }}
-          onPointerCancel={() => {
-            drag.current = null;
+          onPointerCancelCapture={(event) => {
+            pointers.current.delete(event.pointerId);
+            suppressInput.current = true;
+            for (const c of scene.components)
+              if (c.component.kind === 'button') input(c.component.id, { state: false });
           }}
-          onLostPointerCapture={() => {
-            drag.current = null;
+          onLostPointerCapture={(event) => {
+            if (event.target === event.currentTarget) pointers.current.delete(event.pointerId);
           }}
         >
           <g data-testid="public-electronics-viewport">
@@ -360,6 +413,7 @@ export function ElectronicsPublicationScene({
                 />
                 {runtime && ['button', 'switch', 'potentiometer'].includes(component.kind) ? (
                   <rect
+                    data-public-input=""
                     data-testid={`public-input-${component.id}`}
                     width={size.width}
                     height={size.height}
@@ -386,6 +440,7 @@ export function ElectronicsPublicationScene({
                       if (event.button !== 0) return;
                       event.currentTarget.setPointerCapture(event.pointerId);
                       if (component.kind === 'button') input(component.id, { state: true });
+                      else if (event.pointerType === 'touch') return;
                       else if (component.kind === 'switch')
                         input(component.id, { state: !component.state });
                       else
@@ -399,6 +454,17 @@ export function ElectronicsPublicationScene({
                     onPointerUp={(event) => {
                       event.stopPropagation();
                       if (component.kind === 'button') input(component.id, { state: false });
+                      else if (event.pointerType === 'touch' && !suppressInput.current) {
+                        if (component.kind === 'switch')
+                          input(component.id, { state: !component.state });
+                        else
+                          input(component.id, {
+                            wiperPosition:
+                              (component.wiperPosition ?? 0.5) + 0.1 > 1
+                                ? 0
+                                : (component.wiperPosition ?? 0.5) + 0.1,
+                          });
+                      }
                     }}
                     onPointerCancel={() => {
                       if (component.kind === 'button') input(component.id, { state: false });
