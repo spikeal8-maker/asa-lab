@@ -1170,7 +1170,7 @@
   display: block;
   width: 100%;
   height: clamp(300px, calc(100svh - 360px), 620px);
-  touch-action: pan-y;
+  touch-action: none;
   cursor: grab;
   background: radial-gradient(#dce8e1 1px, transparent 1px) 0 0 / 20px 20px;
 }
@@ -2877,4 +2877,36 @@
 .public-project-card .publication-module .project-module-artwork {
   width: 24px;
   height: 24px;
+}
+
+/* Larger author identity; interaction remains confined to each published viewer. */
+.public-project-card .public-project-avatar {
+  flex-basis: 32px;
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
+}
+.public-project-detail-avatar {
+  flex-basis: 48px;
+  width: 48px;
+  height: 48px;
+}
+.publication-owner-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.publication-owner-actions > .btn-secondary {
+  min-height: 34px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .public-project-card .public-project-avatar {
+    flex-basis: 28px;
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
+  }
 }

@@ -391,7 +391,12 @@ const upgradeArtifacts = [
   ],
   [
     '0303',
-    '0303_ai_eight_tool_registry.sql',
+    '0303_publication_owner_editor.sql',
+    '6b33460fe0ac40295e4760659db0953288f473807d9f4753387591476c0fee56',
+  ],
+  [
+    '0304',
+    '0304_ai_eight_tool_registry.sql',
     '85722956cf9ec5aa183e8b710f720c7f2356d761bc47466f756b87f8358bbf9a',
   ],
 ] as const;

@@ -12,6 +12,34 @@ import { loginWithOrganization } from './organization-login';
 const EVIDENCE = 'e2e/artifacts/public-projects';
 const WIDTHS = [320, 360, 390, 430, 768, 1024, 1440] as const;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
+
+test('only the publication owner can resolve its private editor', async ({ page, browser }) => {
+  await page.goto('/#/explore');
+  await register(page, 'Автор редактора публикации');
+  const projectId = await createProject(
+    page,
+    'Работа автора ' + randomUUID(),
+    await raster(page, 'Owner'),
+  );
+  const published = await publish(page, projectId);
+  const target = `/api/public-projects/${published.publicationId}/editor`;
+  const owner = await page.request.get(target);
+  expect(owner.status()).toBe(200);
+  expect(await owner.json()).toEqual({ editor: { projectId, moduleKey: 'electronics' } });
+  expect(owner.headers()['cache-control']).toContain('no-store');
+  const other = await browser.newContext({ baseURL: origin(page) });
+  try {
+    expect((await other.request.get(new URL(target, page.url()).toString())).status()).toBe(401);
+    const stranger = await other.newPage();
+    await stranger.goto(new URL('/#/explore', page.url()).toString());
+    await register(stranger, 'Другой пользователь');
+    const foreign = await stranger.request.get(new URL(target, page.url()).toString());
+    expect(foreign.status()).toBe(200);
+    expect(await foreign.json()).toEqual({ editor: null });
+  } finally {
+    await other.close();
+  }
+});
 test('preview cards have no vignette or added strips and electronics uses a white background', async ({
   page,
 }) => {

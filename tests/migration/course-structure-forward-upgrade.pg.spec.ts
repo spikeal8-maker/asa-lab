@@ -172,7 +172,8 @@ describe('Course Builder structure forward upgrade', () => {
         '0300', // Unreleased durable image queue follows every published canonical migration.
         '0301', // Scoped Chess presence and recipient-bound challenges.
         '0302', // Private portal invitation notifications.
-        '0303', // Independent eight-tool controls, preserving legacy snapshots.
+        '0303', // Owner-only publication editor resolution.
+        '0304', // Independent eight-tool controls, preserving legacy snapshots.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -504,7 +505,8 @@ describe('Course Builder structure forward upgrade', () => {
           '0300', // Unreleased durable image queue follows every published canonical migration.
           '0301', // Scoped Chess presence and recipient-bound challenges.
           '0302', // Private portal invitation notifications.
-          '0303', // Independent eight-tool controls, preserving legacy snapshots.
+          '0303', // Owner-only publication editor resolution.
+          '0304', // Independent eight-tool controls, preserving legacy snapshots.
         ]);
         expect(
           await applyIsolatedTestPlan(
