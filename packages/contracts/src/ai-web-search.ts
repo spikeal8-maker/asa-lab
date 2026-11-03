@@ -68,6 +68,7 @@ export interface AiWebSearchEvidence {
 }
 
 export interface AiWebSearchStatus {
+  readonly pageReadConfigured?: boolean;
   readonly schemaVersion: 1;
   readonly enabled: boolean;
   readonly configured: boolean;

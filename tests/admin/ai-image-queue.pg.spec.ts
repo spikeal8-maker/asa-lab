@@ -29,6 +29,7 @@ const schoolPendingFiles = [
   '0301_games_chess_lobby.sql',
   '0302_games_chess_notifications.sql',
   '0303_publication_owner_editor.sql',
+  '0304_ai_eight_tool_registry.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.

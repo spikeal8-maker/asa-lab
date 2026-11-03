@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { AI_TOOL_IDS, AI_TOOL_LABELS } from '../packages/contracts/src/ai-tools';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 import { generationPolicyFixture } from '../apps/web/src/admin/testing/ai-generation-policy.fixture';
 
@@ -12,6 +13,9 @@ async function adminFixture(page: Page) {
     weatherConfigured: true,
     weatherEnabled: true,
     operationsPerHour: 100,
+    resultsLimit: 8,
+    pagesLimit: 2,
+    pageCharLimit: 4500,
     configurationVersion: 2,
     allowedDomains: [] as string[],
     blockedDomains: [] as string[],
@@ -155,6 +159,30 @@ async function adminFixture(page: Page) {
         revision: 1,
         updatedAt: null,
       });
+    if (path === '/api/admin/v1/ai/tool-policy')
+      return json({
+        schemaVersion: 1,
+        configurationVersion: 1,
+        tools: AI_TOOL_IDS.map((id) => ({
+          id,
+          label: AI_TOOL_LABELS[id],
+          enabled: true,
+          instructions: '',
+          available: true,
+          reason: null,
+          parameters: ['query'],
+          usageDescription: 'По запросу пользователя',
+          resultDescription: 'Проверенный результат',
+          hardLimits: ['Проверка доступа на сервере'],
+        })),
+      });
+    if (path === '/api/ai/status')
+      return json({
+        enabled: true,
+        canGenerate: true,
+        model: 'ollama',
+        modelChoices: [{ id: 'ollama', label: 'Локальная тестовая модель' }],
+      });
     if (path === '/api/admin/v1/ai/images')
       return json({
         configurationVersion: 1,
@@ -227,11 +255,27 @@ async function normalView(page: Page) {
 }
 
 async function noOverflow(page: Page) {
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
-    ),
-  ).toBe(true);
+  const overflow = await page.evaluate(() => {
+    const width = document.documentElement.clientWidth;
+    return {
+      fits: document.documentElement.scrollWidth <= width + 1,
+      offenders: [...document.querySelectorAll<HTMLElement>('main *')]
+        .filter((element) => {
+          const box = element.getBoundingClientRect();
+          return (
+            box.width > 0 && box.right > width + 1 && getComputedStyle(element).position !== 'fixed'
+          );
+        })
+        .slice(0, 12)
+        .map((element) => ({
+          tag: element.tagName,
+          class: element.className,
+          label: element.getAttribute('aria-label'),
+          right: element.getBoundingClientRect().right,
+        })),
+    };
+  });
+  expect(overflow.fits, JSON.stringify(overflow.offenders)).toBe(true);
 }
 
 for (const width of [1440, 1024, 390, 320]) {
@@ -246,7 +290,7 @@ for (const width of [1440, 1024, 390, 320]) {
       'Настройки',
       'Подключения',
       'Системный промпт',
-      'Интернет-поиск',
+      'Инструменты',
       'Изображения',
       'Видео',
       'Транскрибация',
@@ -360,13 +404,16 @@ for (const width of [1440, 1024, 390, 320]) {
     await noOverflow(page);
     await normalView(page);
     await page.screenshot({ path: testInfo.outputPath(`models-${width}.png`), fullPage: true });
-    await page.getByRole('tab', { name: 'Интернет-поиск' }).click();
+    await page
+      .getByRole('tablist', { name: 'Разделы ИИ' })
+      .getByRole('tab', { name: 'Инструменты', exact: true })
+      .click();
     await page.getByRole('textbox', { name: 'Разрешённые сайты' }).fill('example.org\nнаука.рф');
     await page.getByRole('textbox', { name: 'Исключённые сайты' }).fill('ads.example.org');
     await page
       .getByRole('textbox', { name: 'Инструкции для ответов с интернет-поиском' })
       .fill('Сравни первоисточники кратко и укажи ссылки.');
-    await page.getByRole('button', { name: 'Сохранить поиск', exact: true }).click();
+    await page.getByRole('button', { name: 'Сохранить параметры сети', exact: true }).click();
     await expect(
       page.getByText('Настройки сохранены. Поисковый запрос не выполнялся.'),
     ).toBeVisible();
@@ -381,6 +428,16 @@ for (const width of [1440, 1024, 390, 320]) {
       path: testInfo.outputPath(`search-policy-${width}.png`),
       fullPage: true,
     });
+    for (const id of AI_TOOL_IDS) {
+      await page
+        .getByRole('tablist', { name: 'Инструменты помощника' })
+        .getByRole('tab', { name: AI_TOOL_LABELS[id], exact: true })
+        .click();
+      await expect(
+        page.getByRole('article', { name: AI_TOOL_LABELS[id], exact: true }),
+      ).toBeVisible();
+      await noOverflow(page);
+    }
     await page.getByRole('tab', { name: 'Изображения', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Изображения', exact: true })).toBeVisible();
     await noOverflow(page);
@@ -504,3 +561,77 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
   ).toBeVisible();
   expect(fixture.errors).toEqual([]);
 });
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`AI selected tool probe reports real activity and empty evidence at ${width}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await adminFixture(page);
+    let sends = 0;
+    await page.route('**/api/ai/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === '/api/ai/status')
+        return route.fulfill({
+          json: {
+            enabled: true,
+            model: 'ollama',
+            modelChoices: [{ id: 'ollama', label: 'Тестовая локальная модель' }],
+          },
+        });
+      if (path === '/api/ai/threads')
+        return route.fulfill({ json: { id: '10000000-0000-4000-8000-000000000001' } });
+      if (route.request().method() === 'PATCH') return route.fulfill({ json: {} });
+      if (path.endsWith('/messages/stream')) {
+        sends++;
+        const input = route.request().postDataJSON();
+        const evidence = {
+          schemaVersion: 1,
+          provider: 'searxng',
+          mode: 'web',
+          status: 'empty',
+          query: 'Проверка',
+          retrievedAt: '2026-11-03T00:00:00Z',
+          sources: [],
+          images: [],
+        };
+        const frame = (event: string, value: unknown) =>
+          `event: ${event}\ndata: ${JSON.stringify(value)}\n\n`;
+        return route.fulfill({
+          contentType: 'text/event-stream',
+          body:
+            frame('activity', { tool: 'web_search', state: 'running' }) +
+            frame('activity', { tool: 'web_search', state: 'complete' }) +
+            frame('done', {
+              messages: [
+                {
+                  role: 'assistant',
+                  requestId: input.requestId,
+                  content: 'По запросу ничего не найдено.',
+                  webSearch: evidence,
+                },
+              ],
+              replayed: false,
+              stopped: false,
+            }),
+        });
+      }
+      return route.fulfill({
+        status: 404,
+        json: { error: { code: 'missing', message: 'Not used' } },
+      });
+    });
+    await page.goto('/#/admin/ai?section=tools');
+    const panel = page.getByRole('region', { name: 'Проверка инструмента', exact: true });
+    await panel
+      .getByRole('textbox', { name: 'Запрос для проверки' })
+      .fill('Проверка пустой выдачи');
+    await panel.getByRole('button', { name: 'Проверить инструмент', exact: true }).click();
+    await expect(
+      panel.getByText('Инструмент вернул пустую выдачу.', { exact: true }),
+    ).toBeVisible();
+    expect(sends).toBe(1);
+    await noOverflow(page);
+    await page.screenshot({ path: testInfo.outputPath(`probe-${width}.png`), fullPage: true });
+  });
+}
