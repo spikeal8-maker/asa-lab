@@ -16198,7 +16198,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-PRODUCTION-CPU-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SYNC-BATCH-GUARDS-001.md
     previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
@@ -16222,20 +16222,20 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-PRODUCTION-CPU-001
+      id: TASK-ELECTRONICS-SYNC-BATCH-GUARDS-001
       issue: 539
       branch: main
       base_branch: main
       pr: null
       status: in_progress
-      kind: analysis/inventory
-      risk: medium
-      semantic_change: 'no'
-      checkpoint: production_worker_native_cpu_attribution_selected
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: bounded_sync_batch_guard_design_and_independent_safety_review_selected
       owner_acceptance: pending
-      owner_authorization: Owner explicitly resumes remaining plan and20 timing speed delay failures; one bounded native production Worker CPU profile after two negative repair experiments; no product edits or timing acceptance. No yield replacement, clock change, cap increase, server or foreign changes.
+      owner_authorization: Owner explicitly resumes remaining plan and20 timing speed delay failures; one bounded synchronous batch guard repair after approved production CPU evidence; fresh safety review before product edits. No trust across public steps or yields. No yield replacement, clock change, cap increase, server or foreign changes.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-PRODUCTION-CPU-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SYNC-BATCH-GUARDS-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
       previous_experiment:
@@ -16252,6 +16252,11 @@ parallel_lanes:
         independent_review: APPROVE_negative_evidence_only
         result: Full320responses_equal_but_no_consistent_gain_median13.45ms_before_14.90ms_after_zero_timing_failures_closed
         report: docs/product/electronics/evidence/event-queue-copy-20261103/REPORT.md
+      production_profile:
+        candidate_sha: 5bc1ac413e4c6f66c3128b306a8350a046907864
+        independent_review: APPROVE_diagnostic_evidence_only
+        report: docs/product/electronics/evidence/production-cpu-20261103/REPORT.md
+        result: NativeWorker160fullresponses_equal_6826samples_guard228.049ms_self_zero_timing_failures_closed
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
