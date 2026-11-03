@@ -48,13 +48,11 @@ it('links the owner to the original and reads current private metadata before ma
     status: 200,
     data: { editor },
   });
-  const open = vi
-    .spyOn(api, 'openProject')
-    .mockResolvedValue({
-      ok: true,
-      status: 200,
-      data: { project: { id: 'original', title: 'Последний черновик' } as Project, document: {} },
-    } as never);
+  const open = vi.spyOn(api, 'openProject').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { project: { id: 'original', title: 'Последний черновик' } as Project, document: {} },
+  } as never);
   await render();
   expect(host.querySelector('a')?.getAttribute('href')).toContain('original');
   expect(host.textContent).toContain('Редактировать');
