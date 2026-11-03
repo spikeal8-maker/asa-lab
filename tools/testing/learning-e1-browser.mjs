@@ -13,9 +13,9 @@ const firstSelectors = [
 ];
 const secondSelectors = [
   'e2e/learning-learner-submits-project-assignment.spec.ts',
+  'e2e/learning-quiz-course.spec.ts',
   'e2e/learning-surface-convergence.spec.ts',
   'e2e/learning-teacher-assigns-activity.spec.ts',
-  'e2e/learning-quiz-course.spec.ts',
 ];
 
 // Fixed identities and order; locations must come from this checkout's CLI.
@@ -70,6 +70,9 @@ const manifest = {
     'A0 Blocks keeps anchor and panel topmost over fullscreen Scratch',
     'A0 mobile shell uses a permanent bottom anchor and bounded sheet at 390 and 320',
   ],
+  'learning-quiz-course.spec.ts': [
+    'Complete Quiz Course: inline eight-type author, exact versions, Seat and Account saved answers, automatic and manual journal at four widths',
+  ],
   'learning-surface-convergence.spec.ts': [
     'legacy, revision and selected-result semantics stay equal across learner and teacher surfaces',
   ],
@@ -79,9 +82,6 @@ const manifest = {
     'teacher selects two learners and the third learner cannot see the assignment',
     'learner exact published task image stays pinned across v1 and v2',
     'A6 PDF material stays readable through exact direct assignment versions',
-  ],
-  'learning-quiz-course.spec.ts': [
-    'Complete Quiz Course: inline eight-type author, exact versions, Seat and Account saved answers, automatic and manual journal at four widths',
   ],
 };
 const root = process.cwd();
