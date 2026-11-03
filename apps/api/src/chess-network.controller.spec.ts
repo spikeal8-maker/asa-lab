@@ -101,17 +101,31 @@ describe('Chess Games API trust boundary', () => {
         .spyOn(ChessNetworkService.prototype, 'notifications')
         .mockResolvedValue({ playerId: 'safe-player', incoming: [] });
       try {
+        const accountCalls = f.accounts.resolve.mock.calls.length;
+        for (const headers of [
+          {},
+          { 'x-game-presence': '0' },
+          { 'x-game-presence': '1', 'sec-fetch-site': 'cross-site' },
+        ]) {
+          const blocked = await adapter
+            .getInstance()
+            .inject({ method: 'GET', url: '/api/games/chess/notifications', headers });
+          expect(blocked.statusCode).toBe(403);
+        }
+        expect(f.accounts.resolve.mock.calls.length).toBe(accountCalls);
         const forged = await adapter.getInstance().inject({
-          method: 'POST',
-          url: '/api/games/chess/notifications',
-          payload: { playerId: 'other' },
+          method: 'GET',
+          url: '/api/games/chess/notifications?playerId=other',
+          headers: { 'x-game-presence': '1' },
         });
         expect(forged.statusCode).toBe(400);
         expect(notifications).not.toHaveBeenCalled();
-        const alerts = await adapter
-          .getInstance()
-          .inject({ method: 'POST', url: '/api/games/chess/notifications', payload: {} });
-        expect(alerts.statusCode).toBe(201);
+        const alerts = await adapter.getInstance().inject({
+          method: 'GET',
+          url: '/api/games/chess/notifications',
+          headers: { 'x-game-presence': '1', 'sec-fetch-site': 'same-origin' },
+        });
+        expect(alerts.statusCode).toBe(200);
         expect(alerts.headers['cache-control']).toBe('private, no-store');
         expect(alerts.json()).toEqual({ playerId: 'safe-player', incoming: [] });
         expect(notifications).toHaveBeenCalledWith(expect.objectContaining({ kind: 'account' }));

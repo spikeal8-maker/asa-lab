@@ -157,11 +157,19 @@ export class ChessNetworkController {
     const source = await this.source(request);
     return this.run(() => this.service!.access(source));
   }
-  @Post('notifications')
+  @Get('notifications')
   @Header('Cache-Control', 'private, no-store')
-  async notifications(@Req() request: FastifyRequest, @Body() raw: unknown) {
+  async notifications(@Req() request: FastifyRequest) {
+    // This authenticated read refreshes only ephemeral last-seen metadata. A custom
+    // header prevents cross-origin tags/navigation from publishing presence.
+    const site = request.headers['sec-fetch-site'];
+    if (
+      request.headers['x-game-presence'] !== '1' ||
+      (site && site !== 'same-origin' && site !== 'none')
+    )
+      reject(403, 'FORBIDDEN', 'Откройте уведомления на странице ASA Lab.');
+    body(request.query ?? {}, []);
     const source = await this.source(request);
-    body(raw, []);
     return this.run(() => this.service!.notifications(source));
   }
   @Post('lobby')

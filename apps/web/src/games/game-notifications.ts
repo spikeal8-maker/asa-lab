@@ -119,8 +119,8 @@ export function usePortalGameNotifications(actor: string): void {
         let timer: ReturnType<typeof setTimeout> | undefined;
         const result = await Promise.race([
           call<{ playerId: string; incoming: Invitation[] }>('/api/games/chess/notifications', {
-            method: 'POST',
-            body: '{}',
+            method: 'GET',
+            headers: { 'x-game-presence': '1' },
             cache: 'no-store',
             signal: controller.signal,
           }),

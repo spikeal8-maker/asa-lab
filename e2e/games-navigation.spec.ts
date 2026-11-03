@@ -569,9 +569,11 @@ test('game invitations reach the shared navigation and game card, ping once and 
   });
   await fixture(page);
   let incoming: { id: string; expiresAt: number }[] = [];
-  await page.route('**/api/games/chess/notifications', (route) =>
-    route.fulfill({ json: { playerId: 'notification-player', incoming } }),
-  );
+  await page.route('**/api/games/chess/notifications', (route) => {
+    expect(route.request().method()).toBe('GET');
+    expect(route.request().headers()['x-game-presence']).toBe('1');
+    return route.fulfill({ json: { playerId: 'notification-player', incoming } });
+  });
   await page.goto('/#/games');
   await expect(page.getByRole('button', { name: 'Играть: Шахматы', exact: true })).toBeVisible();
   // The global polite announcement must not add an empty status to unrelated page feedback.
