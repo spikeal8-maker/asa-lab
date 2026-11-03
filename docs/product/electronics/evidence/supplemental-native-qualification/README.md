@@ -21,7 +21,17 @@ the original image-only PostgreSQL transport change. All Docker operations are
 restricted to disposable GitHub-hosted Linux amd64, one unique loopback project.
 
 Expected schema and exact candidate revision are exported before the existing
-report permissions step. The fixed runner is mounted read-only into the candidate
+report permissions step. Only the fresh `reports/electronics-supplemental-native`
+directory receives mode0777; fresh source/image receipts receive descriptor0644
+on Linux, readable by the distinct container UID even with a private host umask.
+The two native files use `testInfo.outputPath`/attachments
+inside the runner's explicit `--output` directory. No legacy `e2e/artifacts` files
+or tracked report files need permission changes. Every tracked candidate diff,
+including an executable-bit-only change, is rejected before Docker proof.
+Both rendered models include the same registry overlay; the transported model
+adds only the validated PostgreSQL override. Its image is normalized solely to
+the original validated receipt reference before exact whole-model comparison.
+The fixed runner is mounted read-only into the candidate
 test image. Strict API readiness binds actual/expected schema, synchronized=true
 and candidate SHA; actual Web build metadata must match too. Workflow SHA is
 recorded separately. The executable pins are trusted at the independently reviewed
@@ -53,6 +63,17 @@ This document authorizes no dispatch. Report workflow SHA, checked-out/runtime
 candidate SHA, discovered/executed counts and conclusion separately. Full R4,
 production blocker836, school updates/100-user acceptance and owner cadence WAIT
 remain independent requirements. Qualification in this source slice: NOT_RUN.
+
+The first dispatch41586603773 (candidate2a28cffe, controller2f1c1423) failed at the
+model-proof step before build or native discovery. Its generic failure and
+encrypted-only artifact remain historical failure evidence; no cases passed.
+Source diagnosis found that the old recursive0777 grant changed executable bits
+on committed PNG/JSON evidence, which the next source check correctly rejects.
+The focused POSIX real-Git regression demonstrates that old prefix failing and
+the new report-directory-only prefix remaining clean; byte edits and wrong file
+modes are still rejected. Public failure diagnostics now expose only a closed
+phase/code, never exception text, Docker output, paths or response payloads.
+This source repair is not a successful rerun or decoded evidence claim.
 
 Offline focused checks (no Docker/network):
 
