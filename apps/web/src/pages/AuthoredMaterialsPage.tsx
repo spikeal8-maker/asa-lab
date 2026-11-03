@@ -1,3 +1,4 @@
+import { QuizActivityEditor, type SaveQuizContent } from '../components/QuizActivityEditor';
 import { AuthorVersionHistory } from '../components/AuthorVersionHistory';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import {
@@ -404,6 +405,11 @@ export function AuthoredMaterialsPage({
     ? { ...initial, kind: 'project' }
     : initial;
   const [draft, setDraft] = useState<AuthoredActivityDraft>(emptyDraft);
+  const quizSave = useRef<SaveQuizContent | null>(null);
+  const [quizDirty, setQuizDirty] = useState(false);
+  const registerQuizSave = useCallback((save: SaveQuizContent | null) => {
+    quizSave.current = save;
+  }, []);
   const [inheritedGoal, setInheritedGoal] = useState<string | null>(null);
   const [opened, setOpened] = useState<{ id: string; revision: number } | null>(null);
   const [openedKind, setOpenedKind] = useState<string | null>(null);
@@ -484,7 +490,9 @@ export function AuthoredMaterialsPage({
       setPendingDraftSample(null);
       setPendingTaskMedia([]);
       const loaded: AuthoredActivityDraft = {
-        ...(result.data.kind === 'essay' ? { kind: 'essay' as const } : {}),
+        ...(result.data.kind === 'essay' || result.data.kind === 'quiz'
+          ? { kind: result.data.kind as 'essay' | 'quiz' }
+          : {}),
         title: value.title,
         // A legacy teacher-source draft may have no goal key. Keep that
         // absence until the author edits the goal, so another field's save
@@ -497,6 +505,8 @@ export function AuthoredMaterialsPage({
         moduleKey: value.moduleKey,
         policies: value.policies,
         quizVersionId: value.quizVersionId ?? null,
+        quizDraftId: value.quizDraftId ?? null,
+        quizDraftRevision: value.quizDraftRevision ?? null,
         starterProjectVersionId: value.starterProjectVersionId ?? null,
       };
       setDraft(loaded);
@@ -540,7 +550,24 @@ export function AuthoredMaterialsPage({
       )
     )
       return null;
-    const payload = JSON.stringify(draft);
+    let contentDraft = draft;
+    if (isQuiz) {
+      if (!quizSave.current) {
+        setError('Редактор теста ещё не готов.');
+        return null;
+      }
+      setBusy(true);
+      try {
+        contentDraft = { ...draft, ...(await quizSave.current()) };
+        setDraft(contentDraft);
+      } catch (problem) {
+        setError(problem instanceof Error ? problem.message : 'Не удалось сохранить вопросы.');
+        setBusy(false);
+        return null;
+      }
+      setBusy(false);
+    }
+    const payload = JSON.stringify(contentDraft);
     const textDirty = !opened || savedPayload.current !== payload;
     if (!textDirty && pendingDraftSample === null && pendingTaskMedia.length === 0) return opened;
 
@@ -554,8 +581,8 @@ export function AuthoredMaterialsPage({
         request.current = { payload, id: crypto.randomUUID() };
       }
       const result = opened
-        ? await api.saveAuthoredActivity(opened.id, opened.revision, draft)
-        : await api.createActivityDraft(draft, request.current!.id);
+        ? await api.saveAuthoredActivity(opened.id, opened.revision, contentDraft)
+        : await api.createActivityDraft(contentDraft, request.current!.id);
       if (!result.ok) {
         setError(
           result.error.code?.includes('conflict')
@@ -598,7 +625,7 @@ export function AuthoredMaterialsPage({
       setPendingDraftSample(null);
     }
 
-    let savedDraft = draft;
+    let savedDraft = contentDraft;
     for (const media of pendingTaskMedia) {
       const mediaResult: Awaited<ReturnType<typeof api.saveAuthoredActivityTaskImage>> =
         media.role === 'image'
@@ -958,6 +985,7 @@ export function AuthoredMaterialsPage({
 
   async function openAssignFlow(): Promise<void> {
     const needsPublish =
+      quizDirty ||
       !publishedVersionId ||
       opened === null ||
       savedPayload.current !== JSON.stringify(draft) ||
@@ -1007,22 +1035,26 @@ export function AuthoredMaterialsPage({
   const effectiveKind =
     openedKind ?? draft.kind ?? (draft.moduleKey === null ? 'manual' : 'project');
   const isEssay = effectiveKind === 'essay';
-  const canAssignDraftModule = isEssay
-    ? draft.moduleKey === null
-    : !modulesLoading &&
-      (openedKind === null || openedKind === 'project') &&
-      draft.moduleKey !== null &&
-      assignableModules.some((module) => module.moduleKey === draft.moduleKey);
-  const canSaveDraftModule = isEssay
-    ? draft.moduleKey === null
-    : draft.moduleKey === null
-      ? effectiveKind === 'manual'
-      : canAssignDraftModule;
-  const canPublish = isEssay
-    ? draft.moduleKey === null
-    : draft.moduleKey === null
-      ? effectiveKind === 'manual' && opened !== null
-      : canAssignDraftModule;
+  const isQuiz = effectiveKind === 'quiz';
+  const canAssignDraftModule =
+    isEssay || isQuiz
+      ? draft.moduleKey === null
+      : !modulesLoading &&
+        (openedKind === null || openedKind === 'project') &&
+        draft.moduleKey !== null &&
+        assignableModules.some((module) => module.moduleKey === draft.moduleKey);
+  const canSaveDraftModule =
+    isEssay || isQuiz
+      ? draft.moduleKey === null
+      : draft.moduleKey === null
+        ? effectiveKind === 'manual'
+        : canAssignDraftModule;
+  const canPublish =
+    isEssay || isQuiz
+      ? draft.moduleKey === null
+      : draft.moduleKey === null
+        ? effectiveKind === 'manual' && opened !== null
+        : canAssignDraftModule;
   const displayedDraftSample = pendingDraftSample ?? draftSampleImage;
   const normalizedSearch = search.trim().toLocaleLowerCase('ru-RU');
   const publishedCount = items.filter((item) => item.currentPublishedVersionId !== null).length;
@@ -1041,7 +1073,7 @@ export function AuthoredMaterialsPage({
     (JSON.stringify(draft) !== JSON.stringify(emptyDraft) ||
       pendingDraftSample !== null ||
       pendingTaskMedia.length > 0);
-  const hasUnsavedEditorChanges = opened === null ? newDraftDirty : draftDirty;
+  const hasUnsavedEditorChanges = quizDirty || (opened === null ? newDraftDirty : draftDirty);
 
   function canLeaveEditor(): boolean {
     if (courseOperationRef.current) return false;
@@ -1234,14 +1266,16 @@ export function AuthoredMaterialsPage({
   }
 
   if (embedded && screen === 'editor') {
-    const moduleTitle = isEssay
-      ? 'Письменный ответ'
-      : draft.moduleKey === null
-        ? courseCreation
-          ? 'Среда не выбрана'
-          : 'Материал без среды'
-        : (modules.find((module) => module.moduleKey === draft.moduleKey)?.displayName ??
-          draft.moduleKey);
+    const moduleTitle = isQuiz
+      ? 'Тест'
+      : isEssay
+        ? 'Письменный ответ'
+        : draft.moduleKey === null
+          ? courseCreation
+            ? 'Среда не выбрана'
+            : 'Материал без среды'
+          : (modules.find((module) => module.moduleKey === draft.moduleKey)?.displayName ??
+            draft.moduleKey);
     const attemptCount = Number(draft.policies.attemptPolicy?.['maxAttempts'] ?? 1);
     const resultTitle =
       draft.resultMode === 'graded'
@@ -1306,7 +1340,7 @@ export function AuthoredMaterialsPage({
                     !draft.title.trim() ||
                     (!opened && !canSaveDraftModule) ||
                     (!!courseCreation && !canAssignDraftModule) ||
-                    (draft.resultMode === 'graded' && !draft.maxPoints)
+                    (draft.resultMode === 'graded' && !draft.maxPoints && !isQuiz)
                   }
                 >
                   {opened ? 'Сохранить' : 'Создать задание'}
@@ -1327,7 +1361,7 @@ export function AuthoredMaterialsPage({
                     !draft.title.trim() ||
                     !canAssignDraftModule ||
                     (!courseCreation && isEssay) ||
-                    (draft.resultMode === 'graded' && !draft.maxPoints)
+                    (draft.resultMode === 'graded' && !draft.maxPoints && !isQuiz)
                   }
                   onClick={() => void (courseCreation ? publish(true) : openAssignFlow())}
                 >
@@ -1348,7 +1382,7 @@ export function AuthoredMaterialsPage({
                       busy ||
                       !canPublish ||
                       !draft.title.trim() ||
-                      (draft.resultMode === 'graded' && !draft.maxPoints)
+                      (draft.resultMode === 'graded' && !draft.maxPoints && !isQuiz)
                     }
                     onClick={() => void publish()}
                   >
@@ -1394,7 +1428,7 @@ export function AuthoredMaterialsPage({
                   value={effectiveKind}
                   disabled={busy || opened !== null}
                   onChange={(event) => {
-                    const kind = event.target.value as 'project' | 'essay' | 'manual';
+                    const kind = event.target.value as 'project' | 'essay' | 'quiz' | 'manual';
                     setDraft((current) => ({
                       ...current,
                       kind,
@@ -1406,10 +1440,11 @@ export function AuthoredMaterialsPage({
                   {!courseCreation || courseCreation.allowEssay ? (
                     <option value="essay">Письменный ответ</option>
                   ) : null}
+                  <option value="quiz">Тест</option>
                   {!courseCreation ? <option value="manual">Материал курса</option> : null}
                 </select>
               </label>
-              {courseCreation && !isEssay ? (
+              {courseCreation && !isEssay && !isQuiz ? (
                 <label className="teacher-field assignment-document-environment">
                   <span>Среда задания</span>
                   <select
@@ -1505,6 +1540,17 @@ export function AuthoredMaterialsPage({
                 </div>
               ) : null}
 
+              {isQuiz ? (
+                <QuizActivityEditor
+                  key={opened?.id ?? 'new-quiz'}
+                  quizId={draft.quizDraftId ?? null}
+                  title={draft.title}
+                  instructions={draft.instructions}
+                  disabled={busy}
+                  registerSave={registerQuizSave}
+                  onDirty={setQuizDirty}
+                />
+              ) : null}
               <footer className="assignment-document-meta">
                 <span>{moduleTitle}</span>
                 <span>
@@ -1550,7 +1596,7 @@ export function AuthoredMaterialsPage({
                   </header>
 
                   <div className="teacher-drawer-body">
-                    {!isEssay ? (
+                    {!isEssay && !isQuiz ? (
                       <label className="teacher-field">
                         <span>Среда</span>
                         <select
@@ -1581,7 +1627,11 @@ export function AuthoredMaterialsPage({
                         </select>
                       </label>
                     ) : (
-                      <p>Письменный ответ в курсе · проверяет преподаватель.</p>
+                      <p>
+                        {isQuiz
+                          ? 'Тест · автоматическая проверка и проверка развёрнутых ответов преподавателем.'
+                          : 'Письменный ответ в курсе · проверяет преподаватель.'}
+                      </p>
                     )}
 
                     <label className="teacher-field">
@@ -2119,7 +2169,7 @@ export function AuthoredMaterialsPage({
                 busy ||
                 !draft.title.trim() ||
                 (!opened && !canSaveDraftModule) ||
-                (draft.resultMode === 'graded' && !draft.maxPoints)
+                (draft.resultMode === 'graded' && !draft.maxPoints && !isQuiz)
               }
             >
               {busy
@@ -2137,7 +2187,7 @@ export function AuthoredMaterialsPage({
                 busy ||
                 !draft.title.trim() ||
                 !canPublish ||
-                (draft.resultMode === 'graded' && !draft.maxPoints)
+                (draft.resultMode === 'graded' && !draft.maxPoints && !isQuiz)
               }
               onClick={() => void publish()}
             >

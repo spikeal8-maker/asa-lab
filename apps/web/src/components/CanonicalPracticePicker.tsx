@@ -149,7 +149,9 @@ export function CanonicalPracticePicker({
         setItems(
           result.data.items.filter(
             (item) =>
-              (item.kind === 'project' || (allowEssay && item.kind === 'essay')) &&
+              (item.kind === 'project' ||
+                (allowEssay && item.kind === 'essay') ||
+                item.kind === 'quiz') &&
               item.currentPublishedVersionId !== null,
           ),
         );
@@ -194,8 +196,8 @@ export function CanonicalPracticePicker({
                       if (!mounted.current || creationSession !== sessionRef.current) return;
                       if (!result.ok) throw new Error(result.error.message);
                       const essay =
-                        allowEssay &&
-                        result.data.kind === 'essay' &&
+                        (result.data.kind === 'quiz' ||
+                          (allowEssay && result.data.kind === 'essay')) &&
                         result.data.moduleKey === null;
                       if (!modules.ok && !essay) throw new Error(modules.error.message);
                       if (
@@ -293,8 +295,8 @@ export function CanonicalPracticePicker({
                             if (!mounted.current) return;
                             const essay =
                               result.ok &&
-                              allowEssay &&
-                              result.data.kind === 'essay' &&
+                              (result.data.kind === 'quiz' ||
+                                (allowEssay && result.data.kind === 'essay')) &&
                               result.data.moduleKey === null;
                             const supported =
                               essay ||

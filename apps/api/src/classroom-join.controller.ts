@@ -78,6 +78,7 @@ const SEAT_SESSION_COLUMNS = `seat_id, classroom_id, classroom_title, display_la
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface AssignmentForSeatRow {
+  activity_kind?: 'quiz' | null;
   id: string;
   title: string;
   brief: string | null;
@@ -212,7 +213,7 @@ interface CourseActivityOccurrenceView {
   title: string;
   goal: string | null;
   blocks?: unknown[] | null | undefined;
-  activityKind?: 'project' | 'essay';
+  activityKind?: 'project' | 'essay' | 'quiz';
   moduleKey: string | null;
   sampleImage: string | null;
   projectId: string | null;
@@ -299,7 +300,7 @@ function courseActivityOccurrenceMap(
       row.essay_context.activityVersionId === row.learning_activity_version_id
         ? row.essay_context
         : null;
-    const essayKind = row.activity_kind === 'essay';
+    const essayKind = row.activity_kind === 'essay' || row.activity_kind === 'quiz';
     const origin = origins?.courseWork(row.seat_id, row.activity_run_id, row.block_id) ?? null;
     const exact = origin?.classroomAssignmentId === row.classroom_assignment_id ? origin : null;
     const originPresent =
@@ -369,7 +370,7 @@ function courseActivityOccurrenceMap(
       classroomAssignmentId: row.classroom_assignment_id,
       requirement,
       learningActivityVersionId: row.learning_activity_version_id,
-      ...(essayKind ? { activityKind: 'essay' as const } : {}),
+      ...(essayKind ? { activityKind: row.activity_kind as 'essay' | 'quiz' } : {}),
       title: row.title,
       goal: essayKind
         ? (essay?.goal ?? null)
@@ -1312,6 +1313,7 @@ export class ClassroomJoinController {
         `SELECT id, seat_id, classroom_title, title, brief, goal, module_key,
               due_at, status, sample_image, project_id, submitted_at,
               snapshot_revision, updated_at,
+              learning_quiz_assignment_kind($2,id) AS activity_kind,
               learning_legacy_direct_provenance($2,seat_id,id,project_id)
                 AS legacy_provenance,
               learning_activity_blocks_for_seat(seat_id,id) AS task_blocks
@@ -1367,6 +1369,7 @@ export class ClassroomJoinController {
               : row.task_blocks?.present
                 ? row.task_blocks.blocks
                 : undefined,
+            ...(row.activity_kind === 'quiz' ? { activityKind: 'quiz' as const } : {}),
             moduleKey: row.module_key,
             dueAt:
               projected?.effectiveDueAt === undefined
@@ -1455,6 +1458,7 @@ export class ClassroomJoinController {
                 learning_course_activity_kind_for_viewer($2,occurrence.activity_run_id) AS activity_kind,
                 CASE WHEN learning_course_activity_kind_for_viewer($2,occurrence.activity_run_id)='essay'
                   THEN learning_essay_attempt_read($2,occurrence.activity_run_id)
+                  WHEN learning_course_activity_kind_for_viewer($2,occurrence.activity_run_id)='quiz' THEN learning_quiz_run_read($2,occurrence.activity_run_id)
                   ELSE NULL END AS essay_context,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
                 learning_course_academic_result_visible(
@@ -1530,6 +1534,7 @@ export class ClassroomJoinController {
       this.requirePool().query(
         `SELECT id, title, brief, goal, module_key, due_at, status, sample_image, project_id,
               submitted_at, snapshot_revision, updated_at,
+              learning_quiz_assignment_kind(principal_for_seat($1),id) AS activity_kind,
               learning_legacy_direct_provenance(principal_for_seat($1),$1,id,project_id)
                 AS legacy_provenance,
               learning_activity_blocks_for_seat($1,id) AS task_blocks
@@ -1580,6 +1585,7 @@ export class ClassroomJoinController {
               : row.task_blocks?.present
                 ? row.task_blocks.blocks
                 : undefined,
+            ...(row.activity_kind === 'quiz' ? { activityKind: 'quiz' as const } : {}),
             moduleKey: row.module_key,
             dueAt:
               projected?.effectiveDueAt === undefined
@@ -1657,6 +1663,7 @@ export class ClassroomJoinController {
                 learning_course_activity_kind_for_viewer(principal_for_seat($1),occurrence.activity_run_id) AS activity_kind,
                 CASE WHEN learning_course_activity_kind_for_viewer(principal_for_seat($1),occurrence.activity_run_id)='essay'
                   THEN learning_essay_attempt_read(principal_for_seat($1),occurrence.activity_run_id)
+                  WHEN learning_course_activity_kind_for_viewer(principal_for_seat($1),occurrence.activity_run_id)='quiz' THEN learning_quiz_run_read(principal_for_seat($1),occurrence.activity_run_id)
                   ELSE NULL END AS essay_context,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
                 learning_course_academic_result_visible(

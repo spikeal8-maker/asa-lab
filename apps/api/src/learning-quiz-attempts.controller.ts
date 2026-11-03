@@ -52,7 +52,7 @@ function boundedAnswerShape(input: object): boolean {
   return true;
 }
 
-/** Persistence only. Final submission and grading use the canonical pipeline in a later slice. */
+/** Canonical persisted Quiz Attempt; submission never creates a replacement Attempt. */
 @Controller('api/learning')
 export class LearningQuizAttemptsController {
   constructor(
@@ -111,6 +111,52 @@ export class LearningQuizAttemptsController {
     const attempt = result.rows[0]?.['attempt'] as Record<string, unknown> | null;
     if (!attempt) reject('quiz_attempt_unavailable', 404);
     return { attempt };
+  }
+
+  @Get('quiz/runs/:activityRunId')
+  @Header('Cache-Control', 'private, no-store')
+  async run(@Req() request: FastifyRequest, @Param('activityRunId') id: string) {
+    if (!UUID.test(id)) reject('validation_error', 400);
+    const actor = await this.actor(request);
+    const result = await this.pool!.query('SELECT learning_quiz_run_read($1,$2) AS response', [
+      actor,
+      id,
+    ]);
+    const response = result.rows[0]?.['response'];
+    if (!response) reject('quiz_attempt_unavailable', 404);
+    return response;
+  }
+
+  @Post('attempts/:attemptId/submit')
+  @Header('Cache-Control', 'private, no-store')
+  @HttpCode(200)
+  async submit(
+    @Req() request: FastifyRequest,
+    @Param('attemptId') id: string,
+    @Body() raw: unknown,
+  ) {
+    const shape = checkBodyShape(raw, ['requestId', 'expectedVersion']);
+    const requestId = shape.ok ? shape.body['requestId'] : null,
+      version = shape.ok ? shape.body['expectedVersion'] : null;
+    if (
+      !UUID.test(id) ||
+      typeof requestId !== 'string' ||
+      !/^[A-Za-z0-9._:-]{8,128}$/.test(requestId) ||
+      !Number.isSafeInteger(version) ||
+      Number(version) < 1 ||
+      Number(version) > 2147483647
+    )
+      reject('validation_error', 400);
+    const actor = await this.actor(request);
+    const result = await this.pool!.query(
+      'SELECT * FROM learning_quiz_attempt_submit($1,$2,$3,$4)',
+      [actor, id, version, requestId],
+    );
+    const row = result.rows[0];
+    if (!row || row['result_code'] === 'forbidden') reject('quiz_attempt_unavailable', 404);
+    if (row['result_code'] !== 'ok' || !row['attempt'])
+      reject(String(row['result_code'] ?? 'submit_failed'), 409);
+    return { attempt: row['attempt'] as Record<string, unknown> };
   }
 
   @Patch('attempts/:attemptId/quiz-answers')

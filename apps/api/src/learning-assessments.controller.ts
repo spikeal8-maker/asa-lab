@@ -819,6 +819,11 @@ export class LearningAssessmentsController {
     );
     const row = result.rows[0];
     if (!row) {
+      const quiz = await this.requirePool().query(
+        'SELECT learning_teacher_exact_quiz_submission($1,$2,$3) AS submission',
+        [context.accountId, classroomId, attemptId],
+      );
+      if (quiz.rows[0]?.['submission']) return quiz.rows[0]['submission'];
       const essay = await this.requirePool().query(
         'SELECT * FROM learning_teacher_exact_essay_submission($1,$2,$3)',
         [context.accountId, classroomId, attemptId],

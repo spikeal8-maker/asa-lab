@@ -1,3 +1,4 @@
+import { QuizQuestionFields } from './QuizQuestionFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api,
@@ -199,7 +200,30 @@ function ReviewDetail({
                 <strong>Сданная версия</strong> · ревизия сохранения{' '}
                 {frozen.sourceRevision ?? 'не записана в legacy'} · попытка {attempt?.number}
               </p>
-              {frozen.kind === 'essay' ? (
+              {frozen.kind === 'quiz' ? (
+                <div data-testid="submission-quiz-answers">
+                  <p>
+                    Автоматические баллы: {frozen.autoPoints}
+                    {frozen.manualPending
+                      ? ' · требуется проверка развёрнутых ответов; итог ещё не выставлен'
+                      : ''}
+                  </p>
+                  {frozen.questions.map((question, index) => (
+                    <fieldset key={question.id} disabled>
+                      <legend>
+                        {index + 1}.{' '}
+                        {question.promptBlocks.map((block) => block.text ?? '').join('\n')}
+                      </legend>
+                      <QuizQuestionFields
+                        question={question}
+                        answer={frozen.answers[question.id]}
+                        disabled
+                        onChange={() => undefined}
+                      />
+                    </fieldset>
+                  ))}
+                </div>
+              ) : frozen.kind === 'essay' ? (
                 <p
                   data-testid="submission-essay-text"
                   style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
@@ -222,7 +246,7 @@ function ReviewDetail({
               <details>
                 <summary>Содержимое и контрольная сумма сдачи</summary>
                 <p>{frozen.digest}</p>
-                {frozen.kind !== 'essay' ? (
+                {frozen.kind !== 'essay' && frozen.kind !== 'quiz' ? (
                   <pre>{JSON.stringify(frozen.document, null, 2)}</pre>
                 ) : null}
               </details>

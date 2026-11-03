@@ -1,3 +1,4 @@
+import { QuizResponsePlayer } from './QuizResponsePlayer';
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -473,7 +474,7 @@ export function SeatCourses({
                     </>
                   );
                 }
-                if (occurrence.activityKind === 'essay') {
+                if (occurrence.activityKind === 'essay' || occurrence.activityKind === 'quiz') {
                   return (
                     <div
                       className="seat-course-activity"
@@ -489,19 +490,30 @@ export function SeatCourses({
                       tabIndex={-1}
                     >
                       <div className="seat-course-activity-main">
-                        <span className="course-eyebrow">Письменный ответ</span>
+                        <span className="course-eyebrow">
+                          {occurrence.activityKind === 'quiz' ? 'Тест' : 'Письменный ответ'}
+                        </span>
                         <strong>{occurrence.title}</strong>
                         <small>{courseActivityStatus(occurrence)}</small>
                       </div>
                       <AssignmentGoal goal={occurrence.goal} />
                       {occurrence.blocks ? <TaskBlocks blocks={occurrence.blocks} /> : null}
-                      <EssayResponseEditor
-                        key={occurrence.activityRunId}
-                        activityRunId={occurrence.activityRunId}
-                        activityVersionId={occurrence.learningActivityVersionId}
-                        onChanged={reload}
-                        onRegisterLeaveGuard={registerResponseGuard}
-                      />
+                      {occurrence.activityKind === 'quiz' ? (
+                        <QuizResponsePlayer
+                          key={occurrence.activityRunId}
+                          activityRunId={occurrence.activityRunId}
+                          onChanged={reload}
+                          onRegisterLeaveGuard={registerResponseGuard}
+                        />
+                      ) : (
+                        <EssayResponseEditor
+                          key={occurrence.activityRunId}
+                          activityRunId={occurrence.activityRunId}
+                          activityVersionId={occurrence.learningActivityVersionId}
+                          onChanged={reload}
+                          onRegisterLeaveGuard={registerResponseGuard}
+                        />
+                      )}
                     </div>
                   );
                 }
