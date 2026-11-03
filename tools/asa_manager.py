@@ -4,6 +4,7 @@
 import argparse
 import base64
 import datetime as dt
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -16,7 +17,9 @@ from contextlib import nullcontext
 
 from deployment.backup import export_backup, recovery_configuration, restore_check
 from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_json, attest_editor_env, exact_origin, in_window, require, verify_backup, verify_embedded_entry_http
-from deployment.releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_resolved_images
+from deployment.releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_deployment_digest, validate_resolved_images
+from deployment.paths import atomic_json as private_atomic_json, plain_paths
+from deployment import releases as release_transport
 from deployment.system import Installation, operation_lock, run
 from deployment.collector import prepare as prepare_collector, reconcile as reconcile_collector, status as collector_status, select_root_mode
 from deployment.contracts import proxy_provenance_diagnostic
@@ -123,7 +126,66 @@ def first_environment(root, profile, *, project="asa-lab-dev", web_port=4610, bl
         stream.write("".join(f"{key}={value}\n" for key, value in values.items()))
 
 
-def selected_source(install, release, *, existing):
+def pending_selection(install):
+    path = install.state / 'release-selection.json'
+    plain_paths(install.root, ('.asa/release-selection.json',))
+    if not path.exists():
+        return None
+    require(path.is_file() and path.stat().st_size <= 4096, 'RELEASE_SELECTION_PENDING', 'Invalid pending release selection.')
+    saved = json.loads(path.read_text(encoding='utf-8'))
+    require(isinstance(saved, dict) and set(saved) == {'format', 'deploymentDigest', 'releaseSha256'}
+            and saved['format'] == 'asa-release-selection-v1', 'RELEASE_SELECTION_PENDING', 'Invalid pending release selection.')
+    validate_deployment_digest(saved['deploymentDigest'])
+    import re
+    require(isinstance(saved['releaseSha256'], str) and re.fullmatch(r'[a-f0-9]{64}', saved['releaseSha256']),
+            'RELEASE_SELECTION_PENDING', 'Invalid pending manifest fingerprint.')
+    return saved
+
+
+def selection_record(digest, release):
+    return {'format': 'asa-release-selection-v1', 'deploymentDigest': validate_deployment_digest(digest),
+            'releaseSha256': hashlib.sha256(json.dumps(release, sort_keys=True, separators=(',', ':'),
+                                                     allow_nan=False).encode()).hexdigest()}
+
+
+def resolve_selection(install, digest):
+    if digest is not None:
+        validate_deployment_digest(digest)
+    pending = pending_selection(install)
+    if pending is not None:
+        require(digest is None or digest == pending['deploymentDigest'],
+                'RELEASE_SELECTION_PENDING', 'A different immutable release continuation is pending.')
+        digest = pending['deploymentDigest']
+    if digest is not None:
+        require(discover_release is release_transport.discover_release, 'RELEASE_SELECTOR_TRANSPORT',
+                'Explicit CLI selection cannot be combined with an externally pinned discovery adapter.',
+                'Use the canonical selector-aware CLI with the same digest; do not discard either selection.')
+    return digest, pending
+
+
+def sync_selection(install):
+    # Persist the directory entry before Git can switch to a different manager.
+    # Windows retains atomic replacement/file flush; power-loss qualification
+    # of its filesystem remains separate from process-restart continuation.
+    if os.name != 'nt':
+        for path in (install.state, install.root):
+            descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+
+
+def finish_selection(install, digest, release):
+    pending = pending_selection(install) if digest is not None else None
+    if pending is not None:
+        require(pending == selection_record(digest, release), 'RELEASE_SELECTION_PENDING',
+                'Continuation selection changed; refusing to discard it.')
+        (install.state / 'release-selection.json').unlink()
+        sync_selection(install)
+
+
+def selected_source(install, release, *, existing, deployment_digest=None):
     clean_checkout(install)
     install.git("fetch", "origin", "main:refs/remotes/origin/main")
     revision = release["revision"]
@@ -137,13 +199,19 @@ def selected_source(install, release, *, existing):
             install.git("merge-base", "--is-ancestor", running, revision)
             atomic_json(install.state / "runtime-configuration.json", recovery_configuration(install, runtime))
         changed_tools = install.git("diff", "--name-only", current, revision, "--", "tools/asa_manager.py", "tools/deployment")
+        if changed_tools and deployment_digest is not None:
+            saved = selection_record(deployment_digest, release)
+            prior = pending_selection(install)
+            require(prior is None or prior == saved, 'RELEASE_SELECTION_PENDING', 'Pending selection differs; refusing to replace it.')
+            private_atomic_json(install.state / 'release-selection.json', saved)
+            sync_selection(install)
         install.git("switch", "--detach", revision)
         if changed_tools:
             raise Blocked("RETRY_NEW_MANAGER", "The selected release includes a new manager; its code is now checked out.",
                           "Run the same command again. Containers and data have not been changed.")
 
 
-def update(install, *, check=False, scheduled=False, fresh=False):
+def update(install, *, check=False, scheduled=False, fresh=False, deployment_digest=None):
     if scheduled:
         require(install.settings.get("automaticUpdates") is True, "SCHEDULE_DISABLED", "Automatic updates are disabled.")
         if not in_window(install.settings.get("window", DEFAULT_WINDOW)):
@@ -152,13 +220,17 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     require(not (install.state / "maintenance.json").exists(), "MAINTENANCE", "Unfinished backup/switch needs inspection.")
     require(not (install.state / "failed-switch.json").exists(), "FAILED_SWITCH", "A prior service switch failed.",
             "Inspect logs and readiness, repair the cause, then explicitly acknowledge the failure.")
+    deployment_digest, pending = resolve_selection(install, deployment_digest)
     doctor(install, existing=not fresh)
     clean_checkout(install)
     backup_directory(install)
     attest_editor_env(install.env.get('ASA_UPDATE_ENTRY_ORIGIN'),
                       install.env.get('ASA_BLOCKS_PARENT_ORIGIN'),
                       install.env.get('ASA_BLOCKS_RUNTIME_ORIGIN'), install.profile)
-    release = discover_release()
+    release = discover_release(deployment_digest) if deployment_digest is not None else discover_release()
+    if pending is not None:
+        require(selection_record(deployment_digest, release) == pending, 'RELEASE_SELECTION_MISMATCH',
+                'The rediscovered immutable manifest differs from the pending selection.')
     assert_ci(release)
     before = None if fresh else install.readiness()
     if before:
@@ -194,9 +266,13 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         append_safely(install.root, from_manager_receipt({'status':'success', 'at':stamp(),
             'trigger':'automatic' if scheduled else 'manual', 'phase':'verify_entry',
             'selected':release, 'previous':before}))
+        finish_selection(install, deployment_digest, release)
         return
     fetch_images(release)
-    selected_source(install, release, existing=not fresh)
+    if deployment_digest is None:
+        selected_source(install, release, existing=not fresh)
+    else:
+        selected_source(install, release, existing=not fresh, deployment_digest=deployment_digest)
     install = Installation(install.root, install.profile)
     selected_preparation = prepare_collector(install)
     preparation['readerGroupChanged'] = preparation['readerGroupChanged'] or selected_preparation['readerGroupChanged']
@@ -234,6 +310,8 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     # The receipt captures the actual running version, not the checkout revision.
     operation = {"phase": "switch", "previous": before, "selected": release, "backup": str(backup) if backup else None,
                  "diagnosticReaderGroupChanged": preparation['readerGroupChanged']}
+    if deployment_digest is not None:
+        operation['deploymentDigest'] = deployment_digest
     atomic_json(install.state / "maintenance.json", operation)
     try:
         if not fresh:
@@ -249,6 +327,7 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         install.receipt({"status": "success", "trigger": "automatic" if scheduled else "manual", "entryOrigin": install.env['ASA_UPDATE_ENTRY_ORIGIN'],
                          "entryHttp": "pass", "userFlow": "not_run", **operation})
         (install.state / "maintenance.json").unlink()
+        finish_selection(install, deployment_digest, release)
         print(f"UPDATED {release['revision']} schema={release['schema']}")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
     except BaseException:
@@ -268,6 +347,7 @@ def main(argv=None):
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
+    parser.add_argument("--deployment-digest", help="Exact canonical deployment OCI sha256 digest; install/check/update only")
     parser.add_argument("--enable-auto-update", action="store_true")
     parser.add_argument("--collector-mode", choices=('system-root',), help="Explicit root-operated Linux diagnostic runner; never grants another user Docker access")
     parser.add_argument("--collector-reader-gid", type=int, help="Nonzero API read-only diagnostic group for explicit system-root mode")
@@ -280,6 +360,10 @@ def main(argv=None):
     parser.add_argument("--install-network-cidrs", help="Opt-in private Docker-only database, application, scratch network CIDRs")
     args = parser.parse_args(argv)
     try:
+        require(args.deployment_digest is None or args.action in ('install', 'check', 'update'),
+                'RELEASE_SELECTOR', '--deployment-digest belongs only to install/check/update.')
+        if args.deployment_digest is not None:
+            validate_deployment_digest(args.deployment_digest)
         require((args.collector_mode is None) == (args.collector_reader_gid is None), 'COLLECTOR_ARGUMENT',
                 '--collector-mode and --collector-reader-gid must be selected together.')
         require(args.collector_mode is None or args.action in ('install', 'update'), 'COLLECTOR_ARGUMENT',
@@ -309,7 +393,11 @@ def main(argv=None):
             print("IMPORT_TARGET_PLAN " + json.dumps(report, sort_keys=True))
             return 0
         install = Installation(args.root, args.profile)
+        if args.action in ('install', 'check', 'update'):
+            args.deployment_digest, _ = resolve_selection(install, args.deployment_digest)
         with nullcontext() if args.action in ('doctor', 'check', 'repair-plan') else operation_lock(install.root):
+            if args.action in ('install', 'check', 'update'):
+                args.deployment_digest, _ = resolve_selection(install, args.deployment_digest)
             if args.action == "doctor":
                 doctor(install)
             elif args.action == "repair-plan":
@@ -346,12 +434,13 @@ def main(argv=None):
                 if args.collector_mode:
                     select_root_mode(install, args.collector_reader_gid)
                     install = Installation(install.root, install.profile)
-                update(install, fresh=True)
+                update(install, fresh=True, **({'deployment_digest': args.deployment_digest} if args.deployment_digest is not None else {}))
             elif args.action in ("check", "update"):
                 if args.collector_mode:
                     select_root_mode(install, args.collector_reader_gid)
                     install = Installation(install.root, install.profile)
-                update(install, check=args.action == "check", scheduled=args.scheduled)
+                update(install, check=args.action == "check", scheduled=args.scheduled,
+                       **({'deployment_digest': args.deployment_digest} if args.deployment_digest is not None else {}))
             elif args.action == "backup":
                 export_backup(install, args.output)
             elif args.action == "restore-check":

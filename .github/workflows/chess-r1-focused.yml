@@ -79,6 +79,11 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/chess-r1-focused.yml'
   workflow_dispatch:
+    inputs:
+      lobby_only:
+        description: 'Run the scoped lobby/avatars real PostgreSQL and two-user journey'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -165,7 +170,7 @@ jobs:
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml --profile test
           run --rm --no-deps test-runner
-          pnpm gate:chess-r1:browser
+          pnpm ${{ inputs.lobby_only && 'gate:chess-lobby:browser' || 'gate:chess-r1:browser' }}
 
       - name: Show isolated stack state
         if: always()

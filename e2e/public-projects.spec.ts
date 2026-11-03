@@ -67,7 +67,7 @@ test('preview cards have no vignette or added strips and electronics uses a whit
       const columns = await page
         .getByTestId('public-project-grid')
         .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
-      expect(columns).toBe(4);
+      expect(columns).toBe(width <= 600 ? 2 : 4);
       const authorStyle = await card.locator('.public-project-author').evaluate((element) => ({
         wrapping: getComputedStyle(element).whiteSpace,
         overflow: getComputedStyle(element).textOverflow,
@@ -95,7 +95,7 @@ test('preview cards have no vignette or added strips and electronics uses a whit
       expect(sortBox!.width).toBeLessThanOrEqual(148);
       expect(Math.abs(sortBox!.x + sortBox!.width - toolsBox!.x - toolsBox!.width)).toBeLessThan(1);
       const bounds = await card.boundingBox();
-      expect(Math.abs(bounds!.width / bounds!.height - 4 / 3)).toBeLessThan(0.025);
+      expect(Math.abs(bounds!.width / bounds!.height - 1)).toBeLessThan(0.025);
       const catalogBox = await page.getByTestId('public-project-catalog').boundingBox();
       if (width >= 1920) {
         expect(catalogBox!.width).toBeGreaterThan(width - 350);
@@ -117,13 +117,16 @@ test('preview cards have no vignette or added strips and electronics uses a whit
       expect(titleStyle.overflow).toBe('ellipsis');
       expect(titleStyle.wrapping).toBe('nowrap');
       if (width <= 390) expect(titleStyle.truncated).toBe(true);
-      const labels = await card
-        .locator(
-          '.public-project-card-body h2, .public-project-card-meta, .public-project-author, .publication-module',
-        )
-        .evaluateAll((elements) => elements.map((element) => getComputedStyle(element).textShadow));
-      expect(labels.every((shadow) => shadow !== 'none' && shadow.includes('255, 255, 255'))).toBe(
-        true,
+      await expect(card.locator('.public-project-card-identity')).toHaveCSS(
+        'background-color',
+        'rgba(0, 0, 0, 0)',
+      );
+      await expect(
+        card.locator('.publication-module .project-module-artwork clipPath circle'),
+      ).toHaveCount(1);
+      await expect(card.locator('.public-project-card-meta')).toHaveCSS(
+        'background-color',
+        'rgba(255, 255, 255, 0.8)',
       );
       const styles = await card.evaluate((el) => ({
         vignette: getComputedStyle(el.querySelector('.public-project-card-cover')!, '::after')
@@ -946,7 +949,7 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         const top = cards[0].getBoundingClientRect().top;
         return cards.filter((card) => Math.abs(card.getBoundingClientRect().top - top) < 2).length;
       });
-      expect(rowCount).toBe(4);
+      expect(rowCount).toBe(width <= 600 ? 2 : 4);
       const searchBounds = await guest.getByRole('search').boundingBox();
       expect(searchBounds!.width).toBeLessThanOrEqual(260);
       expect(
@@ -982,7 +985,7 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         const module = card.querySelector('.publication-module')!.getBoundingClientRect();
         const likes = card.querySelector('.public-project-card-meta')!.getBoundingClientRect();
         return {
-          aspect: Math.abs(bounds.width / bounds.height - 4 / 3),
+          aspect: Math.abs(bounds.width / bounds.height - 1),
           titleInside: footer.top >= cover.top && footer.bottom <= cover.bottom,
           fullBleed: Math.abs(cover.height - (bounds.height - 2)),
           identityFits: identity.right <= module.left && identity.left >= cover.left,

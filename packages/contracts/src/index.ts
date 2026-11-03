@@ -118,6 +118,8 @@ export type {
   ChessNetworkScope,
   ChessNetworkPolicy,
   ChessNetworkAccess,
+  ChessNetworkLobby,
+  ChessLobbyPlayer,
   ChessNetworkInvite,
   ChessNetworkMatch,
   ChessNetworkAction,

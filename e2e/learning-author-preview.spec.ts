@@ -21,6 +21,53 @@ import {
   closeCourseLessonSettings,
 } from './learning-authoring-navigation';
 
+async function expectCompactTaskEditor(page: Page, width: number): Promise<void> {
+  const editor = page.locator('.assignment-document-shell');
+  await editor.getByLabel('Название задания', { exact: true }).focus();
+  await expect
+    .poll(() =>
+      editor.evaluate((element) => {
+        const title = element
+          .querySelector('[aria-label="Название задания"]')!
+          .getBoundingClientRect();
+        const toolbar = element
+          .querySelector('.assignment-document-topbar')!
+          .getBoundingClientRect();
+        return title.top - toolbar.bottom;
+      }),
+    )
+    .toBeGreaterThanOrEqual(0);
+  await expect(editor.getByRole('group', { name: 'Действия задания', exact: true })).toHaveCount(1);
+  const layout = await editor.evaluate((element) => {
+    const toolbar = element.querySelector('.assignment-document-topbar')!;
+    const title = element.querySelector<HTMLTextAreaElement>('[aria-label="Название задания"]')!;
+    const body = element.querySelector<HTMLTextAreaElement>('[aria-label="Содержание"]')!;
+    return {
+      toolbarHeight: toolbar.getBoundingClientRect().height,
+      buttons: [...toolbar.querySelectorAll('button')].map((button) => {
+        const bounds = button.getBoundingClientRect();
+        return {
+          label: button.textContent?.trim(),
+          x: bounds.x,
+          right: bounds.right,
+          width: bounds.width,
+        };
+      }),
+      titleFont: Number.parseFloat(getComputedStyle(title).fontSize),
+      bodyFont: Number.parseFloat(getComputedStyle(body).fontSize),
+    };
+  });
+  expect(layout.toolbarHeight, JSON.stringify(layout)).toBeLessThanOrEqual(width < 761 ? 130 : 96);
+  expect(layout.titleFont).toBeLessThanOrEqual(20);
+  expect(layout.bodyFont).toBeLessThanOrEqual(14);
+  for (const button of layout.buttons) {
+    expect(button.x, JSON.stringify(button)).toBeGreaterThanOrEqual(0);
+    expect(button.right, JSON.stringify(button)).toBeLessThanOrEqual(width);
+    expect(button.width, JSON.stringify(button)).toBeLessThanOrEqual(180);
+  }
+  expect(await editor.locator('.assignment-document-meta button').count()).toBe(0);
+}
+
 test('exact saved and published learner preview ignores late responses and creates no commands', async ({
   page,
 }) => {
@@ -42,6 +89,19 @@ test('exact saved and published learner preview ignores late responses and creat
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await openNewAssignmentEditor(page);
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expectCompactTaskEditor(page, width);
+    expect(
+      await page
+        .getByLabel('Название задания', { exact: true })
+        .evaluate((field) => field.clientHeight),
+    ).toBeLessThanOrEqual(40);
+    expect(
+      await page.getByLabel('Содержание', { exact: true }).evaluate((field) => field.clientHeight),
+    ).toBeLessThanOrEqual(80);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByLabel('Название задания', { exact: true }).fill('Published V1');
   await page.getByLabel('Содержание', { exact: true }).fill('Published instructions V1');
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
@@ -131,6 +191,7 @@ test('exact saved and published learner preview ignores late responses and creat
     [320, 720, 'editor-320.png'],
   ] as const) {
     await page.setViewportSize({ width, height });
+    await expectCompactTaskEditor(page, width);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -141,6 +202,36 @@ test('exact saved and published learner preview ignores late responses and creat
       fullPage: true,
     });
   }
+  const longTitle =
+    'Исследование электрических цепей и проверка подробного проектного задания. '.repeat(3);
+  const longBody =
+    'Соберите цепь, проверьте каждое соединение и подробно опишите наблюдения.\n'.repeat(24);
+  await page.getByLabel('Название задания', { exact: true }).fill(longTitle);
+  await page.getByLabel('Содержание', { exact: true }).fill(longBody);
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expectCompactTaskEditor(page, width);
+    for (const label of ['Название задания', 'Содержание']) {
+      await expect
+        .poll(() =>
+          page
+            .getByLabel(label, { exact: true })
+            .evaluate((field) => field.scrollHeight - field.clientHeight),
+        )
+        .toBeLessThanOrEqual(2);
+    }
+    expect(
+      await page.getByLabel('Содержание', { exact: true }).evaluate((field) => field.clientHeight),
+    ).toBeGreaterThan(200);
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({
+      path: `e2e/artifacts/learning/teacher-authoring/editor-long-${width}.png`,
+      fullPage: false,
+    });
+  }
+  await page.getByLabel('Название задания', { exact: true }).fill('Saved draft r2');
+  await page.getByLabel('Содержание', { exact: true }).fill('Saved instructions r2');
+  await expect(previewButton).toBeEnabled();
   await page.setViewportSize({ width: 1440, height: 900 });
 
   await openAssignmentSettings(page);

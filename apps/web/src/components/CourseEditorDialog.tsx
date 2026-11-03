@@ -8,6 +8,7 @@ export function CourseEditorDialog({
   title,
   closeLabel,
   closeDisabled = false,
+  showHeader = true,
   className = '',
   returnFocusRef,
   onClose,
@@ -19,6 +20,7 @@ export function CourseEditorDialog({
   readonly title: string;
   readonly closeLabel: string;
   readonly closeDisabled?: boolean;
+  readonly showHeader?: boolean;
   readonly className?: string;
   readonly returnFocusRef?: RefObject<HTMLElement>;
   readonly onClose: () => void;
@@ -41,7 +43,10 @@ export function CourseEditorDialog({
             ? previousFocus
             : (returnFocusRef?.current ?? null);
         dialog.show();
-        closeRef.current?.focus();
+        (
+          closeRef.current ??
+          dialog.querySelector<HTMLElement>('[data-course-dialog-initial-focus]:not(:disabled)')
+        )?.focus();
       } else dialog.showModal();
     } else if (screen && returnTarget.current) {
       // The document is visible again before this layout effect restores focus.
@@ -54,7 +59,7 @@ export function CourseEditorDialog({
       if (dialog.open) dialog.close();
       if (!inline && !screen && open) document.documentElement.style.overflow = previousOverflow;
     };
-  }, [inline, open, screen, returnFocusRef]);
+  }, [inline, open, screen, returnFocusRef, showHeader]);
   return (
     <dialog
       ref={ref}
@@ -91,7 +96,7 @@ export function CourseEditorDialog({
         }
       }}
     >
-      {!inline ? (
+      {!inline && showHeader ? (
         <header className="course-dialog-header">
           <h3>{title}</h3>
           <button

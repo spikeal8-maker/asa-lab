@@ -381,7 +381,17 @@ const upgradeArtifacts = [
   ],
   [
     '0301',
-    '0301_ai_eight_tool_registry.sql',
+    '0301_games_chess_lobby.sql',
+    'f64f992a4b6f0d98a9e7e33666e7c67083c4ff274a0780311159ae6ac84514f2',
+  ],
+  [
+    '0302',
+    '0302_games_chess_notifications.sql',
+    '43fb00c4ee7cdff378ffcaa1acd803a2b312eabc9d3211181c23bd238ba05a6d',
+  ],
+  [
+    '0303',
+    '0303_ai_eight_tool_registry.sql',
     '85722956cf9ec5aa183e8b710f720c7f2356d761bc47466f756b87f8358bbf9a',
   ],
 ] as const;

@@ -10,6 +10,7 @@ import type {
   ChessNetworkAccess,
   ChessNetworkAction,
   ChessNetworkInvite,
+  ChessNetworkLobby as LobbySnapshot,
   ChessNetworkMatch,
   ChessNetworkScope,
 } from '@asa-lab/contracts';
@@ -20,6 +21,7 @@ import { ChessSectionHeader } from './ChessSectionHeader';
 import { chessNetworkApi } from './chess-network-api';
 import { formatChessClock, resultLabel } from './chess-ui';
 import { startLivePoll } from './live-poll';
+import { defaultAvatarForAccount } from '../creator-portal/default-avatars';
 import './chess-online.css';
 import './chess-network.css';
 
@@ -34,6 +36,25 @@ const TIMES = [
   { label: '10+5', initialMs: 600000, incrementMs: 5000 },
 ];
 const PROMOTIONS = { queen: 'Ферзь', rook: 'Ладья', bishop: 'Слон', knight: 'Конь' };
+
+function LobbyAvatar({ player }: { player: LobbySnapshot['players'][number] }) {
+  return (
+    <img
+      className="asa-network-avatar"
+      src={player.avatarUrl || defaultAvatarForAccount(player.playerId).src}
+      alt={`Аватар ${player.displayAlias}`}
+      width={44}
+      height={44}
+      loading="lazy"
+      onError={(event) => {
+        if (event.currentTarget.dataset['fallback'] !== 'true') {
+          event.currentTarget.dataset['fallback'] = 'true';
+          event.currentTarget.src = defaultAvatarForAccount(player.playerId).src;
+        }
+      }}
+    />
+  );
+}
 
 /** Only the server's terminal result and current opaque viewer identity establish an outcome. */
 export function networkResultPresentation(match: ChessNetworkMatch, viewerPlayerId?: string) {
@@ -97,11 +118,14 @@ export function ChessNetworkLobby({
   const [historyBusy, setHistoryBusy] = useState(false);
   const [match, setMatch] = useState<ChessNetworkMatch | null>(null);
   const [invite, setInvite] = useState<ChessNetworkInvite | null>(null);
+  const [lobby, setLobby] = useState<LobbySnapshot | null>(null);
+  const [lobbyError, setLobbyError] = useState(false);
+  const [lobbyRevision, setLobbyRevision] = useState(0);
   const [scope, setScope] = useState<ChessNetworkScope>('classroom');
   const [time, setTime] = useState(2);
   const [color, setColor] = useState<'white' | 'black' | 'random'>('random');
   const [code, setCode] = useState('');
-  const [notice, setNotice] = useState('Создайте приглашение или введите код друга.');
+  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -292,6 +316,30 @@ export function ChessNetworkLobby({
     const timer = window.setInterval(() => setClockTick((value) => value + 1), 200);
     return () => window.clearInterval(timer);
   }, [matchStatus]);
+  useEffect(() => {
+    setLobby(null);
+    setLobbyError(false);
+    if (!access?.allowed || !access.scopes.includes(scope) || matchId) return;
+    return startLivePoll(
+      async (isCurrent) => {
+        if (document.visibilityState === 'hidden') return;
+        const result = await chessNetworkApi.lobby(scope);
+        if (!isCurrent()) return;
+        const valid =
+          result.ok &&
+          Array.isArray(result.data.players) &&
+          Array.isArray(result.data.incoming) &&
+          Array.isArray(result.data.outgoing);
+        setLobby(valid && result.ok ? result.data : null);
+        setLobbyError(!valid);
+      },
+      5000,
+      () => {
+        setLobby(null);
+        setLobbyError(true);
+      },
+    );
+  }, [scope, access?.allowed, access?.scopes?.join(','), matchId, user.id, lobbyRevision]);
   const parsed = useMemo(() => (match ? parseFen(match.currentFen) : null), [match?.currentFen]);
   const position = parsed?.ok ? parsed.value : null;
   const legal = useMemo(() => (position ? generateLegalMoves(position) : []), [position]);
@@ -324,17 +372,30 @@ export function ChessNetworkLobby({
           setPromotion([]);
         }
         setConnected(true);
-        setNotice('Готово. Позиция синхронизирована.');
+        setNotice(
+          result.data.match
+            ? 'Партия обновлена.'
+            : result.data.invite?.status === 'open'
+              ? 'Приглашение создано.'
+              : 'Приглашение закрыто.',
+        );
       } else {
         setNotice(result.error.message);
         if (matchId) {
           const current = await chessNetworkApi.match(matchId);
           if (mounted.current && current.ok) adopt(current.data.match);
+        } else {
+          // A lost accept reply may already have created a match. Refresh owned
+          // history without forcing navigation away from the lobby.
+          await refreshHistory();
         }
       }
     } finally {
       commandPending.current = false;
-      if (mounted.current) setBusy(false);
+      if (mounted.current) {
+        setBusy(false);
+        setLobbyRevision((value) => value + 1);
+      }
     }
   }
   function play(move: ChessMove): void {
@@ -412,20 +473,29 @@ export function ChessNetworkLobby({
   const outcome = match ? networkResultPresentation(match, viewerPlayerId) : null;
   return (
     <main className="asa-online-shell asa-network-shell">
-      <ChessSectionHeader
-        user={user}
-        title={heading}
-        status={{
-          kind: loading ? 'saving' : connected && !historyError ? 'saved' : 'error',
-          label: loading
-            ? 'Подключаемся'
-            : connected && !historyError
-              ? 'Подключено'
-              : 'Восстанавливаем связь',
-        }}
-        onExit={onExit}
-        onHome={onHome}
-      />
+      {match ? (
+        <ChessSectionHeader
+          user={user}
+          title={heading}
+          status={{
+            kind: loading ? 'saving' : connected && !historyError ? 'saved' : 'error',
+            label: loading
+              ? 'Подключаемся'
+              : connected && !historyError
+                ? 'Подключено'
+                : 'Восстанавливаем связь',
+          }}
+          onExit={onExit}
+          onHome={onHome}
+        />
+      ) : (
+        <header className="asa-network-setup-heading">
+          <button type="button" onClick={onHome}>
+            ← Шахматы
+          </button>
+          <h1>Онлайн-шахматы</h1>
+        </header>
+      )}
       {historyError && (
         <section className="asa-online-card">
           <p role="alert">Приглашения и история не загружены.</p>
@@ -573,8 +643,10 @@ export function ChessNetworkLobby({
         </div>
       ) : (
         <div className="asa-network-lobby">
-          <section className="asa-online-card">
-            <h2>Играть с другом</h2>
+          <section
+            className="asa-online-card asa-network-options"
+            aria-label="Настройки сетевой партии"
+          >
             {loading ? (
               <p role="status">Проверяем доступ…</p>
             ) : !access?.allowed ? (
@@ -583,145 +655,301 @@ export function ChessNetworkLobby({
               </p>
             ) : (
               <>
-                <label>
-                  Круг соперников
-                  <select
-                    aria-label="Круг соперников для партии"
-                    value={scope}
-                    disabled={busy || invite?.status === 'open'}
-                    onChange={(event) => setScope(event.target.value as ChessNetworkScope)}
-                  >
-                    {access.scopes.map((value) => (
-                      <option key={value} value={value}>
-                        {SCOPE_LABEL[value]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Контроль времени
-                  <select
-                    aria-label="Контроль времени сетевой партии"
-                    value={time}
-                    disabled={busy}
-                    onChange={(event) => setTime(Number(event.target.value))}
-                  >
-                    {TIMES.map((value, index) => (
-                      <option key={value.label} value={index}>
-                        {value.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Цвет
-                  <select
-                    aria-label="Ваш цвет"
-                    value={color}
-                    disabled={busy}
-                    onChange={(event) => setColor(event.target.value as typeof color)}
-                  >
-                    <option value="random">Случайный</option>
-                    <option value="white">Белые</option>
-                    <option value="black">Чёрные</option>
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={busy || invite?.status === 'open'}
-                  onClick={() =>
-                    void command(() =>
-                      chessNetworkApi.create({
-                        scope,
-                        colorPreference: color,
-                        initialMs: TIMES[time]!.initialMs,
-                        incrementMs: TIMES[time]!.incrementMs,
-                      }),
-                    )
-                  }
-                >
-                  Создать приглашение
-                </button>
-                <label>
-                  Код приглашения
-                  <input
-                    aria-label="Код приглашения"
-                    autoComplete="off"
-                    maxLength={24}
-                    value={code}
-                    onChange={(event) =>
-                      setCode(event.target.value.toUpperCase().replace(/\s/g, ''))
-                    }
-                  />
-                </label>
-                <button
-                  type="button"
-                  disabled={busy || code.length !== 24 || invite?.status === 'open'}
-                  onClick={() => void command(() => chessNetworkApi.accept(code))}
-                >
-                  Принять приглашение
-                </button>
-              </>
-            )}
-            <p className="asa-network-notice" role="status">
-              {notice}
-            </p>
-          </section>
-          <section className="asa-online-card" aria-live="polite">
-            <h2>{invite?.status === 'open' ? 'Ожидаем соперника' : 'Приглашение'}</h2>
-            {invite ? (
-              <>
-                <output className="asa-network-code" aria-label="Ваш код приглашения">
-                  {invite.code}
-                </output>
-                <p>
-                  {SCOPE_LABEL[invite.scope]} · {invite.initialMs / 60000}+
-                  {invite.incrementMs / 1000}
-                </p>
-                {invite.status === 'open' ? (
-                  <>
-                    <p>Отправьте код другу. Он действует 30 минут.</p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void navigator.clipboard
-                          ?.writeText(invite.code)
-                          .then(() => setNotice('Код скопирован.'))
-                          .catch(() => setNotice('Выделите и скопируйте код вручную.'))
-                      }
+                {access.scopes.length > 1 ? (
+                  <label>
+                    Круг соперников
+                    <select
+                      aria-label="Круг соперников для партии"
+                      value={scope}
+                      disabled={busy || invite?.status === 'open'}
+                      onChange={(event) => setScope(event.target.value as ChessNetworkScope)}
                     >
-                      Скопировать приглашение
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        void command(() => chessNetworkApi.cancel(invite.id, invite.version))
-                      }
-                    >
-                      Отменить приглашение
-                    </button>
-                  </>
+                      {access.scopes.map((value) => (
+                        <option key={value} value={value}>
+                          {SCOPE_LABEL[value]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 ) : (
-                  <p>
-                    {invite.status === 'expired'
-                      ? 'Срок действия приглашения истёк.'
-                      : invite.status === 'cancelled'
-                        ? 'Приглашение отменено.'
-                        : 'Приглашение принято.'}
+                  <p className="asa-network-scope-note">
+                    Соперники: {SCOPE_LABEL[access.scopes[0] ?? 'platform']}
                   </p>
                 )}
+                <div className="asa-network-match-settings">
+                  <label>
+                    Контроль времени
+                    <select
+                      aria-label="Контроль времени сетевой партии"
+                      value={time}
+                      disabled={busy}
+                      onChange={(event) => setTime(Number(event.target.value))}
+                    >
+                      {TIMES.map((value, index) => (
+                        <option key={value.label} value={index}>
+                          {value.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Цвет
+                    <select
+                      aria-label="Ваш цвет"
+                      value={color}
+                      disabled={busy}
+                      onChange={(event) => setColor(event.target.value as typeof color)}
+                    >
+                      <option value="random">Случайный</option>
+                      <option value="white">Белые</option>
+                      <option value="black">Чёрные</option>
+                    </select>
+                  </label>
+                </div>
               </>
-            ) : loading || historyBusy || historyError ? (
-              <p>{historyError ? 'Приглашения временно недоступны.' : 'Загружаем приглашения…'}</p>
-            ) : (
-              <p>
-                Создайте код для друга или примите его приглашение. Личные данные и список учеников
-                другим игрокам не показываются.
-              </p>
             )}
           </section>
+          {access?.allowed && (
+            <section className="asa-online-card asa-network-people" aria-label="Игроки в сети">
+              <h2>Игроки в сети · {SCOPE_LABEL[scope]}</h2>
+              <p>
+                Ваше имя в игре: {access.player.displayAlias}. Видны только доступные соперники в
+                шахматном лобби.
+              </p>
+              {lobbyError ? (
+                <div role="status">
+                  <p>Не удалось обновить список игроков.</p>
+                  <button type="button" onClick={() => setLobbyRevision((value) => value + 1)}>
+                    Обновить игроков
+                  </button>
+                </div>
+              ) : !lobby ? (
+                <p role="status">Ищем доступных игроков…</p>
+              ) : (
+                <>
+                  {lobby.available === false && (
+                    <p>У вас уже идёт партия. Вернитесь к ней через историю.</p>
+                  )}
+                  {lobby.incoming.length > 0 && (
+                    <section className="asa-network-incoming" aria-label="Входящие вызовы">
+                      <h3>Вас приглашают</h3>
+                      {lobby.incoming.map((item) => (
+                        <article key={item.invite.id} data-invite-id={item.invite.id}>
+                          <LobbyAvatar player={item.from} />
+                          <strong>{item.from.displayAlias}</strong>
+                          <small>
+                            {SCOPE_LABEL[item.invite.scope]} · {item.invite.initialMs / 60000}+
+                            {item.invite.incrementMs / 1000}
+                          </small>
+                          <div>
+                            <button
+                              type="button"
+                              disabled={busy || lobby.available === false}
+                              onClick={() =>
+                                void command(() => chessNetworkApi.accept(item.invite.code))
+                              }
+                            >
+                              Принять вызов
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                void command(() =>
+                                  chessNetworkApi.decline(item.invite.id, item.invite.version),
+                                )
+                              }
+                            >
+                              Отклонить
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </section>
+                  )}
+                  {lobby.outgoing.length > 0 && (
+                    <section className="asa-network-incoming" aria-label="Отправленные вызовы">
+                      <h3>Ожидаем ответа</h3>
+                      {lobby.outgoing.map((item) => (
+                        <article key={item.invite.id}>
+                          <LobbyAvatar player={item.to} />
+                          <strong>{item.to.displayAlias}</strong>
+                          <small>{SCOPE_LABEL[item.invite.scope]}</small>
+                          <div>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                void command(() =>
+                                  chessNetworkApi.cancel(item.invite.id, item.invite.version),
+                                )
+                              }
+                            >
+                              Отменить вызов
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </section>
+                  )}
+                  {lobby.available === false ? null : lobby.players.length ? (
+                    <ul className="asa-network-player-list">
+                      {lobby.players.map((peer) => {
+                        const pending = lobby.outgoing.some(
+                          (item) => item.to.playerId === peer.playerId,
+                        );
+                        return (
+                          <li key={peer.playerId} data-player-id={peer.playerId}>
+                            <LobbyAvatar player={peer} />
+                            <span>
+                              <strong>{peer.displayAlias}</strong>
+                              <small>В шахматном лобби</small>
+                            </span>
+                            <button
+                              type="button"
+                              disabled={busy || pending || lobby.available === false}
+                              onClick={() =>
+                                void command(() =>
+                                  chessNetworkApi.challenge(peer.playerId, {
+                                    scope,
+                                    colorPreference: color,
+                                    initialMs: TIMES[time]!.initialMs,
+                                    incrementMs: TIMES[time]!.incrementMs,
+                                  }),
+                                )
+                              }
+                            >
+                              {pending ? 'Вызов отправлен' : 'Пригласить играть'}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p>
+                      Пока нет доступных соперников. Другому игроку нужно открыть сетевые шахматы.
+                    </p>
+                  )}
+                  {lobby.available !== false && lobby.players.length >= lobby.limit && (
+                    <p>Показаны первые {lobby.limit} доступных игроков.</p>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+          {access?.allowed && !loading && lobby?.available !== false && (
+            <section className="asa-online-card asa-network-code-entry">
+              <h2>Приглашение по коду</h2>
+              <p>Отправьте код сопернику или введите его код.</p>
+              {loading ? (
+                <p role="status">Проверяем доступ…</p>
+              ) : !access?.allowed ? (
+                <p role="status">
+                  Сетевая игра сейчас недоступна по настройкам учителя или состоянию входа.
+                </p>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    disabled={busy || invite?.status === 'open' || !access.scopes.includes(scope)}
+                    onClick={() =>
+                      void command(() =>
+                        chessNetworkApi.create({
+                          scope,
+                          colorPreference: color,
+                          initialMs: TIMES[time]!.initialMs,
+                          incrementMs: TIMES[time]!.incrementMs,
+                        }),
+                      )
+                    }
+                  >
+                    Создать приглашение
+                  </button>
+                  <label>
+                    Код приглашения
+                    <input
+                      aria-label="Код приглашения"
+                      autoComplete="off"
+                      maxLength={24}
+                      value={code}
+                      onChange={(event) =>
+                        setCode(event.target.value.toUpperCase().replace(/\s/g, ''))
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={busy || code.length !== 24 || invite?.status === 'open'}
+                    onClick={() => void command(() => chessNetworkApi.accept(code))}
+                  >
+                    Принять приглашение
+                  </button>
+                </>
+              )}
+              <p className="asa-network-notice" role="status">
+                {notice}
+              </p>
+            </section>
+          )}
+          {invite && !lobby?.outgoing.some((item) => item.invite.id === invite.id) && (
+            <section className="asa-online-card" aria-live="polite">
+              <h2>{invite?.status === 'open' ? 'Ожидаем соперника' : 'Приглашение'}</h2>
+              {invite ? (
+                <>
+                  <output className="asa-network-code" aria-label="Ваш код приглашения">
+                    {invite.code}
+                  </output>
+                  <p>
+                    {SCOPE_LABEL[invite.scope]} · {invite.initialMs / 60000}+
+                    {invite.incrementMs / 1000}
+                  </p>
+                  {invite.status === 'open' ? (
+                    <>
+                      <p>Отправьте код другу. Он действует 30 минут.</p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void navigator.clipboard
+                            ?.writeText(invite.code)
+                            .then(() => setNotice('Код скопирован.'))
+                            .catch(() => setNotice('Выделите и скопируйте код вручную.'))
+                        }
+                      >
+                        Скопировать приглашение
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          void command(() => chessNetworkApi.cancel(invite.id, invite.version))
+                        }
+                      >
+                        Отменить приглашение
+                      </button>
+                    </>
+                  ) : (
+                    <p>
+                      {invite.status === 'expired'
+                        ? 'Срок действия приглашения истёк.'
+                        : invite.status === 'cancelled'
+                          ? 'Приглашение отменено.'
+                          : 'Приглашение принято.'}
+                    </p>
+                  )}
+                </>
+              ) : loading || historyBusy || historyError ? (
+                <p>
+                  {historyError ? 'Приглашения временно недоступны.' : 'Загружаем приглашения…'}
+                </p>
+              ) : (
+                <p>
+                  Создайте код для друга или примите его приглашение. Личные данные и список
+                  учеников другим игрокам не показываются.
+                </p>
+              )}
+            </section>
+          )}
           <section className="asa-online-card asa-network-history">
             <h2>Мои сетевые партии</h2>
             {!history.length ? (

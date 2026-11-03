@@ -68,6 +68,273 @@ export function chessNetworkStorageContract(clients: () => { admin: NetworkSql; 
     const service = new ChessNetworkService(pool);
     return { teacher, identity, classroomId, classroom, seat, source, service, admin };
   }
+  it('discovers only currently admitted online peers, binds a challenge to its recipient and serves scoped avatars', async () => {
+    const f = await fixture();
+    const a = await f.seat('Lobby first');
+    const b = await f.seat('Lobby second');
+    const c = await f.seat('Lobby third');
+    const otherClass = await f.classroom('Other lobby class');
+    const d = await f.seat('Other class pupil', otherClass);
+    const foreign = await fixture();
+    const outsider = await foreign.seat('Other school pupil');
+    for (const [owner, id] of [
+      [f, f.classroomId],
+      [f, otherClass],
+      [foreign, foreign.classroomId],
+    ] as const)
+      await owner.service.policy(
+        owner.source,
+        id,
+        { enabled: true, scope: 'classroom', expectedVersion: 0 },
+        randomUUID(),
+      );
+    await f.admin.query(
+      "UPDATE classroom_student_seats SET avatar_key='asa-avatar-07' WHERE id=$1",
+      [b.id],
+    );
+    const aid = (await f.service.access(a.source)).player.playerId;
+    const bid = (await f.service.access(b.source)).player.playerId;
+    const cid = (await f.service.access(c.source)).player.playerId;
+    await f.service.lobby(a.source, 'classroom');
+    await f.service.notifications(b.source);
+    await f.service.lobby(c.source, 'classroom');
+    await f.service.lobby(d.source, 'classroom');
+    await foreign.service.lobby(outsider.source, 'classroom');
+    const image =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jfL8AAAAASUVORK5CYII=';
+    await f.admin.query(
+      'UPDATE profiles SET avatar_data_url=$1,updated_at=clock_timestamp() WHERE account_id=$2',
+      [image, f.identity['account_id']],
+    );
+    await f.service.lobby(f.source, 'classroom');
+    const teacherId = (await f.service.access(f.source)).player.playerId;
+    expect((await f.service.avatar(a.source, teacherId, 'classroom')).dataUrl).toBe(image);
+    const room = await f.service.lobby(a.source, 'classroom');
+    expect(room.players.map((p) => p.playerId).sort()).toEqual([bid, cid, teacherId].sort());
+    expect(JSON.stringify(room)).not.toContain(image);
+    expect(JSON.stringify(room)).not.toContain(b.id);
+    expect(JSON.stringify(room)).not.toContain('Lobby second');
+    expect(room.players.find((p) => p.playerId === bid)?.avatarUrl).toContain(
+      `/players/${bid}/avatar?scope=classroom`,
+    );
+    expect(await f.service.avatar(a.source, bid, 'classroom')).toMatchObject({
+      dataUrl: null,
+      defaultPath: '/assets/avatars/default/avatar-07.webp',
+    });
+    await expect(f.service.avatar(d.source, bid, 'classroom')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(foreign.service.avatar(outsider.source, bid, 'classroom')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(f.service.lobby(a.source, 'school')).rejects.toMatchObject({
+      code: 'POLICY_DENIED',
+    });
+    const input = {
+      scope: 'classroom' as const,
+      initialMs: 600000,
+      incrementMs: 0,
+      colorPreference: 'white' as const,
+    };
+    const key = randomUUID();
+    const sent = await f.service.challenge(a.source, key, bid, input);
+    expect((await f.service.challenge(a.source, key, bid, input)).invite?.id).toBe(sent.invite!.id);
+    expect((await f.service.lobby(b.source, 'classroom')).incoming).toHaveLength(1);
+    expect((await f.service.notifications(b.source)).incoming.map((i) => i.id)).toEqual([
+      sent.invite!.id,
+    ]);
+    expect((await f.service.notifications(c.source)).incoming).toEqual([]);
+    expect((await f.service.lobby(c.source, 'classroom')).incoming).toHaveLength(0);
+    await expect(f.service.accept(c.source, randomUUID(), sent.invite!.code)).rejects.toMatchObject(
+      { code: 'NOT_FOUND' },
+    );
+    const declined = randomUUID();
+    expect(
+      (await f.service.decline(b.source, declined, sent.invite!.id, sent.invite!.version)).replayed,
+    ).toBe(false);
+    expect(
+      (await f.service.decline(b.source, declined, sent.invite!.id, sent.invite!.version)).replayed,
+    ).toBe(true);
+    expect((await f.service.notifications(b.source)).incoming).toEqual([]);
+    const second = await f.service.challenge(a.source, randomUUID(), bid, input);
+    const game = (await f.service.accept(b.source, randomUUID(), second.invite!.code)).match!;
+    expect(game.status).toBe('active');
+    expect((await f.service.lobby(a.source, 'classroom')).available).toBe(false);
+    await expect(f.service.challenge(a.source, randomUUID(), cid, input)).rejects.toMatchObject({
+      code: 'INVALID_STATE',
+    });
+    expect(
+      (await f.service.lobby(c.source, 'classroom')).players.map((p) => p.playerId),
+    ).not.toContain(aid);
+    let version = game.version;
+    for (const [source, move] of [
+      [a.source, 'f2f3'],
+      [b.source, 'e7e5'],
+      [a.source, 'g2g4'],
+      [b.source, 'd8h4'],
+    ] as const) {
+      const result = (await f.service.action(source, randomUUID(), game.id, version, 'move', move))
+        .match!;
+      version = result.version;
+    }
+    expect((await f.service.getMatch(a.source, game.id)).match).toMatchObject({
+      status: 'finished',
+      result: '0-1',
+      termination: 'checkmate',
+    });
+    expect((await f.service.getMatch(b.source, game.id)).match.result).toBe('0-1');
+    await f.admin.query(
+      "UPDATE games.chess_presence SET seen_at=clock_timestamp()-interval '1 minute' WHERE player_id=$1",
+      [bid],
+    );
+    expect(
+      (await f.service.lobby(a.source, 'classroom')).players.map((p) => p.playerId),
+    ).not.toContain(bid);
+    await f.service.lobby(b.source, 'classroom');
+    const pending = await f.service.challenge(a.source, randomUUID(), bid, input);
+    await f.service.policy(
+      f.source,
+      f.classroomId,
+      { enabled: false, scope: 'classroom', expectedVersion: 1 },
+      randomUUID(),
+    );
+    await expect(f.service.lobby(a.source, 'classroom')).rejects.toMatchObject({
+      code: 'POLICY_DENIED',
+    });
+    expect((await f.service.notifications(b.source)).incoming).toEqual([]);
+    await expect(f.service.avatar(c.source, bid, 'classroom')).rejects.toMatchObject({
+      code: 'POLICY_DENIED',
+    });
+    await f.service.policy(
+      f.source,
+      f.classroomId,
+      { enabled: true, scope: 'classroom', expectedVersion: 2 },
+      randomUUID(),
+    );
+    await expect(
+      f.service.accept(b.source, randomUUID(), pending.invite!.code),
+    ).rejects.toMatchObject({ code: 'POLICY_DENIED' });
+    expect((await f.service.lobby(b.source, 'classroom')).incoming).toHaveLength(0);
+    await f.service.lobby(a.source, 'classroom');
+    expect((await f.service.getInvite(a.source, pending.invite!.code)).invite.status).toBe(
+      'cancelled',
+    );
+    expect((await f.service.challenge(a.source, randomUUID(), bid, input)).invite?.status).toBe(
+      'open',
+    );
+  }, 60000);
+
+  it('online circles include classmates, then school peers, then platform peers without widening either pupil policy', async () => {
+    const f = await fixture();
+    const foreign = await fixture();
+    const otherClass = await f.classroom('Online second class');
+    const a = await f.seat('Circle A');
+    const b = await f.seat('Circle B');
+    const d = await f.seat('School D', otherClass);
+    const e = await foreign.seat('Platform E');
+    for (const [owner, id] of [
+      [f, f.classroomId],
+      [f, otherClass],
+      [foreign, foreign.classroomId],
+    ] as const)
+      await owner.service.policy(
+        owner.source,
+        id,
+        { enabled: true, scope: 'platform', expectedVersion: 0 },
+        randomUUID(),
+      );
+    const ids: string[] = [];
+    for (const student of [a, b, d])
+      ids.push((await f.service.access(student.source)).player.playerId);
+    const eid = (await foreign.service.access(e.source)).player.playerId;
+    for (const student of [a, b, d]) await f.service.lobby(student.source, 'classroom');
+    await foreign.service.lobby(e.source, 'platform');
+    expect((await f.service.lobby(a.source, 'classroom')).players.map((p) => p.playerId)).toContain(
+      ids[1],
+    );
+    expect(
+      (await f.service.lobby(a.source, 'classroom')).players.map((p) => p.playerId),
+    ).not.toContain(ids[2]);
+    expect((await f.service.lobby(a.source, 'school')).players.map((p) => p.playerId)).toEqual(
+      expect.arrayContaining([ids[1], ids[2]]),
+    );
+    expect(
+      (await f.service.lobby(a.source, 'school')).players.map((p) => p.playerId),
+    ).not.toContain(eid);
+    expect((await f.service.lobby(a.source, 'platform')).players.map((p) => p.playerId)).toContain(
+      eid,
+    );
+    const input = {
+      scope: 'classroom' as 'classroom' | 'school' | 'platform',
+      initialMs: 600000,
+      incrementMs: 0,
+      colorPreference: 'white' as const,
+    };
+    await expect(f.service.challenge(a.source, randomUUID(), ids[2]!, input)).rejects.toMatchObject(
+      { code: 'NOT_FOUND' },
+    );
+    const school = await f.service.challenge(a.source, randomUUID(), ids[2]!, {
+      ...input,
+      scope: 'school',
+    });
+    await f.service.decline(d.source, randomUUID(), school.invite!.id, school.invite!.version);
+    const global = await f.service.challenge(a.source, randomUUID(), eid, {
+      ...input,
+      scope: 'platform',
+    });
+    await foreign.service.decline(
+      e.source,
+      randomUUID(),
+      global.invite!.id,
+      global.invite!.version,
+    );
+    await f.service.policy(
+      f.source,
+      otherClass,
+      { enabled: true, scope: 'classroom', expectedVersion: 1 },
+      randomUUID(),
+    );
+    await f.service.lobby(d.source, 'classroom');
+    expect(
+      (await f.service.lobby(a.source, 'school')).players.map((p) => p.playerId),
+    ).not.toContain(ids[2]);
+    await expect(
+      f.service.challenge(a.source, randomUUID(), ids[2]!, { ...input, scope: 'school' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await f.service.policy(
+      f.source,
+      f.classroomId,
+      { enabled: true, scope: 'school', expectedVersion: 1 },
+      randomUUID(),
+    );
+    await f.service.lobby(a.source, 'school');
+    await expect(f.service.lobby(a.source, 'platform')).rejects.toMatchObject({
+      code: 'POLICY_DENIED',
+    });
+    expect(
+      (await foreign.service.lobby(e.source, 'platform')).players.map((p) => p.playerId),
+    ).not.toContain(ids[0]);
+    await expect(foreign.service.avatar(e.source, ids[0]!, 'platform')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  }, 60000);
+
+  it('runtime cannot read lobby tables or call unguarded avatar and legacy accept helpers', async () => {
+    const client = await clients().pool.connect();
+    try {
+      for (const query of [
+        'SELECT * FROM games.chess_presence',
+        'SELECT * FROM games.chess_challenges',
+        "SELECT games.chess_redeem_context_v1('')",
+        'SELECT games.chess_avatar_revision(NULL)',
+      ]) {
+        await expect(client.query(query)).rejects.toMatchObject({ code: '42501' });
+      }
+    } finally {
+      client.release();
+    }
+  });
+
   it('policy receipt replays the original version once, rejects changed intent and checks current teacher permission', async () => {
     const f = await fixture();
     const command = randomUUID();
@@ -404,6 +671,8 @@ export function chessNetworkStorageContract(clients: () => { admin: NetworkSql; 
     );
     const standalone = await f.service.access(seat.source);
     const personal = await f.service.access(f.source);
+    await f.service.lobby(seat.source, 'platform');
+    await f.service.lobby(f.source, 'platform');
     expect(standalone.player.playerId).not.toBe(personal.player.playerId);
     const createKey = randomUUID();
     const inviteInput = {
@@ -438,6 +707,13 @@ export function chessNetworkStorageContract(clients: () => { admin: NetworkSql; 
     const linked = await f.service.access(seat.source);
     expect(linked.player.playerId).toBe(personal.player.playerId);
     expect((await f.service.access(f.source)).player.playerId).toBe(linked.player.playerId);
+    await f.service.lobby(seat.source, 'platform');
+    const observer = await f.seat('Lobby observer');
+    expect(
+      (await f.service.lobby(observer.source, 'platform')).players.filter(
+        (p) => p.playerId === linked.player.playerId,
+      ),
+    ).toHaveLength(1);
     const replayAfterLink = await f.service.create(f.source, createKey, inviteInput);
     expect(replayAfterLink.invite?.id).toBe(beforeLink.invite!.id);
     expect(replayAfterLink.replayed).toBe(true);
@@ -467,6 +743,12 @@ export function chessNetworkStorageContract(clients: () => { admin: NetworkSql; 
     );
     expect((await f.service.access(f.source)).allowed).toBe(false);
     expect((await f.service.access(seat.source)).allowed).toBe(false);
+    await expect(f.service.lobby(f.source, 'platform')).rejects.toMatchObject({
+      code: 'POLICY_DENIED',
+    });
+    await expect(f.service.lobby(seat.source, 'classroom')).rejects.toMatchObject({
+      code: 'POLICY_DENIED',
+    });
     const unrelated = await f.seat('Same name');
     expect((await f.service.access(unrelated.source)).player.playerId).not.toBe(
       personal.player.playerId,

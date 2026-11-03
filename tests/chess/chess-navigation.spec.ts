@@ -20,6 +20,7 @@ describe('independent subject routes', () => {
       'network',
       'puzzles',
       'learning',
+      'local',
       'bots',
       'review',
     ];
