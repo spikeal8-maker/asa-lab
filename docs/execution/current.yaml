@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_d_collect_picker_pilot_and_addressed_ci_selected
+      checkpoint: independent_e_f_g_integrated_d_waiting_guard
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,21 +111,30 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: dfee5badd299d318a8e51ff0cbf88e9656333a5d
+      convergence_baseline_sha: 9caddfbeff635507f9b10deaf9ea5bb08da9d22c
       head_sha: null
-      observed_at: '2026-11-02T16:25:09Z'
+      observed_at: '2026-11-03T08:09:15Z'
       main:
         branch: main
-        sha: dfee5badd299d318a8e51ff0cbf88e9656333a5d
+        sha: 9caddfbeff635507f9b10deaf9ea5bb08da9d22c
       observation_note: >-
-        Dated C integration: PR 912 merged as 413590622e6c8638e06eb629b8bd8dd87558bcc2 after independent review
-        approved source 879184a5c68c165532153d546139b7050dc6b93d and General 41350335177 succeeded in all four jobs.
-        The real package.json handoff was resolved by its author; foreign checkouts and D13 WIP were untouched.
-        Select D: finish the bounded CollectPicker pilot with concrete registered browser spec, then implement
-        addressed CI alongside existing gates and compare old/new verification on the same source SHA. C is not reopened.
-        Product UI improvements require separate agreement and remain outside the main DevEx PR. Reuse PR 916 for Ubuntu
-        browser compatibility; do not duplicate it. Known contracts lint baseline repair is already accepted on main. Fetch main before writes. Canonical SHADOW risk and mandatory CI obligations
-        remain intact. No demonstrated UI speed gain, deployment or owner acceptance is claimed.
+        Independent bounded F PR975 source cb023dc6 passed full General41589321193 and review before
+        merge9ce041a2. G PR978 source6a6b50cd passed full General41590658339, Portable/Operational and
+        review before mergeec534c8d. E PR974 sourceaaf00ad5 passed full General41596023473 all5 and
+        independent review before merge9caddfbe. Its actual merged tree equals the tested source tree:
+        protected-image focused11PASS, full Vitest9596PASS21existingSKIP, separate RLS16PASS, code98fresh
+        Nx executions with literal uncached evidence. Earlier own E4821 and90 failures remain recorded;
+        they were repaired, not waived. These partial results do not complete whole packages or the programme.
+        E historical same-SHA4821 local cold44.477s versus warm7.577s proves safe reuse, not causal CI savings.
+        F paired entry sixcalls18593bytes29.236s versus onecall4483bytes34.551s reduces output75.9percent
+        but is slower; actual model tokens are unavailable. Automatic duplicate General runs remain unresolved.
+        Select D-CONDITIONAL-GENERAL-CONTRACT-001, pending fresh exact-eight-path preflight and actual
+        guard release. The one owner-authorized scoped contact did not establish ownership or confirm release
+        of dirty tools/test_ci_image_transport.py in old D13. No foreign WIP operations, ownership transfer,
+        whole-file copy, additional message or guard edit is authorized. WAITING_HANDOFF forbids D writes.
+        Preserve full Main/release gates, ASA required fail-closed semantics and existing PR969 release evidence.
+        No release, owner acceptance, production, database, deployment, local Docker or network action claimed.
+        Fetch main before writes and recover exact Git/CI; postmerge Main conclusions are separate observations.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -138,9 +147,62 @@ parallel_lanes:
     programme:
       id: ASA-DEVEX-ENGINE-001
       selected_slice: D
+      selected_subslice: D-CONDITIONAL-GENERAL-CONTRACT-001
+      verification_pending_slices: []
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
+      partial_slices:
+        - id: D-PARALLEL-UI-CI
+          source_sha: 6176394ff255e911ccb4e93788b9ea47e7c065ba
+          integrated_sha: 4be7dca052e3b02cfb11bb9ab15e86c565f4d553
+          pr: 945
+          exact_source_general_run: 41510340520
+          independent_review: approved
+          real_ui_pilots:
+            - change_class: L0
+              pr: 948
+              source_sha: 1bb2501bdaca88cc3c8d25daac081de058ced85c
+              scoped_ci_run: 41499682067
+              full_ci_run: 41499681853
+              full_ci_jobs_passed: 4
+            - change_class: L1
+              pr: 956
+              source_sha: f1381233e81fcf738127bbe718781e874663ad0f
+              scoped_ci_run: 41503951850
+              full_ci_run: 41503951810
+              full_ci_jobs_passed: 4
+          source_general_jobs_passed: 5
+        - id: F-MINIMAL-ENTRY-001
+          source_sha: cb023dc6cea4249f43b3893b54f6add543c9652b
+          integrated_sha: 9ce041a292e4bb8463ca368b71aa595eb5ae6df1
+          pr: 975
+          exact_source_general_run: 41589321193
+          independent_review: approved
+        - id: G-RELEASE-QUEUE-001
+          source_sha: 6a6b50cd7eacdd5849a476c66e79781e2e27f464
+          integrated_sha: ec534c8da79fe080358534b6f5cff001c8c90421
+          pr: 978
+          exact_source_general_run: 41590658339
+          independent_review: approved
+        - id: D-ADDRESSED-FOCUSED-ROUTING-001
+          source_sha: f503764c3d7060da3a51331ecf7fc2436df7e1df
+          integrated_sha: 900f2e10b7abf180a26b465ad5e2b9e1a5cc0aee
+          pr: 967
+          exact_source_general_run: 41540467267
+          independent_review: approved
+        - id: G-FULL-RELEASE-EVIDENCE-001
+          source_sha: 82029c5745a9b8d47f9a49302c61275056e2f491
+          integrated_sha: 50b1dc159e654823de3e319f3c0f9528971e10ef
+          pr: 969
+          exact_source_general_run: 41565687242
+          independent_review: approved
+        - id: E-WEB-CACHE-001
+          source_sha: aaf00ad5bc6c09d5906208e4dbd5914eab429589
+          integrated_sha: 9caddfbeff635507f9b10deaf9ea5bb08da9d22c
+          pr: 974
+          exact_source_general_run: 41596023473
+          independent_review: approved
       completed_slices:
         - id: PREFLIGHT
           source_sha: bbf6bb3223e1cbb9d4196741787b26e09eae7e34
@@ -9320,68 +9382,66 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: essay_course_candidate_in_verification_compact_integrated
+      checkpoint: quiz_foundation_recovery_essay_browser_pending
       selected_slice:
-        id: LRN-E1-ESSAY-COURSE-VERTICAL
+        id: LRN-QUIZ-FOUNDATION-RECOVERY
         status: in_progress
-        kind: feature
-        owner_authorization: Owner explicitly orders real Quiz, written answers, files and project practices from compact authoring through Course issue, learner submission, review and journal on 2026-11-02. This bounded executor owns the complete essay vertical; controller continues the remaining kinds afterward.
-        scope: Explicit essay creation without project environment, immutable publication and exact Course pin, class delivery, authorized Account and Seat persisted text drafts, immutable idempotent submission, exact teacher text review and rework, existing canonical results and journal, and truthful Course completion. Reuse the existing compact editor and academic chain rather than introducing a parallel assessment engine.
+        kind: integration
+        owner_authorization: The owner commissioned all four compact Course assignment kinds through submission, review and journal, and explicitly requires reuse of the existing two-week core. Recover the already reviewed Q1 and Q2 sources rather than writing another attempt engine.
+        scope: Restore independent Quiz policies on LearningActivityVersion and the existing exact persisted Quiz Start, read and answer-save implementation on the reviewed Essay dependency. Preserve current core and compatibility. Content authoring, final submission, expiry finalization, eight question types and player follow as separate bounded parts of the same commissioned programme.
+        source_inputs:
+        - pr: 923
+          sha: 3aa71ccb6bd7ebd8ab6b61f46b56caa010a392da
+        - pr: 928
+          sha: d948938454166d38b41d74fa214ac0272f5de2ce
         expected_write_paths:
-        - apps/web/src/api.ts
-        - apps/web/src/pages/AuthoredMaterialsPage.tsx
-        - apps/web/src/components/CanonicalPracticePicker.tsx
-        - apps/web/src/components/SeatCourses.tsx
-        - apps/web/src/components/ClassroomGradebook.tsx
-        - apps/web/src/components/EssayResponseEditor.tsx
-        - apps/web/src/components/LessonBlockEditor.tsx
-        - apps/web/src/components/TaskBlocks.tsx
-        - apps/web/src/components/courses-panel.css
-        - apps/web/src/learning/testing/course-inline-task-creation.spec.ts
-        - apps/web/src/learning/testing/authored-assignment-list.spec.ts
-        - apps/web/src/learning/testing/essay-response.spec.ts
-        - apps/api/src/learning-activities.controller.ts
-        - apps/api/src/learning-activities.controller.spec.ts
-        - apps/api/src/learning-essay-attempts.controller.ts
-        - apps/api/src/learning-assessments.controller.ts
-        - apps/api/src/learning-assessments.controller.spec.ts
-        - apps/api/src/learning-canonical-projection.service.ts
-        - apps/api/src/learning-canonical-projection.service.spec.ts
-        - apps/api/src/courses.controller.ts
-        - apps/api/src/courses.controller.spec.ts
-        - apps/api/src/app.module.ts
         - apps/api/src/account-verification.guard.ts
         - apps/api/src/account-verification.guard.spec.ts
-        - apps/api/src/classroom-join.controller.ts
-        - apps/api/src/classroom-join.controller.spec.ts
-        - contexts/learning/domain/canonical-learning-state.ts
-        - contexts/learning/testing/canonical-learning-state.spec.ts
-        - contexts/learning/index.ts
-        - migrations/0302_learning_essay_course_runtime.sql
-        - tests/courses/learning-essay-course-runtime.pg.spec.ts
-        - tests/courses/learning-essay-attempts.controller.spec.ts
-        - tests/courses/course-prepublication-diagnostics.pg.spec.ts
-        - tests/courses/course-prepublication-contract.spec.ts
-        - tests/courses/learning-activity-version-convergence.pg.spec.ts
-        - e2e/learning-course-01.spec.ts
-        - e2e/learning-author-preview.spec.ts
-        - e2e/learning-authoring-navigation.ts
-        - tools/testing/learning-e1-browser.mjs
-        - schemas/openapi.yaml
+        - apps/api/src/app.module.ts
+        - apps/api/src/learning-quiz-attempts.controller.ts
+        - apps/api/src/learning-quiz-attempts.controller.spec.ts
         - docs/testing/test-catalog.yaml
+        - package.json
+        - schemas/openapi.yaml
+        - migrations/0302_learning_quiz_policy_authority.sql
+        - migrations/0303_learning_quiz_attempt_state.sql
+        - tests/courses/learning-activity-version-convergence.pg.spec.ts
+        - tests/courses/quiz-attempt-state.pg.spec.ts
+        - tests/courses/quiz-engine.pg.spec.ts
+        - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
+        - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+        - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
         acceptance:
-        - A teacher creates essay explicitly without a module in the same compact editor, publishes it and pins the exact version in a Course issued to a class.
-        - Account and Seat learners reopen confirmed text drafts; stale revisions conflict and cannot silently overwrite local text.
-        - Idempotent submit freezes server-confirmed text and digest. A later draft, correction or repeat submission never mutates earlier evidence.
-        - Teacher reads exact frozen text, accepts or requests revision; rework creates a linked attempt and preserves all prior submission and assessment history.
-        - Existing assessment authority and journal publish actual results; required Course completion follows exact selected accepted results rather than reading instructions.
-        - Actor, stable LearnerIdentity, class and tenant isolation fail closed; preserve existing independent Seat versus linked Account authority and all project protections.
-        - Actual author-to-learner-to-teacher browser evidence at 320,390,1024,1440 verifies compact actions, long Russian content, reload, review and journal; focused and repository gates plus independent final source and visual reviews are required.
-        dependencies: Compact PR960 source f3e736b9 passed independent source and visual review, all four source workflows and46 real browser journeys with20 reviewed images. It is integrated in main3f6ae864. Essay PR964 candidate4b0422d1 has converged with that main and its DevEx required-check baseline; isolated PostgreSQL and browser gates are pending. Verify the actual published migration frontier before source integration; do not chase later unrelated main commits without a direct invariant or platform requirement.
-        migration_allocation: Published frontier is0300 at main3b542f32f. Fresh99-worktree audit found AI and Chess private0301 files, so0302 is provisional for isolated development only, not an exclusive reservation. Preserve both foreign0301 files; recheck final frontier and resolve the dependency before source integration. Never publish or deploy an out-of-order migration history.
-        audit_evidence: Fresh99-worktree audit found no dirty API/domain/learning runtime paths. Additional101-worktree audits found no dirty TaskBlocks or Learning browser manifest. The historical Oct4 staged navigation helper only introduces assignment-list navigation already present in current main, which also has its later list assertion and explicit project-medium setup; retain that entire historic worktree and index unchanged. Follow-up101-worktree audits found no dirty Account verification guard/spec, ClassroomJoin controller/spec, LessonBlockEditor or canonical state; these necessary typed delivery and Seat admission dependencies are included explicitly. Preserve historic Oct4 format-only overlapping snapshots unchanged. Chess has separate dirty package.json and untracked0301; package.json is excluded here. Put new HTTP regressions under tests/courses already selected by the existing focused command, without weakening tests or changing the foreign package draft.
-        constraints: Register one dedicated real essay Course browser journey in the existing partition manifest, retaining original identities, assertions, existing timeouts and retries. The new complete journey may use the normal240-second Course-case budget; this does not extend an existing failing case or change workflow limits. Rename the mixed toolbox action to generic Assignment; adapt the helper legacy Practice argument to the exact new label, without permissive alternate locators. Teacher instruction media uses an exact essay Run and published version scoped readonly route with effective content-read authority and hash checks; extend TaskBlocks only for that exact route shape, never a broad API prefix. This does not implement learner file answers. Essay uses the canonical mixed-lesson activity block; retain project-only defaults for legacy assignment lessons and picker callers. Extend only the exact StudentSeat route allowlist with negative Account and suspended Seat tests; do not bypass unverified Account protections. No existing published SQL changes, tenant or RLS model changes, protected data edits, dependency/workflow/timeout/retry changes, new service, local test stack, owner runtime, backup or deployment actions. Manual remains teacher observation; unsupported Quiz/file options cannot publish fake working activities. Preserve owner ClassroomPage and related E2E/CSS WIP.
-        programme_next: After verified essay integration continue preserved Quiz policy and attempt foundations, all eight normative question types, exact finalization and manual-mixed review, then real bounded immutable learner file upload and download. Preserve existing project journeys. The commissioned result is all four working types through the journal; a single integrated slice does not finish the programme or provide owner acceptance.
+        - Port Q1 policy authority and defaults while retaining the seven current Essay validation lines in learning_activity_normalize_draft. Published QuizVersion content and old histories remain immutable.
+        - Reuse Q2 exact stable LearnerIdentity and Account or Seat authority, frozen key-free questions and order, effective conditions, existing participation activation and audit.
+        - Preserve dense canonical ordinals, separate physical legacy Quiz counters, GREATEST bigint allocation and overflow rejection before activation; existing published partial indexes remain unchanged.
+        - Answer saves retain bounded validation, revisions and acknowledged server state; deadlines use the existing server authority. This slice does not claim final submission or complete Quiz readiness.
+        - Keep all current Essay routes, guards, controller registration, review, journal and completion behavior. No broad unverified Account exception or learner answer-key exposure.
+        - Preserve strict supported and unsupported migration histories and all negative tests. Run focused HTTP, guard and type checks, actual isolated Learning and full General gates and independent exact-source review.
+        dependencies: Essay PR964 source251eb3 is frozen and source-approved, both actual Learning regression commands passed including the complete Essay PostgreSQL suite, and real browser journeys are running. The separate Quiz executor may develop on that exact stacked dependency without touching its UI. Do not integrate Quiz recovery until the Essay candidate has its required green evidence and is integrated in main. Recheck actual main and direct shared invariants before the final convergence.
+        migration_allocation: Published main692b76095 is still0300. The reviewed Essay candidate owns only a private forward0301 copy; provisional Quiz302 and303 follow that dependency for isolated development. Private claims are not exclusive reservations. At final integration allocate from actual published history and confirmed dependency order, never edit published SQL or backfill under an applied frontier.
+        audit_evidence: Fresh101-worktree audit found no dirty proposed recovery paths, including package.json and all three prefix fixtures. Earlier foreign package WIP is no longer dirty; recheck before writing and preserve every foreign draft. Historical Quiz branches remain provenance inputs, not automatic merge targets.
+        constraints: One bounded Q1 and Q2 recovery executor only. Carry current Essay guards forward instead of replacing the normalizer blindly. Expected paths are forecasts under direct_main; necessary same-scope helpers may change after a real overlap check, with the actual final diff reviewed. Do not begin a general core refactor, content editor, player, final-submit worker, learner-file feature, unrelated repair, tenant or RLS model change, dependency or workflow change, owner runtime operation or destructive data action. Preserve owner ClassroomPage and its related WIP. Do not weaken existing assertions, limits, timeouts or retries. If package becomes foreign-dirty, place equivalent HTTP coverage under the already selected tests/courses tree.
+        programme_next: Continue canonical Quiz content editing and publication using the existing bank and useful unfinished Q3 source, exact persisted submission and expiry, all eight normative types including pending manual review, compact player and real journal journey. Then complete the immutable learner-file vertical. The commissioned endpoint remains all four working kinds; this foundation is not a user-ready Quiz or whole-programme acceptance.
+      pending_validation_slice:
+        id: LRN-E1-ESSAY-COURSE-VERTICAL
+        status: browser_and_repository_pending
+        source_pr: 964
+        source_sha: 251eb3eda64f31ecb4d79698fa61f31c84e7fc7c
+        source_review: approved
+        learning_run: 41531315635
+        general_run: 41531315914
+        actual_regression_commands: success_both_partitions
+        actual_essay_pg_cases: 4
+        browser_journeys: running_not_yet_accepted
+        scope: Complete compact Essay creation, exact Course pin and class delivery, Account and Seat persisted text, immutable submission, rework with preserved history, exact teacher review, grade and journal, required-result completion, scheduled content and media authorization.
+        acceptance_limit: Require actual author, learner, frozen review and journal evidence at320,390,1024,1440 and all required exact-head gates before integration. No installed or owner acceptance is inferred from source or PostgreSQL checks.
+        migration: migrations/0301_learning_essay_course_runtime.sql
+        migration_sha256: 6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d
+        migration_allocation: Our private0302 was renamed byte-identically to fresh0301 after verifying published main still0300. Foreign private301 files were untouched and have no exclusive reservation. Recheck the real published and applied frontier before integration or any separately authorized installation operation.
+        repair_policy: Only confirmed A or B defects may receive a separate bounded repair. Coordinate any real path overlap with the active Quiz writer; do not hide regressions or start unrelated cleanup.
+        owner_acceptance: pending
+        deployment: not_run
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
@@ -16182,17 +16242,22 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: owner_selected_four_native_toolbar_hit_failures
+      checkpoint: source_f641_four_native_journeys_and_general_verified_in_main
+      accepted_candidate_sha: f64141870b52458ad19b82b51582c47cb14460ea
+      independent_review: APPROVE_final_source_and_four_selected_actual_journeys
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
+      browser_run: 41525333022
+      general_run: 41527917133
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-COMPACT-CONTROLS-001.md
       repair_scope: CSS-only desktop toolbar packing and strengthened existing native oracle; preserve all original four Code journeys and all mobile/emergency-caption behavior.
       owner_authorization: Repair remaining Electronics failures easiest first; no server or foreign changes. Desktop-only authorship starts after this selection is published; inherit independently reviewed8080 caption source while its separate General finishes, without concurrent edits to the mobile caption.
-      next_action: One bounded author preserves accepted main, reproduces original1374/1181 clock/tool overlap in actual Header, fixes desktop packing, verifies native controls and original four Code journeys; new independent review and exact CI before integration.
+      next_action: The original four desktop/blocks Code journeys pass with87 selected compact phases, complete captions, native hit ownership and whole intent receipts. Mobile emergency E01 also passes. Broader fifth text-mobile qualification remains in Task870; owner acceptance and deployment are separate.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
@@ -16270,17 +16335,22 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: medium
       semantic_change: 'yes'
-      checkpoint: independent_mobile_ui_candidate_selected_while944_ci_pending
+      checkpoint: source_b77_general_and_three_native_journeys_verified_in_main
+      accepted_candidate_sha: b77a43e0d473cef72bf182b0700f19867f6dbdaa
+      independent_review: APPROVE_final_source_recipe_and_actual_three
+      report: docs/product/electronics/evidence/mobile-properties-952-20261103/REPORT.md
+      browser_run: 41539218485
+      general_run: 41542126607
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-PROPERTIES-001.md
       scope: Phone component properties collapsed square by default, compact expandable inspector, original property editing and native pinch preserved; hide phone zoom buttons. Desktop remains expanded. No physics or deployment changes.
       owner_authorization: Owner explicitly requests restoring phone component properties, compact collapse/expand, desktop immediate display and removal of phone zoom controls on2026-11-02.
-      next_action: New bounded executor may prepare isolated candidate while944/870 frozen CI runs; publish only after944 integration and fresh source/native review. No mutation of frozen candidate.
+      next_action: Exact sourceb77a43e0 General41542126607 passes all four jobs; native three-case41539218485 and independent review pass complete phone390, phone568 and desktop1536 journeys, Save/server-only reopen, touch scaling and metadata preservation. Controller integrates the seven bounded source files without regressing the newer pin-settings journey in main. Physical OS-keyboard and settled partial-code interaction remain evidence limits; owner acceptance and deployment are separate.
       integration_order: Source preparation only in independent worktree; main integration follows verified944 pin initialization.
     gates:
       focused:
@@ -16320,17 +16390,22 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: source2b2ff317_independent_review_pass_full_browser_acceptance_selected
+      checkpoint: source_f641_general_and_seven_browser_verified_in_main
+      accepted_candidate_sha: f64141870b52458ad19b82b51582c47cb14460ea
+      independent_review: APPROVE_final_source_and_actual_seven
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
+      browser_run: 41525333022
+      general_run: 41527917133
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PIN-SETUP-001.md
       scope: Generated explicit pinMode in setup, simplified computed commands and legacy preservation. Owner explicitly chooses all canonical GPIO as OUTPUT except button/sensor input ports; no whole-program range analysis. Owner also approves a persisted per-board input-port list in Arduino settings for computed input numbers.
       owner_authorization: Owner urgently requests computed pin initialization repair for public project7ad29bb5 on2026-11-02, then explicitly instructs configuring all ports as outputs except ports assigned as inputs for buttons. Owner subsequently approves an explicit input-port list in Arduino settings. No server or foreign changes.
-      next_action: Source2b2ff317 independently approved with102tests and author105tests. New bounded test author adds actual desktop/mobile owner-project settings and Save-reopen journey; keep reviewed production source unchanged. Canonical CI and actual browser evidence remain required.
+      next_action: Verified source is integrated by the controller with original five scoped journeys and both owner settings journeys green. Owner acceptance and deployment remain separate; default-height mobile Reset and broader raw/empty/corrupt Task865 preservation are still open.
     gates:
       focused:
         workflow: Electronics M1 Focused Gate
@@ -16433,15 +16508,15 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: low
       semantic_change: 'no'
-      checkpoint: selected_fixed_menu_actual_intersection_oracle_repair
-      accepted_candidate_sha: a85c5a2a68db9fe83755e2b0168aa7fadde69f74
+      checkpoint: all_96_current_compact_phases_verified_in_main
+      accepted_candidate_sha: 31f1b7b41f8fe62290cb9eec33e63d236d14a920
       source_review_evidence: done
-      independent_review: APPROVE_initial_header_only_not_full_journeys
-      report: docs/product/electronics/evidence/toolbar-oracle-870/GATES.md
+      independent_review: APPROVE_source_and_combined_87_plus_9_actual_phases
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
       owner_acceptance: pending
       execution_role: bounded_test_executor_then_new_independent_review
       context_hints:
@@ -16449,9 +16524,9 @@ parallel_lanes:
       owner_authorization: Owner continues remainingprogramme simplest first; actual frozenCI proves first four header assertions stale after accepted text tool and one-row policy. Test-only alignment, no product or generic paused timedAPI repair.
       acceptance_boundary: Actual_clipping_measurement_only_all_original_95_phases_and_five_native_points_retained
       current_repair_scope: Correct only the compact-case clipping collector/assertion to browser-computed actual intersections; preserve ancestor diagnostics, all bounds tolerances and genuine clipping/ownership tests. No product edits.
-      current_failure: Scoped41365631046 text-desktop-compact981-native-open falsely compares viewport-fixed purple bottom162 against uninvolved scroll-group bottom95 while all5nativepoints are owned.
-      current_evidence: Independent actual raw_PNG_and5_serverless_adversarial_cases_CONFIRM_ORACLE_FALSE_POSITIVE; both_fixed_menu_and_overflow_preexist_c353.
-      current_next_action: New bounded test-only executor preserves95originalphases/intents; one batched observer per capture, adversarial clipping and occlusion coverage, canonical browser-digest-only generation; new exact-source and actual review; STOP.
+      current_failure: No remaining compact-control qualification failure is demonstrated.
+      current_evidence: Run41525333022 independently approves87 compact phases and run41537679267 on identical relevant main31 source independently approves remaining9 text-mobile phases, 72 control observations and360 owned native points. Together96 cover historical95 plus981-native-closed; single attempts, retry0, unchanged whole intent receipts. This is viewport qualification, not phone-hardware or elapsed-clock proof.
+      current_next_action: Source and all preserved original compact cases are technically qualified. Owner acceptance, deployment and the separate runtime timing programme remain open; no further oracle mutation is selected.
       deployment: prohibited_by_owner
       database_actions: none_live
     gates:

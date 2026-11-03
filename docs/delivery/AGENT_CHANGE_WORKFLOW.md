@@ -12,24 +12,41 @@
 
 ## 1. Сначала получи минимальный контекст
 
+Выполни одну команду preflight; если план известен, перечисли каждый точный
+repository-relative файл отдельным `--planned-path`:
+
 ```bash
-pnpm agent:context --list
-pnpm agent:recover --scope <lane> --check
-pnpm agent:context --scope <lane>
-pnpm control-plane:check
-git status --short --branch
-git fetch origin refs/heads/main:refs/remotes/origin/main
+pnpm agent:preflight --scope <lane> --check --planned-path <file-a> --planned-path <file-b>
 ```
 
-Читай только документы и разделы из блока `read`. Не сканируй весь репозиторий,
-если точный модуль уже известен. До записи проверь незавершённые файлы и
-последние изменения в `origin/main`.
+Для картированного локального изменения вместо широкого `--scope` выбери один
+из `--path`, `--surface` или `--control`. Когда план ещё неизвестен, получи
+контекст без `--planned-path`, затем проверь полный точный план до первой записи.
 
-Если recovery возвращает код `2`, новый срез не начинается. Сначала определяется,
+Preflight уже обновляет `origin/main`, показывает Git snapshot, чужие dirty
+worktree, пересечения, blockers, control-plane и scoped context. Читай только
+документы и разделы из этого context. Отдельные `agent:context`, `agent:recover`
+и `control-plane:check` нужны для диагностики или выполнения `SAFE_ACTION`,
+а не как повторная обязательная цепочка. Политика Git и обновления рабочей
+`main` из [`START_HERE_FOR_AI.md`](../../START_HERE_FOR_AI.md) сохраняется.
+
+Если выданный `SAFE_ACTION` требует повторно получить scoped context, используй
+диагностическую команду `pnpm agent:context --scope <lane>`. Это не второй
+обязательный старт и не разрешение записи.
+
+Запись начинается только при фактическом `SAFE_TO_START`. Реальные пересечения
+и неизвестное состояние чужого worktree блокируют её даже при точном плане.
+При ненулевом exit code или ином статусе новый срез не начинается: разбери
+ошибку и выполни выданный `SAFE_ACTION`. Для recovery определи,
 какие dirty paths и процессы относятся к прерванной работе, что уже было
 committed/pushed/tested и можно ли безопасно завершить текущий срез. Запрещено
 повторять migration, build, push, deployment или другую потенциально повторную
 операцию только потому, что предыдущий tool-call не вернул ответ.
+
+Для измерения стоимости маршрута на одном SHA сохраняй число команд, elapsed
+и UTF-8 bytes фактических stdout+stderr. Это показатели вызовов и объёма
+контекста, не model tokens. Недоступный расход токенов остаётся неизвестным;
+снижение объёма вывода само по себе не доказывает экономию токенов или времени.
 
 ## 2. Сделай один цельный пакет
 
@@ -44,7 +61,21 @@ committed/pushed/tested и можно ли безопасно завершить
 
 ## 3. Опубликуй без потери параллельной работы
 
-После локальной проверки:
+После focused gate проверь полный dirty и committed diff выбранного среза:
+
+```bash
+pnpm agent:preflight --scope <lane> --verify-plan --diff-base <known-ancestor> --planned-path <file-a> --planned-path <file-b>
+```
+
+Укажи весь план и известный commit, который является предком текущего `HEAD`.
+`--check` и `--verify-plan` взаимоисключающие: первый требует `SAFE_TO_START`,
+второй возвращает `PLAN_VALID` только для проверки scope. `PLAN_VALID` не
+разрешает новые edits или публикацию сам по себе, не очищает recovery и не
+отменяет handoff или blockers. Выполни соответствующий `SAFE_ACTION`; сохрани
+разрешение и evidence выбранного среза. Если до публикации изменился состав
+файлов или Git-состояние, повтори применимую проверку.
+
+Перед коммитом и публикацией:
 
 ```bash
 git diff --check

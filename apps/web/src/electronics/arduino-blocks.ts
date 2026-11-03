@@ -10,6 +10,7 @@ import {
 } from './arduino-pin-inputs';
 import * as ScratchBlocks from 'scratch-blocks';
 import { registerArduinoBlockDefinitions } from './arduino-block-definitions';
+import { arduinoPinSetup, arduinoSetupModes } from './arduino-output-pins';
 import {
   TOOLBOX_INPUT_DEFAULTS,
   TOOLBOX_FIELD_DEFAULTS,
@@ -405,9 +406,7 @@ function outputPinStatement(
   bindings?: ReadonlyMap<string, string>,
 ): string {
   const literal = literalArduinoPin(block, input, fallback);
-  if (literal !== null) return command(literal);
-  const pin = temporaryIdentifier(block, 'asaOutputPin');
-  return `{\n${indent(`int ${pin} = ${argument(block, input, fallback, bindings)};\npinMode(${pin}, OUTPUT);\n${command(pin)}`)}\n}`;
+  return command(literal ?? argument(block, input, fallback, bindings));
 }
 
 function statements(first: ScratchBlocks.Block | null): string {
@@ -737,7 +736,10 @@ function statements(first: ScratchBlocks.Block | null): string {
   return lines.join('\n');
 }
 
-export function generateArduinoCode(workspace: ScratchBlocks.Workspace): string {
+export function generateArduinoCode(
+  workspace: ScratchBlocks.Workspace,
+  inputPins: readonly string[] = [],
+): string {
   const {
     blocks: allBlocks,
     setup: setupBlock,
@@ -748,23 +750,8 @@ export function generateArduinoCode(workspace: ScratchBlocks.Workspace): string 
   const declarations: string[] = [];
   const setupLines: string[] = [];
 
-  const digitalPins = new Set<string>();
-  for (const block of allBlocks) {
-    if (block.type === 'asa_builtin_led') digitalPins.add('LED_BUILTIN');
-    if (
-      [
-        'asa_digital_write',
-        'asa_analog_write',
-        'asa_tone',
-        'asa_play_note',
-        'asa_no_tone',
-      ].includes(block.type)
-    ) {
-      const pin = literalArduinoPin(block);
-      if (pin !== null) digitalPins.add(pin);
-    }
-  }
-  for (const pin of digitalPins) setupLines.push(`pinMode(${pin}, OUTPUT);`);
+  const pinSetup = arduinoPinSetup(allBlocks, inputPins);
+  setupLines.push(...arduinoSetupModes(pinSetup.inputs));
 
   const variableNames = new Set(
     allBlocks
@@ -871,13 +858,11 @@ export function generateArduinoCode(workspace: ScratchBlocks.Workspace): string 
   if (blockTypes.has('asa_ultrasonic')) {
     declarations.push(
       `float readUltrasonicCm(int triggerPin, int echoPin) {
-  pinMode(triggerPin, OUTPUT);
   digitalWrite(triggerPin, LOW);
   delayMicroseconds(2);
   digitalWrite(triggerPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(triggerPin, LOW);
-  pinMode(echoPin, INPUT);
   return pulseIn(echoPin, HIGH) * 0.01723;
 }`,
     );

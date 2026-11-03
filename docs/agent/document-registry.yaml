@@ -805,7 +805,7 @@ documents:
     kind: architecture_contract
     status: canonical
     authority: local_ui_effect_verification_boundaries
-    revision: '1.0'
+    revision: '1.1'
     context_role: escalation
     read_when: [local_ui_effect_proof, local_test_execution]
 

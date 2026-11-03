@@ -13,13 +13,45 @@ import {
 } from '../production-manifest-adapter';
 import { normalizeLoadedDocument } from '../use-workbench-project-state';
 import { useElectronicsWorkbench } from '../use-electronics-workbench';
+import * as S from 'scratch-blocks';
+import { registerArduinoBlocks, generateArduinoCode } from '../arduino-blocks';
 
-// Only the unused blocks renderer is substituted. Text input, controller,
-// document/local persistence, save queue and autosave scheduler are production.
-vi.mock('scratch-blocks', () => ({
-  Theme: { defineTheme: () => ({}) },
-  Themes: { Zelos: {} },
+const injected = vi.hoisted(() => ({
+  workspace: null as unknown,
+  mounts: 0,
+  savedGeometry: false,
 }));
+// Production emits these pinned media as files; Vitest otherwise inlines SVG.
+vi.mock('../../../node_modules/scratch-blocks/media/zoom-in.svg?url', () => ({
+  default: 'http://localhost/assets/arduino-blockly/zoom-in.svg',
+}));
+// Only the SVG renderer/geometry is substituted. Blocks, generation, settings,
+// controller, document/local persistence, save queue and scheduler are production.
+vi.mock('scratch-blocks', async (original) => {
+  const actual = await original<typeof import('scratch-blocks')>();
+  return {
+    ...actual,
+    svgResize: () => undefined,
+    inject: () => {
+      const workspace = new actual.Workspace();
+      const create = workspace.newBlock.bind(workspace);
+      workspace.newBlock = (...args) =>
+        Object.assign(create(...args), {
+          getSvgRoot: () => null,
+          ...(injected.savedGeometry ? {} : { getRelativeToSurfaceXY: () => ({ x: 1000, y: 0 }) }),
+        });
+      Object.assign(workspace, {
+        scale: injected.savedGeometry ? 0.72 : 1,
+        getFlyout: () => null,
+        updateToolbox: () => undefined,
+        registerButtonCallback: () => undefined,
+      });
+      injected.workspace = workspace;
+      injected.mounts += 1;
+      return workspace;
+    },
+  };
+});
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -112,7 +144,8 @@ async function mount(projectId: string) {
   expect(controller().status).toBe('ready');
 }
 
-async function prepare() {
+async function prepare(document?: SchematicDocument) {
+  initialDocument = document ?? normalizeLoadedDocument(fixtureDocument);
   vi.useFakeTimers({
     toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
   });
@@ -194,6 +227,10 @@ afterEach(async () => {
   localStorage.clear();
   vi.restoreAllMocks();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
+  injected.workspace = null;
+  injected.mounts = 0;
+  injected.savedGeometry = false;
 });
 
 describe('latest visible Arduino text is canonical before save or departure', () => {
@@ -295,6 +332,208 @@ describe('latest visible Arduino text is canonical before save or departure', ()
     expect(stored.get('first')?.components[0]?.stateProperties?.['arduinoSource']).toBe(
       source('minute latest'),
     );
+  });
+});
+
+function clickButton(label: string) {
+  const button = [...host!.querySelectorAll('button')].find((b) => b.textContent?.trim() === label);
+  if (!button) throw new Error(`Missing button ${label}`);
+  button.click();
+}
+function openInputSettings() {
+  host!.querySelector<HTMLElement>('.arduino-mode-menu > summary')!.click();
+  clickButton('Настройки Arduino');
+}
+function inputPort(pin: string) {
+  return host!.querySelector<HTMLInputElement>(`[aria-label="Входной порт ${pin}"]`)!;
+}
+function blockSettingsDocument() {
+  registerArduinoBlocks();
+  S.Events.disable();
+  const workspace = new S.Workspace();
+  try {
+    const setup = workspace.newBlock('asa_setup');
+    const assign = workspace.newBlock('asa_var_set');
+    assign.setFieldValue(workspace.getVariableMap().createVariable('button').getId(), 'NAME');
+    setup.getInput('DO')!.connection!.connect(assign.previousConnection!);
+    const reading = workspace.newBlock('asa_digital_read');
+    assign.getInput('VALUE')!.connection!.connect(reading.outputConnection!);
+    const pin = workspace.newBlock('asa_number');
+    pin.setFieldValue('2', 'VALUE');
+    reading.getInput('PIN')!.connection!.connect(pin.outputConnection!);
+    const write = workspace.newBlock('asa_digital_write');
+    assign.nextConnection!.connect(write.previousConnection!);
+    const outputPin = workspace.newBlock('asa_number');
+    outputPin.setFieldValue('13', 'VALUE');
+    write.getInput('PIN')!.connection!.connect(outputPin.outputConnection!);
+    return normalizeLoadedDocument({
+      ...fixtureDocument,
+      components: fixtureDocument.components.map((component) =>
+        component.id === 'uno-a'
+          ? {
+              ...component,
+              stateProperties: {
+                ...component.stateProperties,
+                arduinoCodeMode: 'blocks',
+                arduinoWorkspace: JSON.stringify(S.serialization.workspaces.save(workspace)),
+                arduinoSource: generateArduinoCode(workspace),
+              },
+            }
+          : component,
+      ),
+    });
+  } finally {
+    workspace.dispose();
+    S.Events.enable();
+  }
+}
+function stubSvgSurface() {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  vi.stubGlobal('requestAnimationFrame', () => 1);
+  vi.stubGlobal('cancelAnimationFrame', () => undefined);
+}
+
+describe('per-board Arduino input settings', () => {
+  it('preserves saved block coordinates inside the desktop flyout boundary through Apply and Save', async () => {
+    stubSvgSurface();
+    injected.savedGeometry = true;
+    const document = blockSettingsDocument();
+    const properties = document.components[0]!.stateProperties!;
+    const saved = {
+      blocks: {
+        languageVersion: 0,
+        blocks: [
+          { type: 'asa_setup', id: 'saved-setup', x: 365, y: 84 },
+          { type: 'asa_loop', id: 'saved-loop', x: 494, y: 120 },
+        ],
+      },
+    };
+    properties['arduinoWorkspace'] = JSON.stringify(saved);
+    await prepare(document);
+    const live = injected.workspace as S.Workspace;
+    expect(live.getTopBlocks(false)[0]!.getRelativeToSurfaceXY()).toMatchObject({ x: 365, y: 84 });
+    expect(S.serialization.workspaces.save(live)).toEqual(saved);
+    act(() => openInputSettings());
+    act(() => inputPort('A5').click());
+    act(() => clickButton('Применить'));
+    expect(
+      JSON.parse(
+        String(controller().document!.components[0]!.stateProperties!['arduinoWorkspace']),
+      ),
+    ).toEqual(saved);
+    await act(async () => controller().saveNow());
+    expect(
+      JSON.parse(String(stored.get('first')!.components[0]!.stateProperties!['arduinoWorkspace'])),
+    ).toEqual(saved);
+  });
+
+  it('cancels drafts, restores focus, keeps text verbatim and saves independent board lists', async () => {
+    await prepare();
+    const before = controller().document;
+    act(() => openInputSettings());
+    expect(host!.querySelector('[role="dialog"][aria-label="Настройки Arduino"]')).not.toBeNull();
+    act(() => inputPort('2').click());
+    act(() => clickButton('Отмена'));
+    expect(controller().document).toBe(before);
+    expect(document.activeElement?.textContent).toBe('Настройки Arduino');
+    act(() => openInputSettings());
+    expect(inputPort('2').checked).toBe(false);
+    act(() => inputPort('A0').click());
+    act(() => clickButton('Применить'));
+    expect(controller().document?.components[0]!.stateProperties?.['arduinoInputPins']).toEqual([
+      'A0',
+    ]);
+    expect(controller().document?.components[0]!.stateProperties?.['arduinoSource']).toBe(
+      source('uno-a'),
+    );
+    act(() => controller().undo());
+    act(() => openInputSettings());
+    expect(inputPort('A0').checked).toBe(false);
+    act(() =>
+      host!
+        .querySelector('[role="dialog"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+    );
+    act(() => controller().redo());
+    act(() => switchBoard('uno-b'));
+    act(() => openInputSettings());
+    expect(inputPort('A0').checked).toBe(false);
+    act(() => inputPort('3').click());
+    act(() => clickButton('Применить'));
+    await act(async () => controller().saveNow());
+    expect(
+      stored
+        .get('first')!
+        .components.slice(0, 2)
+        .map((b) => b.stateProperties?.['arduinoInputPins']),
+    ).toEqual([['A0'], ['3']]);
+    act(() => switchBoard('uno-a'));
+    act(() => openInputSettings());
+    expect(inputPort('A0').checked).toBe(true);
+    act(() => clickButton('Отмена'));
+    expect(host!.querySelector<HTMLTextAreaElement>('textarea')!.value).toBe(source('uno-a'));
+  });
+
+  it('atomically changes generated modes and settings through Undo/Redo without remounting blocks', async () => {
+    stubSvgSurface();
+    await prepare(blockSettingsDocument());
+    const live = injected.workspace;
+    const mounts = injected.mounts;
+    const before = controller().document!.components[0]!.stateProperties!;
+    act(() => openInputSettings());
+    expect(inputPort('2').checked).toBe(true);
+    expect(inputPort('2').disabled).toBe(true);
+    act(() => inputPort('A5').click());
+    expect(controller().document?.components[0]!.stateProperties).toBe(before);
+    act(() => clickButton('Применить'));
+    const after = controller().document!.components[0]!.stateProperties!;
+    expect(after['arduinoInputPins']).toEqual(['A5']);
+    expect(after['arduinoSource']).toContain('pinMode(A5, INPUT);');
+    expect(after['arduinoWorkspace']).toBe(before['arduinoWorkspace']);
+    expect(injected.workspace).toBe(live);
+    expect(injected.mounts).toBe(mounts);
+    act(() => controller().undo());
+    expect(controller().document?.components[0]!.stateProperties).toEqual(before);
+    act(() => controller().redo());
+    expect(controller().document?.components[0]!.stateProperties).toEqual(after);
+    expect(injected.workspace).toBe(live);
+    await act(async () => controller().saveNow());
+    expect(stored.get('first')!.components[0]!.stateProperties).toEqual(after);
+  });
+
+  it('flushes the latest live blocks before Apply and cannot republish a stale config after Undo', async () => {
+    stubSvgSurface();
+    await prepare(blockSettingsDocument());
+    const live = injected.workspace as S.Workspace;
+    const write = live.getBlocksByType('asa_digital_write', false)[0]!;
+    act(() => write.getInputTargetBlock('PIN')!.setFieldValue('12', 'VALUE'));
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    // Still inside the production 180-ms block publication debounce.
+    expect(controller().document?.components[0]!.stateProperties?.['arduinoSource']).toContain(
+      'digitalWrite(13, HIGH);',
+    );
+    act(() => openInputSettings());
+    act(() => inputPort('A5').click());
+    act(() => clickButton('Применить'));
+    const configured = controller().document!.components[0]!.stateProperties!;
+    expect(configured['arduinoSource']).toContain('digitalWrite(12, HIGH);');
+    expect(configured['arduinoSource']).toContain('pinMode(A5, INPUT);');
+    expect(configured['arduinoWorkspace']).toBe(
+      JSON.stringify(S.serialization.workspaces.save(live)),
+    );
+    act(() => controller().undo());
+    const undone = controller().document!.components[0]!.stateProperties!;
+    expect(undone['arduinoSource']).toContain('digitalWrite(12, HIGH);');
+    expect(undone['arduinoSource']).toContain('pinMode(A5, OUTPUT);');
+    await act(async () => vi.advanceTimersByTimeAsync(180));
+    expect(controller().document?.components[0]!.stateProperties).toEqual(undone);
+    expect(injected.workspace).toBe(live);
   });
 });
 
