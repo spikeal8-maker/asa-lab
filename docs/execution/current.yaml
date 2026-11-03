@@ -16198,7 +16198,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-SYNC-BATCH-GUARDS-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-NEXT-EVENT-SCAN-001.md
     previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
@@ -16222,7 +16222,7 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-SYNC-BATCH-GUARDS-001
+      id: TASK-ELECTRONICS-NEXT-EVENT-SCAN-001
       issue: 539
       branch: main
       base_branch: main
@@ -16230,12 +16230,12 @@ parallel_lanes:
       status: in_progress
       kind: repair
       risk: high
-      semantic_change: 'yes'
-      checkpoint: bounded_sync_batch_guard_design_and_independent_safety_review_selected
+      semantic_change: 'no'
+      checkpoint: duplicate_next_due_scan_repair_selected_before_author
       owner_acceptance: pending
-      owner_authorization: Owner explicitly resumes remaining plan and20 timing speed delay failures; one bounded synchronous batch guard repair after approved production CPU evidence; fresh safety review before product edits. No trust across public steps or yields. No yield replacement, clock change, cap increase, server or foreign changes.
+      owner_authorization: Owner explicitly resumes remaining plan and20 timing speed delay failures; one bounded duplicate next-event scan repair; preserve every model guard and physical step. Rejected unsafe synchronous batch design is not resumed. No yield replacement, clock change, cap increase, server or foreign changes.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-SYNC-BATCH-GUARDS-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-NEXT-EVENT-SCAN-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
       previous_experiment:
@@ -16257,6 +16257,11 @@ parallel_lanes:
         independent_review: APPROVE_diagnostic_evidence_only
         report: docs/product/electronics/evidence/production-cpu-20261103/REPORT.md
         result: NativeWorker160fullresponses_equal_6826samples_guard228.049ms_self_zero_timing_failures_closed
+      rejected_batch_design:
+        task_id: TASK-ELECTRONICS-SYNC-BATCH-GUARDS-001
+        result: NOT_SAFE_WITHIN_SELECTED_PATH_SET_no_source_edits_no_timing_failures_closed
+        independent_review: REJECT_before_product_edits
+        report: docs/product/electronics/evidence/sync-batch-guards-20261103/REPORT.md
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
