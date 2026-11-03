@@ -445,6 +445,27 @@ class ReleaseTests(unittest.TestCase):
         with patch("deployment.releases.urllib.request.urlopen", side_effect=new_general), self.assertRaises(Blocked):
             assert_ci(release())
 
+    def assert_publication_concurrency(self, workflow):
+        # Pin this small workflow contract without adding a YAML dependency.
+        start, end = "\nconcurrency:\n", "\njobs:\n"
+        self.assertEqual(workflow.count(start), 1)
+        self.assertEqual(workflow.count(end), 1)
+        self.assertLess(workflow.index(start), workflow.index(end))
+        self.assertEqual(workflow.split(start, 1)[1].split(end, 1)[0],
+                         "  group: asa-stable-release\n  cancel-in-progress: false\n  queue: max\n")
+
+    def test_publication_retains_pending_candidates_and_protects_running_release(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/portable-release.yml").read_text()
+        self.assert_publication_concurrency(workflow)
+
+    def test_publication_concurrency_rejects_candidate_loss_or_split_publication(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/portable-release.yml").read_text()
+        for old, new in (("  queue: max\n", ""), ("  queue: max\n", "  queue: single\n"),
+                         ("  cancel-in-progress: false\n", "  cancel-in-progress: true\n"),
+                         ("  group: asa-stable-release\n", "  group: release-${{ github.sha }}\n")):
+            with self.subTest(replacement=new), self.assertRaises(AssertionError):
+                self.assert_publication_concurrency(workflow.replace(old, new))
+
     def test_publication_gate_executes_the_same_full_general_verifier(self):
         # This single reviewed heredoc is tested in stdlib-only deployment CI.
         # Exact layout bounds deliberately reject drift instead of parsing YAML.
