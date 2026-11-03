@@ -5,7 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 import type pg from 'pg';
 import { e2eAdminPool } from './seed';
 import { openAiUsageNativeZoom } from './ai-usage-native-zoom';
-import { AI_TOOL_IDS, AI_TOOL_LABELS } from '@asa-lab/contracts';
+import { AI_TOOL_IDS, AI_TOOL_LABELS } from '../packages/contracts/src/ai-tools';
 
 test('eight tool switches persist through real API and reload on desktop and mobile', async ({
   page,

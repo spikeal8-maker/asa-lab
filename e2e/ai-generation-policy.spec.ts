@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { AI_TOOL_IDS, AI_TOOL_LABELS } from '@asa-lab/contracts';
+import { AI_TOOL_IDS, AI_TOOL_LABELS } from '../packages/contracts/src/ai-tools';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 import { generationPolicyFixture } from '../apps/web/src/admin/testing/ai-generation-policy.fixture';
 
