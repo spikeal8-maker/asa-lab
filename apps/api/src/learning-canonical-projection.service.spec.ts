@@ -47,6 +47,7 @@ describe('LRN-M0-007 canonical projection boundary', () => {
       poolWith({
         ...base,
         kind: 'quiz',
+        legacyWork: null,
         activityRunId: run,
         participation: { applicable: true, status: 'assigned', excused: false },
       }),

@@ -213,7 +213,7 @@ it('creates a written response without an environment and inserts its exact publ
     [...document.querySelectorAll('[aria-label="Тип задания"] option')].map((item) =>
       item.getAttribute('value'),
     ),
-  ).toEqual(['project', 'essay']);
+  ).toEqual(['project', 'essay', 'quiz']);
   await fill('Название задания', 'Объясните решение');
   await fill('Содержание', 'Напишите ответ своими словами.');
   expect(button('Добавить в урок').disabled).toBe(false);

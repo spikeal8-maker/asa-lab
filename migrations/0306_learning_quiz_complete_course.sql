@@ -1902,7 +1902,7 @@ BEGIN
        AND run.source_classroom_assignment_id=v_attempt.classroom_assignment_id
        AND room.status='active' AND assignment.status='open'
        AND seat.status='active'
-       AND ((version.canonical_kind='quiz' AND version.module_key IS NULL AND EXISTS(SELECT 1 FROM public.quiz_attempt_states quiz WHERE quiz.attempt_id=attempt.id AND quiz.tenant_id=attempt.tenant_id)) OR (version.canonical_kind='essay' AND version.module_key IS NULL
+       AND ((version.canonical_kind='quiz' AND version.module_key IS NULL AND EXISTS(SELECT 1 FROM public.quiz_attempt_states quiz WHERE quiz.attempt_id=p_attempt_id AND quiz.tenant_id=v_attempt.tenant_id)) OR (version.canonical_kind='essay' AND version.module_key IS NULL
          AND EXISTS(SELECT 1 FROM public.learning_essay_drafts essay
            WHERE essay.attempt_id=p_attempt_id AND essay.tenant_id=part.tenant_id)) OR
          (version.canonical_kind NOT IN('essay','quiz')
