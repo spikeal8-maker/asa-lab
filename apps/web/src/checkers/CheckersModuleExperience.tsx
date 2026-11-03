@@ -1,4 +1,5 @@
 import { checkersSurfaceRoute, useCheckersSurface } from './use-checkers-surface';
+import { GameAccessBoundary } from '../games/GameAccessBoundary';
 import * as CheckersDomain from '@asa-lab/checkers';
 import type {
   CheckersAssignment,
@@ -69,6 +70,7 @@ interface CheckersModuleExperienceProps {
   projectId: string;
   onBack: () => void;
   user: PublicUser;
+  readonly seatLearner?: boolean;
 }
 
 type CheckersSurface =
@@ -789,6 +791,19 @@ function TeacherEventDialog({
 }
 
 export function CheckersModuleExperience(props: CheckersModuleExperienceProps): JSX.Element {
+  return (
+    <GameAccessBoundary
+      game="checkers"
+      guarded={props.seatLearner ?? false}
+      actor={props.user.id}
+      onBack={props.onBack}
+    >
+      <CheckersExperienceContent {...props} />
+    </GameAccessBoundary>
+  );
+}
+
+function CheckersExperienceContent(props: CheckersModuleExperienceProps): JSX.Element {
   const checkers = useCheckersProject(props.projectId, props.user);
   const [surface, setSurface] = useCheckersSurface<CheckersSurface>(props.projectId);
   const [explicitEntry] = useState(
