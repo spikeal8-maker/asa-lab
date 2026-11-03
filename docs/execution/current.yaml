@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_e_isolated_native_image_repair
+      checkpoint: independent_e_f_g_integrated_d_waiting_guard
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,29 +111,30 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ec534c8da79fe080358534b6f5cff001c8c90421
+      convergence_baseline_sha: 9caddfbeff635507f9b10deaf9ea5bb08da9d22c
       head_sha: null
-      observed_at: '2026-11-03T07:11:32Z'
+      observed_at: '2026-11-03T08:09:15Z'
       main:
         branch: main
-        sha: ec534c8da79fe080358534b6f5cff001c8c90421
+        sha: 9caddfbeff635507f9b10deaf9ea5bb08da9d22c
       observation_note: >-
-        Independent F sourcecb023dc6 PR975 passed full General41589321193 all5, Scratch/CLA/shadow and
-        independent review before merge9ce041a2. G source6a6b50cd PR978 passed full General41590658339
-        all5, Portable41590658295 and Operational41590658347 plus independent review before mergeec534c8d.
-        These bounded results are integrated; no whole-programme, release or owner acceptance is claimed.
-        D conditional General still waits for dirty tools/test_ci_image_transport.py in old D13. One scoped
-        coordination did not establish ownership/release; no foreign WIP operations or further messages.
-        E90f73 PR974 passed host-native step but full Datajob125763049728 failed suite import because
-        WorkspaceContext was not a constructor: own cases0, other9585PASS21SKIP. General41588340385 is FAIL,
-        never acceptance; no cancellation was requested because it had completed. The precise backend cause
-        remains unproved. Earlier4821 own failure is also retained. Select only E-READONLY-NATIVE-REPAIR-001:
-        isolate all actual hash calls in child processes with owned temporary data and the supported native
-        in-place loader option; preserve native hash assertions and literal uncached owner-evidence mode.
-        Add one focused exact-spec run in the existing protected CI test image before the unchanged full
-        data gate. No guard, Compose, Dockerfile, dependency, privilege, mount, network or runtime changes.
-        Retain all full Main/release checks and reuse PR969 protections. Fetch main before writes and recover
-        exact Git/CI. No production, database, deployment or paid service action is authorized.
+        Independent bounded F PR975 source cb023dc6 passed full General41589321193 and review before
+        merge9ce041a2. G PR978 source6a6b50cd passed full General41590658339, Portable/Operational and
+        review before mergeec534c8d. E PR974 sourceaaf00ad5 passed full General41596023473 all5 and
+        independent review before merge9caddfbe. Its actual merged tree equals the tested source tree:
+        protected-image focused11PASS, full Vitest9596PASS21existingSKIP, separate RLS16PASS, code98fresh
+        Nx executions with literal uncached evidence. Earlier own E4821 and90 failures remain recorded;
+        they were repaired, not waived. These partial results do not complete whole packages or the programme.
+        E historical same-SHA4821 local cold44.477s versus warm7.577s proves safe reuse, not causal CI savings.
+        F paired entry sixcalls18593bytes29.236s versus onecall4483bytes34.551s reduces output75.9percent
+        but is slower; actual model tokens are unavailable. Automatic duplicate General runs remain unresolved.
+        Select D-CONDITIONAL-GENERAL-CONTRACT-001, pending fresh exact-eight-path preflight and actual
+        guard release. The one owner-authorized scoped contact did not establish ownership or confirm release
+        of dirty tools/test_ci_image_transport.py in old D13. No foreign WIP operations, ownership transfer,
+        whole-file copy, additional message or guard edit is authorized. WAITING_HANDOFF forbids D writes.
+        Preserve full Main/release gates, ASA required fail-closed semantics and existing PR969 release evidence.
+        No release, owner acceptance, production, database, deployment, local Docker or network action claimed.
+        Fetch main before writes and recover exact Git/CI; postmerge Main conclusions are separate observations.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -145,19 +146,9 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: E
-      selected_subslice: E-READONLY-NATIVE-REPAIR-001
-      verification_pending_slices:
-        - id: E-WEB-CACHE-001
-          source_sha: 90f73f7dc0710c184a43b531f5a2b60945861b85
-          pr: 974
-          independent_review: PASS
-          ci_status: failed_data_suite
-          failure_classification: own_readonly_native_bootstrap
-          previous_failed_source_sha: 4821f6389afdb794db2efb24e5b93a692bdf40dc
-          previous_failure_classification: own_regression_test_linux_api
-          general_run: 41588340385
-          integration_status: pending_required_ci
+      selected_slice: D
+      selected_subslice: D-CONDITIONAL-GENERAL-CONTRACT-001
+      verification_pending_slices: []
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
@@ -193,6 +184,24 @@ parallel_lanes:
           integrated_sha: ec534c8da79fe080358534b6f5cff001c8c90421
           pr: 978
           exact_source_general_run: 41590658339
+          independent_review: approved
+        - id: D-ADDRESSED-FOCUSED-ROUTING-001
+          source_sha: f503764c3d7060da3a51331ecf7fc2436df7e1df
+          integrated_sha: 900f2e10b7abf180a26b465ad5e2b9e1a5cc0aee
+          pr: 967
+          exact_source_general_run: 41540467267
+          independent_review: approved
+        - id: G-FULL-RELEASE-EVIDENCE-001
+          source_sha: 82029c5745a9b8d47f9a49302c61275056e2f491
+          integrated_sha: 50b1dc159e654823de3e319f3c0f9528971e10ef
+          pr: 969
+          exact_source_general_run: 41565687242
+          independent_review: approved
+        - id: E-WEB-CACHE-001
+          source_sha: aaf00ad5bc6c09d5906208e4dbd5914eab429589
+          integrated_sha: 9caddfbeff635507f9b10deaf9ea5bb08da9d22c
+          pr: 974
+          exact_source_general_run: 41596023473
           independent_review: approved
       completed_slices:
         - id: PREFLIGHT
