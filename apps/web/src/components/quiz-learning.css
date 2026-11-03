@@ -56,3 +56,15 @@
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+
+.quiz-editor details,
+.quiz-editor summary {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.quiz-actions button,
+.quiz-editor button {
+  max-width: 100%;
+  white-space: normal;
+}

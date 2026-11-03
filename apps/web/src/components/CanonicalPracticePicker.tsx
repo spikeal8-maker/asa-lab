@@ -54,15 +54,17 @@ export function PinnedPracticePreview({ versionId }: { readonly versionId: strin
     <div className="course-pinned-practice">
       <strong>{preview.assignment.title}</strong>
       <small>
-        {preview.kind === 'essay'
-          ? 'Письменный ответ'
-          : preview.moduleKey === 'electronics'
-            ? 'Электроника'
-            : preview.moduleKey === 'three-d'
-              ? '3D'
-              : preview.moduleKey === 'blocks'
-                ? 'Scratch'
-                : 'Практика'}{' '}
+        {preview.kind === 'quiz'
+          ? 'Тест'
+          : preview.kind === 'essay'
+            ? 'Письменный ответ'
+            : preview.moduleKey === 'electronics'
+              ? 'Электроника'
+              : preview.moduleKey === 'three-d'
+                ? '3D'
+                : preview.moduleKey === 'blocks'
+                  ? 'Scratch'
+                  : 'Практика'}{' '}
         · опубликованная версия {preview.source.versionNumber}
       </small>
       <AssignmentView assignment={preview.assignment} compact />

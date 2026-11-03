@@ -1255,7 +1255,7 @@ export interface QuestionBankItem {
   versionId: string;
   type: QuizQuestionType;
   promptBlocks: Array<{ type?: string; text?: string }>;
-  responseSchema: { options?: Array<{ id: string; label: string }>; input?: string };
+  responseSchema: QuizResponseSchema;
   maxPoints: number;
   scope: 'personal' | 'school';
   subject: string | null;
@@ -1296,7 +1296,7 @@ export interface LearnerQuiz {
     versionId: string;
     type: QuizQuestionType;
     promptBlocks: Array<{ type?: string; text?: string }>;
-    responseSchema: { options?: Array<{ id: string; label: string }>; input?: string };
+    responseSchema: QuizResponseSchema;
     maxPoints: number;
     position: number;
   }>;
