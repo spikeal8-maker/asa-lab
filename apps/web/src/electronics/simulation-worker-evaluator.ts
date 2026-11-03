@@ -216,6 +216,7 @@ export async function evaluateSimulationWorkerRequestBatched(
       owned.document,
       {
         requestedHorizonMicroseconds: owned.requestedHorizonMicroseconds,
+        maxEvents: 1024,
         state: owned.state,
         ...(owned.inputEvents ? { inputEvents: owned.inputEvents } : {}),
       },
