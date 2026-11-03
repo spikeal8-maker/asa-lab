@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_g_release_queue_selected
+      checkpoint: package_e_isolated_native_image_repair
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,29 +111,29 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 2c2f5ab4a1d6fd35b7529a1a71c96ed1040ad6fa
+      convergence_baseline_sha: ec534c8da79fe080358534b6f5cff001c8c90421
       head_sha: null
-      observed_at: '2026-11-03T06:24:44Z'
+      observed_at: '2026-11-03T07:11:32Z'
       main:
         branch: main
-        sha: 2c2f5ab4a1d6fd35b7529a1a71c96ed1040ad6fa
+        sha: ec534c8da79fe080358534b6f5cff001c8c90421
       observation_note: >-
-        D remains partial: accepted routing PR967 and full-release protection PR969 preserved. Conditional
-        General still waits for dirty tools/test_ci_image_transport.py in old D13. One scoped coordination
-        did not confirm ownership or release; no foreign WIP action or additional message.
-        E source90f73f7d PR974 has focused11PASS and new independent reviewPASS. Actual early Linux native
-        hasher step in General41588340385/codejob125760482159 succeeded at06:16:35Z in3seconds; full General
-        remains pending on the unchanged source. Previous4821 own Data failure is retained, not waived.
-        F repaired sourcecb023dc6 PR975 has unchanged validatorPASS and new independent reviewPASS; full
-        General41589321193 is pending unchanged. Previousc196 missing-marker GovernanceFAIL is retained.
-        Both code executors stopped. Owner permits independent E/F/G while D is blocked. Select only
-        G-RELEASE-QUEUE-001: preserve pending verified release candidates with the platform's bounded max
-        workflow-concurrency queue, retaining the existing single publication group and cancel-in-progress false.
-        Reuse PR969 native-job/full-source release verifier; do not duplicate it or weaken STALE_RELEASE,
-        immutable image, Main, migration or updater controls. Exact G paths are portable-release workflow and
-        its existing deployment contract tests. No paid service, repository settings or runtime action.
-        Full Main/release and uncached owner evidence remain required; no release/deployment acceptance.
-        Fetch main before writes and recover actual source/CI before integration.
+        Independent F sourcecb023dc6 PR975 passed full General41589321193 all5, Scratch/CLA/shadow and
+        independent review before merge9ce041a2. G source6a6b50cd PR978 passed full General41590658339
+        all5, Portable41590658295 and Operational41590658347 plus independent review before mergeec534c8d.
+        These bounded results are integrated; no whole-programme, release or owner acceptance is claimed.
+        D conditional General still waits for dirty tools/test_ci_image_transport.py in old D13. One scoped
+        coordination did not establish ownership/release; no foreign WIP operations or further messages.
+        E90f73 PR974 passed host-native step but full Datajob125763049728 failed suite import because
+        WorkspaceContext was not a constructor: own cases0, other9585PASS21SKIP. General41588340385 is FAIL,
+        never acceptance; no cancellation was requested because it had completed. The precise backend cause
+        remains unproved. Earlier4821 own failure is also retained. Select only E-READONLY-NATIVE-REPAIR-001:
+        isolate all actual hash calls in child processes with owned temporary data and the supported native
+        in-place loader option; preserve native hash assertions and literal uncached owner-evidence mode.
+        Add one focused exact-spec run in the existing protected CI test image before the unchanged full
+        data gate. No guard, Compose, Dockerfile, dependency, privilege, mount, network or runtime changes.
+        Retain all full Main/release checks and reuse PR969 protections. Fetch main before writes and recover
+        exact Git/CI. No production, database, deployment or paid service action is authorized.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -145,26 +145,18 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: G
-      selected_subslice: G-RELEASE-QUEUE-001
+      selected_slice: E
+      selected_subslice: E-READONLY-NATIVE-REPAIR-001
       verification_pending_slices:
         - id: E-WEB-CACHE-001
           source_sha: 90f73f7dc0710c184a43b531f5a2b60945861b85
           pr: 974
           independent_review: PASS
-          ci_status: pending
+          ci_status: failed_data_suite
+          failure_classification: own_readonly_native_bootstrap
           previous_failed_source_sha: 4821f6389afdb794db2efb24e5b93a692bdf40dc
           previous_failure_classification: own_regression_test_linux_api
           general_run: 41588340385
-          integration_status: pending_required_ci
-        - id: F-MINIMAL-ENTRY-001
-          source_sha: cb023dc6cea4249f43b3893b54f6add543c9652b
-          pr: 975
-          independent_review: PASS
-          ci_status: pending
-          previous_failed_source_sha: c1962aaf853486858c125ded3de26257b651acae
-          previous_failure_classification: own_documented_diagnostic_marker_missing
-          general_run: 41589321193
           integration_status: pending_required_ci
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
@@ -190,6 +182,18 @@ parallel_lanes:
               full_ci_run: 41503951810
               full_ci_jobs_passed: 4
           source_general_jobs_passed: 5
+        - id: F-MINIMAL-ENTRY-001
+          source_sha: cb023dc6cea4249f43b3893b54f6add543c9652b
+          integrated_sha: 9ce041a292e4bb8463ca368b71aa595eb5ae6df1
+          pr: 975
+          exact_source_general_run: 41589321193
+          independent_review: approved
+        - id: G-RELEASE-QUEUE-001
+          source_sha: 6a6b50cd7eacdd5849a476c66e79781e2e27f464
+          integrated_sha: ec534c8da79fe080358534b6f5cff001c8c90421
+          pr: 978
+          exact_source_general_run: 41590658339
+          independent_review: approved
       completed_slices:
         - id: PREFLIGHT
           source_sha: bbf6bb3223e1cbb9d4196741787b26e09eae7e34
