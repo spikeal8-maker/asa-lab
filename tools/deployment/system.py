@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 import datetime as dt
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,102 @@ import urllib.request
 
 from .contracts import Blocked, atomic_json, attest_database_targets, attest_proxy_policy, read_env, require
 from .resources import pool_configuration
+
+
+PUBLIC_ORIGINS_FILE = ".asa/public-origins.yaml"
+PUBLIC_ORIGINS_MARKER = "ASA_SETUP_PUBLIC_ORIGINS"
+PUBLIC_ORIGINS_MODE = "empty-overlay-v1"
+PUBLIC_ORIGINS_CONTENT = '{"services":{"api":{"environment":{"ASA_PUBLIC_WEB_ORIGINS":""}}}}\n'
+
+
+def public_origins_snapshot(files, *, required=False):
+    """The versioned private overlay can override exactly one environment key."""
+    require(isinstance(files, dict), "PUBLIC_ORIGINS_SNAPSHOT", "Invalid recovery configuration.")
+    if required or PUBLIC_ORIGINS_FILE in files:
+        require(files.get(PUBLIC_ORIGINS_FILE) == PUBLIC_ORIGINS_CONTENT,
+                "PUBLIC_ORIGINS_SNAPSHOT", "The explicit empty-origin overlay is missing or changed in recovery configuration.")
+
+
+def public_origins_environment(env, profile):
+    marker = env.get(PUBLIC_ORIGINS_MARKER)
+    require(marker in (None, PUBLIC_ORIGINS_MODE), "PUBLIC_ORIGINS_POLICY", "Unknown private public-origin policy.")
+    if marker:
+        port = env.get("ASA_WEB_PORT", "4610")
+        require(isinstance(port, str) and port.isascii() and port.isdigit() and str(int(port)) == port
+                and 1024 <= int(port) <= 65535 and int(port) not in (3000, 3100, 5173),
+                "PUBLIC_ORIGINS_POLICY", "Invalid canonical Web port for the empty-origin policy.")
+        require(profile == "production" and env.get("ASA_PUBLIC_WEB_ORIGINS") == ""
+                and env.get("ASA_UPDATE_ENTRY_ORIGIN") == "http://127.0.0.1:" + port,
+                "PUBLIC_ORIGINS_POLICY", "The empty-origin policy no longer matches the canonical production entry.")
+    return marker is not None
+
+
+def _origin_private_read(root, relative, *, owner=None, maximum=1024 * 1024, legacy=False):
+    from .paths import plain_paths
+    root, path = Path(root), Path(root) / relative
+    try:
+        plain_paths(root, (relative,))
+        state = (root / ".asa").stat()
+        owner = root.stat().st_uid if owner is None else owner
+        require(stat.S_ISDIR(state.st_mode) and (os.name == "nt" or state.st_uid == owner and not state.st_mode & 0o077),
+                "PUBLIC_ORIGINS_PERMISSIONS", "The public-origin policy directory must be private and owned by the installation operator.")
+        with os.fdopen(os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)), "rb") as stream:
+            info = os.fstat(stream.fileno())
+            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size <= maximum
+                    and (os.name == "nt" or info.st_uid == owner and not info.st_mode & (0o022 if legacy else 0o077)),
+                    "PUBLIC_ORIGINS_PERMISSIONS", "The public-origin policy must be a bounded, private, single-link file.")
+            return stream.read(maximum + 1)
+    except (OSError, ValueError) as error:
+        raise Blocked("PUBLIC_ORIGINS_PATH", "The private public-origin policy path could not be verified.",
+                      "Preserve private settings and verify the original operator-owned policy path.") from error
+
+
+def public_origins_overlay(root, *, owner=None):
+    """Read known bytes without adopting an unknown file or following a link."""
+    path = Path(root) / PUBLIC_ORIGINS_FILE
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return False
+    raw = _origin_private_read(root, PUBLIC_ORIGINS_FILE, owner=owner, maximum=256)
+    require(raw in (PUBLIC_ORIGINS_CONTENT.encode(), PUBLIC_ORIGINS_CONTENT.replace("\n", "\r\n").encode()),
+            "PUBLIC_ORIGINS_CONTENT", "The private public-origin overlay is not the known empty-origin policy.")
+    return True
+
+
+def public_origins_recovery(root, env, profile):
+    """Permit only the journal-bound overlay-before-env interruption to resume.
+
+    This reads the existing setup journal; it never creates a second operation
+    or repairs private files from an Installation constructor.
+    """
+    from .setup_config import private_json
+    from .setup_operation import Store
+    root = Path(root)
+    require(os.name == "nt" or os.geteuid() == root.stat().st_uid,
+            "PUBLIC_ORIGINS_RECOVERY", "Resume the interrupted environment stage as its installation operator.")
+    config = private_json(root / ".asa/setup.json")
+    require(config.get("format") == "asa-setup-config-v1" and config.get("root") == str(root)
+            and config.get("profile") == profile == "production"
+            and config.get("entryOrigin") == "http://127.0.0.1:" + str(config.get("ports", {}).get("web", 4610))
+            and not env.get("ASA_PUBLIC_WEB_ORIGINS")
+            and not config.get("dataIdentity"), "PUBLIC_ORIGINS_RECOVERY", "The interrupted origin policy is not bound to a fresh canonical installation.")
+    # The preimage can still have first_environment defaults. The existing
+    # operation binds installation/root/project and both exact environment bytes.
+    journal = Store(root, config.get("installationId")).pending()
+    binding = journal.get("publicOriginsEnvironment") if journal else None
+    require(journal and journal.get("mode") == "install" and journal.get("project") == config["project"]
+            and journal.get("state") == "RUNNING"
+            and "switch" not in journal.get("stages", {})
+            and journal.get("stages", {}).get("environment", {}).get("status") == "intent"
+            and isinstance(binding, dict) and set(binding) == {"format", "beforeSha256", "afterSha256"}
+            and binding.get("format") == PUBLIC_ORIGINS_MODE
+            and all(isinstance(binding[key], str) and len(binding[key]) == 64
+                    and all(character in "0123456789abcdef" for character in binding[key]) for key in ("beforeSha256", "afterSha256"))
+            and hashlib.sha256(_origin_private_read(root, ".env")).hexdigest() == binding.get("beforeSha256"),
+            "PUBLIC_ORIGINS_RECOVERY", "An unbound origin overlay cannot be adopted.",
+            "Preserve the private environment and resume only its recorded fresh-install operation.")
+    return True
 
 
 def run(args, *, cwd=None, env=None, capture=False, output=None, input_data=None, input_file=None, timeout=None):
@@ -128,6 +225,23 @@ class Installation:
             self.files.append(".asa/docker-networks.yaml")
         if (self.root / "compose.frp.yaml").exists():
             self.files.append("compose.frp.yaml")
+        origin_overlay = public_origins_overlay(self.root)
+        origin_policy = public_origins_environment(self.env, self.profile)
+        self.public_origins_pending = False
+        if origin_policy or origin_overlay:
+            require(origin_overlay, "PUBLIC_ORIGINS_MISSING", "The saved empty-origin policy requires its original private overlay.",
+                    "Restore the verified overlay from this installation's configuration backup; never regenerate private keys.")
+            if not origin_policy:
+                self.public_origins_pending = public_origins_recovery(self.root, self.env, self.profile)
+            self.files.append(PUBLIC_ORIGINS_FILE)
+            snapshot = self.state / "runtime-configuration.json"
+            if snapshot.exists() or snapshot.is_symlink():
+                try:
+                    saved = json.loads(_origin_private_read(self.root, ".asa/runtime-configuration.json", legacy=True))
+                except (ValueError, UnicodeError) as error:
+                    raise Blocked("PUBLIC_ORIGINS_SNAPSHOT", "Invalid saved runtime configuration.",
+                                  "Preserve the original snapshot; do not create an incomplete backup.") from error
+                public_origins_snapshot(saved.get("files") if isinstance(saved, dict) else None, required=True)
         self.process_env = dict(os.environ)
         # The private environment is authoritative; shell leftovers cannot redirect data.
         for key in tuple(self.process_env):
@@ -146,6 +260,9 @@ class Installation:
             self.compose_args += ["-f", str(self.root / file)]
 
     def compose(self, *args, **kwargs):
+        require(not self.public_origins_pending, "PUBLIC_ORIGINS_RECOVERY",
+                "The journal-bound public-origin policy has not completed its environment stage.",
+                "Resume the recorded fresh-install operation before using Compose.")
         return run(self.compose_args + list(args), cwd=self.root, env=self.process_env, **kwargs)
 
     def git(self, *args):

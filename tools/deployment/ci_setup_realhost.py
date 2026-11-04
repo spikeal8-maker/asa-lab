@@ -1634,7 +1634,7 @@ def command_log_projection(path, base, uid, *, phase, offset=0, identity=None):
 def switch_expected_files(config, uid):
     require(config.get("profile") == "production", "DIAGNOSTIC_BINDING")
     files = ["compose.yaml", "compose.production.yaml"]
-    for relative in (".asa/docker-networks.yaml", "compose.frp.yaml"):
+    for relative in (".asa/docker-networks.yaml", "compose.frp.yaml", ".asa/public-origins.yaml"):
         path = INSTALL_ROOT / relative
         try:
             info = path.lstat()
@@ -1642,6 +1642,10 @@ def switch_expected_files(config, uid):
             continue
         require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == uid
                 and not info.st_mode & 0o022, "DIAGNOSTIC_PERMISSIONS")
+        if relative == ".asa/public-origins.yaml":
+            raw, _, truncated = diagnostic_read(path, INSTALL_ROOT, uid, maximum=256)
+            content = b'{"services":{"api":{"environment":{"ASA_PUBLIC_WEB_ORIGINS":""}}}}\n'
+            require(not truncated and raw in (content, content.replace(b"\n", b"\r\n")), "DIAGNOSTIC_BINDING")
         files.append(relative)
     return [str(INSTALL_ROOT / name) for name in files]
 
@@ -2438,6 +2442,19 @@ def install_guest(context):
             "publicObservation": observation, "publicHTTPS": "NOT_RUN"}
 
 
+def require_empty_public_origins(install):
+    """Inspect resolved Compose and the bound API privately; export no environment."""
+    require(install.env.get("ASA_SETUP_PUBLIC_ORIGINS") == "empty-overlay-v1"
+            and install.env.get("ASA_PUBLIC_WEB_ORIGINS") == "", "PUBLIC_ORIGINS_POLICY")
+    resolved = json.loads(install.compose("config", "--format", "json", capture=True, timeout=30))
+    environment = resolved.get("services", {}).get("api", {}).get("environment", {})
+    require(isinstance(environment, dict) and environment.get("ASA_PUBLIC_WEB_ORIGINS") == "", "PUBLIC_ORIGINS_RESOLVED")
+    records = install.identity()
+    actual = install.container_environment(records["api"])
+    require(actual.get("ASA_PUBLIC_WEB_ORIGINS") == "", "PUBLIC_ORIGINS_CONTAINER")
+    return {"status": "PASS", "additionalPublicOrigins": 0}
+
+
 def owner_installation(context):
     require(os.geteuid() != 0, "FIXTURE_MUST_BE_UNPRIVILEGED")
     config_module, acceptance, schedule, installation, helpers = product_modules(context)
@@ -2447,6 +2464,7 @@ def owner_installation(context):
     install.wait_ready(release["revision"], release["schema"])
     require(install.env.get("ASA_UPDATE_ENTRY_ORIGIN") == install.env.get("ASA_BLOCKS_PARENT_ORIGIN")
             == install.env.get("ASA_BLOCKS_RUNTIME_ORIGIN") == ORIGIN, "SAME_ORIGIN")
+    require_empty_public_origins(install)
     return config_module, acceptance, schedule, install, helpers, config, release
 
 

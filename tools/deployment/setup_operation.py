@@ -28,7 +28,8 @@ from .paths import atomic_bytes, plain_paths
 from .releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_deployment_digest, validate_resolved_images
 from .setup_config import load_config, private_json, read_installed_release, replace_legacy_manager_state, save_installed_release, save_private, validate_config
 from .setup_result import finalize, now, result
-from .system import Installation, run
+from .system import (Installation, PUBLIC_ORIGINS_CONTENT, PUBLIC_ORIGINS_FILE,
+                     PUBLIC_ORIGINS_MARKER, PUBLIC_ORIGINS_MODE, public_origins_overlay, run)
 
 
 OPERATION_ID = re.compile(r"[a-f0-9]{32}\Z")
@@ -302,6 +303,42 @@ def _safe_status(error):
     return error.code if isinstance(error, Blocked) else type(error).__name__
 
 
+def production_public_origins(entry, public, web_port):
+    """Keep an explicit public list; canonical HTTP entry is never an extra origin."""
+    from urllib.parse import urlsplit
+    require(type(web_port) is int and 1024 <= web_port <= 65535 and web_port not in (3000, 3100, 5173),
+            "PUBLIC_ORIGINS_ENTRY", "Invalid canonical Web port.")
+    canonical = f"http://127.0.0.1:{web_port}"
+    require(isinstance(entry, str) and (entry == canonical or entry.startswith("https://")),
+            "PUBLIC_ORIGINS_ENTRY", "Production entry must be public HTTPS or the exact configured canonical Web origin.")
+    require(isinstance(public, str), "PUBLIC_ORIGINS_POLICY", "Invalid private public-origin list.")
+
+    def normalized(value):
+        try:
+            parsed = urlsplit(value)
+            port = parsed.port
+            host = parsed.hostname
+            require(parsed.scheme == "https" and host and not parsed.username and not parsed.password
+                    and parsed.path in ("", "/") and not parsed.query and not parsed.fragment
+                    and "\\" not in value
+                    and not any(character.isspace() or ord(character) < 32 for character in value)
+                    and host not in ("localhost", "127.0.0.1", "::1")
+                    and (port is None or 1 <= port <= 65535),
+                    "PUBLIC_ORIGINS_POLICY", "Additional public origins must be exact non-loopback HTTPS origins.")
+            return "https://" + ("[" + host + "]" if ":" in host else host) + (":" + str(port) if port not in (None, 443) else "")
+        except ValueError as error:
+            raise Blocked("PUBLIC_ORIGINS_POLICY", "Invalid additional public origin.",
+                          "Correct the approved HTTPS origin configuration before starting the installation.") from error
+
+    pieces = [value.strip() for value in public.split(",") if value.strip()]
+    require((not public or pieces) and len(pieces) <= 8, "PUBLIC_ORIGINS_POLICY", "Invalid or excessive additional public origins.")
+    origins = [normalized(value) for value in pieces]
+    if entry != canonical and normalized(entry) not in origins:
+        require(len(pieces) < 8, "PUBLIC_ORIGINS_POLICY", "The selected public entry exceeds the existing public-origin limit.")
+        public = public + ("," if public else "") + entry
+    return public
+
+
 class Runtime:
     """Real adapters; a small injectable boundary for failure-path tests."""
     def __init__(self, root, config, *, lock_fd=None, defer_report=False, json_output=False, intent=None, deployment_digest=None):
@@ -309,6 +346,7 @@ class Runtime:
         self.install = Installation(root, config["profile"])
         self.lock_fd, self.defer_report, self.json_output = lock_fd, defer_report, json_output
         self.operation_id = None
+        self._operation_journal = None
         self.intent, self.deployment_digest = intent, deployment_digest
 
     def reload(self):
@@ -391,6 +429,7 @@ class Runtime:
         self.deployment_digest = bind_selection(journal, intent=self.intent, deployment_digest=self.deployment_digest)
         if journal.get("requestedIntent") is not None:
             guard_intent(journal["requestedIntent"], self.discovery(journal), journal)
+        self._operation_journal = journal
 
     def identity(self, *, existing=True):
         return self.install.identity(existing=existing)
@@ -509,19 +548,88 @@ class Runtime:
     def environment(self):
         from asa_manager import first_environment
         path = self.root / ".env"
+        plain_paths(self.root, (".env", PUBLIC_ORIGINS_FILE))
+        ports = self.config.get("ports", {"web": 4610, "api": 4611, "blocks": 4613})
+        existing = read_env(path) if path.exists() else {}
+        public = (production_public_origins(self.config["entryOrigin"], existing.get("ASA_PUBLIC_WEB_ORIGINS", ""), ports["web"])
+                  if self.config["profile"] == "production" else self.config["entryOrigin"])
+        empty_policy = self.config["profile"] == "production" and not public
+        overlay = public_origins_overlay(self.root)
+        require(not overlay or empty_policy, "PUBLIC_ORIGINS_POLICY",
+                "The installed empty-origin overlay cannot be changed to another entry policy during environment preparation.")
+        journal = None
+        if empty_policy:
+            require(self.operation_id, "PUBLIC_ORIGINS_OPERATION", "The empty-origin policy requires a recorded fresh-install operation.")
+            store = Store(self.root, self.config["installationId"])
+            saved_journal = store.read(self.operation_id)
+            journal = self._operation_journal if self._operation_journal is not None else saved_journal
+            require(journal == saved_journal, "PUBLIC_ORIGINS_OPERATION", "The fresh-install journal changed before environment preparation.")
+            self._operation_journal = journal
+            require(journal.get("mode") == "install" and journal.get("project") == self.config["project"]
+                    and journal.get("state") == "RUNNING"
+                    and "switch" not in journal.get("stages", {})
+                    and journal.get("stages", {}).get("environment", {}).get("status") == "intent"
+                    and not self.config.get("dataIdentity"),
+                    "PUBLIC_ORIGINS_OPERATION", "The public-origin overlay cannot be added to an existing installation.")
+            if not overlay:
+                require(not existing.get(PUBLIC_ORIGINS_MARKER), "PUBLIC_ORIGINS_MISSING", "The original public-origin overlay is missing.")
+                for name in ("installation.json", "installed-release.json", "runtime-configuration.json", "maintenance.json",
+                             "failed-switch.json", "atomic-active.json", "last-operation.json"):
+                    require(not os.path.lexists(self.root / ".asa" / name), "PUBLIC_ORIGINS_EXISTING", "Existing installation state prevents a new Compose identity.")
+                inventory = setup_discovery.docker_inventory()
+                require(inventory.get("complete") is True and isinstance(inventory.get("containers"), list)
+                        and isinstance(inventory.get("volumes"), list), "PUBLIC_ORIGINS_INVENTORY", "A complete resource inventory is required before creating the overlay.")
+                project = self.config["project"]
+                require(not any(record.get("labels", {}).get("project") == project
+                                or record.get("labels", {}).get("root") == str(self.root)
+                                for record in inventory["containers"])
+                        and not any(record.get("labels", {}).get("project") == project
+                                    or record.get("name", "").startswith(project + "_")
+                                    for record in inventory["volumes"]),
+                        "PUBLIC_ORIGINS_EXISTING", "Existing containers or volumes prevent a new Compose identity.")
         if not path.exists():
             first_environment(self.root, self.config["profile"])
         values = read_env(path)
         require(all(values.get(key) for key in ("POSTGRES_PASSWORD", "ASA_APP_DB_PASSWORD", "MIGRATION_DATABASE_URL",
                 "CLASSROOM_CODE_SECRET", "ASA_OBJECT_STORAGE_SECRET_KEY", "ASA_SEARCH_SECRET")),
                 "ENV_INCOMPLETE", "Создание private .env было прервано; секреты автоматически не заменяются.")
-        ports = self.config.get("ports", {"web": 4610, "api": 4611, "blocks": 4613})
         values.update(COMPOSE_PROJECT_NAME=self.config["project"], ASA_UPDATE_ENTRY_ORIGIN=self.config["entryOrigin"],
                       ASA_BLOCKS_PARENT_ORIGIN=self.config["entryOrigin"], ASA_BLOCKS_RUNTIME_ORIGIN=self.config["entryOrigin"],
-                      ASA_PUBLIC_WEB_ORIGINS=self.config["entryOrigin"], ASA_SEED_DEV="false",
+                      ASA_PUBLIC_WEB_ORIGINS=public, ASA_SEED_DEV="false",
                       ASA_WEB_PORT=str(ports["web"]), ASA_API_PORT=str(ports["api"]), ASA_BLOCKS_PORT=str(ports["blocks"]))
-        atomic_bytes(path, ("# Private installation settings; never upload unencrypted.\n" +
-                     "".join(f"{key}={value}\n" for key, value in values.items())).encode(), mode=0o600)
+        if empty_policy:
+            values[PUBLIC_ORIGINS_MARKER] = PUBLIC_ORIGINS_MODE
+        content = ("# Private installation settings; never upload unencrypted.\n" +
+                   "".join(f"{key}={value}\n" for key, value in values.items())).encode()
+        if empty_policy:
+            binding = {"format": PUBLIC_ORIGINS_MODE, "beforeSha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                       "afterSha256": hashlib.sha256(content).hexdigest()}
+            previous = journal.get("publicOriginsEnvironment")
+            require(previous is None and not overlay or isinstance(previous, dict)
+                    and set(previous) == {"format", "beforeSha256", "afterSha256"}
+                    and previous.get("format") == PUBLIC_ORIGINS_MODE
+                    and previous.get("afterSha256") == binding["afterSha256"]
+                    and binding["beforeSha256"] in (previous.get("beforeSha256"), previous.get("afterSha256")),
+                    "PUBLIC_ORIGINS_RECOVERY", "The interrupted public-origin environment changed; private settings are preserved.")
+            if previous is None:
+                journal["publicOriginsEnvironment"] = binding
+                store.save(journal)
+            if not overlay:
+                require(not os.path.lexists(self.root / PUBLIC_ORIGINS_FILE), "PUBLIC_ORIGINS_PATH", "The overlay path appeared during preparation.")
+                atomic_bytes(self.root / PUBLIC_ORIGINS_FILE, PUBLIC_ORIGINS_CONTENT.encode(), mode=0o600)
+                if os.name != "nt":
+                    descriptor = os.open(self.root / ".asa", os.O_RDONLY | os.O_DIRECTORY)
+                    try:
+                        os.fsync(descriptor)
+                    finally:
+                        os.close(descriptor)
+        atomic_bytes(path, content, mode=0o600)
+        if empty_policy and os.name != "nt":
+            descriptor = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
         self.reload()
 
     def settings(self):
