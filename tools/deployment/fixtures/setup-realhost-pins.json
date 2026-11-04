@@ -1,6 +1,15 @@
 {
   "format": "asa-realhost-pins-v1",
   "verifiedAt": "2026-11-04",
+  "githubCli": {
+    "version": "2.101.0",
+    "sourceRevision": "0cf1092493af067646fc5f3db9421c6a6ec9c938",
+    "url": "https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_linux_amd64.tar.gz",
+    "bytes": 15282175,
+    "sha256": "9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8",
+    "executableBytes": 41971872,
+    "executableSha256": "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff"
+  },
   "ubuntu": {
     "version": "24.04",
     "architecture": "amd64",

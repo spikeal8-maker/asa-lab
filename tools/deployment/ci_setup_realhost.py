@@ -11,6 +11,7 @@ import argparse
 import datetime as dt
 import hashlib
 import importlib.util
+import io
 import ipaddress
 import json
 import math
@@ -142,11 +143,23 @@ CLI_READ_SECONDS = 900
 CLI_CONTROL_SECONDS = 60
 CLI_IMAGES = ("api", "web", "scratch", "minio", "search")
 CLI_HELPERS = ("realhost_cli_checks.py", "realhost_cli_runtime.py", "setup_bundle.py")
+PUBLISHED_SECONDS = 900
+PUBLISHED_HOME = Path("/opt/asa-realhost-published")
+PUBLISHED_WORKFLOW = REPOSITORY + "/.github/workflows/setup-release.yml"
+PUBLISHED_REF = "refs/heads/main"
+GH_PIN = {"version": "2.101.0", "sourceRevision": "0cf1092493af067646fc5f3db9421c6a6ec9c938",
+          "url": "https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_linux_amd64.tar.gz",
+          "bytes": 15282175, "sha256": "9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8",
+          "executableBytes": 41971872,
+          "executableSha256": "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff"}
 CLI_RELEASE_PROGRAM = """import json, sys
 sys.path.insert(0, sys.argv[1])
 from deployment.release_readonly import resolve_release
 pins = json.loads(sys.stdin.buffer.read(65536))
-print(json.dumps({name: resolve_release(pins[name]["deploymentDigest"]) for name in ("previous", "current")}))
+selected = {name: resolve_release(pins[name]["deploymentDigest"]) for name in ("previous", "current")}
+if len(sys.argv) == 3 and sys.argv[2] == "published":
+    selected["stable"] = resolve_release()
+print(json.dumps(selected))
 """
 SWITCH_SERVICES = ("postgres", "minio", "migration", "minio-init", "api", "search", "web", "scratch")
 SWITCH_STATES = {"created", "running", "paused", "restarting", "removing", "exited", "dead"}
@@ -212,6 +225,7 @@ def write_json(path, value, *, mode=0o600):
 def pin_manifest(path):
     value = json.loads(Path(path).read_text())
     require(value.get("format") == "asa-realhost-pins-v1", "PINS_FORMAT")
+    require(value.get("githubCli") == GH_PIN, "PINS_GITHUB_CLI")
     ubuntu, panel = value["ubuntu"], value["onePanel"]
     require(ubuntu["version"] == "24.04" and ubuntu["architecture"] == "amd64", "PINS_PLATFORM")
     require(HEX64.fullmatch(ubuntu["sha256"]) and HEX64.fullmatch(panel["sha256"])
@@ -269,6 +283,34 @@ def cli_helper_hashes(source, revision, commands):
     return hashes
 
 
+def cli_default_target_binding(value, revision):
+    """The default channel expectation is separate from controlled update pins."""
+    require(type(value) is dict and set(value) == {"revision", "schema", "images", "deploymentDigest", "manifestDigest",
+            "ci", "publicationRunId", "selector"} and value["revision"] == revision
+            and type(revision) is str and HEX40.fullmatch(revision)
+            and value["ci"] == "VERIFIED" and value["selector"] == "stable-before-vm"
+            and type(value["schema"]) is int and 0 <= value["schema"] <= 2**31 - 1
+            and type(value["publicationRunId"]) is int and 0 < value["publicationRunId"] <= 2**63 - 1,
+            "CLI_READ_DEFAULT_TARGET")
+    require(all(type(value[key]) is str and re.fullmatch(r"sha256:[a-f0-9]{64}", value[key])
+                for key in ("deploymentDigest", "manifestDigest")), "CLI_READ_DEFAULT_TARGET")
+    require(type(value["images"]) is dict and set(value["images"]) == set(CLI_IMAGES)
+            and all(type(value["images"][service]) is str and re.fullmatch(
+                re.escape("ghcr.io/" + REPOSITORY + "/" + service + "@sha256:") + r"[a-f0-9]{64}", value["images"][service])
+                for service in CLI_IMAGES), "CLI_READ_DEFAULT_TARGET")
+    return value
+
+
+def cli_default_target_expectation(selected, revision):
+    require(type(selected) is dict and selected.get("ci") == "VERIFIED", "CLI_READ_DEFAULT_TARGET")
+    release = selected.get("release")
+    require(type(release) is dict and release.get("format") == "asa-deployment-v2"
+            and release.get("repository") == REPOSITORY and release.get("platform") == "linux/amd64", "CLI_READ_DEFAULT_TARGET")
+    return cli_default_target_binding({key: release.get(key) for key in ("revision", "schema", "images", "publicationRunId")} | {
+        "ci": selected["ci"], "deploymentDigest": selected.get("deploymentDigest"), "manifestDigest": selected.get("manifestDigest"),
+        "selector": "stable-before-vm"}, revision)
+
+
 def host_environment(environment, revision, actual_revision, *, free, memory, cpus, os_release):
     require(environment.get("GITHUB_ACTIONS") == "true" and environment.get("RUNNER_ENVIRONMENT") == "github-hosted"
             and environment.get("RUNNER_OS") == "Linux" and environment.get("GITHUB_REPOSITORY") == REPOSITORY,
@@ -280,10 +322,30 @@ def host_environment(environment, revision, actual_revision, *, free, memory, cp
     require(memory >= 13 * GIB and cpus >= GUEST_CPUS + 1, "BLOCKED_HOST_RAM_CPU", status="BLOCKED")
 
 
-def initial_evidence(revision):
+def acquisition_request(mode, approved, revision, actual_revision, environment):
+    """The SHA input is an assertion about main, never a checkout instruction."""
+    require(mode in ("candidate", "published") and type(approved) is str
+            and type(revision) is str and HEX40.fullmatch(revision)
+            and revision == actual_revision, "ACQUISITION_MODE_BINDING")
+    if mode == "candidate":
+        require(approved == "", "ACQUISITION_MODE_BINDING")
+    else:
+        require(HEX40.fullmatch(approved) and approved == revision
+                and environment.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+                and environment.get("GITHUB_REF") == PUBLISHED_REF
+                and environment.get("GITHUB_SHA") == environment.get("SOURCE_REVISION") == revision
+                and environment.get("GITHUB_REPOSITORY") == REPOSITORY
+                and environment.get("GITHUB_WORKFLOW_REF") == REPOSITORY + "/.github/workflows/setup-realhost.yml@" + PUBLISHED_REF,
+                "ACQUISITION_MODE_BINDING")
+    return {"mode": mode, "approvedRevision": approved, "sourceRevision": revision}
+
+
+def initial_evidence(revision, mode="candidate"):
     return {"format": "asa-realhost-evidence-v1", "status": "NOT_RUN", "sourceRevision": revision,
-            "startedAt": now(), "scope": "Candidate CLI in a disposable real Ubuntu 24.04 VM with actual 1Panel",
-            "publishedSetupAcquisition": {"status": "BLOCKED", "reasonCode": "CANDIDATE_NOT_PUBLISHED_ATTESTED"},
+            "startedAt": now(), "scope": "CLI in a disposable real Ubuntu 24.04 VM with actual 1Panel",
+            "acquisitionMode": mode,
+            "publishedSetupAcquisition": ({"status": "NOT_RUN", "reasonCode": "PUBLISHED_ACQUISITION_NOT_STARTED"}
+                if mode == "published" else {"status": "BLOCKED", "reasonCode": "CANDIDATE_NOT_PUBLISHED_ATTESTED"}),
             "publicHTTPS": "NOT_RUN", "realYandexFromGuest": "NOT_RUN", "productionRestore": "NOT_RUN",
             "phases": [], "checks": {}, "cleanup": "NOT_RUN"}
 
@@ -455,7 +517,7 @@ class HostRun:
         self.args = args
         self.source = Path(__file__).resolve().parents[2]
         self.output = self.source / "test-results/setup-realhost/evidence.json"
-        self.evidence = initial_evidence(args.revision)
+        self.evidence = initial_evidence(args.revision, getattr(args, "acquisition_mode", "candidate"))
         self.deadline = time.monotonic() + TOTAL_SECONDS
         self.workspace = None
         self.vm = None
@@ -512,6 +574,8 @@ class HostRun:
                                       "hostMemoryBytes": memory, "hostCpus": os.cpu_count(), "guestVirtualDiskGiB": 40}
         host_environment(os.environ, self.args.revision, raw.decode().strip(), free=free,
                          memory=memory, cpus=os.cpu_count() or 0, os_release=release)
+        self.acquisition = acquisition_request(getattr(self.args, "acquisition_mode", "candidate"),
+            getattr(self.args, "approved_setup_revision", ""), self.args.revision, raw.decode().strip(), os.environ)
         self.pins = pin_manifest(self.source / "tools/deployment/fixtures/setup-realhost-pins.json")
         return {"platform": "Ubuntu 24.04 amd64", "runner": "standard GitHub-hosted", "sourceRevision": self.args.revision}
 
@@ -562,21 +626,39 @@ class HostRun:
         proof = json.loads(built)
         require(proof["revision"] == self.args.revision and proof["sha256"] == hash_file(bundle) and proof["attested"] is False,
                 "CANDIDATE_BUNDLE_PROOF")
+        acquisition = dict(self.acquisition)
+        gh = None
+        if acquisition["mode"] == "published":
+            gh = self.download(GH_PIN["url"], work / "github-cli.tar.gz", expected=GH_PIN["sha256"], limit=GH_PIN["bytes"])
+            require(gh["bytes"] == GH_PIN["bytes"], "PUBLISHED_GH_SIZE")
+            _, helper = self.commands.run(["git", "show", self.args.revision + ":tools/asa_setup_acquire.py"],
+                                         cwd=self.source, timeout=30)
+            require(helper and hash_file(self.source / "tools/asa_setup_acquire.py") == hashlib.sha256(helper).hexdigest(),
+                    "PUBLISHED_HELPER_SOURCE")
+            acquisition["helperSha256"] = hashlib.sha256(helper).hexdigest()
         self.commands.run(["age-keygen", "-o", work / "age-private-key"], timeout=30)
         _, recipient = self.commands.run(["age-keygen", "-y", work / "age-private-key"], timeout=30)
         recipient = recipient.decode().strip()
         require(re.fullmatch(r"age1[a-z0-9]{58}", recipient), "AGE_RECIPIENT")
-        _, selected = self.commands.run([sys.executable, "-I", "-B", "-c", CLI_RELEASE_PROGRAM, self.source / "tools"],
+        _, selected = self.commands.run([sys.executable, "-I", "-B", "-c", CLI_RELEASE_PROGRAM, self.source / "tools", acquisition["mode"]],
             source=json.dumps(self.pins).encode(), timeout=300)
-        release_expectations = cli_release_expectations(json.loads(selected), self.pins)
+        selected = json.loads(selected)
+        require(type(selected) is dict and set(selected) == ({"previous", "current", "stable"}
+                if acquisition["mode"] == "published" else {"previous", "current"}), "CLI_READ_RELEASE_PIN")
+        release_expectations = cli_release_expectations({name: selected[name] for name in ("previous", "current")}, self.pins)
         self.context = {"format": "asa-realhost-context-v1", "sourceRevision": self.args.revision,
                         "nonce": uuid.uuid4().hex, "bundleSha256": proof["sha256"], "ageRecipient": recipient,
                         "pins": self.pins, "helperSha256": hash_file(self.source / "tools/deployment/ci_setup_smoke.py"),
                         "cliHelperSha256": cli_helper_hashes(self.source, self.args.revision, self.commands),
-                        "cliReleaseExpectations": release_expectations}
+                        "cliReleaseExpectations": release_expectations, "acquisition": acquisition}
+        if acquisition["mode"] == "published":
+            self.context["cliDefaultTargetExpectation"] = cli_default_target_expectation(selected["stable"], self.args.revision)
         write_json(work / "context.json", self.context)
         return {"ubuntu": image, "ubuntuSignature": "PASS", "onePanel": archive,
-                "candidateBundle": {"sha256": proof["sha256"], "revision": self.args.revision, "attested": False}}
+                "candidateBundle": {"sha256": proof["sha256"], "revision": self.args.revision, "attested": False,
+                                    "sourceOracleOnly": acquisition["mode"] == "published"}, "githubCliArchive": gh,
+                "defaultCliTarget": self.context.get("cliDefaultTargetExpectation"),
+                "controlledUpdateTarget": release_expectations["current"]}
 
     def policy_contracts(self):
         _, raw = self.commands.run([sys.executable, "-B", "tools/deployment/test_ci_setup_realhost.py", "--evidence"],
@@ -613,11 +695,14 @@ class HostRun:
 
     def stage_guest(self):
         work = self.workspace
+        published = guest_acquisition_mode(self.context) == "published"
         self.vm.ssh("mkdir -m 700 /home/asa-ci/realhost-input")
         files = {"runner.py": Path(__file__), "context.json": work / "context.json", "candidate.tar.gz": work / "candidate.tar.gz",
                  "onepanel.tar.gz": work / "onepanel.tar.gz", "setup_bundle.py": self.source / "tools/deployment/setup_bundle.py",
                  "ci_setup_smoke.py": self.source / "tools/deployment/ci_setup_smoke.py",
                  **{name: self.source / "tools/deployment" / name for name in CLI_HELPERS}}
+        if published:
+            files["github-cli.tar.gz"] = work / "github-cli.tar.gz"
         for name, path in files.items():
             self.vm.upload(path, "/home/asa-ci/realhost-input/" + name)
         token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
@@ -634,7 +719,10 @@ class HostRun:
                     "/home/asa-ci/realhost-input/realhost_cli_checks.py /home/asa-ci/realhost-input/realhost_cli_runtime.py /opt/asa-realhost/ && "
                     "sudo install -m 600 /home/asa-ci/realhost-input/candidate.tar.gz /home/asa-ci/realhost-input/onepanel.tar.gz "
                     "/home/asa-ci/realhost-input/github-read-token /var/lib/asa-realhost/ && rm -f /home/asa-ci/realhost-input/github-read-token")
-        return {"candidateStagedOnlyInsideGuest": True, "ephemeralTokenTransport": "private file; read permissions; no argv"}
+        if published:
+            self.vm.ssh("sudo install -m 600 /home/asa-ci/realhost-input/github-cli.tar.gz /var/lib/asa-realhost/github-cli.tar.gz")
+        return {"candidateStagedOnlyInsideGuest": not published, "sourceOracleOnly": published,
+                "ephemeralTokenTransport": "private file; read permissions; no argv"}
 
     def guest(self, phase, *, timeout=1200, pending=False):
         code, data = self.vm.ssh("sudo /usr/bin/python3 -I -B /opt/asa-realhost/runner.py --guest-phase " + shlex.quote(phase),
@@ -711,6 +799,23 @@ class HostRun:
                 "BLOCKED_CLOUD_FAULT_ADMISSION", status="BLOCKED")
         return self.guest("cloud-fault", timeout=CLOUD_FAULT_SECONDS + 30)
 
+    def published_acquisition(self):
+        """Keep this independent PASS even when a later installation fails."""
+        try:
+            result = self.guest("published-acquire", timeout=PUBLISHED_SECONDS + 30)
+            proof = result.get("publishedSetupAcquisition")
+            require(isinstance(proof, dict) and proof.get("status") == "PASS"
+                    and proof.get("sourceRevision") == self.args.revision
+                    and proof.get("manualCandidateStage") is False, "PUBLISHED_GUEST_PROOF")
+            self.evidence["publishedSetupAcquisition"] = proof
+            return result
+        except BaseException as error:
+            proof = getattr(error, "evidence", {}).get("publishedSetupAcquisition", {})
+            self.evidence["publishedSetupAcquisition"] = proof if isinstance(proof, dict) and proof.get("status") in ("FAIL", "BLOCKED") else {
+                "status": getattr(error, "status", "FAIL"), "reasonCode": "PUBLISHED_GUEST_PROOF"}
+            raise
+
+
     def run(self):
         try:
             self.phase("runner_preflight", self.preflight)
@@ -726,6 +831,8 @@ class HostRun:
                     self.phase("guest_candidate_stage", self.stage_guest)
                     self.phase("official_1panel_bootstrap", lambda: self.guest("bootstrap", timeout=1800))
                     self.bootstrap_deadline = None
+                    if getattr(self.args, "acquisition_mode", "candidate") == "published":
+                        self.phase("published_setup_acquisition", self.published_acquisition)
                     self.phase("public_asa_install", lambda: self.guest("install", timeout=3000))
                     self.phase("independent_control_fixture", lambda: self.guest("seed", timeout=900))
                     self.phase("installed_cli_read_acceptance", lambda: self.guest("cli-read", timeout=1200))
@@ -919,7 +1026,7 @@ def cli_trusted_module(name, context):
     return module
 
 
-def cli_candidate_binding(context, verifier):
+def cli_candidate_binding(context, verifier, *, prepared=False):
     """Bind registration to the original checked archive, not a self-declared manifest."""
     require(type(context.get("sourceRevision")) is str and HEX40.fullmatch(context["sourceRevision"])
             and type(context.get("bundleSha256")) is str and HEX64.fullmatch(context["bundleSha256"]),
@@ -949,9 +1056,11 @@ def cli_candidate_binding(context, verifier):
     for name in CLI_HELPERS:
         require(hashlib.sha256(files["tools/deployment/" + name]).hexdigest() == context["cliHelperSha256"][name],
                 "CLI_READ_BUNDLE")
+    require(type(prepared) is bool, "CLI_READ_REGISTRATION")
     registry = json.loads(cli_trusted_bytes("/etc/asa-lab/commands.json"))
-    require(registry == {"format": "asa-command-v1", "preparedBundle": str(bundle), "installations": [
-        {"root": str(INSTALL_ROOT), "project": "asa-lab-dev", "profile": "production", "bundle": str(bundle)}]},
+    registrations = [] if prepared else [
+        {"root": str(INSTALL_ROOT), "project": "asa-lab-dev", "profile": "production", "bundle": str(bundle)}]
+    require(registry == {"format": "asa-command-v1", "preparedBundle": str(bundle), "installations": registrations},
         "CLI_READ_REGISTRATION")
     expected_wrapper = (
         "#!/bin/sh\n# ASA Lab verified setup CLI; use the official pinned bundle only.\n"
@@ -1014,6 +1123,11 @@ def cli_fixture_context(checks, context, owner, inputs, filesystem_paths):
                 and all(type(release["images"][service]) is str and re.fullmatch(
                     re.escape("ghcr.io/" + REPOSITORY + "/" + service + "@sha256:") + r"[a-f0-9]{64}",
                     release["images"][service]) for service in CLI_IMAGES), "CLI_READ_RELEASE_PIN")
+    if context.get("acquisition", {}).get("mode") == "published":
+        published_context(context)
+        target = cli_default_target_binding(context.get("cliDefaultTargetExpectation"), context["sourceRevision"])
+    else:
+        require("cliDefaultTargetExpectation" not in context, "CLI_READ_DEFAULT_TARGET")
     identity, operation, backup = supplied.get("installationId"), receipt.get("operationId"), inputs["backup"]
     require(type(identity) is str and re.fullmatch(r"[a-f0-9]{32}", identity)
             and type(operation) is str and re.fullmatch(r"[a-f0-9]{32}", operation), "CLI_READ_CONTEXT")
@@ -2345,7 +2459,317 @@ def panel_and_docker_identity():
             "daemonJsonSha256": hash_file(settings) if settings.exists() else None}
 
 
+def published_context(context):
+    request = context.get("acquisition")
+    require(type(request) is dict and set(request) == {"mode", "approvedRevision", "sourceRevision", "helperSha256"}
+            and request["mode"] == "published" and type(context.get("sourceRevision")) is str
+            and HEX40.fullmatch(context["sourceRevision"])
+            and request["approvedRevision"] == request["sourceRevision"] == context["sourceRevision"]
+            and type(request["helperSha256"]) is str and HEX64.fullmatch(request["helperSha256"])
+            and context.get("pins", {}).get("githubCli") == GH_PIN, "PUBLISHED_CONTEXT")
+    return request
+
+
+def guest_acquisition_mode(context):
+    request = context.get("acquisition", {})
+    require(type(request) is dict and request.get("mode") in ("candidate", "published"), "ACQUISITION_MODE_BINDING")
+    if request["mode"] == "published":
+        published_context(context)
+    else:
+        require(set(request) == {"mode", "approvedRevision", "sourceRevision"}
+                and request["approvedRevision"] == "" and type(context.get("sourceRevision")) is str
+                and HEX40.fullmatch(context["sourceRevision"])
+                and request["sourceRevision"] == context["sourceRevision"], "ACQUISITION_MODE_BINDING")
+    return request["mode"]
+
+
+def published_administrator(context):
+    """Only the real cloud-init administrator of this already bound guest."""
+    import pwd
+    published_context(context)
+    require(os.geteuid() == 0 and type(context.get("nonce")) is str
+            and re.fullmatch(r"[a-f0-9]{32}", context["nonce"]), "PUBLISHED_ADMINISTRATOR")
+    try:
+        account = pwd.getpwnam("asa-ci")
+        groups = sorted(set(os.getgrouplist("asa-ci", account.pw_gid)))
+    except (KeyError, OSError):
+        raise Failure("PUBLISHED_ADMINISTRATOR") from None
+    require(account.pw_name == "asa-ci" and type(account.pw_uid) is int and account.pw_uid > 0
+            and type(account.pw_gid) is int and account.pw_gid > 0
+            and account.pw_dir == "/home/asa-ci" and account.pw_shell == "/bin/bash"
+            and groups and all(type(value) is int and value > 0 for value in groups)
+            and account.pw_gid in groups, "PUBLISHED_ADMINISTRATOR")
+    home = Path(account.pw_dir)
+    for path in (home, *home.parents):
+        info = path.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == (account.pw_uid if path == home else 0)
+                and not info.st_mode & 0o022, "PUBLISHED_ADMINISTRATOR")
+    return {"name": "asa-ci", "uid": account.pw_uid, "gid": account.pw_gid,
+            "home": account.pw_dir, "groups": groups, "nonce": context["nonce"]}
+
+
+def published_credentials(owner, *, deadline):
+    require(type(deadline) in (int, float) and math.isfinite(deadline)
+            and 0 < deadline - time.monotonic() <= PUBLISHED_SECONDS, "PUBLISHED_ADMINISTRATOR_BUDGET")
+    actual = published_administrator(guest_guard(control_deadline=min(deadline, time.monotonic() + CLI_CONTROL_SECONDS)))
+    require(type(owner) is dict and type(owner.get("uid")) is int and owner["uid"] > 0
+            and type(owner.get("gid")) is int and owner["gid"] > 0 and type(owner.get("groups")) is list
+            and all(type(value) is int and value > 0 for value in owner["groups"])
+            and owner == actual, "PUBLISHED_ADMINISTRATOR")
+    return {"user": actual["uid"], "group": actual["gid"], "extra_groups": actual["groups"]}
+
+
+def published_directory(path, *, mode=0o755):
+    path = Path(path)
+    for parent in (path.parent, *path.parent.parents):
+        info = parent.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
+                "PUBLISHED_PROTECTED_PATH")
+    require(not os.path.lexists(path), "PUBLISHED_PATH_EXISTS")
+    path.mkdir(mode=mode)
+    path.chmod(mode)
+
+
+def published_snapshot(directory, name, raw, *, mode=0o444):
+    """Only bytes are copied into a new protected file; no privileged user path exec."""
+    require(type(name) is str and re.fullmatch(r"[a-zA-Z0-9_.-]{1,100}", name)
+            and type(raw) is bytes and 0 < len(raw) <= 64 * 1024**2 and mode in (0o444, 0o555),
+            "PUBLISHED_SNAPSHOT")
+    directory = Path(directory)
+    for path in (directory, *directory.parents):
+        info = path.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
+                "PUBLISHED_PROTECTED_PATH")
+    descriptor = os.open(directory / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o400)
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(raw)
+        stream.flush()
+        os.fsync(stream.fileno())
+        os.fchmod(stream.fileno(), mode)
+    path = directory / name
+    require(cli_trusted_bytes(path, mode=mode, maximum=64 * 1024**2) == raw, "PUBLISHED_SNAPSHOT")
+    return path
+
+
+def published_gh_binary(raw, pin):
+    """Read only the expected regular ELF after checking this immutable archive."""
+    require(type(raw) is bytes and len(raw) == pin["bytes"]
+            and hashlib.sha256(raw).hexdigest() == pin["sha256"], "PUBLISHED_GH_ARCHIVE")
+    prefix = "gh_2.101.0_linux_amd64/"
+    seen, total, executable = set(), 0, None
+    try:
+        with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as archive:
+            for member in archive:
+                name = member.name
+                require(member.isfile() and not member.pax_headers and name.startswith(prefix)
+                        and "\\" not in name and name not in seen
+                        and all(part not in ("", ".", "..") for part in name.split("/"))
+                        and 0 <= member.size <= 64 * 1024**2, "PUBLISHED_GH_MEMBER")
+                seen.add(name)
+                total += member.size
+                require(len(seen) <= 512 and total <= 64 * 1024**2, "PUBLISHED_GH_MEMBER")
+                if name == prefix + "bin/gh":
+                    require(member.size == pin["executableBytes"], "PUBLISHED_GH_ELF")
+                    executable = archive.extractfile(member).read(member.size + 1)
+    except (tarfile.TarError, OSError, EOFError):
+        raise Failure("PUBLISHED_GH_MEMBER") from None
+    require(type(executable) is bytes and len(executable) == pin["executableBytes"]
+            and executable.startswith(b"\x7fELF\x02\x01\x01")
+            and executable[18:20] == b"\x3e\x00"
+            and hashlib.sha256(executable).hexdigest() == pin["executableSha256"], "PUBLISHED_GH_ELF")
+    return executable
+
+
+def published_environment(owner, gh):
+    token, _, _ = diagnostic_read(GUEST_PRIVATE / "github-read-token", GUEST_PRIVATE, 0, maximum=16384)
+    require(token and b"\x00" not in token and b"\r" not in token and b"\n" not in token, "PUBLISHED_TOKEN_FILE")
+    try:
+        token = token.decode("ascii")
+    except UnicodeError:
+        raise Failure("PUBLISHED_TOKEN_FILE") from None
+    return {"PATH": str(Path(gh).parent) + ":/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": owner["home"], "USER": "asa-ci", "LOGNAME": "asa-ci", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
+            "GH_TOKEN": token, "GH_HOST": "github.com", "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1",
+            "GH_NO_EXTENSION_UPDATE_NOTIFIER": "1", "GH_PAGER": "cat", "NO_COLOR": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+
+
+def published_verify_command(gh, path, revision):
+    require(type(revision) is str and HEX40.fullmatch(revision), "PUBLISHED_CONTEXT")
+    return [str(gh), "attestation", "verify", str(path), "--repo", REPOSITORY,
+            "--signer-workflow", PUBLISHED_WORKFLOW, "--source-ref", PUBLISHED_REF,
+            "--source-digest", revision, "--deny-self-hosted-runners"]
+
+
+def published_helper_bytes(context, download, owner):
+    asset = "asa-setup-acquire-" + context["sourceRevision"] + ".py"
+    raw, info, _ = diagnostic_read(Path(download) / asset, download, owner["uid"], maximum=1024**2)
+    require(info.st_gid == owner["gid"] and raw
+            and hashlib.sha256(raw).hexdigest() == context["acquisition"]["helperSha256"], "PUBLISHED_HELPER_SOURCE")
+    return raw
+
+
+def published_no_installation():
+    require(not os.path.lexists(INSTALL_ROOT) and not os.path.lexists("/var/lib/asa-setup/operator.json"),
+            "PUBLISHED_INSTALLATION_APPEARED")
+
+
+def published_archive(context, verifier):
+    """Observe the helper's actual root snapshot, never stage the source oracle."""
+    base = candidate_bundle(context).parent
+    entries = []
+    for entry in base.iterdir():
+        require(len(entries) < 2, "PUBLISHED_ACQUIRED_PATHS")
+        entries.append(entry)
+    require(len(entries) == 2 and candidate_bundle(context) in entries, "PUBLISHED_ACQUIRED_PATHS")
+    incoming = [path for path in entries if re.fullmatch(r"acquire-[a-z0-9_]{8}", path.name)]
+    require(len(incoming) == 1, "PUBLISHED_ACQUIRED_PATHS")
+    path = incoming[0] / ("asa-setup-" + context["sourceRevision"] + ".tar.gz")
+    members = incoming[0].iterdir()
+    require(next(members, None) == path and next(members, None) is None, "PUBLISHED_ACQUIRED_PATHS")
+    raw = cli_trusted_bytes(path, mode=0o444, maximum=verifier.MAX_PACKAGE_BYTES)
+    digest = hashlib.sha256(raw).hexdigest()
+    manifest, files = verifier.inspect_archive(raw, revision=context["sourceRevision"], sha256=digest)
+    oracle = cli_trusted_bytes(GUEST_PRIVATE / "candidate.tar.gz", mode=0o600, maximum=verifier.MAX_PACKAGE_BYTES)
+    expected_manifest, expected_files = verifier.inspect_archive(oracle, revision=context["sourceRevision"], sha256=context["bundleSha256"])
+    require(manifest == expected_manifest and files == expected_files
+            and hashlib.sha256(files["tools/asa_setup_acquire.py"]).hexdigest() == context["acquisition"]["helperSha256"],
+            "PUBLISHED_SOURCE_MISMATCH")
+    return {"sha256": digest, "bytes": len(raw), "manifestSha256": canonical_hash(manifest),
+            "files": len(files), "sourceOracleFilesMatch": True, "protectedHelperSnapshotObserved": True}
+
+
+class PublishedAcquisition:
+    def __init__(self, context):
+        self.context, self.request = context, published_context(context)
+        self.owner = published_administrator(context)
+        self.deadline = time.monotonic() + PUBLISHED_SECONDS
+        self.report = {"status": "PENDING", "sourceRevision": context["sourceRevision"], "repository": REPOSITORY,
+                       "signerWorkflow": PUBLISHED_WORKFLOW, "sourceRef": PUBLISHED_REF,
+                       "manualCandidateStage": False, "steps": {}, "completedProcessGroups": 0,
+                       "allOwnedProcessesExited": True}
+        self.environment = None
+
+    def remaining(self, maximum):
+        remaining = self.deadline - time.monotonic()
+        require(remaining > 0, "BLOCKED_PUBLISHED_ACQUISITION_BUDGET", status="BLOCKED")
+        return min(maximum, remaining)
+
+    def command(self, step, arguments, *, timeout=180, network=False):
+        require(step in {"gh-version", "gh-flags", "sudo-access", "helper-download", "helper-attestation", "helper-execution", "public-help"},
+                "PUBLISHED_STEP")
+        self.report["steps"][step] = "PENDING"
+        environment = dict(self.environment)
+        if not network:
+            environment.pop("GH_TOKEN", None)
+        budget = self.remaining(timeout)
+        child = None
+        self.report["allOwnedProcessesExited"] = False
+        try:
+            with OwnedFaultProcess(arguments, environment=environment, deadline=time.monotonic() + budget,
+                                   owner=self.owner, administrator=True) as child:
+                code, raw = child.wait(budget)
+                require(child.closed, "PUBLISHED_PROCESS_QUIESCENCE")
+        finally:
+            self.report["allOwnedProcessesExited"] = child is not None and child.closed is True
+        require(type(code) is int and code == 0, "PUBLISHED_CHILD_EXIT")
+        require(len(raw) <= 65536, "PUBLISHED_CHILD_OUTPUT")
+        self.report["completedProcessGroups"] += 1
+        self.report["steps"][step] = "PASS"
+        return raw
+
+    def run(self):
+        context = self.context
+        published_no_installation()
+        require(not any(os.path.lexists(path) for path in ("/opt/asa-setup", "/usr/local/bin/asa", "/etc/asa-lab/commands.json")),
+                "PUBLISHED_GUEST_NOT_CLEAN")
+        self.report["steps"]["clean-guest"] = "PASS"
+        published_directory(PUBLISHED_HOME)
+        gh_directory = PUBLISHED_HOME / "github-cli"
+        published_directory(gh_directory)
+        raw = cli_trusted_bytes(GUEST_PRIVATE / "github-cli.tar.gz", mode=0o600, maximum=GH_PIN["bytes"])
+        archive = published_snapshot(gh_directory, "gh_2.101.0_linux_amd64.tar.gz", raw)
+        protected = cli_trusted_bytes(archive, mode=0o444, maximum=GH_PIN["bytes"])
+        executable = published_gh_binary(protected, GH_PIN)
+        gh = published_snapshot(gh_directory, "gh", executable, mode=0o555)
+        gh_directory.chmod(0o555)
+        self.environment = published_environment(self.owner, gh)
+        version = self.command("gh-version", [gh, "--version"], timeout=30)
+        require(version.startswith(b"gh version 2.101.0 "), "PUBLISHED_GH_VERSION")
+        flags = self.command("gh-flags", [gh, "attestation", "verify", "--help"], timeout=30)
+        require(all(re.search(rb"(?<!\S)" + flag + rb"(?:\s|[=,])", flags) for flag in (
+            b"--signer-workflow", b"--source-ref", b"--source-digest", b"--deny-self-hosted-runners")), "PUBLISHED_GH_FLAGS")
+        self.report["githubCli"] = {"version": GH_PIN["version"], "sourceRevision": GH_PIN["sourceRevision"],
+                                   "archiveSha256": GH_PIN["sha256"], "executableSha256": GH_PIN["executableSha256"], "requiredFlags": True}
+        self.command("sudo-access", ["/usr/bin/sudo", "-n", "-v"], timeout=30)
+        download = PUBLISHED_HOME / "download"
+        published_directory(download, mode=0o700)
+        os.chown(download, self.owner["uid"], self.owner["gid"])
+        asset = "asa-setup-acquire-" + context["sourceRevision"] + ".py"
+        self.command("helper-download", [gh, "release", "download", "setup-" + context["sourceRevision"],
+            "--repo", REPOSITORY, "--pattern", asset, "--dir", download], network=True)
+        raw = published_helper_bytes(context, download, self.owner)
+        helper_directory = PUBLISHED_HOME / "verified-helper"
+        published_directory(helper_directory)
+        helper = published_snapshot(helper_directory, asset, raw)
+        helper_directory.chmod(0o555)
+        helper_identity = diagnostic_metadata(helper.stat())
+        self.command("helper-attestation", published_verify_command(gh, helper, context["sourceRevision"]), network=True)
+        require(cli_trusted_bytes(helper, mode=0o444, maximum=1024**2) == raw
+                and diagnostic_metadata(helper.stat()) == helper_identity, "PUBLISHED_HELPER_CHANGED")
+        self.report["helper"] = {"asset": asset, "sha256": self.request["helperSha256"],
+                                 "actualUid": self.owner["uid"], "attestationVerified": True, "protectedSnapshot": True}
+        self.command("helper-execution", ["/usr/bin/python3", "-I", "-B", helper, "--revision", context["sourceRevision"]],
+                     timeout=600, network=True)
+        require(cli_trusted_bytes(helper, mode=0o444, maximum=1024**2) == raw
+                and diagnostic_metadata(helper.stat()) == helper_identity, "PUBLISHED_HELPER_CHANGED")
+        published_no_installation()
+        verifier = cli_trusted_module("setup_bundle.py", context)
+        self.remaining(30)
+        self.report["archive"] = published_archive(context, verifier)
+        self.report["registration"] = cli_candidate_binding(context, verifier, prepared=True)
+        self.report["steps"]["independent-package-verification"] = "PASS"
+        raw = self.command("public-help", ["/usr/local/bin/asa", "help", "--json", "--no-color"], timeout=30)
+        value = json.loads(raw.decode("utf-8"))
+        require(type(value) is dict and value.get("format") == "asa-cli-result-v1" and value.get("command") == "help"
+                and value.get("status") == "OK" and type(value.get("exitCode")) is int and value["exitCode"] == 0
+                and type(value.get("help")) is dict and b"\x1b" not in raw, "PUBLISHED_PUBLIC_HELP")
+        published_no_installation()
+        self.remaining(1)
+        self.report.update(status="PASS", beforeInstall=True, publicHelp={"status": "OK", "exitCode": 0,
+                           "cwd": "/", "utf8": True, "noColor": True}, allOwnedProcessesExited=True)
+        return self.report
+
+
+def published_acquire_guest(context):
+    require(os.geteuid() == 0, "GUEST_ROOT_REQUIRED")
+    run = PublishedAcquisition(context)
+    try:
+        return {"publishedSetupAcquisition": run.run()}
+    except BaseException as error:
+        run.report.update(status=getattr(error, "status", "FAIL"), reasonCode=safe_error(error))
+        if getattr(error, "owned_cleanup_failed", False):
+            run.report["allOwnedProcessesExited"] = False
+        error.acquisition_evidence = run.report
+        raise
+
+
+def prepare_guest_cli(context, commands):
+    if guest_acquisition_mode(context) == "published":
+        published_no_installation()
+        return {"candidateStage": "NOT_RUN", "publishedAcquisition": "REQUIRED_NEXT_PHASE"}
+    bundle = candidate_bundle(context)
+    bundle.parent.mkdir(mode=0o755, exist_ok=True)
+    commands.run(["/usr/bin/python3", "-I", "-B", GUEST_HOME / "setup_bundle.py", "stage",
+                  "--archive", GUEST_PRIVATE / "candidate.tar.gz", "--destination", bundle,
+                  "--revision", context["sourceRevision"], "--sha256", context["bundleSha256"]], timeout=60)
+    _, raw = commands.run(["/usr/bin/python3", "-I", "-B", bundle / "tools/asa_cli.py", "prepare", "--bundle", bundle, "--json"])
+    require(json.loads(raw).get("status") == "OK" and Path("/usr/local/bin/asa").is_file(), "PUBLIC_CLI_PREPARATION")
+    public_cli(["help"], timeout=30)
+    return {"candidateStage": "manual trusted stage inside disposable guest only", "publishedAcquisition": "BLOCKED"}
+
+
 def bootstrap_guest(context):
+    guest_acquisition_mode(context)
     require(os.geteuid() == 0 and not Path("/usr/local/bin/1panel-core").exists()
             and not INSTALL_ROOT.exists(), "GUEST_NOT_CLEAN")
     commands, panel = Commands(), context["pins"]["onePanel"]
@@ -2383,18 +2807,9 @@ def bootstrap_guest(context):
     require(synchronized, "BLOCKED_GUEST_TIME_SYNC", status="BLOCKED")
     baseline = panel_and_docker_identity()
     write_json(GUEST_PRIVATE / "host-baseline.json", baseline)
-    bundle = candidate_bundle(context)
-    bundle.parent.mkdir(mode=0o755, exist_ok=True)
-    commands.run(["/usr/bin/python3", "-I", "-B", GUEST_HOME / "setup_bundle.py", "stage",
-                  "--archive", GUEST_PRIVATE / "candidate.tar.gz", "--destination", bundle,
-                  "--revision", context["sourceRevision"], "--sha256", context["bundleSha256"]], timeout=60)
-    _, raw = commands.run(["/usr/bin/python3", "-I", "-B", bundle / "tools/asa_cli.py", "prepare", "--bundle", bundle, "--json"])
-    require(json.loads(raw).get("status") == "OK" and Path("/usr/local/bin/asa").is_file(), "PUBLIC_CLI_PREPARATION")
-    public_cli(["help"], timeout=30)
     return {"onePanelVersion": panel["version"], "officialInstallerSha256": panel["installerSha256"],
             "actualInstalledBytesVerified": True, "systemdPid1": True, "ntpSynchronized": True,
-            "hostBaseline": baseline, "candidateStage": "manual trusted stage inside disposable guest only",
-            "publishedAcquisition": "BLOCKED"}
+            "hostBaseline": baseline, **prepare_guest_cli(context, commands)}
 
 
 def last_setup_receipt():
@@ -2703,13 +3118,17 @@ class OwnedFaultProcess:
     No poll()/waitpid() is used while the group can still be signalled. Every
     signal revalidates its PID/starttime/PGID/SID anchor and current members.
     """
-    def __init__(self, command, *, environment, file_limit=False, deadline=None, owner=None):
+    def __init__(self, command, *, environment, file_limit=False, deadline=None, owner=None, administrator=False):
         require(native_proc_namespace(), "BLOCKED_FAULT_PROC_NAMESPACE", status="BLOCKED")
-        require(owner is None or type(owner.get("uid")) is int and owner["uid"] > 0
-                and type(owner.get("gid")) is int and owner["gid"] > 0 and owner.get("name") == "asa-setup",
-                "CLI_CONTROL_OWNER")
-        credentials = {} if owner is None else {"user": owner["uid"], "group": owner["gid"],
-            "extra_groups": os.getgrouplist(owner["name"], owner["gid"])}
+        require(type(administrator) is bool, "PUBLISHED_ADMINISTRATOR")
+        if administrator:
+            credentials = published_credentials(owner, deadline=deadline)
+        else:
+            require(owner is None or type(owner.get("uid")) is int and owner["uid"] > 0
+                    and type(owner.get("gid")) is int and owner["gid"] > 0 and owner.get("name") == "asa-setup",
+                    "CLI_CONTROL_OWNER")
+            credentials = {} if owner is None else {"user": owner["uid"], "group": owner["gid"],
+                "extra_groups": os.getgrouplist(owner["name"], owner["gid"])}
         self.stdout, self.stderr = tempfile.TemporaryFile(), tempfile.TemporaryFile()
         self.closed, self.stopped, self.history = False, False, {}
         self.deadline = deadline
@@ -4477,7 +4896,8 @@ def guest_phase(phase, context):
             return owner_cloud_fixture(context, phase[len("owner-cloud-"):])
         raise Failure("UNKNOWN_OWNER_PHASE")
     require(os.geteuid() == 0, "GUEST_ROOT_REQUIRED")
-    actions = {"bootstrap": bootstrap_guest, "install": install_guest, "cli-read": installed_cli_read_guest,
+    actions = {"bootstrap": bootstrap_guest, "published-acquire": published_acquire_guest,
+               "install": install_guest, "cli-read": installed_cli_read_guest,
                "update": update_guest, "backup": backup_guest,
                "schedule": schedule_guest, "timer-probe": timer_probe, "timer-retry": timer_retry,
                "partial-fault": partial_fault_guest, "interrupt-fault": interrupt_fault_guest,
@@ -4524,6 +4944,8 @@ def guest_main(phase, *, control_deadline=None):
         if hasattr(error, "fault_evidence"):
             result["faultEvidence"] = error.fault_evidence
             result["ownedCleanupFailed"] = getattr(error, "owned_cleanup_failed", False) is True
+        if hasattr(error, "acquisition_evidence"):
+            result["publishedSetupAcquisition"] = error.acquisition_evidence
         return_code = 2 if result["status"] == "BLOCKED" else 1
     result["cliActions"] = CLI_ACTIONS
     print(json.dumps(result, sort_keys=True))
@@ -4534,7 +4956,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--revision")
     parser.add_argument("--preflight-only", action="store_true")
-    parser.add_argument("--guest-phase", choices=("bootstrap", "install", "seed", "cli-read", "owner-cli-control", "update", "backup", "post-reboot", "schedule",
+    parser.add_argument("--acquisition-mode", choices=("candidate", "published"), default="candidate")
+    parser.add_argument("--approved-setup-revision", default="")
+    parser.add_argument("--check-acquisition-mode", action="store_true")
+    parser.add_argument("--guest-phase", choices=("bootstrap", "published-acquire", "install", "seed", "cli-read", "owner-cli-control", "update", "backup", "post-reboot", "schedule",
                         "timer-probe", "timer-retry", "final", "owner-seed", "owner-observe", "owner-final", "owner-schedule-fixture", "owner-hold-lock",
                         "owner-diagnostic-paths", "owner-diagnostic-inventory", "owner-fault-prepare", "owner-fault-remove", "owner-fault-observe",
                         "cloud-fault", "cloud-prepare-empty", "cloud-prepare-dummy", "owner-cloud-baseline", "owner-cloud-best-effort",
@@ -4546,6 +4971,15 @@ def main(argv=None):
         return guest_main(args.guest_phase, control_deadline=args.control_deadline)
     if not args.revision or not HEX40.fullmatch(args.revision):
         parser.error("--revision must be the exact checked-out source SHA")
+    if args.check_acquisition_mode:
+        try:
+            _, raw = Commands().run(["git", "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parents[2])
+            proof = acquisition_request(args.acquisition_mode, args.approved_setup_revision, args.revision, raw.decode().strip(), os.environ)
+        except (Failure, ValueError, OSError):
+            print(json.dumps({"status": "FAIL", "reasonCode": "ACQUISITION_MODE_BINDING"}))
+            return 1
+        print(json.dumps({"status": "PASS", **proof}))
+        return 0
     return HostRun(args).run()
 
 

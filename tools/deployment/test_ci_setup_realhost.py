@@ -751,6 +751,8 @@ class CLIReadControlTests(unittest.TestCase):
     def test_stage_delivers_all_hashed_helpers_with_root_public_modes(self):
         runner = object.__new__(harness.HostRun)
         runner.source = HERE.parents[1]
+        runner.context = {"sourceRevision": "d" * 40, "acquisition": {
+            "mode": "candidate", "approvedRevision": "", "sourceRevision": "d" * 40}}
         runner.vm = SimpleNamespace(ssh=Mock(), upload=Mock())
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"GH_TOKEN": "PRIVATE_TOKEN_SENTINEL"}):
             runner.workspace = Path(directory)
@@ -3279,6 +3281,501 @@ class CloudFailurePolicyTests(unittest.TestCase):
                     self.assertTrue(Path(result["local"]["path"]).is_dir())
                     self.assertEqual(result["restore"]["status"], "UNVERIFIED")
             self.assertEqual(len(failures), 2)
+
+
+def published_fixture():
+    context, _, _, _, _ = cli_read_fixture()
+    helper = b"# synthetic released helper, never executed in this test\n"
+    context.update(nonce="e" * 32, acquisition={"mode": "published", "approvedRevision": context["sourceRevision"],
+        "sourceRevision": context["sourceRevision"], "helperSha256": hashlib.sha256(helper).hexdigest()})
+    owner = {"name": "asa-ci", "uid": 1001, "gid": 1001, "home": "/home/asa-ci", "groups": [27, 1001], "nonce": context["nonce"]}
+    return context, owner, helper
+
+
+class PublishedModeTests(unittest.TestCase):
+    def environment(self, revision):
+        return {"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": revision,
+            "SOURCE_REVISION": revision, "GITHUB_REPOSITORY": harness.REPOSITORY,
+            "GITHUB_WORKFLOW_REF": harness.REPOSITORY + "/.github/workflows/setup-realhost.yml@refs/heads/main"}
+
+    def test_explicit_published_mode_binds_actual_main_event_and_candidate_stays_default(self):
+        revision = "a" * 40
+        environment = self.environment(revision)
+        self.assertEqual(harness.acquisition_request("published", revision, revision, revision, environment)["mode"], "published")
+        self.assertEqual(harness.acquisition_request("candidate", "", revision, revision, {})["mode"], "candidate")
+        for key, value in (("GITHUB_EVENT_NAME", "pull_request"), ("GITHUB_REF", "refs/heads/feature"),
+                           ("GITHUB_SHA", "b" * 40), ("SOURCE_REVISION", "b" * 40),
+                           ("GITHUB_REPOSITORY", "foreign/repository"), ("GITHUB_WORKFLOW_REF", "foreign/workflow")):
+            with self.subTest(key=key), self.assertRaisesRegex(harness.Failure, "ACQUISITION_MODE_BINDING"):
+                harness.acquisition_request("published", revision, revision, revision, {**environment, key: value})
+        for mode, approved, actual in (("published", "", revision), ("published", "a" * 39, revision),
+                                       ("published", "b" * 40, revision), ("candidate", revision, revision),
+                                       ("published", revision, "b" * 40), (True, revision, revision)):
+            with self.subTest(mode=mode, approved=approved), self.assertRaises(harness.Failure):
+                harness.acquisition_request(mode, approved, revision, actual, environment)
+
+    def test_actual_mode_entrypoint_rejects_mismatch_before_any_host_run(self):
+        root = HERE.parents[1]
+        revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+        arguments = [sys.executable, "-I", "-B", str(HERE / "ci_setup_realhost.py"), "--revision", revision,
+                     "--acquisition-mode", "published", "--approved-setup-revision", revision, "--check-acquisition-mode"]
+        for source, expected in ((revision, 0), ("b" * 40, 1)):
+            with tempfile.TemporaryDirectory() as directory:
+                result = subprocess.run(arguments, cwd=directory, stdin=subprocess.DEVNULL, capture_output=True,
+                    timeout=15, env={**os.environ, **self.environment(revision), "SOURCE_REVISION": source})
+                self.assertEqual(result.returncode, expected, result.stderr.decode("utf-8", "replace"))
+                self.assertEqual(json.loads(result.stdout)["status"], "PASS" if expected == 0 else "FAIL")
+                self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_workflow_keeps_event_checkout_and_only_reads_attestations(self):
+        source = (HERE.parents[1] / ".github/workflows/setup-realhost.yml").read_text()
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", source)
+        self.assertNotIn("ref: ${{ inputs.", source)
+        self.assertIn("attestations: read", source)
+        self.assertNotIn("attestations: write", source)
+        self.assertLess(source.index("--check-acquisition-mode"), source.index("sudo -n --preserve-env"))
+        self.assertIn('--approved-setup-revision "$APPROVED_SETUP_REVISION"', source)
+        for line in source.splitlines():
+            if "run:" in line:
+                self.assertNotIn("${{ inputs.", line)
+
+    def test_mode_specific_default_target_is_independent_of_controlled_update(self):
+        import test_realhost_cli_checks as examples
+        context, owner, inputs, paths, _ = cli_read_fixture()
+        published, _, _ = published_fixture()
+        context["acquisition"] = published["acquisition"]
+        context["nonce"] = published["nonce"]
+        target = copy.deepcopy(context["cliReleaseExpectations"]["current"])
+        target.update(revision=context["sourceRevision"], deploymentDigest="sha256:" + "f" * 64,
+                      manifestDigest="sha256:" + "e" * 64, ci="VERIFIED", publicationRunId=123, selector="stable-before-vm")
+        context["cliDefaultTargetExpectation"] = target
+        expected, _ = harness.cli_fixture_context(cli_checks, context, owner, inputs, paths)
+        self.assertEqual(expected.target.revision, context["sourceRevision"])
+        self.assertEqual(expected.deployment_digest, target["deploymentDigest"])
+        self.assertEqual(context["pins"]["current"]["revision"], "959d52079d8c5659e86f084ad2453bd3eb68fe34")
+        self.assertEqual(expected.installed.revision, context["pins"]["previous"]["revision"])
+        value = examples.envelope("update check", examples.update(expected))
+        cli_checks.check_read_result("update check", value, returncode=0, expected=expected)
+        value["target"]["deploymentDigest"] = "sha256:" + "1" * 64
+        with self.assertRaisesRegex(cli_checks.CLIReadCheckError, "RELEASE_PIN_MISMATCH"):
+            cli_checks.check_read_result("update check", value, returncode=0, expected=expected)
+        for difference in ({"revision": "a" * 40}, {"schema": True}, {"deploymentDigest": "stable"},
+                           {"manifestDigest": None}, {"ci": "UNVERIFIED"}, {"extra": "PRIVATE_TOKEN"},
+                           {"publicationRunId": False}, {"selector": "from-cli"}):
+            context["cliDefaultTargetExpectation"] = {**target, **difference}
+            with self.subTest(difference=difference), self.assertRaises(harness.Failure):
+                harness.cli_fixture_context(cli_checks, context, owner, inputs, paths)
+
+    def test_reconciled_acquisition_and_cloud_phases_preserve_order_and_fault_deadline(self):
+        # Exercise the shared orchestrator in both modes without executing VM actions.
+        for mode in ("candidate", "published"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory, \
+                    patch.dict(os.environ, {"RUNNER_TEMP": directory}), contextlib.redirect_stdout(io.StringIO()):
+                runner = object.__new__(harness.HostRun)
+                runner.args = SimpleNamespace(preflight_only=False, revision="d" * 40, acquisition_mode=mode)
+                runner.evidence = harness.initial_evidence(runner.args.revision, mode)
+                runner.deadline, runner.vm, runner.save = time.monotonic() + harness.TOTAL_SECONDS, None, Mock()
+                phases = []
+                runner.phase = lambda name, action: phases.append((name, getattr(runner, "fault_deadline", None)))
+                self.assertEqual(runner.run(), 0)
+                names, deadlines = [name for name, _ in phases], dict(phases)
+                start = names.index("official_1panel_bootstrap")
+                end = names.index("real_guest_reboot")
+                acquisition = ["published_setup_acquisition"] if mode == "published" else []
+                self.assertEqual(names[start:end], ["official_1panel_bootstrap", *acquisition,
+                    "public_asa_install", "independent_control_fixture", "installed_cli_read_acceptance",
+                    "published_runtime_update", "public_cloud_connection_policies", "public_backup_and_retry",
+                    "public_release_connection_failure", "public_partial_backup_failure", "public_backup_interrupt_recovery"])
+                self.assertEqual(names.count("published_setup_acquisition"), int(mode == "published"))
+                for name in ("official_1panel_bootstrap", *acquisition, "published_runtime_update", "real_guest_reboot"):
+                    self.assertIsNone(deadlines[name])
+                shared = [deadlines[name] for name in ("public_cloud_connection_policies", "public_backup_and_retry",
+                    "public_release_connection_failure", "public_partial_backup_failure", "public_backup_interrupt_recovery")]
+                self.assertTrue(all(deadline == shared[0] for deadline in shared))
+                self.assertGreater(shared[0], 0)
+                self.assertLessEqual(shared[0], runner.deadline)
+                self.assertIsNone(runner.fault_deadline)
+
+    def test_published_acquisition_pass_survives_a_later_install_failure(self):
+        runner = object.__new__(harness.HostRun)
+        runner.args = SimpleNamespace(revision="d" * 40, preflight_only=False, acquisition_mode="published")
+        runner.evidence = harness.initial_evidence(runner.args.revision, "published")
+        runner.deadline, runner.vm, runner.save = time.monotonic() + 900, None, Mock()
+        proof = {"status": "PASS", "sourceRevision": runner.args.revision, "manualCandidateStage": False}
+        runner.guest = Mock(return_value={"publishedSetupAcquisition": proof})
+        phases = []
+        def phase(name, action):
+            phases.append(name)
+            if name == "published_setup_acquisition":
+                return action()
+            if name == "public_asa_install":
+                raise harness.Failure("COMMAND")
+        runner.phase = phase
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"RUNNER_TEMP": directory}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(runner.run(), 1)
+        self.assertEqual(runner.evidence["status"], "FAIL")
+        self.assertEqual(runner.evidence["publishedSetupAcquisition"], proof)
+        self.assertEqual(phases[-3:], ["official_1panel_bootstrap", "published_setup_acquisition", "public_asa_install"])
+        runner.guest.assert_called_once_with("published-acquire", timeout=harness.PUBLISHED_SECONDS + 30)
+
+    def test_invalid_context_cannot_fallback_to_candidate_or_learn_a_target(self):
+        context, _, _ = published_fixture()
+        harness.published_context(context)
+        for key, value in (("mode", "candidate"), ("approvedRevision", "a" * 40),
+                           ("sourceRevision", "b" * 40), ("helperSha256", "unknown"), ("extra", "PRIVATE_TOKEN")):
+            changed = copy.deepcopy(context)
+            changed["acquisition"][key] = value
+            with self.subTest(key=key), self.assertRaisesRegex(harness.Failure, "PUBLISHED_CONTEXT"):
+                harness.published_context(changed)
+
+    def test_published_bootstrap_never_calls_manual_stage_and_missing_mode_is_not_a_fallback(self):
+        context, _, _ = published_fixture()
+        commands = Mock()
+        with patch.object(harness, "published_no_installation"), patch.object(Path, "mkdir") as mkdir, \
+                patch.object(harness, "public_cli") as public:
+            result = harness.prepare_guest_cli(context, commands)
+            self.assertEqual(result["candidateStage"], "NOT_RUN")
+            commands.run.assert_not_called()
+            mkdir.assert_not_called()
+            public.assert_not_called()
+            del context["acquisition"]
+            with self.assertRaises(harness.Failure):
+                harness.prepare_guest_cli(context, commands)
+            commands.run.assert_not_called()
+
+
+class PublishedArchiveTests(unittest.TestCase):
+    def archive(self, names=None, *, executable=None):
+        executable = executable or b"\x7fELF\x02\x01\x01" + b"\x00" * 11 + b"\x3e\x00" + b"synthetic-ELF-not-executed"
+        data = io.BytesIO()
+        with harness.tarfile.open(fileobj=data, mode="w:gz", format=harness.tarfile.USTAR_FORMAT) as archive:
+            for name, kind in (names or [("gh_2.101.0_linux_amd64/bin/gh", "file")]):
+                member = harness.tarfile.TarInfo(name)
+                member.size = len(executable) if kind == "file" else 0
+                if kind == "symlink":
+                    member.type, member.linkname = harness.tarfile.SYMTYPE, "/foreign"
+                if kind == "hardlink":
+                    member.type, member.linkname = harness.tarfile.LNKTYPE, "/foreign"
+                archive.addfile(member, io.BytesIO(executable) if kind == "file" else None)
+        raw = data.getvalue()
+        return raw, {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(), "executableBytes": len(executable),
+                     "executableSha256": hashlib.sha256(executable).hexdigest()}, executable
+
+    def test_exact_hash_size_and_only_regular_amd64_elf_are_required_before_execution(self):
+        raw, pin, executable = self.archive()
+        self.assertEqual(harness.published_gh_binary(raw, pin), executable)
+        for changes in ({"bytes": pin["bytes"] + 1}, {"sha256": "0" * 64}, {"executableSha256": "0" * 64}):
+            with self.subTest(changes=changes), self.assertRaises(harness.Failure):
+                harness.published_gh_binary(raw, {**pin, **changes})
+        name = "gh_2.101.0_linux_amd64/bin/gh"
+        for names in ([(name, "symlink")], [(name, "hardlink")], [(name, "file"), (name, "file")],
+                      [(name, "file"), ("/tmp/outside", "file")], [(name, "file"), ("gh_2.101.0_linux_amd64/../escape", "file")],
+                      [(name, "file"), ("gh_2.101.0_linux_amd64//other", "file")]):
+            payload, expected, _ = self.archive(names)
+            with self.subTest(names=names), self.assertRaises(harness.Failure):
+                harness.published_gh_binary(payload, expected)
+        payload, expected, _ = self.archive(executable=executable[:18] + b"\xb7\x00" + executable[20:])
+        with self.assertRaisesRegex(harness.Failure, "PUBLISHED_GH_ELF"):
+            harness.published_gh_binary(payload, expected)
+
+    def test_attestation_uses_exact_repository_workflow_ref_digest_and_deny_flag(self):
+        command = harness.published_verify_command(Path("/trusted/gh"), Path("/protected/helper.py"), "a" * 40)
+        self.assertEqual(command, ["/trusted/gh", "attestation", "verify", "/protected/helper.py", "--repo", harness.REPOSITORY,
+            "--signer-workflow", harness.REPOSITORY + "/.github/workflows/setup-release.yml", "--source-ref", "refs/heads/main",
+            "--source-digest", "a" * 40, "--deny-self-hosted-runners"])
+        with self.assertRaises(harness.Failure):
+            harness.published_verify_command(Path("/trusted/gh"), Path("/protected/helper.py"), "main")
+
+    def test_pinned_gh_prerequisite_cannot_turn_into_latest_or_mutable_apt_binary(self):
+        original = json.loads((HERE / "fixtures/setup-realhost-pins.json").read_text())
+        self.assertEqual(original["githubCli"], harness.GH_PIN)
+        for key, value in (("version", "latest"), ("sourceRevision", "a" * 40), ("bytes", 15282174),
+                           ("sha256", "0" * 64), ("executableSha256", "0" * 64), ("url", "https://untrusted.invalid/gh")):
+            changed = copy.deepcopy(original)
+            changed["githubCli"][key] = value
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "pins.json"
+                path.write_text(json.dumps(changed))
+                with self.subTest(key=key), self.assertRaisesRegex(harness.Failure, "PINS_GITHUB_CLI"):
+                    harness.pin_manifest(path)
+
+
+class PublishedProcessTests(unittest.TestCase):
+    def administrator_model(self, context, owner):
+        account = SimpleNamespace(pw_name="asa-ci", pw_uid=owner["uid"], pw_gid=owner["gid"],
+                                  pw_dir=owner["home"], pw_shell="/bin/bash")
+        stack = contextlib.ExitStack()
+        stack.enter_context(patch.dict(sys.modules, {"pwd": SimpleNamespace(getpwnam=Mock(return_value=account))}))
+        stack.enter_context(patch.object(harness, "guest_guard", return_value=context))
+        stack.enter_context(patch.object(harness.os, "geteuid", return_value=0, create=True))
+        stack.enter_context(patch.object(harness.os, "getgrouplist", return_value=[1001, 27], create=True))
+        stack.enter_context(patch.object(Path, "lstat", lambda path: SimpleNamespace(st_mode=stat.S_IFDIR | 0o755,
+            st_uid=owner["uid"] if path == Path(owner["home"]) else 0)))
+        return stack, account
+
+    def test_exact_administrator_credentials_and_groups_are_native_popen_options(self):
+        context, owner, _ = published_fixture()
+        stack, _ = self.administrator_model(context, owner)
+        process = Mock(pid=12001)
+        anchor = {"pid": 12001, "pgid": 12001, "sid": 12001, "startTime": 123}
+        with stack, patch.object(harness, "native_proc_namespace", return_value=True), \
+                patch.object(harness, "proc_identity", return_value=anchor), \
+                patch.object(harness.subprocess, "Popen", return_value=process) as popen:
+            child = harness.OwnedFaultProcess(["/trusted/gh", "--version"], environment={}, owner=owner,
+                                             administrator=True, deadline=time.monotonic() + 30)
+            child.closed = True
+            child.close()
+        self.assertEqual((popen.call_args.kwargs["user"], popen.call_args.kwargs["group"], popen.call_args.kwargs["extra_groups"]),
+                         (1001, 1001, [27, 1001]))
+        self.assertEqual(popen.call_args.kwargs["cwd"], "/")
+        self.assertTrue(popen.call_args.kwargs["start_new_session"])
+
+    def test_missing_root_bool_or_wrong_account_and_groups_never_spawn_or_expand_default(self):
+        context, owner, _ = published_fixture()
+        stack, account = self.administrator_model(context, owner)
+        with stack, patch.object(harness, "native_proc_namespace", return_value=True), \
+                patch.object(harness.subprocess, "Popen") as popen:
+            for changed in (None, {**owner, "uid": 0}, {**owner, "uid": True}, {**owner, "gid": 0},
+                            {**owner, "groups": [1001]}, {**owner, "name": "foreign"}, {**owner, "nonce": "f" * 32}):
+                with self.subTest(changed=changed), self.assertRaises(harness.Failure):
+                    harness.OwnedFaultProcess(["not-executed"], environment={}, owner=changed,
+                                             administrator=True, deadline=time.monotonic() + 30)
+            for administrator in (False, 1, "true"):
+                with self.subTest(administrator=administrator), self.assertRaises(harness.Failure):
+                    harness.OwnedFaultProcess(["not-executed"], environment={}, owner=owner,
+                                             administrator=administrator, deadline=time.monotonic() + 30)
+            for field, value in (("pw_uid", 0), ("pw_uid", True), ("pw_gid", 0), ("pw_name", "foreign")):
+                old = getattr(account, field)
+                setattr(account, field, value)
+                with self.subTest(field=field, value=value), self.assertRaises(harness.Failure):
+                    harness.published_administrator(context)
+                setattr(account, field, old)
+            with patch.dict(sys.modules, {"pwd": SimpleNamespace(getpwnam=Mock(side_effect=KeyError("absent")))}), self.assertRaises(harness.Failure):
+                harness.published_administrator(context)
+            popen.assert_not_called()
+
+    def test_bool_values_cannot_alias_valid_numeric_credentials(self):
+        context, owner, _ = published_fixture()
+        actual = {**owner, "uid": 1, "gid": 1, "groups": [1]}
+        with patch.object(harness, "guest_guard", return_value=context), \
+                patch.object(harness, "published_administrator", return_value=actual):
+            for difference in ({"uid": True}, {"gid": True}, {"groups": [True]}):
+                with self.subTest(difference=difference), self.assertRaisesRegex(harness.Failure, "PUBLISHED_ADMINISTRATOR"):
+                    harness.published_credentials({**actual, **difference}, deadline=time.monotonic() + 30)
+
+    def test_token_is_private_environment_only_and_unknown_child_result_is_not_pass(self):
+        context, owner, _ = published_fixture()
+        with patch.object(harness, "diagnostic_read", return_value=(b"PRIVATE_TOKEN_SENTINEL", None, False)):
+            environment = harness.published_environment(owner, Path("/protected/gh"))
+        self.assertEqual(environment["GH_TOKEN"], "PRIVATE_TOKEN_SENTINEL")
+        self.assertEqual(environment["HOME"], "/home/asa-ci")
+        self.assertNotIn("GITHUB_TOKEN", environment)
+        self.assertNotIn("PYTHONPATH", environment)
+        run = object.__new__(harness.PublishedAcquisition)
+        run.owner, run.environment, run.deadline = owner, environment, time.monotonic() + 30
+        run.report = {"steps": {}, "completedProcessGroups": 0}
+        child = Mock(closed=True)
+        child.__enter__, child.__exit__ = Mock(return_value=child), Mock(return_value=False)
+        command = harness.published_verify_command(Path("/protected/gh"), Path("/protected/helper.py"), context["sourceRevision"])
+        with patch.object(harness, "OwnedFaultProcess", return_value=child) as process:
+            for code in (1, 2, True, None):
+                child.wait.return_value = (code, b"PRIVATE_TOKEN_SENTINEL")
+                with self.subTest(code=code), self.assertRaisesRegex(harness.Failure, "PUBLISHED_CHILD_EXIT") as caught:
+                    run.command("helper-attestation", command, network=True)
+                self.assertNotIn("PRIVATE_TOKEN", str(caught.exception) + json.dumps(run.report))
+            self.assertNotIn("PRIVATE_TOKEN", repr(process.call_args.args))
+            self.assertEqual(process.call_args.kwargs["environment"]["GH_TOKEN"], "PRIVATE_TOKEN_SENTINEL")
+            self.assertTrue(process.call_args.kwargs["administrator"])
+            child.wait.return_value = (0, b"gh version 2.101.0 fixture")
+            run.command("gh-version", ["/protected/gh", "--version"])
+            self.assertNotIn("GH_TOKEN", process.call_args.kwargs["environment"])
+        run.deadline = time.monotonic() - 1
+        with patch.object(harness, "OwnedFaultProcess") as process, self.assertRaisesRegex(harness.Failure, "BLOCKED_PUBLISHED_ACQUISITION_BUDGET"):
+            run.command("gh-version", ["/protected/gh", "--version"])
+        process.assert_not_called()
+
+
+class PublishedAcquisitionOrderTests(unittest.TestCase):
+    def run_fixture(self, *, failure=None, archive_failure=False):
+        context, owner, helper = published_fixture()
+        calls = []
+        def command(step, arguments, **options):
+            calls.append((step, [str(value) for value in arguments], options))
+            if step == failure:
+                raise harness.Failure("PUBLISHED_CHILD_EXIT")
+            if step == "gh-version":
+                return b"gh version 2.101.0 (synthetic)\n"
+            if step == "gh-flags":
+                return b" --signer-workflow x\n --source-ref x\n --source-digest x\n --deny-self-hosted-runners \n"
+            if step == "public-help":
+                return json.dumps({"format": "asa-cli-result-v1", "command": "help", "status": "OK", "exitCode": 0, "help": {}}).encode()
+            return b""
+        info = SimpleNamespace(st_dev=1, st_ino=2, st_size=len(helper), st_mtime_ns=3, st_ctime_ns=4)
+        with patch.object(harness, "published_administrator", return_value=owner), \
+                patch.object(harness, "published_no_installation"), patch.object(harness.os.path, "lexists", return_value=False), \
+                patch.object(harness, "published_directory"), patch.object(Path, "chmod"), patch.object(Path, "stat", return_value=info), \
+                patch.object(harness.os, "chown", create=True), patch.object(harness, "published_environment", return_value={}), \
+                patch.object(harness, "published_gh_binary", return_value=b"synthetic-ELF-not-executed"), \
+                patch.object(harness, "published_snapshot", side_effect=lambda directory, name, raw, **kw: Path(directory) / name), \
+                patch.object(harness, "cli_trusted_bytes", side_effect=lambda path, **kw: helper if str(path).endswith(".py") else b"archive"), \
+                patch.object(harness, "published_helper_bytes", return_value=helper), \
+                patch.object(harness, "cli_trusted_module", return_value=setup_bundle), \
+                patch.object(harness, "published_archive", side_effect=FileNotFoundError("PRIVATE_PATH") if archive_failure else None,
+                             return_value={"sha256": "f" * 64, "sourceOracleFilesMatch": True}) as archive, \
+                patch.object(harness, "cli_candidate_binding", return_value={"status": "VERIFIED"}) as binding:
+            run = harness.PublishedAcquisition(context)
+            run.command = command
+            try:
+                result = run.run()
+                error = None
+            except BaseException as caught:
+                result, error = run.report, caught
+            return result, error, calls, archive, binding
+
+    def test_helper_is_attested_as_the_protected_snapshot_before_nonroot_execution(self):
+        result, error, calls, archive, binding = self.run_fixture()
+        self.assertIsNone(error)
+        self.assertEqual(result["status"], "PASS")
+        names = [item[0] for item in calls]
+        self.assertEqual(names, ["gh-version", "gh-flags", "sudo-access", "helper-download", "helper-attestation", "helper-execution", "public-help"])
+        verify = calls[4][1]
+        execute = calls[5][1]
+        self.assertEqual(verify[3], execute[3])
+        self.assertEqual(Path(verify[3]).parent, harness.PUBLISHED_HOME / "verified-helper")
+        self.assertEqual(execute[:3], ["/usr/bin/python3", "-I", "-B"])
+        self.assertFalse(any("stage" in args or "prepare" in args for _, args, _ in calls))
+        self.assertTrue(binding.call_args.kwargs["prepared"])
+        archive.assert_called_once()
+
+    def test_download_or_attestation_failure_never_executes_helper_or_falls_back(self):
+        for phase in ("helper-download", "helper-attestation"):
+            result, error, calls, archive, binding = self.run_fixture(failure=phase)
+            with self.subTest(phase=phase):
+                self.assertIsInstance(error, harness.Failure)
+                self.assertNotEqual(result["status"], "PASS")
+                self.assertNotIn("helper-execution", [item[0] for item in calls])
+                archive.assert_not_called()
+                binding.assert_not_called()
+
+    def test_helper_exit_zero_without_an_actual_acquired_archive_never_becomes_pass(self):
+        result, error, calls, _, binding = self.run_fixture(archive_failure=True)
+        self.assertIsInstance(error, FileNotFoundError)
+        self.assertNotEqual(result["status"], "PASS")
+        self.assertIn("helper-execution", [item[0] for item in calls])
+        self.assertNotIn("public-help", [item[0] for item in calls])
+        binding.assert_not_called()
+
+    def test_guest_failure_keeps_partial_closed_evidence_and_does_not_echo_private_errors(self):
+        context, _, _ = published_fixture()
+        run = Mock()
+        run.report = {"status": "PENDING", "sourceRevision": context["sourceRevision"], "steps": {"helper-attestation": "PASS"},
+                      "allOwnedProcessesExited": False, "manualCandidateStage": False}
+        run.run.side_effect = RuntimeError("PRIVATE_TOKEN_AND_PATH")
+        output = io.StringIO()
+        with patch.object(harness.os, "geteuid", return_value=0, create=True), \
+                patch.object(harness, "guest_guard", return_value=context), \
+                patch.object(harness, "PublishedAcquisition", return_value=run), \
+                patch.object(harness, "CLI_ACTIONS", []), contextlib.redirect_stdout(output):
+            code = harness.guest_main("published-acquire")
+        result = json.loads(output.getvalue())
+        self.assertEqual(code, 1)
+        self.assertEqual(result["publishedSetupAcquisition"]["status"], "FAIL")
+        self.assertEqual(result["publishedSetupAcquisition"]["steps"], {"helper-attestation": "PASS"})
+        self.assertFalse(result["publishedSetupAcquisition"]["allOwnedProcessesExited"])
+        self.assertNotIn("PRIVATE_TOKEN", output.getvalue())
+
+
+@unittest.skipUnless(os.name == "posix", "Protected snapshot/openat contracts require POSIX")
+class PublishedPrivateFileTests(unittest.TestCase):
+    def test_snapshot_pins_bytes_before_attestation_and_user_source_replacement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "download.py"
+            source.write_bytes(b"approved helper bytes\n")
+            protected = root / "protected"
+            protected.mkdir(mode=0o755)
+            reader = harness.cli_trusted_bytes
+            def read(path, **kwargs):
+                with fixture_root_metadata(root):
+                    return reader(path, **kwargs)
+            with fixture_root_metadata(root), patch.object(harness, "cli_trusted_bytes", side_effect=read):
+                snapshot = harness.published_snapshot(protected, "helper.py", source.read_bytes())
+                source.write_bytes(b"REPLACED_UNTRUSTED_HELPER\n")
+                self.assertEqual(read(snapshot, mode=0o444), b"approved helper bytes\n")
+                self.assertEqual(stat.S_IMODE(snapshot.stat().st_mode), 0o444)
+                self.assertNotEqual(snapshot.stat().st_ino, source.stat().st_ino)
+                with self.assertRaises(FileExistsError):
+                    harness.published_snapshot(protected, "helper.py", b"changed")
+                with self.assertRaises(harness.Failure):
+                    harness.published_snapshot(protected, "../escape.py", b"changed")
+
+    def test_downloaded_helper_rejects_wrong_bytes_symlinks_hardlinks_and_modes(self):
+        context, _, helper = published_fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            owner = {"uid": os.geteuid(), "gid": os.getegid()}
+            source = root / ("asa-setup-acquire-" + context["sourceRevision"] + ".py")
+            source.write_bytes(helper); source.chmod(0o600)
+            self.assertEqual(harness.published_helper_bytes(context, root, owner), helper)
+            source.write_bytes(b"PRIVATE_WRONG_HELPER")
+            with self.assertRaisesRegex(harness.Failure, "PUBLISHED_HELPER_SOURCE"):
+                harness.published_helper_bytes(context, root, owner)
+            source.write_bytes(helper)
+            other = root / "linked"
+            os.link(source, other)
+            with self.assertRaises(harness.Failure):
+                harness.published_helper_bytes(context, root, owner)
+            other.unlink()
+            source.rename(other); source.symlink_to(other)
+            with self.assertRaises(OSError):
+                harness.published_helper_bytes(context, root, owner)
+            source.unlink(); other.rename(source); source.chmod(0o644)
+            with self.assertRaises(harness.Failure):
+                harness.published_helper_bytes(context, root, owner)
+
+    def test_actual_archive_manifest_full_bundle_and_empty_registration_are_independently_checked(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            oracle_root = root / "oracle"
+            oracle_root.mkdir()
+            context, private, old_bundle, registry, wrapper = CLIReadTrustTests.bundle(self, oracle_root)
+            acquired = root / "acquired"
+            acquired.mkdir()
+            bundle = acquired / context["sourceRevision"]
+            old_bundle.rename(bundle)
+            registry.write_text(registry.read_text().replace(str(old_bundle), str(bundle)))
+            document = json.loads(registry.read_text())
+            document["installations"] = []
+            registry.write_text(json.dumps(document))
+            wrapper.write_text(wrapper.read_text().replace(str(old_bundle), str(bundle)))
+            incoming = acquired / "acquire-abcdefgh"
+            incoming.mkdir(mode=0o755)
+            archive = incoming / ("asa-setup-" + context["sourceRevision"] + ".tar.gz")
+            raw = (private / "candidate.tar.gz").read_bytes()
+            archive.write_bytes(raw); archive.chmod(0o444)
+            _, files = setup_bundle.inspect_archive(raw)
+            context["acquisition"] = {"helperSha256": hashlib.sha256(files["tools/asa_setup_acquire.py"]).hexdigest()}
+            reader = harness.cli_trusted_bytes
+            def mapped(path, **options):
+                path = {"/etc/asa-lab/commands.json": registry, "/usr/local/bin/asa": wrapper}.get(str(path), path)
+                return reader(path, **options)
+            with fixture_root_metadata(root), patch.object(harness, "GUEST_PRIVATE", private), \
+                    patch.object(harness, "candidate_bundle", return_value=bundle), \
+                    patch.object(harness, "cli_trusted_bytes", side_effect=mapped):
+                proof = harness.published_archive(context, setup_bundle)
+                self.assertEqual(proof["sha256"], hashlib.sha256(raw).hexdigest())
+                self.assertTrue(proof["sourceOracleFilesMatch"])
+                self.assertEqual(harness.cli_candidate_binding(context, setup_bundle, prepared=True)["status"], "VERIFIED")
+                with self.assertRaisesRegex(harness.Failure, "CLI_READ_REGISTRATION"):
+                    harness.cli_candidate_binding(context, setup_bundle)
+                context["acquisition"]["helperSha256"] = "f" * 64
+                with self.assertRaisesRegex(harness.Failure, "PUBLISHED_SOURCE_MISMATCH"):
+                    harness.published_archive(context, setup_bundle)
+                context["acquisition"]["helperSha256"] = hashlib.sha256(files["tools/asa_setup_acquire.py"]).hexdigest()
+                archive.chmod(0o644)
+                with self.assertRaises(harness.Failure):
+                    harness.published_archive(context, setup_bundle)
 
 
 if __name__ == "__main__":

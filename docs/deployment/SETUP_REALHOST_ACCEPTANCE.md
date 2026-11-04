@@ -9,12 +9,19 @@ PID 1 `systemd`, настоящим Docker и официальным 1Panel. К�
 
 ## Границы результата
 
-Это проверка candidate CLI из **точного PR HEAD SHA**. Сборщик проверяет байты
-исходников пакета относительно этого SHA; архив проверяется и помещается в
-защищённый `/opt/asa-setup/<SHA>` только внутри одноразовой VM. Ручной trusted
-staging здесь явно отделён от получения опубликованного выпуска с GitHub
-attestation. Поле `publishedSetupAcquisition` остаётся `BLOCKED` с причиной
-`CANDIDATE_NOT_PUBLISHED_ATTESTED`.
+PR по умолчанию проверяет candidate CLI из **точного PR HEAD SHA**. Сборщик
+проверяет байты исходников пакета относительно этого SHA; архив проверяется и
+помещается в защищённый `/opt/asa-setup/<SHA>` только внутри одноразовой VM.
+В режиме `candidate` поле `publishedSetupAcquisition` остаётся `BLOCKED` с
+причиной `CANDIDATE_NOT_PUBLISHED_ATTESTED`.
+
+Отдельный явный режим `published` проверяет настоящее получение уже
+опубликованного attested setup release. Он доступен только через
+`workflow_dispatch` на `refs/heads/main`. Полный `approved_setup_revision`
+должен совпадать с `GITHUB_SHA`, `SOURCE_REVISION` и фактическим Git HEAD.
+Checkout всегда берётся из события workflow: SHA из input не выбирает иной
+checkout и не позволяет запустить privileged runner scripts из PR. Получение
+выпуска не выполняется при обычном PR-run и не создаёт tag/release самостоятельно.
 
 Вход в приложение внутри гостя — `http://127.0.0.1:4610`. Оба origin редактора
 совпадают с ним, используются штатные same-origin и browser checks. Публичный
@@ -28,6 +35,80 @@ AGE. Авторизация Yandex в VM не передаётся, поэтом
 реальный шлюз, её readback/SHA256 и повтор — другое evidence. Успех такого
 транспорта не аттестует новый CLI SHA или гостевой end-to-end cloud workflow.
 Восстановление production и P1-R3A в этом сценарии отсутствуют.
+
+## Получение опубликованного setup release
+
+| Dispatch input | Значение и проверка |
+| --- | --- |
+| `acquisition_mode` | `candidate` по умолчанию; `published` выбирается явно |
+| `approved_setup_revision` | Пусто для candidate; полный согласованный SHA текущего main для published |
+
+Перед реальным published-run нужны отдельные решения владельца об интеграции
+и публикации setup release. Release должен уже существовать под точным тегом
+`setup-<SHA>` с asset `asa-setup-acquire-<SHA>.py` и архивом
+`asa-setup-<SHA>.tar.gz`. Их provenance проверяется только для
+`spikeal8-maker/asa-lab/.github/workflows/setup-release.yml`, source ref
+`refs/heads/main`, полного approved source digest и GitHub-hosted signer.
+Workflow получает `attestations: read`; write permissions и публикация ему не нужны.
+
+После настоящего 1Panel bootstrap отдельная фаза `published_setup_acquisition`
+проверяет отсутствие `/opt/asa-setup`, `/usr/local/bin/asa`, системного registry
+и установленной ASA/operator receipt. В этом режиме bootstrap **не вызывает**
+manual `setup_bundle.py stage` или CLI `prepare`. Ошибка загрузки, attestation,
+прав, source binding, timeout либо неопределённый исход останавливает сценарий;
+fallback к candidate отсутствует.
+
+Для проверки используется официальный fixed GitHub CLI **2.101.0**:
+
+- [Архив Linux amd64](https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_linux_amd64.tar.gz), **15 282 175 bytes**;
+- archive SHA256 `9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8`;
+- source revision `0cf1092493af067646fc5f3db9421c6a6ec9c938`;
+- ELF SHA256 `ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff`.
+
+Гость сначала создаёт новую root-owned неизменяемую копию архива и сверяет её
+size/SHA256. Из архива читается только ожидаемый regular `bin/gh`; links,
+traversal, дубликаты, неожиданные типы и превышение границ отклоняются. ELF
+проверяется по architecture/size/hash до первого исполнения и помещается в
+новый защищённый каталог, без перезаписи существующего системного `gh`.
+Проверяются версия и все четыре provenance flags: `--signer-workflow`,
+`--source-ref`, `--source-digest`, `--deny-self-hosted-runners`.
+Prerequisite для обычного владельца описан в [UNIFIED_SETUP.md](UNIFIED_SETUP.md).
+
+Обычный cloud-init administrator `asa-ci` скачивает standalone helper. Root
+копирует только прочитанные ограниченные bytes в новый protected snapshot;
+путь исходного owner-writable файла не исполняется от root. Attestation
+проверяет именно snapshot. До исполнения повторно сверяются его bytes и
+identity. Тот же snapshot запускается обычным `asa-ci` через Python `-I -B`
+из `/`, с фактическими UID/GID и supplementary groups. Затем неизменённый
+публичный `asa_setup_acquire.py` сам выполняет download → root snapshot →
+attestation → trusted stage → CLI preparation.
+
+Exit 0 не является достаточным доказательством. Harness отдельно читает
+фактически полученный protected archive, его digest/manifest, сравнивает полный
+набор файлов и bytes с независимым source oracle, проверяет bundle ownership,
+registry с пустым списком установок и точный wrapper. До первой установки
+запускается публичный `asa help --json --no-color` из `/` и подтверждается
+отсутствие install receipt. Source oracle никогда не заменяет опубликованный
+архив в acquisition path. Далее выполняется тот же install/control/update/
+backup/reboot маршрут.
+
+Публикация нового main меняет default `deployment:stable`. Поэтому published
+режим до VM независимо разрешает этот channel через Registry HTTP и проверяет
+CI/revision: default target должен быть approved setup/main SHA. Его отдельный
+`cliDefaultTargetExpectation` используется только для bare `update`, `check`
+и `plan` в read suite. Управляемая пара runtime **98d7 → 959d**, её digests и
+schema 304 остаются прежними. Evidence различает `defaultCliTarget` и
+`controlledUpdateTarget`. Движение stable после подготовки даёт честный
+`RELEASE_PIN_MISMATCH`; target не берётся из проверяемого CLI stdout.
+
+Фаза ограничена 900 секундами, внешний guest process — 930 секундами внутри
+прежнего общего бюджета 175 минут. Все child commands имеют закрытый stdin,
+общий deadline и проверку завершения принадлежащей группы процессов. Token
+поступает из существующего private-файла только в controlled environment
+нужных дочерних процессов; argv, raw streams и секреты не попадают в artifact.
+Независимый `publishedSetupAcquisition=PASS` сохраняется, даже если последующая
+установка упадёт; общий run тогда остаётся FAIL. До owner-authorized публикации
+и actual guest evidence published acquisition остаётся `NOT_RUN`, а не PASS.
 
 ## Проверяемый маршрут
 
@@ -47,7 +128,8 @@ AGE. Авторизация Yandex в VM не передаётся, поэтом
    `1panel-core`, `1panel-agent`, Docker и совпадение установленных бинарных
    файлов с проверенным архивом. Зафиксировать Docker daemon identity,
    версии пакетов, конфигурацию и unit/binary hashes 1Panel.
-5. Зарегистрировать candidate CLI. Первый `asa install` создаёт штатного
+5. В candidate mode зарегистрировать candidate CLI; в published mode пройти
+   отдельную acquisition-фазу выше. Первый `asa install` создаёт штатного
    non-root оператора и ожидаемо останавливается на `OWNER_INPUT_REQUIRED`.
    У оператора после этого уже известен UID: fixture создаёт его приватный
    synthetic onboarding **вне целевого checkout**, в фактическом home из
