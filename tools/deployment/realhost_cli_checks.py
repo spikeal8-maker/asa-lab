@@ -479,6 +479,8 @@ def _history(value, context, *, logs=False, backup_logs=False, update_only=False
             stage_states = {}
             for event in _array(row["events"], 100):
                 _shape(event, ("at",), ("stage", "status", "phase"))
+                # Every status needs the stage whose state is checked below.
+                _need("status" not in event or "stage" in event, "FIELD_SET")
                 _time(event["at"])
                 if "stage" in event:
                     _enum(event["stage"], EVENT_STAGES)

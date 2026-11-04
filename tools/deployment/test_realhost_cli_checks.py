@@ -547,6 +547,37 @@ class ReadEvidenceTests(unittest.TestCase):
             self.check("logs", document)
         self.assertEqual(raised.exception.code, "OPERATION_MISMATCH")
 
+    def test_failed_log_event_without_stage_is_rejected(self):
+        for command in ("logs", "logs update"):
+            with self.subTest(command=command):
+                events = copy.deepcopy(self.examples[command][0]["items"][0]["events"])
+                events.append({"at": STAMP, "status": "failed"})
+                self.rejected(command, ("items", 0, "events"), events, "FIELD_SET")
+
+    def test_failed_log_phase_without_stage_is_rejected(self):
+        for command in ("logs", "logs update"):
+            with self.subTest(command=command):
+                events = copy.deepcopy(self.examples[command][0]["items"][0]["events"])
+                events.append({"at": STAMP, "phase": "first_backup", "status": "failed"})
+                self.rejected(command, ("items", 0, "events"), events, "FIELD_SET")
+
+    def test_informational_log_events_without_status_preserve_completion(self):
+        information = [{"at": STAMP}, {"at": STAMP, "phase": "created"},
+                       {"at": STAMP, "phase": "bootstrap"}, {"at": STAMP, "stage": "first_backup"}]
+        for command in ("logs", "logs update"):
+            with self.subTest(command=command):
+                baseline = self.check(command)
+                document = copy.deepcopy(self.examples[command][0])
+                document["items"][0]["events"].extend(copy.deepcopy(information))
+                before = copy.deepcopy(document)
+                result = self.check(command, document)
+                self.assertEqual(result["status"], "OK")
+                self.assertEqual(result["acceptedOperation"]["events"],
+                                 baseline["acceptedOperation"]["events"] + len(information))
+                self.assertEqual(result["acceptedOperation"]["completedStages"],
+                                 baseline["acceptedOperation"]["completedStages"])
+                self.assertEqual(document, before)
+
     def test_update_history_and_logs_enforce_mode_filter_and_update_backup_stage(self):
         for command in ("update history", "logs update"):
             document = copy.deepcopy(self.examples[command][0])
