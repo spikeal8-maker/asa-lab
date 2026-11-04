@@ -34,6 +34,19 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Verify the bounded runner cleanup contracts before privileged cleanup
+        run: python3 -B -m unittest discover -s tools/deployment -p 'test_ci_prepare_realhost_runner.py' -v
+      # Only the two fixed preinstalled SDK roots; no cleanup when 24 GiB is already free.
+      # The existing 24 GiB preflight and 3 GiB runtime reserve remain authoritative.
+      - name: Prepare bounded free space in this standard disposable runner
+        timeout-minutes: 3
+        env:
+          ASA_REALHOST_RUNNER_CLEANUP: '1'
+          ASA_REALHOST_RUNNER_LABEL: ubuntu-24.04
+          ASA_REALHOST_PUBLIC_REPOSITORY: ${{ github.event.repository.private == false }}
+        run: |
+          mkdir -p test-results/setup-realhost
+          sudo -n --preserve-env=CI,GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_ARCH,ImageOS,GITHUB_REPOSITORY,GITHUB_WORKFLOW,GITHUB_JOB,GITHUB_EVENT_NAME,GITHUB_WORKFLOW_REF,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_WORKSPACE,RUNNER_TEMP,SOURCE_REVISION,ASA_REALHOST_RUNNER_CLEANUP,ASA_REALHOST_RUNNER_LABEL,ASA_REALHOST_PUBLIC_REPOSITORY /usr/bin/python3 -I -B tools/deployment/ci_prepare_realhost_runner.py > test-results/setup-realhost/runner-preparation.json
       - name: Measure the disposable runner before installing anything
         run: python3 tools/deployment/ci_setup_realhost.py --revision "$SOURCE_REVISION" --preflight-only
       - name: Install VM tools only in this standard disposable runner
@@ -49,6 +62,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: asa-realhost-evidence-${{ github.event.pull_request.head.sha || github.sha }}
-          path: test-results/setup-realhost/evidence.json
+          path: |
+            test-results/setup-realhost/evidence.json
+            test-results/setup-realhost/runner-preparation.json
           if-no-files-found: error
           retention-days: 30
