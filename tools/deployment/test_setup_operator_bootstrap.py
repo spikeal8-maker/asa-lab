@@ -29,19 +29,38 @@ class OperatorBootstrapTests(unittest.TestCase):
         self.commands = []
         self.plan = {"missing": [], "installDocker": False, "daemonId": "original-daemon"}
         self.containers, self.volumes = [], []
+        self.metadata_owners = {}
         original_stat = Path.stat
-        def fixture_stat(path, *args, **kwargs):
-            info = original_stat(path, *args, **kwargs)
+        original_fstat = os.fstat
+        def fixture_metadata(info, path):
             if path == self.base or self.base in path.parents:
                 values = list(info)
-                values[4:6] = [12345, 12345] if path == self.home or self.home in path.parents else [0, 0]
+                owner = self.metadata_owners.get(path, 12345 if path == self.home or self.home in path.parents else 0)
+                values[4:6] = [owner, owner]
                 return os.stat_result(values)
+            return info
+        def fixture_stat(path, *args, **kwargs):
+            return fixture_metadata(original_stat(path, *args, **kwargs), path)
+        def fixture_fstat(descriptor):
+            info = original_fstat(descriptor)
+            # Extend the same ownership model only to descriptors belonging to
+            # this fixture. Ordinary CI runners never need to become root.
+            for path in (self.base, *self.base.rglob("*")):
+                try:
+                    candidate = original_stat(path, follow_symlinks=False)
+                except FileNotFoundError:
+                    continue
+                if (candidate.st_dev, candidate.st_ino) == (info.st_dev, info.st_ino):
+                    return fixture_metadata(info, path)
             return info
         for target, replacement in (("OPERATOR_STATE", self.state), ("BOOTSTRAP_LOCK", self.base / "bootstrap.lock")):
             context = patch.object(launcher, target, replacement)
             context.start()
             self.addCleanup(context.stop)
         context = patch.object(Path, "stat", fixture_stat)
+        context.start()
+        self.addCleanup(context.stop)
+        context = patch.object(launcher.os, "fstat", fixture_fstat)
         context.start()
         self.addCleanup(context.stop)
         context = patch.object(launcher.pwd, "getpwnam", side_effect=self.lookup)
@@ -71,7 +90,13 @@ class OperatorBootstrapTests(unittest.TestCase):
             self.assertTrue(intent_path.exists(), "durable intent must precede useradd")
             self.assertEqual(intent_path.stat().st_mode & 0o777, 0o600)
             intent = json.loads(intent_path.read_text())
-            self.assertEqual(args[args.index("--comment") + 1], intent["marker"])
+            comment = args[args.index("--comment") + 1]
+            self.assertEqual(comment, intent["marker"])
+            # shadow 4.13 src/useradd.c case 'c' requires VALID(comment):
+            # https://github.com/shadow-maint/shadow/blob/4.13/src/useradd.c
+            # the passwd GECOS field cannot contain ':' or a newline. This is
+            # the external command contract, independent of our marker prefix.
+            self.assertFalse(any(character in comment for character in ":\n"), "useradd rejects this GECOS comment")
             self.home.mkdir(mode=0o700)
             self.account = SimpleNamespace(pw_uid=12345, pw_gid=12345, pw_name=launcher.OPERATOR_NAME,
                                            pw_dir=str(self.home), pw_gecos=intent["marker"], pw_shell="/usr/sbin/nologin")
@@ -91,6 +116,15 @@ class OperatorBootstrapTests(unittest.TestCase):
     def assert_no_account_mutation(self):
         self.assertFalse(any(args[0].endswith(("useradd", "usermod")) for args in self.commands))
 
+    def legacy_intent(self, **changes):
+        self.state.mkdir(mode=0o755, exist_ok=True)
+        value = {"format": "asa-operator-bootstrap-v1", "name": launcher.OPERATOR_NAME, "home": str(self.home),
+                 "root": str(self.root), "marker": "asa-setup:" + "a" * 32, **changes}
+        path = self.state / "operator-intent.json"
+        path.write_text(json.dumps(value), encoding="utf-8")
+        path.chmod(0o600)
+        return value
+
     def test_fresh_creates_one_receipted_account_and_retry_reuses_it(self):
         self.assertEqual(launcher.prepare_default_operator(self.root, self.plan), 12345)
         receipt = (self.state / "operator.json").read_bytes()
@@ -98,6 +132,153 @@ class OperatorBootstrapTests(unittest.TestCase):
         self.assertEqual((self.state / "operator.json").read_bytes(), receipt)
         self.assertEqual(sum(args[0].endswith("useradd") for args in self.commands), 1)
         self.assertFalse(self.root.exists())
+
+    def test_incomplete_legacy_intent_migrates_same_nonce_under_existing_lock(self):
+        old = self.legacy_intent()
+        descriptor = launcher.bootstrap_lock()
+        try:
+            self.assertEqual(launcher.prepare_default_operator(self.root, self.plan), 12345)
+            current = json.loads((self.state / "operator-intent.json").read_text())
+            self.assertEqual(current, {**old, "marker": "asa-setup-" + old["marker"].split(":")[1]})
+            self.assertEqual(json.loads((self.state / "operator.json").read_text()), {**current, "uid": 12345, "gid": 12345})
+            self.assertEqual(self.account.pw_gecos, current["marker"])
+            with self.assertRaises(launcher.SetupBlocked) as caught:
+                launcher.bootstrap_lock()
+            self.assertEqual(caught.exception.code, "BOOTSTRAP_BUSY")
+            self.assertEqual(launcher.prepare_default_operator(self.root, self.plan), 12345)
+        finally:
+            os.close(descriptor)
+        self.assertEqual(sum(args[0].endswith("useradd") for args in self.commands), 1)
+
+    def test_legacy_intent_with_existing_account_is_never_reattributed(self):
+        old = self.legacy_intent()
+        original = (self.state / "operator-intent.json").read_bytes()
+        self.account = SimpleNamespace(pw_uid=12345, pw_gid=12345, pw_name=launcher.OPERATOR_NAME,
+                                       pw_dir=str(self.home), pw_gecos=old["marker"], pw_shell="/usr/sbin/nologin")
+        with patch.object(launcher.os, "fchown") as chown, patch.object(launcher, "_atomic_root_file") as write, \
+             self.assertRaises(launcher.SetupBlocked):
+            launcher.prepare_default_operator(self.root, self.plan)
+        self.assert_no_account_mutation()
+        chown.assert_not_called()
+        write.assert_not_called()
+        self.assertEqual(self.account.pw_gecos, old["marker"])
+        self.assertEqual((self.state / "operator-intent.json").read_bytes(), original)
+
+    def test_legacy_intent_with_any_home_or_receipt_preserves_state(self):
+        for conflict in ("home", "dangling-home", "receipt", "empty-receipt"):
+            with self.subTest(conflict=conflict):
+                self.legacy_intent()
+                original = (self.state / "operator-intent.json").read_bytes()
+                path = self.home if conflict in ("home", "dangling-home") else self.state / "operator.json"
+                if conflict == "home":
+                    path.mkdir(mode=0o700)
+                elif conflict == "dangling-home":
+                    path.symlink_to(self.base / "absent-home")
+                else:
+                    path.write_bytes(b"{}" if conflict == "empty-receipt" else b'{"uid":12345}')
+                    path.chmod(0o600)
+                try:
+                    with patch.object(launcher.os, "fchown") as chown, self.assertRaises(launcher.SetupBlocked):
+                        launcher.prepare_default_operator(self.root, self.plan)
+                    self.assert_no_account_mutation()
+                    chown.assert_not_called()
+                    self.assertEqual((self.state / "operator-intent.json").read_bytes(), original)
+                    self.assertTrue(path.exists() or path.is_symlink())
+                    if conflict in ("receipt", "empty-receipt"):
+                        self.assertEqual(path.read_bytes(), b"{}" if conflict == "empty-receipt" else b'{"uid":12345}')
+                finally:
+                    path.rmdir() if conflict == "home" else path.unlink()
+
+    def test_migration_rejects_wrong_identity_invalid_marker_or_unprotected_metadata(self):
+        invalid = [{key: value} for key, value in (("format", "other"), ("name", "other"), ("uid", 12345),
+                   ("home", str(self.base / "other")), ("root", str(self.base / "other")))]
+        invalid += [{"marker": value} for value in ("asa-setup:" + "a" * 31, "asa-setup:" + "A" * 32,
+                   "asa-setup:" + "a" * 32 + "\n", "asa-setup-" + "a" * 32 + ":", "asa-setup-" + "a" * 31)]
+        for changes in invalid:
+            with self.subTest(changes=changes):
+                self.legacy_intent(**changes)
+                original = (self.state / "operator-intent.json").read_bytes()
+                with self.assertRaises(launcher.SetupBlocked):
+                    launcher.prepare_default_operator(self.root, self.plan)
+                self.assertEqual((self.state / "operator-intent.json").read_bytes(), original)
+                self.assert_no_account_mutation()
+        for path in (self.state, self.state / "operator-intent.json"):
+            for owner, mode in ((12345, 0o700 if path == self.state else 0o600), (0, 0o777 if path == self.state else 0o644)):
+                with self.subTest(path=path.name, owner=owner, mode=mode):
+                    self.legacy_intent()
+                    original = (self.state / "operator-intent.json").read_bytes()
+                    self.metadata_owners[path] = owner
+                    path.chmod(mode)
+                    try:
+                        with self.assertRaises(launcher.SetupBlocked):
+                            launcher.prepare_default_operator(self.root, self.plan)
+                        self.assertEqual((self.state / "operator-intent.json").read_bytes(), original)
+                        self.assert_no_account_mutation()
+                    finally:
+                        self.metadata_owners.pop(path)
+                        path.chmod(0o755 if path == self.state else 0o600)
+
+    def test_interrupted_migration_preserves_old_intent_and_retries_without_new_nonce(self):
+        old = self.legacy_intent()
+        original = (self.state / "operator-intent.json").read_bytes()
+        with patch.object(launcher.os, "replace", side_effect=OSError("interrupted before atomic replace")), \
+             self.assertRaises(OSError):
+            launcher.prepare_default_operator(self.root, self.plan)
+        self.assertEqual((self.state / "operator-intent.json").read_bytes(), original)
+        self.assertEqual({path.name for path in self.state.iterdir()}, {"operator-intent.json"})
+        self.assert_no_account_mutation()
+        self.assertEqual(launcher.prepare_default_operator(self.root, self.plan), 12345)
+        self.assertEqual(self.account.pw_gecos, "asa-setup-" + old["marker"].split(":")[1])
+
+    def test_interruption_after_migration_before_useradd_reuses_durable_marker(self):
+        old = self.legacy_intent()
+        def interrupted(args, **kwargs):
+            if args[0] == "/usr/sbin/useradd":
+                raise OSError("interrupted before useradd")
+            return self.runner(args, **kwargs)
+        self.run_mock.side_effect = interrupted
+        with self.assertRaises(OSError):
+            launcher.prepare_default_operator(self.root, self.plan)
+        migrated = json.loads((self.state / "operator-intent.json").read_text())
+        self.assertEqual(migrated["marker"], "asa-setup-" + old["marker"].split(":")[1])
+        self.assertFalse(self.home.exists())
+        self.assertFalse((self.state / "operator.json").exists())
+        self.run_mock.side_effect = self.runner
+        self.assertEqual(launcher.prepare_default_operator(self.root, self.plan), 12345)
+        self.assertEqual(self.account.pw_gecos, migrated["marker"])
+
+    def test_identity_appearing_before_replace_blocks_migration_without_chown(self):
+        sync = os.fsync
+        for conflict in ("account", "home", "receipt"):
+            with self.subTest(conflict=conflict):
+                self.legacy_intent()
+                original = (self.state / "operator-intent.json").read_bytes()
+                def race(descriptor):
+                    sync(descriptor)
+                    if conflict == "account":
+                        self.account = SimpleNamespace(pw_uid=22222, pw_gecos="foreign")
+                    elif conflict == "home":
+                        self.home.mkdir(mode=0o700)
+                    else:
+                        receipt = self.state / "operator.json"
+                        receipt.write_bytes(b"{}")
+                        receipt.chmod(0o600)
+                try:
+                    with patch.object(launcher.os, "fsync", side_effect=race), patch.object(launcher.os, "fchown") as chown, \
+                         self.assertRaises(launcher.SetupBlocked) as caught:
+                        launcher.prepare_default_operator(self.root, self.plan)
+                    self.assertEqual(caught.exception.code, "OPERATOR_CONFLICT")
+                    self.assertEqual((self.state / "operator-intent.json").read_bytes(), original)
+                    self.assert_no_account_mutation()
+                    chown.assert_not_called()
+                    self.assertFalse(any(path.name.startswith(".asa-operator-intent-") for path in self.state.iterdir()))
+                finally:
+                    if conflict == "account":
+                        self.account = None
+                    elif conflict == "home":
+                        self.home.rmdir()
+                    else:
+                        (self.state / "operator.json").unlink()
 
     def test_crash_after_useradd_recovers_from_intent_without_new_uid(self):
         write = launcher._atomic_root_file

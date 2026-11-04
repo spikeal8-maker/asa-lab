@@ -427,18 +427,79 @@ def prove_fresh_target(root, plan, runner=None, backup_directory=None):
     return identity
 
 
+def _migrate_operator_intent(path, intent):
+    """Replace only a verified, unused legacy marker while bootstrap_lock is held."""
+    state = checked_path(path.parent, missing=False)
+    for parent in (state, *state.parents):
+        info = parent.stat()
+        _require(info.st_uid == 0 and (not info.st_mode & 0o022 or parent != state and info.st_mode & stat.S_ISVTX),
+                 "OPERATOR_STATE", "Предок bootstrap metadata не защищён.", "Проверьте системный каталог оператора.")
+    temporary = ".asa-operator-intent-" + os.urandom(16).hex() + ".tmp"
+    migrated = {**intent, "marker": "asa-setup-" + intent["marker"][len("asa-setup:"):]}
+    payload = (json.dumps(migrated, sort_keys=True) + "\n").encode("utf-8")
+    directory = os.open(state, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    created = False
+    try:
+        directory_info = os.fstat(directory)
+        _require(directory_info.st_uid == 0 and not directory_info.st_mode & 0o022,
+                 "OPERATOR_STATE", "Каталог bootstrap metadata изменил владельца или права.", "Проверьте исходный каталог оператора.")
+
+        def read_current():
+            descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+            with os.fdopen(descriptor, "rb") as stream:
+                info = os.fstat(stream.fileno())
+                _require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == 0
+                         and not info.st_mode & 0o077 and info.st_size <= 262144,
+                         "OPERATOR_STATE", "Исходный bootstrap intent изменил владельца, тип или права.", "Проверьте исходные metadata.")
+                data = stream.read(262145)
+                _require(len(data) <= 262144, "OPERATOR_STATE", "Bootstrap intent превышает допустимый размер.", "Проверьте исходные metadata.")
+                return info, data
+
+        previous, original = read_current()
+        _require(json.loads(original) == intent and len(payload) <= 262144, "OPERATOR_STATE",
+                 "Bootstrap intent изменился до миграции.", "Повторите проверку исходных metadata.")
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
+        created = True
+        with os.fdopen(descriptor, "wb") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        current, current_data = read_current()
+        _require((current.st_dev, current.st_ino) == (previous.st_dev, previous.st_ino) and current_data == original,
+                 "OPERATOR_STATE", "Bootstrap intent изменился во время миграции.", "Повторите проверку исходных metadata.")
+        try:
+            account = pwd.getpwnam(OPERATOR_NAME)
+        except KeyError:
+            account = None
+        _require(account is None and not checked_path(state / "operator").exists()
+                 and not checked_path(state / "operator.json").exists(), "OPERATOR_CONFLICT",
+                 "Bootstrap уже имеет учётную запись, домашний каталог или receipt.",
+                 "Сохраните исходную идентичность; автоматическая миграция маркера остановлена.")
+        os.replace(temporary, path.name, src_dir_fd=directory, dst_dir_fd=directory)
+        os.fsync(directory)
+        return migrated
+    finally:
+        try:
+            if created:
+                os.unlink(temporary, dir_fd=directory)
+        except FileNotFoundError:
+            pass
+        os.close(directory)
+
+
 def prepare_default_operator(root, plan, backup_directory=None):
     """Create only our dedicated account, with a durable root-owned intent.
 
     The random account comment binds a completed useradd to its pre-existing
-    receipt after interruption. A same-name foreign account is never repaired.
+    intent after interruption. A same-name foreign account is never repaired.
     The caller holds bootstrap_lock until the owner process finishes.
     """
     identity = prove_fresh_target(root, plan, backup_directory=backup_directory)
     _require(not plan["installDocker"] and bool(plan.get("daemonId")), "DOCKER_UNKNOWN",
              "Перед созданием оператора требуется проверяемый Docker daemon.", "Завершите подготовку отсутствующих зависимостей.")
     state = checked_path(OPERATOR_STATE)
-    home = state / "operator"
+    home = checked_path(state / "operator")
     intent_path, receipt_path = state / "operator-intent.json", state / "operator.json"
     if state.exists():
         info = state.stat()
@@ -457,7 +518,7 @@ def prepare_default_operator(root, plan, backup_directory=None):
     _require(not account or bool(intent), "OPERATOR_CONFLICT", "Имя выделенного оператора уже занято чужой учётной записью.",
              "Выберите существующего владельца через --operator; чужая учётная запись не меняется.")
     if not intent:
-        _require(not receipt and not home.exists(), "OPERATOR_CONFLICT", "Домашний каталог оператора уже существует без receipt.",
+        _require(not receipt_path.exists() and not home.exists(), "OPERATOR_CONFLICT", "Домашний каталог оператора уже существует без receipt.",
                  "Проверьте прежнюю учётную запись; каталог не присваивается автоматически.")
         if not state.exists():
             parent_info = checked_path(state.parent, missing=False).stat()
@@ -465,15 +526,21 @@ def prepare_default_operator(root, plan, backup_directory=None):
                      "OPERATOR_STATE", "Родитель bootstrap metadata не защищён.", "Проверьте системный каталог оператора.")
             state.mkdir(mode=0o755)
         intent = {"format": "asa-operator-bootstrap-v1", "name": OPERATOR_NAME, "home": str(home),
-                  "root": str(root), "marker": "asa-setup:" + os.urandom(16).hex()}
+                  "root": str(root), "marker": "asa-setup-" + os.urandom(16).hex()}
         _atomic_root_file(intent_path, (json.dumps(intent, sort_keys=True) + "\n").encode(), mode=0o600)
-    _require(intent.get("format") == "asa-operator-bootstrap-v1" and intent.get("name") == OPERATOR_NAME
+    _require(set(intent) == {"format", "name", "home", "root", "marker"}
+             and intent.get("format") == "asa-operator-bootstrap-v1" and intent.get("name") == OPERATOR_NAME
              and intent.get("home") == str(home) and intent.get("root") == str(root)
-             and isinstance(intent.get("marker"), str) and re.fullmatch(r"asa-setup:[a-f0-9]{32}", intent["marker"]),
+             and isinstance(intent.get("marker"), str) and re.fullmatch(r"asa-setup[:-][a-f0-9]{32}", intent["marker"]),
              "OPERATOR_STATE", "Bootstrap receipt относится к другой установке или учётной записи.",
              "Проверьте сохранённую идентичность оператора; автоматическое присвоение запрещено.")
+    if intent["marker"].startswith("asa-setup:"):
+        _require(account is None and not receipt_path.exists() and not home.exists(), "OPERATOR_CONFLICT",
+                 "Прежний маркер нельзя заменить при существующих account, home или receipt.",
+                 "Сохраните исходную идентичность оператора; автоматическое присвоение запрещено.")
+        intent = _migrate_operator_intent(intent_path, intent)
     if account is None:
-        _require(not receipt and not home.exists(), "OPERATOR_STATE", "Учётная запись пропала после bootstrap.",
+        _require(not receipt_path.exists() and not home.exists(), "OPERATOR_STATE", "Учётная запись пропала после bootstrap.",
                  "Восстановите исходную учётную запись; новый UID не назначается поверх данных.")
         _run(["/usr/sbin/useradd", "--system", "--user-group", "--create-home", "--key", "HOME_MODE=0700", "--home-dir", str(home),
               "--shell", "/usr/sbin/nologin", "--comment", intent["marker"], "--", OPERATOR_NAME])
