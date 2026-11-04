@@ -301,7 +301,10 @@ def log_directory() -> Path:
 
 def require_secure_log_directory(folder: Path) -> None:
     """Keep runtime logs private; tests can substitute a synthetic trusted directory."""
-    require_secure_log_directory(folder)
+    if os.name != "nt":
+        info = folder.stat()
+        require(info.st_uid == 0 and info.st_mode & 0o077 == 0,
+                "Каталог журнала должен принадлежать root с правами 0700.")
 
 
 def run_reduced(command: list[str], action: str) -> int:
@@ -310,10 +313,7 @@ def run_reduced(command: list[str], action: str) -> int:
     if not folder.exists():
         folder.mkdir(parents=True, mode=0o700)
     check_ordinary_path(folder)
-    if os.name != "nt":
-        info = folder.stat()
-        require(info.st_uid == 0 and info.st_mode & 0o077 == 0,
-                "Каталог журнала должен принадлежать root с правами 0700.")
+    require_secure_log_directory(folder)
     filename = action + "-" + dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     filename += "-" + str(os.getpid()) + ".log"
     logfile = folder / filename
