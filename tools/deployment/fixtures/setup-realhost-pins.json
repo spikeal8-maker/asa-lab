@@ -1,0 +1,46 @@
+{
+  "format": "asa-realhost-pins-v1",
+  "verifiedAt": "2026-11-04",
+  "ubuntu": {
+    "version": "24.04",
+    "architecture": "amd64",
+    "url": "https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-amd64.img",
+    "sha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
+    "checksumsUrl": "https://cloud-images.ubuntu.com/releases/noble/release-20261017/SHA256SUMS",
+    "signatureUrl": "https://cloud-images.ubuntu.com/releases/noble/release-20261017/SHA256SUMS.gpg",
+    "signingFingerprint": "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81",
+    "keyring": "/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg"
+  },
+  "onePanel": {
+    "version": "v2.4.2",
+    "urls": [
+      "https://resource.1panel.pro/v2/stable/v2.4.2/release/1panel-v2.4.2-linux-amd64.tar.gz",
+      "https://resource.fit2cloud.com/1panel/package/v2/stable/v2.4.2/release/1panel-v2.4.2-linux-amd64.tar.gz"
+    ],
+    "sha256": "5e2bbe6e88c1fe019ee33c9b8e63abd64ca73906c7101faf1e2be9b14449ad03",
+    "bytes": 65874845,
+    "installerSha256": "3faa744fd158283470b48b3a971dc98cc390c7f291d4287b170416ae862dd28f"
+  },
+  "previous": {
+    "revision": "98d7fbb42ae9e53113cb45ada4b4301334de9c27",
+    "deploymentDigest": "sha256:598604051f862c65e5b7d2198c4fb4c21f10229a5f6bb1c2311a6b868d1fe035",
+    "amd64ManifestDigest": "sha256:dd3d5f2385e5de9524f5e22a007f28cf212a2fab0943d6d5708a40e3f926fade",
+    "schema": 304,
+    "generalRunId": 41668252953,
+    "publicationRunId": 41675381605
+  },
+  "current": {
+    "revision": "959d52079d8c5659e86f084ad2453bd3eb68fe34",
+    "deploymentDigest": "sha256:10672f4ee3876ed071c943c5bafcd8f97c687236bd93cbba6e155d5c1afb2102",
+    "amd64ManifestDigest": "sha256:db794a8d47b50c570a0180d58df73bad62d06db281a6934f880b86da0e6c8e96",
+    "schema": 304,
+    "generalRunId": 41683459401,
+    "publicationRunId": 41688068934
+  },
+  "browser": {
+    "opsRevision": "88f3f76144d8b499fe70a3c9beccba16c80e0856",
+    "componentSha256": "7e28aa8254011eb082331c2800909f1ce7f07b4da73473ed3942aacdb1691adc",
+    "fixtureSha256": "64de2bc8478d5aaa60f60fa1b0035448d8c467cf0ffcc92a0aa0be22d3b4786f",
+    "playwright": "1.56.0"
+  }
+}
