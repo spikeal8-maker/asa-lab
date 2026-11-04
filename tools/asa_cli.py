@@ -555,7 +555,7 @@ def help_document(topic=""):
 
 
 def emit(action, value, *, as_json=False, code=0):
-    document = {"format": "asa-cli-result-v1", "command": action, "exitCode": code, **value}
+    document = {**value, "format": "asa-cli-result-v1", "command": action, "exitCode": code}
     if as_json:
         print(json.dumps(document, ensure_ascii=False, sort_keys=True))
     elif "help" in document:
@@ -624,7 +624,10 @@ def observe(action, record, options):
     if action == "cloud status":
         return reader.cloud()
     if action == "config show":
-        return reader.configuration()
+        value = dict(reader.configuration())
+        if "format" in value:
+            value["configFormat"] = value.pop("format")
+        return value
     if action == "restore plan":
         return {"status": "BLOCKED_PLAN", "reasonCode": "P1_R3A_REQUIRED", "applyAllowed": False,
                 "snapshotId": options.snapshot_id, "backup": reader.backups(), "restore": unavailable("NOT_RESTORED"),

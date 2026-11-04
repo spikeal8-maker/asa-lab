@@ -134,6 +134,15 @@ class PublicCLIProcessTests(unittest.TestCase):
         return {str(p.relative_to(self.base)): (p.stat().st_size, p.stat().st_mtime_ns,
                 hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None) for p in self.base.rglob("*")}
 
+    def assert_cli_envelope(self, process, command):
+        value = json.loads(process.stdout)
+        self.assertIsInstance(value, dict)
+        self.assertEqual(value["format"], "asa-cli-result-v1")
+        self.assertEqual(value["command"], command)
+        self.assertIs(type(value["exitCode"]), int)
+        self.assertEqual(value["exitCode"], process.returncode)
+        return value
+
     def test_all_required_offline_help_forms_in_real_public_process(self):
         for arguments in (("help",), ("--help",), ("help", "update"), ("update", "--help"), ("backup", "--help")):
             with self.subTest(arguments=arguments):
@@ -208,8 +217,7 @@ class PublicCLIProcessTests(unittest.TestCase):
             with self.subTest(command=arguments):
                 process = self.invoke(*arguments, "--root", str(self.root), "--registry", str(self.registry),
                                       "--json", "--no-color", observation=True)
-                value = json.loads(process.stdout)
-                self.assertEqual(process.returncode, value["exitCode"])
+                value = self.assert_cli_envelope(process, " ".join(arguments) if arguments else "status")
                 self.assertIn(process.returncode, (0, 1, 2))
                 self.assertNotEqual(value.get("reasonCode"), "USAGE")
                 self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
@@ -219,6 +227,47 @@ class PublicCLIProcessTests(unittest.TestCase):
         self.assertFalse((self.root / ".asa/operation.lock").exists())
         self.assertFalse((self.root / "backups").exists())
         self.assertFalse((self.root / ".asa/setup-backups").exists())
+
+    def test_config_show_preserves_envelope_flat_projection_and_source_config(self):
+        path = self.root / ".asa/setup.json"
+        configured = json.loads(path.read_text())
+        configured["ports"] = {"web": 4610, "api": 4611, "blocks": 4613}
+        path.write_text(json.dumps(configured))
+        before = self.tree()
+        process = self.invoke("config", "show", "--root", str(self.root), "--registry", str(self.registry),
+                              "--json", "--no-color", observation=True)
+        self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+        value = self.assert_cli_envelope(process, "config show")
+        self.assertEqual(set(value), {"format", "command", "exitCode", "configFormat", "status", "root", "project", "profile",
+                                      "ports", "backupPolicy", "cloudEnabled", "automaticUpdates", "schedule", "secrets"})
+        self.assertEqual(value["configFormat"], "asa-setup-config-v1")
+        self.assertEqual(value["status"], "OK")
+        self.assertEqual(value["root"], str(self.root))
+        self.assertEqual(value["project"], "asa-fixture")
+        self.assertEqual(value["profile"], "production")
+        self.assertEqual(value["ports"], configured["ports"])
+        self.assertEqual(value["backupPolicy"], "best-effort")
+        self.assertIs(value["cloudEnabled"], False)
+        self.assertIs(value["automaticUpdates"], False)
+        self.assertEqual(value["secrets"], "OMITTED")
+        self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+        self.assertEqual(process.stderr, "")
+        self.assertNotIn("\x1b", process.stdout)
+        self.assertEqual(self.tree(), before)
+        self.assertEqual(json.loads(path.read_text()), configured)
+
+    def test_config_show_without_configuration_remains_unavailable_and_read_only(self):
+        (self.root / ".asa/setup.json").unlink()
+        before = self.tree()
+        process = self.invoke("config", "show", "--root", str(self.root), "--registry", str(self.registry),
+                              "--json", "--no-color", observation=True)
+        self.assertEqual(process.returncode, 1, process.stdout + process.stderr)
+        value = self.assert_cli_envelope(process, "config show")
+        self.assertEqual(value, {"format": "asa-cli-result-v1", "command": "config show", "exitCode": 1,
+                                 "status": "UNAVAILABLE", "reasonCode": "SETUP_CONFIGURATION"})
+        self.assertEqual(process.stderr, "")
+        self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+        self.assertEqual(self.tree(), before)
 
     def test_errors_never_echo_supplied_secret_or_raw_exception(self):
         for arguments in (("not-a-command-SECRET_SENTINEL",), ("status", "--token", "SECRET_SENTINEL"),
@@ -305,6 +354,19 @@ class PublicCLIProcessTests(unittest.TestCase):
                      "/opt/asa-setup/nested/" + "a" * 40, str(self.base / ("a" * 40))):
             with self.assertRaises(asa_cli.CLIError):
                 asa_cli.verified_bundle(Path(path))
+
+
+class OutputEnvelopeTests(unittest.TestCase):
+    def test_payload_cannot_override_reserved_cli_envelope_fields(self):
+        payload = {"format": "FORGED_FORMAT", "command": "FORGED_COMMAND", "exitCode": 99,
+                   "status": "UNAVAILABLE", "configFormat": "asa-setup-config-v1"}
+        before = dict(payload)
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            code = asa_cli.emit("config show", payload, as_json=True, code=1)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(output.getvalue()), {"format": "asa-cli-result-v1", "command": "config show",
+                         "exitCode": 1, "status": "UNAVAILABLE", "configFormat": "asa-setup-config-v1"})
+        self.assertEqual(payload, before)
 
 
 class DelegationContracts(unittest.TestCase):
