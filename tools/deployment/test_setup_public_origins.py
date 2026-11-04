@@ -3,6 +3,7 @@
 import base64
 from contextlib import ExitStack, contextmanager, redirect_stdout
 import copy
+import datetime as dt
 import hashlib
 import io
 import json
@@ -15,11 +16,12 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
+from zoneinfo import ZoneInfoNotFoundError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import asa_cli
 import asa_setup
-from deployment import backup, system, setup_operation, paths
+from deployment import backup, backup_schedule, system, setup_operation, paths
 from deployment.contracts import Blocked, REGISTRY, SERVICES, inventory_files, read_env, verify_backup
 from deployment.import_preflight import validate_import_archive
 from deployment.setup_config import replace_legacy_manager_state, save_installed_release, save_private
@@ -36,6 +38,13 @@ IDENTITY = "c" * 32
 UID = getattr(os, "geteuid", lambda: 0)()
 
 
+def fixture_zone_info(key):
+    """Provide only this fixture's UTC zone without requiring host tzdata."""
+    if key != "Etc/UTC":
+        raise ZoneInfoNotFoundError(key)
+    return dt.timezone.utc
+
+
 class PublicOriginsTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="asa-public-origins-")
@@ -49,7 +58,8 @@ class PublicOriginsTests(unittest.TestCase):
             "root": str(self.root), "operatorUid": UID, "profile": "production",
             "project": "asa-lab-origin-fixture", "entryOrigin": "http://127.0.0.1:4910",
             "ports": {"web": 4910, "api": 4911, "blocks": 4913},
-            "backup": {"policy": "best-effort", "cloud": {"enabled": False}},
+            "backup": {"policy": "best-effort", "cloud": {"enabled": False},
+                       "schedule": {"enabled": False, "time": "03:00", "timezone": "Etc/UTC", "maxAgeHours": 26}},
         }
         self.values = {
             "COMPOSE_PROJECT_NAME": self.config["project"],
@@ -492,6 +502,7 @@ class PublicOriginsTests(unittest.TestCase):
 
     def public_install_adapters(self):
         stack = ExitStack()
+        stack.enter_context(patch.object(backup_schedule, "ZoneInfo", side_effect=fixture_zone_info))
         # Model the external non-root owner gate without changing the real
         # UID used by private-file/journal/lock checks on this owned fixture.
         operator_os = SimpleNamespace(**vars(os))
@@ -504,6 +515,38 @@ class PublicOriginsTests(unittest.TestCase):
             stack.enter_context(patch.object(Runtime, name, return_value=value))
         stack.enter_context(redirect_stdout(io.StringIO()))
         return stack
+
+    def test_public_install_fixture_resumes_without_host_timezone_data(self):
+        with patch.object(backup_schedule, "ZoneInfo", side_effect=ZoneInfoNotFoundError("fixture host has no tzdata")) as host:
+            for attempt in ("before", "after"):
+                with self.subTest(attempt=attempt), self.assertRaises(Blocked) as caught:
+                    backup_schedule.validate_schedule({"timezone": "Etc/UTC"})
+                self.assertEqual(caught.exception.code, "BACKUP_SCHEDULE_TIMEZONE")
+                if attempt == "before":
+                    self.assert_new_profile_continuation("production")
+                    self.assertIs(backup_schedule.ZoneInfo, host)
+            self.assertEqual(host.call_count, 2)
+
+    def test_fixture_timezone_provider_keeps_unknown_zones_and_invalid_schedules_blocked(self):
+        provider = backup_schedule.ZoneInfo
+        validate = backup_schedule.validate_schedule
+        with self.public_install_adapters():
+            self.assertIs(backup_schedule.validate_schedule, validate)
+            self.assertIs(backup_schedule.ZoneInfo("Etc/UTC"), dt.timezone.utc)
+            self.assertEqual(validate(self.config["backup"]["schedule"]), self.config["backup"]["schedule"])
+            for settings, code in (({"timezone": "Invalid/AsaOriginFixture"}, "BACKUP_SCHEDULE_TIMEZONE"),
+                                   ({"timezone": "../Etc/UTC"}, "BACKUP_SCHEDULE"),
+                                   ({"timezone": "Etc/UTC", "time": "25:00"}, "BACKUP_SCHEDULE"),
+                                   ({"timezone": "Etc/UTC", "enabled": "false"}, "BACKUP_SCHEDULE"),
+                                   ({"timezone": "Etc/UTC", "maxAgeHours": True}, "BACKUP_SCHEDULE"),
+                                   ({"timezone": "Etc/UTC", "unknown": True}, "BACKUP_SCHEDULE")):
+                with self.subTest(settings=settings), self.assertRaises(Blocked) as caught:
+                    validate(settings)
+                self.assertEqual(caught.exception.code, code)
+        self.assertIs(backup_schedule.ZoneInfo, provider)
+        with self.assertRaises(Blocked) as caught:
+            validate({"timezone": "Invalid/AsaOriginFixture"})
+        self.assertEqual(caught.exception.code, "BACKUP_SCHEDULE_TIMEZONE")
 
     def prepare_public_install(self, *, project="school-fixture", profile="production", origin=None):
         (self.root / ".env").unlink()
