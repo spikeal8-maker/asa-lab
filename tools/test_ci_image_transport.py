@@ -144,6 +144,12 @@ def general_node_contract(contract, original, effective):
     require(access_controls.get("runs-on") == "ubuntu-latest",
             "Original Access A runner contract unexpectedly changed")
     access_controls["runs-on"] = "ubuntu-24.04"
+    # Project the approved Access A budget without rewriting its dated receipt
+    # or relaxing any other job/step control.
+    require(type(access_controls.get("timeout-minutes")) is int
+            and access_controls["timeout-minutes"] == 25,
+            "Original Access A budget contract unexpectedly changed")
+    access_controls["timeout-minutes"] = 35
     uploads = [step for step in contract["jobs"]["access-a-browser"]["required_steps"]
                if step.get("uses") == "actions/upload-artifact@v4"]
     require(len(uploads) == 1 and uploads[0]["with"]["path"] == (
@@ -697,6 +703,54 @@ def check_pulled_postgres(receipt):
 
 
 
+def check_general_access_budget_challenges(receipt):
+    """Keep the approved budget projection narrow through the real offline gate."""
+    from contextlib import redirect_stdout
+    from io import StringIO
+    from unittest.mock import patch
+
+    original = receipt["semantic_contract"]["workflows"][GENERAL]
+    effective = general_node_receipt(receipt)
+    outcomes = []
+    for value in (None, 24, 26, 35, "25", 25.0, True):
+        changed = deepcopy(original)
+        controls = changed["jobs"]["access-a-browser"]["controls"]
+        if value is None:
+            del controls["timeout-minutes"]
+        else:
+            controls["timeout-minutes"] = value
+        error = None
+        try:
+            general_node_contract(changed, receipt, effective)
+        except ValueError as failure:
+            error = str(failure)
+        require(error == "Original Access A budget contract unexpectedly changed",
+                "Unexpected original Access A budget was accepted: " + repr(value))
+        outcomes.append({"challenge": "original Access A budget " + repr(value),
+                         "expected_pass": False, "result": "PASS", "rejection": error})
+
+    workflow, original_read = parse_yaml(read(GENERAL)), read
+    cases = [("access-a-browser", "timeout-minutes", value) for value in (25, 34, 36, "35", None)]
+    cases += [(job, "timeout-minutes", expected["controls"]["timeout-minutes"] + 1)
+              for job, expected in original["jobs"].items() if job != "access-a-browser"]
+    cases += [("access-a-browser", "needs", []), ("access-a-browser", "continue-on-error", True)]
+    for job, control, value in cases:
+        changed = deepcopy(workflow)
+        changed["jobs"][job][control] = value
+        error = None
+        with patch(__name__ + ".read", side_effect=lambda path: json.dumps(changed)
+                   if path == GENERAL else original_read(path)), redirect_stdout(StringIO()):
+            try:
+                check_offline(receipt)
+            except ValueError as failure:
+                error = str(failure)
+        require(error == "Job control drift: " + job + ":" + control,
+                "General budget projection weakened another control: " + job + ":" + control)
+        outcomes.append({"challenge": job + ":" + control + "=" + repr(value),
+                         "expected_pass": False, "result": "PASS", "rejection": error})
+    return outcomes
+
+
 def check_challenges(receipt):
     """Exercise real checkers with in-memory inputs, without Docker or writes."""
     from contextlib import redirect_stdout
@@ -708,7 +762,7 @@ def check_challenges(receipt):
               *receipt["semantic_contract"]["workflows"]]}
     general = ".github/workflows/spec-validation.yml"
     focused = ".github/workflows/electronics-r4-m1-focused.yml"
-    outcomes = []
+    outcomes = check_general_access_budget_challenges(receipt)
 
     def challenge(name, replacements, passes):
         contents = {**source, **replacements}
