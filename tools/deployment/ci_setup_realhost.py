@@ -1496,6 +1496,15 @@ def switch_node_error_projection(block):
     protocol = any(re.fullmatch(r"\s+at Parser\.parseErrorMessage \(/app/node_modules/(?:\.pnpm/pg-protocol@[0-9.]+/node_modules/)?pg-protocol/dist/parser\.js:[0-9]+:[0-9]+\)(?: \{)?", line) for line in prefix)
     if not (role or protocol) or any(re.match(r"\s+(?:code|severity)\s*:", line) for line in prefix):
         return rules, codes
+    # Only Node's flat, one-line scalar properties are supported. Quoted braces
+    # are data; nested indentation, containers and continuation lines are not.
+    scalar = (r"(?:'(?:[^'\\\r\n]|\\[^\r\n])*'|"
+              r'"(?:[^"\\\r\n]|\\[^\r\n])*"|'
+              r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|true|false|null|undefined)")
+    for index, line in enumerate(properties):
+        separator = "," if index + 1 < len(properties) else ",?"
+        if not re.fullmatch(r"  [A-Za-z_$][A-Za-z0-9_$]*: " + scalar + separator, line):
+            return rules, codes
     code_lines = [line for line in properties if re.match(r"\s+code\s*:", line)]
     severity_lines = [line for line in properties if re.match(r"\s+severity\s*:", line)]
     if len(code_lines) != 1 or len(severity_lines) > 1:

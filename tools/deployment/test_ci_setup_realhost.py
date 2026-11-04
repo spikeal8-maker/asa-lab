@@ -1649,6 +1649,59 @@ class SwitchDiagnosticTests(unittest.TestCase):
             self.assertEqual((observed["status"], observed["sqlstates"]), ("NO_MATCH", []))
             self.assertNotIn("PRIVATE", json.dumps(observed))
 
+    def test_sqlstate_rejects_nested_property_codes_with_or_without_inner_closing(self):
+        invocation = self.fixture()[2]
+        opening = ["error: synthetic wrapper failure",
+                   "    at async file:///app/docker/provision-runtime-role.mjs:15:3 {",
+                   "  expected: {", "    severity: 'ERROR',", "    code: '42501',"]
+        for closing in (["  }", "}"], ["}"]):
+            with self.subTest(inner_closed=len(closing) == 2):
+                observed = harness.switch_log_projection((b"", self.stamped(opening + closing)), "migration", invocation)
+                self.assertEqual((observed["status"], observed["ruleIds"], observed["sqlstates"]), ("NO_MATCH", [], []))
+
+    def test_sqlstate_rejects_non_scalar_multiline_and_broken_property_shapes(self):
+        invocation = self.fixture()[2]
+        opening = ["error: PRIVATE", "    at async file:///app/docker/provision-runtime-role.mjs:15:3 {"]
+        fields = ["  severity: 'ERROR',", "  code: '42501',"]
+        invalid = (
+            ["  detail: { expected: 'PRIVATE' },"],
+            ["  detail: [ 'PRIVATE' ],"],
+            ["  detail: 'PRIVATE", "continued',"],
+            ["  detail: 'PRIVATE' +", "    'continued',"],
+            ["    detail: 'PRIVATE',"],
+            ["  detail: [Getter],"],
+            ["  detail: Symbol(PRIVATE),"],
+            ["  detail: 'PRIVATE' unexpected,"],
+            ["  detail: 'PRIVATE', hint: 'PRIVATE',"],
+        )
+        cases = [opening + fields + extra + ["}"] for extra in invalid]
+        cases.append(opening + [fields[0].removesuffix(","), fields[1], "}"])
+        for index, lines in enumerate(cases):
+            with self.subTest(case=index):
+                observed = harness.switch_log_projection((b"", self.stamped(lines)), "migration", invocation)
+                self.assertEqual((observed["status"], observed["ruleIds"], observed["sqlstates"]), ("NO_MATCH", [], []))
+                self.assertNotIn("PRIVATE", json.dumps(observed))
+
+    def test_sqlstate_preserves_flat_scalars_quoted_braces_and_independent_object_boundaries(self):
+        invocation = self.fixture()[2]
+        opening = ["error: PRIVATE", "    at async file:///app/docker/provision-runtime-role.mjs:15:3 {"]
+        first = opening + ["  length: 123,", "  severity: 'ERROR',", "  code: '42501',",
+            r"  detail: 'PRIVATE { expected: { code: \'28P01\' } } \\ path',",
+            "  hint: \"PRIVATE } expected: { severity: 'FATAL' }\",",
+            "  where: undefined,", "  schema: null,", "  retryable: false,", "  ratio: 1.5e+2,", "}"]
+        second = opening + ["  severity: 'FATAL',", "  code: '23505'", "}"]
+        for lines, expected_codes in ((first, ["42501"]), (first + second, ["23505", "42501"]),
+                                      (first + second[:-1], ["42501"]), (first[:-1] + second, ["23505"])):
+            with self.subTest(expected_codes=expected_codes, lines=len(lines)):
+                observed = harness.switch_log_projection((b"", self.stamped(lines)), "migration", invocation)
+                self.assertEqual((observed["status"], observed["sqlstates"]), ("OBSERVED", expected_codes))
+                self.assertEqual(set(observed["ruleIds"]), {"RUNTIME_ROLE_PROVISION_FAILURE", "POSTGRES_SERVER_ERROR"})
+                self.assertNotIn("PRIVATE", json.dumps(observed))
+        connection = opening + ["  errno: -111,", "  code: 'ECONNREFUSED',", "  syscall: 'connect',", "  port: 5432", "}"]
+        observed = harness.switch_log_projection((b"", self.stamped(connection)), "migration", invocation)
+        self.assertEqual((observed["status"], observed["sqlstates"]), ("OBSERVED", []))
+        self.assertEqual(set(observed["ruleIds"]), {"RUNTIME_ROLE_PROVISION_FAILURE", "DATABASE_CONNECTION_REFUSED"})
+
     @unittest.skipUnless(sys.platform == "linux", "Native Docker raw-map formatter reproduction uses the Linux Go toolchain")
     def test_actual_go_template_handles_absent_health_without_hiding_invalid_states(self):
         go = shutil.which("go")
