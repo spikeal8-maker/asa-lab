@@ -88,18 +88,89 @@ class ContextTests(unittest.TestCase):
             self.assertEqual(result["reasonCode"], "BLOCKED_CLEANUP_IO")
             self.assertNotIn("PRIVATE", json.dumps(result))
 
-    def test_workflow_runs_focused_gate_then_cleanup_then_original_preflight_and_exact_artifacts(self):
-        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/setup-realhost.yml").read_text()
-        command = "python3 -B -m unittest discover -s tools/deployment -p 'test_ci_prepare_realhost_runner.py' -v"
-        self.assertLess(workflow.index(command), workflow.index("sudo -n --preserve-env="))
-        self.assertLess(workflow.index("sudo -n --preserve-env="), workflow.index('--revision "$SOURCE_REVISION" --preflight-only'))
-        self.assertLess(workflow.index("--preflight-only"), workflow.index("sudo apt-get update"))
-        self.assertIn("runs-on: ubuntu-24.04", workflow)
-        self.assertIn("timeout-minutes: 180", workflow)
-        self.assertIn("if: always()", workflow)
-        self.assertIn("            test-results/setup-realhost/evidence.json\n            test-results/setup-realhost/runner-preparation.json\n", workflow)
+    def assert_workflow_contract(self, workflow):
+        source_lines = workflow.splitlines()
+        lines = [line.strip() for line in source_lines]
+        def only_index(predicate):
+            matches = [index for index, line in enumerate(lines) if predicate(line)]
+            self.assertEqual(len(matches), 1)
+            return matches[0]
+        gate = only_index(lambda line: line == "run: python3 -B -m unittest discover -s tools/deployment -p 'test_ci_prepare_realhost_runner.py' -v")
+        cleanup = only_index(lambda line: line.startswith("sudo -n --preserve-env="))
+        preflight = only_index(lambda line: line.startswith("run: ") and "--preflight-only" in line)
+        install = only_index(lambda line: line == "sudo apt-get update")
+        self.assertEqual(lines[preflight], 'run: python3 tools/deployment/ci_setup_realhost.py --revision "$SOURCE_REVISION" '
+            '--acquisition-mode "$SETUP_ACQUISITION_MODE" --approved-setup-revision "$APPROVED_SETUP_REVISION" --preflight-only')
+        preserved = ("CI,GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_ARCH,ImageOS,GITHUB_REPOSITORY,"
+            "GITHUB_WORKFLOW,GITHUB_JOB,GITHUB_EVENT_NAME,GITHUB_WORKFLOW_REF,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,"
+            "GITHUB_WORKSPACE,RUNNER_TEMP,SOURCE_REVISION,ASA_REALHOST_RUNNER_CLEANUP,ASA_REALHOST_RUNNER_LABEL,"
+            "ASA_REALHOST_PUBLIC_REPOSITORY")
+        self.assertEqual(lines[cleanup], "sudo -n --preserve-env=" + preserved
+            + " /usr/bin/python3 -I -B tools/deployment/ci_prepare_realhost_runner.py > test-results/setup-realhost/runner-preparation.json")
+        self.assertLess(gate, cleanup)
+        self.assertLess(cleanup, preflight)
+        self.assertLess(preflight, install)
+        self.assertIn("runs-on: ubuntu-24.04", lines)
+        self.assertIn("timeout-minutes: 180", lines)
+        self.assertIn("if: always()", lines)
+        artifact_header = only_index(lambda line: line == "path: |")
+        artifacts = []
+        for line in source_lines[artifact_header + 1:]:
+            if line.strip() and not line.startswith("            "):
+                break
+            if line.strip():
+                artifacts.append(line.strip())
+        self.assertEqual(artifacts, ["test-results/setup-realhost/evidence.json", "test-results/setup-realhost/runner-preparation.json"])
         self.assertEqual((runner.REQUIRED_FREE, runner.RESERVE), (24 * 1024**3, 3 * 1024**3))
         self.assertEqual(runner.TARGETS, (("android", "/usr/local/lib/android"), ("dotnet", "/usr/share/dotnet")))
+
+    def test_workflow_runs_focused_gate_then_cleanup_then_original_preflight_and_exact_artifacts(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/setup-realhost.yml").read_text()
+        self.assert_workflow_contract(workflow)
+
+    def test_workflow_contract_binds_preflight_arguments_not_the_earlier_mode_check(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/setup-realhost.yml").read_text()
+        preflight = next(line for line in workflow.splitlines() if line.strip().startswith("run: ") and "--preflight-only" in line)
+        changes = (
+            ("missing", ""), ("duplicate", preflight + "\n" + preflight),
+            ("binding-only", preflight.replace("--preflight-only", "--check-acquisition-mode")),
+            ("revision", preflight.replace('"$SOURCE_REVISION"', '"$UNBOUND_REVISION"')),
+            ("unquoted-revision", preflight.replace('"$SOURCE_REVISION"', "$SOURCE_REVISION")),
+            ("missing-mode", preflight.replace(' --acquisition-mode "$SETUP_ACQUISITION_MODE"', "")),
+            ("mode", preflight.replace('"$SETUP_ACQUISITION_MODE"', '"$UNBOUND_MODE"')),
+            ("missing-approval", preflight.replace(' --approved-setup-revision "$APPROVED_SETUP_REVISION"', "")),
+            ("approval", preflight.replace('"$APPROVED_SETUP_REVISION"', '"$UNBOUND_APPROVAL"')),
+            ("extra-argument", preflight + " --unknown-option"),
+        )
+        for name, replacement in changes:
+            changed = workflow.replace(preflight, replacement, 1)
+            self.assertNotEqual(changed, workflow)
+            self.assertIn('--revision "$SOURCE_REVISION" --acquisition-mode "$SETUP_ACQUISITION_MODE" '
+                '--approved-setup-revision "$APPROVED_SETUP_REVISION" --check-acquisition-mode', changed)
+            with self.subTest(change=name), self.assertRaises(AssertionError):
+                self.assert_workflow_contract(changed)
+
+    def test_workflow_contract_rejects_reordered_steps_privilege_and_artifact_drift(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/setup-realhost.yml").read_text()
+        blocks = workflow.split("      - name: ")
+        for left, right in (("Verify the bounded runner cleanup", "Prepare bounded free space"),
+                ("Prepare bounded free space", "Measure the disposable runner"),
+                ("Measure the disposable runner", "Install VM tools")):
+            changed = list(blocks)
+            first = next(index for index, block in enumerate(blocks) if block.startswith(left))
+            second = next(index for index, block in enumerate(blocks) if block.startswith(right))
+            changed[first], changed[second] = changed[second], changed[first]
+            with self.subTest(order=(left, right)), self.assertRaises(AssertionError):
+                self.assert_workflow_contract("      - name: ".join(changed))
+        for before, after in (("RUNNER_TEMP,SOURCE_REVISION,", "RUNNER_TEMP,"),
+                ("RUNNER_TEMP,SOURCE_REVISION,", "RUNNER_TEMP,SOURCE_REVISION,GH_TOKEN,"),
+                ("/usr/bin/python3 -I -B", "/usr/bin/python3 -B"),
+                ("            test-results/setup-realhost/evidence.json", "            test-results/setup-realhost/**"),
+                ("            test-results/setup-realhost/runner-preparation.json\n",
+                 "            test-results/setup-realhost/runner-preparation.json\n            /tmp/private-log\n")):
+            self.assertEqual(workflow.count(before), 1)
+            with self.subTest(change=after), self.assertRaises(AssertionError):
+                self.assert_workflow_contract(workflow.replace(before, after, 1))
 
 
 class PreparationTests(unittest.TestCase):
