@@ -136,6 +136,42 @@ COMMAND_DIAGNOSTIC_ERRORS = {"DIAGNOSTIC_PATH", "DIAGNOSTIC_PERMISSIONS", "DIAGN
     "DIAGNOSTIC_INVENTORY", "DIAGNOSTIC_DOCKER_EXIT", "DIAGNOSTIC_OUTPUT_LIMIT", "DIAGNOSTIC_PLATFORM",
     "DIAGNOSTIC_PROCESS_OWNERSHIP", "DIAGNOSTIC_PROCESS_CLEANUP"}
 COMMAND_DIAGNOSTIC_OUTCOMES = {"ACCEPTED", "WARNING", "BLOCKED", "ERROR", "INTERRUPTED", "PREPARATION_REQUIRED", "NO_CHANGE"}
+# Closed producer vocabulary, not a pattern accepting arbitrary private strings.
+# setup_result._report_rows/finalize; setup_acceptance.browser_acceptance and the
+# pinned Ops browser's stage/_error_code; backup_workflow.run_backup/CloudTransport.
+RECEIPT_ROWS = ("dependencies", "version", "data", "backup", "site", "diagnostics")
+RECEIPT_ROW_STATUSES = {"UNVERIFIED", "OK", "ACCEPTED", "PRESERVED", "INITIALIZED", "RUNNING", "passed",
+    "NO_CHANGE", "CHECKED", "OBSERVED", "READY", "NOT_REQUIRED", "FAILED", "INCOMPLETE", "WARNING", "warning",
+    "NOT_RUN", "TECHNICAL_ONLY", "TECHNICAL_OK"}
+RECEIPT_BROWSER_CHECKS = ("teacher_login", "student_login", "course_open", "existing_project_open",
+    "scratch_save_reopen", "electronics_save_reopen")
+RECEIPT_BROWSER_REASONS = {"BROWSER_USER_FLOW_FAILED", "BROWSER_RUNTIME_UNAVAILABLE", "BROWSER_ENVIRONMENT_FAILED",
+    "BROWSER_TIMEOUT", "BROWSER_NOT_CONFIGURED", "BROWSER_COMPONENT_MISSING", "ACCEPTANCE_FAILED",
+    "BROWSER_CONFIGURATION", "BROWSER_COMPONENT_PIN", "BROWSER_TIMEOUT_CONFIGURATION", "BROWSER_COMPONENT_PATH",
+    "BROWSER_COMPONENT_FILE", "BROWSER_COMPONENT_OWNER", "BROWSER_COMPONENT_HASH", "BROWSER_PYTHON_PATH",
+    "BROWSER_PYTHON_OWNER", "BROWSER_FIXTURE_PATH", "BROWSER_FIXTURE_PERMISSIONS", "BROWSER_CACHE_PATH",
+    "BROWSER_CACHE_OWNER", "BROWSER_PLATFORM", "BROWSER_REPORT_SIZE", "BROWSER_REPORT_BINDING", "BROWSER_REPORT_EXIT",
+    "BROWSER_REPORT_CHECKS"}
+RECEIPT_BROWSER_STAGES = {"browser_launch", "release_provenance", "teacher_registration_or_login",
+    "teacher_login_identity", "teacher_login_submit", "test_classroom", "student_login", "course_open",
+    "blocks_project", "blocks_save", "electronics_project", "electronics_save"}
+RECEIPT_BROWSER_ERRORS = {"SAVE_NOT_OBSERVED", "REOPEN_VALUE_MISMATCH", "REOPEN_DRAFT_MISMATCH", "RuntimeError"}
+RECEIPT_BACKUP_ERRORS = {"AGE_ENVELOPE", "AGE_RECIPIENT", "AGE_NOT_CONFIGURED", "BACKUP", "BACKUP_ACTIVE_JOB",
+    "BACKUP_BOOT_ID", "BACKUP_CIPHERTEXT_DRIFT", "BACKUP_CIPHERTEXT_MISSING", "BACKUP_CIPHERTEXT_UNKNOWN",
+    "BACKUP_CLOUD_PROOF", "BACKUP_COMMAND_FAILED", "BACKUP_COMMAND_TIMEOUT", "BACKUP_CONFIGURATION", "BACKUP_DATA_IDENTITY",
+    "BACKUP_ENCRYPTION_INCOMPLETE", "BACKUP_EXTERNAL_WRITERS", "BACKUP_FILE_CHANGED", "BACKUP_FILE_TYPE",
+    "BACKUP_FREEZE_INTERRUPTED", "BACKUP_FREEZE_TIMEOUT", "BACKUP_HOLD_IDENTITY", "BACKUP_HOLD_MISSING", "BACKUP_IDENTITY",
+    "BACKUP_INCOMPLETE", "BACKUP_LOCAL_DELETED", "BACKUP_MANIFEST_DRIFT", "BACKUP_MOUNTS", "BACKUP_PATH", "BACKUP_POLICY",
+    "BACKUP_POLICY_CHANGED", "BACKUP_PRIVATE_DIRECTORY", "BACKUP_RECEIPT_IDENTITY", "BACKUP_RECIPIENT_IDENTITY",
+    "BACKUP_RESUME_HEALTH", "BACKUP_RESUME_IDENTITY", "BACKUP_RESUME_MODE", "BACKUP_RESUME_SNAPSHOT_MISSING",
+    "BACKUP_RESUME_TIMEOUT", "BACKUP_RESUME_WRITERS", "BACKUP_SERVICES", "BACKUP_SHARED_VOLUME", "BACKUP_SNAPSHOT_EXISTS",
+    "BACKUP_SNAPSHOT_IDENTITY", "BACKUP_STORAGE", "BACKUP_TOOL", "BACKUP_UNKNOWN_WRITER", "BACKUP_WRITERS_RESUMED",
+    "BACKUP_WRITER_IDENTITY", "BACKUP_WRITER_RACE", "MAINTENANCE", "CLOUD_CONFIGURATION", "CLOUD_NAMESPACE",
+    "CLOUD_NOT_CONFIGURED", "CLOUD_READBACK_HASH", "CLOUD_REMOTE_LIST", "CLOUD_SPOOL_HASH", "CLOUD_SPOOL_IDENTITY",
+    "CLOUD_TRANSPORT_IDENTITY", "CLOUD_TRANSPORT_PIN", "CLOUD_UNAVAILABLE", "CLOUD_TIMEOUT", "CLOUD_TRANSPORT_ERROR",
+    "CLOUD_PROVIDER_GONE", "CLOUD_AUTHORIZATION", "CLOUD_TRANSFER_FAILED", "CLOUD_NOT_CONNECTED",
+    "OSError", "ValueError", "FileNotFoundError", "PermissionError", "FileExistsError", "IsADirectoryError",
+    "NotADirectoryError", "CalledProcessError", "TimeoutExpired"}
 # Ubuntu 24.04 ships /var/log root:syslog 0775; using it as an ancestor would
 # violate diagnostic_open's intentionally strict no-group-write trust contract.
 OPERATOR_LOG_ROOT = Path("/var/lib/asa-lab-operator")
@@ -1521,6 +1557,139 @@ def command_log_baseline(words):
         return command_diagnostic_error(error)
 
 
+def receipt_choice(value, allowed):
+    return value if type(value) is str and value in allowed else "UNAVAILABLE" if value is None else "UNRECOGNIZED"
+
+
+def receipt_reason(record, key, allowed):
+    """Preserve presence/type, never the unrecognized private value."""
+    if not isinstance(record, dict) or key not in record:
+        return {"state": "MISSING"}
+    value = record[key]
+    if value is None:
+        return {"state": "NULL"}
+    if type(value) is not str:
+        return {"state": "UNRECOGNIZED", "type": "NON_STRING"}
+    if value not in allowed:
+        return {"state": "UNRECOGNIZED", "type": "STRING"}
+    return {"state": "RECOGNIZED", "code": value}
+
+
+def receipt_browser_projection(config, journal, receipt, pins, selected):
+    """Project only this operation's stage evidence; no new runtime observation."""
+    site = receipt.get("site") if isinstance(receipt.get("site"), dict) else {}
+    browser, technical = site.get("browser"), site.get("technical")
+    stages = journal.get("stages") if isinstance(journal.get("stages"), dict) else {}
+    stage = stages.get("browser")
+    unavailable = {"binding": "UNAVAILABLE"}
+    if not isinstance(browser, dict) or not isinstance(technical, dict) or not isinstance(stage, dict):
+        return unavailable
+    instance = browser.get("instanceId")
+    if not (browser.get("format") == technical.get("format") == "asa-setup-acceptance-v1"
+            and browser.get("kind") == "browser" and technical.get("kind") == "technical"
+            and browser.get("operationId") == technical.get("operationId") == receipt["operationId"]
+            and browser.get("installationId") == receipt["installationId"]
+            and type(instance) is str and re.fullmatch(r"[a-f0-9]{32}", instance)
+            and technical.get("instanceId") == technical.get("installationId") == instance
+            and technical.get("status") == "passed" and selected.get("status") == "CONFIRMED"
+            and technical.get("revision") == selected["revision"]
+            and type(technical.get("schema")) is int and technical["schema"] == selected["schema"]
+            and stage.get("status") == "done" and isinstance(stage.get("evidence"), dict)
+            and canonical_hash(stage["evidence"]) == canonical_hash(browser)):
+        return unavailable
+    runtime_keys = ("revision", "entryOrigin", "invocationId", "componentSha256", "componentRevision")
+    status = receipt_choice(browser.get("status"), {"passed", "failed", "incomplete", "environment_failed"})
+    checks = browser.get("checks") if isinstance(browser.get("checks"), dict) else {}
+    projected_checks = {key: receipt_choice(checks.get(key), {"passed", "failed", "not_run"}) for key in RECEIPT_BROWSER_CHECKS}
+    provenance = "NOT_RECORDED"
+    if any(key in browser for key in runtime_keys):
+        pin, configured = pins.get("browser"), config.get("browser")
+        if not (isinstance(pin, dict) and isinstance(configured, dict)
+                and all(key in browser for key in runtime_keys)
+                and type(pin.get("componentSha256")) is str and re.fullmatch(r"[a-f0-9]{64}", pin["componentSha256"])
+                and type(pin.get("opsRevision")) is str and re.fullmatch(r"[a-f0-9]{40}", pin["opsRevision"])
+                and browser.get("revision") == selected["revision"]
+                and type(config.get("entryOrigin")) is str and browser.get("entryOrigin") == config["entryOrigin"] == technical.get("entryOrigin")
+                and type(browser.get("invocationId")) is str and re.fullmatch(r"[a-f0-9]{32}", browser["invocationId"])
+                and browser.get("componentSha256") == configured.get("componentSha256") == pin.get("componentSha256")
+                and browser.get("componentRevision") == pin.get("opsRevision")):
+            return unavailable
+        provenance = "PINNED_INVOCATION"
+    if status in ("passed", "failed"):
+        if provenance != "PINNED_INVOCATION" or set(checks) != set(RECEIPT_BROWSER_CHECKS) or any(value not in ("passed", "failed") for value in projected_checks.values()):
+            return unavailable
+        if ((status == "passed") != all(value == "passed" for value in projected_checks.values())
+                or status == "passed" and (browser.get("error") is not None or browser.get("reasonCode") is not None)):
+            return unavailable
+    elif any(value in ("passed", "failed") for value in projected_checks.values()):
+        return unavailable
+    error = browser.get("error")
+    error_projection = {"state": "MISSING" if "error" not in browser else "NULL" if error is None else "UNRECOGNIZED"}
+    if isinstance(error, dict):
+        error_projection = {"stage": receipt_choice(error.get("stage"), RECEIPT_BROWSER_STAGES),
+                            "code": receipt_reason(error, "code", RECEIPT_BROWSER_ERRORS)}
+        code = error.get("code")
+        if type(code) is str and re.fullmatch(r"API_STATUS_[1-5][0-9]{2}", code):
+            error_projection["code"] = {"state": "RECOGNIZED", "code": "API_STATUS", "httpStatus": int(code[-3:])}
+    return {"binding": "VERIFIED_PARENT_OPERATION", "runtimeProvenance": provenance, "status": status,
+            "reason": receipt_reason(browser, "reasonCode", RECEIPT_BROWSER_REASONS),
+            "checks": projected_checks, "error": error_projection}
+
+
+def receipt_backup_projection(journal, receipt):
+    """Parent evidence or an explicitly named first-backup child; never adopt IDs."""
+    backup = receipt.get("backup")
+    stages = journal.get("stages") if isinstance(journal.get("stages"), dict) else {}
+    mode = receipt["mode"]
+    stage = stages.get("first_backup" if mode == "install" else "backup")
+    unavailable = {"binding": "UNAVAILABLE"}
+    if mode not in ("install", "update", "backup") or not isinstance(backup, dict) or not isinstance(stage, dict):
+        return unavailable
+    expected_id, binding = receipt["operationId"], "VERIFIED_PARENT_OPERATION"
+    if mode == "install" and "backupOperationId" in stage:
+        child = stage["backupOperationId"]
+        if type(child) is not str or not re.fullmatch(r"[a-f0-9]{32}", child):
+            return unavailable
+        expected_id = child
+        if child != receipt["operationId"]:
+            binding = "DECLARED_FIRST_BACKUP_CHILD"
+    evidence, policy = stage.get("evidence"), journal.get("backupPolicy")
+    snapshot = backup.get("snapshotId")
+    if not (backup.get("format") == "asa-backup-operation-v1" and backup.get("operationId") == expected_id
+            and backup.get("installationId") == receipt["installationId"]
+            and type(snapshot) is str and re.fullmatch(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8}", snapshot)
+            and ("snapshotId" not in stage or stage["snapshotId"] == snapshot)
+            and stage.get("status") == "done" and isinstance(evidence, dict) and isinstance(policy, dict)
+            and backup.get("policy") == policy.get("policy")):
+        return unavailable
+    # finalize adds row/schedule/restore summaries and may normalize a missing
+    # local snapshot. All remaining already-read stage/receipt bytes must agree.
+    expected = {key: value for key, value in evidence.items() if key not in ("status", "restore", "schedule")}
+    actual = {key: value for key, value in backup.items() if key not in ("status", "restore", "schedule")}
+    local = expected.get("local")
+    if isinstance(local, dict) and local.get("error") == "BACKUP_RESUME_SNAPSHOT_MISSING":
+        never_started = (local.get("executionStatus") == "NOT_RUN" and not local.get("previouslyVerified")
+                         and not expected.get("snapshotAt") and not any(local.get(key) for key in ("verifiedAt", "manifestSha256")))
+        expected["local"] = {**local, "status": "NOT_RUN" if never_started else "FAILED"}
+    if canonical_hash(actual) != canonical_hash(expected):
+        return unavailable
+    result = {"binding": binding, "policy": receipt_choice(backup.get("policy"), {"best-effort", "required"}),
+              "outcome": receipt_choice(backup.get("outcome"), {"PENDING", "ACCEPTED", "WARNING", "BLOCKED", "ERROR"})}
+    for name, allowed in (("local", {"PENDING", "OK", "FAILED", "NOT_RUN"}),
+                          ("encryption", {"PENDING", "NOT_CONFIGURED", "PREPARED", "OK", "FAILED"}),
+                          ("cloud", {"PENDING", "NOT_CONFIGURED", "OK", "FAILED"})):
+        component = backup.get(name) if isinstance(backup.get(name), dict) else {}
+        result[name] = {"status": receipt_choice(component.get("status"), allowed),
+                       "error": receipt_reason(component, "error", RECEIPT_BACKUP_ERRORS),
+                       "reason": receipt_reason(component, "reasonCode", RECEIPT_BACKUP_ERRORS)}
+    errors = backup.get("errors")
+    result["errors"] = ({"state": "OBSERVED", "codes": [receipt_reason(item, "code", RECEIPT_BACKUP_ERRORS)
+                        if isinstance(item, dict) else {"state": "UNRECOGNIZED", "type": "NON_OBJECT"}
+                        for item in errors[:16]], "truncated": len(errors) > 16}
+                        if isinstance(errors, list) else {"state": "UNAVAILABLE" if errors is None else "UNRECOGNIZED"})
+    return result
+
+
 def command_operation_projection(public, config, journal, receipt, pins, *, mode, code, uid):
     """Closed schema after IDs, mode and the complete current receipt agree."""
     require(type(uid) is int and uid > 0 and mode in COMMAND_DIAGNOSTIC_MODES.values()
@@ -1577,6 +1746,12 @@ def command_operation_projection(public, config, journal, receipt, pins, *, mode
     backup = receipt.get("backup") if isinstance(receipt.get("backup"), dict) else {}
     local = backup.get("local") if isinstance(backup.get("local"), dict) else {}
     projected["acceptance"]["firstBackupCompleted"] = projected["stages"].get("first_backup") == "done" and local.get("status") == "OK"
+    projected["receiptDetails"] = {
+        "topReason": receipt_reason(receipt, "reasonCode", COMMAND_DIAGNOSTIC_REASONS),
+        "rows": {name: receipt_choice(receipt[name].get("status") if isinstance(receipt.get(name), dict) else None,
+                                      RECEIPT_ROW_STATUSES) for name in RECEIPT_ROWS},
+        "browser": receipt_browser_projection(config, journal, receipt, pins, projected["selectedRelease"]),
+        "backup": receipt_backup_projection(journal, receipt)}
     return projected
 
 

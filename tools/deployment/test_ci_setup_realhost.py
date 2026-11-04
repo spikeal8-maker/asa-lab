@@ -1589,6 +1589,246 @@ class PostSwitchReasonTests(unittest.TestCase):
             self.assertNotIn("operationId", observed["cliActions"][0])
 
 
+class AcceptanceReceiptDiagnosticTests(unittest.TestCase):
+    """Pure finalizer -> bound observer checks; no browser, backup or new IO."""
+
+    def records(self, *, browser_failed=True):
+        from deployment import setup_result
+        public, config, journal, receipt, pins = CommandFailureDiagnosticTests.records(self)
+        pin = pins["previous"]
+        config.update(entryOrigin="http://127.0.0.1:4610", browser={"componentSha256": pins["browser"]["componentSha256"]})
+        technical = {"format": "asa-setup-acceptance-v1", "kind": "technical", "operationId": receipt["operationId"],
+            "installationId": "c" * 32, "instanceId": "c" * 32, "status": "passed", "revision": pin["revision"],
+            "schema": pin["schema"], "entryOrigin": config["entryOrigin"], "checks": {"runtime": "passed"}}
+        browser = {"format": "asa-setup-acceptance-v1", "kind": "browser", "operationId": receipt["operationId"],
+            "installationId": receipt["installationId"], "instanceId": "c" * 32,
+            "status": "failed" if browser_failed else "incomplete",
+            "reasonCode": "BROWSER_USER_FLOW_FAILED" if browser_failed else "BROWSER_COMPONENT_MISSING",
+            "checks": {key: "failed" if browser_failed else "not_run" for key in harness.RECEIPT_BROWSER_CHECKS}}
+        if browser_failed:
+            browser.update(revision=pin["revision"], entryOrigin=config["entryOrigin"], invocationId="d" * 32,
+                componentSha256=pins["browser"]["componentSha256"], componentRevision=pins["browser"]["opsRevision"],
+                error={"stage": "course_open", "code": "API_STATUS_403"})
+        backup = {"format": "asa-backup-operation-v1", "operationId": receipt["operationId"],
+            "installationId": receipt["installationId"], "snapshotId": "20261104T120000Z-1234abcd", "policy": "best-effort",
+            "outcome": "WARNING" if browser_failed else "BLOCKED", "local": {"status": "OK"},
+            "encryption": {"status": "OK"} if browser_failed else {"status": "FAILED", "error": "AGE_RECIPIENT"},
+            "cloud": {"status": "NOT_CONFIGURED"}, "errors": [] if browser_failed else [{"code": "AGE_RECIPIENT", "at": "private"}]}
+        receipt.pop("reasonCode")
+        receipt.update(stage="first_backup", outcome="PENDING", actionExecuted=True, executionCompleted=True,
+            dependencies={"status": "OK"}, version={"status": "RUNNING"}, data={"status": "INITIALIZED"},
+            site={"technical": technical, "browser": browser, "owner": {"status": "READY"}}, backup=backup,
+            diagnostics={"status": "passed"})
+        journal.update(phase="first_backup", state="VERIFY_ONLY", release=dict(pin), backupPolicy={"policy": "best-effort"},
+                       requestedDeploymentDigest=pin["deploymentDigest"])
+        journal["stages"].update(release={"status": "done", "revision": pin["revision"]}, switch={"status": "done"},
+            browser={"status": "done", "evidence": copy.deepcopy(browser)},
+            first_backup={"status": "done", "snapshotId": backup["snapshotId"], "evidence": copy.deepcopy(backup)})
+        setup_result.finalize(receipt)
+        public.update(exitCode=1, managerExitCode=1, status="FAILED", reasonCodes=[])
+        public.pop("reasonCode")
+        public["operation"].update(outcome="ERROR", reasonCode=None)
+        journal["result"] = copy.deepcopy(receipt)
+        return public, config, journal, receipt, pins
+
+    def rebind(self, values, *, stages=True):
+        public, _config, journal, receipt, _pins = values
+        if stages:
+            journal["stages"]["browser"]["evidence"] = copy.deepcopy(receipt["site"]["browser"])
+            journal["stages"]["first_backup"]["evidence"] = copy.deepcopy(receipt["backup"])
+        public["operation"]["reasonCode"] = copy.deepcopy(receipt.get("reasonCode"))
+        journal["result"] = copy.deepcopy(receipt)
+        return values
+
+    def project(self, values):
+        return harness.command_operation_projection(*values, mode="install", code=1, uid=999)
+
+    def test_finalizer_collisions_now_preserve_distinct_nested_failures(self):
+        with patch.object(harness, "now", return_value="fixed"):
+            first, second = (self.project(self.records(browser_failed=value)) for value in (True, False))
+        a, b = first.pop("receiptDetails"), second.pop("receiptDetails")
+        self.assertEqual(first, second)  # The former projection cannot distinguish these actual finalizer outputs.
+        self.assertEqual((first["publicExitCode"], first["managerExitCode"], first["outcome"]), (1, 1, "ERROR"))
+        self.assertEqual(a["browser"]["reason"]["code"], "BROWSER_USER_FLOW_FAILED")
+        self.assertEqual(a["browser"]["error"]["code"], {"state": "RECOGNIZED", "code": "API_STATUS", "httpStatus": 403})
+        self.assertEqual(b["browser"]["reason"]["code"], "BROWSER_COMPONENT_MISSING")
+        self.assertEqual(b["backup"]["encryption"]["error"]["code"], "AGE_RECIPIENT")
+        self.assertEqual((a["rows"]["backup"], b["rows"]["backup"]), ("WARNING", "FAILED"))
+        self.assertEqual(set(a["rows"]), set(harness.RECEIPT_ROWS))
+
+    def test_reason_presence_types_and_unknown_values_do_not_copy_secrets(self):
+        for value, expected in ((None, "NULL"), ("COMMAND", "RECOGNIZED"), ("PRIVATE_SECRET_CANARY", "UNRECOGNIZED"),
+                ("COMMAND_PRIVATE_SECRET_CANARY", "UNRECOGNIZED"), ("COMMAND\n", "UNRECOGNIZED"),
+                ("ＣOMMAND", "UNRECOGNIZED"), (True, "UNRECOGNIZED"), (42, "UNRECOGNIZED"),
+                (["COMMAND"], "UNRECOGNIZED"), ({"code": "COMMAND"}, "UNRECOGNIZED")):
+            with self.subTest(value=value):
+                values = self.records()
+                values[3]["reasonCode"] = value
+                details = self.project(self.rebind(values))["receiptDetails"]
+                self.assertEqual(details["topReason"]["state"], expected)
+                self.assertNotIn("PRIVATE_SECRET_CANARY", json.dumps(details))
+                if expected == "UNRECOGNIZED":
+                    self.assertNotIn("code", details["topReason"])
+        self.assertEqual(self.project(self.records())["receiptDetails"]["topReason"], {"state": "MISSING"})
+
+    def test_only_canonical_http_and_closed_browser_markers_survive(self):
+        for code in ("API_STATUS_100", "API_STATUS_200", "API_STATUS_403", "API_STATUS_599",
+                     "SAVE_NOT_OBSERVED", "REOPEN_VALUE_MISMATCH", "REOPEN_DRAFT_MISMATCH", "RuntimeError"):
+            values = self.records()
+            values[3]["site"]["browser"]["error"]["code"] = code
+            observed = self.project(self.rebind(values))["receiptDetails"]["browser"]["error"]["code"]
+            self.assertEqual(observed["state"], "RECOGNIZED")
+            self.assertEqual(observed.get("httpStatus"), int(code[-3:]) if code.startswith("API_STATUS_") else None)
+        for code in ("API_STATUS_099", "API_STATUS_600", "API_STATUS_0403", "API_STATUS_４０３", "API_STATUS_403\n",
+                "API_STATUS_403_PRIVATE_SECRET_CANARY", "API_STATUS_403\u200b", "api_status_403", "SAVE_NOT_OBSERVED_EXTRA",
+                "PRIVATE_SECRET_CANARY", None, True, 403, ["API_STATUS_403"], {"code": "API_STATUS_403"}):
+            with self.subTest(code=code):
+                values = self.records()
+                values[3]["site"]["browser"]["error"] = {"stage": "course_open_PRIVATE_SECRET_CANARY", "code": code}
+                error = self.project(self.rebind(values))["receiptDetails"]["browser"]["error"]
+                self.assertEqual(error["stage"], "UNRECOGNIZED")
+                self.assertNotIn("httpStatus", error["code"])
+                self.assertNotIn("code", error["code"])
+                self.assertNotIn("PRIVATE_SECRET_CANARY", json.dumps(error))
+
+    def test_browser_ids_stage_and_pinned_invocation_are_not_adopted(self):
+        mutations = (("operationId", "e" * 32), ("installationId", "e" * 32), ("instanceId", "e" * 32),
+            ("format", "foreign"), ("kind", "technical"), ("revision", "e" * 40), ("entryOrigin", "https://foreign.invalid"),
+            ("invocationId", True), ("componentSha256", "e" * 64), ("componentRevision", "e" * 40))
+        for key, value in mutations:
+            with self.subTest(key=key):
+                values = self.records()
+                values[3]["site"]["browser"][key] = value
+                self.assertEqual(self.project(self.rebind(values))["receiptDetails"]["browser"], {"binding": "UNAVAILABLE"})
+        for change in ("stage", "technical", "missing_pin", "partial_provenance"):
+            values = self.records()
+            if change == "stage":
+                values[2]["stages"]["browser"]["evidence"]["instanceId"] = "f" * 32
+            elif change == "technical":
+                values[3]["site"]["technical"]["installationId"] = values[3]["installationId"]
+            elif change == "missing_pin":
+                values[4]["browser"].pop("componentSha256")
+            else:
+                values[3]["site"]["browser"].pop("invocationId")
+            self.assertEqual(self.project(self.rebind(values, stages=change != "stage"))["receiptDetails"]["browser"], {"binding": "UNAVAILABLE"})
+
+    def test_early_browser_failure_is_observed_without_claiming_runtime_completion(self):
+        values = self.records(browser_failed=False)
+        values[3]["site"]["browser"].update(status="environment_failed", reasonCode="BROWSER_TIMEOUT")
+        observed = self.project(self.rebind(values))["receiptDetails"]["browser"]
+        self.assertEqual((observed["binding"], observed["runtimeProvenance"], observed["status"]),
+                         ("VERIFIED_PARENT_OPERATION", "NOT_RECORDED", "environment_failed"))
+        self.assertEqual(set(observed["checks"].values()), {"not_run"})
+        values[3]["site"]["browser"]["checks"]["teacher_login"] = "passed"
+        self.assertEqual(self.project(self.rebind(values))["receiptDetails"]["browser"], {"binding": "UNAVAILABLE"})
+        values = self.records()
+        values[3]["site"]["browser"]["status"] = "environment_failed"
+        self.assertEqual(self.project(self.rebind(values))["receiptDetails"]["browser"], {"binding": "UNAVAILABLE"})
+
+    def test_passed_browser_requires_complete_noncontradictory_bound_checks(self):
+        values = self.records()
+        browser = values[3]["site"]["browser"]
+        browser.update(status="passed", checks={key: "passed" for key in harness.RECEIPT_BROWSER_CHECKS})
+        browser.pop("error")
+        browser.pop("reasonCode")
+        self.assertEqual(self.project(self.rebind(values))["receiptDetails"]["browser"]["status"], "passed")
+        for bad in (True, "passed\n", "PRIVATE_SECRET_CANARY", ["passed"], None):
+            changed = copy.deepcopy(values)
+            changed[3]["site"]["browser"]["checks"]["teacher_login"] = bad
+            self.assertEqual(self.project(self.rebind(changed))["receiptDetails"]["browser"], {"binding": "UNAVAILABLE"})
+
+    def test_first_backup_parent_and_declared_child_have_explicit_binding(self):
+        values = self.records()
+        self.assertEqual(self.project(values)["receiptDetails"]["backup"]["binding"], "VERIFIED_PARENT_OPERATION")
+        child = "e" * 32
+        values[3]["backup"]["operationId"] = child
+        self.assertEqual(self.project(self.rebind(values))["receiptDetails"]["backup"], {"binding": "UNAVAILABLE"})
+        values[2]["stages"]["first_backup"]["backupOperationId"] = child
+        # Store.event replaces the old stage: a real replacement has a new
+        # snapshot in its evidence, without retaining the original intent pin.
+        values[2]["stages"]["first_backup"].pop("snapshotId")
+        values[3]["backup"]["snapshotId"] = "20261104T130000Z-1234abcd"
+        observed = self.project(self.rebind(values))["receiptDetails"]["backup"]
+        self.assertEqual(observed["binding"], "DECLARED_FIRST_BACKUP_CHILD")
+        self.assertNotIn(child, json.dumps(observed))
+        for key, value in (("backupOperationId", None), ("backupOperationId", True), ("backupOperationId", "f" * 32),
+                           ("backupOperationId", "e" * 31 + "ｅ"), ("snapshotId", "20261104T120000Z-ffffffff")):
+            changed = copy.deepcopy(values)
+            changed[2]["stages"]["first_backup"][key] = value
+            self.assertEqual(self.project(self.rebind(changed))["receiptDetails"]["backup"], {"binding": "UNAVAILABLE"})
+
+    def test_backup_stage_identity_and_policy_mismatches_remain_unavailable(self):
+        for where, key, value in (("backup", "installationId", "e" * 32), ("backup", "format", "foreign"),
+                ("backup", "snapshotId", True), ("stage", "status", "intent"), ("policy", "policy", "required"),
+                ("evidence", "outcome", "ACCEPTED")):
+            values = self.records()
+            target = {"backup": values[3]["backup"], "stage": values[2]["stages"]["first_backup"],
+                      "policy": values[2]["backupPolicy"], "evidence": values[2]["stages"]["first_backup"]["evidence"]}[where]
+            target[key] = value
+            self.assertEqual(self.project(self.rebind(values, stages=where != "evidence"))["receiptDetails"]["backup"], {"binding": "UNAVAILABLE"})
+
+    def test_backup_finalizer_missing_snapshot_normalization_is_bound(self):
+        from deployment import setup_result
+        values = self.records()
+        receipt = values[3]
+        receipt["backup"]["local"] = {"status": "FAILED", "executionStatus": "NOT_RUN", "error": "BACKUP_RESUME_SNAPSHOT_MISSING"}
+        values[2]["stages"]["first_backup"]["evidence"] = copy.deepcopy(receipt["backup"])
+        setup_result.finalize(receipt)
+        observed = self.project(self.rebind(values, stages=False))["receiptDetails"]["backup"]
+        self.assertEqual(observed["binding"], "VERIFIED_PARENT_OPERATION")
+        self.assertEqual(observed["local"]["status"], "NOT_RUN")
+        self.assertEqual(observed["local"]["error"]["code"], "BACKUP_RESUME_SNAPSHOT_MISSING")
+
+    def test_closed_values_and_extra_keys_never_export_private_content(self):
+        values = self.records(browser_failed=False)
+        receipt = values[3]
+        sentinel = "PRIVATE_SECRET_CANARY"
+        for record in (receipt, receipt["site"], receipt["site"]["browser"], receipt["backup"], receipt["backup"]["local"]):
+            record["private"] = {"password": sentinel, "path": sentinel, "fixtureId": sentinel, "entryOrigin": sentinel}
+        receipt["site"]["browser"]["reasonCode"] = "BROWSER_COMPONENT_MISSING_" + sentinel
+        receipt["backup"]["cloud"] = {"status": "FAILED", "error": "CLOUD_TRANSFER_FAILED"}
+        receipt["backup"]["errors"] = [{"code": "AGE_RECIPIENT", "at": sentinel, "body": sentinel}] * 20
+        before = copy.deepcopy(self.rebind(values))
+        with patch.object(harness, "diagnostic_read", side_effect=AssertionError("new file read")), \
+                patch.object(harness.subprocess, "run", side_effect=AssertionError("new command")), \
+                patch.object(harness.urllib.request, "urlopen", side_effect=AssertionError("new network")):
+            details = self.project(values)["receiptDetails"]
+        self.assertEqual(values, before)
+        self.assertNotIn(sentinel, json.dumps(details))
+        self.assertEqual(details["browser"]["reason"]["state"], "UNRECOGNIZED")
+        self.assertEqual(details["backup"]["cloud"]["error"]["code"], "CLOUD_TRANSFER_FAILED")
+        self.assertEqual(len(details["backup"]["errors"]["codes"]), 16)
+        self.assertTrue(details["backup"]["errors"]["truncated"])
+        for bad in (True, 1, [], {}, "OK\n", "ＯK", sentinel):
+            changed = copy.deepcopy(values)
+            changed[3]["version"]["status"] = bad
+            changed[3]["backup"]["encryption"] = {"status": bad, "error": bad}
+            details = self.project(self.rebind(changed))["receiptDetails"]
+            self.assertEqual(details["rows"]["version"], "UNRECOGNIZED")
+            self.assertEqual(details["backup"]["encryption"]["status"], "UNRECOGNIZED")
+            self.assertNotIn("code", details["backup"]["encryption"]["error"])
+
+    def test_original_public_failed_one_survives_nested_unavailable_and_observation(self):
+        for mismatch in (False, True):
+            values = self.records()
+            if mismatch:
+                values[3]["site"]["browser"]["operationId"] = "e" * 32
+                self.rebind(values)
+            output = io.StringIO()
+            with PostSwitchReasonTests.observation(self, values) as (public, invocation), \
+                    patch.object(harness, "CLI_ACTIONS", []), \
+                    patch.object(harness, "guest_phase", side_effect=lambda *_: harness.public_cli_result(
+                        ["install"], 1, json.dumps(public), invocation=invocation)), contextlib.redirect_stdout(output):
+                code = harness.guest_main("install")
+            observed = json.loads(output.getvalue())
+            self.assertEqual((code, observed["status"], observed["reasonCode"]), (1, "FAIL", "PUBLIC_CLI_FAILED"))
+            self.assertEqual((observed["cliActions"][0]["exitCode"], observed["cliActions"][0]["status"]), (1, "FAILED"))
+            self.assertEqual(observed["cliActions"][0]["reasonCodes"], [])
+            proof = observed["commandFailureDiagnostic"]
+            self.assertEqual((proof["publicExitCode"], proof["managerExitCode"], proof["outcome"]), (1, 1, "ERROR"))
+            self.assertEqual(proof["receiptDetails"]["browser"]["binding"], "UNAVAILABLE" if mismatch else "VERIFIED_PARENT_OPERATION")
+
+
 class SwitchDiagnosticTests(unittest.TestCase):
     def fixture(self):
         second = harness.timestamp_ns("2026-11-04T12:00:00Z")

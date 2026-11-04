@@ -581,6 +581,36 @@ flags. Неизвестные имена, uppercase reason strings и значе
 Digest дополнительно должен совпасть с сохранённым selector. Намерение pull
 или длительность операции сами по себе не подтверждают выбранный release.
 
+`receiptDetails` дополняет эту проекцию только после тех же полных binding checks,
+из уже прочитанных config/journal/receipt, без дополнительных файлов, логов или
+команд. Верхний reason имеет отдельное состояние `MISSING`, `NULL`,
+`RECOGNIZED` или `UNRECOGNIZED` с закрытым признаком string/non-string. Это
+различает отсутствие причины агрегированного `ERROR` и неизвестный код.
+Показываются статусы шести фиксированных строк отчёта, а не их приватное содержимое.
+
+Browser связан с parent operation/installation, instance технической приёмки,
+точным `stages.browser.evidence` и подтверждённым runtime pin. Completed report
+дополнительно сверяется с сохранёнными revision/origin/invocation и pinned Ops
+component; эти приватные значения не публикуются. Ранний `incomplete` или
+`environment_failed` может иметь `runtimeProvenance: NOT_RECORDED`: это наблюдение
+отказа, а не подтверждение browser runtime. Выводятся только шесть фиксированных
+checks, закрытые reason/stage/error маркеры. Только точный ASCII `API_STATUS_nnn`
+для 100–599 превращается в `API_STATUS` и числовой HTTP status; near matches,
+Unicode, неизвестные коды и неверные типы не копируются.
+
+Backup связывается с parent operation либо с явно записанным
+`stages.first_backup.backupOperationId`; последний обозначается
+`DECLARED_FIRST_BACKUP_CHILD`, без утверждения о новом чтении child journal.
+Проверяются installation/snapshot/policy и полное stage evidence за исключением
+добавляемых finalizer полей status/restore/schedule и его штатной нормализации
+отсутствующего local snapshot. Неизвестная связь, включая неописанный source ID
+отдельного cloud retry, даёт `UNAVAILABLE`. Публикуются policy/outcome, три
+component statuses и закрытые ошибки (не более 16 из списка, с признаком
+усечения); пути, credentials, origins, fixture IDs и произвольные поля исключены.
+Неподтверждённые вложенные данные не меняют исходные public exit/outcome/FAIL.
+`done` стадии `browser` или `first_backup` само по себе не означает успешную
+приёмку; новая проекция не устанавливает задним числом причину прежнего native run.
+
 Для классификации `COMMAND` используются два отдельных приватных источника:
 
 - CLI log из результата того же вызова: фиксированный каталог
