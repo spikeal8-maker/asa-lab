@@ -53,10 +53,29 @@ export interface CanonicalLearningSurfaceState {
   compatibilityDiagnostic?: string;
 }
 
+export interface CourseParticipationProof {
+  classroomAssignmentId: string;
+  applicable: boolean;
+  excused: boolean;
+}
+
+export interface CanonicalCourseLearnerSnapshot {
+  projections: Map<string, CanonicalLearningProjection>;
+  participationByRun: Map<string, CourseParticipationProof>;
+  /** Canonical results for individual runs, including siblings on a shared handout. */
+  courseProjectionsByRun: Map<string, CanonicalLearningProjection | null>;
+}
+
+export function canonicalCourseParticipationKey(seatId: string, activityRunId: string): string {
+  return `${seatId}:${activityRunId}`;
+}
+
 export interface CanonicalLearningProjection {
   key: string;
   state: CanonicalLearningState;
   surface: CanonicalLearningSurfaceState;
+  /** Assigned/excused facts come from the exact participation, not a Project/Attempt. */
+  participationApplicability: { applicable: boolean; excused: boolean } | null;
   compatibilityGradingUnknown: boolean;
   reusableAuthoredContent: boolean;
   projectId: string | null;
@@ -162,6 +181,12 @@ export function canonicalProjectionFromEvidence(
   return {
     key,
     state,
+    participationApplicability: evidence.participation
+      ? {
+          applicable: evidence.participation.applicable === true,
+          excused: evidence.participation.excused === true,
+        }
+      : null,
     surface: {
       ...surfaceState(state, audience),
       effectiveDueAt: evidence.dueAt,
@@ -222,22 +247,80 @@ export class LearningCanonicalProjectionService {
     return this.read('learning_canonical_evidence_for_account($1)', [accountId], 'learner', asOf);
   }
 
+  /** One canonical read supplies both the legacy handout view and exact Course Run applicability. */
+  async forSeatCourseRuns(
+    seatId: string,
+    asOf = new Date().toISOString(),
+  ): Promise<CanonicalCourseLearnerSnapshot> {
+    return this.readSnapshot('learning_canonical_evidence_for_seat($1)', [seatId], 'learner', asOf);
+  }
+
+  async forAccountCourseRuns(
+    accountId: string,
+    asOf = new Date().toISOString(),
+  ): Promise<CanonicalCourseLearnerSnapshot> {
+    return this.readSnapshot(
+      'learning_canonical_evidence_for_account($1)',
+      [accountId],
+      'learner',
+      asOf,
+    );
+  }
+
   private async read(
     functionCall: string,
     parameters: string[],
     audience: ProjectionAudience,
     asOf: string,
   ): Promise<Map<string, CanonicalLearningProjection>> {
-    if (!this.enabled()) return new Map();
+    return (await this.readSnapshot(functionCall, parameters, audience, asOf)).projections;
+  }
+
+  private async readSnapshot(
+    functionCall: string,
+    parameters: string[],
+    audience: ProjectionAudience,
+    asOf: string,
+  ): Promise<CanonicalCourseLearnerSnapshot> {
+    const projections = new Map<string, CanonicalLearningProjection>();
+    const participationByRun = new Map<string, CourseParticipationProof>();
+    const courseProjectionsByRun = new Map<string, CanonicalLearningProjection | null>();
+    if (!this.enabled()) return { projections, participationByRun, courseProjectionsByRun };
     const result = await this.pool.query<{ evidence: EvidenceRow }>(
       `SELECT evidence FROM ${functionCall}`,
       parameters,
     );
-    return new Map(
-      result.rows.map(({ evidence }) => {
-        const key = canonicalProjectionKey(evidence.seatId, evidence.classroomAssignmentId);
-        return [key, canonicalProjectionFromEvidence(evidence, key, asOf, audience)];
-      }),
-    );
+    for (const { evidence } of result.rows) {
+      const key = canonicalProjectionKey(evidence.seatId, evidence.classroomAssignmentId);
+      projections.set(key, canonicalProjectionFromEvidence(evidence, key, asOf, audience));
+      // Handout-keyed canonical state may collapse sibling Activity Runs.
+      // Preserve every learner/Run participation independently of work origin.
+      if (evidence.kind === 'course_project' && evidence.activityRunId && evidence.participation) {
+        const runKey = canonicalCourseParticipationKey(evidence.seatId, evidence.activityRunId);
+        if (courseProjectionsByRun.has(runKey)) {
+          // Multiple evidence rows for the same learner/run are ambiguous.
+          // Never choose one accepted result or exemption arbitrarily.
+          courseProjectionsByRun.set(runKey, null);
+          participationByRun.delete(runKey);
+        } else {
+          courseProjectionsByRun.set(
+            runKey,
+            canonicalProjectionFromEvidence(evidence, runKey, asOf, audience),
+          );
+          const active =
+            evidence.participation.status === 'assigned' ||
+            evidence.participation.status === 'active';
+          participationByRun.set(runKey, {
+            classroomAssignmentId: evidence.classroomAssignmentId,
+            applicable: active && evidence.participation.applicable === true,
+            excused:
+              active &&
+              evidence.participation.applicable === true &&
+              evidence.participation.excused === true,
+          });
+        }
+      }
+    }
+    return { projections, participationByRun, courseProjectionsByRun };
   }
 }

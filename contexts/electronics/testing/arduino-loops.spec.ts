@@ -33,7 +33,8 @@ const sketch = (body: string) => `int total=0; void setup(){${body}} void loop()
 describe('Arduino loop control semantics', () => {
   it('advertises only bounded do support and retains unrelated unsupported features', () => {
     expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT['do-while'].status).toBe('limited');
-    for (const body of ['switch(total){case 0:break;}', 'goto label;']) {
+    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.switch.status).toBe('limited');
+    for (const body of ['goto label;label:;']) {
       expect(
         analyseArduinoSourceSupport(sketch(body)).some((d) => d.status === 'unsupported'),
       ).toBe(true);
@@ -174,7 +175,7 @@ describe('Arduino loop control semantics', () => {
     'do else total++; while(false);',
     'do {total++;} while(false); continue;',
     'do {do total++; while(false)} while(false);',
-    'switch(total){case 0:break;}',
+    'goto label;label:;',
     'for(int i=0;i<2;i++)unknown();',
     'while(false){unknown();}',
     'for(int i=0;i<2;i++ )',

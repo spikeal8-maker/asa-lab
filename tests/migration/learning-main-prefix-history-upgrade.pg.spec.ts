@@ -274,6 +274,131 @@ const upgradeArtifacts = [
     '0279_ai_monthly_token_budgets.sql',
     '12bf74c83cfffe55898a3793f9b3a4b0d6b4824d1454fb8f84fe0bcd59b1baae',
   ],
+  [
+    '0280',
+    '0280_ai_image_six_presets.sql',
+    'b1cabc69faa4c7301e2b85923c43d95abaa6abf5e8db0d8f2cfa7c37b8db18a4',
+  ],
+  [
+    '0281',
+    '0281_ai_image_versioned_profiles.sql',
+    '623f7431dd2c15e1adbc1874cabdcb0272db9b23d7f2a52158f1fad63f50b8d5',
+  ],
+  [
+    '0282',
+    '0282_ai_ollama_inference_options.sql',
+    'd34604f857922e794dbef41a2accf8354149b4f87c94b57e5c1980bb363dae13',
+  ],
+  [
+    '0283',
+    '0283_publication_likes.sql',
+    'a2b61c7e1f187d8fc466590e82ab02f0fb2628cd9d56d666367d58da7d2bb5af',
+  ],
+  [
+    '0284',
+    '0284_ai_polza_stt.sql',
+    '5a6ed72f2b760b0ed3c14233dda23f6f3cdc07b9eb5f51b8fd495e717968d733',
+  ],
+  [
+    '0285',
+    '0285_public_project_author_name.sql',
+    'bb0001e1438468dda12ea82706dbfa18dd19fb09e3ae3fafebb339de7493299c',
+  ],
+  [
+    '0286',
+    '0286_ai_search_retrieval_settings.sql',
+    '4f66457fc0e91c134dd93d280ba22f58af0c97eaa54ac00e0d38ddec39482c6f',
+  ],
+  [
+    '0287',
+    '0287_publication_copy_counts.sql',
+    'ed604dbc0034caac069c261457bfb699f5e1c8cd06b1b20d7c7910af4b96718b',
+  ],
+  [
+    '0288',
+    '0288_learning_course_academic_result_access.sql',
+    '73c0aad46e2767de51a270e48e15f184dfe7fe43a8ad47992be6ac878ee1b6f4',
+  ],
+  [
+    '0289',
+    '0289_publication_comments.sql',
+    '01bafc7722d6e904462211c9cc4c5d00bccd140f23c216b8825698d08f2e06d7',
+  ],
+  [
+    '0290',
+    '0290_publication_discussion_reactions.sql',
+    'f0ca6f9a9d15c6cff52005f18dcb160559ef251b82f27f5a1e7a2351bd13d165',
+  ],
+  [
+    '0291',
+    '0291_publication_comment_avatars.sql',
+    'f90e4584f6055d0f0be89a04de826e14738cc83fb967b067bc50700e33aa98e7',
+  ],
+  [
+    '0292',
+    '0292_publication_author_catalog.sql',
+    'fd615abbc8445fb3f5bfa4a5c6654127f59b2fd20449df533a64345ab946faaa',
+  ],
+  [
+    '0293',
+    '0293_public_projects_catalog_sort.sql',
+    '31fde2d6f1f29ef4709ff5767426f5ef2cc802e41753cbe19983e4343fbe1891',
+  ],
+  [
+    '0294',
+    '0294_games_chess_network.sql',
+    '04bdaf9176c814494b4d136e228b3d2e83d033a371ee3a8c82dc1be9ac01f129',
+  ],
+  [
+    '0295',
+    '0295_ai_document_inputs.sql',
+    '9ac5de8c47d85a11c2913308ec08a607b6bd70a09ab8601c955976b1251f620e',
+  ],
+  [
+    '0296',
+    '0296_ai_working_files.sql',
+    '25c78c0b59acfe665b1d5f930f110198fc68b0f14904c724db0fe3f354ee50d3',
+  ],
+  [
+    '0297',
+    '0297_ai_polza_text_provider.sql',
+    '0e0176431307c6d67751a601b292570c470fdd1a536535b8b4e737c33c3b77f0',
+  ],
+  [
+    '0298',
+    '0298_ai_image_file_binding.sql',
+    'c42c970943bf6b89fcd341cd656bf1b36d1ed4114b27d72719c15ee5fe394a30',
+  ],
+  [
+    '0299',
+    '0299_ai_polza_token_budget_catalog.sql',
+    '12b080915d4808056f4ba5d9995631aa6c93f41d2c37c3b314621090400b1fac',
+  ],
+  [
+    '0300',
+    '0300_ai_image_durable_queue.sql',
+    '0ea57787d707326f9222fb906bc7d826a91d417c3efdeeb6251c6a3156b6cd26',
+  ],
+  [
+    '0301',
+    '0301_games_chess_lobby.sql',
+    'f64f992a4b6f0d98a9e7e33666e7c67083c4ff274a0780311159ae6ac84514f2',
+  ],
+  [
+    '0302',
+    '0302_games_chess_notifications.sql',
+    '43fb00c4ee7cdff378ffcaa1acd803a2b312eabc9d3211181c23bd238ba05a6d',
+  ],
+  [
+    '0303',
+    '0303_publication_owner_editor.sql',
+    '92818d6ea4dff20e5201e7e4e228678067048155714c89ce9d6f3270792bf60c',
+  ],
+  [
+    '0304',
+    '0304_games_checkers_network.sql',
+    'ecb1283c5adea892895b540f2e04d75a74ab51c54660110bf5a8269f56b3279d',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -390,7 +515,16 @@ async function preservedData(pool: pg.Pool) {
       table === 'projects'
         ? [...copiedProjectOriginFields]
         : table === 'project_publication_state'
-          ? ['acquisition_allowed', 'acquisition_version']
+          ? [
+              'acquisition_allowed',
+              'acquisition_version',
+              'reactions_enabled',
+              'reactions_version',
+              'comments_admin_enabled',
+              'comments_enabled',
+              'comments_version',
+              'pinned_comment_id',
+            ]
           : [];
     result[table] = (
       await pool.query(
@@ -738,13 +872,19 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       expect(
         (
           await pool.query(
-            'SELECT acquisition_allowed, acquisition_version FROM project_publication_state ORDER BY id',
+            'SELECT acquisition_allowed, acquisition_version, reactions_enabled, reactions_version, comments_admin_enabled, comments_enabled, comments_version, pinned_comment_id FROM project_publication_state ORDER BY id',
           )
         ).rows,
       ).toEqual(
         before.project_publication_state!.map(() => ({
           acquisition_allowed: false,
           acquisition_version: 0,
+          reactions_enabled: true,
+          reactions_version: 0,
+          comments_admin_enabled: true,
+          comments_enabled: true,
+          comments_version: 0,
+          pinned_comment_id: null,
         })),
       );
       expect(await preservedData(pool)).toEqual(before);
@@ -800,6 +940,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         (row) => row.version === '0227',
       )!.applied_at;
       const cloudProviderAppliedAt = afterLedger.find((row) => row.version === '0252')!.applied_at;
+      const polzaProviderAppliedAt = afterLedger.find((row) => row.version === '0297')!.applied_at;
       const migratedConfig = (await pool.query('SELECT * FROM ai_assistant_config')).rows[0];
       expect(migratedConfig).toEqual({
         ...config,
@@ -847,6 +988,17 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
           api_key_auth_tag: null,
           key_fingerprint: null,
           updated_at: providerCatalogAppliedAt,
+        },
+        {
+          provider: 'polza',
+          enabled: false,
+          revision: '1',
+          model: 'polza/unconfigured',
+          api_key_ciphertext: null,
+          api_key_iv: null,
+          api_key_auth_tag: null,
+          key_fingerprint: null,
+          updated_at: polzaProviderAppliedAt,
         },
       ]);
       expect(

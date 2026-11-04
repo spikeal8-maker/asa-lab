@@ -79,6 +79,24 @@ function circuit(open: boolean, led = false): SchematicDocument {
 }
 
 describe('two external terminal SPST', () => {
+  it('creates a new SPST open without changing the SPDT default or saved positions', () => {
+    const document = addComponentToDocument(empty, 'switch-spst', { x: 0, y: 0 }, 'new').document;
+    expect(document.components[0]).toMatchObject({
+      state: true,
+      stateProperties: { contactState: 'open' },
+    });
+    const spdt = addComponentToDocument(empty, 'switch-spdt', { x: 0, y: 0 }, 'old').document;
+    expect(spdt.components[0]).toMatchObject({
+      state: false,
+      stateProperties: { selectedThrow: 'left' },
+    });
+    const openCircuit = circuit(true, true);
+    const actual = solveCircuit(openCircuit);
+    expect(actual.solved).toBe(true);
+    expect(actual.components.find((component) => component.componentId === 'switch')?.current).toBe(
+      0,
+    );
+  });
   it.each([false, true])(
     'solves resistive/LED circuits, finite and deterministic (LED=%s)',
     (led) => {

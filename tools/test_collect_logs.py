@@ -17,6 +17,7 @@ from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIR
 from test_database_diagnostics import DatabaseDiagnosticTests  # Included by the canonical collector test runner.
 from test_database_identity import ActualDatabaseIdentityTests, DatabaseIdentityUnitTests
 from test_database_progress import ActualDatabaseProgressTests, DatabaseProgressUnitTests, response
+from test_compose_required_sources import ObservedComposePolicyTests
 
 
 def system_classification_fixture(root, compressed):
@@ -721,7 +722,10 @@ class CollectorTests(unittest.TestCase):
 
     def test_transcript_time_is_labelled_and_health_retains_last_success(self):
         with tempfile.TemporaryDirectory() as temp:
-            root=Path(temp); file=root/'backup.log'; file.write_text('Start time: 20261001083000\nbackup complete\nStart time: 99999999999999\n',encoding='utf8')
+            # Use a recent local transcript timestamp: a fixed historical date
+            # eventually falls outside Collector's 30-day retention window.
+            recent=(datetime.now().astimezone()-timedelta(minutes=2)).strftime('%Y%m%d%H%M%S')
+            root=Path(temp); file=root/'backup.log'; file.write_text(f'Start time: {recent}\nbackup complete\nStart time: 99999999999999\n',encoding='utf8')
             c=Collector(root,{'includeDockerDesktop':False,'fileSources':[{'source':'backup','path':str(file)}]});c.files()
             events=[json.loads(gzip.decompress(row[0])) for row in c.db.execute('SELECT payload FROM events')]
             self.assertEqual(len(events),3);self.assertTrue(all(e['timeBasis']=='transcript' for e in events));c.db.close()
@@ -919,7 +923,7 @@ class CollectorTests(unittest.TestCase):
             def command(args, **kwargs):
                 if args[1] == 'ps': return b'new-container\npostgres-container'
                 if args[1] == 'inspect':
-                    records = [dict(Id=cid, Created=created.isoformat(), Config=dict(Labels={'com.docker.compose.service': service, 'com.docker.compose.project.working_dir': str(collector.root)})) for cid, service in [('new-container', 'api'), ('postgres-container', 'postgres')]]
+                    records = [dict(Id=cid, Created=created.isoformat(), Config=dict(Labels={'com.docker.compose.project': 'asa-lab-dev', 'com.docker.compose.service': service, 'com.docker.compose.project.working_dir': str(collector.root)})) for cid, service in [('new-container', 'api'), ('postgres-container', 'postgres')]]
                     return '\n'.join(json.dumps(c) for c in records).encode()
                 calls.append(args)
                 return (now() + ' ERROR startup failure\n').encode()
@@ -990,6 +994,17 @@ class CollectorTests(unittest.TestCase):
             # confused with an external index replacement on the next publish.
             collector.publish()
             collector.db.close()
+
+
+def load_tests(loader, tests, pattern):
+    # Existing explicit collector CI entrypoint must run the new regression files;
+    # broad discovery already selects them and must not run them twice.
+    import fnmatch
+    if not pattern or not fnmatch.fnmatch('test_retired_metadata_atomic.py', pattern):
+        import test_retired_metadata_atomic, test_retired_successor_recovery
+        tests.addTests(loader.loadTestsFromModule(test_retired_metadata_atomic))
+        tests.addTests(loader.loadTestsFromModule(test_retired_successor_recovery))
+    return tests
 
 
 if __name__ == '__main__':

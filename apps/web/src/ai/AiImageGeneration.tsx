@@ -1,3 +1,5 @@
+import { AI_IMAGE_UNAVAILABLE, aiPublicErrorMessage } from '@asa-lab/contracts';
+import { aiImageSizeLabel, isAiImageSize } from '@asa-lab/contracts';
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import type {
   AiImageGenerationJob,
@@ -31,21 +33,26 @@ export function imageGenerationStatusShape(value: unknown): value is AiImageGene
     typeof status.ready === 'boolean' &&
     Array.isArray(status.sizes) &&
     status.sizes.length > 0 &&
-    status.sizes.every((size) => [512, 768, 1024].includes(size)) &&
+    status.sizes.every(isAiImageSize) &&
     Number.isSafeInteger(status.dailyLimit) &&
     Number.isSafeInteger(status.remainingToday)
   );
 }
 const labels: Record<AiImageGenerationJob['state'], string> = {
-  admitted: 'Задание принято…',
+  admitted: 'В очереди. Изображение начнёт создаваться, когда освободится видеокарта.',
   submitting: 'Передаём задание модели…',
-  unknown: 'Результат пока неизвестен. Проверяем сохранённое задание без повторной отправки.',
+  unknown: 'Проверяю изображение…',
   running: 'Создаём изображение…',
   storing: 'Сохраняем изображение…',
   complete: 'Изображение создано.',
-  failed: 'Не удалось создать изображение.',
+  failed: AI_IMAGE_UNAVAILABLE,
   cancelled: 'Задание отменено.',
 };
+function jobLabel(job: AiImageGenerationJob): string {
+  return job.state === 'admitted' && job.queuePaused
+    ? 'Очередь приостановлена: проверяем неопределённый результат генерации. Задание можно отменить.'
+    : labels[job.state];
+}
 export function AiImageGeneration({
   threadId,
   seatId,
@@ -58,9 +65,12 @@ export function AiImageGeneration({
   modeChoice = 'flux2-klein-4b-v1',
   onModeChange,
   onPromptChange,
+  onNotAdmitted,
   headless = false,
   controllerRef,
   onStateChange,
+  onJobChange,
+  onDefiniteThreadDenial,
   providedStatus,
 }: {
   threadId: string | null;
@@ -74,17 +84,23 @@ export function AiImageGeneration({
   modeChoice?: ImageGenerationMode;
   onModeChange?: (mode: ImageGenerationMode) => void;
   onPromptChange?: (prompt: string) => void;
+  onNotAdmitted?: (prompt: string) => void;
   headless?: boolean;
   controllerRef?: Ref<ImageComposerController>;
   onStateChange?: (state: ImageComposerState) => void;
+  /** Optional observer for the admin preview; never submits or retries a job. */
+  onJobChange?: (job: AiImageGenerationJob | null) => void;
+  /** Called only after a 403 preadmission receipt clears the fresh request ID. */
+  onDefiniteThreadDenial?: (threadId: string) => void;
   providedStatus?: AiImageGenerationStatus | null;
 }) {
   const call = useRef(createAiScopeCall(seatId)).current;
   const [status, setStatus] = useState<AiImageGenerationStatus | null>(null);
   const [prompt, setPrompt] = useState(initialPrompt);
-  const [size, setSize] = useState<AiImageSize>(512);
+  const [size, setSize] = useState<AiImageSize>(1024);
   const [job, setJob] = useState<AiImageGenerationJob | null>(null);
   const [notice, setNotice] = useState('');
+  useEffect(() => onJobChange?.(job), [job, onJobChange]);
   const [sending, setSending] = useState(false);
   const [unresolved, setUnresolved] = useState(false);
   const [check, setCheck] = useState(0);
@@ -112,7 +128,7 @@ export function AiImageGeneration({
         setSize((previous) =>
           result.data.sizes.includes(previous) ? previous : result.data.sizes[0]!,
         );
-      } else setNotice('Генерация изображений недоступна. Возможно, требуется обновление API.');
+      } else setNotice(AI_IMAGE_UNAVAILABLE);
     });
     return () => {
       mounted.current = false;
@@ -185,7 +201,7 @@ export function AiImageGeneration({
           }
           return;
         }
-      } else setNotice('Статус задания пока неизвестен. Повторная отправка не выполняется.');
+      } else setNotice('Проверяю изображение…');
       timer = window.setTimeout(
         () => void poll(),
         Math.min(15000, 1500 * 2 ** Math.min(attempt++, 4)),
@@ -255,8 +271,10 @@ export function AiImageGeneration({
         result.error.code === 'ai_image_not_admitted' &&
         [400, 403, 429, 503].includes(result.status)
       ) {
+        let receiptCleared = false;
         try {
           if (sessionStorage.getItem(key(id)) === requestId) sessionStorage.removeItem(key(id));
+          receiptCleared = sessionStorage.getItem(key(id)) === null;
         } catch {
           // Keep the saved UUID when storage cannot confirm its removal.
         }
@@ -265,7 +283,9 @@ export function AiImageGeneration({
         recoveryVersion.current += 1;
         setJob(null);
         setUnresolved(false);
-        setNotice(result.error.message);
+        setNotice(aiPublicErrorMessage(result.error.code, AI_IMAGE_UNAVAILABLE));
+        if (receiptCleared) onNotAdmitted?.(submittedPrompt);
+        if (initial && result.status === 403 && receiptCleared) onDefiniteThreadDenial?.(id);
         // Also cancel an early GET started when this POST created a thread.
         setCheck((n) => n + 1);
         const latest = await call<AiImageGenerationStatus>('/api/ai/image-generation/status');
@@ -290,15 +310,12 @@ export function AiImageGeneration({
       } else
         setNotice(
           result.status
-            ? result.error.message
-            : 'Ответ сервера неизвестен. Проверяем задание без повторной отправки.',
+            ? aiPublicErrorMessage(result.error.code, AI_IMAGE_UNAVAILABLE)
+            : 'Проверяю изображение…',
         );
       setCheck((n) => n + 1);
     } catch {
-      if (mounted.current)
-        setNotice(
-          'Не удалось сохранить или проверить задание. Новая генерация не запущена автоматически.',
-        );
+      if (mounted.current) setNotice(AI_IMAGE_UNAVAILABLE);
     } finally {
       inFlight.current = false;
       if (mounted.current) setSending(false);
@@ -351,17 +368,17 @@ export function AiImageGeneration({
         !!status?.enabled &&
         status.ready &&
         status.remainingToday > 0,
-      sizes: status?.sizes || [512],
+      sizes: status?.sizes || [1024],
       notice:
         notice ||
         (job
           ? job.cancelRequested && !terminal(job)
             ? 'Отмена запрошена. Проверяем состояние задания…'
-            : labels[job.state]
+            : jobLabel(job)
           : status && (!status.enabled || !status.ready)
-            ? 'Генерация изображений сейчас недоступна.'
+            ? AI_IMAGE_UNAVAILABLE
             : status && status.remainingToday < 1
-              ? 'Дневной лимит изображений исчерпан.'
+              ? AI_IMAGE_UNAVAILABLE
               : ''),
     });
   }, [disabled, sending, pending, job, unresolved, status, notice, onStateChange]);
@@ -430,9 +447,9 @@ export function AiImageGeneration({
                   onChange={(event) => setSize(Number(event.target.value) as AiImageSize)}
                   disabled={sending || !!pending}
                 >
-                  {(status?.sizes || [512]).map((value) => (
+                  {(status?.sizes || [1024]).map((value) => (
                     <option key={value} value={value}>
-                      {value} × {value}
+                      {aiImageSizeLabel(value as AiImageSize)}
                     </option>
                   ))}
                 </select>
@@ -507,12 +524,12 @@ export function AiImageGeneration({
           (job
             ? job.cancelRequested && !terminal(job)
               ? 'Отмена запрошена. Проверяем состояние задания…'
-              : labels[job.state]
+              : jobLabel(job)
             : status
               ? !status.enabled
-                ? 'Генерация выключена администратором.'
+                ? AI_IMAGE_UNAVAILABLE
                 : !status.ready
-                  ? 'Локальная генерация пока не готова.'
+                  ? AI_IMAGE_UNAVAILABLE
                   : 'Доступно до 00:00 UTC: ' + status.remainingToday
               : 'Проверяем доступность…')}
       </p>

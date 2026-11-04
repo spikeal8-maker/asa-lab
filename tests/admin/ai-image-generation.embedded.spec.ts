@@ -1,3 +1,6 @@
+import { nativeTools, parseNativeToolCalls } from '../../apps/api/src/ai-native-tools';
+import { AiChatService } from '../../apps/api/src/ai-chat.service';
+import { AI_IMAGE_PRESETS } from '@asa-lab/contracts';
 import { publishFixturePolicy, fixtureGenerationSql } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
@@ -9,6 +12,17 @@ import type { ComfyImageRecovery } from '../../apps/api/src/ai-image-comfyui';
 import { AiAttachmentStorageError } from '../../apps/api/src/ai-attachments/blob-store';
 import { AiTextHistoryStore } from '../../apps/api/src/ai-text-history';
 import { aiClassFixture } from './ai-student-access.contract';
+let legacyOwner: string, legacyThread: string, legacyRequest: string, legacyParent: string;
+let legacyJob: Record<string, unknown>;
+const legacyNativePayload = {
+  text: 'Legacy image',
+  model: null,
+  source: null,
+  uploads: [],
+  webSearchMode: null,
+  weatherCity: null,
+  nativeImage: { mode: 'auto' as const, size: 512 },
+};
 let db: PGlite, owner: string, stranger: string, admin: string, thread: string;
 const pool = {
   query: async (sql: string, params: unknown[] = []) => {
@@ -61,13 +75,94 @@ function service() {
 }
 async function config(enabled = true) {
   const c = await service().admin(admin);
-  return service().saveAdmin(admin, { ...c, requestId: randomUUID(), enabled });
+  return service().saveAdmin(admin, { ...c, requestId: randomUUID(), enabled, sizes: [768] });
 }
 async function createThread() {
   return (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [owner])).rows[0]!.id;
 }
-beforeAll(async () => {
+async function initialize(upgrade = false) {
   db = new PGlite();
+  await applyPlan(
+    {
+      query: async (sql: string, params?: unknown[]) =>
+        params?.length ? db.query(sql, params) : { rows: (await db.exec(sql)).at(-1)?.rows ?? [] },
+    },
+    planMigrations('migrations').filter((m: { version: string }) => !upgrade || m.version < '0280'),
+  );
+  admin = await identity(true);
+  owner = await identity();
+  stranger = await identity();
+  thread = await createThread();
+  if (!upgrade) return;
+  await pool.query('SELECT ai_image_config_set($1,$2::jsonb)', [
+    admin,
+    JSON.stringify({
+      requestId: randomUUID(),
+      configurationVersion: 1,
+      enabled: true,
+      dailyLimit: 17,
+      globalConcurrency: 2,
+      sizes: [512],
+    }),
+  ]);
+  await pool.query('SELECT ai_comfyui_config_set($1,1,$2,$3)', [
+    admin,
+    'http://192.168.12.20:8188',
+    randomUUID(),
+  ]);
+  legacyOwner = await identity();
+  legacyThread = (
+    await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [legacyOwner])
+  ).rows[0]!.id;
+  legacyRequest = randomUUID();
+  await pool.query('SELECT ai_image_begin($1,$2,$3,$4,512,$5,42,true,$6)', [
+    legacyOwner,
+    legacyThread,
+    legacyRequest,
+    'Legacy image',
+    randomUUID(),
+    'a'.repeat(64),
+  ]);
+  await db.query(
+    "UPDATE ai_image_jobs SET state='complete',sha256=$2,size_bytes=10 WHERE request_id=$1",
+    [legacyRequest, 'b'.repeat(64)],
+  );
+  legacyJob = (
+    await db.query<Record<string, unknown>>('SELECT * FROM ai_image_jobs WHERE request_id=$1', [
+      legacyRequest,
+    ])
+  ).rows[0]!;
+  legacyParent = randomUUID();
+  await db.query(
+    `INSERT INTO ai_tool_image_receipts(owner_principal_id,parent_request_id,thread_id,source_user_message_id,child_request_id,prompt,size,recipe)
+    SELECT $1,$2,$3,id,$4,'Legacy image',512,'flux2-klein-4b-v1' FROM ai_assistant_messages WHERE request_id=$4 AND role='user'`,
+    [legacyOwner, legacyParent, legacyThread, legacyRequest],
+  );
+  await db.query(
+    "UPDATE ai_ollama_settings SET enabled=true,model='gemma:test' WHERE singleton_key",
+  );
+  await publishFixturePolicy(pool, admin, 'ollama-local');
+  await pool.query(
+    `SELECT ai_generation_begin($1,$2,$3,$4::jsonb,'ollama-local',
+    (ai_generation_policy_runtime()->>'revision')::bigint,$5::bigint)`,
+    [
+      legacyOwner,
+      legacyThread,
+      legacyParent,
+      JSON.stringify(legacyNativePayload),
+      (
+        await db.query<{ revision: string }>(
+          'SELECT revision FROM ai_ollama_settings WHERE singleton_key',
+        )
+      ).rows[0]!.revision,
+    ],
+  );
+  await pool.query('SELECT ai_tool_request_options($1,$2,$3,$4::jsonb,true)', [
+    legacyOwner,
+    legacyThread,
+    legacyParent,
+    JSON.stringify(legacyNativePayload),
+  ]);
   await applyPlan(
     {
       query: async (sql: string, params?: unknown[]) =>
@@ -75,17 +170,149 @@ beforeAll(async () => {
     },
     planMigrations('migrations'),
   );
-  admin = await identity(true);
-  owner = await identity();
-  stranger = await identity();
-  thread = await createThread();
-}, 120000);
+}
+beforeAll(() => initialize(true), 120000);
 afterAll(async () => {
   await db.close();
 });
+it('upgrades the complete 0279 ledger preserving saved endpoint, controls and legacy receipts', async () => {
+  const settings = (await db.query('SELECT * FROM ai_image_settings')).rows[0]!;
+  expect(settings).toMatchObject({
+    enabled: true,
+    daily_limit: 17,
+    global_concurrency: 1,
+    sizes: AI_IMAGE_PRESETS.map((p) => p.id),
+    revision: 4,
+    comfy_revision: 2,
+    comfy_base_url: 'http://192.168.12.20:8188',
+  });
+  expect(
+    (await db.query('SELECT * FROM ai_image_jobs WHERE request_id=$1', [legacyRequest])).rows[0],
+  ).toEqual(legacyJob);
+  expect((await service().get(legacyOwner, legacyThread, legacyRequest)).image).toMatchObject({
+    width: 512,
+    height: 512,
+  });
+  expect(
+    (
+      await pool.query<{ value: unknown[] }>('SELECT ai_image_history($1,$2,$3) AS value', [
+        legacyOwner,
+        legacyThread,
+        legacyRequest,
+      ])
+    ).rows[0]!.value[0],
+  ).toMatchObject({ width: 512, height: 512 });
+  // Existing exact SQL receipt replay remains free after 512 leaves new admission.
+  await pool.query('SELECT ai_image_begin($1,$2,$3,$4,512,$5,42,false,$6)', [
+    legacyOwner,
+    legacyThread,
+    legacyRequest,
+    'Legacy image',
+    randomUUID(),
+    'a'.repeat(64),
+  ]);
+  expect(
+    (await db.query('SELECT * FROM ai_image_jobs WHERE request_id=$1', [legacyRequest])).rows[0],
+  ).toEqual(legacyJob);
+  expect(
+    (await service().replayTool(legacyOwner, legacyThread, legacyParent))?.image,
+  ).toMatchObject({ width: 512, height: 512 });
+  expect(
+    (
+      await pool.query<{ value: boolean }>(
+        'SELECT ai_tool_request_options($1,$2,$3,$4::jsonb,false) AS value',
+        [legacyOwner, legacyThread, legacyParent, JSON.stringify(legacyNativePayload)],
+      )
+    ).rows[0]!.value,
+  ).toBe(true);
+  await expect(service().replayTool(stranger, legacyThread, legacyParent)).rejects.toThrow();
+  const replayInput = { requestId: legacyRequest, prompt: 'Legacy image', size: 512 };
+  const quotaBefore = (await db.query('SELECT * FROM ai_assistant_request_quota')).rows;
+  const usageBefore = (await db.query('SELECT * FROM ai_usage_journal')).rows;
+  expect((await service().create(legacyOwner, legacyThread, replayInput)).image).toMatchObject({
+    width: 512,
+    height: 512,
+  });
+  await expect(
+    service().create(legacyOwner, legacyThread, { ...replayInput, prompt: 'Different intent' }),
+  ).rejects.toThrow();
+  await expect(service().create(stranger, legacyThread, replayInput)).rejects.toThrow();
+  await expect(
+    service().create(legacyOwner, legacyThread, { ...replayInput, requestId: randomUUID() }),
+  ).rejects.toThrow();
+  await db.query(
+    "UPDATE ai_image_jobs SET state='submitting',sha256=NULL,size_bytes=NULL WHERE request_id=$1",
+    [legacyRequest],
+  );
+  expect((await service().create(legacyOwner, legacyThread, replayInput)).state).toBe('submitting');
+  expect((await service().get(legacyOwner, legacyThread, legacyRequest)).state).toBe('submitting');
+  expect((await service().pendingTools(legacyOwner, legacyThread))[0]?.requestId).toBe(
+    legacyRequest,
+  );
+  await db.query("UPDATE ai_image_jobs SET state='admitted' WHERE request_id=$1", [legacyRequest]);
+  expect((await service().create(legacyOwner, legacyThread, replayInput)).state).toBe('admitted');
+  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toEqual(quotaBefore);
+  expect((await db.query('SELECT * FROM ai_usage_journal')).rows).toEqual(usageBefore);
+  const fetchImpl = vi.fn<typeof fetch>();
+  const queries = vi.fn(async (sql: string, params: unknown[] = []) => pool.query(sql, params));
+  const chat = new AiChatService({ query: queries } as unknown as pg.Pool, {
+    images: service(),
+    fetchImpl,
+  });
+  const nativeReplay = (actor = legacyOwner, request = legacyParent, text = 'Legacy image') =>
+    chat.sendStream(
+      actor,
+      legacyThread,
+      text,
+      request,
+      () => undefined,
+      new AbortController().signal,
+      undefined,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      legacyNativePayload.nativeImage,
+    );
+  const nativeQuota = (await db.query('SELECT * FROM ai_assistant_request_quota')).rows;
+  const holds = (await db.query('SELECT * FROM ai_token_budget_reservations')).rows;
+  const nativeReceipts = (await db.query('SELECT * FROM ai_tool_request_receipts')).rows;
+  expect(await nativeReplay()).toMatchObject({
+    replayed: true,
+    imageJob: { requestId: legacyRequest },
+  });
+  await expect(nativeReplay(legacyOwner, randomUUID())).rejects.toMatchObject({
+    code: 'ai_input_invalid',
+  });
+  await expect(nativeReplay(legacyOwner, legacyParent, 'Different intent')).rejects.toThrow();
+  await expect(nativeReplay(stranger)).rejects.toThrow();
+  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toEqual(nativeQuota);
+  expect((await db.query('SELECT * FROM ai_token_budget_reservations')).rows).toEqual(holds);
+  expect(
+    queries.mock.calls.some(([sql]) =>
+      /ai_runtime_config|ai_ollama_runtime|ai_generation_begin|ai_chat_begin/.test(sql),
+    ),
+  ).toBe(false);
+  expect((await db.query('SELECT * FROM ai_tool_request_receipts')).rows).toEqual(nativeReceipts);
+  expect(fetchImpl).not.toHaveBeenCalled();
+  expect(transport.dispatch).not.toHaveBeenCalled();
+  const before = await service().admin(admin);
+  await service().saveAdmin(admin, {
+    ...before,
+    requestId: randomUUID(),
+    enabled: false,
+    dailyLimit: 10,
+    globalConcurrency: 1,
+  });
+  expect(
+    (await pool.query<{ value: string }>('SELECT ai_comfyui_runtime() AS value')).rows[0]!.value,
+  ).toBe('http://192.168.12.20:8188');
+  await db.close();
+  await initialize();
+}, 120000);
 it('defaults disabled; validates bounded admin/prompt payloads', async () => {
   expect((await service().admin(admin)).enabled).toBe(false);
-  expect(() => imageInput({ requestId: randomUUID(), prompt: '', size: 512 })).toThrow();
+  expect(() => imageInput({ requestId: randomUUID(), prompt: '', size: 768 })).toThrow();
   expect(() =>
     imageAdminInput({
       requestId: randomUUID(),
@@ -93,7 +320,7 @@ it('defaults disabled; validates bounded admin/prompt payloads', async () => {
       enabled: true,
       dailyLimit: 101,
       globalConcurrency: 1,
-      sizes: [512],
+      sizes: [768],
     }),
   ).toThrow();
   await expect(service().admin(stranger)).rejects.toThrow();
@@ -103,17 +330,21 @@ it('admits local image without any text keys, dispatches once, unknown keeps glo
   const id = randomUUID();
   transport.dispatch.mockRejectedValueOnce(new Error('timeout'));
   const s = service();
-  const job = await s.create(owner, thread, { requestId: id, prompt: 'A blue cube', size: 512 });
+  const job = await s.create(owner, thread, { requestId: id, prompt: 'A blue cube', size: 768 });
   expect(job.state).toBe('submitting');
-  await s.create(owner, thread, { requestId: id, prompt: 'A blue cube', size: 512 });
+  await s.create(owner, thread, { requestId: id, prompt: 'A blue cube', size: 768 });
   expect(transport.dispatch).toHaveBeenCalledTimes(1);
   await expect(
-    s.create(owner, thread, { requestId: id, prompt: 'different', size: 512 }),
+    s.create(owner, thread, { requestId: id, prompt: 'different', size: 768 }),
   ).rejects.toThrow();
   await expect(s.get(stranger, thread, id)).rejects.toThrow();
-  await expect(
-    s.create(owner, thread, { requestId: randomUUID(), prompt: 'other', size: 512 }),
-  ).rejects.toThrow();
+  const waiting = await s.create(owner, thread, {
+    requestId: randomUUID(),
+    prompt: 'other',
+    size: 768,
+  });
+  expect(waiting.state).toBe('admitted');
+  await s.cancel(owner, thread, waiting.requestId);
   await s.sweep();
   expect((await s.get(owner, thread, id)).state).toBe('unknown');
   const rows = (
@@ -142,12 +373,12 @@ it('cancellation never interrupts or refunds unknown; deleted receipt denies UUI
   await service().cancel(owner, thread, row.request_id);
   expect(transport.cancelPending).not.toHaveBeenCalled();
   await pool.query('SELECT ai_chat_delete($1,$2)', [owner, thread]);
-  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toHaveLength(1);
+  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toHaveLength(2);
   await expect(
     service().create(owner, thread, {
       requestId: row.request_id,
       prompt: 'A blue cube',
-      size: 512,
+      size: 768,
     }),
   ).rejects.toThrow();
 });
@@ -168,7 +399,7 @@ it('unknown immutable PUT is never retried; verified image persists in history a
   const id = randomUUID();
   const png = Buffer.from('sanitized output from trusted transport');
   const s = service();
-  await s.create(owner, thread, { requestId: id, prompt: 'A green cube', size: 512 });
+  await s.create(owner, thread, { requestId: id, prompt: 'A green cube', size: 768 });
   transport.recover.mockResolvedValueOnce({ state: 'complete', png });
   blobs.putImmutable.mockRejectedValueOnce(new AiAttachmentStorageError('unknown'));
   await s.sweep();
@@ -198,17 +429,17 @@ it('unknown immutable PUT is never retried; verified image persists in history a
   await expireImageLeases();
   await s.sweep();
   expect(blobs.remove).toHaveBeenCalledTimes(1);
-  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toHaveLength(2);
+  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toHaveLength(3);
   expect(
     (await db.query("SELECT * FROM ai_usage_journal WHERE provider='comfyui'")).rows,
-  ).toHaveLength(2);
+  ).toHaveLength(3);
 });
 it('disabled image settings and archived threads fail before another dispatch; admin CAS replay is immutable', async () => {
   await config(false);
   const t = await createThread();
   const before = transport.dispatch.mock.calls.length;
   await expect(
-    service().create(owner, t, { requestId: randomUUID(), prompt: 'x', size: 512 }),
+    service().create(owner, t, { requestId: randomUUID(), prompt: 'x', size: 768 }),
   ).rejects.toThrow();
   const c = await service().admin(admin);
   const input = { ...c, requestId: randomUUID(), enabled: true };
@@ -217,7 +448,7 @@ it('disabled image settings and archived threads fail before another dispatch; a
   await expect(service().saveAdmin(admin, { ...input, dailyLimit: 11 })).rejects.toThrow();
   await pool.query('SELECT * FROM ai_text_archive($1,$2,true)', [owner, t]);
   await expect(
-    service().create(owner, t, { requestId: randomUUID(), prompt: 'x', size: 512 }),
+    service().create(owner, t, { requestId: randomUUID(), prompt: 'x', size: 768 }),
   ).rejects.toThrow();
   expect(transport.dispatch).toHaveBeenCalledTimes(before);
 });
@@ -233,7 +464,7 @@ it('school deny remains authoritative for image admission independent of local m
   );
   const before = transport.dispatch.mock.calls.length;
   await expect(
-    service().create(f.principalId, t, { requestId: randomUUID(), prompt: 'x', size: 512 }),
+    service().create(f.principalId, t, { requestId: randomUUID(), prompt: 'x', size: 768 }),
   ).rejects.toThrow();
   expect(transport.dispatch).toHaveBeenCalledTimes(before);
 });
@@ -289,10 +520,10 @@ it('lost dispatch-CAS response is reconciled without ever posting the provider j
   const id = randomUUID();
   const before = transport.dispatch.mock.calls.length;
   await expect(
-    s.create(other, t, { requestId: id, prompt: 'One exact image', size: 512 }),
+    s.create(other, t, { requestId: id, prompt: 'One exact image', size: 768 }),
   ).rejects.toThrow();
   expect(
-    (await s.create(other, t, { requestId: id, prompt: 'One exact image', size: 512 })).state,
+    (await s.create(other, t, { requestId: id, prompt: 'One exact image', size: 768 })).state,
   ).toBe('submitting');
   expect(transport.dispatch).toHaveBeenCalledTimes(before);
 });
@@ -302,7 +533,7 @@ it('labels definite pre-admission size rejection distinctly from generic post-co
   const t = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [fresh])).rows[0]!
     .id;
   await expect(
-    service().create(fresh, t, { requestId: randomUUID(), prompt: 'x', size: 768 }),
+    service().create(fresh, t, { requestId: randomUUID(), prompt: 'x', size: 1024 }),
   ).rejects.toMatchObject({ code: 'ai_image_not_admitted', status: 400 });
   const row = (
     await db.query<{
@@ -324,7 +555,7 @@ it('labels definite pre-admission size rejection distinctly from generic post-co
     new AiImageService(afterCommitPool, { transport, blobs, maintenance: false }).create(
       row.owner_principal_id,
       row.thread_id,
-      { requestId: row.request_id, prompt: row.prompt, size: 512 },
+      { requestId: row.request_id, prompt: row.prompt, size: 768 },
     ),
   ).rejects.toMatchObject({ code: 'ai_image_denied', status: 403 });
 });
@@ -339,7 +570,7 @@ it('confirmed readiness rejection creates no receipt and permits the same UUID a
   const requestId = randomUUID();
   transport.readiness.mockResolvedValueOnce({ ready: false, reason: null });
   await expect(
-    s.create(fresh, t, { requestId, prompt: 'Local readiness race', size: 512 }),
+    s.create(fresh, t, { requestId, prompt: 'Local readiness race', size: 768 }),
   ).rejects.toMatchObject({ code: 'ai_image_not_admitted', status: 503 });
   expect(
     (await db.query('SELECT * FROM ai_image_jobs WHERE request_id=$1', [requestId])).rows,
@@ -349,7 +580,7 @@ it('confirmed readiness rejection creates no receipt and permits the same UUID a
       .rows,
   ).toHaveLength(0);
   expect(
-    (await s.create(fresh, t, { requestId, prompt: 'Local readiness race', size: 512 })).state,
+    (await s.create(fresh, t, { requestId, prompt: 'Local readiness race', size: 768 })).state,
   ).toBe('submitting');
   const afterCommitPool = {
     query: async (sql: string, params: unknown[]) => {
@@ -361,7 +592,7 @@ it('confirmed readiness rejection creates no receipt and permits the same UUID a
     new AiImageService(afterCommitPool, { transport, blobs, maintenance: false }).create(fresh, t, {
       requestId,
       prompt: 'Local readiness race',
-      size: 512,
+      size: 768,
     }),
   ).rejects.toMatchObject({ code: 'ai_image_unavailable', status: 503 });
 });
@@ -377,7 +608,7 @@ it('deleting an uncertain storing job releases only the finished GPU slot while 
   await s.create(fresh, t, {
     requestId,
     prompt: 'GPU finished before unknown object write',
-    size: 512,
+    size: 768,
   });
   transport.recover.mockResolvedValueOnce({
     state: 'complete',
@@ -441,10 +672,12 @@ it('deleting an uncertain storing job releases only the finished GPU slot while 
       await s.create(fresh, nextThread, {
         requestId: nextId,
         prompt: 'A second local image',
-        size: 512,
+        size: 768,
       })
     ).state,
   ).toBe('submitting');
+  // The scheduler observes active GPU work before lower-priority object cleanup.
+  await s.sweep();
   let lateObjectPresent = true;
   blobs.remove.mockImplementationOnce(async () => {
     lateObjectPresent = false;
@@ -501,13 +734,13 @@ it('deleting an uncertain storing job releases only the finished GPU slot while 
   ).toBe('unknown');
   const thirdThread = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [fresh]))
     .rows[0]!.id;
-  await expect(
-    s.create(fresh, thirdThread, {
-      requestId: randomUUID(),
-      prompt: 'Must wait for known terminal GPU result',
-      size: 512,
-    }),
-  ).rejects.toMatchObject({ code: 'ai_image_not_admitted', status: 429 });
+  const waiting = await s.create(fresh, thirdThread, {
+    requestId: randomUUID(),
+    prompt: 'Must wait for known terminal GPU result',
+    size: 768,
+  });
+  expect(waiting).toMatchObject({ state: 'admitted', queuePaused: true });
+  await s.cancel(fresh, thirdThread, waiting.requestId);
 });
 it('cleanup_done defensively closes historical deleted storing rows without erasing their uncertain PUT tombstone', async () => {
   const j = (
@@ -559,6 +792,11 @@ it('atomically turns an admitted local text request into one owner-scoped image 
     )
   ).rows[0]!.revision;
   await publishFixturePolicy(pool, admin, 'ollama-local');
+  const fp8Settings = await service().saveAdmin(admin, {
+    ...(await service().admin(admin)),
+    requestId: randomUUID(),
+    recipe: 'flux2-klein-4b-fp8-izo-v1',
+  });
   const parent = randomUUID();
   const childPrompt = 'A detailed sunlit forest with a village and winding path';
   expect(
@@ -574,7 +812,7 @@ it('atomically turns an admitted local text request into one owner-scoped image 
   ).toBe(true);
   const options = {
     text: 'Нарисуй красивый лес и деревню',
-    nativeImage: { mode: 'auto', size: 512 },
+    nativeImage: { mode: 'auto', size: 768 },
   };
   await pool.query('SELECT ai_tool_request_options($1,$2,$3,$4::jsonb,true)', [
     actor,
@@ -583,23 +821,59 @@ it('atomically turns an admitted local text request into one owner-scoped image 
     JSON.stringify(options),
   ]);
   await pool.query('SELECT ai_tool_policy_snapshot($1,$2,$3) AS value', [actor, chat, parent]);
+  await expect(
+    service().saveAdmin(admin, {
+      ...fp8Settings,
+      requestId: randomUUID(),
+      recipe: 'flux2-klein-4b-v1',
+    }),
+  ).rejects.toThrow();
   const before = transport.dispatch.mock.calls.length;
+  const offered = nativeTools({
+    imageSizes: [768],
+    imageRecipe: fp8Settings.recipe,
+    search: false,
+    weather: false,
+  });
+  const parsed = parseNativeToolCalls(
+    [
+      {
+        function: {
+          name: 'generate_image',
+          arguments: { prompt: childPrompt, size: 768, model: fp8Settings.recipe },
+        },
+      },
+    ],
+    offered,
+  )[0]!;
   const job = await service().createFromTool(
     actor,
     chat,
     parent,
-    childPrompt,
-    512,
+    parsed.arguments.prompt as string,
+    768,
     new AbortController().signal,
+    parsed.arguments.model as typeof fp8Settings.recipe,
   );
+  expect(job.state).toBe('admitted');
+  expect(transport.dispatch.mock.calls.length).toBe(before);
+  await service().sweep();
   expect(
     (
       await db.query<{ size: number }>('SELECT size FROM ai_image_jobs WHERE request_id=$1', [
         job.requestId,
       ])
     ).rows[0]?.size,
-  ).toBe(512);
+  ).toBe(768);
   expect(transport.dispatch.mock.calls.length).toBe(before + 1);
+  expect(
+    (
+      await db.query<{ recipe: string }>(
+        'SELECT recipe FROM ai_tool_image_receipts WHERE child_request_id=$1',
+        [job.requestId],
+      )
+    ).rows[0]!.recipe,
+  ).toBe('flux2-klein-4b-fp8-izo-v1');
   expect((await service().replayTool(actor, chat, parent))?.requestId).toBe(job.requestId);
   expect(
     (await service().pendingTools(actor, chat)).some((item) => item.requestId === job.requestId),
@@ -672,7 +946,7 @@ it('atomically turns an admitted local text request into one owner-scoped image 
   const manual = await service().create(actor, manualThread, {
     requestId: randomUUID(),
     prompt: 'Manual landscape',
-    size: 512,
+    size: 768,
   });
   const manualLease = randomUUID();
   await db.query(
@@ -691,4 +965,184 @@ it('atomically turns an admitted local text request into one owner-scoped image 
   expect(manualHistory.filter((item) => item.role === 'assistant')).toHaveLength(1);
   expect(manualHistory[1]?.generatedImages?.[0]?.requestId).toBe(manual.requestId);
   await expect(service().replayTool(stranger, chat, parent)).rejects.toThrow();
+});
+
+it('uses the six preset dimensions in durable owner history and rejects new 512 jobs', async () => {
+  await db.query(
+    "UPDATE ai_image_jobs SET state='failed' WHERE state IN('admitted','submitting','unknown','running','storing')",
+  );
+  const settings = await service().admin(admin);
+  const ids = AI_IMAGE_PRESETS.map((p) => p.id);
+  await service().saveAdmin(admin, {
+    ...settings,
+    requestId: randomUUID(),
+    enabled: true,
+    sizes: ids,
+  });
+  const actor = await identity();
+  const chat = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [actor]))
+    .rows[0]!.id;
+  expect((await service().status(actor)).sizes).toEqual(ids);
+  for (const preset of AI_IMAGE_PRESETS) {
+    const id = randomUUID();
+    await service().create(actor, chat, {
+      requestId: id,
+      prompt: 'Test dimensions',
+      size: preset.id,
+    });
+    await db.query(
+      "UPDATE ai_image_jobs SET state='complete',sha256=$2,size_bytes=10,put_started=true,put_uncertain=false WHERE request_id=$1",
+      [id, 'a'.repeat(64)],
+    );
+    const visible = await service().get(actor, chat, id);
+    expect(visible.image).toMatchObject({ width: preset.width, height: preset.height });
+    const stored = (
+      await pool.query<{ value: { width: number; height: number }[] }>(
+        'SELECT ai_image_history($1,$2,$3) AS value',
+        [actor, chat, id],
+      )
+    ).rows[0]!.value;
+    expect(stored[0]).toMatchObject({ width: preset.width, height: preset.height });
+    expect(
+      (
+        await pool.query<{ value: unknown[] }>('SELECT ai_image_history($1,$2,$3) AS value', [
+          stranger,
+          chat,
+          id,
+        ])
+      ).rows[0]!.value,
+    ).toEqual([]);
+  }
+  expect(() =>
+    imageInput({ requestId: randomUUID(), prompt: 'New small image', size: 512 }),
+  ).toThrow();
+  await expect(
+    service().saveAdmin(admin, {
+      ...(await service().admin(admin)),
+      requestId: randomUUID(),
+      sizes: [512],
+    }),
+  ).rejects.toThrow();
+});
+
+it('pins FP8 admission and digest, preserves old-client config, rejects active profile switches and stale recipe admission', async () => {
+  await db.query(
+    "UPDATE ai_image_jobs SET state='failed' WHERE state IN('admitted','submitting','unknown','running','storing')",
+  );
+  await db.query('UPDATE ai_assistant_threads SET busy_until=NULL,active_request_id=NULL');
+  const recipe = 'flux2-klein-4b-fp8-izo-v1';
+  let settings = await service().saveAdmin(admin, {
+    ...(await service().admin(admin)),
+    requestId: randomUUID(),
+    enabled: true,
+    recipe,
+  });
+  const { recipe: omitted, ...oldClient } = settings;
+  expect(omitted).toBe(recipe);
+  settings = await service().saveAdmin(admin, { ...oldClient, requestId: randomUUID() });
+  expect(settings.recipe).toBe(recipe);
+  const actor = await identity();
+  const chat = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [actor]))
+    .rows[0]!.id;
+  const requestId = randomUUID();
+  const before = transport.dispatch.mock.calls.length;
+  await service().create(actor, chat, { requestId, prompt: 'FP8 tree', size: 1024 });
+  const row = (
+    await db.query<{ recipe: string; graph_digest: string; settings_snapshot: { recipe: string } }>(
+      'SELECT recipe,graph_digest,settings_snapshot FROM ai_image_jobs WHERE request_id=$1',
+      [requestId],
+    )
+  ).rows[0]!;
+  expect(row.recipe).toBe(recipe);
+  expect(row.settings_snapshot.recipe).toBe(recipe);
+  expect(row.graph_digest).toMatch(/^[a-f0-9]{64}$/);
+  transport.recover.mockResolvedValueOnce({ state: 'missing' });
+  await db.query('UPDATE ai_image_jobs SET lease_until=NULL WHERE request_id=$1', [requestId]);
+  await service().sweep();
+  expect(transport.recover.mock.calls.at(-1)?.at(-1)).toBe(recipe);
+  expect(transport.dispatch.mock.calls.length).toBe(before + 1);
+  expect(transport.dispatch.mock.calls.at(-1)?.at(-1)).toBe(recipe);
+  await expect(
+    service().saveAdmin(admin, {
+      ...settings,
+      requestId: randomUUID(),
+      recipe: 'flux2-klein-4b-v1',
+    }),
+  ).rejects.toThrow();
+  await service().create(actor, chat, { requestId, prompt: 'FP8 tree', size: 1024 });
+  expect(transport.dispatch.mock.calls.length).toBe(before + 1);
+  await db.query("UPDATE ai_image_jobs SET state='failed' WHERE request_id=$1", [requestId]);
+  settings = await service().saveAdmin(admin, {
+    ...settings,
+    requestId: randomUUID(),
+    recipe: 'flux2-klein-4b-v1',
+  });
+  await expect(
+    pool.query('SELECT ai_image_begin($1,$2,$3,$4,1024,$5,42,true,$6,$7)', [
+      actor,
+      chat,
+      randomUUID(),
+      'Stale profile',
+      randomUUID(),
+      'a'.repeat(64),
+      recipe,
+    ]),
+  ).rejects.toThrow(/AI_CONFIG_CHANGED/);
+  expect((await service().get(actor, chat, requestId)).state).toBe('failed');
+});
+it('does not let 121 recurring uncertain-PUT tombstones starve a free GPU and still cleans during active observation', async () => {
+  await db.query(
+    "UPDATE ai_image_jobs SET state='failed' WHERE state IN('admitted','submitting','unknown','running','storing')",
+  );
+  await config();
+  const actor = await identity();
+  const chat = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [actor]))
+    .rows[0]!.id;
+  await db.query(
+    `INSERT INTO ai_image_jobs(owner_principal_id,request_id,thread_id,provider_id,marker,seed,prompt,payload_digest,graph_digest,size,settings_snapshot,state,cancel_requested,sha256,size_bytes,put_started,put_uncertain,cleanup_required,created_at)
+    SELECT $1,gen_random_uuid(),$2,p.id,'ASA_'||replace(p.id::text,'-',''),1,NULL,$3,$3,768,'{}','cancelled',true,$3,3,true,true,true,clock_timestamp()-interval '1 day'
+    FROM (SELECT gen_random_uuid() AS id FROM generate_series(1,121)) p`,
+    [actor, chat, 'a'.repeat(64)],
+  );
+  const request = randomUUID();
+  await pool.query('SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,true,$6,$7)', [
+    actor,
+    chat,
+    request,
+    'Accepted after 121 cleanup tombstones',
+    randomUUID(),
+    'b'.repeat(64),
+    'flux2-klein-4b-v1',
+  ]);
+  const s = service();
+  const dispatched = transport.dispatch.mock.calls.length;
+  const removed = blobs.remove.mock.calls.length;
+  await s.sweep();
+  expect(transport.dispatch.mock.calls.length).toBe(dispatched + 1);
+  expect((await s.get(actor, chat, request)).state).toBe('submitting');
+  expect(blobs.remove.mock.calls.length).toBe(removed);
+  const waiting = await s.create(actor, chat, {
+    requestId: randomUUID(),
+    prompt: 'Must not overlap active GPU',
+    size: 768,
+  });
+  expect(waiting.state).toBe('admitted');
+  transport.recover.mockResolvedValueOnce({ state: 'running' });
+  await s.sweep();
+  await db.query(
+    "UPDATE ai_image_jobs SET lease_until=clock_timestamp()+interval '2 minutes' WHERE request_id=$1",
+    [request],
+  );
+  await s.sweep();
+  expect(blobs.remove.mock.calls.length).toBe(removed + 1);
+  expect(transport.dispatch.mock.calls.length).toBe(dispatched + 1);
+  expect((await s.get(actor, chat, request)).state).toBe('running');
+  expect(
+    (
+      await db.query<{ count: number }>(
+        "SELECT count(*)::int AS count FROM ai_image_jobs WHERE owner_principal_id=$1 AND state='cancelled' AND cleanup_required AND put_uncertain",
+        [actor],
+      )
+    ).rows[0]!.count,
+  ).toBe(121);
 });

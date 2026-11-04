@@ -1,0 +1,159 @@
+{
+  "issue": 902,
+  "parent_source_sha": "4055d28f88ca19a53b614cb6bd6eecc564d7624b",
+  "canonical_selection_sha": "e2dfdd7bc8541f0c41c2ed6d53629f91cc242e1d",
+  "canonical_main_converged": "1e1937638fd2fc67e1336fa38f4efb57ecb67cdd",
+  "pre_product_head": "85cc8353d2f456a3d48f36d4562bebeb17bfdd36",
+  "scope": "Only native selection overlays, meaningful presentation/native tests and evidence. No full836 acceptance.",
+  "source_sha256": {
+    "apps/web/src/electronics/ProductionComponentVisual.tsx": "030bede7932c82803a4e9594dbcbac764c66bbf13b5fc931a48b15d11d589bc8",
+    "apps/web/src/electronics/testing/selection-halo-presentation.spec.ts": "833926d3d75a2f95a72014885243f478493ef03bdecb2ef54c32c84c140abcc7",
+    "tests/electronics/native-oracle-contracts.spec.ts": "0304f30974572c8ef9daac9005212fcdd30aada83dd1548ef4f9c34375c7d558",
+    "tests/electronics/selection-halo.browser.mjs": "941f9f444e033e1fa7cf8c078551b0a3db8d393415e4aff2bfdd219d493972fe"
+  },
+  "preserved_4055_byte_identical": [
+    "apps/web/src/electronics/WorkbenchStage.tsx",
+    "apps/web/src/electronics/production-asset-contracts.ts",
+    "e2e/electronics-simulation.spec.ts",
+    "e2e/electronics-selection-outline.spec.ts",
+    "tests/electronics/native-oracle-contracts.ts",
+    "tests/electronics/native-oracle-contracts.browser.mjs",
+    "tests/electronics/evidence/native-oracle-901/receipt.json"
+  ],
+  "approved_901_unit_maintenance": "Three actual-DOM expected widths now assert canonical default world radius2 and ordinary pin2; all six cases/helper/Save/CAS/E11 thresholds remain. Historical901 browser proof and evidence unchanged.",
+  "verified": {
+    "full_web_tests": {
+      "files": 72,
+      "tests": 1170,
+      "baseline_main": "14edb916054f5e01a598bfaf98f17d7411fda049",
+      "electronics_source_unchanged_after_final_convergence": true
+    },
+    "post_convergence_focused_source_guards": {
+      "files": 3,
+      "tests": 130,
+      "classroom_qualification": 117,
+      "native_oracle": 6,
+      "selection_presentation": 7
+    },
+    "ui_qualification_guards": 20,
+    "isolated_unchanged_owner_assets": 9,
+    "agent_document_guard_tests": 114,
+    "final_routing_hygiene": "PASS",
+    "production_visual_bytes": 92300,
+    "reviewed_bytes": 89698,
+    "final_web_typecheck_fresh_Nx_tasks": 7,
+    "final_web_build_fresh_Nx_tasks": 7,
+    "Nx_cache": "Skipped; NX_SKIP_NX_CACHE=true",
+    "all_fixed_bundle_caps": "PASS",
+    "native_cases": 384,
+    "native_matrix": "4widths x 2zooms x 4rotations x 4mirror combinations x 3families",
+    "paint_profiles": 768,
+    "min_exterior_blue_samples": 5,
+    "max_pixel_radius_error_px": 0.8420000404411754,
+    "unchanged_E11_pixel_tolerance_px": 1.25,
+    "max_CTM_radius_error_px": 2.1146037809671725e-8,
+    "native_negatives": "Actual DOM mutations recreate hardcoded body3.5 and missing-pin2; same exact-radius oracle rejects both in every case. Existing optional offset default2 also verified.",
+    "normal_SVG_byte_identity_cases": 12,
+    "screenshots": 48,
+    "lint": "PASS"
+  },
+  "first_full_web_failure": {
+    "classification": "D",
+    "failed_collection_suites": 26,
+    "cause": "Clean worktree module-sdk dist not built",
+    "passed_tests": 695,
+    "failed_tests": 1,
+    "second_cause": "Unchanged owner-asset hash5s deadline during own concurrent Chromium proof. Isolated9/9 PASS after browser closed. Existing SDK build and no browser concurrency justified one controlled full-Web retry;72/72 and1170/1170 PASS. No deadline/dependency changes."
+  },
+  "native_receipt_sha256": "fe7bb2b211b8746cee137bce6dd098a7d77b054f7a38e2ed88515ec098f7e007",
+  "screenshot_sha256": {
+    "button-tactile-6mm-1024-fit-after.png": "1de3bee6c8c2a9a70b582a3a803e91490b81483f51b2d195b27fc50660489519",
+    "button-tactile-6mm-1024-fit-before.png": "76ec07453f499da25f2ac7893d637ce28134b981b1cf50d69da569bd80cac3c7",
+    "button-tactile-6mm-1024-zoom-after.png": "348ce175ea24ab5871eb207cd85cf49146692fdb60aff37fbd97cf6ff9f887dd",
+    "button-tactile-6mm-1024-zoom-before.png": "ef0cf4c86fdd377231b9f81abc2560b2417bed3103bc80a7fb438e576b5a0eaa",
+    "button-tactile-6mm-1440-fit-after.png": "570ee773faea934f0b1f93e9cc5cc3b2c043dd83a22e311ae8bad052097e3e5c",
+    "button-tactile-6mm-1440-fit-before.png": "29401dbd38f1754a9023226e2439231b09a3afbfe614716393ef014177583623",
+    "button-tactile-6mm-1440-zoom-after.png": "510f111e7e621efb6c915f2bb6df502e9ca2a0891257c6f6f18dc792a66a97c3",
+    "button-tactile-6mm-1440-zoom-before.png": "62e06347b408aa8c65afbb5ea5cf01ab94040be306c39ba285ba6f5b4415fd27",
+    "button-tactile-6mm-320-fit-after.png": "a0c60bb3804d5eb0b51d90a0785961d166ac6203e7148930585265c9610b2a8f",
+    "button-tactile-6mm-320-fit-before.png": "8b2430f6e2dd416aefc90708fb1acff683bfda80c8a1970380ea2747fe64c1f7",
+    "button-tactile-6mm-320-zoom-after.png": "1ecd28c019ca0aba068b7fc5bfacc7f9ebf2bd91147b9558e06cc52b9fd68d30",
+    "button-tactile-6mm-320-zoom-before.png": "6a83578b0c7e4fcbcd34c61057cb1f17cf64645543de41336cd6b2c8ff0e2373",
+    "button-tactile-6mm-390-fit-after.png": "6b6ca684953df5445749eaab3514939b04776cfb7890b42d801fe1005e22af80",
+    "button-tactile-6mm-390-fit-before.png": "68125d17a190767df0641089cda83931d7c7d949db6116f9de6476728a9b2610",
+    "button-tactile-6mm-390-zoom-after.png": "30bbda3b9a8050a1eac7d720d4c368fad4bfcaff499750c55ddbe78fd3225ab7",
+    "button-tactile-6mm-390-zoom-before.png": "a07e148051b4edf3469bb2c158b47547c62dd2ff41ebcd08c1974a524f729f4e",
+    "resistor-axial-1024-fit-after.png": "b052df59b893133772e03f53400698ac40cbda95c701fffa71d11c40a6cad5e1",
+    "resistor-axial-1024-fit-before.png": "f59d7dce63b6d9cda5a611aa5c8be4e8168f7547d95ac3167e1c6d55e314d390",
+    "resistor-axial-1024-zoom-after.png": "cee333d4600a8d16dd3a6c3413d7ce1fc07a0527f5c276a2820e6511af053e3d",
+    "resistor-axial-1024-zoom-before.png": "18aa263ac69d2b94517ca4f64c65932f112e3fc2c178e46dd4ce1dad5b3e13d2",
+    "resistor-axial-1440-fit-after.png": "66bb6a74de91edaf5e3f737a7d7a959dad83cf5441ef3e460b9753f9fd36bb52",
+    "resistor-axial-1440-fit-before.png": "90e0a58757b3ace83a144ac816ade42ca87a1db1e1e2f288d6b26526b4168a31",
+    "resistor-axial-1440-zoom-after.png": "aa684b6a263bf58ee17d4abe506653341094b60629a06178960f5734ce65e25d",
+    "resistor-axial-1440-zoom-before.png": "d0d349ed71c399d51f975777848ea3e1f3b9208ea97fcb6abc368cf64d252c69",
+    "resistor-axial-320-fit-after.png": "ce0b8539c237d96538c4aa78093022e3eac64248a53e95203185c938e558ee75",
+    "resistor-axial-320-fit-before.png": "89f22284855ea8dc638b9623930c070274dbaecbda00b0cc36eb0598646fc896",
+    "resistor-axial-320-zoom-after.png": "abd900143d521653fc13ae7bdc4a3923d27c9cc5960b635ca645237219f26875",
+    "resistor-axial-320-zoom-before.png": "a0bc2d495bf4fafe444064f8fdd14246e70c7e79647f7ab9385852a1d18da679",
+    "resistor-axial-390-fit-after.png": "b629165de3f3404b0ee649618b0772fe7141a13fe2f9d292dbc23d744bc7325d",
+    "resistor-axial-390-fit-before.png": "f57f4c64d08c477b52127d1f0739ce84bfb86704fae81f427a90f76b712cbc14",
+    "resistor-axial-390-zoom-after.png": "0015063bfc99af8471ab517c248abda08a127aa2695cd14bff29a6e61039eb70",
+    "resistor-axial-390-zoom-before.png": "213e35701705418a43ede535e8aea68b997fb520d5d635859b405570ea559c4e",
+    "switch-spdt-1024-fit-after.png": "0f8fc57291ba7f616c8b6bb87b706eb029f4caa969fe3bf4a41a6573b774070e",
+    "switch-spdt-1024-fit-before.png": "cccc6043067bb606b7d4c19df416697d1d13b949c417ebc7badebf556a13c78f",
+    "switch-spdt-1024-zoom-after.png": "f01d995ee65a217b4906e50be38a56449cb4496b1c0cb260106b53bf4b036e22",
+    "switch-spdt-1024-zoom-before.png": "e6fe19976ed1c2cd0163a4c8a0475ff4d4a208f63546a4cd38de135408816362",
+    "switch-spdt-1440-fit-after.png": "37cb6dc5f1c6a47fd0f465df72ee6a9c0b593781c9c8d32f1c0f208f5b329f05",
+    "switch-spdt-1440-fit-before.png": "2119b1d938649babb4335947a6009c30cfdf1b14382669f4c4f015f5922c5e69",
+    "switch-spdt-1440-zoom-after.png": "24a751d82b14582bde062fb9ae10871dedc1705ff0737732979c3e8a793acdd2",
+    "switch-spdt-1440-zoom-before.png": "850b9f76d8b8291aa9f920d34b3fda36a2883e119457d55034e4717feba117ca",
+    "switch-spdt-320-fit-after.png": "4faf26bdb4856a88fe0de06625651a836b174c096f959c86298ac7c05645943e",
+    "switch-spdt-320-fit-before.png": "40b80b505afb3ac4ab87d3fd6e466e6a919913935aebe3b37b0fd153012094de",
+    "switch-spdt-320-zoom-after.png": "0a911b116c320e4d348d01ed53a29aae54dd5bcb2ca198487d15ac673c47c10d",
+    "switch-spdt-320-zoom-before.png": "8930169ff92ab70737e47b8b7ea11f8f61b1b1e4b87acf3b2a4df630390a5bf8",
+    "switch-spdt-390-fit-after.png": "c6fbe932f36d27abc92797b64f18e64363c80342f3c97a8b3995bc1bb4adcd05",
+    "switch-spdt-390-fit-before.png": "ead5c773e94364758c630c2d652eae357d2bee62226e5397af6aaf2423a1ac12",
+    "switch-spdt-390-zoom-after.png": "4cfac6c2983cc80c44a2887f358a65d79bc15aa854ca93cd474548c302e54406",
+    "switch-spdt-390-zoom-before.png": "6ce6044dc5dc08419aaf0d9c82388bbbfce34c02209fc78859c21706696ac831"
+  },
+  "logs": {
+    "asa-902-web-tests.txt": {
+      "sha256": "bbb7cb88997abfc3e4f97e534f1754007c8abd29c4e9dcb089cd3e309c215af4",
+      "bytes": 15082
+    },
+    "asa-902-web-tests-after-sdk.txt": {
+      "sha256": "864c22ecf26b6c27bbb20a38ebc154701f7d51cd66b98563198eb42c6aaa1ed4",
+      "bytes": 8121
+    },
+    "asa-902-native-final.txt": {
+      "sha256": "60fbd00bca81de4f4a54461466e7787d403aae78f10f74ffa1dfaf2837103442",
+      "bytes": 166
+    },
+    "asa-902-sourceguards.txt": {
+      "sha256": "a4e6e8017fb32229fe0da1bea54755c063327b17932c3ee95cc44d0a1b1eac0c",
+      "bytes": 744
+    },
+    "asa-902-final-typecheck.txt": {
+      "sha256": "773dce4e3eee3c5ac54586d22d4280c7d91baf94db258cb90df8d1150e777122",
+      "bytes": 1038
+    },
+    "asa-902-final-build.txt": {
+      "sha256": "85fac5c462f976fd6a21998a0ce58b477b78e2b3e247e0ed50688d3fcdba33b8",
+      "bytes": 18724
+    },
+    "asa-902-final-caps.txt": {
+      "sha256": "911ad298f3cda4d06cf670336a26e65e95aa88864300208f2eead291ede8d0c7",
+      "bytes": 714
+    },
+    "asa-902-final-lint.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  },
+  "unverified": [
+    "full native Workbench/auth/Save/CAS/reopen journeys",
+    "full focused/repository/combined strict CI on final candidate",
+    "owner acceptance and deployment"
+  ],
+  "self_review": "PASS: one production file, normal SVG/grey pins preserved, canonical offset/model scale, inert underlay ordering. No electrical/owner/clock/dependency/cap/workflow changes. Final foreign Courses/main preserved through one conflict-free convergence. STOP for fresh independent review."
+}

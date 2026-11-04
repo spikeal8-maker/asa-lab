@@ -1,0 +1,2094 @@
+{
+  "head": "e1be12d19f8669c1145020c756551dd2188ed10f",
+  "run": 41026543811,
+  "artifact": 12965392403,
+  "fieldCases": [
+    {
+      "width": 1024,
+      "boundary": "left",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-06baa-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467847,
+          "sha256": "5d3e467c598815d012a593c92fb071d7ad8200021254578b884487adc3c891b9"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-06baa-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 168786,
+          "sha256": "1e05fb768eba2b0de5a4a27b26ce27d681f83e040184e73988e605c6484661a5"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-06baa-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 163972,
+          "sha256": "a90d8fbabd69655bdc1ad109665f30cb26a35fdf3939cd96d0280ca95360d6a9"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-06baa-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 97190,
+          "sha256": "e1611bfd9b075bd4a6cf0c2197038177a054240b3c8a4eff085cdd65c3e23216"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-06baa-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 168313,
+          "sha256": "370cece62d9518b15c4a1f2d1f6260c653a53b9201e2a751cd611148d9afa013"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-06baa-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 97190,
+          "sha256": "e1611bfd9b075bd4a6cf0c2197038177a054240b3c8a4eff085cdd65c3e23216"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-06baa-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 96687,
+          "sha256": "a0189f25415ffe637f6d2b580da21b5762daedc91c620f89913d291802547127"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-06baa-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 168313,
+          "sha256": "370cece62d9518b15c4a1f2d1f6260c653a53b9201e2a751cd611148d9afa013"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "boundary": "right",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-08783-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467586,
+          "sha256": "ab997f1a6ce52ae4a34f0b1259f2dfdb7eae840730ec58fa27f5a406d4cbe924"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-08783-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 180759,
+          "sha256": "e5daa88ab8e395f78594fd18685b56358096959764239bed036584a458bb5dff"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-08783-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 170403,
+          "sha256": "10fb4168d206415f234295a20337aee28bef6fd1ec75ebe6eb1a0eedf56d5d0a"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-08783-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 96179,
+          "sha256": "3c1bdc3b25d745ae429e3bd79960280da922dbaeebd4c47e62f75038507faa30"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-08783-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 180269,
+          "sha256": "79ffaf8592411108ab550f013e5648817760c5cc5487dc002830ff381fae215e"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-08783-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 96179,
+          "sha256": "3c1bdc3b25d745ae429e3bd79960280da922dbaeebd4c47e62f75038507faa30"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-08783-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 97706,
+          "sha256": "90dd63cef8649192118cb0e9221e556679fe13333f64350e06369715d9862b71"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-08783-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 180275,
+          "sha256": "e84874ce385e4147075aefffa540c5707a0557f91950ac0ca46ffb4c00e0e151"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "boundary": "bottom-left",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-1665e-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 425027,
+          "sha256": "054d339b35766e4916b342b53f3e0b3abc98f0d0300f64ce7d080d90d57ef5bd"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-1665e-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 66308,
+          "sha256": "9752a74702a905689903047552ac8e1fae4d194d8cf1ed2ae48e6ac2fc122a9e"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-1665e-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 66668,
+          "sha256": "df7e3d68737a2a2d95463b95436a4c41ebbdf9317f55f89b602b0023321b4c18"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-1665e-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 61249,
+          "sha256": "d218a6ddde387b9d97c6e2e0e57736e36d3fa644a412be68d7a636d53f15ce84"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-1665e-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 66393,
+          "sha256": "4d6adb27107c193d8157df7437649b6d5b1e33bd245a67e014a2395fd6d78a7f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-1665e-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 61249,
+          "sha256": "d218a6ddde387b9d97c6e2e0e57736e36d3fa644a412be68d7a636d53f15ce84"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-1665e-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 61121,
+          "sha256": "65f68702015cd5c0cb98f2a1f21fd551001122ac36cd349e22432de7efc79f62"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-1665e-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 66393,
+          "sha256": "4d6adb27107c193d8157df7437649b6d5b1e33bd245a67e014a2395fd6d78a7f"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "boundary": "right",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-18e15-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 424763,
+          "sha256": "cf3113f5c129441c48da400747d3d941c58caa8f5b0c900da0a48346300558d6"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-18e15-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 66339,
+          "sha256": "c09ccad892c17dac96ac27cd843b71fcc3a6bb79b019d7c41baa003681f04713"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-18e15-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 66699,
+          "sha256": "84e7f4a3c4c12fef5e817d3d2ecb7edd4d8e6033c184b31903bb043199a93b11"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-18e15-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 61247,
+          "sha256": "d52f546bf788b70899bc878842e24b7bc0091c79730e21473d56821c0a3d5bec"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-18e15-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 66425,
+          "sha256": "eca9e435e41790447a5afa2db236386ef23b834e9150a2934c3403254481186c"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-18e15-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 61247,
+          "sha256": "d52f546bf788b70899bc878842e24b7bc0091c79730e21473d56821c0a3d5bec"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-18e15-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 61130,
+          "sha256": "f54486cb710a7451c30d685ba012c24f9908868091324d41bdef5225aff36185"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-18e15-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 66425,
+          "sha256": "eca9e435e41790447a5afa2db236386ef23b834e9150a2934c3403254481186c"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "boundary": "bottom",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-236e5-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 425126,
+          "sha256": "2a3770fa07ac49185fa00458e4658b9e3718763aa05cc188c9805f58606d098f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-236e5-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 66354,
+          "sha256": "a0c84a227301f89cb6cdbac259d6b02de94258b00f8bc47b40da184003e8d999"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-236e5-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 66698,
+          "sha256": "7d7672222aa12d613968a05b7279b53ff734e226bab089fc2c5fd99fbe7c9986"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-236e5-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 61258,
+          "sha256": "0a523a2e032d5ce12fa0a7db369b0014649e27303c095232946b57d8efe09398"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-236e5-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 66442,
+          "sha256": "d85196b0f44dc7114b03865ede0b6057cac981b0c21648b02cbba14137bdecff"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-236e5-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 61258,
+          "sha256": "0a523a2e032d5ce12fa0a7db369b0014649e27303c095232946b57d8efe09398"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-236e5-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 61135,
+          "sha256": "5edd6921107a51b677cc4364bbb6cbfcc6d1b27634b621c4a85125814a3959fc"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-236e5-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 66442,
+          "sha256": "d85196b0f44dc7114b03865ede0b6057cac981b0c21648b02cbba14137bdecff"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "boundary": "left",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-319a2-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467566,
+          "sha256": "a22892bc6e391eef4bb5583929d12b72b29e42be43203fa7790d6070d6ca45f8"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-319a2-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 180768,
+          "sha256": "c51d7e6398f9d31c41c3b4600a4a87207c2f9f1aec7b9ae8ad998dc68e24c195"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-319a2-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 170407,
+          "sha256": "c00dc3108a393670093b7c71fd6610e8f1abbc854b034466e338da1d29286bdd"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-319a2-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 96179,
+          "sha256": "62e5ef1e453978dd1e46ed288957ffa126e68e9f8bdb613e29a993aa582f8336"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-319a2-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 180284,
+          "sha256": "b8ab1736a5658c027fdb51aa632ad2b41abcbd2b7fa0e889547034466a236261"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-319a2-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 96179,
+          "sha256": "62e5ef1e453978dd1e46ed288957ffa126e68e9f8bdb613e29a993aa582f8336"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-319a2-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 97707,
+          "sha256": "1dc7f8e04be4207018af2ef47dc1b2d19f07a392020dd3cd6ebd7b85c395059c"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-319a2-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 180284,
+          "sha256": "b8ab1736a5658c027fdb51aa632ad2b41abcbd2b7fa0e889547034466a236261"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "boundary": "top-left",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-3e8da-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 425056,
+          "sha256": "94408f40d6196334216b1fad11c0ecb9901ed2aaea582a4f8fb097e639b542af"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-3e8da-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 52151,
+          "sha256": "954acf74563e22a658eba956c8bb534aa80aff1308f078d6276c4b474ffccf18"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-3e8da-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 52577,
+          "sha256": "3b362548fbf50ace89b128013273ad356335c2bf864b2d6ce236a5168a5ae1f9"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-3e8da-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 56117,
+          "sha256": "9da5557556d2232a906bba3e8d19609de1abd258e028da9d34118afa310d1958"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-3e8da-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 52290,
+          "sha256": "ff903e33b8ffe8ab86822a345280def008b7d4c04d809c02fab63fb93e36ac61"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-3e8da-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 56117,
+          "sha256": "9da5557556d2232a906bba3e8d19609de1abd258e028da9d34118afa310d1958"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-3e8da-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 56095,
+          "sha256": "2a50627937f451641ecd5c815d1289ea76f70febcc814f2b412a46ab7c7dac63"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-3e8da-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 52290,
+          "sha256": "ff903e33b8ffe8ab86822a345280def008b7d4c04d809c02fab63fb93e36ac61"
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "boundary": "top",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4c57a-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 468002,
+          "sha256": "a2672c43726e7af598f5860fcfc4c854e1a75fc10b7b63e6934cafdf5309caab"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4c57a-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 168830,
+          "sha256": "bb5bf6bec3d4972795e64b2f06e3fa4c78aaa2d2b24215b0cdd351dc73c73e0e"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4c57a-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 163946,
+          "sha256": "dfeae2010d968f064d9c5c94020d1380ed26113a76c1ea6171f3ac72364ac3be"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4c57a-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 97177,
+          "sha256": "8650c3c4ad6e45fa6aec5f5087c0c08d830d1fb83615dbf30718afa92bfb1568"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4c57a-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 168364,
+          "sha256": "e7b4cca9962578faa7e1dcca02599e9a1b2f7ab872bcea9c5fc9637571aaf3cf"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4c57a-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 97177,
+          "sha256": "8650c3c4ad6e45fa6aec5f5087c0c08d830d1fb83615dbf30718afa92bfb1568"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4c57a-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 96683,
+          "sha256": "db5f9309bc1f34fbba6abe8896d51cc9aa0a0c2cff8ec504f3722075d953eb82"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4c57a-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 168364,
+          "sha256": "e7b4cca9962578faa7e1dcca02599e9a1b2f7ab872bcea9c5fc9637571aaf3cf"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "boundary": "top-right",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4d085-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 424932,
+          "sha256": "748625cf53f8732ceb8f61dfa7ee2b8d4df2e4942aaf979e0967f2d0e2f43708"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4d085-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 66326,
+          "sha256": "1a88551b94772f327e58eff44a2fdef7f9f8c73e30b1eafc863c5c95295ef3bd"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4d085-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 66689,
+          "sha256": "c77cad1400ba0bf56e4dc4bd778cc6f07021d36045124350652f7f1ca5f837cc"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4d085-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 61249,
+          "sha256": "d218a6ddde387b9d97c6e2e0e57736e36d3fa644a412be68d7a636d53f15ce84"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4d085-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 66412,
+          "sha256": "5b71904334195874f5d6036d46e452aba6efd8e55f7a78d4d8f08ae7fa6b7556"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4d085-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 61249,
+          "sha256": "d218a6ddde387b9d97c6e2e0e57736e36d3fa644a412be68d7a636d53f15ce84"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4d085-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 61129,
+          "sha256": "3fbb7cc21a473ae3f44fea9bc8952bf11c90be2d1a5385f2ada25ad4d4a95af2"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-4d085-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 66412,
+          "sha256": "5b71904334195874f5d6036d46e452aba6efd8e55f7a78d4d8f08ae7fa6b7556"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "boundary": "top",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-58e8e-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467497,
+          "sha256": "e390da93eae4f01fbe5c917da1cb775d8fcf33bf9d97d0d754b41c4e9f9716bb"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-58e8e-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 180718,
+          "sha256": "d1771dc441fac67afabdde6e12179c7928c43eca89ace1fd5496b67410254a6e"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-58e8e-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 170372,
+          "sha256": "c67924b1c386d96be9504d1ab76c1dae53b145b7c528364bd37f3f632a745aa8"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-58e8e-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 96175,
+          "sha256": "b5b5e9943771bb48f9a81bc8b9ee1179b5efcc10844d613ebc2f6194c3ac0308"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-58e8e-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 180241,
+          "sha256": "90b1a7f8b7d8eed02aa3fdeda5e91bcd283a01c58b619731edace687674c524b"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-58e8e-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 96175,
+          "sha256": "b5b5e9943771bb48f9a81bc8b9ee1179b5efcc10844d613ebc2f6194c3ac0308"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-58e8e-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 97699,
+          "sha256": "fd1fe7f0adc9331c587e06a474c07757092624f784caae28c15b46f7cdc8470b"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-58e8e-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 180241,
+          "sha256": "90b1a7f8b7d8eed02aa3fdeda5e91bcd283a01c58b619731edace687674c524b"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "boundary": "top",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-5c32c-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 424943,
+          "sha256": "324cbd79ca31abbb22ad590e54e59069993607f813914753c34ccf2274a6259d"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-5c32c-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 66374,
+          "sha256": "0704e6d3e237b352d546f0a22a93e6bfb26c5f52a5b952c8a43e973f595add50"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-5c32c-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 66730,
+          "sha256": "a01946eec2b980a84cc8e21e2807da9ae38795e6570cccb9c27841f1ffaef9c0"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-5c32c-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 61258,
+          "sha256": "0a523a2e032d5ce12fa0a7db369b0014649e27303c095232946b57d8efe09398"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-5c32c-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 66465,
+          "sha256": "8176340861d3e084434e106f0406b19f32ddc3872f63de5e3dbf66c9beb7639f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-5c32c-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 61258,
+          "sha256": "0a523a2e032d5ce12fa0a7db369b0014649e27303c095232946b57d8efe09398"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-5c32c-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 61135,
+          "sha256": "5edd6921107a51b677cc4364bbb6cbfcc6d1b27634b621c4a85125814a3959fc"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-5c32c-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 66465,
+          "sha256": "8176340861d3e084434e106f0406b19f32ddc3872f63de5e3dbf66c9beb7639f"
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "boundary": "bottom-right",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-6da51-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467560,
+          "sha256": "e026b4e2cacd1f53d05e4c788a7ed988ab27524cfd1f86b2dc58e8f6431eb5d0"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-6da51-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 168783,
+          "sha256": "21a3e14a4df68f71f4f5d8531b5aab7446cc00f906a3b8838b7b56645e326d5c"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-6da51-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 163964,
+          "sha256": "39ddf10a5d742e0f8c4fd11093c320fbf72484b4b36cecfe1f854178d88a2697"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-6da51-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 97185,
+          "sha256": "264beca71bf4076650c61cdf5d2a4723de5b082ceada4c3d155771058ba4293f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-6da51-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 168317,
+          "sha256": "2160a9840feb2ef4aee70305d3de7100ed44c131e95f788a836faae50d927400"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-6da51-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 97185,
+          "sha256": "264beca71bf4076650c61cdf5d2a4723de5b082ceada4c3d155771058ba4293f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-6da51-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 96688,
+          "sha256": "6fc36f3ec26af0989ff913265949d475990eeca1fc2b0035c14cbc4ce2ad3dc0"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-6da51-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 168317,
+          "sha256": "2160a9840feb2ef4aee70305d3de7100ed44c131e95f788a836faae50d927400"
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "boundary": "bottom-left",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-70c51-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467867,
+          "sha256": "af5b3181e4bfb3334639d1fa5320cc7c5d3373c5d1651ed336a87cdb2b981133"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-70c51-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 168260,
+          "sha256": "9eb49bb181b576374eb26c65c6ff954292b3d265c8e6b7734f709b08ea7f33a6"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-70c51-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 163408,
+          "sha256": "ed49f20b0cd20ffa45198d95d7c810c6b191c7ffca8fcd00567fb4161c97a4ab"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-70c51-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 97185,
+          "sha256": "32e398613da013adfe5c82b377a33cee5595728a17e7274cf7334a2fa5b6731b"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-70c51-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 167806,
+          "sha256": "6f327d03ace9abe8b1fbc9559e2d1a03dc956a3ad313488b8f9000ead291ed67"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-70c51-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 97185,
+          "sha256": "32e398613da013adfe5c82b377a33cee5595728a17e7274cf7334a2fa5b6731b"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-70c51-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 96688,
+          "sha256": "d95239951d4a8e02f0d05a77e8f2cda685b9366d79577fcae6c668f7dda83400"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-70c51-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 167806,
+          "sha256": "6f327d03ace9abe8b1fbc9559e2d1a03dc956a3ad313488b8f9000ead291ed67"
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "boundary": "right",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-71136-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467548,
+          "sha256": "b1c4f80cdb0936eee3d766d4fe8f3abd358295155780bec5efe27af97464253e"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-71136-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 168770,
+          "sha256": "8ad7f15a9b3adcf15a0c26b65a45185a62252d76f4183a3fd4367b159428cdf8"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-71136-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 163967,
+          "sha256": "c4af93548d36a866077bbf90afae24302b365e4e326a052cd43b992a32114f96"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-71136-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 97184,
+          "sha256": "3b397d75d22274245171336bdd61820df828d36a33a7fd5c2e9cf2e582f7b152"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-71136-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 168305,
+          "sha256": "793ded1c8f19476d4bc8fc83953862714ab0c181aa468a915fff5338f1538216"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-71136-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 97184,
+          "sha256": "3b397d75d22274245171336bdd61820df828d36a33a7fd5c2e9cf2e582f7b152"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-71136-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 96685,
+          "sha256": "cd6d42dc4fec5cabd25c9cf9b26877924e899e33a4e1aada21249078951c8ff4"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-71136-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 168305,
+          "sha256": "793ded1c8f19476d4bc8fc83953862714ab0c181aa468a915fff5338f1538216"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "boundary": "left",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-76f3b-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 424917,
+          "sha256": "d77bd9e473b8c9b4865919a30d659deec51d6f166ff1d2222e0e1f467a8e75fa"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-76f3b-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 52161,
+          "sha256": "d347291138d6fc4c703581b9af5ad058d8b7187d82ff4de7f49d70071b482e52"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-76f3b-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 52587,
+          "sha256": "b0b8ea4e3a1c9d7bbe8653532b880edc137d49373b7d21d01b95a315cd8b06d2"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-76f3b-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 56118,
+          "sha256": "d8e6bb4bbeb5ab8b6d46e0e1378c301ba50cecf97f36678dd7081aed52a7298c"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-76f3b-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 52303,
+          "sha256": "0b4054fc794088f6df016eb186601421a0c39ca60378b5781e33de99a2a91f10"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-76f3b-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 56118,
+          "sha256": "d8e6bb4bbeb5ab8b6d46e0e1378c301ba50cecf97f36678dd7081aed52a7298c"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-76f3b-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 56097,
+          "sha256": "44ce5154890065e72dedf93866c91dc42e18d04205ad03bcd8b2deba749c9ee5"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-76f3b-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 52303,
+          "sha256": "0b4054fc794088f6df016eb186601421a0c39ca60378b5781e33de99a2a91f10"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "boundary": "top-left",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-8503c-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467971,
+          "sha256": "5f24233a32bddc9ce5e34c5e90a3707ccad47ea53bc21d620fefd670e4aa212c"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-8503c-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 180762,
+          "sha256": "8bb5ad53cb1c14abd3e442f582e31b4d52c9158b1ea458068b3b357c14e8730b"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-8503c-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 170392,
+          "sha256": "96ca18a8ad3eebefb10d3806f6a6631635413626832c9f55425ca679b2e538c4"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-8503c-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 96179,
+          "sha256": "74e6eee92de62c549ae4499ff3e6406bb4203be4a7b79a15590170b2825d6512"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-8503c-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 180279,
+          "sha256": "4dfc4276aa48b4aba99d56c3e46edc45ec19ecf42a340ea18097159a0ed56f87"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-8503c-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 96179,
+          "sha256": "74e6eee92de62c549ae4499ff3e6406bb4203be4a7b79a15590170b2825d6512"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-8503c-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 97707,
+          "sha256": "99bd6bbc50424b872aedc87eaf96d85d411d006af32d690d85ccf319ae1c7b05"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-8503c-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 180279,
+          "sha256": "4dfc4276aa48b4aba99d56c3e46edc45ec19ecf42a340ea18097159a0ed56f87"
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "boundary": "bottom",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-963d4-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467768,
+          "sha256": "2348a18eb1183788f690051f76946087a4096ad3d2d5241b25284d61ed4cefca"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-963d4-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 168832,
+          "sha256": "78e420ac5fcd1f053d9230c8d0815af27d9b80b50c4b63068c3d5398c538efb2"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-963d4-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 163945,
+          "sha256": "fc18b4dfc55ad3973437fe0fd4bba590a87b6d66d2a3f5088535ab467bfb3fe7"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-963d4-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 97177,
+          "sha256": "8650c3c4ad6e45fa6aec5f5087c0c08d830d1fb83615dbf30718afa92bfb1568"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-963d4-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 168366,
+          "sha256": "a64362c73e15e1fd8ece1466248b0984b5599d55affd2e7009c85b73ae1f3312"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-963d4-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 97177,
+          "sha256": "8650c3c4ad6e45fa6aec5f5087c0c08d830d1fb83615dbf30718afa92bfb1568"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-963d4-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 96681,
+          "sha256": "57f6ffaa3138b6478fdb030d324a83d972fa59a8b336e01f702a783502432c4e"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-963d4-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 168366,
+          "sha256": "a64362c73e15e1fd8ece1466248b0984b5599d55affd2e7009c85b73ae1f3312"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "boundary": "top",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9880b-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 424714,
+          "sha256": "480e17bb40f29f1df36c8d0975bdcff2aef5d2a774b5fd51cdd6815d13caabf8"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9880b-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 52145,
+          "sha256": "e17dee823ea16957ff704a8d817022f837117c5b8d3c77f8826808c7bbc40a0f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9880b-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 52579,
+          "sha256": "f4fdd56c613dc75a5d53bb889ae488bcbb298d4cc86f0f13bde6a2be53e3d159"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9880b-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 56111,
+          "sha256": "212be9e411a05c190e754c262f926357680938f8c0c065172c8cc0b14ebdc4a8"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9880b-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 52289,
+          "sha256": "9073479f3ea08341919401059e0a14d9f1c2c9dd21b64afb7bcc2319d03ecf6f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9880b-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 56111,
+          "sha256": "212be9e411a05c190e754c262f926357680938f8c0c065172c8cc0b14ebdc4a8"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9880b-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 56092,
+          "sha256": "76ad948565b842cfd687f7e861bff33f9ee67fb1456784aa6b4c8489368f4a8a"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9880b-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 52289,
+          "sha256": "9073479f3ea08341919401059e0a14d9f1c2c9dd21b64afb7bcc2319d03ecf6f"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "boundary": "bottom-right",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9b160-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467396,
+          "sha256": "35542ae60d95a0a7cd62630bf9be71c8de3226ce503e0e7f36b8b4c917e106c1"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9b160-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 180764,
+          "sha256": "0477f2873dbaf91d63648ceb51ef7bf4b0191e0c8588e31e10fcd507ba32d0c9"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9b160-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 170392,
+          "sha256": "a473f0384a3f2523e9d1d00b7cf7b1bba57e04b89911c70bc5a565581f67d043"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9b160-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 96179,
+          "sha256": "72e85cc100bae268d0bd83d1a7e4785383d187feff1a6657780668f8caac25c9"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9b160-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 180284,
+          "sha256": "9dcec8407d22c50b4ea763f7f18521ce8f33a9a83dcd969609a0a7620580359d"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9b160-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 96179,
+          "sha256": "72e85cc100bae268d0bd83d1a7e4785383d187feff1a6657780668f8caac25c9"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9b160-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 97703,
+          "sha256": "65e9747125fa3b2885f38490c141d319f59373c54f37efcd87822f21db35692d"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-9b160-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 180284,
+          "sha256": "9dcec8407d22c50b4ea763f7f18521ce8f33a9a83dcd969609a0a7620580359d"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "boundary": "top-right",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a1339-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 424653,
+          "sha256": "ff2600baca30b54fde1c2413c0927dd638e8873809a7030bca1f578f7d900156"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a1339-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 52151,
+          "sha256": "954acf74563e22a658eba956c8bb534aa80aff1308f078d6276c4b474ffccf18"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a1339-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 52577,
+          "sha256": "3b362548fbf50ace89b128013273ad356335c2bf864b2d6ce236a5168a5ae1f9"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a1339-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 56117,
+          "sha256": "9da5557556d2232a906bba3e8d19609de1abd258e028da9d34118afa310d1958"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a1339-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 52290,
+          "sha256": "ff903e33b8ffe8ab86822a345280def008b7d4c04d809c02fab63fb93e36ac61"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a1339-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 56117,
+          "sha256": "9da5557556d2232a906bba3e8d19609de1abd258e028da9d34118afa310d1958"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a1339-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 56095,
+          "sha256": "2a50627937f451641ecd5c815d1289ea76f70febcc814f2b412a46ab7c7dac63"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a1339-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 52290,
+          "sha256": "ff903e33b8ffe8ab86822a345280def008b7d4c04d809c02fab63fb93e36ac61"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "boundary": "top-right",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a3d74-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467604,
+          "sha256": "4e4ffa00160b45dfefd11efc66f1fc7d66d9813d908d6e62824c00e8d5e6d45f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a3d74-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 180763,
+          "sha256": "76e11b6373629eb4d2e5c0f697ef0f1648aafededf7c55e852380de5d44265a2"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a3d74-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 170401,
+          "sha256": "8318a2ccc9decbbda7b98b3f2ea4ba3766b1febbadeb9be4d2df8816ae6005ae"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a3d74-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 96179,
+          "sha256": "72e85cc100bae268d0bd83d1a7e4785383d187feff1a6657780668f8caac25c9"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a3d74-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 180282,
+          "sha256": "55ba335c4f5e94391a70abb3829ba1d96849d58a91aee70137aa0b60ed5b00ba"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a3d74-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 96179,
+          "sha256": "72e85cc100bae268d0bd83d1a7e4785383d187feff1a6657780668f8caac25c9"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a3d74-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 97707,
+          "sha256": "555ca6268160195e3da0fbcf19fef6c4d885e955fcaf7aebca1ad31c70fa8555"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a3d74-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 180282,
+          "sha256": "55ba335c4f5e94391a70abb3829ba1d96849d58a91aee70137aa0b60ed5b00ba"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "boundary": "bottom-left",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a5ed5-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 424882,
+          "sha256": "ef17dca186da9281fee89ae05ac03267a2f17051a8cf98ea63d4c237e59b11ed"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a5ed5-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 52144,
+          "sha256": "bb6a09f60e8a04ff501ec15427145b2982d4b1382603d8be1f219c40062fd55b"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a5ed5-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 52577,
+          "sha256": "3b362548fbf50ace89b128013273ad356335c2bf864b2d6ce236a5168a5ae1f9"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a5ed5-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 56117,
+          "sha256": "9da5557556d2232a906bba3e8d19609de1abd258e028da9d34118afa310d1958"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a5ed5-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 52288,
+          "sha256": "b829c3a0994ca626eecf00e17126f91c718601a04d3586ccbbd6e6f770d62e40"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a5ed5-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 56117,
+          "sha256": "9da5557556d2232a906bba3e8d19609de1abd258e028da9d34118afa310d1958"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a5ed5-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 56095,
+          "sha256": "2a50627937f451641ecd5c815d1289ea76f70febcc814f2b412a46ab7c7dac63"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-a5ed5-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 52288,
+          "sha256": "b829c3a0994ca626eecf00e17126f91c718601a04d3586ccbbd6e6f770d62e40"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "boundary": "top-left",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ac9c2-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 425176,
+          "sha256": "9d31773e746f2a3087756152624f2907d4517c3116df04f9a1dd9d287e475291"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ac9c2-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 66327,
+          "sha256": "f414e41c5fc0ccc3d749f7a8422cdb0fa1f2ce114395207a3b918fdb030460cb"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ac9c2-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 66688,
+          "sha256": "9abeb8bf464c527ed1a54111f89220cecb9c31afef630fb90b4c2c743d639a32"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ac9c2-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 61249,
+          "sha256": "d218a6ddde387b9d97c6e2e0e57736e36d3fa644a412be68d7a636d53f15ce84"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ac9c2-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 66413,
+          "sha256": "5aed75672d18976dd4363fd403dc5238a737257327a3f9af43b2d252e12cf9c5"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ac9c2-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 61249,
+          "sha256": "d218a6ddde387b9d97c6e2e0e57736e36d3fa644a412be68d7a636d53f15ce84"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ac9c2-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 61121,
+          "sha256": "65f68702015cd5c0cb98f2a1f21fd551001122ac36cd349e22432de7efc79f62"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ac9c2-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 66413,
+          "sha256": "5aed75672d18976dd4363fd403dc5238a737257327a3f9af43b2d252e12cf9c5"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "boundary": "bottom",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-bf2b1-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467563,
+          "sha256": "7c6c970917f9c41e5357174acd0b595dc6365416c949dc98b60ba86c6758280d"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-bf2b1-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 180725,
+          "sha256": "7f28295885f98568f9f906ed217488ba5e1d3d11f06782b70e9e521e3572cedf"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-bf2b1-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 170377,
+          "sha256": "4e380919ec2a97b1f7ee51c09806289e01609c19c0d0e93aed55938be115d578"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-bf2b1-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 96175,
+          "sha256": "b5b5e9943771bb48f9a81bc8b9ee1179b5efcc10844d613ebc2f6194c3ac0308"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-bf2b1-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 180247,
+          "sha256": "4434bc82e474fb0f96096f5668f9b9ea813f8961f66eca1d62af5d9dbc1c8042"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-bf2b1-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 96175,
+          "sha256": "b5b5e9943771bb48f9a81bc8b9ee1179b5efcc10844d613ebc2f6194c3ac0308"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-bf2b1-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 97699,
+          "sha256": "32c23cff3c2b9b93707594a34c0a040115a8cae1fa8235a79dd021a57eac7dc3"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-bf2b1-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 180247,
+          "sha256": "4434bc82e474fb0f96096f5668f9b9ea813f8961f66eca1d62af5d9dbc1c8042"
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "boundary": "top-right",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c46c7-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467748,
+          "sha256": "19507c176c3b4559130cf3de627d509cf7c2364b61e17ce60e36cf5fee4d7e90"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c46c7-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 168788,
+          "sha256": "92dc508ec5f8187f91137b5805d15dc84286ef0d22dd39c36611ff49aa2b611d"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c46c7-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 163973,
+          "sha256": "411947beb2cc0892d58380a599b32528e992aaf9403b994b5b252a2b9a1f5b32"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c46c7-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 97185,
+          "sha256": "264beca71bf4076650c61cdf5d2a4723de5b082ceada4c3d155771058ba4293f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c46c7-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 168320,
+          "sha256": "bc9455f7342be8ed4aace443194ba9cbf2e70ce61a78ca0f5209733c1de395f7"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c46c7-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 97185,
+          "sha256": "264beca71bf4076650c61cdf5d2a4723de5b082ceada4c3d155771058ba4293f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c46c7-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 96695,
+          "sha256": "8c49db3129532296b4af76ce421f32c3f511b3112d93d018c837319a7b9551ee"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c46c7-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 168320,
+          "sha256": "bc9455f7342be8ed4aace443194ba9cbf2e70ce61a78ca0f5209733c1de395f7"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "boundary": "right",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c731a-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 424623,
+          "sha256": "cd78e1a1d8ca0510745d9f3ff1902a107cbdb773067aaef7ff8b9dfce81a1248"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c731a-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 52161,
+          "sha256": "d347291138d6fc4c703581b9af5ad058d8b7187d82ff4de7f49d70071b482e52"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c731a-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 52587,
+          "sha256": "b0b8ea4e3a1c9d7bbe8653532b880edc137d49373b7d21d01b95a315cd8b06d2"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c731a-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 56118,
+          "sha256": "d8e6bb4bbeb5ab8b6d46e0e1378c301ba50cecf97f36678dd7081aed52a7298c"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c731a-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 52303,
+          "sha256": "0b4054fc794088f6df016eb186601421a0c39ca60378b5781e33de99a2a91f10"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c731a-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 56118,
+          "sha256": "d8e6bb4bbeb5ab8b6d46e0e1378c301ba50cecf97f36678dd7081aed52a7298c"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c731a-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 56097,
+          "sha256": "44ce5154890065e72dedf93866c91dc42e18d04205ad03bcd8b2deba749c9ee5"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c731a-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 52303,
+          "sha256": "0b4054fc794088f6df016eb186601421a0c39ca60378b5781e33de99a2a91f10"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "boundary": "bottom-right",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c76cd-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 424893,
+          "sha256": "e691860385b902f4addf100b0a326b6046b75f371f97f8b142046126dd9b3dfe"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c76cd-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 66327,
+          "sha256": "62aafa78d12a41bfb715f6efbdd22585e10a8792306b5b21c849184b771dbc79"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c76cd-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 66689,
+          "sha256": "c77cad1400ba0bf56e4dc4bd778cc6f07021d36045124350652f7f1ca5f837cc"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c76cd-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 61249,
+          "sha256": "d218a6ddde387b9d97c6e2e0e57736e36d3fa644a412be68d7a636d53f15ce84"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c76cd-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 66412,
+          "sha256": "ae4491771902b0a7ea8c5b6615fb1cb76339e516f07b43927e616f7da1e9db76"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c76cd-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 61249,
+          "sha256": "d218a6ddde387b9d97c6e2e0e57736e36d3fa644a412be68d7a636d53f15ce84"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c76cd-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 61129,
+          "sha256": "3fbb7cc21a473ae3f44fea9bc8952bf11c90be2d1a5385f2ada25ad4d4a95af2"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-c76cd-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 66412,
+          "sha256": "ae4491771902b0a7ea8c5b6615fb1cb76339e516f07b43927e616f7da1e9db76"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "boundary": "left",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ce955-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 424961,
+          "sha256": "5017bdb496cca36bd2d1a1e5e7b52758f6f9240c5e9a15bf6d9ba4cd1016ddb8"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ce955-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 66339,
+          "sha256": "c09ccad892c17dac96ac27cd843b71fcc3a6bb79b019d7c41baa003681f04713"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ce955-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 66711,
+          "sha256": "88e88e5096dc365cd24a626baf1b438853d84ab4fa26c7d77ce078f93aec6786"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ce955-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 61247,
+          "sha256": "d52f546bf788b70899bc878842e24b7bc0091c79730e21473d56821c0a3d5bec"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ce955-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 66425,
+          "sha256": "eca9e435e41790447a5afa2db236386ef23b834e9150a2934c3403254481186c"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ce955-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 61247,
+          "sha256": "d52f546bf788b70899bc878842e24b7bc0091c79730e21473d56821c0a3d5bec"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ce955-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 61122,
+          "sha256": "88c8bb69d6871584895b7b058fdf52833bea15a92f186e09aa9b0728b5564b13"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ce955-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 66425,
+          "sha256": "eca9e435e41790447a5afa2db236386ef23b834e9150a2934c3403254481186c"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "boundary": "bottom-right",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-d60ae-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 424568,
+          "sha256": "c9774f380b1e54bf893f8680a5723cf8046a44eb4d81933a15dac1183e1f60fa"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-d60ae-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 52144,
+          "sha256": "bb6a09f60e8a04ff501ec15427145b2982d4b1382603d8be1f219c40062fd55b"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-d60ae-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 52577,
+          "sha256": "3b362548fbf50ace89b128013273ad356335c2bf864b2d6ce236a5168a5ae1f9"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-d60ae-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 56117,
+          "sha256": "9da5557556d2232a906bba3e8d19609de1abd258e028da9d34118afa310d1958"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-d60ae-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 52288,
+          "sha256": "b829c3a0994ca626eecf00e17126f91c718601a04d3586ccbbd6e6f770d62e40"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-d60ae-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 56117,
+          "sha256": "9da5557556d2232a906bba3e8d19609de1abd258e028da9d34118afa310d1958"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-d60ae-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 56095,
+          "sha256": "2a50627937f451641ecd5c815d1289ea76f70febcc814f2b412a46ab7c7dac63"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-d60ae-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 52288,
+          "sha256": "b829c3a0994ca626eecf00e17126f91c718601a04d3586ccbbd6e6f770d62e40"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "boundary": "bottom",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-dc2cf-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 424532,
+          "sha256": "11506fc15892819234c415f2e52243da210627d7be09f4c64dc120411ded6bfc"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-dc2cf-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 52145,
+          "sha256": "e17dee823ea16957ff704a8d817022f837117c5b8d3c77f8826808c7bbc40a0f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-dc2cf-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 52579,
+          "sha256": "f4fdd56c613dc75a5d53bb889ae488bcbb298d4cc86f0f13bde6a2be53e3d159"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-dc2cf-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 56111,
+          "sha256": "212be9e411a05c190e754c262f926357680938f8c0c065172c8cc0b14ebdc4a8"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-dc2cf-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 52289,
+          "sha256": "9073479f3ea08341919401059e0a14d9f1c2c9dd21b64afb7bcc2319d03ecf6f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-dc2cf-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 56111,
+          "sha256": "212be9e411a05c190e754c262f926357680938f8c0c065172c8cc0b14ebdc4a8"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-dc2cf-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 56092,
+          "sha256": "76ad948565b842cfd687f7e861bff33f9ee67fb1456784aa6b4c8489368f4a8a"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-dc2cf-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 52289,
+          "sha256": "9073479f3ea08341919401059e0a14d9f1c2c9dd21b64afb7bcc2319d03ecf6f"
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "boundary": "top-left",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ee040-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467923,
+          "sha256": "d101f8ff6600a7d1568b1f4a37516badbdf12de1e28a7df5e2e45971152cc195"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ee040-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 168786,
+          "sha256": "db969be89d45dad704dae1c15b72460b2b4630d80ee620543b2d87dcf73fd5ea"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ee040-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 163972,
+          "sha256": "7e2197f042ef0cbda88f3515f814be84274719ed0cb03c00571377397306ed48"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ee040-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 97183,
+          "sha256": "40378bc7d1bb99d277333433daf6b543bbbcb0b9b00307a01e5a6d52bec32be5"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ee040-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 168316,
+          "sha256": "8a6b9aee2f946ddeb96df5b385b1d9282552eb9397daf016e80f68c7dfd92cfd"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ee040-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 97183,
+          "sha256": "40378bc7d1bb99d277333433daf6b543bbbcb0b9b00307a01e5a6d52bec32be5"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ee040-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 96687,
+          "sha256": "eff1ddadc7383e3789e458f26e6711fcd6a7e7f6aa836717509311433e8aff52"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-ee040-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 168316,
+          "sha256": "8a6b9aee2f946ddeb96df5b385b1d9282552eb9397daf016e80f68c7dfd92cfd"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "boundary": "bottom-left",
+      "checks": {
+        "fixture_equals_baseline": true,
+        "first_whole_document": true,
+        "PUT_document_and_CAS": true,
+        "saved_whole_document": true,
+        "revision_advanced": true,
+        "cookies_only_no_local_draft": true,
+        "complete_confirmed_document": true,
+        "regrab_whole_document": true,
+        "regrab_changed_position": true,
+        "fixture_4_parts_3_wires": true,
+        "closed-panel-mouse_opaque255": true,
+        "closed-panel-mouse_trusted_down_up": true,
+        "open-panel-reopened_opaque255": true,
+        "open-panel-reopened_trusted_down_up": true,
+        "all7_phase_png": true
+      },
+      "baselineRevision": 2,
+      "savedRevision": 3,
+      "files": [
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-f5358-ave-and-cookies-only-reopen\\field-boundary.json",
+          "bytes": 467639,
+          "sha256": "dd35139c700e7b159af77bfa41b8d434ff89f7d34a0c5251513123a6d7a1a543"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-f5358-ave-and-cookies-only-reopen\\closed-panel-mouse-after.png",
+          "bytes": 180771,
+          "sha256": "c601a34c496605287a0a38c5f822b671964fd12bc1a332a37c5c78a0f5424e1d"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-f5358-ave-and-cookies-only-reopen\\closed-panel-mouse-before.png",
+          "bytes": 170358,
+          "sha256": "526b060d395c0fb6d9c44202bb4a8b85b81223da0aa79db8f08e1ae23839618f"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-f5358-ave-and-cookies-only-reopen\\complete.png",
+          "bytes": 96179,
+          "sha256": "74e6eee92de62c549ae4499ff3e6406bb4203be4a7b79a15590170b2825d6512"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-f5358-ave-and-cookies-only-reopen\\initial-context-final.png",
+          "bytes": 180289,
+          "sha256": "f6b13942bee847142daa95d3970bc09d459e43c3050503e9d52a7fd0c10b4671"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-f5358-ave-and-cookies-only-reopen\\open-panel-reopened-after.png",
+          "bytes": 96179,
+          "sha256": "74e6eee92de62c549ae4499ff3e6406bb4203be4a7b79a15590170b2825d6512"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-f5358-ave-and-cookies-only-reopen\\open-panel-reopened-before.png",
+          "bytes": 97702,
+          "sha256": "30a5fd15e4341676185bcad3aaaa4dea1b0026cba951d7ffcab540247bfdab4d"
+        },
+        {
+          "path": "artifact\\reports\\playwright\\electronics-interactions-E-f5358-ave-and-cookies-only-reopen\\saved.png",
+          "bytes": 180289,
+          "sha256": "f6b13942bee847142daa95d3970bc09d459e43c3050503e9d52a7fd0c10b4671"
+        }
+      ]
+    }
+  ],
+  "fieldCount": 32,
+  "phasePngCount": 224,
+  "workflowConclusion": "failure",
+  "browserPassed": 183,
+  "browserFailed": 86,
+  "classification": "C: independent existing baseline failures, proof-only zero source diff",
+  "archive": "full extracted artifact retained locally; original remote artifact digest in artifact-metadata.json; original ZIP not separately downloaded"
+}

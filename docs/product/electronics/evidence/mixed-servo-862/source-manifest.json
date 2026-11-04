@@ -1,0 +1,38 @@
+{
+  "baseline": "a01fd522a78318137d7f7815b706078020ec3ba6",
+  "serialization": "Git index LF blobs; artifacts excluded",
+  "sourceDigestAlgorithm": "SHA256 of compact JSON files array UTF-8",
+  "sourceDigest": "ce22efb007928c8d69a1aa9c7add8c91b2335c653a9e4998a853a52668b2b633",
+  "files": [
+    {
+      "path": "apps/web/src/electronics/testing/mixed-servo-observation.browser.mjs",
+      "gitBlob": "cc333f7c88e75bd7ace19841b61ce069de008b3a",
+      "bytes": 19628,
+      "sha256": "83af884e1b19262b9a4930af4e9316866fbcec21680dc173f48cbebd22f51c78"
+    },
+    {
+      "path": "contexts/electronics/domain/solver.ts",
+      "gitBlob": "a47461f43ec11c01bc2690df95677ba5dae8cb1d",
+      "bytes": 213304,
+      "sha256": "c7e7cb855c14bf13a02226f343a2a5ff1c97d46b2073b369a993e20995c83f75"
+    },
+    {
+      "path": "contexts/electronics/testing/fixtures/mixed-servo-observation.json",
+      "gitBlob": "ede7b2403c864941ed76a952ddd10eb88f92ea60",
+      "bytes": 13140,
+      "sha256": "b36ebdabe7f7bb02dcd67d9ac9badfd84e60717faee36475be58c57af4f98520"
+    },
+    {
+      "path": "contexts/electronics/testing/mixed-servo-observation.spec.ts",
+      "gitBlob": "ddbfdb88d004d38386698cefc5184edcad02c35f",
+      "bytes": 9406,
+      "sha256": "8c11a39d01fe532b0f0508947950baceae37c9b4f29e0c07230883da7b252347"
+    },
+    {
+      "path": "docs/product/electronics/components/engine-worker-clock.yaml",
+      "gitBlob": "f43b7180d64303597c3e58822948b69e2f0edaf3",
+      "bytes": 9535,
+      "sha256": "b6cce9aa934233db2c3c9650066791e2a203bede1e97fc6d6b1a110b84e265f6"
+    }
+  ]
+}

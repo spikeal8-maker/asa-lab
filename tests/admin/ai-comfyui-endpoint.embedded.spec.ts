@@ -157,7 +157,7 @@ it('uses the saved remote origin for dispatch and recovery and refuses switching
     const blobs = { putImmutable: vi.fn(), verify: vi.fn(), read: vi.fn(), remove: vi.fn() };
     const service = new AiImageService(pool, { blobs, maintenance: false });
     const id = randomUUID();
-    await service.create(owner, thread, { requestId: id, prompt: 'Blue vase', size: 512 });
+    await service.create(owner, thread, { requestId: id, prompt: 'Blue vase', size: 768 });
     await service.sweep();
     expect(fetchImpl.mock.calls.length).toBeGreaterThan(1);
     expect(

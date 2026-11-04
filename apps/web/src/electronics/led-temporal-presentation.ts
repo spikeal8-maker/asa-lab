@@ -258,6 +258,17 @@ export class LedTemporalPresentation {
   private m = 0;
   private displays = new Map<string, Map<string, HeldHistory<ElectronicsLedTemporalSample>>>();
   private displayFailures = new Map<string, number>();
+  private playbackRate = 1;
+  private pacingChanged = false;
+  private paceFrame: LedPresentationFrame | null = null;
+
+  /** Reanchor only this host adapter; pending frames retain their original ACK. */
+  setPlaybackRate(rate: number, wallMicroseconds: number): void {
+    this.playbackRate = rate;
+    this.pacingChanged = true;
+    this.paceFrame = this.k;
+    if (this.d !== null) this.e = { w: wallMicroseconds, m: this.presentedMicroseconds };
+  }
 
   /** A discontinuity is observable evidence, never successful phase preservation. */
   get reanchorCount(): number {
@@ -295,7 +306,10 @@ export class LedTemporalPresentation {
         ? this.d
         : Math.min(
             this.a,
-            Math.max(this.d, this.e.m + Math.floor(Math.max(0, wallMicroseconds - this.e.w))),
+            Math.max(
+              this.d,
+              this.e.m + Math.floor(Math.max(0, wallMicroseconds - this.e.w) * this.playbackRate),
+            ),
           );
     const times = new Set([target, this.a]);
     if (!this.l) {
@@ -333,6 +347,7 @@ export class LedTemporalPresentation {
     this.displayFailures.clear();
     this.d = null;
     this.e = null;
+    this.paceFrame = null;
     this.k = null;
     this.j = null;
     this.l = null;
@@ -650,6 +665,7 @@ export class LedTemporalPresentation {
     this.h++;
     const elapsed = this.e === null ? 0 : Math.max(0, wallMicroseconds - this.e.w);
     if (this.k) return this.k;
+    if (this.playbackRate === 0 && this.j !== null) return null;
     if (this.d === null || this.a === null) return null;
     const target = this.l
       ? this.l.atMicroseconds
@@ -657,7 +673,9 @@ export class LedTemporalPresentation {
         ? this.d
         : Math.min(
             this.a,
-            (this.e?.m ?? this.d) + Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE),
+            this.pacingChanged
+              ? Math.max(this.d, (this.e?.m ?? this.d) + Math.floor(elapsed * this.playbackRate))
+              : (this.e?.m ?? this.d) + Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE),
           );
     const values = this.o(target);
     if (!values) {
@@ -688,6 +706,10 @@ export class LedTemporalPresentation {
     this.j = frame;
     this.k = null;
     this.e ??= { w: wallMicroseconds, m: frame.atMicroseconds };
+    if (this.paceFrame === frame) {
+      this.e = { w: wallMicroseconds, m: frame.atMicroseconds };
+      this.paceFrame = null;
+    }
     if (changed) this.i = this.h;
     return true;
   }

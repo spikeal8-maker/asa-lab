@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import process from 'node:process';
 import console from 'node:console';
+import { URL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -43,12 +44,23 @@ function insideDist(file) {
 const forbidden = [
   /apps\/web\/src\/pages\/SchematicEditor\.tsx$/,
   /apps\/web\/src\/electronics\/(?:use-electronics-workbench|use-workbench-project-state|workbench-autosave|workbench-runtime-controls|WorkbenchStage|WorkbenchSidebars|WorkbenchHeader|AlternateWorkbenchViews)(?:\.|\/)/,
-  /apps\/web\/src\/electronics\/(?:.*worker.*|live-simulation|use-piezo-audio|ArduinoSerialMonitor|ArduinoCodePanel|ArduinoBlocksEditor)(?:\.|\/)/i,
+  /apps\/web\/src\/electronics\/(?!(?:simulation-worker-client|simulation-worker-protocol|live-simulation-worker-controller)\.ts$)(?:.*worker.*|live-simulation|use-piezo-audio|ArduinoSerialMonitor|ArduinoCodePanel|ArduinoBlocksEditor)(?:\.|\/)/i,
   /apps\/web\/src\/electronics\/(?:arduino-blocks|arduino-block-ui|arduino-program-state|arduino-pin-inputs)(?:\.|\/)/,
   /contexts\/electronics\/(?:engine|simulation|module)\.ts$/,
   /contexts\/electronics\/domain\/(?:solver|simulation|arduino-.*runtime|models\/.*(?:runtime|transient-model|audio-model))(?:\.|\/)/,
   /apps\/web\/src\/modules\/(?:use-project|project-autosave|use-module-project)/,
 ];
+const workerAdmissionBytes = readFileSync(
+  new URL('./public-electronics-worker-modules.json', import.meta.url),
+);
+const workerAdmission = JSON.parse(workerAdmissionBytes.toString('utf8'));
+if (
+  workerAdmission.format !== 'asa-public-electronics-worker-admission-v1' ||
+  !Array.isArray(workerAdmission.modules)
+)
+  throw Error('invalid canonical public Worker admission');
+const admittedWorkerModules = new Set(workerAdmission.modules);
+receipt.workerAdmissionSha256 = sha256(workerAdmissionBytes);
 try {
   if (
     !/^[a-f0-9]{40}$/.test(revision) ||
@@ -67,6 +79,48 @@ try {
   if (index.format !== 'asa-web-rendered-modules-v1' || index.revision !== revision)
     throw Error('missing exact emitted rendered-module index');
   receipt.moduleIndexSha256 = sha256(readFileSync(indexPath));
+  const workerIndexPath = resolve(
+    root,
+    `apps/web/private-symbols/web-electronics-worker-rendered-modules-${revision}.json`,
+  );
+  const workerIndex = readJson(workerIndexPath);
+  if (workerIndex.format !== 'asa-web-rendered-modules-v1' || workerIndex.revision !== revision)
+    throw Error('missing exact public Worker module evidence');
+  receipt.workerModuleIndexSha256 = sha256(readFileSync(workerIndexPath));
+  const workerEntries = Object.entries(workerIndex.assets).filter(([, asset]) =>
+    asset.modules.some((module) => module.id === 'apps/web/src/electronics/simulation.worker.ts'),
+  );
+  if (workerEntries.length !== 1) throw Error('missing unique canonical simulation Worker');
+  const workerFiles = new Set();
+  const inspectWorker = (file) => {
+    if (workerFiles.has(file)) return;
+    workerFiles.add(file);
+    const asset = workerIndex.assets[file];
+    const bytes = readFileSync(insideDist(file.replace(/^\//, '')));
+    if (
+      !asset ||
+      asset.sha256 !== sha256(bytes) ||
+      asset.bytes !== bytes.length ||
+      !Array.isArray(asset.modules) ||
+      !asset.modules.length ||
+      !Array.isArray(asset.imports) ||
+      !Array.isArray(asset.dynamicImports)
+    )
+      throw Error('invalid emitted public Worker evidence');
+    for (const module of asset.modules) {
+      const id = module.id.replaceAll('\\', '/');
+      if (
+        !Number.isSafeInteger(module.renderedLength) ||
+        module.renderedLength < 1 ||
+        !admittedWorkerModules.has(id)
+      )
+        throw Error(`unapproved public Worker module: ${id}`);
+    }
+    for (const dependency of [...asset.imports, ...asset.dynamicImports])
+      inspectWorker(`/${dependency}`);
+  };
+  inspectWorker(workerEntries[0][0]);
+  receipt.workerChunks = [...workerFiles].map((file) => ({ file, ...workerIndex.assets[file] }));
   const entries = ['ElectronicsPublicationScene', 'PublicProjectsSurface'].map((name) => {
     const matches = Object.keys(manifest).filter((key) => key.endsWith(`/${name}.tsx`));
     if (matches.length !== 1 || !manifest[matches[0]].isDynamicEntry)
@@ -178,6 +232,18 @@ try {
   }
   if (receipt.violations.length)
     throw Error('forbidden executable editor/runtime modules reachable');
+  const clientChunks = receipt.chunks.filter((chunk) =>
+    chunk.modules.some(
+      (module) => module.id === 'apps/web/src/electronics/simulation-worker-client.ts',
+    ),
+  );
+  if (
+    clientChunks.length !== 1 ||
+    !readFileSync(insideDist(clientChunks[0].file), 'utf8').includes(
+      workerEntries[0][0].replace(/^\//, ''),
+    )
+  )
+    throw Error('public Worker entry is not bound to emitted canonical client');
   receipt.totalBytes = receipt.chunks.reduce((sum, chunk) => sum + chunk.bytes, 0);
   receipt.status = 'PASS';
 } catch (cause) {

@@ -1,0 +1,26 @@
+[
+  {
+    "original_path": "canonical-final-097f2dba.log",
+    "durable_path": "canonical-final-097f2dba.log.gz",
+    "raw_bytes": 23597,
+    "raw_sha256": "9d75fa53308922cf69769a79eb37113a1c1315e5466beb455b00a13b78e2d650",
+    "stored_bytes": 5975,
+    "stored_sha256": "ae4b5232b22ddb41e108cce2a06d13c9bfb6885e1d0a6ecf823a9d31e3acac08"
+  },
+  {
+    "original_path": "asset-hash-isolated-097f2dba.log",
+    "durable_path": "asset-hash-isolated-097f2dba.log.gz",
+    "raw_bytes": 382,
+    "raw_sha256": "e389995c7c9ea5c36f902636866daacf67a6fc0263f1251b56c1f0ec53627062",
+    "stored_bytes": 285,
+    "stored_sha256": "a0d43038db13921290a3d46d3226e94bb7ee5cecc86b92177cea447222117204"
+  },
+  {
+    "original_path": "asset-timeout-classification-097f2dba.json",
+    "durable_path": "asset-timeout-classification-097f2dba.json.gz",
+    "raw_bytes": 783,
+    "raw_sha256": "6671b7423570828ec40b56c732a55ee46eee1af2eb1ae1b6b36eb9d51eaf0421",
+    "stored_bytes": 417,
+    "stored_sha256": "0a4a84ab404a79d7d6bc3ab0eea8f500748cb6937aa50507d9ea91e365cf6a3e"
+  }
+]

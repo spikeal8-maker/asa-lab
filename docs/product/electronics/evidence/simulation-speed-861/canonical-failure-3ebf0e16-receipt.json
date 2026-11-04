@@ -1,0 +1,17 @@
+{
+  "head": "3ebf0e16249e9a5c8c17e504e8179bfb6ba7b76d",
+  "command": "NX_SKIP_NX_CACHE=true pnpm gate:electronics-m1",
+  "conclusion": "FAIL",
+  "coreTestsPassed": 1405,
+  "webTestsPassed": 1144,
+  "webTestsFailed": 1,
+  "failedTest": "apps/web/src/electronics/testing/workbench-presentation.spec.ts:176",
+  "classification": "A: obsolete exact JSX closing-tag assertion; authoritative optical port unchanged",
+  "sourceDigest": "73a4a31750f9740ae8cf0eecec928c9a6d4e286536f3ef1cf68a8753fabf6ca0",
+  "rawBytes": 45459,
+  "rawSha256": "ed711cde6674c41b2e51f57c81a0ea520aa5bee7e547fda68a3eb7066c53890e",
+  "gzipBytes": 11270,
+  "gzipSha256": "c87b75760daa1fad5d50358f45a9edb6f2f2f0df2f0c82de4ddc7963932215fe",
+  "laterTypecheckBuildPhases": "NOT_RUN_after_Web_test_failure",
+  "repairProductionBlobsUnchanged": 17
+}

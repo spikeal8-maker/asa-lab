@@ -1470,9 +1470,31 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(done.events.some((event) => event.componentId === 'b-unsupported')).toBe(false);
   });
 
+  it('loads a switch programme and keeps an independent board executing', () => {
+    const source =
+      'void setup(){pinMode(13,OUTPUT);}void loop(){switch(2){case 2:digitalWrite(13,HIGH);break;default:digitalWrite(13,LOW);}delay(1);}';
+    const done = through(
+      circuit([
+        board('switch-board', source),
+        board(
+          'peer',
+          'void setup(){pinMode(13,OUTPUT);digitalWrite(13,LOW);}void loop(){delay(100);}',
+        ),
+      ]),
+      10,
+    );
+    expect(done.executionStatus).toBe('ready');
+    expect(
+      done.state!.boards.find((entry) => entry.componentId === 'switch-board')!.loadedSource,
+    ).toBe(source);
+    expect(runtime(done, 'switch-board').outputVoltages.d13).toBe(5);
+    expect(runtime(done, 'peer').outputVoltages.d13).toBe(0);
+    expect(done.diagnostics.filter((entry) => entry.code === 'unsupported-syntax')).toEqual([]);
+  });
+
   it.each([
     ['unsupported-call', 'void setup(){shiftIn(2,3,4);}void loop(){}'],
-    ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
+    ['unsupported-syntax', 'void setup(){goto done;done:;}void loop(){}'],
     ['preprocessor', '#include <Unknown.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps known unsupported %s board-local without last-good', (code, source) => {
     const result = through(circuit([board('uno', source)]), 10);
@@ -1493,7 +1515,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
 
   it.each([
     ['unsupported-call', 'void setup(){shiftIn(2,3,4);}void loop(){}'],
-    ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
+    ['unsupported-syntax', 'void setup(){goto done;done:;}void loop(){}'],
     ['preprocessor', '#include <Unknown.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps last-good runtime through known unsupported %s editor source', (code, source) => {
     const sourceA =

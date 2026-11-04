@@ -133,8 +133,57 @@ export class AdminPublicProjectsController {
   ) {
     const actor = await this.actor(request);
     const result = await this.query<{ result: unknown }>(
-      'SELECT public.admin_publications_list($1,$2,$3) AS result',
+      'SELECT public.admin_publications_with_reactions($1,$2,$3) AS result',
       [actor, integer(offset, 0, 0, 1000000), integer(limit, 25, 1, 50)],
+    );
+    return result.rows[0].result;
+  }
+
+  @Post(':publicationId/reactions')
+  @Header('Cache-Control', 'private, no-store')
+  async reactions(
+    @Req() request: FastifyRequest,
+    @Param('publicationId') publicationId: string,
+    @Body() body: unknown,
+  ) {
+    const actor = await this.actor(request);
+    uuid(publicationId);
+    const shape = checkBodyShape(body, [
+      'enabled',
+      'reason',
+      'expectedVersion',
+      'expectedRevisionId',
+    ]);
+    if (!shape.ok) throw new BadRequestException();
+    const { enabled, reason, expectedVersion, expectedRevisionId } = shape.body;
+    if (
+      typeof enabled !== 'boolean' ||
+      typeof reason !== 'string' ||
+      !reason.trim() ||
+      reason.trim().length > 500 ||
+      typeof expectedVersion !== 'number' ||
+      !Number.isInteger(expectedVersion) ||
+      expectedVersion < 0 ||
+      expectedVersion > 2147483646 ||
+      typeof expectedRevisionId !== 'string' ||
+      typeof request.id !== 'string' ||
+      !request.id.trim() ||
+      request.id.length > 128
+    ) {
+      throw new BadRequestException();
+    }
+    uuid(expectedRevisionId);
+    const result = await this.query<{ result: unknown }>(
+      'SELECT public.admin_publication_reactions_write($1,$2,$3,$4,$5,$6,$7) AS result',
+      [
+        actor,
+        publicationId,
+        enabled,
+        expectedVersion,
+        expectedRevisionId,
+        reason.trim(),
+        request.id,
+      ],
     );
     return result.rows[0].result;
   }

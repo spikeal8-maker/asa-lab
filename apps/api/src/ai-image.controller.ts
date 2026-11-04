@@ -1,3 +1,4 @@
+import { aiPublicErrorMessage, AI_IMAGE_UNAVAILABLE } from '@asa-lab/contracts';
 import {
   Body,
   Controller,
@@ -25,14 +26,31 @@ import type { SeatContextUseCase } from './seat-context.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 export const AI_IMAGE_SERVICE = 'AI_IMAGE_SERVICE';
-async function safe<T>(run: () => Promise<T>): Promise<T> {
+async function safe<T>(run: () => Promise<T>, publicView = false): Promise<T> {
   try {
     return await run();
   } catch (e) {
     if (e instanceof AiImageError || e instanceof AiServiceError || e instanceof AiToolPolicyError)
-      throw new HttpException({ error: { code: e.code, message: e.message } }, e.status);
+      throw new HttpException(
+        {
+          error: {
+            code: e.code,
+            message: publicView ? aiPublicErrorMessage(e.code, e.message) : e.message,
+          },
+        },
+        e.status,
+      );
+    if (e instanceof HttpException) throw e;
+    if (publicView)
+      throw new HttpException(
+        { error: { code: 'ai_image_unavailable', message: AI_IMAGE_UNAVAILABLE } },
+        503,
+      );
     throw e;
   }
+}
+function publicSafe<T>(run: () => Promise<T>): Promise<T> {
+  return safe(run, true);
 }
 @Controller('api/ai')
 export class AiImageController {
@@ -52,14 +70,14 @@ export class AiImageController {
     );
   }
   @Get('image-generation/status') status(@Req() request: FastifyRequest) {
-    return safe(async () => this.images.status(await this.owner(request)));
+    return publicSafe(async () => this.images.status(await this.owner(request)));
   }
   @Post('threads/:threadId/image-generations') create(
     @Req() request: FastifyRequest,
     @Param('threadId') thread: string,
     @Body() body: unknown,
   ) {
-    return safe(async () => {
+    return publicSafe(async () => {
       requireAiSameOrigin(request);
       return this.images.create(await this.owner(request), thread, body);
     });
@@ -68,7 +86,7 @@ export class AiImageController {
     @Req() request: FastifyRequest,
     @Param('threadId') thread: string,
   ) {
-    return safe(async () => {
+    return publicSafe(async () => {
       const owner = await this.owner(request);
       return (await this.images.nativeSchemaReady()) ? this.images.pendingTools(owner, thread) : [];
     });
@@ -78,7 +96,7 @@ export class AiImageController {
     @Param('threadId') thread: string,
     @Param('requestId') id: string,
   ) {
-    return safe(async () => {
+    return publicSafe(async () => {
       const owner = await this.owner(request);
       return (await this.images.nativeSchemaReady())
         ? this.images.replayTool(owner, thread, id)
@@ -90,14 +108,14 @@ export class AiImageController {
     @Param('threadId') thread: string,
     @Param('requestId') id: string,
   ) {
-    return safe(async () => this.images.get(await this.owner(request), thread, id));
+    return publicSafe(async () => this.images.get(await this.owner(request), thread, id));
   }
   @Post('threads/:threadId/image-generations/:requestId/cancel') cancel(
     @Req() request: FastifyRequest,
     @Param('threadId') thread: string,
     @Param('requestId') id: string,
   ) {
-    return safe(async () => {
+    return publicSafe(async () => {
       requireAiSameOrigin(request);
       return this.images.cancel(await this.owner(request), thread, id);
     });
@@ -108,7 +126,7 @@ export class AiImageController {
     @Param('requestId') id: string,
     @Res() reply: FastifyReply,
   ) {
-    return safe(async () => {
+    return publicSafe(async () => {
       const owner = await this.owner(request);
       const permit = await this.images.acquireTransfer(owner);
       let finish!: () => void;

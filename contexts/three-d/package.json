@@ -5,6 +5,14 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
+    "./document": {
+      "types": "./dist/domain/document.d.ts",
+      "default": "./dist/domain/document.js"
+    },
+    "./operations": {
+      "types": "./dist/domain/operations.d.ts",
+      "default": "./dist/domain/operations.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"

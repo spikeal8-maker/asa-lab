@@ -1,0 +1,193 @@
+{
+  "baseline": "ee867abe3a2e61e0fbcf977eb9f3f317d31bdf83",
+  "serialization": "Git index LF blobs; artifacts/docs excluded",
+  "files": [
+    {
+      "path": "apps/api/src/app.module.ts",
+      "gitBlob": "7074e2a5634be40670d53cc207c95ae2c29f1b88",
+      "bytes": 21181,
+      "sha256": "c0b18adcc97c00b9d2521d60b9d1b0adcb950c7408d6dd69e0967b537085c1f5"
+    },
+    {
+      "path": "apps/api/src/electronics-save-validation.spec.ts",
+      "gitBlob": "0bd7d0853a5c97dffcbde124247bed73d83d742b",
+      "bytes": 5436,
+      "sha256": "afcbf7bec2cbbc4d2c7574d7f4de07c64f96357232a1683259e637d0b8fbf510"
+    },
+    {
+      "path": "apps/api/src/server-diagnostics.ts",
+      "gitBlob": "4438728e7086b83d5a21feb04845b8da5b3ec753",
+      "bytes": 7660,
+      "sha256": "cff1478a0a3a63f03af9769bcb6530e35104847a8c91354e2d405325499e1f91"
+    },
+    {
+      "path": "apps/web/src/api.ts",
+      "gitBlob": "48dafe4b030fa43ce958d6c62909491fb30c56ac",
+      "bytes": 118774,
+      "sha256": "c7c8936d2870985d2268928108880fadf4a028516fc8e8f784fd1a3aefd9f81e"
+    },
+    {
+      "path": "apps/web/src/electronics/CanvasAnnotationLayer.tsx",
+      "gitBlob": "705ea7a45d686d1298fd01779fc624879ab5d8ea",
+      "bytes": 11087,
+      "sha256": "bdec6a30ad7af1607e9d10278c6d7609fc5b92ac0f54a2758133a0afb018f795"
+    },
+    {
+      "path": "apps/web/src/electronics/WorkbenchHeader.tsx",
+      "gitBlob": "8b25e101d6edb3ca7d7009fc340d2ae8833223ba",
+      "bytes": 18670,
+      "sha256": "95fdd720a742bcbd92697098482537fa49662907196372b749453082791809fd"
+    },
+    {
+      "path": "apps/web/src/electronics/WorkbenchSidebars.tsx",
+      "gitBlob": "499d2cda5d17d59c076868bdc5f90b5211175a10",
+      "bytes": 114293,
+      "sha256": "9f8655ac16312045f605b5584dfe2c92d5a40da3f6776cae90752e3cf3c0ca18"
+    },
+    {
+      "path": "apps/web/src/electronics/WorkbenchStage.tsx",
+      "gitBlob": "bd0bcd0742683f40a038768640d002d2436e4f32",
+      "bytes": 61778,
+      "sha256": "e706801da89db387680a34686105e997e0fe810be10c44a3afb7c1ddb3d8cf43"
+    },
+    {
+      "path": "apps/web/src/electronics/electronics-document-merge.ts",
+      "gitBlob": "5670063ee6c5d83e5f35a8af00746288832695b3",
+      "bytes": 7359,
+      "sha256": "0062d137cd28a77e87c5c9d3d1bd1621e014f9692a183424af9a92456cd6132a"
+    },
+    {
+      "path": "apps/web/src/electronics/live-simulation-worker-controller.ts",
+      "gitBlob": "5a640dce7257a0b6f0ed911479db9f701aca1c30",
+      "bytes": 27875,
+      "sha256": "e42e12d2964b115d128ffbdcc67c32661f74ffdd4783f96c3d1dab278b54a4c8"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/canvas-annotations.browser.mjs",
+      "gitBlob": "f7eadef22e7f7f39bad8db1bd5f4078c3b72c674",
+      "bytes": 18035,
+      "sha256": "166843b789d76fa4c77a506962b5130b2bf57f301c27ae3ad68dbb65b037b49a"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/workbench-annotations.spec.ts",
+      "gitBlob": "e26196aada8758da4c47e320f3f96290dcc8e56a",
+      "bytes": 4664,
+      "sha256": "01554d60ab1c3f9ad6a1229cf5b5c9291440263d03750ccb191f76ae36db3b9e"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/workbench-project-state.spec.ts",
+      "gitBlob": "1d8ce7f17adeb480904e4fe8f4e39273c8364ff7",
+      "bytes": 69763,
+      "sha256": "bd73229c00aa64b1d5a9dee6ab064fc4a0178f83c4095ef1858596c56aa89e6b"
+    },
+    {
+      "path": "apps/web/src/electronics/use-canvas-annotations.ts",
+      "gitBlob": "975cbdcdb21f2797878b6cfc517b2ad8041a27d6",
+      "bytes": 6979,
+      "sha256": "02b8bf698624ca9eb802872b01c3ba4c56dfac7031ec3f46dac1288dc11db1c9"
+    },
+    {
+      "path": "apps/web/src/electronics/use-electronics-workbench.ts",
+      "gitBlob": "054504280c2ddcb63a9ff4bc70c93b2a66472931",
+      "bytes": 137607,
+      "sha256": "99fef8203724b37278610d7cbb3597e99c03793af4825f074ff4124ce1e33607"
+    },
+    {
+      "path": "apps/web/src/electronics/use-workbench-project-state.ts",
+      "gitBlob": "b6cea3a42dc77c0be00f28415971a160d11dfe17",
+      "bytes": 43651,
+      "sha256": "7e66be912e25433c8c3de519f9060bbce9782a5e0068b5dd07698c299dae566d"
+    },
+    {
+      "path": "apps/web/src/electronics/workbench-annotations.ts",
+      "gitBlob": "13ed1a82694280351f09c6881608f79c6fc4d2b3",
+      "bytes": 3906,
+      "sha256": "9e2f99805c9aac10d47dbfcbd7b7eef3f4e86e4ffe0f112428b0d71b5dc4144a"
+    },
+    {
+      "path": "apps/web/src/electronics/workbench-document.ts",
+      "gitBlob": "03af5719a2d4b1e85b29983f936481307d74258e",
+      "bytes": 39728,
+      "sha256": "f6e5479f5d63b6a20b94ad4aeab3f85c6f2bc333aad53ec0d33b10c4bc741c41"
+    },
+    {
+      "path": "apps/web/src/electronics/workbench-model.ts",
+      "gitBlob": "87722ec4918e6725f7e05467c16d49d60c05f118",
+      "bytes": 5313,
+      "sha256": "2c0072be3126d9eb3939193cf16552727eea4d404c91659dcc5449218e988696"
+    },
+    {
+      "path": "apps/web/src/electronics/workbench.css",
+      "gitBlob": "e601f93bd00ee25fa1392edf4e85dcf1a2e3d408",
+      "bytes": 138960,
+      "sha256": "a75f70b8765947dc34cc16e4b4cf4fe28fe65125ad62116e3df92fa95479bae6"
+    },
+    {
+      "path": "contexts/electronics/domain/canvas-annotations.ts",
+      "gitBlob": "231ba69865f898e8db2fd9f120ee4032c2ff25e6",
+      "bytes": 3118,
+      "sha256": "e5abdce9b5ef65e695cefc39840dd85b7df182dede036ebb0d97afcc0a43b3a0"
+    },
+    {
+      "path": "contexts/electronics/domain/document.ts",
+      "gitBlob": "4d4d2311c6cdff09de3550d996cf89301c490f05",
+      "bytes": 22589,
+      "sha256": "6d4b1cf8bb657cdf8fd471df831dd507baa50387078b0406b093130817c443ad"
+    },
+    {
+      "path": "contexts/electronics/domain/simulation-input-digest.ts",
+      "gitBlob": "04d7c6161c54f3842aa2f168d5c47e1a3c096588",
+      "bytes": 9246,
+      "sha256": "0dde5919662fa2ed70d44880fdd9e4743b20d5fb4c21a01fe3aa2e98797faf4e"
+    },
+    {
+      "path": "contexts/electronics/index.ts",
+      "gitBlob": "66093c0b240e40bf9484309a5f4f7b5a1adfb6bf",
+      "bytes": 7120,
+      "sha256": "595031c4d65d309b902d6720146992e8f5f6be578d2d17b24931dacc452ce0d5"
+    },
+    {
+      "path": "contexts/electronics/module.ts",
+      "gitBlob": "0fbfbf3750a3cd4a6d1d46e23e13fe8f62b41980",
+      "bytes": 5817,
+      "sha256": "74d8040bf4000d3f7445c6090028247455e631ea6476bef94676c88aa4711c83"
+    },
+    {
+      "path": "contexts/electronics/testing/canvas-annotations.spec.ts",
+      "gitBlob": "79b1408f03d51921e23c87aa8dc27854e9a7f093",
+      "bytes": 5418,
+      "sha256": "332a38dc530d466ff063f5d175442c76c6a36928c79b15401747fa07343ac283"
+    },
+    {
+      "path": "contexts/projects/application/ports.ts",
+      "gitBlob": "cddd355e5fc211cb9982af8bec29d034f26fcb81",
+      "bytes": 8776,
+      "sha256": "cfa2c3376d358879ab40a6eaaf66c934a4a6e1bb9dd916c1192728745c8e1fbe"
+    },
+    {
+      "path": "contexts/projects/application/project.usecases.ts",
+      "gitBlob": "0cdf05fc48688af2023d09d5f108b7981df108ef",
+      "bytes": 30065,
+      "sha256": "3ca64db944d4247c534014b1149612557f7a05033b113071314ae42a5065cc87"
+    },
+    {
+      "path": "contexts/projects/testing/projects.spec.ts",
+      "gitBlob": "03c27a69785f7f59bde231f310765df0951176fe",
+      "bytes": 36368,
+      "sha256": "d2dc7129844758a6fb5d0b30544a1d5ff6402b1531286e2972089bc835578116"
+    },
+    {
+      "path": "packages/module-sdk/src/index.ts",
+      "gitBlob": "7c729f8256a6b02facb67f7193257f61e826a936",
+      "bytes": 13213,
+      "sha256": "d9a41deed96c1a929dfe9441438458bcabc1d346daa3d3f71e40fa7a88c8b154"
+    },
+    {
+      "path": "tests/capacity/prepared-draft-save.pg.spec.ts",
+      "gitBlob": "70698d539a9cc81fcaa2aa7cd81029ed18fd6f91",
+      "bytes": 8437,
+      "sha256": "52f5a229f55064ac6df3336e085c571b4bf9fc3cc3802f82a19e8b8086c33fde"
+    }
+  ],
+  "sourceDigest": "a07c7a986cceced93ffc5e027e65b177b20f36df47755c94cb6822c7805ffa04"
+}

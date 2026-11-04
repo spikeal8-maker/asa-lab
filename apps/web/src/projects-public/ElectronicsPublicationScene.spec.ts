@@ -18,6 +18,7 @@ import { readFileSync } from 'node:fs';
 import { configureProductionLibrary } from '../electronics/production-manifest-adapter';
 
 vi.mock('../electronics/NativeOpticalComponentVisual', () => ({
+  NativeOpticalProvider: ({ children }: { children: unknown }) => children,
   ProductionComponentVisual: (props: { simulationRunning: boolean; component: object }) => {
     expect(props.simulationRunning).toBe(false);
     expect(Object.isFrozen(props.component)).toBe(true);

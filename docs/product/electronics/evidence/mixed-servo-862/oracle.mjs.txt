@@ -1,0 +1,68 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { gzipSync, gunzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+const require = createRequire(import.meta.url);
+const { build } = createRequire(require.resolve('vite'))('esbuild');
+const output = 'test-results/mixed-servo-862';
+mkdirSync(output, { recursive: true });
+const name = process.argv[2] ?? 'before';
+const readGzip = name => JSON.parse(gunzipSync(readFileSync('docs/product/electronics/evidence/simulation-speed-861/' + name + '.json.gz')));
+const oldCases = readGzip('before');
+const diagnostic = readGzip('combined-full-diagnostic');
+const replay = readGzip('combined-baseline-replay');
+await build({ stdin: { contents: `export * from './contexts/electronics/engine'; export * from './apps/web/src/electronics/led-temporal-presentation'; export {evaluateSimulationWorkerRequestBatched} from './apps/web/src/electronics/simulation-worker-evaluator';`, resolveDir: process.cwd() }, alias: { '@asa-lab/electronics/engine': resolve('contexts/electronics/engine.ts') }, bundle: true, platform: 'node', format: 'esm', outfile: `${output}/${name}-runtime.mjs`, logLevel: 'silent' });
+const m = await import(pathToFileURL(resolve(`${output}/${name}-runtime.mjs`)).href);
+const serialise = value => JSON.parse(JSON.stringify(value, (_key, value) => value instanceof Map ? [...value] : value));
+const hash = raw => createHash('sha256').update(raw).digest('hex');
+const run = input => {
+  const parsed = m.parseElectronicsEngineDocument(input);
+  assert.equal(parsed.ok, true, parsed.message);
+  let state = m.resetElectronicsTimedState();
+  const presenter = new m.LedTemporalPresentation();
+  const advances = [], frames = [];
+  for (const horizon of [0, 1000, 10000, 25000, 50000]) {
+    const session = m.createElectronicsAdvanceSession(parsed.document, { state, requestedHorizonMicroseconds: horizon, maxEvents: 1024 }, { observeLedTemporal: true, observeSevenSegmentTemporal: true });
+    let advance;
+    do { advance = session.step(); } while (advance === null);
+    assert.equal(advance.executionStatus, 'ready');
+    state = advance.state;
+    advances.push(serialise({ ...advance, serial: m.projectElectronicsArduinoSerial(state) }));
+    const result = { ...advance.observation, status: advance.observation.solved ? 'solved' : 'invalid' };
+    if (advance.observation.ledTemporal) presenter.accept(result, advance.observation.ledTemporal, horizon + 100);
+    else presenter.acceptSnapshot(result, horizon);
+    const native = presenter.nextNativeAssetFrameAt(horizon + 100);
+    const frame = presenter.prepareFrame(horizon + 100);
+    frames.push(serialise({ native, frame, host: m.classroomRequestedHorizon(0, horizon, presenter.presentedMicroseconds) }));
+    if (frame) assert.equal(presenter.acknowledgeFrame(frame, horizon + 100), true);
+  }
+  return { input, advances, frames };
+};
+const legacy = oldCases.map(({ input }) => run(input));
+assert.equal(hash(Buffer.from(JSON.stringify(legacy))), 'b98bfe1f9115686632fb5c4d4cebc6d3528750a67eb4fe4034f745a816b2d36c');
+const directDocument = structuredClone(diagnostic.document);
+directDocument.components = directDocument.components.filter(c => ['uno', 'servo'].includes(c.id));
+directDocument.connections = directDocument.connections.filter(w => ['uno', 'servo'].includes(w.from.componentId) && ['uno', 'servo'].includes(w.to.componentId));
+directDocument.components.find(c => c.id === 'uno').stateProperties.arduinoSource = '#include <Servo.h>\nServo motor;void setup(){motor.attach(3);}void loop(){motor.write(45);delay(20);motor.write(135);delay(20);}';
+const actualDcServo = run(directDocument);
+assert.equal(actualDcServo.advances.at(-1).state.continuation.clockProfileId, 'dc-inputs-v1');
+assert.equal(Number.isFinite(actualDcServo.advances.at(-1).observation.components.find(c => c.componentId === 'servo').servoAngleDegrees), true);
+const requests = [...diagnostic.requests.filter(r => r.kind === 'advance'), replay.extendedRequest];
+const mixed = [];
+for (const request of requests) {
+  const response = await m.evaluateSimulationWorkerRequestBatched(request, () => true, async () => {});
+  assert.equal(response.ok, true);
+  assert.equal(response.advance.executionStatus, 'ready');
+  const saved = diagnostic.responses.find(r => r.requestId === request.requestId);
+  if (name === 'before' && saved) assert.equal(Buffer.compare(Buffer.from(JSON.stringify(response.advance)), Buffer.from(JSON.stringify(saved.advance))), 0, 'actual batched Worker full advance');
+  mixed.push({ request, advance: serialise(response.advance) });
+}
+const raw = Buffer.from(JSON.stringify({ legacy, actualDcServo, mixed }));
+const receipt = { baseline: 'a01fd522a78318137d7f7815b706078020ec3ba6', legacyCases: 5, legacyAdvances: 25, legacyBytes: Buffer.byteLength(JSON.stringify(legacy)), legacySha256: hash(Buffer.from(JSON.stringify(legacy))), actualDcServoAdvances: actualDcServo.advances.length, mixedAdvances: mixed.length, rawBytes: raw.length, rawSha256: hash(raw), mixedAngles: mixed.map(({ request, advance }) => ({ horizon: request.requestedHorizonMicroseconds, decoded: JSON.parse(advance.state.continuation.serializedState).servoMotors, reported: advance.result.components.find(c => c.componentId === 'servo').servoAngleDegrees ?? null })) };
+writeFileSync(`${output}/${name}.json.gz`, gzipSync(raw, { mtime: 0 }));
+writeFileSync(`${output}/${name}-receipt.json`, JSON.stringify(receipt, null, 2) + '\n');
+writeFileSync(`${output}/mixed-document.json`, JSON.stringify(diagnostic.document, null, 2) + '\n');
+console.log(JSON.stringify(receipt, null, 2));

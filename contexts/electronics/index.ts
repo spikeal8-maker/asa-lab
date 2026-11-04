@@ -18,6 +18,7 @@ export {
   type TerminalRef,
 } from './domain/document.js';
 export type { ElectronicsDocument as SchematicDocument } from './domain/document.js';
+export { CANVAS_ANNOTATION_LIMITS, type CanvasAnnotation } from './domain/canvas-annotations.js';
 export { buildNetlist, terminalKey, type Netlist } from './domain/netlist.js';
 export {
   canonicalSimulationInput,

@@ -7,7 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import ts from 'typescript';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { multimeterRuntimeMarkup } from '../production-asset-contracts';
+import { instrumentReadoutStyle, multimeterRuntimeMarkup } from '../production-asset-contracts';
 
 const root = resolve(process.cwd(), 'apps/web/src/electronics');
 const stage = readFileSync(resolve(root, 'WorkbenchStage.tsx'), 'utf8');
@@ -128,6 +128,7 @@ describe('multimeter readout continuity', () => {
         Element,
         useOwnerSvgSource: () => ({ source: ownerSvg, failed: false }),
         useMemo: React.useMemo,
+        instrumentReadoutStyle,
         multimeterRuntimeMarkup,
       });
       const host = document.createElement('div');

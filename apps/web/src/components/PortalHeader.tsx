@@ -1,3 +1,5 @@
+import { useGameInvitations } from '../games/game-notifications';
+import { GameInvitationBadge } from '../games/GameInvitationBadge';
 import { usePresentation } from './PresentationPreferences';
 import './portal-ai-navigation.css';
 import { hasSettingsDraft } from './settings-navigation';
@@ -32,6 +34,7 @@ import {
   GalleryGlyph,
   HelpGlyph,
   HomeGlyph,
+  BrainGlyph,
   LearningGlyph,
   ProjectsGlyph,
   SchoolGlyph,
@@ -104,7 +107,7 @@ function sectionIcon(section: PortalSection): JSX.Element {
   if (section === 'classes') return <ClassesGlyph />;
   if (section === 'projects') return <ProjectsGlyph />;
   if (section === 'games') return <span className="portal-games-glyph">♟</span>;
-  if (section === 'ai') return <span className="portal-games-glyph">✦</span>;
+  if (section === 'ai') return <BrainGlyph />;
   if (section === 'collections') return <CollectionsGlyph />;
   if (section === 'gallery') return <GalleryGlyph />;
   if (section === 'learning') return <LearningGlyph />;
@@ -184,6 +187,8 @@ export function PortalHeader({
   const avatarVersion = useRef(0);
   const avatarActor: AvatarActor = { kind: seatLearner ? 'seat' : 'account', id: session.user.id };
   const avatarActorKey = `${avatarActor.kind}:${avatarActor.id}`;
+  const gameInvitations = useGameInvitations();
+  const gameCount = gameInvitations.incoming.length;
   const currentActorKey = useRef(avatarActorKey);
   currentActorKey.current = avatarActorKey;
   const avatarSave = useAvatarSave({
@@ -238,7 +243,9 @@ export function PortalHeader({
     if (!mobileOpen) return;
     const previousOverflow = document.body.style.overflow;
     const background = [
-      ...document.querySelectorAll<HTMLElement>('.portal-shell > main, .portal-header'),
+      ...document.querySelectorAll<HTMLElement>(
+        '.portal-shell > main, .portal-shell > .asa-chess-portal-content, .portal-header',
+      ),
     ];
     const previousInert = background.map((element) => element.inert);
     background.forEach((element) => {
@@ -464,19 +471,33 @@ export function PortalHeader({
 
   return (
     <>
+      <span className="portal-game-announcement" aria-live="polite">
+        {gameCount ? `Вас приглашают играть. Приглашений: ${gameCount}. Откройте Игры.` : ''}
+      </span>
       <header className="portal-header portal-header-ai-navigation">
         <button
           ref={menuButton}
           type="button"
           className="portal-menu-toggle"
           aria-label="Открыть меню"
-          aria-description={attention ? `Классы — ${attention}` : undefined}
+          aria-description={
+            [
+              attention ? `Классы — ${attention}` : null,
+              gameCount ? `Приглашений в игры: ${gameCount}` : null,
+            ]
+              .filter(Boolean)
+              .join('. ') || undefined
+          }
           aria-expanded={mobileOpen}
           aria-controls="portal-sidebar"
           onClick={() => setMobileOpen(true)}
         >
           <span aria-hidden="true">☰</span>
-          {attention ? <span className="portal-attention-dot" aria-hidden="true" /> : null}
+          {gameCount ? (
+            <GameInvitationBadge count={gameCount} pulse={gameInvitations.pulse} />
+          ) : attention ? (
+            <span className="portal-attention-dot" aria-hidden="true" />
+          ) : null}
         </button>
         <button
           type="button"
@@ -515,7 +536,7 @@ export function PortalHeader({
             onNavigate={() => go('ai')}
           >
             <b className="portal-ai-glyph" aria-hidden="true">
-              ✦
+              <BrainGlyph width={20} height={20} />
             </b>
             <span>ИИ</span>
           </PortalLink>
@@ -762,6 +783,9 @@ export function PortalHeader({
                 {sectionIcon(item.section)}
               </span>
               <span className="portal-nav-label">{item.label}</span>
+              {item.section === 'games' ? (
+                <GameInvitationBadge count={gameCount} pulse={gameInvitations.pulse} />
+              ) : null}
               {/* Одна и та же отметка о невыполненном: учащемуся — сколько он
                   не сдал, преподавателю — сколько работ ждёт его ответа. */}
               {item.section === 'classes' && classAttention(0, classroomBadge ?? 0) ? (

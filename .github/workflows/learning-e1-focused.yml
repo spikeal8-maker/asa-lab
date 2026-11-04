@@ -30,13 +30,146 @@ env:
   NX_DAEMON: 'false'
 
 jobs:
+  applicability:
+    name: Learning applicability (no tests executed)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    outputs:
+      route: ${{ steps.selection.outputs.route }}
+      source_sha: ${{ steps.selection.outputs.source_sha }}
+      source_digest: ${{ steps.selection.outputs.source_digest }}
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+      EVENT_NAME: ${{ github.event_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Classify exact source before dependencies
+        id: changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          def git(*args):
+              return subprocess.check_output(['git', *args], stderr=subprocess.DEVNULL)
+          head, base = os.environ['SOURCE_SHA'], os.environ.get('BASE_SHA', '')
+          if not re.fullmatch(r'[0-9a-f]{40}', head) or head == '0' * 40 or git('rev-parse', 'HEAD').decode().strip() != head:
+              raise SystemExit('Checkout does not match the exact event HEAD')
+          if git('status', '--porcelain', '--untracked-files=all'):
+              raise SystemExit('Dirty source cannot authorize applicability')
+          candidate, merge_base, reason = False, '', 'Manual or unknown impact retains the complete suite'
+          if os.environ['EVENT_NAME'] in ('pull_request', 'push') and re.fullmatch(r'[0-9a-f]{40}', base) and base != '0' * 40:
+              try:
+                  if git('rev-parse', '--verify', base + '^{commit}').decode().strip() != base:
+                      raise ValueError('Base identity mismatch')
+                  merge_base = git('merge-base', base, head).decode().strip()
+                  tokens = git('diff', '--name-status', '-z', '--no-renames', merge_base, head, '--').decode('utf-8').split('\0')
+                  if tokens[-1] != '' or len(tokens[:-1]) % 2:
+                      raise ValueError('Malformed change set')
+                  production = {'apps/web/src/components/CollectPicker.tsx', 'apps/web/src/components/collect-picker.css'}
+                  changes = list(zip(tokens[:-1:2], tokens[1:-1:2]))
+                  candidate = bool(changes) and all((status == 'M' and name in production) or (status == 'A' and re.fullmatch(r'apps/web/src/components/CollectPicker\.[A-Za-z0-9][A-Za-z0-9-]*\.spec\.ts', name)) for status, name in changes)
+                  # An older branch cannot reuse an obsolete proof or CI contract.
+                  controls = ['tools/devex-local-ui.mjs', 'package.json', 'pnpm-lock.yaml', '.prettierrc.json', '.prettierignore', 'docs/architecture/DEVEX_LOCAL_UI_PROFILE_CONTRACT.md', 'playwright.settings-ui.config.ts', 'e2e/fixtures/project-collections.ts', 'e2e/project-collections-baseline.spec.ts', '.github/workflows/spec-validation.yml', '.github/workflows/devex-changed.yml', '.github/workflows/account-confirmation-focused.yml', '.github/workflows/learning-e1-focused.yml', '.github/workflows/projects-publication.yml']
+                  if candidate:
+                      candidate = all(git('rev-parse', f'{base}:{name}') == git('rev-parse', f'{head}:{name}') for name in controls)
+                  reason = 'Candidate requires the existing AST/source proof' if candidate else 'Unsupported change or control drift retains the complete suite'
+              except (subprocess.CalledProcessError, ValueError, UnicodeError):
+                  candidate, reason = False, 'Unknown base or change set retains the complete suite'
+          directory = Path('.asa/devex')
+          directory.mkdir(parents=True, exist_ok=True)
+          receipt = {'source_sha': head, 'base_sha': base, 'merge_base': merge_base, 'candidate': candidate, 'reason': reason}
+          (directory / 'focused-selection.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'candidate={str(candidate).lower()}\nmerge_base={merge_base}\n')
+          PY
+      - uses: pnpm/action-setup@v4
+        if: steps.changes.outputs.candidate == 'true'
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.candidate == 'true'
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Exact dependencies for effect proof only
+        if: steps.changes.outputs.candidate == 'true'
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Reuse the existing CollectPicker effect proof
+        if: steps.changes.outputs.candidate == 'true'
+        env:
+          MERGE_BASE: ${{ steps.changes.outputs.merge_base }}
+        run: node tools/devex-local-ui.mjs --prove "$MERGE_BASE" > .asa/devex/focused-proof.json
+      - name: Record applicability without a focused-test PASS
+        id: selection
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, re, subprocess
+          from pathlib import Path
+          receipt_path = Path('.asa/devex/focused-selection.json')
+          receipt = json.loads(receipt_path.read_text())
+          head = os.environ['SOURCE_SHA']
+          if receipt['source_sha'] != head or subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip() != head or subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=all']):
+              raise SystemExit('Source changed during applicability proof')
+          route, digest = 'FULL', ''
+          if receipt['candidate']:
+              proof = json.loads(Path('.asa/devex/focused-proof.json').read_text())
+              if type(proof.get('eligible')) is not bool:
+                  raise SystemExit('Malformed existing effect proof')
+              receipt['reason'] = proof.get('fallback_reason') or 'Only an executed L0/L1 effect can exclude unrelated suites'
+              if proof['eligible'] and proof.get('local_effect_class') in ('L0_LOCAL_UI', 'L1_UI_BEHAVIOR'):
+                  tests = proof.get('test_files')
+                  if proof.get('profile_id') != 'collect-picker-presentation-v1' or type(proof.get('version')) is not int or proof['version'] != 1 or proof.get('surface_id') != 'SURF-PROJECT-COLLECTION-PICKER' or proof.get('test_ids') != ['TST-COLLECT-PICKER-FORMAT-001', 'TST-COLLECT-PICKER-LINT-001', 'TST-COLLECT-PICKER-UNIT-001'] or proof.get('ci_test_files') != ['e2e/project-collections-baseline.spec.ts'] or proof.get('ci_test_ids') != ['TST-COLLECT-PICKER-BROWSER-001']:
+                      raise SystemExit('Effect proof is not the reviewed concrete profile')
+                  if not isinstance(tests, list) or not tests or len(tests) != len(set(tests)) or any(not isinstance(name, str) or not re.fullmatch(r'apps/web/src/components/CollectPicker(?:\.[A-Za-z0-9][A-Za-z0-9-]*)?\.spec\.ts', name) for name in tests):
+                      raise SystemExit('Effect proof has an invalid component family')
+                  protected = sorted(['apps/web/src/components/CollectPicker.tsx', 'apps/web/src/components/collect-picker.css', *tests, 'playwright.settings-ui.config.ts', 'e2e/fixtures/project-collections.ts', 'e2e/project-collections-baseline.spec.ts'])
+                  if proof.get('protected_paths') != protected:
+                      raise SystemExit('Effect proof has incomplete source bindings')
+                  observed = hashlib.sha256()
+                  for name in protected:
+                      observed.update(name.encode()); observed.update(b'\0'); observed.update(Path(name).read_bytes()); observed.update(b'\0')
+                  digest = observed.hexdigest()
+                  if proof.get('source_digest') != digest:
+                      raise SystemExit('Effect proof source digest changed')
+                  route = 'NOT_APPLICABLE'
+                  receipt.update(profile_id=proof['profile_id'], local_effect_class=proof['local_effect_class'], reason='Reviewed source-bound CollectPicker effect does not affect this suite')
+          receipt.update(route=route, status='NOT_APPLICABLE' if route == 'NOT_APPLICABLE' else 'FULL_REQUIRED', focused_tests_state='NOT_APPLICABLE' if route == 'NOT_APPLICABLE' else 'NOT_RUN', checks_executed=0, source_digest=digest, canonical_risk='RETAINED_WITH_UNKNOWNS', full_general='REQUIRED', integration_ready=False, release_ready=False)
+          receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'route={route}\nsource_sha={head}\nsource_digest={digest}\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f"Focused tests: **{receipt['focused_tests_state']}**, executed: **0**. Full General CI remains required.\n\n```json\n{json.dumps(receipt, indent=2)}\n```\n")
+          PY
+      - name: Preserve source-bound applicability evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devex-applicability-learning-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .asa/devex/focused-selection.json
+            .asa/devex/focused-proof.json
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: error
+
   learning-e1-batch:
+    needs: [applicability]
+    if: needs.applicability.outputs.route == 'FULL'
     name: Learning E1 real journeys (${{ matrix.batch }})
     strategy:
       fail-fast: false
       matrix:
         batch: [first, second]
-    runs-on: ubuntu-latest
+    # Locked Playwright supports Ubuntu 24.04; ubuntu-latest now selects 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:
@@ -81,6 +214,7 @@ jobs:
           pnpm db:migrate
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'learning-e1-ci-isolated-test'"
       - name: Existing E1 and populated upgrade regressions
+        id: code-data
         run: pnpm test:learning-e1
       - name: Build pinned Scratch standalone host image
         run: >-
@@ -106,6 +240,7 @@ jobs:
           done
           curl --fail --silent --show-error http://127.0.0.1:4613/healthz
       - name: Real author Account Seat and exact project journeys
+        id: browser
         env:
           LEARNING_E1_BATCH: ${{ matrix.batch }}
           ASA_WEB_PORT: '4612'
@@ -114,6 +249,28 @@ jobs:
           ASA_BLOCKS_UPSTREAM_ORIGIN: http://127.0.0.1:4613
         shell: bash
         run: node tools/testing/learning-e1-browser.mjs
+      - name: Record the complete exact-source browser partition
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BATCH: ${{ matrix.batch }}
+          CODE_RESULT: ${{ steps.code-data.outcome }}
+          BROWSER_RESULT: ${{ steps.browser.outcome }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          head, batch = os.environ['SOURCE_SHA'], os.environ['BATCH']
+          if not re.fullmatch(r'[0-9a-f]{40}', head) or subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip() != head or batch not in ('first', 'second') or os.environ['CODE_RESULT'] != 'success' or os.environ['BROWSER_RESULT'] != 'success':
+              raise SystemExit('Partition did not complete both real gates for the event source')
+          run_id, attempt = os.environ['GITHUB_RUN_ID'], int(os.environ['GITHUB_RUN_ATTEMPT'])
+          if not run_id.isdigit() or int(run_id) <= 0 or attempt <= 0:
+              raise SystemExit('Partition run identity is missing')
+          directory = Path('reports/playwright')
+          directory.mkdir(parents=True, exist_ok=True)
+          receipt = {'source_sha': head, 'batch': batch, 'status': 'PASS', 'code_data_result': 'success', 'browser_result': 'success', 'run_id': run_id, 'run_attempt': attempt}
+          (directory / f'learning-partition-{batch}.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          PY
       - name: Show isolated Scratch host logs
         if: always()
         run: docker logs asa-lab-scratch-editor-learning-e1 || true
@@ -133,13 +290,68 @@ jobs:
 
   learning-e1:
     name: Learning fresh upgrade and real browser journeys
-    needs: [learning-e1-batch]
-    if: always()
-    runs-on: ubuntu-latest
+    needs: [applicability, learning-e1-batch]
+    # A proved zero-test N/A already has the applicability receipt. Do not
+    # allocate another runner just to echo it; every uncertain state still runs.
+    if: >-
+      always() && !(needs.applicability.result == 'success' &&
+      needs.applicability.outputs.route == 'NOT_APPLICABLE' &&
+      needs.applicability.outputs.source_sha == (github.event.pull_request.head.sha || github.sha) &&
+      needs.applicability.outputs.source_digest != '' &&
+      needs.learning-e1-batch.result == 'skipped')
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require both independent complete browser partitions
+      - name: Read both applicable partition receipts
+        if: needs.applicability.result == 'success' && needs.applicability.outputs.route == 'FULL' && needs.learning-e1-batch.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: learning-e1-${{ github.event.pull_request.head.sha || github.sha }}-*
+          path: .asa/learning-partitions
+          merge-multiple: false
+      - name: Require complete applicable partitions or proved non-applicability
         env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          SELECTION_RESULT: ${{ needs.applicability.result }}
+          SELECTION_ROUTE: ${{ needs.applicability.outputs.route }}
+          SELECTION_SHA: ${{ needs.applicability.outputs.source_sha }}
+          SELECTION_DIGEST: ${{ needs.applicability.outputs.source_digest }}
           LEARNING_E1_BATCH_RESULT: ${{ needs.learning-e1-batch.result }}
+        shell: bash
         run: |
-          test "$LEARNING_E1_BATCH_RESULT" = success
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          head, route = os.environ['SOURCE_SHA'], os.environ.get('SELECTION_ROUTE', '')
+          if not re.fullmatch(r'[0-9a-f]{40}', head) or head == '0' * 40 or os.environ.get('SELECTION_RESULT') != 'success' or os.environ.get('SELECTION_SHA') != head:
+              raise SystemExit('Applicability result is missing, failed or bound to another source')
+          if route == 'FULL':
+              if os.environ.get('LEARNING_E1_BATCH_RESULT') != 'success':
+                  raise SystemExit('Applicable browser partitions are missing, failed, skipped or cancelled')
+              directory = Path('.asa/learning-partitions')
+              expected = {f'learning-e1-{head}-{batch}' for batch in ('first', 'second')}
+              if not directory.is_dir() or {entry.name for entry in directory.iterdir()} != expected:
+                  raise SystemExit('Both exact-source partition artifacts are required')
+              run_id, attempt = os.environ['GITHUB_RUN_ID'], int(os.environ['GITHUB_RUN_ATTEMPT'])
+              if not run_id.isdigit() or int(run_id) <= 0 or attempt <= 0:
+                  raise SystemExit('Aggregate run identity is missing')
+              files = list(directory.rglob('learning-partition-*.json'))
+              if len(files) != 2:
+                  raise SystemExit('Partition receipts are missing or duplicated')
+              verified = {}
+              for filename in files:
+                  partition = json.loads(filename.read_text())
+                  batch = partition.get('batch')
+                  if batch not in ('first', 'second') or batch in verified or filename.name != f'learning-partition-{batch}.json' or filename.relative_to(directory).parts[0] != f'learning-e1-{head}-{batch}' or partition.get('source_sha') != head or partition.get('run_id') != run_id or type(partition.get('run_attempt')) is not int or not 1 <= partition['run_attempt'] <= attempt or partition.get('status') != 'PASS' or partition.get('code_data_result') != 'success' or partition.get('browser_result') != 'success':
+                      raise SystemExit('Partition receipt is incomplete, stale, duplicated or failed')
+                  verified[batch] = partition
+              if set(verified) != {'first', 'second'}:
+                  raise SystemExit('A required independent partition is missing')
+              receipt = {'status': 'PASS', 'partitions_completed': 2, 'partitions': verified}
+          else:
+              raise SystemExit('Unknown applicability route cannot authorize success')
+          receipt.update(source_sha=head, full_general='REQUIRED', integration_ready=False, release_ready=False)
+          print(json.dumps(receipt, indent=2))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f"Learning focused result: **{receipt['status']}**. Full General CI remains required.\n\n```json\n{json.dumps(receipt, indent=2)}\n```\n")
+          PY

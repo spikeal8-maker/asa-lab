@@ -1,8 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import { addNativeUsage, nativeTools, parseNativeToolCalls } from './ai-native-tools';
+import {
+  addNativeUsage,
+  nativeTools,
+  parseNativeToolCalls,
+  parseNativeToolBatch,
+} from './ai-native-tools';
+import { workingFileTools } from './ai-working-files';
+
+it('accepts only bounded independently validated image-search/file-read batches, with no mixed mutations', () => {
+  const search = { function: { name: 'image_search', arguments: { query: 'cats' } } };
+  const read = { function: { name: 'read_working_file', arguments: { name: 'cats.html' } } };
+  const offered = [...nativeTools({ search: true, weather: false }), ...workingFileTools()];
+  expect(parseNativeToolBatch([search, read], offered).map((c) => c.name)).toEqual([
+    'image_search',
+    'read_working_file',
+  ]);
+  for (const raw of [
+    [...Array(5).fill(search)],
+    [
+      search,
+      {
+        function: {
+          name: 'create_working_file',
+          arguments: { name: 'cats.html', content: '<h1>Cats</h1>' },
+        },
+      },
+    ],
+    [search, { function: { name: 'read_working_file', arguments: { name: '../secrets' } } }],
+  ])
+    expect(() => parseNativeToolBatch(raw, offered)).toThrow('AI_TOOL_CALL_INVALID');
+});
 
 describe('native image tool admission', () => {
-  const offered = nativeTools({ imageSizes: [512], search: false, weather: false });
+  const offered = nativeTools({ imageSizes: [768], search: false, weather: false });
   const call = (arguments_: unknown) => [
     { function: { name: 'generate_image', arguments: arguments_ } },
   ];
@@ -17,22 +47,22 @@ describe('native image tool admission', () => {
       offered,
     );
     expect(parsed[0]?.arguments.prompt).toContain('forest');
-    expect(offered[0]?.function.parameters.properties).toMatchObject({ size: { enum: [512] } });
+    expect(offered[0]?.function.parameters.properties).toMatchObject({ size: { enum: [768] } });
   });
 
   it('rejects invented model, malformed size, extra keys and multiple calls', () => {
     for (const bad of [
       { prompt: 'Forest', size: 2048, model: 'flux2-klein-4b-v1' },
       { prompt: 'Forest', size: '512', model: 'flux2-klein-4b-v1' },
-      { prompt: 'Forest', size: 512, model: 'other' },
-      { prompt: 'Forest', size: 512, model: 'flux2-klein-4b-v1', url: 'https://example.invalid' },
+      { prompt: 'Forest', size: 768, model: 'other' },
+      { prompt: 'Forest', size: 768, model: 'flux2-klein-4b-v1', url: 'https://example.invalid' },
     ])
       expect(() => parseNativeToolCalls(call(bad), offered)).toThrow('AI_TOOL_CALL_INVALID');
     expect(() =>
       parseNativeToolCalls(
         [
-          ...call({ prompt: 'Forest', size: 512, model: 'flux2-klein-4b-v1' }),
-          ...call({ prompt: 'Village', size: 512, model: 'flux2-klein-4b-v1' }),
+          ...call({ prompt: 'Forest', size: 768, model: 'flux2-klein-4b-v1' }),
+          ...call({ prompt: 'Village', size: 768, model: 'flux2-klein-4b-v1' }),
         ],
         offered,
       ),
@@ -78,4 +108,47 @@ describe('native internet argument boundary', () => {
       addNativeUsage({ inputTokens: 10, outputTokens: 2, actualModel: 'a' }, undefined),
     ).toEqual({ inputTokens: null, outputTokens: null, actualModel: 'a' });
   });
+});
+
+it('advertises only the configured FP8 recipe and rejects an unoffered v1 graph request', () => {
+  const recipe = 'flux2-klein-4b-fp8-izo-v1' as const;
+  const offered = nativeTools({
+    imageSizes: [1024],
+    imageRecipe: recipe,
+    search: false,
+    weather: false,
+  });
+  const call = (model: string) => [
+    {
+      function: { name: 'generate_image', arguments: { prompt: 'A blue tree', size: 1024, model } },
+    },
+  ];
+  expect(parseNativeToolCalls(call(recipe), offered)[0]?.arguments.model).toBe(recipe);
+  expect(() => parseNativeToolCalls(call('flux2-klein-4b-v1'), offered)).toThrow();
+});
+
+it('admits only a closed unique HTML target when the binding capability is offered', () => {
+  const args = {
+    prompt: 'Лес',
+    size: 768,
+    model: 'flux2-klein-4b-v1',
+    target: { name: 'index.html', expectedVersion: 1, placeholder: 'ASA_GENERATED_IMAGE_PENDING' },
+  };
+  const call = (a: unknown) => [{ function: { name: 'generate_image', arguments: a } }];
+  const old = nativeTools({ search: false, weather: false, imageSizes: [768] });
+  const offered = nativeTools({
+    search: false,
+    weather: false,
+    imageSizes: [768],
+    imageFileTarget: true,
+  });
+  expect(() => parseNativeToolCalls(call(args), old)).toThrow();
+  expect(parseNativeToolCalls(call(args), offered)[0]?.arguments.target).toEqual(args.target);
+  for (const target of [
+    { ...args.target, name: '../x.html' },
+    { ...args.target, expectedVersion: 100 },
+    { ...args.target, placeholder: 'other' },
+    { ...args.target, url: 'https://example.com' },
+  ])
+    expect(() => parseNativeToolCalls(call({ ...args, target }), offered)).toThrow();
 });

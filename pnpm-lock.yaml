@@ -12,7 +12,7 @@ overrides:
   find-my-way@<=9.6.0: 9.7.0
   brace-expansion@>=5.0.0 <5.0.11: 5.0.11
   axios@>=1.15.2 <1.20.0: 1.20.0
-  follow-redirects@>=1.16.0 <1.16.1: 1.16.1
+  follow-redirects@>=1.16.0 <1.16.2: 1.16.2
   '@grpc/grpc-js@>=1.14.0 <1.14.5': 1.14.5
   js-yaml@>=4.0.0 <4.3.2: 4.3.2
   nanoid@<3.3.17: ^3.3.17
@@ -185,6 +185,9 @@ importers:
       '@asa-lab/electronics':
         specifier: workspace:*
         version: link:../../contexts/electronics
+      '@asa-lab/games':
+        specifier: workspace:*
+        version: link:../../contexts/games
       '@asa-lab/identity':
         specifier: workspace:*
         version: link:../../contexts/identity
@@ -278,6 +281,9 @@ importers:
       katex:
         specifier: 0.16.47
         version: 0.16.47
+      parse5:
+        specifier: 7.3.0
+        version: 7.3.0
       pdfmake:
         specifier: 0.3.13
         version: 0.3.13
@@ -360,6 +366,21 @@ importers:
       '@asa-lab/module-sdk':
         specifier: workspace:*
         version: link:../../packages/module-sdk
+
+  contexts/games:
+    dependencies:
+      '@asa-lab/checkers':
+        specifier: workspace:*
+        version: link:../checkers
+      '@asa-lab/chess':
+        specifier: workspace:*
+        version: link:../chess
+      '@asa-lab/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
 
   contexts/identity: {}
 
@@ -2764,8 +2785,8 @@ packages:
   flatted@3.4.2:
     resolution: {integrity: sha512-PjDse7RzhcPkIJwy5t7KPWQSZ9cAbzQXcafsetQoD7sOJRQlGikNbx7yZp2OotDnJyrDcbyRq3Ttb18iYOqkxA==}
 
-  follow-redirects@1.16.1:
-    resolution: {integrity: sha512-FNvFGzoMLWmE6Yj9spb/zjd7yiNCHiAW9/Tg9CXrQ8wuu32HtlJOwWO11OJafl5FfY3DxTdQ0vj42zU1kvv5jg==}
+  follow-redirects@1.16.2:
+    resolution: {integrity: sha512-/kVP2U8z596Ia0gwFrwyIeo74ta5aVmSeU1FfAUMAmcEP5EP7zydmag3SLiN64NaRKef3lxsq7i/g7ltJQDGow==}
     engines: {node: '>=4.0'}
     peerDependencies:
       debug: '*'
@@ -6457,7 +6478,7 @@ snapshots:
 
   axios@1.20.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0):
     dependencies:
-      follow-redirects: 1.16.1(debug@4.4.3(supports-color@7.2.0))
+      follow-redirects: 1.16.2(debug@4.4.3(supports-color@7.2.0))
       form-data: 4.0.6
       https-proxy-agent: 5.0.1(supports-color@7.2.0)
       proxy-from-env: 2.1.0
@@ -7009,7 +7030,7 @@ snapshots:
 
   flatted@3.4.2: {}
 
-  follow-redirects@1.16.1(debug@4.4.3(supports-color@7.2.0)):
+  follow-redirects@1.16.2(debug@4.4.3(supports-color@7.2.0)):
     optionalDependencies:
       debug: 4.4.3(supports-color@7.2.0)
 
@@ -7904,7 +7925,7 @@ snapshots:
       escape-string-regexp: 1.0.5
       figures: 3.2.0
       flat: 5.0.2
-      follow-redirects: 1.16.1(debug@4.4.3(supports-color@7.2.0))
+      follow-redirects: 1.16.2(debug@4.4.3(supports-color@7.2.0))
       form-data: 4.0.6
       fs-constants: 1.0.0
       function-bind: 1.1.2

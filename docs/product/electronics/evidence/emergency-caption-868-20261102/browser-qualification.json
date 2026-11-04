@@ -1,0 +1,54 @@
+{
+  "scope": "electronics-868-nine-cases",
+  "fullElectronicsQualification": false,
+  "expectedSourceSha": "9238cdd66366ca304e47eb2de012572208030b5d",
+  "cases": [
+    {
+      "file": "electronics-simulation.spec.ts",
+      "suites": [],
+      "title": "ELECTRONICS-E01 AFTER denied local storage never claims a durable local copy"
+    },
+    {
+      "file": "electronics-simulation.spec.ts",
+      "suites": [],
+      "title": "MOBILE-ADD-CONNECT original280 tap four-to-five 390x844"
+    },
+    {
+      "file": "electronics-simulation.spec.ts",
+      "suites": [],
+      "title": "MOBILE-ADD-CONNECT cancellation stays deliberate 390x844"
+    },
+    {
+      "file": "electronics-simulation.spec.ts",
+      "suites": [],
+      "title": "MOBILE-ADD-CONNECT native tap and held wire Save reopen 390x844"
+    },
+    {
+      "file": "electronics-simulation.spec.ts",
+      "suites": [],
+      "title": "MOBILE-ADD-CONNECT original280 tap four-to-five 568x320"
+    },
+    {
+      "file": "electronics-simulation.spec.ts",
+      "suites": [],
+      "title": "MOBILE-ADD-CONNECT cancellation stays deliberate 568x320"
+    },
+    {
+      "file": "electronics-simulation.spec.ts",
+      "suites": [],
+      "title": "MOBILE-ADD-CONNECT native tap and held wire Save reopen 568x320"
+    },
+    {
+      "file": "electronics-simulation.spec.ts",
+      "suites": [],
+      "title": "MOBILE-ADD-CONNECT desktop placement cue regression 1024"
+    },
+    {
+      "file": "electronics-simulation.spec.ts",
+      "suites": [],
+      "title": "MOBILE-ADD-CONNECT desktop placement cue regression 1440"
+    }
+  ],
+  "conclusion": "PASS",
+  "error": null
+}

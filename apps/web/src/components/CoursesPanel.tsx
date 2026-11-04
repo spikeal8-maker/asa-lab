@@ -22,6 +22,7 @@ import {
   type PublishedAuthorVersion,
 } from '../api';
 import { AuthorVersionHistory } from './AuthorVersionHistory';
+import { CourseUsage } from './CourseUsage';
 import { CanonicalPracticePicker, PinnedPracticePreview } from './CanonicalPracticePicker';
 import { PinnedManualMaterialPreview } from './CanonicalManualMaterialPicker';
 import { CourseAssignDialog, type CourseAssignAttempt } from './CourseAssignDialog';
@@ -384,6 +385,7 @@ function SectionFormDialog({
 }
 
 function LessonEditor({
+  onRegisterNestedLeaveGuard,
   sections,
   sectionId,
   lesson,
@@ -400,6 +402,7 @@ function LessonEditor({
   readonly assignments: readonly LibraryAssignment[];
   readonly onSave: (input: CourseLessonInput) => Promise<void>;
   readonly onDelete: (() => Promise<void>) | null;
+  readonly onRegisterNestedLeaveGuard: (id: string, guard: (() => boolean) | null) => void;
   readonly onDirty: () => void;
   readonly saveBlockedMessage: string | null;
   readonly diagnosticFocus?: CourseDiagnosticFocus | null;
@@ -639,6 +642,7 @@ function LessonEditor({
             </p>
           ) : null}
           <CanonicalPracticePicker
+            onRegisterNestedLeaveGuard={onRegisterNestedLeaveGuard}
             value={assignmentId.startsWith('lav:') ? assignmentId.slice(4) : ''}
             onChange={(versionId, practiceTitle) => {
               if (!title.trim()) setTitle(practiceTitle);
@@ -650,6 +654,7 @@ function LessonEditor({
       ) : null}
 
       <LessonBlockEditor
+        onRegisterNestedLeaveGuard={onRegisterNestedLeaveGuard}
         blocks={blocks}
         activities={[]}
         onChange={(value) => {
@@ -833,6 +838,8 @@ function CourseEditor({
   const [sectionForm, setSectionForm] = useState<CourseSection | null | 'new'>(null);
   const [saveTarget, setSaveTarget] = useState<HTMLDivElement | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [usageOpen, setUsageOpen] = useState(false);
+  const [usageRefreshVersion, setUsageRefreshVersion] = useState(0);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const compactHeaderRef = useRef<HTMLElement>(null);
   // The outline and focused block actions must clear the actual sticky
@@ -1031,7 +1038,16 @@ function CourseEditor({
     },
     [onSectionWorkChange],
   );
+  const nestedLeaveGuards = useRef(new Map<string, () => boolean>());
+  const registerNestedLeaveGuard = useCallback((id: string, guard: (() => boolean) | null) => {
+    if (guard) nestedLeaveGuards.current.set(id, guard);
+    else nestedLeaveGuards.current.delete(id);
+  }, []);
+  function nestedCanLeave(): boolean {
+    return [...nestedLeaveGuards.current.values()].every((guard) => guard());
+  }
   function canLeave(): boolean {
+    if (!nestedCanLeave()) return false;
     if (
       writing ||
       publishing ||
@@ -1144,6 +1160,7 @@ function CourseEditor({
     return null;
   }, [sections, selectedLessonId]);
   function withSavedDraft(action: () => void): void {
+    if (!nestedCanLeave()) return;
     if (unavailableMessage) {
       setNotice(null);
       setError(unavailableMessage);
@@ -1570,6 +1587,15 @@ function CourseEditor({
                   >
                     История версий
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      setUsageOpen(true);
+                    }}
+                  >
+                    Использование
+                  </button>
                   {course.publishedVersion || publicationReceipt.current ? (
                     <button
                       type="button"
@@ -1683,6 +1709,18 @@ function CourseEditor({
             </p>
           ) : null}
 
+          {usageOpen ? (
+            <CourseUsage
+              courseId={course.id}
+              refreshVersion={usageRefreshVersion}
+              onClose={() => setUsageOpen(false)}
+              onNavigate={(href) =>
+                withSavedDraft(() => {
+                  window.location.hash = href;
+                })
+              }
+            />
+          ) : null}
           <section
             className="course-history-panel"
             hidden={!historyOpen}
@@ -2023,6 +2061,7 @@ function CourseEditor({
               <div className="course-workspace">
                 {newLessonSectionId ? (
                   <LessonEditor
+                    onRegisterNestedLeaveGuard={registerNestedLeaveGuard}
                     key={'new-' + newLessonSectionId}
                     sections={sections}
                     sectionId={newLessonSectionId}
@@ -2036,6 +2075,7 @@ function CourseEditor({
                   />
                 ) : selected ? (
                   <LessonEditor
+                    onRegisterNestedLeaveGuard={registerNestedLeaveGuard}
                     key={selected.lesson.id + '-' + selected.lesson.position + '-' + editorEpoch}
                     sections={sections}
                     sectionId={selected.section.id}
@@ -2191,6 +2231,10 @@ function CourseEditor({
             version={assignVersion}
             attempt={assignmentAttempt.current.value}
             onBusyChange={setAssignBusy}
+            onAssigned={() => {
+              setUsageRefreshVersion((value) => value + 1);
+              onChanged();
+            }}
             onClose={() => {
               setPreview(false);
               setAssignVersion(null);

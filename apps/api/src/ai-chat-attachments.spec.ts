@@ -1,5 +1,5 @@
 import { aiUsageQueryFixture } from './testing/ai-usage-query.fixture';
-import { createHash } from 'node:crypto';
+import { createCipheriv, createHash } from 'node:crypto';
 import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 import { AiChatService } from './ai-chat.service';
@@ -30,14 +30,34 @@ function attachmentService(bytes: Buffer, kind: 'text' | 'image' = 'text') {
   return { withRead } as unknown as AiAttachmentService;
 }
 
-function mockPool(source?: { items?: readonly { uploadId: string }[]; denied?: boolean }) {
+const TEST_KEY = Buffer.alloc(32, 7);
+function mockPool(
+  source?: { items?: readonly { uploadId: string }[]; denied?: boolean },
+  cloud?: { provider: string; model: string },
+) {
+  const iv = Buffer.alloc(12, 9);
+  const cipher = createCipheriv('aes-256-gcm', TEST_KEY, iv);
+  const secret = Buffer.concat([cipher.update('test-cloud-credential'), cipher.final()]);
   const sqlCalls: Array<{ sql: string; params: unknown[] }> = [];
   const query = vi.fn(async (sql: string, params: unknown[] = []) => {
     const journal = aiUsageQueryFixture(sql);
     if (journal) return journal;
     sqlCalls.push({ sql, params });
     if (sql.includes('ai_runtime_config'))
-      return { rows: [{ enabled: false, provider: 'openai', model: 'gpt-5-mini' }] };
+      return {
+        rows: [
+          cloud
+            ? {
+                enabled: true,
+                ...cloud,
+                configuration_version: 1,
+                api_key_ciphertext: secret.toString('base64url'),
+                api_key_iv: iv.toString('base64url'),
+                api_key_auth_tag: cipher.getAuthTag().toString('base64url'),
+              }
+            : { enabled: false, provider: 'openai', model: 'gpt-5-mini' },
+        ],
+      };
     if (sql.includes('ai_ollama_runtime'))
       return {
         rows: [
@@ -45,7 +65,7 @@ function mockPool(source?: { items?: readonly { uploadId: string }[]; denied?: b
         ],
       };
     if (
-      sql.includes('ai_attachment_begin_message_local') ||
+      sql.includes('ai_attachment_begin_message') ||
       sql.includes('ai_text_regenerate_begin_local')
     )
       return { rows: [{ admitted: true }] };
@@ -73,6 +93,79 @@ function mockPool(source?: { items?: readonly { uploadId: string }[]; denied?: b
 }
 
 describe('ASA AI real file-to-provider context', () => {
+  it.each([
+    ['openai', 'gpt-6-luna'],
+    ['deepseek', 'deepseek-flash'],
+    ['ollama-cloud', 'gemma4:31b'],
+  ] as const)(
+    'binds private images before sending actual bytes through %s Vision',
+    async (provider, model) => {
+      const pixels = Buffer.from('private validated pixels');
+      const { pool, sqlCalls } = mockPool(undefined, { provider, model });
+      const attachments = attachmentService(pixels, 'image');
+      const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => {
+        expect(sqlCalls.some((item) => item.sql.includes('ai_attachment_begin_message('))).toBe(
+          true,
+        );
+        const body = JSON.parse(String(init?.body));
+        const last = provider === 'openai' ? body.input.at(-1) : body.messages.at(-1);
+        expect(JSON.stringify(last)).toContain(
+          'data:image/png;base64,' + pixels.toString('base64'),
+        );
+        return new Response(
+          provider === 'openai'
+            ? 'data: {"type":"response.output_text.delta","delta":"Picture read"}\n\ndata: {"type":"response.completed","response":{"status":"completed"}}\n\n'
+            : 'data: {"choices":[{"delta":{"content":"Picture read"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+        );
+      });
+      const chat = new AiChatService(pool, {
+        attachments,
+        fetchImpl,
+        encryptionKey: TEST_KEY.toString('hex'),
+      });
+      const result = await chat.sendStream(
+        OWNER,
+        THREAD,
+        'Describe this picture',
+        REQUEST,
+        () => undefined,
+        new AbortController().signal,
+        undefined,
+        undefined,
+        [UPLOAD],
+      );
+      expect(result.replayed).toBe(false);
+      expect(fetchImpl).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('explains unsupported cloud Vision before admission, charging or generation', async () => {
+    const { pool, sqlCalls } = mockPool(undefined, {
+      provider: 'deepseek',
+      model: 'deepseek-v4-pro',
+    });
+    const fetchImpl = vi.fn<typeof fetch>();
+    const chat = new AiChatService(pool, {
+      attachments: attachmentService(Buffer.from('pixels'), 'image'),
+      fetchImpl,
+      encryptionKey: TEST_KEY.toString('hex'),
+    });
+    await expect(
+      chat.sendStream(
+        OWNER,
+        THREAD,
+        'Describe',
+        REQUEST,
+        () => undefined,
+        new AbortController().signal,
+        undefined,
+        undefined,
+        [UPLOAD],
+      ),
+    ).rejects.toMatchObject({ code: 'ai_vision_unsupported', status: 409 });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(sqlCalls.some((item) => item.sql.includes('ai_attachment_begin_message'))).toBe(false);
+  });
   it('reads owned Arduino bytes and binds the same upload and request atomically on free Ollama', async () => {
     const code = Buffer.from('const int led=13;\nvoid setup(){pinMode(led,INPUT);}\n');
     const attachments = attachmentService(code);

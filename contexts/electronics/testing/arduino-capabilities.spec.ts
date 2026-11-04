@@ -16,7 +16,7 @@ describe('Arduino capability contract', () => {
     expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.for.status).toBe('limited');
     expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT['type-int'].status).toBe('supported');
     expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT['type-text'].status).toBe('unsupported');
-    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.switch.status).toBe('unsupported');
+    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.switch.status).toBe('limited');
   });
 
   it('classifies representative blocks from the one shared registry', () => {
@@ -186,9 +186,7 @@ void loop(){foo.write(90);}`);
   });
 
   it('fails closed for unsupported control syntax', () => {
-    const diagnostics = analyseArduinoSourceSupport(
-      'void loop() { switch (digitalRead(2)) { break; } }',
-    );
+    const diagnostics = analyseArduinoSourceSupport('void loop() { goto missing; }');
 
     expect(diagnostics).toEqual(
       expect.arrayContaining([

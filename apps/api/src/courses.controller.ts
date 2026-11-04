@@ -19,6 +19,7 @@ import { effectiveAccountActions } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { cataloguePreview, type CataloguePreviewRow } from './course-preview.js';
 import { checkBodyShape } from './validation.js';
+import { COURSE_USAGE_SQL } from './course-usage-query.js';
 import {
   LearningCanonicalProjectionService,
   type CanonicalLearningProjection,
@@ -907,6 +908,40 @@ export class CoursesController {
 
   // Проведение курса в классе. Здесь используется опубликованная версия, а не
   // редактируемый черновик из методической мастерской.
+
+  @Get('courses/:courseId/usage')
+  async usage(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
+    const context = await this.requireAuthor(request);
+    this.requireUuid(courseId, 'course');
+    const capabilities = await this.accounts.capabilities(context.accountId);
+    const canReadClasses = capabilities.some(
+      (entry) =>
+        entry.capability === 'educator' &&
+        (entry.state === 'verified' || entry.state === 'provisional'),
+    );
+    const result = await this.requirePool().query(COURSE_USAGE_SQL, [
+      context.principalId,
+      canReadClasses ? context.accountId : null,
+      courseId,
+    ]);
+    if (result.rows.length === 0)
+      throw new HttpException(error('not_found', 'Курс не найден.'), 404);
+    return {
+      items: result.rows
+        .filter((row) => row.run_id !== null)
+        .map((row) => ({
+          id: row.run_id as string,
+          classroomId: row.classroom_id as string,
+          classroomTitle: row.classroom_title as string,
+          classroomStatus: row.classroom_status as 'active' | 'archived',
+          courseVersionId: row.course_version_id as string,
+          versionNumber: Number(row.version_number),
+          title: row.run_title as string,
+          status: row.run_status as 'open' | 'closed',
+          audienceType: row.audience_type as 'whole_class' | 'named_learners' | null,
+        })),
+    };
+  }
 
   @Get('classrooms/:classroomId/course-runs')
   async classroomRuns(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {

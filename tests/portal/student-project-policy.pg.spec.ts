@@ -36,7 +36,12 @@ describe('StudentSeat actual immutable publication and audited permissions', () 
     '$label: defaults OFF, independent overrides/inherit, no Account, frozen public read survives disable, revoke closes it',
     async ({ scope }) => {
       const f = await fixture(scope);
-      expect(await f.read()).toEqual({ publish: false, download: false, version: 0 });
+      expect(await f.read()).toEqual({
+        publish: false,
+        download: false,
+        comments: false,
+        version: 0,
+      });
       await expect(f.publish()).rejects.toMatchObject({ code: 'P5P01' });
       expect(await f.write({ publish: true, download: false, expectedVersion: 0 })).toMatchObject({
         version: 1,
@@ -216,7 +221,12 @@ describe('StudentSeat actual immutable publication and audited permissions', () 
         )
       ).rows[0].n,
     ).toBe(0);
-    expect(await f.read()).toEqual({ publish: false, download: false, version: 0 });
+    expect(await f.read()).toEqual({
+      publish: false,
+      download: false,
+      comments: false,
+      version: 0,
+    });
     const request = (method: 'GET' | 'POST' | 'PUT', url: string, payload?: unknown) =>
       inject(app, {
         method,

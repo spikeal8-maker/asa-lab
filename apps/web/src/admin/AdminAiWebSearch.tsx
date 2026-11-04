@@ -36,6 +36,9 @@ export function AdminAiWebSearch({
   const [allowedDomains, setAllowedDomains] = useState('');
   const [blockedDomains, setBlockedDomains] = useState('');
   const [searchInstructions, setSearchInstructions] = useState('');
+  const [resultsLimit, setResultsLimit] = useState('8');
+  const [pagesLimit, setPagesLimit] = useState('2');
+  const [pageCharLimit, setPageCharLimit] = useState('4500');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
@@ -50,6 +53,9 @@ export function AdminAiWebSearch({
     setAllowedDomains((data.allowedDomains ?? []).join('\n'));
     setBlockedDomains((data.blockedDomains ?? []).join('\n'));
     setSearchInstructions(data.searchInstructions ?? '');
+    setResultsLimit(String(data.resultsLimit ?? 8));
+    setPagesLimit(String(data.pagesLimit ?? 2));
+    setPageCharLimit(String(data.pageCharLimit ?? 4500));
   };
   useEffect(() => {
     let live = true;
@@ -78,7 +84,8 @@ export function AdminAiWebSearch({
   }, [onAccessDenied, reload]);
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!config || inFlight.current || loading || !validLimit || !validPolicy) return;
+    if (!config || inFlight.current || loading || !validLimit || !validPolicy || !validRetrieval)
+      return;
     inFlight.current = true;
     setBusy(true);
     setError('');
@@ -88,6 +95,13 @@ export function AdminAiWebSearch({
       weatherEnabled,
       operationsPerHour: Number(limit),
       configurationVersion: config.configurationVersion,
+      ...(retrievalSupported
+        ? {
+            resultsLimit: Number(resultsLimit),
+            pagesLimit: Number(pagesLimit),
+            pageCharLimit: Number(pageCharLimit),
+          }
+        : {}),
       ...(policySupported
         ? {
             allowedDomains: allowedDomainList,
@@ -119,6 +133,23 @@ export function AdminAiWebSearch({
   }
   const validLimit =
     /^\d+$/.test(limit) && Number.isSafeInteger(Number(limit)) && Number(limit) <= 100000;
+  const retrievalSupported =
+    config?.resultsLimit !== undefined &&
+    config.pagesLimit !== undefined &&
+    config.pageCharLimit !== undefined;
+  const validRetrieval =
+    !retrievalSupported ||
+    [
+      [resultsLimit, 1, 12],
+      [pagesLimit, 0, 2],
+      [pageCharLimit, 500, 8000],
+    ].every(
+      ([value, min, max]) =>
+        /^\d+$/.test(String(value)) &&
+        Number.isSafeInteger(Number(value)) &&
+        Number(value) >= Number(min) &&
+        Number(value) <= Number(max),
+    );
   const policySupported =
     config !== null &&
     Array.isArray(config.allowedDomains) &&
@@ -193,6 +224,61 @@ export function AdminAiWebSearch({
               ? 'Адрес компонента настроен на сервере.'
               : 'Компонент поиска ещё не подключён на сервере. Обычный чат продолжает работать.'}
           </p>
+          <fieldset className="asa-ai-web-retrieval" disabled={busy || !retrievalSupported}>
+            <legend>Выдача и чтение страниц</legend>
+            <div className="asa-ai-web-retrieval-grid">
+              <label className="asa-cloud-field">
+                <span>Результатов поиска</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="12"
+                  step="1"
+                  value={resultsLimit}
+                  aria-label="Результатов поиска"
+                  onChange={(event) => setResultsLimit(event.target.value)}
+                />
+                <small>От 1 до 12 ссылок или картинок в ответе.</small>
+              </label>
+              <label className="asa-cloud-field">
+                <span>Страниц для чтения</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="2"
+                  step="1"
+                  value={pagesLimit}
+                  aria-label="Страниц для чтения"
+                  onChange={(event) => setPagesLimit(event.target.value)}
+                />
+                <small>Модель выбирает до двух страниц. 0 — не читать.</small>
+              </label>
+              <label className="asa-cloud-field">
+                <span>Символов со страницы</span>
+                <input
+                  type="number"
+                  min="500"
+                  max="8000"
+                  step="1"
+                  value={pageCharLimit}
+                  aria-label="Символов со страницы"
+                  onChange={(event) => setPageCharLimit(event.target.value)}
+                />
+                <small>От 500 до 8000 символов текста каждой страницы.</small>
+              </label>
+            </div>
+          </fieldset>
+          {!retrievalSupported ? (
+            <p className="asa-ai-web-admin-description">
+              Новые настройки станут доступны после обновления схемы поиска.
+            </p>
+          ) : (
+            <p className="asa-ai-web-admin-description">
+              Поиск возвращает список; модель сама решает, какие страницы читать инструментом
+              read_page. Чтение доступно моделям с подключёнными инструментами. Настройки применятся
+              к новым запросам.
+            </p>
+          )}
           <label className="asa-cloud-field asa-ai-web-admin-limit">
             <span>Лимит поисковых операций за час</span>
             <input
@@ -300,7 +386,7 @@ export function AdminAiWebSearch({
             <button
               type="submit"
               className="asa-cloud-apply"
-              disabled={busy || loading || !validLimit || !validPolicy}
+              disabled={busy || loading || !validLimit || !validPolicy || !validRetrieval}
             >
               {busy ? 'Сохраняем…' : 'Сохранить поиск'}
             </button>

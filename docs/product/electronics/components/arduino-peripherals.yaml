@@ -11,12 +11,15 @@ components:
     sources:
     - contexts/electronics/domain/arduino-program-runtime.ts
     - contexts/electronics/domain/arduino-user-functions.ts
+    - contexts/electronics/domain/arduino-switch-syntax.ts
     - contexts/electronics/domain/arduino-values.ts
     - contexts/electronics/domain/arduino-random.ts
     - contexts/electronics/domain/arduino-model.ts
     tests:
     - contexts/electronics/testing/arduino-correctness.spec.ts
     - contexts/electronics/testing/arduino-user-functions.spec.ts
+    - contexts/electronics/testing/arduino-switch.spec.ts
+    - contexts/electronics/testing/fixtures/arduino-switch-display.ts
     - contexts/electronics/testing/arduino-helper-displays.spec.ts
     - contexts/electronics/testing/fixtures/arduino-helper-display-counter.ts
     - contexts/electronics/testing/arduino-runtime-state.spec.ts
@@ -58,6 +61,7 @@ components:
     - docs/product/electronics/README.md#15-arduino-и-программирование
     sources:
     - contexts/electronics/domain/arduino-capabilities.ts
+    - contexts/electronics/domain/arduino-block-support.ts
     tests:
     - contexts/electronics/testing/arduino-capabilities.spec.ts
     - apps/web/src/electronics/testing/arduino-code-contract.spec.ts

@@ -1,3 +1,4 @@
+import { AI_IMAGE_PRESETS, type AiImageRecipe, type AiImageStoredSize } from '@asa-lab/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { deflateSync } from 'node:zlib';
 import { ComfyImageTransport, imageWorkflowDigest } from './ai-image-comfyui.js';
@@ -20,22 +21,24 @@ function chunk(type: string, data: Buffer): Buffer {
   out.writeUInt32BE((crc ^ 0xffffffff) >>> 0, out.length - 4);
   return out;
 }
-function png(size = 512): Buffer {
+function png(size = 512, height = size): Buffer {
   const header = Buffer.alloc(13);
   header.writeUInt32BE(size);
-  header.writeUInt32BE(size, 4);
+  header.writeUInt32BE(height, 4);
   header[8] = 8;
   header[9] = 2;
   return Buffer.concat([
     Buffer.from('89504e470d0a1a0a', 'hex'),
     chunk('IHDR', header),
     chunk('tEXt', Buffer.from('prompt\0private')),
-    chunk('IDAT', deflateSync(Buffer.alloc((size * 3 + 1) * size))),
+    chunk('IDAT', deflateSync(Buffer.alloc((size * 3 + 1) * height))),
     chunk('IEND', Buffer.alloc(0)),
   ]);
 }
 async function fixture(
   options: {
+    size?: AiImageStoredSize;
+    recipe?: AiImageRecipe;
     filename?: string;
     image?: Buffer;
     mutate?: (entry: Record<string, unknown>) => void;
@@ -72,7 +75,7 @@ async function fixture(
     return json({ queue_running: [], queue_pending: [] });
   });
   const transport = new ComfyImageTransport({ fetchImpl: mock as typeof fetch });
-  await transport.dispatch(id, 'A blue tree', 512, 42, marker);
+  await transport.dispatch(id, 'A blue tree', options.size ?? 512, 42, marker, options.recipe);
   return { transport, mock, tuple };
 }
 describe('fixed native Comfy image transport', () => {
@@ -260,10 +263,7 @@ describe('fixed native Comfy image transport', () => {
     const transport = new ComfyImageTransport({
       fetchImpl: vi.fn(async () => json({ system: { comfyui_version: '0.42.0' } })),
     });
-    expect(await transport.readiness()).toEqual({
-      ready: false,
-      reason: 'ai_image_provider_not_ready',
-    });
+    expect(await transport.readiness()).toMatchObject({ ready: false });
   });
   it('advertises readiness only for the exact available native model and compatible inputs', async () => {
     const { tuple } = await fixture();
@@ -298,7 +298,7 @@ describe('fixed native Comfy image transport', () => {
               ? outputs[String(value[0])]
               : typeof value === 'number'
                 ? 'INT'
-                : key === 'unet_name'
+                : ['unet_name', 'clip_name', 'vae_name'].includes(key)
                   ? [missingModel ? 'foreign.safetensors' : value]
                   : 'STRING',
           ],
@@ -306,14 +306,153 @@ describe('fixed native Comfy image transport', () => {
       );
       if (node.class_type === 'KSamplerSelect')
         fields['sampler_name'] = ['COMBO', { multiselect: false, options: ['euler'] }];
-      return json({ [node.class_type]: { input: { required: fields } } });
+      return json({
+        [node.class_type]: {
+          input: { required: fields },
+          output:
+            node.class_type === 'SaveImage'
+              ? []
+              : node.class_type === 'SamplerCustomAdvanced'
+                ? ['LATENT', 'LATENT']
+                : [outputs[Object.entries(workflow).find(([, n]) => n === node)![0]]],
+        },
+      });
     });
     const transport = new ComfyImageTransport({ fetchImpl: mock });
     expect(await transport.readiness()).toEqual({ ready: true, reason: null });
     missingModel = true;
-    expect(await transport.readiness()).toEqual({
-      ready: false,
-      reason: 'ai_image_provider_not_ready',
-    });
+    expect(await transport.readiness()).toMatchObject({ ready: false });
   });
 });
+
+it.each(AI_IMAGE_PRESETS)(
+  'dispatches and recovers the exact $width × $height preset',
+  async (preset) => {
+    const { transport, mock } = await fixture({
+      size: preset.id,
+      image: png(preset.width, preset.height),
+    });
+    const submitted = JSON.parse(String(mock.mock.calls[0]?.[1]?.body));
+    expect(submitted.prompt['6'].inputs).toMatchObject({
+      width: preset.width,
+      height: preset.height,
+      batch_size: 1,
+    });
+    expect(submitted.prompt['8'].inputs).toEqual({
+      steps: 4,
+      width: preset.width,
+      height: preset.height,
+    });
+    const result = await transport.recover(
+      id,
+      marker,
+      preset.id,
+      imageWorkflowDigest('A blue tree', preset.id, 42, marker),
+    );
+    expect(result.state).toBe('complete');
+  },
+);
+it('rejects swapped portrait dimensions even for an otherwise owned PNG', async () => {
+  const { transport } = await fixture({ size: 864, image: png(1536, 864) });
+  await expect(
+    transport.recover(id, marker, 864, imageWorkflowDigest('A blue tree', 864, 42, marker)),
+  ).rejects.toMatchObject({ code: 'ai_image_output_invalid' });
+});
+
+// Golden digests computed from the integrated pre-preset 4cf9369a graph.
+it.each([
+  [512, '362252dc2ff7f99d7d341d1b72b0cdb92d7c546638fd34b3a8cb7e15ee98a0f8'],
+  [768, '1b6c249fa107d0852bbe4f67a3a60068f6716e8b6ddad57deee48aebfe3ff83c'],
+  [1024, '1dbc80bf14665e2254acd607028f2012edc84230accd24b9f8bea33e68d423f5'],
+] as const)('preserves the immutable legacy %i workflow receipt', async (size, expected) => {
+  expect(imageWorkflowDigest('A blue tree', size, 42, marker)).toBe(expected);
+  const { transport } = await fixture({ size, image: png(size) });
+  expect((await transport.recover(id, marker, size, expected)).state).toBe('complete');
+});
+
+it('retains the historical v1 digest while a distinct FP8 profile owns and recovers its graph', async () => {
+  const recipe = 'flux2-klein-4b-fp8-izo-v1' as const;
+  const { transport, tuple } = await fixture({ recipe, size: 1024, image: png(1024) });
+  const workflow = tuple[2] as Record<
+    string,
+    { inputs: Record<string, unknown>; class_type: string }
+  >;
+  expect(workflow['2'].inputs.clip_name).toBe('qwen_3_4b.safetensors');
+  expect(workflow['7']).toMatchObject({
+    class_type: 'KSampler',
+    inputs: {
+      seed: 42,
+      steps: 4,
+      cfg: 1,
+      sampler_name: 'er_sde',
+      scheduler: 'simple',
+      denoise: 1,
+      negative: ['5', 0],
+      model: ['8', 0],
+    },
+  });
+  expect(workflow['8']).toEqual({
+    class_type: 'ModelSamplingAuraFlow',
+    inputs: { shift: 3, model: ['1', 0] },
+  });
+  const digest = imageWorkflowDigest('A blue tree', 1024, 42, marker, recipe);
+  expect(digest).not.toBe(imageWorkflowDigest('A blue tree', 1024, 42, marker));
+  expect((await transport.recover(id, marker, 1024, digest, recipe)).state).toBe('complete');
+  await expect(transport.recover(id, marker, 1024, digest)).rejects.toThrow();
+});
+
+it.each(['0.19.3', '0.42.0', '0.99.1', '1.2.0', undefined, '', null, { invalid: true }])(
+  'checks actual FP8 capabilities on %s, denying model/output/input changes',
+  async (version) => {
+    const recipe = 'flux2-klein-4b-fp8-izo-v1' as const;
+    const { tuple } = await fixture({ recipe });
+    const workflow = tuple[2] as Record<
+      string,
+      { inputs: Record<string, unknown>; class_type: string }
+    >;
+    const outputs: Record<string, string[]> = {
+      UNETLoader: ['MODEL'],
+      CLIPLoader: ['CLIP'],
+      VAELoader: ['VAE'],
+      CLIPTextEncode: ['CONDITIONING'],
+      EmptyFlux2LatentImage: ['LATENT'],
+      KSampler: ['LATENT'],
+      ModelSamplingAuraFlow: ['MODEL'],
+      VAEDecode: ['IMAGE'],
+      SaveImage: [],
+    };
+    let failure = '';
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).endsWith('/system_stats'))
+        return json(version === undefined ? {} : { system: { comfyui_version: version } });
+      const type = String(url).split('/').at(-1)!;
+      const node = Object.values(workflow).find((n) => n.class_type === type)!;
+      const required = Object.fromEntries(
+        Object.entries(node.inputs).map(([key, value]) => [
+          key,
+          Array.isArray(value)
+            ? [outputs[workflow[String(value[0])].class_type][0]]
+            : typeof value === 'number'
+              ? [
+                  type === 'ModelSamplingAuraFlow' || key === 'cfg' || key === 'denoise'
+                    ? 'FLOAT'
+                    : 'INT',
+                  { min: 0, max: Number('18446744073709551615') },
+                ]
+              : key === 'text' || key === 'filename_prefix'
+                ? ['STRING']
+                : [[failure === 'model' && key === 'clip_name' ? 'foreign.safetensors' : value]],
+        ]),
+      );
+      if (failure === 'required') required['foreign_required'] = ['STRING'];
+      return json({
+        [type]: { input: { required }, output: failure === 'output' ? ['FOREIGN'] : outputs[type] },
+      });
+    });
+    const transport = new ComfyImageTransport({ fetchImpl });
+    expect(await transport.readiness(recipe)).toEqual({ ready: true, reason: null });
+    for (failure of ['model', 'required', 'output'])
+      expect((await transport.readiness(recipe)).ready).toBe(false);
+    expect(fetchImpl.mock.calls.every(([url]) => !String(url).includes('/prompt'))).toBe(true);
+  },
+);

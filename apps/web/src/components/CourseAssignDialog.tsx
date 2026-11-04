@@ -14,12 +14,14 @@ export function CourseAssignDialog({
   attempt,
   onClose,
   onBusyChange,
+  onAssigned,
 }: {
   readonly courseId: string;
   readonly version: PublishedAuthorVersion;
   readonly attempt: CourseAssignAttempt;
   readonly onClose: () => void;
   readonly onBusyChange: (busy: boolean) => void;
+  readonly onAssigned?: () => void;
 }): JSX.Element {
   const [classrooms, setClassrooms] = useState<Classroom[] | null>(null);
   const [classroomId, setClassroomId] = useState(attempt.classroomId);
@@ -76,6 +78,7 @@ export function CourseAssignDialog({
       }
       attempt.completed = result.data;
       setCompleted(result.data);
+      onAssigned?.();
     } finally {
       setBusy(false);
       onBusyChange(false);

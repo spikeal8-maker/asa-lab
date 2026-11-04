@@ -12,6 +12,7 @@
     "@asa-lab/contracts": "workspace:*",
     "@asa-lab/database": "workspace:*",
     "@asa-lab/electronics": "workspace:*",
+    "@asa-lab/games": "workspace:*",
     "@asa-lab/identity": "workspace:*",
     "@asa-lab/learning": "workspace:*",
     "@asa-lab/module-sdk": "workspace:*",

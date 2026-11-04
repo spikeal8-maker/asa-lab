@@ -8,11 +8,16 @@ logic. It does not create another execution state and never edits the repository
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import re
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
+
+import yaml
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -22,6 +27,143 @@ import agent_recover
 
 DEFAULT_ROOT = HERE.parent
 CONTROL_PLANE_SCRIPT = "tools/validate_control_plane.py"
+
+
+def _git_bytes(root: Path, arguments: list[str]) -> bytes:
+    """Keep NUL-delimited Git paths intact, and never treat a failed read as empty."""
+    if "GIT_INDEX_FILE" in os.environ:
+        raise ValueError("GIT_INDEX_FILE is set; unset it and rerun preflight so each worktree uses its own index")
+    try:
+        result = subprocess.run(
+            ["git", *arguments], cwd=root, capture_output=True, check=False, timeout=30,
+            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ValueError(f"cannot inspect Git paths: {exc}") from exc
+    if result.returncode:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise ValueError(f"git {' '.join(arguments[:2])} failed: {detail}")
+    return result.stdout
+
+
+def _path_key(path: str) -> str:
+    return os.path.normcase(path.replace("\\", "/")).replace("\\", "/")
+
+
+def _paths_overlap(left: str, right: str) -> bool:
+    left, right = _path_key(left), _path_key(right)
+    # A file cannot coexist with another task's file below that same path.
+    return left == right or left.startswith(right + "/") or right.startswith(left + "/")
+
+
+def _physical_path(path: Path) -> Path:
+    """Inspect raw ancestors before resolve can hide a junction or symlink."""
+    absolute = path.absolute()
+    for component in (*reversed(absolute.parents), absolute):
+        if component.is_symlink() or getattr(component, "is_junction", lambda: False)():
+            raise ValueError(f"filesystem alias: {component}")
+        try:
+            info = component.lstat()
+        except FileNotFoundError:
+            continue
+        if getattr(info, "st_file_attributes", 0) & 0x400:
+            raise ValueError(f"filesystem reparse point: {component}")
+        if component.is_file() and info.st_nlink != 1:
+            raise ValueError(f"shared physical file: {component}")
+    resolved = absolute.resolve()
+    if _path_key(str(absolute)) != _path_key(str(resolved)):
+        raise ValueError(f"filesystem alias: {path}")
+    return resolved
+
+
+def _planned_paths(root: Path, paths: list[str] | None) -> list[str] | None:
+    """Accept exact portable files, never directories, metadata or filesystem aliases."""
+    if paths is None:
+        return None
+    if not paths:
+        raise ValueError("the planned file set must not be empty")
+    root = _physical_path(root)
+    normalized: dict[str, str] = {}
+    for raw in paths:
+        path = raw.replace("\\", "/")
+        windows = PureWindowsPath(path)
+        if not path or windows.drive or windows.root or path.startswith("/"):
+            raise ValueError(f"planned path must be repository-relative: {raw!r}")
+        parts = [part for part in path.split("/") if part != "."]
+        if not parts or any(
+            not part or part == ".." or part.endswith((".", " "))
+            or any(ord(char) < 32 or char in ':*?<>|"' for char in part)
+            or part.casefold() == ".git"
+            or re.fullmatch(r"con|prn|aux|nul|conin\$|conout\$|com[1-9¹²³]|lpt[1-9¹²³]", part.split(".", 1)[0].rstrip(" "), re.I)
+            for part in parts
+        ):
+            raise ValueError(f"invalid or ambiguous planned path: {raw!r}")
+        candidate = root.joinpath(*parts)
+        try:
+            resolved = candidate.resolve()
+            resolved.relative_to(root)
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise ValueError(f"planned path escapes the repository: {raw!r}") from exc
+        if _path_key(str(candidate)) != _path_key(str(resolved)):
+            raise ValueError(f"planned path uses a filesystem alias: {raw!r}")
+        cursor = root
+        for part in parts:
+            cursor = cursor / part
+            if cursor.is_symlink() or getattr(cursor, "is_junction", lambda: False)():
+                raise ValueError(f"planned path uses a filesystem alias: {raw!r}")
+            if cursor != candidate and cursor.exists() and not cursor.is_dir():
+                raise ValueError(f"planned path has a file as parent: {raw!r}")
+        if candidate.is_dir():
+            raise ValueError(f"planned path must name a file, not a directory: {raw!r}")
+        _physical_path(candidate)
+        value = "/".join(parts)
+        normalized.setdefault(_path_key(value), value)
+    return sorted(normalized.values())
+
+
+def _check_git_path_separators(payload: bytes) -> None:
+    # Git emits portable '/' separators on every host. A literal '\\' is a
+    # distinct POSIX filename, never an alias for a planned directory separator.
+    if b"\\" in payload:
+        raise ValueError("Git paths contain non-portable literal backslashes")
+
+
+def _worktree_status(root: Path) -> list[str]:
+    # -uall is essential: default Git status collapses a new directory to dir/.
+    payload = _git_bytes(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])
+    _check_git_path_separators(payload)
+    return agent_context._parse_porcelain(payload)
+
+
+def _check_plan(root: Path, planned: list[str] | None, diff_base: str | None) -> dict[str, Any]:
+    if planned is None:
+        if diff_base is not None:
+            raise ValueError("--diff-base requires --planned-path")
+        return {"status": "NOT_APPLICABLE", "paths": [], "unplanned_paths": []}
+    try:
+        actual = _worktree_status(root)
+        base_sha = None
+        if diff_base is not None:
+            if not diff_base or diff_base.startswith("-"):
+                raise ValueError("--diff-base must name a known baseline commit")
+            base_sha = _git_bytes(root, ["rev-parse", "--verify", f"{diff_base}^{{commit}}"])
+            base_sha = base_sha.decode("ascii").strip()
+            _git_bytes(root, ["merge-base", "--is-ancestor", base_sha, "HEAD"])
+            # No rename folding: both the deleted and added paths must be planned.
+            payload = _git_bytes(root, ["diff", "--name-only", "--no-renames", "-z", base_sha, "HEAD", "--"])
+            _check_git_path_separators(payload)
+            actual.extend(path for path in payload.decode("utf-8", errors="strict").split("\0") if path)
+        keys = {_path_key(path) for path in planned}
+        outside = sorted({path for path in actual if _path_key(path) not in keys})
+        return {
+            "status": "FAIL" if outside else "PASS",
+            "paths": planned,
+            "actual_paths": sorted(set(actual)),
+            "unplanned_paths": outside,
+            "diff_base": base_sha,
+        }
+    except (ValueError, UnicodeError) as exc:
+        return {"status": "BLOCKED", "paths": planned, "unplanned_paths": [], "error": str(exc)}
 
 
 def _run(
@@ -107,16 +249,21 @@ def _resolve_context(
 
 
 def _worktree_paths(root: Path) -> list[Path]:
-    code, output = _run(root, ["git", "worktree", "list", "--porcelain"], timeout=30)
-    if code != 0:
-        return []
+    payload = _git_bytes(root, ["worktree", "list", "--porcelain", "-z"])
+    try:
+        output = payload.decode("utf-8", errors="strict")
+    except UnicodeError as exc:
+        raise ValueError("worktree list contains undecodable paths") from exc
+    if not output.endswith("\0\0"):
+        raise ValueError("worktree list is empty or malformed")
     result: list[Path] = []
-    for line in output.splitlines():
-        if not line.startswith("worktree "):
-            continue
-        raw = line[len("worktree ") :].strip()
-        if raw:
-            result.append(Path(raw).resolve())
+    for record in output.rstrip("\0").split("\0\0"):
+        fields = record.split("\0")
+        if not fields[0].startswith("worktree ") or not fields[0][9:]:
+            raise ValueError("worktree list contains a malformed record")
+        result.append(Path(fields[0][9:]))
+    if _path_key(str(root.absolute())) not in {_path_key(str(path.absolute())) for path in result}:
+        raise ValueError("current checkout is absent from the worktree list")
     return result
 
 
@@ -124,10 +271,89 @@ def _matches_any(path: str, patterns: list[str]) -> bool:
     return any(agent_context._matches_scope(path, pattern) for pattern in patterns)
 
 
+def _canonical_coordination(root: Path, context: dict[str, Any], main_sha: str | None) -> dict[str, Any] | None:
+    """Only accepted Main can coordinate this task; local state cannot grant it."""
+    try:
+        if not main_sha or not re.fullmatch(r"[0-9a-f]{40}", main_sha):
+            return None
+        document = yaml.safe_load(_git_bytes(root, ["show", f"{main_sha}:docs/execution/current.yaml"]))
+        lane = next(item for item in agent_context.collect_lanes(document)
+                    if item.get("id") == context.get("scope"))
+        task = lane.get("task") or {}
+        selected = context.get("task") or {}
+        if task.get("id") != selected.get("id") or task.get("status") != selected.get("status"):
+            return None
+        record = task.get("shared_path_coordination")
+        if not isinstance(record, dict) or record.get("status") != "owner_approved":
+            return None
+        if record.get("purpose") != "isolated_development_only" or not task.get("owner_authorization"):
+            return None
+        return {**record, "canonical_main_sha": main_sha}
+    except (ValueError, TypeError, KeyError, AttributeError, StopIteration, yaml.YAMLError):
+        return None
+
+
+def _isolated_coordination(
+    root: Path, peer: Path, overlaps: list[str], planned: list[str] | None,
+    record: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if record is None or planned is None:
+        return None
+    try:
+        author, other = record["author"], record["peer"]
+        if not isinstance(record["paths"], list) or not all(isinstance(path, str) for path in record["paths"]):
+            return None
+        if not isinstance(record["repository_origin"], str) or not record["repository_origin"]:
+            return None
+        if not all(isinstance(side, dict) and all(isinstance(side.get(key), str) and side[key]
+                   for key in ("worktree", "branch")) for side in (author, other)):
+            return None
+        approved = _planned_paths(root, record["paths"])
+        if not approved or not set(overlaps).issubset(approved) or not set(approved).issubset(planned):
+            return None
+        for actual, expected in ((root, author), (peer, other)):
+            if _physical_path(Path(expected["worktree"])) != actual:
+                return None
+            for args, wanted in ((["rev-parse", "--show-toplevel"], str(actual)),
+                                 (["branch", "--show-current"], expected["branch"]),
+                                 (["remote", "get-url", "origin"], record["repository_origin"])):
+                observed = _git_bytes(actual, args).decode("utf-8", errors="strict").strip()
+                if (_path_key(observed) if args[1] == "--show-toplevel" else observed) != (
+                    _path_key(wanted) if args[1] == "--show-toplevel" else wanted
+                ):
+                    return None
+        if author["branch"] == other["branch"] or root.is_relative_to(peer) or peer.is_relative_to(root):
+            return None
+        if _git_bytes(peer, ["rev-parse", "HEAD"]).decode("ascii").strip() != other["head"]:
+            return None
+        metadata = []
+        for checkout in (root, peer):
+            git_dir = Path(_git_bytes(checkout, ["rev-parse", "--absolute-git-dir"]).decode().strip())
+            index = _physical_path(git_dir / "index")
+            common = _physical_path(Path(_git_bytes(checkout, ["rev-parse", "--path-format=absolute", "--git-common-dir"]).decode().strip()))
+            metadata.append((git_dir, index, common))
+        if metadata[0][2] != metadata[1][2] or metadata[0][0] == metadata[1][0]:
+            return None
+        if metadata[0][1] == metadata[1][1] or os.path.samefile(metadata[0][1], metadata[1][1]):
+            return None
+        for path in overlaps:
+            own_file, peer_file = _physical_path(root / path), _physical_path(peer / path)
+            if os.path.samefile(own_file, peer_file):
+                return None
+            if hashlib.sha256(peer_file.read_bytes()).hexdigest() != other["path_sha256"][path]:
+                return None
+        return {"canonical_main_sha": record["canonical_main_sha"],
+                "purpose": "isolated_development_only"}
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, UnicodeError):
+        return None
+
+
 def _other_worktree_overlaps(
     root: Path,
     context: dict[str, Any],
     shared_paths: list[str],
+    planned_paths: list[str] | None = None,
+    coordination: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     selected_files = [
         str(path)
@@ -142,19 +368,30 @@ def _other_worktree_overlaps(
     overlap_patterns = list(dict.fromkeys(selected_patterns + shared_paths))
 
     result: list[dict[str, Any]] = []
-    current = root.resolve()
-    for worktree in _worktree_paths(root):
-        if worktree == current:
+    current = _physical_path(root)
+    try:
+        worktrees = _worktree_paths(root)
+    except (ValueError, OSError, RuntimeError) as exc:
+        return [{"worktree": None, "status": "unknown", "dirty_paths": None,
+                 "overlap_paths": None, "error": str(exc)}]
+    for worktree in worktrees:
+        if _path_key(str(worktree.absolute())) == _path_key(str(current)):
             continue
-        status = agent_context._git_status(worktree)
-        dirty = status.get("paths") if status.get("state") == "available" else None
-        if dirty is None:
+        try:
+            worktree = _physical_path(worktree)
+            dirty = _worktree_status(worktree)
+            # Recheck aliases in each checkout: the same logical path can be a
+            # normal file here and an unsafe symlink/junction in another worktree.
+            if planned_paths is not None:
+                _planned_paths(worktree, planned_paths)
+        except (ValueError, OSError, RuntimeError) as exc:
             result.append(
                 {
                     "worktree": str(worktree),
                     "status": "unknown",
                     "dirty_paths": None,
                     "overlap_paths": None,
+                    "error": str(exc),
                 }
             )
             continue
@@ -162,16 +399,22 @@ def _other_worktree_overlaps(
             {
                 path
                 for path in dirty
-                if _matches_any(path, overlap_patterns)
+                if (
+                    any(_paths_overlap(path, item) for item in planned_paths)
+                    if planned_paths is not None
+                    else _matches_any(path, overlap_patterns)
+                )
             }
         )
         if overlaps:
+            approval = _isolated_coordination(current, worktree, overlaps, planned_paths, coordination)
             result.append(
                 {
                     "worktree": str(worktree),
-                    "status": "overlap",
+                    "status": "coordinated_isolated" if approval else "overlap",
                     "dirty_paths": sorted(set(dirty)),
                     "overlap_paths": overlaps,
+                    "coordination": approval,
                 }
             )
     return result
@@ -218,8 +461,16 @@ def build_preflight(
     control: str | None = None,
     target_path: str | None = None,
     skip_control_plane: bool = False,
+    planned_paths: list[str] | None = None,
+    verify_plan: bool = False,
+    diff_base: str | None = None,
 ) -> dict[str, Any]:
-    root = root.resolve()
+    if "GIT_INDEX_FILE" in os.environ:
+        raise ValueError("GIT_INDEX_FILE is set; unset it and rerun preflight so each worktree uses its own index")
+    root = _physical_path(root)
+    planned = _planned_paths(root, planned_paths)
+    if verify_plan and (planned is None or diff_base is None):
+        raise ValueError("--verify-plan requires --planned-path and --diff-base")
     remote_refresh = _refresh_origin_main(root)
     document, context = _resolve_context(
         root,
@@ -235,7 +486,10 @@ def build_preflight(
         for path in ((document.get("integration") or {}).get("shared_paths") or [])
         if isinstance(path, str)
     ]
-    worktree_overlaps = _other_worktree_overlaps(root, context, shared_paths)
+    coordination = _canonical_coordination(root, context, (recovery.get("git") or {}).get("origin_main"))
+    worktree_overlaps = _other_worktree_overlaps(root, context, shared_paths, planned, coordination)
+    unresolved_overlaps = [item for item in worktree_overlaps if item.get("status") != "coordinated_isolated"]
+    plan = _check_plan(root, planned, diff_base)
     blockers = list(context.get("blocking") or [])
     execution_blockers = _execution_blockers(blockers)
     control_plane = _control_plane(root, skip=skip_control_plane)
@@ -249,10 +503,22 @@ def build_preflight(
     elif execution_blockers:
         mode = "BLOCKED_EXECUTION"
         safe_action = "Resolve the lane execution blocker before writing."
+    elif plan["status"] in {"FAIL", "BLOCKED"}:
+        mode = "BLOCKED_PLAN"
+        safe_action = "Resolve the unknown or unplanned paths; a file plan never authorizes changes outside it."
+    elif verify_plan and (recovery.get("git") or {}).get("dirty_paths") is None:
+        mode = "RECOVERY_REQUIRED"
+        safe_action = "Git status is unknown; plan verification cannot authorize publication."
+    elif verify_plan and unresolved_overlaps:
+        mode = "WAITING_HANDOFF"
+        safe_action = "Coordinate the reported overlapping or unknown worktrees before publication."
+    elif verify_plan:
+        mode = "PLAN_VALID"
+        safe_action = "Only diff scope is verified. This does not clear recovery or authorize new edits or publication."
     elif recovery.get("mode") != "SAFE_TO_START":
         mode = "RECOVERY_REQUIRED"
         safe_action = str(recovery.get("safe_action") or "Classify the current workspace before writing.")
-    elif worktree_overlaps:
+    elif unresolved_overlaps:
         mode = "WAITING_HANDOFF"
         safe_action = "Coordinate the reported overlapping dirty worktree paths before writing."
     else:
@@ -261,17 +527,22 @@ def build_preflight(
 
     return {
         "schema_version": "1.0.0",
+        "operation": "verify_plan" if verify_plan else "startup",
         "mode": mode,
         "scope": resolved_scope,
         "task": context.get("task"),
         "selector": context.get("selector"),
         "git": recovery.get("git"),
+        "recovery_mode": recovery.get("mode"),
+        "plan": plan,
         "remote_refresh": remote_refresh,
         "dirty": context.get("dirty"),
         "blocking": blockers,
         "execution_blocking": execution_blockers,
         "gates": context.get("gate_commands"),
         "worktree_overlaps": worktree_overlaps,
+        "integration_ready": False,
+        "release_ready": False,
         "control_plane": control_plane,
         "safe_action": safe_action,
         "context": context,
@@ -295,9 +566,25 @@ def render_text(preflight: dict[str, Any]) -> str:
         f"WORKTREE_OVERLAPS: {len(preflight.get('worktree_overlaps') or [])}",
         f"REMOTE_REFRESH: {(preflight.get('remote_refresh') or {}).get('status')}",
         f"CONTROL_PLANE: {(preflight.get('control_plane') or {}).get('status')}",
+        "INTEGRATION_READY: false",
+        "RELEASE_READY: false",
     ]
+    plan = preflight.get("plan") or {}
+    if plan.get("status") != "NOT_APPLICABLE":
+        lines.append(f"PLAN: {plan.get('status')}")
+        lines.extend(f"  planned: {path}" for path in plan.get("paths") or [])
+        lines.extend(f"  unplanned: {path}" for path in plan.get("unplanned_paths") or [])
+        if plan.get("error"):
+            lines.append(f"  error: {plan['error']}")
+    lines.append(f"RECOVERY_MODE: {preflight.get('recovery_mode')}")
     for overlap in preflight.get("worktree_overlaps") or []:
         lines.append(f"  worktree: {overlap.get('worktree')}")
+        lines.append(f"    status: {overlap.get('status')}")
+        if overlap.get("coordination"):
+            lines.append(f"    canonical_main_sha: {overlap['coordination']['canonical_main_sha']}")
+            lines.append("    development only; merge candidate CI/review and conflict checks remain required")
+        if overlap.get("error"):
+            lines.append(f"    error: {overlap['error']}")
         for path in overlap.get("overlap_paths") or []:
             lines.append(f"    overlap: {path}")
     lines.append("GATES:")
@@ -322,11 +609,18 @@ def parse_args() -> argparse.Namespace:
     target.add_argument("--control", help="stable CTRL-* id")
     target.add_argument("--path", dest="target_path", help="repository path resolved through Surface Maps")
     parser.add_argument("--json", action="store_true", help="emit one machine-readable preflight package")
-    parser.add_argument(
+    operations = parser.add_mutually_exclusive_group()
+    operations.add_argument(
         "--check",
         action="store_true",
         help="exit 2 unless the result is SAFE_TO_START",
     )
+    operations.add_argument(
+        "--verify-plan", action="store_true",
+        help="validate dirty and committed diff scope only; never grants SAFE_TO_START",
+    )
+    parser.add_argument("--planned-path", action="append", help="exact repository-relative file; repeat for every intended write")
+    parser.add_argument("--diff-base", help="known ancestor commit used to check the complete unpublished diff before commit/push")
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help=argparse.SUPPRESS)
     parser.add_argument("--skip-control-plane", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args()
@@ -345,6 +639,9 @@ def main() -> int:
             control=args.control,
             target_path=args.target_path,
             skip_control_plane=args.skip_control_plane,
+            planned_paths=args.planned_path,
+            verify_plan=args.verify_plan,
+            diff_base=args.diff_base,
         )
     except ValueError as exc:
         print(f"agent preflight: FAIL\n- {exc}", file=sys.stderr)
@@ -356,6 +653,8 @@ def main() -> int:
         print(render_text(preflight), end="")
 
     if args.check and preflight["mode"] != "SAFE_TO_START":
+        return 2
+    if args.verify_plan and preflight["mode"] != "PLAN_VALID":
         return 2
     return 0
 

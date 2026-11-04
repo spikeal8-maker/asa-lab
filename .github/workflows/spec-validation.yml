@@ -89,10 +89,20 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Web cache native hasher regressions
+        run: pnpm exec vitest run tests/production/nx-web-cache.spec.ts --maxWorkers=1
+
       - name: Set up Python for observability checks
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
+      # Mandatory integration uses the same canonical command locally and in CI.
+      - name: DevEx shadow planner integration
+        run: pnpm test:devex-plan:integration
+
+      - name: DevEx changed local checks execution
+        run: pnpm test:dev-check
 
       # The canonical focused gate includes collector and browser transport tests.
       - name: Observability focused gate
@@ -168,6 +178,16 @@ jobs:
       # makes a local PASS mean the same thing as this job.
       # Observe the disposable test container; keep the mandatory gate itself
       # byte-for-byte unchanged, including command, environment and exit status.
+      - name: Web cache native hasher in protected test image
+        env:
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: |
+          export ASA_TEST_UID="$(id -u)" ASA_TEST_GID="$(id -g)"
+          test "$ASA_TEST_UID" -ne 0
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test run --rm --no-deps test-runner pnpm exec vitest run tests/production/nx-web-cache.spec.ts --maxWorkers=1
+
       - name: Capture disposable test container output
         env:
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
@@ -227,7 +247,9 @@ jobs:
   access-a-browser:
     name: Access A real browser journeys
     needs: code
-    runs-on: ubuntu-latest
+    # Playwright 1.55.1 chromium installer rejects ubuntu26.04 in ubuntu-latest.
+    # Pin a supported runner; do not bypass browser tests or apt signatures.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
       postgres:
@@ -313,3 +335,25 @@ jobs:
           path: reports/playwright/access-a-summary.json
           retention-days: 14
           if-no-files-found: error
+
+  required:
+    name: ${{ github.event_name == 'push' && github.ref != 'refs/heads/main' && 'ASA / branch push (not required)' || 'ASA / required' }}
+    needs: [governance, code, postgres-tests, access-a-browser]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      ASA_REQUIRED_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_REQUIRED_NEEDS_JSON: ${{ toJSON(needs) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Require all four exact-source General results
+        run: python tools/ci_required.py

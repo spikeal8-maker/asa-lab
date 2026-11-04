@@ -1,0 +1,126 @@
+{
+  "source_sha": "84f65b41bf58bf3506e15e41e3ee4b6459b905b2",
+  "verdict": "APPROVE",
+  "files": [
+    {
+      "original_path": "test-results/mixed-servo-862/independent-focused-84f65b41.log",
+      "durable_path": "independent-focused-84f65b41.log.gz",
+      "raw_bytes": 1952,
+      "raw_sha256": "c1b0d7085c1023b6495affcdd228716137ab7c8323c25337d4c80f7b49766fa5",
+      "stored_bytes": 790,
+      "stored_sha256": "e79da3873d2dcbbc9b5823bd0898861452cce366528cbd82e4b6ed2fbf95c50a"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-probe-84f65b41.mjs",
+      "durable_path": "independent-probe-84f65b41.mjs.gz",
+      "raw_bytes": 20329,
+      "raw_sha256": "2ac3e7293da4ee4f58411410f50c8d351a12aec8f17dd251eff9788cff0fdbce",
+      "stored_bytes": 5641,
+      "stored_sha256": "25ba06973e5b50e5f07232e92d1d031c867c21f7b891358713db4c8145a4d151"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-probe-84f65b41-meta.json",
+      "durable_path": "independent-probe-84f65b41-meta.json.gz",
+      "raw_bytes": 565,
+      "raw_sha256": "f3e6157402c2c5bb93a895beadd96494ff6b8f33aa7194285cf0400141647484",
+      "stored_bytes": 384,
+      "stored_sha256": "f33b43358476da15272eb9118b462c6bc3f5caff34abdc203e6cf87bbfbe6c12"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-native-84f65b41.log",
+      "durable_path": "independent-native-84f65b41.log.gz",
+      "raw_bytes": 138,
+      "raw_sha256": "cf64aa2b7dea4da32a51c2ca80a0d573a2a78baa849866840a7215c72bfcbfad",
+      "stored_bytes": 140,
+      "stored_sha256": "5787b2d8ceb7add28ea054bfd400d546006a83666717bf609e7345b5d9734656"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-oracle-probe-84f65b41.mjs",
+      "durable_path": "independent-oracle-probe-84f65b41.mjs.gz",
+      "raw_bytes": 5807,
+      "raw_sha256": "483ac63f0a63a8d80ca3eab500febbe0cd04fc0e36d85b17a31f5f7d4cfe2965",
+      "stored_bytes": 2247,
+      "stored_sha256": "01b64c986737d2e482e42354e49b051fa4b2ac2627cd5567f3d8dbf68052b3f3"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-oracle-probe-84f65b41.mjs-meta.json",
+      "durable_path": "independent-oracle-probe-84f65b41.mjs-meta.json.gz",
+      "raw_bytes": 316,
+      "raw_sha256": "1583295a74b45824da5728b47b1ad1d5089c5aeaa15722e551064268d479574e",
+      "stored_bytes": 239,
+      "stored_sha256": "463d432e7ba83c6f564c47a83a30dc3549ed2f530fa87e18a1c14a28ed7b5423"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-oracle-84f65b41.log",
+      "durable_path": "independent-oracle-84f65b41.log.gz",
+      "raw_bytes": 2164,
+      "raw_sha256": "71bbbe49764876b1a4c200b9ced163122cf8297b01f7d76e0bea5b9ca66e22a7",
+      "stored_bytes": 489,
+      "stored_sha256": "dd47e04bd924812acbd428f3d8aa77745b6d215481713c83bfa7d4371df40246"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-oracle-84f65b41/after.json.gz",
+      "durable_path": "independent-oracle-84f65b41/after.json.gz",
+      "raw_bytes": 26814,
+      "raw_sha256": "690db3d8ca1d96c879e3954d16fd77f907acd9a850d66528dd6b4ba463ecd7d8",
+      "stored_bytes": 26814,
+      "stored_sha256": "690db3d8ca1d96c879e3954d16fd77f907acd9a850d66528dd6b4ba463ecd7d8"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-oracle-84f65b41/after-receipt.json",
+      "durable_path": "independent-oracle-84f65b41/after-receipt.json.gz",
+      "raw_bytes": 2072,
+      "raw_sha256": "27a281f2ae606bf1f2f90caeec5808c6c1733bee92ebfa658507a1f50372d007",
+      "stored_bytes": 483,
+      "stored_sha256": "12732a010e31f126b8ba3f704fe441d850faee6ddb3ab99e94bb4e62ef56d755"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-native-84f65b41/receipt.json",
+      "durable_path": "independent-native-84f65b41/receipt.json.gz",
+      "raw_bytes": 1610796,
+      "raw_sha256": "6184279c539f86faf7e59f1f4a0596b1fd7e5b836ed5d3cb5d6618df8f144350",
+      "stored_bytes": 119903,
+      "stored_sha256": "1679154f8723aab5b1d4ecaddec097b1efab4dad43301d61448b6701cef08141"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-native-84f65b41/mixed-1440-135.png",
+      "durable_path": "independent-native-84f65b41/mixed-1440-135.png",
+      "raw_bytes": 146581,
+      "raw_sha256": "febf588645215feca3f3970441ca48d1b7a64866abb883090498affdd9827383",
+      "stored_bytes": 146581,
+      "stored_sha256": "febf588645215feca3f3970441ca48d1b7a64866abb883090498affdd9827383"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-native-84f65b41/mixed-1440-45.png",
+      "durable_path": "independent-native-84f65b41/mixed-1440-45.png",
+      "raw_bytes": 146668,
+      "raw_sha256": "d6c4b73d6f516aa16a6d82cf56ba78f3ce5d370bc5787e0e88ab2313e2c63f60",
+      "stored_bytes": 146668,
+      "stored_sha256": "d6c4b73d6f516aa16a6d82cf56ba78f3ce5d370bc5787e0e88ab2313e2c63f60"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-native-84f65b41/mixed-390-135.png",
+      "durable_path": "independent-native-84f65b41/mixed-390-135.png",
+      "raw_bytes": 37557,
+      "raw_sha256": "e1763ce600dfc5d8ed345c935d733814de1d18bae731da3e468fafabc5b76126",
+      "stored_bytes": 37557,
+      "stored_sha256": "e1763ce600dfc5d8ed345c935d733814de1d18bae731da3e468fafabc5b76126"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-native-84f65b41/mixed-390-45.png",
+      "durable_path": "independent-native-84f65b41/mixed-390-45.png",
+      "raw_bytes": 37559,
+      "raw_sha256": "249da69af77a6f4c253a0fba4a3527afef35f064a6a7ba247f8576e5e9f12ac9",
+      "stored_bytes": 37559,
+      "stored_sha256": "249da69af77a6f4c253a0fba4a3527afef35f064a6a7ba247f8576e5e9f12ac9"
+    },
+    {
+      "original_path": "test-results/mixed-servo-862/independent-review-84f65b41.json",
+      "durable_path": "independent-review-84f65b41.json.gz",
+      "raw_bytes": 5211,
+      "raw_sha256": "4621b08fad8b1010bcf600327c6a548051713cf3401d9cc23b82b9ac7dc58773",
+      "stored_bytes": 2099,
+      "stored_sha256": "451a9e89027cfb2989f909115e0a362b8909b4d66bce5aca35ba8c166081097e"
+    }
+  ]
+}

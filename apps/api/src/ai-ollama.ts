@@ -3,9 +3,13 @@
  * Adapted from IZO_ASA/backend/app/integrations/ollama.py (main 51543df2).
  */
 import { isIP } from 'node:net';
+// One working-file call may contain 96k characters / 131072 UTF-8 bytes,
+// escaped up to six times in JSON. The independent file validator still owns
+// those content limits; this closed transport budget admits the valid envelope.
+const MAX_OLLAMA_EVENT_CHARS = 1024 * 1024;
 import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
 import {
-  parseNativeToolCalls,
+  parseNativeToolBatch,
   type NativeToolCall,
   type NativeToolDefinition,
   type NativeToolResult,
@@ -18,6 +22,8 @@ export interface OllamaSettings {
   readonly model: string;
   readonly revision: number;
   readonly updatedAt: string | null;
+  readonly thinking?: string | undefined;
+  readonly contextTokens?: number | undefined;
 }
 export interface OllamaModel {
   readonly name: string;
@@ -174,11 +180,11 @@ export async function discoverOllama(
 }
 
 /** Capabilities are verified from Ollama itself, never inferred from a model name. */
-export async function describeOllamaModel(
+export async function inspectOllamaModel(
   baseUrl: string,
   model: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<readonly string[]> {
+): Promise<OllamaModelDetail> {
   const origin = ollamaBaseUrl(baseUrl);
   if (!validOllamaModel(model))
     throw new OllamaError('ai_ollama_model_invalid', 400, 'Неверная модель Ollama.');
@@ -210,12 +216,78 @@ export async function describeOllamaModel(
       503,
       'Ollama не сообщила достоверные возможности модели.',
     );
-  return (detail as { capabilities: unknown[] }).capabilities
-    .filter(
-      (capability): capability is string =>
-        typeof capability === 'string' && capability.length > 0 && capability.length <= 40,
-    )
+  const data = detail as {
+    capabilities: unknown[];
+    thinking?: { values?: unknown; default?: unknown };
+    model_info?: Record<string, unknown>;
+  };
+  const capabilities = data.capabilities
+    .filter((v): v is string => typeof v === 'string' && v.length <= 40)
     .slice(0, 32);
+  const values = Array.isArray(data.thinking?.values)
+    ? data.thinking.values
+        .filter(
+          (v): v is boolean | string =>
+            typeof v === 'boolean' || (typeof v === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(v)),
+        )
+        .slice(0, 32)
+    : [];
+  const maximum = Object.entries(data.model_info ?? {}).find(([key]) =>
+    key.endsWith('.context_length'),
+  )?.[1];
+  return {
+    capabilities,
+    thinking: values.length
+      ? {
+          values,
+          default: values.includes(data.thinking?.default as boolean | string)
+            ? (data.thinking!.default as boolean | string)
+            : null,
+        }
+      : null,
+    contextMax:
+      typeof maximum === 'number' && Number.isSafeInteger(maximum) && maximum > 0 ? maximum : null,
+  };
+}
+export interface OllamaModelDetail {
+  readonly capabilities: readonly string[];
+  readonly thinking: {
+    readonly values: readonly (boolean | string)[];
+    readonly default: boolean | string | null;
+  } | null;
+  readonly contextMax: number | null;
+}
+export async function describeOllamaModel(
+  baseUrl: string,
+  model: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<readonly string[]> {
+  return (await inspectOllamaModel(baseUrl, model, fetchImpl)).capabilities;
+}
+export function validOllamaOptions(thinking: unknown, context: unknown): boolean {
+  return (
+    (thinking === undefined ||
+      (typeof thinking === 'string' &&
+        /^(default|off|on|[a-z][a-z0-9_-]{0,39})$/.test(thinking))) &&
+    (context === undefined ||
+      (Number.isSafeInteger(context) && Number(context) >= 2048 && Number(context) <= 1048576))
+  );
+}
+export function resolveOllamaThinking(
+  mode: string,
+  detail: OllamaModelDetail,
+): boolean | string | undefined {
+  const info = detail.thinking;
+  if (mode === 'default') return info?.default ?? undefined;
+  if (mode === 'off' && !info) return false;
+  const value = mode === 'off' ? false : mode === 'on' ? true : mode;
+  if (!info?.values.includes(value))
+    throw new OllamaError(
+      'ai_ollama_thinking_invalid',
+      400,
+      'Этот режим размышления не поддерживается выбранной моделью.',
+    );
+  return value;
 }
 
 export interface OllamaStreamArgs {
@@ -230,6 +302,8 @@ export interface OllamaStreamArgs {
   readonly fetchImpl?: typeof fetch;
   readonly tools?: readonly NativeToolDefinition[];
   readonly toolResults?: readonly NativeToolResult[];
+  readonly thinking?: string | undefined;
+  readonly contextTokens?: number | undefined;
 }
 export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
   text: string;
@@ -241,6 +315,29 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
   if (!validOllamaModel(args.model))
     throw new OllamaError('ai_ollama_model_invalid', 400, 'Неверная модель Ollama.');
   if (args.signal.aborted) return { text: '', stopped: true };
+  if (!validOllamaOptions(args.thinking, args.contextTokens))
+    throw new OllamaError('ai_ollama_config_invalid', 400, 'Неверные параметры Ollama.');
+  const detail =
+    args.thinking !== undefined || args.contextTokens !== undefined
+      ? await inspectOllamaModel(args.baseUrl, args.model, args.fetchImpl ?? fetch)
+      : null;
+  if (
+    detail?.contextMax != null &&
+    args.contextTokens !== undefined &&
+    args.contextTokens > detail.contextMax
+  )
+    throw new OllamaError(
+      'ai_ollama_context_invalid',
+      400,
+      'Контекст превышает возможности модели.',
+    );
+  // Null persisted overrides retain the accepted pre-controls runtime behaviour.
+  const thinking =
+    args.thinking === undefined
+      ? args.model === 'qwen3.8:27b'
+        ? 'xhigh'
+        : false
+      : resolveOllamaThinking(args.thinking, detail!);
   const timeout = AbortSignal.timeout(1800000);
   const signal = AbortSignal.any([args.signal, timeout]);
   let response: Response;
@@ -260,30 +357,25 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
               ? { images: args.images }
               : {}),
           })),
-          ...(args.toolResults?.length
-            ? [
+          ...(args.toolResults ?? []).flatMap((result) => [
+            {
+              role: 'assistant',
+              content: '',
+              tool_calls: [
                 {
-                  role: 'assistant',
-                  content: '',
-                  tool_calls: args.toolResults.map((result) => ({
-                    type: 'function',
-                    function: { name: result.call.name, arguments: result.call.arguments },
-                  })),
+                  type: 'function',
+                  function: { name: result.call.name, arguments: result.call.arguments },
                 },
-                ...args.toolResults.map((result) => ({
-                  role: 'tool',
-                  tool_name: result.call.name,
-                  content: result.content,
-                })),
-              ]
-            : []),
+              ],
+            },
+            { role: 'tool', tool_name: result.call.name, content: result.content },
+          ]),
         ],
         ...(args.tools?.length ? { tools: args.tools } : {}),
         stream: true,
-        // Preserve merged #790's Qwen 120K/xhigh unbounded local generation.
-        think: args.model === 'qwen3.8:27b' ? 'xhigh' : false,
+        ...(thinking !== undefined ? { think: thinking } : {}),
         keep_alive: -1,
-        options: { num_ctx: 120000, num_predict: -1 },
+        options: { num_ctx: args.contextTokens ?? 120000, num_predict: -1 },
       }),
     });
   } catch {
@@ -322,7 +414,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
     if (packet.message?.tool_calls !== undefined) {
       if (
         !Array.isArray(packet.message.tool_calls) ||
-        rawCalls.length + packet.message.tool_calls.length > 1
+        rawCalls.length + packet.message.tool_calls.length > 4
       )
         throw new OllamaError(
           'ai_tool_call_invalid',
@@ -350,7 +442,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
       while (boundary >= 0) {
         // Bound each NDJSON event, not the entire HTTP chunk. One LAN read
         // can legitimately contain hundreds of short Ollama token events.
-        if (boundary > 16 * 1024)
+        if (boundary > MAX_OLLAMA_EVENT_CHARS)
           throw new OllamaError('ai_ollama_invalid', 503, 'Слишком большое событие Ollama.', text);
         frame(buffer.slice(0, boundary).trimEnd());
         buffer = buffer.slice(boundary + 1);
@@ -359,7 +451,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
         if (done || signal.aborted) break;
         boundary = buffer.indexOf('\n');
       }
-      if (!done && buffer.length > 16 * 1024)
+      if (!done && buffer.length > MAX_OLLAMA_EVENT_CHARS)
         throw new OllamaError('ai_ollama_invalid', 503, 'Слишком большое событие Ollama.', text);
     }
     if (!done && !signal.aborted && buffer.trim()) frame(buffer.trim());
@@ -387,7 +479,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
     if (!done || lengthLimited)
       throw new OllamaError('ai_tool_call_invalid', 503, 'Вызов инструмента не завершён.');
     try {
-      toolCalls = parseNativeToolCalls(rawCalls, args.tools ?? []);
+      toolCalls = parseNativeToolBatch(rawCalls, args.tools ?? []);
     } catch {
       throw new OllamaError(
         'ai_tool_call_invalid',

@@ -1,0 +1,28 @@
+{
+  "candidate": "e4d3712d1db47aeb762bc9401781257bd4b66ad0",
+  "verdict": "independent_APPROVE_source_candidate_held_not_main",
+  "canonical": "2576PASS_71fresh_all8caps_Arduino1999233",
+  "scope": "actualPanel_public_updateArduinoProgram_adapter_not_backend_SaveCAS",
+  "artifacts": [
+    {
+      "path": "canonical-e4d3712.log.gz",
+      "sha256": "c90a3a20f9012a83b4319ced974f7b40e2a39576fce9298b2dc405f606721058",
+      "raw_sha256": "6601205e6415d32c634e4feffac081a13c4dbaa096752762a595f704cc49747a"
+    },
+    {
+      "path": "caps-final-e4d3712.log.gz",
+      "sha256": "2d9f7b168eddbd49265aa7b30c3d9d47580b2b93c1d299595d0a98d36c76e955",
+      "raw_sha256": "da630af3ccd7bf614d46a743c70c14e3c1ac979e96e7b63bdebc573aa8affe3e"
+    },
+    {
+      "path": "independent-native-e4d3712.zip",
+      "sha256": "ded77431b044163a24c5e3872c64ff41a0283555e9cee47bbe1079ed5c03be70",
+      "bytes": 1049360,
+      "verified_receipts": {
+        "legacy-mount-receipts.json": "311a42424dc966aaca337abc42aea2dfab97964f2c0ab1973d620e90ec495972",
+        "genuine-edit-receipts.json": "7cf00e914d2b2f31a3cb1e6a47124205e7c6dca02b1305f4543fb15f5b04bfb6",
+        "oracles.json": "19118b3df20581f5aa0095dc265a86297581c0b1d11028e0ccc7b66683cf1f09"
+      }
+    }
+  ]
+}

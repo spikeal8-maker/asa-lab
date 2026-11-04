@@ -206,9 +206,14 @@ export function previewDigest(descriptor: ModulePreviewDescriptor): string {
   return hash.toString(16).padStart(8, '0');
 }
 
+export type ModuleReplacementValidation =
+  { readonly ok: true } | { readonly ok: false; readonly diagnostics: readonly ModuleDiagnostic[] };
+
 export interface ModuleProviderV1<TPayload = unknown, TAnalysis = unknown> {
   createEmptyProject(): TPayload;
   validate(payload: unknown): ModuleValidationResult<TPayload>;
+  /** Optional module-owned protection against lossy writes from older clients. */
+  validateReplacement?(previous: unknown, payload: TPayload): ModuleReplacementValidation;
   createPreview(payload: TPayload): ModulePreviewDescriptor;
   analyse?(payload: TPayload): TAnalysis;
 }

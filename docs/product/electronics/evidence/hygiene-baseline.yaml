@@ -12,10 +12,6 @@ checkpoint_policy:
     - repair:production-source-change
 
 large_sources:
-  - path: apps/web/src/electronics/arduino-blocks.ts
-    class: decomposition-candidate
-    reviewed_bytes: 65021
-    rationale: Block definitions, literal shadows, saved-workspace migration and Arduino generation share one editor vocabulary. The value-input repair retains this existing boundary to keep old-field and new-connection semantics together; the 22-case byte-exact legacy oracle and native drag/save checks cover that responsibility. The owner follow-up isolates pin metadata/native Servo dispatch in arduino-pin-inputs.ts and presentation/theme/checker/scroll responsibilities in arduino-block-ui.ts; the host coordinates command-local single-evaluation bindings. Future extraction must preserve all definitions, default/empty-slot behavior, variable identity and code parity; this bounded source-size review does not reset the full hygiene checkpoint.
   - path: contexts/electronics/domain/arduino-circuit-scheduler.ts
     class: decomposition-candidate
     reviewed_bytes: 71720

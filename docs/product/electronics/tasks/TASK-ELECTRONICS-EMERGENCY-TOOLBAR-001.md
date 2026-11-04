@@ -1,0 +1,90 @@
+---
+task_id: TASK-ELECTRONICS-EMERGENCY-TOOLBAR-001
+kind: repair
+risk: medium
+semantic_change: no
+roadmap_slice: null
+prerequisites: []
+acceptance_boundary: slice
+review: independent
+---
+
+# Save stays reachable with emergency copy at 320 px
+
+Issue [868](https://github.com/spikeal8-maker/asa-lab/issues/868), remaining-plan
+points15/18. Execution state lives only in `docs/execution/current.yaml`.
+
+## Proven cause and boundary
+
+Exact source e1be12d19f8669c1145020c756551dd2188ed10f, canonical run41026543811,
+E01 denied-local-storage test, error-stop phase: Save occupies x320.203125 to
+362.203125 in a 320px viewport and is obstructed. Running simulation, open Code
+drawer and visible emergency-copy action exhaust the nonshrinking mobile right
+toolbar group. Raw `after-toolbar-error-stop.json`, PNG and trace are preserved
+under executor reports/field-boundary-544-proof-41026543811/artifact/reports/
+playwright/electronics-simulation-ELE-1610b-claims-a-durable-local-copy.
+
+Earlier truthful durability assertions and emergency JSON export passed. This
+is a responsive layout repair, not a persistence/data-loss/server repair. Begin
+with the exact raw receipt and actual workbench.css rules; report minimal plan.
+
+## Required behavior and proof
+
+Keep Save, emergency copy, Run/Stop and elapsed time reachable inside the viewport
+on one toolbar row. Preserve real click actions, labels/accessibility, focus and
+touch targets; no clipping, hiding a required action, overlapping or horizontal
+page scroll. Use existing responsive controls before adding a new product flow.
+Check 320/390/1024/1440, Code open/closed, running/stopped, emergency present/absent,
+and representative desktop browser/Windows125% equivalent viewport. No changes
+to source fonts, block appearance, simulation, persistence or protected assets.
+
+Reuse the published BEFORE artifact rather than rerunning full CI to reproduce.
+Preserve the precise raw/PNG as durable task evidence before edits. Verify actual
+native production toolbar geometry/actions for combinations above; an isolated
+fixture proves layout/callbacks, not installed Save. Keep the original E01 oracle
+unchanged. Candidate build/all fixed caps, focused checks, one frozen uncached
+canonical gate and fresh independent exact-SHA review. No large unrelated suite
+rerun just to observe this narrow CSS change. Root owns execution metadata.
+
+Only workbench.css is intended product scope. If another product path is required,
+report the concrete reason before editing. No refactor, budget increases, server,
+Docker, live DB, local listening ports, deployment or foreign edits.
+
+## Independent pausing-label repair boundary
+
+The independent native check established that the toolbar's long pausing label
+widens the speed control and leaves only 16.516px for tools at 320px. In addition
+to the CSS scope, permit a concise equivalent toolbar-only pausing label in
+`SimulationSpeedControl.tsx`; keep the full dialog explanation, accessible
+control name and all timing/state behavior. Add actual running/pausing/paused
+and rates0/0.1/10 to the native matrix, preserve the failed receipt, and repeat
+final-SHA checks with a fresh independent reviewer. This is a bounded display
+repair, not permission to change the pacing implementation.
+
+## Nested clock and long-duration display repair boundary
+
+The next independent review established two display defects: at 320px a
+supported 100-hour elapsed value leaves less than a full tool target; at 768px
+the restored nested clock is 48px tall and extends beyond the toolbar. Correct
+the mobile clock selectors/sizing for the real nested speed control, preserving
+the complete time value, all actions and readable typography. Include the actual
+100-hour value and nearby responsive boundaries in the native matrix, with
+explicit vertical containment as well as horizontal checks. Preserve rejected
+raw receipts and the frozen original-CSS comparison. No clock computation,
+pacing, persistence or extra product path is authorized by this display repair.
+
+## Denied-storage caption qualification repair
+
+Repair the original E01 denied-local-storage failure at `captionVisible` in
+`e01AffectedToolbarLayouts`. Keep its complete oracle unchanged. The exported
+emergency document equality already passed: this slice changes display only.
+Inspect actual native rendered text and pseudo-elements before choosing the CSS
+fix. Keep a readable emergency-copy caption and all required native actions,
+including at320px; no font-zero substitution for the required caption.
+
+Only `workbench.css` is production scope. Reuse the existing native toolbar
+matrix for reachable actions, Code open/closed, running/stopped/pausing/paused,
+emergency present/absent and long elapsed values. Run the original full E01
+scenario in isolated CI, preserving JSON, network, CAS and fresh-context checks.
+Do not adjust assertion thresholds, timeout, retry or simulator/persistence code.
+Other compact hit-ownership and clock-throughput failures remain separate slices.

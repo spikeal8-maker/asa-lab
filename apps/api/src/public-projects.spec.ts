@@ -84,6 +84,21 @@ function reply() {
 }
 
 describe('Public Projects anonymous projection', () => {
+  it('projects only the real numeric successful-copy aggregate on list and detail', async () => {
+    const { publicApi, query } = setup([
+      { ...row, copy_count: '12', private_destination_id: 'secret-copy' },
+    ]);
+    const list = await publicApi.list();
+    const detail = await publicApi.detail(PUBLICATION);
+    expect(list.items[0].copyCount).toBe(12);
+    expect(detail.publication.copyCount).toBe(12);
+    expect(JSON.stringify([list, detail])).not.toContain('secret-copy');
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('public.publication_copy_count(entry.publication_id)'),
+      expect.any(Array),
+    );
+  });
+
   it.each(['electronics', 'three-d'])(
     'advertises copy for public-domain %s only',
     async (moduleKey) => {
@@ -412,5 +427,41 @@ describe('Public Projects owner commands', () => {
       expect.stringContaining('project_publication_status'),
       [PRINCIPAL, PROJECT],
     );
+  });
+});
+
+describe('owner-only publication editor target', () => {
+  it('does not fall back to an account when an invalid student session is present', async () => {
+    const s = setup();
+    await expect(
+      s.publicApi.editor(
+        request({ [STUDENT_SESSION_COOKIE]: 'expired', [SESSION_COOKIE]: 'valid-account' }),
+        PUBLICATION,
+      ),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(s.query).not.toHaveBeenCalled();
+    expect(s.resolve).not.toHaveBeenCalled();
+  });
+  it('requires a valid session before reading a private source', async () => {
+    const s = setup([], false);
+    await expect(s.publicApi.editor(request(), PUBLICATION)).rejects.toMatchObject({ status: 401 });
+    expect(s.query).not.toHaveBeenCalled();
+  });
+  it('returns only the protected owner resolver result with the server principal', async () => {
+    const editor = { projectId: PROJECT, moduleKey: 'electronics' };
+    const s = setup([{ editor }]);
+    expect(await s.publicApi.editor(request({ [SESSION_COOKIE]: 'token' }), PUBLICATION)).toEqual({
+      editor,
+    });
+    expect(s.query).toHaveBeenCalledWith(
+      'SELECT public.project_publication_owner_editor($1, $2) AS editor',
+      [PRINCIPAL, PUBLICATION],
+    );
+  });
+  it('does not expose a source to a different principal', async () => {
+    const s = setup([{ editor: null }]);
+    expect(await s.publicApi.editor(request({ [SESSION_COOKIE]: 'token' }), PUBLICATION)).toEqual({
+      editor: null,
+    });
   });
 });

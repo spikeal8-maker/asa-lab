@@ -283,6 +283,13 @@ export function removeSelectionFromDocument(
   document: SchematicDocument,
   selection: Exclude<Selection, null>,
 ): SchematicDocument {
+  if (selection.kind === 'annotation') {
+    const ids = new Set(selection.ids);
+    const annotations = document.annotations?.filter((item) => !ids.has(item.id));
+    return !annotations || annotations.length === document.annotations?.length
+      ? document
+      : { ...document, schemaVersion: 5, annotations };
+  }
   if (selection.kind === 'wire') {
     return {
       ...document,
@@ -1084,21 +1091,29 @@ export function moveComponentInDocument(
 
 export function sceneBounds(
   document: SchematicDocument,
+  includeAnnotations = false,
 ): { minX: number; minY: number; maxX: number; maxY: number } | null {
   const placed = document.components.filter((component) => catalogEntry(component));
-  if (placed.length === 0) return null;
-  return placed.reduce(
-    (acc, component) => {
-      const entry = catalogEntry(component);
-      if (!entry) return acc;
-      const size = renderedSize(entry, component.rotation ?? 0);
-      return {
-        minX: Math.min(acc.minX, component.position.x),
-        minY: Math.min(acc.minY, component.position.y),
-        maxX: Math.max(acc.maxX, component.position.x + size.width),
-        maxY: Math.max(acc.maxY, component.position.y + size.height),
-      };
-    },
+  const annotations = includeAnnotations ? (document.annotations ?? []) : [];
+  if (placed.length === 0 && annotations.length === 0) return null;
+  const annotationBounds = annotations.reduce(
+    (bounds, annotation) => ({
+      minX: Math.min(bounds.minX, annotation.position.x),
+      minY: Math.min(bounds.minY, annotation.position.y),
+      maxX: Math.max(bounds.maxX, annotation.position.x + annotation.size.width),
+      maxY: Math.max(bounds.maxY, annotation.position.y + annotation.size.height),
+    }),
     { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
   );
+  return placed.reduce((acc, component) => {
+    const entry = catalogEntry(component);
+    if (!entry) return acc;
+    const size = renderedSize(entry, component.rotation ?? 0);
+    return {
+      minX: Math.min(acc.minX, component.position.x),
+      minY: Math.min(acc.minY, component.position.y),
+      maxX: Math.max(acc.maxX, component.position.x + size.width),
+      maxY: Math.max(acc.maxY, component.position.y + size.height),
+    };
+  }, annotationBounds);
 }

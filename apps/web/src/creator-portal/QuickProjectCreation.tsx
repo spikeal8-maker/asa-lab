@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, type ModuleSummary, type Project } from '../api';
 import { newClientId } from '../client-id';
+import { ProjectModuleIcon } from '../modules/ProjectModuleIcon';
 
 export const HOME_MODULES = ['three-d', 'electronics', 'blocks'] as const;
 export type HomeModule = (typeof HOME_MODULES)[number];
@@ -240,6 +241,7 @@ export function QuickCreateMenu(): JSX.Element {
                 }}
               >
                 <strong>
+                  <ProjectModuleIcon moduleKey={key} size={28} />
                   {key === 'three-d'
                     ? '3D модель'
                     : key === 'electronics'

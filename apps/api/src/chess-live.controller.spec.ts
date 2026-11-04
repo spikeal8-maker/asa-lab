@@ -267,3 +267,54 @@ describe('ChessLiveController', () => {
     expect(await rejectedStatus(controller.getRating(request, 'all'))).toBe(400);
   });
 });
+
+describe('legacy Chess endpoint pupil Account boundary', () => {
+  it('blocks all old admission/move paths for a live governed Account', async () => {
+    const f = setup();
+    const client = {
+      query: vi.fn(async (sql: string) => ({
+        rows: sql.includes('games.authenticate')
+          ? [{ data: { playerId: 'player' } }]
+          : sql.includes('games.chess_read')
+            ? [{ data: { access: { allowed: false, rules: [{ scope: 'classroom' }] } } }]
+            : [],
+      })),
+      release: vi.fn(),
+    };
+    const pool = { connect: vi.fn(async () => client) };
+    const controller = new ChessLiveController(
+      f.activeContext as never,
+      f.accounts as never,
+      f.service as never,
+      pool as never,
+    );
+    expect(await rejectedStatus(controller.createChallenge(request, 'key', {}))).toBe(403);
+    expect(await rejectedStatus(controller.joinMatchmaking(request, 'key', {}))).toBe(403);
+    expect(
+      await rejectedStatus(
+        controller.submitMove(request, 'game', 'key', { expectedVersion: 1, uci: 'e2e4' }),
+      ),
+    ).toBe(403);
+    expect(f.service.createChallenge).not.toHaveBeenCalled();
+    expect(f.service.submitMove).not.toHaveBeenCalled();
+    expect(f.service.joinMatchmaking).not.toHaveBeenCalled();
+  });
+  it('never falls back to the old path if the configured guard database fails', async () => {
+    const f = setup();
+    const pool = {
+      connect: vi.fn(async () => {
+        throw new Error('guard database unavailable');
+      }),
+    };
+    const controller = new ChessLiveController(
+      f.activeContext as never,
+      f.accounts as never,
+      f.service as never,
+      pool as never,
+    );
+    await expect(controller.createChallenge(request, 'key', {})).rejects.toThrow(
+      'guard database unavailable',
+    );
+    expect(f.service.createChallenge).not.toHaveBeenCalled();
+  });
+});
