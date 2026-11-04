@@ -570,10 +570,27 @@ def emit(action, value, *, as_json=False, code=0):
         print("\nПримеры:\n  " + "\n  ".join(help_value["examples"]))
         print("\nКоды результата: " + "; ".join(key + " — " + item for key, item in EXIT_CODES.items()))
         print("\n" + "\n".join(help_value["notes"]))
+    elif action == "status":
+        # The ordinary operator view is intentionally compact; --json retains
+        # all allowlisted machine-readable evidence without changing exit code.
+        compact_status(document)
+    elif action == "update check":
+        current = document.get("current", {})
+        target = document.get("target", {})
+        print("ASA Lab · проверка обновлений · " + str(document.get("status", "UNAVAILABLE")))
+        print("Установлено: " + str(current.get("revision", "UNAVAILABLE"))[:8])
+        print("Доступно: " + str(target.get("revision", "UNAVAILABLE"))[:8])
+        available = document.get("available")
+        print("Обновление: " + ("есть" if available is True else "не требуется" if available is False else "не удалось определить"))
+        blockers = document.get("blockers", [])
+        if blockers:
+            print("Блокировки: " + ", ".join(str(x) for x in blockers[:6]))
+        elif document.get("status") == "PLANNED":
+            print("Для установки: asa update (в 1Panel) или sudo asa update")
     else:
         print("ASA Lab · " + action + " · " + document.get("status", "UNAVAILABLE"))
-        # The observer returns only typed, allowlisted fields. Human output is
-        # intentionally the same evidence as JSON, with no hidden green state.
+        # Advanced operator commands retain structured typed output. Use --json
+        # for machine integrations; status/check deliberately stay concise.
         print(json.dumps({key: item for key, item in document.items() if key not in ("format", "command", "exitCode")},
                          ensure_ascii=False, indent=2, sort_keys=True))
     return code

@@ -361,6 +361,26 @@ class PublicCLIProcessTests(unittest.TestCase):
 
 
 class OutputEnvelopeTests(unittest.TestCase):
+    def test_human_status_and_check_are_brief_without_json_soup(self):
+        status = {"status": "OK", "root": "/srv/asa-lab",
+                  "installed": {"revision": "a" * 40, "schema": 304},
+                  "database": {"schema": 304},
+                  "services": {"status": "OK", "containers": [{"running": True, "health": "healthy"}]},
+                  "backup": {"lastLocalSuccess": {"status": "OK", "snapshotAt": "2026-11-04T09:00:00Z"}}}
+        check = {"status": "PLANNED", "current": {"revision": "a" * 40},
+                 "target": {"revision": "b" * 40, "schema": 304},
+                 "available": True, "blockers": []}
+        for action, report, required in (("status", status, "PostgreSQL сейчас"),
+                                         ("update check", check, "Для установки: asa update")):
+            with self.subTest(action=action), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(asa_cli.emit(action, report, code=0), 0)
+                human = output.getvalue()
+            self.assertIn(required, human)
+            self.assertLessEqual(len(human.splitlines()), 9)
+            self.assertNotIn("{", human)
+            self.assertNotIn("RESOURCE_BUDGET", human)
+
+
     def test_payload_cannot_override_reserved_cli_envelope_fields(self):
         payload = {"format": "FORGED_FORMAT", "command": "FORGED_COMMAND", "exitCode": 99,
                    "status": "UNAVAILABLE", "configFormat": "asa-setup-config-v1"}
