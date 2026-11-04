@@ -26,6 +26,202 @@ systemd**. Проверки функций Python, контейнерный CI �
 архива из облака в обычный install/update не входит. Реальное восстановление
 остаётся `UNVERIFIED` до отдельного разрешённого испытания.
 
+## GitHub CLI для Ubuntu 24.04 amd64
+
+Перед получением ASA Setup выполните этот блок целиком в Bash обычного
+администратора с правом sudo. Нужны системные /usr/bin/python3 версии 3.11+,
+/usr/bin/sudo и установленные системные CA-сертификаты. Блок проверяет ОС,
+архитектуру и принадлежность системных программ. Если prerequisite отсутствует,
+он останавливается; Python, sudo и ca-certificates получают из подписанных
+репозиториев Ubuntu. Из root-терминала 1Panel сначала войдите в существующую
+административную учётную запись: этот блок не создаёт пользователей.
+
+Подходящий root-owned gh версии 2.101.0 или новее используется без изменения,
+после проверки всех четырёх необходимых флагов attestation. Найденный
+небезопасный или неподходящий gh не заменяется: сначала отдельно разберитесь
+с его штатной установкой. Если gh отсутствует, устанавливается только
+[официальный immutable выпуск 2.101.0](https://github.com/cli/cli/releases/tag/v2.101.0):
+
+- файл gh_2.101.0_linux_amd64.tar.gz, размер **15 282 175 байт**;
+- SHA256 **9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8**;
+- единственный извлекаемый файл: gh_2.101.0_linux_amd64/bin/gh.
+
+Загрузка идёт обычным HTTPS без запуска скачанного кода. Фиксированный inline
+код под sudo принимает только bytes через stdin, создаёт закрытый root-owned
+snapshot и проверяет размер/SHA256 именно этой read-only копии. Извлечение
+использует те же проверенные bytes; пользовательский путь от root не открывается.
+В /usr/local/bin/gh публикуется обычный root-owned executable без перезаписи
+существующего имени. Проверка версии и флагов выполняется обычным пользователем.
+
+~~~bash
+set -euo pipefail
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+asa_gh_bin=$(/usr/bin/python3 -I -B - <<'PY'
+import os, pathlib, platform, pwd, re, shutil, ssl, stat, subprocess, sys
+import time, urllib.parse, urllib.request
+
+def need(ok, code):
+    if not ok:
+        raise SystemExit("GitHub CLI: " + code)
+
+need(os.name == "posix" and os.geteuid() != 0, "RUN_AS_NONROOT_SUDO_ADMIN")
+need(sys.version_info >= (3, 11), "SYSTEM_PYTHON_3_11_REQUIRED")
+release = dict(line.split("=", 1) for line in pathlib.Path("/etc/os-release").read_text().splitlines() if "=" in line)
+need(release.get("ID", "").strip('"') == "ubuntu"
+     and release.get("VERSION_ID", "").strip('"') == "24.04"
+     and platform.machine() == "x86_64", "UBUNTU_24_04_AMD64_REQUIRED")
+safe_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+def trusted_program(name):
+    path = pathlib.Path(name).resolve(strict=True)
+    for parent in path.parents:
+        info = parent.lstat()
+        need(stat.S_ISDIR(info.st_mode) and info.st_uid == 0
+             and info.st_mode & 0o022 == 0, "UNSAFE_PROGRAM_PARENT")
+    info = path.lstat()
+    need(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1
+         and info.st_mode & 0o022 == 0 and os.access(path, os.X_OK), "UNSAFE_PROGRAM")
+    return str(path)
+
+python = trusted_program("/usr/bin/python3")
+sudo = trusted_program("/usr/bin/sudo")
+environment = {"PATH": safe_path, "HOME": pwd.getpwuid(os.geteuid()).pw_dir,
+               "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "GH_HOST": "github.com", "GH_PROMPT_DISABLED": "1"}
+
+def check_gh(path, *, installed=False):
+    need(pathlib.Path(path).stat().st_mode & 0o6000 == 0, "GH_MUST_NOT_BE_SETUID_OR_SETGID")
+    outputs = []
+    for arguments in (["--version"], ["attestation", "verify", "--help"]):
+        result = subprocess.run([path, *arguments], stdin=subprocess.DEVNULL, capture_output=True,
+                                timeout=20, cwd="/", env=environment)
+        need(result.returncode == 0 and len(result.stdout) <= 65536, "GH_CAPABILITY_CHECK_FAILED")
+        outputs.append(result.stdout.decode("utf-8", "strict"))
+    version = re.match(r"gh version ([0-9]+)\.([0-9]+)\.([0-9]+)\b", outputs[0])
+    need(version is not None, "GH_VERSION_UNKNOWN")
+    numbers = tuple(map(int, version.groups()))
+    need(numbers >= (2, 101, 0) and (not installed or numbers == (2, 101, 0)), "GH_VERSION_NOT_SUPPORTED")
+    required = {"--signer-workflow", "--source-ref", "--source-digest", "--deny-self-hosted-runners"}
+    need(required <= set(re.findall(r"--[a-z][a-z0-9-]*", outputs[1])), "GH_ATTESTATION_FLAGS_REQUIRED")
+
+existing = shutil.which("gh", path=safe_path)
+if existing:
+    selected = trusted_program(existing)
+    check_gh(selected)
+    print(selected)
+    raise SystemExit(0)
+
+need(not os.path.lexists("/usr/local/bin/gh"), "EXISTING_GH_NOT_REPLACED")
+tls = ssl.create_default_context()
+need(bool(tls.get_ca_certs()), "SYSTEM_CA_CERTIFICATES_REQUIRED")
+subprocess.run([sudo, "-v"], check=True, stdin=subprocess.DEVNULL, cwd="/")
+
+url = "https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_linux_amd64.tar.gz"
+limit, chunks, count = 15282175, [], 0
+deadline = time.monotonic() + 120
+with urllib.request.urlopen(url, timeout=30, context=tls) as response:
+    final = urllib.parse.urlparse(response.geturl())
+    need(response.status == 200 and final.scheme == "https"
+         and final.hostname in {"github.com", "release-assets.githubusercontent.com"}, "DOWNLOAD_ORIGIN")
+    while chunk := response.read(1024 * 1024):
+        count += len(chunk)
+        need(count <= limit and time.monotonic() < deadline, "DOWNLOAD_SIZE_OR_TIMEOUT")
+        chunks.append(chunk)
+need(count == limit, "DOWNLOAD_SIZE")
+
+root_code = r"""
+import hashlib, io, os, stat, sys, tarfile, tempfile
+from pathlib import Path, PurePosixPath
+
+def need(ok, code):
+    if not ok:
+        raise SystemExit("GitHub CLI: " + code)
+
+SIZE = 15282175
+SHA256 = "9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8"
+MEMBER = "gh_2.101.0_linux_amd64/bin/gh"
+
+def protected_directory(path):
+    for parent in (path, *path.parents):
+        info = parent.lstat()
+        need(stat.S_ISDIR(info.st_mode) and info.st_uid == 0
+             and info.st_mode & 0o022 == 0, "UNSAFE_DESTINATION_PARENT")
+
+def verified_snapshot(path):
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        need(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1
+             and stat.S_IMODE(info.st_mode) == 0o400 and info.st_size == SIZE, "UNSAFE_SNAPSHOT")
+        data = stream.read(SIZE + 1)
+    need(len(data) == SIZE and hashlib.sha256(data).hexdigest() == SHA256, "SNAPSHOT_SHA256_OR_SIZE")
+    return data
+
+def binary_bytes(data):
+    chosen, names, total = [], set(), 0
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
+        for member in archive:
+            name = PurePosixPath(member.name)
+            total += member.size
+            need(len(names) < 512 and total <= 64 * 1024 * 1024, "ARCHIVE_LIMIT")
+            need(not name.is_absolute() and name.parts and name.parts[0] == "gh_2.101.0_linux_amd64"
+                 and ".." not in name.parts and "\\" not in member.name
+                 and name.as_posix() == member.name.rstrip("/")
+                 and name.as_posix() not in names and not member.pax_headers
+                 and (member.isdir() or member.isfile()) and not member.linkname, "ARCHIVE_ENTRY")
+            names.add(name.as_posix())
+            if member.name == MEMBER:
+                need(member.isfile() and 0 < member.size <= 64 * 1024 * 1024, "ARCHIVE_BINARY")
+                chosen.append(member)
+        need(len(chosen) == 1, "ARCHIVE_BINARY_MISSING_OR_DUPLICATE")
+        stream = archive.extractfile(chosen[0])
+        need(stream is not None, "ARCHIVE_BINARY")
+        content = stream.read(64 * 1024 * 1024 + 1)
+        need(len(content) == chosen[0].size and content.startswith(b"\x7fELF"), "ARCHIVE_BINARY")
+        return content
+
+need(os.geteuid() == 0 and int(os.environ.get("SUDO_UID", "0")) > 0, "SUDO_ADMIN_REQUIRED")
+destination = Path("/usr/local/bin/gh")
+protected_directory(destination.parent)
+need(not os.path.lexists(destination), "EXISTING_GH_NOT_REPLACED")
+with tempfile.TemporaryDirectory(prefix=".asa-gh-2.101.0-", dir=destination.parent) as directory:
+    private = Path(directory)
+    protected_directory(private)
+    snapshot = private / "archive.tar.gz"
+    fd = os.open(snapshot, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o400)
+    with os.fdopen(fd, "wb") as stream:
+        stream.write(sys.stdin.buffer.read(SIZE + 1))
+        stream.flush()
+        os.fsync(stream.fileno())
+        os.fchmod(stream.fileno(), 0o400)
+    content = binary_bytes(verified_snapshot(snapshot))
+    staged = private / "gh"
+    fd = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o700)
+    with os.fdopen(fd, "wb") as stream:
+        stream.write(content)
+        stream.flush()
+        os.fsync(stream.fileno())
+        os.fchmod(stream.fileno(), 0o755)
+    os.link(staged, destination, follow_symlinks=False)
+    staged.unlink()
+"""
+result = subprocess.run([sudo, "-n", "-H", python, "-I", "-B", "-c", root_code],
+                        input=b"".join(chunks), timeout=120, cwd="/")
+need(result.returncode == 0, "PROTECTED_INSTALL_FAILED")
+selected = trusted_program("/usr/local/bin/gh")
+check_gh(selected, installed=True)
+print(selected)
+PY
+)
+printf 'Проверенный GitHub CLI: %s\n' "$asa_gh_bin"
+~~~
+
+Сохраните эту Bash-сессию: следующие команды используют проверенный абсолютный
+путь в asa_gh_bin. При ошибке блока не продолжайте получение ASA Setup.
+Официальные [release metadata](https://api.github.com/repos/cli/cli/releases/tags/v2.101.0)
+содержат размер и SHA256; [исходник проверки версии 2.101.0](https://github.com/cli/cli/blob/0cf1092493af067646fc5f3db9421c6a6ec9c938/pkg/cmd/attestation/verify/verify.go)
+фиксирует поддерживаемые флаги. Установка gh сама по себе не подтверждает
+получение опубликованного ASA Setup или эксплуатационную приёмку.
+
 ## Получение проверенного пакета
 
 Публикация реализована в
@@ -37,10 +233,9 @@ Release `setup-<полный SHA>` с архивом `asa-setup-<полный SH
 `asa-setup-acquire-<полный SHA>.py`. **Оба файла получают отдельные GitHub artifact
 attestations.** Существующий выпуск не перезаписывается.
 
-Для уже опубликованного выпуска достаточно блока ниже. Полный SHA одобренного
-выпуска вводится один раз. Нужна обычная административная сессия с `sudo`,
-Python 3.11+ и заранее установленный из доверенного источника **системный,
-принадлежащий root GitHub CLI**, поддерживающий все приведённые флаги.
+После подготовки GitHub CLI получите уже опубликованный выпуск блоком ниже.
+Полный SHA одобренного выпуска вводится один раз. Продолжайте в той же обычной
+административной Bash-сессии с `sudo` и Python 3.11+.
 `gh` должен иметь доступ к репозиторию и attestations. Помощник запускается
 обычным пользователем; непосредственно из root-терминала он завершается с
 `ACQUIRE_RUN_AS_ADMIN_WITHOUT_SUDO`. Привилегии для защищённой копии он запрашивает
@@ -48,13 +243,15 @@ Python 3.11+ и заранее установленный из доверенн�
 
 ```bash
 set -euo pipefail
+test "$(id -u)" -ne 0
+test -n "$asa_gh_bin"
 read -r -p 'Полный SHA одобренного опубликованного ASA Setup: ' asa_setup_revision
 [[ "$asa_setup_revision" =~ ^[a-f0-9]{40}$ ]]
 asa_setup_download="$(mktemp -d)"
 asa_setup_helper="$asa_setup_download/asa-setup-acquire-$asa_setup_revision.py"
-gh release download "setup-$asa_setup_revision" --repo spikeal8-maker/asa-lab --pattern "asa-setup-acquire-$asa_setup_revision.py" --dir "$asa_setup_download"
-gh attestation verify "$asa_setup_helper" --repo spikeal8-maker/asa-lab --signer-workflow spikeal8-maker/asa-lab/.github/workflows/setup-release.yml --source-ref refs/heads/main --source-digest "$asa_setup_revision" --deny-self-hosted-runners
-python3 -I "$asa_setup_helper" --revision "$asa_setup_revision"
+"$asa_gh_bin" release download "setup-$asa_setup_revision" --repo spikeal8-maker/asa-lab --pattern "asa-setup-acquire-$asa_setup_revision.py" --dir "$asa_setup_download"
+"$asa_gh_bin" attestation verify "$asa_setup_helper" --repo spikeal8-maker/asa-lab --signer-workflow spikeal8-maker/asa-lab/.github/workflows/setup-release.yml --source-ref refs/heads/main --source-digest "$asa_setup_revision" --deny-self-hosted-runners
+/usr/bin/python3 -I -B "$asa_setup_helper" --revision "$asa_setup_revision"
 cd "/opt/asa-setup/$asa_setup_revision"
 sudo bash ./asa-setup.sh
 ```

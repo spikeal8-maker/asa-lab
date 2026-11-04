@@ -87,6 +87,12 @@ configFormat: asa-setup-config-v1. Остальные поля настроек 
 
 Первичное получение выполняет **обычный администратор с sudo**, не root:
 операторский файл acquisition helper нельзя запускать через sudo.
+На Ubuntu 24.04 amd64 сначала выполните полный блок
+[подготовки GitHub CLI](UNIFIED_SETUP.md#github-cli-для-ubuntu-2404-amd64).
+Он проверяет существующий root-owned gh либо устанавливает закреплённый
+официальный 2.101.0 после проверки защищённой копии архива; неподходящий
+существующий gh не перезаписывается. Продолжайте в той же Bash-сессии:
+переменная asa_gh_bin содержит проверенный абсолютный путь.
 После проверки команда asa доступна из произвольного каталога, включая
 root-терминал 1Panel, и остаётся доступной после перезагрузки.
 
@@ -97,21 +103,22 @@ release. При отсутствующем release или неверной ат�
 ~~~bash
 set -euo pipefail
 test "$(id -u)" -ne 0
+test -n "$asa_gh_bin"
 read -r -p 'Полный SHA разрешённого опубликованного setup release: ' asa_setup_revision
 [[ "$asa_setup_revision" =~ ^[a-f0-9]{40}$ ]]
 asa_setup_download="$(mktemp -d)"
 asa_setup_helper="$asa_setup_download/asa-setup-acquire-$asa_setup_revision.py"
-gh release download "setup-$asa_setup_revision" \
+"$asa_gh_bin" release download "setup-$asa_setup_revision" \
   --repo spikeal8-maker/asa-lab \
   --pattern "asa-setup-acquire-$asa_setup_revision.py" \
   --dir "$asa_setup_download"
-gh attestation verify "$asa_setup_helper" \
+"$asa_gh_bin" attestation verify "$asa_setup_helper" \
   --repo spikeal8-maker/asa-lab \
   --signer-workflow spikeal8-maker/asa-lab/.github/workflows/setup-release.yml \
   --source-ref refs/heads/main \
   --source-digest "$asa_setup_revision" \
   --deny-self-hosted-runners
-python3 -I -B "$asa_setup_helper" --revision "$asa_setup_revision"
+/usr/bin/python3 -I -B "$asa_setup_helper" --revision "$asa_setup_revision"
 asa help
 sudo asa install
 ~~~
