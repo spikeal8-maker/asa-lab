@@ -658,7 +658,7 @@ class HelpEvidenceTests(unittest.TestCase):
             elif mutation == "duplicate":
                 document["help"]["commands"][1] = document["help"]["commands"][0]
             elif mutation == "false_write":
-                document["help"]["commands"][0]["changesData"] = True
+                document["help"]["commands"][0]["changesData"] = False
             elif mutation == "unknown":
                 document["help"]["commands"][0]["command"] = "asa " + SECRET
             elif mutation == "missing_parameter":
