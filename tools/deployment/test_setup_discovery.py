@@ -280,6 +280,168 @@ class InventoryExecutionTests(unittest.TestCase):
             return "2.39.4"
         return ""
 
+    def image_output(self, args, fields):
+        self.assertEqual(args[:4], ["docker", "image", "inspect", "--format"])
+
+        def evaluate(action):
+            # The strict raw-inspect subset: dotted fields must exist, while
+            # index can return nil for an absent map key. Interpret the actual
+            # argument and preserve its JSON envelope, not a canned projection.
+            tokens = re.findall(r'"(?:\\.|[^"\\])*"|[()]|[^\s()]+', action)[::-1]
+
+            def value():
+                token = tokens.pop()
+                if token == "(":
+                    result = value()
+                    if tokens.pop() != ")":
+                        raise ValueError("invalid template expression")
+                    return result
+                if token == "json":
+                    return json.dumps(value(), ensure_ascii=False)
+                if token == "index":
+                    mapping, key = value(), value()
+                    if not isinstance(mapping, dict) or not isinstance(key, str):
+                        raise ValueError("cannot index this metadata value")
+                    return mapping.get(key)
+                if token == "eq":
+                    first, second = value(), value()
+                    if second is not None:
+                        raise ValueError("unsupported template comparison")
+                    return first is None
+                if token == "nil":
+                    return None
+                if token.startswith('"'):
+                    return json.loads(token)
+                if token.startswith("."):
+                    result = fields
+                    for key in token[1:].split("."):
+                        if not isinstance(result, dict) or key not in result:
+                            raise ValueError("required inspect field is missing")
+                        result = result[key]
+                    return result
+                raise ValueError("unsupported template action")
+
+            result = value()
+            if tokens:
+                raise ValueError("unconsumed template expression")
+            return result
+
+        text = re.sub(r"\{\{\s*if\s+(.+?)\}\}(.*?)\{\{\s*else\s*\}\}(.*?)\{\{\s*end\s*\}\}",
+                      lambda match: match[2] if evaluate(match[1]) else match[3], args[4])
+        return re.sub(r"\{\{(.*?)\}\}", lambda match: evaluate(match[1]), text)
+
+    def image_fixture(self, directory):
+        root = Path(directory).resolve()
+        (root / ".env").write_text("COMPOSE_PROJECT_NAME=custom-school\n", encoding="utf-8")
+        (root / ".env").chmod(0o600)
+        inventory = fixture(root)
+        images = {item["imageId"]: {"Id": item["imageId"],
+                  "RepoDigests": ["registry.example.test/fixture@" + item["imageId"]], "Config": {}}
+                  for item in inventory["containers"]}
+        return root, inventory, images
+
+    def nonempty_runner(self, inventory, images):
+        def runner(args):
+            if args[1] == "info":
+                keys = {"ID": "id", "OSType": "os", "Architecture": "architecture", "DockerRootDir": "root"}
+                return self.info_output(args, {key: inventory["daemon"][name] for key, name in keys.items()})
+            if args[1:3] == ["compose", "version"]:
+                return "2.39.4"
+            if args[1:3] == ["ps", "-aq"]:
+                return "\n".join(item["id"] for item in inventory["containers"])
+            if args[1:3] == ["volume", "ls"]:
+                return "\n".join(item["name"] for item in inventory["volumes"])
+            if args[1] == "inspect":
+                records = {item["id"]: item for item in inventory["containers"]}
+                return "\n".join(json.dumps(records[key]) for key in args[4:])
+            if args[1:3] == ["volume", "inspect"]:
+                records = {item["name"]: item for item in inventory["volumes"]}
+                return "\n".join(json.dumps(records[key]) for key in args[5:])
+            if args[1:3] == ["image", "inspect"]:
+                return "\n".join(self.image_output(args, images[key]) for key in args[5:])
+            raise AssertionError("unexpected Docker command: " + repr(args))
+        return runner
+
+    def test_optional_image_labels_preserve_complete_nonempty_inventory_and_data_identity(self):
+        cases = (("absent", {}, None), ("null", {"Labels": None}, None), ("empty", {"Labels": {}}, None),
+                 ("ordinary", {"Labels": {"maintainer": "fixture"}}, None),
+                 ("oci", {"Labels": {"org.opencontainers.image.revision": "a" * 40}}, "a" * 40))
+        with tempfile.TemporaryDirectory() as directory:
+            root, inventory, images = self.image_fixture(directory)
+            before = copy.deepcopy(inventory)
+            identity = data_identity(root, "custom-school", inventory, inventory["containers"])
+            for name, config, revision in cases:
+                with self.subTest(labels=name):
+                    for image in images.values():
+                        image["Config"] = copy.deepcopy(config)
+                    result = docker_inventory(self.nonempty_runner(inventory, images))
+                    self.assertTrue(result["complete"])
+                    self.assertEqual(result["daemon"], inventory["daemon"])
+                    self.assertEqual((len(result["containers"]), len(result["volumes"]), len(result["images"])), (3, 2, 3))
+                    self.assertEqual(result["images"], [{"id": key, "digests": images[key]["RepoDigests"], "revision": revision}
+                                                      for key in sorted(images)])
+                    classified = classify_installation(root, result)
+                    self.assertEqual(classified["state"], "LEGACY")
+                    self.assertEqual(classified["dataIdentity"], identity)
+                    self.assertEqual(inventory, before)
+            self.assertEqual((root / ".env").read_text(), "COMPOSE_PROJECT_NAME=custom-school\n")
+            self.assertEqual(list(root.iterdir()), [root / ".env"])
+
+    def test_image_projection_escapes_revision_without_exporting_environment_or_other_labels(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, inventory, images = self.image_fixture(directory)
+            revision = 'revision-"школа"\\node\n{{unknown}}'
+            for image in images.values():
+                image["Config"] = {"Env": ["PRIVATE=synthetic-image-secret"], "Labels": {
+                    "org.opencontainers.image.revision": revision, "unrelated": "synthetic-private-label"}}
+            result = docker_inventory(self.nonempty_runner(inventory, images))
+            self.assertTrue(result["complete"])
+            self.assertTrue(all(set(image) == {"id", "digests", "revision"} and image["revision"] == revision
+                                for image in result["images"]))
+            self.assertNotIn("synthetic-image-secret", json.dumps(result))
+            self.assertNotIn("synthetic-private-label", json.dumps(result))
+
+    def test_malformed_image_metadata_cannot_become_complete_inventory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, inventory, original = self.image_fixture(directory)
+            first = sorted(original)[0]
+            changes = [("missing_config", lambda row: row.pop("Config")),
+                       ("null_config", lambda row: row.update(Config=None)),
+                       ("missing_digests", lambda row: row.pop("RepoDigests")),
+                       ("wrong_id", lambda row: row.update(Id="sha256:" + "f" * 64)),
+                       ("missing_id", lambda row: row.pop("Id"))]
+            changes += [("labels_" + str(index), lambda row, value=value: row.update(Config={"Labels": value}))
+                        for index, value in enumerate(([], "", 0, False))]
+            for name, change in changes:
+                with self.subTest(metadata=name):
+                    images = copy.deepcopy(original)
+                    change(images[first])
+                    result = docker_inventory(self.nonempty_runner(inventory, images))
+                    self.assertFalse(result["complete"])
+                    self.assertEqual(result["error"]["code"], "DOCKER_UNKNOWN")
+                    self.assertNotIn("fingerprint", result)
+                    self.assertIsNone(classify_installation(root, result)["dataIdentity"])
+
+    def test_failed_or_partial_image_inspect_keeps_existing_inventory_unknown(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, inventory, images = self.image_fixture(directory)
+            base = self.nonempty_runner(inventory, images)
+            for mode in ("failed", "empty", "truncated", "missing_record", "extra_record"):
+                with self.subTest(response=mode):
+                    def runner(args):
+                        if args[1:3] != ["image", "inspect"]:
+                            return base(args)
+                        if mode == "failed":
+                            raise ValueError("Docker image inspect failed")
+                        output = base(args)
+                        return {"empty": "", "truncated": output[:-1], "missing_record": "\n".join(output.splitlines()[:-1]),
+                                "extra_record": output + "\n" + output.splitlines()[0]}[mode]
+                    result = docker_inventory(runner)
+                    self.assertFalse(result["complete"])
+                    self.assertEqual(result["error"]["code"], "DOCKER_UNKNOWN")
+                    self.assertNotIn("fingerprint", result)
+                    self.assertEqual(classify_installation(root, result)["state"], "UNKNOWN")
+
     def test_truly_empty_daemon_is_complete_with_fingerprint(self):
         calls = []
         def runner(args):
