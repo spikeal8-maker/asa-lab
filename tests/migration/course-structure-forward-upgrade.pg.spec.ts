@@ -169,6 +169,11 @@ describe('Course Builder structure forward upgrade', () => {
         '0297', // Polza text provider and bounded model catalogue.
         '0298', // Exact owner-bound generated-image HTML binding.
         '0299', // Selected Polza token budget catalog before publication.
+        '0300', // Unreleased durable image queue follows every published canonical migration.
+        '0301', // Scoped Chess presence and recipient-bound challenges.
+        '0302', // Private portal invitation notifications.
+        '0303', // Owner-only publication editor resolution.
+        '0304', // Russian-64 network matches reuse Games identity and policy.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -497,6 +502,11 @@ describe('Course Builder structure forward upgrade', () => {
           '0297', // Polza text provider and bounded model catalogue.
           '0298', // Exact owner-bound generated-image HTML binding.
           '0299', // Selected Polza token budget catalog before publication.
+          '0300', // Unreleased durable image queue follows every published canonical migration.
+          '0301', // Scoped Chess presence and recipient-bound challenges.
+          '0302', // Private portal invitation notifications.
+          '0303', // Owner-only publication editor resolution.
+          '0304', // Russian-64 network matches reuse Games identity and policy.
         ]);
         expect(
           await applyIsolatedTestPlan(

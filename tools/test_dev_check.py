@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import json
+import contextlib
+import hashlib
+import io
 from concurrent.futures import ThreadPoolExecutor
 import os
 from pathlib import Path
@@ -11,6 +14,7 @@ import sys
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -58,11 +62,12 @@ class Fixture(unittest.TestCase):
     def trusted_preflight(self, *_):
         return {'verification_allowed': True, 'task': {'id': 'TASK-LOCAL-001'}}
 
-    def run_check(self, *, preflight=None, unknown=None, full=False):
+    def run_check(self, *, preflight=None, unknown=None, full=False, profile=None):
         dependency = {'provenance': {'git_head': self.git('rev-parse', 'HEAD').stdout.decode().strip()}}
         with patch.object(check, 'verify_preflight', side_effect=preflight or self.trusted_preflight), \
              patch.object(check, 'affected_lanes', return_value=['fixture']), \
              patch.object(check, 'execution_blockers', return_value=[]), \
+             patch.object(check, 'local_profile', return_value=profile or {'eligible': False, 'fallback_reason': 'fixture broad path'}), \
              patch.object(devex_plan, 'dependencies', return_value=dependency), \
              patch.object(devex_plan, 'plan', return_value=plan_for(self.tests, unknown=unknown)):
             return check.check(self.root, 'HEAD', full=full)
@@ -89,6 +94,21 @@ class Fixture(unittest.TestCase):
         self.assertIn('timeout', result['reason'])
         self.assertLess(result['duration_s'], 8)
 
+    def windows_process_api(self):
+        import ctypes
+        from ctypes import wintypes as w
+        api = ctypes.WinDLL('kernel32', use_last_error=True)
+        api.OpenProcess.argtypes, api.OpenProcess.restype = [w.DWORD, w.BOOL, w.DWORD], w.HANDLE
+        api.WaitForSingleObject.argtypes, api.WaitForSingleObject.restype = [w.HANDLE, w.DWORD], w.DWORD
+        api.CloseHandle.argtypes, api.CloseHandle.restype = [w.HANDLE], w.BOOL
+        return api
+
+    def assert_windows_child_terminated(self, api, handle):
+        # Job termination initiates asynchronous process teardown. Pipe EOF is
+        # not a process-signaling barrier; wait on the retained exact child.
+        self.assertEqual(api.WaitForSingleObject(handle, 1000), 0,
+                         'owned child did not terminate within the bounded completion wait')
+
     def descendant_probe(self, *, forever=False):
         child = ('import os, time\nfrom pathlib import Path\n'
                  'Path("child.pid").write_text(str(os.getpid()))\n'
@@ -102,8 +122,26 @@ class Fixture(unittest.TestCase):
         entry = {'id': 'TST-EXITED-LAUNCHER-001', 'command': 'python launcher.py', 'timeout_seconds': 1}
         results, failures, jobs, processes = [], [], [], []
         original_job, original_popen = run_task_tests.WindowsJob, run_task_tests.subprocess.Popen
+        api = self.windows_process_api() if os.name == 'nt' else None
+        child_handle = None
+        child_handle_lock = threading.Lock()
+        def retain_child():
+            nonlocal child_handle
+            with child_handle_lock:
+                if api is not None and child_handle is None and (self.root / 'child.pid').exists():
+                    pid = int((self.root / 'child.pid').read_text())
+                    child_handle = api.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE, before termination
+                    self.assertTrue(child_handle, 'cannot retain the exact owned child before cleanup')
+                    self.addCleanup(api.CloseHandle, child_handle)
+        class ObservedJob(original_job):
+            def terminate(job):
+                retain_child()
+                return super().terminate()
+            def close(job):
+                retain_child()
+                return super().close()
         def create_job():
-            job = original_job()
+            job = ObservedJob()
             jobs.append(job)
             return job
         def create_process(*args, **kwargs):
@@ -144,6 +182,9 @@ class Fixture(unittest.TestCase):
         self.assertIn('timeout after 1s', results[0]['reason'])
         self.assertLess(results[0]['duration_s'], 3)
         print(f'Owned descendant ({"indefinite" if forever else "4s marker"}): {results[0]["duration_s"]}s')
+        if api is not None:
+            self.assertIsNotNone(child_handle, 'child handle was not retained before cleanup')
+            self.assert_windows_child_terminated(api, child_handle)
         return started
 
     def test_fast_exited_launcher_cannot_leave_late_marker(self):
@@ -154,23 +195,25 @@ class Fixture(unittest.TestCase):
     def test_indefinite_pipe_holding_descendant_is_terminated(self):
         self.descendant_probe(forever=True)
         pid = int((self.root / 'child.pid').read_text())
-        if os.name == 'nt':
-            import ctypes
-            from ctypes import wintypes as w
-            api = ctypes.WinDLL('kernel32', use_last_error=True)
-            api.OpenProcess.argtypes, api.OpenProcess.restype = [w.DWORD, w.BOOL, w.DWORD], w.HANDLE
-            api.WaitForSingleObject.argtypes, api.WaitForSingleObject.restype = [w.HANDLE, w.DWORD], w.DWORD
-            api.CloseHandle.argtypes = [w.HANDLE]
-            handle = api.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE, exact owned child
-            if handle:
-                try:
-                    self.assertEqual(api.WaitForSingleObject(handle, 0), 0, 'owned child is still running')
-                finally:
-                    api.CloseHandle(handle)
-            else:
-                self.assertEqual(ctypes.get_last_error(), 87, 'cannot verify exact owned child termination')
-        else:
+        if os.name != 'nt':
             self.assert_posix_descendant_terminated(pid)
+
+    def test_descendant_completion_routes_only_posix_to_procfs(self):
+        (self.root / 'child.pid').write_text('12345', encoding='utf-8')
+        method = type(self).test_indefinite_pipe_holding_descendant_is_terminated
+        original_os = os
+        for platform in ('posix', 'nt'):
+            with self.subTest(platform=platform), \
+                 patch.object(self, 'descendant_probe') as probe, \
+                 patch.object(self, 'assert_posix_descendant_terminated') as posix, \
+                 patch.dict(method.__globals__, {'os': SimpleNamespace(name=platform)}):
+                method(self)
+                probe.assert_called_once_with(forever=True)
+                if platform == 'posix':
+                    posix.assert_called_once_with(12345)
+                else:
+                    posix.assert_not_called()
+            self.assertIs(os, original_os)
 
     def assert_posix_descendant_terminated(self, pid):
         try:
@@ -200,6 +243,21 @@ class Fixture(unittest.TestCase):
         with patch.object(Path, 'read_text', side_effect=PermissionError('cannot read exact owned child')):
             with self.assertRaises(PermissionError):
                 self.assert_posix_descendant_terminated(12345)
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows process completion wait negative control')
+    def test_child_completion_wait_rejects_a_truly_live_process(self):
+        api = self.windows_process_api()
+        # This exact owned process stays suspended, so its handle is genuinely
+        # unsignaled and its command cannot create descendants or execute code.
+        process = subprocess.Popen([sys.executable, '-c', 'raise RuntimeError("must stay suspended")'],
+                                   cwd=self.root, creationflags=0x4)
+        try:
+            with self.assertRaisesRegex(AssertionError, 'bounded completion wait'):
+                self.assert_windows_child_terminated(api, int(process._handle))
+            self.assertIsNone(process.poll())
+        finally:
+            process.kill()
+            process.wait(timeout=1)
 
     @unittest.skipUnless(os.name == 'nt', 'Windows kill-on-close fallback')
     def test_job_termination_failure_still_closes_job_and_kills_descendant(self):
@@ -296,12 +354,208 @@ class Fixture(unittest.TestCase):
         self.tests.append(pending)
         self.catalog(self.tests)
         result = self.run_check(unknown=['unresolved consumer'])
-        self.assertEqual(result['status'], 'BLOCKED')
+        self.assertEqual(result['status'], 'LOCAL_PASS')
         self.assertEqual(result['local_status'], 'PASS')
+        self.assertEqual(result['plan']['status'], 'BLOCKED')
+        self.assertEqual(result['ci_status'], 'CI_PENDING')
+        self.assertEqual(result['release_status'], 'RELEASE_NOT_READY')
+        self.assertFalse(result['release_ready'])
+        self.assertFalse(result['integration_ready'])
         states = {item['id']: item['state'] for item in result['checks']}
         self.assertEqual(states, {'TST-LOCAL-001': 'PASS', 'TST-DATABASE-001': 'NOT_RUN'})
         self.assertIn('executed', next(item for item in result['checks'] if item['state'] == 'PASS')['stdout_tail'])
         self.assertEqual(result['full_ci'], 'NOT_RUN')
+
+    def profile_for(self, ids):
+        path = 'changed.py'
+        digest = hashlib.sha256(path.encode() + b'\0' + (self.root / path).read_bytes() + b'\0').hexdigest()
+        return {'eligible': True, 'profile_id': 'owned-fixture', 'local_effect_class': 'L1_UI_BEHAVIOR',
+                'test_ids': ids, 'protected_paths': [path], 'source_digest': digest}
+
+    def test_profile_runs_actual_scoped_commands_without_waiving_canonical_l3_unknowns(self):
+        broad = test_entry('TST-GLOBAL-001', code='from pathlib import Path; Path("global.marker").touch(); raise SystemExit(9)')
+        self.tests.append(broad)
+        self.catalog(self.tests)
+        canonical = plan_for(self.tests, unknown=['real dynamic consumer remains unknown'])
+        result = self.run_check(unknown=canonical['unknown'], profile=self.profile_for(['TST-LOCAL-001']))
+        self.assertEqual(result['plan'], canonical)
+        self.assertEqual(result['status'], 'LOCAL_PASS', result)
+        self.assertEqual(result['local_selected_ids'], ['TST-LOCAL-001'])
+        self.assertEqual(result['deferred_mandatory_ids'], ['TST-GLOBAL-001'])
+        self.assertEqual(result['local_effect_class'], 'L1_UI_BEHAVIOR')
+        self.assertFalse((self.root / 'global.marker').exists())
+        self.assertEqual(result['plan']['change_class'], 'L3_CRITICAL')
+        text = check.render(result)
+        self.assertIn('Canonical CI risk: L3_CRITICAL', text)
+        self.assertIn('CI_PENDING', text)
+        self.assertIn('RELEASE_NOT_READY', text)
+        with patch.object(check, 'check', return_value=result), patch.object(check, 'save_report'), \
+             patch.object(sys, 'argv', ['dev_check.py', '--changed']), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check.main(), 0)
+
+    def test_profile_actual_failure_wins_pending_ci_and_unknowns(self):
+        self.tests = [test_entry(code='raise SystemExit(37)')]
+        self.catalog(self.tests)
+        result = self.run_check(unknown=['unknown CI consumer'], profile=self.profile_for(['TST-LOCAL-001']))
+        self.assertEqual((result['status'], result['local_status']), ('FAIL', 'FAIL'))
+        self.assertEqual(result['checks'][0]['exit_code'], 37)
+        with patch.object(Path, 'mkdir', side_effect=PermissionError('storage unavailable')):
+            check.save_report(self.root, result, '.asa/devex/failure.json')
+        self.assertEqual(result['status'], 'FAIL')
+
+    def test_profile_stale_protected_digest_blocks_all_execution(self):
+        profile = self.profile_for(['TST-LOCAL-001'])
+        profile['source_digest'] = '0' * 64
+        result = self.run_check(profile=profile)
+        self.assertEqual((result['status'], result['checks']), ('BLOCKED', []))
+        self.assertIn('protected source changed', result['reasons'][0])
+
+    def test_profile_existing_browser_spec_is_visible_pending_and_never_executed_locally(self):
+        browser_id = 'TST-COLLECT-PICKER-BROWSER-001'
+        browser = test_entry(browser_id, code='from pathlib import Path; Path("browser.marker").touch(); raise SystemExit(41)')
+        browser['local_check'] = {'eligible': False, 'reason': 'isolated CI only'}
+        self.tests.append(browser)
+        self.catalog(self.tests)
+        profile = {**self.profile_for(['TST-LOCAL-001']), 'ci_test_ids': [browser_id],
+                   'ci_test_files': ['e2e/project-collections-baseline.spec.ts']}
+        result = self.run_check(unknown=['canonical CI remains unknown'], profile=profile)
+        self.assertEqual(result['status'], 'LOCAL_PASS')
+        self.assertEqual(result['ci_only_files'][0]['state'], 'CI_NOT_RUN')
+        self.assertIn('CI_NOT_RUN', check.render(result))
+        self.assertEqual(next(item['state'] for item in result['checks'] if item['id'] == browser_id), 'NOT_RUN')
+        self.assertFalse((self.root / 'browser.marker').exists())
+        self.assertFalse(result['integration_ready'])
+
+    def test_profile_default_broad_fallback_still_executes_actual_global_failure(self):
+        self.tests.append(test_entry('TST-GLOBAL-001', code='raise SystemExit(17)'))
+        self.catalog(self.tests)
+        result = self.run_check(profile={'eligible': False, 'fallback_reason': 'unsupported handler change'})
+        self.assertEqual(result['status'], 'FAIL')
+        self.assertTrue(all(item['state'] != 'NOT_RUN' for item in result['checks']))
+
+    def test_profile_catalog_map_and_concrete_ci_check_are_default_deny(self):
+        (self.root / 'tools').mkdir()
+        (self.root / 'tools/devex-local-ui.mjs').write_text('// owned proof fixture', encoding='utf-8')
+        ids = ['TST-COLLECT-PICKER-FORMAT-001', 'TST-COLLECT-PICKER-LINT-001', 'TST-COLLECT-PICKER-UNIT-001']
+        tests = {tid: {'id': tid, 'command': f'node tools/devex-local-ui.mjs {mode}', 'local_check': {'eligible': True}}
+                 for tid, mode in zip(ids, ('--format', '--lint', '--components'))}
+        metadata = {'id': 'collect-picker-presentation-v1', 'version': 1,
+                    'test_family': 'apps/web/src/components/CollectPicker', 'test_ids': ids}
+        surface = {'id': 'SURF-PROJECT-COLLECTION-PICKER', 'local_profile': metadata, 'tests': ids}
+        proof = {**self.profile_for(ids), 'profile_id': metadata['id'], 'version': 1, 'surface_id': surface['id']}
+        def invoke():
+            with patch.object(check.shutil, 'which', return_value='node'), \
+                 patch.object(check.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout=json.dumps(proof))), \
+                 patch.object(check.agent_context, '_surface_index', return_value=[surface]):
+                return check.local_profile(self.root, {'merge_base': 'a' * 40}, tests)
+        self.assertTrue(invoke()['eligible'])
+        tests[ids[0]]['command'] = 'node foreign-command.mjs'
+        self.assertFalse(invoke()['eligible'])
+        tests[ids[0]]['command'] = 'node tools/devex-local-ui.mjs --format'
+        proof['ci_test_files'] = ['e2e/project-collections-baseline.spec.ts']
+        proof['ci_test_ids'] = ['TST-COLLECT-PICKER-BROWSER-001']
+        self.assertFalse(invoke()['eligible'], 'concrete browser catalog entry is mandatory')
+        tests['TST-COLLECT-PICKER-BROWSER-001'] = {
+            'command': 'pnpm exec playwright test --config playwright.settings-ui.config.ts e2e/project-collections-baseline.spec.ts',
+            'local_check': {'eligible': False}}
+        self.assertTrue(invoke()['eligible'])
+        tests['TST-COLLECT-PICKER-BROWSER-001']['local_check']['eligible'] = True
+        self.assertFalse(invoke()['eligible'], 'browser cannot become locally eligible')
+
+    def workflow_python(self, step_id):
+        workflow = yaml.safe_load((check.ROOT / '.github/workflows/devex-changed.yml').read_text(encoding='utf-8'))
+        step = next(item for item in workflow['jobs']['collect-picker']['steps'] if item.get('id') == step_id)
+        return step['run'].split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+
+    def test_shadow_classification_uses_actual_git_and_fails_closed_on_missing_source(self):
+        style = self.root / 'apps/web/src/components/collect-picker.css'
+        style.parent.mkdir(parents=True)
+        style.write_text('.collect-picker-create input { min-height: 34px; }\n', encoding='utf-8')
+        self.git('add', '--', 'changed.py', str(style.relative_to(self.root)))
+        self.git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'owned baseline')
+        base = self.git('rev-parse', 'HEAD').stdout.decode().strip()
+        style.write_text('.collect-picker-create input { min-height: 44px; }\n', encoding='utf-8')
+        self.git('add', '--', str(style.relative_to(self.root)))
+        self.git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'owned small UI trial')
+        head = self.git('rev-parse', 'HEAD').stdout.decode().strip()
+        output = self.root / '.asa/github-output'
+        output.parent.mkdir(parents=True)
+        source = self.workflow_python('changes')
+        def invoke(**overrides):
+            output.unlink(missing_ok=True)
+            return subprocess.run([sys.executable, '-c', source], cwd=self.root,
+                                  env={**os.environ, 'SOURCE_SHA': head, 'BASE_SHA': base,
+                                       'GITHUB_OUTPUT': str(output), **overrides},
+                                  capture_output=True, text=True, timeout=10)
+        result = invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('candidate=true', output.read_text())
+        selection = json.loads((self.root / '.asa/devex/ci-selection.json').read_text())
+        self.assertEqual((selection['source_sha'], selection['base_sha'], selection['checks_executed']), (head, base, 0))
+        self.assertEqual(selection['route'], 'CANDIDATE_REQUIRES_PROOF', 'classification alone is never test PASS')
+        api = self.root / 'apps/api/foreign.ts'
+        api.parent.mkdir(parents=True)
+        api.write_text('// an unrelated API change\n', encoding='utf-8')
+        self.git('add', '--', str(api.relative_to(self.root)))
+        self.git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'owned negative API input')
+        head = self.git('rev-parse', 'HEAD').stdout.decode().strip()
+        result = invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('candidate=false', output.read_text())
+        selection = json.loads((self.root / '.asa/devex/ci-selection.json').read_text())
+        self.assertEqual((selection['route'], selection['checks_executed']), ('FULL_CI_REQUIRED', 0))
+        self.assertFalse(selection['integration_ready'])
+        self.assertFalse(selection['release_ready'])
+        for override in ({'BASE_SHA': '0' * 40}, {'BASE_SHA': '--help'}, {'SOURCE_SHA': base}):
+            with self.subTest(override=override):
+                result = invoke(**override)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(output.exists(), 'invalid identity must not publish successful admission')
+
+    def test_shadow_receipt_rejects_wrong_source_failed_incomplete_and_false_ready_results(self):
+        ids = ['TST-COLLECT-PICKER-FORMAT-001', 'TST-COLLECT-PICKER-LINT-001', 'TST-COLLECT-PICKER-UNIT-001']
+        head = self.git('rev-parse', 'HEAD').stdout.decode().strip()
+        proof = {'eligible': True, 'profile_id': 'collect-picker-presentation-v1', 'version': 1,
+                 'source_digest': 'b' * 64, 'ci_test_files': ['e2e/project-collections-baseline.spec.ts']}
+        valid = {'git': {'head': head, 'base': head, 'merge_base': head}, 'status': 'LOCAL_PASS',
+                 'local_status': 'PASS', 'preflight_passed': True, 'local_selected_ids': ids,
+                 'checks': [{'id': tid, 'state': 'PASS', 'exit_code': 0} for tid in ids],
+                 'local_profile': proof, 'ci_status': 'CI_PENDING', 'full_ci': 'NOT_RUN',
+                 'release_status': 'RELEASE_NOT_READY', 'integration_ready': False, 'release_ready': False,
+                 'deferred_mandatory_ids': ['TST-COLLECT-PICKER-BROWSER-001'],
+                 'ci_only_files': [{'path': 'e2e/project-collections-baseline.spec.ts', 'state': 'CI_NOT_RUN',
+                                    'test_id': 'TST-COLLECT-PICKER-BROWSER-001'}]}
+        directory = self.root / '.asa/devex'
+        directory.mkdir(parents=True)
+        source = self.workflow_python('receipt')
+        def invoke(report, expected=head):
+            (directory / 'ci-proof.json').write_text(json.dumps(proof), encoding='utf-8')
+            (directory / 'ci-check.json').write_text(json.dumps(report), encoding='utf-8')
+            return subprocess.run([sys.executable, '-c', source], cwd=self.root,
+                                  env={**os.environ, 'SOURCE_SHA': expected, 'BASE_SHA': head, 'MERGE_BASE': head},
+                                  capture_output=True, text=True, timeout=5)
+        passed = invoke(valid)
+        self.assertEqual(passed.returncode, 0, passed.stderr)
+        self.assertNotEqual(invoke(valid, expected='a' * 40).returncode, 0, 'exact checkout mismatch must fail')
+        mutations = [
+            ('source', lambda r: r['git'].update(head='a' * 40)),
+            ('missing check', lambda r: r['checks'].pop()),
+            ('duplicate check', lambda r: r['checks'].append(dict(r['checks'][0]))),
+            ('actual failure', lambda r: r['checks'][0].update(state='FAIL', exit_code=37)),
+            ('unrelated execution', lambda r: r['checks'].append({'id': 'TST-FOREIGN-001', 'state': 'PASS'})),
+            ('preflight missing', lambda r: r.update(preflight_passed=False)),
+            ('stale proof', lambda r: r['local_profile'].update(source_digest='0' * 64)),
+            ('browser waived', lambda r: r.update(deferred_mandatory_ids=[])),
+            ('integration ready', lambda r: r.update(integration_ready=True)),
+            ('release ready', lambda r: r.update(release_ready=True)),
+            ('false full CI', lambda r: r.update(full_ci='PASS')),
+        ]
+        for name, mutate in mutations:
+            with self.subTest(name=name):
+                report = json.loads(json.dumps(valid))
+                mutate(report)
+                failed = invoke(report)
+                self.assertNotEqual(failed.returncode, 0, f'{name}: forged receipt was accepted')
 
     def test_real_failure_is_not_masked_by_unknown_coverage(self):
         self.tests = [test_entry(code='raise SystemExit(23)')]

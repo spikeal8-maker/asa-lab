@@ -225,7 +225,9 @@ export class SceneRuntime {
     this.renderer.domElement.tabIndex = 0;
     this.renderer.domElement.setAttribute(
       'aria-label',
-      readOnly ? 'Просмотр 3D-модели' : 'Рабочая область 3D-моделирования',
+      readOnly
+        ? 'Просмотр 3D-модели. Один палец вращает, два пальца перемещают и меняют масштаб.'
+        : 'Рабочая область 3D-моделирования',
     );
     this.container.append(this.renderer.domElement);
 
@@ -988,9 +990,21 @@ export class SceneRuntime {
       return;
     }
     const sphere = box.getBoundingSphere(new THREE.Sphere());
+    if (this.readOnly) {
+      // Published models may be much smaller than the editor's fixed 35 mm
+      // camera floor. Allow an actual pinch-in without clipping small models.
+      this.orbit.minDistance = Math.max(0.05, sphere.radius * 0.08);
+      this.orbit.maxDistance = Math.max(1200, sphere.radius * 20);
+      this.camera.near = Math.max(0.001, sphere.radius / 10000);
+      this.camera.far = this.orbit.maxDistance * 3;
+      this.camera.updateProjectionMatrix();
+    }
     const direction = this.camera.position.clone().sub(this.orbit.target).normalize();
     const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2);
-    const distance = Math.max(55, (sphere.radius / Math.sin(halfFov)) * 1.35);
+    const fitHalfFov = this.readOnly
+      ? Math.min(halfFov, Math.atan(Math.tan(halfFov) * this.camera.aspect))
+      : halfFov;
+    const distance = Math.max(55, (sphere.radius / Math.sin(fitHalfFov)) * 1.35);
     this.orbit.target.copy(sphere.center);
     this.camera.position.copy(sphere.center).add(direction.multiplyScalar(distance));
     this.orbit.update();

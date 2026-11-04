@@ -17,10 +17,11 @@ async function login(page: Page): Promise<void> {
 
 async function createChessProject(page: Page, title: string): Promise<void> {
   await openChessGame(page, title);
-  await expect(page.getByRole('heading', { name: /Добро пожаловать/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Шахматы', exact: true })).toBeVisible();
   await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/home$/);
-  await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
-  await page.getByRole('button', { name: 'Открыть доску', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Шахматы', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Двое на одном устройстве', exact: true }).click();
+  await page.getByRole('button', { name: 'Начать партию', exact: true }).click();
   await expect(page.getByTestId('asa-chess-board')).toBeVisible();
   await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/play\/game$/);
   await expect(page.getByLabel('Название игры')).toHaveValue(title);
@@ -86,7 +87,7 @@ test('teacher creates, plays, reloads and versions an ASA Chess project', async 
 
   await page.getByRole('button', { name: 'Главная', exact: true }).click();
   await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/home$/);
-  await expect(page.getByRole('heading', { name: /Добро пожаловать/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Шахматы', exact: true })).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(
@@ -94,7 +95,7 @@ test('teacher creates, plays, reloads and versions an ASA Chess project', async 
       ),
     )
     .toBe(true);
-  for (const testId of ['asa-chess-home-position', 'asa-chess-home-puzzle']) {
+  for (const testId of ['asa-chess-home-position']) {
     const box = await page.getByTestId(testId).boundingBox();
     expect(box).not.toBeNull();
     expect(Math.abs((box?.width ?? 0) - (box?.height ?? 0))).toBeLessThan(1);
@@ -109,13 +110,16 @@ test('ASA Bot makes a legal persisted reply', async ({ page }) => {
   await login(page);
   await createChessProject(page, 'Партия против ASA Bot');
   await page.getByRole('button', { name: 'Главная', exact: true }).click();
-  await page.getByRole('button', { name: 'Боты', exact: true }).click();
+  await page.getByRole('button', { name: 'Играть с компьютером', exact: true }).click();
   await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/bots$/);
-  await expect(page.locator('.asa-chess-bot-page')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Игра с ASA Bot' })).toBeVisible();
+  await expect(page.locator('.asa-chess-setup-page')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Игра с компьютером' })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByTestId('asa-chess-board')).toHaveCount(0);
-  await page.getByText('Росток ASA', { exact: true }).click();
+  await page.getByRole('button', { name: /Начальный/ }).click();
+  await page.getByText('Выбрать бота', { exact: true }).click();
+  await page.locator('.asa-chess-bot-profile-grid label').filter({ hasText: 'Росток ASA' }).click();
+  await page.getByText('Подробнее о сопернике', { exact: true }).click();
   await expect(page.getByText('Профиль не откалиброван по серии партий.')).toBeVisible();
   await page.getByRole('button', { name: 'Начать партию' }).click();
   await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/play\/game$/);
@@ -146,7 +150,7 @@ test('review selects exact plies and accepts only the verified retry move', asyn
   await expect(page.getByText('Сохранено', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Главная', exact: true }).click();
-  await page.getByRole('button', { name: 'Разбор', exact: true }).click();
+  await page.getByRole('button', { name: 'Разобрать свою партию', exact: true }).click();
   await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/review$/);
   await expect(page.getByRole('heading', { name: 'Разбор ошибки и повторение' })).toBeVisible();
   await expect(page.getByLabel('График оценки по полуходам')).toBeVisible();
@@ -185,7 +189,7 @@ test('learner opens the original ASA puzzle trainer and solves a mate in one wit
   await login(page);
   await createChessProject(page, 'Тренировка по тактике');
   await page.getByRole('button', { name: 'Главная', exact: true }).click();
-  await page.getByRole('button', { name: 'Задачи', exact: true }).click();
+  await page.getByRole('button', { name: 'Шахматные задачи', exact: true }).click();
   await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/puzzles$/);
   await expect(page.getByRole('heading', { name: 'Мат в один ход' })).toBeVisible();
   await expect(page.getByText('Прогресс этого проекта: 0 из 3')).toBeVisible();

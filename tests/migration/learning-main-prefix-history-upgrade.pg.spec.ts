@@ -374,6 +374,31 @@ const upgradeArtifacts = [
     '0299_ai_polza_token_budget_catalog.sql',
     '12b080915d4808056f4ba5d9995631aa6c93f41d2c37c3b314621090400b1fac',
   ],
+  [
+    '0300',
+    '0300_ai_image_durable_queue.sql',
+    '0ea57787d707326f9222fb906bc7d826a91d417c3efdeeb6251c6a3156b6cd26',
+  ],
+  [
+    '0301',
+    '0301_games_chess_lobby.sql',
+    'f64f992a4b6f0d98a9e7e33666e7c67083c4ff274a0780311159ae6ac84514f2',
+  ],
+  [
+    '0302',
+    '0302_games_chess_notifications.sql',
+    '43fb00c4ee7cdff378ffcaa1acd803a2b312eabc9d3211181c23bd238ba05a6d',
+  ],
+  [
+    '0303',
+    '0303_publication_owner_editor.sql',
+    '92818d6ea4dff20e5201e7e4e228678067048155714c89ce9d6f3270792bf60c',
+  ],
+  [
+    '0304',
+    '0304_games_checkers_network.sql',
+    'ecb1283c5adea892895b540f2e04d75a74ab51c54660110bf5a8269f56b3279d',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

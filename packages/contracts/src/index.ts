@@ -116,7 +116,11 @@ export type {
   ChessNetworkScope,
   ChessNetworkPolicy,
   ChessNetworkAccess,
+  ChessNetworkLobby,
+  ChessLobbyPlayer,
   ChessNetworkInvite,
   ChessNetworkMatch,
   ChessNetworkAction,
 } from './chess-network.js';
+
+export type { CheckersNetworkMatch, CheckersNetworkPosition } from './checkers-network.js';

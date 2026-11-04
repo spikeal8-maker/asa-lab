@@ -2155,3 +2155,27 @@
     scroll-margin-block-start: calc(var(--portal-header-height, 56px) + 16px);
   }
 }
+
+/* Keep the course canvas mounted while its canonical task editor owns focus. */
+.course-inline-task-dialog[data-screen='true'] {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+}
+.course-inline-task-dialog .assignment-document-topbar {
+  top: 0;
+}
+
+.course-inline-task-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

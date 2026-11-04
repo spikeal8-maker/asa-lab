@@ -236,6 +236,7 @@ export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.El
       <ChessHome
         {...props}
         onOpenBoard={() => navigate('play')}
+        onOpenLocal={() => navigate('local')}
         onOpenOnline={() => navigate('network')}
         onOpenTraining={() => navigate('puzzles')}
         onOpenLearning={() => navigate('learning')}
@@ -297,12 +298,13 @@ export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.El
       />
     );
   }
-  if (route.page === 'bots') {
+  if (route.page === 'bots' || route.page === 'local') {
     return (
       <ChessEditor
-        key="bots"
+        key={route.page}
         {...props}
         setupPage
+        setupMode={route.page === 'local' ? 'local' : 'computer'}
         onGameStarted={() => navigate('play', 'game')}
         onHome={() => navigate('home')}
       />

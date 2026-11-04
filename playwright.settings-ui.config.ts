@@ -12,6 +12,7 @@ export default defineConfig({
     'classroom-owner-ui.spec.ts',
     'classroom-usability-ui.spec.ts',
     'classroom-layout-acceptance.spec.ts',
+    'project-collections-baseline.spec.ts',
   ],
   workers: 1,
   fullyParallel: false,

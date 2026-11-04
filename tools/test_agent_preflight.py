@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 from contextlib import contextmanager
+import hashlib
 import json
 import os
 import subprocess
@@ -278,6 +279,229 @@ class AgentPreflightTests(unittest.TestCase):
         path.write_text(yaml.safe_dump(current, sort_keys=False), encoding="utf-8")
         git(root, "add", "docs/execution/current.yaml")
         git(root, "commit", "-qm", "shared workflow policy")
+
+    def approve_isolated_peer(self, root: Path, other: Path, *, canonical: bool = True):
+        relative = "contexts/electronics/state.txt"
+        record = {
+            "status": "owner_approved", "purpose": "isolated_development_only",
+            "repository_origin": ".",
+            "author": {"worktree": str(root), "branch": "worker"},
+            "peer": {"worktree": str(other), "branch": "other",
+                     "head": git(other, "rev-parse", "HEAD"),
+                     "path_sha256": {relative: hashlib.sha256((other / relative).read_bytes()).hexdigest()}},
+            "paths": [relative],
+        }
+        if not canonical:
+            git(root, "checkout", "-qb", "worker")
+        path = root / "docs/execution/current.yaml"
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        document["task"]["owner_authorization"] = "Owner explicitly approves isolated development only."
+        document["task"]["shared_path_coordination"] = record
+        path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+        git(root, "add", "docs/execution/current.yaml")
+        git(root, "commit", "-qm", "coordinate isolated development")
+        if canonical:
+            git(root, "checkout", "-qb", "worker")
+        return relative
+
+    def test_accepted_main_consent_permits_isolated_overlap_without_granting_integration(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_repo(root)
+            with self.other_worktree(root) as other:
+                (other / "contexts/electronics/state.txt").write_text("foreign WIP\n", encoding="utf-8")
+                relative = self.approve_isolated_peer(root, other)
+                foreign_index = Path(git(other, "rev-parse", "--absolute-git-dir")) / "index"
+                before = (git(root, "rev-parse", "HEAD"), git(other, "rev-parse", "HEAD"),
+                          (other / relative).read_bytes(), foreign_index.read_bytes())
+                result = self.build(root, planned_paths=[relative])
+                verification = self.build(root, planned_paths=[relative], verify_plan=True, diff_base="HEAD")
+                after = (git(root, "rev-parse", "HEAD"), git(other, "rev-parse", "HEAD"),
+                         (other / relative).read_bytes(), foreign_index.read_bytes())
+        self.assertEqual(result["mode"], "SAFE_TO_START")
+        self.assertEqual(verification["mode"], "PLAN_VALID")
+        self.assertEqual(result["worktree_overlaps"][0]["status"], "coordinated_isolated")
+        self.assertFalse(result["integration_ready"])
+        self.assertFalse(result["release_ready"])
+        self.assertEqual(before, after)
+
+    def test_git_inspection_disables_optional_index_writes(self):
+        completed = subprocess.CompletedProcess(["git"], 0, stdout=b"known\n", stderr=b"")
+        with patch.object(MODULE.subprocess, "run", return_value=completed) as run:
+            self.assertEqual(MODULE._git_bytes(Path("."), ["status", "--porcelain=v1"]), b"known\n")
+        self.assertEqual(run.call_args.kwargs["env"]["GIT_OPTIONAL_LOCKS"], "0")
+
+    def test_inherited_effective_index_override_blocks_isolated_approval(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_repo(root)
+            with self.other_worktree(root) as other:
+                (other / "contexts/electronics/state.txt").write_text("foreign WIP\n", encoding="utf-8")
+                relative = self.approve_isolated_peer(root, other)
+                own_index = Path(git(root, "rev-parse", "--path-format=absolute", "--git-path", "index"))
+                foreign_index = Path(git(other, "rev-parse", "--path-format=absolute", "--git-path", "index"))
+                self.assertFalse(os.path.samefile(own_index, foreign_index))
+                before = (own_index.read_bytes(), foreign_index.read_bytes(), (other / relative).read_bytes())
+                with patch.dict(os.environ, {"GIT_INDEX_FILE": str(own_index)}):
+                    os.environ.pop("GIT_OPTIONAL_LOCKS", None)
+                    effective = [Path(git(checkout, "rev-parse", "--path-format=absolute", "--git-path", "index"))
+                                 for checkout in (root, other)]
+                    self.assertTrue(os.path.samefile(*effective))
+                    with patch.object(MODULE, "_resolve_context") as context, \
+                         patch.object(MODULE.agent_recover, "build_snapshot") as recovery, \
+                         patch.object(MODULE, "_run") as run, \
+                         patch.object(MODULE.subprocess, "run") as subprocess_run:
+                        for options in ({}, {"planned_paths": [relative]},
+                                        {"planned_paths": [relative], "verify_plan": True, "diff_base": "HEAD"}):
+                            with self.assertRaisesRegex(ValueError, "GIT_INDEX_FILE is set; unset it"):
+                                self.build(root, **options)
+                        with self.assertRaisesRegex(ValueError, "GIT_INDEX_FILE is set; unset it"):
+                            MODULE._git_bytes(root, ["status", "--porcelain=v1"])
+                        context.assert_not_called()
+                        recovery.assert_not_called()
+                        run.assert_not_called()
+                        subprocess_run.assert_not_called()
+                after = (own_index.read_bytes(), foreign_index.read_bytes(), (other / relative).read_bytes())
+                self.assertEqual(before, after)
+
+    def test_feature_branch_cannot_approve_itself(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_repo(root)
+            with self.other_worktree(root) as other:
+                (other / "contexts/electronics/state.txt").write_text("foreign WIP\n", encoding="utf-8")
+                relative = self.approve_isolated_peer(root, other, canonical=False)
+                result = self.build(root, planned_paths=[relative])
+        self.assertEqual(result["mode"], "WAITING_HANDOFF")
+
+    def test_canonical_consent_rejects_changed_peer_identity_or_content(self):
+        for changed in ("branch", "head", "worktree", "content", "origin", "task"):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                build_repo(root)
+                with self.other_worktree(root) as other:
+                    relative = self.approve_isolated_peer(root, other)
+                    (other / relative).write_text("foreign WIP\n", encoding="utf-8")
+                    # Pin the current dirty bytes, then substitute exactly one identity field.
+                    git(root, "checkout", "-q", "main")
+                    path = root / "docs/execution/current.yaml"
+                    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+                    record = document["task"]["shared_path_coordination"]
+                    record["peer"]["path_sha256"][relative] = hashlib.sha256((other / relative).read_bytes()).hexdigest()
+                    if changed in {"branch", "head", "worktree"}:
+                        record["peer"][changed] = "wrong"
+                    elif changed == "origin":
+                        record["repository_origin"] = "wrong"
+                    elif changed == "task":
+                        document["task"]["id"] = "OTHER-TASK"
+                    path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+                    git(root, "add", "docs/execution/current.yaml")
+                    git(root, "commit", "-qm", "changed canonical identity")
+                    git(root, "checkout", "-q", "worker")
+                    if changed == "content":
+                        (other / relative).write_text("substituted WIP\n", encoding="utf-8")
+                    result = self.build(root, planned_paths=[relative])
+                self.assertEqual(result["mode"], "WAITING_HANDOFF")
+
+    def test_approved_overlap_does_not_clear_unknown_status_or_other_gates(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_repo(root)
+            with self.other_worktree(root) as other:
+                (other / "contexts/electronics/state.txt").write_text("foreign WIP\n", encoding="utf-8")
+                relative = self.approve_isolated_peer(root, other)
+                original = MODULE._worktree_status
+                def status(path):
+                    if path == other:
+                        raise ValueError("unknown peer status")
+                    return original(path)
+                with patch.object(MODULE, "_worktree_status", side_effect=status):
+                    self.assertEqual(self.build(root, planned_paths=[relative])["mode"], "WAITING_HANDOFF")
+                with patch.object(MODULE, "_control_plane", return_value={"status": "FAIL"}):
+                    self.assertEqual(self.build(root, planned_paths=[relative])["mode"], "BLOCKED_CONTROL_PLANE")
+                with patch.object(MODULE, "_refresh_origin_main", return_value={"status": "FAIL"}):
+                    self.assertEqual(self.build(root, planned_paths=[relative])["mode"], "BLOCKED_GIT_FRESHNESS")
+                with patch.object(MODULE, "_execution_blockers", return_value=[{"kind": "execution_blocker"}]):
+                    self.assertEqual(self.build(root, planned_paths=[relative])["mode"], "BLOCKED_EXECUTION")
+                (root / relative).write_text("own interrupted edit\n", encoding="utf-8")
+                self.assertEqual(self.build(root, planned_paths=[relative])["mode"], "RECOVERY_REQUIRED")
+
+    def test_root_alias_and_reparse_substitution_block_before_resolution(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_repo(root)
+            original = Path.is_symlink
+            with patch.object(Path, "is_symlink", lambda path: path == root or original(path)):
+                with self.assertRaisesRegex(ValueError, "filesystem alias"):
+                    self.build(root, planned_paths=["AGENTS.md"])
+            original_stat = Path.lstat
+            def reparse(path, *args, **kwargs):
+                if path == root:
+                    from types import SimpleNamespace
+                    return SimpleNamespace(st_mode=original_stat(path).st_mode, st_file_attributes=0x400)
+                return original_stat(path, *args, **kwargs)
+            with patch.object(Path, "lstat", reparse):
+                with self.assertRaisesRegex(ValueError, "reparse"):
+                    self.build(root, planned_paths=["AGENTS.md"])
+
+    def test_foreign_root_alias_or_junction_remains_unknown_despite_consent(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_repo(root)
+            with self.other_worktree(root) as other:
+                (other / "contexts/electronics/state.txt").write_text("foreign WIP\n", encoding="utf-8")
+                relative = self.approve_isolated_peer(root, other)
+                original = Path.is_symlink
+                with patch.object(Path, "is_symlink", lambda path: path == other or original(path)):
+                    result = self.build(root, planned_paths=[relative])
+                    self.assertEqual(result["mode"], "WAITING_HANDOFF")
+                    self.assertEqual(result["worktree_overlaps"][0]["status"], "unknown")
+                with patch.object(Path, "is_junction", lambda path: path == other, create=True):
+                    result = self.build(root, planned_paths=[relative])
+                    self.assertEqual(result["mode"], "WAITING_HANDOFF")
+                    self.assertEqual(result["worktree_overlaps"][0]["status"], "unknown")
+
+    def test_foreign_physical_file_cannot_be_approved_even_with_matching_hash(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_repo(root)
+            with self.other_worktree(root) as other:
+                relative = self.approve_isolated_peer(root, other)
+                own_file, foreign_file = root / relative, other / relative
+                own_file.unlink()
+                os.link(foreign_file, own_file)
+                with self.assertRaisesRegex(ValueError, "shared physical file"):
+                    self.build(root, planned_paths=[relative])
+
+    def test_conflicting_commits_remain_unresolved_and_unplanned_changes_block(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_repo(root)
+            with self.other_worktree(root) as other:
+                (other / "contexts/electronics/state.txt").write_text("peer conflict\n", encoding="utf-8")
+                relative = self.approve_isolated_peer(root, other)
+                base = git(root, "rev-parse", "HEAD")
+                (root / relative).write_text("author conflict\n", encoding="utf-8")
+                git(root, "add", relative)
+                git(root, "commit", "-qm", "author change")
+                head = git(root, "rev-parse", "HEAD")
+                git(root, "checkout", "-q", "main")
+                (root / relative).write_text("main conflict\n", encoding="utf-8")
+                git(root, "add", relative)
+                git(root, "commit", "-qm", "conflicting main change")
+                main_head = git(root, "rev-parse", "HEAD")
+                git(root, "checkout", "-q", "worker")
+                before = ((root / relative).read_bytes(), (other / relative).read_bytes())
+                result = self.build(root, planned_paths=[relative], verify_plan=True, diff_base=base)
+                self.assertEqual(result["mode"], "PLAN_VALID")
+                self.assertFalse(result["integration_ready"])
+                self.assertFalse(result["release_ready"])
+                self.assertEqual(git(root, "rev-parse", "HEAD"), head)
+                self.assertEqual(git(root, "rev-parse", "main"), main_head)
+                self.assertEqual(before, ((root / relative).read_bytes(), (other / relative).read_bytes()))
+                (root / "AGENTS.md").write_text("scope expansion\n", encoding="utf-8")
+                result = self.build(root, planned_paths=[relative], verify_plan=True, diff_base=base)
+                self.assertEqual(result["mode"], "BLOCKED_PLAN")
 
     def test_planned_file_allows_independent_dirty_workflow_but_default_remains_conservative(self):
         with tempfile.TemporaryDirectory() as raw:

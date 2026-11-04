@@ -431,8 +431,18 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
       returnTo: threeDReturnView(query),
     };
   }
+  const independentCheckersPage =
+    /^\/checkers\/([^/]+)(?:\/(?:home|play|network|bots|bot-campaign|local|learning|review|class|teacher))?$/.exec(
+      path ?? '',
+    );
+  if (independentCheckersPage) {
+    const projectId = decodeRouteParameter(independentCheckersPage[1] as string);
+    return projectId
+      ? { kind: 'editor', projectId, moduleKey: 'checkers', returnTo: { kind: 'games' } }
+      : { kind: 'games' };
+  }
   const independentChessPage =
-    /^\/chess\/([^/]+)(?:\/(?:home|play(?:\/(?:game|analysis|versions))?|online|network|puzzles|learning|bots|review))?$/.exec(
+    /^\/chess\/([^/]+)(?:\/(?:home|play(?:\/(?:game|analysis|versions))?|online|network|puzzles|learning|local|bots|review))?$/.exec(
       path ?? '',
     );
   if (independentChessPage) {
