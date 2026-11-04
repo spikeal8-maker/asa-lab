@@ -12,6 +12,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -147,6 +148,29 @@ class PublicCLIProcessTests(unittest.TestCase):
         self.assertEqual(value["exitCode"], process.returncode)
         return value
 
+    @unittest.skipUnless(os.name == "posix", "POSIX isolated executable fixture")
+    def test_bare_update_public_process_returns_read_plan_and_preserves_check_alias(self):
+        before = self.tree()
+        cases = ((["update"], "update"),
+                 (["update", "--deployment-digest", SELECTION["deploymentDigest"]], "update"),
+                 (["check"], "update check"))
+        for arguments, command in cases:
+            with self.subTest(arguments=arguments):
+                process = self.invoke(*arguments, "--root", str(self.root), "--registry", str(self.registry),
+                                      "--json", "--no-color", observation=True)
+                value = self.assert_cli_envelope(process, command)
+                self.assertIn(value.get("status"), ("PLANNED", "BLOCKED"))
+                self.assertEqual(value.get("target", {}).get("deploymentDigest"), SELECTION["deploymentDigest"])
+                self.assertEqual(value.get("target", {}).get("ci"), "VERIFIED")
+                self.assertIs(value.get("applyRechecksUnderLock"), True)
+                self.assertEqual(value.get("apply"), "sudo asa update apply --root " + shlex.quote(str(self.root))
+                                 + " --deployment-digest " + SELECTION["deploymentDigest"])
+                self.assertEqual(process.returncode, 0 if value["status"] == "PLANNED" else 2)
+                self.assertTrue({"managerExitCode", "operation", "logPath", "automaticRetry"}.isdisjoint(value))
+                self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+                self.assertEqual(process.stderr, "")
+        self.assertEqual(self.tree(), before)
+
     def test_all_required_offline_help_forms_in_real_public_process(self):
         for arguments in (("help",), ("--help",), ("help", "update"), ("update", "--help"), ("backup", "--help")):
             with self.subTest(arguments=arguments):
@@ -211,7 +235,7 @@ class PublicCLIProcessTests(unittest.TestCase):
     def test_every_required_read_command_uses_public_entry_and_no_files_change(self):
         commands = [
             ("version",), ("status",), ("doctor",), ("disk",), ("disk", "usage"), ("disk", "health"),
-            ("services",), ("services", "status"), ("update", "check"), ("update", "plan"),
+            ("services",), ("services", "status"), ("update",), ("update", "check"), ("update", "plan"),
             ("backup", "status"), ("backup", "list"), ("backup", "verify"), ("backup", "schedule"),
             ("cloud", "status"), ("restore", "plan"), ("history",), ("update", "history"),
             ("logs",), ("logs", "update"), ("logs", "backup"), ("config", "show"), (),
@@ -334,7 +358,7 @@ class PublicCLIProcessTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix", "POSIX privileged entry")
     def test_custom_registry_cannot_dispatch_root_mutation(self):
-        for arguments in (("update",), ("update", "apply"), ("install",), ("backup", "create"),
+        for arguments in (("update", "apply"), ("install",), ("backup", "create"),
                           ("backup", "schedule", "enable"), ("cloud", "sync")):
             process = self.invoke(*arguments, "--registry", str(self.registry), "--json")
             self.assertEqual(process.returncode, 2)
@@ -371,7 +395,7 @@ class OutputEnvelopeTests(unittest.TestCase):
                  "target": {"revision": "b" * 40, "schema": 304},
                  "available": True, "blockers": []}
         for action, report, required in (("status", status, "PostgreSQL сейчас"),
-                                         ("update check", check, "Для установки: asa update")):
+                                         ("update check", check, "Для установки: asa update apply (в 1Panel) или sudo asa update apply")):
             with self.subTest(action=action), contextlib.redirect_stdout(io.StringIO()) as output:
                 self.assertEqual(asa_cli.emit(action, report, code=0), 0)
                 human = output.getvalue()
@@ -401,15 +425,74 @@ class DelegationContracts(unittest.TestCase):
         self.options = asa_cli.command_parser().parse_args([])
         self.record = {"root": str(self.root), "project": "asa-fixture", "profile": "production", "bundle": "/opt/asa-setup/" + "a" * 40}
 
-    def test_update_performs_controlled_write_and_check_stays_read_only(self):
-        self.assertTrue(asa_cli.SPECS["update"][1])
-        self.assertIn("update", asa_cli.WRITE_ACTIONS)
-        self.assertFalse(asa_cli.SPECS["update check"][1])
-        self.assertNotIn("update check", asa_cli.WRITE_ACTIONS)
+    def test_update_read_dispatch_uses_resolver_even_as_root_and_never_calls_write_adapters(self):
+        from deployment import cli_observe, release_readonly
+        document = {"format": asa_cli.FORMAT, "installations": [self.record]}
+        plan = {"status": "PLANNED", "target": {"deploymentDigest": SELECTION["deploymentDigest"]}}
+        cases = ((["update"], "update"), (["update", "check"], "update check"),
+                 (["update", "plan"], "update plan"), (["check"], "update check"))
+        for words, command in cases:
+            with self.subTest(command=words), patch.object(asa_cli.os, "geteuid", return_value=0, create=True), \
+                    patch.object(asa_cli, "read_registry", return_value=document), patch.object(asa_cli, "own_modules"), \
+                    patch.object(release_readonly, "resolve_release", return_value=SELECTION) as resolver, \
+                    patch.object(cli_observe.Observer, "update_plan", return_value=plan) as observe_plan, \
+                    patch.object(asa_cli, "run_linux", return_value=71) as linux_write, \
+                    patch.object(asa_cli, "run_windows", return_value=72) as windows_write, \
+                    contextlib.redirect_stdout(io.StringIO()) as output:
+                code = asa_cli.main([*words, "--json", "--deployment-digest", SELECTION["deploymentDigest"]])
+                self.assertEqual(code, 0)
+                value = json.loads(output.getvalue())
+                self.assertEqual((value["format"], value["command"], value["status"]),
+                                 ("asa-cli-result-v1", command, "PLANNED"))
+                resolver.assert_called_once_with(SELECTION["deploymentDigest"])
+                observe_plan.assert_called_once_with(SELECTION)
+                linux_write.assert_not_called()
+                windows_write.assert_not_called()
+        self.assertEqual(list(self.root.iterdir()), [])
+
+    @unittest.skipUnless(os.name == "posix", "Linux explicit apply dispatch")
+    def test_explicit_apply_dispatch_keeps_new_pin_and_existing_operation_resume(self):
+        from deployment import cli_observe, release_readonly
+        document = {"format": asa_cli.FORMAT, "installations": [self.record]}
+        plan = {"status": "PLANNED", "target": {"deploymentDigest": SELECTION["deploymentDigest"]}}
+        for operation_id in (None, "c" * 32):
+            arguments = ["update", "apply", "--root", str(self.root), "--json"]
+            if operation_id:
+                arguments += ["--operation-id", operation_id]
+            with self.subTest(operation_id=operation_id), patch.object(asa_cli.os, "geteuid", return_value=0), \
+                    patch.object(asa_cli, "read_registry", return_value=document), patch.object(asa_cli, "own_modules"), \
+                    patch.object(release_readonly, "resolve_release", return_value=SELECTION) as resolver, \
+                    patch.object(cli_observe.Observer, "update_plan", return_value=plan) as observe_plan, \
+                    patch.object(asa_cli, "run_linux", return_value=0) as linux_write, \
+                    patch.object(asa_cli, "run_windows") as windows_write:
+                self.assertEqual(asa_cli.main(arguments), 0)
+                linux_write.assert_called_once()
+                self.assertEqual(linux_write.call_args.args[:2], ("update apply", self.record))
+                options = linux_write.call_args.args[2]
+                self.assertEqual(options.operation_id, operation_id)
+                self.assertEqual(options.deployment_digest, None if operation_id else SELECTION["deploymentDigest"])
+                if operation_id:
+                    resolver.assert_not_called()
+                    observe_plan.assert_not_called()
+                else:
+                    resolver.assert_called_once_with(None)
+                    observe_plan.assert_called_once_with(SELECTION)
+                windows_write.assert_not_called()
+        self.assertEqual(list(self.root.iterdir()), [])
+
+    @unittest.skipUnless(os.name == "posix", "Linux explicit write adapter")
+    def test_bare_update_is_rejected_by_write_adapter_before_any_manager_process(self):
+        with patch.object(asa_cli.os, "geteuid", return_value=0), \
+                patch.object(asa_cli, "verified_bundle", return_value={}), \
+                patch.object(asa_cli, "installation_record", return_value=self.record), \
+                patch.object(asa_cli, "run_reduced", return_value=0) as run:
+            with self.assertRaises(asa_cli.CLIError):
+                asa_cli.run_linux("update", self.record, self.options)
+            run.assert_not_called()
 
     @unittest.skipUnless(os.name == "posix", "Linux setup adapter")
     def test_explicit_writes_delegate_exact_intent_digest_and_existing_operations(self):
-        cases = {"install": ("auto", "install"), "update": ("auto", "update"), "update apply": ("auto", "update"),
+        cases = {"install": ("auto", "install"), "update apply": ("auto", "update"),
                  "backup create": ("backup", None), "cloud sync": ("retry-cloud", None),
                  "backup schedule enable": ("schedule", None), "backup schedule disable": ("schedule", None)}
         self.options.deployment_digest = "sha256:" + "b" * 64

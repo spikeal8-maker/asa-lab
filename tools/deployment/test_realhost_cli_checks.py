@@ -191,7 +191,7 @@ def help_document(topic="update"):
         "history", "logs", "logs update", "logs backup", "config show",
     )
     names = [name for name in all_names if not topic or name == topic or name.startswith(topic + " ")]
-    write_names = {"update", "update apply", "install", "backup create", "backup schedule enable", "backup schedule disable", "cloud sync"}
+    write_names = {"update apply", "install", "backup create", "backup schedule enable", "backup schedule disable", "cloud sync"}
     return {"status": "OK", "help": {
         "title": "Справка ASA", "syntax": "asa " + (topic + " " if topic else "[КОМАНДА] ") + "[ПАРАМЕТРЫ]",
         "commands": [{"command": "asa " + name, "purpose": "Описание команды",
@@ -201,7 +201,7 @@ def help_document(topic="update"):
         "parameters": {key: "Описание параметра" for key in (
             "--help", "--json", "--no-color", "--root ПУТЬ", "--snapshot-id ID", "--operation-id ID",
             "--deployment-digest sha256:HEX", "--config-file ПУТЬ", "--non-interactive")},
-        "examples": ["asa help update", "asa status --json", "asa disk health", "asa update plan", "sudo asa update", "sudo asa install --root /srv/asa-lab"],
+        "examples": ["asa help update", "asa status --json", "asa disk health", "asa update plan", "sudo asa update apply", "sudo asa install --root /srv/asa-lab"],
         "exitCodes": {"0": "Успешно", "1": "Недоступно", "2": "Заблокировано", "130": "Прервано"},
         "notes": ["Без сети", "Оценки неизвестны", "Без TTY", "Windows"],
     }}
@@ -224,7 +224,7 @@ def examples(context):
                           "snapshotId": context.restore_snapshot_id, "backup": backups(context),
                           "restore": missing("NOT_RESTORED"), "nextAction": "Требуется отдельное разрешение."}, 2),
     }
-    for command in ("update check", "update plan"):
+    for command in ("update", "update check", "update plan"):
         values[command] = (update(context), 0)
     return {command: (envelope(command, document, code), code) for command, (document, code) in values.items()}
 
@@ -407,7 +407,7 @@ class ReadEvidenceTests(unittest.TestCase):
         self.assertEqual(self.check("restore plan", document, context=context)["snapshotId"], SNAPSHOT)
 
     def test_release_schema_images_and_both_target_digests_are_bound(self):
-        for command in ("update check", "update plan"):
+        for command in ("update", "update check", "update plan"):
             for path, value, code in (
                 (("target", "revision"), "f" * 40, "RELEASE_PIN_MISMATCH"),
                 (("target", "schema"), 305, "SCHEMA_MISMATCH"),
@@ -428,11 +428,11 @@ class ReadEvidenceTests(unittest.TestCase):
     def test_drift_needs_an_explicit_new_approved_context(self):
         changed = replace(self.context, target=pin("f", "9"), deployment_digest="sha256:" + "8" * 64,
                           manifest_digest="sha256:" + "7" * 64)
-        document = envelope("update check", update(changed))
+        document = envelope("update", update(changed))
         with self.assertRaises(CLIReadCheckError) as raised:
-            self.check("update check", document)
+            self.check("update", document)
         self.assertEqual(raised.exception.code, "RELEASE_PIN_MISMATCH")
-        self.assertEqual(self.check("update check", document, context=changed)["target"]["revision"], "f" * 40)
+        self.assertEqual(self.check("update", document, context=changed)["target"]["revision"], "f" * 40)
         unchanged = replace(self.context, target=self.context.installed)
         document = envelope("update check", update(unchanged))
         self.assertFalse(self.check("update check", document, context=unchanged)["available"])
@@ -626,8 +626,17 @@ class ReadEvidenceTests(unittest.TestCase):
         self.rejected("services", ("containers",), [services()["containers"][0]] * 65)
         self.rejected("disk health", ("devices",), [{"device": "/dev/vda", "status": "UNAVAILABLE"}] * 33)
 
+    def test_update_read_forms_reject_successful_manager_operation_envelopes(self):
+        for command in ("update", "update check", "update plan"):
+            document = envelope(command, {"status": "OK", "managerExitCode": 0,
+                "reasonCodes": [], "reasonCode": None, "operation": {},
+                "logPath": "/var/lib/asa-lab-operator/synthetic.log", "automaticRetry": False})
+            with self.subTest(command=command), self.assertRaises(CLIReadCheckError) as raised:
+                self.check(command, document)
+            self.assertEqual(raised.exception.code, "FIELD_SET")
+
     def test_writes_unknown_commands_and_error_messages_are_closed(self):
-        for command in ("install", "update", "update apply", "cloud sync", "restore apply", SECRET, None):
+        for command in ("install", "update apply", "cloud sync", "restore apply", SECRET, None):
             with self.assertRaises(CLIReadCheckError) as raised:
                 check_read_result(command, {}, returncode=0, expected=self.context)
             self.assertEqual(raised.exception.code, "UNSUPPORTED_COMMAND")
@@ -648,17 +657,20 @@ class HelpEvidenceTests(unittest.TestCase):
                 self.assertEqual(result["topic"], topic)
                 self.assertNotIn("purpose", result["commands"][0])
         update_help = self.check(help_document())
-        self.assertEqual([item["command"] for item in update_help["commands"] if item["changesData"]], ["asa update", "asa update apply"])
+        self.assertEqual([item["command"] for item in update_help["commands"] if item["changesData"]], ["asa update apply"])
 
     def test_missing_update_command_or_false_mutation_metadata_fails(self):
-        for mutation in ("missing", "duplicate", "false_write", "unknown", "missing_parameter", "wrong_exit"):
+        for mutation in ("missing", "duplicate", "false_write", "false_read", "unknown", "missing_parameter", "wrong_exit"):
             document = help_document()
             if mutation == "missing":
                 document["help"]["commands"].pop(1)
             elif mutation == "duplicate":
                 document["help"]["commands"][1] = document["help"]["commands"][0]
             elif mutation == "false_write":
-                document["help"]["commands"][0]["changesData"] = False
+                document["help"]["commands"][0]["changesData"] = True
+            elif mutation == "false_read":
+                row = next(item for item in document["help"]["commands"] if item["command"] == "asa update apply")
+                row["changesData"] = False
             elif mutation == "unknown":
                 document["help"]["commands"][0]["command"] = "asa " + SECRET
             elif mutation == "missing_parameter":

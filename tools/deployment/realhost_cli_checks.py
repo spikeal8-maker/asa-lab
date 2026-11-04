@@ -52,7 +52,7 @@ EVENT_STAGES = frozenset({
 COMMANDS = {
     "version": False, "status": False, "doctor": False, "disk": False,
     "disk usage": False, "disk health": False, "services": False,
-    "services status": False, "update": True, "update check": False,
+    "services status": False, "update": False, "update check": False,
     "update plan": False, "update apply": True, "update history": False,
     "install": True, "backup status": False, "backup list": False,
     "backup create": True, "backup verify": False, "backup schedule": False,
@@ -699,7 +699,7 @@ def _help(value, topic):
     for code in ("0", "1", "2", "130"):
         _text(help_value["exitCodes"][code], 256)
     examples = _array(help_value["examples"], 6, 6)
-    _equal(examples, ["asa help update", "asa status --json", "asa disk health", "asa update plan", "sudo asa update", "sudo asa install --root /srv/asa-lab"], "HELP_CONTRACT")
+    _equal(examples, ["asa help update", "asa status --json", "asa disk health", "asa update plan", "sudo asa update apply", "sudo asa install --root /srv/asa-lab"], "HELP_CONTRACT")
     for note in _array(help_value["notes"], 4, 4):
         _text(note, 1024)
     return {"status": "OK", "topic": topic, "commands": commands,
@@ -731,7 +731,7 @@ def check_read_result(command, document, *, returncode, expected=None, help_topi
             result = _disk_health(document, envelope=True)
         elif command in ("services", "services status"):
             result = _services(document, envelope=True)
-        elif command in ("update check", "update plan"):
+        elif command in ("update", "update check", "update plan"):
             result = _update(document, expected)
         elif command in ("backup status", "backup list"):
             result = _backups(document, expected, listing=command == "backup list", envelope=True)

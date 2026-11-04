@@ -313,13 +313,13 @@ def run_linux(action: str, record: dict, options) -> int:
         current = installation_record(root)
         require(current["project"] == record["project"] and current["profile"] == record["profile"],
                 "Идентификатор установки изменился; запуск остановлен.")
-    commands = {"install": "auto", "update": "auto", "update apply": "auto", "backup create": "backup", "cloud sync": "retry-cloud",
+    commands = {"install": "auto", "update apply": "auto", "backup create": "backup", "cloud sync": "retry-cloud",
                 "backup schedule enable": "schedule", "backup schedule disable": "schedule"}
     require(action in commands, "Изменяющая команда не поддерживается.")
     cmd = ["/usr/bin/python3", "-I", "-B", str(bundle / "tools/asa_setup_launcher.py"), commands[action]]
     if record.get("root"):
         cmd += ["--root", record["root"]]
-    if action in ("install", "update", "update apply"):
+    if action in ("install", "update apply"):
         cmd += ["--intent", "install" if action == "install" else "update"]
         if options.deployment_digest:
             cmd += ["--deployment-digest", options.deployment_digest]
@@ -340,7 +340,7 @@ def run_windows(action: str, record: dict, options) -> int:
     current = installation_record(root)
     require(current["project"] == record["project"] and current["profile"] == record["profile"],
             "Идентификатор установки изменился; запуск остановлен.")
-    require(action in ("update", "update apply"), "Изменение на Windows допускается только для обновления.",)
+    require(action == "update apply", "Эта изменяющая команда пока поддерживается только в Ubuntu setup.",)
     require(not options.deployment_digest, "Передача deployment digest в Windows Apply пока не поддерживается.")
     script = check_ordinary_path(root / "tools/asa-setup.ps1", need_file=True)
     powershell = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
@@ -481,7 +481,7 @@ SPECS = {
     "disk health": ("Чтение SMART/NVMe; недоступные датчики дают UNAVAILABLE", False),
     "services": ("Docker, Compose и текущие health контейнеров установки", False),
     "services status": ("Docker, Compose и текущие health контейнеров установки", False),
-    "update": ("Обновление ASA Lab с проверкой опубликованного выпуска, резервной копией и сохранением данных", True),
+    "update": ("Безопасная проверка выпуска: эквивалент update check", False),
     "update check": ("Текущий и опубликованный проверенный выпуск без Docker pull", False),
     "update plan": ("SHA, immutable digest, диапазон схем, оценки и блокеры", False),
     "update apply": ("Обновление существующей установки через общий lock и backup", True),
@@ -546,9 +546,9 @@ def help_document(topic=""):
                 "--deployment-digest sha256:HEX": "update check/plan/apply или install: точный OCI deployment manifest",
                 "--config-file ПУТЬ": "install: приватная конфигурация; секреты не передаются в аргументах",
                 "--non-interactive": "Изменяющая операция без вопросов; обязательная конфигурация должна быть сохранена"},
-            "examples": ["asa help update", "asa status --json", "asa disk health", "asa update plan", "sudo asa update", "sudo asa install --root /srv/asa-lab"],
+            "examples": ["asa help update", "asa status --json", "asa disk health", "asa update plan", "sudo asa update apply", "sudo asa install --root /srv/asa-lab"],
             "exitCodes": EXIT_CODES,
-            "notes": ["asa update выполняет штатное обновление; asa check и asa update check только читают состояние.",
+            "notes": ["asa update без apply только читает. Чтения не создают файлы, lock, backup или контейнеры.",
                       "Оценки миграций, места и downtime остаются неизвестными до фактического preflight.",
                       "Справка работает offline. Без TTY asa выводит статус и не ждёт выбора.",
                       "Windows: прежний явный update apply сохранён; системные операции Ubuntu помечаются как неподдерживаемые."]}
@@ -586,7 +586,7 @@ def emit(action, value, *, as_json=False, code=0):
         if blockers:
             print("Блокировки: " + ", ".join(str(x) for x in blockers[:6]))
         elif document.get("status") == "PLANNED":
-            print("Для установки: asa update (в 1Panel) или sudo asa update")
+            print("Для установки: asa update apply (в 1Panel) или sudo asa update apply")
     else:
         print("ASA Lab · " + action + " · " + document.get("status", "UNAVAILABLE"))
         # Advanced operator commands retain structured typed output. Use --json
@@ -625,7 +625,7 @@ def observe(action, record, options):
         return reader.disk(health=action == "disk health")
     if action in ("services", "services status"):
         return reader.services()
-    if action in ("update check", "update plan"):
+    if action in ("update", "update check", "update plan"):
         from deployment.release_readonly import resolve_release
         return reader.update_plan(resolve_release(options.deployment_digest))
     if action in ("history", "update history"):
@@ -709,7 +709,7 @@ def main(argv: list[str] | None = None) -> int:
                     own_modules()
                     from deployment.cli_observe import Observer
                     options.snapshot_id = Observer(record).delivery_snapshot()
-            if action in ("update", "update apply") and os.name != "nt" and not options.operation_id:
+            if action == "update apply" and os.name != "nt" and not options.operation_id:
                 plan = observe("update plan", record, options)
                 # The manager revalidates current state and policy under its
                 # existing lock. The public plan does not authorize a write.
@@ -760,7 +760,7 @@ def compact_status(value):
     healthy = sum(row.get("running") is True and row.get("health") == "healthy" for row in rows)
     print("Сервисы: " + services.get("status", "UNAVAILABLE") + " · healthy " + str(healthy) + "/" + str(len(rows)))
     print("Последняя локальная копия: " + (local.get("snapshotAt") or "UNAVAILABLE") + " · " + local.get("status", "UNAVAILABLE"))
-    print("Справка: asa help · подробности: asa status · безопасная проверка: asa check")
+    print("Справка: asa help · подробности: asa status · безопасная проверка: asa update")
 
 
 if __name__ == "__main__":
