@@ -73,21 +73,29 @@ AGE. Авторизация Yandex в VM не передаётся, поэтом
    Повтор той же операции и следующий `NO_CHANGE` не должны создавать backup.
    Пара pinned runtime имеет одинаковую схему 304: миграция между различными
    версиями схемы этим результатом не доказывается.
-10. Через `asa backup create` создать полный synthetic backup, проверить его
+10. В собственной одноразовой VM подготовить отдельный pinned rclone transport
+    с пустой конфигурацией, отсоединить только его сеть и доказать отсутствие
+    внешнего маршрута. Только затем импортировать явно фиктивный OAuth config.
+    Проверить реальный `asa cloud sync` существующего ciphertext при best-effort
+    и один новый `asa backup create` при required. Требуются завершившийся
+    rclone network attempt, исходные данные и точная матрица исходов ниже.
+    После проверки удалить только принадлежащие fixture container/network и
+    dummy config, восстановить исходные private setup bytes/owner/mode.
+11. Через `asa backup create` создать полный synthetic backup, проверить его
    `asa backup verify`, повторить тот же operation ID и выполнить `asa cloud
    sync` существующего snapshot. SHA256 ciphertext и число снимков сохраняются;
    отсутствие облачной конфигурации не превращается в подтверждённую доставку.
-11. В отдельном дочернем network namespace выполнить публичный `asa update check`.
+12. В отдельном дочернем network namespace выполнить публичный `asa update check`.
     Зафиксировать разные inode namespace, отсутствие внешнего интерфейса,
     exit 2 / `RELEASE_UNAVAILABLE`, неизменность namespace родителя и данных.
     Это реальный отказ сети для release lookup; доступность Yandex этим не проверяется.
-12. Создать отдельный synthetic S3 object через authenticated API, прочитать его
+13. Создать отдельный synthetic S3 object через authenticated API, прочитать его
     обратно и сверить SHA256. Перед file-limit fault доказать, что сохранённые
     `database.dump` и `globals.sql` меньше 8 МиБ, а фактический MinIO `part.N`
     именно этого объекта больше 8 МиБ. Запустить публичный `asa backup create`
     с per-child `RLIMIT_FSIZE=8 MiB` и `RLIMIT_CORE=0`. Только реальные неполные
     bytes нужного part, достигшие лимита, считаются выполненной инъекцией.
-13. Другой публичный backup прервать SIGINT в наблюдаемом окне после dump/globals
+14. Другой публичный backup прервать SIGINT в наблюдаемом окне после dump/globals
     и создания `objects`, до manifest/final. Краткий SIGSTOP собственной группы
     фиксирует окно; затем SIGINT и обязательный SIGCONT. Дождаться всех своих
     потомков, освобождения lock и стабильных partial bytes. Для обоих fault
@@ -96,20 +104,20 @@ AGE. Авторизация Yandex в VM не передаётся, поэтом
     исходный partial и последний успешный backup. После этого отдельная новая
     операция должна создать и проверить полный AGE backup; success pointer
     должен перейти к нему. Оба incomplete snapshot сохраняются до уничтожения VM.
-14. Выполнить настоящий `systemctl reboot` гостя. Host runner и процесс QEMU
+15. Выполнить настоящий `systemctl reboot` гостя. Host runner и процесс QEMU
     продолжают работу; требуется новый `boot_id`, готовое приложение и прежние
     data/config/1Panel/Docker fingerprints. Перезапуск контейнера либо service
     не заменяет эту проверку.
-15. Выбрать ближайшее время только в тестовом private `setup.json` через штатные
+16. Выбрать ближайшее время только в тестовом private `setup.json` через штатные
     `validate_config`/`save_private`. Это подготовка fixture, а не заявление о
     публичной CLI-команде изменения произвольного времени. Затем исключительно
     через `asa backup schedule enable/disable` проверить enable → disable →
     enable, отсутствие дублирующих units и независимость от automatic update.
-16. До календарного времени проверить нулевое число попыток данного slot,
+17. До календарного времени проверить нулевое число попыток данного slot,
     выключить гостя, дождаться пропущенного времени на host и запустить **тот же
     qcow2**. Часы не переводятся, `Persistent=true` и штатные units не изменяются.
     После загрузки требуется успешный backup пропущенного slot.
-17. Проверить настоящий systemd retry после ошибки. Если первый missed запуск
+18. Проверить настоящий systemd retry после ошибки. Если первый missed запуск
     был успешен, краткий процесс проверенного оператора удерживает штатный
     общий lock; второй старт штатного service получает реальную ошибку. Lock
     освобождается, а неизменённый `RestartSec=300` выполняет третий старт
@@ -119,7 +127,7 @@ AGE. Авторизация Yandex в VM не передаётся, поэтом
     сверх лимита. Без наблюдения реальной ошибки PASS запрещён. Четвёртая
     попытка должна быть отклонена start limit либо `ExecCondition`; receipts и
     часы для этого не подменяются. В конце timer выключается публичным `asa`.
-18. Сверить контрольные данные после reboot/backup/timer и вновь выполнить
+19. Сверить контрольные данные после reboot/backup/timer и вновь выполнить
     штатные browser save/reopen journeys контрольной группы.
 
 ## Обязательная проверка команд чтения установленного CLI
@@ -237,6 +245,8 @@ messages, env, SQL rows, пароли, произвольные dict и log stri
 | Установленный CLI read suite | 900 секунд; внешний guest process 1200 секунд |
 | Каждый DB/S3 callback | Не более 60 секунд вместе с остаточными timeout и собственной очисткой |
 | Общий fault budget | Не более 75 минут внутри прежних 175 минут; общий deadline не продлевается |
+| Cloud connection/policies | 40 минут, включая резерв очистки 180 секунд; внешний guest process до 2430 секунд |
+| Public cloud sync / required backup | Не более 720 / 1200 секунд и не более остатка cloud phase |
 | Каждый backup fault | 1800 секунд, плюс до 30 секунд на host transport/cleanup |
 | Окно interruption / краткий SIGSTOP | До 180 секунд ожидания; остановленная группа не более 3 секунд |
 | Ожидание потомков / same-ID recovery | 600 / 650 секунд; штатные start 90 + readiness 300 + writers 90 не сокращены |
@@ -250,12 +260,111 @@ messages, env, SQL rows, пароли, произвольные dict и log stri
 
 ## Ошибки соединения и политика резервирования
 
+`public_cloud_connection_policies` выполняется после published runtime update,
+до положительного `public_backup_and_retry`. Фаза доступна только в fresh
+nonce-bound QEMU/KVM госте Ubuntu 24.04 с уже доказанными operator, candidate
+bundle, application identity и исходным Docker daemon. До подготовки должны
+отсутствовать `/srv/asa-cloud-storage`, project/container и одноимённая сеть.
+Существующие ресурсы не усыновляются. Публичные операции вызываются через
+настоящий `/usr/local/bin/asa`; Python manager boundary не подменяется.
+
+Используются неизменённый `cloud_storage.py` из Ops revision
+`80dafa3659e23806963da922c6ddd33ed14fa020`, SHA256
+`72e35bbb3043acefb423cfe706f82b089eaba974deb04f16df8f335093c59d0c`, и образ
+`rclone/rclone@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5`.
+Для Linux amd64 закреплён image ID
+`sha256:7ab08c1ee84502fb76ec95b3dc759aa46a9074cce2967d540e0ab50d8c844af4`
+и проверяется версия 1.75.2. Подготовка вызывает существующий trusted launcher
+сначала **без credentials**. Сохраняются полные container/network IDs,
+creation/start timestamps, image ref/ID, Compose project/root/config-file
+labels, ровно два bind mounts, user 1000:1000, read-only root, отсутствие
+public ports и дополнительные privilege ограничения. Перед каждым воздействием
+identity проверяется повторно; daemon и сети приложения не изменяются.
+
+Отсоединяется только новый transport от его собственной сети. Требуются пустой
+`NetworkSettings.Networks`, отдельный inode network namespace, только loopback
+interface и отсутствие внешних IPv4/IPv6 маршрутов. Credential import разрешён
+только после свежего root-private isolation receipt и повторной проверки
+PID/starttime/namespace. Transport продолжает работать. Штатная preparation
+повторно использует running container без pull, recreate или reconnect.
+
+Фиктивный single `[yandex]` config содержит явно synthetic access/refresh token,
+тип OAuth и будущий expiry. Они нужны для прохождения локального разбора pinned
+backend без token upgrade/refresh и не являются авторизацией провайдера.
+`rclone version` и `listremotes` читают конфигурацию локально после изоляции;
+её точные bytes и file identity контролируются до и после операций. Raw config,
+token, token hash, provider stderr, inspect JSON и command argv не публикуются.
+
+Меняется только fixture `backup.policy` и разрешённые cloud fields в private
+setup configuration, через штатные `validate_config` / `save_private` под общим
+operation lock от проверенного оператора. До каждого изменения нужны terminal
+journals, отсутствие maintenance hold, прежние writers и контрольные DB/S3
+fingerprints. Исходные config bytes/owner/mode сохраняются отдельно и затем
+восстанавливаются точно. Это fixture setter, а не публичная CLI-команда настройки.
+Installation ID, root, runtime, origins, recipient, browser, ports/data и
+`localKeep=null` / `remoteKeep=null` не меняются; retention не проверяется.
+
+| Публичная операция | Local / encryption / cloud | Backup receipt | Setup outcome | Public status / exit | Число новых snapshot |
+| --- | --- | --- | --- | --- | --- |
+| Best-effort `asa cloud sync --snapshot-id ... --operation-id ...` | OK / OK / FAILED | WARNING | WARNING | OK / 0 | 0 |
+| Required `asa backup create --operation-id ...` | OK / OK / FAILED | BLOCKED | ERROR | FAILED / 1 | 1 |
+
+В обоих случаях protection остаётся false и требуется именно
+`CLOUD_TRANSFER_FAILED`. Required не ожидает exit 2: сохранённый локально backup
+при обязательной недоставленной cloud-копии преобразуется штатным setup result
+в ERROR. Повтор доставки использует исходный complete ciphertext и сохраняет
+его source operation ID; новый retry journal имеет собственный operation ID.
+Manifest/ciphertext SHA256, размер и полный inventory подтверждают отсутствие
+повторного экспорта. Required создаёт ровно один новый synthetic snapshot,
+поскольку политика старой receipt неизменяема. Его локальный success pointer
+продвигается согласно producer, несмотря на общий ERROR; прежний ciphertext
+сохраняется. Пустой штатный `encrypted/.staging` допустим, незавершённое
+шифрование блокирует вход в сценарий.
+
+Доказательство transport failure включает полный daemon event lifecycle
+`exec_create` → `exec_start` → `exec_die` ровно одного pinned `rclone mkdir`
+в изолированном container, с естественным exit 1 или 5. Local spool и штатные
+healthcheck exec различаются по точным producer command forms; они должны
+завершиться с exit 0. Отсутствие части lifecycle, неизвестная команда, обрезанная
+история Docker (в ней не более 256 последних событий), timeout, duration limit
+exit 10, сигнал, configuration/auth/tool error, missing/stopped transport или
+`CLOUD_NOT_CONNECTED` не считаются connection-fault PASS. Каждая standalone
+transport call имеет product budget 600 секунд и rclone `--max-duration 595s`.
+
+Закрытая категория результата —
+`TRANSPORT_FAILURE_UNDER_PROVEN_NO_EGRESS`; точный errno/provider response
+остаётся `UNAVAILABLE`. `realProviderAuthentication=NOT_RUN` и
+`realYandexUploadReadback=NOT_RUN` обязательны: фиктивная авторизация не доказывает
+отказ или доступность настоящего Yandex. Первичный сетевой запрос pinned Yandex
+backend может выполняться при его инициализации внутри команды `mkdir`.
+
+Очистка учитывает, что Docker exec не принадлежит host CLI process group.
+После доказанного завершения принадлежащей тесту группы отдельно проверяются
+container exec IDs. Затем останавливается только exact bound transport;
+необходимы exited state, PID 0, пустые exec IDs и завершение исходного init
+процесса. Только после этого удаляется exact dummy config, восстанавливаются
+setup bytes/owner/mode и удаляются stopped container и пустая собственная сеть.
+Сеть не подключается обратно ни на одном этапе. Пустой private spool сохраняется
+до уничтожения VM. Identity loss или недоказанная очистка останавливают дальнейшую
+приёмку; исходный публичный отказ и cleanup failure записываются раздельно.
+
+После успешной очистки следующая положительная backup-фаза работает с исходной
+cloud-disabled best-effort конфигурацией. Она создаёт новый complete backup,
+восстанавливает ожидаемый truthful WARNING / NOT_CONFIGURED last attempt и
+проверяет retry до остальных partial/interruption/timer сценариев. Все cloud,
+последующая positive backup и остальные fault phases разделяют прежние 75 минут;
+их индивидуальные максимумы не суммируются поверх общего бюджета. Cloud-фаза
+не стартует без полного оставшегося 40-минутного admission budget. Истечение
+времени/места даёт BLOCKED, а не положительный исход политики. До exact-SHA VM
+evidence этот раздел описывает сценарий и source/test contracts, не runtime PASS.
+
 Тот же focused test entrypoint проверяет `required` и `best-effort` на изолированных
 synthetic manager fixtures. Bound socket на loopback без `listen` даёт настоящую
 ошибку TCP-соединения; тестовый transport boundary передаёт её менеджеру как
 `CLOUD_TRANSFER_FAILED`. `required` должен вернуть `BLOCKED` и возобновить старых
 писателей; `best-effort` — `WARNING` с сохранённой локальной копией. Обе ветки
-сохраняют truthful cloud/restore status. AGE в этом узком policy test подменён
+сохраняют truthful cloud/restore status. Это отдельная manager-level проверка,
+её BLOCKED не подменяет public exit 1 из таблицы выше. AGE в этом узком policy test подменён
 существующей тестовой fixture, поэтому это не evidence криптографии или реального
 провайдера. Ключи Yandex и сеть общего шлюза не затрагиваются.
 

@@ -2380,6 +2380,859 @@ class LinuxRuntimeFaultTests(unittest.TestCase):
                 watcher.close()
 
 
+class NativeCloudContractTests(unittest.TestCase):
+    def record(self):
+        return {"id": "a" * 64, "name": "/" + harness.CLOUD_CONTAINER,
+            "created": "2026-11-04T12:00:00.100000000Z", "started": "2026-11-04T12:00:00.200000000Z",
+            "image": harness.CLOUD_IMAGE, "imageId": harness.CLOUD_IMAGE_ID, "user": "1000:1000",
+            "labels": {"asa.owner": harness.CLOUD_PROJECT, "com.docker.compose.project": harness.CLOUD_PROJECT,
+                "com.docker.compose.service": "rclone", "com.docker.compose.oneoff": "False",
+                "com.docker.compose.project.working_dir": str(harness.CLOUD_ROOT),
+                "com.docker.compose.project.config_files": str(harness.CLOUD_ROOT / "compose.json")},
+            "mounts": [{"Type": "bind", "Source": str(harness.CLOUD_ROOT / name), "Destination": target, "RW": True}
+                       for name, target in (("config", "/config/rclone"), ("data", "/data"))],
+            "ports": {}, "readonly": True, "privileged": False, "capAdd": None, "capDrop": ["ALL"],
+            "paused": False, "restarting": False, "oomKilled": False, "restarts": 0, "running": True,
+            "state": "running", "pid": 101, "execIds": None, "networks": {}}
+
+    def bound(self):
+        run = object.__new__(harness.CloudFault)
+        run.earliest_ns = harness.timestamp_ns("2026-11-04T12:00:00Z")
+        record = self.record()
+        with patch.object(harness.time, "time_ns", return_value=run.earliest_ns + 10**9):
+            run.binding = harness.cloud_container_identity(record, run.earliest_ns)
+        run.network_binding = {"id": "b" * 64, "name": harness.CLOUD_PROJECT + "_default"}
+        run.context = {"nonce": "c" * 32}
+        run.evidence = {}
+        run.active_child = SimpleNamespace(closed=True)
+        run.dummy_info = None
+        run.fixture_started = run.preparation_started = run.dummy_imported = True
+        run.app_network_identity = "d" * 64
+        run.owner = {"uid": 1001, "gid": 1001}
+        return run
+
+    def events(self, *, code="1", include_health=True):
+        install = "c" * 32
+        base = "/data/asa-" + install
+        spool = 'sh -eu -c umask 077; for d do if [ -e "$d" ]; then test -d "$d" && test ! -L "$d"; else mkdir "$d"; fi; done asa-cloud-spool '
+        spool += base + " " + base + "/outgoing " + base + "/incoming"
+        mkdir = "rclone --config /config/rclone/rclone.conf --contimeout 20s --timeout 60s --max-duration 595s --retries 2 mkdir yandex:Server-Backups/asa-" + install
+        groups = [("d" * 64, spool, "0"), ("e" * 64, mkdir, code)]
+        if include_health:
+            groups.append(("f" * 64, "rclone rc --url http://127.0.0.1:5572 core/version", "0"))
+        rows = []
+        for identity, command, exit_code in groups:
+            for action in ("exec_create: " + command, "exec_start: " + command, "exec_die"):
+                rows.append({"type": "container", "id": "a" * 64, "execId": identity, "action": action,
+                             "exitCode": exit_code if action == "exec_die" else "", "timeNs": 100 + len(rows)})
+        return rows
+
+    def outcome(self, policy):
+        operation_id, installation, source = "a" * 32, "c" * 32, ("d" * 32 if policy == "best-effort" else "a" * 32)
+        outcome, receipt_outcome, status, exit_code = ("WARNING", "WARNING", "OK", 0) if policy == "best-effort" else ("ERROR", "BLOCKED", "FAILED", 1)
+        public = {"format": "asa-cli-result-v1", "status": status, "exitCode": exit_code, "operation": {
+            "operationId": operation_id, "installationId": installation, "outcome": outcome, "dataProtectionConfirmed": False}}
+        receipt = {"operationId": source, "installationId": installation, "snapshotId": "20261104T120000Z-abcdef12",
+            "policy": policy, "outcome": receipt_outcome, "local": {"status": "OK"}, "encryption": {"status": "OK"},
+            "cloud": {"status": "FAILED", "error": "CLOUD_TRANSFER_FAILED"}, "protectionConfirmed": False}
+        journal = {"operationId": operation_id, "installationId": installation, "snapshotId": receipt["snapshotId"],
+            "root": str(harness.INSTALL_ROOT), "mode": "retry-cloud" if policy == "best-effort" else "backup", "state": "TERMINAL",
+            "result": {"outcome": outcome, "dataProtectionConfirmed": False}}
+        return public, receipt, journal
+
+    def require_outcome(self, policy, public, receipt, journal):
+        projection = harness.cloud_result_projection(public, receipt, journal)
+        harness.cloud_require_result(projection, policy, "a" * 32, "c" * 32,
+            "d" * 32 if policy == "best-effort" else "a" * 32, journal, receipt, public)
+        return projection
+
+    def test_dummy_oauth_matches_pinned_backend_without_refresh_or_token_upgrade(self):
+        import configparser
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.read_string(harness.cloud_dummy_configuration("a" * 32).decode())
+        self.assertEqual(parser.sections(), ["yandex"])
+        self.assertEqual(set(parser["yandex"]), {"type", "token"})
+        self.assertEqual(parser["yandex"]["type"], "yandex")
+        token = json.loads(parser["yandex"]["token"])
+        self.assertEqual(set(token), {"access_token", "refresh_token", "token_type", "expiry"})
+        self.assertTrue(token["access_token"].startswith("ASA_REALHOST_DUMMY_ACCESS_"))
+        self.assertTrue(token["refresh_token"].startswith("ASA_REALHOST_DUMMY_REFRESH_"))
+        self.assertEqual(token["token_type"], "OAuth")
+        self.assertGreater(harness.timestamp_ns(token["expiry"]), time.time_ns())
+        with self.assertRaises(harness.Failure):
+            harness.cloud_dummy_configuration("PRIVATE_TOKEN")
+
+    def test_container_binding_rejects_foreign_owner_alias_mount_image_privilege_and_malformed_exec_ids(self):
+        earliest = harness.timestamp_ns("2026-11-04T12:00:00Z")
+        original = self.record()
+        with patch.object(harness.time, "time_ns", return_value=earliest + 10**9):
+            identity = harness.cloud_container_identity(original, earliest)
+            self.assertEqual(identity["id"], original["id"])
+            cases = []
+            for field, value in (("imageId", "sha256:" + "f" * 64), ("user", "0:1000"), ("name", "/foreign"),
+                                 ("readonly", False), ("ports", {"5572/tcp": [{"HostPort": "5572"}]}),
+                                 ("privileged", True), ("capAdd", ["NET_ADMIN"]), ("capDrop", []),
+                                 ("restarts", 1), ("execIds", ["f" * 64, "f" * 64]), ("execIds", [{}])):
+                cases.append({**original, field: value})
+            foreign = copy.deepcopy(original)
+            foreign["labels"]["asa.owner"] = "foreign"
+            cases.append(foreign)
+            mounted = copy.deepcopy(original)
+            mounted["mounts"][0]["Source"] = "/srv/foreign-credentials"
+            cases += [mounted, {**original, "mounts": [original["mounts"][0]] * 2}]
+            for value in cases:
+                with self.assertRaises(harness.Failure):
+                    harness.cloud_container_identity(value, earliest)
+        with patch.object(harness.os, "geteuid", return_value=0, create=True), patch.object(Path, "mkdir") as mkdir:
+            with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_OWNER"):
+                harness.CloudFault({}, {"uid": 0, "gid": 1000, "name": "asa-setup"})
+            mkdir.assert_not_called()
+
+    def test_network_binding_and_routes_require_a_distinct_loopback_only_namespace(self):
+        earliest = harness.timestamp_ns("2026-11-04T12:00:00Z")
+        record = {"id": "b" * 64, "name": harness.CLOUD_PROJECT + "_default",
+            "created": "2026-11-04T12:00:00.100000000Z", "driver": "bridge", "scope": "local",
+            "labels": {"com.docker.compose.project": harness.CLOUD_PROJECT, "com.docker.compose.network": "default"},
+            "containers": {}}
+        with patch.object(harness.time, "time_ns", return_value=earliest + 10**9):
+            self.assertEqual(harness.cloud_network_identity(record, earliest)["id"], "b" * 64)
+            for changed in ({"id": ""}, {"labels": {}}, {"name": "foreign_default"}, {"driver": "host"}, {"containers": []}):
+                with self.subTest(changed=changed), self.assertRaises(harness.Failure):
+                    harness.cloud_network_identity({**record, **changed}, earliest)
+        interfaces = [{"ifname": "lo", "addr_info": [{"family": "inet", "local": "127.0.0.1"}, {"family": "inet6", "local": "::1"}]}]
+        routes4, routes6 = [{"type": "local", "dst": "127.0.0.1", "dev": "lo"}], [{"dst": "::1", "dev": "lo"}]
+        self.assertEqual(harness.cloud_namespace_projection(interfaces, routes4, routes6, 102, 101)["externalIPv6Routes"], 0)
+        cases = ((interfaces, routes4, routes6, 101), (interfaces + [{"ifname": "eth0"}], routes4, routes6, 102),
+                 (interfaces, [{"dst": "default", "gateway": "192.0.2.1", "dev": "lo"}], routes6, 102),
+                 (interfaces, routes4, [{"dst": "default", "dev": "lo"}], 102),
+                 ([{"ifname": "lo", "addr_info": [{"family": "inet", "local": "192.0.2.1"}]}], routes4, routes6, 102))
+        for addresses, v4, v6, inode in cases:
+            with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_NAMESPACE"):
+                harness.cloud_namespace_projection(addresses, v4, v6, inode, 101)
+
+    def test_actual_mkdir_triplet_distinguishes_health_and_natural_retry_error(self):
+        for code in ("1", "5"):
+            value = harness.cloud_exec_projection(self.events(code=code), "a" * 64, "c" * 32, 100, 200)
+            self.assertEqual((value["execId"], value["exitCode"]), ("e" * 64, int(code)))
+            self.assertTrue(value["completeCreateStartDie"])
+            self.assertEqual(value["healthExecutions"], 1)
+            self.assertEqual(value["specificErrno"], "UNAVAILABLE")
+            self.assertNotIn("commandLine", value)
+
+    def test_usage_auth_duration_signal_exec_and_missing_history_are_not_connection_pass(self):
+        for code in ("0", "2", "7", "10", "126", "127", "137", "143"):
+            with self.subTest(exit_code=code), self.assertRaises(harness.Failure) as caught:
+                harness.cloud_exec_projection(self.events(code=code), "a" * 64, "c" * 32, 100, 200)
+            self.assertEqual(caught.exception.status, "BLOCKED")
+        rows = self.events(include_health=False)
+        cases = (rows[1:], rows[:-1], [*rows, rows[-1]],
+                 [{**row, "id": "f" * 64} if index == 3 else row for index, row in enumerate(rows)],
+                 [{**row, "action": row["action"].replace("mkdir", "copyto")} for row in rows],
+                 [{**row, "timeNs": 99} if index == 0 else row for index, row in enumerate(rows)])
+        for rows in cases:
+            with self.assertRaises(harness.Failure) as caught:
+                harness.cloud_exec_projection(rows, "a" * 64, "c" * 32, 100, 200)
+            self.assertEqual(caught.exception.status, "BLOCKED")
+
+    def test_best_effort_reuses_source_operation_and_required_error_is_public_exit_one(self):
+        for policy in ("best-effort", "required"):
+            value = self.require_outcome(policy, *self.outcome(policy))
+            self.assertIs(value["dataProtectionConfirmed"], False)
+            self.assertEqual(value["publicExitCode"], 0 if policy == "best-effort" else 1)
+            self.assertEqual(value["sourceOperationId"], "d" * 32 if policy == "best-effort" else "a" * 32)
+        public, receipt, journal = self.outcome("required")
+        public.update(status="BLOCKED", exitCode=2)
+        with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_POLICY_RESULT"):
+            self.require_outcome("required", public, receipt, journal)
+
+    def test_wrong_binding_unavailable_auth_timeout_or_false_protection_never_pass(self):
+        for policy in ("best-effort", "required"):
+            for field, value in (("cloud", {"status": "FAILED", "error": "CLOUD_AUTHORIZATION"}),
+                                 ("cloud", {"status": "FAILED", "error": "CLOUD_TIMEOUT"}),
+                                 ("cloud", {"status": "NOT_CONFIGURED", "error": "CLOUD_NOT_CONNECTED"}),
+                                 ("encryption", {"status": "PENDING"}), ("local", {"status": "FAILED"}),
+                                 ("operationId", "e" * 32), ("protectionConfirmed", True)):
+                public, receipt, journal = self.outcome(policy)
+                receipt[field] = value
+                with self.subTest(policy=policy, field=field), self.assertRaises(harness.Failure):
+                    self.require_outcome(policy, public, receipt, journal)
+        secret = "PRIVATE_PROVIDER_TOKEN_AND_LOG"
+        public, receipt, journal = self.outcome("required")
+        public.update(secret=secret, status=secret)
+        public["operation"]["installationId"] = secret
+        receipt["cloud"].update(error={"secret": secret}, stderr=secret)
+        journal.update(rawLog=secret, state=secret)
+        value = harness.cloud_result_projection(public, receipt, journal)
+        self.assertNotIn(secret, json.dumps(value))
+        self.assertEqual(value["cloudReasonCode"], "UNRECOGNIZED_REASON")
+        self.assertEqual(value["publicStatus"], "UNVERIFIED")
+
+
+class NativeCloudGuardTests(unittest.TestCase):
+    record = NativeCloudContractTests.record
+
+    def test_every_cloud_guest_entrypoint_is_accepted_without_starting_a_vm(self):
+        phases = ("cloud-fault", "cloud-prepare-empty", "cloud-prepare-dummy", "owner-cloud-baseline",
+                  "owner-cloud-best-effort", "owner-cloud-required", "owner-cloud-observe", "owner-cloud-restore")
+        with patch.object(harness, "guest_main", return_value=71) as guest, patch.object(harness, "HostRun") as host:
+            for phase in phases:
+                with self.subTest(phase=phase):
+                    self.assertEqual(harness.main(["--guest-phase", phase]), 71)
+                    guest.assert_called_with(phase, control_deadline=None)
+        host.assert_not_called()
+
+    def test_policy_fixture_changes_only_explicit_backup_fields_and_keeps_source_immutable(self):
+        context, _, inputs, _, _ = cli_read_fixture()
+        original = inputs["config"]
+        original["backup"]["retention"] = {"localKeep": None, "remoteKeep": None}
+        original["dataIdentity"] = {"postgres": "synthetic-pg", "minio": "synthetic-objects"}
+        before = copy.deepcopy(original)
+        for policy in ("best-effort", "required"):
+            value = harness.cloud_changed_configuration(original, context, policy)
+            self.assertEqual(original, before)
+            self.assertEqual({key: item for key, item in value.items() if key != "backup"},
+                             {key: item for key, item in original.items() if key != "backup"})
+            self.assertEqual({key: item for key, item in value["backup"].items() if key not in ("policy", "cloud")},
+                             {key: item for key, item in original["backup"].items() if key not in ("policy", "cloud")})
+            self.assertEqual(value["backup"]["policy"], policy)
+            self.assertEqual(value["backup"]["cloud"], {"enabled": True,
+                "project": "asa-" + original["installationId"], "transportSha256": harness.CLOUD_SOURCE_SHA256,
+                "transportPath": str(harness.candidate_bundle(context) / "tools/deployment/ops/cloud_storage.py")})
+
+    def test_dummy_import_requires_fresh_isolation_binding_and_reused_running_transport(self):
+        context = {"nonce": "c" * 32, "sourceRevision": "d" * 40}
+        owner = {"uid": 1001, "gid": 1001, "name": "asa-setup"}
+        earliest = harness.timestamp_ns("2026-11-04T12:00:00Z")
+        record = self.record()
+        process = {"pid": 101, "pgid": 101, "sid": 101, "startTime": 1000, "state": "S"}
+        with patch.object(harness.time, "time_ns", return_value=earliest + 10**9):
+            binding = harness.cloud_container_identity(record, earliest)
+        saved = {"format": "asa-realhost-cloud-isolation-v1", "nonce": context["nonce"],
+            "sourceRevision": context["sourceRevision"], "earliestNs": earliest, "observedNs": earliest + 10**9,
+            "container": binding, "process": process, "namespaceInode": 102}
+        # Use real JSON serialization: tuple/list drift previously broke this binding.
+        self.assertEqual(binding, json.loads(json.dumps(binding)))
+        launcher = SimpleNamespace(CLOUD_SOURCE_SHA256=harness.CLOUD_SOURCE_SHA256,
+            prepare_cloud_transport=Mock(return_value={"format": "asa-cloud-preparation-v1", "project": harness.CLOUD_PROJECT,
+                "image": harness.CLOUD_IMAGE, "reused": True, "tokenConfigured": True, "deliveryVerified": False}))
+        spec = SimpleNamespace(loader=SimpleNamespace(exec_module=Mock()))
+        environment = {"HOME": "/root", "DOCKER_HOST": "unix:///var/run/docker.sock",
+                       "DOCKER_CONFIG": str(harness.GUEST_PRIVATE / "cloud-docker-config")}
+        with patch.object(harness.os, "geteuid", return_value=0, create=True), patch.dict(os.environ, environment, clear=True), \
+                patch.object(harness, "diagnostic_owner", return_value=(owner, {})), \
+                patch.object(harness, "guest_environment", return_value={"HOME": "/root"}), \
+                patch.object(harness.importlib.util, "spec_from_file_location", return_value=spec), \
+                patch.object(harness.importlib.util, "module_from_spec", return_value=launcher), \
+                patch.object(harness.time, "time_ns", return_value=earliest + 2 * 10**9), \
+                patch.object(harness, "diagnostic_command", return_value=({"exitCode": 0}, json.dumps(record).encode())) as command, \
+                patch.object(harness, "proc_identity", return_value=process), \
+                patch.object(harness, "network_namespace_inode", return_value=100), \
+                patch.object(Path, "stat", return_value=SimpleNamespace(st_ino=102)):
+            for changed in ({"nonce": "e" * 32}, {"sourceRevision": "e" * 40},
+                            {"observedNs": earliest - 40 * 10**9}, {"namespaceInode": 100}):
+                with self.subTest(changed=changed), patch.object(harness, "diagnostic_read",
+                        return_value=(json.dumps({**saved, **changed}).encode(), None, False)), self.assertRaises(harness.Failure):
+                    harness.cloud_prepare_guest(context, credential=True)
+                launcher.prepare_cloud_transport.assert_not_called()
+            with patch.object(harness, "diagnostic_read", side_effect=FileNotFoundError):
+                with self.assertRaises(FileNotFoundError):
+                    harness.cloud_prepare_guest(context, credential=True)
+            launcher.prepare_cloud_transport.assert_not_called()
+            with patch.object(harness, "diagnostic_read", return_value=(json.dumps(saved).encode(), None, False)):
+                foreign = copy.deepcopy(record)
+                foreign["networks"] = {"foreign": {"NetworkID": "f" * 64}}
+                command.return_value = ({"exitCode": 0}, json.dumps(foreign).encode())
+                with self.assertRaises(harness.Failure):
+                    harness.cloud_prepare_guest(context, credential=True)
+                launcher.prepare_cloud_transport.assert_not_called()
+                command.return_value = ({"exitCode": 0}, json.dumps(record).encode())
+                observed = harness.cloud_prepare_guest(context, credential=True)
+                self.assertTrue(observed["reused"])
+                launcher.prepare_cloud_transport.assert_called_once_with(harness.candidate_bundle(context), owner=owner,
+                    credential_file=harness.cloud_fixture_paths()[1])
+
+    def test_child_reports_preserve_recognized_blocked_and_reject_unknown_or_inconsistent_status(self):
+        run = object.__new__(harness.CloudFault)
+        run.environment, run.owner = {}, {}
+        run.remaining = Mock(return_value=10)
+        phase = "cloud-prepare-empty"
+        child = Mock()
+        child.__enter__ = Mock(return_value=child)
+        child.__exit__ = Mock(return_value=False)
+        base = {"format": "asa-realhost-guest-v1", "phase": phase, "reasonCode": "BLOCKED_CLOUD_FAULT_COMMAND"}
+        cases = ((2, "BLOCKED", "BLOCKED"), (1, "FAIL", "FAIL"), (2, "FAIL", "FAIL"),
+                 (1, "BLOCKED", "FAIL"), (0, "BLOCKED", "FAIL"), (2, "PRIVATE_TOKEN", "FAIL"))
+        with patch.object(harness, "CloudFaultProcess", return_value=child):
+            for code, status, expected in cases:
+                child.wait.return_value = (code, json.dumps({**base, "status": status}).encode())
+                with self.subTest(code=code, status=status), self.assertRaises(harness.Failure) as caught:
+                    run.child(phase)
+                self.assertEqual(caught.exception.status, expected)
+                self.assertNotIn("PRIVATE_TOKEN", str(caught.exception))
+            child.wait.return_value = (2, json.dumps({**base, "status": "BLOCKED", "reasonCode": "PRIVATE_TOKEN"}).encode())
+            with self.assertRaises(harness.Failure) as caught:
+                run.child(phase)
+            self.assertEqual(caught.exception.status, "FAIL")
+
+    def test_first_failure_and_closed_evidence_survive_cleanup_failure_without_raw_exception(self):
+        run = Mock()
+        primary = harness.Failure("CLOUD_FAULT_POLICY_RESULT")
+        run.absent.side_effect = primary
+        run.cleanup.side_effect = RuntimeError("PRIVATE_CREDENTIALS_MUST_NOT_LEAK")
+        run.evidence = {"cleanup": {"status": "NOT_RUN"}, "cases": {"required": {"result": {
+            "publicStatus": "FAILED", "publicExitCode": 1}}}}
+        output = io.StringIO()
+        with patch.object(harness.os, "geteuid", return_value=0, create=True), \
+                patch.object(harness, "guest_guard", return_value={}), \
+                patch.object(harness.shutil, "disk_usage", return_value=SimpleNamespace(free=8 * harness.GIB)), \
+                patch.object(harness, "diagnostic_owner", return_value=({}, {})), \
+                patch.object(harness, "CloudFault", return_value=run), \
+                patch.object(harness, "CLI_ACTIONS", []), contextlib.redirect_stdout(output):
+            code = harness.guest_main("cloud-fault")
+        value = json.loads(output.getvalue())
+        self.assertEqual((code, value["status"], value["reasonCode"]), (1, "FAIL", "CLOUD_FAULT_POLICY_RESULT"))
+        self.assertTrue(value["ownedCleanupFailed"])
+        self.assertEqual(value["faultEvidence"]["cleanup"]["status"], "BLOCKED")
+        self.assertEqual(value["faultEvidence"]["cases"]["required"]["result"]["publicExitCode"], 1)
+        self.assertNotIn("PRIVATE_CREDENTIALS", output.getvalue())
+
+    def test_source_cleanup_child_projects_only_consistent_closed_restore_evidence(self):
+        run = object.__new__(harness.CloudFault)
+        run.environment = {}
+        run.owner = {"home": "/var/lib/asa-setup/operator", "name": "asa-setup"}
+        run.remaining = Mock(return_value=10)
+        phase = "owner-cloud-restore"
+        child = Mock()
+        child.__enter__, child.__exit__ = Mock(return_value=child), Mock(return_value=False)
+        base = {"format": "asa-realhost-guest-v1", "phase": phase, "status": "BLOCKED",
+            "reasonCode": "BLOCKED_CLOUD_FAULT_SOURCE_DUMMY", "sourceDummyRemoved": False,
+            "configurationRestored": True, "controlDataPreserved": True, "originalWritersReady": True,
+            "raw": "PRIVATE_DUMMY_MUST_NOT_LEAK"}
+        with patch.object(harness, "OwnedFaultProcess", return_value=child):
+            for changed, code, valid in (({}, 2, True), ({}, 1, False), ({"configurationRestored": 1}, 2, False),
+                    ({"sourceDummyRemoved": True}, 2, False), ({"reasonCode": "PRIVATE_DUMMY_MUST_NOT_LEAK"}, 2, False)):
+                child.wait.return_value = (code, json.dumps({**base, **changed}).encode())
+                with self.subTest(changed=changed, code=code), self.assertRaises(harness.Failure) as caught:
+                    run.child(phase, operator=True, cleanup=True)
+                self.assertEqual(caught.exception.status, "BLOCKED" if valid else "FAIL")
+                projected = getattr(caught.exception, "source_dummy_cleanup", None)
+                self.assertEqual(projected, {"sourceDummyRemoved": False, "configurationRestored": True,
+                    "controlDataPreserved": True, "originalWritersReady": True} if valid else None)
+                self.assertNotIn("PRIVATE_DUMMY", str(caught.exception) + json.dumps(projected))
+
+    def test_owner_restore_uses_exact_saved_bytes_under_lock_and_pending_blocks_every_write(self):
+        original = {"installationId": "e" * 32, "backup": {"policy": "best-effort", "cloud": {"enabled": False}}}
+        original_raw = (json.dumps(original, indent=3) + "\n\n").encode()
+        context = {"nonce": "c" * 32, "sourceRevision": "d" * 40,
+                   "pins": {"current": {"revision": "a" * 40, "schema": 304}}}
+        current = harness.cloud_changed_configuration(original, context, "required")
+        writers, control = {"api": {"id": "b" * 64, "running": True}}, {"preserved": True}
+        metadata = SimpleNamespace(st_uid=1001, st_gid=1001, st_mode=stat.S_IFREG | 0o600)
+        receipt = {"local": {"status": "OK"}, "encryption": {"status": "OK"}, "operationId": "f" * 32}
+        state = {"format": "asa-realhost-cloud-fixture-v1", "nonce": context["nonce"], "installationId": "e" * 32,
+            "uid": 1001, "gid": 1001, "mode": 0o600, "originalText": original_raw.decode(),
+            "writers": writers, "control": control, "snapshotId": "20261104T120000Z-abcdef12", "sourceOperationId": "f" * 32,
+            "sourceDummy": {"status": "ABSENT"}}
+        module = SimpleNamespace(private_json=Mock(side_effect=[{"snapshotId": state["snapshotId"]}, state]),
+            validate_config=Mock(side_effect=lambda value, *_: copy.deepcopy(value)), atomic_bytes=Mock(), save_private=Mock())
+        install = Mock()
+        install.identity.return_value = {name: {"id": str(index) * 64} for index, name in enumerate(
+            ("postgres", "minio", "api", "web", "scratch", "search"), start=1)}
+        install.compose.return_value = "{}"
+        account = SimpleNamespace(pw_name="asa-setup", pw_dir="/var/lib/asa-setup/operator", pw_gid=1001)
+        with patch.dict(sys.modules, {"pwd": SimpleNamespace(getpwuid=Mock(return_value=account))}), \
+                patch.object(harness.os, "geteuid", return_value=1001, create=True), \
+                patch.object(harness.os, "getegid", return_value=1001, create=True), \
+                patch.object(harness, "owner_installation", return_value=(module, None, None, install, None, current, context["pins"]["current"])), \
+                patch("deployment.system.operation_lock", return_value=contextlib.nullcontext()) as lock, \
+                patch("deployment.setup_operation.Store") as store, \
+                patch("deployment.backup.managed_writers", return_value=writers), \
+                patch("deployment.backup_workflow.verify_receipt", return_value=receipt), \
+                patch.object(harness, "owner_observe", return_value=control), \
+                patch.object(harness.os.path, "lexists", return_value=False), \
+                patch.object(harness, "diagnostic_read", side_effect=[
+                    (harness.cloud_config_bytes(current), metadata, False), (original_raw, metadata, False)]):
+            store.return_value.pending.return_value = None
+            value = harness.owner_cloud_fixture(context, "restore")
+            self.assertTrue(value["configurationRestored"])
+            module.atomic_bytes.assert_called_once_with(harness.INSTALL_ROOT / ".asa/setup.json", original_raw, mode=0o600)
+            module.save_private.assert_not_called()
+            lock.assert_called_once_with(harness.INSTALL_ROOT)
+            self.assertGreaterEqual(module.validate_config.call_count, 4)
+            module.atomic_bytes.reset_mock()
+            store.return_value.pending.return_value = {"state": "RUNNING"}
+            with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_PENDING"):
+                harness.owner_cloud_fixture(context, "required")
+            module.atomic_bytes.assert_not_called()
+            module.save_private.assert_not_called()
+
+
+@unittest.skipUnless(sys.platform == "linux", "Source-dummy lifetime tests use Linux descriptors, inode identity and private modes")
+class NativeCloudOwnerLifecycleTests(unittest.TestCase):
+    @contextlib.contextmanager
+    def owner_fixture(self):
+        # The account/product boundaries are doubles. File creation, FD metadata,
+        # protected reads, replacement and unlink use real temporary files. This
+        # is not evidence of native non-root execution in the root-only scratch.
+        real_uid, real_gid = os.geteuid(), os.getegid()
+        real_open, real_read, real_binding = harness.diagnostic_open, harness.diagnostic_read, harness.cloud_source_dummy_binding
+        from deployment.paths import atomic_bytes
+        with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+            base = Path(directory)
+            root, home = base / "installation", base / "operator"
+            root.mkdir(mode=0o700)
+            home.mkdir(mode=0o700)
+            (root / ".asa").mkdir(mode=0o700)
+            setup, state_path, dummy = root / ".asa/setup.json", root / ".asa/state.json", home / "dummy.conf"
+            original = {"installationId": "e" * 32, "backup": {"policy": "best-effort", "cloud": {"enabled": False},
+                "retention": {"localKeep": None, "remoteKeep": None}, "schedule": {"enabled": False},
+                "ageRecipient": fixture.RECIPIENT}}
+            original_raw = (json.dumps(original, indent=3) + "\n\n").encode()
+            atomic_bytes(setup, original_raw, mode=0o600)
+            context = {"nonce": "c" * 32, "sourceRevision": "d" * 40, "ageRecipient": fixture.RECIPIENT,
+                       "pins": {"current": {"revision": "a" * 40, "schema": 304}}}
+            writers, control = {"api": {"id": "b" * 64, "running": True}}, {"preserved": True}
+            receipt = {"local": {"status": "OK"}, "encryption": {"status": "OK"}, "policy": "best-effort",
+                "cloud": {"status": "NOT_CONFIGURED"}, "operationId": "f" * 32, "snapshotId": "20261104T120000Z-abcdef12"}
+            pointer = root / ".asa/setup-backups/last-local-success.json"
+            module = SimpleNamespace(validate_config=Mock(side_effect=lambda value, *_: copy.deepcopy(value)),
+                atomic_bytes=atomic_bytes, save_private=lambda path, value: atomic_bytes(path, harness.cloud_config_bytes(value), mode=0o600),
+                private_json=lambda path: {"snapshotId": receipt["snapshotId"]} if Path(path) == pointer
+                    else json.loads(Path(path).read_bytes()))
+            install = Mock()
+            install.identity.return_value = {name: {"id": str(index) * 64} for index, name in enumerate(
+                ("postgres", "minio", "api", "web", "scratch", "search"), start=1)}
+            install.compose.return_value = "{}"
+            account = SimpleNamespace(pw_name="asa-setup", pw_dir="/var/lib/asa-setup/operator", pw_gid=1001)
+            def metadata(info):
+                value = {key: getattr(info, key) for key in dir(info) if key.startswith("st_")}
+                if value["st_uid"] == real_uid:
+                    value["st_uid"] = 1001
+                if value["st_gid"] == real_gid:
+                    value["st_gid"] = 1001
+                return SimpleNamespace(**value)
+            def boundary(value):
+                return home if Path(value) == Path(account.pw_dir) else value
+            def opened(path, parent, uid, **kwargs):
+                return real_open(path, boundary(parent), real_uid, **kwargs)
+            def read(path, parent, uid, **kwargs):
+                raw, info, tail = real_read(path, boundary(parent), real_uid, **kwargs)
+                return raw, metadata(info) if Path(path) == setup else info, tail
+            patches = [patch.dict(sys.modules, {"pwd": SimpleNamespace(getpwuid=Mock(return_value=account))}),
+                patch.object(harness.os, "geteuid", return_value=1001), patch.object(harness.os, "getegid", return_value=1001),
+                patch.object(harness, "INSTALL_ROOT", root), patch.object(harness, "cloud_fixture_paths", return_value=(state_path, dummy)),
+                patch.object(harness, "owner_installation", side_effect=lambda _: (module, None, None, install, None,
+                    json.loads(setup.read_bytes()), context["pins"]["current"])),
+                patch("deployment.system.operation_lock", side_effect=lambda _: contextlib.nullcontext()),
+                patch("deployment.backup.managed_writers", return_value=writers),
+                patch("deployment.backup_workflow.verify_receipt", return_value=receipt),
+                patch.object(harness, "owner_observe", return_value=control), patch.object(harness, "manifest_count", return_value=1),
+                patch.object(harness, "diagnostic_open", side_effect=opened), patch.object(harness, "diagnostic_read", side_effect=read),
+                patch.object(harness, "cloud_source_dummy_binding", side_effect=lambda info, *args: real_binding(metadata(info), *args))]
+            for item in patches:
+                stack.enter_context(item)
+            store = stack.enter_context(patch("deployment.setup_operation.Store"))
+            store.return_value.pending.return_value = None
+            baseline = harness.owner_cloud_fixture(context, "baseline")
+            yield SimpleNamespace(root=root, home=home, setup=setup, state=state_path, dummy=dummy, original_raw=original_raw,
+                module=module, context=context, baseline=baseline, call=lambda action: harness.owner_cloud_fixture(context, action))
+
+    def assert_restored_blocked(self, value, result):
+        self.assertEqual((result.get("status"), result.get("reasonCode")), ("BLOCKED", "BLOCKED_CLOUD_FAULT_SOURCE_DUMMY"))
+        self.assertIs(result["sourceDummyRemoved"], False)
+        self.assertIs(result["configurationRestored"], True)
+        self.assertEqual(value.setup.read_bytes(), value.original_raw)
+        self.assertEqual(stat.S_IMODE(value.setup.stat().st_mode), 0o600)
+
+    def test_actual_owner_lifecycle_removes_only_the_creation_fd_identity(self):
+        with self.owner_fixture() as value:
+            value.call("best-effort")
+            created = value.dummy.stat()
+            saved = json.loads(value.state.read_bytes())["sourceDummy"]
+            self.assertEqual(saved["status"], "CREATED")
+            self.assertEqual((saved["binding"]["dev"], saved["binding"]["ino"]), (created.st_dev, created.st_ino))
+            self.assertEqual((saved["binding"]["nonce"], saved["binding"]["sourceOperationId"]), (value.context["nonce"], "f" * 32))
+            self.assertEqual(saved["binding"]["sha256"], hashlib.sha256(value.dummy.read_bytes()).hexdigest())
+            value.call("required")
+            result = value.call("restore")
+            self.assertTrue(result["sourceDummyRemoved"])
+            self.assertTrue(result["configurationRestored"])
+            self.assertNotIn("status", result)
+            self.assertFalse(value.dummy.exists())
+            self.assertEqual(value.setup.read_bytes(), value.original_raw)
+
+    def test_actual_owner_preserves_same_bytes_replacement_and_restores_configuration(self):
+        with self.owner_fixture() as value:
+            value.call("best-effort")
+            before = value.dummy.stat()
+            replacement = value.home / "replacement.conf"
+            replacement.write_bytes(value.dummy.read_bytes())
+            replacement.chmod(0o600)
+            os.replace(replacement, value.dummy)
+            after = value.dummy.stat()
+            self.assertNotEqual(before.st_ino, after.st_ino)
+            value.call("required")
+            self.assert_restored_blocked(value, value.call("restore"))
+            self.assertEqual(value.dummy.stat().st_ino, after.st_ino)
+            self.assertEqual(value.dummy.read_bytes(), harness.cloud_dummy_configuration(value.context["nonce"]))
+
+    def test_actual_owner_rejects_missing_unknown_or_mutated_creation_proof(self):
+        for changed in ("missing", "creating", "unknown", "nonce", "installationId", "sourceOperationId", "sha256",
+                        "dev", "ino", "uid", "gid", "mode", "nlink", "bytes", "mtimeNs", "ctimeNs", "bool-nlink"):
+            with self.subTest(changed=changed), self.owner_fixture() as value:
+                value.call("best-effort")
+                before = value.dummy.stat()
+                state = json.loads(value.state.read_bytes())
+                if changed == "missing":
+                    del state["sourceDummy"]
+                elif changed == "creating":
+                    state["sourceDummy"] = {"status": "CREATING"}
+                elif changed == "unknown":
+                    state["sourceDummy"]["binding"]["unknown"] = "PRIVATE_DO_NOT_PUBLISH"
+                else:
+                    key = "nlink" if changed == "bool-nlink" else changed
+                    old = state["sourceDummy"]["binding"][key]
+                    state["sourceDummy"]["binding"][key] = True if changed == "bool-nlink" else old + 1 if type(old) is int else "0" * len(old)
+                value.module.save_private(value.state, state)
+                result = value.call("restore")
+                self.assert_restored_blocked(value, result)
+                self.assertEqual(value.dummy.stat().st_ino, before.st_ino)
+                self.assertNotIn("PRIVATE", json.dumps(result))
+
+    def test_actual_owner_metadata_content_missing_and_symlink_changes_fail_closed(self):
+        for changed in ("mode", "hardlink", "symlink", "content", "missing"):
+            with self.subTest(changed=changed), self.owner_fixture() as value:
+                value.call("best-effort")
+                sentinel = value.home / "sentinel.conf"
+                if changed == "mode":
+                    value.dummy.chmod(0o640)
+                elif changed == "hardlink":
+                    os.link(value.dummy, sentinel)
+                elif changed == "symlink":
+                    sentinel.write_bytes(value.dummy.read_bytes())
+                    sentinel.chmod(0o600)
+                    value.dummy.unlink()
+                    value.dummy.symlink_to(sentinel)
+                elif changed == "content":
+                    value.dummy.write_bytes(b"PRIVATE_DO_NOT_PUBLISH")
+                else:
+                    value.dummy.unlink()
+                result = value.call("restore")
+                self.assert_restored_blocked(value, result)
+                self.assertEqual(os.path.lexists(value.dummy), changed != "missing")
+                if changed in ("symlink", "hardlink"):
+                    self.assertTrue(sentinel.exists())
+                self.assertNotIn("PRIVATE", json.dumps(result))
+
+    def test_partial_failures_keep_original_proof_or_block_unknown_creation(self):
+        for failed_step in ("policy-after-write", "proof-before-write", "replacement-before-proof-write"):
+            with self.subTest(failed_step=failed_step), self.owner_fixture() as value:
+                original_save = value.module.save_private
+                def save(path, saved):
+                    created = Path(path) == value.state and saved.get("sourceDummy", {}).get("status") == "CREATED"
+                    if created and failed_step == "proof-before-write":
+                        raise OSError("PRIVATE_IO_ERROR")
+                    if created and failed_step == "replacement-before-proof-write":
+                        replacement = value.home / "replacement.conf"
+                        replacement.write_bytes(value.dummy.read_bytes())
+                        replacement.chmod(0o600)
+                        os.replace(replacement, value.dummy)
+                    original_save(path, saved)
+                    if Path(path) == value.setup and failed_step == "policy-after-write":
+                        raise OSError("PRIVATE_IO_ERROR")
+                with patch.object(value.module, "save_private", side_effect=save):
+                    if failed_step == "replacement-before-proof-write":
+                        value.call("best-effort")
+                    else:
+                        with self.assertRaises(OSError):
+                            value.call("best-effort")
+                result = value.call("restore")
+                self.assertEqual(value.setup.read_bytes(), value.original_raw)
+                if failed_step == "policy-after-write":
+                    self.assertTrue(result["sourceDummyRemoved"])
+                    self.assertFalse(value.dummy.exists())
+                else:
+                    self.assert_restored_blocked(value, result)
+                    self.assertTrue(value.dummy.exists())
+
+    def test_actual_owner_blocked_cleanup_preserves_exact_restore_and_primary_failure_evidence(self):
+        with self.owner_fixture() as value:
+            value.call("best-effort")
+            replacement = value.home / "replacement.conf"
+            replacement.write_bytes(value.dummy.read_bytes())
+            replacement.chmod(0o600)
+            os.replace(replacement, value.dummy)
+            phase = "owner-cloud-restore"
+            output = io.StringIO()
+            with patch.object(harness, "guest_guard", return_value=value.context), \
+                    patch.object(harness, "CLI_ACTIONS", []), contextlib.redirect_stdout(output):
+                code = harness.guest_main(phase)
+            observed = json.loads(output.getvalue())
+            self.assertEqual(code, 2)
+            self.assert_restored_blocked(value, observed)
+
+            # Process transport is a double; the payload above came from the
+            # actual owner caller and the parent independently rereads setup.
+            run = object.__new__(harness.CloudFault)
+            run.context, run.environment, run.evidence = value.context, {}, {}
+            run.owner = {"uid": 1001, "gid": 1001, "name": "asa-setup", "home": "/var/lib/asa-setup/operator"}
+            run.binding, run.active_child = None, None
+            run.preparation_started, run.fixture_started = False, True
+            run.remaining = Mock(return_value=10)
+            run.daemon, run.docker = Mock(), Mock()
+            child = Mock()
+            child.__enter__, child.__exit__ = Mock(return_value=child), Mock(return_value=False)
+            child.wait.return_value = (code, output.getvalue().encode())
+            with patch.object(harness, "OwnedFaultProcess", return_value=child), self.assertRaises(harness.Failure) as caught:
+                run.cleanup(value.baseline)
+            self.assertEqual(caught.exception.status, "BLOCKED")
+            self.assertEqual(run.evidence["cleanup"], {"status": "PENDING", "egressRestored": False,
+                "hostProcessesQuiescent": True, "sourceDummyRemoved": False,
+                "exactConfigurationBytesOwnerModeRestored": True, "controlDataPreserved": True})
+            run.docker.assert_not_called()
+            run.daemon.assert_not_called()
+            self.assertTrue(value.dummy.exists())
+
+            parent = Mock()
+            parent.absent.side_effect = harness.Failure("CLOUD_FAULT_POLICY_RESULT")
+            parent.cleanup.side_effect = caught.exception
+            parent.evidence = run.evidence
+            output = io.StringIO()
+            with patch.object(harness.os, "geteuid", return_value=0), \
+                    patch.object(harness, "guest_guard", return_value=value.context), \
+                    patch.object(harness.shutil, "disk_usage", return_value=SimpleNamespace(free=8 * harness.GIB)), \
+                    patch.object(harness, "diagnostic_owner", return_value=(run.owner, {})), \
+                    patch.object(harness, "CloudFault", return_value=parent), \
+                    patch.object(harness, "CLI_ACTIONS", []), contextlib.redirect_stdout(output):
+                code = harness.guest_main("cloud-fault")
+            observed = json.loads(output.getvalue())
+            self.assertEqual((code, observed["status"], observed["reasonCode"]), (1, "FAIL", "CLOUD_FAULT_POLICY_RESULT"))
+            cleanup = observed["faultEvidence"]["cleanup"]
+            self.assertEqual(cleanup["status"], "BLOCKED")
+            self.assertTrue(cleanup["exactConfigurationBytesOwnerModeRestored"])
+            self.assertFalse(cleanup["sourceDummyRemoved"])
+            self.assertTrue(observed["ownedCleanupFailed"])
+            binding = json.loads(value.state.read_bytes())["sourceDummy"]["binding"]
+            self.assertNotIn(binding["sha256"], output.getvalue())
+            self.assertNotIn(harness.cloud_dummy_configuration(value.context["nonce"]).decode(), output.getvalue())
+
+    def test_configuration_restore_error_is_not_a_successful_cleanup(self):
+        with self.owner_fixture() as value:
+            value.call("best-effort")
+            configured = value.setup.read_bytes()
+            with patch.object(value.module, "atomic_bytes", side_effect=OSError("PRIVATE_IO_ERROR")), \
+                    self.assertRaises(OSError):
+                value.call("restore")
+            self.assertFalse(value.dummy.exists())
+            self.assertEqual(value.setup.read_bytes(), configured)
+
+
+class NativeCloudCleanupTests(unittest.TestCase):
+    record = NativeCloudContractTests.record
+    bound = NativeCloudContractTests.bound
+    def test_isolation_rechecks_immutable_identity_before_disconnect(self):
+        for changed in ({**self.record(), "imageId": "sha256:" + "f" * 64}, self.record()):
+            # The second record has no attached own network: it is not a valid
+            # before-disconnect observation, even though its immutable identity matches.
+            run = self.bound()
+            run.network = Mock()
+            run.docker = Mock(return_value=json.dumps(changed).encode())
+            with self.assertRaises(harness.Failure):
+                run.isolate()
+            self.assertEqual(run.docker.call_count, 1)
+            self.assertEqual(run.docker.call_args.args[0], "inspect")
+
+    def test_cleanup_requires_host_quiescence_before_dummy_removal(self):
+        run = self.bound()
+        run.active_child.closed = False
+        run.network = Mock()
+        run.container = Mock()
+        run.docker = Mock(return_value=json.dumps(self.record()).encode())
+        with patch.object(harness, "cloud_unlink_private") as unlink, \
+                patch.object(run, "child") as restore, self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_HOST_PROCESS_REMAINS"):
+            run.cleanup({})
+        self.assertEqual(run.docker.call_args_list[-1].args, ("stop", "--time", "10", "a" * 64))
+        run.container.assert_called_once_with(stopped=True, cleanup=True)
+        unlink.assert_not_called()
+        restore.assert_not_called()
+        self.assertFalse(run.evidence["cleanup"]["egressRestored"])
+
+    def test_changed_resource_cannot_be_stopped_or_removed_by_cleanup(self):
+        run = self.bound()
+        record = self.record()
+        record["labels"]["asa.owner"] = "foreign"
+        run.docker = Mock(return_value=json.dumps(record).encode())
+        with self.assertRaises(harness.Failure):
+            run.cleanup({})
+        self.assertEqual([call.args[0] for call in run.docker.call_args_list], ["inspect"])
+
+    def test_cleanup_orders_quiescence_dummy_removal_config_restore_and_exact_resource_removal(self):
+        run = self.bound()
+        order = []
+        original = b'{ "original": true }\n'
+        owner = run.owner
+        info = SimpleNamespace(st_uid=1000, st_gid=1000, st_mode=stat.S_IFREG | 0o600)
+        config_info = SimpleNamespace(st_uid=owner["uid"], st_gid=owner["gid"], st_mode=stat.S_IFREG | 0o600)
+        baseline = {"configurationSha256": hashlib.sha256(original).hexdigest(), "configUid": owner["uid"],
+            "configGid": owner["gid"], "configMode": 0o600, "appIds": {}}
+        def docker(*args, **kwargs):
+            order.append(args[0] + ("-" + args[1] if args[0] == "network" else ""))
+            return json.dumps(self.record()).encode() if args[0] == "inspect" else b""
+        def restored(*args, **kwargs):
+            order.append("restore")
+            return {"configurationRestored": True, "controlDataPreserved": True, "originalWritersReady": True,
+                    "sourceDummyRemoved": True}
+        run.docker, run.child = Mock(side_effect=docker), Mock(side_effect=restored)
+        run.network, run.container = Mock(), Mock(side_effect=lambda **kw: order.append("quiescent"))
+        run.identifiers, run.app_networks, run.daemon = Mock(return_value=[]), Mock(return_value=run.app_network_identity), Mock()
+        with patch.object(harness, "diagnostic_read", side_effect=[
+                (harness.cloud_dummy_configuration(run.context["nonce"]), info, False), (original, config_info, False)]), \
+                patch.object(harness, "cloud_unlink_private", side_effect=lambda *args: order.append("unlink-dummy")), \
+                patch.object(harness.os.path, "lexists", return_value=False):
+            run.cleanup(baseline)
+        self.assertLess(order.index("stop"), order.index("quiescent"))
+        self.assertLess(order.index("quiescent"), order.index("unlink-dummy"))
+        self.assertLess(order.index("unlink-dummy"), order.index("restore"))
+        self.assertLess(order.index("restore"), order.index("rm"))
+        self.assertLess(order.index("rm"), order.index("network-rm"))
+        self.assertFalse(run.evidence["cleanup"]["egressRestored"])
+        self.assertEqual(run.evidence["cleanup"]["status"], "PASS")
+        self.assertFalse(any(call.args[:2] == ("network", "connect") for call in run.docker.call_args_list))
+
+    def test_bounded_command_failure_output_limit_and_cleanup_uncertainty_are_never_evidence(self):
+        run = object.__new__(harness.CloudFault)
+        run.environment, run.remaining = {}, Mock(return_value=7)
+        for report in ({"exitCode": 1}, {"exitCode": 0, "reasonCode": "DIAGNOSTIC_TIMEOUT"},
+                       {"exitCode": 0, "reasonCode": "DIAGNOSTIC_OUTPUT_LIMIT"},
+                       {"exitCode": 0, "cleanupReasonCode": "DIAGNOSTIC_PROCESS_CLEANUP"}):
+            with patch.object(harness, "diagnostic_command", return_value=(report, b"PRIVATE_PROVIDER_STDERR")) as command, \
+                    self.assertRaises(harness.Failure) as caught:
+                run.command(["docker", "inspect", "a" * 64], timeout=30)
+            self.assertEqual(caught.exception.status, "BLOCKED")
+            self.assertEqual(caught.exception.code, "BLOCKED_CLOUD_FAULT_COMMAND")
+            self.assertNotIn("PRIVATE_PROVIDER_STDERR", str(caught.exception))
+            command.assert_called_once_with(["docker", "inspect", "a" * 64], timeout=7, environment={})
+
+    def test_expired_budget_and_disk_floor_block_commands_but_allow_bounded_cleanup(self):
+        run = object.__new__(harness.CloudFault)
+        run.work_deadline, run.deadline = 99, 120
+        with patch.object(harness.time, "monotonic", return_value=100):
+            with self.assertRaises(harness.Failure) as caught:
+                run.remaining(60)
+            self.assertEqual(caught.exception.status, "BLOCKED")
+            self.assertEqual(run.remaining(60, cleanup=True), 20)
+        run.work_deadline = 110
+        with patch.object(harness.time, "monotonic", return_value=100), \
+                patch.object(harness.shutil, "disk_usage", return_value=SimpleNamespace(free=harness.RESERVE)):
+            with self.assertRaisesRegex(harness.Failure, "BLOCKED_CLOUD_FAULT_DISK_RESERVE"):
+                run.remaining(60)
+
+    def test_phase_order_keeps_one_shared_fault_budget_and_following_positive_backup(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"RUNNER_TEMP": directory}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            runner = object.__new__(harness.HostRun)
+            runner.args = SimpleNamespace(preflight_only=False, revision="a" * 40)
+            runner.evidence = harness.initial_evidence(runner.args.revision)
+            runner.deadline, runner.vm, runner.save = time.monotonic() + harness.TOTAL_SECONDS, None, Mock()
+            phases = []
+            runner.phase = lambda name, action: phases.append((name, getattr(runner, "fault_deadline", None)))
+            self.assertEqual(runner.run(), 0)
+        names = [name for name, _ in phases]
+        self.assertLess(names.index("published_runtime_update"), names.index("public_cloud_connection_policies"))
+        self.assertLess(names.index("public_cloud_connection_policies"), names.index("public_backup_and_retry"))
+        shared = [deadline for name, deadline in phases if name in ("public_cloud_connection_policies", "public_backup_and_retry",
+            "public_release_connection_failure", "public_partial_backup_failure", "public_backup_interrupt_recovery")]
+        self.assertTrue(all(deadline == shared[0] for deadline in shared))
+        self.assertLessEqual(shared[0], runner.deadline)
+        self.assertIsNone(dict(phases)["real_guest_reboot"])
+        self.assertEqual(harness.FAULT_TOTAL_SECONDS, 75 * 60)
+        self.assertEqual(harness.TOTAL_SECONDS, 175 * 60)
+
+    def test_cloud_admission_requires_entire_phase_and_transport_reserve_inside_existing_deadline(self):
+        runner = object.__new__(harness.HostRun)
+        runner.guard, runner.guest = Mock(), Mock(return_value={"status": "PASS"})
+        runner.workspace, runner.deadline = Path("synthetic-workspace"), 10000
+        runner.fault_deadline = 100 + harness.CLOUD_FAULT_SECONDS + 30
+        with patch.object(harness.time, "monotonic", return_value=100), \
+                patch.object(harness.shutil, "disk_usage", return_value=SimpleNamespace(free=8 * harness.GIB)):
+            with self.assertRaises(harness.Failure) as caught:
+                runner.cloud_fault()
+            self.assertEqual(caught.exception.status, "BLOCKED")
+            runner.guest.assert_not_called()
+            runner.fault_deadline += 1
+            self.assertEqual(runner.cloud_fault(), {"status": "PASS"})
+            runner.guest.assert_called_once_with("cloud-fault", timeout=harness.CLOUD_FAULT_SECONDS + 30)
+
+    def test_network_created_offset_preserves_full_nanoseconds(self):
+        expected = harness.timestamp_ns("2026-11-04T12:00:00.123456789Z")
+        for value in ("2026-11-04T15:00:00.123456789+03:00", "2026-11-04T04:30:00.123456789-07:30"):
+            self.assertEqual(harness.cloud_timestamp_ns(value), expected)
+        for value in ("2026-11-04T12:00:00", "2026-11-04T12:00:00.1234567890Z",
+                      "2026-11-04T12:00:00+99:00", "PRIVATE_TOKEN"):
+            with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_TIMESTAMP"):
+                harness.cloud_timestamp_ns(value)
+
+
+@unittest.skipUnless(sys.platform == "linux", "Cloud fault private-file and owned-process boundaries require Linux")
+class LinuxNativeCloudTests(unittest.TestCase):
+    def test_completed_age_inventory_allows_only_empty_owned_staging_and_keeps_manifest_hash(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(harness, "INSTALL_ROOT", Path(directory)):
+            root = Path(directory)
+            snapshot = "20261104T120000Z-abcdef12"
+            folder = root / "backups" / snapshot
+            folder.mkdir(parents=True, mode=0o700)
+            folder.parent.chmod(0o700)
+            (folder / "manifest.json").write_bytes(b'{"synthetic":true}\n')
+            (folder / "manifest.json").chmod(0o600)
+            staging = root / "backups/encrypted/.staging"
+            staging.mkdir(parents=True, mode=0o700)
+            staging.parent.chmod(0o700)
+            ciphertext = staging.parent / ("asa-lab-" + snapshot + ".tar.age")
+            ciphertext.write_bytes(b"age-encryption.org/v1\nsynthetic-not-ciphertext\n")
+            ciphertext.chmod(0o600)
+            run = object.__new__(harness.CloudFault)
+            run.owner = {"uid": os.geteuid()}
+            run.remaining = Mock(return_value=1)
+            value = run.inventory()
+            self.assertEqual(value["ciphertextEntries"], [ciphertext.name])
+            self.assertEqual(value["manifests"][snapshot]["sha256"], hashlib.sha256((folder / "manifest.json").read_bytes()).hexdigest())
+            (staging / "incomplete-sentinel").write_bytes(b"retain")
+            with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_ENCRYPTION_INCOMPLETE"):
+                run.inventory()
+            self.assertEqual((staging / "incomplete-sentinel").read_bytes(), b"retain")
+
+    def test_private_dummy_unlink_rejects_replacement_and_unlinks_only_the_owned_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            path = base / "dummy.conf"
+            path.write_bytes(b"synthetic-dummy")
+            path.chmod(0o600)
+            before = path.stat()
+            replacement = base / "replacement.conf"
+            replacement.write_bytes(b"foreign-sentinel")
+            replacement.chmod(0o600)
+            os.replace(replacement, path)
+            with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_DUMMY_IDENTITY"):
+                harness.cloud_unlink_private(path, base, os.geteuid(), before, b"synthetic-dummy")
+            self.assertEqual(path.read_bytes(), b"foreign-sentinel")
+            current = path.stat()
+            harness.cloud_unlink_private(path, base, os.geteuid(), current, b"foreign-sentinel")
+            self.assertFalse(path.exists())
+
+    def test_harmless_owned_child_completes_before_cleanup_without_docker_or_provider(self):
+        if not harness.native_proc_namespace():
+            self.skipTest("Local /proc does not expose this process namespace; actual ownership requires the native runner")
+        with tempfile.TemporaryDirectory() as directory, patch.object(harness, "INSTALL_ROOT", Path(directory)):
+            with harness.CloudFaultProcess([sys.executable, "-I", "-B", "-c", "print('synthetic-child')"],
+                    environment={"PATH": os.environ.get("PATH", ""), "PYTHONDONTWRITEBYTECODE": "1"},
+                    deadline=time.monotonic() + 10) as child:
+                code, raw = child.wait(5)
+                proof = child.proof()
+            self.assertEqual((code, raw.strip()), (0, b"synthetic-child"))
+            self.assertTrue(proof["allOwnedProcessesExited"])
+            self.assertFalse(child.signal(signal.SIGTERM))
+
+
 class CloudFailurePolicyTests(unittest.TestCase):
     def test_connection_refusal_retains_backup_and_distinguishes_required_from_best_effort(self):
         # A bound, non-listening loopback socket cannot accept a connection and

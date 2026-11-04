@@ -11,6 +11,7 @@ import argparse
 import datetime as dt
 import hashlib
 import importlib.util
+import ipaddress
 import json
 import math
 import os
@@ -48,6 +49,31 @@ FAULT_QUIESCENCE_SECONDS = 600
 FAULT_RECOVERY_SECONDS = 650  # Product recovery: start 90 + ready 300 + writers 90, plus preflight.
 FAULT_PHASE_SECONDS = 1800
 FAULT_TOTAL_SECONDS = 75 * 60
+CLOUD_FAULT_SECONDS = 40 * 60
+CLOUD_CLEANUP_SECONDS = 180
+CLOUD_SYNC_SECONDS = 720
+CLOUD_BACKUP_SECONDS = 1200
+CLOUD_ROOT = Path("/srv/asa-cloud-storage")
+CLOUD_PROJECT = "asa-cloud-storage"
+CLOUD_CONTAINER = CLOUD_PROJECT + "-rclone-1"
+CLOUD_IMAGE = "rclone/rclone@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5"
+# The pinned linux/amd64 OCI config identifies rclone v1.75.2, source be8d6044.
+CLOUD_IMAGE_ID = "sha256:7ab08c1ee84502fb76ec95b3dc759aa46a9074cce2967d540e0ab50d8c844af4"
+CLOUD_SOURCE_SHA256 = "72e35bbb3043acefb423cfe706f82b089eaba974deb04f16df8f335093c59d0c"
+CLOUD_INSPECT = ('{"id":{{json .Id}},"name":{{json .Name}},"created":{{json .Created}},'
+    '"image":{{json .Config.Image}},"imageId":{{json .Image}},"user":{{json .Config.User}},'
+    '"labels":{{json .Config.Labels}},"mounts":{{json .Mounts}},"ports":{{json .HostConfig.PortBindings}},'
+    '"readonly":{{json .HostConfig.ReadonlyRootfs}},"state":{{json .State.Status}},'
+    '"privileged":{{json .HostConfig.Privileged}},"capAdd":{{json .HostConfig.CapAdd}},"capDrop":{{json .HostConfig.CapDrop}},'
+    '"running":{{json .State.Running}},"paused":{{json .State.Paused}},"restarting":{{json .State.Restarting}},'
+    '"oomKilled":{{json .State.OOMKilled}},"pid":{{json .State.Pid}},"started":{{json .State.StartedAt}},'
+    '"restarts":{{json .RestartCount}},"execIds":{{json .ExecIDs}},"networks":{{json .NetworkSettings.Networks}}}')
+CLOUD_NETWORK_INSPECT = ('{"id":{{json .Id}},"name":{{json .Name}},"created":{{json .Created}},'
+    '"driver":{{json .Driver}},"scope":{{json .Scope}},"labels":{{json .Labels}},'
+    '"containers":{{json .Containers}}}')
+CLOUD_EVENTS = ('{"type":{{json .Type}},"action":{{json .Action}},"id":{{json .Actor.ID}},'
+    '"execId":{{json (index .Actor.Attributes "execID")}},'
+    '"exitCode":{{json (index .Actor.Attributes "exitCode")}},"timeNs":{{json .TimeNano}}}')
 REPOSITORY = "spikeal8-maker/asa-lab"
 GUEST_HOME = Path("/opt/asa-realhost")
 GUEST_PRIVATE = Path("/var/lib/asa-realhost")
@@ -678,6 +704,13 @@ class HostRun:
         require(shutil.disk_usage(self.workspace).free >= 6 * GIB, "BLOCKED_FAULT_HOST_DISK", status="BLOCKED")
         return self.guest(phase, timeout=FAULT_PHASE_SECONDS + 30)
 
+    def cloud_fault(self):
+        self.guard()
+        require(shutil.disk_usage(self.workspace).free >= 6 * GIB, "BLOCKED_FAULT_HOST_DISK", status="BLOCKED")
+        require(time.monotonic() + CLOUD_FAULT_SECONDS + 30 < min(self.deadline, self.fault_deadline),
+                "BLOCKED_CLOUD_FAULT_ADMISSION", status="BLOCKED")
+        return self.guest("cloud-fault", timeout=CLOUD_FAULT_SECONDS + 30)
+
     def run(self):
         try:
             self.phase("runner_preflight", self.preflight)
@@ -697,9 +730,10 @@ class HostRun:
                     self.phase("independent_control_fixture", lambda: self.guest("seed", timeout=900))
                     self.phase("installed_cli_read_acceptance", lambda: self.guest("cli-read", timeout=1200))
                     self.phase("published_runtime_update", lambda: self.guest("update", timeout=2400))
-                    self.phase("public_backup_and_retry", lambda: self.guest("backup", timeout=1200))
                     self.fault_deadline = min(self.deadline, time.monotonic() + FAULT_TOTAL_SECONDS)
                     try:
+                        self.phase("public_cloud_connection_policies", self.cloud_fault)
+                        self.phase("public_backup_and_retry", lambda: self.guest("backup", timeout=1200))
                         self.phase("public_release_connection_failure", lambda: self.guest("network-fault", timeout=900))
                         self.phase("public_partial_backup_failure", lambda: self.fault_guest("partial-fault"))
                         self.phase("public_backup_interrupt_recovery", lambda: self.fault_guest("interrupt-fault"))
@@ -711,7 +745,8 @@ class HostRun:
                     self.evidence["checks"].update(cleanUbuntuActual1Panel="PASS", publicCliLifecycle="PASS",
                                                    publishedRuntimeUpdate="PASS", realGuestReboot="PASS", persistentTimer="PASS",
                                                    publicPartialBackupFailure="PASS", publicBackupInterruption="PASS",
-                                                   publicReleaseConnectionFailure="PASS", installedCliReadAcceptance="PASS")
+                                                   publicReleaseConnectionFailure="PASS", installedCliReadAcceptance="PASS",
+                                                   publicCloudConnectionPolicies="PASS")
                     self.evidence["status"] = "PASS"
                 finally:
                     if self.vm:
@@ -2807,6 +2842,948 @@ class OwnedFaultProcess:
         return False
 
 
+def cloud_dummy_configuration(nonce):
+    require(isinstance(nonce, str) and re.fullmatch(r"[a-f0-9]{32}", nonce), "CLOUD_FAULT_NONCE")
+    # Pinned yandex.NewFs requires refresh_token and upgrades non-OAuth types.
+    # Neither value is a provider credential. No token or token hash is evidence.
+    token = {"access_token": "ASA_REALHOST_DUMMY_ACCESS_" + nonce,
+             "refresh_token": "ASA_REALHOST_DUMMY_REFRESH_" + nonce,
+             "token_type": "OAuth", "expiry": "2099-01-01T00:00:00Z"}
+    return ("[yandex]\ntype = yandex\ntoken = " + json.dumps(token, sort_keys=True) + "\n").encode()
+
+
+def cloud_timestamp_ns(value):
+    """Docker network Created uses time.Now(), not an obligatory UTC suffix."""
+    require(isinstance(value, str), "CLOUD_FAULT_TIMESTAMP")
+    match = re.fullmatch(r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:\.([0-9]{1,9}))?(Z|[+-][0-9]{2}:[0-9]{2})", value)
+    require(match is not None, "CLOUD_FAULT_TIMESTAMP")
+    try:
+        moment = dt.datetime.fromisoformat(match[1] + match[3]).astimezone(dt.timezone.utc)
+    except ValueError:
+        raise Failure("CLOUD_FAULT_TIMESTAMP") from None
+    delta = moment - dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+    return delta.days * 86400 * 10**9 + delta.seconds * 10**9 + int((match[2] or "").ljust(9, "0"))
+
+
+def cloud_container_identity(record, earliest_ns):
+    require(isinstance(record, dict) and isinstance(record.get("id"), str) and HEX64.fullmatch(record["id"]),
+            "CLOUD_FAULT_CONTAINER_IDENTITY")
+    labels, mounts = record.get("labels"), record.get("mounts")
+    expected_labels = {"asa.owner": CLOUD_PROJECT, "com.docker.compose.project": CLOUD_PROJECT,
+                      "com.docker.compose.service": "rclone",
+                      "com.docker.compose.project.working_dir": str(CLOUD_ROOT),
+                      "com.docker.compose.project.config_files": str(CLOUD_ROOT / "compose.json")}
+    require(isinstance(labels, dict) and all(labels.get(key) == value for key, value in expected_labels.items())
+            and labels.get("com.docker.compose.oneoff") in ("False", "false"),
+            "CLOUD_FAULT_CONTAINER_IDENTITY")
+    require(isinstance(mounts, list) and len(mounts) == 2
+            and all(isinstance(item, dict) and item.get("Type") == "bind" and item.get("RW") is True for item in mounts)
+            and {(item.get("Source"), item.get("Destination")) for item in mounts}
+            == {(str(CLOUD_ROOT / "config"), "/config/rclone"), (str(CLOUD_ROOT / "data"), "/data")},
+            "CLOUD_FAULT_CONTAINER_IDENTITY")
+    require(record.get("name") == "/" + CLOUD_CONTAINER and record.get("image") == CLOUD_IMAGE
+            and record.get("imageId") == CLOUD_IMAGE_ID and record.get("user") == "1000:1000"
+            and record.get("readonly") is True and record.get("ports") in ({}, None)
+            and record.get("privileged") is False and record.get("capAdd") in (None, [])
+            and record.get("capDrop") == ["ALL"]
+            and record.get("paused") is False and record.get("restarting") is False
+            and record.get("oomKilled") is False and type(record.get("restarts")) is int and record["restarts"] == 0,
+            "CLOUD_FAULT_CONTAINER_IDENTITY")
+    require(type(earliest_ns) is int and earliest_ns <= cloud_timestamp_ns(record.get("created")) <= time.time_ns()
+            and cloud_timestamp_ns(record.get("started")) >= cloud_timestamp_ns(record["created"]), "CLOUD_FAULT_CONTAINER_FRESHNESS")
+    require(isinstance(record.get("networks"), dict) and (record.get("execIds") is None
+            or isinstance(record.get("execIds"), list) and len(record["execIds"]) <= 128
+            and all(isinstance(item, str) and HEX64.fullmatch(item) for item in record["execIds"])
+            and len(set(record["execIds"])) == len(record["execIds"])),
+            "CLOUD_FAULT_EXEC_IDENTITY")
+    return {"id": record["id"], "created": record["created"], "started": record["started"],
+            "image": CLOUD_IMAGE, "imageId": CLOUD_IMAGE_ID, "labels": expected_labels,
+            "mounts": sorted([item["Source"], item["Destination"]] for item in mounts),
+            "user": "1000:1000", "readonly": True, "publicPorts": False}
+
+
+def cloud_network_identity(record, earliest_ns):
+    require(isinstance(record, dict) and isinstance(record.get("id"), str) and HEX64.fullmatch(record["id"])
+            and record.get("name") == CLOUD_PROJECT + "_default"
+            and record.get("driver") == "bridge" and record.get("scope") == "local"
+            and isinstance(record.get("labels"), dict)
+            and record["labels"].get("com.docker.compose.project") == CLOUD_PROJECT
+            and record["labels"].get("com.docker.compose.network") == "default"
+            and isinstance(record.get("containers"), dict), "CLOUD_FAULT_NETWORK_IDENTITY")
+    require(earliest_ns <= cloud_timestamp_ns(record.get("created")) <= time.time_ns(), "CLOUD_FAULT_NETWORK_FRESHNESS")
+    return {key: record[key] for key in ("id", "name", "created", "driver", "scope")}
+
+
+def cloud_namespace_projection(interfaces, routes4, routes6, inode, guest_inode):
+    require(type(inode) is int and inode > 0 and type(guest_inode) is int and guest_inode > 0
+            and inode != guest_inode, "CLOUD_FAULT_NAMESPACE")
+    require(isinstance(interfaces, list) and len(interfaces) == 1 and isinstance(interfaces[0], dict)
+            and interfaces[0].get("ifname") == "lo" and isinstance(interfaces[0].get("addr_info"), list),
+            "CLOUD_FAULT_NAMESPACE")
+    for address in interfaces[0]["addr_info"]:
+        require(isinstance(address, dict) and address.get("family") in ("inet", "inet6")
+                and isinstance(address.get("local"), str), "CLOUD_FAULT_NAMESPACE")
+        try:
+            valid = ipaddress.ip_address(address["local"]).is_loopback
+        except ValueError:
+            valid = False
+        require(valid, "CLOUD_FAULT_NAMESPACE")
+    for version, routes in ((4, routes4), (6, routes6)):
+        require(isinstance(routes, list) and len(routes) <= 32, "CLOUD_FAULT_NAMESPACE")
+        for route in routes:
+            require(isinstance(route, dict) and route.get("dev") in (None, "lo")
+                    and not any(key in route for key in ("gateway", "via", "nexthops")), "CLOUD_FAULT_NAMESPACE")
+            if route.get("type") in ("unreachable", "blackhole", "prohibit"):
+                continue
+            try:
+                destination = ipaddress.ip_network(route.get("dst", ""), strict=False)
+                valid = destination.version == version and destination.is_loopback
+            except (ValueError, TypeError):
+                valid = False
+            require(valid and route.get("dev") == "lo" and route.get("type", "unicast") in ("local", "unicast", "broadcast"),
+                    "CLOUD_FAULT_NAMESPACE")
+    return {"namespaceInode": inode, "differentFromGuest": True, "loopbackOnly": True,
+            "externalIPv4Routes": 0, "externalIPv6Routes": 0}
+
+
+def cloud_exec_projection(rows, container_id, installation_id, started_ns, finished_ns):
+    """Exact pinned producer commands, complete daemon lifecycle; no raw attributes."""
+    require(isinstance(rows, list) and len(rows) <= 256 and isinstance(container_id, str)
+            and HEX64.fullmatch(container_id) and isinstance(installation_id, str)
+            and re.fullmatch(r"[a-f0-9]{32}", installation_id), "BLOCKED_CLOUD_EXEC_EVIDENCE", status="BLOCKED")
+    base = "/data/asa-" + installation_id
+    commands = {
+        "rclone --config /config/rclone/rclone.conf --contimeout 20s --timeout 60s --max-duration 595s --retries 2 mkdir yandex:Server-Backups/asa-" + installation_id: "mkdir",
+        "rclone rc --url http://127.0.0.1:5572 core/version": "health",
+        'sh -eu -c umask 077; for d do if [ -e "$d" ]; then test -d "$d" && test ! -L "$d"; else mkdir "$d"; fi; done asa-cloud-spool '
+        + base + " " + base + "/outgoing " + base + "/incoming": "spool",
+    }
+    executions = {}
+    previous_ns = started_ns
+    for row in rows:
+        require(isinstance(row, dict) and row.get("type") == "container" and row.get("id") == container_id
+                and type(row.get("timeNs")) is int and previous_ns <= row["timeNs"] <= finished_ns,
+                "BLOCKED_CLOUD_EXEC_EVIDENCE", status="BLOCKED")
+        previous_ns = row["timeNs"]
+        action = row.get("action")
+        require(isinstance(action, str), "BLOCKED_CLOUD_EXEC_EVIDENCE", status="BLOCKED")
+        if not action.startswith(("exec_create: ", "exec_start: ")) and action != "exec_die":
+            require(action in ("health_status: healthy", "health_status: unhealthy"),
+                    "BLOCKED_CLOUD_EXEC_EVIDENCE", status="BLOCKED")
+            continue
+        identity = row.get("execId")
+        require(isinstance(identity, str) and HEX64.fullmatch(identity), "BLOCKED_CLOUD_EXEC_EVIDENCE", status="BLOCKED")
+        if action.startswith("exec_create: "):
+            command = action[len("exec_create: "):]
+            require(identity not in executions and command in commands, "BLOCKED_CLOUD_EXEC_EVIDENCE", status="BLOCKED")
+            executions[identity] = {"command": command, "kind": commands[command], "state": "created"}
+        elif action.startswith("exec_start: "):
+            require(identity in executions and executions[identity]["state"] == "created"
+                    and executions[identity]["command"] == action[len("exec_start: "):],
+                    "BLOCKED_CLOUD_EXEC_EVIDENCE", status="BLOCKED")
+            executions[identity]["state"] = "started"
+        else:
+            require(identity in executions and executions[identity]["state"] == "started"
+                    and isinstance(row.get("exitCode"), str) and re.fullmatch(r"[0-9]{1,3}", row["exitCode"])
+                    and 0 <= int(row["exitCode"]) <= 255, "BLOCKED_CLOUD_EXEC_EVIDENCE", status="BLOCKED")
+            executions[identity].update(state="exited", exitCode=int(row["exitCode"]))
+    require(executions and all(item["state"] == "exited" for item in executions.values()),
+            "BLOCKED_CLOUD_EXEC_EVIDENCE", status="BLOCKED")
+    mkdir = [(identity, item) for identity, item in executions.items() if item["kind"] == "mkdir"]
+    require(len(mkdir) == 1 and mkdir[0][1]["exitCode"] in (1, 5)
+            and all(item["exitCode"] == 0 for item in executions.values() if item["kind"] != "mkdir")
+            and any(item["kind"] == "spool" for item in executions.values()),
+            "BLOCKED_CLOUD_EXEC_NOT_NETWORK_FAILURE", status="BLOCKED")
+    return {"status": "OBSERVED", "command": "PINNED_RCLONE_MKDIR", "execId": mkdir[0][0],
+            "exitCode": mkdir[0][1]["exitCode"], "completeCreateStartDie": True, "naturalCompletion": True,
+            "healthExecutions": sum(item["kind"] == "health" for item in executions.values()),
+            "classification": "TRANSPORT_FAILURE_UNDER_PROVEN_NO_EGRESS", "specificErrno": "UNAVAILABLE"}
+
+
+def cloud_result_projection(public, receipt, journal):
+    """Unknown or malformed fields never become a policy PASS or opaque evidence."""
+    public = public if isinstance(public, dict) else {}
+    receipt = receipt if isinstance(receipt, dict) else {}
+    journal = journal if isinstance(journal, dict) else {}
+    operation = public.get("operation") if isinstance(public.get("operation"), dict) else {}
+    saved = journal.get("result") if isinstance(journal.get("result"), dict) else {}
+    result = {}
+    for name, value in (("publicStatus", public.get("status")), ("setupOutcome", saved.get("outcome")),
+                        ("receiptOutcome", receipt.get("outcome")), ("journalState", journal.get("state"))):
+        result[name] = value if isinstance(value, str) and value in {
+            "OK", "FAILED", "BLOCKED", "WARNING", "ERROR", "TERMINAL", "RUNNING", "RECOVERY_REQUIRED", "INTERRUPTED"
+        } else "UNVERIFIED"
+    result["publicExitCode"] = public.get("exitCode") if type(public.get("exitCode")) is int and public["exitCode"] in (0, 1, 2, 130) else None
+    for name, value in (("operationId", operation.get("operationId")), ("installationId", operation.get("installationId")),
+                        ("sourceOperationId", receipt.get("operationId"))):
+        result[name] = value if isinstance(value, str) and re.fullmatch(r"[a-f0-9]{32}", value) else None
+    for part in ("local", "encryption", "cloud"):
+        item = receipt.get(part) if isinstance(receipt.get(part), dict) else {}
+        result[part] = item.get("status") if isinstance(item.get("status"), str) and item["status"] in {
+            "OK", "FAILED", "NOT_CONFIGURED", "PENDING", "UNKNOWN", "UNAVAILABLE"
+        } else "UNVERIFIED"
+    cloud = receipt.get("cloud") if isinstance(receipt.get("cloud"), dict) else {}
+    result["cloudReasonCode"] = cloud.get("error") if cloud.get("error") in (
+        "CLOUD_TRANSFER_FAILED", "CLOUD_AUTHORIZATION", "CLOUD_PROVIDER_GONE", "CLOUD_TIMEOUT",
+        "CLOUD_UNAVAILABLE", "CLOUD_NOT_CONNECTED", "CLOUD_TRANSPORT_ERROR"
+    ) else "UNRECOGNIZED_REASON"
+    result["dataProtectionConfirmed"] = operation.get("dataProtectionConfirmed") if type(operation.get("dataProtectionConfirmed")) is bool else None
+    result["receiptProtectionConfirmed"] = receipt.get("protectionConfirmed") if type(receipt.get("protectionConfirmed")) is bool else None
+    result["snapshotId"] = receipt.get("snapshotId") if isinstance(receipt.get("snapshotId"), str) and re.fullmatch(
+        r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,32}", receipt["snapshotId"]) else None
+    return result
+
+
+def cloud_require_result(value, policy, operation_id, installation_id, source_operation_id, journal, receipt, public):
+    expected = ("OK", 0, "WARNING", "WARNING") if policy == "best-effort" else ("FAILED", 1, "ERROR", "BLOCKED")
+    require(policy in ("best-effort", "required") and
+            tuple(value.get(key) for key in ("publicStatus", "publicExitCode", "setupOutcome", "receiptOutcome")) == expected
+            and value.get("operationId") == operation_id and value.get("installationId") == installation_id
+            and value.get("sourceOperationId") == source_operation_id
+            and value.get("local") == value.get("encryption") == "OK" and value.get("cloud") == "FAILED"
+            and value.get("cloudReasonCode") == "CLOUD_TRANSFER_FAILED"
+            and value.get("dataProtectionConfirmed") is False and value.get("receiptProtectionConfirmed") is False
+            and value.get("journalState") == "TERMINAL" and receipt.get("policy") == policy
+            and journal.get("operationId") == operation_id and journal.get("installationId") == installation_id
+            and journal.get("snapshotId") == value["snapshotId"] and journal.get("root") == str(INSTALL_ROOT)
+            and journal.get("mode") == ("retry-cloud" if policy == "best-effort" else "backup")
+            and public.get("operation", {}).get("outcome") == expected[2]
+            and journal.get("result", {}).get("dataProtectionConfirmed") is False,
+            "CLOUD_FAULT_POLICY_RESULT")
+
+
+def cloud_fixture_paths():
+    return INSTALL_ROOT / ".asa/realhost-cloud-fixture.json", Path("/var/lib/asa-setup/operator/realhost-cloud-dummy.conf")
+
+
+def cloud_changed_configuration(original, context, policy):
+    value = json.loads(json.dumps(original))
+    value["backup"]["policy"] = policy
+    value["backup"]["cloud"] = {**value["backup"]["cloud"], "enabled": True,
+        "project": "asa-" + value["installationId"],
+        "transportPath": str(candidate_bundle(context) / "tools/deployment/ops/cloud_storage.py"),
+        "transportSha256": CLOUD_SOURCE_SHA256}
+    return value
+
+
+def cloud_config_bytes(value):
+    return (json.dumps(value, ensure_ascii=True, sort_keys=True, indent=2) + "\n").encode()
+
+
+def cloud_source_dummy_binding(info, raw, context, state):
+    """Private lifetime proof; never publish dummy bytes or their hash as evidence."""
+    require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+            and (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (state["uid"], state["gid"], 0o600)
+            and info.st_size == len(raw) and raw == cloud_dummy_configuration(context["nonce"]),
+            "CLOUD_FAULT_DUMMY_IDENTITY")
+    return {"format": "asa-realhost-cloud-source-dummy-v1", "nonce": context["nonce"],
+            "installationId": state["installationId"], "sourceOperationId": state["sourceOperationId"],
+            "dev": info.st_dev, "ino": info.st_ino, "uid": info.st_uid, "gid": info.st_gid,
+            "mode": stat.S_IMODE(info.st_mode), "nlink": info.st_nlink, "bytes": info.st_size,
+            "mtimeNs": info.st_mtime_ns, "ctimeNs": info.st_ctime_ns, "sha256": hashlib.sha256(raw).hexdigest()}
+
+
+def cloud_create_source_dummy(path, base, context, state):
+    """Capture the creation FD, not a pathname reopened after publication."""
+    raw = cloud_dummy_configuration(context["nonce"])
+    directory = diagnostic_open(path.parent, base, state["uid"], directory=True)
+    try:
+        descriptor = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             0o600, dir_fd=directory)
+        with os.fdopen(descriptor, "wb") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+            binding = cloud_source_dummy_binding(os.fstat(stream.fileno()), raw, context, state)
+        os.fsync(directory)
+        return binding
+    finally:
+        os.close(directory)
+
+
+def cloud_restore_source_dummy(path, base, context, state):
+    saved = state.get("sourceDummy")
+    if saved == {"status": "ABSENT"}:
+        require(not os.path.lexists(path), "CLOUD_FAULT_DUMMY_IDENTITY")
+        return
+    require(isinstance(saved, dict) and set(saved) == {"status", "binding"}
+            and saved["status"] == "CREATED" and isinstance(saved["binding"], dict),
+            "CLOUD_FAULT_DUMMY_IDENTITY")
+    raw, info, _ = diagnostic_read(path, base, state["uid"], maximum=4096)
+    observed = cloud_source_dummy_binding(info, raw, context, state)
+    require(saved["binding"] == observed and set(saved["binding"]) == set(observed)
+            and all(type(saved["binding"][key]) is type(value) for key, value in observed.items()),
+            "CLOUD_FAULT_DUMMY_IDENTITY")
+    cloud_unlink_private(path, base, state["uid"], info, raw)
+
+
+def owner_cloud_fixture(context, action):
+    """Fixture configuration only, under the product lock; never relabel a receipt."""
+    import pwd
+    config_module, _, _, install, _, config, release = owner_installation(context)
+    from deployment.system import operation_lock
+    from deployment.setup_operation import Store
+    from deployment.backup import managed_writers
+    from deployment.backup_workflow import verify_receipt
+    account = pwd.getpwuid(os.geteuid())
+    require(account.pw_name == "asa-setup" and account.pw_dir == "/var/lib/asa-setup/operator"
+            and os.geteuid() != 0 and os.getegid() == account.pw_gid, "CLOUD_FAULT_OWNER")
+    require(release["revision"] == context["pins"]["current"]["revision"]
+            and release["schema"] == context["pins"]["current"]["schema"], "CLOUD_FAULT_RUNTIME")
+    state_path, dummy_path = cloud_fixture_paths()
+    setup_path = INSTALL_ROOT / ".asa/setup.json"
+    with operation_lock(INSTALL_ROOT):
+        require(Store(INSTALL_ROOT, config["installationId"]).pending() is None
+                and not os.path.lexists(INSTALL_ROOT / ".asa/maintenance.json"), "CLOUD_FAULT_PENDING")
+        raw, metadata, _ = diagnostic_read(setup_path, INSTALL_ROOT, os.geteuid(), maximum=1024**2)
+        require(metadata.st_gid == os.getegid() and stat.S_IMODE(metadata.st_mode) == 0o600,
+                "CLOUD_FAULT_CONFIGURATION_IDENTITY")
+        records = install.identity()
+        writers = managed_writers(install, records, json.loads(install.compose("config", "--format", "json", capture=True)))
+        require(set(records) == {"postgres", "minio", "api", "web", "scratch", "search"}
+                and all(isinstance(record.get("id"), str) and HEX64.fullmatch(record["id"]) for record in records.values()),
+                "CLOUD_FAULT_APPLICATION_IDENTITY")
+        pointer = config_module.private_json(INSTALL_ROOT / ".asa/setup-backups/last-local-success.json")
+        current = verify_receipt(install, snapshot_id=pointer.get("snapshotId"), installation_id=config["installationId"])
+        require(current.get("local", {}).get("status") == current.get("encryption", {}).get("status") == "OK",
+                "CLOUD_FAULT_SOURCE_BACKUP")
+        control = owner_observe(context)
+        if action == "baseline":
+            require(not os.path.lexists(state_path) and not os.path.lexists(dummy_path), "CLOUD_FAULT_FIXTURE_EXISTS")
+            require(config["backup"]["policy"] == "best-effort" and config["backup"]["cloud"].get("enabled") is False
+                    and set(config["backup"]["cloud"]) <= {"enabled", "transportPath", "transportSha256", "project"}
+                    and config["backup"]["retention"] == {"localKeep": None, "remoteKeep": None}
+                    and config["backup"]["schedule"]["enabled"] is False
+                    and config["backup"]["ageRecipient"] == context["ageRecipient"]
+                    and current["policy"] == "best-effort" and current["cloud"]["status"] == "NOT_CONFIGURED",
+                    "CLOUD_FAULT_INITIAL_CONFIGURATION")
+            state = {"format": "asa-realhost-cloud-fixture-v1", "nonce": context["nonce"],
+                     "installationId": config["installationId"], "originalText": raw.decode("utf-8"),
+                     "uid": metadata.st_uid, "gid": metadata.st_gid, "mode": stat.S_IMODE(metadata.st_mode),
+                     "writers": writers, "control": control, "pointer": pointer,
+                     "snapshotId": current["snapshotId"], "sourceOperationId": current["operationId"],
+                     "completeSnapshots": manifest_count(), "sourceDummy": {"status": "ABSENT"}}
+            config_module.save_private(state_path, state)
+            return {"installationId": config["installationId"], "snapshotId": current["snapshotId"],
+                    "sourceOperationId": current["operationId"], "completeSnapshots": state["completeSnapshots"],
+                    "configurationSha256": hashlib.sha256(raw).hexdigest(), "configUid": metadata.st_uid,
+                    "configGid": metadata.st_gid, "configMode": stat.S_IMODE(metadata.st_mode),
+                    "writerIdentitySha256": canonical_hash(writers), "controlFingerprintSha256": canonical_hash(control),
+                    "appIds": {name: record["id"] for name, record in records.items()}, "noPendingOperation": True}
+        state = config_module.private_json(state_path)
+        require(state.get("format") == "asa-realhost-cloud-fixture-v1" and state.get("nonce") == context["nonce"]
+                and state.get("installationId") == config["installationId"]
+                and (state.get("uid"), state.get("gid"), state.get("mode")) == (metadata.st_uid, metadata.st_gid, 0o600)
+                and isinstance(state.get("originalText"), str), "CLOUD_FAULT_FIXTURE_IDENTITY")
+        original = config_module.validate_config(json.loads(state["originalText"]), INSTALL_ROOT, os.geteuid())
+        original_raw = state["originalText"].encode()
+        best = config_module.validate_config(cloud_changed_configuration(original, context, "best-effort"), INSTALL_ROOT, os.geteuid())
+        required = config_module.validate_config(cloud_changed_configuration(original, context, "required"), INSTALL_ROOT, os.geteuid())
+        require(raw in (original_raw, cloud_config_bytes(best), cloud_config_bytes(required))
+                and writers == state["writers"] and control == state["control"], "CLOUD_FAULT_CONFIGURATION_CHANGED")
+        source = verify_receipt(install, snapshot_id=state["snapshotId"], installation_id=config["installationId"])
+        require(source["operationId"] == state["sourceOperationId"], "CLOUD_FAULT_SOURCE_BACKUP")
+        source_removed = None
+        if action == "best-effort":
+            require(raw == original_raw and not os.path.lexists(dummy_path)
+                    and state.get("sourceDummy") == {"status": "ABSENT"}, "CLOUD_FAULT_FIXTURE_ORDER")
+            # An interrupted creation without a persisted FD proof stays unowned.
+            state["sourceDummy"] = {"status": "CREATING"}
+            config_module.save_private(state_path, state)
+            binding = cloud_create_source_dummy(dummy_path, Path(account.pw_dir), context, state)
+            state["sourceDummy"] = {"status": "CREATED", "binding": binding}
+            config_module.save_private(state_path, state)
+            config_module.save_private(setup_path, best)
+        elif action == "required":
+            require(raw == cloud_config_bytes(best), "CLOUD_FAULT_FIXTURE_ORDER")
+            config_module.save_private(setup_path, required)
+        elif action == "restore":
+            try:
+                cloud_restore_source_dummy(dummy_path, Path(account.pw_dir), context, state)
+                source_removed = True
+            except (Failure, OSError, ValueError, TypeError, KeyError):
+                source_removed = False
+            # Source cleanup failure must not leave a fault policy configured.
+            config_module.validate_config(original, INSTALL_ROOT, os.geteuid())
+            config_module.atomic_bytes(setup_path, original_raw, mode=state["mode"])
+            actual, info, _ = diagnostic_read(setup_path, INSTALL_ROOT, os.geteuid(), maximum=1024**2)
+            require(actual == original_raw and (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode))
+                    == (state["uid"], state["gid"], state["mode"]), "CLOUD_FAULT_CONFIGURATION_RESTORE")
+        elif action != "observe":
+            raise Failure("CLOUD_FAULT_FIXTURE_ACTION")
+        result = {"noPendingOperation": True, "originalWritersReady": True, "controlDataPreserved": True,
+                "writerIdentitySha256": canonical_hash(writers), "controlFingerprintSha256": canonical_hash(control),
+                "configurationRestored": action == "restore", "fixtureOnlyPolicySetter": True,
+                "publicConfigSetterClaimed": False}
+        if action == "restore":
+            result["sourceDummyRemoved"] = source_removed
+            if not source_removed:
+                result.update(status="BLOCKED", reasonCode="BLOCKED_CLOUD_FAULT_SOURCE_DUMMY")
+        return result
+
+
+def cloud_unlink_private(path, base, uid, expected_info, expected):
+    raw, info, _ = diagnostic_read(path, base, uid, maximum=4096)
+    require(diagnostic_metadata(info) == diagnostic_metadata(expected_info) and raw == expected, "CLOUD_FAULT_DUMMY_IDENTITY")
+    directory = diagnostic_open(Path(path).parent, base, uid, directory=True)
+    try:
+        current = os.stat(Path(path).name, dir_fd=directory, follow_symlinks=False)
+        require(diagnostic_metadata(current) == diagnostic_metadata(info), "CLOUD_FAULT_DUMMY_IDENTITY")
+        os.unlink(Path(path).name, dir_fd=directory)
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+
+def cloud_prepare_guest(context, *, credential=False):
+    require(os.geteuid() == 0, "CLOUD_FAULT_OWNER")
+    require(os.environ.get("DOCKER_HOST") == "unix:///var/run/docker.sock"
+            and os.environ.get("DOCKER_CONFIG") == str(GUEST_PRIVATE / "cloud-docker-config")
+            and os.environ.get("HOME") == "/root", "CLOUD_FAULT_PREPARATION_CONTEXT")
+    owner, _ = diagnostic_owner(context)
+    source = candidate_bundle(context) / "tools/asa_setup_launcher.py"
+    spec = importlib.util.spec_from_file_location("asa_realhost_cloud_launcher", source)
+    launcher = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launcher)
+    require(launcher.CLOUD_SOURCE_SHA256 == CLOUD_SOURCE_SHA256, "CLOUD_FAULT_SOURCE_PIN")
+    environment = {key: value for key, value in guest_environment().items() if key not in ("GH_TOKEN", "GITHUB_TOKEN")}
+    environment.update(DOCKER_HOST="unix:///var/run/docker.sock", DOCKER_CONFIG=str(GUEST_PRIVATE / "cloud-docker-config"))
+    def read(args):
+        report, raw = diagnostic_command(["docker", *args], timeout=12, environment=environment)
+        require(report.get("exitCode") == 0 and not report.get("reasonCode") and not report.get("cleanupReasonCode"),
+                "BLOCKED_CLOUD_FAULT_COMMAND", status="BLOCKED")
+        return raw
+    if credential:
+        raw, _, _ = diagnostic_read(GUEST_PRIVATE / "cloud-isolation.json", GUEST_PRIVATE, 0, maximum=16384)
+        saved = json.loads(raw)
+        require(saved.get("format") == "asa-realhost-cloud-isolation-v1" and saved.get("nonce") == context["nonce"]
+                and saved.get("sourceRevision") == context["sourceRevision"]
+                and type(saved.get("observedNs")) is int and 0 <= time.time_ns() - saved["observedNs"] < 30 * 10**9,
+                "CLOUD_FAULT_ISOLATION_BINDING")
+        record = json.loads(read(["inspect", "--format", CLOUD_INSPECT, saved["container"]["id"]]))
+        require(cloud_container_identity(record, saved["earliestNs"]) == saved["container"]
+                and record["networks"] == {} and record.get("running") is True
+                and record.get("pid") == saved["process"]["pid"]
+                and same_process(saved["process"], proc_identity(record["pid"]))
+                and Path(f"/proc/{record['pid']}/ns/net").stat().st_ino == saved["namespaceInode"]
+                and saved["namespaceInode"] != network_namespace_inode(), "CLOUD_FAULT_ISOLATION_BINDING")
+    else:
+        require(not os.path.lexists(CLOUD_ROOT), "CLOUD_FAULT_EXISTING_RESOURCE")
+        for args in (["ps", "-aq", "--no-trunc", "--filter", "label=com.docker.compose.project=" + CLOUD_PROJECT],
+                     ["ps", "-aq", "--no-trunc", "--filter", "name=^" + CLOUD_CONTAINER + "$"],
+                     ["network", "ls", "-q", "--no-trunc", "--filter", "label=com.docker.compose.project=" + CLOUD_PROJECT],
+                     ["network", "ls", "-q", "--no-trunc", "--filter", "name=^" + CLOUD_PROJECT + "_default$"]):
+            require(not read(args).strip(), "CLOUD_FAULT_EXISTING_RESOURCE")
+    result = launcher.prepare_cloud_transport(candidate_bundle(context), owner=owner,
+        credential_file=cloud_fixture_paths()[1] if credential else None)
+    require(result.get("format") == "asa-cloud-preparation-v1" and result.get("project") == CLOUD_PROJECT
+            and result.get("image") == CLOUD_IMAGE and result.get("reused") is credential
+            and result.get("tokenConfigured") is credential and result.get("deliveryVerified") is False,
+            "CLOUD_FAULT_PREPARATION")
+    return {"reused": credential, "dummyImported": credential, "deliveryVerified": False, "transportSha256": CLOUD_SOURCE_SHA256}
+
+
+class CloudFaultProcess(OwnedFaultProcess):
+    def guard(self):
+        super().guard()
+        require(shutil.disk_usage(INSTALL_ROOT).free > RESERVE, "BLOCKED_CLOUD_FAULT_DISK_RESERVE", status="BLOCKED")
+
+
+class CloudFault:
+    """Own only a freshly absent, pinned transport in this nonce-bound VM."""
+    def __init__(self, context, owner):
+        require(os.geteuid() == 0 and isinstance(owner, dict) and type(owner.get("uid")) is int and owner["uid"] > 0
+                and type(owner.get("gid")) is int and owner["gid"] > 0 and owner.get("name") == "asa-setup"
+                and owner.get("root") == str(INSTALL_ROOT) and owner.get("home") == "/var/lib/asa-setup/operator",
+                "CLOUD_FAULT_OWNER")
+        self.context, self.owner = context, owner
+        self.deadline = time.monotonic() + CLOUD_FAULT_SECONDS
+        self.work_deadline = self.deadline - CLOUD_CLEANUP_SECONDS
+        self.earliest_ns = time.time_ns()
+        self.binding = self.network_binding = self.init_process = self.dummy_info = self.empty_info = None
+        self.active_child = None
+        self.fixture_started = self.preparation_started = self.dummy_imported = False
+        self.environment = {key: value for key, value in guest_environment().items() if key not in ("GH_TOKEN", "GITHUB_TOKEN")}
+        self.docker_config = GUEST_PRIVATE / "cloud-docker-config"
+        require(not os.path.lexists(self.docker_config), "CLOUD_FAULT_FIXTURE_EXISTS")
+        self.docker_config.mkdir(mode=0o700)
+        self.environment.update(DOCKER_HOST="unix:///var/run/docker.sock", DOCKER_CONFIG=str(self.docker_config))
+        self.evidence = {"credentialKind": "DUMMY_ONLY", "realProviderAuthentication": "NOT_RUN",
+            "realYandexUploadReadback": "NOT_RUN", "specificProviderError": "UNAVAILABLE",
+            "transportSha256": CLOUD_SOURCE_SHA256, "image": CLOUD_IMAGE, "imageId": CLOUD_IMAGE_ID,
+            "opsRevision": context["pins"]["browser"]["opsRevision"], "phaseBudgetSeconds": CLOUD_FAULT_SECONDS,
+            "cleanupReserveSeconds": CLOUD_CLEANUP_SECONDS, "cases": {}, "cleanup": {"status": "NOT_RUN"}}
+
+    def remaining(self, maximum, *, cleanup=False):
+        remaining = (self.deadline if cleanup else self.work_deadline) - time.monotonic()
+        require(remaining > 0, "BLOCKED_CLOUD_FAULT_BUDGET", status="BLOCKED")
+        if not cleanup:
+            require(shutil.disk_usage(INSTALL_ROOT).free > RESERVE, "BLOCKED_CLOUD_FAULT_DISK_RESERVE", status="BLOCKED")
+        return min(maximum, remaining)
+
+    def command(self, args, *, timeout=15, cleanup=False):
+        report, raw = diagnostic_command(args, timeout=self.remaining(timeout, cleanup=cleanup), environment=self.environment)
+        require(report.get("exitCode") == 0 and not report.get("reasonCode") and not report.get("cleanupReasonCode"),
+                "BLOCKED_CLOUD_FAULT_COMMAND", status="BLOCKED")
+        return raw
+
+    def docker(self, *args, timeout=15, cleanup=False):
+        return self.command(["docker", *args], timeout=timeout, cleanup=cleanup)
+
+    def child(self, phase, *, operator=False, timeout=360, cleanup=False):
+        environment = self.environment
+        if operator:
+            environment = {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": self.owner["home"], "USER": self.owner["name"], "LOGNAME": self.owner["name"],
+                "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "PYTHONDONTWRITEBYTECODE": "1",
+                "DOCKER_HOST": "unix:///var/run/docker.sock"}
+        budget = self.remaining(timeout, cleanup=cleanup)
+        process_class = OwnedFaultProcess if cleanup else CloudFaultProcess
+        with process_class(["/usr/bin/python3", "-I", "-B", GUEST_HOME / "runner.py", "--guest-phase", phase],
+                environment=environment, deadline=time.monotonic() + budget,
+                owner=self.owner if operator else None) as child:
+            self.active_child = child
+            code, raw = child.wait(budget)
+        try:
+            result = json.loads(raw)
+        except (ValueError, UnicodeError):
+            raise Failure("CLOUD_FAULT_CHILD_REPORT") from None
+        require(isinstance(result, dict) and result.get("format") == "asa-realhost-guest-v1"
+                and result.get("phase") == phase, "CLOUD_FAULT_CHILD_REPORT")
+        if type(code) is not int or code != 0 or result.get("status") != "PASS":
+            source_blocked = (phase == "owner-cloud-restore" and operator and cleanup
+                              and type(code) is int and code == 2 and result.get("status") == "BLOCKED"
+                              and result.get("reasonCode") == "BLOCKED_CLOUD_FAULT_SOURCE_DUMMY"
+                              and result.get("sourceDummyRemoved") is False
+                              and all(result.get(key) is True for key in
+                                      ("configurationRestored", "controlDataPreserved", "originalWritersReady")))
+            blocked = (type(code) is int and code == 2 and result.get("status") == "BLOCKED"
+                       and result.get("reasonCode") in ("BLOCKED_CLOUD_FAULT_COMMAND", "BLOCKED_CLOUD_FAULT_BUDGET",
+                                                        "BLOCKED_CLOUD_FAULT_DISK_RESERVE"))
+            error = Failure("BLOCKED_CLOUD_FAULT_CHILD" if blocked or source_blocked else "CLOUD_FAULT_CHILD_FAILED",
+                            status="BLOCKED" if blocked or source_blocked else "FAIL")
+            if source_blocked:
+                error.source_dummy_cleanup = {"sourceDummyRemoved": False, "configurationRestored": True,
+                                              "controlDataPreserved": True, "originalWritersReady": True}
+            raise error
+        return result
+
+    def daemon(self, *, cleanup=False):
+        raw = self.docker("info", "--format", "{{.ID}}", cleanup=cleanup).strip()
+        require(raw and hashlib.sha256(raw).hexdigest() == root_json("host-baseline.json")["daemonIdentitySha256"],
+                "CLOUD_FAULT_DAEMON_IDENTITY")
+        return hashlib.sha256(raw).hexdigest()
+
+    def identifiers(self, kind, field, value, *, cleanup=False):
+        args = ["network", "ls"] if kind == "network" else ["ps", "-a"]
+        raw = self.docker(*args, "-q", "--no-trunc", "--filter", field + "=" + value, cleanup=cleanup)
+        values = raw.decode("ascii").split()
+        require(len(values) <= 8 and len(set(values)) == len(values)
+                and all(HEX64.fullmatch(value) for value in values), "CLOUD_FAULT_INVENTORY")
+        return values
+
+    def absent(self):
+        require(not os.path.lexists(CLOUD_ROOT), "CLOUD_FAULT_EXISTING_RESOURCE")
+        parent = os.open(CLOUD_ROOT.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            info = os.fstat(parent)
+            require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
+                    "CLOUD_FAULT_PARENT")
+        finally:
+            os.close(parent)
+        for kind, name in (("container", CLOUD_CONTAINER), ("network", CLOUD_PROJECT + "_default")):
+            require(not self.identifiers(kind, "label", "com.docker.compose.project=" + CLOUD_PROJECT)
+                    and not self.identifiers(kind, "name", "^" + re.escape(name) + "$"), "CLOUD_FAULT_EXISTING_RESOURCE")
+        self.evidence["initialResources"] = "ABSENT"
+
+    def bind(self):
+        ids = self.identifiers("container", "label", "com.docker.compose.project=" + CLOUD_PROJECT)
+        networks = self.identifiers("network", "label", "com.docker.compose.project=" + CLOUD_PROJECT)
+        require(len(ids) == len(networks) == 1, "CLOUD_FAULT_INVENTORY")
+        record = json.loads(self.docker("inspect", "--format", CLOUD_INSPECT, ids[0]))
+        network = json.loads(self.docker("network", "inspect", "--format", CLOUD_NETWORK_INSPECT, networks[0]))
+        identity, network_identity = cloud_container_identity(record, self.earliest_ns), cloud_network_identity(network, self.earliest_ns)
+        require(identity["id"] == ids[0] and network_identity["id"] == networks[0]
+                and record.get("running") is True and record.get("state") == "running"
+                and type(record.get("pid")) is int and record["pid"] > 0
+                and set(record["networks"]) == {network_identity["name"]}
+                and record["networks"][network_identity["name"]].get("NetworkID") == networks[0]
+                and set(network["containers"]) == {ids[0]}, "CLOUD_FAULT_NETWORK_IDENTITY")
+        self.binding, self.network_binding = identity, network_identity
+        self.init_process = proc_identity(record["pid"])
+        require(self.init_process and self.init_process["state"] not in ("Z", "X"), "CLOUD_FAULT_PROCESS_IDENTITY")
+        empty, info, _ = diagnostic_read(CLOUD_ROOT / "config/rclone.conf", CLOUD_ROOT / "config", 1000, maximum=4096)
+        require(empty == b"" and info.st_gid == 1000, "CLOUD_FAULT_INITIAL_CREDENTIALS")
+        self.empty_info = info
+        self.evidence["container"] = {key: identity[key] for key in ("id", "image", "imageId", "created", "started", "user", "readonly", "publicPorts")}
+        self.evidence["container"].update(mountsVerified=True, labelsVerified=True, freshNonceBoundVM=True)
+        self.evidence["networkBefore"] = {"id": network_identity["id"], "attachedOnlyOwnedContainer": True}
+
+    def container(self, *, stopped=False, cleanup=False):
+        require(self.binding is not None, "CLOUD_FAULT_UNBOUND_RESOURCE")
+        record = json.loads(self.docker("inspect", "--format", CLOUD_INSPECT, self.binding["id"], cleanup=cleanup))
+        require(cloud_container_identity(record, self.earliest_ns) == self.binding, "CLOUD_FAULT_CONTAINER_CHANGED")
+        require(record.get("networks") == {}, "CLOUD_FAULT_EGRESS_REAPPEARED")
+        if stopped:
+            require(record.get("running") is False and record.get("state") == "exited" and record.get("pid") == 0
+                    and record.get("execIds") in ([], None), "CLOUD_FAULT_CONTAINER_NOT_QUIESCENT")
+            actual = proc_identity(self.init_process["pid"])
+            require(not same_process(self.init_process, actual) or actual["state"] in ("Z", "X"), "CLOUD_FAULT_PROCESS_REMAINS")
+        else:
+            require(record.get("running") is True and record.get("state") == "running"
+                    and record.get("pid") == self.init_process["pid"]
+                    and same_process(self.init_process, proc_identity(record["pid"])), "CLOUD_FAULT_PROCESS_IDENTITY")
+        return record
+
+    def network(self, *, empty, cleanup=False):
+        require(self.network_binding is not None, "CLOUD_FAULT_UNBOUND_RESOURCE")
+        record = json.loads(self.docker("network", "inspect", "--format", CLOUD_NETWORK_INSPECT,
+                                       self.network_binding["id"], cleanup=cleanup))
+        require(cloud_network_identity(record, self.earliest_ns) == self.network_binding
+                and set(record["containers"]) == (set() if empty else {self.binding["id"]}), "CLOUD_FAULT_NETWORK_CHANGED")
+        return record
+
+    def isolate(self):
+        # No credentials have been imported, and the original network has only this container.
+        self.network(empty=False)
+        record = json.loads(self.docker("inspect", "--format", CLOUD_INSPECT, self.binding["id"]))
+        require(cloud_container_identity(record, self.earliest_ns) == self.binding
+                and set(record["networks"]) == {self.network_binding["name"]}
+                and record["networks"][self.network_binding["name"]].get("NetworkID") == self.network_binding["id"],
+                "CLOUD_FAULT_NETWORK_CHANGED")
+        self.docker("network", "disconnect", self.network_binding["id"], self.binding["id"])
+        self.network(empty=True)
+        self.evidence["isolatedNetwork"] = self.namespace()
+
+    def namespace(self):
+        record = self.container()
+        pid = record["pid"]
+        inode = Path(f"/proc/{pid}/ns/net").stat().st_ino
+        prefix = ["nsenter", "--target", str(pid), "--net", "--", "ip", "-j"]
+        interfaces = json.loads(self.command([*prefix, "address", "show"]))
+        routes4 = json.loads(self.command([*prefix, "-4", "route", "show", "table", "all"]))
+        routes6 = json.loads(self.command([*prefix, "-6", "route", "show", "table", "all"]))
+        self.container()
+        require(Path(f"/proc/{pid}/ns/net").stat().st_ino == inode, "CLOUD_FAULT_NAMESPACE")
+        return cloud_namespace_projection(interfaces, routes4, routes6, inode, network_namespace_inode())
+
+    def credentials(self):
+        raw, info, _ = diagnostic_read(CLOUD_ROOT / "config/rclone.conf", CLOUD_ROOT / "config", 1000, maximum=4096)
+        require(info.st_gid == 1000 and raw == cloud_dummy_configuration(self.context["nonce"])
+                and (self.dummy_info is None or diagnostic_metadata(info) == diagnostic_metadata(self.dummy_info)),
+                "CLOUD_FAULT_DUMMY_IDENTITY")
+        self.dummy_info = info
+
+    def quiescent(self):
+        deadline = time.monotonic() + self.remaining(45)
+        stable = False
+        while time.monotonic() < deadline:
+            record = self.container()
+            if record.get("execIds") in ([], None):
+                if stable:
+                    return
+                stable = True
+            else:
+                stable = False
+            time.sleep(0.1)
+        raise Failure("BLOCKED_CLOUD_FAULT_EXEC_QUIESCENCE", status="BLOCKED")
+
+    def app_networks(self, ids, *, cleanup=False):
+        require(isinstance(ids, dict) and set(ids) == {"postgres", "minio", "api", "web", "scratch", "search"}
+                and all(isinstance(value, str) and HEX64.fullmatch(value) for value in ids.values()),
+                "CLOUD_FAULT_APPLICATION_IDENTITY")
+        pattern = '{"id":{{json .Id}},"networks":{{json .NetworkSettings.Networks}}}'
+        rows = [json.loads(line) for line in self.docker("inspect", "--format", pattern, *sorted(ids.values()), cleanup=cleanup).splitlines()]
+        require(len(rows) == len(ids) and {row.get("id") for row in rows} == set(ids.values()), "CLOUD_FAULT_APPLICATION_IDENTITY")
+        result = {}
+        for row in rows:
+            networks = row.get("networks")
+            require(isinstance(networks, dict) and 1 <= len(networks) <= 4
+                    and all(isinstance(value, dict) and isinstance(value.get("NetworkID"), str)
+                            and HEX64.fullmatch(value["NetworkID"]) for value in networks.values()),
+                    "CLOUD_FAULT_APPLICATION_NETWORK")
+            result[row["id"]] = sorted(value["NetworkID"] for value in networks.values())
+        return canonical_hash(result)
+
+    def read(self, path):
+        raw, _, _ = diagnostic_read(path, INSTALL_ROOT, self.owner["uid"], maximum=2 * 1024**2)
+        value = json.loads(raw)
+        require(isinstance(value, dict), "CLOUD_FAULT_PRIVATE_FORMAT")
+        return value
+
+    def file_proof(self, path, *, maximum):
+        directory = diagnostic_open(Path(path).parent, INSTALL_ROOT, self.owner["uid"], directory=True)
+        try:
+            descriptor = os.open(Path(path).name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        finally:
+            os.close(directory)
+        with os.fdopen(descriptor, "rb") as stream:
+            before = os.fstat(stream.fileno())
+            require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1 and before.st_uid == self.owner["uid"]
+                    and not before.st_mode & 0o022 and 0 < before.st_size <= maximum, "CLOUD_FAULT_FILE_IDENTITY")
+            digest = hashlib.sha256()
+            prefix = stream.read(40)
+            digest.update(prefix)
+            while block := stream.read(1024**2):
+                self.remaining(1)
+                digest.update(block)
+            require(diagnostic_metadata(before) == diagnostic_metadata(os.fstat(stream.fileno())), "CLOUD_FAULT_FILE_CHANGED")
+        return {"sha256": digest.hexdigest(), "bytes": before.st_size}, prefix
+
+    def inventory(self):
+        folder = INSTALL_ROOT / "backups"
+        descriptor = diagnostic_open(folder, INSTALL_ROOT, self.owner["uid"], directory=True)
+        try:
+            entries = sorted(os.listdir(descriptor))
+        finally:
+            os.close(descriptor)
+        require(len(entries) <= 128 and "encrypted" in entries and all(name == "encrypted" or re.fullmatch(
+            r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,32}", name) for name in entries), "CLOUD_FAULT_BACKUP_INVENTORY")
+        manifests = {name: self.file_proof(folder / name / "manifest.json", maximum=2 * 1024**2)[0]
+                     for name in entries if name != "encrypted"}
+        descriptor = diagnostic_open(folder / "encrypted", INSTALL_ROOT, self.owner["uid"], directory=True)
+        try:
+            encrypted = sorted(os.listdir(descriptor))
+        finally:
+            os.close(descriptor)
+        require(len(encrypted) <= 129 and ".staging" in encrypted and all(name == ".staging" or re.fullmatch(
+            r"asa-lab-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,32}\.tar\.age", name) for name in encrypted),
+            "CLOUD_FAULT_BACKUP_INVENTORY")
+        descriptor = diagnostic_open(folder / "encrypted/.staging", INSTALL_ROOT, self.owner["uid"], directory=True)
+        try:
+            require(not os.listdir(descriptor), "CLOUD_FAULT_ENCRYPTION_INCOMPLETE")
+        finally:
+            os.close(descriptor)
+        return {"manifests": manifests, "ciphertextEntries": [name for name in encrypted if name != ".staging"]}
+
+    def snapshot(self, snapshot_id, installation_id):
+        require(isinstance(snapshot_id, str) and re.fullmatch(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,32}", snapshot_id),
+                "CLOUD_FAULT_SNAPSHOT_IDENTITY")
+        receipt = self.read(INSTALL_ROOT / ".asa/setup-backups" / (snapshot_id + ".json"))
+        local, encrypted = receipt.get("local", {}), receipt.get("encryption", {})
+        require(receipt.get("format") == "asa-backup-operation-v1" and receipt.get("installationId") == installation_id
+                and receipt.get("snapshotId") == snapshot_id and isinstance(receipt.get("operationId"), str)
+                and re.fullmatch(r"[a-f0-9]{32}", receipt["operationId"])
+                and isinstance(local, dict) and isinstance(encrypted, dict)
+                and local.get("status") == encrypted.get("status") == "OK", "CLOUD_FAULT_SNAPSHOT_IDENTITY")
+        folder = INSTALL_ROOT / "backups" / snapshot_id
+        ciphertext = INSTALL_ROOT / "backups/encrypted" / ("asa-lab-" + snapshot_id + ".tar.age")
+        require(local.get("path") == str(folder) and encrypted.get("path") == str(ciphertext), "CLOUD_FAULT_SNAPSHOT_IDENTITY")
+        manifest, _ = self.file_proof(folder / "manifest.json", maximum=2 * 1024**2)
+        proof, prefix = self.file_proof(ciphertext, maximum=2 * GIB)
+        require(manifest["sha256"] == local.get("manifestSha256") == encrypted.get("manifestSha256")
+                and proof["sha256"] == encrypted.get("sha256") and proof["bytes"] == encrypted.get("bytes")
+                and prefix.startswith(b"age-encryption.org/v1\n"), "CLOUD_FAULT_CIPHERTEXT")
+        return receipt, {"snapshotId": snapshot_id, "sourceOperationId": receipt["operationId"],
+                         "manifestSha256": manifest["sha256"], "ciphertextSha256": proof["sha256"], "ciphertextBytes": proof["bytes"]}
+
+    def observe(self, baseline):
+        value = self.child("owner-cloud-observe", operator=True)
+        require(value.get("noPendingOperation") is True and value.get("originalWritersReady") is True
+                and value.get("controlDataPreserved") is True
+                and value.get("writerIdentitySha256") == baseline["writerIdentitySha256"]
+                and value.get("controlFingerprintSha256") == baseline["controlFingerprintSha256"]
+                and lock_released(), "CLOUD_FAULT_CONTROL_CHANGED")
+        self.credentials()
+        self.namespace()
+        require(self.app_networks(baseline["appIds"]) == self.app_network_identity, "CLOUD_FAULT_APPLICATION_NETWORK")
+        self.daemon()
+        return {"controlDataPreserved": True, "originalWritersReady": True, "lockReleased": True, "noPendingOperation": True}
+
+    def case(self, policy, baseline, original_proof):
+        operation_id = uuid.uuid4().hex
+        require(not os.path.lexists(INSTALL_ROOT / ".asa/setup-operations" / (operation_id + ".json"))
+                and not os.path.lexists(INSTALL_ROOT / ".asa/setup-backups" / ("operation-" + operation_id + ".json")),
+                "CLOUD_FAULT_OPERATION_EXISTS")
+        words = ["cloud", "sync"] if policy == "best-effort" else ["backup", "create"]
+        options = ["--operation-id", operation_id, "--non-interactive"]
+        if policy == "best-effort":
+            options += ["--snapshot-id", baseline["snapshotId"]]
+        before = self.inventory()
+        pointer = self.read(INSTALL_ROOT / ".asa/setup-backups/last-local-success.json")
+        self.quiescent()
+        self.credentials()
+        self.namespace()
+        record = {"status": "PENDING", "operationId": operation_id}
+        self.evidence["cases"][policy] = record
+        started_ns = time.time_ns()
+        budget = self.remaining(CLOUD_SYNC_SECONDS if policy == "best-effort" else CLOUD_BACKUP_SECONDS)
+        command = ["/usr/local/bin/asa", *words, "--root", INSTALL_ROOT, "--json", "--no-color", *options]
+        with CloudFaultProcess(command, environment=guest_environment(), deadline=time.monotonic() + budget) as child:
+            self.active_child = child
+            code, raw = child.wait(budget)
+            record["process"] = child.proof()
+        record["observedPublicExitCode"] = code if type(code) is int and -128 <= code <= 255 else None
+        public = public_cli_result(words, code, raw, allowed=(0, 1, 2, 130))
+        record["result"] = cloud_result_projection(public, {}, {})
+        journal = self.read(INSTALL_ROOT / ".asa/setup-operations" / (operation_id + ".json"))
+        snapshot_id = baseline["snapshotId"] if policy == "best-effort" else journal.get("snapshotId")
+        receipt, proof = self.snapshot(snapshot_id, baseline["installationId"])
+        record["result"] = cloud_result_projection(public, receipt, journal)
+        cloud_require_result(record["result"], policy, operation_id, baseline["installationId"],
+                             baseline["sourceOperationId"] if policy == "best-effort" else operation_id, journal, receipt, public)
+        require(public.get("command") == " ".join(words), "CLOUD_FAULT_PUBLIC_COMMAND")
+        self.quiescent()
+        finished_ns = time.time_ns()
+        stamp = lambda value: str(value // 10**9) + "." + str(value % 10**9).zfill(9)
+        events = self.docker("events", "--since", stamp(started_ns), "--until", stamp(finished_ns),
+            "--filter", "type=container", "--filter", "container=" + self.binding["id"], "--format", CLOUD_EVENTS, timeout=20)
+        rows = [json.loads(line) for line in events.splitlines()]
+        record["transport"] = cloud_exec_projection(rows, self.binding["id"], baseline["installationId"], started_ns, finished_ns)
+        record["snapshot"] = proof
+        after = self.inventory()
+        if policy == "best-effort":
+            require(before == after and proof == original_proof
+                    and self.read(INSTALL_ROOT / ".asa/setup-backups/last-local-success.json") == pointer,
+                    "CLOUD_FAULT_SYNC_REEXPORTED")
+        else:
+            require(snapshot_id not in before["manifests"]
+                    and after["manifests"] == {**before["manifests"], snapshot_id: after["manifests"].get(snapshot_id)}
+                    and len(after["manifests"]) == len(before["manifests"]) + 1
+                    and after["ciphertextEntries"] == sorted([*before["ciphertextEntries"], "asa-lab-" + snapshot_id + ".tar.age"])
+                    and self.read(INSTALL_ROOT / ".asa/setup-backups/last-local-success.json")
+                    == {"snapshotId": snapshot_id, "at": receipt["snapshotAt"]}, "CLOUD_FAULT_REQUIRED_BACKUP")
+        require(self.snapshot(baseline["snapshotId"], baseline["installationId"])[1] == original_proof
+                and not os.path.lexists(INSTALL_ROOT / ".asa/setup-backups/last-cloud-success.json"),
+                "CLOUD_FAULT_OLD_BACKUP_CHANGED")
+        record.update(controls=self.observe(baseline), completeSnapshotsBefore=len(before["manifests"]),
+                      completeSnapshotsAfter=len(after["manifests"]), completeSnapshotDelta=0 if policy == "best-effort" else 1,
+                      noExportOnSync=policy == "best-effort", status="PASS")
+
+    def cleanup(self, baseline):
+        proof = self.evidence["cleanup"] = {"status": "PENDING", "egressRestored": False}
+        if self.binding is None:
+            require(not self.preparation_started, "CLOUD_FAULT_UNBOUND_CLEANUP")
+        else:
+            record = json.loads(self.docker("inspect", "--format", CLOUD_INSPECT, self.binding["id"], cleanup=True))
+            require(cloud_container_identity(record, self.earliest_ns) == self.binding, "CLOUD_FAULT_CONTAINER_CHANGED")
+            if record["networks"]:
+                require(not self.dummy_imported and set(record["networks"]) == {self.network_binding["name"]}
+                        and record["networks"][self.network_binding["name"]].get("NetworkID") == self.network_binding["id"],
+                        "CLOUD_FAULT_EGRESS_REAPPEARED")
+                self.network(empty=False, cleanup=True)
+                self.docker("network", "disconnect", self.network_binding["id"], self.binding["id"], cleanup=True)
+            self.network(empty=True, cleanup=True)
+            self.docker("stop", "--time", "10", self.binding["id"], timeout=30, cleanup=True)
+            self.container(stopped=True, cleanup=True)
+            proof.update(ownedContainerStopped=True, containerExecsQuiescent=True)
+        require(self.active_child is None or self.active_child.closed, "CLOUD_FAULT_HOST_PROCESS_REMAINS")
+        proof["hostProcessesQuiescent"] = True
+        if self.binding is not None:
+            path = CLOUD_ROOT / "config/rclone.conf"
+            raw, info, _ = diagnostic_read(path, CLOUD_ROOT / "config", 1000, maximum=4096)
+            require(raw in (b"", cloud_dummy_configuration(self.context["nonce"]))
+                    and (raw != b"" or self.empty_info is not None
+                         and diagnostic_metadata(info) == diagnostic_metadata(self.empty_info))
+                    and (self.dummy_info is None or diagnostic_metadata(info) == diagnostic_metadata(self.dummy_info)),
+                    "CLOUD_FAULT_DUMMY_IDENTITY")
+            cloud_unlink_private(path, CLOUD_ROOT / "config", 1000, info, raw)
+            proof["containerDummyRemoved"] = True
+        if self.fixture_started:
+            source_error = None
+            try:
+                result = self.child("owner-cloud-restore", operator=True, timeout=120, cleanup=True)
+            except Failure as error:
+                result = getattr(error, "source_dummy_cleanup", None)
+                if result is None:
+                    raise
+                source_error = error
+            require(result.get("configurationRestored") is True and result.get("controlDataPreserved") is True
+                    and result.get("originalWritersReady") is True,
+                    "CLOUD_FAULT_CONFIGURATION_RESTORE")
+            raw, info, _ = diagnostic_read(INSTALL_ROOT / ".asa/setup.json", INSTALL_ROOT, self.owner["uid"], maximum=1024**2)
+            require(hashlib.sha256(raw).hexdigest() == baseline["configurationSha256"]
+                    and (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode))
+                    == (baseline["configUid"], baseline["configGid"], baseline["configMode"]),
+                    "CLOUD_FAULT_CONFIGURATION_RESTORE")
+            proof.update(sourceDummyRemoved=False, exactConfigurationBytesOwnerModeRestored=True, controlDataPreserved=True)
+            if source_error is not None:
+                raise source_error
+            require(result.get("sourceDummyRemoved") is True and not os.path.lexists(cloud_fixture_paths()[1]),
+                    "CLOUD_FAULT_DUMMY_IDENTITY")
+            proof["sourceDummyRemoved"] = True
+        if self.binding is not None:
+            self.container(stopped=True, cleanup=True)
+            self.docker("rm", self.binding["id"], cleanup=True)
+            proof["ownedContainerRemoved"] = True
+            self.network(empty=True, cleanup=True)
+            self.docker("network", "rm", self.network_binding["id"], cleanup=True)
+            proof["ownedNetworkRemoved"] = True
+            require(not self.identifiers("container", "label", "com.docker.compose.project=" + CLOUD_PROJECT, cleanup=True)
+                    and not self.identifiers("network", "label", "com.docker.compose.project=" + CLOUD_PROJECT, cleanup=True),
+                    "CLOUD_FAULT_RESOURCE_REMAINS")
+        if baseline:
+            require(self.app_networks(baseline["appIds"], cleanup=True) == self.app_network_identity,
+                    "CLOUD_FAULT_APPLICATION_NETWORK")
+        self.daemon(cleanup=True)
+        proof.update(status="PASS", appNetworksAndDaemonPreserved=True,
+                     privateEmptySpoolRetainedUntilVmDestruction=self.binding is not None)
+
+
+def cloud_fault_guest(context):
+    require(os.geteuid() == 0 and guest_guard() == context, "CLOUD_FAULT_GUEST_IDENTITY")
+    require(shutil.disk_usage(INSTALL_ROOT).free >= 6 * GIB, "BLOCKED_FAULT_GUEST_DISK", status="BLOCKED")
+    owner, _ = diagnostic_owner(context)
+    run = CloudFault(context, owner)
+    baseline, primary = None, None
+    try:
+        run.daemon()
+        run.absent()
+        baseline = run.child("owner-cloud-baseline", operator=True)
+        run.fixture_started = True
+        require(isinstance(baseline.get("installationId"), str) and re.fullmatch(r"[a-f0-9]{32}", baseline["installationId"])
+                and baseline.get("configUid") == owner["uid"] and baseline.get("configGid") == owner["gid"]
+                and baseline.get("configMode") == 0o600 and baseline.get("noPendingOperation") is True
+                and all(isinstance(baseline.get(key), str) and HEX64.fullmatch(baseline[key]) for key in
+                        ("configurationSha256", "writerIdentitySha256", "controlFingerprintSha256")),
+                "CLOUD_FAULT_BASELINE")
+        run.app_network_identity = run.app_networks(baseline["appIds"])
+        require(not os.path.lexists(INSTALL_ROOT / ".asa/setup-backups/last-cloud-success.json"), "CLOUD_FAULT_PREVIOUS_CLOUD")
+        _, original = run.snapshot(baseline["snapshotId"], baseline["installationId"])
+        run.evidence["sourceSnapshot"] = original
+        run.evidence["fixture"] = {"installationId": baseline["installationId"], "configurationBytesOwnerModeSaved": True,
+            "fixtureOnlyPolicySetter": True, "publicConfigSetterClaimed": False, "retentionDeletionEnabled": False}
+        run.preparation_started = True
+        run.child("cloud-prepare-empty", timeout=300)
+        run.bind()
+        run.isolate()
+        run.child("owner-cloud-best-effort", operator=True)
+        isolation = run.namespace()
+        write_json(GUEST_PRIVATE / "cloud-isolation.json", {"format": "asa-realhost-cloud-isolation-v1",
+            "nonce": context["nonce"], "sourceRevision": context["sourceRevision"], "observedNs": time.time_ns(),
+            "earliestNs": run.earliest_ns, "container": run.binding, "process": run.init_process,
+            "namespaceInode": isolation["namespaceInode"]})
+        run.dummy_imported = True  # Import may fail after its atomic replacement; cleanup still owns the dummy.
+        run.child("cloud-prepare-dummy", timeout=60)
+        run.credentials()
+        run.namespace()
+        version = run.docker("exec", "--user", "1000:1000", run.binding["id"], "rclone", "version")
+        remotes = run.docker("exec", "--user", "1000:1000", run.binding["id"], "rclone",
+                             "--config", "/config/rclone/rclone.conf", "listremotes")
+        require(version.splitlines()[:1] == [b"rclone v1.75.2"] and remotes.strip() == b"yandex:", "CLOUD_FAULT_RCLONE_CONFIGURATION")
+        run.credentials()
+        run.evidence["configurationCheck"] = {"rcloneVersion": "1.75.2", "remoteName": "yandex",
+            "singleDummyOAuthWithRefreshToken": True, "futureExpiry": True, "rcloneConfigReadSucceeded": True}
+        run.case("best-effort", baseline, original)
+        run.child("owner-cloud-required", operator=True)
+        run.case("required", baseline, original)
+    except BaseException as error:
+        primary = error
+    try:
+        run.cleanup(baseline)
+    except BaseException as error:
+        run.evidence["cleanup"].update(status="BLOCKED", reasonCode="OWNED_CLOUD_CLEANUP_UNPROVEN")
+        if primary is None:
+            primary = Failure("BLOCKED_CLOUD_FAULT_CLEANUP", status="BLOCKED")
+        primary.owned_cleanup_failed = True
+    if primary is not None:
+        primary.fault_evidence = run.evidence
+        raise primary
+    return {"cloudFault": run.evidence, "followingPositiveBackup": "REQUIRED_NEXT_PHASE",
+            "realProviderAuthentication": "NOT_RUN", "realYandexUploadReadback": "NOT_RUN"}
+
+
 class ExportWatcher:
     """inotify wakes observation after partial/objects creation; it does not alter export."""
     def __init__(self, root):
@@ -3495,13 +4472,19 @@ def guest_phase(phase, context):
             return owner_fault_fixture(context, remove=phase == "owner-fault-remove")
         if phase == "owner-fault-observe":
             return owner_fault_observe(context)
+        if phase in ("owner-cloud-baseline", "owner-cloud-best-effort", "owner-cloud-required",
+                     "owner-cloud-observe", "owner-cloud-restore"):
+            return owner_cloud_fixture(context, phase[len("owner-cloud-"):])
         raise Failure("UNKNOWN_OWNER_PHASE")
     require(os.geteuid() == 0, "GUEST_ROOT_REQUIRED")
     actions = {"bootstrap": bootstrap_guest, "install": install_guest, "cli-read": installed_cli_read_guest,
                "update": update_guest, "backup": backup_guest,
                "schedule": schedule_guest, "timer-probe": timer_probe, "timer-retry": timer_retry,
                "partial-fault": partial_fault_guest, "interrupt-fault": interrupt_fault_guest,
+               "cloud-fault": cloud_fault_guest,
                "network-fault": network_fault_guest, "network-fault-child": network_fault_child}
+    if phase in ("cloud-prepare-empty", "cloud-prepare-dummy"):
+        return cloud_prepare_guest(context, credential=phase == "cloud-prepare-dummy")
     if phase in actions:
         return actions[phase](context)
     if phase == "seed":
@@ -3554,6 +4537,8 @@ def main(argv=None):
     parser.add_argument("--guest-phase", choices=("bootstrap", "install", "seed", "cli-read", "owner-cli-control", "update", "backup", "post-reboot", "schedule",
                         "timer-probe", "timer-retry", "final", "owner-seed", "owner-observe", "owner-final", "owner-schedule-fixture", "owner-hold-lock",
                         "owner-diagnostic-paths", "owner-diagnostic-inventory", "owner-fault-prepare", "owner-fault-remove", "owner-fault-observe",
+                        "cloud-fault", "cloud-prepare-empty", "cloud-prepare-dummy", "owner-cloud-baseline", "owner-cloud-best-effort",
+                        "owner-cloud-required", "owner-cloud-observe", "owner-cloud-restore",
                         "partial-fault", "interrupt-fault", "network-fault", "network-fault-child"), help=argparse.SUPPRESS)
     parser.add_argument("--control-deadline", type=float, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
