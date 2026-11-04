@@ -431,6 +431,73 @@ class CommandFailureDiagnosticTests(unittest.TestCase):
             harness.command_failure_diagnostic(["install"], 2, public, {"startedNs": 10 * 10**9, "finishedNs": 20 * 10**9})
         classifier.assert_not_called()
 
+    @contextlib.contextmanager
+    def diagnostic_timestamp_fixture(self, **timestamps):
+        public, config, journal, receipt, pins = self.records()
+        second = int(harness.dt.datetime(2026, 11, 4, 12, 0, tzinfo=harness.dt.timezone.utc).timestamp()) * 10**9
+        invocation = {"pid": 1234, "startedNs": second + 200_000_000, "finishedNs": second + 800_000_000,
+                      "setupLogsBefore": {"status": "OBSERVED", "entries": {}}}
+        logfile = harness.OPERATOR_LOG_ROOT / "install-20261104T120000Z-1234.log"
+        public["logPath"] = str(logfile)
+        private = {"setup.json": config, "a" * 32 + ".json": journal, "setup-last-attempt.json": receipt}
+        def read(path, *_args, **_kwargs):
+            if path == logfile:
+                metadata = SimpleNamespace(st_ctime_ns=second + timestamps.get("cli_ctime", 500_000_000),
+                                           st_mtime_ns=second + timestamps.get("cli_mtime", 500_000_000))
+                return b"docker pull failed (exit 1).\n", metadata, False
+            if path.name in private:
+                metadata = SimpleNamespace(st_mtime_ns=second + timestamps.get("receipt_mtime", 500_000_000))
+                return json.dumps(private[path.name]).encode(), metadata, False
+            self.assertEqual(path, harness.INSTALL_ROOT / ".asa/setup-logs" / ("a" * 32 + ".log"))
+            return b"", SimpleNamespace(), False
+        with patch.object(harness, "guest_guard", return_value={"pins": pins}), \
+                patch.object(harness, "diagnostic_owner", return_value=({"uid": 999}, {})), \
+                patch.object(harness, "diagnostic_read", side_effect=read):
+            yield public, invocation
+
+    def test_receipt_metadata_outside_ns_interval_in_same_second_is_rejected(self):
+        for timestamp in (199_999_999, 800_000_001):
+            with self.subTest(timestamp=timestamp), self.diagnostic_timestamp_fixture(receipt_mtime=timestamp) as (public, invocation), \
+                    patch.object(harness, "command_log_classification") as classify, \
+                    self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_INVOCATION"):
+                harness.command_failure_diagnostic(["install"], 2, public, invocation)
+            classify.assert_not_called()
+
+    def test_each_cli_metadata_timestamp_outside_ns_interval_in_same_second_is_unavailable(self):
+        for field in ("cli_ctime", "cli_mtime"):
+            for timestamp in (199_999_999, 800_000_001):
+                with self.subTest(field=field, timestamp=timestamp), self.diagnostic_timestamp_fixture(**{field: timestamp}) as (public, invocation):
+                    observed = harness.command_failure_diagnostic(["install"], 2, public, invocation)
+                self.assertEqual(observed["binding"], "VERIFIED")
+                self.assertEqual(observed["journalPhase"], "release")
+                self.assertEqual(observed["logs"]["cli"]["status"], "UNAVAILABLE")
+                self.assertEqual(observed["logs"]["cli"]["reasonCode"], "DIAGNOSTIC_INVOCATION")
+
+    def test_metadata_inside_closed_ns_interval_and_second_precision_filename_are_accepted(self):
+        for timestamp in (200_000_000, 500_000_000, 800_000_000):
+            with self.subTest(timestamp=timestamp), self.diagnostic_timestamp_fixture(
+                    receipt_mtime=timestamp, cli_ctime=timestamp, cli_mtime=timestamp) as (public, invocation):
+                observed = harness.command_failure_diagnostic(["install"], 2, public, invocation)
+            self.assertEqual(observed["binding"], "VERIFIED")
+            self.assertEqual(observed["logs"]["cli"]["status"], "OBSERVED")
+            self.assertEqual(observed["logs"]["cli"]["exitCodes"], [1])
+
+    def test_ns_freshness_rejection_preserves_original_command_exit_and_guest_failure(self):
+        for field in ("receipt_mtime", "cli_ctime", "cli_mtime"):
+            for timestamp in (199_999_999, 800_000_001):
+                output = io.StringIO()
+                with self.subTest(field=field, timestamp=timestamp), self.diagnostic_timestamp_fixture(**{field: timestamp}) as (public, invocation), \
+                        patch.object(harness, "CLI_ACTIONS", []), \
+                        patch.object(harness, "guest_phase", side_effect=lambda *_: harness.public_cli_result(
+                            ["install"], 2, json.dumps(public), invocation=invocation)), contextlib.redirect_stdout(output):
+                    code = harness.guest_main("install")
+                observed = json.loads(output.getvalue())
+                self.assertEqual((code, observed["status"], observed["reasonCode"]), (1, "FAIL", "COMMAND"))
+                self.assertEqual(observed["cliActions"][0]["exitCode"], 2)
+                diagnostic = observed["commandFailureDiagnostic"]
+                unavailable = diagnostic if field == "receipt_mtime" else diagnostic["logs"]["cli"]
+                self.assertEqual((unavailable["status"], unavailable["reasonCode"]), ("UNAVAILABLE", "DIAGNOSTIC_INVOCATION"))
+
     @unittest.skipUnless(sys.platform == "linux", "Private guest file proof uses Linux openat, O_NOFOLLOW and inode ownership")
     def test_native_private_reads_reject_links_permissions_owner_and_oversize(self):
         with tempfile.TemporaryDirectory() as directory:

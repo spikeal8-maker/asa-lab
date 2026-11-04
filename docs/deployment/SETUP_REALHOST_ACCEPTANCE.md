@@ -257,8 +257,9 @@ complete, state и закрытые reason codes. Каждое внешнее н
 после сверки с существующими private `setup.json`, точным
 `setup-operations/<operationId>.json` и `setup-last-attempt.json`. Проверяются
 root, non-root operator UID, mode, exit, outcome и reason; полный `journal.result`
-должен совпасть с receipt в памяти. Время изменения last-attempt должно попадать
-в интервал вызова с секундной точностью filesystem. Диагностика не продолжает
+должен совпасть с receipt в памяти. Полное `st_mtime_ns` last-attempt должно
+попадать во включённый интервал `startedNs <= st_mtime_ns <= finishedNs` без
+округления до секунд. Диагностика не продолжает
 операцию и не приобретает mutation lock. Это новое read-only наблюдение после
 отказа, обозначенное `AFTER_PUBLIC_FAILURE` и `observedAt`.
 
@@ -274,12 +275,21 @@ Digest дополнительно должен совпасть с сохран�
 Для классификации `COMMAND` используются два отдельных приватных источника:
 
 - CLI log из результата того же вызова: фиксированный каталог
-  `/var/log/asa-lab-operator`, точные action/PID/UTC-second в имени и interval
-  изменения файла, root ownership, mode 0600.
+  `/var/log/asa-lab-operator`, точные action/PID/UTC-second в имени, root ownership,
+  mode 0600. Каждое полное `st_ctime_ns` и `st_mtime_ns` должно отдельно попадать
+  во включённый интервал `startedNs..finishedNs`; metadata не округляется.
+  Только UTC-second самого имени сравнивается с секундными границами вызова.
 - Fixed `.asa/setup-logs/<operationId>.log` проверенного оператора: до публичного
   вызова снимаются только метаданные, а после отказа читаются только новые bytes
   с сохранением device/inode. Старый диапазон повторной операции не считается
   диагностикой нового отказа. При отсутствии baseline источник `UNAVAILABLE`.
+
+Metadata timestamp до начала или после завершения вызова отвергается даже
+внутри той же календарной секунды. Гранулярность filesystem и изменение часов
+не расширяют допустимый интервал: если свежесть не подтверждена, диагностика
+остаётся `UNAVAILABLE`. Проверка timestamps дополняет binding IDs и безопасных
+путей; сама по себе она не доказывает причину отказа или неизменность всей
+установки после команды. Исходный public `COMMAND`/exit и общий FAIL сохраняются.
 
 Каждый компонент пути открывается через `openat` с `O_NOFOLLOW`; допустимы
 только защищённые каталоги и обычные приватные файлы с одной hard link. Чтение

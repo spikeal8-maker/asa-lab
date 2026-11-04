@@ -948,7 +948,7 @@ def command_failure_diagnostic(words, code, public, invocation):
         raw, info, _ = diagnostic_read(INSTALL_ROOT / relative, INSTALL_ROOT, owner["uid"],
                                        maximum=256 * 1024 if relative == ".asa/setup.json" else 2 * 1024**2)
         if relative == ".asa/setup-last-attempt.json":
-            require(invocation["startedNs"] // 10**9 <= info.st_mtime_ns // 10**9 <= invocation["finishedNs"] // 10**9,
+            require(invocation["startedNs"] <= info.st_mtime_ns <= invocation["finishedNs"],
                     "DIAGNOSTIC_INVOCATION")
         try:
             values.append(json.loads(raw))
@@ -963,7 +963,7 @@ def command_failure_diagnostic(words, code, public, invocation):
             if source == "cli":
                 path = cli_log_path(public, words, invocation)
                 raw, info, truncated = diagnostic_read(path, OPERATOR_LOG_ROOT, 0, maximum=34 * 1024**2, tail=128 * 1024)
-                require(all(invocation["startedNs"] // 10**9 <= timestamp // 10**9 <= invocation["finishedNs"] // 10**9
+                require(all(invocation["startedNs"] <= timestamp <= invocation["finishedNs"]
                             for timestamp in (info.st_ctime_ns, info.st_mtime_ns)), "DIAGNOSTIC_INVOCATION")
                 observed = {**command_log_classification(raw, result["journalPhase"]), "readBytes": len(raw), "truncated": truncated}
             else:
