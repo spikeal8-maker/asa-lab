@@ -62,6 +62,7 @@ def require(value, code):
 
 def absolute(value):
     require(isinstance(value, str) and 1 < len(value) <= 1024 and value.startswith("/")
+            and PurePosixPath(value).anchor == "/"
             and str(PurePosixPath(value)) == value and ".." not in value.split("/")
             and not any(ord(char) < 32 for char in value), "BLOCKED_RUNNER_PATH")
     return PurePosixPath(value)

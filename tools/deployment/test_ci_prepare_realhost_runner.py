@@ -46,6 +46,23 @@ class ContextTests(unittest.TestCase):
         runner.guard_environment({**environment(), "GITHUB_EVENT_NAME": "workflow_dispatch",
             "GITHUB_WORKFLOW_REF": runner.REPOSITORY + "/.github/workflows/setup-realhost.yml@refs/heads/main"})
 
+    def test_double_root_anchor_is_rejected_before_opening_protected_paths(self):
+        workspace, temporary = runner.guard_environment(environment())
+        self.assertEqual(str(workspace), environment()["GITHUB_WORKSPACE"])
+        self.assertEqual(str(temporary), environment()["RUNNER_TEMP"])
+        self.assertEqual((workspace.anchor, temporary.anchor), ("/", "/"))
+        for key in ("GITHUB_WORKSPACE", "RUNNER_TEMP"):
+            for value in ("//usr/local/lib/android/sdk/workspace", "//usr/share/dotnet/inside"):
+                with self.subTest(key=key, value=value), patch.object(runner.os, "open") as opened, \
+                        patch.object(runner.Tree, "remove_sdk") as removed:
+                    candidate = {**environment(), key: value}
+                    with self.assertRaisesRegex(runner.Blocked, "BLOCKED_RUNNER_PATH"):
+                        runner.guard_environment(candidate)
+                    result = runner.prepare(candidate)
+                    self.assertEqual((result["status"], result["reasonCode"]), ("BLOCKED", "BLOCKED_RUNNER_PATH"))
+                    opened.assert_not_called()
+                    removed.assert_not_called()
+
     def test_platform_and_privilege_are_real_requirements_without_image_version_pin(self):
         release = {"ID": "ubuntu", "VERSION_ID": "24.04"}
         with patch.object(runner.sys, "platform", "linux"), patch.object(runner.os, "O_PATH", 1, create=True), \
