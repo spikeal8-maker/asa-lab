@@ -7,7 +7,7 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import shutil
 import signal
 import socket
@@ -3339,6 +3339,7 @@ class PublishedModeTests(unittest.TestCase):
             if "run:" in line:
                 self.assertNotIn("${{ inputs.", line)
 
+    @patch.object(harness, "INSTALL_ROOT", PurePosixPath("/srv/asa-lab"))
     def test_mode_specific_default_target_is_independent_of_controlled_update(self):
         import test_realhost_cli_checks as examples
         context, owner, inputs, paths, _ = cli_read_fixture()
@@ -3365,6 +3366,27 @@ class PublishedModeTests(unittest.TestCase):
             context["cliDefaultTargetExpectation"] = {**target, **difference}
             with self.subTest(difference=difference), self.assertRaises(harness.Failure):
                 harness.cli_fixture_context(cli_checks, context, owner, inputs, paths)
+
+    def test_linux_guest_path_fixtures_ignore_windows_host_flavour(self):
+        # These two fixtures contain guest path values, not host filesystem operations.
+        original_path, original_root = Path, harness.INSTALL_ROOT
+        windows_root = PureWindowsPath("/srv/asa-lab")
+        cases = (
+            PublishedModeTests("test_mode_specific_default_target_is_independent_of_controlled_update"),
+            PublishedArchiveTests("test_attestation_uses_exact_repository_workflow_ref_digest_and_deny_flag"),
+        )
+        with patch.object(sys.modules[__name__], "Path", PureWindowsPath), \
+                patch.object(harness, "INSTALL_ROOT", windows_root):
+            for case in cases:
+                with self.subTest(case=case.id()):
+                    result = unittest.TestResult()
+                    case.run(result)
+                    self.assertEqual(result.testsRun, 1)
+                    self.assertEqual(result.skipped, [])
+                    self.assertTrue(result.wasSuccessful(), result.errors + result.failures)
+                    self.assertIs(harness.INSTALL_ROOT, windows_root)
+        self.assertIs(Path, original_path)
+        self.assertIs(harness.INSTALL_ROOT, original_root)
 
     def test_reconciled_acquisition_and_cloud_phases_preserve_order_and_fault_deadline(self):
         # Exercise the shared orchestrator in both modes without executing VM actions.
@@ -3480,12 +3502,12 @@ class PublishedArchiveTests(unittest.TestCase):
             harness.published_gh_binary(payload, expected)
 
     def test_attestation_uses_exact_repository_workflow_ref_digest_and_deny_flag(self):
-        command = harness.published_verify_command(Path("/trusted/gh"), Path("/protected/helper.py"), "a" * 40)
+        command = harness.published_verify_command(PurePosixPath("/trusted/gh"), PurePosixPath("/protected/helper.py"), "a" * 40)
         self.assertEqual(command, ["/trusted/gh", "attestation", "verify", "/protected/helper.py", "--repo", harness.REPOSITORY,
             "--signer-workflow", harness.REPOSITORY + "/.github/workflows/setup-release.yml", "--source-ref", "refs/heads/main",
             "--source-digest", "a" * 40, "--deny-self-hosted-runners"])
         with self.assertRaises(harness.Failure):
-            harness.published_verify_command(Path("/trusted/gh"), Path("/protected/helper.py"), "main")
+            harness.published_verify_command(PurePosixPath("/trusted/gh"), PurePosixPath("/protected/helper.py"), "main")
 
     def test_pinned_gh_prerequisite_cannot_turn_into_latest_or_mutable_apt_binary(self):
         original = json.loads((HERE / "fixtures/setup-realhost-pins.json").read_text())
