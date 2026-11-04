@@ -1419,6 +1419,25 @@ def main(argv=None):
                 raise SetupBlocked("SCHEDULE", "Расписание не установлено; основная операция имеет отдельный результат.",
                                    "Проверьте status и выполните отдельную команду schedule.")
         report = _owner_call(owner, [*entry, "--render-last", "--root", str(root)] + (["--json"] if parsed.json else []), environment)
+        if report.returncode == 0 and command in ("auto", "resume") and result.get("applicationAccepted") is True:
+            # Register the portable CLI only after an attributed and accepted install/update.
+            # Application data, Docker services, SSH and Git working trees are untouched.
+            successful = read_private_json(root / ".asa/setup-last-successful.json", required=True)
+            _require(successful.get("operationId") == result.get("operationId")
+                     and successful.get("installationId") == result.get("installationId")
+                     and successful.get("applicationAccepted") is True,
+                     "ASA_CLI_ACCEPTANCE", "Нет подтверждения приёмки для регистрации команды asa.",
+                     "Проверьте квитанцию установки; команда не регистрировалась.")
+            registration = _owner_call({**owner, "uid": 0, "gid": 0, "name": "root"},
+                                       ["/usr/bin/python3", "-I", "-B", str(bundle / "tools/asa_cli.py"),
+                                        "register", "--root", str(root), "--bundle", str(bundle)],
+                                       {**environment, "HOME": "/root", "USER": "root", "LOGNAME": "root"},
+                                       capture=True, timeout=25)
+            _require(registration.returncode == 0, "ASA_CLI_REGISTRATION",
+                     "Установка успешна, но команда asa не зарегистрирована.",
+                     "Проверьте /usr/local/bin/asa и /etc/asa-lab/commands.json; данные приложения сохранены.")
+            if not parsed.json:
+                print("[OK] Команды: asa status | asa check | asa update")
         return report.returncode
     except SetupBlocked as exc:
         return emit_blocked(exc, as_json=parsed.json, operation_id=active_result.get("operationId"),

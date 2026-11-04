@@ -95,7 +95,7 @@ class PortableCLIContracts(unittest.TestCase):
             result = asa_cli.status(self.root, "asa-lab-campus")
         self.assertEqual(result, 0)
         self.assertIn("Контейнеры: 6/6 healthy", buf.getvalue())
-        self.assertIn("959d", buf.getvalue().replace(self.revision[:8], "959d"))
+        self.assertIn(self.revision[:8], buf.getvalue())
         self.assertEqual(run.call_args.args[0][:2], ["docker", "ps"])
 
     def test_status_does_not_report_unhealthy_as_ok(self):

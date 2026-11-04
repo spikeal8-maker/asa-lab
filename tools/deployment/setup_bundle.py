@@ -29,7 +29,7 @@ FORMAT = "asa-setup-bundle-v1"
 MANIFEST = "setup-bundle.json"
 MAX_FILE_BYTES = 4 * 1024 * 1024
 MAX_PACKAGE_BYTES = 32 * 1024 * 1024
-REQUIRED = {"asa-setup.sh", "tools/asa_setup.py", "tools/asa_setup_launcher.py", "tools/asa_setup_acquire.py",
+REQUIRED = {"asa-setup.sh", "tools/asa_cli.py", "tools/asa_setup.py", "tools/asa_setup_launcher.py", "tools/asa_setup_acquire.py",
             "tools/asa_manager.py", "tools/deployment/__init__.py"}
 
 

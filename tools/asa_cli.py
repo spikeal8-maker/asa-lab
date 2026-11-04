@@ -167,6 +167,7 @@ def register_linux(root: Path, bundle: Path, *, registry: Path = LINUX_REGISTRY,
         "# ASA Lab verified setup CLI; use the official pinned bundle only.\n"
         "exec /usr/bin/python3 -I -B " + json.dumps(str(bundle / "tools" / "asa_cli.py")) + ' "$@"\n'
     ).encode("utf-8")
+    require(not program.is_symlink(), "Команда asa перенаправлена символической ссылкой.")
     if program.exists():
         check_ordinary_path(program, need_file=True)
         text = program.read_text(encoding="utf-8", errors="replace")
