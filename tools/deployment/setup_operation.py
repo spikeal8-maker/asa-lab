@@ -29,7 +29,8 @@ from .releases import apply_release_environment, assert_ci, discover_release, fe
 from .setup_config import load_config, private_json, read_installed_release, replace_legacy_manager_state, save_installed_release, save_private, validate_config
 from .setup_result import finalize, now, result
 from .system import (Installation, PUBLIC_ORIGINS_CONTENT, PUBLIC_ORIGINS_FILE,
-                     PUBLIC_ORIGINS_MARKER, PUBLIC_ORIGINS_MODE, public_origins_overlay, run)
+                     PUBLIC_ORIGINS_MARKER, PUBLIC_ORIGINS_MODE, public_origins_overlay,
+                     public_origins_recovery, _origin_private_read, run)
 
 
 OPERATION_ID = re.compile(r"[a-f0-9]{32}\Z")
@@ -339,6 +340,97 @@ def production_public_origins(entry, public, web_port):
     return public
 
 
+def setup_environment_bytes(config, values, public):
+    """Use the same exact afterimage for journal validation and publication."""
+    values = dict(values)
+    ports = config.get("ports", {"web": 4610, "api": 4611, "blocks": 4613})
+    values.update(COMPOSE_PROJECT_NAME=config["project"], ASA_UPDATE_ENTRY_ORIGIN=config["entryOrigin"],
+                  ASA_BLOCKS_PARENT_ORIGIN=config["entryOrigin"], ASA_BLOCKS_RUNTIME_ORIGIN=config["entryOrigin"],
+                  ASA_PUBLIC_WEB_ORIGINS=public, ASA_SEED_DEV="false",
+                  ASA_WEB_PORT=str(ports["web"]), ASA_API_PORT=str(ports["api"]), ASA_BLOCKS_PORT=str(ports["blocks"]))
+    if config["profile"] == "production" and not public:
+        values[PUBLIC_ORIGINS_MARKER] = PUBLIC_ORIGINS_MODE
+    return ("# Private installation settings; never upload unencrypted.\n" +
+            "".join(f"{key}={value}\n" for key, value in values.items())).encode()
+
+
+def installation_discovery(root, inventory, config=None, journal=None, *, install=None):
+    """Recognise only an authenticated interrupted environment, without writes."""
+    config = config or {}
+    observed = setup_discovery.classify_installation(root, inventory, project=config.get("project"),
+        saved_identity=config.get("dataIdentity"), pending_operation=journal)
+    reason = [item.get("code") for item in observed.get("reasons", [])]
+    if not (config and journal and (observed.get("state") == "PARTIAL" and reason == ["PROJECT_DRIFT"]
+                                   or observed.get("state") == "INTERRUPTED" and reason == ["KNOWN_INSTALLATION"])):
+        return observed
+    root = Path(root)
+    install = install or Installation(root, config["profile"])
+    if not (install.public_origins_pending or journal.get("publicOriginsEnvironment")
+            and journal.get("stages", {}).get("environment", {}).get("status") == "intent"):
+        return observed
+    # first_environment's preimage can still name its default project. Never
+    # interpret this private, journal-bound file as an existing runtime to adopt.
+    current = read_env(root / ".env")
+    configured = private_json(root / ".asa/setup.json")
+    store = Store(root, config["installationId"])
+    binding = journal.get("publicOriginsEnvironment")
+    require(store.read(journal["operationId"]) == journal == store.pending()
+            and journal.get("mode") == journal.get("requestedIntent") == "install"
+            and journal.get("state") == "RUNNING" and journal.get("phase") == "environment"
+            and journal.get("stages", {}).get("environment", {}).get("status") == "intent"
+            and "switch" not in journal.get("stages", {}) and journal.get("project") == config["project"]
+            and config["profile"] == "production" and not config.get("dataIdentity")
+            and current.get("COMPOSE_PROJECT_NAME") in ("asa-lab-dev", config["project"])
+            and current.get(PUBLIC_ORIGINS_MARKER) in (None, PUBLIC_ORIGINS_MODE)
+            and all(configured.get(key) == config.get(key) for key in
+                    ("installationId", "root", "operatorUid", "profile", "project", "entryOrigin", "ports", "dataIdentity"))
+            and isinstance(binding, dict) and set(binding) == {"format", "beforeSha256", "afterSha256"}
+            and binding.get("format") == PUBLIC_ORIGINS_MODE
+            and all(isinstance(binding[key], str) and re.fullmatch(r"[a-f0-9]{64}", binding[key])
+                    for key in ("beforeSha256", "afterSha256")),
+            "PUBLIC_ORIGINS_RECOVERY", "The environment stage is not bound to this pending installation.")
+    ports = config.get("ports", {"web": 4610, "api": 4611, "blocks": 4613})
+    require(production_public_origins(config["entryOrigin"], current.get("ASA_PUBLIC_WEB_ORIGINS", ""), ports["web"]) == ""
+            and hashlib.sha256(setup_environment_bytes(config, current, "")).hexdigest() == binding["afterSha256"],
+            "PUBLIC_ORIGINS_RECOVERY", "The pending environment no longer matches its recorded target settings.")
+    overlay = public_origins_overlay(root)
+    require(overlay, "PUBLIC_ORIGINS_MISSING", "The pending environment requires its original private overlay.")
+    if current.get(PUBLIC_ORIGINS_MARKER) is None:
+        public_origins_recovery(root, current, config["profile"])
+    else:
+        require((os.name == "nt" or os.geteuid() == root.stat().st_uid)
+                and hashlib.sha256(_origin_private_read(root, ".env")).hexdigest() == binding["afterSha256"],
+                "PUBLIC_ORIGINS_RECOVERY", "The completed environment image differs from its pending journal.")
+    for name in ("installation.json", "installed-release.json", "runtime-configuration.json", "maintenance.json",
+                 "failed-switch.json", "atomic-active.json", "last-operation.json"):
+        require(not os.path.lexists(root / ".asa" / name), "PUBLIC_ORIGINS_EXISTING", "Existing installation state prevents environment recovery.")
+    plain_paths(root, ("backups",))
+    backups = root / "backups"
+    require(not backups.exists() or backups.is_dir() and not any(backups.iterdir()),
+            "PUBLIC_ORIGINS_EXISTING", "Existing backups prevent environment recovery.")
+    projects = {config["project"], current["COMPOSE_PROJECT_NAME"]}
+    require(inventory.get("complete") is True and isinstance(inventory.get("containers"), list)
+            and isinstance(inventory.get("volumes"), list), "PUBLIC_ORIGINS_INVENTORY", "Environment recovery requires a complete resource inventory.")
+    require(not any(record.get("labels", {}).get("project") in projects
+                    or record.get("labels", {}).get("root") == str(root) for record in inventory["containers"])
+            and not any(record.get("labels", {}).get("project") in projects
+                        or any(record.get("name", "").startswith(project + "_") for project in projects)
+                        for record in inventory["volumes"]),
+            "PUBLIC_ORIGINS_EXISTING", "Existing containers or volumes prevent environment recovery.")
+    identities = {}
+    for path in (root / ".env", root / ".asa/setup.json", store.path(journal["operationId"]), root / PUBLIC_ORIGINS_FILE):
+        info = path.lstat() if path.exists() else None
+        identities[str(path.relative_to(root))] = [info.st_dev, info.st_ino, info.st_mode, info.st_uid] if info else None
+    proof = {"journal": journal, "configuration": configured, "paths": identities,
+             "image": "after" if current.get(PUBLIC_ORIGINS_MARKER) else "before"}
+    observed.update(state="INTERRUPTED", project=config["project"], installationId=config["installationId"],
+                    operationId=journal["operationId"], environmentStage=hashlib.sha256(
+                        json.dumps(proof, sort_keys=True, separators=(",", ":")).encode()).hexdigest(), reasons=[{
+                        "code": "KNOWN_ENVIRONMENT_STAGE", "message": "Подтверждена прерванная environment-стадия первичной установки.",
+                        "action": "Продолжите эту операцию через resume; существующие ключи сохраняются."}])
+    return observed
+
+
 class Runtime:
     """Real adapters; a small injectable boundary for failure-path tests."""
     def __init__(self, root, config, *, lock_fd=None, defer_report=False, json_output=False, intent=None, deployment_digest=None):
@@ -435,8 +527,7 @@ class Runtime:
         return self.install.identity(existing=existing)
 
     def discovery(self, journal=None):
-        return setup_discovery.classify_installation(self.root, setup_discovery.docker_inventory(),
-            project=self.config["project"], saved_identity=self.config.get("dataIdentity"), pending_operation=journal)
+        return installation_discovery(self.root, setup_discovery.docker_inventory(), self.config, journal, install=self.install)
 
     def current(self):
         return self.install.readiness()
@@ -593,14 +684,7 @@ class Runtime:
         require(all(values.get(key) for key in ("POSTGRES_PASSWORD", "ASA_APP_DB_PASSWORD", "MIGRATION_DATABASE_URL",
                 "CLASSROOM_CODE_SECRET", "ASA_OBJECT_STORAGE_SECRET_KEY", "ASA_SEARCH_SECRET")),
                 "ENV_INCOMPLETE", "Создание private .env было прервано; секреты автоматически не заменяются.")
-        values.update(COMPOSE_PROJECT_NAME=self.config["project"], ASA_UPDATE_ENTRY_ORIGIN=self.config["entryOrigin"],
-                      ASA_BLOCKS_PARENT_ORIGIN=self.config["entryOrigin"], ASA_BLOCKS_RUNTIME_ORIGIN=self.config["entryOrigin"],
-                      ASA_PUBLIC_WEB_ORIGINS=public, ASA_SEED_DEV="false",
-                      ASA_WEB_PORT=str(ports["web"]), ASA_API_PORT=str(ports["api"]), ASA_BLOCKS_PORT=str(ports["blocks"]))
-        if empty_policy:
-            values[PUBLIC_ORIGINS_MARKER] = PUBLIC_ORIGINS_MODE
-        content = ("# Private installation settings; never upload unencrypted.\n" +
-                   "".join(f"{key}={value}\n" for key, value in values.items())).encode()
+        content = setup_environment_bytes(self.config, values, public)
         if empty_policy:
             binding = {"format": PUBLIC_ORIGINS_MODE, "beforeSha256": hashlib.sha256(path.read_bytes()).hexdigest(),
                        "afterSha256": hashlib.sha256(content).hexdigest()}

@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from deployment import backup_schedule, backup_workflow, collector, setup_acceptance, setup_discovery, setup_host
 from deployment.contracts import Blocked, require, validate_release
 from deployment.setup_config import load_config, prepare_config, prepare_onboarding, private_json, read_installed_release, replace_legacy_manager_state, save_private, validate_config
-from deployment.setup_operation import Engine, Runtime, Store, bind_selection, bootstrap_observation, bootstrap_record, guard_intent, inventory_key
+from deployment.setup_operation import Engine, Runtime, Store, bind_selection, bootstrap_observation, bootstrap_record, guard_intent, inventory_key, installation_discovery
 from deployment.releases import validate_deployment_digest
 from deployment.setup_result import finalize, render, result
 from deployment.system import Installation, operation_lock
@@ -528,8 +528,7 @@ def execute(args):
     store = Store(args.root, config["installationId"]) if config else None
     pending = store.pending() if store else None
     _route_auxiliary_resume(args, store, pending)
-    discovery = bootstrap_observation(args.root, inventory, orphan) if orphan else setup_discovery.classify_installation(args.root, inventory,
-                project=config.get("project") if config else None, saved_identity=config.get("dataIdentity") if config else None, pending_operation=pending)
+    discovery = bootstrap_observation(args.root, inventory, orphan) if orphan else installation_discovery(args.root, inventory, config, pending)
     if args.command == "intent-check":
         require(args.intent, "OPERATION_INTENT", "Нужно явное намерение.")
         guard_intent(args.intent, discovery, pending)
@@ -543,7 +542,9 @@ def execute(args):
     if discovery["state"] not in ("FRESH", "MANAGED", "LEGACY", "STOPPED", "INTERRUPTED"):
         _reason(discovery)
     fresh = discovery["state"] == "FRESH" or bool(pending and pending["mode"] == "install")
-    install = Installation(args.root, config["profile"] if config else None) if (args.root / ".env").exists() else None
+    environment_stage = discovery.get("environmentStage")
+    install = (Installation(args.root, config["profile"] if config else None)
+               if (args.root / ".env").exists() and not environment_stage else None)
     if args.command in ("configure", "cloud-configure"):
         require(not pending or pending["phase"] == "configured", "OPERATION_PENDING", "Нельзя изменить политику незавершённой операции.")
     config = prepare_config(args.root, owner["uid"], previous=config, supplied=args.config_file, install=install,
@@ -573,8 +574,9 @@ def execute(args):
         # substitute for this guard (including a concurrent pending install).
         pending = Store(args.root, config["installationId"]).pending()
         locked_discovery = (bootstrap_observation(args.root, observed, orphan) if orphan else
-            setup_discovery.classify_installation(args.root, observed, project=config["project"],
-                saved_identity=config.get("dataIdentity"), pending_operation=pending))
+            installation_discovery(args.root, observed, config, pending))
+        require(locked_discovery.get("environmentStage") == environment_stage,
+                "PUBLIC_ORIGINS_RECOVERY", "The pending environment changed while acquiring the operation lock.")
         guard_intent(args.intent, locked_discovery, pending)
         if pending and args.command in ("auto", "resume", "acceptance"):
             bind_selection(pending, intent=args.intent, deployment_digest=args.deployment_digest)

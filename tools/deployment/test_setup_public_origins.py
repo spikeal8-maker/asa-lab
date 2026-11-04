@@ -1,8 +1,10 @@
 """Explicit production loopback origin policy; only owned temporary fixtures."""
 
 import base64
+from contextlib import ExitStack, contextmanager, redirect_stdout
 import copy
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -15,6 +17,8 @@ import unittest
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import asa_cli
+import asa_setup
 from deployment import backup, system, setup_operation, paths
 from deployment.contracts import Blocked, REGISTRY, SERVICES, inventory_files, read_env, verify_backup
 from deployment.import_preflight import validate_import_archive
@@ -262,20 +266,60 @@ class PublicOriginsTests(unittest.TestCase):
             self.runtime()
         self.assertEqual((self.root / ".env").read_bytes(), altered)
 
-    def test_initial_environment_defaults_resume_with_selected_identity_without_regenerating_keys(self):
+    def engine_adapters(self, runtime):
+        stack = ExitStack()
+        release = self.release("previous")
+        for name, value in (("progress", None), ("preflight", {"status": "OK"}), ("select", release),
+                            ("source", {"revision": release["revision"]}), ("verify_source", None), ("handoff", None)):
+            stack.enter_context(patch.object(runtime, name, return_value=value))
+        return stack
+
+    def engine_interrupt_before_marker(self, project):
         (self.root / ".env").unlink()
-        self.config["project"] = "school-fixture"
+        self.config["project"] = project
         save_private(self.root / ".asa/setup.json", self.config)
-        self.journal["project"] = self.config["project"]
+        self.journal["project"] = project
         self.store.save(self.journal)
-        self.interrupt_before_marker()
+        runtime = self.runtime()
+        write = setup_operation.atomic_bytes
+
+        def interrupted(path, content, **kwargs):
+            if Path(path) == self.root / ".env":
+                raise KeyboardInterrupt()
+            return write(path, content, **kwargs)
+
+        with self.engine_adapters(runtime), patch.object(setup_operation, "atomic_bytes", side_effect=interrupted):
+            first = setup_operation.Engine(runtime, self.store).execute(self.journal)
+        saved = self.store.read(self.journal["operationId"])
+        self.assertEqual((first["outcome"], first["exitCode"]), ("INTERRUPTED", 130))
+        self.assertEqual(saved["state"], "RUNNING")
+        self.assertEqual(saved["stages"]["environment"]["status"], "intent")
+        self.assertIn("publicOriginsEnvironment", saved)
+        self.assertNotIn(MARKER, read_env(self.root / ".env"))
+        return saved
+
+    def assert_engine_environment_resume(self, project):
+        saved = self.engine_interrupt_before_marker(project)
         initial = read_env(self.root / ".env")
+        inode = (self.root / OVERLAY).stat().st_ino
+        binding = copy.deepcopy(saved["publicOriginsEnvironment"])
         self.assertEqual(initial["COMPOSE_PROJECT_NAME"], "asa-lab-dev")
         self.assertEqual(initial["ASA_WEB_PORT"], "4610")
         resumed = self.runtime()
         self.assertTrue(resumed.install.public_origins_pending)
-        resumed.environment()
+        with self.engine_adapters(resumed), patch.object(resumed, "settings", side_effect=KeyboardInterrupt()):
+            second = setup_operation.Engine(resumed, self.store).execute(saved, resume=True)
+        self.assertEqual((second["outcome"], second["exitCode"]), ("INTERRUPTED", 130))
+        final = self.store.read(saved["operationId"])
+        self.assertEqual(final["stages"]["environment"]["status"], "done")
+        self.assertEqual(final["stages"]["settings"]["status"], "intent")
+        self.assertEqual(final["publicOriginsEnvironment"], binding)
+        for key in ("operationId", "installationId", "root", "project"):
+            self.assertEqual(final[key], saved[key], key)
+        self.assertEqual((self.root / OVERLAY).stat().st_ino, inode)
+        self.assertFalse(resumed.install.public_origins_pending)
         after = read_env(self.root / ".env")
+        self.assertEqual(after[MARKER], MODE)
         self.assertEqual(after["COMPOSE_PROJECT_NAME"], self.config["project"])
         self.assertEqual(after["ASA_WEB_PORT"], "4910")
         self.assertEqual(after["ASA_UPDATE_ENTRY_ORIGIN"], self.config["entryOrigin"])
@@ -283,6 +327,330 @@ class PublicOriginsTests(unittest.TestCase):
                     "ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON", "ASA_STUDENT_CODE_LOOKUP_KEYS_JSON",
                     "ASA_OBJECT_STORAGE_SECRET_KEY", "ASA_SETTINGS_ENCRYPTION_KEY"):
             self.assertEqual(after[key], initial[key], key)
+
+    def test_initial_environment_defaults_resume_with_selected_identity_without_regenerating_keys(self):
+        self.assert_engine_environment_resume("school-fixture")
+
+    def test_engine_default_project_resume_still_completes_the_bound_environment(self):
+        self.assert_engine_environment_resume("asa-lab-dev")
+
+    def assert_engine_guard_blocks(self, runtime, journal):
+        watched = [self.root / name for name in (".env", OVERLAY, ".asa/setup.json")]
+        watched.append(self.store.path(self.journal["operationId"]))
+        before = {path: (path.read_bytes(), path.stat().st_ino) if path.exists() else None for path in watched}
+        with self.engine_adapters(runtime), patch.object(runtime, "environment", wraps=runtime.environment) as environment:
+            with self.assertRaises(Blocked) as caught:
+                setup_operation.Engine(runtime, self.store).execute(journal, resume=True)
+            environment.assert_not_called()
+        for path, original in before.items():
+            self.assertEqual((path.read_bytes(), path.stat().st_ino) if path.exists() else None, original, str(path))
+        return caught.exception.code
+
+    def test_engine_preimage_recovery_rejects_changed_journal_or_stale_caller(self):
+        saved = self.engine_interrupt_before_marker("school-fixture")
+        cases = (
+            ("root", lambda journal: journal.update(root=str(self.root / "foreign"))),
+            ("installation", lambda journal: journal.update(installationId="d" * 32)),
+            ("project", lambda journal: journal.update(project="other-school")),
+            ("mode", lambda journal: journal.update(mode="update")),
+            ("state", lambda journal: journal.update(state="TERMINAL")),
+            ("phase", lambda journal: journal.update(phase="settings")),
+            ("stage", lambda journal: journal["stages"]["environment"].update(status="done")),
+            ("switch", lambda journal: journal["stages"].update(switch={"status": "intent"})),
+            ("binding", lambda journal: journal.pop("publicOriginsEnvironment")),
+            ("before_hash", lambda journal: journal["publicOriginsEnvironment"].update(beforeSha256="0" * 64)),
+            ("after_hash", lambda journal: journal["publicOriginsEnvironment"].update(afterSha256="0" * 64)),
+        )
+        for name, change in cases:
+            with self.subTest(change=name):
+                save_private(self.store.path(saved["operationId"]), saved)
+                runtime = self.runtime()
+                changed = copy.deepcopy(saved)
+                change(changed)
+                save_private(self.store.path(saved["operationId"]), changed)
+                self.assert_engine_guard_blocks(runtime, changed)
+        save_private(self.store.path(saved["operationId"]), saved)
+        runtime = self.runtime()
+        stale = copy.deepcopy(saved)
+        stale["updatedAt"] = "2000-01-01T00:00:00Z"
+        self.assert_engine_guard_blocks(runtime, stale)
+
+    def test_engine_preimage_recovery_rechecks_environment_overlay_and_target_configuration(self):
+        saved = self.engine_interrupt_before_marker("school-fixture")
+        env_path, overlay = self.root / ".env", self.root / OVERLAY
+        original_env, original_config = env_path.read_bytes(), copy.deepcopy(self.config)
+        for change in ("environment", "marker", "overlay", "missing_overlay", "target_port", "private_project"):
+            with self.subTest(change=change):
+                env_path.write_bytes(original_env)
+                overlay.write_text(CONTENTS)
+                overlay.chmod(0o600)
+                self.config.clear()
+                self.config.update(copy.deepcopy(original_config))
+                save_private(self.root / ".asa/setup.json", self.config)
+                runtime = self.runtime()
+                if change == "environment":
+                    env_path.write_bytes(original_env + b"UNEXPECTED_PRIVATE_SETTING=changed\n")
+                elif change == "marker":
+                    env_path.write_bytes(original_env + (MARKER + "=" + MODE + "\n").encode())
+                elif change == "overlay":
+                    overlay.write_text(CONTENTS + "# altered\n")
+                elif change == "missing_overlay":
+                    overlay.unlink()
+                elif change == "target_port":
+                    self.config["ports"]["web"] = 4912
+                    self.config["entryOrigin"] = "http://127.0.0.1:4912"
+                    save_private(self.root / ".asa/setup.json", self.config)
+                else:
+                    save_private(self.root / ".asa/setup.json", {**self.config, "project": "other-school"})
+                self.assert_engine_guard_blocks(runtime, copy.deepcopy(saved))
+
+    def test_engine_preimage_recovery_does_not_adopt_existing_resources_or_state(self):
+        saved = self.engine_interrupt_before_marker("school-fixture")
+        for project in ("school-fixture", "asa-lab-dev"):
+            container = {"id": "d" * 64, "image": "postgres:17", "running": False,
+                         "labels": {"project": project, "root": str(self.root / "other"), "service": "postgres"}}
+            variants = (
+                {**self.inventory, "containers": [container]},
+                {**self.inventory, "containers": [{**container, "labels": {"project": "foreign", "root": str(self.root)}}]},
+                {**self.inventory, "volumes": [{"name": "owned-data", "labels": {"project": project}}]},
+                {**self.inventory, "volumes": [{"name": project + "_postgres-data", "labels": {}}]},
+            )
+            for index, inventory in enumerate(variants):
+                with self.subTest(project=project, variant=index):
+                    runtime = self.runtime()
+                    with patch("deployment.setup_operation.setup_discovery.docker_inventory", return_value=inventory):
+                        self.assert_engine_guard_blocks(runtime, copy.deepcopy(saved))
+        with patch("deployment.setup_operation.setup_discovery.docker_inventory", return_value={**self.inventory, "complete": False}):
+            self.assert_engine_guard_blocks(self.runtime(), copy.deepcopy(saved))
+        for name in ("installation.json", "installed-release.json", "runtime-configuration.json", "maintenance.json",
+                     "failed-switch.json", "atomic-active.json", "last-operation.json"):
+            with self.subTest(marker=name):
+                runtime = self.runtime()
+                path = self.root / ".asa" / name
+                path.write_text("{}\n")
+                try:
+                    self.assert_engine_guard_blocks(runtime, copy.deepcopy(saved))
+                finally:
+                    path.unlink()
+        runtime = self.runtime()
+        (self.root / "backups").mkdir()
+        (self.root / "backups/retained-copy").write_text("preserved\n")
+        self.assert_engine_guard_blocks(runtime, copy.deepcopy(saved))
+
+    def test_engine_ordinary_project_drift_still_fails_without_an_authenticated_preimage(self):
+        self.config["project"] = "school-fixture"
+        save_private(self.root / ".asa/setup.json", self.config)
+        self.journal["project"] = self.config["project"]
+        self.store.save(self.journal)
+        runtime = self.runtime()
+        observed = runtime.discovery(self.journal)
+        self.assertEqual((observed["state"], observed["reasons"][0]["code"]), ("PARTIAL", "PROJECT_DRIFT"))
+        self.assertEqual(self.assert_engine_guard_blocks(runtime, self.journal), "OPERATION_INTENT")
+
+    def public_install_args(self, *, operation_id=None):
+        words = ["install", "--root", str(self.root), "--non-interactive", "--json"]
+        if operation_id:
+            words += ["--operation-id", operation_id]
+        options = asa_cli.command_parser().parse_intermixed_args(words)
+        # Only the external privilege/launcher boundary is replaced. Its
+        # real argv builder feeds the real setup parser and executor below.
+        root_os = SimpleNamespace(**vars(os))
+        root_os.geteuid = lambda: 0
+        with patch.object(asa_cli, "os", root_os), patch.object(asa_cli, "verified_bundle", return_value={}), \
+                patch.object(asa_cli, "run_reduced", return_value=0) as launch:
+            asa_cli.run_linux("install", {"root": str(self.root), "bundle": str(HERE.parents[1])}, options)
+        command = launch.call_args.args[0]
+        self.assertEqual(command[4], "auto")
+        args = asa_setup.parser().parse_args(command[4:])
+        self.assertEqual(args.intent, "install")
+        self.assertEqual(args.operation_id, operation_id)
+        return args
+
+    def public_install_adapters(self):
+        stack = ExitStack()
+        # Model the external non-root owner gate without changing the real
+        # UID used by private-file/journal/lock checks on this owned fixture.
+        operator_os = SimpleNamespace(**vars(os))
+        operator_os.geteuid = lambda: UID or 1
+        stack.enter_context(patch.object(asa_setup, "os", operator_os))
+        stack.enter_context(patch.object(asa_setup.setup_host, "check_owner", return_value={"uid": UID}))
+        release = self.release("previous")
+        for name, value in (("progress", None), ("preflight", {"status": "OK"}), ("select", release),
+                            ("source", {"revision": release["revision"]}), ("verify_source", None), ("handoff", None)):
+            stack.enter_context(patch.object(Runtime, name, return_value=value))
+        stack.enter_context(redirect_stdout(io.StringIO()))
+        return stack
+
+    def public_install_interrupt_environment(self, *, project="school-fixture", after_marker=False):
+        (self.root / ".env").unlink()
+        self.config["project"] = project
+        self.config["onboardingFile"] = str(self.root / ".asa/onboarding.json")
+        save_private(self.root / ".asa/setup.json", self.config)
+        save_private(Path(self.config["onboardingFile"]), {
+            "format": "asa-owner-onboarding-v1", "installationId": IDENTITY,
+            "email": "fixture@example.test", "accountId": "synthetic-existing-owner"})
+        self.journal["project"] = self.config["project"]
+        self.journal["stages"], self.journal["events"] = {}, []
+        self.store.event(self.journal, "configured", "done")
+        write = setup_operation.atomic_bytes
+
+        def interrupted(path, content, **kwargs):
+            if Path(path) == self.root / ".env":
+                raise KeyboardInterrupt()
+            return write(path, content, **kwargs)
+
+        args = self.public_install_args()
+        with self.public_install_adapters(), ExitStack() as interruption:
+            if after_marker:
+                interruption.enter_context(patch.object(Runtime, "reload", side_effect=KeyboardInterrupt()))
+            else:
+                interruption.enter_context(patch.object(setup_operation, "atomic_bytes", side_effect=interrupted))
+            self.assertEqual(asa_setup.execute(args), 130)
+        saved = self.store.read(self.journal["operationId"])
+        self.assertEqual(saved["state"], "RUNNING")
+        self.assertEqual(saved["stages"]["environment"]["status"], "intent")
+        self.assertEqual(read_env(self.root / ".env").get(MARKER), MODE if after_marker else None)
+        self.assertFalse((self.root / ".asa/installation.json").exists())
+        return saved
+
+    def assert_public_install_environment_resume(self, *, project="school-fixture", after_marker=False):
+        saved = self.public_install_interrupt_environment(project=project, after_marker=after_marker)
+        initial, inode = read_env(self.root / ".env"), (self.root / OVERLAY).stat().st_ino
+        args = self.public_install_args(operation_id=saved["operationId"])
+        with self.public_install_adapters(), patch.object(Runtime, "settings", side_effect=KeyboardInterrupt()), \
+                patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+            self.assertEqual(asa_setup.execute(args), 130)
+            adopt.assert_not_called()
+        after, final = read_env(self.root / ".env"), self.store.read(saved["operationId"])
+        self.assertEqual(after[MARKER], MODE)
+        self.assertEqual(after["COMPOSE_PROJECT_NAME"], project)
+        self.assertEqual(after["ASA_WEB_PORT"], "4910")
+        self.assertEqual(final["stages"]["environment"]["status"], "done")
+        self.assertEqual(final["stages"]["settings"]["status"], "intent")
+        for key in ("operationId", "installationId", "root", "project", "publicOriginsEnvironment"):
+            self.assertEqual(final[key], saved[key], key)
+        for key in ("POSTGRES_PASSWORD", "ASA_APP_DB_PASSWORD", "CLASSROOM_CODE_SECRET",
+                    "ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON", "ASA_STUDENT_CODE_LOOKUP_KEYS_JSON",
+                    "ASA_OBJECT_STORAGE_SECRET_KEY", "ASA_SETTINGS_ENCRYPTION_KEY"):
+            self.assertEqual(after[key], initial[key], key)
+        self.assertEqual((self.root / OVERLAY).stat().st_ino, inode)
+        self.assertFalse((self.root / ".asa/installation.json").exists())
+
+    @unittest.skipUnless(os.name == "posix", "Linux setup CLI")
+    def test_public_install_argv_resumes_custom_environment_through_real_execute_without_adoption(self):
+        self.assert_public_install_environment_resume()
+
+    @unittest.skipUnless(os.name == "posix", "Linux setup CLI")
+    def test_public_install_resumes_environment_after_marker_without_adoption(self):
+        self.assert_public_install_environment_resume(after_marker=True)
+
+    @unittest.skipUnless(os.name == "posix", "Linux setup CLI")
+    def test_public_install_default_project_still_resumes_before_marker_without_adoption(self):
+        self.assert_public_install_environment_resume(project="asa-lab-dev")
+
+    @unittest.skipUnless(os.name == "posix", "Linux setup CLI")
+    def test_public_install_keeps_ordinary_config_runtime_drift_guard_before_lock(self):
+        self.config["entryOrigin"] = "https://different.example.test"
+        save_private(self.root / ".asa/setup.json", self.config)
+        before = (self.root / ".env").read_bytes()
+        args = self.public_install_args(operation_id=self.journal["operationId"])
+        with self.public_install_adapters(), \
+                patch.object(asa_setup, "operation_lock", wraps=asa_setup.operation_lock) as lock, \
+                patch.object(asa_setup, "save_private", wraps=asa_setup.save_private) as save, \
+                patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+            with self.assertRaises(Blocked) as caught:
+                asa_setup.execute(args)
+            self.assertEqual(caught.exception.code, "CONFIG_RUNTIME_DRIFT")
+            lock.assert_not_called()
+            save.assert_not_called()
+            adopt.assert_not_called()
+        self.assertEqual((self.root / ".env").read_bytes(), before)
+        self.assertFalse((self.root / ".asa/installation.json").exists())
+
+    @unittest.skipUnless(os.name == "posix", "Linux setup CLI")
+    def test_public_install_rejects_unbound_drift_before_lock_or_configuration_writes(self):
+        saved = self.public_install_interrupt_environment()
+        env_path, journal_path = self.root / ".env", self.store.path(saved["operationId"])
+        original_env = env_path.read_bytes()
+        for change in ("environment", "journal", "overlay"):
+            with self.subTest(change=change):
+                env_path.write_bytes(original_env)
+                save_private(journal_path, saved)
+                (self.root / OVERLAY).write_text(CONTENTS)
+                if change == "environment":
+                    env_path.write_bytes(original_env + b"UNEXPECTED_PRIVATE_SETTING=changed\n")
+                elif change == "journal":
+                    altered = copy.deepcopy(saved)
+                    altered.pop("publicOriginsEnvironment")
+                    save_private(journal_path, altered)
+                else:
+                    (self.root / OVERLAY).write_text(CONTENTS + "# unknown\n")
+                watched = (env_path, journal_path, self.root / ".asa/setup.json", self.root / OVERLAY)
+                before = {path: (path.read_bytes(), path.stat().st_ino) for path in watched}
+                args = self.public_install_args(operation_id=saved["operationId"])
+                with self.public_install_adapters(), \
+                        patch.object(asa_setup, "operation_lock", wraps=asa_setup.operation_lock) as lock, \
+                        patch.object(asa_setup, "save_private", wraps=asa_setup.save_private) as save, \
+                        patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+                    with self.assertRaises(Blocked):
+                        asa_setup.execute(args)
+                    lock.assert_not_called()
+                    save.assert_not_called()
+                    adopt.assert_not_called()
+                self.assertEqual({path: (path.read_bytes(), path.stat().st_ino) for path in watched}, before)
+                self.assertFalse((self.root / ".asa/installation.json").exists())
+
+    @unittest.skipUnless(os.name == "posix", "Linux setup CLI")
+    def test_public_install_rechecks_exact_pending_state_under_real_lock_before_writes(self):
+        saved = self.public_install_interrupt_environment()
+        env_path, config_path = self.root / ".env", self.root / ".asa/setup.json"
+        journal_path, overlay = self.store.path(saved["operationId"]), self.root / OVERLAY
+        original = {path: path.read_bytes() for path in (env_path, config_path, journal_path, overlay)}
+        real_lock = asa_setup.operation_lock
+        for change in ("environment", "configuration", "journal", "overlay_inode", "environment_inode", "inventory"):
+            with self.subTest(change=change):
+                for path, content in original.items():
+                    path.write_bytes(content)
+                before = {path: (path.read_bytes(), path.stat().st_ino) for path in original}
+                inventory = [copy.deepcopy(self.inventory)]
+                after_injection = {}
+
+                @contextmanager
+                def racing_lock(*args, **kwargs):
+                    # The full public pre-lock path has only read private state.
+                    self.assertEqual({path: (path.read_bytes(), path.stat().st_ino) for path in original}, before)
+                    with real_lock(*args, **kwargs) as descriptor:
+                        if change == "environment":
+                            env_path.write_bytes(original[env_path] + b"UNEXPECTED_PRIVATE_SETTING=changed\n")
+                        elif change == "configuration":
+                            configured = json.loads(original[config_path])
+                            configured["backup"]["retention"] = {"localKeep": 2}
+                            save_private(config_path, configured)
+                        elif change == "journal":
+                            changed = copy.deepcopy(saved)
+                            changed["state"] = "TERMINAL"
+                            save_private(journal_path, changed)
+                        elif change == "overlay_inode":
+                            paths.atomic_bytes(overlay, original[overlay], mode=0o600)
+                        elif change == "environment_inode":
+                            paths.atomic_bytes(env_path, original[env_path], mode=0o600)
+                        else:
+                            inventory[0]["volumes"] = [{"name": "school-fixture_postgres-data", "labels": {}}]
+                        after_injection.update({path: (path.read_bytes(), path.stat().st_ino) for path in original})
+                        yield descriptor
+
+                args = self.public_install_args(operation_id=saved["operationId"])
+                with self.public_install_adapters(), patch.object(asa_setup, "operation_lock", side_effect=racing_lock), \
+                        patch("deployment.setup_operation.setup_discovery.docker_inventory", side_effect=lambda: copy.deepcopy(inventory[0])), \
+                        patch.object(asa_setup, "save_private", wraps=asa_setup.save_private) as save, \
+                        patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+                    with self.assertRaises(Blocked):
+                        asa_setup.execute(args)
+                    save.assert_not_called()
+                    adopt.assert_not_called()
+                self.assertTrue(after_injection)
+                self.assertEqual({path: (path.read_bytes(), path.stat().st_ino) for path in original}, after_injection)
+                self.assertFalse((self.root / ".asa/installation.json").exists())
 
     def test_existing_empty_overlay_cannot_silently_change_to_https_entry(self):
         self.runtime().environment()
