@@ -294,29 +294,68 @@ def run_windows(action: str, record: dict) -> int:
     return run_reduced(cmd, action)
 
 
+def log_directory() -> Path:
+    """Host-private diagnostic log directory, independent of the source checkout."""
+    return windows_home() / "logs" if os.name == "nt" else Path("/var/log/asa-lab-operator")
+
+
 def run_reduced(command: list[str], action: str) -> int:
-    """Do not echo unbounded JSON or private diagnostics in the 1Panel terminal."""
-    print("ASA Lab · " + ("проверка" if action == "check" else "обновление"))
+    """Stream full diagnostics to a private log; show only bounded stage/results."""
+    folder = log_directory()
+    if not folder.exists():
+        folder.mkdir(parents=True, mode=0o700)
+    check_ordinary_path(folder)
+    if os.name != "nt":
+        info = folder.stat()
+        require(info.st_uid == 0 and info.st_mode & 0o077 == 0,
+                "Каталог журнала должен принадлежать root с правами 0700.")
+    filename = action + "-" + dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    filename += "-" + str(os.getpid()) + ".log"
+    logfile = folder / filename
+    print("ASA Lab · " + ("проверка" if action == "check" else "обновление"), flush=True)
     if action == "update":
-        print("[i] Используется штатный установщик; БД/MinIO защищены его проверками.")
-    process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                             text=True, errors="replace", timeout=None, check=False)
-    chunks = process.stdout.splitlines()
-    if process.returncode == 0:
-        print("[OK] Штатная операция завершилась успешно")
-        for line in chunks:
-            stripped = line.strip()
-            if stripped.startswith(("1. ", "2. ", "3. ", "4. ", "5. ", "6. ")):
-                print(stripped[:210])
-            if "NO_CHANGE" in stripped or "AVAILABLE revision=" in stripped:
-                print("[i] " + stripped[:160])
+        print("[i] Выполняется только штатный контролируемый update.", flush=True)
+    fd = os.open(logfile, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    exit_code = 1
+    blocked = []
+    printed = set()
+    total = 0
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", errors="replace") as log:
+            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    text=True, errors="replace", bufsize=1)
+            try:
+                for output in proc.stdout:
+                    total += len(output.encode("utf-8", errors="replace"))
+                    if total <= 32 * 1024 * 1024:
+                        log.write(output)
+                    elif "log_truncated" not in printed:
+                        log.write("[OUTPUT TRUNCATED AT 32 MiB]\n")
+                        printed.add("log_truncated")
+                    item = output.strip()
+                    if item.startswith(("1. ", "2. ", "3. ", "4. ", "5. ", "6. ")):
+                        if item[:210] not in printed:
+                            print(item[:210], flush=True)
+                            printed.add(item[:210])
+                    elif item.startswith(("NO_CHANGE", "AVAILABLE revision=", "BLOCKED COMMAND:", "BLOCKED ")):
+                        blocked.append(item[:200])
+                exit_code = proc.wait()
+            except BaseException:
+                proc.terminate()
+                proc.wait(timeout=10)
+                raise
+    finally:
+        print("Журнал: " + str(logfile), flush=True)
+    if exit_code == 0:
+        print("[OK] Штатная операция завершилась успешно", flush=True)
+        for item in blocked[-2:]:
+            if item.startswith(("NO_CHANGE", "AVAILABLE revision=")):
+                print("[i] " + item, flush=True)
     else:
-        print(f"[X] Остановлено: код {process.returncode}; никакого второго запуска нет")
-        for line in chunks[-50:]:
-            if any(word in line for word in ("BLOCKED", "SAFE_ACTION", "ОСТАНОВЛЕНО", "Следующее действие:")):
-                print(line.strip()[:200])
-    # The original installer result stays authoritative. No invented PASS/backup receipt.
-    return process.returncode
+        print(f"[X] Остановлено: код {exit_code}. Автоматический повтор запрещён.", flush=True)
+        for item in blocked[-3:]:
+            print("[!] " + item, flush=True)
+    return exit_code
 
 
 def main(argv: list[str] | None = None) -> int:

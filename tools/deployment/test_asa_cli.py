@@ -125,13 +125,18 @@ class PortableCLIContracts(unittest.TestCase):
             asa_cli.run_linux("update", self.entry)
 
     def test_manager_failure_is_not_claimed_as_success_or_retried(self):
-        output = SimpleNamespace(returncode=77, stdout="RESOURCE_BUDGET {large}\nBLOCKED COMMAND: SOURCE_CHANGED\n")
+        process = SimpleNamespace(stdout=io.StringIO(
+            "RESOURCE_BUDGET {large}\nBLOCKED COMMAND: SOURCE_CHANGED\n"),
+            wait=lambda: 77)
         buf = io.StringIO()
-        with patch.object(asa_cli.subprocess, "run", return_value=output) as runner, contextlib.redirect_stdout(buf):
+        with patch.object(asa_cli.subprocess, "Popen", return_value=process) as runner, \
+                patch.object(asa_cli, "log_directory", return_value=self.base / "logs"), \
+                contextlib.redirect_stdout(buf):
             self.assertEqual(asa_cli.run_reduced(["python", "manager"], "update"), 77)
         self.assertIn("[X] Остановлено", buf.getvalue())
         self.assertIn("BLOCKED COMMAND", buf.getvalue())
         self.assertNotIn("RESOURCE_BUDGET", buf.getvalue())
+        self.assertIn("RESOURCE_BUDGET", next((self.base / "logs").glob("*.log")).read_text(encoding="utf-8"))
         self.assertEqual(runner.call_count, 1)
 
     def test_registry_corruption_is_not_treated_as_empty_host(self):
@@ -146,24 +151,24 @@ class PortableDeliveryIntegrationContracts(unittest.TestCase):
         self.root = Path(__file__).resolve().parents[2]
 
     def test_signed_linux_bundle_includes_cli(self):
-        source = (self.root / "tools/deployment/setup_bundle.py").read_text()
+        source = (self.root / "tools/deployment/setup_bundle.py").read_text(encoding="utf-8")
         self.assertIn('"tools/asa_cli.py"', source)
-        setup = (self.root / "tools/asa_setup_launcher.py").read_text()
+        setup = (self.root / "tools/asa_setup_launcher.py").read_text(encoding="utf-8")
         self.assertIn('"register", "--root", str(root), "--bundle", str(bundle)', setup)
         self.assertIn('successful.get("applicationAccepted") is True', setup)
 
     def test_windows_bootstrap_and_setup_include_cli(self):
-        bootstrap = (self.root / "tools/asa-bootstrap.ps1").read_text()
+        bootstrap = (self.root / "tools/asa-bootstrap.ps1").read_text(encoding="utf-8")
         self.assertIn("'asa_cli.py'", bootstrap)
-        setup = (self.root / "tools/asa-setup.ps1").read_text()
+        setup = (self.root / "tools/asa-setup.ps1").read_text(encoding="utf-8")
         self.assertIn("asa_cli.py", setup)
         self.assertIn("register --root $TargetRoot", setup)
         self.assertIn('if(-not $Apply)', setup)
 
     def test_windows_and_linux_ci_include_exact_source_changes(self):
-        workflow = (self.root / ".github/workflows/portable-delivery.yml").read_text()
+        workflow = (self.root / ".github/workflows/portable-delivery.yml").read_text(encoding="utf-8")
         self.assertIn("'tools/asa_cli.py'", workflow)
-        release = (self.root / ".github/workflows/setup-release.yml").read_text()
+        release = (self.root / ".github/workflows/setup-release.yml").read_text(encoding="utf-8")
         self.assertIn("'tools/asa_cli.py'", release)
 
 
