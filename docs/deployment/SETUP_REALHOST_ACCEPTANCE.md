@@ -250,6 +250,57 @@ complete, state и закрытые reason codes. Каждое внешнее н
 содержимое конфигурации не публикуются. Успешный поздний probe или изменение
 инвентаризации не доказывает состояние первой попытки и не меняет её FAIL.
 
+При неожиданном nonzero exit публичных `install`, `update apply`, `backup create`
+или `cloud sync` дополнительное поле `commandFailureDiagnostic` сохраняет
+закрытую проекцию текущей операции. Operation ID и installation ID берутся из
+вложенного `result.operation` того же public invocation и публикуются только
+после сверки с существующими private `setup.json`, точным
+`setup-operations/<operationId>.json` и `setup-last-attempt.json`. Проверяются
+root, non-root operator UID, mode, exit, outcome и reason; полный `journal.result`
+должен совпасть с receipt в памяти. Время изменения last-attempt должно попадать
+в интервал вызова с секундной точностью filesystem. Диагностика не продолжает
+операцию и не приобретает mutation lock. Это новое read-only наблюдение после
+отказа, обозначенное `AFTER_PUBLIC_FAILURE` и `observedAt`.
+
+В artifact разрешены только известные `journalPhase`, `receiptStage`, state,
+intent/done/failed для фиксированного списка стадий и типизированные acceptance
+flags. Неизвестные имена, uppercase reason strings и значения заменяются
+закрытыми маркерами; приватные events, bootstrap config, env и произвольные
+вложенные словари не копируются. Revision/schema показываются как подтверждённые
+только при завершённой стадии `release` и совпадении с закреплённым runtime.
+Digest дополнительно должен совпасть с сохранённым selector. Намерение pull
+или длительность операции сами по себе не подтверждают выбранный release.
+
+Для классификации `COMMAND` используются два отдельных приватных источника:
+
+- CLI log из результата того же вызова: фиксированный каталог
+  `/var/log/asa-lab-operator`, точные action/PID/UTC-second в имени и interval
+  изменения файла, root ownership, mode 0600.
+- Fixed `.asa/setup-logs/<operationId>.log` проверенного оператора: до публичного
+  вызова снимаются только метаданные, а после отказа читаются только новые bytes
+  с сохранением device/inode. Старый диапазон повторной операции не считается
+  диагностикой нового отказа. При отсутствии baseline источник `UNAVAILABLE`.
+
+Каждый компонент пути открывается через `openat` с `O_NOFOLLOW`; допустимы
+только защищённые каталоги и обычные приватные файлы с одной hard link. Чтение
+config ограничено 256 КиБ, journal/receipt — 2 МиБ каждый; CLI/setup log могут
+иметь размер не более 34/64 МиБ, из них читаются не более 128 КиБ нового хвоста.
+Повторный `fstat` должен подтвердить неизменность файла во время чтения. Baseline
+ограничен 512 entries и 5 секундами; после проверки доверенного гостя/оператора
+диагностические чтения имеют общий deadline 30 секунд. Дополнительные mutating
+команды и сетевые запросы не запускаются.
+
+Из log text выходят только фиксированные rule IDs для известных форм Docker
+daemon, registry access/manifest/DNS/TLS/HTTP, `docker pull`, `git fetch` или
+Compose, и фактически указанные допустимые числовые коды. URL, argv, headers,
+body, traceback и совпавшие строки остаются приватными. Текст `unauthorized`
+не превращается в предположительный HTTP 401. `NO_MATCH` означает лишь отсутствие
+распознанной формы в разрешённом диапазоне: capture=True subprocess stderr
+может отсутствовать в обоих log files. Ошибка чтения или binding имеет отдельный
+`UNAVAILABLE`, не стирает уже проверенную stage projection и не меняет исходные
+public exit, reason `COMMAND` и общий FAIL. Эта диагностика не устанавливает
+задним числом причину завершившегося run без нового evidence.
+
 Используется только временный `github.token` с read permissions. Он переносится
 в root-owned file 0600, поступает в subprocess через environment и не попадает
 в argv, логи evidence или artifacts. Официальный 1Panel installer выводит

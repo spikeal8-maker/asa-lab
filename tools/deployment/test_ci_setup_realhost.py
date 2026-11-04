@@ -264,6 +264,224 @@ class PostFailureDiagnosticTests(unittest.TestCase):
             self.assertFalse(target.exists())
 
 
+class CommandFailureDiagnosticTests(unittest.TestCase):
+    def records(self):
+        ids = {"operationId": "a" * 32, "installationId": "b" * 32}
+        receipt = {"format": "asa-setup-result-v1", **ids, "mode": "install", "stage": "release", "outcome": "BLOCKED",
+                   "exitCode": 2, "reasonCode": "COMMAND", "applicationAccepted": False, "executionCompleted": False,
+                   "actionExecuted": False, "dataProtectionConfirmed": False, "site": {"technical": {"status": "not_run"}}}
+        journal = {"format": "asa-setup-operation-v1", **ids, "root": str(harness.INSTALL_ROOT), "mode": "install",
+                   "state": "TERMINAL", "phase": "release", "stages": {"preflight": {"status": "done"}, "release": {"status": "intent"}},
+                   "result": json.loads(json.dumps(receipt))}
+        config = {"format": "asa-setup-config-v1", "installationId": ids["installationId"], "root": str(harness.INSTALL_ROOT), "operatorUid": 999}
+        public = {"format": "asa-cli-result-v1", "exitCode": 2, "managerExitCode": 2, "status": "BLOCKED", "reasonCode": "COMMAND",
+                  "reasonCodes": ["COMMAND"], "operation": {**ids, "outcome": "BLOCKED", "reasonCode": "COMMAND"}}
+        pins = json.loads((HERE / "fixtures/setup-realhost-pins.json").read_text())
+        return public, config, journal, receipt, pins
+
+    def project(self, values):
+        return harness.command_operation_projection(*values, mode="install", code=2, uid=999)
+
+    def test_nested_public_ids_bind_current_stage_and_acceptance_without_guessing_release(self):
+        projected = self.project(self.records())
+        self.assertEqual(projected["binding"], "VERIFIED")
+        self.assertEqual(projected["operationId"], "a" * 32)
+        self.assertEqual((projected["receiptStage"], projected["journalPhase"]), ("release", "release"))
+        self.assertEqual(projected["stages"], {"preflight": "done", "release": "intent"})
+        self.assertEqual(projected["selectedRelease"], {"status": "NOT_CONFIRMED"})
+        self.assertFalse(projected["acceptance"]["applicationAccepted"])
+        self.assertFalse(projected["acceptance"]["firstBackupCompleted"])
+
+    def test_mismatched_identity_mode_root_and_stale_receipt_are_not_bound(self):
+        for index, key, value in ((0, "operation", {"operationId": "c" * 32, "installationId": "b" * 32}),
+                                  (1, "installationId", "c" * 32), (1, "operatorUid", 0),
+                                  (1, "root", "/somewhere-else"), (2, "root", "/somewhere-else"),
+                                  (2, "mode", "update"), (3, "operationId", "c" * 32), (3, "exitCode", 0),
+                                  (2, "result", {"format": "asa-setup-result-v1", "secret": "PRIVATE"})):
+            values = self.records()
+            values[index][key] = value
+            with self.subTest(index=index, key=key), self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_BINDING"):
+                self.project(values)
+
+    def test_closed_projection_excludes_unknown_uppercase_and_nested_secrets(self):
+        secret = "PRIVATE_CREDENTIAL_MUST_NEVER_APPEAR"
+        values = self.records()
+        public, config, journal, receipt, pins = values
+        public["operation"]["reasonCode"] = receipt["reasonCode"] = secret
+        receipt.update(stage=secret, executionCompleted=secret, raw=secret, diagnostics={"token": secret})
+        receipt["site"].update(browser={"status": secret, "password": secret}, owner={"status": [secret]})
+        config.update(password=secret, cloud={"token": secret})
+        journal.update(phase=secret, bootstrapConfig=config, events=[{"raw": secret}], result=json.loads(json.dumps(receipt)))
+        journal["stages"].update({secret: {"status": "done"}, "images": {"status": secret, "raw": secret}})
+        projected = self.project(values)
+        self.assertNotIn(secret, json.dumps(projected))
+        self.assertEqual(projected["reasonCode"], "UNRECOGNIZED_REASON")
+        self.assertEqual(projected["journalPhase"], "UNRECOGNIZED_STAGE")
+        self.assertEqual(projected["stages"]["images"], "UNRECOGNIZED_STATUS")
+        self.assertEqual(projected["unrecognizedStageCount"], 1)
+        self.assertNotIn("executionCompleted", projected["acceptance"])
+
+    def test_selected_pin_requires_completed_release_and_matching_revision_schema_digest(self):
+        values = self.records()
+        journal, pin = values[2], values[4]["previous"]
+        journal["release"] = {"revision": pin["revision"], "schema": pin["schema"], "private": "SECRET"}
+        journal["requestedDeploymentDigest"] = pin["deploymentDigest"]
+        self.assertEqual(self.project(values)["selectedRelease"]["status"], "NOT_CONFIRMED")
+        journal["stages"]["release"] = {"status": "done", "revision": pin["revision"]}
+        projected = self.project(values)["selectedRelease"]
+        self.assertEqual(projected, {"status": "CONFIRMED", "pin": "previous", "revision": pin["revision"],
+                                     "schema": pin["schema"], "deploymentDigest": pin["deploymentDigest"]})
+        journal["requestedDeploymentDigest"] = "sha256:" + "a" * 64
+        self.assertNotIn("deploymentDigest", self.project(values)["selectedRelease"])
+        journal["release"]["schema"] += 1
+        self.assertEqual(self.project(values)["selectedRelease"]["status"], "NOT_CONFIRMED")
+
+    def test_log_classifier_outputs_only_fixed_rules_and_observed_numeric_codes(self):
+        secret = "PRIVATE_CREDENTIAL_MUST_NEVER_APPEAR"
+        raw = ('Error response from daemon: Head "https://ghcr.io/v2/repository/manifests/tag": unauthorized\n'
+               'Error response from daemon: Get "https://ghcr.io/v2/": dial tcp: lookup ghcr.io: no such host\n'
+               'Error response from daemon: Get "https://ghcr.io/v2/": tls: failed to verify certificate: x509: certificate expired\n'
+               'Error response from daemon: unexpected status from HEAD request to "https://ghcr.io/v2/": 405 Method Not Allowed\n'
+               'docker pull failed (exit 1).\n' + secret + '\n').encode()
+        projected = harness.command_log_classification(raw, "release")
+        self.assertEqual(set(projected["ruleIds"]), {"REGISTRY_ACCESS_DENIED", "REGISTRY_DNS_FAILURE", "REGISTRY_TLS_FAILURE",
+                                                    "REGISTRY_HTTP_FAILURE", "DOCKER_PULL_EXIT"})
+        self.assertEqual(projected["exitCodes"], [1])
+        self.assertEqual(projected["httpStatusCodes"], [405])  # Unauthorized text is not an observed HTTP 401.
+        self.assertNotIn(secret, json.dumps(projected))
+        self.assertEqual(harness.command_log_classification(raw, "source")["ruleIds"], [])
+        self.assertEqual(harness.command_log_classification(b"git fetch failed (exit 128).\n", "source")["exitCodes"], [128])
+
+    def test_unknown_log_lines_json_headers_and_secret_bodies_are_not_classified(self):
+        raw = b'Authorization: Bearer PRIVATE\n{"error":"docker pull failed (exit 1)."}\nPRIVATE HTTP 401 unauthorized\n'
+        raw += b'Error response from daemon: PRIVATE BODY HTTP 403\n' + b'X' * 9000 + b'\n'
+        projected = harness.command_log_classification(raw, "release")
+        self.assertEqual(projected, {"status": "NO_MATCH", "ruleIds": [], "exitCodes": [], "httpStatusCodes": []})
+
+    def test_cli_log_filename_binds_action_pid_and_invocation_time(self):
+        timestamp = harness.dt.datetime(2026, 11, 4, 12, 0, tzinfo=harness.dt.timezone.utc)
+        start = int(timestamp.timestamp()) * 10**9
+        invocation = {"pid": 1234, "startedNs": start, "finishedNs": start + 3 * 10**9}
+        name = "install-20261104T120000Z-1234.log"
+        public = {"logPath": str(harness.OPERATOR_LOG_ROOT / name)}
+        self.assertEqual(harness.cli_log_path(public, ["install"], invocation).name, name)
+        for value in ("install-20261104T120000Z-1235.log", "backup-create-20261104T120000Z-1234.log",
+                      "install-20261104T115959Z-1234.log", "install-20261104T120004Z-1234.log"):
+            with self.subTest(value=value), self.assertRaises(harness.Failure):
+                harness.cli_log_path({"logPath": str(harness.OPERATOR_LOG_ROOT / value)}, ["install"], invocation)
+        with self.assertRaises(harness.Failure):
+            harness.cli_log_path({"logPath": str(harness.OPERATOR_LOG_ROOT.parent / name)}, ["install"], invocation)
+
+    def test_diagnostic_failure_or_success_never_changes_original_public_failure(self):
+        public, *_ = self.records()
+        for diagnostic in (self.project(self.records()), RuntimeError("PRIVATE_CREDENTIAL")):
+            output = io.StringIO()
+            with self.subTest(diagnostic=type(diagnostic).__name__), patch.object(harness, "CLI_ACTIONS", []), \
+                    patch.object(harness, "guest_guard", return_value={}), \
+                    patch.object(harness, "command_failure_diagnostic", **({"side_effect": diagnostic} if isinstance(diagnostic, Exception)
+                                                                            else {"return_value": diagnostic})), \
+                    patch.object(harness, "guest_phase", side_effect=lambda *_: harness.public_cli_result(["install"], 2, json.dumps(public))), \
+                    contextlib.redirect_stdout(output):
+                code = harness.guest_main("install")
+            observed = json.loads(output.getvalue())
+            self.assertEqual((code, observed["status"], observed["reasonCode"]), (1, "FAIL", "COMMAND"))
+            self.assertEqual(observed["cliActions"][0]["exitCode"], 2)
+            self.assertIn("commandFailureDiagnostic", observed)
+            self.assertNotIn("PRIVATE_CREDENTIAL", output.getvalue())
+
+    def test_unknown_public_reason_cannot_leak_and_expected_exit_does_not_probe(self):
+        public, *_ = self.records()
+        secret = "PRIVATE_CREDENTIAL_MUST_NEVER_APPEAR"
+        public.update(reasonCode=secret, reasonCodes=[secret], status={"raw": secret})
+        with patch.object(harness, "CLI_ACTIONS", []), patch.object(harness, "command_failure_diagnostic") as probe:
+            harness.public_cli_result(["install"], 2, json.dumps(public), allowed=(2,))
+            probe.assert_not_called()
+            self.assertNotIn(secret, json.dumps(harness.CLI_ACTIONS))
+            self.assertEqual(harness.CLI_ACTIONS[0]["status"], "UNVERIFIED")
+
+    def test_bound_current_receipt_survives_unavailable_private_log_without_raw_output(self):
+        public, config, journal, receipt, pins = self.records()
+        invocation = {"startedNs": 1_700_000_000 * 10**9, "finishedNs": 1_700_000_005 * 10**9,
+                      "setupLogsBefore": {"status": "OBSERVED", "entries": {}}}
+        private = {"setup.json": config, "a" * 32 + ".json": journal, "setup-last-attempt.json": receipt}
+        def read(path, *_args, **_kwargs):
+            self.assertTrue(path.is_relative_to(harness.INSTALL_ROOT))
+            if path.name not in private:
+                raise PermissionError("PRIVATE_PASSWORD")
+            return json.dumps(private[path.name]).encode(), SimpleNamespace(st_mtime_ns=invocation["finishedNs"] - 10**9), False
+        with patch.object(harness, "guest_guard", return_value={"pins": pins}), \
+                patch.object(harness, "diagnostic_owner", return_value=({"uid": 999}, {})), \
+                patch.object(harness, "diagnostic_read", side_effect=read):
+            observed = harness.command_failure_diagnostic(["install"], 2, public, invocation)
+        self.assertEqual(observed["binding"], "VERIFIED")
+        self.assertEqual(observed["journalPhase"], "release")
+        self.assertEqual(observed["logs"]["cli"]["status"], "UNAVAILABLE")
+        self.assertEqual(observed["logs"]["setup"]["status"], "UNAVAILABLE")
+        self.assertNotIn("PRIVATE_PASSWORD", json.dumps(observed))
+
+    def test_old_last_attempt_is_rejected_before_reading_or_classifying_logs(self):
+        public, config, journal, receipt, pins = self.records()
+        private = {"setup.json": config, "a" * 32 + ".json": journal, "setup-last-attempt.json": receipt}
+        def read(path, *_args, **_kwargs):
+            return json.dumps(private[path.name]).encode(), SimpleNamespace(st_mtime_ns=10**9), False
+        with patch.object(harness, "guest_guard", return_value={"pins": pins}), \
+                patch.object(harness, "diagnostic_owner", return_value=({"uid": 999}, {})), \
+                patch.object(harness, "diagnostic_read", side_effect=read), patch.object(harness, "command_log_classification") as classifier, \
+                self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_INVOCATION"):
+            harness.command_failure_diagnostic(["install"], 2, public, {"startedNs": 10 * 10**9, "finishedNs": 20 * 10**9})
+        classifier.assert_not_called()
+
+    @unittest.skipUnless(sys.platform == "linux", "Private guest file proof uses Linux openat, O_NOFOLLOW and inode ownership")
+    def test_native_private_reads_reject_links_permissions_owner_and_oversize(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            target = base / "journal.json"
+            target.write_bytes(b'{"token":"PRIVATE"}')
+            target.chmod(0o600)
+            self.assertEqual(harness.diagnostic_read(target, base, os.geteuid())[0], target.read_bytes())
+            for change in ("symlink", "hardlink", "permissions", "owner", "size", "fifo"):
+                with self.subTest(change=change):
+                    candidate = target
+                    uid, maximum = os.geteuid(), 1024
+                    if change == "symlink":
+                        candidate = base / "link.json"
+                        candidate.symlink_to(target)
+                    elif change == "hardlink":
+                        os.link(target, base / "hard.json")
+                    elif change == "permissions":
+                        target.chmod(0o644)
+                    elif change == "owner":
+                        uid += 1
+                    elif change == "size":
+                        maximum = 2
+                    else:
+                        candidate = base / "fifo"
+                        os.mkfifo(candidate, 0o600)
+                    with self.assertRaises((OSError, harness.Failure)):
+                        harness.diagnostic_read(candidate, base, uid, maximum=maximum)
+                    target.chmod(0o600)
+                    if (base / "hard.json").exists():
+                        (base / "hard.json").unlink()
+
+    @unittest.skipUnless(sys.platform == "linux", "Operation-log append proof uses Linux openat, pread and inode ownership")
+    def test_native_log_projection_ignores_old_bytes_and_rejects_replaced_inode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            target = base / "operation.log"
+            target.write_bytes(b"Error response from daemon: unauthorized: OLD_PRIVATE\n")
+            target.chmod(0o600)
+            before = harness.diagnostic_metadata(target.stat())
+            with target.open("ab") as output:
+                output.write(b"docker pull failed (exit 1).\n")
+            observed = harness.command_log_projection(target, base, os.geteuid(), phase="release", offset=before[2], identity=before)
+            self.assertEqual(observed["ruleIds"], ["DOCKER_PULL_EXIT"])
+            target.rename(base / "previous.log")
+            target.write_bytes(b"Error response from daemon: unauthorized: NEW_PRIVATE\n" * 2)
+            target.chmod(0o600)
+            with self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_CHANGED"):
+                harness.command_log_projection(target, base, os.geteuid(), phase="release", offset=before[2], identity=before)
+
+
 class RuntimeFaultContractTests(unittest.TestCase):
     def test_file_limit_requires_actual_large_part_and_small_database_files(self):
         harness.fault_size_gate(1000, 2000, harness.FAULT_FILE_LIMIT + 1)

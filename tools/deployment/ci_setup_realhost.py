@@ -76,6 +76,20 @@ DIAGNOSTIC_PATHS = {"opt": "/opt", "bundleParent": "/opt/asa-setup", "bundle": "
     "setup": "tools/asa_setup.py", "launcher": "tools/asa_setup_launcher.py", "deployment": "tools/deployment",
     "package": "tools/deployment/__init__.py", "discovery": "tools/deployment/setup_discovery.py",
     "configuration": "tools/deployment/setup_config.py", "contracts": "tools/deployment/contracts.py"}
+COMMAND_DIAGNOSTIC_MODES = {"install": "install", "update apply": "update", "backup create": "backup", "cloud sync": "retry-cloud"}
+COMMAND_DIAGNOSTIC_STAGES = ("created", "bootstrap", "configured", "preflight", "acceptance_preflight", "release", "source",
+    "handoff", "environment", "settings", "images", "space", "migration_plan", "backup_preflight", "backup", "switch",
+    "owner_registration", "owner_grant", "browser", "first_backup_space", "first_backup", "backup_continuation",
+    "backup_recovery", "recover_first_backup", "recovery", "start_existing", "cloud_delivery", "parent_receipt", "retention")
+COMMAND_DIAGNOSTIC_REASONS = DIAGNOSTIC_REASONS | {"COMMAND", "COMMAND_TIMEOUT", "TOOL", "HOST_COMMAND", "BOOTSTRAP_ERROR",
+    "OWNER_INPUT_REQUIRED", "REGISTRY", "NETWORK", "RELEASE_UNAVAILABLE", "RELEASE", "RELEASE_DIGEST_MISMATCH", "CI_UNAVAILABLE",
+    "CI_BLOCKED", "SOURCE_REVISION", "ORIGIN", "DIRTY", "DEPENDENCIES", "CLOUD_UNAVAILABLE", "CLOUD_NOT_CONFIGURED",
+    "CLOUD_TRANSFER_FAILED", "CLOUD_PREPARATION", "BACKUP_REQUIRED", "BACKUP_RESUME_SNAPSHOT_MISSING", "BACKUP_INCOMPLETE",
+    "LOCKED", "OPERATION_PENDING", "HEALTH", "TECHNICAL_ACCEPTANCE", "BROWSER_ACCEPTANCE", "INTERRUPTED", "CLI_UNAVAILABLE"}
+COMMAND_DIAGNOSTIC_ERRORS = {"DIAGNOSTIC_PATH", "DIAGNOSTIC_PERMISSIONS", "DIAGNOSTIC_SIZE", "DIAGNOSTIC_CHANGED",
+    "DIAGNOSTIC_BINDING", "DIAGNOSTIC_INVOCATION", "DIAGNOSTIC_LOG_BASELINE", "DIAGNOSTIC_JSON", "DIAGNOSTIC_TIMEOUT"}
+COMMAND_DIAGNOSTIC_OUTCOMES = {"ACCEPTED", "WARNING", "BLOCKED", "ERROR", "INTERRUPTED", "PREPARATION_REQUIRED", "NO_CHANGE"}
+OPERATOR_LOG_ROOT = Path("/var/log/asa-lab-operator")
 
 
 class Failure(RuntimeError):
@@ -162,6 +176,7 @@ class Commands:
     def run(self, args, *, timeout=60, cwd=None, environment=None, source=None, allowed=(0,)):
         # Temporary raw output remains private and is never forwarded to CI.
         with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+            started_ns = time.time_ns()
             process = subprocess.Popen([str(arg) for arg in args], cwd=cwd, env=environment,
                                        stdin=subprocess.PIPE if source is not None else subprocess.DEVNULL,
                                        stdout=stdout, stderr=stderr, start_new_session=True)
@@ -178,6 +193,7 @@ class Commands:
                 data = stdout.read(2 * 1024**2 + 1)
                 require(len(data) <= 2 * 1024**2, "COMMAND_OUTPUT_LIMIT")
                 require(process.returncode in allowed, "COMMAND_EXIT")
+                self.last_invocation = {"pid": process.pid, "startedNs": started_ns, "finishedNs": time.time_ns()}
                 return process.returncode, data
             finally:
                 if process.poll() is None:
@@ -661,32 +677,306 @@ def root_json(name):
 
 def public_cli(words, *, options=(), allowed=(0,), timeout=1200):
     command = ["/usr/local/bin/asa", *words, "--root", str(INSTALL_ROOT), "--json", "--no-color", *options]
-    code, raw = Commands().run(command, timeout=timeout, environment=guest_environment(), allowed=(0, 1, 2, 130))
-    return public_cli_result(words, code, raw, allowed=allowed)
+    baseline = command_log_baseline(words)
+    commands = Commands()
+    code, raw = commands.run(command, timeout=timeout, environment=guest_environment(), allowed=(0, 1, 2, 130))
+    return public_cli_result(words, code, raw, allowed=allowed,
+                             invocation={**commands.last_invocation, "setupLogsBefore": baseline})
 
 
-def public_cli_result(words, code, raw, *, allowed=(0,)):
+def public_cli_result(words, code, raw, *, allowed=(0,), invocation=None):
     try:
         result = json.loads(raw)
     except (ValueError, UnicodeError):
         raise Failure("PUBLIC_CLI_JSON") from None
-    require(result.get("format") == "asa-cli-result-v1" and result.get("exitCode") == code, "PUBLIC_CLI_RESULT")
-    reasons = [item for item in [result.get("reasonCode"), *result.get("reasonCodes", [])]
-               if isinstance(item, str) and CODE.fullmatch(item)]
+    require(isinstance(result, dict) and result.get("format") == "asa-cli-result-v1" and result.get("exitCode") == code, "PUBLIC_CLI_RESULT")
+    supplied = result.get("reasonCodes") if isinstance(result.get("reasonCodes"), list) else []
+    reasons = [item if item in COMMAND_DIAGNOSTIC_REASONS else "UNRECOGNIZED_REASON"
+               for item in [result.get("reasonCode"), *supplied[:8]] if isinstance(item, str)]
+    status = result.get("status")
     record = {"command": "asa " + " ".join(words), "exitCode": code,
-              "status": result.get("status") if result.get("status") in STATES else "UNVERIFIED", "reasonCodes": reasons}
-    if isinstance(result.get("operationId"), str) and re.fullmatch(r"[a-f0-9]{32}", result["operationId"]):
-        record["operationId"] = result["operationId"]
-    if isinstance(result.get("operation"), dict) and result["operation"].get("outcome") in STATES:
+              "status": status if isinstance(status, str) and status in STATES else "UNVERIFIED", "reasonCodes": reasons}
+    if isinstance(result.get("operation"), dict) and isinstance(result["operation"].get("outcome"), str) and result["operation"]["outcome"] in COMMAND_DIAGNOSTIC_OUTCOMES:
         record["operationOutcome"] = result["operation"]["outcome"]
     CLI_ACTIONS.append(record)
     if code not in allowed:
-        raise Failure(reasons[-1] if reasons else "PUBLIC_CLI_FAILED")
+        error = Failure(reasons[-1] if reasons else "PUBLIC_CLI_FAILED")
+        try:
+            error.command_failure_diagnostic = command_failure_diagnostic(words, code, result, invocation)
+        except BaseException as failure:
+            error.command_failure_diagnostic = command_diagnostic_error(failure)
+        if error.command_failure_diagnostic.get("binding") == "VERIFIED":
+            record.update({key: error.command_failure_diagnostic[key] for key in ("operationId", "installationId")})
+        raise error
     return result
 
 
 def candidate_bundle(context):
     return Path("/opt/asa-setup") / context["sourceRevision"]
+
+
+def command_diagnostic_error(error):
+    code = getattr(error, "code", None)
+    return {"status": "UNAVAILABLE", "binding": "UNVERIFIED", "observation": "AFTER_PUBLIC_FAILURE",
+            "observedAt": now(), "reasonCode": code if isinstance(code, str) and code in COMMAND_DIAGNOSTIC_ERRORS
+            else "DIAGNOSTIC_UNAVAILABLE", "errorClass": diagnostic_error(error)}
+
+
+def diagnostic_open(path, base, uid, *, directory=False):
+    """Pin every component with openat; read only ordinary owner-private files."""
+    path, base = Path(path), Path(base)
+    require(path.is_absolute() and base.is_absolute() and base != Path("/") and ".." not in path.parts
+            and ".." not in base.parts and path.is_relative_to(base), "DIAGNOSTIC_PATH")
+    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        current = Path("/")
+        for index, part in enumerate(path.parts[1:]):
+            current /= part
+            is_directory = index < len(path.parts) - 2 or directory
+            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | (os.O_DIRECTORY if is_directory else 0)
+            child = os.open(part, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+            info = os.fstat(descriptor)
+            inside = current.is_relative_to(base)
+            if is_directory:
+                # Sticky /tmp is needed by native unit fixtures, never by guest paths.
+                sticky_ancestor = not inside and info.st_uid == 0 and bool(info.st_mode & stat.S_ISVTX)
+                require(stat.S_ISDIR(info.st_mode) and info.st_uid == (uid if inside else 0)
+                        and (not info.st_mode & 0o022 or sticky_ancestor)
+                        and (not inside or current == base == INSTALL_ROOT or not info.st_mode & 0o077), "DIAGNOSTIC_PERMISSIONS")
+            else:
+                require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == uid
+                        and stat.S_IMODE(info.st_mode) == 0o600, "DIAGNOSTIC_PERMISSIONS")
+        result, descriptor = descriptor, None
+        return result
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def diagnostic_metadata(info):
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def diagnostic_read(path, base, uid, *, maximum=2 * 1024**2, offset=0, tail=None, identity=None):
+    descriptor = diagnostic_open(path, base, uid)
+    try:
+        before = os.fstat(descriptor)
+        require(type(offset) is int and 0 <= offset <= before.st_size <= maximum, "DIAGNOSTIC_SIZE")
+        require(identity is None or diagnostic_metadata(before)[:2] == identity[:2], "DIAGNOSTIC_CHANGED")
+        start = max(offset, before.st_size - tail) if tail is not None else offset
+        partial_line = start > offset or (offset > 0 and os.pread(descriptor, 1, offset - 1) != b"\n")
+        os.lseek(descriptor, start, os.SEEK_SET)
+        remaining, chunks = before.st_size - start, []
+        while remaining:
+            chunk = os.read(descriptor, min(65536, remaining))
+            require(chunk, "DIAGNOSTIC_CHANGED")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        require(diagnostic_metadata(before) == diagnostic_metadata(os.fstat(descriptor)), "DIAGNOSTIC_CHANGED")
+        raw = b"".join(chunks)
+        if partial_line:
+            raw = raw.partition(b"\n")[2]  # Never classify a partial first line.
+        return raw, before, start > offset
+    finally:
+        os.close(descriptor)
+
+
+def command_log_baseline(words):
+    """Metadata only before the public call; a failed observation cannot block it."""
+    if " ".join(words) not in COMMAND_DIAGNOSTIC_MODES:
+        return {"status": "NOT_REQUIRED"}
+    try:
+        owner, _ = diagnostic_owner(guest_guard())
+        folder = INSTALL_ROOT / ".asa/setup-logs"
+        try:
+            descriptor = diagnostic_open(folder, INSTALL_ROOT, owner["uid"], directory=True)
+        except FileNotFoundError:
+            return {"status": "OBSERVED", "entries": {}}
+        try:
+            entries, deadline = {}, time.monotonic() + 5
+            with os.scandir(descriptor) as iterator:
+                for count, entry in enumerate(iterator):
+                    require(count < 512 and time.monotonic() < deadline, "DIAGNOSTIC_SIZE")
+                    if re.fullmatch(r"[a-f0-9]{32}\.log", entry.name):
+                        info = entry.stat(follow_symlinks=False)
+                        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == owner["uid"]
+                                and stat.S_IMODE(info.st_mode) == 0o600, "DIAGNOSTIC_PERMISSIONS")
+                        entries[entry.name] = diagnostic_metadata(info)
+            return {"status": "OBSERVED", "entries": entries}
+        finally:
+            os.close(descriptor)
+    except BaseException as error:
+        return command_diagnostic_error(error)
+
+
+def command_operation_projection(public, config, journal, receipt, pins, *, mode, code, uid):
+    """Closed schema after IDs, mode and the complete current receipt agree."""
+    require(type(uid) is int and uid > 0 and mode in COMMAND_DIAGNOSTIC_MODES.values()
+            and type(code) is int and code in (0, 1, 2, 130), "DIAGNOSTIC_BINDING")
+    require(all(isinstance(item, dict) for item in (public, config, journal, receipt)), "DIAGNOSTIC_BINDING")
+    operation = public.get("operation")
+    require(isinstance(operation, dict), "DIAGNOSTIC_BINDING")
+    ids = {key: operation.get(key) for key in ("operationId", "installationId")}
+    require(all(isinstance(value, str) and re.fullmatch(r"[a-f0-9]{32}", value) for value in ids.values()), "DIAGNOSTIC_BINDING")
+    require(config.get("format") == "asa-setup-config-v1" and config.get("root") == str(INSTALL_ROOT)
+            and type(config.get("operatorUid")) is int and config["operatorUid"] == uid
+            and config.get("installationId") == ids["installationId"], "DIAGNOSTIC_BINDING")
+    require(journal.get("format") == "asa-setup-operation-v1" and journal.get("root") == str(INSTALL_ROOT)
+            and receipt.get("format") == "asa-setup-result-v1"
+            and all(journal.get(key) == value == receipt.get(key) for key, value in ids.items())
+            and journal.get("mode") == receipt.get("mode") == mode
+            and type(receipt.get("exitCode")) is int and -128 <= receipt["exitCode"] <= 255
+            and type(public.get("managerExitCode")) is int and receipt["exitCode"] == public["managerExitCode"]
+            and public.get("exitCode") == code and operation.get("outcome") == receipt.get("outcome")
+            and operation.get("reasonCode") == receipt.get("reasonCode")
+            and isinstance(journal.get("result"), dict) and canonical_hash(journal["result"]) == canonical_hash(receipt),
+            "DIAGNOSTIC_BINDING")
+    def choice(value, allowed, fallback):
+        return value if isinstance(value, str) and value in allowed else fallback
+    projected = {"status": "OBSERVED", "binding": "VERIFIED", "observation": "AFTER_PUBLIC_FAILURE", "observedAt": now(),
+        **ids, "mode": mode, "publicExitCode": code, "managerExitCode": receipt["exitCode"],
+        "journalPhase": choice(journal.get("phase"), COMMAND_DIAGNOSTIC_STAGES, "UNRECOGNIZED_STAGE"),
+        "receiptStage": choice(receipt.get("stage"), COMMAND_DIAGNOSTIC_STAGES, "UNRECOGNIZED_STAGE"),
+        "journalState": choice(journal.get("state"), {"RUNNING", "TERMINAL", "VERIFY_ONLY", "RECOVERY_REQUIRED"}, "UNVERIFIED"),
+        "reasonCode": choice(receipt.get("reasonCode"), COMMAND_DIAGNOSTIC_REASONS, "UNRECOGNIZED_REASON"),
+        "outcome": choice(receipt.get("outcome"), COMMAND_DIAGNOSTIC_OUTCOMES, "UNVERIFIED"), "stages": {},
+        "selectedRelease": {"status": "NOT_CONFIRMED"}, "acceptance": {}}
+    stages = journal.get("stages") if isinstance(journal.get("stages"), dict) else {}
+    for name in COMMAND_DIAGNOSTIC_STAGES:
+        if isinstance(stages.get(name), dict):
+            projected["stages"][name] = choice(stages[name].get("status"), {"intent", "done", "failed"}, "UNRECOGNIZED_STATUS")
+    projected["unrecognizedStageCount"] = sum(key not in COMMAND_DIAGNOSTIC_STAGES for key in stages)
+    selected = journal.get("release") if isinstance(journal.get("release"), dict) else {}
+    for name in ("previous", "current"):
+        pin = pins[name]
+        if (projected["stages"].get("release") == "done" and stages["release"].get("revision") == pin["revision"]
+                and selected.get("revision") == pin["revision"] and type(selected.get("schema")) is int
+                and selected["schema"] == pin["schema"]):
+            projected["selectedRelease"] = {"status": "CONFIRMED", "pin": name, "revision": pin["revision"], "schema": pin["schema"]}
+            if journal.get("requestedDeploymentDigest") == pin["deploymentDigest"]:
+                projected["selectedRelease"]["deploymentDigest"] = pin["deploymentDigest"]
+    for key in ("applicationAccepted", "dataProtectionConfirmed", "actionExecuted", "executionCompleted"):
+        if type(receipt.get(key)) is bool:
+            projected["acceptance"][key] = receipt[key]
+    site = receipt.get("site") if isinstance(receipt.get("site"), dict) else {}
+    for name in ("technical", "browser", "owner"):
+        if isinstance(site.get(name), dict):
+            projected["acceptance"][name + "Completed"] = site[name].get("status") == ("READY" if name == "owner" else "passed")
+    backup = receipt.get("backup") if isinstance(receipt.get("backup"), dict) else {}
+    local = backup.get("local") if isinstance(backup.get("local"), dict) else {}
+    projected["acceptance"]["firstBackupCompleted"] = projected["stages"].get("first_backup") == "done" and local.get("status") == "OK"
+    return projected
+
+
+def command_log_classification(raw, phase):
+    """Recognize fixed producer forms; never return matched text or infer codes."""
+    rules, exits, http = set(), set(), set()
+    for line in raw.decode("utf-8", errors="replace").splitlines():
+        if len(line) > 8192:
+            continue
+        if phase in ("release", "images"):
+            if line.startswith("Cannot connect to the Docker daemon at ") and line.endswith(". Is the docker daemon running?"):
+                rules.add("DOCKER_DAEMON_UNAVAILABLE")
+            if line.startswith("permission denied while trying to connect to the Docker daemon socket at "):
+                rules.add("DOCKER_DAEMON_PERMISSION")
+            if line.startswith("Error response from daemon: "):
+                detail = line[len("Error response from daemon: "):]
+                if detail.startswith(("unauthorized:", "denied:", "pull access denied for ")):
+                    rules.add("REGISTRY_ACCESS_DENIED")
+                if detail.startswith(('Head "https://ghcr.io/', 'Get "https://ghcr.io/')) and detail.endswith((": unauthorized", ": denied")):
+                    rules.add("REGISTRY_ACCESS_DENIED")
+                if detail.startswith(("manifest unknown", "manifest for ")) and "manifest unknown" in detail:
+                    rules.add("REGISTRY_MANIFEST_UNAVAILABLE")
+                if '"https://ghcr.io/' in detail:
+                    if "dial tcp: lookup ghcr.io" in detail:
+                        rules.add("REGISTRY_DNS_FAILURE")
+                    if "tls: failed to verify certificate:" in detail or "x509: certificate" in detail:
+                        rules.add("REGISTRY_TLS_FAILURE")
+                    match = re.search(r": (400|401|403|404|405|408|409|413|429|500|502|503|504) [A-Za-z ]+\Z", detail)
+                    if match and detail.startswith(("unexpected status from ", "received unexpected HTTP status:")):
+                        rules.add("REGISTRY_HTTP_FAILURE")
+                        http.add(int(match.group(1)))
+        for tool, verb, stages, rule in (("docker", "pull", ("release", "images"), "DOCKER_PULL_EXIT"),
+                ("git", "fetch", ("source",), "SOURCE_FETCH_EXIT"),
+                ("docker", "compose", ("images", "switch", "preflight"), "COMPOSE_EXIT")):
+            match = re.fullmatch(re.escape(tool + " " + verb) + r" failed \(exit (-?[0-9]{1,3})\)\.", line)
+            if match and phase in stages and -128 <= int(match.group(1)) <= 255:
+                rules.add(rule)
+                exits.add(int(match.group(1)))
+    return {"status": "OBSERVED" if rules else "NO_MATCH", "ruleIds": sorted(rules),
+            "exitCodes": sorted(exits), "httpStatusCodes": sorted(http)}
+
+
+def command_log_projection(path, base, uid, *, phase, offset=0, identity=None):
+    raw, _, truncated = diagnostic_read(path, base, uid, maximum=64 * 1024**2, offset=offset,
+                                        tail=128 * 1024, identity=identity)
+    return {**command_log_classification(raw, phase), "readBytes": len(raw), "truncated": truncated}
+
+
+def cli_log_path(public, words, invocation):
+    require(isinstance(invocation, dict) and all(type(invocation.get(key)) is int for key in ("pid", "startedNs", "finishedNs"))
+            and 0 < invocation["pid"] and 0 < invocation["startedNs"] <= invocation["finishedNs"], "DIAGNOSTIC_INVOCATION")
+    value = public.get("logPath")
+    require(isinstance(value, str) and len(value) < 256, "DIAGNOSTIC_INVOCATION")
+    path = Path(value)
+    pattern = re.escape("-".join(words)) + r"-([0-9]{8}T[0-9]{6}Z)-" + str(invocation["pid"]) + r"\.log"
+    match = re.fullmatch(pattern, path.name)
+    require(path.parent == OPERATOR_LOG_ROOT and match, "DIAGNOSTIC_INVOCATION")
+    timestamp = int(dt.datetime.strptime(match.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=dt.timezone.utc).timestamp())
+    require(invocation["startedNs"] // 10**9 <= timestamp <= invocation["finishedNs"] // 10**9, "DIAGNOSTIC_INVOCATION")
+    return path
+
+
+def command_failure_diagnostic(words, code, public, invocation):
+    """Read fixed existing state after failure; never replay the failing command."""
+    action = " ".join(words)
+    require(action in COMMAND_DIAGNOSTIC_MODES, "DIAGNOSTIC_BINDING")
+    context = guest_guard()
+    owner, _ = diagnostic_owner(context)
+    deadline = time.monotonic() + 30
+    # The receipt is a new observation from this invocation, not a stale pointer.
+    require(isinstance(invocation, dict) and all(type(invocation.get(key)) is int for key in ("startedNs", "finishedNs"))
+            and 0 < invocation["startedNs"] <= invocation["finishedNs"], "DIAGNOSTIC_INVOCATION")
+    operation = public.get("operation")
+    require(isinstance(operation, dict) and isinstance(operation.get("operationId"), str)
+            and re.fullmatch(r"[a-f0-9]{32}", operation["operationId"]), "DIAGNOSTIC_BINDING")
+    values = []
+    for relative in (".asa/setup.json", ".asa/setup-operations/" + operation["operationId"] + ".json", ".asa/setup-last-attempt.json"):
+        require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
+        raw, info, _ = diagnostic_read(INSTALL_ROOT / relative, INSTALL_ROOT, owner["uid"],
+                                       maximum=256 * 1024 if relative == ".asa/setup.json" else 2 * 1024**2)
+        if relative == ".asa/setup-last-attempt.json":
+            require(invocation["startedNs"] // 10**9 <= info.st_mtime_ns // 10**9 <= invocation["finishedNs"] // 10**9,
+                    "DIAGNOSTIC_INVOCATION")
+        try:
+            values.append(json.loads(raw))
+        except (ValueError, UnicodeError):
+            raise Failure("DIAGNOSTIC_JSON") from None
+    result = command_operation_projection(public, *values, context["pins"],
+        mode=COMMAND_DIAGNOSTIC_MODES[action], code=code, uid=owner["uid"])
+    result["logs"] = {}
+    for source in ("cli", "setup"):
+        try:
+            require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
+            if source == "cli":
+                path = cli_log_path(public, words, invocation)
+                raw, info, truncated = diagnostic_read(path, OPERATOR_LOG_ROOT, 0, maximum=34 * 1024**2, tail=128 * 1024)
+                require(all(invocation["startedNs"] // 10**9 <= timestamp // 10**9 <= invocation["finishedNs"] // 10**9
+                            for timestamp in (info.st_ctime_ns, info.st_mtime_ns)), "DIAGNOSTIC_INVOCATION")
+                observed = {**command_log_classification(raw, result["journalPhase"]), "readBytes": len(raw), "truncated": truncated}
+            else:
+                baseline = invocation.get("setupLogsBefore", {}) if isinstance(invocation, dict) else {}
+                require(baseline.get("status") == "OBSERVED" and isinstance(baseline.get("entries"), dict), "DIAGNOSTIC_LOG_BASELINE")
+                name = result["operationId"] + ".log"
+                before = baseline["entries"].get(name)
+                observed = command_log_projection(INSTALL_ROOT / ".asa/setup-logs" / name, INSTALL_ROOT, owner["uid"],
+                    phase=result["journalPhase"], offset=before[2] if before else 0, identity=before)
+            result["logs"][source] = observed
+        except BaseException as error:
+            result["logs"][source] = command_diagnostic_error(error)
+    return result
 
 
 def diagnostic_error(error):
@@ -2192,6 +2482,8 @@ def guest_main(phase):
         result.update(status=getattr(error, "status", "FAIL"), reasonCode=safe_error(error))
         if hasattr(error, "post_failure_diagnostic"):
             result["postFailureDiagnostic"] = post_failure_projection(error.post_failure_diagnostic)
+        if hasattr(error, "command_failure_diagnostic"):
+            result["commandFailureDiagnostic"] = error.command_failure_diagnostic
         if hasattr(error, "fault_evidence"):
             result["faultEvidence"] = error.fault_evidence
             result["ownedCleanupFailed"] = getattr(error, "owned_cleanup_failed", False) is True
