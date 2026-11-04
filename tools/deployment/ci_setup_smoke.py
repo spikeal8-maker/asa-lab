@@ -5,6 +5,7 @@ a production archive rehearsal or a test of the user's Yandex account.
 """
 
 import base64
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -35,6 +36,51 @@ from deployment.system import Installation, operation_lock, run
 TABLES = ("accounts", "classrooms", "classroom_student_seats", "projects")
 OBJECT_NAME = "asa-setup-synthetic-media.txt"
 OBJECT_CONTENT = "asa-setup-synthetic-object-content-v1"
+PG_RESTORE_STAGES = {
+    "PG_VOLUME_CREATE": ("DOCKER_VOLUME_CREATE", "volume"),
+    "PG_IMAGE_INSPECT": ("DOCKER_IMAGE_INSPECT", "inspect"),
+    "PG_CONTAINER_CREATE": ("DOCKER_CONTAINER_CREATE", "create"),
+    "PG_START": ("DOCKER_CONTAINER_START", "start"),
+    "PG_READY": ("POSTGRES_READINESS", "exec"),
+    "PG_GLOBALS": ("POSTGRES_GLOBALS_IMPORT", "exec"),
+    "PG_DATABASE_CREATE": ("POSTGRES_DATABASE_CREATE", "exec"),
+    "PG_DUMP_COPY": ("POSTGRES_DUMP_COPY", "exec"),
+    "PG_RESTORE": ("POSTGRES_ARCHIVE_RESTORE", "exec"),
+    "PG_ROWS_CHECK": ("POSTGRES_ROW_QUERY", "exec"),
+    "PG_ROLES_CHECK": ("POSTGRES_ROLE_QUERY", "exec"),
+    "PG_ACL_RLS_CHECK": ("POSTGRES_PRIVILEGE_QUERY", "exec"),
+}
+
+
+@contextmanager
+def restore_stage(evidence, stage):
+    """Keep the original failure; publish only a fixed stage and runner exit code."""
+    require(type(stage) is str and stage in PG_RESTORE_STAGES,
+            "CI_RESTORE_DIAGNOSTIC_STAGE", "Unknown synthetic PostgreSQL diagnostic stage.")
+    evidence["currentStage"] = stage
+    evidence.setdefault("lastCompletedStage", None)
+    try:
+        yield
+    except BaseException as error:
+        if isinstance(error, Blocked) and error.code == "COMMAND":
+            category, operation = PG_RESTORE_STAGES[stage]
+            diagnostic = {"category": category, "exitCode": None}
+            # system.run emits this exact form. Never serialize its arbitrary
+            # message/action, command arguments, SQL, environment or stderr.
+            message = error.args[0] if len(error.args) == 1 and type(error.args[0]) is str else ""
+            match = re.fullmatch(r"docker " + operation + r" failed \(exit (-?[1-9][0-9]{0,9})\)\.", message) if len(message) <= 96 else None
+            if match:
+                code = int(match[1])
+                if -(2**31) <= code <= 2**32 - 1:
+                    diagnostic["exitCode"] = code
+            if diagnostic["exitCode"] is None:
+                diagnostic["reasonCode"] = "UNRECOGNIZED_COMMAND_ERROR"
+            evidence["failedCommand"] = diagnostic
+        raise
+    else:
+        evidence["lastCompletedStage"] = stage
+        # Later MinIO/API failures must not be attributed to a completed PG step.
+        evidence["currentStage"] = None
 
 
 def source_file(repository, revision, path):
@@ -290,32 +336,44 @@ def run_smoke(evidence):
             # Fresh, network-isolated PostgreSQL and a new owned data volume.
             pg_name = project + "-restore-pg"
             pg_volume = pg_name + "-data"
-            run(["docker", "volume", "create", "--label", "asa.setup.synthetic=" + owner_id, pg_volume], capture=True)
-            created_volumes.append(pg_volume)
+            with restore_stage(evidence, "PG_VOLUME_CREATE"):
+                run(["docker", "volume", "create", "--label", "asa.setup.synthetic=" + owner_id, pg_volume], capture=True)
+                created_volumes.append(pg_volume)
             pg_environment = root / "restore-postgres.env"
             pg_environment.write_text("POSTGRES_USER=asa_ci_restore_admin\nPOSTGRES_DB=postgres\nPOSTGRES_PASSWORD=" + secrets.token_hex(24) + "\n")
             pg_environment.chmod(0o600)
-            pg_image = run(["docker", "inspect", "--format", "{{.Image}}", postgres], capture=True)
-            run(["docker", "create", "--name", pg_name, "--network", "none", "--label", "asa.setup.synthetic=" + owner_id,
-                 "--mount", "type=volume,source=" + pg_volume + ",target=/var/lib/postgresql/data", "--env-file", pg_environment, pg_image], capture=True)
-            created_containers.append(pg_name)
-            run(["docker", "start", pg_name], capture=True)
-            wait_command(["docker", "exec", pg_name, "pg_isready", "-U", "asa_ci_restore_admin", "-d", "postgres"])
-            with (restored / "globals.sql").open("rb") as stream:
-                run(["docker", "exec", "-i", pg_name, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "asa_ci_restore_admin", "-d", "postgres"],
-                    input_file=stream, capture=True, timeout=60)
+            with restore_stage(evidence, "PG_IMAGE_INSPECT"):
+                pg_image = run(["docker", "inspect", "--format", "{{.Image}}", postgres], capture=True)
+            with restore_stage(evidence, "PG_CONTAINER_CREATE"):
+                run(["docker", "create", "--name", pg_name, "--network", "none", "--label", "asa.setup.synthetic=" + owner_id,
+                     "--mount", "type=volume,source=" + pg_volume + ",target=/var/lib/postgresql/data", "--env-file", pg_environment, pg_image], capture=True)
+                created_containers.append(pg_name)
+            with restore_stage(evidence, "PG_START"):
+                run(["docker", "start", pg_name], capture=True)
+            with restore_stage(evidence, "PG_READY"):
+                wait_command(["docker", "exec", pg_name, "pg_isready", "-U", "asa_ci_restore_admin", "-d", "postgres"])
+            with restore_stage(evidence, "PG_GLOBALS"):
+                with (restored / "globals.sql").open("rb") as stream:
+                    run(["docker", "exec", "-i", pg_name, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "asa_ci_restore_admin", "-d", "postgres"],
+                        input_file=stream, capture=True, timeout=60)
             database = "asalab_setup_full_restore_test"
-            run(["docker", "exec", pg_name, "createdb", "-U", "asa_ci_restore_admin", "--owner", install.env["POSTGRES_USER"], database], capture=True)
-            with (restored / "database.dump").open("rb") as stream:
-                run(["docker", "exec", "-i", pg_name, "sh", "-eu", "-c", "umask 077; cat > /tmp/setup.dump"], input_file=stream, capture=True, timeout=120)
-            run(["docker", "exec", pg_name, "pg_restore", "--exit-on-error", "--single-transaction", "-U", "asa_ci_restore_admin",
-                 "-d", database, "/tmp/setup.dump"], capture=True, timeout=180)
-            require(database_fingerprints(pg_name, "asa_ci_restore_admin", database) == before,
-                    "CI_ROW_FINGERPRINTS", "Restored synthetic rows differ from the frozen source.")
-            require(role_fingerprint(pg_name, "asa_ci_restore_admin", database) == roles_before,
-                    "CI_ROLE_IDENTITIES", "Restored roles, flags or password hashes differ.")
-            require(json.loads(sql_container(pg_name, "asa_ci_restore_admin", database, PRIVILEGES_SQL)) == manifest["applicationPrivileges"],
-                    "CI_ACL_RLS", "Restored application ACL/RLS differ.")
+            with restore_stage(evidence, "PG_DATABASE_CREATE"):
+                run(["docker", "exec", pg_name, "createdb", "-U", "asa_ci_restore_admin", "--owner", install.env["POSTGRES_USER"], database], capture=True)
+            with restore_stage(evidence, "PG_DUMP_COPY"):
+                with (restored / "database.dump").open("rb") as stream:
+                    run(["docker", "exec", "-i", pg_name, "sh", "-eu", "-c", "umask 077; cat > /tmp/setup.dump"], input_file=stream, capture=True, timeout=120)
+            with restore_stage(evidence, "PG_RESTORE"):
+                run(["docker", "exec", pg_name, "pg_restore", "--exit-on-error", "--single-transaction", "-U", "asa_ci_restore_admin",
+                     "-d", database, "/tmp/setup.dump"], capture=True, timeout=180)
+            with restore_stage(evidence, "PG_ROWS_CHECK"):
+                require(database_fingerprints(pg_name, "asa_ci_restore_admin", database) == before,
+                        "CI_ROW_FINGERPRINTS", "Restored synthetic rows differ from the frozen source.")
+            with restore_stage(evidence, "PG_ROLES_CHECK"):
+                require(role_fingerprint(pg_name, "asa_ci_restore_admin", database) == roles_before,
+                        "CI_ROLE_IDENTITIES", "Restored roles, flags or password hashes differ.")
+            with restore_stage(evidence, "PG_ACL_RLS_CHECK"):
+                require(json.loads(sql_container(pg_name, "asa_ci_restore_admin", database, PRIVILEGES_SQL)) == manifest["applicationPrivileges"],
+                        "CI_ACL_RLS", "Restored application ACL/RLS differ.")
             evidence["checks"].update(freshPostgresRestore="PASS", roleAndPasswordIdentity="PASS", controlRowPreservation="PASS", aclRlsPreservation="PASS")
 
             # Fresh network-isolated MinIO, same credentials, restored actual objects.
@@ -399,6 +457,7 @@ def run_smoke(evidence):
 
 def main():
     evidence = {"format": "asa-setup-synthetic-evidence-v1", "startedAt": now(), "status": "FAIL",
+                "currentStage": None, "lastCompletedStage": None,
                 "scope": "disposable Docker full synthetic backup/restore; not 1Panel-host or real-cloud acceptance"}
     destination = Path.cwd() / "test-results/setup-synthetic/evidence.json"
     try:
