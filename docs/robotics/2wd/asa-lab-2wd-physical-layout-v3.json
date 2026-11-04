@@ -1,0 +1,181 @@
+{
+  "kind": "asa-lab-2wd-physical-layout-v3",
+  "layout4aa": {
+    "createdFor": "ASA Lab 2WD simulator",
+    "sourceRepo": "spikeal8-maker/asa-lab",
+    "illustrationType": "Top-view mechanical assembly layout; true vector, transparent, no embedded raster",
+    "referencePlate": "Платформа.pdf, 05.11.2019, 200 x 80 rear, front flare ~139.4 mm",
+    "outlineStatus": "Bézier reconstruction calibrated to supplied PDF; holes and four slots traced from PDF, for simulator preview not toolpath",
+    "sourceAssetViews": "Arduino UNO, AA holder, SG90, HC-SR04 are original ASA Lab SVGs. Servo and HC-SR04 are visual sprite projections; they are mounted in 3D in reality.",
+    "batteryScaling": "Native SVG displayMm overstated AA diameter; viewport normalized to actual AA 14.5mm / SVG 191px",
+    "aaDim": {
+      "diameterMm": 14.5,
+      "lengthMm": 50.5
+    },
+    "scaledAAHolderMm": {
+      "width": 67.49,
+      "height": 63.997
+    },
+    "UNOmm": [
+      68.6,
+      53.4
+    ],
+    "wheelMm": {
+      "diameter": 65,
+      "tread": 27,
+      "centerLeft": [
+        92,
+        -54
+      ],
+      "centerRight": [
+        92,
+        54
+      ]
+    },
+    "drvL298Nmm": [
+      43,
+      43
+    ],
+    "positionMm": {
+      "arduino": {
+        "x": 79,
+        "y": -34.3,
+        "width": 53.4,
+        "height": 68.6,
+        "rotationDeg": 90
+      },
+      "battery": {
+        "x": 134,
+        "y": -29.74,
+        "width": 63.997,
+        "height": 67.49,
+        "rotationDeg": 90
+      },
+      "driver": {
+        "x": 33,
+        "y": -21.5,
+        "width": 43,
+        "height": 43
+      },
+      "servo": {
+        "x": -0.5,
+        "y": -6.1,
+        "width": 31.5,
+        "height": 12.2,
+        "rotationDeg": 90
+      },
+      "sonar": {
+        "x": -4,
+        "y": -22.5,
+        "width": 25.305,
+        "height": 45,
+        "rotationDeg": -90
+      },
+      "switch": {
+        "x": 147.238,
+        "y": -35.012,
+        "width": 9.992,
+        "height": 5.158
+      }
+    },
+    "batteryOverhangEachSideMm": 0,
+    "cautions": [
+      "Arduino and L298N assembly board holes must be independently validated before fabrication",
+      "The source TT gearmotor SVG is a front view, so physically dimensioned TT gearmotor top projection was drawn for this scene",
+      "Front-facing HC-SR04 is represented as a flattened front-view sprite; true 3D top view would show sensor board edge",
+      "Switch is shown at one existing PDF slot, but photograph does not determine its real attachment",
+      "4AA variant fits on plate under adopted AA size calibration"
+    ]
+  },
+  "layout6aa": {
+    "createdFor": "ASA Lab 2WD simulator",
+    "sourceRepo": "spikeal8-maker/asa-lab",
+    "illustrationType": "Top-view mechanical assembly layout; true vector, transparent, no embedded raster",
+    "referencePlate": "Платформа.pdf, 05.11.2019, 200 x 80 rear, front flare ~139.4 mm",
+    "outlineStatus": "Bézier reconstruction calibrated to supplied PDF; holes and four slots traced from PDF, for simulator preview not toolpath",
+    "sourceAssetViews": "Arduino UNO, AA holder, SG90, HC-SR04 are original ASA Lab SVGs. Servo and HC-SR04 are visual sprite projections; they are mounted in 3D in reality.",
+    "batteryScaling": "Native SVG displayMm overstated AA diameter; viewport normalized to actual AA 14.5mm / SVG 191px",
+    "aaDim": {
+      "diameterMm": 14.5,
+      "lengthMm": 50.5
+    },
+    "scaledAAHolderMm": {
+      "width": 98.16,
+      "height": 63.997
+    },
+    "UNOmm": [
+      68.6,
+      53.4
+    ],
+    "wheelMm": {
+      "diameter": 65,
+      "tread": 27,
+      "centerLeft": [
+        92,
+        -54
+      ],
+      "centerRight": [
+        92,
+        54
+      ]
+    },
+    "drvL298Nmm": [
+      43,
+      43
+    ],
+    "positionMm": {
+      "arduino": {
+        "x": 79,
+        "y": -34.3,
+        "width": 53.4,
+        "height": 68.6,
+        "rotationDeg": 90
+      },
+      "battery": {
+        "x": 134,
+        "y": -49.08,
+        "width": 63.997,
+        "height": 98.16,
+        "rotationDeg": 90
+      },
+      "driver": {
+        "x": 33,
+        "y": -21.5,
+        "width": 43,
+        "height": 43
+      },
+      "servo": {
+        "x": -0.5,
+        "y": -6.1,
+        "width": 31.5,
+        "height": 12.2,
+        "rotationDeg": 90
+      },
+      "sonar": {
+        "x": -4,
+        "y": -22.5,
+        "width": 25.305,
+        "height": 45,
+        "rotationDeg": -90
+      },
+      "switch": {
+        "x": 63.241,
+        "y": -35.012,
+        "width": 9.992,
+        "height": 7.027
+      }
+    },
+    "batteryOverhangEachSideMm": 9.08,
+    "cautions": [
+      "Arduino and L298N assembly board holes must be independently validated before fabrication",
+      "The source TT gearmotor SVG is a front view, so physically dimensioned TT gearmotor top projection was drawn for this scene",
+      "Front-facing HC-SR04 is represented as a flattened front-view sprite; true 3D top view would show sensor board edge",
+      "Switch is shown at one existing PDF slot, but photograph does not determine its real attachment",
+      "6AA protrudes beyond rear plate width; requires mechanical support and battery choice validated for electrical input"
+    ]
+  },
+  "files": [
+    "asa-lab-2wd-4aa-physical-layout-v3.svg",
+    "asa-lab-2wd-6aa-physical-layout-v3.svg"
+  ]
+}
