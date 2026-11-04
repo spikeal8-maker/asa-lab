@@ -38,6 +38,15 @@ def forged_archive(rows):
 
 
 class BundleTests(unittest.TestCase):
+    def test_public_cli_runtime_readers_are_mandatory_bundle_members(self):
+        expected = {"tools/asa_cli.py", "tools/deployment/cli_observe.py", "tools/deployment/release_readonly.py"}
+        self.assertTrue(expected <= REQUIRED)
+        for missing in expected:
+            files = fixture_files()
+            del files[missing]
+            with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, "BUNDLE_REQUIRED_FILES"):
+                make_archive(files, REVISION)
+
     def test_deterministic_round_trip_and_exact_revision(self):
         files = fixture_files()
         first, manifest = make_archive(files, REVISION)

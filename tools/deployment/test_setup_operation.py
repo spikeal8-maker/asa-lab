@@ -1,6 +1,7 @@
 """Crash/hold/identity acceptance boundaries without a live Docker daemon."""
 
 import copy
+from contextlib import contextmanager, nullcontext
 import datetime as dt
 import io
 import json
@@ -17,7 +18,7 @@ from zoneinfo import ZoneInfoNotFoundError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment.contracts import Blocked, REGISTRY, SERVICES
 from deployment.setup_config import private_json, read_installed_release, replace_legacy_manager_state, save_installed_release, save_private, validate_config, prepare_onboarding
-from deployment.setup_operation import Engine, Runtime, Store, bootstrap_observation, bootstrap_record, onboard_owner
+from deployment.setup_operation import Engine, Runtime, Store, bind_selection, bootstrap_observation, bootstrap_record, guard_intent, onboard_owner
 from deployment.contracts import read_env
 from deployment.setup_result import finalize, render, result
 from deployment.system import Installation, operation_lock
@@ -1328,6 +1329,168 @@ class CollectorOwnerBoundaryTests(unittest.TestCase):
                 self.assertEqual(execute.call_args.kwargs["user"], UID)
                 self.assertEqual(execute.call_args.kwargs["pass_fds"], (42,))
                 self.assertEqual(execute.call_args.kwargs["env"]["DBUS_SESSION_BUS_ADDRESS"], "unix:path=" + str(runtime / "bus"))
+
+
+class PublicIntentAndPinTests(unittest.TestCase):
+    def test_install_update_state_matrix_and_pending_mode(self):
+        for intent, allowed in (("install", {"FRESH"}), ("update", {"MANAGED", "LEGACY", "STOPPED"})):
+            for state in ("FRESH", "MANAGED", "LEGACY", "STOPPED", "UNKNOWN", "PARTIAL", "AMBIGUOUS", "INTERRUPTED"):
+                with self.subTest(intent=intent, state=state):
+                    if state in allowed:
+                        guard_intent(intent, {"state": state})
+                    else:
+                        with self.assertRaises(Blocked):
+                            guard_intent(intent, {"state": state})
+            guard_intent(intent, {"state": "INTERRUPTED"}, {"mode": intent})
+            with self.assertRaises(Blocked):
+                guard_intent(intent, {"state": "INTERRUPTED"}, {"mode": "update" if intent == "install" else "install"})
+
+    def test_digest_and_intent_are_in_the_first_durable_journal(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = Store(root, IDENTITY)
+            pin = "sha256:" + "a" * 64
+            journal = store.create("update", "asa-test", selection={"intent": "update", "deployment_digest": pin})
+            saved = store.read(journal["operationId"])
+            self.assertEqual(saved["requestedIntent"], "update")
+            self.assertEqual(saved["requestedDeploymentDigest"], pin)
+            self.assertEqual(bind_selection(saved), pin)
+            for change in ({"intent": "install"}, {"deployment_digest": "sha256:" + "b" * 64}):
+                with self.assertRaises(Blocked):
+                    bind_selection(saved, **change)
+            self.assertEqual(store.read(journal["operationId"]), saved)
+
+    def test_selected_unpinned_legacy_release_cannot_be_relabelled_as_a_new_digest(self):
+        with self.assertRaises(Blocked):
+            bind_selection({"mode": "update", "release": RELEASE}, deployment_digest="sha256:" + "a" * 64)
+
+    def test_runtime_select_passes_digest_to_existing_verified_discovery(self):
+        runtime = Runtime.__new__(Runtime)
+        runtime.deployment_digest = "sha256:" + "a" * 64
+        runtime.private_output = lambda: nullcontext()
+        with patch("deployment.setup_operation.discover_release", return_value=RELEASE) as resolve, \
+             patch("deployment.setup_operation.assert_ci") as ci:
+            self.assertEqual(runtime.select(), RELEASE)
+        resolve.assert_called_once_with(runtime.deployment_digest)
+        ci.assert_called_once_with(RELEASE)
+
+    def test_dependency_preparation_before_release_retains_pin_for_resume(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = Store(root, IDENTITY)
+            pin = "sha256:" + "a" * 64
+            journal = store.create("update", "asa-test", selection={"intent": "update", "deployment_digest": pin})
+            runtime = FakeRuntime(root)
+            runtime.preflight = lambda **kwargs: (_ for _ in ()).throw(Blocked("DEPENDENCIES", "missing", "prepare"))
+            value = Engine(runtime, store).execute(journal)
+            self.assertEqual(value["outcome"], "PREPARATION_REQUIRED")
+            saved = store.read(journal["operationId"])
+            self.assertEqual(saved["requestedDeploymentDigest"], pin)
+            self.assertEqual(saved["mode"], "update")
+            self.assertNotIn("select", runtime.calls)
+            self.assertNotIn("release", saved)
+
+    def test_handoff_preserves_old_protocol_arguments_mode_release_and_same_lock(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "tools").mkdir()
+            target = root / "tools/asa_setup.py"
+            target.write_text("SETUP_PROTOCOL = 1\n# previous protocol parser\n")
+            store = Store(root, IDENTITY)
+            pin = "sha256:" + "a" * 64
+            journal = store.create("update", "asa-test", selection={"intent": "update", "deployment_digest": pin})
+            journal["release"] = copy.deepcopy(RELEASE)
+            store.save(journal)
+            runtime = Runtime.__new__(Runtime)
+            runtime.root, runtime.intent, runtime.deployment_digest = root, "update", pin
+            runtime.install = SimpleNamespace(git=lambda *args: target.read_text())
+            runtime.defer_report, runtime.json_output = True, True
+            with operation_lock(root) as descriptor:
+                runtime.lock_fd = descriptor
+                with patch("deployment.setup_operation.os.execv", side_effect=SystemExit(0)) as execute:
+                    with self.assertRaises(SystemExit):
+                        runtime.handoff(journal, store)
+                arguments = execute.call_args.args[1]
+                self.assertEqual(arguments[arguments.index("--lock-fd") + 1], str(descriptor))
+                self.assertTrue(os.get_inheritable(descriptor))
+                self.assertNotIn("--intent", arguments)
+                self.assertNotIn("--deployment-digest", arguments)
+                self.assertIn("resume", arguments)
+                self.assertEqual(arguments[arguments.index("--operation-id") + 1], journal["operationId"])
+            saved = store.read(journal["operationId"])
+            self.assertEqual(saved["mode"], "update")
+            self.assertEqual(saved["release"], RELEASE)
+            self.assertEqual(saved["requestedDeploymentDigest"], pin)
+
+    def test_changed_intent_under_lock_is_blocked_before_config_adoption_or_creation(self):
+        for intent, initial, later, pending in (("install", "FRESH", "MANAGED", None),
+                ("update", "MANAGED", "INTERRUPTED", {"mode": "install", "operationId": "e" * 32})):
+            with self.subTest(intent=intent), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                config = configuration(root)
+                config["operatorUid"] = 1001
+                args = asa_setup.parser().parse_args(["auto", "--root", str(root), "--intent", intent, "--non-interactive"])
+                observations = [{"state": initial}, {"state": later}]
+                pending_values = iter([None, pending])
+                store = SimpleNamespace(pending=lambda: next(pending_values))
+                inventory = {"complete": True, "containers": [], "volumes": [], "images": [], "daemon": {"id": "fixture"}}
+                with patch("asa_setup.os.geteuid", return_value=1001, create=True), \
+                     patch("asa_setup.setup_host.check_owner", return_value={"uid": 1001}), \
+                     patch("asa_setup.load_config", return_value=config), \
+                     patch("asa_setup.Store", return_value=store), \
+                     patch("asa_setup.setup_discovery.docker_inventory", return_value=inventory), \
+                     patch("asa_setup.setup_discovery.classify_installation", side_effect=observations), \
+                     patch("asa_setup.prepare_config", return_value=config), \
+                     patch("asa_setup.prepare_onboarding", return_value=None), \
+                     patch("asa_setup.operation_lock", return_value=nullcontext(42)), \
+                     patch("asa_setup.save_private") as save, \
+                     patch("asa_setup.replace_legacy_manager_state") as adopt, \
+                     self.assertRaises(Blocked) as caught:
+                    asa_setup.execute(args)
+                self.assertEqual(caught.exception.code, "OPERATION_INTENT")
+                save.assert_not_called()
+                adopt.assert_not_called()
+                self.assertEqual(list(root.iterdir()), [])
+
+    @unittest.skipUnless(os.name == "posix", "root schedule adapter")
+    def test_schedule_enable_disable_use_common_lock_and_pinned_entry_only(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = configuration(root)
+            config["operatorUid"] = 1001
+            owner = {"uid": 1001, "gid": 1001, "name": "fixture-owner"}
+            lock_held = []
+            @contextmanager
+            def lock(*args, **kwargs):
+                lock_held.append(True)
+                try:
+                    yield 42
+                finally:
+                    lock_held.pop()
+            def install(*args):
+                self.assertTrue(lock_held)
+                self.assertEqual(args[2], "fixture-owner")
+                self.assertEqual(args[4], Path(asa_setup.__file__).resolve())
+                return {"status": "OK", "configuration": args[3]}
+            for enabled in ("true", "false"):
+                args = asa_setup.parser().parse_args(["--root-action", "schedule", "--root", str(root), "--schedule-enabled", enabled])
+                original = copy.deepcopy(config)
+                with patch("asa_setup.os.geteuid", return_value=0), \
+                     patch("asa_setup_launcher.verify_bundle"), \
+                     patch("asa_setup.setup_host.check_owner", return_value=owner), \
+                     patch("asa_setup.load_config", return_value=copy.deepcopy(config)), \
+                     patch("asa_setup.operation_lock", side_effect=lock), \
+                     patch("asa_setup.setup_discovery.docker_inventory", return_value={}), \
+                     patch("asa_setup.setup_discovery.classify_installation", return_value={"state": "MANAGED"}), \
+                     patch("asa_setup.backup_schedule.install_schedule", side_effect=install), \
+                     patch("asa_setup_launcher._write_owner_json") as save, \
+                     patch("asa_setup._root_receipt"), patch("sys.stdout", new_callable=io.StringIO):
+                    self.assertEqual(asa_setup.root_action(args), 0)
+                changed = save.call_args.args[1]
+                self.assertEqual(changed["backup"]["schedule"]["enabled"], enabled == "true")
+                changed["backup"]["schedule"]["enabled"] = original["backup"]["schedule"]["enabled"]
+                self.assertEqual(changed, original)
+                self.assertEqual(list(root.iterdir()), [])
 
 
 if __name__ == "__main__":

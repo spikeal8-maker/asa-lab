@@ -182,7 +182,7 @@ def verify_bundle(bundle):
                  "Получите пакет по инструкции с GitHub attestation и установите его в /opt/asa-setup/<commit>.")
     manifest_path = checked_path(bundle / "setup-bundle.json", missing=False)
     info = manifest_path.stat()
-    _require(info.st_uid == 0 and not info.st_mode & 0o022 and info.st_size <= 1048576,
+    _require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == 0 and not info.st_mode & 0o022 and info.st_size <= 1048576,
              "BOOTSTRAP_TRUST", "Манифест пакета не защищён от замены.", "Повторно установите проверенный immutable пакет.")
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -192,6 +192,8 @@ def verify_bundle(bundle):
                  and manifest.get("origin", {}).get("workflow") == WORKFLOW
                  and isinstance(manifest.get("files"), dict) and 3 <= len(manifest["files"]) <= 2048)
         _require(valid, "BOOTSTRAP_MANIFEST", "Неизвестный формат или источник пакета setup.", "Используйте опубликованный пакет ASA Lab.")
+        if bundle.parent == Path("/opt/asa-setup"):
+            _require(bundle.name == manifest["revision"], "BOOTSTRAP_MANIFEST", "Revision каталога и manifest не совпали.", "Используйте исходный immutable пакет.")
         _require({"asa-setup.sh", "tools/asa_setup_launcher.py", "tools/asa_setup.py"} <= set(manifest["files"]),
                  "BOOTSTRAP_INCOMPLETE", "В пакете отсутствует обязательный вход setup.", "Получите полный опубликованный пакет.")
         expected_files = set(manifest["files"]) | {"setup-bundle.json"}
@@ -1139,6 +1141,9 @@ def main(argv=None):
     parser.add_argument("--prepare-browser-runtime", action="store_true")
     parser.add_argument("--runtime-root")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--intent", choices=("install", "update"))
+    parser.add_argument("--deployment-digest")
+    parser.add_argument("--schedule-enabled", choices=("true", "false"))
     parsed, remainder = parser.parse_known_args(arguments)
     if "--help" in arguments or "-h" in arguments:
         print("ASA Lab — единая установка и обновление\n"
@@ -1198,6 +1203,15 @@ def main(argv=None):
         cloud_config = backup_config.get("cloud", {})
         _require(isinstance(cloud_config, dict), "CONFIG_SCHEMA", "Раздел cloud должен быть JSON-объектом.", "Исправьте формат cloud.")
         command = remainder[0] if remainder and not remainder[0].startswith("-") else "auto"
+        _require(not parsed.intent or command in ("auto", "resume", "acceptance"), "OPERATION_INTENT",
+                 "Намерение не относится к этой команде.", "Используйте asa install или asa update apply.")
+        _require(not parsed.deployment_digest or bool(re.fullmatch(r"sha256:[a-f0-9]{64}", parsed.deployment_digest)),
+                 "RELEASE_SELECTOR", "Неверный deployment digest.", "Используйте digest из asa update plan.")
+        _require(parsed.schedule_enabled is None or command == "schedule", "SCHEDULE_COMMAND",
+                 "enabled относится только к расписанию.", "Используйте asa backup schedule enable/disable.")
+        if parsed.intent == "update":
+            _require(root.is_dir() and ((root / ".env").is_file() or bool(persisted)), "OPERATION_INTENT",
+                     "Обновление требует существующей установки.", "Проверьте asa status; новая установка не начинается.")
         dry = parsed.check or command in ("check", "status", "doctor", "diagnose", "restore-plan")
         need_browser = not dry and command in ("auto", "resume", "configure", "acceptance") and not browser_config.get("pythonPath")
         needs_cloud = bool(cloud_config) and cloud_config.get("enabled") is not False
@@ -1223,6 +1237,9 @@ def main(argv=None):
                          "Передайте приватную root-конфигурацию; bootstrap не присваивает чужие файлы.")
             lock_descriptor = bootstrap_lock()
             plan = dependency_plan(cloud=cloud_enabled, browser=need_browser)
+            if parsed.intent:
+                _require(parsed.intent == "install", "OPERATION_INTENT", "Update не создаёт нового оператора.", "Проверьте исходную установку.")
+                prove_fresh_target(root, plan, backup_directory=config.get("backupDirectory"))
             if plan["installDocker"]:
                 # Genuine absence is established before either packages or
                 # useradd. Existing 1Panel Engines never enter this branch.
@@ -1236,6 +1253,14 @@ def main(argv=None):
         owner = validate_owner(root, backup_directory=config.get("backupDirectory", persisted.get("backupDirectory")), operator_uid=supplied_uid)
         _require(owner["uid"] != 0, "BLOCKED_OWNER", "Установка с владельцем root требует отдельного согласованного перехода к оператору.",
                  "Сохраните владельцев и данные; выберите non-root оператора новой установки или согласуйте переход старой отдельно.")
+        if parsed.intent:
+            # Read-only discovery as the proven operator precedes package,
+            # cloud, browser or config preparation. The child repeats the
+            # intent guard while holding the canonical operation lock.
+            intent_result = _owner_call(owner, ["/usr/bin/python3", "-I", "-B", str(bundle / "tools/asa_setup.py"),
+                "intent-check", "--intent", parsed.intent, "--root", str(root)], operator_environment(owner), capture=True, timeout=60)
+            _require(intent_result.returncode == 0, "OPERATION_INTENT", "Фактическое состояние не допускает запрошенное действие.",
+                     "Выполните asa status; установка и обновление не подменяют друг друга.")
         _require(elevated or owner["uid"] == os.geteuid(), "OPERATOR_PERMISSION", "Текущий пользователь не является владельцем установки.",
                  "Запустите проверенный setup через sudo; он выберет владельца автоматически.")
         config_forward = None
@@ -1339,7 +1364,8 @@ def main(argv=None):
             # Root actions are fixed kinds and receive no arbitrary forwarded
             # command or executable. The CLI revalidates the saved private config.
             action = _owner_call({**owner, "uid": 0, "gid": 0, "name": "root"},
-                                 [*entry, "--root-action", command, "--root", str(root)],
+                                 [*entry, "--root-action", command, "--root", str(root)]
+                                 + (["--schedule-enabled", parsed.schedule_enabled] if parsed.schedule_enabled is not None else []),
                                  {**environment, "HOME": "/root", "USER": "root", "LOGNAME": "root"}, capture=True)
             _require(action.returncode == 0, "ROOT_ACTION", "Настройка системного сервиса не завершена.",
                      "Проверьте защищённое свидетельство setup-root-actions и повторите diagnose.")
@@ -1380,6 +1406,10 @@ def main(argv=None):
             preparations += 1
             previous_result = hashlib.sha256(last_path.read_bytes()).hexdigest()
             resume = [*entry, "resume", "--root", str(root), "--operation-id", operation_id, "--defer-report"]
+            if parsed.intent:
+                resume += ["--intent", parsed.intent]
+            if parsed.deployment_digest:
+                resume += ["--deployment-digest", parsed.deployment_digest]
             if parsed.non_interactive:
                 resume.append("--non-interactive")
             if parsed.json:
@@ -1437,7 +1467,7 @@ def main(argv=None):
                      "Установка успешна, но команда asa не зарегистрирована.",
                      "Проверьте /usr/local/bin/asa и /etc/asa-lab/commands.json; данные приложения сохранены.")
             if not parsed.json:
-                print("[OK] Команды: asa status | asa check | asa update")
+                print("[OK] Команды: asa help | asa status | asa update check | sudo asa update apply")
         return report.returncode
     except SetupBlocked as exc:
         return emit_blocked(exc, as_json=parsed.json, operation_id=active_result.get("operationId"),

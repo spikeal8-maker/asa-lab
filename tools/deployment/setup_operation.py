@@ -25,7 +25,7 @@ from . import backup_schedule, backup_workflow, setup_acceptance, setup_discover
 from .backup import consume_backup_hold, db_command, recovery_configuration, resume_backup_writers
 from .contracts import Blocked, DEFAULT_WINDOW, REPOSITORY, attest_editor_env, read_env, require, validate_release
 from .paths import atomic_bytes, plain_paths
-from .releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_resolved_images
+from .releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_deployment_digest, validate_resolved_images
 from .setup_config import load_config, private_json, read_installed_release, replace_legacy_manager_state, save_installed_release, save_private, validate_config
 from .setup_result import finalize, now, result
 from .system import Installation, run
@@ -34,6 +34,43 @@ from .system import Installation, run
 OPERATION_ID = re.compile(r"[a-f0-9]{32}\Z")
 TERMINAL = {"ACCEPTED", "WARNING", "NO_CHANGE", "CHECKED", "CONFIGURED", "STATUS", "PLANNED"}
 ACTIVE_STATES = {"RUNNING", "VERIFY_ONLY", "RECOVERY_REQUIRED"}
+
+
+def guard_intent(intent, discovery, pending=None):
+    """Explicit public install/update cannot turn into the other operation."""
+    if intent is None:
+        return
+    require(intent in ("install", "update"), "OPERATION_INTENT", "Неизвестное намерение операции.")
+    require(not pending or pending.get("mode") == intent, "OPERATION_INTENT",
+            "Незавершённая операция имеет другое назначение.")
+    state = discovery.get("state")
+    allowed = ("FRESH",) if intent == "install" else ("MANAGED", "LEGACY", "STOPPED")
+    require(state in allowed or state == "INTERRUPTED" and pending is not None and pending.get("mode") == intent,
+            "OPERATION_INTENT", "Фактическое состояние не допускает запрошенную установку или обновление.",
+            "Проверьте asa status и журнал; install и update apply не заменяют друг друга.")
+
+
+def bind_selection(journal, *, intent=None, deployment_digest=None):
+    """Bind to the durable journal before preparation, discovery or handoff."""
+    require(intent is None or intent == journal.get("mode"), "OPERATION_INTENT", "Назначение журнала отличается.")
+    prior_intent = journal.get("requestedIntent")
+    require(prior_intent is None or prior_intent == journal.get("mode") and intent in (None, prior_intent),
+            "OPERATION_INTENT", "Сохранённое намерение операции изменилось.")
+    if deployment_digest is not None:
+        validate_deployment_digest(deployment_digest)
+    prior_digest = journal.get("requestedDeploymentDigest")
+    if prior_digest is not None:
+        validate_deployment_digest(prior_digest)
+        require(deployment_digest in (None, prior_digest), "RELEASE_SELECTOR_CHANGED", "Операция уже привязана к другому deployment digest.")
+    # A pre-existing selected release with no pin cannot be relabelled as a
+    # newly requested digest without resolving and verifying that identity.
+    require(not deployment_digest or prior_digest or not journal.get("release"),
+            "RELEASE_SELECTOR_CHANGED", "Для прежнего выбранного выпуска нет подтверждения этого digest.")
+    if intent:
+        journal["requestedIntent"] = intent
+    if deployment_digest:
+        journal["requestedDeploymentDigest"] = deployment_digest
+    return journal.get("requestedDeploymentDigest")
 
 
 class Store:
@@ -46,7 +83,7 @@ class Store:
         require(isinstance(operation_id, str) and OPERATION_ID.fullmatch(operation_id), "OPERATION_ID", "Некорректный ID операции.")
         return self.state / "setup-operations" / (operation_id + ".json")
 
-    def create(self, mode, project, *, operation_id=None, bootstrap=None, dependent=None):
+    def create(self, mode, project, *, operation_id=None, bootstrap=None, dependent=None, selection=None):
         operation_id = operation_id or uuid.uuid4().hex
         require(not self.path(operation_id).exists(), "OPERATION_EXISTS", "Операция уже существует; нужен resume.")
         journal = {"format": "asa-setup-operation-v1", "operationId": operation_id,
@@ -58,6 +95,8 @@ class Store:
                            bootstrapInventory=inventory_digest(bootstrap["inventory"]), phase="bootstrap")
         if dependent:
             journal.update(copy.deepcopy(dependent))
+        if selection:
+            bind_selection(journal, **selection)
         self.save(journal)
         return journal
 
@@ -265,11 +304,12 @@ def _safe_status(error):
 
 class Runtime:
     """Real adapters; a small injectable boundary for failure-path tests."""
-    def __init__(self, root, config, *, lock_fd=None, defer_report=False, json_output=False):
+    def __init__(self, root, config, *, lock_fd=None, defer_report=False, json_output=False, intent=None, deployment_digest=None):
         self.root, self.config = Path(root), config
         self.install = Installation(root, config["profile"])
         self.lock_fd, self.defer_report, self.json_output = lock_fd, defer_report, json_output
         self.operation_id = None
+        self.intent, self.deployment_digest = intent, deployment_digest
 
     def reload(self):
         self.install = Installation(self.root, self.config["profile"])
@@ -343,9 +383,14 @@ class Runtime:
 
     def select(self):
         with self.private_output():
-            release = discover_release()
+            release = discover_release(self.deployment_digest) if self.deployment_digest else discover_release()
         assert_ci(release)
         return release
+
+    def guard(self, journal):
+        self.deployment_digest = bind_selection(journal, intent=self.intent, deployment_digest=self.deployment_digest)
+        if journal.get("requestedIntent") is not None:
+            guard_intent(journal["requestedIntent"], self.discovery(journal), journal)
 
     def identity(self, *, existing=True):
         return self.install.identity(existing=existing)
@@ -438,6 +483,10 @@ class Runtime:
         source = self.install.git("show", journal["release"]["revision"] + ":tools/asa_setup.py")
         require(source.rstrip() == target.read_text(encoding="utf-8").rstrip(), "HANDOFF_SOURCE", "Целевой CLI изменён после проверки Git.")
         require("SETUP_PROTOCOL = 1" in source, "HANDOFF_PROTOCOL", "Выпуск требует несовместимый протокол setup.")
+        # Protocol-1 targets understand mode/release and never reselect when
+        # release is durable. Do not pass new argparse flags to an old target.
+        bind_selection(journal, intent=self.intent, deployment_digest=self.deployment_digest)
+        validate_release(journal.get("release"))
         require(self.lock_fd is not None, "HANDOFF_LOCK", "Для handoff нужен удерживаемый общий lock.")
         journal["handoffs"] += 1
         store.event(journal, "handoff", "intent", revision=journal["release"]["revision"])
@@ -723,6 +772,9 @@ class Engine:
         require(not children, "DEPENDENT_PENDING", "Сначала завершите зависимое резервирование или доставку.",
                 "Выполните resume --operation-id " + children[0]["operationId"] + "." if children else "")
         r, config = self.runtime, self.runtime.config
+        if isinstance(r, Runtime):
+            r.guard(journal)
+            self.store.save(journal)
         r.operation_id = journal["operationId"]
         output = result(journal["operationId"], config["installationId"], journal["mode"],
                         site={"url": config["entryOrigin"], "status": "UNVERIFIED"})
@@ -834,6 +886,8 @@ class Engine:
                 self.store.save(journal)
                 self.stage(journal, "source", lambda: r.source(release, fresh=fresh, previous=journal.get("previousRuntime")), replay_safe=True)
                 r.verify_source(release)
+                if isinstance(r, Runtime):
+                    r.guard(journal)
                 r.handoff(journal, self.store)
                 if fresh:
                     self.stage(journal, "environment", r.environment, replay_safe=True)

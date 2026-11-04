@@ -5,6 +5,8 @@ exit statuses come from real subprocesses. No Docker or system users change.
 """
 
 import json
+import importlib.util
+import io
 import os
 from pathlib import Path
 import subprocess
@@ -12,6 +14,8 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 DRIVER = textwrap.dedent(r'''
@@ -200,6 +204,81 @@ class LauncherInterruptionProcessTests(unittest.TestCase):
             for output_mode in ("json", "text"):
                 with self.subTest(scenario=scenario, output=output_mode):
                     self.run_scenario(scenario, output_mode)
+
+
+@unittest.skipUnless(os.name == "posix", "Linux supervisor intent boundary")
+class PublicIntentSupervisorTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        (self.root / ".asa").mkdir(mode=0o700)
+        source = Path(__file__).resolve().parents[1] / "asa_setup_launcher.py"
+        spec = importlib.util.spec_from_file_location("intent_launcher_fixture", source)
+        self.launcher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.launcher)
+        self.owner = {"uid": 12345, "gid": 12345, "name": "fixture-owner", "home": str(self.root), "root": str(self.root)}
+        self.config = {"format": "asa-setup-config-v1", "root": str(self.root), "operatorUid": 12345,
+                       "installationId": "b" * 32, "project": "fixture", "backup": {"cloud": {"enabled": False}},
+                       "browser": {"pythonPath": "/existing/runtime/python"}}
+        self.save("setup.json", self.config)
+
+    def save(self, name, value):
+        path = self.root / ".asa" / name
+        path.write_text(json.dumps(value))
+        path.chmod(0o600)
+
+    def test_install_intent_is_checked_before_package_cloud_browser_or_config_preparation(self):
+        launcher = self.launcher
+        with patch.object(launcher.os, "geteuid", return_value=0), \
+             patch.object(launcher, "verify_bundle"), \
+             patch.object(launcher, "platform_info", return_value={"supported": True}), \
+             patch.object(launcher, "validate_owner", return_value=self.owner), \
+             patch.object(launcher, "_owner_call", return_value=SimpleNamespace(returncode=2)) as observe, \
+             patch.object(launcher, "dependency_plan", side_effect=AssertionError("Preparation before intent")), \
+             patch.object(launcher, "provision_dependencies", side_effect=AssertionError("Packages changed")), \
+             patch.object(launcher, "prepare_cloud_for_policy", side_effect=AssertionError("Cloud changed")), \
+             patch.object(launcher, "_write_owner_json", side_effect=AssertionError("Config changed")), \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            code = launcher.main(["auto", "--intent", "install", "--root", str(self.root), "--json"])
+        self.assertEqual(code, 2)
+        self.assertEqual(json.loads(output.getvalue())["reasonCode"], "OPERATION_INTENT")
+        self.assertEqual(observe.call_count, 1)
+        self.assertIn("intent-check", observe.call_args.args[1])
+
+    def test_preparation_resume_preserves_digest_and_intent_before_release_selection(self):
+        launcher, calls = self.launcher, []
+        pin = "sha256:" + "e" * 64
+        operation = "a" * 32
+        def child(owner, arguments, environment, **kwargs):
+            calls.append(arguments)
+            if "intent-check" in arguments:
+                return SimpleNamespace(returncode=0)
+            if "--render-last" in arguments:
+                return SimpleNamespace(returncode=2)
+            resumed = "resume" in arguments
+            value = {"format": "asa-setup-result-v1", "operationId": operation, "installationId": "b" * 32,
+                     "mode": "update", "outcome": "BLOCKED" if resumed else "PREPARATION_REQUIRED",
+                     "preparation": {"packages": True}, "postActions": [], "applicationAccepted": False}
+            self.save("setup-last-attempt.json", value)
+            return SimpleNamespace(returncode=2)
+        with patch.object(launcher.os, "geteuid", return_value=0), \
+             patch.object(launcher, "verify_bundle"), \
+             patch.object(launcher, "platform_info", return_value={"supported": True}), \
+             patch.object(launcher, "validate_owner", return_value=self.owner), \
+             patch.object(launcher, "verify_operator_daemon"), \
+             patch.object(launcher, "dependency_plan", return_value={"missing": [], "installDocker": False, "daemonId": "fixture"}), \
+             patch.object(launcher, "prepare_handoff", side_effect=lambda root, owner, bundle, value, environment, **kw: environment), \
+             patch.object(launcher, "_owner_call", side_effect=child), patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(launcher.main(["auto", "--intent", "update", "--deployment-digest", pin,
+                                          "--root", str(self.root), "--non-interactive", "--json"]), 2)
+        resumes = [argv for argv in calls if "resume" in argv]
+        self.assertEqual(len(resumes), 1)
+        argv = resumes[0]
+        self.assertEqual(argv[argv.index("--intent") + 1], "update")
+        self.assertEqual(argv[argv.index("--deployment-digest") + 1], pin)
+        self.assertEqual(argv[argv.index("--operation-id") + 1], operation)
+        self.assertTrue(all("--prepare-browser-runtime" not in argv and "--root-action" not in argv for argv in calls))
 
 
 if __name__ == "__main__":
