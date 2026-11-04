@@ -89,7 +89,9 @@ COMMAND_DIAGNOSTIC_REASONS = DIAGNOSTIC_REASONS | {"COMMAND", "COMMAND_TIMEOUT",
 COMMAND_DIAGNOSTIC_ERRORS = {"DIAGNOSTIC_PATH", "DIAGNOSTIC_PERMISSIONS", "DIAGNOSTIC_SIZE", "DIAGNOSTIC_CHANGED",
     "DIAGNOSTIC_BINDING", "DIAGNOSTIC_INVOCATION", "DIAGNOSTIC_LOG_BASELINE", "DIAGNOSTIC_JSON", "DIAGNOSTIC_TIMEOUT"}
 COMMAND_DIAGNOSTIC_OUTCOMES = {"ACCEPTED", "WARNING", "BLOCKED", "ERROR", "INTERRUPTED", "PREPARATION_REQUIRED", "NO_CHANGE"}
-OPERATOR_LOG_ROOT = Path("/var/log/asa-lab-operator")
+# Ubuntu 24.04 ships /var/log root:syslog 0775; using it as an ancestor would
+# violate diagnostic_open's intentionally strict no-group-write trust contract.
+OPERATOR_LOG_ROOT = Path("/var/lib/asa-lab-operator")
 
 
 class Failure(RuntimeError):

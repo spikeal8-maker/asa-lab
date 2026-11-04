@@ -352,7 +352,7 @@ def run_windows(action: str, record: dict, options) -> int:
 
 def log_directory() -> Path:
     """Host-private diagnostic log directory, independent of the source checkout."""
-    return windows_home() / "logs" if os.name == "nt" else Path("/var/log/asa-lab-operator")
+    return windows_home() / "logs" if os.name == "nt" else Path("/var/lib/asa-lab-operator")
 
 
 def require_secure_log_directory(folder: Path) -> None:

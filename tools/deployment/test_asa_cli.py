@@ -78,6 +78,10 @@ runpy.run_path(source, run_name="__main__")
 
 
 class PublicCLIProcessTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux private log location")
+    def test_private_cli_log_is_not_under_syslog_group_writable_parent(self):
+        self.assertEqual(asa_cli.log_directory(), Path("/var/lib/asa-lab-operator"))
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

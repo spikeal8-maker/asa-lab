@@ -265,6 +265,12 @@ class PostFailureDiagnosticTests(unittest.TestCase):
 
 
 class CommandFailureDiagnosticTests(unittest.TestCase):
+    def test_operator_log_root_is_under_protected_var_lib(self):
+        # Ubuntu /var/log is commonly root:syslog mode 0775. Its group-write
+        # ancestor must never be exempted from diagnostic_open's trust rule.
+        self.assertEqual(harness.OPERATOR_LOG_ROOT, Path("/var/lib/asa-lab-operator"))
+        self.assertFalse(harness.OPERATOR_LOG_ROOT.is_relative_to(Path("/var/log")))
+
     def records(self):
         ids = {"operationId": "a" * 32, "installationId": "b" * 32}
         receipt = {"format": "asa-setup-result-v1", **ids, "mode": "install", "stage": "release", "outcome": "BLOCKED",

@@ -275,8 +275,10 @@ Digest дополнительно должен совпасть с сохран�
 Для классификации `COMMAND` используются два отдельных приватных источника:
 
 - CLI log из результата того же вызова: фиксированный каталог
-  `/var/log/asa-lab-operator`, точные action/PID/UTC-second в имени, root ownership,
-  mode 0600. Каждое полное `st_ctime_ns` и `st_mtime_ns` должно отдельно попадать
+  `/var/lib/asa-lab-operator`, точные action/PID/UTC-second в имени, root ownership,
+  mode 0600. Каталог `/var/log` на Ubuntu 24.04 обычно root:syslog 0775,
+  поэтому не используется как доверенный предок; исключений из no-group-write нет.
+  Каждое полное `st_ctime_ns` и `st_mtime_ns` должно отдельно попадать
   во включённый интервал `startedNs..finishedNs`; metadata не округляется.
   Только UTC-second самого имени сравнивается с секундными границами вызова.
 - Fixed `.asa/setup-logs/<operationId>.log` проверенного оператора: до публичного
