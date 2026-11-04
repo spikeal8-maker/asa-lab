@@ -975,8 +975,15 @@ def prepare_cloud_for_policy(bundle, *, owner, policy, credential_file=None, rep
                 "preparedAt": dt.datetime.now(dt.timezone.utc).isoformat()}
 
 
-def _owner_call(owner, arguments, environment, *, capture=False, timeout=None):
-    options = {"cwd": owner["root"], "env": environment, "text": True, "encoding": "utf-8", "timeout": timeout,
+def _owner_call(owner, arguments, environment, *, capture=False, timeout=None, cwd=None):
+    working_directory = owner["root"]
+    if cwd is not None:
+        directory = checked_path(cwd, missing=False)
+        info = directory.stat()
+        _require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022, "OPERATOR_CWD",
+                 "Рабочий каталог ранней проверки не защищён.", "Проверьте исходный системный каталог; target не создавался.")
+        working_directory = str(directory)
+    options = {"cwd": working_directory, "env": environment, "text": True, "encoding": "utf-8", "timeout": timeout,
                "check": False, "umask": 0o077}
     if capture:
         options.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -1324,8 +1331,10 @@ def main(argv=None):
             # Read-only discovery as the proven operator precedes package,
             # cloud, browser or config preparation. The child repeats the
             # intent guard while holding the canonical operation lock.
+            # A fresh target does not exist yet; only this check uses a
+            # protected existing cwd while the actual target stays in --root.
             intent_result = _owner_call(owner, ["/usr/bin/python3", "-I", "-B", str(bundle / "tools/asa_setup.py"),
-                "intent-check", "--intent", parsed.intent, "--root", str(root)], operator_environment(owner), capture=True, timeout=60)
+                "intent-check", "--intent", parsed.intent, "--root", str(root)], operator_environment(owner), capture=True, timeout=60, cwd="/")
             _require(intent_result.returncode == 0, "OPERATION_INTENT", "Фактическое состояние не допускает запрошенное действие.",
                      "Выполните asa status; установка и обновление не подменяют друг друга.")
         _require(elevated or owner["uid"] == os.geteuid(), "OPERATOR_PERMISSION", "Текущий пользователь не является владельцем установки.",

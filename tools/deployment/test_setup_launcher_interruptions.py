@@ -246,6 +246,73 @@ class PublicIntentSupervisorTests(unittest.TestCase):
         self.assertEqual(observe.call_count, 1)
         self.assertIn("intent-check", observe.call_args.args[1])
 
+    def test_fresh_intent_check_runs_real_readonly_child_before_target_exists(self):
+        launcher = self.launcher
+        target = self.root / "not-created"
+        owner = {**self.owner, "root": str(target)}
+        bundle = self.root / "fixture-bundle"
+        (bundle / "tools").mkdir(parents=True)
+        program = bundle / "tools/asa_setup.py"
+        real_run = subprocess.run
+        def tree():
+            return {str(path.relative_to(self.root)): (path.stat().st_mtime_ns,
+                    path.read_bytes() if path.is_file() else None) for path in self.root.rglob("*")}
+        for child_code in (0, 2):
+            with self.subTest(child_code=child_code):
+                program.write_text(
+                    "import json, os, sys\nfrom pathlib import Path\n"
+                    "arguments = sys.argv[1:]\n"
+                    "target = Path(arguments[arguments.index('--root') + 1])\n"
+                    "print(json.dumps({'arguments': arguments, 'cwd': os.getcwd(), 'targetExists': target.exists()}))\n"
+                    "raise SystemExit(" + str(child_code) + ")\n", encoding="utf-8")
+                before, calls = tree(), []
+                def run(arguments, **kwargs):
+                    # Keep _owner_call and the actual subprocess/chdir intact.
+                    result = real_run(arguments, **kwargs)
+                    calls.append((arguments, kwargs, result))
+                    return result
+                with patch.object(launcher, "__file__", str(bundle / "tools/asa_setup_launcher.py")), \
+                     patch.object(launcher.os, "geteuid", return_value=owner["uid"]), \
+                     patch.object(launcher, "platform_info", return_value={"supported": True}), \
+                     patch.object(launcher, "validate_owner", return_value=owner), \
+                     patch.object(launcher.subprocess, "run", side_effect=run), \
+                     patch.object(launcher, "dependency_plan", side_effect=launcher.SetupBlocked("AFTER_INTENT", "fixture stop", "stop")) as preparation, \
+                     patch.object(launcher, "provision_dependencies", side_effect=AssertionError("Packages changed")), \
+                     patch.object(launcher, "_write_owner_json", side_effect=AssertionError("Config changed")), \
+                     patch("sys.stdout", new_callable=io.StringIO) as output:
+                    code = launcher.main(["auto", "--intent", "install", "--root", str(target), "--non-interactive", "--json"])
+                self.assertEqual(code, 2)
+                self.assertEqual(json.loads(output.getvalue())["reasonCode"], "AFTER_INTENT" if child_code == 0 else "OPERATION_INTENT")
+                self.assertEqual(preparation.call_count, 1 if child_code == 0 else 0)
+                self.assertEqual(len(calls), 1)
+                arguments, options, completed = calls[0]
+                self.assertEqual(completed.returncode, child_code)
+                self.assertEqual(completed.stderr, "")
+                observed = json.loads(completed.stdout)
+                self.assertEqual(observed["arguments"], ["intent-check", "--intent", "install", "--root", str(target)])
+                self.assertEqual(observed["cwd"], "/")
+                self.assertEqual(options["cwd"], "/")
+                self.assertFalse(observed["targetExists"])
+                self.assertEqual(arguments[1:3], ["-I", "-B"])
+                self.assertFalse(target.exists())
+                self.assertEqual(tree(), before)
+
+    def test_other_owner_calls_keep_target_cwd_and_do_not_create_a_missing_target(self):
+        launcher = self.launcher
+        command = [sys.executable, "-I", "-B", "-c", "import os; print(os.getcwd())"]
+        with patch.object(launcher.os, "geteuid", return_value=self.owner["uid"]):
+            completed = launcher._owner_call(self.owner, command, launcher.operator_environment(self.owner), capture=True, timeout=5)
+            self.assertEqual(completed.returncode, 0)
+            self.assertEqual(completed.stdout.strip(), str(self.root))
+            self.assertEqual(completed.stderr, "")
+            target = self.root / "not-created"
+            with self.assertRaises(FileNotFoundError) as caught:
+                launcher._owner_call({**self.owner, "root": str(target)}, command,
+                                     launcher.operator_environment(self.owner), capture=True, timeout=5)
+        self.assertEqual(caught.exception.errno, 2)
+        self.assertEqual(caught.exception.filename, str(target))
+        self.assertFalse(target.exists())
+
     def test_preparation_resume_preserves_digest_and_intent_before_release_selection(self):
         launcher, calls = self.launcher, []
         pin = "sha256:" + "e" * 64
