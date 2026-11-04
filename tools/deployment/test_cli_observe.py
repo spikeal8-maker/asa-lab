@@ -91,6 +91,35 @@ class ObservationTests(unittest.TestCase):
              patch.object(observe, "probe", return_value=observe.unavailable()):
             self.assertEqual(self.reader.status()["status"], "FAILED")
 
+    def test_doctor_aggregates_current_failures_and_warnings_without_historical_receipts(self):
+        before = self.tree()
+        with patch.object(self.reader, "services", return_value={"status": "OK"}) as services, \
+             patch.object(self.reader, "database", return_value={"status": "OK", "schema": RELEASE["schema"]}), \
+             patch.object(self.reader, "site", return_value={"status": "OK", "revision": RELEASE["revision"], "reportedSchema": RELEASE["schema"]}), \
+             patch.object(self.reader, "host", return_value={"status": "OK"}) as host, \
+             patch.object(self.reader, "disk", return_value={"status": "OK"}) as disk, \
+             patch.object(self.reader, "disk_health", return_value={"status": "OK"}) as health, \
+             patch.object(self.reader, "cloud", return_value={"status": "UNAVAILABLE", "transport": {"status": "OK"},
+                 "remote": observe.unavailable("NO_READ_ONLY_PROVIDER_PROBE"),
+                 "lastDelivery": {"status": "RECORDED", "cloud": {"status": "FAILED"}}}), \
+             patch.object(observe, "probe", return_value=observe.unavailable()):
+            for measurement in (host, disk, health):
+                for state in ("FAILED", "WARNING", "UNAVAILABLE", "OK"):
+                    with self.subTest(check=measurement, status=state):
+                        measurement.return_value = {"status": state}
+                        value = self.reader.status(extended=True)
+                        self.assertEqual(value["status"], state if state in ("FAILED", "WARNING") else "OK")
+                        self.assertIn("cloud.remote", value["optionalUnavailableChecks"])
+                measurement.return_value = {"status": "OK"}
+            services.return_value = {"status": "UNAVAILABLE"}
+            self.assertEqual(self.reader.status(extended=True)["status"], "UNAVAILABLE")
+            health.return_value = {"status": "FAILED"}
+            self.assertEqual(self.reader.status(extended=True)["status"], "FAILED")
+            services.return_value = {"status": "FAILED"}
+            health.return_value = {"status": "WARNING"}
+            self.assertEqual(self.reader.status(extended=True)["status"], "FAILED")
+        self.assertEqual(self.tree(), before)
+
     def test_foreign_working_directory_or_one_healthy_container_is_not_healthy_installation(self):
         for rows in (self.containers(foreign=True), self.containers(one=True)):
             reader = observe.Observer({"root": str(self.root), "project": "asa-fixture"})

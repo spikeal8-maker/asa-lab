@@ -40,6 +40,41 @@ release_readonly.resolve_release = lambda digest=None: json.loads(selection)
 sys.argv = [source, *sys.argv[3:]]
 runpy.run_path(source, run_name="__main__")
 '''
+LEGACY_CODEPAGE_DRIVER = r'''
+import runpy, sys
+source = sys.argv[1]
+sys.argv = sys.argv[1:]
+# Reproduce redirected Windows streams even when the test runner is UTF-8.
+# -I deliberately ignores PYTHONIOENCODING/PYTHONUTF8 environment settings.
+for stream in (sys.stdout, sys.stderr):
+    stream.reconfigure(encoding="cp1252", errors="strict")
+    assert stream.encoding == "cp1252"
+try:
+    runpy.run_path(source, run_name="__main__")
+except SystemExit:
+    sys.stderr.write("Проверка stderr: UTF-8\n")
+    raise
+'''
+DOCTOR_DRIVER = r'''
+import json, os, runpy, sys
+source, readings = sys.argv[1:3]
+readings = json.loads(readings)
+sys.path.insert(0, str(__import__("pathlib").Path(source).parent))
+if hasattr(os, "geteuid") and os.geteuid() == 0:
+    os.geteuid = lambda: 12345
+from deployment.cli_observe import Observer
+Observer.services = lambda self: {"status": "OK"}
+Observer.database = lambda self: {"status": "OK", "schema": readings["schema"]}
+Observer.site = lambda self: {"status": "OK", "revision": readings["revision"], "reportedSchema": readings["schema"]}
+Observer.host = lambda self: {"status": "OK"}
+Observer.disk = lambda self: {"status": "OK"}
+Observer.disk_health = lambda self: {"status": readings["diskHealth"]}
+Observer.cloud = lambda self: {"status": "UNAVAILABLE", "transport": {"status": readings["cloudTransport"]},
+    "remote": {"status": "UNAVAILABLE", "reasonCode": "NO_READ_ONLY_PROVIDER_PROBE"},
+    "lastDelivery": {"status": "RECORDED", "cloud": {"status": "FAILED"}}}
+sys.argv = [source, *sys.argv[3:]]
+runpy.run_path(source, run_name="__main__")
+'''
 
 
 class PublicCLIProcessTests(unittest.TestCase):
@@ -83,14 +118,17 @@ class PublicCLIProcessTests(unittest.TestCase):
         (self.bin / "docker").write_text(fake)
         (self.bin / "docker").chmod(0o755)
 
-    def invoke(self, *args, observation=False, timeout=20):
+    def invoke(self, *args, observation=False, driver=None, driver_args=(), timeout=20):
         command = [sys.executable, "-I", "-B"]
-        command += ["-c", OBSERVATION_DRIVER, str(SOURCE), json.dumps(SELECTION)] if observation else [str(SOURCE)]
+        if driver:
+            command += ["-c", driver, str(SOURCE), *driver_args]
+        else:
+            command += ["-c", OBSERVATION_DRIVER, str(SOURCE), json.dumps(SELECTION)] if observation else [str(SOURCE)]
         command += list(args)
         env = dict(os.environ, PATH=str(self.bin), NO_COLOR="1", PYTHONPATH=str(self.cwd),
                    PYTHONHOME="ignored-by-isolated-python", HOME=str(self.cwd))
         return subprocess.run(command, cwd=self.cwd, env=env, stdin=subprocess.DEVNULL,
-                              capture_output=True, text=True, timeout=timeout)
+                              capture_output=True, text=True, encoding="utf-8", timeout=timeout)
 
     def tree(self):
         return {str(p.relative_to(self.base)): (p.stat().st_size, p.stat().st_mtime_ns,
@@ -110,6 +148,51 @@ class PublicCLIProcessTests(unittest.TestCase):
                 self.assertEqual(value["command"], "help")
                 self.assertEqual(process.returncode, value["exitCode"])
         self.assertFalse((self.base / "FORBIDDEN_DOCKER_MUTATION").exists())
+
+    def test_legacy_codepage_pipes_emit_utf8_help_errors_and_stderr_under_isolation(self):
+        before = self.tree()
+        cases = [(arguments, 0) for arguments in (("help",), ("--help",), ("help", "update"),
+                                                  ("update", "--help"), ("backup", "--help"))]
+        cases += [(("not-a-command-SECRET_SENTINEL",), 2), (("status", "--token", "SECRET_SENTINEL"), 2)]
+        for arguments, code in cases:
+            for as_json in (False, True):
+                with self.subTest(arguments=arguments, json=as_json):
+                    process = self.invoke(*arguments, *(["--json"] if as_json else []), driver=LEGACY_CODEPAGE_DRIVER)
+                    self.assertEqual(process.returncode, code, process.stdout + process.stderr)
+                    self.assertEqual(process.stderr, "Проверка stderr: UTF-8\n")
+                    self.assertIn("Синтаксис" if code == 0 and not as_json else "Справка" if code == 0 else "Выполните asa help.", process.stdout)
+                    self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+                    self.assertNotIn("Traceback", process.stdout + process.stderr)
+                    self.assertNotIn("\x1b", process.stdout)
+                    if as_json:
+                        value = json.loads(process.stdout)
+                        self.assertEqual(value["exitCode"], code)
+                        self.assertEqual(value["status"], "OK" if code == 0 else "BLOCKED")
+        self.assertEqual(self.tree(), before)
+
+    def test_doctor_public_exit_reports_current_extended_findings(self):
+        before = self.tree()
+        cases = (("FAILED", "OK", "FAILED", 1), ("WARNING", "OK", "WARNING", 1),
+                 ("OK", "FAILED", "FAILED", 1), ("OK", "WARNING", "WARNING", 1),
+                 ("UNAVAILABLE", "UNAVAILABLE", "OK", 0), ("OK", "OK", "OK", 0))
+        for disk, transport, expected, code in cases:
+            with self.subTest(disk=disk, transport=transport):
+                readings = {"schema": RELEASE["schema"], "revision": RELEASE["revision"],
+                            "diskHealth": disk, "cloudTransport": transport}
+                process = self.invoke("doctor", "--json", "--root", str(self.root), "--registry", str(self.registry),
+                                      driver=DOCTOR_DRIVER, driver_args=(json.dumps(readings),))
+                self.assertEqual(process.returncode, code, process.stdout + process.stderr)
+                self.assertEqual(process.stderr, "")
+                value = json.loads(process.stdout)
+                self.assertEqual(value["status"], expected)
+                self.assertEqual(value["exitCode"], code)
+                self.assertTrue(all(value[key]["status"] == "OK" for key in ("services", "database", "site")))
+                self.assertEqual(value["diskHealth"]["status"], disk)
+                self.assertEqual(value["cloud"]["transport"]["status"], transport)
+                self.assertIn("cloud.remote", value["optionalUnavailableChecks"])
+                self.assertEqual("diskHealth" in value["optionalUnavailableChecks"], disk == "UNAVAILABLE")
+                self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+        self.assertEqual(self.tree(), before)
 
     @unittest.skipUnless(os.name == "posix", "POSIX isolated executable fixture")
     def test_every_required_read_command_uses_public_entry_and_no_files_change(self):

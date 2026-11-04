@@ -632,7 +632,18 @@ def observe(action, record, options):
     raise CLIError("Команда не найдена.", "USAGE")
 
 
+def configure_output():
+    # Redirected Windows streams may use a legacy code page, and -I ignores
+    # PYTHONIOENCODING/PYTHONUTF8. The public byte contract is always UTF-8.
+    # StringIO and other Unicode-only capture streams need no reconfiguration.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def main(argv: list[str] | None = None) -> int:
+    configure_output()
     arguments = list(sys.argv[1:] if argv is None else argv)
     as_json = "--json" in arguments
     action = "help"

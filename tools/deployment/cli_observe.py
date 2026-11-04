@@ -569,7 +569,18 @@ class Observer:
                  "updates": {"status": "UNAVAILABLE", "checkedAt": None, "reasonCode": "USE_UPDATE_CHECK"},
                  "history": self.history() if not compact else {"status": "NOT_REQUESTED"}, "access": "LIMITED" if self.errors else "OBSERVED"}
         if extended:
-            value.update(host=self.host(), disk=self.disk(), diskHealth=self.disk_health(), cloud=self.cloud())
+            checks = {"host": self.host(), "disk": self.disk(), "diskHealth": self.disk_health(), "cloud": self.cloud()}
+            value.update(checks)
+            # Include current transport health, not historical delivery receipts.
+            # Optional sensors/provider probes can be unavailable without masking
+            # a failure or warning that was actually observed elsewhere.
+            checks.update({"cloud." + key: value["cloud"].get(key, unavailable()) for key in ("transport", "remote")})
+            states = {value["status"], *(check.get("status") for check in checks.values())}
+            if "FAILED" in states:
+                value["status"] = "FAILED"
+            elif "WARNING" in states:
+                value["status"] = "WARNING"
+            value["optionalUnavailableChecks"] = [name for name, check in checks.items() if check.get("status") == "UNAVAILABLE"]
         return value
 
     def update_plan(self, selection):
