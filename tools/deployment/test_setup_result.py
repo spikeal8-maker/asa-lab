@@ -399,11 +399,11 @@ class BackupExecutionEvidenceTests(unittest.TestCase):
 
 class BootstrapResultTests(unittest.TestCase):
     def run_bootstrap_report(self, *, as_json, code):
-        source = (Path(__file__).resolve().parents[2] / "asa-setup.sh").read_text()
+        source = (Path(__file__).resolve().parents[2] / "asa-setup.sh").read_text(encoding="utf-8")
         function = source.split("asa_setup_bootstrap_failure() {", 1)[1].split("\n}\n", 1)[0]
         script = "set -euo pipefail\nasa_setup_json=" + ("true" if as_json else "false")
         script += "\nasa_setup_bootstrap_failure() {" + function + "\n}\nasa_setup_bootstrap_failure " + str(code)
-        return subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=False)
+        return subprocess.run(["bash", "-c", script], capture_output=True, text=True, encoding="utf-8", check=False)
 
     def test_bootstrap_json_and_text_match_actual_exit_without_preparing_host(self):
         for code, outcome, marker in ((2, "BLOCKED", "[!]"), (1, "ERROR", "[X]")):

@@ -14,6 +14,9 @@ from deployment.setup_discovery import classify_installation
 from deployment.test_setup_discovery import fixture
 
 
+UID = getattr(os, "geteuid", lambda: 0)()
+
+
 class SetupInstallationRegressionTests(unittest.TestCase):
     def configure(self, root, env=None, previous=None):
         def answer(prompt, default=None, **kwargs):
@@ -29,7 +32,7 @@ class SetupInstallationRegressionTests(unittest.TestCase):
         with patch("deployment.setup_config._ask", side_effect=answer), patch(
             "deployment.setup_config.validate_config", side_effect=lambda value, *_args, **_kwargs: value
         ):
-            return prepare_config(root, os.geteuid(), install=install, previous=previous,
+            return prepare_config(root, UID, install=install, previous=previous,
                                   reconfigure=True, fresh=previous is None)
 
     def test_fresh_project_keeps_historical_default(self):
@@ -106,7 +109,8 @@ class SetupInstallationRegressionTests(unittest.TestCase):
             replace_legacy_manager_state(root, "runtime-configuration.json", record)
             saved = state / "runtime-configuration.json"
             self.assertEqual(json.loads(saved.read_text()), record)
-            self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
+            if os.name == "posix":
+                self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
             self.assertEqual(overlay.read_bytes(), b"networks: {}\n")
 
     def test_legacy_runtime_snapshot_with_network_overlay_is_adopted(self):
@@ -122,7 +126,8 @@ class SetupInstallationRegressionTests(unittest.TestCase):
             updated["revision"] = "b" * 40
             replace_legacy_manager_state(root, "runtime-configuration.json", updated)
             self.assertEqual(json.loads(saved.read_text()), updated)
-            self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
+            if os.name == "posix":
+                self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
 
     def test_unknown_runtime_overlay_is_rejected_without_replacing_record(self):
         with tempfile.TemporaryDirectory() as directory:
