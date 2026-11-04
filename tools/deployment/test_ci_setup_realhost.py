@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import signal
 import socket
+import stat
 import sys
 import tempfile
 import time
@@ -438,8 +439,15 @@ class CommandFailureDiagnosticTests(unittest.TestCase):
         classifier.assert_not_called()
 
     @contextlib.contextmanager
-    def diagnostic_timestamp_fixture(self, **timestamps):
+    def diagnostic_timestamp_fixture(self, *, switch=False, **timestamps):
         public, config, journal, receipt, pins = self.records()
+        if switch:
+            config.update(project="asa-lab-dev", profile="production")
+            receipt["stage"] = "switch"
+            journal.update(project=config["project"], phase="switch", state="VERIFY_ONLY", release=dict(pins["previous"]),
+                           result=json.loads(json.dumps(receipt)))
+            journal["stages"]["release"] = {"status": "done", "revision": pins["previous"]["revision"]}
+            journal["stages"]["switch"] = {"status": "intent"}
         second = int(harness.dt.datetime(2026, 11, 4, 12, 0, tzinfo=harness.dt.timezone.utc).timestamp()) * 10**9
         invocation = {"pid": 1234, "startedNs": second + 200_000_000, "finishedNs": second + 800_000_000,
                       "setupLogsBefore": {"status": "OBSERVED", "entries": {}}}
@@ -553,6 +561,273 @@ class CommandFailureDiagnosticTests(unittest.TestCase):
             target.chmod(0o600)
             with self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_CHANGED"):
                 harness.command_log_projection(target, base, os.geteuid(), phase="release", offset=before[2], identity=before)
+
+
+class SwitchDiagnosticTests(unittest.TestCase):
+    def fixture(self):
+        second = harness.timestamp_ns("2026-11-04T12:00:00Z")
+        invocation = {"startedNs": second + 200_000_000, "finishedNs": second + 800_000_000}
+        config = {"project": "asa-lab-dev", "profile": "production"}
+        images = {name: "ghcr.io/spikeal8-maker/asa-lab/" + name + "@sha256:" + "a" * 64
+                  for name in ("api", "web", "scratch", "minio", "search")}
+        journal = {"project": config["project"], "release": {"images": images}}
+        expected = harness.switch_image_references(config, journal)
+        files = [str(harness.INSTALL_ROOT / name) for name in ("compose.yaml", "compose.production.yaml")]
+        records = []
+        for index, service in enumerate(harness.SWITCH_SERVICES):
+            exited = service in ("migration", "minio-init")
+            records.append({"id": format(index + 1, "064x"), "name": "/asa-lab-dev-" + service + "-1",
+                "created": "2026-11-04T12:00:00.300000000Z", "image": expected[service], "imageId": "sha256:" + "b" * 64,
+                "project": config["project"], "service": service, "root": str(harness.INSTALL_ROOT), "files": ",".join(files), "oneoff": "False",
+                "state": "exited" if exited else "running", "running": not exited, "dead": False, "oomKilled": False,
+                "exitCode": 1 if service == "migration" else 0, "restarts": 0, "health": "none", "error": "",
+                "started": "2026-11-04T12:00:00.400000000Z",
+                "finished": "2026-11-04T12:00:00.600000000Z" if exited else "0001-01-01T00:00:00Z"})
+        return config, journal, invocation, files, records
+
+    def stamped(self, lines, *, timestamp="2026-11-04T12:00:00.600000000Z"):
+        return "".join(timestamp + " " + line + "\n" for line in lines).encode()
+
+    def observe(self, *, before=None, after=None, inspect_override=None, command_failure=None, log_streams=None):
+        config, journal, invocation, files, normal = self.fixture()
+        before = normal if before is None else before
+        after = json.loads(json.dumps(before)) if after is None else after
+        counters = {"ps": 0, "inspect": 0}
+        self.calls = []
+        def command(args, **options):
+            self.calls.append((args, options))
+            verb = args[1]
+            self.assertEqual(args[0], "docker")
+            self.assertIn(verb, ("info", "ps", "inspect", "logs"))
+            self.assertGreater(options["timeout"], 0)
+            self.assertLessEqual(options["timeout"], 8)
+            self.assertEqual(options["owner"]["uid"], 999)
+            self.assertEqual(options["environment"]["DOCKER_HOST"], "unix:///var/run/docker.sock")
+            self.assertNotIn("GH_TOKEN", options["environment"])
+            self.assertNotIn("HTTPS_PROXY", options["environment"])
+            proof = {"exitCode": 0, "actualUid": 999}
+            if command_failure and verb == command_failure[0]:
+                return command_failure[1], command_failure[2]
+            if verb == "info":
+                return proof, b"synthetic-daemon\n"
+            if verb == "ps":
+                counters[verb] += 1
+                records = before if counters[verb] <= 2 else after
+                return proof, "\n".join(row["id"] for row in records).encode()
+            if verb == "inspect":
+                counters[verb] += 1
+                records = (before if inspect_override is None else inspect_override) if counters[verb] == 1 else after
+                return proof, "\n".join(json.dumps(row) for row in records).encode()
+            self.assertTrue(options["return_streams"])
+            self.assertNotIn("--details", args)
+            self.assertNotIn("--follow", args)
+            self.assertIn("--since", args)
+            self.assertIn("--until", args)
+            self.assertEqual(args[args.index("--tail") + 1], "200")
+            return proof, log_streams if log_streams is not None else (b"", self.stamped(["db:migrate FAIL: permission denied for schema PRIVATE"]))
+        owner = {"uid": 999, "gid": 999, "name": "asa-setup"}
+        environment = {"PATH": "/usr/bin:/bin", "HOME": "/var/lib/asa-setup/operator", "GH_TOKEN": "PRIVATE_TOKEN",
+                       "HTTPS_PROXY": "PRIVATE_PROXY", "DOCKER_HOST": "tcp://foreign"}
+        with patch.object(harness, "switch_expected_files", return_value=files), \
+                patch.object(harness, "root_json", return_value={"daemonIdentitySha256": hashlib.sha256(b"synthetic-daemon").hexdigest()}), \
+                patch.object(harness, "diagnostic_command", side_effect=command):
+            return harness.switch_failure_observation(owner, environment, config, journal, invocation)
+
+    def test_complete_owned_inventory_includes_both_one_shot_services_and_only_read_commands(self):
+        observed = self.observe()
+        self.assertTrue(observed["completeInventory"])
+        self.assertTrue(observed["immutableIdentityRechecked"])
+        self.assertEqual(set(observed["services"]), set(harness.SWITCH_SERVICES))
+        migration = observed["services"]["migration"]
+        self.assertEqual(migration["before"]["containerExitCode"], 1)
+        self.assertTrue(migration["before"]["processExited"])
+        self.assertEqual(observed["services"]["minio-init"]["before"]["containerExitCode"], 0)
+        self.assertEqual(observed["composeExitCode"], "UNAVAILABLE")
+        self.assertFalse(observed["causalProof"])
+        self.assertEqual(observed["logSamples"], 1)
+        self.assertIn("MIGRATION_RUNNER_FAILURE", migration["log"]["ruleIds"])
+        self.assertEqual(migration["log"]["sqlstates"], [])  # A message is not an observed SQLSTATE.
+        self.assertNotIn("PRIVATE", json.dumps(observed))
+        self.assertTrue(all(call[0][1] in ("info", "ps", "inspect", "logs") for call in self.calls))
+
+    def test_foreign_binding_duplicate_ids_and_duplicate_services_are_rejected_before_logs(self):
+        for key, value in (("project", "foreign"), ("root", "/foreign"), ("files", "/foreign/compose.yaml"),
+                           ("image", "foreign/image:latest"), ("service", "foreign"), ("oneoff", "True"),
+                           ("created", "2026-11-04T11:59:59.999999999Z")):
+            records = self.fixture()[-1]
+            records[0][key] = value
+            with self.subTest(key=key), self.assertRaises(harness.Failure):
+                self.observe(before=records)
+            self.assertFalse(any(call[0][1] == "logs" for call in self.calls))
+        for duplicate in ("id", "service"):
+            records = self.fixture()[-1]
+            records[1][duplicate] = records[0][duplicate]
+            records[1]["image"] = records[0]["image"]
+            with self.subTest(duplicate=duplicate), self.assertRaises(harness.Failure):
+                self.observe(before=records)
+            self.assertFalse(any(call[0][1] == "logs" for call in self.calls))
+
+    def test_incomplete_inventory_never_becomes_absence_or_reads_logs(self):
+        records = self.fixture()[-1]
+        with self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_INVENTORY"):
+            self.observe(inspect_override=records[:-1])
+        self.assertFalse(any(call[0][1] == "logs" for call in self.calls))
+        complete_missing = self.observe(before=records[:-1])
+        self.assertEqual(complete_missing["services"]["scratch"], {"presence": "NOT_PRESENT"})
+
+    def test_immutable_identity_change_discards_collected_observation_but_state_change_is_visible(self):
+        records = self.fixture()[-1]
+        changed = json.loads(json.dumps(records))
+        changed[2]["name"] += "-changed"
+        with self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_CHANGED"):
+            self.observe(before=records, after=changed)
+        changed = json.loads(json.dumps(records))
+        changed[2]["exitCode"] = 2
+        observed = self.observe(before=records, after=changed)
+        self.assertTrue(observed["services"]["migration"]["stateChanged"])
+        self.assertEqual(observed["services"]["migration"]["after"]["containerExitCode"], 2)
+
+    def test_unknown_metadata_and_private_inspect_fields_never_reach_evidence(self):
+        secret = "PRIVATE_CREDENTIAL_MUST_NEVER_APPEAR"
+        records = self.fixture()[-1]
+        records[0].update(error=secret, environment={"PASSWORD": secret}, argv=[secret], healthOutput=secret)
+        observed = self.observe(before=records)
+        self.assertNotIn(secret, json.dumps(observed))
+        records[0]["state"] = secret
+        with self.assertRaises(harness.Failure):
+            self.observe(before=records)
+        self.assertFalse(any(call[0][1] == "logs" for call in self.calls))
+
+    def test_log_sample_count_output_cap_and_timeout_are_bounded_without_partial_classification(self):
+        records = self.fixture()[-1]
+        for row in records:
+            row["health"] = "unhealthy"
+        observed = self.observe(before=records)
+        self.assertEqual((observed["logSamples"], observed["eligibleLogsNotSampled"]), (4, 4))
+        self.assertEqual(sum(call[0][1] == "logs" for call in self.calls), 4)
+        for reason in ("DIAGNOSTIC_TIMEOUT", "DIAGNOSTIC_OUTPUT_LIMIT"):
+            observed = self.observe(command_failure=("logs", {"exitCode": -15, "reasonCode": reason}, (b"PRIVATE", b"")))
+            self.assertEqual(observed["services"]["migration"]["log"]["reasonCode"], reason)
+            self.assertNotIn("PRIVATE", json.dumps(observed))
+        observed = self.observe(log_streams=(b"X" * (harness.DIAGNOSTIC_LIMIT + 1), b""))
+        self.assertEqual(observed["services"]["migration"]["log"]["reasonCode"], "DIAGNOSTIC_OUTPUT_LIMIT")
+        with self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_TIMEOUT"):
+            self.observe(command_failure=("info", {"exitCode": -15, "reasonCode": "DIAGNOSTIC_TIMEOUT"}, b"PRIVATE"))
+        with patch.object(harness.time, "monotonic", side_effect=(0, 61)), self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_TIMEOUT"):
+            self.observe()
+        self.assertEqual(self.calls, [])
+        self.assertEqual(harness.SWITCH_SECONDS, 60)
+
+    def test_native_compose_forms_are_multistage_observations_not_causal_proof(self):
+        raw = (b'service "migration" didn\x27t complete successfully: exit 1\n'
+               b'dependency failed to start: container asa-lab-dev-postgres-1 is unhealthy\n'
+               b'Error response from daemon: failed to create task for container: PRIVATE\n'
+               b'service "PRIVATE" didn\x27t complete successfully: exit 2\n')
+        observed = harness.command_log_classification(raw, "switch")
+        self.assertEqual(observed["status"], "OBSERVED")
+        self.assertEqual(observed["nativeCompose"]["serviceExitCodes"], {"migration": 1})
+        self.assertEqual(set(observed["nativeCompose"]["ruleIds"]),
+                         {"COMPOSE_SERVICE_EXIT", "COMPOSE_DEPENDENCY_UNHEALTHY", "DAEMON_CONTAINER_TASK_FAILURE"})
+        self.assertEqual(observed["scope"], "PUBLIC_INVOCATION_MULTI_STAGE")
+        self.assertFalse(observed["causalProof"])
+        self.assertNotIn("PRIVATE", json.dumps(observed))
+
+    def test_switch_observer_requires_bound_switch_and_preserves_command_failure(self):
+        fixture = CommandFailureDiagnosticTests()
+        with fixture.diagnostic_timestamp_fixture() as (public, invocation), \
+                patch.object(harness, "switch_failure_observation") as observer:
+            harness.command_failure_diagnostic(["install"], 2, public, invocation)
+        observer.assert_not_called()
+        for outcome in (self.observe(), harness.Failure("DIAGNOSTIC_INVENTORY")):
+            output = io.StringIO()
+            with self.subTest(outcome=type(outcome).__name__), fixture.diagnostic_timestamp_fixture(switch=True) as (public, invocation), \
+                    patch.object(harness, "switch_failure_observation", **({"side_effect": outcome} if isinstance(outcome, Exception)
+                                                                            else {"return_value": outcome})) as observer, \
+                    patch.object(harness, "CLI_ACTIONS", []), \
+                    patch.object(harness, "guest_phase", side_effect=lambda *_: harness.public_cli_result(
+                        ["install"], 2, json.dumps(public), invocation=invocation)), contextlib.redirect_stdout(output):
+                code = harness.guest_main("install")
+            observer.assert_called_once()
+            result = json.loads(output.getvalue())
+            self.assertEqual((code, result["status"], result["reasonCode"]), (1, "FAIL", "COMMAND"))
+            self.assertEqual(result["cliActions"][0]["exitCode"], 2)
+            self.assertEqual(result["commandFailureDiagnostic"]["switchObservation"]["status"],
+                             "UNAVAILABLE" if isinstance(outcome, Exception) else "OBSERVED")
+
+    def test_cli_permission_metadata_is_separate_and_never_retries_rejected_content(self):
+        fixture = CommandFailureDiagnosticTests()
+        with fixture.diagnostic_timestamp_fixture() as (public, invocation), \
+                patch.object(harness, "cli_log_path_metadata", return_value={"status": "OBSERVED", "contentRead": False,
+                                                                            "firstRejectedLabel": "varLib"}) as metadata:
+            original = harness.diagnostic_read.side_effect
+            rejected = []
+            def read(path, *args, **kwargs):
+                if path.parent == harness.OPERATOR_LOG_ROOT:
+                    rejected.append(path)
+                    raise harness.Failure("DIAGNOSTIC_PERMISSIONS")
+                return original(path, *args, **kwargs)
+            harness.diagnostic_read.side_effect = read
+            observed = harness.command_failure_diagnostic(["install"], 2, public, invocation)
+        self.assertEqual(len(rejected), 1)
+        metadata.assert_called_once()
+        self.assertEqual(observed["logs"]["cli"]["reasonCode"], "DIAGNOSTIC_PERMISSIONS")
+        self.assertEqual(observed["logs"]["cli"]["pathMetadata"]["firstRejectedLabel"], "varLib")
+        self.assertFalse(observed["logs"]["cli"]["pathMetadata"]["contentRead"])
+
+    def test_pinned_runtime_role_producer_form_extracts_only_recognized_sqlstate(self):
+        invocation = self.fixture()[2]
+        lines = ["error: PRIVATE SQL AND ROLE", "    at async file:///app/docker/provision-runtime-role.mjs:15:3 {",
+                 "  length: 123,", "  severity: 'ERROR',", "  code: '42501',", "  detail: 'PRIVATE PASSWORD',", "}"]
+        observed = harness.switch_log_projection((b"", self.stamped(lines)), "migration", invocation)
+        self.assertEqual(set(observed["ruleIds"]), {"RUNTIME_ROLE_PROVISION_FAILURE", "POSTGRES_SERVER_ERROR"})
+        self.assertEqual(observed["sqlstates"], ["42501"])
+        self.assertNotIn("PRIVATE", json.dumps(observed))
+        for changed in ([item.replace("42501", "TOKNX") for item in lines], lines[2:], lines[:-1],
+                        [item.removesuffix(" {") for item in lines],
+                        [item.replace("provision-runtime-role.mjs", "unknown.mjs") for item in lines]):
+            self.assertEqual(harness.switch_log_projection((self.stamped(changed), b""), "migration", invocation)["sqlstates"], [])
+        outside = self.stamped(lines, timestamp="2026-11-04T12:00:00.800000001Z")
+        self.assertEqual(harness.switch_log_projection((outside, b""), "migration", invocation)["status"], "NO_MATCH")
+        self.assertEqual(harness.switch_log_projection((self.stamped(lines), b""), "minio", invocation)["status"], "NO_MATCH")
+        protocol = [lines[0], "    at Parser.parseErrorMessage (/app/node_modules/.pnpm/pg-protocol@1.15.0/node_modules/pg-protocol/dist/parser.js:285:98) {",
+                    *lines[2:]]
+        observed = harness.switch_log_projection((self.stamped(protocol), b""), "migration", invocation)
+        self.assertEqual(observed["sqlstates"], ["42501"])
+        self.assertEqual(observed["ruleIds"], ["POSTGRES_SERVER_ERROR"])
+
+    def test_cli_path_metadata_is_closed_and_does_not_relax_read_permissions(self):
+        info = SimpleNamespace(st_uid=0, st_gid=104, st_nlink=2, st_mode=stat.S_IFDIR | 0o775, secret="PRIVATE")
+        observed = harness.cli_metadata_projection(info, "varLib")
+        self.assertEqual(observed["mode"], "0775")
+        self.assertEqual(observed["failedCheckIds"], ["ANCESTOR_WRITABLE"])
+        self.assertNotIn("PRIVATE", json.dumps(observed))
+        info.st_uid = "PRIVATE"
+        with self.assertRaises(harness.Failure):
+            harness.cli_metadata_projection(info, "varLib")
+
+    @unittest.skipUnless(sys.platform == "linux", "Metadata-only path walk requires Linux O_PATH/O_NOFOLLOW")
+    def test_rejected_cli_path_component_stops_before_content_or_descendants_are_read(self):
+        standard = SimpleNamespace(st_uid=0, st_gid=0, st_nlink=2, st_mode=stat.S_IFDIR | 0o755)
+        writable = SimpleNamespace(st_uid=0, st_gid=104, st_nlink=2, st_mode=stat.S_IFDIR | 0o775)
+        with patch.object(harness, "cli_log_path", return_value=harness.OPERATOR_LOG_ROOT / "test.log"), \
+                patch.object(harness.os, "open", side_effect=(10, 11, 12)) as opened, \
+                patch.object(harness.os, "fstat", side_effect=(standard, writable)), patch.object(harness.os, "close"), \
+                patch.object(harness.os, "read") as read:
+            observed = harness.cli_log_path_metadata({}, ["install"], {})
+        self.assertEqual(observed["firstRejectedLabel"], "varLib")
+        self.assertFalse(observed["contentRead"])
+        self.assertEqual([item.args[0] for item in opened.call_args_list], ["/", "var", "lib"])
+        self.assertTrue(all(item.args[1] & os.O_PATH for item in opened.call_args_list))
+        read.assert_not_called()
+
+    @unittest.skipUnless(sys.platform == "linux", "Native stream capture requires Linux pipe selectors and process handling")
+    def test_native_stderr_is_available_only_to_private_bounded_classifier(self):
+        proof, streams = harness.diagnostic_command([sys.executable, "-I", "-c",
+            "import sys; print('SYNTHETIC_STDOUT'); print('SYNTHETIC_PRIVATE_STDERR',file=sys.stderr)"],
+            timeout=3, environment={"PATH": "/usr/bin:/bin"}, return_streams=True)
+        self.assertEqual(proof["exitCode"], 0)
+        self.assertIn(b"SYNTHETIC_PRIVATE_STDERR", streams[1])
+        self.assertNotIn("SYNTHETIC_PRIVATE_STDERR", json.dumps(proof))
 
 
 class RuntimeFaultContractTests(unittest.TestCase):

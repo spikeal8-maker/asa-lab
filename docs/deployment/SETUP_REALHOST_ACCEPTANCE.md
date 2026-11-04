@@ -313,6 +313,66 @@ body, traceback и совпавшие строки остаются приват
 public exit, reason `COMMAND` и общий FAIL. Эта диагностика не устанавливает
 задним числом причину завершившегося run без нового evidence.
 
+### Наблюдение после отказа Compose при установке
+
+Только после связанного `install / switch / COMMAND`, с `switch: intent` и
+подтверждённым pinned release, `switchObservation` выполняет дополнительное
+read-only наблюдение. Оно не требует уже установленного release или готового
+приложения и не вызывает `owner_installation()`. Подтверждённый non-root operator
+исполняет только `docker info`, `ps`, `inspect`, `logs` через локальный
+`unix:///var/run/docker.sock`. Token/proxy/remote Docker environment не передаётся.
+Hash daemon ID до и после должен совпасть с исходным Docker/1Panel baseline.
+Команды `up`, `exec`, restart, миграции и DB sessions не запускаются.
+
+Inventory ограничен восемью сервисами: `postgres`, `minio`, `migration`,
+`minio-init`, `api`, `search`, `web`, `scratch`. Список container IDs сверяется
+повторно; каждому ID должны соответствовать точные project, root, config-files,
+service и image. Containers должны быть созданы в интервале текущей установки.
+One-off, чужие, дублирующиеся и неполностью прочитанные записи отклоняются до
+чтения logs. Ссылки ASA images, включая aliases migration/API и minio-init/MinIO,
+сверяются с immutable release. PostgreSQL отдельно сверяется с
+`postgres:17.7-bookworm` из обоих закреплённых `compose.yaml`: это проверка
+Compose reference, не заявление о наличии PostgreSQL в ASA image manifest.
+
+Перед публикацией повторяются inventory и проверка immutable identity. Изменение
+ID/name/created/image/image ID/project/root/config-files/one-off означает
+`UNAVAILABLE`: собранные log classifications не выдаются как связанные с прежним
+ресурсом. Изменение текущего состояния при стабильной identity сохраняется как
+две типизированные точки `before`/`after` и `stateChanged`. В evidence разрешены
+только закрытые state/health, bool running/dead/OOM, restart count и container
+exit code. `processExited` отделяет остановленный процесс от нулевого exit field
+ещё работающего контейнера. Exit контейнера не является exit Compose или public
+CLI; числовой `composeExitCode` остаётся `UNAVAILABLE`. `NOT_PRESENT` разрешён
+только после полного стабильного inventory.
+
+Logs выбираются только для failed/unhealthy собственных containers. Приоритет
+имеют PostgreSQL, MinIO и оба one-shot service. Разрешены не более четырёх
+samples по 64 КиБ суммарного stdout/stderr, `--tail 200`, `--since` и `--until`
+с полными timestamps текущего invocation. Каждая строка дополнительно должна
+иметь Docker timestamp внутри интервала. `--follow` и `--details` не используются.
+Общий новый budget — не более 60 секунд, отдельная Docker-команда — до 8 секунд
+с резервом на очистку только собственного probe. Превышение времени или bytes
+даёт `UNAVAILABLE`, частичный поток не классифицируется как полный.
+
+Native Compose dependency/one-shot/container errors имеют закрытые rule IDs.
+Operation log охватывает несколько стадий, поэтому его классификация явно
+помечена `PUBLIC_INVOCATION_MULTI_STAGE`, `causalProof: false`. Аналогично позднее
+состояние контейнера и совпадение log rule сами по себе не доказывают причину
+завершившегося Compose. Распознанные формы `tools/migrate.mjs` и необработанного
+Node/pg error из `docker/provision-runtime-role.mjs` различаются. SQLSTATE выходит
+только из полного error block с распознанным source/protocol frame, severity и
+кодом из закрытого списка PostgreSQL; message-only migration error не превращается
+в предполагаемый SQLSTATE. SQL, private object names, stack frames, credentials,
+argv, env и исходные строки остаются приватными. Неизвестные формы — `NO_MATCH`.
+
+При `DIAGNOSTIC_PERMISSIONS` CLI log дополнительно разрешены только metadata
+фиксированных labels `var`, `varLib`, `logDirectory`, `logFile`: UID/GID, mode,
+тип, link count и закрытые IDs нарушенных проверок. Walk использует
+`O_PATH | O_NOFOLLOW`, останавливается на первом отвергнутом компоненте и не
+читает содержимое. Permissions gate не ослабляется; chmod/chown не выполняются.
+Эта информация объясняет отказ самой диагностики отдельно от Compose failure.
+Любая ошибка дополнительного observer сохраняет исходные `COMMAND`, exit и FAIL.
+
 Используется только временный `github.token` с read permissions. Он переносится
 в root-owned file 0600, поступает в subprocess через environment и не попадает
 в argv, логи evidence или artifacts. Официальный 1Panel installer выводит

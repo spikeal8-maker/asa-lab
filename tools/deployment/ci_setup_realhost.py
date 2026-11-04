@@ -87,11 +87,27 @@ COMMAND_DIAGNOSTIC_REASONS = DIAGNOSTIC_REASONS | {"COMMAND", "COMMAND_TIMEOUT",
     "CLOUD_TRANSFER_FAILED", "CLOUD_PREPARATION", "BACKUP_REQUIRED", "BACKUP_RESUME_SNAPSHOT_MISSING", "BACKUP_INCOMPLETE",
     "LOCKED", "OPERATION_PENDING", "HEALTH", "TECHNICAL_ACCEPTANCE", "BROWSER_ACCEPTANCE", "INTERRUPTED", "CLI_UNAVAILABLE"}
 COMMAND_DIAGNOSTIC_ERRORS = {"DIAGNOSTIC_PATH", "DIAGNOSTIC_PERMISSIONS", "DIAGNOSTIC_SIZE", "DIAGNOSTIC_CHANGED",
-    "DIAGNOSTIC_BINDING", "DIAGNOSTIC_INVOCATION", "DIAGNOSTIC_LOG_BASELINE", "DIAGNOSTIC_JSON", "DIAGNOSTIC_TIMEOUT"}
+    "DIAGNOSTIC_BINDING", "DIAGNOSTIC_INVOCATION", "DIAGNOSTIC_LOG_BASELINE", "DIAGNOSTIC_JSON", "DIAGNOSTIC_TIMEOUT",
+    "DIAGNOSTIC_INVENTORY", "DIAGNOSTIC_DOCKER_EXIT", "DIAGNOSTIC_OUTPUT_LIMIT"}
 COMMAND_DIAGNOSTIC_OUTCOMES = {"ACCEPTED", "WARNING", "BLOCKED", "ERROR", "INTERRUPTED", "PREPARATION_REQUIRED", "NO_CHANGE"}
 # Ubuntu 24.04 ships /var/log root:syslog 0775; using it as an ancestor would
 # violate diagnostic_open's intentionally strict no-group-write trust contract.
 OPERATOR_LOG_ROOT = Path("/var/lib/asa-lab-operator")
+SWITCH_SERVICES = ("postgres", "minio", "migration", "minio-init", "api", "search", "web", "scratch")
+SWITCH_STATES = {"created", "running", "paused", "restarting", "removing", "exited", "dead"}
+SWITCH_SQLSTATES = {"08001", "08006", "23502", "23503", "23505", "28000", "28P01", "3D000", "3F000",
+    "42501", "42601", "42703", "42704", "42P01", "53100", "53200", "53300", "53400", "55P03", "57014", "XX000"}
+SWITCH_SECONDS = 60
+SWITCH_INSPECT = ('{"id":{{json .Id}},"name":{{json .Name}},"created":{{json .Created}},"image":{{json .Config.Image}},'
+    '"imageId":{{json .Image}},"project":{{json (index .Config.Labels "com.docker.compose.project")}},'
+    '"service":{{json (index .Config.Labels "com.docker.compose.service")}},'
+    '"root":{{json (index .Config.Labels "com.docker.compose.project.working_dir")}},'
+    '"files":{{json (index .Config.Labels "com.docker.compose.project.config_files")}},'
+    '"oneoff":{{json (index .Config.Labels "com.docker.compose.oneoff")}},'
+    '"state":{{json .State.Status}},"running":{{json .State.Running}},"dead":{{json .State.Dead}},'
+    '"oomKilled":{{json .State.OOMKilled}},"exitCode":{{json .State.ExitCode}},"restarts":{{json .RestartCount}},'
+    '"started":{{json .State.StartedAt}},"finished":{{json .State.FinishedAt}},"error":{{json .State.Error}},'
+    '"health":{{if .State.Health}}{{json .State.Health.Status}}{{else}}"none"{{end}}}')
 
 
 class Failure(RuntimeError):
@@ -907,14 +923,310 @@ def command_log_classification(raw, phase):
             if match and phase in stages and -128 <= int(match.group(1)) <= 255:
                 rules.add(rule)
                 exits.add(int(match.group(1)))
-    return {"status": "OBSERVED" if rules else "NO_MATCH", "ruleIds": sorted(rules),
-            "exitCodes": sorted(exits), "httpStatusCodes": sorted(http)}
+    native = compose_error_projection(raw) if phase == "switch" else None
+    return {"status": "OBSERVED" if rules or native and native["ruleIds"] else "NO_MATCH", "ruleIds": sorted(rules),
+            "exitCodes": sorted(exits), "httpStatusCodes": sorted(http),
+            **({"nativeCompose": native, "scope": "PUBLIC_INVOCATION_MULTI_STAGE",
+                "causalProof": False} if phase == "switch" else {})}
+
+
+def daemon_error_rules(detail):
+    rules = set()
+    if "port is already allocated" in detail or "bind: address already in use" in detail:
+        rules.add("DAEMON_PORT_BIND_FAILURE")
+    for phrase, rule in (("failed to create task for container", "DAEMON_CONTAINER_TASK_FAILURE"),
+            ("failed to set up container networking", "DAEMON_CONTAINER_NETWORK_FAILURE"),
+            ("invalid mount config", "DAEMON_MOUNT_CONFIGURATION")):
+        if phrase in detail:
+            rules.add(rule)
+    return rules
+
+
+def compose_error_projection(raw):
+    """Native Compose/daemon forms are observations, never inferred switch causes."""
+    rules, services = set(), {}
+    for original in raw.decode("utf-8", "replace").splitlines():
+        if len(original) > 8192:
+            continue
+        line = re.sub(r"\x1b\[[0-9;]*m", "", original).strip()
+        match = re.fullmatch(r'service "([a-z-]+)" didn\x27t complete successfully: exit ([0-9]{1,3})', line)
+        if match and match[1] in SWITCH_SERVICES and 1 <= int(match[2]) <= 255:
+            rules.add("COMPOSE_SERVICE_EXIT")
+            services[match[1]] = int(match[2])
+        if re.fullmatch(r"dependency failed to start: container [A-Za-z0-9_.-]{1,200} is unhealthy", line):
+            rules.add("COMPOSE_DEPENDENCY_UNHEALTHY")
+        if line.startswith("Error response from daemon: "):
+            rules.update(daemon_error_rules(line[len("Error response from daemon: "):]))
+    return {"status": "OBSERVED" if rules else "NO_MATCH", "ruleIds": sorted(rules), "serviceExitCodes": services}
+
+
+def timestamp_ns(value):
+    require(isinstance(value, str), "DIAGNOSTIC_INVENTORY")
+    match = re.fullmatch(r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:\.([0-9]{1,9}))?Z", value)
+    require(match, "DIAGNOSTIC_INVENTORY")
+    moment = dt.datetime.strptime(match[1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=dt.timezone.utc)
+    epoch = dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+    return (moment - epoch).days * 86400 * 10**9 + (moment - epoch).seconds * 10**9 + int((match[2] or "").ljust(9, "0"))
+
+
+def switch_log_projection(streams, service, invocation):
+    """Classify only timestamped Docker log entries from this invocation."""
+    rules, sqlstates, lines = set(), set(), []
+    require(service in SWITCH_SERVICES and sum(len(item) for item in streams) <= DIAGNOSTIC_LIMIT, "DIAGNOSTIC_OUTPUT_LIMIT")
+    for raw in streams:
+        for line in raw.decode("utf-8", "replace").splitlines():
+            if len(line) > 8192:
+                continue
+            stamp, separator, content = line.partition(" ")
+            try:
+                within = invocation["startedNs"] <= timestamp_ns(stamp) <= invocation["finishedNs"]
+            except (Failure, ValueError):
+                continue
+            if separator and within:
+                lines.append(content)
+    # Pinned tools/migrate.mjs catches errors; docker/provision-runtime-role.mjs
+    # has no catch, so Node prints a pg Error object and its own source frame.
+    if service == "migration":
+        for line in lines:
+            if line.startswith("db:migrate FAIL: "):
+                rules.add("MIGRATION_RUNNER_FAILURE")
+                message = line[len("db:migrate FAIL: "):]
+                for prefix, rule in (("password authentication failed for user ", "DATABASE_AUTHENTICATION_FAILURE"),
+                        ("permission denied for ", "DATABASE_PRIVILEGE_FAILURE"),
+                        ("connect ECONNREFUSED ", "DATABASE_CONNECTION_REFUSED")):
+                    if message.startswith(prefix):
+                        rules.add(rule)
+            if line == "BLOCKED: MIGRATION_DATABASE_URL and MIGRATION_EXPECT_DATABASE are required; DATABASE_URL is never an implicit migration target.":
+                rules.add("MIGRATION_REQUIRED_INPUT_MISSING")
+            if line.startswith("BLOCKED: migration URL targets ") or line.startswith("BLOCKED: set MIGRATION_CONFIRM exactly to "):
+                rules.add("MIGRATION_TARGET_ATTESTATION_FAILED")
+            if line == "MIGRATION_DATABASE_URL and ASA_APP_DB_PASSWORD are required":
+                rules.add("RUNTIME_ROLE_REQUIRED_INPUT_MISSING")
+        for index, line in enumerate(lines):
+            if not line.startswith(("error: ", "Error: ")):
+                continue
+            block = []
+            for item in lines[index:index + 48]:
+                if block and item.startswith(("error: ", "Error: ")):
+                    break
+                block.append(item)
+                if item == "}":
+                    break
+            frame = any(re.fullmatch(r"\s+at (?:async )?file:///app/docker/provision-runtime-role\.mjs:[0-9]+:[0-9]+(?: \{)?", item) for item in block)
+            pg_frame = any(re.fullmatch(r"\s+at Parser\.parseErrorMessage \(/app/node_modules/(?:\.pnpm/pg-protocol@[0-9.]+/node_modules/)?pg-protocol/dist/parser\.js:[0-9]+:[0-9]+\)(?: \{)?", item) for item in block)
+            if not frame and not pg_frame:
+                continue
+            if frame:
+                rules.add("RUNTIME_ROLE_PROVISION_FAILURE")
+            object_open = any(item.startswith("    at ") and item.endswith(" {") for item in block)
+            if object_open and block[-1] == "}" and any(re.fullmatch(r"\s+severity: '(ERROR|FATAL)',?", item) for item in block):
+                rules.add("POSTGRES_SERVER_ERROR")
+                for item in block:
+                    code = re.fullmatch(r"\s+code: '([A-Z0-9]{5})',?", item)
+                    if code and code[1] in SWITCH_SQLSTATES:
+                        sqlstates.add(code[1])
+            if any(re.fullmatch(r"\s+code: 'ECONNREFUSED',?", item) for item in block):
+                rules.add("DATABASE_CONNECTION_REFUSED")
+    if service in ("minio", "minio-init"):
+        for line in lines:
+            if line.startswith(("mc: <ERROR> ", "ERROR ", "Error: ")):
+                if "Access Denied" in line or "Access denied" in line:
+                    rules.add("OBJECT_STORAGE_ACCESS_DENIED")
+                if "permission denied" in line or "Permission denied" in line:
+                    rules.add("OBJECT_STORAGE_FILESYSTEM_PERMISSION")
+                if "read-only file system" in line:
+                    rules.add("OBJECT_STORAGE_READ_ONLY_FILESYSTEM")
+    return {"status": "OBSERVED" if rules else "NO_MATCH", "ruleIds": sorted(rules), "sqlstates": sorted(sqlstates),
+            "readBytes": sum(len(item) for item in streams), "scope": "BOUND_CONTAINER_INVOCATION_LOG", "causalProof": False}
 
 
 def command_log_projection(path, base, uid, *, phase, offset=0, identity=None):
     raw, _, truncated = diagnostic_read(path, base, uid, maximum=64 * 1024**2, offset=offset,
                                         tail=128 * 1024, identity=identity)
     return {**command_log_classification(raw, phase), "readBytes": len(raw), "truncated": truncated}
+
+
+def switch_expected_files(config, uid):
+    require(config.get("profile") == "production", "DIAGNOSTIC_BINDING")
+    files = ["compose.yaml", "compose.production.yaml"]
+    for relative in (".asa/docker-networks.yaml", "compose.frp.yaml"):
+        path = INSTALL_ROOT / relative
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            continue
+        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == uid
+                and not info.st_mode & 0o022, "DIAGNOSTIC_PERMISSIONS")
+        files.append(relative)
+    return [str(INSTALL_ROOT / name) for name in files]
+
+
+def switch_image_references(config, journal):
+    project = config.get("project")
+    require(isinstance(project, str) and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,127}", project)
+            and journal.get("project") == project, "DIAGNOSTIC_BINDING")
+    images = journal.get("release", {}).get("images")
+    require(isinstance(images, dict) and set(images) == {"api", "web", "scratch", "minio", "search"}, "DIAGNOSTIC_BINDING")
+    for name, ref in images.items():
+        require(isinstance(ref, str) and re.fullmatch(re.escape("ghcr.io/" + REPOSITORY + "/" + name + "@sha256:")
+                                                     + r"[a-f0-9]{64}", ref), "DIAGNOSTIC_BINDING")
+    # Both pinned published compose.yaml revisions use this same PostgreSQL
+    # reference; PostgreSQL is not a member of the ASA release image manifest.
+    return {**images, "migration": images["api"], "minio-init": images["minio"], "postgres": "postgres:17.7-bookworm"}
+
+
+def switch_bind_records(records, ids, config, files, images, invocation):
+    require(isinstance(records, list) and len(records) == len(ids) <= len(SWITCH_SERVICES)
+            and all(isinstance(row, dict) for row in records), "DIAGNOSTIC_INVENTORY")
+    require({row.get("id") for row in records} == set(ids), "DIAGNOSTIC_INVENTORY")
+    selected = {}
+    for row in records:
+        service = row.get("service")
+        require(isinstance(service, str) and service in SWITCH_SERVICES and service not in selected
+                and row.get("project") == config["project"] and row.get("root") == str(INSTALL_ROOT)
+                and row.get("files") == ",".join(files) and row.get("oneoff") in ("False", "false")
+                and row.get("image") == images[service], "DIAGNOSTIC_BINDING")
+        require(isinstance(row.get("name"), str) and re.fullmatch(r"/[A-Za-z0-9_.-]{1,200}", row["name"])
+                and isinstance(row.get("imageId"), str) and re.fullmatch(r"sha256:[a-f0-9]{64}", row["imageId"]), "DIAGNOSTIC_BINDING")
+        require(invocation["startedNs"] <= timestamp_ns(row.get("created")) <= invocation["finishedNs"], "DIAGNOSTIC_BINDING")
+        require(isinstance(row.get("state"), str) and row["state"] in SWITCH_STATES
+                and row.get("health") in ("none", "starting", "healthy", "unhealthy")
+                and all(type(row.get(key)) is bool for key in ("running", "dead", "oomKilled"))
+                and type(row.get("exitCode")) is int and 0 <= row["exitCode"] <= 255
+                and type(row.get("restarts")) is int and 0 <= row["restarts"] <= 1_000_000
+                and isinstance(row.get("error"), str) and len(row["error"]) <= 8192, "DIAGNOSTIC_INVENTORY")
+        timestamp_ns(row.get("started"))
+        timestamp_ns(row.get("finished"))
+        selected[service] = row
+    return selected
+
+
+def switch_identity(records):
+    keys = ("id", "name", "created", "image", "imageId", "project", "service", "root", "files", "oneoff")
+    return {name: {key: row[key] for key in keys} for name, row in records.items()}
+
+
+def switch_state_projection(row, invocation):
+    value = {key: row[key] for key in ("state", "running", "dead", "oomKilled", "health", "restarts")}
+    value.update(containerExitCode=row["exitCode"], processExited=row["state"] in ("exited", "dead", "restarting"),
+        startedDuringInvocation=invocation["startedNs"] <= timestamp_ns(row["started"]) <= invocation["finishedNs"],
+        finishedDuringInvocation=invocation["startedNs"] <= timestamp_ns(row["finished"]) <= invocation["finishedNs"])
+    rules = daemon_error_rules(row["error"])
+    value["daemonError"] = {"status": "OBSERVED" if rules else "NO_MATCH", "ruleIds": sorted(rules)}
+    return value
+
+
+def switch_failure_observation(owner, environment, config, journal, invocation):
+    """Bounded read-only local Docker observation; no readiness prerequisite."""
+    deadline = time.monotonic() + SWITCH_SECONDS
+    require(type(owner.get("uid")) is int and owner["uid"] > 0, "DIAGNOSTIC_UID")
+    files, images = switch_expected_files(config, owner["uid"]), switch_image_references(config, journal)
+    expected_daemon = root_json("host-baseline.json")["daemonIdentitySha256"]
+    require(isinstance(expected_daemon, str) and HEX64.fullmatch(expected_daemon), "DIAGNOSTIC_BINDING")
+    child_env = {key: environment[key] for key in ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "PYTHONDONTWRITEBYTECODE") if key in environment}
+    child_env["DOCKER_HOST"] = "unix:///var/run/docker.sock"
+    def read(args, *, logs=False):
+        remaining = deadline - time.monotonic()
+        require(remaining > 5, "DIAGNOSTIC_TIMEOUT")
+        require(args[0] in ("info", "ps", "inspect", "logs"), "DIAGNOSTIC_BINDING")
+        proof, raw = diagnostic_command(["docker", *args], timeout=min(8, remaining - 5),
+            environment=child_env, owner=owner, return_streams=logs)
+        require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
+        if proof.get("reasonCode") in ("DIAGNOSTIC_TIMEOUT", "DIAGNOSTIC_OUTPUT_LIMIT"):
+            raise Failure(proof["reasonCode"])
+        require(not proof.get("reasonCode") and proof.get("exitCode") == 0
+                and proof.get("actualUid", owner["uid"]) == owner["uid"], "DIAGNOSTIC_DOCKER_EXIT")
+        require(sum(map(len, raw)) <= DIAGNOSTIC_LIMIT if logs else len(raw) <= DIAGNOSTIC_LIMIT, "DIAGNOSTIC_OUTPUT_LIMIT")
+        return raw
+    def daemon():
+        require(hashlib.sha256(read(["info", "--format", "{{.ID}}"]).strip()).hexdigest() == expected_daemon, "DIAGNOSTIC_CHANGED")
+    def list_ids():
+        ids = read(["ps", "-aq", "--no-trunc", "--filter", "label=com.docker.compose.project=" + config["project"]]).decode("ascii").split()
+        require(len(ids) <= len(SWITCH_SERVICES) and len(set(ids)) == len(ids)
+                and all(HEX64.fullmatch(item) for item in ids), "DIAGNOSTIC_INVENTORY")
+        return ids
+    def inventory():
+        ids = list_ids()
+        records = [json.loads(line) for line in read(["inspect", "--format", SWITCH_INSPECT, *ids]).splitlines()] if ids else []
+        result = switch_bind_records(records, ids, config, files, images, invocation)
+        require(set(list_ids()) == set(ids), "DIAGNOSTIC_CHANGED")
+        return result
+    daemon()
+    before = inventory()
+    logs, candidates = {}, []
+    for service in SWITCH_SERVICES:
+        row = before.get(service)
+        if row and (row["health"] == "unhealthy" or row["oomKilled"] or row["error"] or
+                    row["state"] in ("exited", "dead", "restarting") and row["exitCode"] != 0):
+            candidates.append(service)
+    def seconds(value):
+        return str(value // 10**9) + "." + str(value % 10**9).zfill(9)
+    for service in candidates[:4]:
+        try:
+            raw = read(["logs", "--timestamps", "--tail", "200", "--since", seconds(invocation["startedNs"]),
+                        "--until", seconds(invocation["finishedNs"]), before[service]["id"]], logs=True)
+            logs[service] = switch_log_projection(raw, service, invocation)
+        except BaseException as error:
+            logs[service] = command_diagnostic_error(error)
+    after = inventory()
+    daemon()
+    require(switch_identity(before) == switch_identity(after), "DIAGNOSTIC_CHANGED")
+    require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
+    services = {}
+    for service in SWITCH_SERVICES:
+        if service not in before:
+            services[service] = {"presence": "NOT_PRESENT"}
+            continue
+        first, last = switch_state_projection(before[service], invocation), switch_state_projection(after[service], invocation)
+        services[service] = {"presence": "PRESENT", "before": first, "after": last, "stateChanged": first != last,
+            "imageBinding": "PINNED_COMPOSE_REFERENCE" if service == "postgres" else "PINNED_RELEASE_DIGEST"}
+        if service in logs:
+            services[service]["log"] = logs[service]
+    return {"status": "OBSERVED", "observation": "AFTER_PUBLIC_FAILURE", "observedAt": now(), "completeInventory": True,
+        "immutableIdentityRechecked": True, "daemonIdentityMatchedBaseline": True, "scope": "OWNED_INSTALL_SWITCH_CONTAINERS",
+        "identitySha256": canonical_hash(switch_identity(before)), "services": services,
+        "logSamples": len(logs), "eligibleLogsNotSampled": max(0, len(candidates) - 4), "composeExitCode": "UNAVAILABLE",
+        "causalProof": False}
+
+
+def cli_metadata_projection(info, label):
+    require(label in ("var", "varLib", "logDirectory", "logFile")
+            and all(type(value) is int and 0 <= value <= 2**32 - 1
+                    for value in (info.st_uid, info.st_gid, info.st_nlink, info.st_mode)), "DIAGNOSTIC_PATH")
+    directory = label != "logFile"
+    kind = "directory" if stat.S_ISDIR(info.st_mode) else "regular" if stat.S_ISREG(info.st_mode) else "symlink" if stat.S_ISLNK(info.st_mode) else "other"
+    failures = []
+    if kind != ("directory" if directory else "regular"):
+        failures.append("EXPECTED_DIRECTORY" if directory else "EXPECTED_REGULAR")
+    if info.st_uid != 0:
+        failures.append("EXPECTED_ROOT_OWNER")
+    if directory and info.st_mode & 0o022:
+        failures.append("ANCESTOR_WRITABLE")
+    if label == "logDirectory" and info.st_mode & 0o077:
+        failures.append("LOG_DIRECTORY_NOT_PRIVATE")
+    if not directory and (stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
+        failures.append("LOG_FILE_MODE_OR_LINKS")
+    return {"kind": kind, "uid": info.st_uid, "gid": info.st_gid, "mode": format(stat.S_IMODE(info.st_mode), "04o"),
+            "links": info.st_nlink, "failedCheckIds": failures}
+
+
+def cli_log_path_metadata(public, words, invocation):
+    """O_PATH metadata only; a rejected component is never opened for reading."""
+    path = cli_log_path(public, words, invocation)
+    descriptor = os.open("/", os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW)
+    result = {"status": "OBSERVED", "contentRead": False, "paths": {}}
+    try:
+        for label, part in (("var", "var"), ("varLib", "lib"), ("logDirectory", "asa-lab-operator"), ("logFile", path.name)):
+            child = os.open(part, os.O_PATH | os.O_NOFOLLOW, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+            result["paths"][label] = cli_metadata_projection(os.fstat(descriptor), label)
+            if result["paths"][label]["failedCheckIds"]:
+                result["firstRejectedLabel"] = label
+                break
+        return result
+    finally:
+        os.close(descriptor)
 
 
 def cli_log_path(public, words, invocation):
@@ -936,7 +1248,7 @@ def command_failure_diagnostic(words, code, public, invocation):
     action = " ".join(words)
     require(action in COMMAND_DIAGNOSTIC_MODES, "DIAGNOSTIC_BINDING")
     context = guest_guard()
-    owner, _ = diagnostic_owner(context)
+    owner, environment = diagnostic_owner(context)
     deadline = time.monotonic() + 30
     # The receipt is a new observation from this invocation, not a stale pointer.
     require(isinstance(invocation, dict) and all(type(invocation.get(key)) is int for key in ("startedNs", "finishedNs"))
@@ -978,6 +1290,18 @@ def command_failure_diagnostic(words, code, public, invocation):
             result["logs"][source] = observed
         except BaseException as error:
             result["logs"][source] = command_diagnostic_error(error)
+            if source == "cli" and getattr(error, "code", None) == "DIAGNOSTIC_PERMISSIONS":
+                try:
+                    result["logs"][source]["pathMetadata"] = cli_log_path_metadata(public, words, invocation)
+                except BaseException as metadata_error:
+                    result["logs"][source]["pathMetadata"] = command_diagnostic_error(metadata_error)
+    if (result["binding"] == "VERIFIED" and result["mode"] == "install" and result["reasonCode"] == "COMMAND"
+            and result["journalPhase"] == result["receiptStage"] == "switch" and result["stages"].get("switch") == "intent"
+            and result["selectedRelease"]["status"] == "CONFIRMED"):
+        try:
+            result["switchObservation"] = switch_failure_observation(owner, environment, values[0], values[1], invocation)
+        except BaseException as error:
+            result["switchObservation"] = command_diagnostic_error(error)
     return result
 
 
@@ -986,7 +1310,7 @@ def diagnostic_error(error):
     return name if name in DIAGNOSTIC_ERRORS else "OtherError"
 
 
-def diagnostic_command(args, *, timeout, environment, owner=None, own_group=True):
+def diagnostic_command(args, *, timeout, environment, owner=None, own_group=True, return_streams=False):
     """Bound both streams in memory and terminate only this probe's process group."""
     options = {} if owner is None else {"user": owner["uid"], "group": owner["gid"],
         "extra_groups": os.getgrouplist(owner["name"], owner["gid"])}
@@ -1042,7 +1366,7 @@ def diagnostic_command(args, *, timeout, environment, owner=None, own_group=True
             result.setdefault("exitCode", process.returncode)
             process.stdout.close()
             process.stderr.close()
-    return result, bytes(output)
+    return result, (bytes(output), bytes(errors)) if return_streams else bytes(output)
 
 
 def diagnostic_command_projection(value):
