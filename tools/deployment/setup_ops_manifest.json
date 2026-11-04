@@ -1,7 +1,7 @@
 {
   "format": "asa-setup-ops-v1",
   "repository": "spikeal8-maker/Server-setings",
-  "revision": "88f3f76144d8b499fe70a3c9beccba16c80e0856",
+  "revision": "80dafa3659e23806963da922c6ddd33ed14fa020",
   "browserRuntime": {
     "distribution": "playwright",
     "version": "1.56.0"
@@ -10,7 +10,7 @@
     {
       "path": "scripts/asa_ops/browser_acceptance.py",
       "packagedPath": "tools/deployment/ops/asa_ops/browser_acceptance.py",
-      "sha256": "7e28aa8254011eb082331c2800909f1ce7f07b4da73473ed3942aacdb1691adc"
+      "sha256": "5c91b152c44a48ed7ab3f14f20eb62aa4fb9f5bad2a694150172fb1f49442b34"
     },
     {
       "path": "scripts/asa_ops/acceptance_fixture.py",

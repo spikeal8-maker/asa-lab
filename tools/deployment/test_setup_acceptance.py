@@ -114,6 +114,43 @@ class BrowserEvidenceTests(unittest.TestCase):
         self.assertEqual(result["error"], {"stage": "blocks_save", "code": "RuntimeError"})
         self.assertNotIn("never-publish", json.dumps(result))
 
+    def test_closed_save_reopen_markers_preserve_failed_outcome_and_completed_checks(self):
+        for code, stage in (("SAVE_NOT_OBSERVED", "blocks_save"),
+                            ("REOPEN_VALUE_MISMATCH", "blocks_save"),
+                            ("REOPEN_DRAFT_MISMATCH", "electronics_save")):
+            with self.subTest(code=code):
+                changed = copy.deepcopy(self.payload)
+                changed["returncode"] = 2
+                completed = acceptance.REQUIRED_CHECKS[:3] if stage == "blocks_save" else acceptance.REQUIRED_CHECKS[:-1]
+                changed["report"]["checks"] = {key: key in completed for key in acceptance.REQUIRED_CHECKS}
+                changed["report"]["error"] = {"stage": stage, "code": code,
+                    "message": "PRIVATE_MESSAGE", "SQLSTATE": "PRIVATE_SQL", "details": {"token": "PRIVATE_TOKEN"}}
+                changed["report"]["unknown"] = {"secret": "PRIVATE_REPORT"}
+                result = acceptance.validate_browser_report(changed, self.binding, 2)
+                self.assertEqual(result["status"], "failed")
+                self.assertEqual(result["reasonCode"], "BROWSER_USER_FLOW_FAILED")
+                self.assertEqual(result["error"], {"stage": stage, "code": code})
+                self.assertEqual(result["checks"], {key: "passed" if key in completed else "failed"
+                                                   for key in acceptance.REQUIRED_CHECKS})
+                self.assertEqual(set(result), {"status", "checks", "reasonCode", "error"})
+                self.assertNotIn("PRIVATE_", json.dumps(result))
+
+    def test_raw_browser_error_values_and_unknown_fields_are_not_projected(self):
+        # The pinned producer owns closed marker/fallback classification;
+        # this envelope boundary must not copy raw text or extra report fields.
+        for value in ("SAVE_NOT_OBSERVED private-token", "REOPEN_VALUE_MISMATCH\nprivate-token",
+                      "API_STATUS_403\n", {"token": "private-token"}):
+            with self.subTest(value_type=type(value).__name__):
+                changed = copy.deepcopy(self.payload)
+                changed["returncode"] = 2
+                changed["report"]["checks"]["scratch_save_reopen"] = False
+                changed["report"]["error"] = {"stage": "blocks_save", "code": value,
+                                               "UNKNOWN_FIELD": "private-token"}
+                result = acceptance.validate_browser_report(changed, self.binding, 2)
+                self.assertEqual(result["status"], "failed")
+                self.assertEqual(result["error"], {"stage": "blocks_save"})
+                self.assertNotIn("private-token", json.dumps(result))
+
     def test_environment_failure_is_distinct_from_failed_user_flow(self):
         value = {"format": "asa-browser-invocation-v1", **self.binding, "status": "environment_failed",
                  "reasonCode": "BROWSER_RUNTIME_UNAVAILABLE"}
@@ -184,12 +221,19 @@ class TechnicalAcceptanceTests(unittest.TestCase):
 
 class PinnedComponentTests(unittest.TestCase):
     def test_manifest_pins_the_runtime_components_and_exact_source_commit(self):
+        from deployment import setup_bundle
+
         manifest = json.loads((Path(__file__).parent / "setup_ops_manifest.json").read_text())
         self.assertEqual(manifest["revision"], acceptance.OPS_REVISION)
+        self.assertEqual(setup_bundle.OPS_REVISION, acceptance.OPS_REVISION)
         self.assertEqual(manifest["browserRuntime"]["version"], acceptance.PLAYWRIGHT_VERSION)
         entries = {item["path"]: item for item in manifest["files"]}
         self.assertEqual(entries["scripts/asa_ops/browser_acceptance.py"]["sha256"], acceptance.BROWSER_SHA256)
         self.assertEqual(entries["scripts/asa_ops/acceptance_fixture.py"]["sha256"], acceptance.FIXTURE_SHA256)
+        realhost = json.loads((Path(__file__).parent / "fixtures/setup-realhost-pins.json").read_text())
+        self.assertEqual(realhost["browser"], {"opsRevision": acceptance.OPS_REVISION,
+            "componentSha256": acceptance.BROWSER_SHA256, "fixtureSha256": acceptance.FIXTURE_SHA256,
+            "playwright": acceptance.PLAYWRIGHT_VERSION})
 
     def test_tampered_source_never_executes_even_with_its_hash_in_config(self):
         with tempfile.TemporaryDirectory() as temporary:

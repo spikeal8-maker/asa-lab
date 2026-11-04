@@ -38,8 +38,8 @@
     "publicationRunId": 41688068934
   },
   "browser": {
-    "opsRevision": "88f3f76144d8b499fe70a3c9beccba16c80e0856",
-    "componentSha256": "7e28aa8254011eb082331c2800909f1ce7f07b4da73473ed3942aacdb1691adc",
+    "opsRevision": "80dafa3659e23806963da922c6ddd33ed14fa020",
+    "componentSha256": "5c91b152c44a48ed7ab3f14f20eb62aa4fb9f5bad2a694150172fb1f49442b34",
     "fixtureSha256": "64de2bc8478d5aaa60f60fa1b0035448d8c467cf0ffcc92a0aa0be22d3b4786f",
     "playwright": "1.56.0"
   }
