@@ -109,6 +109,9 @@ SWITCH_SERVICES = ("postgres", "minio", "migration", "minio-init", "api", "searc
 SWITCH_STATES = {"created", "running", "paused", "restarting", "removing", "exited", "dead"}
 SWITCH_SQLSTATES = {"08001", "08006", "23502", "23503", "23505", "28000", "28P01", "3D000", "3F000",
     "42501", "42601", "42703", "42704", "42P01", "53100", "53200", "53300", "53400", "55P03", "57014", "XX000"}
+SWITCH_API_PHASE_RULES = {"startup_failed": "API_STARTUP_FAILED", "nest_error": "API_NEST_ERROR"}
+SWITCH_API_ERROR_CODES = {"database_query_timeout", "database_connection_timeout", "upstream_connection_failed", "internal_error"}
+SWITCH_API_ERROR_CLASSES = {"Error", "ClassroomCodeSecretConfigError", "StudentCodeProtectionConfigError"}
 SWITCH_SECONDS = 60
 SWITCH_READ_STEPS = {"daemonBefore": "info", "beforeList": "ps", "beforeInspect": "inspect", "beforeRecheck": "ps",
     "containerLogs": "logs", "afterList": "ps", "afterInspect": "inspect", "afterRecheck": "ps", "daemonAfter": "info"}
@@ -1534,11 +1537,35 @@ def switch_node_error_projection(block):
     return rules, codes
 
 
+def switch_api_lifecycle_projection(line, invocation):
+    """Recognize the closed stderr lifecycle shape published by both pinned APIs."""
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError
+            result[key] = value
+        return result
+    try:
+        event = json.loads(line, object_pairs_hook=unique_object)
+        if (type(event) is not dict or set(event) != {"kind", "level", "time", "phase", "errorCode", "errorClass"}
+                or not all(type(value) is str for value in event.values())
+                or event["kind"] != "api_lifecycle" or event["level"] != "error"
+                or event["phase"] not in SWITCH_API_PHASE_RULES or event["errorCode"] not in SWITCH_API_ERROR_CODES
+                or event["errorClass"] not in SWITCH_API_ERROR_CLASSES
+                or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z", event["time"])
+                or not invocation["startedNs"] <= timestamp_ns(event["time"]) <= invocation["finishedNs"]):
+            return None
+    except (ValueError, TypeError, RecursionError, Failure):
+        return None
+    return event["phase"], event["errorCode"], event["errorClass"]
+
+
 def switch_log_projection(streams, service, invocation):
     """Parse each timestamped stream separately; never splice error-object fragments."""
-    rules, sqlstates = set(), set()
+    rules, sqlstates, api_lifecycle = set(), set(), set()
     require(service in SWITCH_SERVICES and sum(len(item) for item in streams) <= DIAGNOSTIC_LIMIT, "DIAGNOSTIC_OUTPUT_LIMIT")
-    for raw in streams:
+    for stream_index, raw in enumerate(streams):
         lines = []
         for line in raw.decode("utf-8", "replace").splitlines():
             stamp, separator, content = line.partition(" ")
@@ -1552,6 +1579,11 @@ def switch_log_projection(streams, service, invocation):
         for index, line in enumerate(lines):
             if line is None:
                 continue
+            if service == "api" and stream_index == 1:
+                event = switch_api_lifecycle_projection(line, invocation)
+                if event is not None:
+                    rules.add(SWITCH_API_PHASE_RULES[event[0]])
+                    api_lifecycle.add(event)
             if service == "migration":
                 if line.startswith("db:migrate FAIL: "):
                     rules.add("MIGRATION_RUNNER_FAILURE")
@@ -1585,8 +1617,12 @@ def switch_log_projection(streams, service, invocation):
                     rules.add("OBJECT_STORAGE_FILESYSTEM_PERMISSION")
                 if "read-only file system" in line:
                     rules.add("OBJECT_STORAGE_READ_ONLY_FILESYSTEM")
-    return {"status": "OBSERVED" if rules else "NO_MATCH", "ruleIds": sorted(rules), "sqlstates": sorted(sqlstates),
+    result = {"status": "OBSERVED" if rules else "NO_MATCH", "ruleIds": sorted(rules), "sqlstates": sorted(sqlstates),
             "readBytes": sum(len(item) for item in streams), "scope": "BOUND_CONTAINER_INVOCATION_LOG", "causalProof": False}
+    if api_lifecycle:
+        result["apiLifecycle"] = [{"phase": phase, "errorCode": code, "errorClass": error_class}
+                                  for phase, code, error_class in sorted(api_lifecycle)]
+    return result
 
 
 def command_log_projection(path, base, uid, *, phase, offset=0, identity=None):
@@ -1750,7 +1786,7 @@ def switch_failure_observation(owner, environment, config, journal, invocation):
     logs, candidates = {}, []
     for service in SWITCH_SERVICES:
         row = before.get(service)
-        if row and (row["health"] == "unhealthy" or row["oomKilled"] or row["error"] or
+        if row and (row["health"] == "unhealthy" or row["oomKilled"] or row["error"] or row["restarts"] > 0 or
                     row["state"] in ("exited", "dead", "restarting") and row["exitCode"] != 0):
             candidates.append(service)
     def seconds(value):

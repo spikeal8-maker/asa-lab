@@ -472,8 +472,9 @@ exit code. `processExited` отделяет остановленный проц�
 CLI; числовой `composeExitCode` остаётся `UNAVAILABLE`. `NOT_PRESENT` разрешён
 только после полного стабильного inventory.
 
-Logs выбираются только для failed/unhealthy собственных containers. Приоритет
-имеют PostgreSQL, MinIO и оба one-shot service. Разрешены не более четырёх
+Logs выбираются только для failed/unhealthy собственных containers или при
+`restarts > 0`, в том числе при текущем `running/starting`. Приоритет имеют
+PostgreSQL, MinIO и оба one-shot service. Разрешены не более четырёх
 samples по 64 КиБ суммарного stdout/stderr, `--tail 200`, `--since` и `--until`
 с полными timestamps текущего invocation. Каждая строка дополнительно должна
 иметь Docker timestamp внутри интервала. `--follow` и `--details` не используются.
@@ -505,6 +506,20 @@ source/protocol frame и единственными severity/code после ope
 закрытого списка PostgreSQL; message-only migration error не превращается в
 предполагаемый SQLSTATE. SQL, private object names, stack frames, credentials,
 argv, env и исходные строки остаются приватными. Неизвестные формы — `NO_MATCH`.
+
+Для `api` дополнительно распознаётся однострочный stderr JSON `api_lifecycle`
+из обоих pinned releases: ровно `kind`, `level`, `time`, `phase`, `errorCode`,
+`errorClass`, все строковые. `level` равен `error`; допустимы только
+`startup_failed` / `nest_error`, четыре кода `database_query_timeout`,
+`database_connection_timeout`, `upstream_connection_failed`, `internal_error`
+и классы `Error`, `ClassroomCodeSecretConfigError`, `StudentCodeProtectionConfigError`.
+Docker timestamp и строго разобранное ISO-время события должны попадать в
+исходный invocation window. Дубли ключей, вложенные/дополнительные поля,
+неизвестные значения и фрагменты между строками или потоками дают `NO_MATCH`.
+Выход содержит только `API_STARTUP_FAILED` / `API_NEST_ERROR` и закрытые тройки
+`apiLifecycle` (`phase`, `errorCode`, `errorClass`); исходное время не экспортируется.
+Перезапуск и совпавшее событие не доказывают причину отказа Compose:
+`causalProof` остаётся `false`.
 
 При `DIAGNOSTIC_PERMISSIONS` CLI log дополнительно разрешены только metadata
 фиксированных labels `var`, `varLib`, `logDirectory`, `logFile`: UID/GID, mode,

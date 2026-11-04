@@ -1514,6 +1514,124 @@ class SwitchDiagnosticTests(unittest.TestCase):
         self.assertNotIn("PRIVATE", json.dumps(observed))
         self.assertTrue(all(call[0][1] in ("info", "ps", "inspect", "logs") for call in self.calls))
 
+    def api_lifecycle_line(self, **changes):
+        # Exact lifecycleEvent JSON shape from both pinned 98d7fbb and 959d520
+        # apps/api/src/owned-pool-lifecycle.ts; the producer writes to stderr.
+        value = {"kind": "api_lifecycle", "level": "error", "time": "2026-11-04T12:00:00.600Z",
+                 "phase": "startup_failed", "errorCode": "internal_error", "errorClass": "Error"}
+        value.update(changes)
+        return json.dumps(value, separators=(",", ":"))
+
+    def test_running_starting_api_with_four_restarts_is_sampled_in_original_invocation_window(self):
+        records = self.fixture()[-1]
+        for row in records:
+            if row["service"] not in ("migration", "minio-init"):
+                row["health"] = "healthy"
+            if row["service"] == "migration":
+                row.update(exitCode=0, health="unhealthy")
+            if row["service"] == "api":
+                row.update(health="starting", restarts=4, started="2026-11-04T12:00:00.900000000Z",
+                           finished="2026-11-04T12:00:00.600000000Z")
+            if row["service"] == "web":
+                row.update(state="created", running=False, health="none", started="0001-01-01T00:00:00Z")
+        observed = self.observe(before=records, log_streams=(b"", self.stamped([self.api_lifecycle_line()])))
+        self.assertEqual((observed["logSamples"], observed["eligibleLogsNotSampled"]), (2, 0))
+        api = observed["services"]["api"]
+        self.assertEqual((api["before"]["state"], api["before"]["health"], api["before"]["restarts"]),
+                         ("running", "starting", 4))
+        self.assertFalse(api["before"]["startedDuringInvocation"])
+        self.assertTrue(api["before"]["finishedDuringInvocation"])
+        self.assertEqual(api["log"]["ruleIds"], ["API_STARTUP_FAILED"])
+        self.assertFalse(api["log"]["causalProof"])
+        self.assertFalse(observed["causalProof"])
+        requested = [call[0] for call in self.calls if call[0][1] == "logs"]
+        self.assertEqual([args[-1] for args in requested], [records[2]["id"], records[4]["id"]])
+        for args in requested:
+            self.assertEqual(args[args.index("--since") + 1], "1793793600.200000000")
+            self.assertEqual(args[args.index("--until") + 1], "1793793600.800000000")
+        for row in records:
+            row.update(health="starting", restarts=4)
+        bounded = self.observe(before=records)
+        self.assertEqual((bounded["logSamples"], bounded["eligibleLogsNotSampled"]), (4, 4))
+        self.assertEqual(sum(call[0][1] == "logs" for call in self.calls), 4)
+
+    def test_pinned_api_lifecycle_projects_only_closed_phase_code_and_class(self):
+        invocation = self.fixture()[2]
+        for phase, rule in (("startup_failed", "API_STARTUP_FAILED"), ("nest_error", "API_NEST_ERROR")):
+            for code in ("database_query_timeout", "database_connection_timeout", "upstream_connection_failed", "internal_error"):
+                for error_class in ("Error", "ClassroomCodeSecretConfigError", "StudentCodeProtectionConfigError"):
+                    with self.subTest(phase=phase, code=code, error_class=error_class):
+                        raw = self.stamped([self.api_lifecycle_line(phase=phase, errorCode=code, errorClass=error_class)])
+                        observed = harness.switch_log_projection((b"", raw), "api", invocation)
+                        self.assertEqual(observed, {"status": "OBSERVED", "ruleIds": [rule], "sqlstates": [],
+                            "readBytes": len(raw), "scope": "BOUND_CONTAINER_INVOCATION_LOG", "causalProof": False,
+                            "apiLifecycle": [{"phase": phase, "errorCode": code, "errorClass": error_class}]})
+
+    def test_api_lifecycle_rejects_malformed_duplicate_nested_extra_and_unknown_fields(self):
+        invocation = self.fixture()[2]
+        line = self.api_lifecycle_line()
+        private = "PRIVATE_LIFECYCLE_SECRET_MUST_NOT_ESCAPE"
+        cases = [line[:-1], line + line, "[" + line + "]", "null", "true", "{}", line + private,
+            line[:-1] + ',"phase":"startup_failed"}',
+            line[:-1] + ',"phase":"nest_error"}',
+            line[:-1] + ',"errorCode":"' + private + '"}',
+            line[:-1] + ',"error\\u0043ode":"internal_error"}',
+            self.api_lifecycle_line(message=private), self.api_lifecycle_line(frames=[]),
+            self.api_lifecycle_line(kind="database_pool_error"), self.api_lifecycle_line(level="info"),
+            self.api_lifecycle_line(phase="pool_query_close_failed"), self.api_lifecycle_line(phase=private),
+            self.api_lifecycle_line(errorCode="42501"), self.api_lifecycle_line(errorCode=private),
+            self.api_lifecycle_line(errorClass="UnknownError"), self.api_lifecycle_line(errorClass=private)]
+        source = json.loads(line)
+        for key in source:
+            cases.append(json.dumps({name: value for name, value in source.items() if name != key}))
+            for value in (None, False, 1, 1.5, [], {"secret": private}):
+                cases.append(self.api_lifecycle_line(**{key: value}))
+        for index, candidate in enumerate(cases):
+            with self.subTest(case=index):
+                observed = harness.switch_log_projection((b"", self.stamped([candidate])), "api", invocation)
+                self.assertEqual((observed["status"], observed["ruleIds"], observed["sqlstates"]), ("NO_MATCH", [], []))
+                self.assertNotIn("apiLifecycle", observed)
+                self.assertNotIn(private, json.dumps(observed))
+
+    def test_api_lifecycle_requires_producer_time_service_and_bound_docker_timestamp(self):
+        invocation = self.fixture()[2]
+        for producer_time in ("PRIVATE_TIME", "2026-11-04T12:00:00Z", "2026-11-04T12:00:00.600+00:00",
+                              "2026-02-30T12:00:00.600Z", "2026-11-04T25:00:00.600Z", "2026-11-04T12:00:00.6000Z",
+                              "2026-11-04T12:00:00.199Z", "2026-11-04T12:00:00.801Z"):
+            raw = self.stamped([self.api_lifecycle_line(time=producer_time)])
+            with self.subTest(time=producer_time):
+                self.assertEqual(harness.switch_log_projection((b"", raw), "api", invocation)["status"], "NO_MATCH")
+        for stamp in ("2026-11-04T12:00:00.199999999Z", "2026-11-04T12:00:00.800000001Z", "PRIVATE_TIMESTAMP"):
+            with self.subTest(stamp=stamp):
+                raw = self.stamped([self.api_lifecycle_line()], timestamp=stamp)
+                self.assertEqual(harness.switch_log_projection((b"", raw), "api", invocation)["status"], "NO_MATCH")
+        raw = self.stamped([self.api_lifecycle_line()])
+        for service in set(harness.SWITCH_SERVICES) - {"api"}:
+            with self.subTest(service=service):
+                self.assertEqual(harness.switch_log_projection((b"", raw), service, invocation)["status"], "NO_MATCH")
+        self.assertEqual(harness.switch_log_projection((b"", self.api_lifecycle_line().encode()), "api", invocation)["status"], "NO_MATCH")
+
+    def test_api_lifecycle_never_joins_lines_or_streams_and_preserves_independent_events(self):
+        invocation = self.fixture()[2]
+        line = self.api_lifecycle_line()
+        left, right = line.split(',"phase":', 1)
+        left += ","
+        right = '"phase":' + right
+        for streams in ((self.stamped([line]), b""),
+                        (self.stamped([left]), self.stamped([right])),
+                        (self.stamped([right]), self.stamped([left])),
+                        (b"", self.stamped([left, right]))):
+            with self.subTest(streams=streams):
+                self.assertEqual(harness.switch_log_projection(streams, "api", invocation)["status"], "NO_MATCH")
+        second = self.api_lifecycle_line(phase="nest_error", errorCode="database_query_timeout")
+        streams = (b"PRIVATE_UNFRAMED\n", self.stamped([line, second, line, left]))
+        observed = harness.switch_log_projection(streams, "api", invocation)
+        self.assertEqual(observed["ruleIds"], ["API_NEST_ERROR", "API_STARTUP_FAILED"])
+        self.assertEqual(observed["apiLifecycle"], [
+            {"phase": "nest_error", "errorCode": "database_query_timeout", "errorClass": "Error"},
+            {"phase": "startup_failed", "errorCode": "internal_error", "errorClass": "Error"}])
+        self.assertNotIn("PRIVATE", json.dumps(observed))
+
     def test_foreign_binding_duplicate_ids_and_duplicate_services_are_rejected_before_logs(self):
         for key, value in (("project", "foreign"), ("root", "/foreign"), ("files", "/foreign/compose.yaml"),
                            ("image", "foreign/image:latest"), ("service", "foreign"), ("oneoff", "True"),
