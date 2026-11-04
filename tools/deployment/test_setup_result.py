@@ -5,6 +5,7 @@ from contextlib import redirect_stdout
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -397,19 +398,86 @@ class BackupExecutionEvidenceTests(unittest.TestCase):
                 self.assertEqual(answer["exitCode"], expected)
 
 
+def bootstrap_bash_executable(*, platform=None):
+    platform = os.name if platform is None else platform
+    if platform != "nt":
+        executable = shutil.which("bash")
+        if executable:
+            return executable
+        raise RuntimeError("Bootstrap test requires an installed Bash executable.")
+    git = shutil.which("git")
+    if not git:
+        raise RuntimeError("Bootstrap test requires Git for Windows with Git Bash; git.exe was not found.")
+    executable = Path(git).resolve()
+    git_root = executable.parent.parent
+    if git_root.name.lower() in ("mingw32", "mingw64"):
+        git_root = git_root.parent
+    candidates = (git_root / "bin/bash.exe", git_root / "usr/bin/bash.exe")
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    raise RuntimeError(f"Git Bash was not found beside {executable}; checked {candidates!r}. PATH bash is not a Git Bash proof.")
+
+
 class BootstrapResultTests(unittest.TestCase):
+    def assert_bash_selection(self):
+        for git_directory, bash_directory in (("bin", "bin"), ("cmd", "bin"),
+                                               ("cmd", "usr/bin"), ("mingw64/bin", "usr/bin")):
+            with self.subTest(git_directory=git_directory, bash_directory=bash_directory), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / "Program Files/Git"
+                git = root / git_directory / "git.exe"
+                bash = root / bash_directory / "bash.exe"
+                git.parent.mkdir(parents=True)
+                bash.parent.mkdir(parents=True, exist_ok=True)
+                git.write_bytes(b"")
+                bash.write_bytes(b"")
+                with patch.object(shutil, "which", side_effect=lambda name: str(git) if name == "git" else "WSL-shim.exe") as which:
+                    self.assertEqual(bootstrap_bash_executable(platform="nt"), str(bash.resolve()))
+                which.assert_called_once_with("git")
+        with self.subTest(platform="nt", git_bash="missing"), tempfile.TemporaryDirectory() as directory:
+            git = Path(directory) / "Git/cmd/git.exe"
+            git.parent.mkdir(parents=True)
+            git.write_bytes(b"")
+            with patch.object(shutil, "which", side_effect=lambda name: str(git) if name == "git" else "WSL-shim.exe") as which:
+                with self.assertRaisesRegex(RuntimeError, "Git Bash was not found"):
+                    bootstrap_bash_executable(platform="nt")
+            which.assert_called_once_with("git")
+        with self.subTest(platform="nt", git="missing"), patch.object(shutil, "which", return_value=None):
+            with self.assertRaisesRegex(RuntimeError, "git.exe was not found"):
+                bootstrap_bash_executable(platform="nt")
+        with self.subTest(platform="posix"), patch.object(shutil, "which", return_value="/usr/bin/bash") as which:
+            self.assertEqual(bootstrap_bash_executable(platform="posix"), "/usr/bin/bash")
+            which.assert_called_once_with("bash")
+
+    @staticmethod
+    def process_diagnostics(process):
+        return (f"Bash={process.args[0]!r}; returncode={process.returncode}; "
+                f"stdout ({len(process.stdout)} chars)={process.stdout[:4096]!r}; "
+                f"stderr ({len(process.stderr)} chars)={process.stderr[:4096]!r}")
+
     def run_bootstrap_report(self, *, as_json, code):
         source = (Path(__file__).resolve().parents[2] / "asa-setup.sh").read_text(encoding="utf-8")
         function = source.split("asa_setup_bootstrap_failure() {", 1)[1].split("\n}\n", 1)[0]
         script = "set -euo pipefail\nasa_setup_json=" + ("true" if as_json else "false")
         script += "\nasa_setup_bootstrap_failure() {" + function + "\n}\nasa_setup_bootstrap_failure " + str(code)
-        return subprocess.run(["bash", "-c", script], capture_output=True, text=True, encoding="utf-8", check=False)
+        process = subprocess.run([bootstrap_bash_executable(), "-c", script],
+                                 capture_output=True, text=True, encoding="utf-8", check=False)
+        diagnostic = self.process_diagnostics(process)
+        self.assertEqual(process.returncode, code, diagnostic)
+        self.assertTrue(process.stdout.strip(), diagnostic)
+        return process
 
     def test_bootstrap_json_and_text_match_actual_exit_without_preparing_host(self):
+        self.assert_bash_selection()
         for code, outcome, marker in ((2, "BLOCKED", "[!]"), (1, "ERROR", "[X]")):
             with self.subTest(code=code):
                 process = self.run_bootstrap_report(as_json=True, code=code)
-                value = json.loads(process.stdout)
+                diagnostic = self.process_diagnostics(process)
+                self.assertTrue(process.stdout.lstrip().startswith("{"), diagnostic)
+                try:
+                    value = json.loads(process.stdout)
+                except json.JSONDecodeError as error:
+                    self.fail(f"Bootstrap JSON could not be decoded: {error}; {diagnostic}")
                 self.assertEqual((process.returncode, value["exitCode"], value["outcome"]), (code, code, outcome))
                 self.assertFalse(value["applicationAccepted"])
                 self.assertFalse(value["actionExecuted"])
