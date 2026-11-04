@@ -40,7 +40,7 @@ class PublicOriginsTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="asa-public-origins-")
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         (self.root / ".asa").mkdir(mode=0o700)
         for name in ("compose.yaml", "compose.production.yaml"):
             shutil.copyfile(HERE.parents[1] / name, self.root / name)
@@ -93,6 +93,29 @@ class PublicOriginsTests(unittest.TestCase):
         runtime.operation_id = self.journal["operationId"]
         return runtime
 
+    def test_fixture_resolves_a_directory_alias_before_private_identity_is_written(self):
+        with tempfile.TemporaryDirectory(prefix="asa-origin-alias-") as temporary:
+            base = Path(temporary).resolve()
+            (base / "walk").mkdir()
+            canonical = base / "canonical"
+            canonical.mkdir()
+            alias = base / "walk/../canonical"
+            fixture = PublicOriginsTests("test_fresh_production_loopback_emits_literal_empty_overlay")
+            owned = SimpleNamespace(name=str(alias), cleanup=lambda: None)
+            try:
+                with patch.object(tempfile, "TemporaryDirectory", return_value=owned):
+                    fixture.setUp()
+                self.assertEqual(fixture.root, canonical.resolve())
+                self.assertEqual(fixture.config["root"], str(fixture.root))
+                self.assertEqual(fixture.runtime().install.root, fixture.root)
+                fixture.interrupt_before_marker()
+                resumed = fixture.runtime()
+                self.assertTrue(resumed.install.public_origins_pending)
+                resumed.environment()
+                self.assertEqual(resumed.install.root, fixture.root)
+            finally:
+                fixture.doCleanups()
+
     def test_fresh_production_loopback_emits_literal_empty_overlay(self):
         before = read_env(self.root / ".env")
         runtime = self.runtime()
@@ -137,6 +160,7 @@ class PublicOriginsTests(unittest.TestCase):
         self.config["entryOrigin"] = "https://school.example.test"
         self.values["ASA_PUBLIC_WEB_ORIGINS"] = "https://portal.example.test"
         self.save_environment()
+        save_private(self.root / ".asa/setup.json", self.config)
         self.runtime().environment()
         self.assertEqual(read_env(self.root / ".env")["ASA_PUBLIC_WEB_ORIGINS"],
                          "https://portal.example.test,https://school.example.test")
@@ -481,9 +505,14 @@ class PublicOriginsTests(unittest.TestCase):
         stack.enter_context(redirect_stdout(io.StringIO()))
         return stack
 
-    def public_install_interrupt_environment(self, *, project="school-fixture", after_marker=False):
+    def prepare_public_install(self, *, project="school-fixture", profile="production", origin=None):
         (self.root / ".env").unlink()
         self.config["project"] = project
+        self.config["profile"] = profile
+        if origin is not None:
+            self.config["entryOrigin"] = origin
+        if profile != "base":
+            shutil.copyfile(HERE.parents[1] / ("compose." + profile + ".yaml"), self.root / ("compose." + profile + ".yaml"))
         self.config["onboardingFile"] = str(self.root / ".asa/onboarding.json")
         save_private(self.root / ".asa/setup.json", self.config)
         save_private(Path(self.config["onboardingFile"]), {
@@ -492,6 +521,9 @@ class PublicOriginsTests(unittest.TestCase):
         self.journal["project"] = self.config["project"]
         self.journal["stages"], self.journal["events"] = {}, []
         self.store.event(self.journal, "configured", "done")
+
+    def public_install_interrupt_environment(self, *, project="school-fixture", after_marker=False):
+        self.prepare_public_install(project=project)
         write = setup_operation.atomic_bytes
 
         def interrupted(path, content, **kwargs):
@@ -512,6 +544,107 @@ class PublicOriginsTests(unittest.TestCase):
         self.assertEqual(read_env(self.root / ".env").get(MARKER), MODE if after_marker else None)
         self.assertFalse((self.root / ".asa/installation.json").exists())
         return saved
+
+    def public_install_until_settings(self, *, profile="production", origin=None):
+        self.prepare_public_install(profile=profile, origin=origin)
+        args = self.public_install_args()
+        with self.public_install_adapters(), patch.object(Runtime, "settings", side_effect=KeyboardInterrupt()):
+            self.assertEqual(asa_setup.execute(args), 130)
+        saved = self.store.read(self.journal["operationId"])
+        self.assertEqual(saved["state"], "RUNNING")
+        self.assertEqual(saved["stages"]["environment"]["status"], "done")
+        self.assertEqual(saved["stages"]["settings"]["status"], "intent")
+        return saved
+
+    def empty_docker_read(self, arguments, **kwargs):
+        self.assertEqual(arguments, ["docker", "ps", "-aq", "--filter", "label=com.docker.compose.project"])
+        self.assertEqual(kwargs, {"capture": True})
+        return ""
+
+    def assert_new_profile_continuation(self, profile):
+        saved = self.public_install_until_settings(profile=profile, origin="https://school.example.test")
+        before = ((self.root / ".env").read_bytes(), (self.root / ".env").stat().st_ino)
+        args = self.public_install_args(operation_id=saved["operationId"])
+        with self.public_install_adapters(), patch.object(system, "run", side_effect=self.empty_docker_read) as reads, \
+                patch.object(Runtime, "images", side_effect=KeyboardInterrupt()) as unfinished, \
+                patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+            self.assertEqual(asa_setup.execute(args), 130)
+            unfinished.assert_called_once()
+            reads.assert_not_called()
+            adopt.assert_not_called()
+        final = self.store.read(saved["operationId"])
+        self.assertEqual(final["stages"]["settings"]["status"], "done")
+        self.assertEqual(final["stages"]["images"]["status"], "intent")
+        self.assertEqual(final["installEnvironment"], saved["installEnvironment"])
+        self.assertEqual(final["installEnvironment"]["format"], setup_operation.ENVIRONMENT_FORMAT)
+        self.assertEqual(final["installEnvironment"]["afterSha256"], hashlib.sha256(before[0]).hexdigest())
+        self.assertNotIn("publicOriginsEnvironment", final)
+        self.assertEqual(((self.root / ".env").read_bytes(), (self.root / ".env").stat().st_ino), before)
+        self.assertEqual(read_env(self.root / ".env")["ASA_PUBLIC_WEB_ORIGINS"], "https://school.example.test")
+        self.assertNotIn(MARKER, read_env(self.root / ".env"))
+        self.assertFalse((self.root / OVERLAY).exists())
+        settings = json.loads((self.root / ".asa/installation.json").read_text())
+        self.assertEqual((settings["instanceId"], settings["project"], settings["profile"]),
+                         (IDENTITY, self.config["project"], profile))
+
+    def test_new_https_production_install_has_a_bound_public_resume(self):
+        self.assert_new_profile_continuation("production")
+
+    def test_new_dev_install_has_a_bound_public_resume(self):
+        self.assert_new_profile_continuation("dev")
+
+    def test_new_staging_install_has_a_bound_public_resume(self):
+        self.assert_new_profile_continuation("staging")
+
+    def test_new_base_install_has_a_bound_public_resume(self):
+        self.assert_new_profile_continuation("base")
+
+    def assert_public_https_environment_resume(self, *, after_write):
+        self.prepare_public_install(origin="https://school.example.test")
+        write = setup_operation.atomic_bytes
+
+        def interrupted(path, content, **kwargs):
+            if Path(path) == self.root / ".env":
+                raise KeyboardInterrupt()
+            return write(path, content, **kwargs)
+
+        with self.public_install_adapters(), ExitStack() as interruption:
+            if after_write:
+                interruption.enter_context(patch.object(Runtime, "reload", side_effect=KeyboardInterrupt()))
+            else:
+                interruption.enter_context(patch.object(setup_operation, "atomic_bytes", side_effect=interrupted))
+            self.assertEqual(asa_setup.execute(self.public_install_args()), 130)
+        saved = self.store.read(self.journal["operationId"])
+        self.assertEqual(saved["stages"]["environment"]["status"], "intent")
+        before = read_env(self.root / ".env")
+        self.assertEqual(before["COMPOSE_PROJECT_NAME"], "school-fixture" if after_write else "asa-lab-dev")
+        with self.public_install_adapters(), patch.object(system, "run", side_effect=self.empty_docker_read) as reads, \
+                patch.object(Runtime, "settings", side_effect=KeyboardInterrupt()) as unfinished, \
+                patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+            self.assertEqual(asa_setup.execute(self.public_install_args(operation_id=saved["operationId"])), 130)
+            unfinished.assert_called_once()
+            reads.assert_not_called()
+            adopt.assert_not_called()
+        after, final = read_env(self.root / ".env"), self.store.read(saved["operationId"])
+        self.assertEqual(final["stages"]["environment"]["status"], "done")
+        for key in ("operationId", "installationId", "root", "project", "installEnvironment"):
+            self.assertEqual(final[key], saved[key], key)
+        for key in ("POSTGRES_PASSWORD", "ASA_APP_DB_PASSWORD", "CLASSROOM_CODE_SECRET",
+                    "ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON", "ASA_STUDENT_CODE_LOOKUP_KEYS_JSON",
+                    "ASA_OBJECT_STORAGE_SECRET_KEY", "ASA_SETTINGS_ENCRYPTION_KEY"):
+            self.assertEqual(after[key], before[key], key)
+        self.assertEqual(after["COMPOSE_PROJECT_NAME"], "school-fixture")
+        self.assertEqual(after["ASA_PUBLIC_WEB_ORIGINS"], "https://school.example.test")
+        self.assertEqual(final["installEnvironment"]["afterSha256"], hashlib.sha256((self.root / ".env").read_bytes()).hexdigest())
+        self.assertNotIn(MARKER, after)
+        self.assertFalse((self.root / OVERLAY).exists())
+        self.assertFalse((self.root / ".asa/installation.json").exists())
+
+    def test_public_https_resume_replays_its_bound_environment_preimage(self):
+        self.assert_public_https_environment_resume(after_write=False)
+
+    def test_public_https_resume_replays_its_bound_environment_afterimage(self):
+        self.assert_public_https_environment_resume(after_write=True)
 
     def assert_public_install_environment_resume(self, *, project="school-fixture", after_marker=False):
         saved = self.public_install_interrupt_environment(project=project, after_marker=after_marker)
@@ -547,6 +680,338 @@ class PublicOriginsTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "posix", "Linux setup CLI")
     def test_public_install_default_project_still_resumes_before_marker_without_adoption(self):
         self.assert_public_install_environment_resume(project="asa-lab-dev")
+
+    def test_public_install_second_resume_reaches_first_unfinished_stage_without_adoption(self):
+        self.assert_public_install_environment_resume()
+        saved = self.store.read(self.journal["operationId"])
+        self.assertEqual(saved["stages"]["environment"]["status"], "done")
+        self.assertEqual(saved["stages"]["settings"]["status"], "intent")
+        preserved = {self.root / name: ((self.root / name).read_bytes(), (self.root / name).stat().st_ino)
+                     for name in (".env", OVERLAY)}
+        reads = []
+
+        def empty_docker_read(arguments, **kwargs):
+            self.assertEqual(arguments, ["docker", "ps", "-aq", "--filter", "label=com.docker.compose.project"])
+            self.assertEqual(kwargs, {"capture": True})
+            reads.append(arguments)
+            return ""
+
+        args = self.public_install_args(operation_id=saved["operationId"])
+        with self.public_install_adapters(), patch.object(system, "run", side_effect=empty_docker_read), \
+                patch.object(Runtime, "settings", side_effect=KeyboardInterrupt()) as unfinished, \
+                patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+            self.assertEqual(asa_setup.execute(args), 130)
+            unfinished.assert_called_once()
+            adopt.assert_not_called()
+        self.assertEqual(reads, [])
+        final = self.store.read(saved["operationId"])
+        for key in ("operationId", "installationId", "root", "project", "publicOriginsEnvironment"):
+            self.assertEqual(final[key], saved[key], key)
+        self.assertEqual(final["state"], "RUNNING")
+        self.assertNotIn("switch", final["stages"])
+        self.assertEqual({path: (path.read_bytes(), path.stat().st_ino) for path in preserved}, preserved)
+        self.assertFalse((self.root / ".asa/installation.json").exists())
+
+    def continuation_adapters(self):
+        stack = self.public_install_adapters()
+        stack.enter_context(patch.object(Runtime, "images", return_value=None))
+        stack.enter_context(patch.object(setup_operation, "validate_resolved_images", return_value=None))
+        stack.enter_context(patch.object(setup_operation.setup_host, "disk_budget", return_value={"status": "OK"}))
+        return stack
+
+    def test_public_resumes_the_pre_switch_prefix_without_replaying_completed_stages(self):
+        self.prepare_public_install()
+        event = Store.event
+
+        def before_settings(store, journal, name, status, **details):
+            if name == "settings":
+                raise KeyboardInterrupt()
+            return event(store, journal, name, status, **details)
+
+        with self.public_install_adapters(), patch.object(Store, "event", new=before_settings):
+            self.assertEqual(asa_setup.execute(self.public_install_args()), 130)
+        saved = self.store.read(self.journal["operationId"])
+        self.assertEqual(saved["phase"], "environment")
+        self.assertEqual(saved["stages"]["environment"]["status"], "done")
+        self.assertNotIn("settings", saved["stages"])
+        preserved = {self.root / name: ((self.root / name).read_bytes(), (self.root / name).stat().st_ino)
+                     for name in (".env", OVERLAY)}
+        binding, identity = copy.deepcopy(saved["installEnvironment"]), {key: saved[key] for key in
+                                                                        ("operationId", "installationId", "root", "project")}
+        prepared_settings = None
+        for method, stage in (("images", "images"), ("estimate", "space"), ("plan", "migration_plan"),
+                              ("backup_preflight", "backup_preflight")):
+            with self.subTest(stage=stage):
+                args = self.public_install_args(operation_id=saved["operationId"])
+                with self.continuation_adapters(), patch.object(Runtime, method, side_effect=KeyboardInterrupt()) as unfinished, \
+                        patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+                    self.assertEqual(asa_setup.execute(args), 130)
+                    unfinished.assert_called_once()
+                    adopt.assert_not_called()
+                saved = self.store.read(saved["operationId"])
+                self.assertEqual(saved["stages"][stage]["status"], "intent")
+                self.assertEqual(saved["stages"]["settings"]["status"], "done")
+                self.assertEqual(saved["state"], "RUNNING")
+                self.assertNotIn("switch", saved["stages"])
+                self.assertEqual(saved["installEnvironment"], binding)
+                self.assertEqual({key: saved[key] for key in identity}, identity)
+                self.assertEqual({path: (path.read_bytes(), path.stat().st_ino) for path in preserved}, preserved)
+                settings = self.root / ".asa/installation.json"
+                current_settings = (settings.read_bytes(), settings.stat().st_ino)
+                if prepared_settings is None:
+                    prepared_settings = current_settings
+                self.assertEqual(current_settings, prepared_settings)
+        attempts = []
+
+        def before_switch(store, journal, name, status, **details):
+            if name == "switch":
+                attempts.append(name)
+                raise KeyboardInterrupt()
+            return event(store, journal, name, status, **details)
+
+        for attempt in range(2):
+            with self.subTest(before_switch_attempt=attempt), self.continuation_adapters(), \
+                    patch.object(Store, "event", new=before_switch), \
+                    patch.object(Runtime, "images", side_effect=AssertionError("completed images must not replay")), \
+                    patch.object(Runtime, "settings", side_effect=AssertionError("completed settings must not replay")), \
+                    patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+                self.assertEqual(asa_setup.execute(self.public_install_args(operation_id=saved["operationId"])), 130)
+                adopt.assert_not_called()
+            saved = self.store.read(saved["operationId"])
+            self.assertEqual(saved["stages"]["backup_preflight"]["status"], "done")
+            self.assertEqual(saved["phase"], "backup_preflight")
+            self.assertEqual(saved["state"], "RUNNING")
+            self.assertNotIn("switch", saved["stages"])
+            self.assertEqual({path: (path.read_bytes(), path.stat().st_ino) for path in preserved}, preserved)
+        self.assertEqual(attempts, ["switch", "switch"])
+
+    def test_public_resume_accepts_only_its_settings_publication_before_stage_completion(self):
+        saved = self.public_install_until_settings()
+        before = {self.root / name: ((self.root / name).read_bytes(), (self.root / name).stat().st_ino)
+                  for name in (".env", OVERLAY)}
+        with self.public_install_adapters(), patch.object(Runtime, "reload", side_effect=KeyboardInterrupt()):
+            self.assertEqual(asa_setup.execute(self.public_install_args(operation_id=saved["operationId"])), 130)
+        interrupted = self.store.read(saved["operationId"])
+        self.assertEqual(interrupted["stages"]["settings"]["status"], "intent")
+        settings = self.root / ".asa/installation.json"
+        original_settings = settings.read_bytes()
+        with self.public_install_adapters(), patch.object(Runtime, "images", side_effect=KeyboardInterrupt()), \
+                patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+            self.assertEqual(asa_setup.execute(self.public_install_args(operation_id=saved["operationId"])), 130)
+            adopt.assert_not_called()
+        final = self.store.read(saved["operationId"])
+        self.assertEqual(final["stages"]["settings"]["status"], "done")
+        self.assertEqual(final["stages"]["images"]["status"], "intent")
+        self.assertEqual(settings.read_bytes(), original_settings)
+        self.assertEqual({path: (path.read_bytes(), path.stat().st_ino) for path in before}, before)
+        self.assertEqual(final["installEnvironment"], saved["installEnvironment"])
+
+    def assert_public_continuation_blocked(self, operation_id, *, expected=None):
+        watched = [self.root / name for name in (".env", OVERLAY, ".asa/setup.json", ".asa/installation.json")]
+        watched.append(self.store.path(operation_id))
+        before = {path: (path.read_bytes(), path.stat().st_ino) if path.exists() else None for path in watched}
+        args = self.public_install_args(operation_id=operation_id)
+        with self.public_install_adapters(), patch.object(system, "run", side_effect=self.empty_docker_read) as identity, \
+                patch.object(asa_setup, "save_private", wraps=asa_setup.save_private) as save, \
+                patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+            with self.assertRaises(Blocked) as caught:
+                asa_setup.execute(args)
+            if expected:
+                self.assertEqual(caught.exception.code, expected)
+            save.assert_not_called()
+            adopt.assert_not_called()
+        self.assertEqual({path: (path.read_bytes(), path.stat().st_ino) if path.exists() else None for path in watched}, before)
+        return identity.call_count
+
+    def test_continuation_rejects_unknown_proof_or_broken_preparation_sequence(self):
+        saved = self.public_install_until_settings()
+        cases = (
+            ("identity", lambda value: value.update(installationId="d" * 32)),
+            ("root", lambda value: value.update(root=str(self.root / "foreign"))),
+            ("project", lambda value: value.update(project="other-school")),
+            ("mode", lambda value: value.update(mode="update")),
+            ("state", lambda value: value.update(state="RECOVERY_REQUIRED")),
+            ("phase", lambda value: value.update(phase="unknown")),
+            ("missing_hash", lambda value: value["installEnvironment"].pop("beforeSha256")),
+            ("changed_hash", lambda value: value["installEnvironment"].update(afterSha256="0" * 64)),
+            ("configuration_hash", lambda value: value["installEnvironment"].update(configurationSha256="0" * 64)),
+            ("unknown_format", lambda value: value["installEnvironment"].update(format="unknown-v2")),
+            ("extra_proof_field", lambda value: value["installEnvironment"].update(unknown=True)),
+            ("missing_settings", lambda value: value["stages"]["settings"].update(status="done")),
+            ("gap", lambda value: value["stages"].update(images={"status": "intent"})),
+            ("unknown_stage", lambda value: value["stages"].update(unknown={"status": "done"})),
+            ("source", lambda value: value["stages"]["source"]["evidence"].update(revision="0" * 40)),
+            ("previous_data", lambda value: value.update(storageIdentity={"old": "installation"})),
+            ("handoff", lambda value: value.update(handoffs=2)),
+            ("backup_policy", lambda value: value["backupPolicy"].update(policy="required")),
+        )
+        for name, change in cases:
+            with self.subTest(change=name):
+                altered = copy.deepcopy(saved)
+                change(altered)
+                save_private(self.store.path(saved["operationId"]), altered)
+                self.assert_public_continuation_blocked(saved["operationId"])
+
+    def test_old_verified_overlay_proof_remains_usable_for_its_own_pre_switch_continuation(self):
+        saved = self.public_install_until_settings()
+        saved.pop("installEnvironment")
+        save_private(self.store.path(saved["operationId"]), saved)
+        before = ((self.root / ".env").read_bytes(), (self.root / OVERLAY).stat().st_ino)
+        with self.public_install_adapters(), patch.object(Runtime, "images", side_effect=KeyboardInterrupt()), \
+                patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+            self.assertEqual(asa_setup.execute(self.public_install_args(operation_id=saved["operationId"])), 130)
+            adopt.assert_not_called()
+        final = self.store.read(saved["operationId"])
+        self.assertEqual(final["stages"]["settings"]["status"], "done")
+        self.assertNotIn("installEnvironment", final)
+        self.assertEqual(final["publicOriginsEnvironment"], saved["publicOriginsEnvironment"])
+        self.assertEqual(((self.root / ".env").read_bytes(), (self.root / OVERLAY).stat().st_ino), before)
+
+    def test_unbound_https_journal_keeps_the_existing_runtime_identity_requirement(self):
+        saved = self.public_install_until_settings(origin="https://school.example.test")
+        saved.pop("installEnvironment")
+        save_private(self.store.path(saved["operationId"]), saved)
+        self.assertEqual(self.assert_public_continuation_blocked(saved["operationId"], expected="IDENTITY_MISSING"), 1)
+
+    def test_real_switch_intent_keeps_the_existing_runtime_identity_requirement(self):
+        saved = self.public_install_until_settings()
+        with self.continuation_adapters(), patch.object(Runtime, "switch", side_effect=KeyboardInterrupt()):
+            self.assertEqual(asa_setup.execute(self.public_install_args(operation_id=saved["operationId"])), 130)
+        final = self.store.read(saved["operationId"])
+        self.assertEqual(final["stages"]["switch"]["status"], "intent")
+        self.assertEqual(final["state"], "VERIFY_ONLY")
+        self.assertEqual(self.assert_public_continuation_blocked(saved["operationId"], expected="IDENTITY_MISSING"), 1)
+
+    def test_continuation_rejects_changed_environment_configuration_and_existing_resources(self):
+        saved = self.public_install_until_settings()
+        env, config = self.root / ".env", self.root / ".asa/setup.json"
+        env_before, config_before = env.read_bytes(), config.read_bytes()
+        for name in ("environment", "configuration"):
+            with self.subTest(change=name):
+                if name == "environment":
+                    env.write_bytes(env_before + b"UNEXPECTED_PRIVATE_SETTING=changed\n")
+                else:
+                    value = json.loads(config_before)
+                    value["backup"]["retention"] = {"localKeep": 2}
+                    save_private(config, value)
+                self.assert_public_continuation_blocked(saved["operationId"])
+                env.write_bytes(env_before)
+                config.write_bytes(config_before)
+        inventories = (
+            {**self.inventory, "complete": False},
+            {**self.inventory, "volumes": [{"name": "school-fixture_postgres-data", "labels": {}}]},
+            {**self.inventory, "volumes": [{"name": "unrelated-name", "labels": {"project": "school-fixture"}}]},
+            {**self.inventory, "containers": [{"id": "e" * 64, "image": "postgres:17", "running": False,
+                "labels": {"project": "foreign", "root": str(self.root), "service": "postgres"}, "mounts": []}]},
+            {**self.inventory, "containers": [{"id": "e" * 64, "image": "postgres:17", "running": False,
+                "labels": {"project": "school-fixture", "root": str(self.root / "other"), "service": "postgres"}, "mounts": []}]},
+        )
+        for index, inventory in enumerate(inventories):
+            with self.subTest(inventory=index), patch("deployment.setup_operation.setup_discovery.docker_inventory", return_value=inventory):
+                self.assert_public_continuation_blocked(saved["operationId"])
+
+    def test_continuation_rejects_unknown_settings_state_and_backup_contents(self):
+        saved = self.public_install_until_settings()
+        with self.public_install_adapters(), patch.object(Runtime, "images", side_effect=KeyboardInterrupt()):
+            self.assertEqual(asa_setup.execute(self.public_install_args(operation_id=saved["operationId"])), 130)
+        settings = self.root / ".asa/installation.json"
+        original = settings.read_bytes()
+        changes = ({"instanceId": "d" * 32}, {"project": "other-school"}, {"profile": "dev"},
+                   {"automaticUpdates": True}, {"automaticUpdates": 0}, {"unexpected": "state"},
+                   {"backupDirectory": str(self.root / "other-backups")})
+        for change in changes:
+            with self.subTest(settings=change):
+                save_private(settings, {**json.loads(original), **change})
+                self.assert_public_continuation_blocked(saved["operationId"])
+                settings.write_bytes(original)
+        for name in ("installed-release.json", "maintenance.json", "failed-switch.json", "atomic-active.json", "last-operation.json"):
+            with self.subTest(state=name):
+                path = self.root / ".asa" / name
+                save_private(path, self.release("previous") if name == "installed-release.json" else {})
+                try:
+                    self.assert_public_continuation_blocked(saved["operationId"])
+                finally:
+                    path.unlink()
+        retained = self.root / "backups/retained-copy"
+        retained.write_bytes(b"synthetic previous archive; never remove automatically")
+        self.assert_public_continuation_blocked(saved["operationId"])
+        self.assertTrue(retained.exists())
+
+    def test_generic_environment_proof_requires_the_same_confirmed_fresh_target_before_writes(self):
+        self.config["entryOrigin"] = "https://school.example.test"
+        save_private(self.root / ".asa/setup.json", self.config)
+        before = (self.root / ".env").read_bytes()
+        runtime = self.runtime()
+        existing = self.root / ".asa/installation.json"
+        existing.write_text("{}\n")
+        with self.assertRaises(Blocked):
+            runtime.environment()
+        self.assertEqual((self.root / ".env").read_bytes(), before)
+        self.assertNotIn("installEnvironment", self.store.read(self.journal["operationId"]))
+        existing.unlink()
+        self.inventory["complete"] = False
+        with self.assertRaises(Blocked):
+            runtime.environment()
+        self.assertEqual((self.root / ".env").read_bytes(), before)
+        self.assertNotIn("installEnvironment", self.store.read(self.journal["operationId"]))
+
+    def test_continuation_rechecks_metadata_and_journal_under_real_lock_before_writes(self):
+        saved = self.public_install_until_settings(origin="https://school.example.test")
+        with self.public_install_adapters(), patch.object(Runtime, "images", side_effect=KeyboardInterrupt()):
+            self.assertEqual(asa_setup.execute(self.public_install_args(operation_id=saved["operationId"])), 130)
+        saved = self.store.read(saved["operationId"])
+        config, settings = self.root / ".asa/setup.json", self.root / ".asa/installation.json"
+        journal, backup = self.store.path(saved["operationId"]), self.root / "backups"
+        original = {path: path.read_bytes() for path in (self.root / ".env", config, settings, journal)}
+        real_lock = asa_setup.operation_lock
+        for change in ("settings", "settings_inode", "configuration", "journal", "backup", "inventory"):
+            with self.subTest(change=change):
+                for path, content in original.items():
+                    path.write_bytes(content)
+                before = {path: (path.read_bytes(), path.stat().st_ino) for path in original}
+                inventory = [copy.deepcopy(self.inventory)]
+                after_injection = {}
+                retained = backup / "retained-copy"
+
+                @contextmanager
+                def racing_lock(*args, **kwargs):
+                    self.assertEqual({path: (path.read_bytes(), path.stat().st_ino) for path in original}, before)
+                    with real_lock(*args, **kwargs) as descriptor:
+                        if change == "settings":
+                            save_private(settings, {**json.loads(original[settings]), "instanceId": "d" * 32})
+                        elif change == "settings_inode":
+                            paths.atomic_bytes(settings, original[settings], mode=0o600)
+                        elif change == "configuration":
+                            value = json.loads(original[config])
+                            value["backup"]["retention"] = {"localKeep": 2}
+                            save_private(config, value)
+                        elif change == "journal":
+                            value = copy.deepcopy(saved)
+                            value["stages"]["images"]["status"] = "done"
+                            save_private(journal, value)
+                        elif change == "backup":
+                            retained.write_bytes(b"synthetic previous archive; preserve")
+                        else:
+                            inventory[0]["volumes"] = [{"name": "school-fixture_postgres-data", "labels": {}}]
+                        after_injection.update({path: (path.read_bytes(), path.stat().st_ino) for path in original})
+                        yield descriptor
+
+                try:
+                    with self.public_install_adapters(), patch.object(asa_setup, "operation_lock", side_effect=racing_lock), \
+                            patch("deployment.setup_operation.setup_discovery.docker_inventory", side_effect=lambda: copy.deepcopy(inventory[0])), \
+                            patch.object(asa_setup, "save_private", wraps=asa_setup.save_private) as save, \
+                            patch.object(asa_setup, "replace_legacy_manager_state", wraps=asa_setup.replace_legacy_manager_state) as adopt:
+                        with self.assertRaises(Blocked):
+                            asa_setup.execute(self.public_install_args(operation_id=saved["operationId"]))
+                        save.assert_not_called()
+                        adopt.assert_not_called()
+                    self.assertTrue(after_injection)
+                    self.assertEqual({path: (path.read_bytes(), path.stat().st_ino) for path in original}, after_injection)
+                    if change == "backup":
+                        self.assertEqual(retained.read_bytes(), b"synthetic previous archive; preserve")
+                finally:
+                    if retained.exists():
+                        retained.unlink()
 
     @unittest.skipUnless(os.name == "posix", "Linux setup CLI")
     def test_public_install_keeps_ordinary_config_runtime_drift_guard_before_lock(self):
