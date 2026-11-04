@@ -152,6 +152,24 @@ Workflow всегда загружает только
 setup release, публичный HTTPS, Yandex из гостя и production restore остаются
 видимыми отдельными границами.
 
+При неожиданном отказе первой публичной установки сохраняются исходный
+`cliActions` и общий FAIL. Отдельное `postFailureDiagnostic` с `observedAt`
+содержит новое read-only наблюдение после этого отказа: настоящий pinned
+`asa_setup.py intent-check --intent install --root /srv/asa-lab --json`
+запускается от уже подтверждённого непривилегированного оператора с `cwd=/`.
+Штатные проверки protected bundle, operator receipt и владельца выполняются
+повторно; probe не создаёт оператора или target и не продолжает установку.
+В evidence разрешены только закрытые reason/error enums, exit code, фактический
+non-root UID и mode/read/traverse известных путей bundle. При общем отказе
+intent-check дополнительно наблюдаются нативные Docker/Compose и
+`docker_inventory`/`classify_installation`: только availability exit codes,
+complete, state и закрытые reason codes. Каждое внешнее наблюдение ограничено
+64 КиБ суммарного stdout/stderr; intent-check имеет бюджет 45 секунд, проверка
+путей 10 секунд, дополнительная инвентаризация 65 секунд, затем ограниченная
+очистка только собственных process groups. Raw output, traceback, env и
+содержимое конфигурации не публикуются. Успешный поздний probe или изменение
+инвентаризации не доказывает состояние первой попытки и не меняет её FAIL.
+
 Используется только временный `github.token` с read permissions. Он переносится
 в root-owned file 0600, поступает в subprocess через environment и не попадает
 в argv, логи evidence или artifacts. Официальный 1Panel installer выводит

@@ -18,6 +18,7 @@ from pathlib import Path
 import platform
 import re
 import secrets
+import selectors
 import shlex
 import shutil
 import signal
@@ -52,6 +53,22 @@ CODE = re.compile(r"[A-Z][A-Z0-9_]{0,79}\Z")
 HEX40 = re.compile(r"[a-f0-9]{40}\Z")
 HEX64 = re.compile(r"[a-f0-9]{64}\Z")
 UUID = re.compile(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\Z")
+DIAGNOSTIC_LIMIT = 64 * 1024
+DIAGNOSTIC_STATES = {"FRESH", "UNKNOWN", "PARTIAL", "AMBIGUOUS", "INTERRUPTED", "LEGACY", "STOPPED", "MANAGED"}
+DIAGNOSTIC_ERRORS = {"FileNotFoundError", "PermissionError", "ValueError", "TypeError", "KeyError", "ImportError",
+                     "ModuleNotFoundError", "JSONDecodeError", "OSError", "TimeoutExpired", "UnicodeDecodeError",
+                     "SetupBlocked", "Blocked", "Failure", "KeyboardInterrupt", "OtherError"}
+DIAGNOSTIC_REASONS = {"OPERATION_INTENT", "DOCKER_UNKNOWN", "BLOCKED_OWNER", "CONFIG_MISSING", "CONFIG_PERMISSIONS",
+    "CONFIG_READ", "CONFIG_SCHEMA", "OWNER_MISMATCH", "OWNER_PRIVATE", "OWNER_WRITABLE", "OPERATOR_REQUIRED",
+    "UNATTRIBUTED_ASA", "TARGET_REQUIRED", "PROJECT_DRIFT", "ROOT_DRIFT", "KNOWN_INSTALLATION", "ORPHANED_INSTALLATION",
+    "EXISTING_ASA_RESOURCES", "EMPTY_TARGET", "ENV_MISSING", "SHARED_DATA_VOLUME", "DATA_IDENTITY_CHANGED",
+    "BIND_BACKEND_UNSUPPORTED", "KNOWN_OPERATION", "UNKNOWN_INTERRUPTION", "ADOPTION_REQUIRED", "EXISTING_STOPPED",
+    "CONSISTENT_INSTALLATION", "IDENTITY_UNVERIFIED", "DIAGNOSTIC_TIMEOUT", "DIAGNOSTIC_OUTPUT_LIMIT",
+    "DIAGNOSTIC_TRUST", "DIAGNOSTIC_OWNER", "DIAGNOSTIC_JSON", "DIAGNOSTIC_UID", "UNRECOGNIZED_REASON"}
+DIAGNOSTIC_PATHS = {"opt": "/opt", "bundleParent": "/opt/asa-setup", "bundle": ".", "tools": "tools",
+    "setup": "tools/asa_setup.py", "launcher": "tools/asa_setup_launcher.py", "deployment": "tools/deployment",
+    "package": "tools/deployment/__init__.py", "discovery": "tools/deployment/setup_discovery.py",
+    "configuration": "tools/deployment/setup_config.py", "contracts": "tools/deployment/contracts.py"}
 
 
 class Failure(RuntimeError):
@@ -645,6 +662,253 @@ def candidate_bundle(context):
     return Path("/opt/asa-setup") / context["sourceRevision"]
 
 
+def diagnostic_error(error):
+    name = type(error).__name__
+    return name if name in DIAGNOSTIC_ERRORS else "OtherError"
+
+
+def diagnostic_command(args, *, timeout, environment, owner=None, own_group=True):
+    """Bound both streams in memory and terminate only this probe's process group."""
+    options = {} if owner is None else {"user": owner["uid"], "group": owner["gid"],
+        "extra_groups": os.getgrouplist(owner["name"], owner["gid"])}
+    result, output, errors = {}, bytearray(), bytearray()
+    process = None
+    try:
+        process = subprocess.Popen([str(item) for item in args], cwd="/", env=environment,
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=own_group,
+            umask=0o077, **options)
+        try:
+            uid_line = next(line for line in Path(f"/proc/{process.pid}/status").read_text().splitlines() if line.startswith("Uid:"))
+            result["actualUid"] = int(uid_line.split()[2])
+        except (OSError, StopIteration, ValueError):
+            pass  # An already-exited process has no observable /proc identity.
+        deadline = time.monotonic() + timeout
+        with selectors.DefaultSelector() as selector:
+            for stream, target in ((process.stdout, output), (process.stderr, errors)):
+                os.set_blocking(stream.fileno(), False)
+                selector.register(stream, selectors.EVENT_READ, target)
+            while selector.get_map() or process.poll() is None:
+                require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
+                for key, _ in selector.select(min(0.1, max(0, deadline - time.monotonic()))):
+                    data = os.read(key.fd, 4096)
+                    if not data:
+                        selector.unregister(key.fileobj)
+                        continue
+                    require(len(output) + len(errors) + len(data) <= DIAGNOSTIC_LIMIT, "DIAGNOSTIC_OUTPUT_LIMIT")
+                    key.data.extend(data)
+        result["exitCode"] = process.wait(timeout=1)
+        # Preserve only a known Python exception class, never a traceback line.
+        for line in errors.decode("utf-8", "replace").splitlines():
+            name = line.partition(":")[0]
+            if name in DIAGNOSTIC_ERRORS:
+                result["errorClass"] = name
+    except BaseException as error:
+        result.update(errorClass=diagnostic_error(error), reasonCode=getattr(error, "code", "UNRECOGNIZED_REASON"))
+    finally:
+        if process is not None:
+            # Descendants may retain pipes even after the immediate child exits.
+            try:
+                os.killpg(process.pid, signal.SIGTERM) if own_group else process.terminate()
+            except ProcessLookupError:
+                pass
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
+            try:
+                os.killpg(process.pid, signal.SIGKILL) if own_group else process.kill()
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=2)
+            result.setdefault("exitCode", process.returncode)
+            process.stdout.close()
+            process.stderr.close()
+    return result, bytes(output)
+
+
+def diagnostic_command_projection(value):
+    value = value if isinstance(value, dict) else {}
+    result = {}
+    for key, low, high in (("exitCode", -128, 255), ("actualUid", 1, 2**32 - 2)):
+        if type(value.get(key)) is int and low <= value[key] <= high:
+            result[key] = value[key]
+    for key, allowed in (("reasonCode", DIAGNOSTIC_REASONS), ("errorClass", DIAGNOSTIC_ERRORS),
+                         ("state", DIAGNOSTIC_STATES), ("status", {"OK", "ERROR", "BLOCKED", "UNAVAILABLE"})):
+        if isinstance(value.get(key), str):
+            if value[key] in allowed:
+                result[key] = value[key]
+            elif key == "reasonCode":
+                result[key] = "UNRECOGNIZED_REASON"
+            elif key == "errorClass":
+                result[key] = "OtherError"
+    return result
+
+
+def diagnostic_json(raw, command):
+    result = dict(command)
+    try:
+        value = json.loads(raw)
+        require(isinstance(value, dict), "DIAGNOSTIC_JSON")
+        for key in ("reasonCode", "state", "status"):
+            if key in value and not (key == "reasonCode" and "reasonCode" in command):
+                result[key] = value[key]
+        if isinstance(value.get("reasonCode"), str) and value["reasonCode"] in DIAGNOSTIC_ERRORS:
+            result["errorClass"] = value["reasonCode"]
+        if value.get("outcome") in ("ERROR", "BLOCKED"):
+            result["status"] = value["outcome"]
+    except (ValueError, UnicodeError, Failure):
+        result.setdefault("reasonCode", "DIAGNOSTIC_JSON")
+    if "reasonCode" in command:
+        result["status"] = "UNAVAILABLE"
+    return diagnostic_command_projection(result)
+
+
+def post_failure_projection(value):
+    """Closed schema: arbitrary nested child data and even uppercase secrets drop."""
+    value = value if isinstance(value, dict) else {}
+    result = {"observation": "AFTER_PUBLIC_FAILURE", "status": "OBSERVED" if value.get("status") == "OBSERVED" else "UNAVAILABLE"}
+    if isinstance(value.get("observedAt"), str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?\+00:00", value["observedAt"]):
+        result["observedAt"] = value["observedAt"]
+    for key in ("bundleVerified", "operatorVerified"):
+        result[key] = value.get(key) is True
+    for key in ("intentCheck", "ownerObservation", "inventoryObservation", "probeError"):
+        if key in value:
+            result[key] = diagnostic_command_projection(value[key])
+    paths = value.get("paths") if isinstance(value.get("paths"), dict) else {}
+    result["paths"] = {}
+    for label in DIAGNOSTIC_PATHS:
+        item = paths.get(label)
+        if not isinstance(item, dict):
+            continue
+        entry = {key: item[key] for key in ("rootOwned", "readable", "traversable", "directory", "regular") if type(item.get(key)) is bool}
+        if isinstance(item.get("mode"), str) and re.fullmatch(r"[0-7]{4}", item["mode"]):
+            entry["mode"] = item["mode"]
+        if "errorClass" in item:
+            entry.update(diagnostic_command_projection({"errorClass": item["errorClass"]}))
+        result["paths"][label] = entry
+    if isinstance(value.get("docker"), dict):
+        result["docker"] = {key: diagnostic_command_projection(value["docker"].get(key)) for key in ("client", "daemon", "compose")}
+    if isinstance(value.get("inventory"), dict):
+        inventory = value["inventory"]
+        result["inventory"] = {"complete": inventory.get("complete") is True,
+            "state": inventory.get("state") if isinstance(inventory.get("state"), str) and inventory["state"] in DIAGNOSTIC_STATES else "UNKNOWN",
+            "reasonCodes": [code if isinstance(code, str) and code in DIAGNOSTIC_REASONS else "UNRECOGNIZED_REASON"
+                            for code in inventory.get("reasonCodes", [])[:8]] if isinstance(inventory.get("reasonCodes"), list) else []}
+    return result
+
+
+def diagnostic_owner(context):
+    """Revalidate protected candidate and the existing receipt; never bootstrap."""
+    import pwd
+    bundle = candidate_bundle(context)
+    launcher_path = bundle / "tools/asa_setup_launcher.py"
+    for path in [*reversed(launcher_path.parents), launcher_path]:
+        info = path.lstat()
+        require(not stat.S_ISLNK(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022
+                and (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode) and info.st_nlink == 1), "DIAGNOSTIC_TRUST")
+    spec = importlib.util.spec_from_file_location("asa_realhost_diagnostic_launcher", launcher_path)
+    launcher = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launcher)
+    launcher.verify_bundle(bundle)
+    receipt_path = launcher.checked_path(Path("/var/lib/asa-setup/operator.json"), missing=False)
+    require(receipt_path.stat().st_uid == 0, "DIAGNOSTIC_OWNER")
+    receipt = launcher.read_private_json(receipt_path, required=True)
+    account = pwd.getpwnam("asa-setup")
+    owner = launcher.validate_owner(INSTALL_ROOT, operator_uid=account.pw_uid)
+    require(owner["uid"] != 0 and owner["gid"] != 0 and owner["name"] == "asa-setup"
+            and owner["home"] == "/var/lib/asa-setup/operator"
+            and receipt.get("format") == "asa-operator-bootstrap-v1"
+            and receipt.get("marker") == account.pw_gecos and account.pw_shell == "/usr/sbin/nologin"
+            and all(receipt.get(key) == owner[key] for key in ("uid", "gid", "name", "home", "root")), "DIAGNOSTIC_OWNER")
+    home = launcher.checked_path(Path(owner["home"]), missing=False).stat()
+    require(stat.S_ISDIR(home.st_mode) and home.st_uid == owner["uid"] and home.st_gid == owner["gid"]
+            and not home.st_mode & 0o077, "DIAGNOSTIC_OWNER")
+    return owner, launcher.operator_environment(owner)
+
+
+def owner_diagnostic(context, *, inventory=False):
+    """Actual unprivileged reads only; no setup/manager monkeypatch or target writes."""
+    require(os.geteuid() != 0, "DIAGNOSTIC_UID")
+    bundle = candidate_bundle(context)
+    result = {"actualUid": os.geteuid(), "paths": {}}
+    for label, relative in DIAGNOSTIC_PATHS.items():
+        path = bundle / relative
+        try:
+            info = path.lstat()
+            entry = {"mode": format(stat.S_IMODE(info.st_mode), "04o"), "rootOwned": info.st_uid == 0,
+                     "directory": stat.S_ISDIR(info.st_mode), "regular": stat.S_ISREG(info.st_mode),
+                     "readable": os.access(path, os.R_OK)}
+            if stat.S_ISDIR(info.st_mode):
+                entry["traversable"] = os.access(path, os.X_OK)
+            result["paths"][label] = entry
+        except OSError as error:
+            result["paths"][label] = {"errorClass": diagnostic_error(error)}
+    if inventory:
+        result["docker"] = {}
+        for name, args in (("client", ["docker", "--version"]), ("daemon", ["docker", "info", "--format", "{{.ID}}"]),
+                           ("compose", ["docker", "compose", "version", "--short"])):
+            # Native inventory below has its own 30s command bound. These small
+            # availability probes have bounded streams; their output is dropped.
+            command, _ = diagnostic_command(args, timeout=8, environment=os.environ, own_group=False)
+            result["docker"][name] = diagnostic_command_projection(command)
+        sys.path.insert(0, str(bundle / "tools"))
+        from deployment import setup_discovery
+        observed = setup_discovery.docker_inventory()
+        discovery = setup_discovery.classify_installation(INSTALL_ROOT, observed)
+        result["inventory"] = {"complete": observed.get("complete") is True, "state": discovery.get("state"),
+            "reasonCodes": [item.get("code") for item in discovery.get("reasons", []) if isinstance(item, dict)]}
+    return result
+
+
+def post_failure_diagnostic(context):
+    result = {"observedAt": now(), "status": "UNAVAILABLE"}
+    try:
+        owner, environment = diagnostic_owner(context)
+        result.update(bundleVerified=True, operatorVerified=True)
+        command, raw = diagnostic_command(["/usr/bin/python3", "-I", "-B", candidate_bundle(context) / "tools/asa_setup.py",
+            "intent-check", "--intent", "install", "--root", INSTALL_ROOT, "--json"], timeout=45, environment=environment, owner=owner)
+        result["intentCheck"] = diagnostic_json(raw, command)
+        generic = result["intentCheck"].get("reasonCode") in ("OPERATION_INTENT", "DOCKER_UNKNOWN", "UNRECOGNIZED_REASON", "DIAGNOSTIC_JSON")
+        command, raw = diagnostic_command(["/usr/bin/python3", "-I", "-B", GUEST_HOME / "runner.py", "--guest-phase", "owner-diagnostic-paths"],
+            timeout=10, environment=environment, owner=owner)
+        result["ownerObservation"] = diagnostic_json(raw, command)
+        value = json.loads(raw)
+        require(command.get("exitCode") == 0 and isinstance(value, dict) and value.get("format") == "asa-realhost-guest-v1",
+                "DIAGNOSTIC_JSON")
+        require(type(value.get("actualUid")) is int and value["actualUid"] == owner["uid"] != 0, "DIAGNOSTIC_UID")
+        result["ownerObservation"]["actualUid"] = value["actualUid"]
+        result["paths"] = value.get("paths", {})
+        result["status"] = "OBSERVED"
+        if generic:
+            command, raw = diagnostic_command(["/usr/bin/python3", "-I", "-B", GUEST_HOME / "runner.py", "--guest-phase", "owner-diagnostic-inventory"],
+                timeout=65, environment=environment, owner=owner)
+            result["inventoryObservation"] = diagnostic_json(raw, command)
+            value = json.loads(raw)
+            require(command.get("exitCode") == 0 and isinstance(value, dict) and value.get("format") == "asa-realhost-guest-v1",
+                    "DIAGNOSTIC_JSON")
+            require(type(value.get("actualUid")) is int and value["actualUid"] == owner["uid"] != 0, "DIAGNOSTIC_UID")
+            result.update({key: value[key] for key in ("docker", "inventory") if key in value})
+    except BaseException as error:
+        result["probeError"] = {"errorClass": diagnostic_error(error), "reasonCode": getattr(error, "code", "UNRECOGNIZED_REASON")}
+    return post_failure_projection(result)
+
+
+def first_install_attempt(context, options):
+    try:
+        first = public_cli(["install"], options=options, allowed=(2,), timeout=1800)
+        reason = [first.get("reasonCode"), *first.get("reasonCodes", [])]
+        require("OWNER_INPUT_REQUIRED" in reason and not (INSTALL_ROOT / ".env").exists()
+                and not list((INSTALL_ROOT / ".asa/setup-operations").glob("*.json")), "FRESH_ONBOARDING_BOUNDARY")
+    except BaseException as error:
+        # This later observation cannot explain away or overwrite the first failure.
+        try:
+            error.post_failure_diagnostic = post_failure_diagnostic(context)
+        except BaseException as diagnostic_failure:
+            error.post_failure_diagnostic = post_failure_projection({"observedAt": now(), "probeError": {
+                "errorClass": diagnostic_error(diagnostic_failure)}})
+        raise
+
+
 def product_modules(context):
     bundle = candidate_bundle(context)
     require(bundle.is_dir() and bundle.stat().st_uid == 0 and not bundle.stat().st_mode & 0o022,
@@ -812,10 +1076,7 @@ def install_guest(context):
     supplied = GUEST_PRIVATE / "install-input.json"
     write_json(supplied, config)
     options = ["--config-file", str(supplied), "--deployment-digest", context["pins"]["previous"]["deploymentDigest"], "--non-interactive"]
-    first = public_cli(["install"], options=options, allowed=(2,), timeout=1800)
-    reason = [first.get("reasonCode"), *first.get("reasonCodes", [])]
-    require("OWNER_INPUT_REQUIRED" in reason and not (INSTALL_ROOT / ".env").exists()
-            and not list((INSTALL_ROOT / ".asa/setup-operations").glob("*.json")), "FRESH_ONBOARDING_BOUNDARY")
+    first_install_attempt(context, options)
     operator = json.loads(Path("/var/lib/asa-setup/operator.json").read_text())
     account = pwd.getpwnam("asa-setup")
     require(operator["uid"] == account.pw_uid != 0 and operator["root"] == str(INSTALL_ROOT)
@@ -1230,6 +1491,8 @@ def guest_phase(phase, context):
             return owner_schedule_fixture(context)
         if phase == "owner-hold-lock":
             return hold_guest_operation_lock(context)
+        if phase in ("owner-diagnostic-paths", "owner-diagnostic-inventory"):
+            return owner_diagnostic(context, inventory=phase == "owner-diagnostic-inventory")
         raise Failure("UNKNOWN_OWNER_PHASE")
     require(os.geteuid() == 0, "GUEST_ROOT_REQUIRED")
     actions = {"bootstrap": bootstrap_guest, "install": install_guest, "update": update_guest, "backup": backup_guest,
@@ -1259,6 +1522,8 @@ def guest_main(phase):
         return_code = 0 if result["status"] in ("PASS", "PENDING") else 2 if result["status"] == "BLOCKED" else 1
     except BaseException as error:
         result.update(status=getattr(error, "status", "FAIL"), reasonCode=safe_error(error))
+        if hasattr(error, "post_failure_diagnostic"):
+            result["postFailureDiagnostic"] = post_failure_projection(error.post_failure_diagnostic)
         return_code = 2 if result["status"] == "BLOCKED" else 1
     result["cliActions"] = CLI_ACTIONS
     print(json.dumps(result, sort_keys=True))
@@ -1270,7 +1535,8 @@ def main(argv=None):
     parser.add_argument("--revision")
     parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--guest-phase", choices=("bootstrap", "install", "seed", "update", "backup", "post-reboot", "schedule",
-                        "timer-probe", "timer-retry", "final", "owner-seed", "owner-observe", "owner-final", "owner-schedule-fixture", "owner-hold-lock"), help=argparse.SUPPRESS)
+                        "timer-probe", "timer-retry", "final", "owner-seed", "owner-observe", "owner-final", "owner-schedule-fixture", "owner-hold-lock",
+                        "owner-diagnostic-paths", "owner-diagnostic-inventory"), help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.guest_phase:
         return guest_main(args.guest_phase)

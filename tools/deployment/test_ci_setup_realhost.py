@@ -169,6 +169,100 @@ class HarnessContractTests(unittest.TestCase):
         self.assertFalse(projected["dataProtectionConfirmed"])
 
 
+class PostFailureDiagnosticTests(unittest.TestCase):
+    def test_projection_drops_nested_and_uppercase_secrets(self):
+        secret = "PRIVATE_CREDENTIAL_MUST_NEVER_APPEAR"
+        value = {"status": "OBSERVED", "observedAt": "2026-11-04T10:00:00+00:00", "raw": secret,
+            "intentCheck": {"exitCode": 2, "reasonCode": secret, "errorClass": secret, "stderr": secret,
+                            "actualUid": 0, "state": secret},
+            "ownerObservation": {"actualUid": 999, "exitCode": 0, "environment": {"GH_TOKEN": secret}},
+            "paths": {"setup": {"mode": "0644", "readable": True, "content": secret}, secret: {"mode": "0600"}},
+            "docker": {"compose": {"exitCode": 1, "stdout": secret, "args": [secret]}, secret: {"exitCode": 0}},
+            "inventory": {"complete": False, "state": "UNKNOWN", "reasonCodes": ["DOCKER_UNKNOWN", secret],
+                          "containers": [{"environment": secret}]}}
+        result = harness.post_failure_projection(value)
+        self.assertNotIn(secret, json.dumps(result))
+        self.assertEqual(result["intentCheck"]["reasonCode"], "UNRECOGNIZED_REASON")
+        self.assertNotIn("actualUid", result["intentCheck"])
+        self.assertEqual(result["ownerObservation"]["actualUid"], 999)
+        self.assertEqual(result["inventory"]["reasonCodes"][0], "DOCKER_UNKNOWN")
+        self.assertEqual(result["observation"], "AFTER_PUBLIC_FAILURE")
+
+    def test_child_json_emits_only_typed_reason_and_exception_class(self):
+        secret = "private-token-and-password"
+        raw = json.dumps({"reasonCode": "PermissionError", "outcome": "ERROR", "message": secret,
+                          "traceback": [secret], "environment": {"GH_TOKEN": secret}}).encode()
+        result = harness.diagnostic_json(raw, {"exitCode": 1, "actualUid": 999})
+        self.assertEqual(result["errorClass"], "PermissionError")
+        self.assertEqual(result["exitCode"], 1)
+        self.assertNotIn(secret, json.dumps(result))
+        malformed = harness.diagnostic_json(json.dumps({"reasonCode": [secret]}).encode(), {"exitCode": 1})
+        self.assertNotIn(secret, json.dumps(malformed))
+        self.assertEqual(harness.diagnostic_json(b"not-json secret", {"exitCode": 1})["reasonCode"], "DIAGNOSTIC_JSON")
+        limited = harness.diagnostic_json(b'{"status":"OK","reasonCode":"OPERATION_INTENT"}',
+                                          {"reasonCode": "DIAGNOSTIC_OUTPUT_LIMIT", "exitCode": -15})
+        self.assertEqual((limited["status"], limited["reasonCode"]), ("UNAVAILABLE", "DIAGNOSTIC_OUTPUT_LIMIT"))
+
+    @unittest.skipUnless(sys.platform == "linux", "Native disposable-VM probe requires Linux process groups and pipe selectors")
+    def test_real_probe_streams_and_time_are_bounded(self):
+        environment = {"PATH": "/usr/bin:/bin"}
+        result, raw = harness.diagnostic_command([sys.executable, "-I", "-c",
+            "import sys; sys.stderr.write('private-data-' * 20000); sys.stderr.flush()"], timeout=3, environment=environment)
+        self.assertEqual(result["reasonCode"], "DIAGNOSTIC_OUTPUT_LIMIT")
+        self.assertLessEqual(len(raw), harness.DIAGNOSTIC_LIMIT)
+        self.assertNotIn("private-data", json.dumps(harness.diagnostic_command_projection(result)))
+        started = time.monotonic()
+        result, _ = harness.diagnostic_command([sys.executable, "-I", "-c", "import time; time.sleep(10)"],
+                                                timeout=0.15, environment=environment)
+        self.assertEqual(result["reasonCode"], "DIAGNOSTIC_TIMEOUT")
+        self.assertLess(time.monotonic() - started, 5)
+
+    @unittest.skipUnless(sys.platform == "linux", "Native disposable-VM probe requires Linux cwd, process groups and pipe selectors")
+    def test_probe_uses_slash_cwd_and_only_known_traceback_class(self):
+        result, raw = harness.diagnostic_command([sys.executable, "-I", "-c",
+            "import os; print(os.getcwd(), flush=True); raise PermissionError('private-password')"],
+            timeout=3, environment={"PATH": "/usr/bin:/bin"})
+        self.assertEqual(raw.strip(), b"/")
+        self.assertEqual(result["exitCode"], 1)
+        self.assertEqual(result["errorClass"], "PermissionError")
+        self.assertNotIn("private-password", json.dumps(result))
+
+    def test_diagnostic_observation_cannot_be_root(self):
+        with patch.object(harness.os, "geteuid", return_value=0, create=True), self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_UID"):
+            harness.owner_diagnostic({})
+
+    def test_successful_or_failed_probe_preserves_original_public_failure(self):
+        original = {"command": "asa install", "exitCode": 2, "status": "BLOCKED", "reasonCodes": ["OPERATION_INTENT"]}
+        for diagnostic in ({"status": "OBSERVED", "intentCheck": {"exitCode": 0, "status": "OK", "state": "FRESH"}},
+                           RuntimeError("private-password")):
+            output = io.StringIO()
+            with self.subTest(diagnostic=type(diagnostic).__name__), tempfile.TemporaryDirectory() as directory, \
+                    patch.object(harness, "INSTALL_ROOT", Path(directory) / "absent"), \
+                    patch.object(harness, "CLI_ACTIONS", [original]), \
+                    patch.object(harness, "guest_guard", return_value={}), \
+                    patch.object(harness, "public_cli", return_value={"reasonCode": "OPERATION_INTENT"}), \
+                    patch.object(harness, "post_failure_diagnostic", **({"side_effect": diagnostic} if isinstance(diagnostic, Exception)
+                                                                        else {"return_value": diagnostic})), \
+                    patch.object(harness, "guest_phase", side_effect=lambda *_: harness.first_install_attempt({}, [])), \
+                    contextlib.redirect_stdout(output):
+                code = harness.guest_main("install")
+            result = json.loads(output.getvalue())
+            self.assertEqual((code, result["status"], result["reasonCode"]), (1, "FAIL", "FRESH_ONBOARDING_BOUNDARY"))
+            self.assertEqual(result["cliActions"], [original])
+            self.assertEqual(result["postFailureDiagnostic"]["observation"], "AFTER_PUBLIC_FAILURE")
+            self.assertNotIn("private-password", output.getvalue())
+
+    def test_expected_owner_input_boundary_does_not_run_probe_or_create_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "absent"
+            with patch.object(harness, "INSTALL_ROOT", target), \
+                    patch.object(harness, "public_cli", return_value={"reasonCode": "OWNER_INPUT_REQUIRED"}), \
+                    patch.object(harness, "post_failure_diagnostic") as probe:
+                harness.first_install_attempt({}, [])
+            probe.assert_not_called()
+            self.assertFalse(target.exists())
+
+
 class CloudFailurePolicyTests(unittest.TestCase):
     def test_connection_refusal_retains_backup_and_distinguishes_required_from_best_effort(self):
         # A bound, non-listening loopback socket cannot accept a connection and
