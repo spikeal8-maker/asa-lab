@@ -2814,7 +2814,9 @@ class NativeCloudOwnerLifecycleTests(unittest.TestCase):
                     value["st_gid"] = 1001
                 return SimpleNamespace(**value)
             def boundary(value):
-                return home if Path(value) == Path(account.pw_dir) else value
+                # The shared temp ancestor is owned by the test process too;
+                # include it in the owner-private boundary on non-root runners.
+                return base if Path(value) in (root, home, Path(account.pw_dir)) else value
             def opened(path, parent, uid, **kwargs):
                 return real_open(path, boundary(parent), real_uid, **kwargs)
             def read(path, parent, uid, **kwargs):
@@ -2845,6 +2847,45 @@ class NativeCloudOwnerLifecycleTests(unittest.TestCase):
         self.assertIs(result["configurationRestored"], True)
         self.assertEqual(value.setup.read_bytes(), value.original_raw)
         self.assertEqual(stat.S_IMODE(value.setup.stat().st_mode), 0o600)
+
+    def test_owner_fixture_models_private_non_root_ancestry_without_bypassing_open_checks(self):
+        # Model only UID values of our real temporary inode set. All openat,
+        # type/mode/link checks and lifecycle IO still execute; this is not a
+        # native non-root process test when the runner itself is root.
+        real_open, real_fstat, native_uid = harness.diagnostic_open, os.fstat, os.geteuid()
+        for mode, foreign_base in ((0o700, False), (0o750, False), (0o700, True)):
+            with self.subTest(mode=mode, foreign_base=foreign_base), tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                base.chmod(mode)
+                base_info = base.stat()
+                base_identity = (base_info.st_dev, base_info.st_ino)
+                def protected_open(path, parent, uid, **kwargs):
+                    owned = {(info.st_dev, info.st_ino) for info in
+                        (item.lstat() for item in (base, *base.rglob("*"))) if info.st_uid == native_uid}
+                    def observed(descriptor):
+                        info = real_fstat(descriptor)
+                        identity = (info.st_dev, info.st_ino)
+                        if identity not in owned:
+                            return info
+                        values = {key: getattr(info, key) for key in dir(info) if key.startswith("st_")}
+                        values["st_uid"] = 1002 if foreign_base and identity == base_identity else 1001
+                        return SimpleNamespace(**values)
+                    with patch.object(harness.os, "fstat", side_effect=observed):
+                        return real_open(path, parent, 1001, **kwargs)
+                with patch.object(tempfile, "TemporaryDirectory", return_value=contextlib.nullcontext(directory)), \
+                        patch.object(harness, "diagnostic_open", side_effect=protected_open):
+                    if mode != 0o700 or foreign_base:
+                        with self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_PERMISSIONS"), self.owner_fixture():
+                            pass
+                    else:
+                        with self.owner_fixture() as value:
+                            value.call("best-effort")
+                            value.call("required")
+                            result = value.call("restore")
+                            self.assertTrue(result["sourceDummyRemoved"])
+                            self.assertTrue(result["configurationRestored"])
+                            self.assertFalse(value.dummy.exists())
+                            self.assertEqual(value.setup.read_bytes(), value.original_raw)
 
     def test_actual_owner_lifecycle_removes_only_the_creation_fd_identity(self):
         with self.owner_fixture() as value:
