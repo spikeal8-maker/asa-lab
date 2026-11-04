@@ -118,7 +118,7 @@ class CloudPreflightPolicyTests(unittest.TestCase):
 
     def test_best_effort_transport_unavailable_is_warning(self):
         with patch("deployment.setup_operation.backup_workflow.CloudTransport",
-                   side_effect=Blocked("BACKUP_COMMAND_FAILED", "transport unavailable", "retry")):
+                   side_effect=Blocked("CLOUD_UNAVAILABLE", "transport unavailable", "retry")):
             actual = self.runtime.backup_preflight()
         self.assertEqual(actual["status"], "WARNING")
         self.assertEqual(actual["reasonCode"], "CLOUD_UNAVAILABLE")
@@ -126,7 +126,7 @@ class CloudPreflightPolicyTests(unittest.TestCase):
     def test_required_transport_unavailable_stays_blocked(self):
         self.runtime.config["backup"]["policy"] = "required"
         with patch("deployment.setup_operation.backup_workflow.CloudTransport",
-                   side_effect=Blocked("BACKUP_COMMAND_FAILED", "transport unavailable", "retry")):
+                   side_effect=Blocked("CLOUD_UNAVAILABLE", "transport unavailable", "retry")):
             with self.assertRaises(Blocked) as caught:
                 self.runtime.backup_preflight()
         self.assertEqual(caught.exception.code, "CLOUD_PREPARATION")
@@ -317,7 +317,8 @@ class StateMachineTests(unittest.TestCase):
         self.assertEqual(first["exitCode"], 2)
         self.runtime.calls.clear()
         answer = self.engine.execute(self.store.read(journal["operationId"]), acceptance_only=True)
-        self.assertEqual(answer["exitCode"], 0)
+        self.assertEqual(answer["exitCode"], 2)
+        self.assertEqual(answer["backup"]["reasonCode"], "BACKUP_EVIDENCE_MISSING")
         self.assertEqual(answer["mode"], "acceptance")
         self.assertTrue(answer["applicationAccepted"])
         for action in ("switch", "plan", "source", "backup", "select"):
@@ -589,7 +590,8 @@ class AuxiliaryRecoveryTests(unittest.TestCase):
         asa_setup._route_auxiliary_resume(args, self.store, self.store.pending())
         with patch("deployment.setup_operation.resume_backup_writers", side_effect=rescue):
             answer = self.invoke(args)
-        self.assertEqual(answer["outcome"], "BLOCKED")
+        # Legacy receipts cannot prove that the missing export never began.
+        self.assertEqual((answer["outcome"], answer["exitCode"]), ("ERROR", 1))
         self.assertLess(self.runtime.calls.index("exact_rescue"), self.runtime.calls.index("current"))
         self.assertIn("resume_saved_backup", self.runtime.calls)
         self.assertNotIn("backup", self.runtime.calls)
@@ -719,7 +721,7 @@ class AuxiliaryRecoveryTests(unittest.TestCase):
              patch.object(self.runtime, "backup", side_effect=AssertionError("second export")):
             answer = self.invoke(args)
         self.assertEqual(answer["operationId"], child["operationId"])
-        self.assertEqual(answer["outcome"], "BLOCKED")
+        self.assertEqual((answer["outcome"], answer["exitCode"]), ("ERROR", 1))
         self.assertEqual(continuation.call_args.args[1], child["snapshotId"])
         self.assertEqual(self.store.pending()["operationId"], parent["operationId"])
 
@@ -1108,7 +1110,9 @@ class ReportAndRoutesTests(unittest.TestCase):
         self.assertEqual(json.loads(stream.getvalue())["format"], "asa-setup-result-v1")
 
     def test_required_daily_schedule_cannot_be_reported_fully_accepted_before_install(self):
-        value = result("a" * 32, IDENTITY, "install", site={"technical": {"status": "passed"}, "browser": {"status": "passed"}},
+        value = result("a" * 32, IDENTITY, "install", site={"technical": {"status": "passed"}, "browser": {"status": "passed"}, "owner": {"status": "READY"}},
+                       actionExecuted=True, executionCompleted=True, dependencies={"status": "OK"},
+                       version={"status": "RUNNING"}, data={"status": "INITIALIZED"},
                        backup={**receipt(), "schedule": {"configuration": {"enabled": True}, "installed": False, "running": False}},
                        diagnostics={"status": "passed"})
         self.assertEqual(finalize(value)["exitCode"], 2)

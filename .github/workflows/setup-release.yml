@@ -90,6 +90,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NX_SKIP_NX_CACHE: 'true'
         run: python tools/deployment/ci_setup_smoke.py
+      - name: Preserve verified synthetic AGE ciphertext for independent cloud readback
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: asa-setup-synthetic-ciphertext-${{ github.event.pull_request.head.sha || github.sha }}
+          path: test-results/setup-synthetic/synthetic-*.age
+          if-no-files-found: error
+          retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -144,11 +152,25 @@ jobs:
               run(['docker', 'rm', container], capture=True)
           PY
       - name: Build complete distribution
-        run: python tools/deployment/setup_bundle.py build --revision "$GITHUB_SHA" --output "dist/asa-setup-$GITHUB_SHA.tar.gz"
+        run: |
+          python tools/deployment/setup_bundle.py build --revision "$GITHUB_SHA" --output "dist/asa-setup-$GITHUB_SHA.tar.gz"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          # The complete distribution build already checked this helper's bytes
+          # against GITHUB_SHA; publish those same bytes as a standalone asset.
+          source = Path('tools/asa_setup_acquire.py').read_bytes()
+          with Path('dist/asa-setup-acquire-' + os.environ['GITHUB_SHA'] + '.py').open('xb') as output:
+              output.write(source)
+          PY
       - name: Attest repository, workflow, source and exact artifact bytes
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: dist/asa-setup-*.tar.gz
+      - name: Attest the standalone acquisition helper before users execute it
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: dist/asa-setup-acquire-*.py
       - name: Publish only by this explicit manual choice, never overwrite a release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -162,8 +184,11 @@ jobs:
               'Verify the GitHub artifact attestation before executing privileged code. '
               'Required signer: spikeal8-maker/asa-lab/.github/workflows/setup-release.yml; '
               'source ref: refs/heads/main; exact source digest: ' + revision + '.\n\n'
+              'Both the archive and standalone acquisition helper are attested. '
+              'Verify the helper first and run it without sudo; it verifies a protected '
+              'archive snapshot before staging the installer. See UNIFIED_SETUP.md.\n\n'
               'A published artifact does not itself prove acceptance on an existing '
               'server or a clean Ubuntu 24.04 host with 1Panel. See UNIFIED_SETUP.md.\n',
               encoding='utf-8')
           PY
-          gh release create "setup-$GITHUB_SHA" "dist/asa-setup-$GITHUB_SHA.tar.gz" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "ASA Setup $GITHUB_SHA" --notes-file dist/release-notes.md
+          gh release create "setup-$GITHUB_SHA" "dist/asa-setup-$GITHUB_SHA.tar.gz" "dist/asa-setup-acquire-$GITHUB_SHA.py" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "ASA Setup $GITHUB_SHA" --notes-file dist/release-notes.md

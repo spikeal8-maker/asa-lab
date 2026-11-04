@@ -101,7 +101,7 @@ def replace_legacy_manager_state(root, name, value):
             files = record.get("files")
             require(isinstance(record.get("revision"), str) and re.fullmatch(r"[a-f0-9]{40}", record["revision"])
                     and isinstance(files, dict) and "compose.yaml" in files
-                    and set(files) <= {"compose.yaml", "compose.dev.yaml", "compose.production.yaml", "compose.staging.yaml", "compose.frp.yaml"}
+                    and set(files) <= {"compose.yaml", "compose.dev.yaml", "compose.production.yaml", "compose.staging.yaml", "compose.frp.yaml", ".asa/docker-networks.yaml"}
                     and all(isinstance(content, str) for content in files.values()),
                     "LEGACY_STATE_FORMAT", "Сохранённая конфигурация runtime не прошла проверку.")
             if record.get("installedRelease") is not None:
@@ -233,7 +233,7 @@ def prepare_config(root, operator_uid, *, previous=None, supplied=None, install=
     if os.environ.get("ASA_SETUP_BROWSERS_PATH"):
         browser["browsersPath"] = os.environ["ASA_SETUP_BROWSERS_PATH"]
     value = {**(previous or {}), "format": FORMAT, "installationId": identity, "root": str(root), "operatorUid": operator_uid,
-             "profile": profile, "entryOrigin": origin, "project": env.get("COMPOSE_PROJECT_NAME", "asa-lab-dev"),
+             "profile": profile, "entryOrigin": origin, "project": env.get("COMPOSE_PROJECT_NAME", (previous or {}).get("project", "asa-lab-dev")),
              "backupDirectory": settings.get("backupDirectory", str(root / "backups")), "browser": browser,
              "backup": {"policy": policy_name, "ageRecipient": recipient or None,
                 "cloud": {"enabled": cloud_enabled, "transportPath": str(bundle / "ops/cloud_storage.py"),

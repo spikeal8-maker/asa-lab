@@ -17,19 +17,36 @@ for asa_setup_argument in "$@"; do
 done
 
 asa_setup_bootstrap_failure() {
-  if "$asa_setup_json"; then
-    printf '%s\n' '{"format":"asa-setup-result-v1","outcome":"BLOCKED","stage":"bootstrap","operationId":null,"installationId":null,"accepted":false,"executionCompleted":false,"dataProtectionConfirmed":false,"error":{"code":"PYTHON_BOOTSTRAP","message":"Python 3.11+ не подготовлен; приложение не изменено.","action":"Проверьте официальный пакет, Ubuntu 24.04 amd64, root-доступ и подписанные источники apt."},"checks":[{"name":"Сервер и зависимости","status":"BLOCKED"},{"name":"Версия ASA Lab","status":"NOT_RUN"},{"name":"База и файлы","status":"NOT_RUN"},{"name":"Резервные копии","status":"NOT_RUN"},{"name":"Сайт и пользовательские действия","status":"NOT_RUN"},{"name":"Диагностика","status":"NOT_RUN"}]}'
+  local asa_setup_code="${1:-2}" asa_setup_outcome=BLOCKED asa_setup_dependency=BLOCKED
+  local asa_setup_mark='[!]' asa_setup_color=33 asa_setup_attention='[!]'
+  local asa_setup_title='ОСТАНОВЛЕНО — ПОДГОТОВКА НЕ ЗАВЕРШЕНА'
+  if [[ "$asa_setup_code" == 1 ]]; then
+    asa_setup_outcome=ERROR
+    asa_setup_dependency=FAILED
+    asa_setup_mark='[X]'
+    asa_setup_color=31
+    asa_setup_title='ОШИБКА — ПОДГОТОВКА НЕ ЗАВЕРШЕНА'
   else
-    printf '%s\n' 'ОСТАНОВЛЕНО — ПОДГОТОВКА НЕ ЗАВЕРШЕНА' \
-      '1. [!] ОСТАНОВЛЕНО — Сервер и зависимости: нужен Python 3.11+.' \
-      '2. [ ] НЕ ПРОВЕРЕНО — Версия ASA Lab.' \
-      '3. [ ] НЕ ПРОВЕРЕНО — База и файлы.' \
-      '4. [ ] НЕ ПРОВЕРЕНО — Резервные копии.' \
-      '5. [ ] НЕ ПРОВЕРЕНО — Сайт и пользовательские действия.' \
-      '6. [ ] НЕ ПРОВЕРЕНО — Диагностика.' \
+    asa_setup_code=2
+  fi
+  if "$asa_setup_json"; then
+    printf '{"format":"asa-setup-result-v1","mode":null,"outcome":"%s","exitCode":%s,"stage":"bootstrap","operationId":null,"installationId":null,"observedAt":"%s","accepted":false,"actionExecuted":false,"executionCompleted":false,"applicationAccepted":false,"dataProtectionConfirmed":false,"dependencies":{"status":"%s","reasonCode":"PYTHON_BOOTSTRAP"},"version":{"status":"NOT_RUN"},"data":{"status":"NOT_RUN"},"backup":{"status":"NOT_RUN"},"site":{"status":"NOT_RUN"},"diagnostics":{"status":"NOT_RUN"},"postActions":[],"reasonCode":"PYTHON_BOOTSTRAP","nextAction":"Проверьте официальный пакет, Ubuntu 24.04 amd64, root-доступ и подписанные источники apt.","error":{"code":"PYTHON_BOOTSTRAP","message":"Python 3.11+ не подготовлен; приложение не изменено.","action":"Проверьте официальный пакет, Ubuntu 24.04 amd64, root-доступ и подписанные источники apt."}}\n' \
+      "$asa_setup_outcome" "$asa_setup_code" "$(/usr/bin/date -u +%Y-%m-%dT%H:%M:%SZ)" "$asa_setup_dependency"
+  else
+    if [[ -t 1 && ! ${NO_COLOR+x} && ${TERM:-} != dumb ]]; then
+      asa_setup_mark=$'\033['"${asa_setup_color}m${asa_setup_mark}"$'\033[0m'
+      asa_setup_attention=$'\033[33m[!]\033[0m'
+    fi
+    printf '%s\n' "$asa_setup_mark ASA Setup: $asa_setup_title (код $asa_setup_code)" \
+      "1. $asa_setup_mark Зависимости и владелец: нужен Python 3.11+." \
+      "2. $asa_setup_attention Версия приложения: не выполнялось." \
+      "3. $asa_setup_attention PostgreSQL и файлы: не выполнялось." \
+      "4. $asa_setup_attention Резервирование: не выполнялось." \
+      "5. $asa_setup_attention Сайт и пользовательский путь: не выполнялось." \
+      "6. $asa_setup_attention Диагностика: не выполнялось." \
       'Следующее действие: проверьте официальный пакет, Ubuntu 24.04 amd64, root-доступ и подписанные источники apt.'
   fi
-  exit 2
+  exit "$asa_setup_code"
 }
 
 if ! /usr/bin/python3 -I -c 'import sys; raise SystemExit(sys.version_info < (3, 11))' 2>/dev/null; then
@@ -49,15 +66,15 @@ if ! /usr/bin/python3 -I -c 'import sys; raise SystemExit(sys.version_info < (3,
   /usr/bin/grep -Eq '^VERSION_ID=(24\.04|"24\.04")$' /etc/os-release || asa_setup_bootstrap_failure
   umask 077
   asa_setup_log="$(/usr/bin/mktemp /tmp/asa-python-bootstrap.XXXXXXXX.log)"
-  /usr/bin/apt-get update >"$asa_setup_log" 2>&1 || asa_setup_bootstrap_failure
+  /usr/bin/apt-get update >"$asa_setup_log" 2>&1 || asa_setup_bootstrap_failure 1
   asa_setup_python_version="$(/usr/bin/apt-cache policy python3 | /usr/bin/awk '/Candidate:/ { print $2; exit }')"
   [[ "$asa_setup_python_version" =~ ^[A-Za-z0-9.+:~_-]+$ ]] || asa_setup_bootstrap_failure
-  /usr/bin/apt-get --simulate --no-remove --no-upgrade install "python3=$asa_setup_python_version" >>"$asa_setup_log" 2>&1 || asa_setup_bootstrap_failure
+  /usr/bin/apt-get --simulate --no-remove --no-upgrade install "python3=$asa_setup_python_version" >>"$asa_setup_log" 2>&1 || asa_setup_bootstrap_failure 1
   if /usr/bin/grep -Eq '^(Remv |Purg |Inst [^ ]+ \[)' "$asa_setup_log"; then
     asa_setup_bootstrap_failure
   fi
-  /usr/bin/apt-get -y --no-remove --no-upgrade --no-install-recommends install "python3=$asa_setup_python_version" >>"$asa_setup_log" 2>&1 || asa_setup_bootstrap_failure
-  /usr/bin/python3 -I -c 'import sys; raise SystemExit(sys.version_info < (3, 11))' || asa_setup_bootstrap_failure
+  /usr/bin/apt-get -y --no-remove --no-upgrade --no-install-recommends install "python3=$asa_setup_python_version" >>"$asa_setup_log" 2>&1 || asa_setup_bootstrap_failure 1
+  /usr/bin/python3 -I -c 'import sys; raise SystemExit(sys.version_info < (3, 11))' || asa_setup_bootstrap_failure 1
 fi
 
 exec /usr/bin/python3 -I -B "$asa_setup_directory/tools/asa_setup_launcher.py" "$@"

@@ -67,12 +67,31 @@ def validate_fresh_selection(root, config, inventory):
     return selected
 
 
+def _observed_dependencies(host, tools):
+    """Summarize existing read-only evidence without running extra checks."""
+    system = host if isinstance(host, dict) else {}
+    plan = tools if isinstance(tools, dict) else {}
+    synchronized = system.get("timeSynchronized")
+    checks = {
+        "systemd": "OK" if system.get("systemd") is True else "UNVERIFIED",
+        "onePanel": "OK" if system.get("onePanel") == "ACTIVE" else "UNVERIFIED",
+        "timeSynchronized": "OK" if synchronized is True else "FAILED" if synchronized is False else "UNVERIFIED",
+        "tools": "OK" if plan.get("missing") == [] else "INCOMPLETE",
+        "docker": "OK" if plan.get("installDocker") is False and isinstance(plan.get("daemonId"), str)
+                              and bool(plan["daemonId"]) else "UNVERIFIED",
+    }
+    value = {"status": "OBSERVED", "host": host, "tools": tools, "checks": checks}
+    if synchronized is False:
+        value["reasonCode"] = "TIME_UNVERIFIED"
+    return value
+
+
 def _observe(args, config, discovery):
     operation_id = uuid.uuid4().hex
     value = result(operation_id, config.get("installationId") if config else None, args.command,
                    outcome="STATUS", code=2, data={"status": discovery["state"], "identity": discovery.get("dataIdentity")})
     value["discovery"] = discovery
-    value["dependencies"] = {"status": "OBSERVED", "host": setup_host.system_state(), "tools": setup_host.inspect_dependencies()}
+    value["dependencies"] = _observed_dependencies(setup_host.system_state(), setup_host.inspect_dependencies())
     if args.command == "restore-plan":
         value["backup"] = {"restore": setup_acceptance.restore_status(operation_id, args.snapshot_id), "status": "BLOCKED_PLAN"}
         value.update(outcome="PLANNED", reasonCode="BLOCKED_PLAN", nextAction="Для реального архива нужен отдельный утверждённый P1-R3A restore-план; decrypt и restore запрещены.")
@@ -252,7 +271,7 @@ def render_last(args, config):
                 value["rootActions"] = receipt
         if value.get("postActions"):
             value["backup"]["schedule"] = backup_schedule.schedule_status(args.root, config["installationId"], config["backup"].get("schedule", {}))
-            finalize(value)
+        finalize(value)
         save_private(path, value)
         if value.get("applicationAccepted") and value["exitCode"] == 0:
             save_private(args.root / ".asa/setup-last-successful.json", value)
@@ -437,9 +456,21 @@ def _auxiliary(args, config, runtime, store, pending):
             if pending:
                 protected += [pending.get("stages", {}).get("backup", {}).get("evidence", {}).get("snapshotId")]
             store.event(journal, "retention", "intent")
-            output["retention"] = backup_workflow.apply_retention(runtime.install, installation_id=config["installationId"],
-                policy=config["backup"], protected_snapshot_ids=[item for item in protected if item])
-            store.event(journal, "retention", "done")
+            try:
+                output["retention"] = backup_workflow.apply_retention(runtime.install, installation_id=config["installationId"],
+                    policy=config["backup"], protected_snapshot_ids=[item for item in protected if item])
+            except (Blocked, OSError, ValueError, subprocess.SubprocessError) as error:
+                # Retention checks have run and failed. Preserve the separately
+                # verified new snapshot instead of overwriting its receipt.
+                reason = getattr(error, "code", type(error).__name__)
+                next_action = "Проверьте старые копии и причину остановки очистки; новая подтверждённая копия сохранена."
+                output["retention"] = {"format": "asa-backup-retention-v1", "status": "FAILED", "reasonCode": reason,
+                    "at": dt.datetime.now(dt.timezone.utc).isoformat(), "nextAction": next_action,
+                    "protectedSnapshotIds": [item for item in protected if item]}
+                output.update(outcome="ERROR", exitCode=1, executionCompleted=False, reasonCode=reason, nextAction=next_action)
+                store.event(journal, "retention", "failed", evidence=output["retention"])
+            else:
+                store.event(journal, "retention", "done", evidence=output["retention"])
     except KeyboardInterrupt:
         output.update(outcome="INTERRUPTED", exitCode=130, reasonCode="INTERRUPTED", nextAction="Выполните resume --operation-id " + journal["operationId"] + "; snapshot ID уже закреплён.")
     except (Blocked, OSError, ValueError, subprocess.SubprocessError) as error:
@@ -482,7 +513,7 @@ def execute(args):
     discovery = bootstrap_observation(args.root, inventory, orphan) if orphan else setup_discovery.classify_installation(args.root, inventory,
                 project=config.get("project") if config else None, saved_identity=config.get("dataIdentity") if config else None, pending_operation=pending)
     if args.command in READ_ONLY:
-        output = _observe(args, config, discovery)
+        output = finalize(_observe(args, config, discovery))
         render(output, as_json=args.json)
         return output["exitCode"]
     if discovery["state"] not in ("FRESH", "MANAGED", "LEGACY", "STOPPED", "INTERRUPTED"):
@@ -544,6 +575,7 @@ def execute(args):
             output = result(journal["operationId"], config["installationId"], "configure", outcome="CONFIGURED", code=0,
                 actionExecuted=True, executionCompleted=True, postActions=[{"kind": "schedule"}] if not fresh else [],
                 nextAction="Настройки сохранены. Выполните auto для установки или обновления.")
+            finalize(output)
             if fresh:
                 journal["result"] = output
                 store.save(journal)
@@ -560,11 +592,12 @@ def execute(args):
                 journal = store.create("install" if fresh else "update", config["project"])
             require(journal["mode"] in ("install", "update"), "OPERATION_MODE", "Журнал относится к другой операции.")
             if journal.get("state") == "TERMINAL" and args.command != "acceptance":
-                output = journal["result"]
+                output = store.finish(journal, journal["result"])
             else:
                 output = Engine(runtime, store).execute(journal, resume=bool(pending or args.command == "resume"), acceptance_only=args.command == "acceptance")
         else:
             output = _auxiliary(args, config, runtime, store, pending)
+    finalize(output)
     if not args.defer_report:
         render(output, as_json=args.json)
     return output["exitCode"]
@@ -581,6 +614,7 @@ def main(argv=None):
         output = result(None, None, args.command, outcome="BLOCKED" if isinstance(error, Blocked) else "ERROR",
             code=2 if isinstance(error, Blocked) else 1, reasonCode=getattr(error, "code", type(error).__name__),
             nextAction=error.action if isinstance(error, Blocked) else "Проверьте исходную конфигурацию и доступ оператора; приватные подробности не выводятся.")
+    finalize(output)
     render(output, as_json=args.json)
     return output["exitCode"]
 

@@ -33,75 +33,57 @@ systemd**. Проверки функций Python, контейнерный CI �
 успешной проверки точного `main` владелец отдельно запускает workflow с
 `publish=true`. Он требует опубликованного приложения того же SHA, зелёных
 канонических проверок и синтетического испытания. Затем создаёт **новый** GitHub
-Release `setup-<полный SHA>` с файлом `asa-setup-<полный SHA>.tar.gz` и GitHub
-artifact attestation. Существующий выпуск не перезаписывается.
+Release `setup-<полный SHA>` с архивом `asa-setup-<полный SHA>.tar.gz` и помощником
+`asa-setup-acquire-<полный SHA>.py`. **Оба файла получают отдельные GitHub artifact
+attestations.** Существующий выпуск не перезаписывается.
 
-Ниже инструкция для уже опубликованного выпуска. **До публикации команда
-`gh release download` закономерно не найдёт пакет; подменять его архивом `main`
-нельзя.** Полный SHA берётся из одобренного выпуска. Для получения нужен заранее
-установленный из доверенного источника GitHub CLI, поддерживающий указанные
-флаги `gh attestation verify`, и Python 3.11+. Это проверка происхождения до
-выполнения загруженного кода, а не установка приложения.
-
-Выполните из обычной административной сессии с `sudo`:
+Для уже опубликованного выпуска достаточно блока ниже. Полный SHA одобренного
+выпуска вводится один раз. Нужна обычная административная сессия с `sudo`,
+Python 3.11+ и заранее установленный из доверенного источника **системный,
+принадлежащий root GitHub CLI**, поддерживающий все приведённые флаги.
+`gh` должен иметь доступ к репозиторию и attestations. Помощник запускается
+обычным пользователем; непосредственно из root-терминала он завершается с
+`ACQUIRE_RUN_AS_ADMIN_WITHOUT_SUDO`. Привилегии для защищённой копии он запрашивает
+сам через системный `sudo`.
 
 ```bash
 set -euo pipefail
 read -r -p 'Полный SHA одобренного опубликованного ASA Setup: ' asa_setup_revision
 [[ "$asa_setup_revision" =~ ^[a-f0-9]{40}$ ]]
 asa_setup_download="$(mktemp -d)"
-gh release download "setup-$asa_setup_revision" \
-  --repo spikeal8-maker/asa-lab \
-  --pattern "asa-setup-$asa_setup_revision.tar.gz" \
-  --dir "$asa_setup_download"
-
-# Проверяется уже root-owned копия: оператор не сможет заменить её между
-# проверкой provenance и последующим привилегированным запуском.
-sudo /usr/bin/python3 -I - <<'PY'
-import os, stat
-for path in ('/', '/opt', '/opt/asa-setup'):
-    try:
-        metadata = os.lstat(path)
-    except FileNotFoundError:
-        if path != '/opt/asa-setup':
-            raise SystemExit('Не найден защищённый родитель пакета')
-        os.mkdir(path, 0o755)
-        metadata = os.lstat(path)
-    if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
-            or metadata.st_mode & 0o022):
-        raise SystemExit('Родитель пакета не защищён; его права не изменены')
-PY
-asa_setup_incoming="$(sudo mktemp -d /opt/asa-setup/acquire.XXXXXXXX)"
-sudo chmod 0755 "$asa_setup_incoming"
-asa_setup_archive="$asa_setup_incoming/asa-setup-$asa_setup_revision.tar.gz"
-sudo install -o root -g root -m 0644 \
-  "$asa_setup_download/asa-setup-$asa_setup_revision.tar.gz" "$asa_setup_archive"
-gh attestation verify "$asa_setup_archive" \
-  --repo spikeal8-maker/asa-lab \
-  --signer-workflow spikeal8-maker/asa-lab/.github/workflows/setup-release.yml \
-  --source-ref refs/heads/main \
-  --source-digest "$asa_setup_revision" \
-  --deny-self-hosted-runners
-
-# Только после успешной attestation извлекается проверенный упаковщик.
-# tar пишет один файл в stdout; произвольные пути из архива не извлекаются.
-sudo /usr/bin/tar -xOf "$asa_setup_archive" tools/deployment/setup_bundle.py \
-  | sudo /usr/bin/tee "$asa_setup_incoming/setup-bundle.py" >/dev/null
-asa_setup_digest="$(sha256sum "$asa_setup_archive" | cut -d ' ' -f 1)"
-sudo /usr/bin/python3 -I "$asa_setup_incoming/setup-bundle.py" stage \
-  --archive "$asa_setup_archive" \
-  --revision "$asa_setup_revision" --sha256 "$asa_setup_digest" \
-  --destination "/opt/asa-setup/$asa_setup_revision"
+asa_setup_helper="$asa_setup_download/asa-setup-acquire-$asa_setup_revision.py"
+gh release download "setup-$asa_setup_revision" --repo spikeal8-maker/asa-lab --pattern "asa-setup-acquire-$asa_setup_revision.py" --dir "$asa_setup_download"
+gh attestation verify "$asa_setup_helper" --repo spikeal8-maker/asa-lab --signer-workflow spikeal8-maker/asa-lab/.github/workflows/setup-release.yml --source-ref refs/heads/main --source-digest "$asa_setup_revision" --deny-self-hosted-runners
+python3 -I "$asa_setup_helper" --revision "$asa_setup_revision"
 cd "/opt/asa-setup/$asa_setup_revision"
 sudo bash ./asa-setup.sh
 ```
 
-При любой ошибке цепочка останавливается. Отдельная SHA-256 сумма проверяет
-целостность; происхождение подтверждает именно attestation с указанным
-репозиторием, workflow, source ref и SHA. Упаковщик проверяет полный список
-файлов, каждый hash, типы архивных записей и отсутствие перенаправляющих ссылок.
-Незавершённый каталог пакета не считается готовым и не перезаписывается вслепую.
-Новые версии размещаются в отдельных неизменяемых каталогах.
+Сначала GitHub CLI подтверждает происхождение помощника до его запуска. Затем
+помощник скачивает архив **только выбранного выпуска**, переносит его точные
+байты в новый root-owned каталог под `/opt/asa-setup` и запрещает запись в архив.
+Уже эта защищённая копия проходит `gh attestation verify` с теми же обязательными
+ограничениями repository, signer workflow, `refs/heads/main`, полного source SHA
+и GitHub-hosted runner. До успешной проверки никакой код из архива не выполняется.
+Сам помощник не запускает установку: её отдельный вход остаётся
+`sudo bash ./asa-setup.sh`.
+
+После attestation упаковщик из проверенного архива проверяет полный список
+файлов, каждый hash, типы записей и отсутствие перенаправляющих ссылок. Пакет
+размещается в root-owned `/opt/asa-setup/<полный SHA>`, недоступном оператору для
+изменения. Повторное получение того же выпуска сверяет все байты существующего
+каталога и не перезаписывает их. Другой, неполный или изменённый каталог,
+небезопасные права родителей, символические и жёсткие ссылки — причина STOP.
+Версия с другим SHA получает отдельный каталог. SHA-256 связывает проверенную
+копию со staging; происхождение подтверждает именно GitHub attestation.
+
+**Пока setup release не опубликован, реальное получение остаётся `UNVERIFIED`.**
+Команда загрузки должна завершиться ошибкой; помощник при отсутствии архива
+выдаёт `ACQUIRE_PUBLISHED_RELEASE_REQUIRED`, а при отклонённой attestation —
+`ACQUIRE_ATTESTATION_REJECTED`. Проверки контракта на искусственных данных не
+заменяют успешный download/verify опубликованного выпуска. Подменять отсутствующий
+release архивом изменяемого `main` или запускать скачанный помощник через `sudo`
+нельзя. При любой ошибке блок с `set -e` останавливается до запуска установщика.
 
 Описание проверки подписи:
 [GitHub CLI: gh attestation verify](https://cli.github.com/manual/gh_attestation_verify).
@@ -120,9 +102,12 @@ sudo bash ./asa-setup.sh --help
 
 Первый запуск спрашивает недостающие параметры. Повторный использует приватный
 `.asa/setup.json`. При нескольких согласованных целях выберите каталог через
-`--root`; выбор связывается с installation ID и Compose project. Новому
-каталогу нужен существующий Linux-оператор. `--operator` задаёт его явно,
-но не разрешает менять владельца прежней установки.
+`--root`; выбор связывается с installation ID и Compose project. При первом
+привилегированном запуске в доказанно чистом каталоге, если оператор ещё не
+выбран, установщик безопасно создаёт выделенного Linux-оператора `asa-setup`.
+В существующей установке сохраняется подтверждённый владелец. `--operator`
+явно выбирает существующего пользователя, но не разрешает менять владельца
+прежней установки.
 
 | Команда | Назначение |
 |---|---|
@@ -265,7 +250,7 @@ installation ID, operation ID, snapshot ID, временем снимка и х�
 | Политика | Условие переключения |
 |---|---|
 | `required` | Полная проверенная локальная копия, AGE и подтверждённое чтением обратно облачное содержимое текущего снимка |
-| `best-effort` | Проверенная полная локальная копия; отсутствие шифрования/облака или ошибка доставки остаётся предупреждением |
+| `best-effort` | Проверенная полная локальная копия; предупреждение допускается только при заранее не настроенной облачной защите (облако/AGE) или разрешённой типизированной ошибке доступности облака. Ошибки целостности, закрепления транспорта (pin), хешей и неизвестные ошибки блокируют переключение |
 
 Политика сохраняется заранее и не ослабляется после ошибки. При отказе до
 переключения возвращаются только те прежние контейнеры, которые остановила

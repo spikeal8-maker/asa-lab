@@ -176,12 +176,26 @@ class Store:
         return candidates[0] if candidates else None
 
     def event(self, journal, stage, status, **details):
+        # Remember verified copies even if a continuation overwrites its stage
+        # receipt. A later missing file must never look like an unstarted export.
+        for evidence in (journal["stages"].get(stage, {}).get("evidence"), details.get("evidence")):
+            if isinstance(evidence, dict) and evidence.get("local", {}).get("status") == "OK" and evidence.get("snapshotId"):
+                verified = journal.setdefault("verifiedBackupSnapshots", [])
+                if evidence["snapshotId"] not in verified:
+                    verified.append(evidence["snapshotId"])
         journal["phase"] = stage
         journal["stages"][stage] = {"status": status, "at": now(), **details}
         journal["events"].append({"stage": stage, "status": status, "at": now()})
         self.save(journal)
 
     def finish(self, journal, outcome):
+        receipt = outcome.get("backup", {})
+        previous = journal.get("result", {}).get("backup", {})
+        if receipt.get("local", {}).get("error") == "BACKUP_RESUME_SNAPSHOT_MISSING" and (
+                receipt.get("snapshotId") in journal.get("verifiedBackupSnapshots", []) or
+                previous.get("snapshotId") == receipt.get("snapshotId") and previous.get("local", {}).get("status") == "OK"):
+            receipt["local"]["previouslyVerified"] = True
+        finalize(outcome)
         outcome["stage"] = journal["phase"]
         journal["result"] = outcome
         switched = "switch" in journal["stages"]
@@ -317,7 +331,7 @@ class Runtime:
             try:
                 backup_workflow.CloudTransport(self.config["backup"]["cloud"], self.config["installationId"])
             except Blocked as error:
-                if error.code in ("BACKUP_COMMAND_FAILED", "BACKUP_TOOL"):
+                if backup_workflow.cloud_unavailable(error):
                     if self.config["backup"]["policy"] == "best-effort":
                         # Transport availability is optional; run_backup must still
                         # create/verify the local snapshot and record cloud failure.
@@ -738,14 +752,31 @@ class Engine:
                     recovered = r.recover_acceptance_backup(journal)
                     self.store.event(journal, "recover_first_backup", "done", evidence=recovered)
                 technical = r.technical(journal)
+                output["site"].update(status="UNVERIFIED", technical=technical)
                 require(technical["status"] == "passed", "SWITCH_UNVERIFIED", "После прерывания выбранный runtime не прошёл приёмку.",
                         "Проверьте миграцию, образы и логи. Нужен отдельный forward repair; автоматический rollback запрещён.")
+                preflight = journal["stages"].get("preflight", {})
+                if preflight.get("status") == "done" and isinstance(preflight.get("evidence"), dict):
+                    output["dependencies"] = copy.deepcopy(preflight["evidence"])
+                else:
+                    # Older/crashed journals may have no final result. Recheck
+                    # dependencies without replaying switch, migrations or export.
+                    output["dependencies"] = self.stage(journal, "acceptance_preflight", r.preflight, replay_safe=True)
                 if switched:
                     self.store.event(journal, "switch", "done", evidence={"verifiedAfterInterruption": True})
                     output.update(actionExecuted=True, executionCompleted=True)
                     r.commit_runtime(journal)
                 else:
                     output.update(mode="acceptance", executionCompleted=True)
+                    pointer = self.store.state / "setup-backups/last-local-success.json"
+                    if pointer.exists():
+                        saved = private_json(pointer)
+                        output["backup"] = backup_workflow.verify_receipt(r.install, snapshot_id=saved["snapshotId"],
+                            installation_id=config["installationId"])
+                        output["backup"]["evidenceScope"] = "saved-snapshot-at-recorded-delivery-time"
+                    else:
+                        output["backup"] = {"status": "NOT_RUN", "policy": config["backup"]["policy"],
+                                            "reasonCode": "BACKUP_EVIDENCE_MISSING"}
             else:
                 require(not acceptance_only, "ACCEPTANCE_BEFORE_SWITCH", "Операция ещё не дошла до подтверждённого запуска.")
                 fresh = journal["mode"] == "install"
@@ -773,6 +804,7 @@ class Engine:
                     output["version"]["previous"] = journal["previousRuntime"]["revision"]
                     if not resume and not journal.get("temporarilyStarted") and journal["previousRuntime"]["revision"] == release["revision"]:
                         technical = r.technical(journal)
+                        output["site"].update(status="UNVERIFIED", technical=technical)
                         require(technical["status"] == "passed", "NO_CHANGE_UNVERIFIED", "Совпадение revision не подтверждено фактическими образами и схемой.")
                         r.stopped_restore(journal)
                         prior_path = self.store.state / "setup-last-successful.json"
@@ -827,6 +859,7 @@ class Engine:
                 self.store.event(journal, "switch", "done")
                 output.update(actionExecuted=True, executionCompleted=True)
                 technical = r.technical(journal)
+                output["site"].update(status="UNVERIFIED", technical=technical)
                 require(technical["status"] == "passed", "TECHNICAL_ACCEPTANCE", "Новая версия не прошла техническую приёмку.",
                         "Проверьте записанную операцию и выполните resume после исправления; откат схемы не выполняется.")
                 r.commit_runtime(journal)

@@ -27,6 +27,8 @@ import urllib.request
 
 try:
     import pwd
+    import grp
+    import fcntl
 except ImportError:  # The complete deployment contract suite also runs on Windows.
     pwd = None
 
@@ -48,6 +50,9 @@ CHROMIUM_PACKAGES = ("python3.12-venv", "xvfb", "fonts-noto-color-emoji", "fonts
 PACKAGE_ALLOWLIST = frozenset(("git", "python3", "curl", "ca-certificates", "age", "rclone", "gnupg",
                               "docker-compose-v2", *DOCKER_PACKAGES, *CHROMIUM_PACKAGES))
 CLOUD_SOURCE_SHA256 = "72e35bbb3043acefb423cfe706f82b089eaba974deb04f16df8f335093c59d0c"
+OPERATOR_NAME = "asa-setup"
+OPERATOR_STATE = Path("/var/lib/asa-setup")
+BOOTSTRAP_LOCK = Path("/run/asa-setup-bootstrap.lock")
 BROWSER_VERSION = "1.56.0"
 CHROMIUM_VERSION = "141.0.7390.37"
 CHROMIUM_REVISION = "1194"
@@ -317,6 +322,211 @@ def validate_owner(root, backup_directory=None, operator_uid=None):
                            "Восстановите сведения об исходном операторе.") from exc
     return {"uid": uid, "gid": account.pw_gid, "name": account.pw_name, "home": account.pw_dir,
             "root": str(root), "backupDirectory": str(backup), "paths": [str(path) for path, _ in existing]}
+
+
+def bootstrap_lock():
+    """Serialize the root-only account bootstrap before any durable mutation."""
+    path = checked_path(BOOTSTRAP_LOCK)
+    parent = path.parent.stat()
+    _require(parent.st_uid == 0 and not parent.st_mode & 0o022, "BOOTSTRAP_LOCK",
+             "Каталог bootstrap lock не защищён.", "Проверьте системный каталог /run.")
+    descriptor = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        info = os.fstat(descriptor)
+        _require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == 0
+                 and info.st_mode & 0o077 == 0, "BOOTSTRAP_LOCK", "Bootstrap lock имеет неподтверждённые права.",
+                 "Проверьте исходный lock; он не заменяется автоматически.")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise SetupBlocked("BOOTSTRAP_BUSY", "Другой setup уже подготавливает оператора.",
+                               "Дождитесь завершения текущей подготовки и повторите status.") from exc
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def prove_fresh_target(root, plan, runner=None, backup_directory=None):
+    """A complete, stable Docker observation precedes account creation.
+
+    This small stdlib boundary intentionally does not import mutable deployment
+    modules while root. Any target entry, ASA container, or orphan ASA volume
+    requires the existing-owner path instead of automatic account adoption.
+    """
+    runner = runner or _run
+    root = checked_path(root)
+    if backup_directory:
+        backup = checked_path(backup_directory)
+        _require(not backup.exists(), "BOOTSTRAP_NOT_FRESH", "Сохранился выбранный каталог резервных копий.",
+                 "Определите исходного владельца и backup; новая установка не предполагается.")
+    parent = checked_path(root.parent, missing=False).stat()
+    _require(parent.st_uid == 0 and not parent.st_mode & 0o022, "TARGET_PARENT",
+             "Родитель нового каталога доступен для сторонней записи.", "Выберите защищённый каталог установки.")
+    for ancestor in root.parent.parents:
+        info = ancestor.stat()
+        _require(info.st_uid == 0 and (not info.st_mode & 0o022 or bool(info.st_mode & stat.S_ISVTX)),
+                 "TARGET_PARENT", "Предок нового каталога доступен для неподтверждённой замены.",
+                 "Выберите защищённый каталог установки.")
+    identity = None
+    if root.exists():
+        info = root.stat()
+        _require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022
+                 and not any(root.iterdir()), "BOOTSTRAP_NOT_FRESH", "Каталог содержит прежние данные или другого владельца.",
+                 "Используйте исходного оператора; существующие файлы и backup не меняются.")
+        identity = (info.st_dev, info.st_ino)
+    if plan["installDocker"]:
+        _require(plan.get("daemonId") is None, "DOCKER_UNKNOWN", "Отсутствие исходного Docker не доказано.",
+                 "Восстановите исходный daemon и повторите check.")
+        return identity
+    expected = plan.get("daemonId")
+    _require(bool(expected) and runner(["docker", "info", "--format", "{{.ID}}"] ) == expected,
+             "DOCKER_CHANGED", "Выбранный Docker daemon изменился.", "Восстановите исходный context и повторите check.")
+    commands = ((["docker", "ps", "-aq", "--no-trunc"], ["docker", "inspect"],
+                 '{"id":{{json .Id}},"image":{{json .Config.Image}},"labels":{{json .Config.Labels}}}'),
+                (["docker", "volume", "ls", "-q"], ["docker", "volume", "inspect"],
+                 '{"id":{{json .Name}},"labels":{{json .Labels}}}'))
+    observed = []
+    for listing, inspection, template in commands:
+        identifiers = runner(listing).split()
+        pattern = r"[a-f0-9]{64}" if listing[1] == "ps" else r"[A-Za-z0-9][A-Za-z0-9_.-]{0,254}"
+        _require(len(identifiers) <= 4096 and len(set(identifiers)) == len(identifiers)
+                 and all(re.fullmatch(pattern, item) for item in identifiers), "DOCKER_UNKNOWN",
+                 "Инвентаризация Docker неполна.", "Проверьте исходный daemon; пустая установка не предполагается.")
+        records = []
+        for offset in range(0, len(identifiers), 64):
+            records.extend(json.loads(line) for line in runner([*inspection, "--format", template,
+                           *identifiers[offset:offset + 64]]).splitlines() if line.strip())
+        _require(len(records) == len(identifiers) and all(isinstance(item, dict) for item in records)
+                 and {item.get("id") for item in records} == set(identifiers), "DOCKER_UNKNOWN",
+                 "Инвентаризация Docker неполна.", "Повторите check после завершения сторонней операции.")
+        for record in records:
+            labels = record.get("labels")
+            _require(labels is None or isinstance(labels, dict), "DOCKER_UNKNOWN", "Не удалось проверить Docker labels.", "Повторите check.")
+            labels = labels or {}
+            image = record.get("image", "")
+            _require(listing[1] != "ps" or isinstance(image, str) and bool(image), "DOCKER_UNKNOWN",
+                     "Не удалось проверить образ контейнера.", "Повторите check.")
+            asa = (bool(labels.get("io.asa.installation-id"))
+                   or str(labels.get("org.opencontainers.image.source", "")).removesuffix(".git") == "https://github.com/" + REPOSITORY
+                   or str(labels.get("com.docker.compose.project", "")).startswith("asa-lab")
+                   or labels.get("com.docker.compose.project.working_dir") == str(root)
+                   or labels.get("com.docker.compose.volume") == "blocks-object-data"
+                   or listing[1] == "volume" and record["id"].startswith("asa-lab")
+                   or record["id"].endswith("_blocks-object-data")
+                   or str(image).startswith("ghcr.io/" + REPOSITORY + "/")
+                   or re.match(r"asa-lab-(api|web|scratch|minio|search)(:|@)", str(image)))
+            _require(not asa, "BOOTSTRAP_NOT_FRESH", "В Docker сохранились ресурсы ASA Lab.",
+                     "Определите прежнюю установку и её владельца; автоматический оператор не создаётся.")
+        observed.append((listing, identifiers))
+    _require(all(set(runner(listing).split()) == set(identifiers) for listing, identifiers in observed)
+             and runner(["docker", "info", "--format", "{{.ID}}"]) == expected, "DOCKER_CHANGED",
+             "Docker изменился во время проверки.", "Повторите check после завершения сторонней операции.")
+    return identity
+
+
+def prepare_default_operator(root, plan, backup_directory=None):
+    """Create only our dedicated account, with a durable root-owned intent.
+
+    The random account comment binds a completed useradd to its pre-existing
+    receipt after interruption. A same-name foreign account is never repaired.
+    The caller holds bootstrap_lock until the owner process finishes.
+    """
+    identity = prove_fresh_target(root, plan, backup_directory=backup_directory)
+    _require(not plan["installDocker"] and bool(plan.get("daemonId")), "DOCKER_UNKNOWN",
+             "Перед созданием оператора требуется проверяемый Docker daemon.", "Завершите подготовку отсутствующих зависимостей.")
+    state = checked_path(OPERATOR_STATE)
+    home = state / "operator"
+    intent_path, receipt_path = state / "operator-intent.json", state / "operator.json"
+    if state.exists():
+        info = state.stat()
+        _require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
+                 "OPERATOR_STATE", "Bootstrap metadata имеет другого владельца или права.", "Проверьте системный каталог оператора.")
+    try:
+        account = pwd.getpwnam(OPERATOR_NAME)
+    except KeyError:
+        account = None
+    intent = read_private_json(intent_path)
+    receipt = read_private_json(receipt_path)
+    for path in (intent_path, receipt_path):
+        if path.exists():
+            _require(path.stat().st_uid == 0, "OPERATOR_STATE", "Bootstrap receipt не принадлежит root.",
+                     "Проверьте происхождение bootstrap metadata.")
+    _require(not account or bool(intent), "OPERATOR_CONFLICT", "Имя выделенного оператора уже занято чужой учётной записью.",
+             "Выберите существующего владельца через --operator; чужая учётная запись не меняется.")
+    if not intent:
+        _require(not receipt and not home.exists(), "OPERATOR_CONFLICT", "Домашний каталог оператора уже существует без receipt.",
+                 "Проверьте прежнюю учётную запись; каталог не присваивается автоматически.")
+        if not state.exists():
+            parent_info = checked_path(state.parent, missing=False).stat()
+            _require(parent_info.st_uid == 0 and not parent_info.st_mode & 0o022,
+                     "OPERATOR_STATE", "Родитель bootstrap metadata не защищён.", "Проверьте системный каталог оператора.")
+            state.mkdir(mode=0o755)
+        intent = {"format": "asa-operator-bootstrap-v1", "name": OPERATOR_NAME, "home": str(home),
+                  "root": str(root), "marker": "asa-setup:" + os.urandom(16).hex()}
+        _atomic_root_file(intent_path, (json.dumps(intent, sort_keys=True) + "\n").encode(), mode=0o600)
+    _require(intent.get("format") == "asa-operator-bootstrap-v1" and intent.get("name") == OPERATOR_NAME
+             and intent.get("home") == str(home) and intent.get("root") == str(root)
+             and isinstance(intent.get("marker"), str) and re.fullmatch(r"asa-setup:[a-f0-9]{32}", intent["marker"]),
+             "OPERATOR_STATE", "Bootstrap receipt относится к другой установке или учётной записи.",
+             "Проверьте сохранённую идентичность оператора; автоматическое присвоение запрещено.")
+    if account is None:
+        _require(not receipt and not home.exists(), "OPERATOR_STATE", "Учётная запись пропала после bootstrap.",
+                 "Восстановите исходную учётную запись; новый UID не назначается поверх данных.")
+        _run(["/usr/sbin/useradd", "--system", "--user-group", "--create-home", "--key", "HOME_MODE=0700", "--home-dir", str(home),
+              "--shell", "/usr/sbin/nologin", "--comment", intent["marker"], "--", OPERATOR_NAME])
+        account = pwd.getpwnam(OPERATOR_NAME)
+    _require(account.pw_uid > 0 and account.pw_gid > 0 and account.pw_name == OPERATOR_NAME
+             and account.pw_dir == str(home) and account.pw_gecos == intent["marker"]
+             and account.pw_shell == "/usr/sbin/nologin" and grp.getgrgid(account.pw_gid).gr_name == OPERATOR_NAME,
+             "OPERATOR_CONFLICT", "Учётная запись не соответствует root bootstrap receipt.",
+             "Проверьте исходного оператора; чужая учётная запись не меняется.")
+    info = checked_path(home, missing=False).stat()
+    _require(stat.S_ISDIR(info.st_mode) and info.st_uid == account.pw_uid and info.st_gid == account.pw_gid
+             and not info.st_mode & 0o077, "OPERATOR_HOME", "Домашний каталог оператора имеет неподтверждённого владельца.",
+             "Проверьте только выделенный каталог; массовая смена владельцев не выполняется.")
+    expected = {**intent, "uid": account.pw_uid, "gid": account.pw_gid}
+    _require(not receipt or receipt == expected, "OPERATOR_CONFLICT", "UID оператора изменился после bootstrap.",
+             "Восстановите исходный UID без смены владельцев данных.")
+    _atomic_root_file(receipt_path, (json.dumps(expected, sort_keys=True) + "\n").encode(), mode=0o600)
+    # A second observation closes the account-creation window before assigning
+    # even an empty target directory. No recursive chown is ever performed.
+    _require(prove_fresh_target(root, plan, backup_directory=backup_directory) == identity, "TARGET_CHANGED", "Каталог установки изменился во время bootstrap.",
+             "Повторите check; прежние данные не изменяются.")
+    # Finish access before assigning an existing empty directory. A crash after
+    # assignment then leaves a usable operator; before it, the same intent can
+    # safely resume without creating a second account or changing another user.
+    _run(["/usr/sbin/usermod", "--append", "--groups", "docker", "--", account.pw_name])
+    verify_operator_daemon({"uid": account.pw_uid, "gid": account.pw_gid, "name": account.pw_name,
+                            "home": account.pw_dir, "root": str(root)}, plan["daemonId"])
+    if root.exists():
+        descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            info = os.fstat(descriptor)
+            _require((info.st_dev, info.st_ino) == identity and not os.listdir(descriptor), "TARGET_CHANGED",
+                     "Каталог установки больше не пуст.", "Проверьте существующего владельца и данные.")
+            os.fchown(descriptor, account.pw_uid, account.pw_gid)
+        finally:
+            os.close(descriptor)
+    return account.pw_uid
+
+
+def verify_operator_daemon(owner, expected):
+    """Test access using the exact owner UID, groups, home and Docker context."""
+    _require(isinstance(expected, str) and bool(expected), "DOCKER_UNKNOWN", "Нет исходной идентичности Docker.",
+             "Проверьте исходный Engine и повторите check.")
+    options = {"cwd": "/", "env": operator_environment(owner, expected), "stdout": subprocess.PIPE,
+               "stderr": subprocess.PIPE, "encoding": "utf-8", "errors": "strict", "timeout": 30, "check": False}
+    if os.geteuid() == 0:
+        options.update(user=owner["uid"], group=owner["gid"], extra_groups=os.getgrouplist(owner["name"], owner["gid"]))
+    try:
+        completed = subprocess.run(["docker", "info", "--format", "{{.ID}}"], **options)
+    except (OSError, subprocess.SubprocessError, UnicodeError) as exc:
+        raise SetupBlocked("DOCKER_OWNER_ACCESS", "Оператор не подтвердил доступ к исходному Docker daemon.",
+                           "Проверьте права и context исходного оператора; Engine не переустанавливается.") from exc
+    _require(completed.returncode == 0 and completed.stdout.strip() == expected, "DOCKER_OWNER_ACCESS",
+             "Docker daemon оператора недоступен или отличается от исходного.",
+             "Восстановите доступ оператора к исходному Engine; другой daemon не используется.")
 
 
 def _installed_packages(runner):
@@ -627,6 +837,15 @@ def prepare_cloud_transport(bundle, *, owner, credential_file=None, replace_cred
     if not reused:
         try:
             module.install()
+        except subprocess.SubprocessError as exc:
+            raise SetupBlocked("CLOUD_UNAVAILABLE", "Общий cloud transport временно недоступен.",
+                               "Проверьте доступ к registry и повторите retry-cloud.") from exc
+        except ValueError as exc:
+            code = str(exc).split(":", 1)[0]
+            if not re.fullmatch(r"CLOUD_[A-Z0-9_]+", code):
+                code = "CLOUD_INSTALL"
+            raise SetupBlocked(code, "Облачный компонент отклонил системную конфигурацию.",
+                               "Проверьте идентичность и защищённые пути cloud transport; автоматическая замена запрещена.") from exc
         except Exception as exc:
             raise SetupBlocked("CLOUD_INSTALL", "Общий cloud transport не установлен; чувствительные сведения скрыты.",
                                "Проверьте Docker registry и принадлежность /srv/asa-cloud-storage.") from exc
@@ -673,6 +892,18 @@ def prepare_cloud_transport(bundle, *, owner, credential_file=None, replace_cred
     return {"format": "asa-cloud-preparation-v1", "project": module.PROJECT, "image": module.IMAGE,
             "reused": reused, "tokenConfigured": module.connected(), "deliveryVerified": False,
             "preparedAt": dt.datetime.now(dt.timezone.utc).isoformat()}
+
+
+def prepare_cloud_for_policy(bundle, *, owner, policy, credential_file=None, replace_credentials=False):
+    try:
+        return prepare_cloud_transport(bundle, owner=owner, credential_file=credential_file,
+                                       replace_credentials=replace_credentials)
+    except SetupBlocked as exc:
+        if policy != "best-effort" or exc.code != "CLOUD_UNAVAILABLE":
+            raise
+        return {"format": "asa-cloud-preparation-v1", "status": "WARNING", "reasonCode": exc.code,
+                "tokenConfigured": False, "deliveryVerified": False,
+                "preparedAt": dt.datetime.now(dt.timezone.utc).isoformat()}
 
 
 def _owner_call(owner, arguments, environment, *, capture=False, timeout=None):
@@ -758,20 +989,24 @@ def prepare_handoff(root, owner, bundle, result, environment, *, non_interactive
     plan = dependency_plan(cloud=cloud.get("enabled") is True, browser=request.get("browser") is True)
     _require(not plan["installDocker"], "DOCKER_UNKNOWN", "Исходный Docker недоступен в незавершённой операции.",
              "Восстановите прежний Engine; новый daemon не создаётся во время resume.")
+    expected_daemon = environment.get("ASA_SETUP_DAEMON_ID") or plan.get("daemonId")
+    _require(plan.get("daemonId") == expected_daemon, "DOCKER_CHANGED", "Docker daemon изменился перед продолжением операции.",
+             "Восстановите исходный context; другой daemon не используется.")
+    verify_operator_daemon(owner, expected_daemon)
     if plan["missing"]:
         environment["ASA_SETUP_HOST_PREPARATION"] = json.dumps(provision_dependencies(plan), separators=(",", ":"))
     changed = False
     if request.get("cloud"):
         credential_file = cloud.get("rcloneConfigFile")
-        proof = prepare_cloud_transport(bundle, owner=owner, credential_file=credential_file)
-        if not proof.get("tokenConfigured"):
+        proof = prepare_cloud_for_policy(bundle, owner=owner, policy=backup.get("policy"), credential_file=credential_file)
+        if not proof.get("tokenConfigured") and proof.get("status") != "WARNING" and backup.get("policy") != "best-effort":
             _require(not non_interactive and sys.stdin.isatty(), "CLOUD_CONFIGURATION",
                      "Для выбранного облачного backup отсутствует авторизация Yandex.",
                      "Укажите backup.cloud.rcloneConfigFile — приватный файл оператора 0600; токены в аргументы не передавайте.")
             credential_file = input("Путь к приватному файлу rclone.conf с авторизацией Yandex: ").strip()
             _require(bool(credential_file), "CLOUD_CONFIGURATION", "Приватный файл авторизации не выбран.",
                      "Подготовьте rclone.conf и продолжите сохранённый operation ID.")
-            proof = prepare_cloud_transport(bundle, owner=owner, credential_file=credential_file)
+            proof = prepare_cloud_for_policy(bundle, owner=owner, policy=backup.get("policy"), credential_file=credential_file)
             _require(proof.get("tokenConfigured"), "CLOUD_CONFIGURATION", "Облачная авторизация ещё не подтверждена.",
                      "Проверьте приватный rclone.conf; приложение пока не переключалось.")
             cloud["rcloneConfigFile"] = str(checked_path(credential_file, missing=False))
@@ -840,25 +1075,98 @@ def operator_environment(owner, daemon_id=None):
     return result
 
 
-def emit_blocked(error, *, as_json=False, operation_id=None, installation_id=None):
-    names = ["Сервер и зависимости", "Версия ASA Lab", "База и файлы", "Резервные копии", "Сайт и пользовательские действия", "Диагностика"]
-    checks = [{"name": name, "status": "BLOCKED" if index == 0 else "NOT_RUN", "required": index < 5}
+def _save_interrupted_receipt(root, owner, observed, replacement):
+    """Replace only the same owner-verified attempt, under its canonical lock.
+
+    A previous success without a new child receipt cannot identify this attempt
+    and never enters this path. The successful receipt and application journal
+    remain separate evidence; no application action is replayed here.
+    """
+    validate_owner(root, operator_uid=owner["uid"])
+    lock = checked_path(root / ".asa/operation.lock", missing=False)
+    before = lock.stat()
+    descriptor = os.open(lock, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        info = os.fstat(descriptor)
+        _require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == owner["uid"]
+                 and not info.st_mode & 0o022 and (info.st_dev, info.st_ino) == (before.st_dev, before.st_ino),
+                 "INTERRUPTED_RECEIPT_LOCK", "Lock операции изменился после прерывания.", "Выполните status; чужая операция не изменяется.")
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        config_path = checked_path(root / ".asa/setup.json", missing=False)
+        config = read_private_json(config_path, required=True)
+        path = checked_path(root / ".asa/setup-last-attempt.json", missing=False)
+        current = read_private_json(path, required=True)
+        _require(config.get("format") == "asa-setup-config-v1" and config.get("root") == str(root)
+                 and config.get("operatorUid") == owner["uid"] and config_path.stat().st_uid == owner["uid"]
+                 and path.stat().st_uid == owner["uid"] and current == observed
+                 and current.get("format") == "asa-setup-result-v1"
+                 and current.get("installationId") == config.get("installationId")
+                 and all(isinstance(current.get(key), str) and re.fullmatch(r"[a-f0-9]{32}", current[key])
+                         for key in ("operationId", "installationId")),
+                 "INTERRUPTED_RECEIPT_CHANGED", "Receipt или идентичность операции изменились после прерывания.",
+                 "Выполните status; более новый результат не заменяется.")
+        _write_owner_json(path, replacement, owner)
+    finally:
+        os.close(descriptor)
+
+
+def emit_blocked(error, *, as_json=False, operation_id=None, installation_id=None, observed=None, root=None, owner=None):
+    """Emit one supervisor result, including SIGINT's independent exit contract."""
+    names = ["Зависимости и владелец", "Версия приложения", "PostgreSQL и файлы", "Резервирование", "Сайт и пользовательский путь", "Диагностика"]
+    keys = ("dependencies", "version", "data", "backup", "site", "diagnostics")
+    interrupted = error.code == "INTERRUPTED"
+    code = 130 if interrupted else 2
+    first_status = "INTERRUPTED" if interrupted else "BLOCKED"
+    checks = [{"name": name, "status": first_status if index == 0 else "NOT_RUN", "required": index < 5}
               for index, name in enumerate(names)]
     result = {"format": "asa-setup-result-v1", "operationId": operation_id, "installationId": installation_id,
-              "outcome": "BLOCKED", "stage": "bootstrap", "accepted": False, "executionCompleted": False,
-              "dataProtectionConfirmed": False, "at": dt.datetime.now(dt.timezone.utc).isoformat(),
+              "outcome": "INTERRUPTED" if interrupted else "BLOCKED", "exitCode": code, "mode": None, "stage": "bootstrap", "accepted": False,
+              "executionCompleted": False, "actionExecuted": False, "applicationAccepted": False,
+              "dataProtectionConfirmed": False, "observedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
               "checks": checks, "error": {"code": error.code, "message": str(error), "action": error.action},
-              "nextAction": error.action}
+              "reasonCode": error.code, "nextAction": error.action, "postActions": [],
+              **{key: {"status": first_status if index == 0 else "NOT_RUN"} for index, key in enumerate(keys)}}
+    if interrupted and observed and root is not None and owner is not None:
+        # Earlier verified acceptance/protection facts survive, while the
+        # supervisor's overall result can never remain ACCEPTED after SIGINT.
+        result = {**result, **observed, "outcome": "INTERRUPTED", "exitCode": 130, "accepted": False,
+                  "executionCompleted": False, "observedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+                  "reasonCode": error.code, "error": result["error"], "nextAction": error.action,
+                  "interruptionReceipt": {"status": "RECORDED"}}
+        result["checks"] = [{"name": name, "status": result.get(key, {}).get("status", "NOT_RUN"), "required": index < 5}
+                            for index, (name, key) in enumerate(zip(names, keys))]
+        try:
+            _save_interrupted_receipt(root, owner, observed, result)
+        except (SetupBlocked, OSError, ValueError, TypeError) as exc:
+            result["interruptionReceipt"] = {"status": "UNCONFIRMED", "reasonCode": getattr(exc, "code", "INTERRUPTED_RECEIPT_UNAVAILABLE")}
     if as_json:
         print(json.dumps(result, ensure_ascii=False))
     else:
-        print("ОСТАНОВЛЕНО — ПОДГОТОВКА НЕ ЗАВЕРШЕНА")
-        for index, name in enumerate(names, 1):
-            print(f"{index}. {'[!] ОСТАНОВЛЕНО' if index == 1 else '[ ] НЕ ПРОВЕРЕНО'} — {name}")
-        if operation_id:
-            print("Операция: " + operation_id)
+        tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
+        mark = "⚠" if tty else "[!]"
+        if tty and "NO_COLOR" not in os.environ:
+            mark = "\033[33m" + mark + "\033[0m"
+        title = "ОПЕРАЦИЯ ПРЕРВАНА — СОСТОЯНИЕ ТРЕБУЕТ ПРОВЕРКИ" if interrupted else "ОСТАНОВЛЕНО — ПОДГОТОВКА НЕ ЗАВЕРШЕНА"
+        print(f"{mark} {title} (код {code})")
+        descriptions = {"BLOCKED": "остановлено до подтверждения", "INTERRUPTED": "прервано", "NOT_RUN": "не выполнялось"}
+        for index, (name, key) in enumerate(zip(names, keys), 1):
+            state = result.get(key, {}).get("status", "NOT_RUN")
+            row_mark = mark
+            if state in ("OK", "passed", "PRESERVED", "INITIALIZED", "READY", "RUNNING", "ACCEPTED", "NOT_REQUIRED"):
+                row_mark = "✓" if tty else "[OK]"
+                if tty and "NO_COLOR" not in os.environ:
+                    row_mark = "\033[32m" + row_mark + "\033[0m"
+            elif state in ("FAILED", "ERROR", "failed", "environment_failed"):
+                row_mark = "✗" if tty else "[X]"
+                if tty and "NO_COLOR" not in os.environ:
+                    row_mark = "\033[31m" + row_mark + "\033[0m"
+            print(f"{index}. {row_mark} {name}: {descriptions.get(state, state)}")
+        if result.get("operationId"):
+            print("Операция: " + result["operationId"])
+        if result.get("interruptionReceipt", {}).get("status") == "UNCONFIRMED":
+            print("Сохранение результата прерывания не подтверждено; выполните status.")
         print(f"{error.code}: {error}\nСледующее действие: {error.action}")
-    return 2
+    return code
 
 
 def main(argv=None):
@@ -877,13 +1185,16 @@ def main(argv=None):
     if "--help" in arguments or "-h" in arguments:
         print("ASA Lab — единая установка и обновление\n"
               "sudo bash ./asa-setup.sh [--root /srv/asa-lab] [--config /путь/setup.json]\n"
-              "Команды: check, status, resume, backup, cloud-retry, diagnose, restore-plan.\n"
-              "--operator USER — первый выбор оператора; существующий владелец определяется по файлам.\n"
+              "Команды: check, status, resume, backup, schedule, retry-cloud, doctor, restore-plan.\n"
+              "Совместимые aliases: cloud-retry, diagnose.\n"
+              "--operator USER — существующий оператор; для чистого сервера создаётся выделенный asa-setup.\n"
               "--prepare-host — подготовка отсутствующих зависимостей; --check — без изменений.\n"
               "--non-interactive — не задавать вопросы; --json — машинный результат.\n"
               "Привилегированный вход используется из пакета с проверенной GitHub attestation.")
         return 0
     active_result = {}
+    root = owner = None
+    lock_descriptor = None
     try:
         _require(os.name == "posix" and pwd is not None, "PLATFORM", "Этот вход поддерживает Linux Ubuntu 24.04 amd64.",
                  "Используйте соответствующий профиль установщика.")
@@ -923,33 +1234,6 @@ def main(argv=None):
                 raise SetupBlocked("TARGET_REQUIRED", "Каталог новой установки не задан.", "Укажите --root или приватную конфигурацию; обязательный ввод не ожидается в фоне.")
         root = checked_path(requested_root)
         persisted = read_private_json(root / ".asa/setup.json")
-        supplied_uid = config.get("operatorUid", persisted.get("operatorUid"))
-        if parsed.operator:
-            try:
-                account = pwd.getpwnam(parsed.operator)
-                supplied_uid = account.pw_uid
-            except KeyError as exc:
-                raise SetupBlocked("OPERATOR_REQUIRED", "Указанного Linux-пользователя не существует.", "Создайте системного оператора отдельно или выберите существующего.") from exc
-        if supplied_uid is None and not root.exists():
-            if not elevated:
-                supplied_uid = os.geteuid()
-            elif not parsed.non_interactive and sys.stdin.isatty():
-                name = input("Linux-пользователь — оператор новой установки: ").strip()
-                try:
-                    supplied_uid = pwd.getpwnam(name).pw_uid
-                except KeyError as exc:
-                    raise SetupBlocked("OPERATOR_REQUIRED", "Оператор не найден.", "Укажите существующего Linux-пользователя.") from exc
-        if supplied_uid is None and root.exists() and root.stat().st_uid == 0 and not (root / ".env").exists():
-            raise SetupBlocked("OPERATOR_REQUIRED", "Для новой установки от root оператор должен быть выбран явно.",
-                               "Укажите --operator или operatorUid; старые установки используют прежнего владельца автоматически.")
-        owner = validate_owner(root, operator_uid=supplied_uid)
-        _require(owner["uid"] != 0, "BLOCKED_OWNER", "Установка с владельцем root требует отдельного согласованного перехода к оператору.",
-                 "Сохраните владельцев и данные; выберите non-root оператора новой установки или согласуйте переход старой отдельно.")
-        _require(elevated or owner["uid"] == os.geteuid(), "OPERATOR_PERMISSION", "Текущий пользователь не является владельцем установки.",
-                 "Запустите проверенный setup через sudo; он выберет владельца автоматически.")
-        if parsed.config:
-            _require(Path(parsed.config).stat().st_uid == owner["uid"], "CONFIG_OWNER", "Конфигурация принадлежит другому оператору.",
-                     "Используйте приватный конфигурационный файл выбранного владельца.")
         backup_config = config.get("backup", persisted.get("backup", {}))
         _require(isinstance(backup_config, dict), "CONFIG_SCHEMA", "Раздел backup должен быть JSON-объектом.", "Исправьте формат backup.")
         browser_config = config.get("browser", persisted.get("browser", {}))
@@ -961,8 +1245,62 @@ def main(argv=None):
         need_browser = not dry and command in ("auto", "resume", "configure", "acceptance") and not browser_config.get("pythonPath")
         needs_cloud = bool(cloud_config) and cloud_config.get("enabled") is not False
         cloud_enabled = bool(backup_config.get("recipient") or backup_config.get("ageRecipient") or needs_cloud)
-        plan = dependency_plan(cloud=cloud_enabled, browser=need_browser)
-        prepared = None
+        plan = None
+        early_prepared = None
+        supplied_uid = config.get("operatorUid", persisted.get("operatorUid"))
+        if parsed.operator:
+            try:
+                account = pwd.getpwnam(parsed.operator)
+                supplied_uid = account.pw_uid
+            except KeyError as exc:
+                raise SetupBlocked("OPERATOR_REQUIRED", "Указанного Linux-пользователя не существует.", "Создайте системного оператора отдельно или выберите существующего.") from exc
+        if supplied_uid is None and not root.exists() and not elevated:
+            supplied_uid = os.geteuid()
+        if supplied_uid is None and elevated and (not root.exists() or (root.is_dir() and root.stat().st_uid == 0 and not any(root.iterdir()))):
+            _require(not dry, "OPERATOR_SETUP_REQUIRED", "Для новой установки ещё не подготовлен выделенный оператор.",
+                     "Запустите setup без --check; после подтверждения FRESH он безопасно создаст asa-setup.")
+            _require(command in ("auto", "configure", "cloud-configure"), "OPERATOR_SETUP_REQUIRED",
+                     "Эта команда требует уже настроенной установки.", "Выполните первоначальный setup и повторите команду.")
+            if parsed.config:
+                _require(Path(parsed.config).stat().st_uid == 0, "CONFIG_OWNER", "Начальная конфигурация должна принадлежать root.",
+                         "Передайте приватную root-конфигурацию; bootstrap не присваивает чужие файлы.")
+            lock_descriptor = bootstrap_lock()
+            plan = dependency_plan(cloud=cloud_enabled, browser=need_browser)
+            if plan["installDocker"]:
+                # Genuine absence is established before either packages or
+                # useradd. Existing 1Panel Engines never enter this branch.
+                prove_fresh_target(root, plan, backup_directory=config.get("backupDirectory"))
+                early_prepared = provision_dependencies(plan)
+                plan = dependency_plan(cloud=cloud_enabled, browser=need_browser)
+                _require(not plan["installDocker"] and bool(early_prepared.get("daemonId"))
+                         and plan.get("daemonId") == early_prepared["daemonId"], "DOCKER_CHANGED",
+                         "Новый Docker daemon не совпадает с подготовленным Engine.", "Проверьте исходный context и повторите check.")
+            supplied_uid = prepare_default_operator(root, plan, config.get("backupDirectory"))
+        owner = validate_owner(root, backup_directory=config.get("backupDirectory", persisted.get("backupDirectory")), operator_uid=supplied_uid)
+        _require(owner["uid"] != 0, "BLOCKED_OWNER", "Установка с владельцем root требует отдельного согласованного перехода к оператору.",
+                 "Сохраните владельцев и данные; выберите non-root оператора новой установки или согласуйте переход старой отдельно.")
+        _require(elevated or owner["uid"] == os.geteuid(), "OPERATOR_PERMISSION", "Текущий пользователь не является владельцем установки.",
+                 "Запустите проверенный setup через sudo; он выберет владельца автоматически.")
+        config_forward = None
+        if parsed.config and Path(parsed.config).stat().st_uid != owner["uid"]:
+            receipt_path = checked_path(OPERATOR_STATE / "operator.json")
+            receipt = read_private_json(receipt_path) if receipt_path.exists() else {}
+            _require(elevated and not dry and Path(parsed.config).stat().st_uid == 0
+                     and receipt_path.exists() and receipt_path.stat().st_uid == 0 and receipt.get("uid") == owner["uid"]
+                     and receipt.get("gid") == owner["gid"] and receipt.get("name") == owner["name"]
+                     and receipt.get("home") == owner["home"] and receipt.get("root") == str(root),
+                     "CONFIG_OWNER", "Конфигурация принадлежит другому оператору.",
+                     "Используйте приватный конфигурационный файл выбранного владельца.")
+            config_forward = str(Path(owner["home"]) / "setup-input.json")
+            staged_config = dict(config)
+            if staged_config.get("operatorUid") is None:
+                staged_config["operatorUid"] = owner["uid"]
+            _write_owner_json(Path(config_forward), staged_config, owner)
+        plan = plan or dependency_plan(cloud=cloud_enabled, browser=need_browser)
+        original_daemon = plan.get("daemonId")
+        if original_daemon:
+            verify_operator_daemon(owner, original_daemon)
+        prepared = early_prepared
         if plan["missing"] and not dry:
             _require(not plan["installDocker"] or not (root / ".env").exists(), "DOCKER_UNKNOWN",
                      "У прежней установки недоступен Engine; создание нового Docker небезопасно.",
@@ -973,6 +1311,10 @@ def main(argv=None):
                 # to access it. Existing Engine/group policy is never repaired.
                 _run(["/usr/sbin/usermod", "--append", "--groups", "docker", "--", owner["name"]])
             plan = dependency_plan(cloud=cloud_enabled, browser=need_browser)
+            expected_daemon = original_daemon or prepared.get("daemonId")
+            _require(bool(expected_daemon) and plan.get("daemonId") == expected_daemon, "DOCKER_CHANGED",
+                     "После подготовки изменился исходный Docker daemon.", "Восстановите исходный context; установка не продолжается.")
+            verify_operator_daemon(owner, expected_daemon)
         if parsed.prepare_host:
             if parsed.json:
                 print(json.dumps({"format": "asa-host-preparation-v1", "dryRun": bool(dry), "plan": plan}, ensure_ascii=False))
@@ -996,7 +1338,7 @@ def main(argv=None):
         if prepared:
             environment["ASA_SETUP_HOST_PREPARATION"] = json.dumps(prepared, separators=(",", ":"))
         if needs_cloud and not dry and elevated:
-            cloud_prepared = prepare_cloud_transport(bundle, owner=owner,
+            cloud_prepared = prepare_cloud_for_policy(bundle, owner=owner, policy=backup_config.get("policy"),
                 credential_file=cloud_config.get("rcloneConfigFile"), replace_credentials=command == "cloud-configure")
             environment["ASA_SETUP_CLOUD_PREPARATION"] = json.dumps(cloud_prepared, separators=(",", ":"))
         runtime = Path(owner["home"]) / ".local/share/asa-setup" / ("playwright-" + BROWSER_VERSION)
@@ -1025,6 +1367,13 @@ def main(argv=None):
                 continue
             if value.startswith("--operator=") or value == "--prepare-host":
                 continue
+            if config_forward and value in ("--config", "--config-file"):
+                forwarded += ["--config", config_forward]
+                skip = True
+                continue
+            if config_forward and (value.startswith("--config=") or value.startswith("--config-file=")):
+                forwarded += ["--config", config_forward]
+                continue
             forwarded.append(value)
         if not parsed.root:
             forwarded += ["--root", str(root)]
@@ -1050,8 +1399,7 @@ def main(argv=None):
         if not last_path.is_file() or hashlib.sha256(last_path.read_bytes()).hexdigest() == previous_digest:
             if completed.returncode == 130 or completed.returncode == -2:
                 error = SetupBlocked("INTERRUPTED", "Операция прервана; результат требует проверки.", "Запустите status и продолжите известный operation ID.")
-                emit_blocked(error, as_json=parsed.json)
-                return 130
+                return emit_blocked(error, as_json=parsed.json)
             if completed.returncode in (1, 2):
                 # An early validation failure is already rendered by the CLI;
                 # it cannot authorize a root post-action or reuse old success.
@@ -1064,6 +1412,10 @@ def main(argv=None):
         if all(isinstance(result.get(name), str) and re.fullmatch(r"[a-f0-9]{32}", result[name])
                for name in ("operationId", "installationId")):
             active_result = result
+        if completed.returncode in (-2, 130):
+            return emit_blocked(SetupBlocked("INTERRUPTED", "Операция прервана после сохранения результата.",
+                                "Выполните status и продолжите известный operation ID."), as_json=parsed.json,
+                                observed=active_result, root=root, owner=owner)
         preparations = 0
         while result.get("outcome") == "PREPARATION_REQUIRED":
             _require(preparations < 3, "PREPARATION_LIMIT", "Системная подготовка не устранила причину после трёх проверок.",
@@ -1078,6 +1430,10 @@ def main(argv=None):
             if parsed.json:
                 resume.append("--json")
             completed = _owner_call(owner, resume, environment)
+            if completed.returncode in (-2, 130) and (not last_path.is_file() or hashlib.sha256(last_path.read_bytes()).hexdigest() == previous_result):
+                return emit_blocked(SetupBlocked("INTERRUPTED", "Продолжение операции прервано.",
+                                    "Выполните status и продолжите известный operation ID."), as_json=parsed.json,
+                                    observed=active_result, root=root, owner=owner)
             _require(last_path.is_file() and hashlib.sha256(last_path.read_bytes()).hexdigest() != previous_result,
                      "PREPARATION_RESUME", "Продолжение операции не сохранило новый проверяемый результат.",
                      "Выполните status; сохранённый operation ID нельзя заменять новой операцией.")
@@ -1086,6 +1442,10 @@ def main(argv=None):
                      and result.get("installationId") == installation_id, "PREPARATION_IDENTITY",
                      "Продолжение не принадлежит прежней операции и установке.", "Выполните status; привилегированные действия остановлены.")
             active_result = result
+            if completed.returncode in (-2, 130):
+                return emit_blocked(SetupBlocked("INTERRUPTED", "Продолжение операции прервано после сохранения результата.",
+                                    "Выполните status и продолжите известный operation ID."), as_json=parsed.json,
+                                    observed=active_result, root=root, owner=owner)
         post_actions = result.get("postActions", [])
         _require(isinstance(post_actions, list) and len(post_actions) <= 1
                  and all(isinstance(item, dict) and set(item) == {"kind"} and item["kind"] == "schedule" for item in post_actions),
@@ -1109,18 +1469,21 @@ def main(argv=None):
                 raise SetupBlocked("SCHEDULE", "Расписание не установлено; основная операция имеет отдельный результат.",
                                    "Проверьте status и выполните отдельную команду schedule.")
         report = _owner_call(owner, [*entry, "--render-last", "--root", str(root)] + (["--json"] if parsed.json else []), environment)
-        return 130 if completed.returncode in (-2, 130) else report.returncode
+        return report.returncode
     except SetupBlocked as exc:
         return emit_blocked(exc, as_json=parsed.json, operation_id=active_result.get("operationId"),
                             installation_id=active_result.get("installationId"))
     except KeyboardInterrupt:
-        emit_blocked(SetupBlocked("INTERRUPTED", "Операция прервана; сохранённые данные требуют проверки.",
+        return emit_blocked(SetupBlocked("INTERRUPTED", "Операция прервана; сохранённые данные требуют проверки.",
                                   "Выполните status и продолжите известный operation ID."), as_json=parsed.json,
-                     operation_id=active_result.get("operationId"), installation_id=active_result.get("installationId"))
-        return 130
+                     operation_id=active_result.get("operationId"), installation_id=active_result.get("installationId"),
+                     observed=active_result, root=root, owner=owner)
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
         return emit_blocked(SetupBlocked("BOOTSTRAP_ERROR", "Подготовка входа не завершилась; чувствительные сведения скрыты.",
                                          "Повторите --check и проверьте приватную конфигурацию и доступ оператора."), as_json=parsed.json)
+    finally:
+        if lock_descriptor is not None:
+            os.close(lock_descriptor)
 
 
 if __name__ == "__main__":

@@ -417,6 +417,11 @@ class ImmutableBundleTests(unittest.TestCase):
 @unittest.skipUnless(os.name == "posix", "Linux supervisor privilege protocol")
 class SupervisorBoundaryTests(unittest.TestCase):
     def setUp(self):
+        # This suite isolates the supervisor protocol. The real UID/group/HOME
+        # Docker probe is exercised by test_setup_operator_bootstrap.
+        daemon_patch = patch.object(launcher, "verify_operator_daemon")
+        daemon_patch.start()
+        self.addCleanup(daemon_patch.stop)
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
@@ -592,6 +597,46 @@ class SupervisorBoundaryTests(unittest.TestCase):
             with self.assertRaises(launcher.SetupBlocked) as caught:
                 launcher.prepare_handoff(self.root, owner, Path("/verified/bundle"), request, {})
         self.assertEqual(caught.exception.code, "CLOUD_POLICY")
+
+    def test_best_effort_available_transport_without_auth_does_not_block_local_backup(self):
+        request = self.prepare_fixture()
+        request["preparation"]["cloud"] = True
+        self.config["backup"] = {"policy": "best-effort", "cloud": {"enabled": True}}
+        self.save(self.config_path, self.config)
+        owner = launcher.validate_owner(self.root)
+        proof = {"format": "asa-cloud-preparation-v1", "tokenConfigured": False, "deliveryVerified": False}
+        with patch.object(launcher, "dependency_plan", return_value={"missing": [], "installDocker": False, "daemonId": "original"}), \
+             patch.object(launcher, "prepare_cloud_transport", return_value=proof), \
+             patch.object(launcher, "_write_owner_json") as receipt:
+            environment = launcher.prepare_handoff(self.root, owner, Path("/verified/bundle"), request,
+                                                   {"ASA_SETUP_DAEMON_ID": "original"}, non_interactive=True)
+        self.assertFalse(json.loads(environment["ASA_SETUP_CLOUD_PREPARATION"])["tokenConfigured"])
+        receipt.assert_called_once()
+
+    def test_dependency_refresh_cannot_replace_original_daemon(self):
+        plans = [{"missing": ["age"], "installDocker": False, "daemonId": "original"},
+                 {"missing": [], "installDocker": False, "daemonId": "replacement"}]
+        output = io.StringIO()
+        with patch.object(launcher, "verify_bundle"), patch.object(launcher, "platform_info", return_value={"supported": True}), \
+             patch.object(launcher.os, "geteuid", return_value=0), \
+             patch.object(launcher, "dependency_plan", side_effect=plans), \
+             patch.object(launcher, "provision_dependencies", return_value={"dockerInstalled": False, "daemonId": "original"}), \
+             patch.object(launcher, "verify_operator_daemon") as verify, patch.object(launcher, "_owner_call") as child, \
+             contextlib.redirect_stdout(output):
+            code = launcher.main(["--root", str(self.root), "--prepare-host", "--non-interactive", "--json"])
+        self.assertEqual(code, 2)
+        self.assertEqual(json.loads(output.getvalue())["reasonCode"], "DOCKER_CHANGED")
+        self.assertEqual(verify.call_args.args[1], "original")
+        child.assert_not_called()
+
+    def test_handoff_rejects_daemon_changed_since_original_owner_probe(self):
+        request = self.prepare_fixture()
+        owner = launcher.validate_owner(self.root)
+        with patch.object(launcher, "dependency_plan", return_value={"missing": ["age"], "installDocker": False, "daemonId": "replacement"}), \
+             patch.object(launcher, "provision_dependencies") as prepare, self.assertRaises(launcher.SetupBlocked) as caught:
+            launcher.prepare_handoff(self.root, owner, Path("/verified/bundle"), request, {"ASA_SETUP_DAEMON_ID": "original"})
+        self.assertEqual(caught.exception.code, "DOCKER_CHANGED")
+        prepare.assert_not_called()
 
 
 if __name__ == "__main__":

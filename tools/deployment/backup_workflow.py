@@ -10,9 +10,9 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
 import time
@@ -28,10 +28,20 @@ TRANSPORT_SHA256 = "72e35bbb3043acefb423cfe706f82b089eaba974deb04f16df8f335093c5
 SNAPSHOT = re.compile(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,32}")
 INSTALLATION = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 OPERATION = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{7,79}")
+CLOUD_AVAILABILITY_ERRORS = frozenset({
+    "CLOUD_UNAVAILABLE", "CLOUD_PROVIDER_GONE", "CLOUD_AUTHORIZATION",
+    "CLOUD_TRANSFER_FAILED", "CLOUD_TIMEOUT", "CLOUD_NOT_CONNECTED",
+})
+RETENTION_JOURNAL_MAX_BYTES = 32 * 1024**2
 
 
 def now():
     return dt.datetime.now(dt.timezone.utc).isoformat()
+
+
+def cloud_unavailable(error):
+    """Only known availability failures may weaken optional cloud protection."""
+    return isinstance(error, Blocked) and error.code in CLOUD_AVAILABILITY_ERRORS
 
 
 def _sync_directory(path):
@@ -75,15 +85,15 @@ def private_directory(path):
     return path
 
 
-def read_private(path):
+def read_private(path, *, max_bytes=2 * 1024**2):
     path = Path(path)
     plain_paths(path.parent, (path.name,))
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     with os.fdopen(os.open(path, flags), "rb") as stream:
         info = os.fstat(stream.fileno())
-        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size <= 2 * 1024**2,
+        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size <= max_bytes,
                 "BACKUP_FILE_TYPE", "Файл состояния должен быть обычным файлом без дополнительных ссылок.")
-        data = stream.read(2 * 1024**2 + 1)
+        data = stream.read(max_bytes + 1)
         after = os.fstat(stream.fileno())
         require(len(data) == info.st_size and (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
                 == (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns),
@@ -270,16 +280,7 @@ def verify_receipt(install, *, snapshot_id, installation_id):
         _verify_local(install, receipt)
     encryption = receipt.get("encryption", {})
     if encryption.get("status") == "OK":
-        target = _local_root(install) / "encrypted" / ("asa-lab-" + snapshot_id + ".tar.age")
-        plain_paths(target.parent, (target.name,))
-        recipient = encryption.get("recipient", "")
-        require(isinstance(recipient, str) and re.fullmatch(r"age1[a-z0-9]{58}", recipient)
-                and encryption.get("recipientSha256") == hashlib.sha256(recipient.encode("ascii")).hexdigest(),
-                "BACKUP_RECIPIENT_IDENTITY", "В сохранённом доказательстве шифрования не подтверждён публичный recipient.")
-        require(encryption.get("path") == str(target) and target.is_file()
-                and encryption.get("manifestSha256") == receipt.get("local", {}).get("manifestSha256")
-                and target.stat().st_size == encryption.get("bytes") and file_hash(target) == encryption.get("sha256"),
-                "BACKUP_CIPHERTEXT_DRIFT", "Сохранённый ciphertext отсутствует или изменился после доставки.")
+        _verify_ciphertext(install, receipt)
     cloud = receipt.get("cloud", {})
     if cloud.get("status") == "OK":
         project = cloud_project(installation_id)
@@ -297,6 +298,21 @@ def verify_receipt(install, *, snapshot_id, installation_id):
             raise Blocked("BACKUP_CLOUD_PROOF", "В квитанции отсутствует достоверное время доставки.",
                           "Проверьте сохранённую квитанцию; успешная доставка не предполагается.") from exc
     return receipt
+
+
+def _verify_ciphertext(install, receipt):
+    encryption = receipt["encryption"]
+    target = _local_root(install) / "encrypted" / ("asa-lab-" + receipt["snapshotId"] + ".tar.age")
+    plain_paths(target.parent, (target.name,))
+    recipient = encryption.get("recipient", "")
+    require(isinstance(recipient, str) and re.fullmatch(r"age1[a-z0-9]{58}", recipient)
+            and encryption.get("recipientSha256") == hashlib.sha256(recipient.encode("ascii")).hexdigest(),
+            "BACKUP_RECIPIENT_IDENTITY", "В сохранённом доказательстве шифрования не подтверждён публичный recipient.")
+    require(encryption.get("path") == str(target) and target.is_file() and not encryption.get("deletedAt")
+            and encryption.get("manifestSha256") == receipt.get("local", {}).get("manifestSha256")
+            and target.stat().st_size == encryption.get("bytes") and file_hash(target) == encryption.get("sha256"),
+            "BACKUP_CIPHERTEXT_DRIFT", "Сохранённый ciphertext отсутствует или изменился после доставки.")
+    return target
 
 
 class CloudTransport:
@@ -321,23 +337,45 @@ class CloudTransport:
         self.remote = module.remote_path(expected)
         self.container = module.PROJECT + "-rclone-1"
         template = '{"image":{{json .Config.Image}},"user":{{json .Config.User}},"running":{{json .State.Running}},"labels":{{json .Config.Labels}}}'
-        info = json.loads(_command(["docker", "inspect", "--format", template, self.container], timeout=_budget(deadline, 30)))
-        require(info.get("image") == module.IMAGE and info.get("running") is True
-                and info.get("user") == "1000:1000" and (info.get("labels") or {}).get("asa.owner") == module.PROJECT,
+        try:
+            raw = _command(["docker", "inspect", "--format", template, self.container], timeout=_budget(deadline, 30))
+        except Blocked as error:
+            if error.code in ("BACKUP_COMMAND_FAILED", "BACKUP_TOOL", "BACKUP_COMMAND_TIMEOUT"):
+                raise Blocked("CLOUD_UNAVAILABLE", "Облачный транспорт недоступен.",
+                              "Проверьте сохранённую локальную копию и повторите доставку.") from error
+            raise
+        info = json.loads(raw)
+        require(isinstance(info, dict) and info.get("image") == module.IMAGE
+                and info.get("user") == "1000:1000" and isinstance(info.get("labels"), dict)
+                and info["labels"].get("asa.owner") == module.PROJECT and type(info.get("running")) is bool,
                 "CLOUD_TRANSPORT_IDENTITY", "Не подтверждён закреплённый контейнер облачного транспорта.")
+        require(info.get("running") is True, "CLOUD_UNAVAILABLE", "Проверенный облачный транспорт остановлен.")
         self.base = "/data/" + expected
-        self._exec("sh", "-eu", "-c", 'umask 077; for d do if [ -e "$d" ]; then test -d "$d" && test ! -L "$d"; else mkdir "$d"; fi; done',
-                   "asa-cloud-spool", self.base, self.base + "/outgoing", self.base + "/incoming")
+        try:
+            self._exec("sh", "-eu", "-c", 'umask 077; for d do if [ -e "$d" ]; then test -d "$d" && test ! -L "$d"; else mkdir "$d"; fi; done',
+                       "asa-cloud-spool", self.base, self.base + "/outgoing", self.base + "/incoming")
+        except Blocked as error:
+            if error.code == "BACKUP_COMMAND_FAILED":
+                raise Blocked("CLOUD_SPOOL_IDENTITY", "Не подтверждены безопасные каталоги облачного транспорта.",
+                              "Проверьте spool; нарушение его целостности не является сбоем связи.") from error
+            raise
 
     def _exec(self, *args, source=None, output=None):
-        return _command(["docker", "exec", "-i", "--user", "1000:1000", self.container, *args],
-                        timeout=_budget(self.deadline), source=source, output=output)
+        try:
+            return _command(["docker", "exec", "-i", "--user", "1000:1000", self.container, *args],
+                            timeout=_budget(self.deadline), source=source, output=output)
+        except Blocked as error:
+            if error.code in ("BACKUP_COMMAND_TIMEOUT", "BACKUP_TOOL"):
+                code = "CLOUD_TIMEOUT" if error.code == "BACKUP_COMMAND_TIMEOUT" else "CLOUD_UNAVAILABLE"
+                raise Blocked(code, "Облачный транспорт недоступен.", "Повторите доставку сохранённого ciphertext.") from error
+            raise
 
     def call(self, *args):
         try:
             return self.transport.rclone(*args, timeout_seconds=_budget(self.deadline))
         except (ValueError, subprocess.TimeoutExpired) as exc:
-            code = str(exc) if isinstance(exc, ValueError) and re.fullmatch(r"CLOUD_[A-Z_]+", str(exc)) else "CLOUD_TIMEOUT"
+            code = ("CLOUD_TIMEOUT" if isinstance(exc, subprocess.TimeoutExpired) else
+                    str(exc) if re.fullmatch(r"CLOUD_[A-Z_]+", str(exc)) else "CLOUD_TRANSPORT_ERROR")
             raise Blocked(code, "Облачная передача не подтверждена.", "Повторите cloud-retry для сохранённого snapshot ID.") from exc
 
     def readback(self, remote_file, local_directory):
@@ -354,16 +392,24 @@ class CloudTransport:
                 os.fsync(stream.fileno())
             return {"sha256": file_hash(target), "bytes": target.stat().st_size, "verifiedAt": now()}
         finally:
-            target.unlink(missing_ok=True)
-            _command(["docker", "exec", "--user", "1000:1000", self.container, "rm", "-f", "--", container_file], timeout=30)
+            pending_error = sys.exc_info()[0] is not None
+            try:
+                target.unlink(missing_ok=True)
+                _command(["docker", "exec", "--user", "1000:1000", self.container, "rm", "-f", "--", container_file], timeout=30)
+            except (Blocked, OSError, ValueError, subprocess.SubprocessError):
+                if not pending_error:
+                    raise
 
     def deliver(self, ciphertext, receipt, verification_directory):
         name = self.transport.archive_name(Path(ciphertext).name)
         remote_file = self.remote + "/" + name
         expected = receipt["encryption"]["sha256"]
-        require(file_hash(Path(ciphertext)) == expected, "BACKUP_CIPHERTEXT_DRIFT", "Ciphertext изменился до передачи.")
+        require(file_hash(Path(ciphertext)) == expected and Path(ciphertext).stat().st_size == receipt["encryption"]["bytes"],
+                "BACKUP_CIPHERTEXT_DRIFT", "Ciphertext изменился до передачи.")
         self.call("mkdir", self.remote)
         rows = json.loads(self.call("lsjson", "--files-only", "--max-depth", "1", self.remote))
+        require(isinstance(rows, list) and all(isinstance(row, dict) and isinstance(row.get("Name"), str) for row in rows),
+                "CLOUD_REMOTE_LIST", "Облако вернуло неподтверждённый список архивов.")
         exists = any(row.get("Name") == name for row in rows)
         if not exists:
             temporary = self.base + "/outgoing/" + name + "." + uuid.uuid4().hex + ".partial"
@@ -374,12 +420,22 @@ class CloudTransport:
                 require(staged == expected, "CLOUD_SPOOL_HASH", "Ciphertext изменился при передаче в защищённый spool.")
                 # The provider sees a stable snapshot-specific immutable object.
                 pending = self.remote + "/" + name + ".pending-" + receipt["operationId"] + ".age"
-                self.call("copyto", temporary, pending, "--immutable", "--checksum")
+                # A prior interrupted upload can already have published this
+                # exact pending object. Read its bytes before an immutable
+                # conflict could be reduced to a generic provider failure.
+                if not any(row["Name"] == pending.rsplit("/", 1)[1] for row in rows):
+                    self.call("copyto", temporary, pending, "--immutable", "--checksum")
                 proof = self.readback(pending, verification_directory)
-                require(proof["sha256"] == expected, "CLOUD_READBACK_HASH", "Удалённый ciphertext отличается от локального.")
+                require(proof["sha256"] == expected and proof["bytes"] == receipt["encryption"]["bytes"],
+                        "CLOUD_READBACK_HASH", "Удалённый ciphertext отличается от локального.")
                 self.call("moveto", pending, remote_file, "--immutable", "--checksum")
             finally:
-                _command(["docker", "exec", "--user", "1000:1000", self.container, "rm", "-f", "--", temporary], timeout=30)
+                pending_error = sys.exc_info()[0] is not None
+                try:
+                    _command(["docker", "exec", "--user", "1000:1000", self.container, "rm", "-f", "--", temporary], timeout=30)
+                except (Blocked, OSError, ValueError, subprocess.SubprocessError):
+                    if not pending_error:
+                        raise
         proof = self.readback(remote_file, verification_directory)
         require(proof["sha256"] == expected and proof["bytes"] == receipt["encryption"]["bytes"],
                 "CLOUD_READBACK_HASH", "Имя или размер совпадают, но удалённое содержимое не подтверждено.",
@@ -471,7 +527,7 @@ def run_backup(install, *, operation_id, installation_id, policy, hold_writers=F
     else:
         receipt = {"format": "asa-backup-operation-v1", "installationId": installation_id,
                    "operationId": operation_id, "snapshotId": snapshot_id, "snapshotAt": None,
-                   "local": {"status": "PENDING"}, "encryption": {"status": "PENDING" if policy.get("ageRecipient") else "NOT_CONFIGURED"},
+                   "local": {"status": "PENDING", "executionStatus": "NOT_RUN"}, "encryption": {"status": "PENDING" if policy.get("ageRecipient") else "NOT_CONFIGURED"},
                    "cloud": {"status": "PENDING" if policy["cloud"].get("enabled", False) else "NOT_CONFIGURED"}, "restore": {"status": "UNVERIFIED"},
                    "writers": {"held": False}, "policy": policy["policy"],
                    "cloudConfigured": policy["cloud"].get("enabled", False), "errors": [], "outcome": "PENDING"}
@@ -488,6 +544,10 @@ def run_backup(install, *, operation_id, installation_id, policy, hold_writers=F
                 require(not final.with_name(snapshot_id + ".incomplete").exists(), "BACKUP_INCOMPLETE",
                         "Снимок прерван; повторное создание с тем же ID заблокировано.",
                         "Продолжите известную операцию после проверки её стадии и исходных сервисов.")
+                # Durable intent distinguishes an export that never began from
+                # an interrupted/lost copy. Legacy receipts remain unconfirmed.
+                receipt["local"]["executionStatus"] = "RUNNING"
+                _save(install, receipt)
                 final = export_backup(install, snapshot_id=snapshot_id, installation_id=installation_id,
                                       operation_id=operation_id, hold_writers=hold_writers,
                                       freeze_timeout_seconds=policy["maxWriteFreezeSeconds"])
@@ -521,21 +581,32 @@ def run_backup(install, *, operation_id, installation_id, policy, hold_writers=F
             receipt["writers"] = {"held": False, "consistency": "snapshot-time", "writesAfterSnapshotIncluded": False}
         stage = "encryption"
         _complete_encryption_receipt(install, receipt)
-        encrypt_snapshot(install, receipt, policy.get("ageRecipient"), deadline=deadline)
-        stage = "cloud"
-        _deliver(install, receipt, policy, deadline=deadline)
+        optional_unconfigured = receipt["encryption"]["status"] in ("PENDING", "NOT_CONFIGURED") or (
+            receipt["encryption"]["status"] == "FAILED" and receipt["encryption"].get("error") == "AGE_RECIPIENT"
+            and not receipt["encryption"].get("path"))
+        if not policy.get("ageRecipient") and optional_unconfigured:
+            receipt["encryption"] = {"status": "NOT_CONFIGURED"}
+            receipt["cloud"] = {"status": "NOT_CONFIGURED", "reasonCode": "AGE_NOT_CONFIGURED"}
+        else:
+            encrypt_snapshot(install, receipt, policy.get("ageRecipient"), deadline=deadline)
+            stage = "cloud"
+            _deliver(install, receipt, policy, deadline=deadline)
         _outcome(receipt, policy)
     except (Blocked, OSError, ValueError, subprocess.SubprocessError) as exc:
         code = exc.code if isinstance(exc, Blocked) else type(exc).__name__
         receipt["errors"].append({"code": code, "at": now()})
         if stage == "local":
             receipt["local"].update(status="FAILED", error=code)
+            if code == "BACKUP_RESUME_SNAPSHOT_MISSING" and (receipt.get("snapshotAt")
+                    or any(receipt["local"].get(key) for key in ("verifiedAt", "manifestSha256"))
+                    or final.with_name(snapshot_id + ".incomplete").exists()):
+                receipt["local"]["executionStatus"] = "UNKNOWN"
         elif stage == "encryption":
             receipt["encryption"].update(status="PREPARED" if receipt["encryption"]["status"] == "PREPARED" else "FAILED", error=code)
         elif stage == "cloud":
             receipt["cloud"] = {"status": "FAILED", "error": code}
         _outcome(receipt, policy)
-        if stage in ("local", "hold") or code in ("BACKUP_FREEZE_TIMEOUT", "BACKUP_FREEZE_INTERRUPTED"):
+        if stage != "cloud" or not cloud_unavailable(exc):
             receipt["outcome"] = "BLOCKED"
     if deadline is not None and time.monotonic() >= deadline:
         receipt["outcome"] = "BLOCKED"
@@ -556,10 +627,12 @@ def retry_delivery(install, *, snapshot_id, installation_id, policy):
     """Retry only encryption completion/delivery of an already saved ciphertext."""
     policy = validate_policy(policy, installation_id)
     receipt = load_receipt(install, snapshot_id, installation_id)
+    require(receipt["policy"] == policy["policy"], "BACKUP_POLICY_CHANGED", "Политику сохранённой операции нельзя ослаблять при повторе доставки.")
     _verify_local(install, receipt)
     _complete_encryption_receipt(install, receipt)
     require(receipt["encryption"]["status"] == "OK", "BACKUP_CIPHERTEXT_MISSING",
             "Нет подтверждённого ciphertext для повтора доставки.", "Завершите исходную операцию backup; обновление повторять не нужно.")
+    _verify_ciphertext(install, receipt)
     try:
         _deliver(install, receipt, policy)
         _outcome(receipt, policy)
@@ -568,13 +641,13 @@ def retry_delivery(install, *, snapshot_id, installation_id, policy):
         receipt["errors"].append({"code": code, "at": now()})
         receipt["cloud"] = {"status": "FAILED", "error": code}
         _outcome(receipt, policy)
+        if not cloud_unavailable(exc):
+            receipt["outcome"] = "BLOCKED"
     _save(install, receipt)
     return receipt
 
 
-def apply_retention(install, *, installation_id, policy, protected_snapshot_ids=()):
-    """Delete only proven owned snapshots under an explicit saved keep policy."""
-    policy = validate_policy(policy, installation_id)
+def _retention_receipts(install, installation_id):
     root = _receipt_root(install)
     receipts = []
     for path in root.glob("*.json"):
@@ -583,13 +656,26 @@ def apply_retention(install, *, installation_id, policy, protected_snapshot_ids=
             if receipt["local"]["status"] == "OK":
                 receipts.append(receipt)
     receipts.sort(key=lambda value: (value["snapshotAt"], value["snapshotId"]), reverse=True)
+    return receipts
+
+
+def _retention_protected(install, installation_id, receipts, protected_snapshot_ids):
+    root = _receipt_root(install)
     protected = set(protected_snapshot_ids)
+    require(all(isinstance(value, str) and SNAPSHOT.fullmatch(value) for value in protected),
+            "RETENTION_IDENTITY", "Некорректный защищённый snapshot ID.")
     protected.update(receipt["snapshotId"] for receipt in receipts
                      if receipt.get("cloudConfigured") and receipt["cloud"]["status"] != "OK")
     for pointer in ("last-local-success.json", "last-cloud-success.json"):
+        plain_paths(root, (pointer,))
         if (root / pointer).exists():
-            protected.add(json.loads(read_private(root / pointer))["snapshotId"])
+            saved = json.loads(read_private(root / pointer))
+            require(isinstance(saved, dict) and isinstance(saved.get("snapshotId"), str)
+                    and SNAPSHOT.fullmatch(saved["snapshotId"]),
+                    "RETENTION_POINTER", "Указатель последней подтверждённой копии повреждён.")
+            protected.add(saved["snapshotId"])
     # Active/ambiguous setup operations and restore operations are never garbage.
+    plain_paths(install.state / "setup-operations", ())
     for path in (install.state / "setup-operations").glob("*.json"):
         operation = json.loads(read_private(path))
         # Store's versioned journal keeps the outcome in result, not at the
@@ -603,7 +689,122 @@ def apply_retention(install, *, installation_id, policy, protected_snapshot_ids=
         if not finished or operation.get("mode") == "restore":
             raw = json.dumps(operation)
             protected.update(match.group(0) for match in SNAPSHOT.finditer(raw))
-    deleted = {"local": [], "remote": []}
+    return protected
+
+
+def _retention_binding(receipt, kind):
+    fields = {"local": ("path", "manifestSha256"),
+              "encryption": ("status", "path", "sha256", "bytes", "manifestSha256")}
+    if kind == "remote":
+        fields["cloud"] = ("status", "remote", "namespace", "sha256", "bytes", "verification", "verifiedAt")
+    return {"operationId": receipt["operationId"], "snapshotAt": receipt["snapshotAt"],
+            **{part: {key: receipt[part].get(key) for key in keys} for part, keys in fields.items()}}
+
+
+def _retention_identity(path):
+    info = path.stat()
+    return [info.st_dev, info.st_ino]
+
+
+def _retention_snapshot(install, receipt, action):
+    """Validate remaining bytes against the original manifest after an intent.
+
+    The manifest is removed last. A crash can therefore leave a partial tree,
+    but cannot authorize removal of new files or a substituted snapshot inode.
+    """
+    target = _local_root(install) / receipt["snapshotId"]
+    plain_paths(target, ())
+    require(receipt["local"].get("path") == str(target), "RETENTION_PATH", "Путь снимка изменился.")
+    if not target.exists():
+        require(action["status"] in ("INTENT", "DONE"), "RETENTION_MISSING", "Снимок исчез до намерения удалить его.")
+        return target, []
+    require(action["status"] != "DONE" and target.is_dir()
+            and _retention_identity(target) == action.get("identity"),
+            "RETENTION_IDENTITY", "Каталог снимка заменён после проверки; удаление запрещено.")
+    manifest_path = target / "manifest.json"
+    plain_paths(target, ("manifest.json",))
+    if not manifest_path.exists():
+        require(action["status"] == "INTENT" and not any(target.iterdir()),
+                "RETENTION_MANIFEST", "Без исходного манифеста можно завершить только удаление пустого каталога.")
+        return target, []
+    require(manifest_path.is_file() and file_hash(manifest_path) == receipt["local"]["manifestSha256"],
+            "RETENTION_MANIFEST", "Манифест удаляемого снимка изменился.")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    require(manifest.get("format") == "asa-backup-v1" and manifest.get("complete") is True
+            and all(manifest.get(key) == receipt[key] for key in ("installationId", "operationId", "snapshotId"))
+            and isinstance(manifest.get("files"), dict),
+            "RETENTION_IDENTITY", "Манифест не принадлежит удаляемой копии этой установки.")
+    present = set()
+    members = []
+    for path in target.rglob("*"):
+        relative = path.relative_to(target).as_posix()
+        plain_paths(target, (relative,))
+        info = path.lstat()
+        require(stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode),
+                "RETENTION_FILE_TYPE", "Удаляемый снимок содержит неподтверждённый тип файла.")
+        if relative != "manifest.json":
+            members.append((path, info))
+        if stat.S_ISREG(info.st_mode) and relative != "manifest.json":
+            present.add(relative)
+            require(manifest["files"].get(relative) == {"sha256": file_hash(path), "bytes": info.st_size},
+                    "RETENTION_HASH", "Оставшиеся файлы отличаются от исходного манифеста; удаление запрещено.")
+    require(action["status"] == "INTENT" or present == set(manifest["files"]),
+            "RETENTION_MISSING", "Файлы исчезли до сохранённого намерения удаления.")
+    return target, members
+
+
+def _retention_ciphertext(install, receipt, action):
+    target = _local_root(install) / "encrypted" / ("asa-lab-" + receipt["snapshotId"] + ".tar.age")
+    plain_paths(target.parent, (target.name,))
+    if not target.exists():
+        require(action["status"] in ("ABSENT", "INTENT", "DONE"),
+                "RETENTION_MISSING", "Ciphertext исчез до намерения удалить его.")
+        return target
+    require(action["status"] not in ("ABSENT", "DONE") and _retention_identity(target) == action.get("identity"),
+            "RETENTION_IDENTITY", "Ciphertext заменён после проверки; удаление запрещено.")
+    _verify_ciphertext(install, receipt)
+    return target
+
+
+def _retention_remote(install, receipt, transport):
+    namespace = cloud_project(receipt["installationId"])
+    base = "yandex:Server-Backups/" + namespace
+    remote = base + "/asa-lab-" + receipt["snapshotId"] + ".tar.age"
+    cloud, encryption = receipt["cloud"], receipt["encryption"]
+    require(transport.remote == base and transport.project == namespace and cloud.get("remote") == remote
+            and cloud.get("namespace") == namespace, "RETENTION_NAMESPACE", "Архив не принадлежит назначению этой установки.")
+    require(cloud.get("status") == encryption.get("status") == "OK"
+            and encryption.get("manifestSha256") == receipt["local"].get("manifestSha256")
+            and isinstance(encryption.get("sha256"), str) and re.fullmatch(r"[a-f0-9]{64}", encryption["sha256"])
+            and type(encryption.get("bytes")) is int and encryption["bytes"] > 0
+            and cloud.get("sha256") == encryption["sha256"] and cloud.get("bytes") == encryption["bytes"]
+            and cloud.get("verification") == "independent-ciphertext-readback-sha256",
+            "RETENTION_CLOUD_PROOF", "Облачная квитанция не соответствует подтверждённому ciphertext.")
+    return remote
+
+
+def _retention_remote_present(transport, remote):
+    rows = json.loads(transport.call("lsjson", "--files-only", "--max-depth", "1", transport.remote))
+    require(isinstance(rows, list) and all(isinstance(row, dict) and isinstance(row.get("Name"), str)
+            and row.get("IsDir", False) is False for row in rows),
+            "RETENTION_REMOTE_LIST", "Не удалось подтвердить наличие архива в облаке.")
+    return any(row["Name"] == remote.rsplit("/", 1)[1] for row in rows)
+
+
+def _retention_readback(install, receipt, transport, action=None):
+    remote = _retention_remote(install, receipt, transport)
+    if action is not None and not _retention_remote_present(transport, remote):
+        require(action["status"] == "INTENT", "RETENTION_MISSING", "Архив исчез до намерения удалить его.")
+        return False
+    proof = transport.readback(remote, _receipt_root(install) / "verification")
+    require(proof.get("sha256") == receipt["encryption"]["sha256"]
+            and proof.get("bytes") == receipt["encryption"]["bytes"],
+            "RETENTION_HASH", "Удалённый архив изменился; удаление запрещено.")
+    return True
+
+
+def _retention_plan(install, installation_id, policy, receipts, protected):
+    entries = []
     for kind, key in (("remote", "remoteKeep"), ("local", "localKeep")):
         keep = policy["retention"].get(key)
         if keep is None:
@@ -611,28 +812,209 @@ def apply_retention(install, *, installation_id, policy, protected_snapshot_ids=
         eligible = [value for value in receipts if not value[kind if kind == "local" else "cloud"].get("deletedAt")
                     and (kind == "local" or value["cloud"]["status"] == "OK")]
         retained = {value["snapshotId"] for value in eligible[:keep]} | protected
-        transport = None
         for receipt in eligible[keep:]:
             if receipt["snapshotId"] in retained:
                 continue
+            entry = {"kind": kind, "snapshotId": receipt["snapshotId"], "status": "PLANNED",
+                     "binding": _retention_binding(receipt, kind)}
             if kind == "remote":
-                transport = transport or CloudTransport(policy["cloud"], installation_id)
-                expected_remote = transport.remote + "/asa-lab-" + receipt["snapshotId"] + ".tar.age"
-                require(receipt["cloud"].get("remote") == expected_remote, "RETENTION_NAMESPACE", "Архив не принадлежит назначению этой установки.")
-                proof = transport.readback(expected_remote, root / "verification")
-                require(proof["sha256"] == receipt["encryption"]["sha256"], "RETENTION_HASH", "Удалённый архив изменился; удаление запрещено.")
-                transport.call("deletefile", expected_remote)
-                receipt["cloud"]["deletedAt"] = now()
+                entry["remote"] = {"status": "PLANNED"}
             else:
                 local, _ = _verify_local(install, receipt)
-                require(local.parent == _local_root(install), "RETENTION_PATH", "Путь снимка изменился.")
-                shutil.rmtree(local)
+                entry["snapshot"] = {"status": "PLANNED", "identity": _retention_identity(local)}
                 ciphertext = _local_root(install) / "encrypted" / ("asa-lab-" + receipt["snapshotId"] + ".tar.age")
+                plain_paths(ciphertext.parent, (ciphertext.name,))
                 if ciphertext.exists():
-                    plain_paths(ciphertext.parent, (ciphertext.name,))
-                    require(file_hash(ciphertext) == receipt["encryption"].get("sha256"), "RETENTION_HASH", "Ciphertext изменился; удаление запрещено.")
-                    ciphertext.unlink()
-                receipt["local"]["deletedAt"] = now()
-            atomic_json(root / (receipt["snapshotId"] + ".json"), receipt)
-            deleted[kind].append(receipt["snapshotId"])
-    return {"format": "asa-backup-retention-v1", "protectedSnapshotIds": sorted(protected), "deleted": deleted, "at": now()}
+                    require(receipt["encryption"].get("status") == "OK", "RETENTION_CIPHERTEXT",
+                            "Ciphertext без завершённой квитанции не удаляется.")
+                    _verify_ciphertext(install, receipt)
+                    entry["ciphertext"] = {"status": "PLANNED", "identity": _retention_identity(ciphertext)}
+                else:
+                    require(receipt["encryption"].get("status") != "OK" or receipt["encryption"].get("deletedAt"),
+                            "RETENTION_MISSING", "Подтверждённый ciphertext отсутствует до удаления.")
+                    entry["ciphertext"] = {"status": "ABSENT"}
+            entries.append(entry)
+    return {"format": "asa-backup-retention-journal-v1", "journalId": uuid.uuid4().hex,
+            "installationId": installation_id, "backupRoot": str(_local_root(install)),
+            "retention": {key: policy["retention"].get(key) for key in ("localKeep", "remoteKeep")},
+            "state": "RUNNING", "createdAt": now(), "entries": entries}
+
+
+def _retention_validate(install, installation_id, journal, receipts, protected, transport):
+    by_id = {receipt["snapshotId"]: receipt for receipt in receipts}
+    planned = {kind: set() for kind in ("local", "remote")}
+    active = set()
+    for entry in journal["entries"]:
+        kind, snapshot_id = entry.get("kind"), entry.get("snapshotId")
+        require(kind in planned and snapshot_id in by_id and snapshot_id not in planned[kind]
+                and entry.get("status") in ("PLANNED", "DONE"),
+                "RETENTION_JOURNAL", "Некорректная запись журнала удаления.")
+        planned[kind].add(snapshot_id)
+        receipt = by_id[snapshot_id]
+        require(entry.get("binding") == _retention_binding(receipt, kind),
+                "RETENTION_RECEIPT_CHANGED", "Квитанция изменилась после сохранения плана удаления.")
+        if entry["status"] == "DONE":
+            continue
+        require(snapshot_id not in protected, "RETENTION_PROTECTED", "Снимок защищён активной операцией или последним подтверждением.")
+        for name in (("snapshot", "ciphertext") if kind == "local" else ("remote",)):
+            require(isinstance(entry.get(name), dict) and entry[name].get("status") in ("PLANNED", "INTENT", "DONE", "ABSENT")
+                    and (entry[name]["status"] != "ABSENT" or name == "ciphertext"),
+                    "RETENTION_JOURNAL", "Неизвестное состояние намерения удаления.")
+            if entry[name]["status"] not in ("DONE", "ABSENT"):
+                active.add(kind)
+        if kind == "local":
+            _retention_snapshot(install, receipt, entry["snapshot"])
+            _retention_ciphertext(install, receipt, entry["ciphertext"])
+        elif entry["remote"]["status"] != "DONE":
+            _retention_readback(install, receipt, transport, entry["remote"])
+    # A newest-success pointer is historical evidence, not proof that the last
+    # remaining copy is still intact. Recheck a survivor before the first delete.
+    for kind, excluded in planned.items():
+        if kind not in active:
+            continue
+        part = "local" if kind == "local" else "cloud"
+        survivors = [value for value in receipts if value["snapshotId"] not in excluded
+                     and value[part]["status"] == "OK" and not value[part].get("deletedAt")]
+        require(survivors, "RETENTION_LAST_COPY", "Нельзя удалить последнюю подтверждённую копию.")
+        if kind == "local":
+            _verify_local(install, survivors[0])
+        else:
+            _retention_readback(install, survivors[0], transport)
+
+
+def _retention_step(path, journal, action, delete):
+    if action["status"] in ("DONE", "ABSENT"):
+        return
+    if action["status"] == "PLANNED":
+        action.update(status="INTENT", intentAt=now())
+        atomic_json(path, journal)
+    delete()
+    action.update(status="DONE", deletedAt=now())
+    atomic_json(path, journal)
+
+
+def _retention_remove_snapshot(install, receipt, action):
+    target, members = _retention_snapshot(install, receipt, action)
+    if target.exists():
+        # Leave the original manifest until every other member is gone. Resume
+        # can validate a subset after a crash without inventing new ownership.
+        # Use exactly the checked inventory. A new file appearing afterwards
+        # keeps rmdir from succeeding; it is never swept into the deletion.
+        members.sort(key=lambda member: (len(member[0].parts), str(member[0])), reverse=True)
+        for member, before in members:
+            plain_paths(target, (member.relative_to(target).as_posix(),))
+            current = member.lstat()
+            require((current.st_dev, current.st_ino, stat.S_IFMT(current.st_mode))
+                    == (before.st_dev, before.st_ino, stat.S_IFMT(before.st_mode)),
+                    "RETENTION_IDENTITY", "Файл или каталог заменён после проверки удаления.")
+            if stat.S_ISDIR(current.st_mode):
+                _sync_directory(member)
+                member.rmdir()
+            else:
+                require((current.st_size, current.st_mtime_ns) == (before.st_size, before.st_mtime_ns),
+                        "RETENTION_HASH", "Файл изменился после проверки удаления.")
+                member.unlink()
+        _sync_directory(target)
+        manifest = target / "manifest.json"
+        plain_paths(target, (manifest.name,))
+        require(not manifest.exists() or file_hash(manifest) == receipt["local"]["manifestSha256"],
+                "RETENTION_MANIFEST", "Манифест заменён во время удаления.")
+        manifest.unlink(missing_ok=True)
+        _sync_directory(target)
+        require(_retention_identity(target) == action["identity"], "RETENTION_IDENTITY", "Удаляемый каталог заменён.")
+        target.rmdir()
+    _sync_directory(target.parent)
+
+
+def _retention_remove_ciphertext(install, receipt, action):
+    target = _retention_ciphertext(install, receipt, action)
+    target.unlink(missing_ok=True)
+    _sync_directory(target.parent)
+
+
+def _apply_retention(install, *, installation_id, policy, protected_snapshot_ids=()):
+    """Validate the whole plan, then durably journal every deletion and result.
+
+    The caller's installation lock covers planning, deletion and replay. Missing
+    bytes are accepted only for a previously durable intent; provider failures
+    are never interpreted as successful remote deletion.
+    """
+    policy = validate_policy(policy, installation_id)
+    root = _receipt_root(install)
+    directory = private_directory(root / "retention")
+    pending = []
+    for path in sorted(directory.glob("*.json")):
+        saved = json.loads(read_private(path, max_bytes=RETENTION_JOURNAL_MAX_BYTES))
+        require(saved.get("format") == "asa-backup-retention-journal-v1"
+                and saved.get("installationId") == installation_id and saved.get("journalId") == path.stem
+                and re.fullmatch(r"[a-f0-9]{32}", path.stem) and saved.get("state") in ("RUNNING", "DONE"),
+                "RETENTION_JOURNAL", "Журнал удаления не принадлежит этой установке.")
+        if saved["state"] != "DONE":
+            pending.append(saved)
+    require(len(pending) <= 1, "RETENTION_JOURNAL", "Найдено несколько незавершённых планов удаления.")
+    receipts = _retention_receipts(install, installation_id)
+    protected = _retention_protected(install, installation_id, receipts, protected_snapshot_ids)
+    journal = pending[0] if pending else _retention_plan(install, installation_id, policy, receipts, protected)
+    require(journal.get("backupRoot") == str(_local_root(install))
+            and journal.get("retention") == {key: policy["retention"].get(key) for key in ("localKeep", "remoteKeep")}
+            and isinstance(journal.get("entries"), list),
+            "RETENTION_POLICY_CHANGED", "Путь или политика хранения изменились после намерения удаления.")
+    needs_remote = any(entry.get("kind") == "remote" and entry.get("status") != "DONE"
+                       and entry.get("remote", {}).get("status") != "DONE" for entry in journal["entries"])
+    transport = CloudTransport(policy["cloud"], installation_id) if needs_remote else None
+    _retention_validate(install, installation_id, journal, receipts, protected, transport)
+    # Reserve enough bounded journal space for every intent/result timestamp,
+    # completed deletion list and the current protection set before deleting.
+    projected_bytes = len(json.dumps(journal, ensure_ascii=True, indent=2).encode())
+    projected_bytes += len(json.dumps(sorted(protected)).encode()) + 1024 * (len(journal["entries"]) + 1)
+    require(projected_bytes <= RETENTION_JOURNAL_MAX_BYTES, "RETENTION_JOURNAL_SIZE",
+            "План удаления превышает безопасный размер журнала; файлы не удалялись.")
+    path = directory / (journal["journalId"] + ".json")
+    if journal["entries"] and not pending:
+        atomic_json(path, journal)
+    for entry in journal["entries"]:
+        if entry["status"] == "DONE":
+            continue
+        receipt = load_receipt(install, entry["snapshotId"], installation_id)
+        if entry["kind"] == "remote":
+            def delete_remote():
+                if _retention_readback(install, receipt, transport, entry["remote"]):
+                    transport.call("deletefile", _retention_remote(install, receipt, transport))
+            _retention_step(path, journal, entry["remote"], delete_remote)
+            receipt["cloud"]["deletedAt"] = entry["remote"]["deletedAt"]
+        else:
+            _retention_step(path, journal, entry["snapshot"],
+                            lambda: _retention_remove_snapshot(install, receipt, entry["snapshot"]))
+            _retention_step(path, journal, entry["ciphertext"],
+                            lambda: _retention_remove_ciphertext(install, receipt, entry["ciphertext"]))
+            receipt["local"]["deletedAt"] = entry["snapshot"]["deletedAt"]
+            if entry["ciphertext"]["status"] == "DONE":
+                receipt["encryption"]["deletedAt"] = entry["ciphertext"]["deletedAt"]
+        atomic_json(root / (receipt["snapshotId"] + ".json"), receipt)
+        entry["status"] = "DONE"
+        atomic_json(path, journal)
+    result = {"format": "asa-backup-retention-v1", "protectedSnapshotIds": sorted(protected),
+              "deleted": {kind: [entry["snapshotId"] for entry in journal["entries"] if entry["kind"] == kind]
+                          for kind in ("local", "remote")}, "at": now()}
+    if journal["entries"]:
+        journal.update(state="DONE", result=result, completedAt=result["at"])
+        atomic_json(path, journal)
+    return result
+
+
+def apply_retention(install, *, installation_id, policy, protected_snapshot_ids=()):
+    """Keep optional cloud housekeeping from blocking future local backups.
+
+    Deferral makes no claim that deletion finished. Any durable intent remains
+    in the retention journal and must be revalidated by the next invocation.
+    Integrity, namespace, policy and unknown failures still propagate.
+    """
+    policy = validate_policy(policy, installation_id)
+    try:
+        return _apply_retention(install, installation_id=installation_id, policy=policy,
+                                protected_snapshot_ids=protected_snapshot_ids)
+    except Blocked as error:
+        if policy["policy"] != "best-effort" or not cloud_unavailable(error):
+            raise
+        return {"format": "asa-backup-retention-v1", "status": "DEFERRED", "reasonCode": error.code, "at": now(),
+                "nextAction": "Удаление отложено из-за недоступности облака. Следующий backup повторно проверит незавершённый план хранения."}

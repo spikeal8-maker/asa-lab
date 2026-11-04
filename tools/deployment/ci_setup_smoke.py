@@ -9,8 +9,10 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import secrets
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -22,9 +24,9 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from asa_manager import first_environment, save_settings
 from deployment.backup import PRIVILEGES_SQL, consume_backup_hold, resume_backup_writers, restore_check
-from deployment.backup_workflow import run_backup, now
+from deployment.backup_workflow import SNAPSHOT, run_backup, now, private_directory
 from deployment.contracts import Blocked, file_hash, read_env, require, verify_backup
-from deployment.paths import atomic_json
+from deployment.paths import atomic_json, plain_paths
 from deployment.releases import discover_release, assert_ci, fetch_images, apply_release_environment, validate_resolved_images
 from deployment.setup_acceptance import BROWSER_SHA256, FIXTURE_SHA256, OPS_REVISION, browser_acceptance
 from deployment.system import Installation, operation_lock, run
@@ -138,6 +140,62 @@ def owned_remove(kind, name, owner_id):
     observed = run([*command, "--format", label, name], capture=True, timeout=30)
     require(observed == owner_id, "CI_CLEANUP_IDENTITY", "Synthetic cleanup ownership differs.")
     run(["docker", "volume", "rm", name] if kind == "volume" else ["docker", "rm", "-f", name], capture=True, timeout=45)
+
+
+def preserve_synthetic_ciphertext(root, receipt, evidence, workspace):
+    """Export only the verified encrypted fixture after acceptance and cleanup.
+
+    The temporary AGE identity, plaintext dump and private configuration stay
+    inside the disposable test directory. This artifact is for independent
+    upload/readback testing; it does not assert Yandex delivery by itself.
+    """
+    snapshot_id = receipt.get("snapshotId")
+    encryption = receipt.get("encryption", {})
+    require(evidence.get("status") == "PASS" and evidence.get("cleanup", {}).get("status") == "PASS"
+            and evidence.get("snapshotId") == snapshot_id and isinstance(snapshot_id, str) and SNAPSHOT.fullmatch(snapshot_id)
+            and re.fullmatch(r"asa-setup-ci-[a-f0-9]{12}", evidence.get("syntheticProject", ""))
+            and receipt.get("local", {}).get("status") == encryption.get("status") == "OK",
+            "CI_CIPHERTEXT_STATUS", "Only a passed, cleaned-up synthetic backup may publish its ciphertext.")
+    source = Path(root) / "backups/encrypted" / ("asa-lab-" + snapshot_id + ".tar.age")
+    require(encryption.get("path") == str(source), "CI_CIPHERTEXT_PATH", "The ciphertext is outside this synthetic backup.")
+    plain_paths(source.parent, (source.name,))
+    info = source.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size == encryption.get("bytes")
+            and isinstance(encryption.get("sha256"), str) and re.fullmatch(r"[a-f0-9]{64}", encryption["sha256"]),
+            "CI_CIPHERTEXT_PROOF", "The synthetic ciphertext proof is incomplete.")
+    directory = private_directory(Path(workspace) / "test-results/setup-synthetic")
+    target = directory / ("synthetic-" + source.name)
+    plain_paths(directory, (target.name,))
+    require(not target.exists(), "CI_ARTIFACT_EXISTS", "The synthetic artifact already exists; it will not be overwritten.")
+    descriptor, name = tempfile.mkstemp(prefix=".ciphertext-", suffix=".tmp", dir=directory)
+    temporary = Path(name)
+    published = False
+    try:
+        with os.fdopen(descriptor, "wb") as output, source.open("rb") as incoming:
+            require(incoming.read(40).startswith(b"age-encryption.org/v1\n"), "CI_CIPHERTEXT_ENVELOPE", "Expected a real AGE envelope.")
+            incoming.seek(0)
+            shutil.copyfileobj(incoming, output)
+            output.flush()
+            os.fsync(output.fileno())
+        require(temporary.stat().st_size == encryption["bytes"] and file_hash(temporary) == encryption["sha256"],
+                "CI_CIPHERTEXT_HASH", "The preserved synthetic ciphertext differs from its verified receipt.")
+        os.link(temporary, target)
+        published = True
+        temporary.unlink()
+        if os.name != "nt":
+            directory_fd = os.open(directory, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+    except BaseException:
+        if published:
+            target.unlink(missing_ok=True)
+        raise
+    finally:
+        temporary.unlink(missing_ok=True)
+    return {"path": target.relative_to(Path(workspace)).as_posix(), "sha256": encryption["sha256"],
+            "bytes": encryption["bytes"], "synthetic": True, "privateIdentityIncluded": False}
 
 
 def run_smoke(evidence):
@@ -334,6 +392,9 @@ def run_smoke(evidence):
             evidence["cleanup"] = {"status": "FAILED" if failures else "PASS", "errors": failures}
             if failures:
                 evidence["status"] = "FAIL"
+        if evidence["status"] == "PASS":
+            evidence["ciphertextArtifact"] = preserve_synthetic_ciphertext(root, result, evidence, source)
+            evidence["checks"]["ciphertextArtifact"] = "PASS"
 
 
 def main():
