@@ -299,6 +299,11 @@ def log_directory() -> Path:
     return windows_home() / "logs" if os.name == "nt" else Path("/var/log/asa-lab-operator")
 
 
+def require_secure_log_directory(folder: Path) -> None:
+    """Keep runtime logs private; tests can substitute a synthetic trusted directory."""
+    require_secure_log_directory(folder)
+
+
 def run_reduced(command: list[str], action: str) -> int:
     """Stream full diagnostics to a private log; show only bounded stage/results."""
     folder = log_directory()

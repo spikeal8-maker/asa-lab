@@ -131,6 +131,7 @@ class PortableCLIContracts(unittest.TestCase):
         buf = io.StringIO()
         with patch.object(asa_cli.subprocess, "Popen", return_value=process) as runner, \
                 patch.object(asa_cli, "log_directory", return_value=self.base / "logs"), \
+                patch.object(asa_cli, "require_secure_log_directory", return_value=None), \
                 contextlib.redirect_stdout(buf):
             self.assertEqual(asa_cli.run_reduced(["python", "manager"], "update"), 77)
         self.assertIn("[X] Остановлено", buf.getvalue())
@@ -138,6 +139,13 @@ class PortableCLIContracts(unittest.TestCase):
         self.assertNotIn("RESOURCE_BUDGET", buf.getvalue())
         self.assertIn("RESOURCE_BUDGET", next((self.base / "logs").glob("*.log")).read_text(encoding="utf-8"))
         self.assertEqual(runner.call_count, 1)
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux private log boundary")
+    def test_runtime_log_directory_rejects_unprivileged_owner(self):
+        folder = self.base / "unprivileged-logs"
+        folder.mkdir(mode=0o700)
+        with self.assertRaises(asa_cli.CLIError):
+            asa_cli.require_secure_log_directory(folder)
 
     def test_registry_corruption_is_not_treated_as_empty_host(self):
         p = self.base / "commands.json"
