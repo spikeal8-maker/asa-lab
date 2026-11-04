@@ -6,6 +6,7 @@ import io
 import json
 import os
 from pathlib import Path
+import signal
 import socket
 import sys
 import tempfile
@@ -263,6 +264,167 @@ class PostFailureDiagnosticTests(unittest.TestCase):
             self.assertFalse(target.exists())
 
 
+class RuntimeFaultContractTests(unittest.TestCase):
+    def test_file_limit_requires_actual_large_part_and_small_database_files(self):
+        harness.fault_size_gate(1000, 2000, harness.FAULT_FILE_LIMIT + 1)
+        for values, code in (((1000, 2000, harness.FAULT_FILE_LIMIT), "BLOCKED_FAULT_OBJECT_PART_TOO_SMALL"),
+                             ((harness.FAULT_FILE_LIMIT, 2000, harness.FAULT_OBJECT_BYTES), "BLOCKED_FAULT_DATABASE_TOO_LARGE"),
+                             ((1000, 0, harness.FAULT_OBJECT_BYTES), "BLOCKED_FAULT_DATABASE_TOO_LARGE")):
+            with self.subTest(values=values), self.assertRaises(harness.Failure) as caught:
+                harness.fault_size_gate(*values)
+            self.assertEqual((caught.exception.code, caught.exception.status), (code, "BLOCKED"))
+
+    def test_completed_or_not_started_export_is_never_an_injection_window(self):
+        proof = {"databaseBytes": 1000, "globalsBytes": 2000, "objectsDirectory": True,
+                 "manifestPresent": False, "finalPresent": False, "ciphertextPresent": False}
+        self.assertTrue(harness.export_window(proof, harness.FAULT_OBJECT_BYTES))
+        for changed in ({"databaseBytes": 0}, {"globalsBytes": 0}, {"objectsDirectory": False},
+                        {"manifestPresent": True}, {"finalPresent": True}, {"ciphertextPresent": True},
+                        {"syntheticPartBytes": harness.FAULT_OBJECT_BYTES}):
+            self.assertFalse(harness.export_window({**proof, **changed}, harness.FAULT_OBJECT_BYTES))
+
+    def test_fault_receipt_projection_preserves_uncertainty_and_drops_secrets(self):
+        secret = "PRIVATE_CREDENTIAL_MUST_NEVER_APPEAR"
+        receipt = {"outcome": "PENDING", "local": {"status": "PENDING", "executionStatus": "RUNNING", "error": secret},
+                   "environment": secret, "cloud": {"token": secret}}
+        result = harness.fault_receipt_projection(receipt, {"state": "RECOVERY_REQUIRED", "rawLog": secret})
+        self.assertEqual(result["journalState"], "RECOVERY_REQUIRED")
+        self.assertEqual(result["localExecutionStatus"], "RUNNING")
+        self.assertNotIn(secret, json.dumps(result))
+        malformed = harness.fault_receipt_projection({"outcome": [secret], "local": secret}, {"state": {"token": secret}})
+        self.assertNotIn(secret, json.dumps(malformed))
+        self.assertEqual(malformed["outcome"], "UNVERIFIED")
+
+    def test_same_id_recovery_must_block_and_never_accept_a_new_export(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(harness, "INSTALL_ROOT", Path(directory)), \
+                patch.object(harness, "completed_fault_command", return_value=({"status": "OK"}, {})), \
+                patch.object(harness, "fault_receipt", return_value={"outcome": "BLOCKED", "localReasonCode": "BACKUP_RESUME_SNAPSHOT_MISSING"}), \
+                patch.object(harness, "owner_call") as observer, self.assertRaisesRegex(harness.Failure, "FAULT_RECOVERY_CONTRACT"):
+            harness.recover_partial({}, "a" * 32, {}, time.monotonic() + 60)
+        observer.assert_not_called()
+
+    def test_recovery_budget_exhaustion_is_blocked_acceptance(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(harness, "INSTALL_ROOT", Path(directory)), \
+                patch.object(harness, "completed_fault_command", side_effect=harness.Failure("BLOCKED_FAULT_QUIESCENCE_BUDGET", status="BLOCKED")), \
+                self.assertRaises(harness.Failure) as caught:
+            harness.recover_partial({}, "a" * 32, {}, time.monotonic() + 60)
+        self.assertEqual((caught.exception.code, caught.exception.status), ("BLOCKED_FAULT_RECOVERY_BUDGET", "BLOCKED"))
+        self.assertGreaterEqual(harness.FAULT_RECOVERY_SECONDS, 90 + 300 + 90)
+
+    def test_total_fault_budget_cannot_extend_the_existing_job(self):
+        runner = object.__new__(harness.HostRun)
+        runner.fault_deadline = time.monotonic() - 1
+        runner.deadline = time.monotonic() + 1000
+        with self.assertRaises(harness.Failure) as caught:
+            runner.guard()
+        self.assertEqual((caught.exception.code, caught.exception.status), ("BLOCKED_FAULT_TOTAL_BUDGET", "BLOCKED"))
+        self.assertLess(harness.FAULT_TOTAL_SECONDS, harness.TOTAL_SECONDS)
+
+    def test_process_identity_requires_starttime_pgid_and_sid(self):
+        original = {"pid": 42, "startTime": 100, "pgid": 42, "sid": 42}
+        self.assertTrue(harness.same_process(original, dict(original)))
+        for key in original:
+            self.assertFalse(harness.same_process(original, {**original, key: original[key] + 1}))
+
+    def test_mismatched_proc_namespace_blocks_before_starting_a_child(self):
+        with patch.object(harness, "native_proc_namespace", return_value=False), \
+                patch.object(harness.subprocess, "Popen") as start, patch.object(harness.tempfile, "TemporaryFile") as temporary, \
+                self.assertRaises(harness.Failure) as caught:
+            harness.OwnedFaultProcess([sys.executable], environment={})
+        self.assertEqual((caught.exception.code, caught.exception.status), ("BLOCKED_FAULT_PROC_NAMESPACE", "BLOCKED"))
+        start.assert_not_called()
+        temporary.assert_not_called()
+
+    def test_namespace_evidence_requires_distinct_observed_inode(self):
+        with patch.object(harness, "root_json", return_value={"namespaceInode": 123}), \
+                patch.object(harness, "network_namespace_inode", return_value=123), \
+                patch.object(harness, "public_cli") as command, self.assertRaisesRegex(harness.Failure, "FAULT_NETWORK_NAMESPACE"):
+            harness.network_fault_child({})
+        command.assert_not_called()
+
+
+@unittest.skipUnless(sys.platform == "linux", "Owned runtime fault primitives require Linux /proc, inotify and POSIX signals")
+class LinuxRuntimeFaultTests(unittest.TestCase):
+    def test_size_limit_is_child_only_and_leaves_actual_partial_bytes(self):
+        import resource
+        before = resource.getrlimit(resource.RLIMIT_FSIZE)
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "synthetic-part.bin"
+            script = ("import os,signal,sys; signal.signal(signal.SIGXFSZ, signal.SIG_IGN); "
+                      "f=open(sys.argv[1],'wb',buffering=0)\n"
+                      "try:\n while True: f.write(b'x' * 1048576)\n"
+                      "except OSError as e: print(e.errno,flush=True); sys.exit(2)\n")
+            with harness.subprocess.Popen([sys.executable, "-I", "-c", script, str(target)],
+                    env={"PATH": "/usr/bin:/bin"}, stdout=harness.subprocess.PIPE,
+                    stderr=harness.subprocess.PIPE, preexec_fn=harness.file_fault_limits) as child:
+                raw, _ = child.communicate(timeout=5)
+                self.assertEqual(child.returncode, 2)
+                self.assertEqual(raw.strip(), b"27")
+                self.assertEqual(target.stat().st_size, harness.FAULT_FILE_LIMIT)
+        self.assertEqual(resource.getrlimit(resource.RLIMIT_FSIZE), before)
+
+    def test_outer_exit_does_not_hide_a_live_descendant_or_allow_stale_signal(self):
+        if not harness.native_proc_namespace():
+            self.skipTest("Local /proc is mounted for a different PID namespace; real group ownership cannot be verified")
+        script = ("import os,time\n"
+                  "pid=os.fork()\n"
+                  "if pid: os._exit(130)\n"
+                  "time.sleep(0.4); os._exit(0)\n")
+        with harness.OwnedFaultProcess([sys.executable, "-I", "-c", script], environment={"PATH": "/usr/bin:/bin"}) as child:
+            started = time.monotonic()
+            code, _ = child.wait(5)
+            self.assertEqual(code, 130)
+            self.assertGreater(time.monotonic() - started, 0.3)
+            self.assertGreaterEqual(child.proof()["observedProcessCount"], 2)
+            with patch.object(harness.os, "killpg") as signal_group:
+                self.assertFalse(child.signal(signal.SIGINT))
+            signal_group.assert_not_called()
+
+    def test_group_stop_interrupt_continue_are_real_and_owned(self):
+        if not harness.native_proc_namespace():
+            self.skipTest("Local /proc is mounted for a different PID namespace; real group ownership cannot be verified")
+        script = ("import os,signal,time\n"
+                  "signal.signal(signal.SIGINT, lambda *args: os._exit(130))\n"
+                  "os.fork()\n"
+                  "while True: time.sleep(0.1)\n")
+        with harness.OwnedFaultProcess([sys.executable, "-I", "-c", script], environment={"PATH": "/usr/bin:/bin"}) as child:
+            deadline = time.monotonic() + 3
+            while len(child.members()) < 2 and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertEqual(len(child.members()), 2)
+            self.assertTrue(child.signal(signal.SIGSTOP))
+            while any(item["state"] not in ("T", "t") for item in child.members()) and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(all(item["state"] in ("T", "t") for item in child.members()))
+            self.assertTrue(child.signal(signal.SIGINT))
+            self.assertTrue(child.signal(signal.SIGCONT))
+            code, _ = child.wait(5)
+            self.assertEqual(code, 130)
+
+    def test_changed_anchor_identity_is_never_signalled(self):
+        if not harness.native_proc_namespace():
+            self.skipTest("Local /proc is mounted for a different PID namespace; real group ownership cannot be verified")
+        with harness.OwnedFaultProcess([sys.executable, "-I", "-c", "import time; time.sleep(10)"],
+                environment={"PATH": "/usr/bin:/bin"}) as child:
+            changed = {**child.anchor, "startTime": child.anchor["startTime"] + 1}
+            with patch.object(harness, "proc_identity", return_value=changed), patch.object(harness.os, "killpg") as signal_group, \
+                    self.assertRaisesRegex(harness.Failure, "BLOCKED_FAULT_PROCESS_IDENTITY"):
+                child.signal(signal.SIGINT)
+            signal_group.assert_not_called()
+
+    def test_inotify_watches_real_directory_creation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            watcher = harness.ExportWatcher(Path(directory))
+            try:
+                target = Path(directory) / "objects"
+                target.mkdir()
+                watcher.wait()
+                watcher.watch(target)
+                self.assertIn(target, watcher.paths)
+            finally:
+                watcher.close()
+
+
 class CloudFailurePolicyTests(unittest.TestCase):
     def test_connection_refusal_retains_backup_and_distinguishes_required_from_best_effort(self):
         # A bound, non-listening loopback socket cannot accept a connection and
@@ -315,7 +477,9 @@ if __name__ == "__main__":
     if sys.argv[1:] == ["--evidence"]:
         suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
         result = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)
+        skipped_ownership = any("LinuxRuntimeFaultTests" in test.id() and "proc" in reason for test, reason in result.skipped)
         print(json.dumps({"status": "PASS" if result.wasSuccessful() else "FAIL", "testsRun": result.testsRun,
+                          "testsSkipped": len(result.skipped), "nativeProcessOwnership": "NOT_RUN" if skipped_ownership else "PASS" if result.wasSuccessful() else "FAIL",
                           "connectionFault": "isolated loopback refusal at mocked transport boundary",
                           "requiredPolicy": "BLOCKED with old writers resumed", "bestEffortPolicy": "WARNING with local backup retained",
                           "ageCryptography": "mocked in policy tests; not cryptographic acceptance"}))

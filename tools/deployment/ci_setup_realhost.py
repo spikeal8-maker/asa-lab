@@ -41,6 +41,13 @@ GUEST_MEMORY_MIB = 10240
 GUEST_CPUS = 3
 BOOTSTRAP_TCG_SECONDS = 1200
 TOTAL_SECONDS = 175 * 60
+FAULT_FILE_LIMIT = 8 * 1024**2
+FAULT_OBJECT_BYTES = 64 * 1024**2
+FAULT_WINDOW_SECONDS = 180
+FAULT_QUIESCENCE_SECONDS = 600
+FAULT_RECOVERY_SECONDS = 650  # Product recovery: start 90 + ready 300 + writers 90, plus preflight.
+FAULT_PHASE_SECONDS = 1800
+FAULT_TOTAL_SECONDS = 75 * 60
 REPOSITORY = "spikeal8-maker/asa-lab"
 GUEST_HOME = Path("/opt/asa-realhost")
 GUEST_PRIVATE = Path("/var/lib/asa-realhost")
@@ -48,7 +55,7 @@ INSTALL_ROOT = Path("/srv/asa-lab")
 ORIGIN = "http://127.0.0.1:4610"
 TABLES = ("accounts", "classrooms", "classroom_student_seats", "courses", "projects")
 STATES = {"PASS", "FAIL", "BLOCKED", "NOT_RUN", "PENDING", "OK", "WARNING", "UNAVAILABLE",
-          "UNVERIFIED", "ACCEPTED", "NO_CHANGE", "FAILED", "NOT_CONFIGURED", "BLOCKED_PLAN", "PLANNED", "RECORDED", "CONFIGURED", "READY"}
+          "UNVERIFIED", "ACCEPTED", "NO_CHANGE", "FAILED", "NOT_CONFIGURED", "BLOCKED_PLAN", "PLANNED", "RECORDED", "CONFIGURED", "READY", "INTERRUPTED"}
 CODE = re.compile(r"[A-Z][A-Z0-9_]{0,79}\Z")
 HEX40 = re.compile(r"[a-f0-9]{40}\Z")
 HEX64 = re.compile(r"[a-f0-9]{64}\Z")
@@ -325,6 +332,8 @@ class HostRun:
         write_json(self.output, self.evidence)
 
     def guard(self):
+        fault_deadline = getattr(self, "fault_deadline", None)
+        require(fault_deadline is None or time.monotonic() < fault_deadline, "BLOCKED_FAULT_TOTAL_BUDGET", status="BLOCKED")
         require(time.monotonic() < self.deadline, "BLOCKED_TOTAL_BUDGET", status="BLOCKED")
         if self.bootstrap_deadline is not None:
             require(time.monotonic() < self.bootstrap_deadline, "BLOCKED_TCG_BUDGET", status="BLOCKED")
@@ -548,6 +557,11 @@ class HostRun:
             time.sleep(10)
         raise Failure("PERSISTENT_TIMER_NOT_RECOVERED")
 
+    def fault_guest(self, phase):
+        self.guard()
+        require(shutil.disk_usage(self.workspace).free >= 6 * GIB, "BLOCKED_FAULT_HOST_DISK", status="BLOCKED")
+        return self.guest(phase, timeout=FAULT_PHASE_SECONDS + 30)
+
     def run(self):
         try:
             self.phase("runner_preflight", self.preflight)
@@ -567,11 +581,20 @@ class HostRun:
                     self.phase("independent_control_fixture", lambda: self.guest("seed", timeout=900))
                     self.phase("published_runtime_update", lambda: self.guest("update", timeout=2400))
                     self.phase("public_backup_and_retry", lambda: self.guest("backup", timeout=1200))
+                    self.fault_deadline = min(self.deadline, time.monotonic() + FAULT_TOTAL_SECONDS)
+                    try:
+                        self.phase("public_release_connection_failure", lambda: self.guest("network-fault", timeout=900))
+                        self.phase("public_partial_backup_failure", lambda: self.fault_guest("partial-fault"))
+                        self.phase("public_backup_interrupt_recovery", lambda: self.fault_guest("interrupt-fault"))
+                    finally:
+                        self.fault_deadline = None
                     self.phase("real_guest_reboot", self.reboot)
                     self.phase("real_persistent_timer", self.missed_timer)
                     self.phase("final_control_browser", lambda: self.guest("final", timeout=900))
                     self.evidence["checks"].update(cleanUbuntuActual1Panel="PASS", publicCliLifecycle="PASS",
-                                                   publishedRuntimeUpdate="PASS", realGuestReboot="PASS", persistentTimer="PASS")
+                                                   publishedRuntimeUpdate="PASS", realGuestReboot="PASS", persistentTimer="PASS",
+                                                   publicPartialBackupFailure="PASS", publicBackupInterruption="PASS",
+                                                   publicReleaseConnectionFailure="PASS")
                     self.evidence["status"] = "PASS"
                 finally:
                     if self.vm:
@@ -639,6 +662,10 @@ def root_json(name):
 def public_cli(words, *, options=(), allowed=(0,), timeout=1200):
     command = ["/usr/local/bin/asa", *words, "--root", str(INSTALL_ROOT), "--json", "--no-color", *options]
     code, raw = Commands().run(command, timeout=timeout, environment=guest_environment(), allowed=(0, 1, 2, 130))
+    return public_cli_result(words, code, raw, allowed=allowed)
+
+
+def public_cli_result(words, code, raw, *, allowed=(0,)):
     try:
         result = json.loads(raw)
     except (ValueError, UnicodeError):
@@ -1274,6 +1301,641 @@ def backup_guest(context):
             "cloudDelivery": "NOT_CONFIGURED", "realProviderConnectionFailure": "NOT_RUN"}
 
 
+def proc_identity(pid):
+    """Linux stat identity only; command lines and environments never enter evidence."""
+    try:
+        raw = Path(f"/proc/{pid}/stat").read_text()
+        fields = raw[raw.rindex(")") + 2:].split()
+        return {"pid": int(pid), "ppid": int(fields[1]), "pgid": int(fields[2]), "sid": int(fields[3]),
+                "startTime": int(fields[19]), "state": fields[0]}
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def same_process(left, right):
+    return bool(left and right and all(left.get(key) == right.get(key) for key in ("pid", "pgid", "sid", "startTime")))
+
+
+def native_proc_namespace():
+    try:
+        own = proc_identity(os.getpid())
+        return bool(own and os.readlink("/proc/self") == str(os.getpid())
+                    and own["pgid"] == os.getpgrp() and own["sid"] == os.getsid(0))
+    except (OSError, AttributeError):
+        return False
+
+
+def file_fault_limits():
+    import resource
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (FAULT_FILE_LIMIT, FAULT_FILE_LIMIT))
+
+
+class OwnedFaultProcess:
+    """Keep the session leader unreaped until descendants finish, preventing PGID reuse.
+
+    No poll()/waitpid() is used while the group can still be signalled. Every
+    signal revalidates its PID/starttime/PGID/SID anchor and current members.
+    """
+    def __init__(self, command, *, environment, file_limit=False, deadline=None):
+        require(native_proc_namespace(), "BLOCKED_FAULT_PROC_NAMESPACE", status="BLOCKED")
+        self.stdout, self.stderr = tempfile.TemporaryFile(), tempfile.TemporaryFile()
+        self.closed, self.stopped, self.history = False, False, {}
+        self.deadline = deadline
+        self.process = None
+        try:
+            self.process = subprocess.Popen([str(value) for value in command], cwd="/", env=environment,
+                stdin=subprocess.DEVNULL, stdout=self.stdout, stderr=self.stderr, start_new_session=True, umask=0o077,
+                preexec_fn=file_fault_limits if file_limit else None)
+            self.anchor = proc_identity(self.process.pid)
+            require(self.anchor and self.anchor["pgid"] == self.anchor["sid"] == self.process.pid,
+                    "BLOCKED_FAULT_PROCESS_IDENTITY", status="BLOCKED")
+        except BaseException:
+            # No group signal without identity proof. This unreaped Popen child
+            # alone is ours; a failed VM phase destroys the disposable guest.
+            if self.process is not None:
+                try:
+                    self.process.kill()
+                    self.process.wait(timeout=3)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+            self.stdout.close()
+            self.stderr.close()
+            raise
+
+    def members(self):
+        if self.closed:
+            return []
+        require(same_process(self.anchor, proc_identity(self.process.pid)), "BLOCKED_FAULT_PROCESS_IDENTITY", status="BLOCKED")
+        records = {}
+        for path in Path("/proc").iterdir():
+            if not path.name.isdigit():
+                continue
+            value = proc_identity(int(path.name))
+            if value:
+                records[value["pid"]] = value
+        owned = {self.anchor["pid"]}
+        owned.update(value["pid"] for value in self.history.values()
+                     if records.get(value["pid"], {}).get("startTime") == value["startTime"])
+        while True:
+            expanded = owned | {value["pid"] for value in records.values() if value["ppid"] in owned}
+            if expanded == owned:
+                break
+            owned = expanded
+        members = []
+        for value in records.values():
+            if value["pid"] not in owned and value["sid"] != self.anchor["sid"]:
+                continue
+            require((value["pgid"], value["sid"]) == (self.anchor["pgid"], self.anchor["sid"]),
+                    "BLOCKED_FAULT_PROCESS_ESCAPED_GROUP", status="BLOCKED")
+            require(value["startTime"] >= self.anchor["startTime"], "BLOCKED_FAULT_PROCESS_IDENTITY", status="BLOCKED")
+            self.history[(value["pid"], value["startTime"])] = value
+            require(len(self.history) <= 4096, "BLOCKED_FAULT_PROCESS_BUDGET", status="BLOCKED")
+            if value["state"] not in ("Z", "X"):
+                members.append(value)
+        return members
+
+    def signal(self, number):
+        # Empty/closed groups are never signalled, even if a numeric PGID reappears.
+        if not self.members():
+            return False
+        require(same_process(self.anchor, proc_identity(self.process.pid)), "BLOCKED_FAULT_PROCESS_IDENTITY", status="BLOCKED")
+        os.killpg(self.anchor["pgid"], number)
+        if number == signal.SIGSTOP:
+            self.stopped = True
+        elif number == signal.SIGCONT:
+            self.stopped = False
+        return True
+
+    def guard(self):
+        require(self.deadline is None or time.monotonic() < self.deadline, "BLOCKED_FAULT_PHASE_BUDGET", status="BLOCKED")
+        require(sum(os.fstat(stream.fileno()).st_size for stream in (self.stdout, self.stderr)) <= 2 * 1024**2,
+                "BLOCKED_FAULT_OUTPUT_LIMIT", status="BLOCKED")
+
+    def wait(self, timeout, *, check_budget=True):
+        deadline = time.monotonic() + timeout
+        empty_since = None
+        while True:
+            live = self.members()
+            if not live:
+                if empty_since is not None and time.monotonic() - empty_since >= 0.1:
+                    break
+                empty_since = empty_since or time.monotonic()
+            else:
+                empty_since = None
+            if check_budget:
+                self.guard()
+            require(time.monotonic() < deadline, "BLOCKED_FAULT_QUIESCENCE_BUDGET", status="BLOCKED")
+            time.sleep(0.1)
+        self.closed = True  # No further group signalling is allowed after wait reaps the anchor.
+        code = self.process.wait(timeout=3)
+        self.stdout.seek(0)
+        raw = self.stdout.read(2 * 1024**2 + 1)
+        require(len(raw) <= 2 * 1024**2, "BLOCKED_FAULT_OUTPUT_LIMIT", status="BLOCKED")
+        return code, raw
+
+    def close(self):
+        try:
+            if not self.closed:
+                self.signal(signal.SIGCONT)
+                self.signal(signal.SIGTERM)
+                deadline = time.monotonic() + 3
+                while self.members() and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.signal(signal.SIGKILL)
+                self.deadline = None
+                self.wait(5, check_budget=False)
+        finally:
+            self.stdout.close()
+            self.stderr.close()
+
+    def proof(self):
+        identities = [{key: value[key] for key in ("pid", "startTime", "pgid", "sid")}
+                      for _, value in sorted(self.history.items())]
+        return {"leader": {key: self.anchor[key] for key in ("pid", "startTime", "pgid", "sid")},
+                "observedProcessCount": len(self.history), "processIdentitiesSha256": canonical_hash(
+                    sorted((value["pid"], value["startTime"], value["pgid"], value["sid"]) for value in self.history.values())),
+                "processIdentities": identities[:128], "identityListTruncated": len(identities) > 128,
+                "allOwnedProcessesExited": self.closed}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, error_type, error, traceback):
+        try:
+            self.close()
+        except BaseException:
+            if error is None:
+                raise
+            error.owned_cleanup_failed = True
+        return False
+
+
+class ExportWatcher:
+    """inotify wakes observation after partial/objects creation; it does not alter export."""
+    def __init__(self, root):
+        import ctypes
+        self.libc = ctypes.CDLL(None, use_errno=True)
+        self.libc.inotify_init1.argtypes = [ctypes.c_int]
+        self.libc.inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+        self.fd = self.libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+        require(self.fd >= 0, "BLOCKED_FAULT_WATCHER", status="BLOCKED")
+        self.paths = set()
+        try:
+            self.watch(root)
+        except BaseException:
+            os.close(self.fd)
+            raise
+
+    def watch(self, path):
+        if path in self.paths:
+            return
+        require(path.is_dir() and not path.is_symlink(), "BLOCKED_FAULT_WATCHER", status="BLOCKED")
+        require(self.libc.inotify_add_watch(self.fd, os.fsencode(path), 0x100 | 0x80) >= 0,
+                "BLOCKED_FAULT_WATCHER", status="BLOCKED")
+        self.paths.add(path)
+
+    def wait(self):
+        import struct
+        with selectors.DefaultSelector() as selector:
+            selector.register(self.fd, selectors.EVENT_READ)
+            if not selector.select(0.02):
+                return
+        raw = os.read(self.fd, 65536)
+        offset = 0
+        while offset + 16 <= len(raw):
+            _, mask, _, size = struct.unpack_from("iIII", raw, offset)
+            require(not mask & 0x4000, "BLOCKED_FAULT_WATCHER_OVERFLOW", status="BLOCKED")
+            offset += 16 + size
+
+    def close(self):
+        os.close(self.fd)
+
+
+def fault_key(context):
+    require(re.fullmatch(r"[a-f0-9]{32}", context["nonce"]), "FAULT_FIXTURE_IDENTITY")
+    return "asa-realhost-fault-" + context["nonce"] + ".bin"
+
+
+def owner_fault_fixture(context, *, remove=False):
+    config_module, _, _, install, _, config, _ = owner_installation(context)
+    from deployment.backup import managed_writers
+    path = INSTALL_ROOT / ".asa/realhost-fault-fixture.json"
+    key = fault_key(context)
+    prefix = 'mc alias set local http://minio:9000 "$ASA_OBJECT_STORAGE_ACCESS_KEY" "$ASA_OBJECT_STORAGE_SECRET_KEY" >/dev/null; '
+    target = '"local/$ASA_OBJECT_STORAGE_BUCKET/' + key + '"'
+    command = ("run", "--rm", "--no-deps", "--entrypoint", "/bin/sh", "minio-init", "-eu", "-c")
+    if remove:
+        saved = config_module.private_json(path)
+        require(saved.get("key") == key and saved.get("installationId") == config["installationId"], "FAULT_FIXTURE_IDENTITY")
+        # owner_installation has proved application readiness before this exact authenticated deletion.
+        install.compose(*command, prefix + "mc rm " + target, capture=True, timeout=90)
+        saved["removed"] = True
+        config_module.save_private(path, saved)
+        return {"exactSyntheticObjectRemoved": True, "applicationReadyBeforeRemoval": True}
+    require(not path.exists(), "FAULT_FIXTURE_EXISTS")
+    available = shutil.disk_usage(INSTALL_ROOT).free
+    require(available >= 6 * GIB, "BLOCKED_FAULT_GUEST_DISK", status="BLOCKED")
+    with tempfile.TemporaryFile() as payload:
+        digest = hashlib.sha256()
+        for _ in range(FAULT_OBJECT_BYTES // (1024**2)):
+            chunk = os.urandom(1024**2)
+            payload.write(chunk)
+            digest.update(chunk)
+        payload.seek(0)
+        install.compose(*command, prefix + "mc pipe " + target, input_file=payload, capture=True, timeout=120)
+    with tempfile.TemporaryFile() as readback:
+        install.compose(*command, prefix + "mc cat " + target, output=readback, timeout=120)
+        require(readback.tell() == FAULT_OBJECT_BYTES, "FAULT_OBJECT_READBACK_BYTES")
+        readback.seek(0)
+        require(hashlib.file_digest(readback, "sha256").hexdigest() == digest.hexdigest(), "FAULT_OBJECT_READBACK_SHA256")
+    records = install.identity()
+    writers = managed_writers(install, records, json.loads(install.compose("config", "--format", "json", capture=True)))
+    mounts = [item for item in records["minio"]["mounts"] if item.get("Destination") == "/data" and item.get("Type") == "volume"]
+    require(len(mounts) == 1 and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,200}", mounts[0].get("Name", "")), "FAULT_OBJECT_VOLUME")
+    bucket = install.env["ASA_OBJECT_STORAGE_BUCKET"]
+    require(re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket), "FAULT_OBJECT_BUCKET")
+    saved = {"key": key, "installationId": config["installationId"], "sha256": digest.hexdigest(), "bytes": FAULT_OBJECT_BYTES,
+             "writers": writers, "minioContainer": records["minio"]["id"], "volume": mounts[0]["Name"], "bucket": bucket}
+    config_module.save_private(path, saved)
+    return {"authenticatedObjectBytes": FAULT_OBJECT_BYTES, "authenticatedReadbackSha256": digest.hexdigest(),
+            "writerIdentitySha256": canonical_hash(writers), "fixtureUploaderExitedBeforeBackup": True,
+            "guestFreeBytesBeforeFixture": available}
+
+
+def fault_fixture():
+    return json.loads((INSTALL_ROOT / ".asa/realhost-fault-fixture.json").read_text())
+
+
+def plain_tree(path, *, content=False):
+    """Bounded regular files only, without exposing filenames or their contents."""
+    require(path.is_dir() and not path.is_symlink(), "FAULT_PARTIAL_PATH")
+    entries, total = {}, 0
+    for parent, directories, files in os.walk(path, followlinks=False):
+        for name in directories + files:
+            item = Path(parent) / name
+            info = item.lstat()
+            require(not stat.S_ISLNK(info.st_mode) and (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)), "FAULT_PARTIAL_PATH")
+            if name in files:
+                total += info.st_size
+                require(len(entries) < 20000 and total <= 2 * GIB, "BLOCKED_FAULT_PARTIAL_BUDGET", status="BLOCKED")
+                entries[item.relative_to(path).as_posix()] = {"bytes": info.st_size, "mtimeNs": info.st_mtime_ns,
+                    **({"sha256": hash_file(item)} if content else {})}
+    return entries
+
+
+def fault_binding(operation_id, *, required=True):
+    require(re.fullmatch(r"[a-f0-9]{32}", operation_id), "FAULT_OPERATION_ID")
+    path = INSTALL_ROOT / ".asa/setup-backups" / ("operation-" + operation_id + ".json")
+    if not path.exists() and not required:
+        return None
+    value = json.loads(path.read_text())
+    require(value.get("operationId") == operation_id and value.get("installationId") == fault_fixture()["installationId"]
+            and re.fullmatch(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,32}", value.get("snapshotId", "")), "FAULT_SNAPSHOT_BINDING")
+    return value["snapshotId"]
+
+
+def partial_proof(operation_id, *, content=False):
+    snapshot = fault_binding(operation_id)
+    partial = INSTALL_ROOT / "backups" / (snapshot + ".incomplete")
+    files = plain_tree(partial, content=content)
+    objects = [value["bytes"] for name, value in files.items() if name.startswith("objects/")]
+    fixture = fault_fixture()
+    prefix = "objects/" + fixture["bucket"] + "/" + fixture["key"] + "/"
+    parts = [value["bytes"] for name, value in files.items() if name.startswith(prefix)
+             and re.fullmatch(r"part\.[1-9][0-9]*", Path(name).name)]
+    final = INSTALL_ROOT / "backups" / snapshot
+    ciphertext = INSTALL_ROOT / "backups/encrypted" / ("asa-lab-" + snapshot + ".tar.age")
+    return {"operationId": operation_id, "snapshotId": snapshot, "files": len(files), "bytes": sum(item["bytes"] for item in files.values()),
+            "databaseBytes": files.get("database.dump", {}).get("bytes", 0), "globalsBytes": files.get("globals.sql", {}).get("bytes", 0),
+            "objectBytes": sum(objects), "largestObjectFileBytes": max(objects, default=0),
+            "syntheticPartBytes": max(parts, default=0), "treeSha256": canonical_hash(files),
+            "objectsDirectory": (partial / "objects").is_dir(), "manifestPresent": (partial / "manifest.json").exists(),
+            "finalPresent": final.exists(), "ciphertextPresent": ciphertext.exists()}
+
+
+def require_incomplete(proof):
+    require(proof["databaseBytes"] > 0 and proof["globalsBytes"] > 0 and proof["objectsDirectory"]
+            and not any(proof[key] for key in ("manifestPresent", "finalPresent", "ciphertextPresent")), "FAULT_NOT_PARTIAL")
+
+
+def lock_released():
+    import fcntl
+    path = INSTALL_ROOT / ".asa/operation.lock"
+    info = path.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1, "FAULT_LOCK_IDENTITY")
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        actual = os.fstat(descriptor)
+        require((actual.st_dev, actual.st_ino) == (info.st_dev, info.st_ino), "FAULT_LOCK_IDENTITY")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except BlockingIOError:
+            return False
+    finally:
+        os.close(descriptor)
+
+
+def stable_partial(operation_id):
+    require(lock_released(), "BLOCKED_FAULT_LOCK_STILL_HELD", status="BLOCKED")
+    first = partial_proof(operation_id, content=True)
+    time.sleep(1)
+    second = partial_proof(operation_id, content=True)
+    require(first == second, "BLOCKED_FAULT_PARTIAL_NOT_STABLE", status="BLOCKED")
+    require_incomplete(second)
+    return {**second, "stableAfterQuiescence": True, "operationLockReleased": True}
+
+
+def fault_receipt(operation_id):
+    snapshot = fault_binding(operation_id)
+    receipt = json.loads((INSTALL_ROOT / ".asa/setup-backups" / (snapshot + ".json")).read_text())
+    journal = json.loads((INSTALL_ROOT / ".asa/setup-operations" / (operation_id + ".json")).read_text())
+    require(receipt.get("snapshotId") == snapshot and receipt.get("operationId") == operation_id
+            and journal.get("operationId") == operation_id and journal.get("snapshotId") == snapshot, "FAULT_RECEIPT_IDENTITY")
+    require(receipt.get("local", {}).get("status") != "OK" and receipt.get("outcome") not in ("ACCEPTED", "WARNING")
+            and journal.get("result", {}).get("dataProtectionConfirmed") is not True, "FAULT_FALSE_BACKUP_SUCCESS")
+    return fault_receipt_projection(receipt, journal)
+
+
+def fault_receipt_projection(receipt, journal):
+    receipt = receipt if isinstance(receipt, dict) else {}
+    journal = journal if isinstance(journal, dict) else {}
+    local = receipt.get("local") if isinstance(receipt.get("local"), dict) else {}
+    allowed = {"PENDING", "RUNNING", "UNKNOWN", "FAILED", "BLOCKED", "ERROR", "INTERRUPTED", "RECOVERY_REQUIRED", "TERMINAL", "NOT_RUN"}
+    result = {"journalState": journal.get("state") if isinstance(journal.get("state"), str) and journal["state"] in allowed else "UNVERIFIED",
+              "outcome": receipt.get("outcome") if isinstance(receipt.get("outcome"), str) and receipt["outcome"] in allowed else "UNVERIFIED"}
+    for key in ("status", "executionStatus"):
+        value = local.get(key)
+        result["local" + key[0].upper() + key[1:]] = value if isinstance(value, str) and value in allowed else "UNVERIFIED"
+    reason = local.get("error")
+    if reason in ("COMMAND", "COMMAND_TIMEOUT", "BACKUP_RESUME_SNAPSHOT_MISSING", "BACKUP_INCOMPLETE", "OSError", "FileNotFoundError"):
+        result["localReasonCode"] = reason
+    return result
+
+
+def owner_fault_observe(context):
+    _, _, _, install, _, _, _ = owner_installation(context)
+    from deployment.backup import managed_writers
+    actual = managed_writers(install, install.identity(), json.loads(install.compose("config", "--format", "json", capture=True)))
+    require(actual == fault_fixture()["writers"], "FAULT_WRITERS_CHANGED")
+    require(not (INSTALL_ROOT / ".asa/maintenance.json").exists(), "FAULT_WRITERS_NOT_RESUMED")
+    return {"exactOriginalWritersRestored": True, "writerIdentitySha256": canonical_hash(actual),
+            "control": owner_observe(context)}
+
+
+def fault_public_command(operation_id):
+    require(re.fullmatch(r"[a-f0-9]{32}", operation_id), "FAULT_OPERATION_ID")
+    return ["/usr/local/bin/asa", "backup", "create", "--root", INSTALL_ROOT, "--json", "--no-color",
+            "--operation-id", operation_id, "--non-interactive"]
+
+
+def completed_fault_command(operation_id, *, deadline, timeout, allowed):
+    with OwnedFaultProcess(fault_public_command(operation_id), environment=guest_environment(), deadline=deadline) as child:
+        code, raw = child.wait(timeout)
+        value = public_cli_result(["backup", "create"], code, raw, allowed=allowed)
+        return value, child.proof()
+
+
+def fault_baseline():
+    value = root_json("fault-baseline.json")
+    pointer = INSTALL_ROOT / ".asa/setup-backups/last-local-success.json"
+    require(hash_file(pointer) == value["lastLocalSuccessSha256"] and manifest_count() == value["completeSnapshots"],
+            "FAULT_CHANGED_LAST_SUCCESS")
+    return value
+
+
+def fault_size_gate(database_bytes, globals_bytes, source_part_bytes):
+    require(type(source_part_bytes) is int and source_part_bytes > FAULT_FILE_LIMIT,
+            "BLOCKED_FAULT_OBJECT_PART_TOO_SMALL", status="BLOCKED")
+    require(all(type(size) is int and 0 < size < FAULT_FILE_LIMIT for size in (database_bytes, globals_bytes)),
+            "BLOCKED_FAULT_DATABASE_TOO_LARGE", status="BLOCKED")
+
+
+def prepare_backup_fault(context):
+    uploaded = owner_call("owner-fault-prepare", timeout=360)
+    fixture = fault_fixture()
+    _, raw = Commands().run(["docker", "volume", "inspect", "--format", "{{.Mountpoint}}", fixture["volume"]], timeout=30)
+    mount = Path(raw.decode().strip())
+    source = mount / fixture["bucket"] / fixture["key"]
+    require(mount.is_absolute() and source.is_relative_to(mount)
+            and not any(path.is_symlink() for path in [source, *source.parents]), "FAULT_OBJECT_VOLUME")
+    parts = [entry["bytes"] for name, entry in plain_tree(source).items() if re.fullmatch(r"part\.[1-9][0-9]*", Path(name).name)]
+    require(parts and max(parts) > FAULT_FILE_LIMIT, "BLOCKED_FAULT_OBJECT_PART_TOO_SMALL", status="BLOCKED")
+    pointer = INSTALL_ROOT / ".asa/setup-backups/last-local-success.json"
+    previous = json.loads(pointer.read_text())
+    require(re.fullmatch(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,32}", previous.get("snapshotId", "")), "FAULT_BASELINE_BACKUP")
+    saved = json.loads((pointer.parent / (previous["snapshotId"] + ".json")).read_text())
+    proof = snapshot_proof(saved["operationId"])
+    full = INSTALL_ROOT / "backups" / proof["snapshotId"]
+    sizes = {name: (full / name).stat().st_size for name in ("database.dump", "globals.sql")}
+    fault_size_gate(sizes["database.dump"], sizes["globals.sql"], max(parts))
+    baseline = {"lastLocalSuccessSha256": hash_file(pointer), "completeSnapshots": manifest_count(), "previousBackup": proof,
+                "databaseBytes": sizes["database.dump"], "globalsBytes": sizes["globals.sql"],
+                "sourceMinioPartBytes": max(parts), "fileSizeLimitBytes": FAULT_FILE_LIMIT,
+                "guestFreeBytesBeforeFixture": uploaded["guestFreeBytesBeforeFixture"],
+                "authenticatedObjectBytes": uploaded["authenticatedObjectBytes"],
+                "authenticatedReadbackSha256": uploaded["authenticatedReadbackSha256"]}
+    write_json(GUEST_PRIVATE / "fault-baseline.json", baseline)
+    return baseline
+
+
+def recover_partial(context, operation_id, before, deadline):
+    held_before = (INSTALL_ROOT / ".asa/maintenance.json").exists()
+    try:
+        value, processes = completed_fault_command(operation_id, deadline=deadline,
+            timeout=FAULT_RECOVERY_SECONDS, allowed=(2,))
+    except Failure as error:
+        if error.code in ("BLOCKED_FAULT_PHASE_BUDGET", "BLOCKED_FAULT_QUIESCENCE_BUDGET"):
+            raise Failure("BLOCKED_FAULT_RECOVERY_BUDGET", status="BLOCKED") from None
+        raise
+    receipt = fault_receipt(operation_id)
+    require(value.get("status") == "BLOCKED" and receipt.get("outcome") == "BLOCKED"
+            and receipt.get("localReasonCode") == "BACKUP_RESUME_SNAPSHOT_MISSING", "FAULT_RECOVERY_CONTRACT")
+    after = stable_partial(operation_id)
+    require(after == before, "FAULT_RECOVERY_REEXPORTED")
+    fault_baseline()
+    observation = owner_call("owner-fault-observe", timeout=360)
+    return {"publicExitCode": 2, "receipt": receipt, "sameSnapshotAndPartialBytes": True,
+            "holdRemainedBeforeSameIdCommand": held_before,
+            "allOwnedProcessesExited": processes["allOwnedProcessesExited"],
+            "exactOriginalWritersRestored": observation["exactOriginalWritersRestored"],
+            "control": observation["control"], "lastLocalSuccessPreserved": True}
+
+
+def partial_fault_guest(context):
+    deadline = time.monotonic() + FAULT_PHASE_SECONDS
+    evidence = {"injection": "PER_CHILD_RLIMIT_FSIZE", "realYandexFault": "NOT_RUN"}
+    try:
+        evidence["baseline"] = prepare_backup_fault(context)
+        operation_id = uuid.uuid4().hex
+        evidence["operationId"] = operation_id
+        with OwnedFaultProcess(fault_public_command(operation_id), environment=guest_environment(), file_limit=True, deadline=deadline) as child:
+            code, raw = child.wait(FAULT_WINDOW_SECONDS + FAULT_QUIESCENCE_SECONDS)
+            public_cli_result(["backup", "create"], code, raw, allowed=(2,))
+            evidence["processes"] = child.proof()
+        partial = stable_partial(operation_id)
+        require(partial["syntheticPartBytes"] == FAULT_FILE_LIMIT and partial["objectBytes"] > 0
+                and 0 < partial["databaseBytes"] < FAULT_FILE_LIMIT and 0 < partial["globalsBytes"] < FAULT_FILE_LIMIT,
+                "BLOCKED_FAULT_SIZE_LIMIT_NOT_REACHED", status="BLOCKED")
+        receipt = fault_receipt(operation_id)
+        require(receipt["localStatus"] == "FAILED" and receipt["outcome"] == "BLOCKED", "FAULT_PARTIAL_RECEIPT")
+        evidence.update(publicExitCode=code, partial=partial, receipt=receipt, observedObjectFileLimitReached=True)
+        fault_baseline()
+        evidence["sameIdRecovery"] = recover_partial(context, operation_id, partial, deadline)
+        write_json(GUEST_PRIVATE / "fault-partial-proof.json", partial)
+        return evidence
+    except BaseException as error:
+        error.fault_evidence = evidence
+        raise
+
+
+def export_window(proof, source_part_bytes):
+    return (proof.get("databaseBytes", 0) > 0 and proof.get("globalsBytes", 0) > 0 and proof.get("objectsDirectory") is True
+            and 0 <= proof.get("syntheticPartBytes", 0) < source_part_bytes
+            and not any(proof.get(key) for key in ("manifestPresent", "finalPresent", "ciphertextPresent")))
+
+
+def actual_copy_process(child, operation_id):
+    snapshot = fault_binding(operation_id)
+    source = fault_fixture()["minioContainer"] + ":/data/."
+    target = str(INSTALL_ROOT / "backups" / (snapshot + ".incomplete") / "objects")
+    for identity in child.members():
+        try:
+            raw = Path(f"/proc/{identity['pid']}/cmdline").read_bytes()
+            if len(raw) > 8192 or not same_process(identity, proc_identity(identity["pid"])):
+                continue
+            args = raw.rstrip(b"\0").decode().split("\0")
+            if len(args) == 4 and Path(args[0]).name == "docker" and args[1:] == ["cp", source, target]:
+                return True
+        except (OSError, UnicodeError):
+            continue
+    return False
+
+
+def interrupt_at_export(child, operation_id):
+    deadline = time.monotonic() + FAULT_WINDOW_SECONDS
+    source_part_bytes = root_json("fault-baseline.json")["sourceMinioPartBytes"]
+    watcher = ExportWatcher(INSTALL_ROOT / "backups")
+    try:
+        while child.members():
+            child.guard()
+            require(time.monotonic() < deadline, "BLOCKED_FAULT_WINDOW_BUDGET", status="BLOCKED")
+            snapshot = fault_binding(operation_id, required=False)
+            partial = INSTALL_ROOT / "backups" / (snapshot + ".incomplete") if snapshot else None
+            if partial and partial.is_dir():
+                watcher.watch(partial)
+                try:
+                    proof = partial_proof(operation_id)
+                except FileNotFoundError:
+                    raise Failure("BLOCKED_FAULT_WINDOW_MISSED", status="BLOCKED") from None
+                if export_window(proof, source_part_bytes):
+                    stopped_at = time.monotonic()
+                    require(child.signal(signal.SIGSTOP), "BLOCKED_FAULT_WINDOW_MISSED", status="BLOCKED")
+                    injection = None
+                    try:
+                        while any(value["state"] not in ("T", "t") for value in child.members()):
+                            require(time.monotonic() - stopped_at < 3, "BLOCKED_FAULT_STOP_BUDGET", status="BLOCKED")
+                            time.sleep(0.01)
+                        frozen = partial_proof(operation_id)
+                        require(export_window(frozen, source_part_bytes), "BLOCKED_FAULT_WINDOW_MISSED", status="BLOCKED")
+                        hold = json.loads((INSTALL_ROOT / ".asa/maintenance.json").read_text())
+                        require(hold.get("operationId") == operation_id and hold.get("snapshotId") == snapshot
+                                and hold.get("phase") == "backup", "FAULT_HOLD_IDENTITY")
+                        copy_seen = actual_copy_process(child, operation_id)
+                        require(time.monotonic() - stopped_at < 3, "BLOCKED_FAULT_STOP_BUDGET", status="BLOCKED")
+                        require(child.signal(signal.SIGINT), "BLOCKED_FAULT_WINDOW_MISSED", status="BLOCKED")
+                        injection = {"signal": "SIGINT", "precededByOwnedSIGSTOP": True, "window": "AFTER_DUMPS_BEFORE_OBJECTS_COMPLETE",
+                                "actualDockerCopyObserved": copy_seen, "objectBytesAtSignal": frozen["objectBytes"],
+                                "interruptedDuringCopy": copy_seen and frozen["objectBytes"] > 0,
+                                "databaseBytesAtSignal": frozen["databaseBytes"], "globalsBytesAtSignal": frozen["globalsBytes"]}
+                    finally:
+                        child.signal(signal.SIGCONT)
+                    stopped_for = time.monotonic() - stopped_at
+                    require(stopped_for < 3, "BLOCKED_FAULT_STOP_BUDGET", status="BLOCKED")
+                    injection["stoppedMilliseconds"] = round(stopped_for * 1000)
+                    return injection
+            watcher.wait()
+        raise Failure("BLOCKED_FAULT_WINDOW_MISSED", status="BLOCKED")
+    finally:
+        watcher.close()
+
+
+def interrupt_fault_guest(context):
+    deadline = time.monotonic() + FAULT_PHASE_SECONDS
+    evidence = {"injection": "OWNED_PUBLIC_PROCESS_GROUP_SIGINT", "realYandexFault": "NOT_RUN"}
+    try:
+        require(shutil.disk_usage(INSTALL_ROOT).free >= 6 * GIB, "BLOCKED_FAULT_GUEST_DISK", status="BLOCKED")
+        fault_baseline()
+        previous_partial = root_json("fault-partial-proof.json")
+        operation_id = uuid.uuid4().hex
+        evidence["operationId"] = operation_id
+        with OwnedFaultProcess(fault_public_command(operation_id), environment=guest_environment(), deadline=deadline) as child:
+            evidence["observedInjection"] = interrupt_at_export(child, operation_id)
+            code, raw = child.wait(FAULT_QUIESCENCE_SECONDS)
+            public_cli_result(["backup", "create"], code, raw, allowed=(130,))
+            evidence["processes"] = child.proof()
+        evidence["publicExitCode"] = code
+        evidence["receiptAfterQuiescence"] = fault_receipt(operation_id)
+        partial = stable_partial(operation_id)
+        evidence["partial"] = partial
+        fault_baseline()
+        evidence["sameIdRecovery"] = recover_partial(context, operation_id, partial, deadline)
+        new_operation = uuid.uuid4().hex
+        require(new_operation not in (operation_id, previous_partial["operationId"]), "FAULT_NEW_OPERATION_ID")
+        value, processes = completed_fault_command(new_operation, deadline=deadline, timeout=900, allowed=(0,))
+        proof = snapshot_proof(new_operation)
+        require(proof["snapshotId"] not in (partial["snapshotId"], previous_partial["snapshotId"]), "FAULT_NEW_SNAPSHOT_ID")
+        public_cli(["backup", "verify"], options=["--snapshot-id", proof["snapshotId"]], timeout=180)
+        pointer = json.loads((INSTALL_ROOT / ".asa/setup-backups/last-local-success.json").read_text())
+        require(pointer.get("snapshotId") == proof["snapshotId"] and manifest_count() == root_json("fault-baseline.json")["completeSnapshots"] + 1,
+                "FAULT_NEW_SUCCESS_POINTER")
+        require(stable_partial(operation_id) == partial and stable_partial(previous_partial["operationId"]) == previous_partial,
+                "FAULT_PARTIAL_NOT_PRESERVED")
+        evidence.update(newSuccessfulBackup=proof, newOperationDistinct=True, lastLocalSuccessAdvanced=True,
+                        bothIncompleteSnapshotsPreserved=True, newBackupProcesses=processes)
+        evidence["fixtureCleanup"] = owner_call("owner-fault-remove", timeout=360)
+        evidence["finalControl"] = owner_call("owner-fault-observe", timeout=360)
+        require(panel_and_docker_identity() == root_json("host-baseline.json"), "ONEPANEL_DOCKER_CHANGED")
+        return evidence
+    except BaseException as error:
+        error.fault_evidence = evidence
+        raise
+
+
+def network_namespace_inode():
+    return Path("/proc/self/ns/net").stat().st_ino
+
+
+def network_fault_child(context):
+    original = root_json("fault-network-namespace.json")["namespaceInode"]
+    current = network_namespace_inode()
+    require(current != original and all(name == "lo" for _, name in socket.if_nameindex()), "FAULT_NETWORK_NAMESPACE")
+    result = public_cli(["update", "check"], allowed=(2,), timeout=150)
+    reasons = [result.get("reasonCode"), *result.get("reasonCodes", [])]
+    require(result.get("status") == "BLOCKED" and "RELEASE_UNAVAILABLE" in reasons, "FAULT_RELEASE_CONNECTION_RESULT")
+    return {"childNamespaceInode": current, "parentNamespaceInode": original, "separateNetworkNamespace": True,
+            "publicCommand": "asa update check", "publicExitCode": 2, "reasonCode": "RELEASE_UNAVAILABLE",
+            "scope": "PUBLIC_RELEASE_LOOKUP", "realYandexFault": "NOT_RUN"}
+
+
+def network_fault_guest(context):
+    original = network_namespace_inode()
+    before = owner_call("owner-observe", timeout=360)
+    write_json(GUEST_PRIVATE / "fault-network-namespace.json", {"namespaceInode": original})
+    code, raw = Commands().run(["unshare", "--net", "--", "/usr/bin/python3", "-I", "-B", GUEST_HOME / "runner.py",
+                               "--guest-phase", "network-fault-child"], environment=guest_environment(), timeout=180, allowed=(0, 1, 2))
+    try:
+        value = json.loads(raw)
+    except (ValueError, UnicodeError):
+        raise Failure("BLOCKED_FAULT_NETWORK_NAMESPACE", status="BLOCKED") from None
+    require(code == 0 and value.get("status") == "PASS" and value.get("phase") == "network-fault-child", "FAULT_NETWORK_CHILD")
+    require(network_namespace_inode() == original, "FAULT_PARENT_NAMESPACE_CHANGED")
+    require(owner_call("owner-observe", timeout=360) == before, "FAULT_NETWORK_CHANGED_DATA")
+    return {"connectionFailure": {key: value[key] for key in ("childNamespaceInode", "parentNamespaceInode", "separateNetworkNamespace",
+            "publicCommand", "publicExitCode", "reasonCode", "scope", "realYandexFault")}, "parentNamespaceUnchanged": True, "controlPreserved": True}
+
+
 def owner_schedule_fixture(context):
     config_module, _, schedule, install, _, config, _ = owner_installation(context)
     require(config["backup"]["schedule"]["enabled"] is False, "FIXTURE_TIMER_MUST_BE_DISABLED")
@@ -1493,10 +2155,16 @@ def guest_phase(phase, context):
             return hold_guest_operation_lock(context)
         if phase in ("owner-diagnostic-paths", "owner-diagnostic-inventory"):
             return owner_diagnostic(context, inventory=phase == "owner-diagnostic-inventory")
+        if phase in ("owner-fault-prepare", "owner-fault-remove"):
+            return owner_fault_fixture(context, remove=phase == "owner-fault-remove")
+        if phase == "owner-fault-observe":
+            return owner_fault_observe(context)
         raise Failure("UNKNOWN_OWNER_PHASE")
     require(os.geteuid() == 0, "GUEST_ROOT_REQUIRED")
     actions = {"bootstrap": bootstrap_guest, "install": install_guest, "update": update_guest, "backup": backup_guest,
-               "schedule": schedule_guest, "timer-probe": timer_probe, "timer-retry": timer_retry}
+               "schedule": schedule_guest, "timer-probe": timer_probe, "timer-retry": timer_retry,
+               "partial-fault": partial_fault_guest, "interrupt-fault": interrupt_fault_guest,
+               "network-fault": network_fault_guest, "network-fault-child": network_fault_child}
     if phase in actions:
         return actions[phase](context)
     if phase == "seed":
@@ -1524,6 +2192,9 @@ def guest_main(phase):
         result.update(status=getattr(error, "status", "FAIL"), reasonCode=safe_error(error))
         if hasattr(error, "post_failure_diagnostic"):
             result["postFailureDiagnostic"] = post_failure_projection(error.post_failure_diagnostic)
+        if hasattr(error, "fault_evidence"):
+            result["faultEvidence"] = error.fault_evidence
+            result["ownedCleanupFailed"] = getattr(error, "owned_cleanup_failed", False) is True
         return_code = 2 if result["status"] == "BLOCKED" else 1
     result["cliActions"] = CLI_ACTIONS
     print(json.dumps(result, sort_keys=True))
@@ -1536,7 +2207,8 @@ def main(argv=None):
     parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--guest-phase", choices=("bootstrap", "install", "seed", "update", "backup", "post-reboot", "schedule",
                         "timer-probe", "timer-retry", "final", "owner-seed", "owner-observe", "owner-final", "owner-schedule-fixture", "owner-hold-lock",
-                        "owner-diagnostic-paths", "owner-diagnostic-inventory"), help=argparse.SUPPRESS)
+                        "owner-diagnostic-paths", "owner-diagnostic-inventory", "owner-fault-prepare", "owner-fault-remove", "owner-fault-observe",
+                        "partial-fault", "interrupt-fault", "network-fault", "network-fault-child"), help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.guest_phase:
         return guest_main(args.guest_phase)

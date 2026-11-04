@@ -73,20 +73,39 @@ AGE. Авторизация Yandex в VM не передаётся, поэтом
    `asa backup verify`, повторить тот же operation ID и выполнить `asa cloud
    sync` существующего snapshot. SHA256 ciphertext и число снимков сохраняются;
    отсутствие облачной конфигурации не превращается в подтверждённую доставку.
-10. Выполнить настоящий `systemctl reboot` гостя. Host runner и процесс QEMU
+10. В отдельном дочернем network namespace выполнить публичный `asa update check`.
+    Зафиксировать разные inode namespace, отсутствие внешнего интерфейса,
+    exit 2 / `RELEASE_UNAVAILABLE`, неизменность namespace родителя и данных.
+    Это реальный отказ сети для release lookup; доступность Yandex этим не проверяется.
+11. Создать отдельный synthetic S3 object через authenticated API, прочитать его
+    обратно и сверить SHA256. Перед file-limit fault доказать, что сохранённые
+    `database.dump` и `globals.sql` меньше 8 МиБ, а фактический MinIO `part.N`
+    именно этого объекта больше 8 МиБ. Запустить публичный `asa backup create`
+    с per-child `RLIMIT_FSIZE=8 MiB` и `RLIMIT_CORE=0`. Только реальные неполные
+    bytes нужного part, достигшие лимита, считаются выполненной инъекцией.
+12. Другой публичный backup прервать SIGINT в наблюдаемом окне после dump/globals
+    и создания `objects`, до manifest/final. Краткий SIGSTOP собственной группы
+    фиксирует окно; затем SIGINT и обязательный SIGCONT. Дождаться всех своих
+    потомков, освобождения lock и стабильных partial bytes. Для обоих fault
+    operation IDs повтор публичного backup должен восстановить оставшийся
+    owned hold и вернуть BLOCKED / `BACKUP_RESUME_SNAPSHOT_MISSING`, сохранив
+    исходный partial и последний успешный backup. После этого отдельная новая
+    операция должна создать и проверить полный AGE backup; success pointer
+    должен перейти к нему. Оба incomplete snapshot сохраняются до уничтожения VM.
+13. Выполнить настоящий `systemctl reboot` гостя. Host runner и процесс QEMU
     продолжают работу; требуется новый `boot_id`, готовое приложение и прежние
     data/config/1Panel/Docker fingerprints. Перезапуск контейнера либо service
     не заменяет эту проверку.
-11. Выбрать ближайшее время только в тестовом private `setup.json` через штатные
+14. Выбрать ближайшее время только в тестовом private `setup.json` через штатные
     `validate_config`/`save_private`. Это подготовка fixture, а не заявление о
     публичной CLI-команде изменения произвольного времени. Затем исключительно
     через `asa backup schedule enable/disable` проверить enable → disable →
     enable, отсутствие дублирующих units и независимость от automatic update.
-12. До календарного времени проверить нулевое число попыток данного slot,
+15. До календарного времени проверить нулевое число попыток данного slot,
     выключить гостя, дождаться пропущенного времени на host и запустить **тот же
     qcow2**. Часы не переводятся, `Persistent=true` и штатные units не изменяются.
     После загрузки требуется успешный backup пропущенного slot.
-13. Проверить настоящий systemd retry после ошибки. Если первый missed запуск
+16. Проверить настоящий systemd retry после ошибки. Если первый missed запуск
     был успешен, краткий процесс проверенного оператора удерживает штатный
     общий lock; второй старт штатного service получает реальную ошибку. Lock
     освобождается, а неизменённый `RestartSec=300` выполняет третий старт
@@ -96,7 +115,7 @@ AGE. Авторизация Yandex в VM не передаётся, поэтом
     сверх лимита. Без наблюдения реальной ошибки PASS запрещён. Четвёртая
     попытка должна быть отклонена start limit либо `ExecCondition`; receipts и
     часы для этого не подменяются. В конце timer выключается публичным `asa`.
-14. Сверить контрольные данные после reboot/backup/timer и вновь выполнить
+17. Сверить контрольные данные после reboot/backup/timer и вновь выполнить
     штатные browser save/reopen journeys контрольной группы.
 
 ## Ограничения ресурсов и времени
@@ -112,6 +131,12 @@ AGE. Авторизация Yandex в VM не передаётся, поэтом
 | SSH | Только `127.0.0.1:2222`; 1Panel и ASA не публикуются через host forwarding |
 | TCG | Boot/bootstrap не более 20 минут; при превышении `BLOCKED_TCG_BUDGET` |
 | Job | 180 минут; orchestrator ограничен 175 минутами для сохранения evidence |
+| Общий fault budget | Не более 75 минут внутри прежних 175 минут; общий deadline не продлевается |
+| Каждый backup fault | 1800 секунд, плюс до 30 секунд на host transport/cleanup |
+| Окно interruption / краткий SIGSTOP | До 180 секунд ожидания; остановленная группа не более 3 секунд |
+| Ожидание потомков / same-ID recovery | 600 / 650 секунд; штатные start 90 + readiness 300 + writers 90 не сокращены |
+| Namespace connection phase | До 900 секунд вместе с контрольными наблюдениями |
+| Место перед fault | Не менее 6 GiB свободно и на host, и в guest; прежний host reserve 3 GiB сохраняется |
 
 Виртуальные 40 GiB не считаются реально свободным местом. Проверка остатка
 продолжается при скачивании, ожидании subprocess, reboot и offline timer wait.
@@ -128,6 +153,61 @@ synthetic manager fixtures. Bound socket на loopback без `listen` даёт 
 сохраняют truthful cloud/restore status. AGE в этом узком policy test подменён
 существующей тестовой fixture, поэтому это не evidence криптографии или реального
 провайдера. Ключи Yandex и сеть общего шлюза не затрагиваются.
+
+## Реальные runtime fault-сценарии
+
+Три дополнительных guest-фазы используют публичный `asa`. В них нет подмены
+Python manager, production test hooks, записи в receipts или ручной очистки
+maintenance. Публичная операция сохраняет свои штатные guards и recovery.
+
+File-limit действует только на отдельный CLI subprocess и его потомков.
+Лимит относится к каждому файлу, поэтому один лишь размер S3 object не является
+доказательством инъекции: проверяются реальные исходные и partial MinIO parts.
+64 MiB случайного synthetic payload загружаются и читаются authenticated S3;
+fixture uploader завершается до резервирования. Ни один polling observer не
+открывает DB session во время freeze. Наблюдение читает только файлы журнала,
+partial metadata и `/proc`. Контрольные строки/roles/ACL, storage identity и
+исходные container IDs/running states проверяются после готовности приложения.
+
+Interruption опирается на inotify и повторное наблюдение окна после SIGSTOP.
+Если manifest/final уже появились или нужное окно пропущено, результат BLOCKED;
+успешный backup не выдаётся за проверку отказа. Evidence называет базовое окно
+`AFTER_DUMPS_BEFORE_OBJECTS_COMPLETE`. Утверждение `interruptedDuringCopy=true`
+допускается только при ненулевых object bytes и подтверждённом native
+`docker cp` соответствующего MinIO container в этот partial.
+
+Session leader сохраняется unreaped до завершения живых потомков: числовой
+PGID не может быть использован заново в промежутке. Перед каждым сигналом
+проверяются PID/starttime/PGID/SID и реальные участники группы. После quiescence
+группа закрывается для дальнейших сигналов. Exit 130 внешнего CLI недостаточен:
+нужны завершившиеся потомки, свободный штатный lock и два одинаковых наблюдения
+partial с хешами. `PENDING`, `RUNNING`, `RECOVERY_REQUIRED` до recovery остаются
+неопределёнными исходами, успешным backup они не считаются.
+
+До запуска fault child проверяется совпадение `/proc` с фактическим PID
+namespace. Несовпадение блокирует runtime probe до создания subprocess;
+обнаруженный потомок, вышедший из принадлежащей тесту process group, также даёт
+BLOCKED. Три focused native ownership tests имеют явный capability skip для
+scratch с чужим `/proc`; это отражается в `testsSkipped` и
+`nativeProcessOwnership=NOT_RUN`, а не считается native PASS. В стандартном
+GitHub-hosted Linux namespace эти тесты выполняются. Нативные file-limit и
+inotify tests не требуют обхода этого guard и сохраняют собственную проверку.
+
+Same-ID команда проверяется отдельно от cleanup после SIGINT: evidence отмечает,
+оставался ли maintenance hold перед её запуском. Её ожидаемый результат —
+публичный BLOCKED/exit 2 и `BACKUP_RESUME_SNAPSHOT_MISSING` в durable backup
+receipt, без нового export. Наличие complete backup или обновление прошлого
+success pointer до отдельной новой успешной операции считается FAIL. Synthetic
+S3 key удаляется только целевым authenticated `mc rm` после подтверждённой
+готовности приложения; никакой recursive очистки нет. Incomplete snapshots и
+их receipts не удаляются вручную.
+
+Первоначальный ориентир 20 минут для faults заменён общим максимумом 75 минут:
+он не покрывал худший случай штатного восстановления нескольких операций.
+Пределы отдельных фаз не складываются поверх общего 175-минутного deadline.
+Исчерпание времени/места harness классифицируется BLOCKED acceptance;
+наблюдённое нарушение контракта продукта — FAIL. Все материалы этого раздела
+остаются сценарием до появления соответствующего exact-SHA VM evidence.
 
 Локальная focused проверка:
 
