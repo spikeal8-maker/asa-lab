@@ -1,11 +1,12 @@
 """Harness safety gates and isolated manager faults; no VM or live cloud claim."""
 
 import contextlib
+import copy
 import hashlib
 import io
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import shutil
 import signal
 import socket
@@ -29,6 +30,663 @@ import test_backup_workflow as fixture
 from deployment import backup_workflow as flow
 from deployment.contracts import Blocked
 from deployment.paths import atomic_json
+from deployment import realhost_cli_checks as cli_checks, realhost_cli_runtime as cli_runtime, setup_bundle
+
+
+def cli_read_fixture():
+    pins = harness.pin_manifest(HERE / "fixtures/setup-realhost-pins.json")
+    selections = {}
+    for name, letter in (("previous", "a"), ("current", "b")):
+        pin = pins[name]
+        selections[name] = {"ci": "VERIFIED", "deploymentDigest": pin["deploymentDigest"],
+            "manifestDigest": pin["amd64ManifestDigest"], "release": {"format": "asa-deployment-v2",
+            "repository": harness.REPOSITORY, "platform": "linux/amd64", "revision": pin["revision"],
+            "schema": pin["schema"], "publicationRunId": pin["publicationRunId"],
+            "images": {service: "ghcr.io/" + harness.REPOSITORY + "/" + service + "@sha256:" + letter * 64
+                       for service in harness.CLI_IMAGES}}}
+    context = {"pins": pins, "sourceRevision": "d" * 40, "ageRecipient": fixture.RECIPIENT,
+               "cliReleaseExpectations": harness.cli_release_expectations(selections, pins)}
+    owner = {"uid": 1001, "gid": 1001, "name": "asa-setup", "home": "/var/lib/asa-setup/operator",
+             "root": str(harness.INSTALL_ROOT)}
+    config = {"root": str(harness.INSTALL_ROOT), "installationId": "e" * 32, "operatorUid": owner["uid"],
+        "project": "asa-lab-dev", "profile": "production", "entryOrigin": harness.ORIGIN,
+        "ports": {"web": 4610, "api": 4611, "blocks": 4613}, "backupDirectory": str(harness.INSTALL_ROOT / "backups"),
+        "backup": {"policy": "best-effort", "ageRecipient": fixture.RECIPIENT, "cloud": {"enabled": False},
+                   "schedule": {"enabled": False, "time": "03:00", "timezone": "UTC", "maxAgeHours": 26}}}
+    operation, snapshot, stamp = "c" * 32, "20261104T010101Z-abcdef12", "2026-11-04T01:01:01+00:00"
+    previous = context["cliReleaseExpectations"]["previous"]
+    receipt = {"format": "asa-setup-result-v1", "operationId": operation, "installationId": config["installationId"],
+        "mode": "install", "exitCode": 0, "applicationAccepted": True, "outcome": "WARNING", "reasonCode": None,
+        "version": {"selected": previous["revision"]}, "backup": {"snapshotId": snapshot},
+        "site": {"url": harness.ORIGIN, "technical": {"status": "passed"}, "browser": {"status": "passed"}}}
+    backup = {"operationId": operation, "installationId": config["installationId"], "snapshotId": snapshot, "snapshotAt": stamp,
+              "local": {"status": "OK"}, "encryption": {"status": "OK"}, "cloud": {"status": "NOT_CONFIGURED"}, "outcome": "WARNING"}
+    inputs = {"input": copy.deepcopy(config), "config": copy.deepcopy(config), "installed": copy.deepcopy(previous),
+        "receipt": receipt, "attempt": copy.deepcopy(receipt), "journal": {"result": copy.deepcopy(receipt),
+        "root": str(harness.INSTALL_ROOT), "project": "asa-lab-dev", "state": "TERMINAL",
+        "requestedDeploymentDigest": previous["deploymentDigest"], "release": copy.deepcopy(previous),
+        "operationId": operation, "installationId": config["installationId"], "mode": "install",
+        "stages": {name: {"status": "done"} for name in ("release", "switch", "browser", "first_backup")}},
+        "binding": {"snapshotId": snapshot, "operationId": operation, "installationId": config["installationId"]},
+        "backup": backup, "backupAttempt": {"snapshotId": snapshot, "operationId": operation, "at": stamp},
+        "backupSuccess": {"snapshotId": snapshot, "at": stamp}}
+    paths = {"application": str(harness.INSTALL_ROOT), "backups": str(harness.INSTALL_ROOT / "backups"),
+             "docker": "/var/lib/docker", "postgres": "/var/lib/docker/volumes/pg/_data",
+             "minio": "/var/lib/docker/volumes/objects/_data"}
+    return context, owner, inputs, paths, selections
+
+
+class CLIReadWiringTests(unittest.TestCase):
+    def setUp(self):
+        root = patch.object(harness, "INSTALL_ROOT", PurePosixPath("/srv/asa-lab"))
+        root.start()
+        self.addCleanup(root.stop)
+        self.context, self.owner, self.inputs, self.paths, self.selections = cli_read_fixture()
+
+    def expected(self):
+        return harness.cli_fixture_context(cli_checks, self.context, self.owner, self.inputs, self.paths)
+
+    def test_immutable_release_inputs_reject_pin_image_type_and_ci_drift(self):
+        for change in (
+            lambda value: value["current"].update(deploymentDigest="sha256:" + "9" * 64),
+            lambda value: value["current"].update(manifestDigest="sha256:" + "9" * 64),
+            lambda value: value["current"].update(ci="UNKNOWN"),
+            lambda value: value["previous"]["release"].update(schema=True),
+            lambda value: value["previous"]["release"].update(publicationRunId=True),
+            lambda value: value["current"]["release"]["images"].update(api="PRIVATE_TOKEN_SENTINEL"),
+            lambda value: value["current"]["release"].update(revision="9" * 40),
+        ):
+            value = copy.deepcopy(self.selections)
+            change(value)
+            with self.subTest(value_hash=harness.canonical_hash(value)), self.assertRaises(harness.Failure) as caught:
+                harness.cli_release_expectations(value, self.context["pins"])
+            self.assertEqual(caught.exception.code, "CLI_READ_RELEASE_PIN")
+            self.assertNotIn("PRIVATE_TOKEN_SENTINEL", str(caught.exception))
+
+    def test_expected_context_comes_from_pins_and_bound_private_records(self):
+        self.inputs["config"]["ignoredSecret"] = "PRIVATE_TOKEN_SENTINEL"
+        expected, stamp = self.expected()
+        self.assertEqual(expected.installed.revision, self.context["pins"]["previous"]["revision"])
+        self.assertEqual(expected.target.revision, self.context["pins"]["current"]["revision"])
+        self.assertEqual(expected.deployment_digest, self.context["pins"]["current"]["deploymentDigest"])
+        self.assertEqual(expected.snapshot_ids, (self.inputs["backup"]["snapshotId"],))
+        self.assertEqual(expected.accepted_operation_id, self.inputs["receipt"]["operationId"])
+        self.assertEqual(stamp, self.inputs["backup"]["snapshotAt"])
+        self.assertNotIn("PRIVATE_TOKEN_SENTINEL", repr(expected))
+        self.assertEqual(len(cli_runtime.command_plan(expected)) + 2, 31)
+        updates = [case for case in cli_runtime.command_plan(expected) if case[2] == "update"]
+        self.assertEqual(len(updates), 1)
+        self.assertNotIn("apply", updates[0][1])
+        self.assertNotIn("--deployment-digest", updates[0][1])  # Stable drift remains observable.
+
+    def test_context_rejects_cross_operation_snapshot_and_release_substitution(self):
+        changes = (
+            lambda data: data["journal"].update(requestedDeploymentDigest="sha256:" + "f" * 64),
+            lambda data: data["installed"].update(schema=305),
+            lambda data: data["journal"]["release"].update(revision="f" * 40),
+            lambda data: data["binding"].update(installationId="f" * 32),
+            lambda data: data["backupAttempt"].update(operationId="f" * 32),
+            lambda data: data["backupSuccess"].update(snapshotId="20261104T010102Z-abcdef12"),
+            lambda data: data["journal"]["stages"]["first_backup"].update(status="intent"),
+            lambda data: data["attempt"].update(outcome="NO_CHANGE"),
+            lambda data: data["config"]["backup"]["cloud"].update(enabled=True),
+        )
+        for change in changes:
+            original = copy.deepcopy(self.inputs)
+            change(self.inputs)
+            with self.subTest(change=changes.index(change)), self.assertRaises(harness.Failure):
+                self.expected()
+            self.inputs = original
+
+    def test_filesystem_expectations_reject_unknown_or_relabelled_paths(self):
+        self.paths["application"] = "/srv/foreign"
+        with self.assertRaisesRegex(harness.Failure, "CLI_READ_STORAGE"):
+            self.expected()
+
+    def run_host_order(self, fail=False):
+        runner = object.__new__(harness.HostRun)
+        runner.args = SimpleNamespace(revision="d" * 40, preflight_only=False)
+        runner.evidence = harness.initial_evidence(runner.args.revision)
+        runner.deadline, runner.vm = time.monotonic() + 900, None
+        runner.save = Mock()
+        runner.guest = Mock(return_value={"status": "PASS"})
+        names = []
+        def phase(name, action):
+            names.append(name)
+            if name == "installed_cli_read_acceptance":
+                if fail:
+                    raise harness.Failure("CLI_SEMANTICS")
+                return action()
+        runner.phase = phase
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"RUNNER_TEMP": directory}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = runner.run()
+        return code, names, runner
+
+    def test_mandatory_phase_executes_between_seed_and_update_with_outer_timeout(self):
+        code, names, runner = self.run_host_order()
+        self.assertEqual(code, 0)
+        index = names.index("installed_cli_read_acceptance")
+        self.assertEqual(names[index - 1:index + 2],
+            ["independent_control_fixture", "installed_cli_read_acceptance", "published_runtime_update"])
+        runner.guest.assert_called_once_with("cli-read", timeout=1200)
+
+    def test_failed_cli_phase_prevents_all_later_mutations(self):
+        code, names, runner = self.run_host_order(fail=True)
+        self.assertEqual(code, 1)
+        self.assertEqual(runner.evidence["reasonCode"], "CLI_SEMANTICS")
+        self.assertNotIn("published_runtime_update", names)
+        self.assertNotIn("public_backup_and_retry", names)
+        runner.guest.assert_not_called()
+
+    def invoke_suite(self, failure=None):
+        expected, stamp = self.expected()
+        evidence = {"format": "asa-realhost-cli-runtime-v1", "status": "PASS",
+                    "cases": [{} for _ in range(29)], "bare": {"pipe": {}, "pty": {}}}
+        if failure:
+            evidence = {"format": "asa-realhost-cli-runtime-v1", "status": "FAIL", "failedCase": "update",
+                        "reasonCode": "CLI_SEMANTICS", "semanticCode": "RELEASE_PIN_MISMATCH",
+                        "observations": {"disk-health": {"status": "UNAVAILABLE"},
+                                         "restore-plan": {"status": "BLOCKED_PLAN", "exitCode": 2}}}
+        run = Mock(side_effect=cli_runtime.CLIRuntimeError("CLI_SEMANTICS",
+            semantic_code="RELEASE_PIN_MISMATCH", evidence=evidence) if failure else None, return_value=evidence)
+        runtime = SimpleNamespace(RuntimeExpectations=cli_runtime.RuntimeExpectations,
+            CLIRuntimeError=cli_runtime.CLIRuntimeError, run_cli_suite=run)
+        binding = {"status": "VERIFIED", "sourceRevision": self.context["sourceRevision"]}
+        with tempfile.TemporaryDirectory() as directory, patch.object(harness, "GUEST_HOME", Path(directory)), \
+                patch.object(harness.os, "geteuid", return_value=0, create=True), \
+                patch.object(harness, "cli_trusted_bytes", return_value=json.dumps(self.context).encode()), \
+                patch.object(harness, "cli_trusted_module", side_effect=[object(), cli_checks, runtime]), \
+                patch.object(harness, "cli_candidate_binding", return_value=binding) as trusted, \
+                patch.object(harness, "diagnostic_owner", return_value=(self.owner, {})), \
+                patch.object(harness, "cli_context_inputs", return_value=self.inputs), \
+                patch.object(harness, "root_json", return_value={"daemonIdentitySha256": "f" * 64}), \
+                patch.object(harness, "cli_storage_observation", return_value=(self.paths, {})), \
+                patch.object(harness, "guest_environment", return_value={"GH_TOKEN": "PRIVATE_TOKEN_SENTINEL"}):
+            result = harness.installed_cli_read_guest(self.context)
+            trusted.assert_called_once()
+            prepared = json.loads((Path(directory) / "cli-control-context.json").read_text())
+        self.assertEqual(prepared["operatorUid"], self.owner["uid"])
+        args, options = run.call_args
+        self.assertEqual(args, (expected, cli_runtime.RuntimeExpectations(self.owner["uid"], stamp)))
+        self.assertIs(options["checker"], cli_checks.check_read_result)
+        self.assertEqual(options["timeout"], 900)
+        self.assertEqual(options["tokens"], {"GH_TOKEN": "PRIVATE_TOKEN_SENTINEL"})
+        self.assertNotIn("PRIVATE_TOKEN_SENTINEL", json.dumps(result))
+        return result, evidence
+
+    def test_suite_preserves_closed_failure_and_optional_non_green_observations(self):
+        result, evidence = self.invoke_suite(failure=True)
+        self.assertEqual(result["status"], "FAIL")
+        self.assertEqual(result["reasonCode"], "CLI_SEMANTICS")
+        self.assertIs(result["cliReadEvidence"], evidence)
+        self.assertEqual(evidence["observations"]["restore-plan"]["exitCode"], 2)
+
+    def test_suite_reports_thirty_one_actual_coordinator_cases(self):
+        result, _ = self.invoke_suite()
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["publicProcessCases"], 31)
+
+    def test_root_registration_failure_stops_before_coordinator_or_callback(self):
+        with patch.object(harness.os, "geteuid", return_value=0, create=True), \
+                patch.object(harness, "cli_trusted_bytes", return_value=json.dumps(self.context).encode()), \
+                patch.object(harness, "cli_trusted_module", return_value=object()), \
+                patch.object(harness, "cli_candidate_binding", side_effect=harness.Failure("CLI_READ_REGISTRATION")), \
+                patch.object(harness, "diagnostic_owner") as owner:
+            with self.assertRaisesRegex(harness.Failure, "CLI_READ_REGISTRATION"):
+                harness.installed_cli_read_guest(self.context)
+            owner.assert_not_called()
+
+    def test_callback_shared_deadline_owner_and_exact_five_field_projection(self):
+        proof = {"databaseSha256": "a" * 64, "databaseRows": 6, "objectsSha256": "b" * 64, "objectCount": 1, "objectBytes": 19}
+        result = {"format": "asa-realhost-guest-v1", "phase": "owner-cli-control", "status": "PASS",
+                  "operatorUid": self.owner["uid"], "control": proof, "cliActions": []}
+        child = Mock()
+        child.__enter__ = Mock(return_value=child)
+        child.__exit__ = Mock(return_value=False)
+        child.wait.return_value = (0, json.dumps(result).encode())
+        deadline = time.monotonic() + 60
+        with patch.object(harness, "OwnedFaultProcess", return_value=child) as created:
+            self.assertEqual(harness.cli_control_snapshot(self.owner, "before", deadline), proof)
+        args, options = created.call_args
+        self.assertEqual(options["owner"], self.owner)
+        self.assertEqual(options["deadline"], deadline - 12)
+        self.assertEqual(float(args[0][-1]), deadline - 16)
+        self.assertLessEqual(child.wait.call_args.args[0], 48)
+        for malformed in ({**proof, "secret": "PRIVATE_TOKEN_SENTINEL"}, {**proof, "databaseRows": True}):
+            child.wait.return_value = (0, json.dumps({**result, "control": malformed}).encode())
+            with patch.object(harness, "OwnedFaultProcess", return_value=child), self.assertRaisesRegex(harness.Failure, "CLI_CONTROL_CALLBACK"):
+                harness.cli_control_snapshot(self.owner, "after", time.monotonic() + 60)
+
+    def test_callback_refuses_exhausted_budget_without_starting_a_process(self):
+        with patch.object(harness, "OwnedFaultProcess") as created, self.assertRaisesRegex(harness.Failure, "CLI_CONTROL_DEADLINE"):
+            harness.cli_control_snapshot(self.owner, "before", time.monotonic() + 10)
+        created.assert_not_called()
+
+    def test_owned_callback_uses_native_credentials_without_changing_default_spawn(self):
+        process = Mock(pid=12001)
+        anchor = {"pid": process.pid, "pgid": process.pid, "sid": process.pid, "startTime": 123}
+        for owner in (None, self.owner):
+            with patch.object(harness, "native_proc_namespace", return_value=True), \
+                    patch.object(harness, "proc_identity", return_value=anchor), \
+                    patch.object(harness.os, "getgrouplist", return_value=[1001, 999], create=True) as groups, \
+                    patch.object(harness.subprocess, "Popen", return_value=process) as popen:
+                child = harness.OwnedFaultProcess(["/usr/bin/python3", "-I", "-B", "trusted.py"], environment={}, owner=owner)
+                child.closed = True  # The Popen boundary is modeled; no process was created.
+                child.close()
+            options = popen.call_args.kwargs
+            self.assertTrue(options["start_new_session"])
+            self.assertEqual(options["cwd"], "/")
+            self.assertNotIn("runuser", popen.call_args.args[0])
+            if owner is None:
+                groups.assert_not_called()
+                self.assertFalse({"user", "group", "extra_groups"} & options.keys())
+            else:
+                groups.assert_called_once_with("asa-setup", owner["gid"])
+                self.assertEqual((options["user"], options["group"], options["extra_groups"]),
+                                 (owner["uid"], owner["gid"], [1001, 999]))
+
+
+@unittest.skipUnless(os.name == "posix", "POSIX process and filesystem boundary")
+class CLIReadNativeCommandTests(unittest.TestCase):
+    def test_actual_harmless_child_uses_private_streams_and_supplied_cwd(self):
+        raw = harness.cli_control_command([sys.executable, "-I", "-B", "-c", "import os; print(os.getcwd())"],
+            deadline=time.monotonic() + 3, environment={"PATH": os.defpath}, cwd="/")
+        self.assertEqual(raw.strip(), b"/")
+
+    def test_actual_child_failure_never_exports_stderr_or_exception_text(self):
+        with self.assertRaises(harness.Failure) as caught:
+            harness.cli_control_command([sys.executable, "-I", "-B", "-c",
+                "import sys; sys.stderr.write('PRIVATE_TOKEN_SENTINEL'); sys.exit(7)"],
+                deadline=time.monotonic() + 3, environment={"PATH": os.defpath})
+        self.assertEqual(caught.exception.code, "CLI_CONTROL_COMMAND")
+        self.assertNotIn("PRIVATE_TOKEN_SENTINEL", str(caught.exception))
+
+    def test_actual_timeout_is_bounded_and_child_is_reaped(self):
+        started = time.monotonic()
+        with self.assertRaisesRegex(harness.Failure, "CLI_CONTROL_TIMEOUT"):
+            harness.cli_control_command([sys.executable, "-I", "-B", "-c", "import time; time.sleep(30)"],
+                deadline=started + 0.15, environment={"PATH": os.defpath})
+        self.assertLess(time.monotonic() - started, 2.5)
+
+
+class FixtureRootStat:
+    """Only the test fixture models root ownership; file type/link metadata stays real."""
+    def __init__(self, original, *, directory):
+        self.original = original
+        self.st_uid = 0
+        self.st_mode = original.st_mode & ~0o022 if directory else original.st_mode
+
+    def __getattr__(self, name):
+        return getattr(self.original, name)
+
+    def __iter__(self):
+        values = list(self.original)
+        values[0], values[4] = self.st_mode, self.st_uid
+        return iter(values)
+
+
+@contextlib.contextmanager
+def fixture_root_metadata(directory):
+    original_fstat, original_lstat = os.fstat, Path.lstat
+    paths = [directory, *directory.parents, *directory.rglob("*")]
+    records = {(info.st_dev, info.st_ino): stat.S_ISDIR(info.st_mode)
+               for info in (original_lstat(path) for path in paths)}
+    def model(info):
+        kind = records.get((info.st_dev, info.st_ino))
+        return FixtureRootStat(info, directory=kind) if kind is not None else info
+    with patch.object(harness.os, "fstat", side_effect=lambda fd: model(original_fstat(fd))), \
+            patch.object(Path, "lstat", lambda path: model(original_lstat(path))):
+        yield
+
+
+@unittest.skipUnless(os.name == "posix", "Root ownership model and O_NOFOLLOW are POSIX")
+class CLIReadTrustTests(unittest.TestCase):
+    def test_safe_open_ignores_access_time_but_rejects_write_metadata_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, calls = Path(directory), []
+            source = root / "module.py"
+            source.write_bytes(b"value = 7\n")
+            source.chmod(0o644)
+            inode = source.stat().st_ino
+            class AccessChanged(FixtureRootStat):
+                def __iter__(self):
+                    values = list(super().__iter__())
+                    values[7] += 1
+                    return iter(values)
+            for changed_field, accepted in (("st_atime_ns", True), ("st_mtime_ns", False)):
+                calls.clear()
+                with fixture_root_metadata(root):
+                    modeled_fstat = harness.os.fstat
+                    def observed(fd):
+                        info = modeled_fstat(fd)
+                        if info.st_ino == inode:
+                            calls.append(True)
+                            if len(calls) >= 3:
+                                if changed_field == "st_atime_ns":
+                                    info = AccessChanged(info.original, directory=False)
+                                setattr(info, changed_field, getattr(info, changed_field) + 1000000000)
+                        return info
+                    with patch.object(harness.os, "fstat", side_effect=observed):
+                        if accepted:
+                            self.assertEqual(harness.cli_trusted_bytes(source), b"value = 7\n")
+                        else:
+                            with self.assertRaisesRegex(harness.Failure, "CLI_READ_TRUST"):
+                                harness.cli_trusted_bytes(source)
+
+    def test_real_safe_open_rejects_links_wrong_mode_size_and_traversal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "module.py"
+            source.write_text("value = 7\n")
+            source.chmod(0o644)
+            with fixture_root_metadata(root):
+                self.assertEqual(harness.cli_trusted_bytes(source), b"value = 7\n")
+                with self.assertRaisesRegex(harness.Failure, "CLI_READ_TRUST"):
+                    harness.cli_trusted_bytes(source, maximum=3)
+                with self.assertRaisesRegex(harness.Failure, "CLI_READ_TRUST"):
+                    harness.cli_trusted_bytes(root / ".." / source.name)
+                link = root / "symlink.py"
+                link.symlink_to(source)
+                with self.assertRaisesRegex(harness.Failure, "CLI_READ_TRUST"):
+                    harness.cli_trusted_bytes(link)
+                hard = root / "hard.py"
+                os.link(source, hard)
+                with self.assertRaisesRegex(harness.Failure, "CLI_READ_TRUST"):
+                    harness.cli_trusted_bytes(source)
+                hard.unlink()
+                source.chmod(0o666)
+                with self.assertRaisesRegex(harness.Failure, "CLI_READ_TRUST"):
+                    harness.cli_trusted_bytes(source)
+
+    def test_trusted_import_rejects_wrong_hash_before_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            module = root / "realhost_cli_checks.py"
+            module.write_text("raise RuntimeError('PRIVATE_TOKEN_SENTINEL')\n")
+            module.chmod(0o644)
+            context = {"cliHelperSha256": {name: "f" * 64 for name in harness.CLI_HELPERS}}
+            with patch.object(harness, "GUEST_HOME", root), fixture_root_metadata(root), \
+                    self.assertRaisesRegex(harness.Failure, "CLI_READ_TRUST"):
+                harness.cli_trusted_module(module.name, context)
+
+    def test_actual_isolated_import_registers_dataclass_module_and_ignores_hostile_cwd(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "realhost_cli_checks.py"
+            source.write_text("from dataclasses import dataclass\n@dataclass\nclass Probe:\n    value: int\n")
+            source.chmod(0o644)
+            (root / "json.py").write_text("raise RuntimeError('PRIVATE_TOKEN_SENTINEL')\n")
+            program = (
+                "import importlib.util, pathlib, sys\n"
+                "spec=importlib.util.spec_from_file_location('cli_trust_fixture',sys.argv[1])\n"
+                "tests=importlib.util.module_from_spec(spec)\n"
+                "sys.modules[spec.name]=tests\n"
+                "spec.loader.exec_module(tests)\n"
+                "root=pathlib.Path(sys.argv[2]); tests.harness.GUEST_HOME=root\n"
+                "context={'cliHelperSha256':{name:sys.argv[3] for name in tests.harness.CLI_HELPERS}}\n"
+                "with tests.fixture_root_metadata(root):\n"
+                "    loaded=tests.harness.cli_trusted_module('realhost_cli_checks.py',context)\n"
+                "assert loaded.Probe(7).value == 7\n"
+                "print('TRUSTED_IMPORT_OK')\n"
+            )
+            result = subprocess.run([sys.executable, "-I", "-B", "-c", program, str(Path(__file__).resolve()),
+                str(root), hashlib.sha256(source.read_bytes()).hexdigest()], cwd=root,
+                env={"PATH": os.defpath, "PYTHONPATH": str(root), "PYTHONHOME": str(root)},
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", "replace"))
+            self.assertEqual(result.stdout, b"TRUSTED_IMPORT_OK\n")
+            self.assertEqual(result.stderr, b"")
+            self.assertFalse((root / "__pycache__").exists())
+
+    def bundle(self, root):
+        context = {"sourceRevision": "d" * 40}
+        public, private = root / "public", root / "private"
+        public.mkdir(mode=0o755)
+        private.mkdir(mode=0o700)
+        source_root = HERE.parents[1]
+        names = setup_bundle.REQUIRED | {"tools/deployment/" + name for name in harness.CLI_HELPERS}
+        files = {name: (source_root / name).read_bytes() for name in names}
+        archive, manifest = setup_bundle.make_archive(files, context["sourceRevision"])
+        context["bundleSha256"] = hashlib.sha256(archive).hexdigest()
+        context["cliHelperSha256"] = {name: hashlib.sha256(files["tools/deployment/" + name]).hexdigest()
+                                      for name in harness.CLI_HELPERS}
+        (private / "candidate.tar.gz").write_bytes(archive)
+        (private / "candidate.tar.gz").chmod(0o600)
+        bundle = root / context["sourceRevision"]
+        for name, raw in {**files, "setup-bundle.json": json.dumps(manifest).encode()}.items():
+            path = bundle / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(raw)
+            path.chmod(0o755 if name.endswith(".sh") else 0o644)
+        registry = public / "commands.json"
+        registry.write_text(json.dumps({"format": "asa-command-v1", "preparedBundle": str(bundle), "installations": [
+            {"root": str(harness.INSTALL_ROOT), "project": "asa-lab-dev", "profile": "production", "bundle": str(bundle)}]}))
+        registry.chmod(0o644)
+        wrapper = public / "asa"
+        wrapper.write_text("#!/bin/sh\n# ASA Lab verified setup CLI; use the official pinned bundle only.\n"
+            "PATH=/usr/sbin:/usr/bin:/sbin:/bin; export PATH\n"
+            "unset PYTHONPATH PYTHONHOME LD_PRELOAD LD_LIBRARY_PATH ENV BASH_ENV\n"
+            "exec /usr/bin/python3 -I -B " + harness.shlex.quote(str(bundle / "tools/asa_cli.py")) + ' "$@"\n')
+        wrapper.chmod(0o755)
+        return context, private, bundle, registry, wrapper
+
+    def test_real_archive_binding_rejects_changed_bytes_extra_module_registry_and_wrapper(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            context, private, bundle, registry, wrapper = self.bundle(root)
+            read = harness.cli_trusted_bytes
+            def mapped(path, **options):
+                path = {"/etc/asa-lab/commands.json": registry, "/usr/local/bin/asa": wrapper}.get(str(path), path)
+                return read(path, **options)
+            with fixture_root_metadata(root), patch.object(harness, "GUEST_PRIVATE", private), \
+                    patch.object(harness, "candidate_bundle", return_value=bundle), \
+                    patch.object(harness, "cli_trusted_bytes", side_effect=mapped):
+                proof = harness.cli_candidate_binding(context, setup_bundle)
+                self.assertEqual(proof["status"], "VERIFIED")
+                original = (bundle / "tools/asa_cli.py").read_bytes()
+                (bundle / "tools/asa_cli.py").write_bytes(original + b"\n")
+                with self.assertRaisesRegex(harness.Failure, "CLI_READ_BUNDLE"):
+                    harness.cli_candidate_binding(context, setup_bundle)
+                (bundle / "tools/asa_cli.py").write_bytes(original)
+                extra = bundle / "extra.py"
+                extra.write_text("value = 1\n")
+                with self.assertRaisesRegex(harness.Failure, "CLI_READ_BUNDLE"):
+                    harness.cli_candidate_binding(context, setup_bundle)
+                extra.unlink()
+                saved = registry.read_text()
+                registry.write_text(saved.replace("asa-lab-dev", "foreign-project"))
+                with self.assertRaisesRegex(harness.Failure, "CLI_READ_REGISTRATION"):
+                    harness.cli_candidate_binding(context, setup_bundle)
+                registry.write_text(saved)
+                wrapper.write_text(wrapper.read_text().replace("-I -B", "-B"))
+                with self.assertRaisesRegex(harness.Failure, "CLI_READ_REGISTRATION"):
+                    harness.cli_candidate_binding(context, setup_bundle)
+                with self.assertRaisesRegex(harness.Failure, "CLI_READ_BUNDLE"):
+                    harness.cli_candidate_binding({**context, "bundleSha256": "f" * 64}, setup_bundle)
+
+
+class CLIReadControlTests(unittest.TestCase):
+    def setUp(self):
+        root = patch.object(harness, "INSTALL_ROOT", PurePosixPath("/srv/asa-lab"))
+        root.start()
+        self.addCleanup(root.stop)
+        self.context, self.owner, self.inputs, self.paths, _ = cli_read_fixture()
+
+    def rows(self):
+        identities, rows = {}, {}
+        for index, table in enumerate(harness.TABLES, 1):
+            identity = str(index) * 8 + "-aaaa-bbbb-cccc-" + str(index) * 12
+            identities[table] = [identity]
+            rows[table] = [{"id": identity, "value": "PRIVATE_TOKEN_SENTINEL"}]
+        rows["project_drafts"] = [{"project_id": identities["projects"][0], "value": "CONTROL_DRAFT"}]
+        return identities, rows
+
+    def test_control_rows_hash_actual_complete_records_and_reject_missing_or_foreign_ids(self):
+        identities, values = self.rows()
+        proof = harness.cli_rows_projection(json.dumps(values).encode(), identities)
+        self.assertEqual(sum(item["rows"] for item in proof.values()), 6)
+        self.assertNotIn("PRIVATE_TOKEN_SENTINEL", json.dumps(proof))
+        self.assertEqual(proof["accounts"]["sha256"], harness.canonical_hash(values["accounts"]))
+        values["project_drafts"] = []
+        with self.assertRaisesRegex(harness.Failure, "CLI_CONTROL_ROWS"):
+            harness.cli_rows_projection(json.dumps(values).encode(), identities)
+
+    def test_owner_callback_has_one_read_only_sql_snapshot_and_exact_measured_s3_fields(self):
+        identities, values = self.rows()
+        rows = harness.cli_rows_projection(json.dumps(values).encode(), identities)
+        content = b"independent-control-object"
+        saved = {"ids": identities, "fingerprint": {"rows": rows, "authenticatedS3Sha256": hashlib.sha256(content).hexdigest()}}
+        config = self.inputs["config"]
+        module = SimpleNamespace(load_config=Mock(return_value=config), private_json=Mock(return_value=saved))
+        install = SimpleNamespace(process_env={"POSTGRES_PASSWORD": "PRIVATE_TOKEN_SENTINEL"},
+                                  env={"POSTGRES_USER": "fixture_owner", "POSTGRES_DB": "fixture_database"})
+        prepared = {"format": "asa-realhost-cli-control-v1", "sourceRevision": self.context["sourceRevision"],
+                    "operatorUid": self.owner["uid"], "daemonIdentitySha256": "f" * 64}
+        deadline = time.monotonic() + 40
+        with patch.object(harness.os, "geteuid", return_value=self.owner["uid"], create=True), \
+                patch.object(harness, "product_modules", return_value=(module, None, None, Mock(return_value=install), object())), \
+                patch.object(harness, "cli_trusted_bytes", return_value=json.dumps(prepared).encode()), \
+                patch.object(harness, "cli_storage_observation", return_value=(self.paths, {"postgres": "a" * 64})) as storage, \
+                patch.object(harness, "cli_control_command", return_value=json.dumps(values).encode()) as sql, \
+                patch.object(harness, "cli_s3_read", return_value=content) as s3:
+            result = harness.owner_cli_control(self.context, deadline)
+        self.assertEqual(result["control"], {"databaseSha256": harness.canonical_hash(rows), "databaseRows": 6,
+            "objectsSha256": hashlib.sha256(content).hexdigest(), "objectCount": 1, "objectBytes": len(content)})
+        self.assertEqual(storage.call_args.kwargs["deadline"], deadline - 10)
+        self.assertEqual(sql.call_args.kwargs["deadline"], deadline - 10)
+        self.assertEqual(s3.call_args.kwargs["deadline"], deadline)
+        command = sql.call_args.args[0]
+        self.assertTrue(any("default_transaction_read_only=on" in part and "statement_timeout=" in part for part in command))
+        statement = sql.call_args.kwargs["source"].decode()
+        self.assertTrue(statement.startswith("SELECT json_build_object("))
+        self.assertEqual(statement.count(";"), 1)
+        self.assertNotIn("PRIVATE_TOKEN_SENTINEL", statement + json.dumps(command) + json.dumps(result))
+
+    @unittest.skipUnless(os.name == "posix", "Docker volume paths are native Linux guest paths")
+    def test_storage_paths_bind_to_daemon_project_service_working_directory_and_images(self):
+        images = self.context["cliReleaseExpectations"]["previous"]["images"]
+        files = ["/srv/asa-lab/compose.yaml", "/srv/asa-lab/compose.production.yaml"]
+        foreign = False
+        def read(command, **options):
+            if command[1] == "info":
+                return b'{"id":"fixture-daemon","root":"/var/lib/docker"}'
+            if command[1] == "ps":
+                return (("a" if command[-1].endswith("postgres") else "b") * 64 + "\n").encode()
+            self.assertEqual(command[1], "inspect")
+            service = "postgres" if command[-1] == "a" * 64 else "minio"
+            return json.dumps({"id": command[-1], "project": "asa-lab-dev", "service": service,
+                "root": "/srv/foreign" if foreign else str(harness.INSTALL_ROOT), "files": ",".join(files), "oneoff": "False",
+                "image": "postgres:17.7-bookworm" if service == "postgres" else images[service],
+                "mounts": [{"Destination": "/var/lib/postgresql/data" if service == "postgres" else "/data",
+                            "Type": "volume", "Source": self.paths[service]}]}).encode()
+        options = {"deadline": time.monotonic() + 60, "environment": {},
+                   "daemon_identity": hashlib.sha256(b"fixture-daemon").hexdigest()}
+        with patch.object(harness, "cli_control_command", side_effect=read), patch.object(harness, "switch_expected_files", return_value=files):
+            paths, selected = harness.cli_storage_observation(self.inputs["config"], images, self.owner["uid"], **options)
+            self.assertEqual(paths, self.paths)
+            self.assertEqual(selected, {"postgres": "a" * 64, "minio": "b" * 64})
+            foreign = True
+            with self.assertRaisesRegex(harness.Failure, "CLI_READ_STORAGE"):
+                harness.cli_storage_observation(self.inputs["config"], images, self.owner["uid"], **options)
+
+    def s3_read(self, *, foreign=False, original_failure=None):
+        nonce, container = "e" * 32, "a" * 64
+        name, calls, scans = "asa-realhost-cli-read-" + nonce, [], []
+        install = SimpleNamespace(process_env={"SECRET": "PRIVATE_TOKEN_SENTINEL"},
+            compose_args=["docker", "compose", "--project-directory", str(harness.INSTALL_ROOT), "-p", "asa-lab-dev"])
+        helpers = SimpleNamespace(OBJECT_NAME="control-object.txt", OBJECT_CONTENT="control-object-content")
+        deadline = time.monotonic() + 30
+        def command(arguments, **options):
+            calls.append(arguments)
+            self.assertLessEqual(options["deadline"], deadline)
+            self.assertNotIn("PRIVATE_TOKEN_SENTINEL", json.dumps(arguments))
+            if arguments[1] == "ps":
+                scans.append(True)
+                return (container + "\n").encode() if len(scans) == 2 else b""
+            if arguments[1] == "compose":
+                self.assertIn("--rm", arguments)
+                self.assertIn("asa.realhost.control-read=" + nonce, arguments)
+                self.assertNotIn("mc pipe", arguments[-1])
+                if original_failure:
+                    raise original_failure
+                return helpers.OBJECT_CONTENT.encode()
+            if arguments[1] == "inspect":
+                return json.dumps({"id": container, "name": "/" + name,
+                    "image": self.context["cliReleaseExpectations"]["previous"]["images"]["minio"],
+                    "nonce": "f" * 32 if foreign else nonce, "project": "asa-lab-dev", "root": str(harness.INSTALL_ROOT)}).encode()
+            self.assertEqual(arguments, ["docker", "rm", "-f", container])
+            return b""
+        with patch.object(harness.uuid, "uuid4", return_value=SimpleNamespace(hex=nonce)), \
+                patch.object(harness, "cli_control_command", side_effect=command):
+            try:
+                result = harness.cli_s3_read(install, helpers, self.context, deadline=deadline)
+            except BaseException as error:
+                return None, calls, error
+        return result, calls, None
+
+    def test_ephemeral_s3_reader_removes_only_the_exact_nonce_bound_container(self):
+        value, calls, error = self.s3_read()
+        self.assertIsNone(error)
+        self.assertEqual(value, b"control-object-content")
+        self.assertEqual([command for command in calls if command[1] == "rm"], [["docker", "rm", "-f", "a" * 64]])
+
+    def test_ephemeral_cleanup_refuses_foreign_identity_and_preserves_original_failure(self):
+        value, calls, error = self.s3_read(foreign=True)
+        self.assertIsNone(value)
+        self.assertEqual(error.code, "CLI_CONTROL_CLEANUP")
+        self.assertFalse(any(command[1] == "rm" for command in calls))
+        original = harness.Failure("CLI_CONTROL_COMMAND")
+        _, calls, error = self.s3_read(foreign=True, original_failure=original)
+        self.assertIs(error, original)
+        self.assertTrue(error.owned_cleanup_failed)
+        self.assertFalse(any(command[1] == "rm" for command in calls))
+
+    def test_helper_hashes_are_bound_to_exact_git_bytes_before_delivery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            folder = root / "tools/deployment"
+            folder.mkdir(parents=True)
+            for name in harness.CLI_HELPERS:
+                (folder / name).write_bytes(b"verified-source-file\n")
+            commands = SimpleNamespace(run=Mock(return_value=(0, b"verified-source-file\n")))
+            hashes = harness.cli_helper_hashes(root, "a" * 40, commands)
+            self.assertEqual(set(hashes), set(harness.CLI_HELPERS))
+            for call in commands.run.call_args_list:
+                self.assertTrue(call.args[0][2].startswith("a" * 40 + ":tools/deployment/"))
+                self.assertEqual(call.kwargs["timeout"], 30)
+            (folder / harness.CLI_HELPERS[0]).write_bytes(b"changed-source-file\n")
+            with self.assertRaisesRegex(harness.Failure, "CLI_READ_SOURCE"):
+                harness.cli_helper_hashes(root, "a" * 40, commands)
+
+    def test_stage_delivers_all_hashed_helpers_with_root_public_modes(self):
+        runner = object.__new__(harness.HostRun)
+        runner.source = HERE.parents[1]
+        runner.vm = SimpleNamespace(ssh=Mock(), upload=Mock())
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"GH_TOKEN": "PRIVATE_TOKEN_SENTINEL"}):
+            runner.workspace = Path(directory)
+            for name in ("context.json", "candidate.tar.gz", "onepanel.tar.gz"):
+                (runner.workspace / name).write_bytes(b"synthetic-stage-input\n")
+            result = runner.stage_guest()
+            self.assertFalse((runner.workspace / "github-read-token").exists())
+        names = {call.args[1].rsplit("/", 1)[-1] for call in runner.vm.upload.call_args_list}
+        self.assertTrue(set(harness.CLI_HELPERS) <= names)
+        instructions = " ".join(call.args[0] for call in runner.vm.ssh.call_args_list)
+        self.assertIn("sudo install -m 644", instructions)
+        self.assertIn("realhost_cli_runtime.py /opt/asa-realhost/", instructions)
+        self.assertNotIn("PRIVATE_TOKEN_SENTINEL", instructions + json.dumps(result))
+
+    def test_guest_phase_keeps_partial_runtime_failure_in_public_evidence(self):
+        proof = {"status": "FAIL", "reasonCode": "CLI_SEMANTICS",
+                 "cliReadEvidence": {"status": "FAIL", "failedCase": "update", "semanticCode": "RELEASE_PIN_MISMATCH"}}
+        with patch.object(harness, "guest_guard", return_value=self.context), \
+                patch.object(harness, "guest_phase", return_value=proof), patch.object(harness, "CLI_ACTIONS", []), \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            code = harness.guest_main("cli-read")
+        value = json.loads(output.getvalue())
+        self.assertEqual(code, 1)
+        self.assertEqual(value["status"], "FAIL")
+        self.assertEqual(value["cliReadEvidence"], proof["cliReadEvidence"])
 
 
 class HarnessContractTests(unittest.TestCase):

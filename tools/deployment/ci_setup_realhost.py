@@ -95,6 +95,16 @@ COMMAND_DIAGNOSTIC_OUTCOMES = {"ACCEPTED", "WARNING", "BLOCKED", "ERROR", "INTER
 # Ubuntu 24.04 ships /var/log root:syslog 0775; using it as an ancestor would
 # violate diagnostic_open's intentionally strict no-group-write trust contract.
 OPERATOR_LOG_ROOT = Path("/var/lib/asa-lab-operator")
+CLI_READ_SECONDS = 900
+CLI_CONTROL_SECONDS = 60
+CLI_IMAGES = ("api", "web", "scratch", "minio", "search")
+CLI_HELPERS = ("realhost_cli_checks.py", "realhost_cli_runtime.py", "setup_bundle.py")
+CLI_RELEASE_PROGRAM = """import json, sys
+sys.path.insert(0, sys.argv[1])
+from deployment.release_readonly import resolve_release
+pins = json.loads(sys.stdin.buffer.read(65536))
+print(json.dumps({name: resolve_release(pins[name]["deploymentDigest"]) for name in ("previous", "current")}))
+"""
 SWITCH_SERVICES = ("postgres", "minio", "migration", "minio-init", "api", "search", "web", "scratch")
 SWITCH_STATES = {"created", "running", "paused", "restarting", "removing", "exited", "dead"}
 SWITCH_SQLSTATES = {"08001", "08006", "23502", "23503", "23505", "28000", "28P01", "3D000", "3F000",
@@ -172,6 +182,45 @@ def pin_manifest(path):
     require(value["previous"]["revision"] != value["current"]["revision"]
             and value["previous"]["deploymentDigest"] != value["current"]["deploymentDigest"], "PINS_NO_UPDATE")
     return value
+
+
+def cli_release_expectations(selections, pins):
+    """Immutable OCI/CI inputs prepared before the VM, never learned from CLI output."""
+    require(type(selections) is dict and set(selections) == {"previous", "current"}, "CLI_READ_RELEASE_PIN")
+    result = {}
+    for name in ("previous", "current"):
+        selected, pin = selections[name], pins[name]
+        require(type(selected) is dict and selected.get("ci") == "VERIFIED"
+                and selected.get("deploymentDigest") == pin["deploymentDigest"]
+                and selected.get("manifestDigest") == pin["amd64ManifestDigest"], "CLI_READ_RELEASE_PIN")
+        release = selected.get("release")
+        require(type(release) is dict and release.get("format") == "asa-deployment-v2"
+                and release.get("repository") == REPOSITORY and release.get("platform") == "linux/amd64"
+                and release.get("revision") == pin["revision"] and type(release.get("schema")) is int
+                and release["schema"] == pin["schema"] and type(release.get("publicationRunId")) is int
+                and release["publicationRunId"] == pin["publicationRunId"], "CLI_READ_RELEASE_PIN")
+        images = release.get("images")
+        require(type(images) is dict and set(images) == set(CLI_IMAGES), "CLI_READ_RELEASE_PIN")
+        for service in CLI_IMAGES:
+            require(type(images[service]) is str and re.fullmatch(
+                re.escape("ghcr.io/" + REPOSITORY + "/" + service + "@sha256:") + r"[a-f0-9]{64}", images[service]),
+                "CLI_READ_RELEASE_PIN")
+        result[name] = {"revision": pin["revision"], "schema": pin["schema"],
+                        "images": {service: images[service] for service in CLI_IMAGES},
+                        "deploymentDigest": pin["deploymentDigest"], "manifestDigest": pin["amd64ManifestDigest"]}
+    return result
+
+
+def cli_helper_hashes(source, revision, commands):
+    require(type(revision) is str and HEX40.fullmatch(revision), "CLI_READ_SOURCE")
+    hashes = {}
+    for name in CLI_HELPERS:
+        relative = "tools/deployment/" + name
+        _, committed = commands.run(["git", "show", revision + ":" + relative], cwd=source, timeout=30)
+        digest = hashlib.sha256(committed).hexdigest()
+        require(hash_file(Path(source) / relative) == digest, "CLI_READ_SOURCE")
+        hashes[name] = digest
+    return hashes
 
 
 def host_environment(environment, revision, actual_revision, *, free, memory, cpus, os_release):
@@ -471,9 +520,14 @@ class HostRun:
         _, recipient = self.commands.run(["age-keygen", "-y", work / "age-private-key"], timeout=30)
         recipient = recipient.decode().strip()
         require(re.fullmatch(r"age1[a-z0-9]{58}", recipient), "AGE_RECIPIENT")
+        _, selected = self.commands.run([sys.executable, "-I", "-B", "-c", CLI_RELEASE_PROGRAM, self.source / "tools"],
+            source=json.dumps(self.pins).encode(), timeout=300)
+        release_expectations = cli_release_expectations(json.loads(selected), self.pins)
         self.context = {"format": "asa-realhost-context-v1", "sourceRevision": self.args.revision,
                         "nonce": uuid.uuid4().hex, "bundleSha256": proof["sha256"], "ageRecipient": recipient,
-                        "pins": self.pins, "helperSha256": hash_file(self.source / "tools/deployment/ci_setup_smoke.py")}
+                        "pins": self.pins, "helperSha256": hash_file(self.source / "tools/deployment/ci_setup_smoke.py"),
+                        "cliHelperSha256": cli_helper_hashes(self.source, self.args.revision, self.commands),
+                        "cliReleaseExpectations": release_expectations}
         write_json(work / "context.json", self.context)
         return {"ubuntu": image, "ubuntuSignature": "PASS", "onePanel": archive,
                 "candidateBundle": {"sha256": proof["sha256"], "revision": self.args.revision, "attested": False}}
@@ -516,7 +570,8 @@ class HostRun:
         self.vm.ssh("mkdir -m 700 /home/asa-ci/realhost-input")
         files = {"runner.py": Path(__file__), "context.json": work / "context.json", "candidate.tar.gz": work / "candidate.tar.gz",
                  "onepanel.tar.gz": work / "onepanel.tar.gz", "setup_bundle.py": self.source / "tools/deployment/setup_bundle.py",
-                 "ci_setup_smoke.py": self.source / "tools/deployment/ci_setup_smoke.py"}
+                 "ci_setup_smoke.py": self.source / "tools/deployment/ci_setup_smoke.py",
+                 **{name: self.source / "tools/deployment" / name for name in CLI_HELPERS}}
         for name, path in files.items():
             self.vm.upload(path, "/home/asa-ci/realhost-input/" + name)
         token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
@@ -529,7 +584,8 @@ class HostRun:
         token_path.unlink()
         self.vm.ssh("sudo install -d -m 755 /opt/asa-realhost && sudo install -d -m 700 /var/lib/asa-realhost && "
                     "sudo install -m 644 /home/asa-ci/realhost-input/runner.py /home/asa-ci/realhost-input/context.json "
-                    "/home/asa-ci/realhost-input/setup_bundle.py /home/asa-ci/realhost-input/ci_setup_smoke.py /opt/asa-realhost/ && "
+                    "/home/asa-ci/realhost-input/setup_bundle.py /home/asa-ci/realhost-input/ci_setup_smoke.py "
+                    "/home/asa-ci/realhost-input/realhost_cli_checks.py /home/asa-ci/realhost-input/realhost_cli_runtime.py /opt/asa-realhost/ && "
                     "sudo install -m 600 /home/asa-ci/realhost-input/candidate.tar.gz /home/asa-ci/realhost-input/onepanel.tar.gz "
                     "/home/asa-ci/realhost-input/github-read-token /var/lib/asa-realhost/ && rm -f /home/asa-ci/realhost-input/github-read-token")
         return {"candidateStagedOnlyInsideGuest": True, "ephemeralTokenTransport": "private file; read permissions; no argv"}
@@ -619,6 +675,7 @@ class HostRun:
                     self.bootstrap_deadline = None
                     self.phase("public_asa_install", lambda: self.guest("install", timeout=3000))
                     self.phase("independent_control_fixture", lambda: self.guest("seed", timeout=900))
+                    self.phase("installed_cli_read_acceptance", lambda: self.guest("cli-read", timeout=1200))
                     self.phase("published_runtime_update", lambda: self.guest("update", timeout=2400))
                     self.phase("public_backup_and_retry", lambda: self.guest("backup", timeout=1200))
                     self.fault_deadline = min(self.deadline, time.monotonic() + FAULT_TOTAL_SECONDS)
@@ -634,7 +691,7 @@ class HostRun:
                     self.evidence["checks"].update(cleanUbuntuActual1Panel="PASS", publicCliLifecycle="PASS",
                                                    publishedRuntimeUpdate="PASS", realGuestReboot="PASS", persistentTimer="PASS",
                                                    publicPartialBackupFailure="PASS", publicBackupInterruption="PASS",
-                                                   publicReleaseConnectionFailure="PASS")
+                                                   publicReleaseConnectionFailure="PASS", installedCliReadAcceptance="PASS")
                     self.evidence["status"] = "PASS"
                 finally:
                     if self.vm:
@@ -663,7 +720,7 @@ def safe_error(error):
 CLI_ACTIONS = []
 
 
-def guest_guard():
+def guest_guard(*, control_deadline=None):
     marker = Path("/etc/asa-realhost-disposable")
     metadata = marker.lstat()
     require(stat.S_ISREG(metadata.st_mode) and metadata.st_uid == 0 and not metadata.st_mode & 0o022,
@@ -674,7 +731,13 @@ def guest_guard():
                          "sourceRevision": context["sourceRevision"]}, "DISPOSABLE_GUEST_IDENTITY")
     require(HEX40.fullmatch(context["sourceRevision"]) and Path("/proc/1/comm").read_text().strip() == "systemd",
             "REAL_GUEST_SYSTEMD")
-    _, observed = Commands().run(["systemd-detect-virt", "--vm"])
+    if control_deadline is None:
+        _, observed = Commands().run(["systemd-detect-virt", "--vm"])
+    else:
+        require(type(control_deadline) in (int, float) and math.isfinite(control_deadline)
+                and 0 < control_deadline - time.monotonic() <= CLI_CONTROL_SECONDS, "CLI_CONTROL_DEADLINE")
+        observed = cli_control_command(["systemd-detect-virt", "--vm"], deadline=control_deadline,
+                                       environment=dict(os.environ))
     require(observed.decode().strip() in ("kvm", "qemu"), "REAL_GUEST_VIRTUALIZATION")
     release = dict(line.split("=", 1) for line in Path("/etc/os-release").read_text().splitlines() if "=" in line)
     require(release.get("ID", "").strip('"') == "ubuntu" and release.get("VERSION_ID", "").strip('"') == "24.04"
@@ -737,6 +800,446 @@ def public_cli_result(words, code, raw, *, allowed=(0,), invocation=None):
 
 def candidate_bundle(context):
     return Path("/opt/asa-setup") / context["sourceRevision"]
+
+
+def cli_trusted_bytes(path, *, mode=0o644, maximum=2 * 1024**2):
+    """Read exact root-owned bytes through protected, non-symlink ancestors."""
+    path = Path(path)
+    require(path.is_absolute() and ".." not in path.parts, "CLI_READ_TRUST")
+    descriptor = None
+    try:
+        descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        root_info = os.fstat(descriptor)
+        require(root_info.st_uid == 0 and not root_info.st_mode & 0o022, "CLI_READ_TRUST")
+        for index, part in enumerate(path.parts[1:]):
+            directory = index < len(path.parts) - 2
+            child = os.open(part, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK |
+                            (os.O_DIRECTORY if directory else 0), dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+            info = os.fstat(descriptor)
+            require(info.st_uid == 0 and not info.st_mode & 0o022, "CLI_READ_TRUST")
+            require(stat.S_ISDIR(info.st_mode) if directory else
+                    stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and stat.S_IMODE(info.st_mode) == mode,
+                    "CLI_READ_TRUST")
+        before = os.fstat(descriptor)
+        require(0 < before.st_size <= maximum, "CLI_READ_TRUST")
+        chunks, remaining = [], before.st_size
+        while remaining:
+            chunk = os.read(descriptor, min(65536, remaining))
+            require(chunk, "CLI_READ_TRUST")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        after = os.fstat(descriptor)
+        # Reading may update atime; identity, permissions and all write metadata
+        # must remain stable, without treating our own access as a mutation.
+        require((before.st_mode, before.st_uid, before.st_gid, before.st_nlink) ==
+                (after.st_mode, after.st_uid, after.st_gid, after.st_nlink)
+                and diagnostic_metadata(before) == diagnostic_metadata(after), "CLI_READ_TRUST")
+        return b"".join(chunks)
+    except OSError:
+        raise Failure("CLI_READ_TRUST") from None
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def cli_trusted_module(name, context):
+    require(name in CLI_HELPERS and type(context.get("cliHelperSha256")) is dict
+            and set(context["cliHelperSha256"]) == set(CLI_HELPERS), "CLI_READ_TRUST")
+    expected = context["cliHelperSha256"][name]
+    require(type(expected) is str and HEX64.fullmatch(expected), "CLI_READ_TRUST")
+    path = GUEST_HOME / name
+    raw = cli_trusted_bytes(path)
+    require(hashlib.sha256(raw).hexdigest() == expected, "CLI_READ_TRUST")
+    module_name = "asa_realhost_trusted_" + path.stem
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module  # dataclasses under -I need the real module identity.
+    try:
+        exec(compile(raw, str(path), "exec"), module.__dict__)
+    except BaseException:
+        sys.modules.pop(module_name, None)
+        raise
+    return module
+
+
+def cli_candidate_binding(context, verifier):
+    """Bind registration to the original checked archive, not a self-declared manifest."""
+    require(type(context.get("sourceRevision")) is str and HEX40.fullmatch(context["sourceRevision"])
+            and type(context.get("bundleSha256")) is str and HEX64.fullmatch(context["bundleSha256"]),
+            "CLI_READ_BUNDLE")
+    raw = cli_trusted_bytes(GUEST_PRIVATE / "candidate.tar.gz", mode=0o600, maximum=verifier.MAX_PACKAGE_BYTES)
+    try:
+        manifest, files = verifier.inspect_archive(raw, revision=context["sourceRevision"], sha256=context["bundleSha256"])
+    except ValueError:
+        raise Failure("CLI_READ_BUNDLE") from None
+    bundle = candidate_bundle(context)
+    actual_files, actual_dirs = set(), set()
+    for parent, directories, names in os.walk(bundle, followlinks=False):
+        for name in directories + names:
+            path = Path(parent) / name
+            info = path.lstat()
+            require(not stat.S_ISLNK(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022, "CLI_READ_BUNDLE")
+            relative = path.relative_to(bundle).as_posix()
+            (actual_dirs if stat.S_ISDIR(info.st_mode) else actual_files).add(relative)
+            require(len(actual_files) <= 2049 and len(actual_dirs) <= 8192, "CLI_READ_BUNDLE")
+    expected_files = set(files) | {"setup-bundle.json"}
+    expected_dirs = {parent.as_posix() for name in expected_files for parent in Path(name).parents if parent != Path(".")}
+    require(actual_files == expected_files and actual_dirs == expected_dirs, "CLI_READ_BUNDLE")
+    require(json.loads(cli_trusted_bytes(bundle / "setup-bundle.json")) == manifest, "CLI_READ_BUNDLE")
+    for name, expected in files.items():
+        require(cli_trusted_bytes(bundle / name, mode=0o755 if name.endswith(".sh") else 0o644,
+                                  maximum=verifier.MAX_FILE_BYTES) == expected, "CLI_READ_BUNDLE")
+    for name in CLI_HELPERS:
+        require(hashlib.sha256(files["tools/deployment/" + name]).hexdigest() == context["cliHelperSha256"][name],
+                "CLI_READ_BUNDLE")
+    registry = json.loads(cli_trusted_bytes("/etc/asa-lab/commands.json"))
+    require(registry == {"format": "asa-command-v1", "preparedBundle": str(bundle), "installations": [
+        {"root": str(INSTALL_ROOT), "project": "asa-lab-dev", "profile": "production", "bundle": str(bundle)}]},
+        "CLI_READ_REGISTRATION")
+    expected_wrapper = (
+        "#!/bin/sh\n# ASA Lab verified setup CLI; use the official pinned bundle only.\n"
+        "PATH=/usr/sbin:/usr/bin:/sbin:/bin; export PATH\n"
+        "unset PYTHONPATH PYTHONHOME LD_PRELOAD LD_LIBRARY_PATH ENV BASH_ENV\n"
+        "exec /usr/bin/python3 -I -B " + shlex.quote(str(bundle / "tools/asa_cli.py")) + ' "$@"\n'
+    ).encode()
+    require(cli_trusted_bytes("/usr/local/bin/asa", mode=0o755, maximum=65536) == expected_wrapper, "CLI_READ_REGISTRATION")
+    return {"status": "VERIFIED", "sourceRevision": context["sourceRevision"],
+            "bundleSha256": context["bundleSha256"], "wrapperSha256": hashlib.sha256(expected_wrapper).hexdigest()}
+
+
+def cli_context_inputs(owner):
+    def private(relative):
+        raw, _, _ = diagnostic_read(INSTALL_ROOT / relative, INSTALL_ROOT, owner["uid"])
+        value = json.loads(raw)
+        require(type(value) is dict, "CLI_READ_CONTEXT")
+        return value
+    receipt = private(".asa/setup-last-successful.json")
+    operation = receipt.get("operationId")
+    require(type(operation) is str and re.fullmatch(r"[a-f0-9]{32}", operation), "CLI_READ_CONTEXT")
+    binding = private(".asa/setup-backups/operation-" + operation + ".json")
+    snapshot = binding.get("snapshotId")
+    require(type(snapshot) is str and re.fullmatch(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,32}", snapshot), "CLI_READ_CONTEXT")
+    directory = INSTALL_ROOT / ".asa/setup-backups"
+    snapshots = []
+    for index, path in enumerate(directory.iterdir()):
+        require(index < 512, "CLI_READ_CONTEXT")
+        if re.fullmatch(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,32}\.json", path.name):
+            snapshots.append(path.stem)
+    require(snapshots == [snapshot], "CLI_READ_CONTEXT")
+    return {"input": json.loads(cli_trusted_bytes(GUEST_PRIVATE / "install-input.json", mode=0o600)),
+            "config": private(".asa/setup.json"), "installed": private(".asa/installed-release.json"),
+            "receipt": receipt, "attempt": private(".asa/setup-last-attempt.json"),
+            "journal": private(".asa/setup-operations/" + operation + ".json"), "binding": binding,
+            "backup": private(".asa/setup-backups/" + snapshot + ".json"),
+            "backupAttempt": private(".asa/setup-backups/last-attempt.json"),
+            "backupSuccess": private(".asa/setup-backups/last-local-success.json")}
+
+
+def cli_fixture_context(checks, context, owner, inputs, filesystem_paths):
+    """No value here originates from a command checked by the CLI suite."""
+    required = {"input", "config", "installed", "receipt", "attempt", "journal", "binding",
+                "backup", "backupAttempt", "backupSuccess"}
+    require(type(inputs) is dict and set(inputs) == required and all(type(value) is dict for value in inputs.values()),
+            "CLI_READ_CONTEXT")
+    require(type(filesystem_paths) is dict and set(filesystem_paths) == {"application", "backups", "docker", "postgres", "minio"}
+            and all(type(path) is str and re.fullmatch(r"/[A-Za-z0-9_./-]+", path)
+                    and not any(part in ("", ".", "..") for part in path.split("/")[1:]) for path in filesystem_paths.values())
+            and filesystem_paths["application"] == str(INSTALL_ROOT)
+            and filesystem_paths["backups"] == str(INSTALL_ROOT / "backups"), "CLI_READ_STORAGE")
+    config, supplied, receipt, journal = (inputs[name] for name in ("config", "input", "receipt", "journal"))
+    previous, target = context["cliReleaseExpectations"]["previous"], context["cliReleaseExpectations"]["current"]
+    for name, release in (("previous", previous), ("current", target)):
+        pin = context["pins"][name]
+        require(release["revision"] == pin["revision"] and type(release["schema"]) is int and release["schema"] == pin["schema"]
+                and release["deploymentDigest"] == pin["deploymentDigest"] and release["manifestDigest"] == pin["amd64ManifestDigest"],
+                "CLI_READ_RELEASE_PIN")
+        require(type(release.get("images")) is dict and set(release["images"]) == set(CLI_IMAGES)
+                and all(type(release["images"][service]) is str and re.fullmatch(
+                    re.escape("ghcr.io/" + REPOSITORY + "/" + service + "@sha256:") + r"[a-f0-9]{64}",
+                    release["images"][service]) for service in CLI_IMAGES), "CLI_READ_RELEASE_PIN")
+    identity, operation, backup = supplied.get("installationId"), receipt.get("operationId"), inputs["backup"]
+    require(type(identity) is str and re.fullmatch(r"[a-f0-9]{32}", identity)
+            and type(operation) is str and re.fullmatch(r"[a-f0-9]{32}", operation), "CLI_READ_CONTEXT")
+    ports = {"web": 4610, "api": 4611, "blocks": 4613}
+    schedule = {"enabled": False, "time": "03:00", "timezone": "UTC", "maxAgeHours": 26}
+    for document in (supplied, config):
+        require(document.get("root") == str(INSTALL_ROOT) and document.get("project") == "asa-lab-dev"
+                and document.get("profile") == "production" and document.get("entryOrigin") == ORIGIN
+                and document.get("installationId") == identity and type(document.get("operatorUid")) is int
+                and document["operatorUid"] == owner["uid"] > 0 and document.get("ports") == ports
+                and document.get("backupDirectory") == str(INSTALL_ROOT / "backups"), "CLI_READ_CONTEXT")
+        policy = document.get("backup", {})
+        require(policy.get("policy") == "best-effort" and policy.get("cloud", {}).get("enabled") is False
+                and policy.get("ageRecipient") == context["ageRecipient"] and policy.get("schedule") == schedule,
+                "CLI_READ_CONTEXT")
+    require(config.get("automaticUpdates", False) is False and inputs["attempt"] == receipt
+            and journal.get("result") == receipt and journal.get("state") == "TERMINAL"
+            and journal.get("root") == str(INSTALL_ROOT) and journal.get("project") == "asa-lab-dev"
+            and journal.get("requestedDeploymentDigest") == previous["deploymentDigest"], "CLI_READ_CONTEXT")
+    for document in (receipt, journal):
+        require(document.get("operationId") == operation and document.get("installationId") == identity
+                and document.get("mode") == "install", "CLI_READ_CONTEXT")
+    require_application(receipt, context["pins"]["previous"])
+    require(receipt.get("outcome") == "WARNING" and receipt.get("reasonCode") in (None, "NONE"), "CLI_READ_CONTEXT")
+    for release in (inputs["installed"], journal.get("release", {})):
+        require(all(release.get(key) == previous[key] for key in ("revision", "schema", "images")), "CLI_READ_RELEASE_PIN")
+    require(all(journal.get("stages", {}).get(stage, {}).get("status") == "done"
+                for stage in ("release", "switch", "browser", "first_backup")), "CLI_READ_CONTEXT")
+    snapshot = backup.get("snapshotId")
+    require(type(snapshot) is str and re.fullmatch(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,32}", snapshot)
+            and inputs["binding"].get("snapshotId") == snapshot and inputs["binding"].get("operationId") == operation
+            and inputs["binding"].get("installationId") == identity
+            and backup.get("operationId") == operation and backup.get("installationId") == identity
+            and receipt.get("backup", {}).get("snapshotId") == snapshot, "CLI_READ_CONTEXT")
+    require(backup.get("local", {}).get("status") == backup.get("encryption", {}).get("status") == "OK"
+            and backup.get("cloud", {}).get("status") == "NOT_CONFIGURED" and backup.get("outcome") == "WARNING"
+            and inputs["backupAttempt"].get("snapshotId") == inputs["backupSuccess"].get("snapshotId") == snapshot
+            and inputs["backupAttempt"].get("operationId") == operation
+            and inputs["backupSuccess"].get("at") == backup.get("snapshotAt"), "CLI_READ_CONTEXT")
+    require(type(backup.get("snapshotAt")) is str and len(backup["snapshotAt"]) <= 40, "CLI_READ_CONTEXT")
+    stamp = dt.datetime.fromisoformat(backup["snapshotAt"].replace("Z", "+00:00"))
+    require(stamp.tzinfo is not None and stamp.utcoffset() == dt.timedelta(0), "CLI_READ_CONTEXT")
+    expected = checks.FixtureContext(root=str(INSTALL_ROOT), project="asa-lab-dev", origin=ORIGIN,
+        installed=checks.ReleasePin(previous["revision"], previous["schema"], previous["images"]),
+        target=checks.ReleasePin(target["revision"], target["schema"], target["images"]),
+        deployment_digest=target["deploymentDigest"], manifest_digest=target["manifestDigest"],
+        filesystem_paths=filesystem_paths, ports=ports, schedule=schedule, snapshot_ids=(snapshot,),
+        last_attempt=snapshot, last_local_success=snapshot, accepted_operation_id=operation, restore_snapshot_id=snapshot)
+    return expected, stamp.isoformat()
+
+
+def cli_control_command(arguments, *, deadline, environment, cwd=None, source=None):
+    """A bounded child in its owner's existing session; raw streams stay private."""
+    require(source is None or type(source) is bytes and len(source) <= 65536, "CLI_CONTROL_INPUT")
+    require(time.monotonic() < deadline, "CLI_CONTROL_TIMEOUT")
+    with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors, tempfile.TemporaryFile() as incoming:
+        if source is not None:
+            incoming.write(source)
+            incoming.seek(0)
+        process = subprocess.Popen([str(item) for item in arguments], cwd=cwd, env=environment,
+            stdin=incoming if source is not None else subprocess.DEVNULL, stdout=output, stderr=errors)
+        try:
+            while process.poll() is None:
+                require(time.monotonic() < deadline, "CLI_CONTROL_TIMEOUT")
+                require(os.fstat(output.fileno()).st_size + os.fstat(errors.fileno()).st_size <= 2 * 1024**2,
+                        "CLI_CONTROL_OUTPUT")
+                time.sleep(0.02)
+            require(time.monotonic() < deadline, "CLI_CONTROL_TIMEOUT")
+            require(os.fstat(output.fileno()).st_size + os.fstat(errors.fileno()).st_size <= 2 * 1024**2,
+                    "CLI_CONTROL_OUTPUT")
+            require(process.returncode == 0, "CLI_CONTROL_COMMAND")
+            output.seek(0)
+            return output.read(2 * 1024**2)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=1)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=1)
+
+
+def cli_storage_observation(config, images, uid, *, deadline, environment, daemon_identity):
+    """Independent Docker identities and paths, without consuming CLI observations."""
+    def read(args):
+        return cli_control_command(["docker", *args], deadline=min(deadline, time.monotonic() + 8), environment=environment)
+    daemon = json.loads(read(["info", "--format", '{"id":{{json .ID}},"root":{{json .DockerRootDir}}}']))
+    require(type(daemon) is dict and type(daemon.get("id")) is str and type(daemon.get("root")) is str
+            and Path(daemon["root"]).is_absolute(), "CLI_READ_STORAGE")
+    require(type(daemon_identity) is str and HEX64.fullmatch(daemon_identity)
+            and hashlib.sha256(daemon["id"].encode()).hexdigest() == daemon_identity,
+            "CLI_READ_STORAGE")
+    selected, paths = {}, {"application": str(INSTALL_ROOT), "backups": str(INSTALL_ROOT / "backups"), "docker": daemon["root"]}
+    files = ",".join(switch_expected_files(config, uid))
+    for service, destination in (("postgres", "/var/lib/postgresql/data"), ("minio", "/data")):
+        ids = read(["ps", "-aq", "--no-trunc", "--filter", "label=com.docker.compose.project=" + config["project"],
+                    "--filter", "label=com.docker.compose.service=" + service]).decode("ascii").split()
+        require(len(ids) == 1 and HEX64.fullmatch(ids[0]), "CLI_READ_STORAGE")
+        pattern = ('{"id":{{json .Id}},"project":{{json (index .Config.Labels "com.docker.compose.project")}},'
+            '"service":{{json (index .Config.Labels "com.docker.compose.service")}},'
+            '"root":{{json (index .Config.Labels "com.docker.compose.project.working_dir")}},'
+            '"files":{{json (index .Config.Labels "com.docker.compose.project.config_files")}},'
+            '"oneoff":{{json (index .Config.Labels "com.docker.compose.oneoff")}},'
+            '"image":{{json .Config.Image}},"mounts":{{json .Mounts}}}')
+        record = json.loads(read(["inspect", "--format", pattern, ids[0]]))
+        require(record.get("id") == ids[0] and record.get("project") == config["project"] == "asa-lab-dev"
+                and record.get("service") == service and record.get("root") == str(INSTALL_ROOT)
+                and record.get("files") == files and record.get("oneoff") in ("False", "false")
+                and record.get("image") == ("postgres:17.7-bookworm" if service == "postgres" else images["minio"]),
+                "CLI_READ_STORAGE")
+        mounts = [row for row in record.get("mounts", []) if type(row) is dict and row.get("Destination") == destination]
+        require(len(mounts) == 1 and mounts[0].get("Type") == "volume" and type(mounts[0].get("Source")) is str
+                and Path(mounts[0]["Source"]).is_absolute() and ".." not in Path(mounts[0]["Source"]).parts,
+                "CLI_READ_STORAGE")
+        paths[service], selected[service] = mounts[0]["Source"], ids[0]
+    return paths, selected
+
+
+def cli_rows_projection(raw, identities):
+    values = json.loads(raw)
+    require(type(values) is dict and set(values) == {*TABLES, "project_drafts"}, "CLI_CONTROL_ROWS")
+    rows = {}
+    for table in (*TABLES, "project_drafts"):
+        entries = values[table]
+        ids = identities["projects" if table == "project_drafts" else table]
+        key = "project_id" if table == "project_drafts" else "id"
+        require(type(entries) is list and len(entries) == len(ids)
+                and all(type(item) is dict and type(item.get(key)) is str for item in entries)
+                and [item[key] for item in entries] == sorted(ids), "CLI_CONTROL_ROWS")
+        rows[table] = {"rows": len(entries), "sha256": canonical_hash(entries)}
+    return rows
+
+
+def cli_s3_read(install, helpers, context, *, deadline):
+    """Read one existing object; the labelled temporary client is outside the FS window."""
+    nonce = uuid.uuid4().hex
+    name = "asa-realhost-cli-read-" + nonce
+    environment = {**install.process_env, "DOCKER_HOST": "unix:///var/run/docker.sock"}
+    def read(args, *, cleanup=False):
+        limit = deadline if cleanup else deadline - 8
+        return cli_control_command(args, deadline=min(limit, time.monotonic() + (3 if cleanup else 12)),
+                                   environment=environment, cwd=INSTALL_ROOT)
+    def ids(cleanup=False):
+        raw = read(["docker", "ps", "-aq", "--no-trunc", "--filter", "name=^/" + name + "$"], cleanup=cleanup)
+        values = raw.decode("ascii").split()
+        require(len(values) <= 1 and all(HEX64.fullmatch(value) for value in values), "CLI_CONTROL_CLEANUP")
+        return values
+    require(not ids(), "CLI_CONTROL_CLEANUP")
+    attempted, failure = False, None
+    try:
+        attempted = True
+        prefix = 'mc alias set local http://minio:9000 "$ASA_OBJECT_STORAGE_ACCESS_KEY" "$ASA_OBJECT_STORAGE_SECRET_KEY" >/dev/null; '
+        command = prefix + 'mc cat "local/$ASA_OBJECT_STORAGE_BUCKET/' + helpers.OBJECT_NAME + '"'
+        raw = read([*install.compose_args, "run", "--rm", "--no-deps", "--name", name,
+                    "--label", "asa.realhost.control-read=" + nonce, "--entrypoint", "/bin/sh", "minio-init", "-eu", "-c", command])
+        require(raw == helpers.OBJECT_CONTENT.encode(), "CLI_CONTROL_OBJECT")
+        return raw
+    except BaseException as error:
+        failure = error
+        raise
+    finally:
+        if attempted:
+            try:
+                remaining = ids(cleanup=True)
+                if remaining:
+                    pattern = ('{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .Config.Image}},'
+                        '"nonce":{{json (index .Config.Labels "asa.realhost.control-read")}},'
+                        '"project":{{json (index .Config.Labels "com.docker.compose.project")}},'
+                        '"root":{{json (index .Config.Labels "com.docker.compose.project.working_dir")}}}')
+                    record = json.loads(read(["docker", "inspect", "--format", pattern, remaining[0]], cleanup=True))
+                    require(record == {"id": remaining[0], "name": "/" + name,
+                        "image": context["cliReleaseExpectations"]["previous"]["images"]["minio"],
+                        "nonce": nonce, "project": "asa-lab-dev", "root": str(INSTALL_ROOT)}, "CLI_CONTROL_CLEANUP")
+                    read(["docker", "rm", "-f", remaining[0]], cleanup=True)
+                    require(not ids(cleanup=True), "CLI_CONTROL_CLEANUP")
+            except BaseException:
+                if failure is None:
+                    raise
+                failure.owned_cleanup_failed = True
+
+
+def owner_cli_control(context, deadline):
+    require(os.geteuid() != 0 and type(deadline) in (int, float) and math.isfinite(deadline)
+            and 0 < deadline - time.monotonic() <= CLI_CONTROL_SECONDS, "CLI_CONTROL_DEADLINE")
+    config_module, _, _, installation, helpers = product_modules(context)
+    config = config_module.load_config(INSTALL_ROOT, os.geteuid())
+    install = installation(INSTALL_ROOT, config["profile"])  # Files only; no wait_ready or browser.
+    prepared = json.loads(cli_trusted_bytes(GUEST_HOME / "cli-control-context.json"))
+    require(prepared.get("format") == "asa-realhost-cli-control-v1" and prepared.get("sourceRevision") == context["sourceRevision"]
+            and type(prepared.get("operatorUid")) is int and prepared["operatorUid"] == os.geteuid(), "CLI_CONTROL_OWNER")
+    saved = config_module.private_json(INSTALL_ROOT / ".asa/realhost-control-proof.json")
+    identities = saved.get("ids")
+    require(type(identities) is dict and set(identities) == set(TABLES), "CLI_CONTROL_IDS")
+    for table in TABLES:
+        ids = identities[table]
+        require(type(ids) is list and 0 < len(ids) <= 100 and len(set(ids)) == len(ids)
+                and all(type(value) is str and UUID.fullmatch(value) for value in ids), "CLI_CONTROL_IDS")
+    environment = {**install.process_env, "DOCKER_HOST": "unix:///var/run/docker.sock"}
+    _, containers = cli_storage_observation(config, context["cliReleaseExpectations"]["previous"]["images"], os.geteuid(),
+        deadline=deadline - 10, environment=environment, daemon_identity=prepared.get("daemonIdentitySha256"))
+    expressions = []
+    for table in (*TABLES, "project_drafts"):
+        key = "project_id" if table == "project_drafts" else "id"
+        ids = identities["projects" if table == "project_drafts" else table]
+        where = ",".join("'" + value + "'" for value in sorted(ids))
+        expressions.append("'" + table + "',(SELECT COALESCE(json_agg(to_jsonb(t) ORDER BY t." + key
+            + "::text),'[]'::json) FROM public." + table + " t WHERE t." + key + "::text IN (" + where + "))")
+    statement = ("SELECT json_build_object(" + ",".join(expressions) + ");\n").encode()
+    milliseconds = max(1, min(15000, int((deadline - time.monotonic() - 10) * 1000)))
+    raw = cli_control_command(["docker", "exec", "-i", "-e",
+        "PGOPTIONS=-c default_transaction_read_only=on -c statement_timeout=" + str(milliseconds),
+        containers["postgres"], "psql", "-XAtq", "-v", "ON_ERROR_STOP=1", "-U", install.env["POSTGRES_USER"],
+        "-d", install.env["POSTGRES_DB"]], source=statement, environment=environment, deadline=deadline - 10)
+    rows = cli_rows_projection(raw, identities)
+    require(rows == saved.get("fingerprint", {}).get("rows"), "CLI_CONTROL_ROWS_CHANGED")
+    content = cli_s3_read(install, helpers, context, deadline=deadline)
+    digest = hashlib.sha256(content).hexdigest()
+    require(digest == saved["fingerprint"].get("authenticatedS3Sha256"), "CLI_CONTROL_OBJECT_CHANGED")
+    require(time.monotonic() < deadline, "CLI_CONTROL_TIMEOUT")
+    return {"operatorUid": os.geteuid(), "control": {"databaseSha256": canonical_hash(rows),
+        "databaseRows": sum(row["rows"] for row in rows.values()), "objectsSha256": digest,
+        "objectCount": 1, "objectBytes": len(content)}}
+
+
+def cli_control_snapshot(owner, phase, deadline):
+    remaining = deadline - time.monotonic()
+    require(phase in ("before", "after") and 20 < remaining <= CLI_CONTROL_SECONDS, "CLI_CONTROL_DEADLINE")
+    environment = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "HOME": owner["home"], "USER": owner["name"],
+                   "LOGNAME": owner["name"], "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "PYTHONDONTWRITEBYTECODE": "1"}
+    command = ["/usr/bin/python3", "-I", "-B", GUEST_HOME / "runner.py",
+               "--guest-phase", "owner-cli-control", "--control-deadline", repr(deadline - 16)]
+    # The existing process guard holds the leader unreaped and checks all
+    # descendants. Reserve its complete cleanup budget inside the 60 s limit.
+    with OwnedFaultProcess(command, environment=environment, deadline=deadline - 12, owner=owner) as child:
+        code, raw = child.wait(max(0.1, deadline - time.monotonic() - 12))
+    require(time.monotonic() < deadline and code == 0, "CLI_CONTROL_CALLBACK")
+    value = json.loads(raw)
+    require(type(value) is dict and set(value) == {"format", "phase", "status", "operatorUid", "control", "cliActions"}
+            and value["format"] == "asa-realhost-guest-v1" and value["phase"] == "owner-cli-control"
+            and value["status"] == "PASS" and type(value["operatorUid"]) is int
+            and value["operatorUid"] == owner["uid"] and value["cliActions"] == [], "CLI_CONTROL_CALLBACK")
+    proof = value["control"]
+    require(type(proof) is dict and set(proof) == {"databaseSha256", "databaseRows", "objectsSha256", "objectCount", "objectBytes"},
+            "CLI_CONTROL_CALLBACK")
+    for name in ("databaseSha256", "objectsSha256"):
+        require(type(proof[name]) is str and HEX64.fullmatch(proof[name]), "CLI_CONTROL_CALLBACK")
+    for name in ("databaseRows", "objectCount", "objectBytes"):
+        require(type(proof[name]) is int and 0 <= proof[name] <= 2**63 - 1, "CLI_CONTROL_CALLBACK")
+    return {name: proof[name] for name in ("databaseSha256", "databaseRows", "objectsSha256", "objectCount", "objectBytes")}
+
+
+def installed_cli_read_guest(context):
+    require(os.geteuid() == 0, "GUEST_ROOT_REQUIRED")
+    require(json.loads(cli_trusted_bytes(GUEST_HOME / "context.json")) == context, "CLI_READ_TRUST")
+    verifier = cli_trusted_module("setup_bundle.py", context)
+    binding = cli_candidate_binding(context, verifier)
+    checks = cli_trusted_module("realhost_cli_checks.py", context)
+    runtime = cli_trusted_module("realhost_cli_runtime.py", context)
+    owner, environment = diagnostic_owner(context)
+    inputs = cli_context_inputs(owner)
+    daemon_identity = root_json("host-baseline.json")["daemonIdentitySha256"]
+    paths, _ = cli_storage_observation(inputs["config"], context["cliReleaseExpectations"]["previous"]["images"], owner["uid"],
+        deadline=time.monotonic() + 60, environment={**environment, "DOCKER_HOST": "unix:///var/run/docker.sock"},
+        daemon_identity=daemon_identity)
+    expected, snapshot_at = cli_fixture_context(checks, context, owner, inputs, paths)
+    expectations = runtime.RuntimeExpectations(owner["uid"], snapshot_at)
+    prepared_path = GUEST_HOME / "cli-control-context.json"
+    require(not prepared_path.exists() and not prepared_path.is_symlink(), "CLI_CONTROL_ALREADY_PREPARED")
+    write_json(prepared_path, {"format": "asa-realhost-cli-control-v1", "sourceRevision": context["sourceRevision"],
+        "operatorUid": owner["uid"], "daemonIdentitySha256": daemon_identity}, mode=0o644)
+    token = guest_environment().get("GH_TOKEN")
+    try:
+        evidence = runtime.run_cli_suite(expected, expectations, checker=checks.check_read_result,
+            control_snapshot=lambda phase, deadline: cli_control_snapshot(owner, phase, deadline),
+            tokens={"GH_TOKEN": token} if token else None, timeout=CLI_READ_SECONDS)
+    except runtime.CLIRuntimeError as error:
+        return {"status": "FAIL", "reasonCode": error.code, "cliReadBinding": binding, "cliReadEvidence": error.evidence}
+    require(len(evidence.get("cases", [])) == 29 and set(evidence.get("bare", {})) == {"pipe", "pty"}, "CLI_READ_CASE_COUNT")
+    return {"status": "PASS", "cliReadBinding": binding, "cliReadEvidence": evidence,
+            "publicProcessCases": 31, "controlScope": "INDEPENDENT_SEEDED_ROWS_AND_ONE_AUTHENTICATED_S3_OBJECT"}
 
 
 def command_diagnostic_error(error):
@@ -2075,8 +2578,13 @@ class OwnedFaultProcess:
     No poll()/waitpid() is used while the group can still be signalled. Every
     signal revalidates its PID/starttime/PGID/SID anchor and current members.
     """
-    def __init__(self, command, *, environment, file_limit=False, deadline=None):
+    def __init__(self, command, *, environment, file_limit=False, deadline=None, owner=None):
         require(native_proc_namespace(), "BLOCKED_FAULT_PROC_NAMESPACE", status="BLOCKED")
+        require(owner is None or type(owner.get("uid")) is int and owner["uid"] > 0
+                and type(owner.get("gid")) is int and owner["gid"] > 0 and owner.get("name") == "asa-setup",
+                "CLI_CONTROL_OWNER")
+        credentials = {} if owner is None else {"user": owner["uid"], "group": owner["gid"],
+            "extra_groups": os.getgrouplist(owner["name"], owner["gid"])}
         self.stdout, self.stderr = tempfile.TemporaryFile(), tempfile.TemporaryFile()
         self.closed, self.stopped, self.history = False, False, {}
         self.deadline = deadline
@@ -2084,7 +2592,7 @@ class OwnedFaultProcess:
         try:
             self.process = subprocess.Popen([str(value) for value in command], cwd="/", env=environment,
                 stdin=subprocess.DEVNULL, stdout=self.stdout, stderr=self.stderr, start_new_session=True, umask=0o077,
-                preexec_fn=file_fault_limits if file_limit else None)
+                preexec_fn=file_fault_limits if file_limit else None, **credentials)
             self.anchor = proc_identity(self.process.pid)
             require(self.anchor and self.anchor["pgid"] == self.anchor["sid"] == self.process.pid,
                     "BLOCKED_FAULT_PROCESS_IDENTITY", status="BLOCKED")
@@ -2899,7 +3407,8 @@ def guest_phase(phase, context):
             return owner_fault_observe(context)
         raise Failure("UNKNOWN_OWNER_PHASE")
     require(os.geteuid() == 0, "GUEST_ROOT_REQUIRED")
-    actions = {"bootstrap": bootstrap_guest, "install": install_guest, "update": update_guest, "backup": backup_guest,
+    actions = {"bootstrap": bootstrap_guest, "install": install_guest, "cli-read": installed_cli_read_guest,
+               "update": update_guest, "backup": backup_guest,
                "schedule": schedule_guest, "timer-probe": timer_probe, "timer-retry": timer_retry,
                "partial-fault": partial_fault_guest, "interrupt-fault": interrupt_fault_guest,
                "network-fault": network_fault_guest, "network-fault-child": network_fault_child}
@@ -2918,11 +3427,18 @@ def guest_phase(phase, context):
     raise Failure("UNKNOWN_GUEST_PHASE")
 
 
-def guest_main(phase):
+def guest_main(phase, *, control_deadline=None):
     result = {"format": "asa-realhost-guest-v1", "phase": phase, "status": "FAIL"}
     try:
-        context = guest_guard()
-        proof = guest_phase(phase, context)
+        if phase == "owner-cli-control":
+            require(type(control_deadline) in (int, float) and math.isfinite(control_deadline)
+                    and 0 < control_deadline - time.monotonic() <= CLI_CONTROL_SECONDS, "CLI_CONTROL_DEADLINE")
+            context = guest_guard(control_deadline=control_deadline)
+            proof = owner_cli_control(context, control_deadline)
+        else:
+            require(control_deadline is None, "CLI_CONTROL_DEADLINE")
+            context = guest_guard()
+            proof = guest_phase(phase, context)
         require(isinstance(proof, dict) and proof.get("status", "PASS") in ("PASS", "PENDING", "FAIL", "BLOCKED"), "GUEST_PHASE_STATUS")
         result.update(proof, status=proof.get("status", "PASS"))
         return_code = 0 if result["status"] in ("PASS", "PENDING") else 2 if result["status"] == "BLOCKED" else 1
@@ -2945,13 +3461,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--revision")
     parser.add_argument("--preflight-only", action="store_true")
-    parser.add_argument("--guest-phase", choices=("bootstrap", "install", "seed", "update", "backup", "post-reboot", "schedule",
+    parser.add_argument("--guest-phase", choices=("bootstrap", "install", "seed", "cli-read", "owner-cli-control", "update", "backup", "post-reboot", "schedule",
                         "timer-probe", "timer-retry", "final", "owner-seed", "owner-observe", "owner-final", "owner-schedule-fixture", "owner-hold-lock",
                         "owner-diagnostic-paths", "owner-diagnostic-inventory", "owner-fault-prepare", "owner-fault-remove", "owner-fault-observe",
                         "partial-fault", "interrupt-fault", "network-fault", "network-fault-child"), help=argparse.SUPPRESS)
+    parser.add_argument("--control-deadline", type=float, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.guest_phase:
-        return guest_main(args.guest_phase)
+        return guest_main(args.guest_phase, control_deadline=args.control_deadline)
     if not args.revision or not HEX40.fullmatch(args.revision):
         parser.error("--revision must be the exact checked-out source SHA")
     return HostRun(args).run()

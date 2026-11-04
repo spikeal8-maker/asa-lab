@@ -64,26 +64,30 @@ AGE. Авторизация Yandex в VM не передаётся, поэтом
    и число контрольных строк, включая `project_drafts`; отдельно хешировать
    роли и пароли PostgreSQL, ACL/RLS, настройки и storage identity. Записать и
    прочитать контрольный объект через authenticated S3.
-8. Выполнить `asa update check`, `plan`, `apply` для другого опубликованного
+8. До обновления выполнить обязательный этап `installed_cli_read_acceptance`:
+   31 отдельный public process из `/`, точная семантическая проверка JSON и
+   настоящие pipe/PTY формы bare `asa`. Сверить выбранные control files и
+   независимо измеренные контрольные данные до и после команд чтения.
+9. Выполнить `asa update check`, `plan`, `apply` для другого опубликованного
    runtime; проверить реальную смену release и сохранность контрольной группы.
    Повтор той же операции и следующий `NO_CHANGE` не должны создавать backup.
    Пара pinned runtime имеет одинаковую схему 304: миграция между различными
    версиями схемы этим результатом не доказывается.
-9. Через `asa backup create` создать полный synthetic backup, проверить его
+10. Через `asa backup create` создать полный synthetic backup, проверить его
    `asa backup verify`, повторить тот же operation ID и выполнить `asa cloud
    sync` существующего snapshot. SHA256 ciphertext и число снимков сохраняются;
    отсутствие облачной конфигурации не превращается в подтверждённую доставку.
-10. В отдельном дочернем network namespace выполнить публичный `asa update check`.
+11. В отдельном дочернем network namespace выполнить публичный `asa update check`.
     Зафиксировать разные inode namespace, отсутствие внешнего интерфейса,
     exit 2 / `RELEASE_UNAVAILABLE`, неизменность namespace родителя и данных.
     Это реальный отказ сети для release lookup; доступность Yandex этим не проверяется.
-11. Создать отдельный synthetic S3 object через authenticated API, прочитать его
+12. Создать отдельный synthetic S3 object через authenticated API, прочитать его
     обратно и сверить SHA256. Перед file-limit fault доказать, что сохранённые
     `database.dump` и `globals.sql` меньше 8 МиБ, а фактический MinIO `part.N`
     именно этого объекта больше 8 МиБ. Запустить публичный `asa backup create`
     с per-child `RLIMIT_FSIZE=8 MiB` и `RLIMIT_CORE=0`. Только реальные неполные
     bytes нужного part, достигшие лимита, считаются выполненной инъекцией.
-12. Другой публичный backup прервать SIGINT в наблюдаемом окне после dump/globals
+13. Другой публичный backup прервать SIGINT в наблюдаемом окне после dump/globals
     и создания `objects`, до manifest/final. Краткий SIGSTOP собственной группы
     фиксирует окно; затем SIGINT и обязательный SIGCONT. Дождаться всех своих
     потомков, освобождения lock и стабильных partial bytes. Для обоих fault
@@ -92,20 +96,20 @@ AGE. Авторизация Yandex в VM не передаётся, поэтом
     исходный partial и последний успешный backup. После этого отдельная новая
     операция должна создать и проверить полный AGE backup; success pointer
     должен перейти к нему. Оба incomplete snapshot сохраняются до уничтожения VM.
-13. Выполнить настоящий `systemctl reboot` гостя. Host runner и процесс QEMU
+14. Выполнить настоящий `systemctl reboot` гостя. Host runner и процесс QEMU
     продолжают работу; требуется новый `boot_id`, готовое приложение и прежние
     data/config/1Panel/Docker fingerprints. Перезапуск контейнера либо service
     не заменяет эту проверку.
-14. Выбрать ближайшее время только в тестовом private `setup.json` через штатные
+15. Выбрать ближайшее время только в тестовом private `setup.json` через штатные
     `validate_config`/`save_private`. Это подготовка fixture, а не заявление о
     публичной CLI-команде изменения произвольного времени. Затем исключительно
     через `asa backup schedule enable/disable` проверить enable → disable →
     enable, отсутствие дублирующих units и независимость от automatic update.
-15. До календарного времени проверить нулевое число попыток данного slot,
+16. До календарного времени проверить нулевое число попыток данного slot,
     выключить гостя, дождаться пропущенного времени на host и запустить **тот же
     qcow2**. Часы не переводятся, `Persistent=true` и штатные units не изменяются.
     После загрузки требуется успешный backup пропущенного slot.
-16. Проверить настоящий systemd retry после ошибки. Если первый missed запуск
+17. Проверить настоящий systemd retry после ошибки. Если первый missed запуск
     был успешен, краткий процесс проверенного оператора удерживает штатный
     общий lock; второй старт штатного service получает реальную ошибку. Lock
     освобождается, а неизменённый `RestartSec=300` выполняет третий старт
@@ -115,8 +119,107 @@ AGE. Авторизация Yandex в VM не передаётся, поэтом
     сверх лимита. Без наблюдения реальной ошибки PASS запрещён. Четвёртая
     попытка должна быть отклонена start limit либо `ExecCondition`; receipts и
     часы для этого не подменяются. В конце timer выключается публичным `asa`.
-17. Сверить контрольные данные после reboot/backup/timer и вновь выполнить
+18. Сверить контрольные данные после reboot/backup/timer и вновь выполнить
     штатные browser save/reopen journeys контрольной группы.
+
+## Обязательная проверка команд чтения установленного CLI
+
+Этап `installed_cli_read_acceptance` расположен после успешной установки
+предыдущего runtime и создания отдельной контрольной группы, до первого
+`update apply`, backup fault или изменения расписания. Ошибка этого этапа
+останавливает следующие фазы. Каждый вызов использует настоящий
+`/usr/local/bin/asa`, `cwd=/` и `--no-color`; для JSON дополнительно требуются
+единственный UTF-8 object, штатный `asa-cli-result-v1`, фактический exit code и
+отсутствие stderr. Набор содержит ровно 31 процесс:
+
+| Группа | Формы | Число |
+| --- | --- | --- |
+| Справка, JSON | `help`, `--help`, `help update`, `update --help`, `backup --help` | 5 |
+| Bare, JSON | `asa --root /srv/asa-lab --json --no-color` | 1 |
+| Состояние | `version`, `status`, `doctor`, `services`, `services status` | 5 |
+| Диски | `disk`, `disk usage`, `disk health` | 3 |
+| Обновление без применения | `update`, `update check`, `update plan`, `update history` | 4 |
+| Резервные копии | `backup status`, `backup list`, `backup verify`, `backup schedule` | 4 |
+| Cloud и конфигурация | `cloud status`, `config show` | 2 |
+| История | `history`, `logs`, `logs update`, `logs backup` | 4 |
+| План восстановления | `restore plan` для существующего локального snapshot | 1 |
+| Bare, human | Закрытый stdin без TTY; настоящий PTY с Enter после приглашения | 2 |
+
+Обе human формы проверяют компактную сводку, фактические release/schema и
+последний локальный backup. Pipe не ждёт ввода; PTY должен показать меню,
+принять Enter и завершиться в пределах timeout. Проверка не заменяется
+подстановкой `isatty()`.
+
+Перед первым вызовом этой фазы все файлы candidate bundle сверяются с
+первоначальным SHA256-проверенным архивом, включая отсутствие лишних модулей.
+Root-owned registration должна указывать единственную fixture installation
+и точный `/opt/asa-setup/<sourceRevision>`, а защищённый wrapper — запускать
+именно этот bundle с `/usr/bin/python3 -I -B`. Каталоги проверяются через
+`openat`/`O_NOFOLLOW`; у файлов не допускаются symlink, дополнительные hard
+links или запись другим пользователем. `realhost_cli_checks.py`,
+`realhost_cli_runtime.py` и verifier `setup_bundle.py` доставляются отдельно
+как root-owned 0644. Их hashes сверяются с точными Git bytes и архивом;
+импорт исполняет уже проверенные bytes под явным именем в `sys.modules`,
+включая корректную работу dataclasses при `-I`.
+
+Ожидания не выводятся из проверяемых CLI ответов. Host заранее разрешает два
+immutable deployment digest через Registry HTTP resolver, проверяет OCI
+digests, CI, publication run, revision/schema и пять service image refs.
+В госте installation ID, operation ID и snapshot ID дополнительно связываются
+с приватными config, journal, последней успешной квитанцией, backup receipt и
+pointers. Пути Docker/PostgreSQL/MinIO получаются отдельным наблюдением
+закреплённого локального daemon, project/service/working directory, Compose
+files и image references. `asa update` и `update check/plan` наблюдают `stable`
+без подстановки ожидаемого digest в argv: сдвиг mutable tag относительно
+утверждённого target даёт FAIL с несовпадением pin, а не новый ожидаемый target.
+
+Проверяющий модуль сопоставляет точные status, exit, reason и required fields;
+общего разрешения `0/1/2` для этих результатов нет. Недоступный physical SMART
+сохраняется как `UNAVAILABLE`; отключённый cloud и его transport/remote также
+остаются `UNAVAILABLE`. Это допустимые границы fixture, а не подтверждение
+здоровья диска или доставки в облако. Вложенные ограничения `doctor` сохраняются.
+`restore plan` ожидаемо возвращает exit 2 / `BLOCKED_PLAN` /
+`P1_R3A_REQUIRED`, `applyAllowed=false`. Общая потребность в месте и downtime
+не выдаются за измеренные значения, когда CLI сообщает unknown; отдельная
+backup-space оценка проверяется вместе с её измеренными полями и reason.
+`configFormat` описывает исходный setup format внутри CLI envelope; вывод
+`config show` остаётся sanitized projection.
+
+Порядок проверки неизменности: DB/S3 callback → filesystem fingerprint →
+31 CLI process → повторный fingerprint → повторный callback. Подготовка
+fixture и root-owned metadata для callback завершаются до первого fingerprint;
+backup write freeze в этой фазе отсутствует. Fingerprint охватывает только
+`.env`, `.asa/setup.json`, `installation.json`, optional
+`runtime-configuration.json`, `installed-release.json`, setup journals,
+last-attempt/last-successful, backup receipts/pointers/bindings и системный
+`/etc/asa-lab/commands.json`. Для каждого файла проверяются protected ancestry,
+владелец, mode, единственная link, device/inode, размер, mtime/ctime и content
+hash; atime исключён. Наружу выходят counts, combined hashes и `UNCHANGED` либо
+закрытая причина ошибки. Live PostgreSQL/MinIO files и raw logs не хэшируются;
+это не доказательство неизменности всей файловой системы.
+
+Callback работает от проверенного non-root оператора и возвращает ровно
+`databaseSha256`, `databaseRows`, `objectsSha256`, `objectCount`, `objectBytes`.
+Один PostgreSQL `SELECT` с `default_transaction_read_only=on` и
+`statement_timeout` читает закреплённую группу пяти таблиц и её drafts.
+Authenticated S3 read читает один ранее созданный объект и сверяет фактические
+bytes. Для этого запускается временный Compose client с уникальными name и
+nonce label; запись его локальной client config и создание Docker container
+происходят вне filesystem window. Application data callback не меняет.
+Контейнер удаляется только после проверки точных ID/name/nonce/project/root и
+image; чужая identity останавливает cleanup. Поэтому этот этап не называется
+write-free Docker probe.
+
+Оба callback используют собственный общий deadline не более 60 секунд,
+передают остаток бюджета дочерним командам и резервируют время на очистку
+принадлежащих им процессов. Coordinator имеет 900 секунд; внешний guest
+process — 1200 секунд внутри прежнего общего host deadline. Ошибка сохраняет
+первую причину, завершённые closed projections и доступные результаты
+сравнения. `cliReadEvidence.examples` содержит реальные sanitized примеры
+help/help-update/status/disk/update-check; `observations` отдельно сохраняет
+ограничения doctor/cloud/restore и остальных команд. Raw stdout/stderr,
+messages, env, SQL rows, пароли, произвольные dict и log strings в artifact
+не копируются. До exact-SHA VM run это source-checked сценарий, не runtime PASS.
 
 ## Ограничения ресурсов и времени
 
@@ -131,6 +234,8 @@ AGE. Авторизация Yandex в VM не передаётся, поэтом
 | SSH | Только `127.0.0.1:2222`; 1Panel и ASA не публикуются через host forwarding |
 | TCG | Boot/bootstrap не более 20 минут; при превышении `BLOCKED_TCG_BUDGET` |
 | Job | 180 минут; orchestrator ограничен 175 минутами для сохранения evidence |
+| Установленный CLI read suite | 900 секунд; внешний guest process 1200 секунд |
+| Каждый DB/S3 callback | Не более 60 секунд вместе с остаточными timeout и собственной очисткой |
 | Общий fault budget | Не более 75 минут внутри прежних 175 минут; общий deadline не продлевается |
 | Каждый backup fault | 1800 секунд, плюс до 30 секунд на host transport/cleanup |
 | Окно interruption / краткий SIGSTOP | До 180 секунд ожидания; остановленная группа не более 3 секунд |
