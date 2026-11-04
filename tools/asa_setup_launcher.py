@@ -1075,46 +1075,15 @@ def operator_environment(owner, daemon_id=None):
     return result
 
 
-def _save_interrupted_receipt(root, owner, observed, replacement):
-    """Replace only the same owner-verified attempt, under its canonical lock.
-
-    A previous success without a new child receipt cannot identify this attempt
-    and never enters this path. The successful receipt and application journal
-    remain separate evidence; no application action is replayed here.
-    """
-    validate_owner(root, operator_uid=owner["uid"])
-    lock = checked_path(root / ".asa/operation.lock", missing=False)
-    before = lock.stat()
-    descriptor = os.open(lock, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK)
-    try:
-        info = os.fstat(descriptor)
-        _require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == owner["uid"]
-                 and not info.st_mode & 0o022 and (info.st_dev, info.st_ino) == (before.st_dev, before.st_ino),
-                 "INTERRUPTED_RECEIPT_LOCK", "Lock операции изменился после прерывания.", "Выполните status; чужая операция не изменяется.")
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        config_path = checked_path(root / ".asa/setup.json", missing=False)
-        config = read_private_json(config_path, required=True)
-        path = checked_path(root / ".asa/setup-last-attempt.json", missing=False)
-        current = read_private_json(path, required=True)
-        _require(config.get("format") == "asa-setup-config-v1" and config.get("root") == str(root)
-                 and config.get("operatorUid") == owner["uid"] and config_path.stat().st_uid == owner["uid"]
-                 and path.stat().st_uid == owner["uid"] and current == observed
-                 and current.get("format") == "asa-setup-result-v1"
-                 and current.get("installationId") == config.get("installationId")
-                 and all(isinstance(current.get(key), str) and re.fullmatch(r"[a-f0-9]{32}", current[key])
-                         for key in ("operationId", "installationId")),
-                 "INTERRUPTED_RECEIPT_CHANGED", "Receipt или идентичность операции изменились после прерывания.",
-                 "Выполните status; более новый результат не заменяется.")
-        _write_owner_json(path, replacement, owner)
-    finally:
-        os.close(descriptor)
-
-
-def emit_blocked(error, *, as_json=False, operation_id=None, installation_id=None, observed=None, root=None, owner=None):
+def emit_blocked(error, *, as_json=False, operation_id=None, installation_id=None):
     """Emit one supervisor result, including SIGINT's independent exit contract."""
     names = ["Зависимости и владелец", "Версия приложения", "PostgreSQL и файлы", "Резервирование", "Сайт и пользовательский путь", "Диагностика"]
     keys = ("dependencies", "version", "data", "backup", "site", "diagnostics")
     interrupted = error.code == "INTERRUPTED"
+    if interrupted:
+        # The shared last-attempt file is not bound to this child invocation.
+        # Another permitted operation can replace it after the child exits.
+        operation_id = installation_id = None
     code = 130 if interrupted else 2
     first_status = "INTERRUPTED" if interrupted else "BLOCKED"
     checks = [{"name": name, "status": first_status if index == 0 else "NOT_RUN", "required": index < 5}
@@ -1126,19 +1095,8 @@ def emit_blocked(error, *, as_json=False, operation_id=None, installation_id=Non
               "checks": checks, "error": {"code": error.code, "message": str(error), "action": error.action},
               "reasonCode": error.code, "nextAction": error.action, "postActions": [],
               **{key: {"status": first_status if index == 0 else "NOT_RUN"} for index, key in enumerate(keys)}}
-    if interrupted and observed and root is not None and owner is not None:
-        # Earlier verified acceptance/protection facts survive, while the
-        # supervisor's overall result can never remain ACCEPTED after SIGINT.
-        result = {**result, **observed, "outcome": "INTERRUPTED", "exitCode": 130, "accepted": False,
-                  "executionCompleted": False, "observedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
-                  "reasonCode": error.code, "error": result["error"], "nextAction": error.action,
-                  "interruptionReceipt": {"status": "RECORDED"}}
-        result["checks"] = [{"name": name, "status": result.get(key, {}).get("status", "NOT_RUN"), "required": index < 5}
-                            for index, (name, key) in enumerate(zip(names, keys))]
-        try:
-            _save_interrupted_receipt(root, owner, observed, result)
-        except (SetupBlocked, OSError, ValueError, TypeError) as exc:
-            result["interruptionReceipt"] = {"status": "UNCONFIRMED", "reasonCode": getattr(exc, "code", "INTERRUPTED_RECEIPT_UNAVAILABLE")}
+    if interrupted:
+        result["interruptionReceipt"] = {"status": "NOT_ATTRIBUTED", "reasonCode": "CHILD_RESULT_UNBOUND"}
     if as_json:
         print(json.dumps(result, ensure_ascii=False))
     else:
@@ -1163,8 +1121,8 @@ def emit_blocked(error, *, as_json=False, operation_id=None, installation_id=Non
             print(f"{index}. {row_mark} {name}: {descriptions.get(state, state)}")
         if result.get("operationId"):
             print("Операция: " + result["operationId"])
-        if result.get("interruptionReceipt", {}).get("status") == "UNCONFIRMED":
-            print("Сохранение результата прерывания не подтверждено; выполните status.")
+        if interrupted:
+            print("Квитанция этого запуска не подтверждена; сохранённые результаты проверяйте через status.")
         print(f"{error.code}: {error}\nСледующее действие: {error.action}")
     return code
 
@@ -1193,7 +1151,6 @@ def main(argv=None):
               "Привилегированный вход используется из пакета с проверенной GitHub attestation.")
         return 0
     active_result = {}
-    root = owner = None
     lock_descriptor = None
     try:
         _require(os.name == "posix" and pwd is not None, "PLATFORM", "Этот вход поддерживает Linux Ubuntu 24.04 amd64.",
@@ -1395,11 +1352,13 @@ def main(argv=None):
         last_path = checked_path(root / ".asa/setup-last-attempt.json")
         previous_digest = hashlib.sha256(last_path.read_bytes()).hexdigest() if last_path.is_file() else None
         completed = _owner_call(owner, [*entry, *forwarded, "--defer-report"], environment)
+        if completed.returncode in (-2, 130):
+            # A changed shared receipt does not prove which invocation wrote
+            # it. Report SIGINT before reading, attributing or replacing it.
+            return emit_blocked(SetupBlocked("INTERRUPTED", "Операция прервана; квитанция этого запуска не подтверждена.",
+                                "Выполните status и продолжите выбранную операцию по её ID."), as_json=parsed.json)
         # Losing a child before it writes a new result never reuses old success.
         if not last_path.is_file() or hashlib.sha256(last_path.read_bytes()).hexdigest() == previous_digest:
-            if completed.returncode == 130 or completed.returncode == -2:
-                error = SetupBlocked("INTERRUPTED", "Операция прервана; результат требует проверки.", "Запустите status и продолжите известный operation ID.")
-                return emit_blocked(error, as_json=parsed.json)
             if completed.returncode in (1, 2):
                 # An early validation failure is already rendered by the CLI;
                 # it cannot authorize a root post-action or reuse old success.
@@ -1412,10 +1371,6 @@ def main(argv=None):
         if all(isinstance(result.get(name), str) and re.fullmatch(r"[a-f0-9]{32}", result[name])
                for name in ("operationId", "installationId")):
             active_result = result
-        if completed.returncode in (-2, 130):
-            return emit_blocked(SetupBlocked("INTERRUPTED", "Операция прервана после сохранения результата.",
-                                "Выполните status и продолжите известный operation ID."), as_json=parsed.json,
-                                observed=active_result, root=root, owner=owner)
         preparations = 0
         while result.get("outcome") == "PREPARATION_REQUIRED":
             _require(preparations < 3, "PREPARATION_LIMIT", "Системная подготовка не устранила причину после трёх проверок.",
@@ -1430,10 +1385,9 @@ def main(argv=None):
             if parsed.json:
                 resume.append("--json")
             completed = _owner_call(owner, resume, environment)
-            if completed.returncode in (-2, 130) and (not last_path.is_file() or hashlib.sha256(last_path.read_bytes()).hexdigest() == previous_result):
+            if completed.returncode in (-2, 130):
                 return emit_blocked(SetupBlocked("INTERRUPTED", "Продолжение операции прервано.",
-                                    "Выполните status и продолжите известный operation ID."), as_json=parsed.json,
-                                    observed=active_result, root=root, owner=owner)
+                                    "Выполните status и продолжите выбранную операцию по её ID."), as_json=parsed.json)
             _require(last_path.is_file() and hashlib.sha256(last_path.read_bytes()).hexdigest() != previous_result,
                      "PREPARATION_RESUME", "Продолжение операции не сохранило новый проверяемый результат.",
                      "Выполните status; сохранённый operation ID нельзя заменять новой операцией.")
@@ -1442,10 +1396,6 @@ def main(argv=None):
                      and result.get("installationId") == installation_id, "PREPARATION_IDENTITY",
                      "Продолжение не принадлежит прежней операции и установке.", "Выполните status; привилегированные действия остановлены.")
             active_result = result
-            if completed.returncode in (-2, 130):
-                return emit_blocked(SetupBlocked("INTERRUPTED", "Продолжение операции прервано после сохранения результата.",
-                                    "Выполните status и продолжите известный operation ID."), as_json=parsed.json,
-                                    observed=active_result, root=root, owner=owner)
         post_actions = result.get("postActions", [])
         _require(isinstance(post_actions, list) and len(post_actions) <= 1
                  and all(isinstance(item, dict) and set(item) == {"kind"} and item["kind"] == "schedule" for item in post_actions),
@@ -1475,9 +1425,7 @@ def main(argv=None):
                             installation_id=active_result.get("installationId"))
     except KeyboardInterrupt:
         return emit_blocked(SetupBlocked("INTERRUPTED", "Операция прервана; сохранённые данные требуют проверки.",
-                                  "Выполните status и продолжите известный operation ID."), as_json=parsed.json,
-                     operation_id=active_result.get("operationId"), installation_id=active_result.get("installationId"),
-                     observed=active_result, root=root, owner=owner)
+                                  "Выполните status и продолжите выбранную операцию по её ID."), as_json=parsed.json)
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
         return emit_blocked(SetupBlocked("BOOTSTRAP_ERROR", "Подготовка входа не завершилась; чувствительные сведения скрыты.",
                                          "Повторите --check и проверьте приватную конфигурацию и доступ оператора."), as_json=parsed.json)

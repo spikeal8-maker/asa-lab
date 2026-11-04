@@ -42,8 +42,7 @@ DRIVER = textwrap.dedent(r'''
         return {}
     launcher.verify_bundle = verify_bundle
 
-    # Model the verified operator's ownership without chown/setuid, including
-    # the descriptors used by the real atomic receipt writer and operation lock.
+    # Model the verified operator's ownership without chown/setuid.
     original_stat, original_fstat = Path.stat, os.fstat
     def owner_info(info):
         fields = list(info)
@@ -89,8 +88,19 @@ DRIVER = textwrap.dedent(r'''
         options = {'text': True, 'check': False, 'timeout': 15}
         if kwargs.get('capture'):
             options.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        return subprocess.run([sys.executable, '-I', '-B', '-c', CHILD, str(root), child_scenario,
-                               str(Path(source).parent)], **options)
+        completed = subprocess.run([sys.executable, '-I', '-B', '-c', CHILD, str(root), child_scenario,
+                                   str(Path(source).parent)], **options)
+        if '-race-' in scenario and '--defer-report' in arguments:
+            # A different permitted operation finishes after the child drops
+            # its lock, before the supervisor examines the shared last-attempt.
+            foreign = json.loads((root / 'new-result.json').read_text())
+            foreign.update(operationId='d' * 32, observedAt='newer-concurrent-operation')
+            content = (json.dumps(foreign, indent=2) + '\n').encode('utf-8')
+            path = root / '.asa/setup-last-attempt.json'
+            path.write_bytes(content)
+            path.chmod(0o600)
+            (root / 'concurrent-result.json').write_bytes(content)
+        return completed
     launcher._owner_call = owner_call
     arguments = ['auto', '--root', str(root), '--non-interactive']
     if output_mode == 'json':
@@ -134,6 +144,9 @@ class LauncherInterruptionProcessTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 130, (completed.stdout, completed.stderr))
         self.assertEqual(json.loads((state / "setup-last-successful.json").read_text()), previous)
         stored = json.loads((state / "setup-last-attempt.json").read_text())
+        raced = "-race-" in scenario
+        if raced:
+            self.assertEqual((state / "setup-last-attempt.json").read_bytes(), (root / "concurrent-result.json").read_bytes())
         if output_mode == "json":
             report = json.loads(completed.stdout)
             self.assertEqual(report["outcome"], "INTERRUPTED")
@@ -141,26 +154,29 @@ class LauncherInterruptionProcessTests(unittest.TestCase):
             self.assertEqual(report["reasonCode"], "INTERRUPTED")
             self.assertFalse(report["executionCompleted"])
             self.assertFalse(report["accepted"])
-            if scenario.startswith("receipt-"):
-                self.assertEqual(stored, report)
-                self.assertEqual(report["operationId"], "a" * 32)
-                self.assertTrue(report["applicationAccepted"])
-                self.assertTrue(report["dataProtectionConfirmed"])
-            else:
-                self.assertIsNone(report["operationId"])
+            self.assertIsNone(report["operationId"])
+            self.assertIsNone(report["installationId"])
+            self.assertFalse(report["applicationAccepted"])
+            self.assertFalse(report["dataProtectionConfirmed"])
+            self.assertEqual(report["interruptionReceipt"]["status"], "NOT_ATTRIBUTED")
+            self.assertIn("status", report["nextAction"])
         else:
             self.assertIn("ПРЕРВАН", completed.stdout)
             self.assertIn("код 130", completed.stdout)
             self.assertNotIn("ГОТОВО К РАБОТЕ", completed.stdout)
             self.assertNotIn("\033[", completed.stdout)
+            self.assertNotIn("a" * 32, completed.stdout)
+            self.assertNotIn("d" * 32, completed.stdout)
+            self.assertNotIn("[OK]", completed.stdout)
+            self.assertIn("Квитанция этого запуска не подтверждена", completed.stdout)
         if scenario.startswith("receipt-"):
-            self.assertEqual(stored["outcome"], "INTERRUPTED")
-            self.assertEqual(stored["exitCode"], 130)
-        else:
+            self.assertEqual((state / "setup-last-attempt.json").read_bytes(), (root / "new-result.json").read_bytes())
+        elif not raced:
             self.assertEqual(stored, previous)
         calls_path = root / "calls.jsonl"
         calls = [json.loads(line) for line in calls_path.read_text().splitlines()] if calls_path.exists() else []
         self.assertFalse(any("--root-action" in arguments for arguments in calls))
+        self.assertFalse(any("--render-last" in arguments for arguments in calls))
 
     def test_actual_keyboard_interrupt_reports_130_in_json_and_text(self):
         for output_mode in ("json", "text"):
@@ -173,8 +189,14 @@ class LauncherInterruptionProcessTests(unittest.TestCase):
                 with self.subTest(scenario=scenario, output=output_mode):
                     self.run_scenario(scenario, output_mode)
 
-    def test_actual_child_interrupt_after_receipt_replaces_overall_success(self):
+    def test_actual_child_interrupt_does_not_claim_unbound_receipt(self):
         for scenario in ("receipt-exit130", "receipt-sigint"):
+            for output_mode in ("json", "text"):
+                with self.subTest(scenario=scenario, output=output_mode):
+                    self.run_scenario(scenario, output_mode)
+
+    def test_concurrent_success_after_interrupted_child_is_not_claimed_or_rewritten(self):
+        for scenario in ("no-receipt-race-exit130", "no-receipt-race-sigint"):
             for output_mode in ("json", "text"):
                 with self.subTest(scenario=scenario, output=output_mode):
                     self.run_scenario(scenario, output_mode)
