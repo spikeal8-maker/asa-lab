@@ -1,5 +1,6 @@
 import { ordinaryLedVisualState } from './component-result-presentation';
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -116,7 +117,10 @@ import {
   type VertexDrag,
 } from './workbench-model';
 import { calculateLiveSimulation, calculateSimulationPreflight } from './live-simulation';
-import type { ElectronicsLiveSimulationWorkerController } from './live-simulation-worker-controller';
+import type {
+  ElectronicsLiveSimulationWorkerController,
+  LiveSimulationInputBudget,
+} from './live-simulation-worker-controller';
 import { loadSimulationWorkerController } from './load-simulation-worker-controller';
 import {
   circuitStateMessage,
@@ -274,8 +278,60 @@ function writeLocalElectronicsViewport(projectId: string, viewport: Viewport): v
   }
 }
 
+export type ElectronicsWorkbenchProjectHost = Pick<
+  ReturnType<typeof useWorkbenchProjectState>,
+  | 'project'
+  | 'document'
+  | 'serverRevision'
+  | 'getCurrentDocument'
+  | 'result'
+  | 'versions'
+  | 'status'
+  | 'saveStatus'
+  | 'saveError'
+  | 'saveIssue'
+  | 'localCopySaved'
+  | 'exportEmergencyCopy'
+  | 'saveBeforeLeave'
+  | 'notice'
+  | 'setNotice'
+  | 'simulationRunning'
+  | 'simulationStatus'
+  | 'confirmSimulationStarted'
+  | 'busy'
+  | 'projectTitle'
+  | 'setProjectTitle'
+  | 'canUndo'
+  | 'canRedo'
+  | 'undo'
+  | 'redo'
+  | 'commitDocument'
+  | 'saveNow'
+  | 'toggleSimulation'
+  | 'resetSimulation'
+  | 'checkpoint'
+  | 'renameProject'
+>;
+
+export interface ElectronicsWorkbenchHostOptions {
+  readonly runtimeInputEventLimit?: number;
+  /** A local host has no diagnostics backend; ordinary editors keep reporting. */
+  readonly reportSimulationDiagnostics?: boolean;
+}
+
 export function useElectronicsWorkbench(projectId: string, userId: string, seatLearner = false) {
   const projectState = useWorkbenchProjectState(projectId, userId, seatLearner);
+  return useElectronicsWorkbenchHost(projectId, projectState);
+}
+
+/** The editor/controller is shared; each host owns only its document and persistence. */
+export function useElectronicsWorkbenchHost(
+  projectId: string,
+  projectState: ElectronicsWorkbenchProjectHost,
+  options: ElectronicsWorkbenchHostOptions = {},
+) {
+  const runtimeInputEventLimit = options.runtimeInputEventLimit;
+  const reportSimulationDiagnostics = options.reportSimulationDiagnostics !== false;
   const {
     project,
     document,
@@ -348,6 +404,10 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   const documentMutationEpoch = (): number => documentMutationEpochRef.current;
 
   const [runtimeOverrides, setRuntimeOverrides] = useState<RuntimeComponentOverrides>({});
+  const [runtimeInputBudget, setRuntimeInputBudget] = useState<LiveSimulationInputBudget | null>(
+    null,
+  );
+  const runtimeInputBudgetRef = useRef<LiveSimulationInputBudget | null>(null);
   const annotationRuntimeSelector = useRef<ReturnType<
     typeof createAnnotationRuntimeDocumentSelector
   > | null>(null);
@@ -363,26 +423,29 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     if (!simulationRunning) setRuntimeOverrides({});
   }, [simulationRunning]);
 
-  function setRuntimeComponentOverride(componentId: string, patch: RuntimeComponentOverride): void {
-    setRuntimeOverrides((current) => {
-      const previous = current[componentId];
-      return {
-        ...current,
-        [componentId]: {
-          ...previous,
-          ...patch,
-          ...(patch.stateProperties
-            ? {
-                stateProperties: {
-                  ...previous?.stateProperties,
-                  ...patch.stateProperties,
-                },
-              }
-            : {}),
-        },
-      };
-    });
-  }
+  const setRuntimeComponentOverride = useCallback(
+    (componentId: string, patch: RuntimeComponentOverride): void => {
+      setRuntimeOverrides((current) => {
+        const previous = current[componentId];
+        return {
+          ...current,
+          [componentId]: {
+            ...previous,
+            ...patch,
+            ...(patch.stateProperties
+              ? {
+                  stateProperties: {
+                    ...previous?.stateProperties,
+                    ...patch.stateProperties,
+                  },
+                }
+              : {}),
+          },
+        };
+      });
+    },
+    [],
+  );
 
   const simulationStartedAtRef = useRef<number | null>(null);
   const simulationHostOffsetMicrosecondsRef = useRef(0);
@@ -464,6 +527,38 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   >(null);
   const runtimeDocumentRef = useRef(runtimeDocument);
   const resetSimulationRef = useRef(resetSimulation);
+  const setRuntimeSensorDistance = useCallback(
+    (componentId: string, distanceMeters: number): boolean => {
+      const session = committedHostSessionRef.current;
+      if (
+        !simulationRunning ||
+        !session?.active ||
+        session.projectId !== projectId ||
+        runtimeInputBudgetRef.current?.exhausted ||
+        !Number.isFinite(distanceMeters) ||
+        distanceMeters < 0.02 ||
+        distanceMeters > 4
+      )
+        return false;
+      const component = runtimeDocumentRef.current?.components.find(
+        (item) => item.id === componentId,
+      );
+      const entry = component ? catalogEntry(component) : null;
+      if (
+        !component ||
+        !entry?.enabled ||
+        !entry.simulationSupported ||
+        (component.componentTypeId !== 'ultrasonic-hc-sr04' &&
+          component.componentTypeId !== 'ultrasonic-sensor') ||
+        entry.key !== component.componentTypeId
+      )
+        return false;
+      if (component.stateProperties?.distanceMeters === distanceMeters) return true;
+      setRuntimeComponentOverride(componentId, { stateProperties: { distanceMeters } });
+      return true;
+    },
+    [projectId, setRuntimeComponentOverride, simulationRunning],
+  );
   const nativePreparationSourceIdentity = useMemo(
     () =>
       JSON.stringify(
@@ -978,11 +1073,12 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       if (!currentSession()) return;
       active = false;
       pendingCommands.length = 0;
-      reportClientDiagnostic('simulation_failed', 'electronics', {
-        phase: 'simulation',
-        category: failure.category,
-        failureCode: failure.code,
-      });
+      if (reportSimulationDiagnostics)
+        reportClientDiagnostic('simulation_failed', 'electronics', {
+          phase: 'simulation',
+          category: failure.category,
+          failureCode: failure.code,
+        });
       setGenerationPending(false);
       resetHostClock();
       resetSimulationRef.current();
@@ -996,7 +1092,19 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       if (!currentSession()) return;
       controller = worker;
       simulationWorkerRef.current = worker;
+      runtimeInputBudgetRef.current = null;
+      setRuntimeInputBudget(null);
       worker.start(projectId, initialDocument, {
+        ...(runtimeInputEventLimit === undefined
+          ? {}
+          : {
+              inputEventLimit: runtimeInputEventLimit,
+              onInputBudget: (budget: LiveSimulationInputBudget) => {
+                if (!currentSession()) return;
+                runtimeInputBudgetRef.current = budget;
+                setRuntimeInputBudget(budget);
+              },
+            }),
         readHostHorizonMicroseconds: () => {
           return currentSession() && session?.active ? readHostHorizonMicroseconds() : null;
         },
@@ -1145,7 +1253,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       if (settleSimulationPauseRef.current === settlePause) settleSimulationPauseRef.current = null;
       controller?.stop();
     };
-  }, [confirmSimulationStarted, projectId, setNotice, simulationRunning]);
+  }, [
+    confirmSimulationStarted,
+    projectId,
+    reportSimulationDiagnostics,
+    runtimeInputEventLimit,
+    setNotice,
+    simulationRunning,
+  ]);
 
   useEffect(() => {
     if (!runtimeDocument || !simulationRunning) return;
@@ -3630,6 +3745,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     activeWireColor,
     orthogonalWireMode,
     simulationRunning,
+    runtimeInputBudget,
+    setRuntimeSensorDistance,
     arduinoSerialByBoard,
     sendArduinoSerialRx,
     get simulationTimeMs() {
