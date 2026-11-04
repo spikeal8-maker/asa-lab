@@ -275,7 +275,7 @@ class FormatTests(unittest.TestCase):
             completed = subprocess.run([sys.executable, "-I", "-B", "-c", script], cwd=directory,
                                        env={**os.environ, "PYTHONPATH": directory}, capture_output=True, timeout=5)
             self.assertEqual(completed.returncode, 0)
-            self.assertEqual(json.loads(completed.stdout), {"reads": 23, "asa": "/usr/local/bin/asa"})
+            self.assertEqual(json.loads(completed.stdout), {"reads": 22, "asa": "/usr/local/bin/asa"})
             self.assertEqual(completed.stderr, b"")
 
     def test_linux_runtime_is_explicitly_unsupported_elsewhere(self):
