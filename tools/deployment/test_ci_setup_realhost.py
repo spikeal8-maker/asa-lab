@@ -263,6 +263,53 @@ class CLIReadWiringTests(unittest.TestCase):
             harness.cli_control_snapshot(self.owner, "before", time.monotonic() + 10)
         created.assert_not_called()
 
+    @unittest.skipUnless(os.name == "posix", "Initial Docker observations use Linux guest paths and credentials")
+    def test_initial_info_and_inspect_drop_root_before_operator_plugin_discovery(self):
+        class InspectionReached(Exception):
+            pass
+        calls, groups = [], [self.owner["gid"], 987]
+        daemon = "fixture-daemon"
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / "operator-home"
+            plugin = home / ".docker/cli-plugins/docker-probe"
+            plugin.parent.mkdir(parents=True)
+            plugin.write_text("#!/bin/sh\nexit 97\n")
+            plugin.chmod(0o700)  # An adversarial HOME fixture; it is never executed.
+            owner = {**self.owner, "home": str(home)}
+            environment = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "HOME": str(home), "USER": owner["name"]}
+            def popen(command, **options):
+                self.assertEqual(command[0], "docker")
+                calls.append((command, options))
+                if command[1] == "inspect":
+                    raise InspectionReached()
+                self.assertIn(command[1], ("info", "ps"))
+                raw = json.dumps({"id": daemon, "root": "/var/lib/docker"}).encode() if command[1] == "info" else b"a" * 64 + b"\n"
+                options["stdout"].write(raw)
+                return SimpleNamespace(returncode=0, poll=lambda: 0)
+            with patch.object(harness.os, "geteuid", return_value=0), \
+                    patch.object(harness.os, "getgrouplist", return_value=groups), \
+                    patch.object(harness, "cli_trusted_bytes", return_value=json.dumps(self.context).encode()), \
+                    patch.object(harness, "cli_trusted_module", return_value=object()), \
+                    patch.object(harness, "cli_candidate_binding", return_value={"status": "VERIFIED"}), \
+                    patch.object(harness, "diagnostic_owner", return_value=(owner, environment)), \
+                    patch.object(harness, "cli_context_inputs", return_value=self.inputs), \
+                    patch.object(harness, "root_json", return_value={"daemonIdentitySha256": hashlib.sha256(daemon.encode()).hexdigest()}), \
+                    patch.object(harness, "switch_expected_files", return_value=["/srv/asa-lab/compose.yaml", "/srv/asa-lab/compose.production.yaml"]), \
+                    patch.object(harness.subprocess, "Popen", side_effect=popen), \
+                    self.assertRaises(InspectionReached):
+                harness.installed_cli_read_guest(self.context)
+            self.assertTrue(plugin.is_file())
+            self.assertEqual([command[1] for command, _ in calls], ["info", "ps", "inspect"])
+            for command, options in calls:
+                with self.subTest(verb=command[1]):
+                    self.assertEqual(options["env"]["HOME"], str(home))
+                    self.assertNotIn("DOCKER_CONFIG", options["env"])
+                    self.assertEqual((options.get("user"), options.get("group"), options.get("extra_groups")),
+                                     (owner["uid"], owner["gid"], groups))
+                    self.assertEqual(options["cwd"], "/")
+                    self.assertEqual(options["env"]["DOCKER_HOST"], "unix:///var/run/docker.sock")
+                    self.assertNotIn("start_new_session", options)
+
     def test_owned_callback_uses_native_credentials_without_changing_default_spawn(self):
         process = Mock(pid=12001)
         anchor = {"pid": process.pid, "pgid": process.pid, "sid": process.pid, "startTime": 123}
@@ -563,6 +610,46 @@ class CLIReadControlTests(unittest.TestCase):
         self.assertEqual(statement.count(";"), 1)
         self.assertNotIn("PRIVATE_TOKEN_SENTINEL", statement + json.dumps(command) + json.dumps(result))
 
+    def test_storage_probe_requires_operator_uid_or_matching_explicit_owner_before_spawn(self):
+        images = self.context["cliReleaseExpectations"]["previous"]["images"]
+        for uid, owner in ((self.owner["uid"], None), (self.owner["uid"], {**self.owner, "uid": 1002}),
+                           (self.owner["uid"], {**self.owner, "uid": True}), (True, self.owner), (0, self.owner)):
+            with self.subTest(uid=uid, owner_uid=None if owner is None else owner["uid"]), \
+                    patch.object(harness.os, "geteuid", return_value=0, create=True), \
+                    patch.object(harness.subprocess, "Popen") as spawned, \
+                    self.assertRaisesRegex(harness.Failure, "CLI_CONTROL_OWNER"):
+                harness.cli_storage_observation(self.inputs["config"], images, uid, owner=owner,
+                    deadline=time.monotonic() + 8, environment={"HOME": self.owner["home"]}, daemon_identity="f" * 64)
+            spawned.assert_not_called()
+
+    def test_control_command_rejects_invalid_drop_credentials_before_spawn(self):
+        owners = ({**self.owner, "uid": 0}, {**self.owner, "uid": True}, {**self.owner, "gid": 0},
+                  {**self.owner, "gid": True}, {**self.owner, "name": "root"}, {})
+        for owner in owners:
+            with self.subTest(owner=owner), patch.object(harness.subprocess, "Popen") as spawned, \
+                    patch.object(harness.os, "getgrouplist", create=True) as groups, \
+                    self.assertRaisesRegex(harness.Failure, "CLI_CONTROL_OWNER"):
+                harness.cli_control_command(["docker", "info"], deadline=time.monotonic() + 8,
+                    environment={"HOME": self.owner["home"]}, owner=owner)
+            spawned.assert_not_called()
+            groups.assert_not_called()
+
+    def test_credential_drop_failure_is_preserved_without_root_retry_and_deadline_prevents_spawn(self):
+        original = PermissionError("PRIVATE_TOKEN_SENTINEL")
+        with patch.object(harness.os, "getgrouplist", return_value=[1001, 987], create=True), \
+                patch.object(harness.subprocess, "Popen", side_effect=original) as spawned:
+            with self.assertRaises(PermissionError) as caught:
+                harness.cli_control_command(["docker", "info"], deadline=time.monotonic() + 8,
+                    environment={"HOME": self.owner["home"]}, owner=self.owner)
+            self.assertIs(caught.exception, original)
+            spawned.assert_called_once()
+            self.assertEqual(spawned.call_args.kwargs["user"], self.owner["uid"])
+            spawned.reset_mock()
+            with self.assertRaisesRegex(harness.Failure, "CLI_CONTROL_TIMEOUT"):
+                harness.cli_control_command(["docker", "info"], deadline=time.monotonic() - 1,
+                    environment={"HOME": self.owner["home"]}, owner=self.owner)
+            spawned.assert_not_called()
+
     @unittest.skipUnless(os.name == "posix", "Docker volume paths are native Linux guest paths")
     def test_storage_paths_bind_to_daemon_project_service_working_directory_and_images(self):
         images = self.context["cliReleaseExpectations"]["previous"]["images"]
@@ -582,7 +669,8 @@ class CLIReadControlTests(unittest.TestCase):
                             "Type": "volume", "Source": self.paths[service]}]}).encode()
         options = {"deadline": time.monotonic() + 60, "environment": {},
                    "daemon_identity": hashlib.sha256(b"fixture-daemon").hexdigest()}
-        with patch.object(harness, "cli_control_command", side_effect=read), patch.object(harness, "switch_expected_files", return_value=files):
+        with patch.object(harness.os, "geteuid", return_value=self.owner["uid"], create=True), \
+                patch.object(harness, "cli_control_command", side_effect=read), patch.object(harness, "switch_expected_files", return_value=files):
             paths, selected = harness.cli_storage_observation(self.inputs["config"], images, self.owner["uid"], **options)
             self.assertEqual(paths, self.paths)
             self.assertEqual(selected, {"postgres": "a" * 64, "minio": "b" * 64})

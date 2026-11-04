@@ -1010,16 +1010,21 @@ def cli_fixture_context(checks, context, owner, inputs, filesystem_paths):
     return expected, stamp.isoformat()
 
 
-def cli_control_command(arguments, *, deadline, environment, cwd=None, source=None):
+def cli_control_command(arguments, *, deadline, environment, cwd=None, source=None, owner=None):
     """A bounded child in its owner's existing session; raw streams stay private."""
     require(source is None or type(source) is bytes and len(source) <= 65536, "CLI_CONTROL_INPUT")
+    require(owner is None or type(owner) is dict and type(owner.get("uid")) is int and owner["uid"] > 0
+            and type(owner.get("gid")) is int and owner["gid"] > 0 and owner.get("name") == "asa-setup",
+            "CLI_CONTROL_OWNER")
+    credentials = {} if owner is None else {"user": owner["uid"], "group": owner["gid"],
+        "extra_groups": os.getgrouplist(owner["name"], owner["gid"])}
     require(time.monotonic() < deadline, "CLI_CONTROL_TIMEOUT")
     with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors, tempfile.TemporaryFile() as incoming:
         if source is not None:
             incoming.write(source)
             incoming.seek(0)
         process = subprocess.Popen([str(item) for item in arguments], cwd=cwd, env=environment,
-            stdin=incoming if source is not None else subprocess.DEVNULL, stdout=output, stderr=errors)
+            stdin=incoming if source is not None else subprocess.DEVNULL, stdout=output, stderr=errors, **credentials)
         try:
             while process.poll() is None:
                 require(time.monotonic() < deadline, "CLI_CONTROL_TIMEOUT")
@@ -1042,10 +1047,15 @@ def cli_control_command(arguments, *, deadline, environment, cwd=None, source=No
                     process.wait(timeout=1)
 
 
-def cli_storage_observation(config, images, uid, *, deadline, environment, daemon_identity):
+def cli_storage_observation(config, images, uid, *, deadline, environment, daemon_identity, owner=None):
     """Independent Docker identities and paths, without consuming CLI observations."""
+    require(type(uid) is int and uid > 0, "CLI_CONTROL_OWNER")
+    require(os.geteuid() == uid if owner is None else type(owner) is dict
+            and type(owner.get("uid")) is int and owner["uid"] == uid, "CLI_CONTROL_OWNER")
     def read(args):
-        return cli_control_command(["docker", *args], deadline=min(deadline, time.monotonic() + 8), environment=environment)
+        # Docker may execute plugin metadata from operator HOME even for info.
+        return cli_control_command(["docker", *args], deadline=min(deadline, time.monotonic() + 8),
+                                   environment=environment, cwd="/", owner=owner)
     daemon = json.loads(read(["info", "--format", '{"id":{{json .ID}},"root":{{json .DockerRootDir}}}']))
     require(type(daemon) is dict and type(daemon.get("id")) is str and type(daemon.get("root")) is str
             and Path(daemon["root"]).is_absolute(), "CLI_READ_STORAGE")
@@ -1223,7 +1233,7 @@ def installed_cli_read_guest(context):
     daemon_identity = root_json("host-baseline.json")["daemonIdentitySha256"]
     paths, _ = cli_storage_observation(inputs["config"], context["cliReleaseExpectations"]["previous"]["images"], owner["uid"],
         deadline=time.monotonic() + 60, environment={**environment, "DOCKER_HOST": "unix:///var/run/docker.sock"},
-        daemon_identity=daemon_identity)
+        daemon_identity=daemon_identity, owner=owner)
     expected, snapshot_at = cli_fixture_context(checks, context, owner, inputs, paths)
     expectations = runtime.RuntimeExpectations(owner["uid"], snapshot_at)
     prepared_path = GUEST_HOME / "cli-control-context.json"
