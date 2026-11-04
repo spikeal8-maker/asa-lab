@@ -1,0 +1,2952 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" viewBox="-18 -82.5 238 165" width="238mm" height="165mm" role="img" aria-label="ASA Lab 2WD true-scale component layout, 4 or 6 AA, orthographic plan, transparent">
+<title>ASA Lab 2WD — corrected physical-layout 4/6 AA v4</title>
+<desc>Nonraster SVG. Base and holes aligned to provided drawing; native vector ASA Lab Arduino UNO/AA holder/servo/HC-SR04. All major module bounding boxes measured in millimetres.</desc>
+<metadata>{"createdFor":"ASA Lab 2WD simulator","sourceRepo":"spikeal8-maker/asa-lab","illustrationType":"Top-view mechanical assembly layout; true vector, transparent, no embedded raster","referencePlate":"Платформа.pdf, 05.11.2019, 200 x 80 rear, front flare ~139.4 mm","outlineStatus":"Bézier reconstruction calibrated to supplied PDF; holes and four slots traced from PDF, for simulator preview not toolpath","sourceAssetViews":"Arduino UNO, AA holder, SG90, HC-SR04 are original ASA Lab SVGs. Servo and HC-SR04 are visual sprite projections; they are mounted in 3D in reality.","batteryScaling":"Native SVG displayMm overstated AA diameter; viewport normalized to actual AA 14.5mm / SVG 191px","aaDim":{"diameterMm":14.5,"lengthMm":50.5},"scaledAAHolderMm":{"width":98.16,"height":63.997},"UNOmm":[68.6,53.4],"wheelMm":{"diameter":65,"tread":27,"centerLeft":[92,-54],"centerRight":[92,54]},"drvL298Nmm":[43,43],"positionMm":{"arduino":{"x":65.6,"y":-26.7,"width":68.6,"height":53.4,"rotationDeg":0},"battery":{"x":135.303,"y":-49.08,"width":63.997,"height":98.16,"rotationDeg":90},"driver":{"x":21.8,"y":-21.5,"width":43,"height":43},"servo":{"x":-10,"y":-6.1,"width":31.5,"height":12.2,"rotationDeg":90},"sonar":{"x":-15.8,"y":-22.5,"width":25.305,"height":45,"rotationDeg":-90},"switch":{"x":63.2413,"y":-35.0122,"width":9.9919,"height":7.0268}},"batteryOverhangEachSideMm":9.08,"cautions":["Arduino and L298N assembly board holes must be independently validated before fabrication","The source TT gearmotor SVG is a front view, so physically dimensioned TT gearmotor top projection was drawn for this scene","Front-facing HC-SR04 is represented as a flattened front-view sprite; true 3D top view would show sensor board edge","Switch is shown at one existing PDF slot, but photograph does not determine its real attachment","6AA protrudes beyond rear plate width; requires mechanical support and battery choice validated for electrical input","SOURCE SVGs use nested viewports with unitless dimensions to avoid the previous 3.78x render scaling error","6AA holder sticks out beyond straight edge by 9.08mm each side. Additional brackets required."],"layoutVersion":"4.0","componentPositioning":"USB side to robot front; UNO along travel X, driver forward, rear AA holder sideways","fixedScale":"Inner SVG use unitless local coordinates; root SVG mm and viewBox mm; no scale inflation","overlap2D":"No overlap between rear battery, Arduino UNO and L298N footprints. Front HC-SR04 and SG90 can overlap in projection because sensor mounts over servo. Motors/caster are under acrylic plate.","layoutStatus":"SVG illustration from photo with correctly scaled dimensions, not independently verified mechanical fit / manufacturer drawings"}</metadata>
+<g id="layer-wheels" inkscape:groupmode="layer" inkscape:label="01 Wheels 65x27mm"><g id="wheel-upper" data-dia-mm="65" data-width-mm="27">
+  <rect x="59.5" y="-67.5" width="65" height="27" rx="8.1" fill="#14191e" stroke="#080b0e" stroke-width=".65"/>
+  <rect x="61.4" y="-65.7" width="61.2" height="23.4" rx="6.7" fill="#2a3034" stroke="#3f454a" stroke-width=".35"/><path d="M 62.2 -65.1 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 64.2 -59.45 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 62.2 -53.8 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 64.2 -48.15 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 68.9 -65.1 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 70.9 -59.45 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 68.9 -53.8 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 70.9 -48.15 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 75.6 -65.1 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 77.6 -59.45 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 75.6 -53.8 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 77.6 -48.15 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 82.3 -65.1 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 84.3 -59.45 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 82.3 -53.8 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 84.3 -48.15 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 89 -65.1 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 91 -59.45 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 89 -53.8 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 91 -48.15 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 95.7 -65.1 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 97.7 -59.45 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 95.7 -53.8 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 97.7 -48.15 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 102.4 -65.1 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 104.4 -59.45 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 102.4 -53.8 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 104.4 -48.15 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 109.1 -65.1 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 111.1 -59.45 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 109.1 -53.8 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 111.1 -48.15 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 115.8 -65.1 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 115.8 -53.8 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 66 -42.5 H 118" fill="none" stroke="#ebc62d" stroke-width="1.3" opacity=".9"/></g><g id="wheel-lower" data-dia-mm="65" data-width-mm="27">
+  <rect x="59.5" y="40.5" width="65" height="27" rx="8.1" fill="#14191e" stroke="#080b0e" stroke-width=".65"/>
+  <rect x="61.4" y="42.3" width="61.2" height="23.4" rx="6.7" fill="#2a3034" stroke="#3f454a" stroke-width=".35"/><path d="M 62.2 42.9 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 64.2 48.55 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 62.2 54.2 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 64.2 59.85 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 68.9 42.9 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 70.9 48.55 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 68.9 54.2 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 70.9 59.85 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 75.6 42.9 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 77.6 48.55 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 75.6 54.2 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 77.6 59.85 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 82.3 42.9 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 84.3 48.55 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 82.3 54.2 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 84.3 59.85 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 89 42.9 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 91 48.55 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 89 54.2 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 91 59.85 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 95.7 42.9 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 97.7 48.55 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 95.7 54.2 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 97.7 59.85 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 102.4 42.9 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 104.4 48.55 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 102.4 54.2 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 104.4 59.85 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 109.1 42.9 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 111.1 48.55 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 109.1 54.2 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 111.1 59.85 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 115.8 42.9 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 115.8 54.2 l 5.6 0 l -.5 4.4 l -5.5 0 Z" fill="#333a40" stroke="#0c1115" stroke-width=".38"/><path d="M 66 42.5 H 118" fill="none" stroke="#ebc62d" stroke-width="1.3" opacity=".9"/></g></g>
+<g id="layer-motors" inkscape:groupmode="layer" inkscape:label="02 TT motors bottom 70x22mm"><g id="tt-motor-upper" transform="translate(64 -45)" data-motor-body-length-mm="70" data-motor-width-mm="22" data-gear-ratio="48:1" data-derived-top-view="true">
+   <rect x="0" y="0" width="70" height="22" rx="3" fill="#dbbd1f" stroke="#93820f" stroke-width=".6"/>
+   <rect x="2" y="2" width="38.5" height="18" rx="1.7" fill="#eacf19" stroke="#b9a00b" stroke-width=".4"/>
+   <path d="M 9 2 V20 M17 2 V20 M25 2 V20 M33 2 V20" stroke="#d9b516" stroke-width=".5" opacity=".6"/>
+   <rect x="40.3" y="2" width="24" height="18" rx="2.2" fill="#b7c1c5" stroke="#5f6b72" stroke-width=".5"/>
+   <path d="M 45 4 H60 M45 8 H60 M45 12 H60 M45 16 H60" stroke="#8e9aa0" stroke-width=".5"/>
+   <rect x="62" y="5" width="7" height="12" rx="2" fill="#283037" stroke="#131920" stroke-width=".3"/>
+   <rect x="14" y="0" width="16" height="2.6" rx=".4" fill="#666f76"/>
+   <circle cx="28" cy="11" r="1.6" fill="#d2b332" stroke="#8a7508" stroke-width=".3"/>
+ </g><g id="tt-motor-lower" transform="translate(64 23)" data-motor-body-length-mm="70" data-motor-width-mm="22" data-gear-ratio="48:1" data-derived-top-view="true">
+   <rect x="0" y="0" width="70" height="22" rx="3" fill="#dbbd1f" stroke="#93820f" stroke-width=".6"/>
+   <rect x="2" y="2" width="38.5" height="18" rx="1.7" fill="#eacf19" stroke="#b9a00b" stroke-width=".4"/>
+   <path d="M 9 2 V20 M17 2 V20 M25 2 V20 M33 2 V20" stroke="#d9b516" stroke-width=".5" opacity=".6"/>
+   <rect x="40.3" y="2" width="24" height="18" rx="2.2" fill="#b7c1c5" stroke="#5f6b72" stroke-width=".5"/>
+   <path d="M 45 4 H60 M45 8 H60 M45 12 H60 M45 16 H60" stroke="#8e9aa0" stroke-width=".5"/>
+   <rect x="62" y="5" width="7" height="12" rx="2" fill="#283037" stroke="#131920" stroke-width=".3"/>
+   <rect x="14" y="19.4" width="16" height="2.6" rx=".4" fill="#666f76"/>
+   <circle cx="28" cy="11" r="1.6" fill="#d2b332" stroke="#8a7508" stroke-width=".3"/>
+ </g></g>
+<g id="layer-caster" inkscape:groupmode="layer" inkscape:label="03 Rear caster underneath"><g id="caster-rear-below" transform="translate(180 0)" opacity=".68" data-assembly-level="below-chassis">
+ <rect x="-9" y="-11" width="18" height="22" rx="4" fill="#7f919b" stroke="#3d4a53" stroke-width=".5"/>
+ <rect x="-3.7" y="-13" width="7.4" height="26" rx="3.2" fill="#eceff1" stroke="#72848e" stroke-width=".5"/>
+ </g></g>
+<g id="layer-plate" inkscape:groupmode="layer" inkscape:label="04 Exact mm reference chassis"><g id="chassis-200mm-pdf" data-outline-from-user-pdf="true" data-length-mm="200" data-tail-width-mm="80" data-thickness-mm="3">
+   <path d="M 53.2494 -40.0081 L 187.9773 -40.0081 A 12.02 12.02 0 0 1 200 -27.9854 L 200 27.9854 A 12.02 12.02 0 0 1 187.9773 40.0081 L 53.2494 40.0081 L 53.2494 56.2145 C 53.2494 67.45 41.18 74.34 31.316 66.734 L 28.9602 64.3379 L 14.1755 44.7197 C 5.54 33.24 0 19.9 0 2.5183 L 0 -2.5183 C 0 -19.9 5.54 -33.24 14.1755 -44.7197 L 28.9602 -64.3379 C 38.25 -77.43 53.2494 -66.45 53.2494 -56.2145 Z M 4.011 0 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 4.011 16.856 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 4.011 -16.856 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 14.003 16.856 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 14.003 30.869 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 14.003 -30.869 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 14.003 -16.856 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 23.995 44.842 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 23.995 -44.842 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 34.028 16.856 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 34.028 58.855 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 34.028 -58.855 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 34.028 -16.856 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 63.272 -22.015 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 63.272 22.015 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 94.994 0 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 109.738 18.481 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 109.738 -18.481 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 114.978 0 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 138.008 0 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 143.004 0 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 144.994 -21.852 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 144.994 21.852 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 164.978 -16.003 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 164.978 16.003 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 177.976 -28.838 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 177.976 -19.984 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 177.976 0 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 177.976 19.984 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 177.976 28.838 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 187.968 -30.869 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 187.968 -16.003 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 187.968 0 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 187.968 16.003 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 187.968 30.869 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z M 63.2413 -35.0122 h 9.9919 v 7.0268 h -9.9919 Z M 63.2413 27.9854 h 9.9919 v 7.0268 h -9.9919 Z M 147.238 -35.0122 h 9.9919 v 5.1584 h -9.9919 Z M 147.238 29.8538 h 9.9919 v 5.1584 h -9.9919 Z" fill="#e6c493" fill-opacity=".91" fill-rule="evenodd" stroke="#92693e" stroke-width=".36" stroke-linejoin="round"/>
+   <path d="M 79.24 -40.008 L 79.24 -19.984 L 100.41 -19.984" fill="none" stroke="#a78357" stroke-width=".32" opacity=".72"/><path d="M 112.23 -40.008 L 112.23 -35.012 H 142.20 V -25.02 H 112.23 V -20.43" fill="none" stroke="#a78357" stroke-width=".32" opacity=".72"/><path d="M 79.24 40.008 L 79.24 19.984 H 100.41" fill="none" stroke="#a78357" stroke-width=".32" opacity=".72"/><path d="M 112.23 40.008 L 112.23 35.012 H 142.20 V 25.02 H 112.23 V 20.43" fill="none" stroke="#a78357" stroke-width=".32" opacity=".72"/>
+ </g></g>
+<g id="layer-switch" inkscape:groupmode="layer" inkscape:label="05 Switch at existing PDF slot"><g id="side-slide-switch" data-view="plan" data-mount-slot-from-pdf="true" data-position-status="candidate-not-photo-verified">
+  <rect x="64.2413" y="-34.0122" width="7.991899999999999" height="5.0268" rx=".55" fill="#202a30" stroke="#5f7885" stroke-width=".3"/>
+  <rect x="66.738" y="-33.747" width="2.998" height="4.497" rx=".4" fill="#b6c2c7" stroke="#53616a" stroke-width=".25"/>
+ </g></g>
+<g id="layer-driver" inkscape:groupmode="layer" inkscape:label="06 L298N physical 43x43mm"><g id="l298n-driver" data-simulation-size-mm="43x43" transform="translate(21.8 -21.5)">
+  <rect width="43" height="43" rx="1.4" fill="#b52b21" stroke="#7b231c" stroke-width=".55"/>
+  <path d="M 5 4 H38 V39 H5 Z" fill="none" stroke="#e58675" stroke-width=".22" opacity=".7"/><circle cx="3.2" cy="3.2" r="2.05" fill="#b6a17d"/><circle cx="3.2" cy="3.2" r="1.07" fill="#512a23"/><circle cx="39.8" cy="3.2" r="2.05" fill="#b6a17d"/><circle cx="39.8" cy="3.2" r="1.07" fill="#512a23"/><circle cx="3.2" cy="39.8" r="2.05" fill="#b6a17d"/><circle cx="3.2" cy="39.8" r="1.07" fill="#512a23"/><circle cx="39.8" cy="39.8" r="2.05" fill="#b6a17d"/><circle cx="39.8" cy="39.8" r="1.07" fill="#512a23"/><rect x="11.5" y="4.8" width="1.6" height="16.2" rx=".25" fill="#161d24" stroke="#38414b" stroke-width=".25"/><rect x="13.5" y="4.8" width="1.6" height="16.2" rx=".25" fill="#161d24" stroke="#38414b" stroke-width=".25"/><rect x="15.5" y="4.8" width="1.6" height="16.2" rx=".25" fill="#161d24" stroke="#38414b" stroke-width=".25"/><rect x="17.5" y="4.8" width="1.6" height="16.2" rx=".25" fill="#161d24" stroke="#38414b" stroke-width=".25"/><rect x="19.5" y="4.8" width="1.6" height="16.2" rx=".25" fill="#161d24" stroke="#38414b" stroke-width=".25"/><rect x="21.5" y="4.8" width="1.6" height="16.2" rx=".25" fill="#161d24" stroke="#38414b" stroke-width=".25"/><rect x="23.5" y="4.8" width="1.6" height="16.2" rx=".25" fill="#161d24" stroke="#38414b" stroke-width=".25"/><rect x="25.5" y="4.8" width="1.6" height="16.2" rx=".25" fill="#161d24" stroke="#38414b" stroke-width=".25"/><rect x="27.5" y="4.8" width="1.6" height="16.2" rx=".25" fill="#161d24" stroke="#38414b" stroke-width=".25"/><rect x="29.5" y="4.8" width="1.6" height="16.2" rx=".25" fill="#161d24" stroke="#38414b" stroke-width=".25"/><rect x="10.3" y="20" width="24" height="4.2" rx=".6" fill="#20262c"/><rect x="2" y="14" width="6.5" height="15" rx=".7" fill="#0379c9" stroke="#07527d" stroke-width=".35"/><circle cx="5.25" cy="17.3" r="1.15" fill="#d0d9dd" stroke="#5b6b70" stroke-width=".25"/><circle cx="5.25" cy="25.3" r="1.15" fill="#d0d9dd" stroke="#5b6b70" stroke-width=".25"/><rect x="34.5" y="14" width="6.5" height="15" rx=".7" fill="#0379c9" stroke="#07527d" stroke-width=".35"/><circle cx="37.75" cy="17.3" r="1.15" fill="#d0d9dd" stroke="#5b6b70" stroke-width=".25"/><circle cx="37.75" cy="25.3" r="1.15" fill="#d0d9dd" stroke="#5b6b70" stroke-width=".25"/><rect x="12" y="35" width="19" height="6" rx=".7" fill="#0379c9" stroke="#07527d" stroke-width=".35"/><circle cx="15" cy="38" r="1.15" fill="#d0d9dd" stroke="#5b6b70" stroke-width=".25"/><circle cx="21.5" cy="38" r="1.15" fill="#d0d9dd" stroke="#5b6b70" stroke-width=".25"/><circle cx="28" cy="38" r="1.15" fill="#d0d9dd" stroke="#5b6b70" stroke-width=".25"/><circle cx="9" cy="29" r="3.1" fill="#bcc8d1" stroke="#6f858d" stroke-width=".35"/><circle cx="9" cy="29" r="2.1" fill="#dfe5e7"/><circle cx="34" cy="29" r="3.1" fill="#bcc8d1" stroke="#6f858d" stroke-width=".35"/><circle cx="34" cy="29" r="2.1" fill="#dfe5e7"/><text x="21.5" y="31.5" font-size="3.2" text-anchor="middle" font-family="DejaVu Sans, sans-serif" fill="#ffe7db" font-weight="bold">L298N</text></g></g>
+<g id="layer-arduino" inkscape:groupmode="layer" inkscape:label="07 Arduino UNO actual 68.6x53.4 horizontal"><g id="arduino-uno-horizontal" transform="translate(65.6 -26.7)" data-source="apps/web/public/assets/electronics/component-database/components/arduino-uno/arduino-uno/component.svg" data-physical-size-mm="68.6x53.4; unrotated, front-facing USB connector" data-viewport-mode="top-down" >
+ <svg width="68.6" height="53.4" preserveAspectRatio="xMidYMid meet" 
+  
+  
+   viewBox="0 0 992 741"
+   version="1.1"
+   id="arduino-uno-rotated__svg309"
+   sodipodi:docname="arduino_uno_pure_vector_checked.svg"
+   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <sodipodi:namedview
+     id="arduino-uno-rotated__namedview309"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.4966262"
+     inkscape:cx="495.78179"
+     inkscape:cy="370.5"
+     inkscape:window-width="2160"
+     inkscape:window-height="1360"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="mounting-holes" />
+  <title
+     id="arduino-uno-rotated__title1">Arduino UNO — pure editable vector reconstruction</title>
+  <desc
+     id="arduino-uno-rotated__desc1">Pure SVG vector. No raster images, no external assets. Text is converted to paths in the production file.</desc>
+  <defs
+     id="arduino-uno-rotated__defs2">
+    <clipPath
+       id="arduino-uno-rotated__capClip1">
+      <circle
+         cx="310"
+         cy="594"
+         r="31"
+         id="arduino-uno-rotated__circle1" />
+    </clipPath>
+    <clipPath
+       id="arduino-uno-rotated__capClip2">
+      <circle
+         cx="405"
+         cy="594"
+         r="31"
+         id="arduino-uno-rotated__circle2" />
+    </clipPath>
+    <path
+       id="arduino-uno-rotated__b28"
+       d="M399 -425Q242 -199 172.0 26.0Q102 251 102 531Q102 810 172.0 1034.5Q242 1259 399 1484H680Q522 1256 450.5 1030.0Q379 804 379 530Q379 257 450.0 32.5Q521 -192 680 -425Z" />
+    <path
+       id="arduino-uno-rotated__b29"
+       d="M2 -425Q162 -191 232.5 32.5Q303 256 303 530Q303 805 231.0 1031.5Q159 1258 2 1484H283Q441 1257 510.5 1032.0Q580 807 580 531Q580 253 510.5 28.0Q441 -197 283 -425Z" />
+    <path
+       id="arduino-uno-rotated__b2e"
+       d="M139 0V305H428V0Z" />
+    <path
+       id="arduino-uno-rotated__b30"
+       d="M1055 705Q1055 348 932.5 164.0Q810 -20 565 -20Q81 -20 81 705Q81 958 134.0 1118.0Q187 1278 293.0 1354.0Q399 1430 573 1430Q823 1430 939.0 1249.0Q1055 1068 1055 705ZM773 705Q773 900 754.0 1008.0Q735 1116 693.0 1163.0Q651 1210 571 1210Q486 1210 442.5 1162.5Q399 1115 380.5 1007.5Q362 900 362 705Q362 512 381.5 403.5Q401 295 443.5 248.0Q486 201 567 201Q647 201 690.5 250.5Q734 300 753.5 409.0Q773 518 773 705Z" />
+    <path
+       id="arduino-uno-rotated__b31"
+       d="M129 0V209H478V1170L140 959V1180L493 1409H759V209H1082V0Z" />
+    <path
+       id="arduino-uno-rotated__b32"
+       d="M71 0V195Q126 316 227.5 431.0Q329 546 483 671Q631 791 690.5 869.0Q750 947 750 1022Q750 1206 565 1206Q475 1206 427.5 1157.5Q380 1109 366 1012L83 1028Q107 1224 229.5 1327.0Q352 1430 563 1430Q791 1430 913.0 1326.0Q1035 1222 1035 1034Q1035 935 996.0 855.0Q957 775 896.0 707.5Q835 640 760.5 581.0Q686 522 616.0 466.0Q546 410 488.5 353.0Q431 296 403 231H1057V0Z" />
+    <path
+       id="arduino-uno-rotated__b33"
+       d="M1065 391Q1065 193 935.0 85.0Q805 -23 565 -23Q338 -23 204.0 81.5Q70 186 47 383L333 408Q360 205 564 205Q665 205 721.0 255.0Q777 305 777 408Q777 502 709.0 552.0Q641 602 507 602H409V829H501Q622 829 683.0 878.5Q744 928 744 1020Q744 1107 695.5 1156.5Q647 1206 554 1206Q467 1206 413.5 1158.0Q360 1110 352 1022L71 1042Q93 1224 222.0 1327.0Q351 1430 559 1430Q780 1430 904.5 1330.5Q1029 1231 1029 1055Q1029 923 951.5 838.0Q874 753 728 725V721Q890 702 977.5 614.5Q1065 527 1065 391Z" />
+    <path
+       id="arduino-uno-rotated__b34"
+       d="M940 287V0H672V287H31V498L626 1409H940V496H1128V287ZM672 957Q672 1011 675.5 1074.0Q679 1137 681 1155Q655 1099 587 993L260 496H672Z" />
+    <path
+       id="arduino-uno-rotated__b35"
+       d="M1082 469Q1082 245 942.5 112.5Q803 -20 560 -20Q348 -20 220.5 75.5Q93 171 63 352L344 375Q366 285 422.0 244.0Q478 203 563 203Q668 203 730.5 270.0Q793 337 793 463Q793 574 734.0 640.5Q675 707 569 707Q452 707 378 616H104L153 1409H1000V1200H408L385 844Q487 934 640 934Q841 934 961.5 809.0Q1082 684 1082 469Z" />
+    <path
+       id="arduino-uno-rotated__b36"
+       d="M1065 461Q1065 236 939.0 108.0Q813 -20 591 -20Q342 -20 208.5 154.5Q75 329 75 672Q75 1049 210.5 1239.5Q346 1430 598 1430Q777 1430 880.5 1351.0Q984 1272 1027 1106L762 1069Q724 1208 592 1208Q479 1208 414.5 1095.0Q350 982 350 752Q395 827 475.0 867.0Q555 907 656 907Q845 907 955.0 787.0Q1065 667 1065 461ZM783 453Q783 573 727.5 636.5Q672 700 575 700Q482 700 426.0 640.5Q370 581 370 483Q370 360 428.5 279.5Q487 199 582.0 199.0Q677 199 730.0 266.5Q783 334 783 453Z" />
+    <path
+       id="arduino-uno-rotated__b37"
+       d="M1049 1186Q954 1036 869.5 895.0Q785 754 722.0 611.5Q659 469 622.5 318.5Q586 168 586 0H293Q293 176 339.0 340.5Q385 505 472.0 675.5Q559 846 788 1178H88V1409H1049Z" />
+    <path
+       id="arduino-uno-rotated__b38"
+       d="M1076 397Q1076 199 945.0 89.5Q814 -20 571 -20Q330 -20 197.5 89.0Q65 198 65 395Q65 530 143.0 622.5Q221 715 352 737V741Q238 766 168.0 854.0Q98 942 98 1057Q98 1230 220.5 1330.0Q343 1430 567 1430Q796 1430 918.5 1332.5Q1041 1235 1041 1055Q1041 940 971.5 853.0Q902 766 785 743V739Q921 717 998.5 627.5Q1076 538 1076 397ZM785 420Q785 641 565 641Q463 641 408.5 583.0Q354 525 354 416Q354 292 408.0 235.0Q462 178 573 178Q682 178 733.5 235.0Q785 292 785 420ZM752 1040Q752 1140 706.0 1186.5Q660 1233 567 1233Q385 1233 385 1040Q385 838 569 838Q661 838 706.5 885.0Q752 932 752 1040Z" />
+    <path
+       id="arduino-uno-rotated__b39"
+       d="M1063 727Q1063 352 926.0 166.0Q789 -20 537 -20Q351 -20 245.5 59.5Q140 139 96 311L360 348Q399 201 540 201Q658 201 721.5 314.0Q785 427 787 649Q749 574 662.5 531.5Q576 489 476 489Q290 489 180.5 615.5Q71 742 71 958Q71 1180 199.5 1305.0Q328 1430 563 1430Q816 1430 939.5 1254.5Q1063 1079 1063 727ZM766 924Q766 1055 708.5 1132.5Q651 1210 556 1210Q463 1210 409.5 1142.5Q356 1075 356 956Q356 839 409.0 768.5Q462 698 557 698Q647 698 706.5 759.5Q766 821 766 924Z" />
+    <path
+       id="arduino-uno-rotated__b41"
+       d="M1133 0 1008 360H471L346 0H51L565 1409H913L1425 0ZM942 582 803 987 739 1192Q723 1134 709.0 1088.0Q695 1042 537 582Z" />
+    <path
+       id="arduino-uno-rotated__b44"
+       d="M1393 715Q1393 497 1307.5 334.5Q1222 172 1065.5 86.0Q909 0 707 0H137V1409H647Q1003 1409 1198.0 1229.5Q1393 1050 1393 715ZM1096 715Q1096 942 978.0 1061.5Q860 1181 641 1181H432V228H682Q872 228 984.0 359.0Q1096 490 1096 715Z" />
+    <path
+       id="arduino-uno-rotated__b45"
+       d="M137 0V1409H1245V1181H432V827H1184V599H432V228H1286V0Z" />
+    <path
+       id="arduino-uno-rotated__b46"
+       d="M432 1181V745H1153V517H432V0H137V1409H1176V1181Z" />
+    <path
+       id="arduino-uno-rotated__b47"
+       d="M806 211Q921 211 1029.0 244.5Q1137 278 1196 330V525H852V743H1466V225Q1354 110 1174.5 45.0Q995 -20 798 -20Q454 -20 269.0 170.5Q84 361 84 711Q84 1059 270.0 1244.5Q456 1430 805 1430Q1301 1430 1436 1063L1164 981Q1120 1088 1026.0 1143.0Q932 1198 805 1198Q597 1198 489.0 1072.0Q381 946 381 711Q381 472 492.5 341.5Q604 211 806 211Z" />
+    <path
+       id="arduino-uno-rotated__b49"
+       d="M137 0V1409H432V0Z" />
+    <path
+       id="arduino-uno-rotated__b4c"
+       d="M137 0V1409H432V228H1188V0Z" />
+    <path
+       id="arduino-uno-rotated__b4d"
+       d="M1307 0V854Q1307 883 1307.5 912.0Q1308 941 1317 1161Q1246 892 1212 786L958 0H748L494 786L387 1161Q399 929 399 854V0H137V1409H532L784 621L854 356L917 582L1176 1409H1569V0Z" />
+    <path
+       id="arduino-uno-rotated__b4e"
+       d="M995 0 381 1085Q399 927 399 831V0H137V1409H474L1097 315Q1079 466 1079 590V1409H1341V0Z" />
+    <path
+       id="arduino-uno-rotated__b4f"
+       d="M1507 711Q1507 491 1420.0 324.0Q1333 157 1171.0 68.5Q1009 -20 793 -20Q461 -20 272.5 175.5Q84 371 84 711Q84 1050 272.0 1240.0Q460 1430 795.0 1430.0Q1130 1430 1318.5 1238.0Q1507 1046 1507 711ZM1206 711Q1206 939 1098.0 1068.5Q990 1198 795 1198Q597 1198 489.0 1069.5Q381 941 381 711Q381 479 491.5 345.5Q602 212 793 212Q991 212 1098.5 342.0Q1206 472 1206 711Z" />
+    <path
+       id="arduino-uno-rotated__b50"
+       d="M1296 963Q1296 827 1234.0 720.0Q1172 613 1056.5 554.5Q941 496 782 496H432V0H137V1409H770Q1023 1409 1159.5 1292.5Q1296 1176 1296 963ZM999 958Q999 1180 737 1180H432V723H745Q867 723 933.0 783.5Q999 844 999 958Z" />
+    <path
+       id="arduino-uno-rotated__b52"
+       d="M1105 0 778 535H432V0H137V1409H841Q1093 1409 1230.0 1300.5Q1367 1192 1367 989Q1367 841 1283.0 733.5Q1199 626 1056 592L1437 0ZM1070 977Q1070 1180 810 1180H432V764H818Q942 764 1006.0 820.0Q1070 876 1070 977Z" />
+    <path
+       id="arduino-uno-rotated__b53"
+       d="M1286 406Q1286 199 1132.5 89.5Q979 -20 682 -20Q411 -20 257.0 76.0Q103 172 59 367L344 414Q373 302 457.0 251.5Q541 201 690 201Q999 201 999 389Q999 449 963.5 488.0Q928 527 863.5 553.0Q799 579 616 616Q458 653 396.0 675.5Q334 698 284.0 728.5Q234 759 199.0 802.0Q164 845 144.5 903.0Q125 961 125 1036Q125 1227 268.5 1328.5Q412 1430 686 1430Q948 1430 1079.5 1348.0Q1211 1266 1249 1077L963 1038Q941 1129 873.5 1175.0Q806 1221 680 1221Q412 1221 412 1053Q412 998 440.5 963.0Q469 928 525.0 903.0Q581 878 752 842Q955 799 1042.5 762.5Q1130 726 1181.0 677.5Q1232 629 1259.0 561.5Q1286 494 1286 406Z" />
+    <path
+       id="arduino-uno-rotated__b54"
+       d="M773 1181V0H478V1181H23V1409H1229V1181Z" />
+    <path
+       id="arduino-uno-rotated__b55"
+       d="M723 -20Q432 -20 277.5 122.0Q123 264 123 528V1409H418V551Q418 384 497.5 297.5Q577 211 731 211Q889 211 974.0 301.5Q1059 392 1059 561V1409H1354V543Q1354 275 1188.5 127.5Q1023 -20 723 -20Z" />
+    <path
+       id="arduino-uno-rotated__b56"
+       d="M834 0H535L14 1409H322L612 504Q640 415 686 238L709 325Q739 445 758 504L1047 1409H1352Z" />
+    <path
+       id="arduino-uno-rotated__b57"
+       d="M1567 0H1217L1026 815Q991 959 967 1116Q943 985 928.0 916.5Q913 848 715 0H365L2 1409H301L505 499L551 279Q579 418 605.5 544.5Q632 671 805 1409H1135L1313 659Q1334 575 1384 279L1409 395L1462 625L1632 1409H1931Z" />
+    <path
+       id="arduino-uno-rotated__b58"
+       d="M1038 0 684 561 330 0H18L506 741L59 1409H371L684 911L997 1409H1307L879 741L1348 0Z" />
+    <path
+       id="arduino-uno-rotated__b69"
+       d="M143 0V1082H424V0ZM143 1277V1484H424V1277Z" />
+    <path
+       id="arduino-uno-rotated__b6e"
+       d="M844 0V607Q844 892 651 892Q549 892 486.5 804.5Q424 717 424 580V0H143V840Q143 927 140.5 982.5Q138 1038 135 1082H403Q406 1063 411.0 980.5Q416 898 416 867H420Q477 991 563.0 1047.0Q649 1103 768 1103Q940 1103 1032.0 997.0Q1124 891 1124 687V0Z" />
+    <path
+       id="arduino-uno-rotated__b7e"
+       d="M852 516Q777 516 704.5 537.0Q632 558 557 584Q422 631 336 631Q265 631 205.5 609.5Q146 588 81 543V756Q194 840 352 840Q457 840 594 793Q726 747 776.0 735.0Q826 723 871 723Q1005 723 1119 815V596Q1055 552 996.5 534.0Q938 516 852 516Z" />
+    <path
+       id="arduino-uno-rotated__b2190"
+       d="M641 497Q698 430 760 300H688Q561 449 418 522V558Q561 631 688 780H760Q698 650 641 583H1630V497Z" />
+    <path
+       id="arduino-uno-rotated__b2192"
+       d="M1407 583Q1350 650 1288 780H1360Q1487 631 1630 558V522Q1487 449 1360 300H1288Q1350 430 1407 497H418V583Z" />
+    <path
+       id="arduino-uno-rotated__r2e"
+       d="M187 0V219H382V0Z" />
+    <path
+       id="arduino-uno-rotated__r30"
+       d="M1059 705Q1059 352 934.5 166.0Q810 -20 567.0 -20.0Q324 -20 202.0 165.0Q80 350 80 705Q80 1068 198.5 1249.0Q317 1430 573 1430Q822 1430 940.5 1247.0Q1059 1064 1059 705ZM876 705Q876 1010 805.5 1147.0Q735 1284 573 1284Q407 1284 334.5 1149.0Q262 1014 262 705Q262 405 335.5 266.0Q409 127 569 127Q728 127 802.0 269.0Q876 411 876 705Z" />
+    <path
+       id="arduino-uno-rotated__r31"
+       d="M156 0V153H515V1237L197 1010V1180L530 1409H696V153H1039V0Z" />
+    <path
+       id="arduino-uno-rotated__r36"
+       d="M1049 461Q1049 238 928.0 109.0Q807 -20 594 -20Q356 -20 230.0 157.0Q104 334 104 672Q104 1038 235.0 1234.0Q366 1430 608 1430Q927 1430 1010 1143L838 1112Q785 1284 606 1284Q452 1284 367.5 1140.5Q283 997 283 725Q332 816 421.0 863.5Q510 911 625 911Q820 911 934.5 789.0Q1049 667 1049 461ZM866 453Q866 606 791.0 689.0Q716 772 582 772Q456 772 378.5 698.5Q301 625 301 496Q301 333 381.5 229.0Q462 125 588 125Q718 125 792.0 212.5Q866 300 866 453Z" />
+    <path
+       id="arduino-uno-rotated__r47"
+       d="M103 711Q103 1054 287.0 1242.0Q471 1430 804 1430Q1038 1430 1184.0 1351.0Q1330 1272 1409 1098L1227 1044Q1167 1164 1061.5 1219.0Q956 1274 799 1274Q555 1274 426.0 1126.5Q297 979 297 711Q297 444 434.0 289.5Q571 135 813 135Q951 135 1070.5 177.0Q1190 219 1264 291V545H843V705H1440V219Q1328 105 1165.5 42.5Q1003 -20 813 -20Q592 -20 432.0 68.0Q272 156 187.5 321.5Q103 487 103 711Z" />
+    <path
+       id="arduino-uno-rotated__r4b"
+       d="M1106 0 543 680 359 540V0H168V1409H359V703L1038 1409H1263L663 797L1343 0Z" />
+    <path
+       id="arduino-uno-rotated__r4e"
+       d="M1082 0 328 1200 333 1103 338 936V0H168V1409H390L1152 201Q1140 397 1140 485V1409H1312V0Z" />
+    <path
+       id="arduino-uno-rotated__r4f"
+       d="M1495 711Q1495 490 1410.5 324.0Q1326 158 1168.0 69.0Q1010 -20 795 -20Q578 -20 420.5 68.0Q263 156 180.0 322.5Q97 489 97 711Q97 1049 282.0 1239.5Q467 1430 797 1430Q1012 1430 1170.0 1344.5Q1328 1259 1411.5 1096.0Q1495 933 1495 711ZM1300 711Q1300 974 1168.5 1124.0Q1037 1274 797 1274Q555 1274 423.0 1126.0Q291 978 291 711Q291 446 424.5 290.5Q558 135 795 135Q1039 135 1169.5 285.5Q1300 436 1300 711Z" />
+    <path
+       id="arduino-uno-rotated__r50"
+       d="M1258 985Q1258 785 1127.5 667.0Q997 549 773 549H359V0H168V1409H761Q998 1409 1128.0 1298.0Q1258 1187 1258 985ZM1066 983Q1066 1256 738 1256H359V700H746Q1066 700 1066 983Z" />
+    <path
+       id="arduino-uno-rotated__r53"
+       d="M1272 389Q1272 194 1119.5 87.0Q967 -20 690 -20Q175 -20 93 338L278 375Q310 248 414.0 188.5Q518 129 697 129Q882 129 982.5 192.5Q1083 256 1083 379Q1083 448 1051.5 491.0Q1020 534 963.0 562.0Q906 590 827.0 609.0Q748 628 652 650Q485 687 398.5 724.0Q312 761 262.0 806.5Q212 852 185.5 913.0Q159 974 159 1053Q159 1234 297.5 1332.0Q436 1430 694 1430Q934 1430 1061.0 1356.5Q1188 1283 1239 1106L1051 1073Q1020 1185 933.0 1235.5Q846 1286 692 1286Q523 1286 434.0 1230.0Q345 1174 345 1063Q345 998 379.5 955.5Q414 913 479.0 883.5Q544 854 738 811Q803 796 867.5 780.5Q932 765 991.0 743.5Q1050 722 1101.5 693.0Q1153 664 1191.0 622.0Q1229 580 1250.5 523.0Q1272 466 1272 389Z" />
+    <path
+       id="arduino-uno-rotated__r55"
+       d="M731 -20Q558 -20 429.0 43.0Q300 106 229.0 226.0Q158 346 158 512V1409H349V528Q349 335 447.0 235.0Q545 135 730 135Q920 135 1025.5 238.5Q1131 342 1131 541V1409H1321V530Q1321 359 1248.5 235.0Q1176 111 1043.5 45.5Q911 -20 731 -20Z" />
+  </defs>
+  <path
+     id="arduino-uno-rotated__pcb"
+     d="M112 31H910q10 0 16 10l3 8v145l32 35v409l-32 33v17q0 14-15 14H112q-13 0-13-13V44q0-13 13-13z"
+     fill="#316E99" />
+  <g
+     id="arduino-uno-rotated__mounting-holes">
+    <circle
+       cx="291"
+       cy="65"
+       r="20"
+       fill="#F4F5F6"
+       stroke="#8E8449"
+       stroke-width="3"
+       id="arduino-uno-rotated__circle3" />
+    <circle
+       cx="931"
+       cy="256"
+       r="20"
+       fill="#F4F5F6"
+       stroke="#8E8449"
+       stroke-width="3"
+       id="arduino-uno-rotated__circle4" />
+    <circle
+       cx="931"
+       cy="608"
+       r="20"
+       fill="#F4F5F6"
+       stroke="#8E8449"
+       stroke-width="3"
+       id="arduino-uno-rotated__circle5" />
+    <circle
+       cx="275"
+       cy="671"
+       r="20"
+       fill="#F4F5F6"
+       stroke="#8E8449"
+       stroke-width="3"
+       id="arduino-uno-rotated__circle6" />
+    <circle
+       cx="143"
+       cy="179"
+       r="22"
+       fill="#DDDDDD"
+       id="arduino-uno-rotated__circle7" />
+    <circle
+       cx="142"
+       cy="330"
+       r="22"
+       fill="#dddddd"
+       id="arduino-uno-rotated__circle7-8" />
+    <circle
+       cx="143"
+       cy="306"
+       r="22"
+       fill="#DDDDDD"
+       id="arduino-uno-rotated__circle8" />
+  </g>
+  <g
+     transform="translate(317 48)"
+     id="arduino-uno-rotated__g39">
+    <rect
+       width="325"
+       height="32"
+       rx="3"
+       fill="#333333"
+       id="arduino-uno-rotated__rect8" />
+    <g
+       transform="translate(7 4)"
+       id="arduino-uno-rotated__g11">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect9" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path9" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path10" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path11" />
+    </g>
+    <g
+       transform="translate(39 4)"
+       id="arduino-uno-rotated__g14">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect11" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path12" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path13" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path14" />
+    </g>
+    <g
+       transform="translate(71 4)"
+       id="arduino-uno-rotated__g17">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect14" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path15" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path16" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path17" />
+    </g>
+    <g
+       transform="translate(103 4)"
+       id="arduino-uno-rotated__g20">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect17" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path18" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path19" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path20" />
+    </g>
+    <g
+       transform="translate(135 4)"
+       id="arduino-uno-rotated__g23">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect20" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path21" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path22" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path23" />
+    </g>
+    <g
+       transform="translate(167 4)"
+       id="arduino-uno-rotated__g26">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect23" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path24" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path25" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path26" />
+    </g>
+    <g
+       transform="translate(199 4)"
+       id="arduino-uno-rotated__g29">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect26" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path27" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path28" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path29" />
+    </g>
+    <g
+       transform="translate(231 4)"
+       id="arduino-uno-rotated__g32">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect29" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path30" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path31" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path32" />
+    </g>
+    <g
+       transform="translate(263 4)"
+       id="arduino-uno-rotated__g35">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect32" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path33" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path34" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path35" />
+    </g>
+    <g
+       transform="translate(295 4)"
+       id="arduino-uno-rotated__g38">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect35" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path36" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path37" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path38" />
+    </g>
+  </g>
+  <g
+     transform="translate(655 48)"
+     id="arduino-uno-rotated__g64">
+    <rect
+       width="261"
+       height="32"
+       rx="3"
+       fill="#333333"
+       id="arduino-uno-rotated__rect39" />
+    <g
+       transform="translate(7 4)"
+       id="arduino-uno-rotated__g42">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect40" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path40" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path41" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path42" />
+    </g>
+    <g
+       transform="translate(39 4)"
+       id="arduino-uno-rotated__g45">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect42" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path43" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path44" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path45" />
+    </g>
+    <g
+       transform="translate(71 4)"
+       id="arduino-uno-rotated__g48">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect45" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path46" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path47" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path48" />
+    </g>
+    <g
+       transform="translate(103 4)"
+       id="arduino-uno-rotated__g51">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect48" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path49" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path50" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path51" />
+    </g>
+    <g
+       transform="translate(135 4)"
+       id="arduino-uno-rotated__g54">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect51" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path52" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path53" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path54" />
+    </g>
+    <g
+       transform="translate(167 4)"
+       id="arduino-uno-rotated__g57">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect54" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path55" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path56" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path57" />
+    </g>
+    <g
+       transform="translate(199 4)"
+       id="arduino-uno-rotated__g60">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect57" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path58" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path59" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path60" />
+    </g>
+    <g
+       transform="translate(231 4)"
+       id="arduino-uno-rotated__g63">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect60" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path61" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path62" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path63" />
+    </g>
+  </g>
+  <g
+     id="arduino-uno-rotated__reset-button"
+     transform="translate(-3.3408476,-6.6816952)">
+    <rect
+       x="136"
+       y="60"
+       width="86"
+       height="84"
+       rx="7"
+       fill="#224d6b"
+       id="arduino-uno-rotated__rect64" />
+    <rect
+       x="136"
+       y="54"
+       width="86"
+       height="84"
+       rx="7"
+       fill="#dddddd"
+       id="arduino-uno-rotated__rect65" />
+    <rect
+       x="129"
+       y="61"
+       width="7"
+       height="20"
+       rx="2"
+       fill="#eaeaea"
+       id="arduino-uno-rotated__rect66" />
+    <rect
+       x="129"
+       y="88"
+       width="7"
+       height="20"
+       rx="2"
+       fill="#eaeaea"
+       id="arduino-uno-rotated__rect67" />
+    <rect
+       x="129.34085"
+       y="114.68169"
+       width="7"
+       height="20"
+       rx="2"
+       fill="#eaeaea"
+       id="arduino-uno-rotated__rect67-9" />
+    <rect
+       x="222"
+       y="61"
+       width="8"
+       height="20"
+       rx="2"
+       fill="#eaeaea"
+       id="arduino-uno-rotated__rect68" />
+    <rect
+       x="222"
+       y="111"
+       width="8"
+       height="20"
+       rx="2"
+       fill="#eaeaea"
+       id="arduino-uno-rotated__rect69" />
+    <circle
+       cx="179"
+       cy="99"
+       r="23"
+       fill="#9a9a9a"
+       id="arduino-uno-rotated__circle69" />
+    <circle
+       cx="179"
+       cy="95"
+       r="21"
+       fill="#b15f4b"
+       id="arduino-uno-rotated__circle70" />
+    <circle
+       cx="179"
+       cy="95"
+       r="19"
+       fill="#a0442e"
+       id="arduino-uno-rotated__circle71" />
+    <path
+       d="m 164,85 a 18,18 0 0 1 26,-7"
+       fill="none"
+       stroke="#bf7968"
+       stroke-width="2"
+       stroke-linecap="round"
+       opacity="0.65"
+       id="arduino-uno-rotated__path71" />
+  </g>
+  <g
+     id="arduino-uno-rotated__usb-socket">
+    <rect
+       x="18"
+       y="183"
+       width="209"
+       height="150"
+       rx="4"
+       fill="#A3A3A3"
+       id="arduino-uno-rotated__rect71" />
+    <rect
+       x="18"
+       y="177"
+       width="209"
+       height="151"
+       rx="4"
+       fill="#DDDDDD"
+       stroke="#C1C1C1"
+       stroke-width="1"
+       id="arduino-uno-rotated__rect72" />
+    <path
+       d="M18 327h209v5q0 2-3 2H21q-3 0-3-2z"
+       fill="#A3A3A3"
+       id="arduino-uno-rotated__path72" />
+    <line
+       x1="219"
+       y1="228"
+       x2="219"
+       y2="276"
+       stroke="#A8A8A8"
+       stroke-width="3"
+       id="arduino-uno-rotated__line72" />
+  </g>
+  <g
+     id="arduino-uno-rotated__usb-interface">
+    <rect
+       x="309"
+       y="237"
+       width="68"
+       height="71"
+       rx="4"
+       fill="#3C4042"
+       id="arduino-uno-rotated__rect73" />
+    <g
+       id="arduino-uno-rotated__g75">
+      <g
+         transform="translate(394 254) scale(0.01 -0.009766)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g74">
+        <use
+           href="#arduino-uno-rotated__b54"
+           id="arduino-uno-rotated__use73" />
+        <use
+           href="#arduino-uno-rotated__b58"
+           x="1251"
+           id="arduino-uno-rotated__use74" />
+      </g>
+    </g>
+    <g
+       id="arduino-uno-rotated__g77">
+      <g
+         transform="translate(394 284) scale(0.01 -0.009766)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g76">
+        <use
+           href="#arduino-uno-rotated__b52"
+           id="arduino-uno-rotated__use75" />
+        <use
+           href="#arduino-uno-rotated__b58"
+           x="1479"
+           id="arduino-uno-rotated__use76" />
+      </g>
+    </g>
+    <g
+       id="arduino-uno-rotated__g80">
+      <rect
+         x="430"
+         y="239"
+         width="41"
+         height="15"
+         fill="#C5C8CA"
+         id="arduino-uno-rotated__rect77" />
+      <rect
+         x="443"
+         y="239"
+         width="15"
+         height="15"
+         fill="#EAEAEA"
+         id="arduino-uno-rotated__rect78" />
+      <rect
+         x="430"
+         y="270"
+         width="41"
+         height="15"
+         fill="#C5C8CA"
+         id="arduino-uno-rotated__rect79" />
+      <rect
+         x="443"
+         y="270"
+         width="15"
+         height="15"
+         fill="#EAEAEA"
+         id="arduino-uno-rotated__rect80" />
+    </g>
+    <g
+       id="arduino-uno-rotated__g82">
+      <g
+         transform="translate(410 192) scale(0.01 -0.009766)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g81">
+        <use
+           href="#arduino-uno-rotated__b4c"
+           id="arduino-uno-rotated__use80" />
+      </g>
+    </g>
+    <rect
+       x="429"
+       y="178"
+       width="42"
+       height="15"
+       fill="#C5C8CA"
+       id="arduino-uno-rotated__rect82" />
+    <rect
+       x="443"
+       y="178"
+       width="16"
+       height="15"
+       fill="#EAEAEA"
+       id="arduino-uno-rotated__rect83" />
+    <rect
+       x="830"
+       y="238"
+       width="42"
+       height="15"
+       fill="#C5C8CA"
+       id="arduino-uno-rotated__rect84" />
+    <rect
+       x="843"
+       y="238"
+       width="17"
+       height="15"
+       fill="#EAEAEA"
+       id="arduino-uno-rotated__rect85" />
+    <g
+       id="arduino-uno-rotated__g87">
+      <g
+         transform="translate(875 252) scale(0.01 -0.009766)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g86">
+        <use
+           href="#arduino-uno-rotated__b4f"
+           id="arduino-uno-rotated__use85" />
+        <use
+           href="#arduino-uno-rotated__b4e"
+           x="1593"
+           id="arduino-uno-rotated__use86" />
+      </g>
+    </g>
+  </g>
+  <g
+     id="arduino-uno-rotated__arduino-logo"
+     fill="none"
+     stroke="#f4f5f6"
+     stroke-width="10"
+     transform="translate(-1.336339)">
+    <circle
+       cx="535"
+       cy="213"
+       r="31"
+       id="arduino-uno-rotated__circle87" />
+    <circle
+       cx="606"
+       cy="213"
+       r="31"
+       id="arduino-uno-rotated__circle88" />
+    <path
+       d="m 557,192 c 13,14 14,28 28,42 m -28,0 c 13,-14 14,-28 28,-42"
+       stroke-linecap="round"
+       id="arduino-uno-rotated__path88" />
+  </g>
+  <rect
+     x="524"
+     y="209"
+     width="22"
+     height="8"
+     fill="#F4F5F6"
+     id="arduino-uno-rotated__rect88" />
+  <rect
+     x="602"
+     y="201"
+     width="8"
+     height="24"
+     fill="#F4F5F6"
+     id="arduino-uno-rotated__rect89" />
+  <rect
+     x="594"
+     y="209"
+     width="24"
+     height="8"
+     fill="#F4F5F6"
+     id="arduino-uno-rotated__rect90" />
+  <g
+     id="arduino-uno-rotated__g97">
+    <g
+       transform="translate(501 278) scale(0.014 -0.014160)"
+       fill="#F4F5F6"
+       id="arduino-uno-rotated__g96">
+      <use
+         href="#arduino-uno-rotated__b41"
+         id="arduino-uno-rotated__use90" />
+      <use
+         href="#arduino-uno-rotated__b52"
+         x="1479"
+         id="arduino-uno-rotated__use91" />
+      <use
+         href="#arduino-uno-rotated__b44"
+         x="2958"
+         id="arduino-uno-rotated__use92" />
+      <use
+         href="#arduino-uno-rotated__b55"
+         x="4437"
+         id="arduino-uno-rotated__use93" />
+      <use
+         href="#arduino-uno-rotated__b49"
+         x="5916"
+         id="arduino-uno-rotated__use94" />
+      <use
+         href="#arduino-uno-rotated__b4e"
+         x="6485"
+         id="arduino-uno-rotated__use95" />
+      <use
+         href="#arduino-uno-rotated__b4f"
+         x="7964"
+         id="arduino-uno-rotated__use96" />
+    </g>
+  </g>
+  <rect
+     x="667"
+     y="180"
+     width="148"
+     height="69"
+     rx="34.5"
+     fill="none"
+     stroke="#F4F5F6"
+     stroke-width="4"
+     stroke-dasharray="1 6"
+     stroke-linecap="round"
+     id="arduino-uno-rotated__rect97" />
+  <g
+     id="arduino-uno-rotated__g100">
+    <g
+       transform="translate(685 234) scale(0.026 -0.025879)"
+       fill="#F4F5F6"
+       id="arduino-uno-rotated__g99">
+      <use
+         href="#arduino-uno-rotated__r55"
+         id="arduino-uno-rotated__use97" />
+      <use
+         href="#arduino-uno-rotated__r4e"
+         x="1479"
+         id="arduino-uno-rotated__use98" />
+      <use
+         href="#arduino-uno-rotated__r4f"
+         x="2958"
+         id="arduino-uno-rotated__use99" />
+    </g>
+  </g>
+  <line
+     x1="451"
+     y1="160"
+     x2="906"
+     y2="160"
+     stroke="#F4F5F6"
+     stroke-width="3"
+     id="arduino-uno-rotated__line100" />
+  <g
+     id="arduino-uno-rotated__g113">
+    <g
+       transform="translate(626 151) scale(0.013 -0.012695)"
+       fill="#F4F5F6"
+       id="arduino-uno-rotated__g112">
+      <use
+         href="#arduino-uno-rotated__b44"
+         id="arduino-uno-rotated__use100" />
+      <use
+         href="#arduino-uno-rotated__b49"
+         x="1479"
+         id="arduino-uno-rotated__use101" />
+      <use
+         href="#arduino-uno-rotated__b47"
+         x="2048"
+         id="arduino-uno-rotated__use102" />
+      <use
+         href="#arduino-uno-rotated__b49"
+         x="3641"
+         id="arduino-uno-rotated__use103" />
+      <use
+         href="#arduino-uno-rotated__b54"
+         x="4210"
+         id="arduino-uno-rotated__use104" />
+      <use
+         href="#arduino-uno-rotated__b41"
+         x="5461"
+         id="arduino-uno-rotated__use105" />
+      <use
+         href="#arduino-uno-rotated__b4c"
+         x="6788"
+         id="arduino-uno-rotated__use106" />
+      <use
+         href="#arduino-uno-rotated__b28"
+         x="8571"
+         id="arduino-uno-rotated__use107" />
+      <use
+         href="#arduino-uno-rotated__b50"
+         x="9253"
+         id="arduino-uno-rotated__use108" />
+      <use
+         href="#arduino-uno-rotated__b57"
+         x="10619"
+         id="arduino-uno-rotated__use109" />
+      <use
+         href="#arduino-uno-rotated__b4d"
+         x="12552"
+         id="arduino-uno-rotated__use110" />
+      <use
+         href="#arduino-uno-rotated__b7e"
+         x="14258"
+         id="arduino-uno-rotated__use111" />
+      <use
+         href="#arduino-uno-rotated__b29"
+         x="15454"
+         id="arduino-uno-rotated__use112" />
+    </g>
+  </g>
+  <g
+     id="arduino-uno-rotated__g155"
+     transform="translate(4.00902,-8.01802)">
+    <g
+       transform="rotate(-90,278.63514,-128.12514)"
+       id="arduino-uno-rotated__g117">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g116">
+        <use
+           href="#arduino-uno-rotated__b41"
+           id="arduino-uno-rotated__use113" />
+        <use
+           href="#arduino-uno-rotated__b52"
+           x="1479"
+           id="arduino-uno-rotated__use114" />
+        <use
+           href="#arduino-uno-rotated__b45"
+           x="2958"
+           id="arduino-uno-rotated__use115" />
+        <use
+           href="#arduino-uno-rotated__b46"
+           x="4324"
+           id="arduino-uno-rotated__use116" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,289.63003,-149.14003)"
+       id="arduino-uno-rotated__g120">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g119">
+        <use
+           href="#arduino-uno-rotated__b47"
+           id="arduino-uno-rotated__use117" />
+        <use
+           href="#arduino-uno-rotated__b4e"
+           x="1593"
+           id="arduino-uno-rotated__use118" />
+        <use
+           href="#arduino-uno-rotated__b44"
+           x="3072"
+           id="arduino-uno-rotated__use119" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,294.53538,-176.20538)"
+       id="arduino-uno-rotated__g122">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g121">
+        <use
+           href="#arduino-uno-rotated__b31"
+           id="arduino-uno-rotated__use120" />
+        <use
+           href="#arduino-uno-rotated__b33"
+           x="1139"
+           id="arduino-uno-rotated__use121" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,310.60769,-192.35769)"
+       id="arduino-uno-rotated__g124">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g123">
+        <use
+           href="#arduino-uno-rotated__b31"
+           id="arduino-uno-rotated__use122" />
+        <use
+           href="#arduino-uno-rotated__b32"
+           x="1139"
+           id="arduino-uno-rotated__use123" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,332.37015,-202.39015)"
+       id="arduino-uno-rotated__g127">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g126">
+        <use
+           href="#arduino-uno-rotated__b7e"
+           id="arduino-uno-rotated__use124" />
+        <use
+           href="#arduino-uno-rotated__b31"
+           x="1196"
+           id="arduino-uno-rotated__use125" />
+        <use
+           href="#arduino-uno-rotated__b31"
+           x="2335"
+           id="arduino-uno-rotated__use126" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,348.24003,-218.53003)"
+       id="arduino-uno-rotated__g130">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g129">
+        <use
+           href="#arduino-uno-rotated__b7e"
+           id="arduino-uno-rotated__use127" />
+        <use
+           href="#arduino-uno-rotated__b31"
+           x="1196"
+           id="arduino-uno-rotated__use128" />
+        <use
+           href="#arduino-uno-rotated__b30"
+           x="2335"
+           id="arduino-uno-rotated__use129" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,358.58503,-240.18503)"
+       id="arduino-uno-rotated__g132">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g131">
+        <use
+           href="#arduino-uno-rotated__b7e"
+           id="arduino-uno-rotated__use130" />
+        <use
+           href="#arduino-uno-rotated__b39"
+           x="1196"
+           id="arduino-uno-rotated__use131" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,368.59003,-262.18003)"
+       id="arduino-uno-rotated__g134">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g133">
+        <use
+           href="#arduino-uno-rotated__b38"
+           id="arduino-uno-rotated__use132" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,392.56515,-286.19515)"
+       id="arduino-uno-rotated__g136">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g135">
+        <use
+           href="#arduino-uno-rotated__b37"
+           id="arduino-uno-rotated__use134" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,414.59503,-296.17503)"
+       id="arduino-uno-rotated__g138">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g137">
+        <use
+           href="#arduino-uno-rotated__b7e"
+           id="arduino-uno-rotated__use136" />
+        <use
+           href="#arduino-uno-rotated__b36"
+           x="1196"
+           id="arduino-uno-rotated__use137" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,430.57749,-311.98749)"
+       id="arduino-uno-rotated__g140">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g139">
+        <use
+           href="#arduino-uno-rotated__b7e"
+           id="arduino-uno-rotated__use138" />
+        <use
+           href="#arduino-uno-rotated__b35"
+           x="1196"
+           id="arduino-uno-rotated__use139" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,440.67515,-334.08515)"
+       id="arduino-uno-rotated__g142">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g141">
+        <use
+           href="#arduino-uno-rotated__b34"
+           id="arduino-uno-rotated__use140" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,462.58038,-344.16038)"
+       id="arduino-uno-rotated__g144">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g143">
+        <use
+           href="#arduino-uno-rotated__b7e"
+           id="arduino-uno-rotated__use142" />
+        <use
+           href="#arduino-uno-rotated__b33"
+           x="1196"
+           id="arduino-uno-rotated__use143" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,472.62269,-366.34269)"
+       id="arduino-uno-rotated__g146">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g145">
+        <use
+           href="#arduino-uno-rotated__b32"
+           id="arduino-uno-rotated__use144" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,511.73015,-359.03015)"
+       id="arduino-uno-rotated__g150">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g149">
+        <use
+           href="#arduino-uno-rotated__b54"
+           id="arduino-uno-rotated__use146" />
+        <use
+           href="#arduino-uno-rotated__b58"
+           x="1251"
+           id="arduino-uno-rotated__use147" />
+        <use
+           href="#arduino-uno-rotated__b2192"
+           x="2617"
+           id="arduino-uno-rotated__use148" />
+        <use
+           href="#arduino-uno-rotated__b31"
+           x="4665"
+           id="arduino-uno-rotated__use149" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,529.31003,-373.46003)"
+       id="arduino-uno-rotated__g154">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="arduino-uno-rotated__g153">
+        <use
+           href="#arduino-uno-rotated__b52"
+           id="arduino-uno-rotated__use150" />
+        <use
+           href="#arduino-uno-rotated__b58"
+           x="1479"
+           id="arduino-uno-rotated__use151" />
+        <use
+           href="#arduino-uno-rotated__b2190"
+           x="2845"
+           id="arduino-uno-rotated__use152" />
+        <use
+           href="#arduino-uno-rotated__b30"
+           x="4893"
+           id="arduino-uno-rotated__use153" />
+      </g>
+    </g>
+  </g>
+  <g
+     id="arduino-uno-rotated__crystal">
+    <rect
+       x="254"
+       y="345"
+       width="154"
+       height="61"
+       rx="30.5"
+       fill="#B8BEC2"
+       id="arduino-uno-rotated__rect155" />
+    <rect
+       x="260"
+       y="351"
+       width="142"
+       height="49"
+       rx="24.5"
+       fill="#DDDDDD"
+       stroke="#C9CED1"
+       stroke-width="3"
+       id="arduino-uno-rotated__rect156" />
+    <g
+       id="arduino-uno-rotated__g166">
+      <g
+         transform="translate(286 384) scale(0.008 -0.008301)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g165">
+        <use
+           href="#arduino-uno-rotated__r53"
+           id="arduino-uno-rotated__use156" />
+        <use
+           href="#arduino-uno-rotated__r50"
+           x="1366"
+           id="arduino-uno-rotated__use157" />
+        <use
+           href="#arduino-uno-rotated__r4b"
+           x="2732"
+           id="arduino-uno-rotated__use158" />
+        <use
+           href="#arduino-uno-rotated__r31"
+           x="4098"
+           id="arduino-uno-rotated__use159" />
+        <use
+           href="#arduino-uno-rotated__r36"
+           x="5237"
+           id="arduino-uno-rotated__use160" />
+        <use
+           href="#arduino-uno-rotated__r2e"
+           x="6376"
+           id="arduino-uno-rotated__use161" />
+        <use
+           href="#arduino-uno-rotated__r30"
+           x="6945"
+           id="arduino-uno-rotated__use162" />
+        <use
+           href="#arduino-uno-rotated__r30"
+           x="8084"
+           id="arduino-uno-rotated__use163" />
+        <use
+           href="#arduino-uno-rotated__r30"
+           x="9223"
+           id="arduino-uno-rotated__use164" />
+        <use
+           href="#arduino-uno-rotated__r47"
+           x="10362"
+           id="arduino-uno-rotated__use165" />
+      </g>
+    </g>
+  </g>
+  <g
+     id="arduino-uno-rotated__smd-components">
+    <rect
+       x="314"
+       y="433"
+       width="40"
+       height="42"
+       rx="3"
+       fill="#3C4042"
+       id="arduino-uno-rotated__rect166" />
+    <rect
+       x="166"
+       y="447"
+       width="44"
+       height="86"
+       rx="4"
+       fill="#3C4042"
+       id="arduino-uno-rotated__rect167" />
+    <rect
+       x="146"
+       y="469"
+       width="21"
+       height="41"
+       rx="3"
+       fill="#EAEAEA"
+       stroke="#C1C1C1"
+       stroke-width="2"
+       id="arduino-uno-rotated__rect168" />
+    <rect
+       x="210"
+       y="457"
+       width="23"
+       height="17"
+       rx="3"
+       fill="#C1C1C1"
+       id="arduino-uno-rotated__rect169" />
+    <rect
+       x="211"
+       y="461"
+       width="16"
+       height="9"
+       fill="#EAEAEA"
+       id="arduino-uno-rotated__rect170" />
+    <rect
+       x="210"
+       y="482"
+       width="23"
+       height="17"
+       rx="3"
+       fill="#C1C1C1"
+       id="arduino-uno-rotated__rect171" />
+    <rect
+       x="211"
+       y="486"
+       width="16"
+       height="9"
+       fill="#EAEAEA"
+       id="arduino-uno-rotated__rect172" />
+    <rect
+       x="210"
+       y="507"
+       width="23"
+       height="17"
+       rx="3"
+       fill="#C1C1C1"
+       id="arduino-uno-rotated__rect173" />
+    <rect
+       x="211"
+       y="511"
+       width="16"
+       height="9"
+       fill="#EAEAEA"
+       id="arduino-uno-rotated__rect174" />
+    <rect
+       x="362"
+       y="501"
+       width="21"
+       height="40"
+       rx="3"
+       fill="#303638"
+       id="arduino-uno-rotated__rect175" />
+    <path
+       d="M351 507h11v7h-11zm0 13h11v7h-11zm0 13h11v7h-11zm32-26h11v7h-11zm0 13h11v7h-11zm0 13h11v7h-11z"
+       fill="#C1C1C1"
+       id="arduino-uno-rotated__path175" />
+  </g>
+  <g
+     id="arduino-uno-rotated__capacitors">
+    <ellipse
+       cx="310"
+       cy="611"
+       rx="38"
+       ry="42"
+       fill="#224D6B"
+       id="arduino-uno-rotated__ellipse175" />
+    <circle
+       cx="310"
+       cy="598"
+       r="38"
+       fill="#C1C1C1"
+       id="arduino-uno-rotated__circle175" />
+    <circle
+       cx="310"
+       cy="594"
+       r="31"
+       fill="#DDDDDD"
+       id="arduino-uno-rotated__circle176" />
+    <rect
+       x="279"
+       y="612"
+       width="62"
+       height="20"
+       fill="#515151"
+       clip-path="url(#arduino-uno-rotated__capClip1)"
+       id="arduino-uno-rotated__rect176" />
+    <ellipse
+       cx="405"
+       cy="611"
+       rx="38"
+       ry="42"
+       fill="#224D6B"
+       id="arduino-uno-rotated__ellipse176" />
+    <circle
+       cx="405"
+       cy="598"
+       r="38"
+       fill="#C1C1C1"
+       id="arduino-uno-rotated__circle177" />
+    <circle
+       cx="405"
+       cy="594"
+       r="31"
+       fill="#DDDDDD"
+       id="arduino-uno-rotated__circle178" />
+    <rect
+       x="374"
+       y="612"
+       width="62"
+       height="20"
+       fill="#515151"
+       clip-path="url(#arduino-uno-rotated__capClip2)"
+       id="arduino-uno-rotated__rect178" />
+  </g>
+  <g
+     id="arduino-uno-rotated__dc-jack"
+     transform="translate(0,2.0045086)">
+    <rect
+       x="99"
+       y="566"
+       width="142"
+       height="120"
+       rx="9"
+       fill="#224d6b"
+       id="arduino-uno-rotated__rect179" />
+    <rect
+       x="65"
+       y="552"
+       width="175"
+       height="118"
+       rx="8"
+       fill="#252728"
+       id="arduino-uno-rotated__rect180" />
+    <rect
+       x="65"
+       y="552"
+       width="44"
+       height="101"
+       rx="6"
+       fill="#3c4042"
+       id="arduino-uno-rotated__rect181" />
+    <path
+       d="m 65,653 h 44 v 11 q 0,6 -6,6 H 71 q -6,0 -6,-6 z"
+       fill="#252728"
+       id="arduino-uno-rotated__path181" />
+    <path
+       d="m 106,559 h 112 q 22,0 22,22 v 48 q 0,22 -22,22 h -72 q -40,0 -40,-40 z"
+       fill="#3c4042"
+       id="arduino-uno-rotated__path183" />
+    <line
+       x1="225"
+       y1="562"
+       x2="225"
+       y2="648"
+       stroke="#717171"
+       stroke-width="3"
+       opacity="0.85"
+       id="arduino-uno-rotated__line183" />
+  </g>
+  <g
+     id="arduino-uno-rotated__atmega328p">
+    <rect
+       x="447"
+       y="444"
+       width="470"
+       height="118"
+       rx="6"
+       fill="#292C2D"
+       id="arduino-uno-rotated__rect183" />
+    <rect
+       x="451"
+       y="458"
+       width="462"
+       height="92"
+       rx="5"
+       fill="#3C4042"
+       id="arduino-uno-rotated__rect184" />
+    <rect
+       x="464"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect185" />
+    <rect
+       x="464"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect186" />
+    <rect
+       x="496"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect187" />
+    <rect
+       x="496"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect188" />
+    <rect
+       x="528"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect189" />
+    <rect
+       x="528"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect190" />
+    <rect
+       x="560"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect191" />
+    <rect
+       x="560"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect192" />
+    <rect
+       x="592"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect193" />
+    <rect
+       x="592"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect194" />
+    <rect
+       x="624"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect195" />
+    <rect
+       x="624"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect196" />
+    <rect
+       x="656"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect197" />
+    <rect
+       x="656"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect198" />
+    <rect
+       x="688"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect199" />
+    <rect
+       x="688"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect200" />
+    <rect
+       x="720"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect201" />
+    <rect
+       x="720"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect202" />
+    <rect
+       x="752"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect203" />
+    <rect
+       x="752"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect204" />
+    <rect
+       x="784"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect205" />
+    <rect
+       x="784"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect206" />
+    <rect
+       x="816"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect207" />
+    <rect
+       x="816"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect208" />
+    <rect
+       x="848"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect209" />
+    <rect
+       x="848"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect210" />
+    <rect
+       x="880"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect211" />
+    <rect
+       x="880"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="arduino-uno-rotated__rect212" />
+    <circle
+       cx="514"
+       cy="501"
+       r="13"
+       fill="#292C2D"
+       id="arduino-uno-rotated__circle212" />
+    <circle
+       cx="850"
+       cy="501"
+       r="13"
+       fill="#292C2D"
+       id="arduino-uno-rotated__circle213" />
+  </g>
+  <g
+     transform="translate(432 655)"
+     id="arduino-uno-rotated__g238">
+    <rect
+       width="261"
+       height="32"
+       rx="3"
+       fill="#333333"
+       id="arduino-uno-rotated__rect213" />
+    <g
+       transform="translate(7 4)"
+       id="arduino-uno-rotated__g216">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect214" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path214" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path215" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path216" />
+    </g>
+    <g
+       transform="translate(39 4)"
+       id="arduino-uno-rotated__g219">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect216" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path217" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path218" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path219" />
+    </g>
+    <g
+       transform="translate(71 4)"
+       id="arduino-uno-rotated__g222">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect219" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path220" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path221" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path222" />
+    </g>
+    <g
+       transform="translate(103 4)"
+       id="arduino-uno-rotated__g225">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect222" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path223" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path224" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path225" />
+    </g>
+    <g
+       transform="translate(135 4)"
+       id="arduino-uno-rotated__g228">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect225" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path226" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path227" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path228" />
+    </g>
+    <g
+       transform="translate(167 4)"
+       id="arduino-uno-rotated__g231">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect228" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path229" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path230" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path231" />
+    </g>
+    <g
+       transform="translate(199 4)"
+       id="arduino-uno-rotated__g234">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect231" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path232" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path233" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path234" />
+    </g>
+    <g
+       transform="translate(231 4)"
+       id="arduino-uno-rotated__g237">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect234" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path235" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path236" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path237" />
+    </g>
+  </g>
+  <g
+     transform="translate(719 655)"
+     id="arduino-uno-rotated__g257">
+    <rect
+       width="197"
+       height="32"
+       rx="3"
+       fill="#333333"
+       id="arduino-uno-rotated__rect238" />
+    <g
+       transform="translate(7 4)"
+       id="arduino-uno-rotated__g241">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect239" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path239" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path240" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path241" />
+    </g>
+    <g
+       transform="translate(39 4)"
+       id="arduino-uno-rotated__g244">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect241" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path242" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path243" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path244" />
+    </g>
+    <g
+       transform="translate(71 4)"
+       id="arduino-uno-rotated__g247">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect244" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path245" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path246" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path247" />
+    </g>
+    <g
+       transform="translate(103 4)"
+       id="arduino-uno-rotated__g250">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect247" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path248" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path249" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path250" />
+    </g>
+    <g
+       transform="translate(135 4)"
+       id="arduino-uno-rotated__g253">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect250" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path251" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path252" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path253" />
+    </g>
+    <g
+       transform="translate(167 4)"
+       id="arduino-uno-rotated__g256">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="arduino-uno-rotated__rect253" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="arduino-uno-rotated__path254" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="arduino-uno-rotated__path255" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="arduino-uno-rotated__path256" />
+    </g>
+  </g>
+  <line
+     x1="527"
+     y1="569"
+     x2="684"
+     y2="569"
+     stroke="#F4F5F6"
+     stroke-width="3"
+     id="arduino-uno-rotated__line257" />
+  <line
+     x1="717"
+     y1="569"
+     x2="906"
+     y2="569"
+     stroke="#F4F5F6"
+     stroke-width="3"
+     id="arduino-uno-rotated__line258" />
+  <g
+     id="arduino-uno-rotated__g263">
+    <g
+       transform="translate(594 596) scale(0.012 -0.012207)"
+       fill="#F4F5F6"
+       id="arduino-uno-rotated__g262">
+      <use
+         href="#arduino-uno-rotated__b50"
+         id="arduino-uno-rotated__use258" />
+      <use
+         href="#arduino-uno-rotated__b4f"
+         x="1366"
+         id="arduino-uno-rotated__use259" />
+      <use
+         href="#arduino-uno-rotated__b57"
+         x="2959"
+         id="arduino-uno-rotated__use260" />
+      <use
+         href="#arduino-uno-rotated__b45"
+         x="4892"
+         id="arduino-uno-rotated__use261" />
+      <use
+         href="#arduino-uno-rotated__b52"
+         x="6258"
+         id="arduino-uno-rotated__use262" />
+    </g>
+  </g>
+  <g
+     id="arduino-uno-rotated__g271">
+    <g
+       transform="translate(766 596) scale(0.012 -0.012207)"
+       fill="#F4F5F6"
+       id="arduino-uno-rotated__g270">
+      <use
+         href="#arduino-uno-rotated__b41"
+         id="arduino-uno-rotated__use263" />
+      <use
+         href="#arduino-uno-rotated__b4e"
+         x="1479"
+         id="arduino-uno-rotated__use264" />
+      <use
+         href="#arduino-uno-rotated__b41"
+         x="2958"
+         id="arduino-uno-rotated__use265" />
+      <use
+         href="#arduino-uno-rotated__b4c"
+         x="4437"
+         id="arduino-uno-rotated__use266" />
+      <use
+         href="#arduino-uno-rotated__b4f"
+         x="5688"
+         id="arduino-uno-rotated__use267" />
+      <use
+         href="#arduino-uno-rotated__b47"
+         x="7281"
+         id="arduino-uno-rotated__use268" />
+      <use
+         href="#arduino-uno-rotated__b49"
+         x="9443"
+         id="arduino-uno-rotated__use269" />
+      <use
+         href="#arduino-uno-rotated__b4e"
+         x="10012"
+         id="arduino-uno-rotated__use270" />
+    </g>
+  </g>
+  <g
+     id="arduino-uno-rotated__g309">
+    <g
+       transform="translate(483 642) rotate(-90)"
+       id="arduino-uno-rotated__g276">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g275">
+        <use
+           href="#arduino-uno-rotated__b49"
+           id="arduino-uno-rotated__use271" />
+        <use
+           href="#arduino-uno-rotated__b4f"
+           x="569"
+           id="arduino-uno-rotated__use272" />
+        <use
+           href="#arduino-uno-rotated__b52"
+           x="2162"
+           id="arduino-uno-rotated__use273" />
+        <use
+           href="#arduino-uno-rotated__b45"
+           x="3641"
+           id="arduino-uno-rotated__use274" />
+        <use
+           href="#arduino-uno-rotated__b46"
+           x="5007"
+           id="arduino-uno-rotated__use275" />
+      </g>
+    </g>
+    <g
+       transform="translate(515 642) rotate(-90)"
+       id="arduino-uno-rotated__g281">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g280">
+        <use
+           href="#arduino-uno-rotated__b52"
+           id="arduino-uno-rotated__use276" />
+        <use
+           href="#arduino-uno-rotated__b45"
+           x="1479"
+           id="arduino-uno-rotated__use277" />
+        <use
+           href="#arduino-uno-rotated__b53"
+           x="2845"
+           id="arduino-uno-rotated__use278" />
+        <use
+           href="#arduino-uno-rotated__b45"
+           x="4211"
+           id="arduino-uno-rotated__use279" />
+        <use
+           href="#arduino-uno-rotated__b54"
+           x="5577"
+           id="arduino-uno-rotated__use280" />
+      </g>
+    </g>
+    <g
+       transform="translate(547 642) rotate(-90)"
+       id="arduino-uno-rotated__g285">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g284">
+        <use
+           href="#arduino-uno-rotated__b33"
+           id="arduino-uno-rotated__use281" />
+        <use
+           href="#arduino-uno-rotated__b2e"
+           x="1139"
+           id="arduino-uno-rotated__use282" />
+        <use
+           href="#arduino-uno-rotated__b33"
+           x="1708"
+           id="arduino-uno-rotated__use283" />
+        <use
+           href="#arduino-uno-rotated__b56"
+           x="2847"
+           id="arduino-uno-rotated__use284" />
+      </g>
+    </g>
+    <g
+       transform="translate(579 642) rotate(-90)"
+       id="arduino-uno-rotated__g287">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g286">
+        <use
+           href="#arduino-uno-rotated__b35"
+           id="arduino-uno-rotated__use285" />
+        <use
+           href="#arduino-uno-rotated__b56"
+           x="1139"
+           id="arduino-uno-rotated__use286" />
+      </g>
+    </g>
+    <g
+       transform="translate(611 642) rotate(-90)"
+       id="arduino-uno-rotated__g290">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g289">
+        <use
+           href="#arduino-uno-rotated__b47"
+           id="arduino-uno-rotated__use287" />
+        <use
+           href="#arduino-uno-rotated__b4e"
+           x="1593"
+           id="arduino-uno-rotated__use288" />
+        <use
+           href="#arduino-uno-rotated__b44"
+           x="3072"
+           id="arduino-uno-rotated__use289" />
+      </g>
+    </g>
+    <g
+       transform="translate(643 642) rotate(-90)"
+       id="arduino-uno-rotated__g293">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g292">
+        <use
+           href="#arduino-uno-rotated__b47"
+           id="arduino-uno-rotated__use290" />
+        <use
+           href="#arduino-uno-rotated__b4e"
+           x="1593"
+           id="arduino-uno-rotated__use291" />
+        <use
+           href="#arduino-uno-rotated__b44"
+           x="3072"
+           id="arduino-uno-rotated__use292" />
+      </g>
+    </g>
+    <g
+       transform="translate(675 642) rotate(-90)"
+       id="arduino-uno-rotated__g296">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g295">
+        <use
+           href="#arduino-uno-rotated__b56"
+           id="arduino-uno-rotated__use293" />
+        <use
+           href="#arduino-uno-rotated__b69"
+           x="1366"
+           id="arduino-uno-rotated__use294" />
+        <use
+           href="#arduino-uno-rotated__b6e"
+           x="1898"
+           id="arduino-uno-rotated__use295" />
+      </g>
+    </g>
+    <g
+       transform="translate(739 642) rotate(-90)"
+       id="arduino-uno-rotated__g298">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g297">
+        <use
+           href="#arduino-uno-rotated__b41"
+           id="arduino-uno-rotated__use296" />
+        <use
+           href="#arduino-uno-rotated__b30"
+           x="1479"
+           id="arduino-uno-rotated__use297" />
+      </g>
+    </g>
+    <g
+       transform="translate(771 642) rotate(-90)"
+       id="arduino-uno-rotated__g300">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g299">
+        <use
+           href="#arduino-uno-rotated__b41"
+           id="arduino-uno-rotated__use298" />
+        <use
+           href="#arduino-uno-rotated__b31"
+           x="1479"
+           id="arduino-uno-rotated__use299" />
+      </g>
+    </g>
+    <g
+       transform="translate(803 642) rotate(-90)"
+       id="arduino-uno-rotated__g302">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g301">
+        <use
+           href="#arduino-uno-rotated__b41"
+           id="arduino-uno-rotated__use300" />
+        <use
+           href="#arduino-uno-rotated__b32"
+           x="1479"
+           id="arduino-uno-rotated__use301" />
+      </g>
+    </g>
+    <g
+       transform="translate(835 642) rotate(-90)"
+       id="arduino-uno-rotated__g304">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g303">
+        <use
+           href="#arduino-uno-rotated__b41"
+           id="arduino-uno-rotated__use302" />
+        <use
+           href="#arduino-uno-rotated__b33"
+           x="1479"
+           id="arduino-uno-rotated__use303" />
+      </g>
+    </g>
+    <g
+       transform="translate(867 642) rotate(-90)"
+       id="arduino-uno-rotated__g306">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g305">
+        <use
+           href="#arduino-uno-rotated__b41"
+           id="arduino-uno-rotated__use304" />
+        <use
+           href="#arduino-uno-rotated__b34"
+           x="1479"
+           id="arduino-uno-rotated__use305" />
+      </g>
+    </g>
+    <g
+       transform="translate(899 642) rotate(-90)"
+       id="arduino-uno-rotated__g308">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="arduino-uno-rotated__g307">
+        <use
+           href="#arduino-uno-rotated__b41"
+           id="arduino-uno-rotated__use306" />
+        <use
+           href="#arduino-uno-rotated__b35"
+           x="1479"
+           id="arduino-uno-rotated__use307" />
+      </g>
+    </g>
+  </g>
+  <metadata
+     id="arduino-uno-rotated__metadata309">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>Arduino UNO — pure editable vector reconstruction</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+</svg>
+ </g></g>
+<g id="layer-battery" inkscape:groupmode="layer" inkscape:label="08 Native ASA Lab 6AA holder rotated 90"><g id="battery-6aa-rotated" transform="translate(199.3 -49.08) rotate(90)" data-source="apps/web/public/assets/electronics/component-database/components/battery-holders/aa-6.svg" data-physical-size-mm="98.16x63.997; rotated bbox 63.997x98.16" data-viewport-mode="top-down" >
+ <svg width="98.16" height="63.997" preserveAspectRatio="xMidYMid meet"  xmlns="http://www.w3.org/2000/svg"
+     version="1.1"
+    
+    
+     viewBox="0 0 1293 843"
+     data-component-type="aa-battery-holder"
+     data-component-id="battery-6aa-rotated__aa_holder_6x_sketch_exact_v6">
+  <title>AA holder 6x — normalized full-size battery SVG v6</title>
+  <desc>Pure SVG. All battery cells share one normalized full visual size; 2x and 3x no longer have shortened cells.</desc>
+  <metadata>{"id": "aa_holder_6x_sketch_exact_v6", "type": "aa-battery-holder", "variant": "6x", "style": "normalized linear sketch style", "fix": "All variants use identical battery visual size; fixes 2x and 3x short batteries.", "layout": {"rows": 1, "columns": 6}, "sourcePngSizePx": {"width": 1293, "height": 843}, "displayMm": {"width": 116.8762, "height": 76.2}, "nominalVoltageAlkaline": 9.0, "chemistryProfiles": {"alkaline": {"cellVoltage": 1.5, "packVoltage": 9.0}, "nimh": {"cellVoltage": 1.2, "packVoltage": 7.2}}, "aaReferenceMm": {"diameter": 14.5, "length": 50.5}, "visualBatteryPx": {"widthA": 191, "widthB": 190, "height": 697, "topA": 88, "topB": 82}, "snapPoints": {"BAT-": {"xMm": 53.3581, "yMm": 6.05}, "BAT+": {"xMm": 63.5181, "yMm": 6.05}, "spacingMm": 10.16}, "containsRaster": false, "seriesConnection": ["cell1+ -> cell2-", "cell2+ -> cell3-", "cell3+ -> cell4-", "cell4+ -> cell5-", "cell5+ -> cell6-"]}</metadata>
+
+  <defs>
+    <linearGradient id="battery-6aa-rotated__caseGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#343536"/>
+      <stop offset="1" stop-color="#2b2c2d"/>
+    </linearGradient>
+    <linearGradient id="battery-6aa-rotated__innerGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#181a1b"/>
+      <stop offset="1" stop-color="#212324"/>
+    </linearGradient>
+    <linearGradient id="battery-6aa-rotated__metalHorizontal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9fa4a4"/>
+      <stop offset="0.25" stop-color="#edf1f1"/>
+      <stop offset="0.55" stop-color="#b7bcbc"/>
+      <stop offset="0.86" stop-color="#e5e9e9"/>
+      <stop offset="1" stop-color="#868b8b"/>
+    </linearGradient>
+  </defs>
+
+  <g id="battery-6aa-rotated__snap-points" style="display:none">
+    <circle id="battery-6aa-rotated__BAT_MINUS" cx="594.5" cy="74" r="5.5" data-terminal="BAT-" data-x-mm="53.358" data-y-mm="6.05"/>
+    <circle id="battery-6aa-rotated__BAT_PLUS" cx="699.5" cy="74" r="5.5" data-terminal="BAT+" data-x-mm="63.518" data-y-mm="6.05"/>
+  </g>
+
+  <g id="battery-6aa-rotated__top-posts">
+    <rect x="619.5" y="21" width="18" height="29" rx="3.5" fill="#191919"/>
+    <rect x="624.8" y="10" width="7.4" height="12.5" rx="2.6" fill="#666666"/>
+    <rect x="655.5" y="21" width="18" height="29" rx="3.5" fill="#bd1111"/>
+    <rect x="660.8" y="10" width="7.4" height="12.5" rx="2.6" fill="#666666"/>
+  </g>
+  <g id="battery-6aa-rotated__case">
+    <rect x="25" y="45" width="1243" height="777" rx="6" fill="url(#battery-6aa-rotated__caseGrad)"/>
+    <rect x="39" y="72" width="1220" height="722" rx="8" fill="url(#battery-6aa-rotated__innerGrad)"/>
+    <rect x="32" y="49" width="1229" height="3" rx="1.5" fill="#424445" opacity="0.35"/>
+  </g>
+  <g id="battery-6aa-rotated__metal-contacts">
+    <rect x="108" y="73" width="75" height="16" rx="5.333" fill="url(#battery-6aa-rotated__metalHorizontal)" /><rect x="110.25" y="78.28" width="70.5" height="2.24" rx="0.5" fill="#f4f7f7" opacity="0.45"/><rect x="77" y="787" width="138" height="7" rx="2.333" fill="url(#battery-6aa-rotated__metalHorizontal)" /><rect x="81.14" y="789.31" width="129.72" height="1" rx="0.5" fill="#f4f7f7" opacity="0.45"/><rect x="279" y="73" width="146" height="8" rx="2.667" fill="url(#battery-6aa-rotated__metalHorizontal)" /><rect x="283.38" y="75.64" width="137.24" height="1.12" rx="0.5" fill="#f4f7f7" opacity="0.45"/><rect x="310" y="780" width="77" height="16" rx="5.333" fill="url(#battery-6aa-rotated__metalHorizontal)" /><rect x="312.31" y="785.28" width="72.38" height="2.24" rx="0.5" fill="#f4f7f7" opacity="0.45"/><rect x="512" y="73" width="75" height="16" rx="5.333" fill="url(#battery-6aa-rotated__metalHorizontal)" /><rect x="514.25" y="78.28" width="70.5" height="2.24" rx="0.5" fill="#f4f7f7" opacity="0.45"/><rect x="481" y="787" width="138" height="7" rx="2.333" fill="url(#battery-6aa-rotated__metalHorizontal)" /><rect x="485.14" y="789.31" width="129.72" height="1" rx="0.5" fill="#f4f7f7" opacity="0.45"/><rect x="683" y="73" width="146" height="8" rx="2.667" fill="url(#battery-6aa-rotated__metalHorizontal)" /><rect x="687.38" y="75.64" width="137.24" height="1.12" rx="0.5" fill="#f4f7f7" opacity="0.45"/><rect x="714" y="780" width="77" height="16" rx="5.333" fill="url(#battery-6aa-rotated__metalHorizontal)" /><rect x="716.31" y="785.28" width="72.38" height="2.24" rx="0.5" fill="#f4f7f7" opacity="0.45"/><rect x="916" y="73" width="75" height="16" rx="5.333" fill="url(#battery-6aa-rotated__metalHorizontal)" /><rect x="918.25" y="78.28" width="70.5" height="2.24" rx="0.5" fill="#f4f7f7" opacity="0.45"/><rect x="885" y="787" width="138" height="7" rx="2.333" fill="url(#battery-6aa-rotated__metalHorizontal)" /><rect x="889.14" y="789.31" width="129.72" height="1" rx="0.5" fill="#f4f7f7" opacity="0.45"/><rect x="1087" y="73" width="146" height="8" rx="2.667" fill="url(#battery-6aa-rotated__metalHorizontal)" /><rect x="1091.38" y="75.64" width="137.24" height="1.12" rx="0.5" fill="#f4f7f7" opacity="0.45"/><rect x="1118" y="780" width="77" height="16" rx="5.333" fill="url(#battery-6aa-rotated__metalHorizontal)" /><rect x="1120.31" y="785.28" width="72.38" height="2.24" rx="0.5" fill="#f4f7f7" opacity="0.45"/>
+  </g>
+  <g id="battery-6aa-rotated__batteries">
+    
+    <g id="battery-6aa-rotated__battery-1" data-cap="top" data-normalized-full-size="true">
+      <clipPath id="battery-6aa-rotated__cellclip-1">
+        <rect x="51" y="88" width="191" height="697" rx="6.685"/>
+      </clipPath>
+      <g clip-path="url(#battery-6aa-rotated__cellclip-1)"><rect x="51" y="88" width="191" height="203.524" rx="0" fill="#4cc4c7" /><rect x="51" y="291.524" width="191" height="493.476" rx="0" fill="#2b7d82" /></g>
+      <rect x="51" y="88" width="191" height="697" rx="6.685" fill="none" stroke="#2a777b" stroke-width="0.9"/>
+      <text transform="translate(146.5 436.5) rotate(90)"
+            text-anchor="middle" dominant-baseline="middle"
+            font-family="Arial, Helvetica, sans-serif"
+            font-size="53.48"
+            font-weight="400"
+            fill="#e9f3f3">AA 1.5V</text>
+    </g>
+    <g id="battery-6aa-rotated__battery-2" data-cap="bottom" data-normalized-full-size="true">
+      <clipPath id="battery-6aa-rotated__cellclip-2">
+        <rect x="253" y="82" width="190" height="697" rx="6.65"/>
+      </clipPath>
+      <g clip-path="url(#battery-6aa-rotated__cellclip-2)"><rect x="253" y="82" width="190" height="493.476" rx="0" fill="#2b7d82" /><rect x="253" y="575.476" width="190" height="203.524" rx="0" fill="#4cc4c7" /></g>
+      <rect x="253" y="82" width="190" height="697" rx="6.65" fill="none" stroke="#2a777b" stroke-width="0.9"/>
+      <text transform="translate(348 430.5) rotate(-90)"
+            text-anchor="middle" dominant-baseline="middle"
+            font-family="Arial, Helvetica, sans-serif"
+            font-size="53.2"
+            font-weight="400"
+            fill="#e9f3f3">AA 1.5V</text>
+    </g>
+    <g id="battery-6aa-rotated__battery-3" data-cap="top" data-normalized-full-size="true">
+      <clipPath id="battery-6aa-rotated__cellclip-3">
+        <rect x="455" y="88" width="191" height="697" rx="6.685"/>
+      </clipPath>
+      <g clip-path="url(#battery-6aa-rotated__cellclip-3)"><rect x="455" y="88" width="191" height="203.524" rx="0" fill="#4cc4c7" /><rect x="455" y="291.524" width="191" height="493.476" rx="0" fill="#2b7d82" /></g>
+      <rect x="455" y="88" width="191" height="697" rx="6.685" fill="none" stroke="#2a777b" stroke-width="0.9"/>
+      <text transform="translate(550.5 436.5) rotate(90)"
+            text-anchor="middle" dominant-baseline="middle"
+            font-family="Arial, Helvetica, sans-serif"
+            font-size="53.48"
+            font-weight="400"
+            fill="#e9f3f3">AA 1.5V</text>
+    </g>
+    <g id="battery-6aa-rotated__battery-4" data-cap="bottom" data-normalized-full-size="true">
+      <clipPath id="battery-6aa-rotated__cellclip-4">
+        <rect x="657" y="82" width="190" height="697" rx="6.65"/>
+      </clipPath>
+      <g clip-path="url(#battery-6aa-rotated__cellclip-4)"><rect x="657" y="82" width="190" height="493.476" rx="0" fill="#2b7d82" /><rect x="657" y="575.476" width="190" height="203.524" rx="0" fill="#4cc4c7" /></g>
+      <rect x="657" y="82" width="190" height="697" rx="6.65" fill="none" stroke="#2a777b" stroke-width="0.9"/>
+      <text transform="translate(752 430.5) rotate(-90)"
+            text-anchor="middle" dominant-baseline="middle"
+            font-family="Arial, Helvetica, sans-serif"
+            font-size="53.2"
+            font-weight="400"
+            fill="#e9f3f3">AA 1.5V</text>
+    </g>
+    <g id="battery-6aa-rotated__battery-5" data-cap="top" data-normalized-full-size="true">
+      <clipPath id="battery-6aa-rotated__cellclip-5">
+        <rect x="859" y="88" width="191" height="697" rx="6.685"/>
+      </clipPath>
+      <g clip-path="url(#battery-6aa-rotated__cellclip-5)"><rect x="859" y="88" width="191" height="203.524" rx="0" fill="#4cc4c7" /><rect x="859" y="291.524" width="191" height="493.476" rx="0" fill="#2b7d82" /></g>
+      <rect x="859" y="88" width="191" height="697" rx="6.685" fill="none" stroke="#2a777b" stroke-width="0.9"/>
+      <text transform="translate(954.5 436.5) rotate(90)"
+            text-anchor="middle" dominant-baseline="middle"
+            font-family="Arial, Helvetica, sans-serif"
+            font-size="53.48"
+            font-weight="400"
+            fill="#e9f3f3">AA 1.5V</text>
+    </g>
+    <g id="battery-6aa-rotated__battery-6" data-cap="bottom" data-normalized-full-size="true">
+      <clipPath id="battery-6aa-rotated__cellclip-6">
+        <rect x="1061" y="82" width="190" height="697" rx="6.65"/>
+      </clipPath>
+      <g clip-path="url(#battery-6aa-rotated__cellclip-6)"><rect x="1061" y="82" width="190" height="493.476" rx="0" fill="#2b7d82" /><rect x="1061" y="575.476" width="190" height="203.524" rx="0" fill="#4cc4c7" /></g>
+      <rect x="1061" y="82" width="190" height="697" rx="6.65" fill="none" stroke="#2a777b" stroke-width="0.9"/>
+      <text transform="translate(1156 430.5) rotate(-90)"
+            text-anchor="middle" dominant-baseline="middle"
+            font-family="Arial, Helvetica, sans-serif"
+            font-size="53.2"
+            font-weight="400"
+            fill="#e9f3f3">AA 1.5V</text>
+    </g>
+  </g>
+
+  <g id="battery-6aa-rotated__side-cutouts">
+    <path d="M 39 372
+             C 75 396, 75 668, 39 692
+             L 39 372 Z" fill="#2b2c2d"/>
+    <path d="M 1259 372
+             C 1223 396, 1223 668, 1259 692
+             L 1259 372 Z" fill="#2b2c2d"/>
+  </g>
+  <g id="battery-6aa-rotated__polarity">
+    
+    <g id="battery-6aa-rotated__badge-minus">
+      <circle cx="594.5" cy="74" r="22" fill="#353738" stroke="#626668" stroke-width="3"/>
+      <rect x="583.5" y="72.13" width="22" height="3.74" rx="1.76" fill="#eeeeee"/>
+    </g>
+    
+    <g id="battery-6aa-rotated__badge-plus">
+      <circle cx="699.5" cy="74" r="22" fill="#353738" stroke="#626668" stroke-width="3"/>
+      <rect x="688.06" y="72.13" width="22.88" height="3.74" rx="1.76" fill="#eeeeee"/>
+      <rect x="697.63" y="62.56" width="3.74" height="22.88" rx="1.76" fill="#eeeeee"/>
+    </g>
+  </g>
+</svg>
+ </g></g>
+<g id="layer-servo" inkscape:groupmode="layer" inkscape:label="09 SG90 native SVG horizontal"><g id="sg90-servo-inline" transform="translate(21.5 -6.1) rotate(90)" data-source="apps/web/public/assets/electronics/component-database/components/motors/servo-motor/component.svg" data-physical-size-mm="31.5x12.2 projected footprint" data-viewport-mode="top-down" >
+ <svg width="12.2" height="31.5" preserveAspectRatio="xMidYMid meet"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 241 621">
+  <defs>
+    <path id="sg90-servo-inline__horn-shape" d="M114.5 139 C102 139 94 147 94 159 L94 283 C94 289 89 294 83 294 L52 294 C39.8 294 30 303 30 314 C30 325 39.8 334 52 334 L83 334 C89 334 94 339 94 345 L94 469 C94 481 102 489 114.5 489 C127 489 135 481 135 469 L135 345 C135 339 140 334 146 334 L177 334 C189.2 334 199 325 199 314 C199 303 189.2 294 177 294 L146 294 C140 294 135 289 135 283 L135 159 C135 147 127 139 114.5 139 Z"/>
+    <mask id="sg90-servo-inline__body-mask">
+      <rect width="241" height="621" fill="black"/>
+      <path fill="white" fill-rule="evenodd" d="M43 194 A4 4 0 0 1 47 190 H183 A4 4 0 0 1 187 194 V567 A4 4 0 0 1 183 571 H47 A4 4 0 0 1 43 567 Z M95 571 V548 A19.5 19.5 0 0 1 134 548 V571 Z"/>
+    </mask>
+    <mask id="sg90-servo-inline__inner-body-mask">
+      <rect width="241" height="621" fill="black"/>
+      <path fill="white" fill-rule="evenodd" d="M48 197 A2 2 0 0 1 50 195 H180 A2 2 0 0 1 182 197 V564 A2 2 0 0 1 180 566 H50 A2 2 0 0 1 48 564 Z M95 566 V548 A19.5 19.5 0 0 1 134 548 V566 Z"/>
+    </mask>
+  </defs>
+  <g id="sg90-servo-inline__wires" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M85 127 C84 145 88 165 95 191" stroke="#6B3A2C" stroke-width="14"/>
+    <path d="M114.5 127 C114.5 148 114.5 169 114.5 191" stroke="#B41E23" stroke-width="14"/>
+    <path d="M144 127 C143 147 138 169 133 191" stroke="#D98438" stroke-width="14"/>
+  </g>
+  <g id="sg90-servo-inline__connector">
+    <rect x="68" y="34" width="94" height="93" rx="4" fill="#2B2B2B"/>
+    <path d="M68 38 A4 4 0 0 1 72 34 H158 A4 4 0 0 1 162 38 V69 H68 Z" fill="#383838"/>
+    <path d="M75 42 H95 V63 H81 L77 59 L75 55 Z" fill="#262626"/>
+    <path d="M79 45 H91 V58 H85 L83 56 L79 52 Z" fill="#111111"/>
+    <path d="M75 42 H95 L92 46 H78 Z" fill="#4C4C4C" opacity="0.6"/>
+    <path d="M105 42 H125 V63 H111 L107 59 L105 55 Z" fill="#262626"/>
+    <path d="M109 45 H121 V58 H115 L113 56 L109 52 Z" fill="#111111"/>
+    <path d="M105 42 H125 L122 46 H108 Z" fill="#4C4C4C" opacity="0.6"/>
+    <path d="M135 42 H155 V63 H141 L137 59 L135 55 Z" fill="#262626"/>
+    <path d="M139 45 H151 V58 H145 L143 56 L139 52 Z" fill="#111111"/>
+    <path d="M135 42 H155 L152 46 H138 Z" fill="#4C4C4C" opacity="0.6"/>
+    <rect x="75" y="96" width="80" height="3" rx="1.5" fill="#454545"/>
+  </g>
+  <g id="sg90-servo-inline__body">
+    <rect x="43" y="190" width="144" height="381" rx="4" fill="#1B5E8F" mask="url(#sg90-servo-inline__body-mask)"/>
+    <rect x="48" y="195" width="134" height="371" rx="2" fill="#2D88D0" mask="url(#sg90-servo-inline__inner-body-mask)"/>
+    <path d="M48 228 H58 C58 218 66 210 76 210 V200 H48 Z" fill="#1B5E8F" opacity="0.95"/>
+    <path d="M182 228 H172 C172 218 164 210 154 210 V200 H182 Z" fill="#1B5E8F" opacity="0.95"/>
+    <path d="M48 528 H58 C58 538 66 546 76 546 V566 H48 Z" fill="#1B5E8F" opacity="0.95"/>
+    <path d="M182 528 H172 C172 538 164 546 154 546 V566 H182 Z" fill="#1B5E8F" opacity="0.95"/>
+    <rect x="52" y="199" width="35" height="42" rx="1.5" fill="#3291D8"/>
+    <circle cx="69.5" cy="220" r="10" fill="#57A7E7" opacity="0.55"/>
+    <rect x="143" y="199" width="35" height="42" rx="1.5" fill="#3291D8"/>
+    <circle cx="160.5" cy="220" r="10" fill="#57A7E7" opacity="0.55"/>
+    <rect x="52" y="520" width="35" height="42" rx="1.5" fill="#3291D8"/>
+    <circle cx="69.5" cy="541" r="10" fill="#57A7E7" opacity="0.55"/>
+    <rect x="143" y="520" width="35" height="42" rx="1.5" fill="#3291D8"/>
+    <circle cx="160.5" cy="541" r="10" fill="#57A7E7" opacity="0.55"/>
+  </g>
+  
+  <g id="sg90-servo-inline__gears">
+    <circle cx="114.5" cy="313" r="64.5" fill="#1A5C89"/>
+    <path d="M 175.05 318.46 L 170.69 322.56 L 173.45 327.87 L 168.50 331.23 L 170.40 336.91 L 164.99 339.46 L 165.97 345.36 L 160.23 347.03 L 160.28 353.01 L 154.34 353.76 L 153.45 359.68 L 147.47 359.49 L 145.67 365.20 L 139.79 364.08 L 137.12 369.43 L 131.49 367.41 L 128.02 372.28 L 122.77 369.40 L 118.58 373.66 L 113.85 370.00 L 109.04 373.55 L 104.94 369.19 L 99.63 371.95 L 96.27 367.00 L 90.59 368.90 L 88.04 363.49 L 82.14 364.47 L 80.47 358.73 L 74.49 358.78 L 73.74 352.84 L 67.82 351.95 L 68.01 345.97 L 62.30 344.17 L 63.42 338.29 L 58.07 335.62 L 60.09 329.99 L 55.22 326.52 L 58.10 321.27 L 53.84 317.08 L 57.50 312.35 L 53.95 307.54 L 58.31 303.44 L 55.55 298.13 L 60.50 294.77 L 58.60 289.09 L 64.01 286.54 L 63.03 280.64 L 68.77 278.97 L 68.72 272.99 L 74.66 272.24 L 75.55 266.32 L 81.53 266.51 L 83.33 260.80 L 89.21 261.92 L 91.88 256.57 L 97.51 258.59 L 100.98 253.72 L 106.23 256.60 L 110.42 252.34 L 115.15 256.00 L 119.96 252.45 L 124.06 256.81 L 129.37 254.05 L 132.73 259.00 L 138.41 257.10 L 140.96 262.51 L 146.86 261.53 L 148.53 267.27 L 154.51 267.22 L 155.26 273.16 L 161.18 274.05 L 160.99 280.03 L 166.70 281.83 L 165.58 287.71 L 170.93 290.38 L 168.91 296.01 L 173.78 299.48 L 170.90 304.73 L 175.16 308.92 L 171.50 313.65 Z" fill="#8EC9FF"/>
+    <circle cx="114.5" cy="313" r="53.5" fill="#9ED3FF" opacity="0.18"/>
+    <circle cx="114.5" cy="392" r="54.5" fill="#2D6FA2"/>
+    <path d="M 165.18 395.55 L 161.08 399.63 L 163.66 404.80 L 158.88 408.06 L 160.47 413.62 L 155.18 415.94 L 155.71 421.70 L 150.08 423.01 L 149.56 428.77 L 143.78 429.02 L 142.20 434.58 L 136.48 433.77 L 133.91 438.95 L 128.43 437.10 L 124.95 441.71 L 119.91 438.89 L 115.64 442.79 L 111.20 439.08 L 106.29 442.13 L 102.60 437.68 L 97.21 439.77 L 94.41 434.71 L 88.73 435.78 L 86.91 430.29 L 81.13 430.30 L 80.34 424.57 L 74.66 423.51 L 74.94 417.74 L 69.54 415.66 L 70.88 410.03 L 65.96 406.99 L 68.31 401.71 L 64.03 397.82 L 67.31 393.06 L 63.82 388.45 L 67.92 384.37 L 65.34 379.20 L 70.12 375.94 L 68.53 370.38 L 73.82 368.06 L 73.29 362.30 L 78.92 360.99 L 79.44 355.23 L 85.22 354.98 L 86.80 349.42 L 92.52 350.23 L 95.09 345.05 L 100.57 346.90 L 104.05 342.29 L 109.09 345.11 L 113.36 341.21 L 117.80 344.92 L 122.71 341.87 L 126.40 346.32 L 131.79 344.23 L 134.59 349.29 L 140.27 348.22 L 142.09 353.71 L 147.87 353.70 L 148.66 359.43 L 154.34 360.49 L 154.06 366.26 L 159.46 368.34 L 158.12 373.97 L 163.04 377.01 L 160.69 382.29 L 164.97 386.18 L 161.69 390.94 Z" fill="#A4D3FF"/>
+    <circle cx="114.5" cy="392" r="44" fill="#B6DDFF" opacity="0.12"/>
+  </g>
+  <g id="sg90-servo-inline__horn">
+    <use href="#sg90-servo-inline__horn-shape" fill="#EFEFEF" stroke="#5E5E61" stroke-width="2"/>
+    <circle cx="114.5" cy="156" r="5.3" fill="#9F151C" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="175" r="5.3" fill="#A61A21" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="194" r="5.3" fill="#AA1C21" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="213" r="5.3" fill="#AB1D22" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="232" r="5.3" fill="#B01F23" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="251" r="5.3" fill="#1C4D70" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="270" r="5.3" fill="#79BFFF" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="49.5" cy="314" r="5.3" fill="#1A5C89" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="67.5" cy="314" r="5.3" fill="#6CB8FF" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="161.5" cy="314" r="5.3" fill="#6CB8FF" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="179.5" cy="314" r="5.3" fill="#1A5C89" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="361" r="5.3" fill="#6CB8FF" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="380" r="5.3" fill="#6CB8FF" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="399" r="5.3" fill="#194868" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="418" r="5.3" fill="#6CB8FF" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="437" r="5.3" fill="#6CB8FF" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="456" r="5.3" fill="#194868" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="475" r="5.3" fill="#6CB8FF" stroke="#5E5E61" stroke-width="1"/>
+    <circle cx="114.5" cy="314" r="29" fill="#E0E0E0" stroke="#6A6A6A" stroke-width="2"/>
+    <circle cx="114.5" cy="314" r="16.5" fill="#D1D1D1" stroke="#6A6A6A" stroke-width="2"/>
+    <rect x="111.8" y="304.7" width="5.4" height="18.6" rx="1.7" fill="#6A6A6A"/>
+    <rect x="105.2" y="311.3" width="18.6" height="5.4" rx="1.7" fill="#6A6A6A"/>
+  </g>
+</svg>
+ </g></g>
+<g id="layer-sonar" inkscape:groupmode="layer" inkscape:label="10 HC SR04 native SVG facing forward"><g id="hcsr04-front-forward" transform="translate(-15.8 22.5) rotate(-90)" data-source="apps/web/public/assets/electronics/component-database/components/sensors/ultrasonic-hc-sr04/component.svg" data-physical-size-mm="45x20 active PCB; 45x25.305 visual including pins" data-viewport-mode="top-down" >
+ <svg width="45" height="25.305" preserveAspectRatio="xMidYMid meet"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 738 415" fill="none">
+  <defs>
+    <g id="hcsr04-front-forward__transducer">
+      <!-- lower cylinder shadow -->
+      <circle cx="0" cy="27" r="130" fill="#263340"/>
+      <!-- front shell -->
+      <circle cx="0" cy="0" r="130" fill="#CCCCCC"/>
+      <!-- darker top rim accent -->
+      <path d="M -107 -6 A 107 107 0 0 1 107 -6 L 100 6 A 100 100 0 0 0 -100 6 Z" fill="#D6D6D6" opacity="0.85"/>
+      <!-- inner ring -->
+      <circle cx="0" cy="0" r="102" fill="#666666"/>
+      <!-- darker side/inner shading -->
+      <path d="M -97 -16 A 102 102 0 0 1 -57 -83 A 102 102 0 0 1 57 -83 A 102 102 0 0 0 -97 -16 Z" fill="#4C4C4C" opacity="0.9"/>
+      <!-- olive ring -->
+      <circle cx="0" cy="0" r="81" fill="#999933"/>
+      <!-- inner membrane -->
+      <circle cx="0" cy="0" r="61" fill="#999999"/>
+      <!-- subtle membrane highlight -->
+      <path d="M -52 -12 A 61 61 0 0 1 0 -58 A 61 61 0 0 0 -52 -12 Z" fill="#A6A6A6" opacity="0.65"/>
+    </g>
+    <style>
+      .board-text{fill:#EAEAEA;font-family:"Trebuchet MS","Verdana","DejaVu Sans",sans-serif;font-weight:700;letter-spacing:1px}
+      .small-text{fill:#EAEAEA;font-family:"Trebuchet MS","Verdana","DejaVu Sans",sans-serif;font-weight:700}
+      .pin-label{fill:#EAEAEA;font-family:"Trebuchet MS","Verdana","DejaVu Sans",sans-serif;font-weight:700;letter-spacing:1px}
+    </style>
+  </defs>
+
+  <!-- PCB -->
+  <rect x="1" y="1" width="736" height="326" rx="7" fill="#003366"/>
+
+  <!-- Mount holes -->
+  <g>
+    <g transform="translate(21 21)">
+      <circle r="13.5" fill="#CCCCCC"/>
+      <circle r="9" fill="#E8E8E8"/>
+    </g>
+    <g transform="translate(716 21)">
+      <circle r="13.5" fill="#CCCCCC"/>
+      <circle r="9" fill="#E8E8E8"/>
+    </g>
+    <g transform="translate(21 307)">
+      <circle r="13.5" fill="#CCCCCC"/>
+      <circle r="9" fill="#E8E8E8"/>
+    </g>
+    <g transform="translate(716 307)">
+      <circle r="13.5" fill="#CCCCCC"/>
+      <circle r="9" fill="#E8E8E8"/>
+    </g>
+  </g>
+
+  <!-- Top capsule -->
+  <rect x="294" y="15" width="150" height="53" rx="26.5" fill="#CCCCCC"/>
+  <rect x="301" y="19" width="136" height="45" rx="22.5" fill="#999999"/>
+  <path d="M311 25 Q369 10 427 25" fill="none" stroke="#BEBEBE" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- Transducers -->
+  <g transform="translate(152 163)">
+    <use href="#hcsr04-front-forward__transducer"/>
+  </g>
+  <g transform="translate(585 163)">
+    <use href="#hcsr04-front-forward__transducer"/>
+  </g>
+
+  <!-- Main title -->
+  <text x="368" y="118" text-anchor="middle" class="board-text" font-size="42">HC-SR04</text>
+
+  <!-- Pin labels -->
+  <g class="pin-label" font-size="18">
+    <text x="0" y="0" text-anchor="middle" dominant-baseline="middle" transform="translate(304 222) rotate(-90)">Vcc</text>
+    <text x="0" y="0" text-anchor="middle" dominant-baseline="middle" transform="translate(344 220) rotate(-90)">TRIG</text>
+    <text x="0" y="0" text-anchor="middle" dominant-baseline="middle" transform="translate(386 220) rotate(-90)">ECHO</text>
+    <text x="0" y="0" text-anchor="middle" dominant-baseline="middle" transform="translate(428 221) rotate(-90)">GND</text>
+  </g>
+
+  <!-- Contact pads -->
+  <g>
+    <g transform="translate(307 286)">
+      <rect x="-12" y="-20" width="24" height="40" rx="12" fill="#999999"/>
+      <ellipse cx="0" cy="0" rx="6.5" ry="8" fill="#CCCCCC"/>
+    </g>
+    <g transform="translate(347 286)">
+      <rect x="-12" y="-20" width="24" height="40" rx="12" fill="#999999"/>
+      <ellipse cx="0" cy="0" rx="6.5" ry="8" fill="#CCCCCC"/>
+    </g>
+    <g transform="translate(388 286)">
+      <rect x="-12" y="-20" width="24" height="40" rx="12" fill="#999999"/>
+      <ellipse cx="0" cy="0" rx="6.5" ry="8" fill="#CCCCCC"/>
+    </g>
+    <g transform="translate(429 286)">
+      <rect x="-12" y="-20" width="24" height="40" rx="12" fill="#999999"/>
+      <ellipse cx="0" cy="0" rx="6.5" ry="8" fill="#CCCCCC"/>
+    </g>
+  </g>
+
+  <!-- Metal pins -->
+  <g fill="#CCCCCC">
+    <rect x="302" y="327" width="10" height="87" rx="5"/>
+    <rect x="342" y="327" width="10" height="87" rx="5"/>
+    <rect x="383" y="327" width="10" height="87" rx="5"/>
+    <rect x="424" y="327" width="10" height="87" rx="5"/>
+  </g>
+
+  <!-- Corner marks -->
+  <g class="small-text">
+    <text x="61" y="317" text-anchor="middle" font-size="58">T</text>
+    <path d="M50 275 H68" stroke="#777777" stroke-width="6" stroke-linecap="round"/>
+    <text x="668" y="317" text-anchor="middle" font-size="58">R</text>
+  </g>
+</svg>
+ </g></g>
+</svg>
