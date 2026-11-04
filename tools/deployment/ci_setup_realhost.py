@@ -1256,9 +1256,15 @@ def owner_call(phase, *, timeout=900):
         result = json.loads(raw)
     except (ValueError, UnicodeError):
         raise Failure("OWNER_REPORT_INVALID") from None
+    require(type(code) is int and code in (0, 1, 2) and isinstance(result, dict) and result.get("format") == "asa-realhost-guest-v1"
+            and result.get("phase") == phase, "OWNER_REPORT_INVALID")
     if code or result.get("status") != "PASS":
         reason = result.get("reasonCode")
-        raise Failure(reason if isinstance(reason, str) and CODE.fullmatch(reason) else "OWNER_PHASE_FAILED")
+        # Only current owner-phase blockers may cross the subprocess boundary.
+        blocked = (type(code) is int and code == 2 and result.get("status") == "BLOCKED"
+                   and reason in ("BLOCKED_FAULT_GUEST_DISK", "COMMAND_TIMEOUT"))
+        raise Failure(reason if isinstance(reason, str) and CODE.fullmatch(reason) else "OWNER_PHASE_FAILED",
+                      status="BLOCKED" if blocked else "FAIL")
     return result
 
 

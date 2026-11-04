@@ -483,6 +483,50 @@ class CommandFailureDiagnosticTests(unittest.TestCase):
 
 
 class RuntimeFaultContractTests(unittest.TestCase):
+    def owner_result(self, code, result):
+        account = SimpleNamespace(pw_name="asa-setup", pw_dir="/var/lib/asa-setup/operator")
+        with patch.dict(sys.modules, {"pwd": SimpleNamespace(getpwnam=Mock(return_value=account))}), \
+                patch.object(harness.Commands, "run", return_value=(code, json.dumps(result).encode())):
+            return harness.owner_call("owner-fault-prepare", timeout=360)
+
+    def test_recognized_owner_blocker_preserves_blocked_through_guest_result(self):
+        child = {"format": "asa-realhost-guest-v1", "phase": "owner-fault-prepare", "status": "BLOCKED"}
+        for reason in ("BLOCKED_FAULT_GUEST_DISK", "COMMAND_TIMEOUT"):
+            output = io.StringIO()
+            with self.subTest(reason=reason), patch.object(harness, "guest_guard", return_value={}), \
+                    patch.object(harness, "guest_phase", side_effect=lambda *_: self.owner_result(2, {**child, "reasonCode": reason})), \
+                    patch.object(harness, "CLI_ACTIONS", []), contextlib.redirect_stdout(output):
+                code = harness.guest_main("partial-fault")
+            observed = json.loads(output.getvalue())
+            self.assertEqual((code, observed["status"], observed["reasonCode"]), (2, "BLOCKED", reason))
+
+    def test_owner_fail_unknown_and_inconsistent_results_remain_fail(self):
+        child = {"format": "asa-realhost-guest-v1", "phase": "owner-fault-prepare", "status": "FAIL", "reasonCode": "FAULT_OBJECT_READBACK_SHA256"}
+        cases = ((1, child),
+                 (1, {**child, "status": "BLOCKED", "reasonCode": "BLOCKED_FAULT_GUEST_DISK"}),
+                 (0, {**child, "status": "BLOCKED", "reasonCode": "BLOCKED_FAULT_GUEST_DISK"}),
+                 (2, child), (2, {**child, "status": "PASS"}),
+                 (2, {**child, "status": "UNKNOWN"}), (2, {**child, "status": {"private": "data"}}),
+                 (2, {**child, "status": "BLOCKED", "reasonCode": "UNRECOGNIZED_BLOCKER"}),
+                 (2, {**child, "status": "BLOCKED", "reasonCode": None}),
+                 (2, {**child, "status": "BLOCKED", "reasonCode": ["BLOCKED_FAULT_GUEST_DISK"]}))
+        for code, result in cases:
+            with self.subTest(code=code, status=result["status"]), self.assertRaises(harness.Failure) as caught:
+                self.owner_result(code, result)
+            self.assertEqual(caught.exception.status, "FAIL")
+        with self.assertRaises(harness.Failure) as caught:
+            self.owner_result(1, child)
+        self.assertEqual(caught.exception.code, "FAULT_OBJECT_READBACK_SHA256")
+
+    def test_owner_envelope_and_phase_must_match_even_when_exit_is_zero(self):
+        child = {"format": "asa-realhost-guest-v1", "phase": "owner-fault-prepare", "status": "PASS", "fixtureUploaderExitedBeforeBackup": True}
+        self.assertEqual(self.owner_result(0, child), child)
+        for result in ([], None, {}, {**child, "format": "unknown"}, {**child, "phase": "owner-fault-remove"}):
+            for code in (0, 2):
+                with self.subTest(code=code, result=result), self.assertRaises(harness.Failure) as caught:
+                    self.owner_result(code, result)
+                self.assertEqual((caught.exception.code, caught.exception.status), ("OWNER_REPORT_INVALID", "FAIL"))
+
     def test_file_limit_requires_actual_large_part_and_small_database_files(self):
         harness.fault_size_gate(1000, 2000, harness.FAULT_FILE_LIMIT + 1)
         for values, code in (((1000, 2000, harness.FAULT_FILE_LIMIT), "BLOCKED_FAULT_OBJECT_PART_TOO_SMALL"),
