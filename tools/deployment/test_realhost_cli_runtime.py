@@ -36,7 +36,7 @@ def compact(context, *, terminal=False):
              "CLI: 1.0.0 · записанный выпуск: " + context.installed.revision,
              "PostgreSQL сейчас: " + str(context.installed.schema),
              "Сервисы: OK · healthy 6/7", "Последняя локальная копия: " + STAMP + " · RECORDED",
-             "Справка: asa help · подробности: asa status · безопасная проверка: asa update"]
+             "Справка: asa help · подробности: asa status · безопасная проверка: asa check"]
     if terminal:
         lines += ["", runtime.MENU, "Выбор: "]
     return "\n".join(lines) + "\n"
@@ -95,12 +95,12 @@ class CoordinatorTests(unittest.TestCase):
     def test_all_read_forms_use_real_checker_and_hooks_surround_fingerprint_window(self):
         result = self.suite(tokens={"GH_TOKEN": SECRET})
         self.assertEqual(result["status"], "PASS")
-        self.assertEqual(len(result["cases"]), 29)
-        self.assertEqual(len(self.invocations), 31)
+        self.assertEqual(len(result["cases"]), 28)
+        self.assertEqual(len(self.invocations), 30)
         self.assertEqual(self.events[:2], [("control", "before"), ("filesystem", 1)])
         self.assertEqual(self.events[-2:], [("filesystem", 2), ("control", "after")])
         self.assertEqual({case["command"] for case in result["cases"]}, set(runtime.READ_COMMANDS) | {"help"})
-        for case in ("help-update", "disk", "update", "update-check", "backup-list", "restore-plan", "logs", "bare-json"):
+        for case in ("help-update", "disk", "update-check", "backup-list", "restore-plan", "logs", "bare-json"):
             self.assertIn(case, {value["case"] for value in result["cases"]})
         self.assertEqual(result["observations"]["cloud-status"]["status"], "UNAVAILABLE")
         self.assertEqual(result["observations"]["disk-health"]["exitCode"], 1)
@@ -118,14 +118,14 @@ class CoordinatorTests(unittest.TestCase):
 
     def test_plan_contains_no_mutation_and_never_repins_observed_stable(self):
         plan = runtime.command_plan(self.context)
-        self.assertEqual(len(plan), 29)
+        self.assertEqual(len(plan), 28)
         for _, argv, command, _, _ in plan:
             self.assertEqual(argv[0], runtime.ASA)
             self.assertIn("--json", argv)
             self.assertIn("--no-color", argv)
             self.assertNotIn("--deployment-digest", argv)
             self.assertNotIn("--operation-id", argv)
-            self.assertNotIn(command, ("install", "update apply", "backup create", "cloud sync", "restore apply"))
+            self.assertNotIn(command, ("install", "update", "update apply", "backup create", "cloud sync", "restore apply"))
             if "--root" in argv:
                 self.assertEqual(argv[argv.index("--root") + 1], self.context.root)
         verify = next(item for item in plan if item[2] == "backup verify")
@@ -133,7 +133,7 @@ class CoordinatorTests(unittest.TestCase):
 
     def test_semantic_failure_preserves_reason_and_still_checks_postconditions(self):
         def mutate(label, document):
-            if label == "update":
+            if label == "update-check":
                 document["target"]["deploymentDigest"] = "sha256:" + "f" * 64
         self.mutate = mutate
         with self.assertRaises(runtime.CLIRuntimeError) as raised:
@@ -141,7 +141,7 @@ class CoordinatorTests(unittest.TestCase):
         result = raised.exception.evidence
         self.assertEqual((raised.exception.code, raised.exception.semantic_code), ("CLI_SEMANTICS", "RELEASE_PIN_MISMATCH"))
         self.assertEqual(result["status"], "FAIL")
-        self.assertEqual(result["failedCase"], "update")
+        self.assertEqual(result["failedCase"], "update-check")
         self.assertTrue(result["filesystem"]["unchanged"])
         self.assertTrue(result["control"]["unchanged"])
         self.assertEqual(self.events[-2:], [("filesystem", 2), ("control", "after")])
@@ -275,7 +275,7 @@ class FormatTests(unittest.TestCase):
             completed = subprocess.run([sys.executable, "-I", "-B", "-c", script], cwd=directory,
                                        env={**os.environ, "PYTHONPATH": directory}, capture_output=True, timeout=5)
             self.assertEqual(completed.returncode, 0)
-            self.assertEqual(json.loads(completed.stdout), {"reads": 23, "asa": "/usr/local/bin/asa"})
+            self.assertEqual(json.loads(completed.stdout), {"reads": 22, "asa": "/usr/local/bin/asa"})
             self.assertEqual(completed.stderr, b"")
 
     def test_linux_runtime_is_explicitly_unsupported_elsewhere(self):

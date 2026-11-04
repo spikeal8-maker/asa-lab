@@ -6,8 +6,8 @@
 с действующим 1Panel. Существующий Windows Apply сохранён.
 
 **Без аргументов asa показывает компактную текущую сводку, а в интерактивном
-терминале предлагает меню. asa update только проверяет выпуск.**
-Обновление запускается исключительно через **sudo asa update apply**.
+терминале предлагает меню. asa check проверяет выпуск, а asa update обновляет.**
+В root-терминале 1Panel выполняйте asa update; вне root — sudo asa update.
 Без TTY или с параметром --json ввод не ожидается.
 
 ## Команды
@@ -22,9 +22,9 @@
 | asa disk, asa disk usage | Свободные байты и inodes на разделах приложения, Docker, PostgreSQL, MinIO и backup | Чтение |
 | asa disk health | SMART; для NVMe доступен резервный запрос nvme smart-log | Чтение; без прав/датчиков UNAVAILABLE |
 | asa services, asa services status | Docker/Compose, состав, здоровье и совпадение pinned образов | Чтение |
-| asa update, asa update check, asa check | Текущий и предлагаемый проверенный release | HTTP-чтение GHCR/GitHub; без Docker pull |
+| asa check, asa update check | Текущий и предлагаемый проверенный release | HTTP-чтение GHCR/GitHub; без Docker pull |
 | asa update plan | SHA/digest, диапазон схем, backup space budget и блокеры | Чтение |
-| sudo asa update apply | Обновление существующей установки с текущими locks, backup и приёмкой | Изменение; root supervisor, приложение от проверенного non-root оператора |
+| asa update, sudo asa update, sudo asa update apply | Обновление существующей установки с текущими locks, backup и приёмкой | Изменение; root supervisor, приложение от проверенного non-root оператора |
 | sudo asa install | Установка в чистую цель, конфигурация и owner onboarding | Изменение; root supervisor |
 | asa backup status | Последняя попытка, локальный успех и успешная доставка отдельно | Чтение |
 | asa backup list | До 100 записей копий выбранной установки | Чтение |

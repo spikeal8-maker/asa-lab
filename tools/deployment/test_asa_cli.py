@@ -149,10 +149,10 @@ class PublicCLIProcessTests(unittest.TestCase):
         return value
 
     @unittest.skipUnless(os.name == "posix", "POSIX isolated executable fixture")
-    def test_bare_update_public_process_returns_read_plan_and_preserves_check_alias(self):
+    def test_check_public_process_returns_read_plan_without_mutation(self):
         before = self.tree()
-        cases = ((["update"], "update"),
-                 (["update", "--deployment-digest", SELECTION["deploymentDigest"]], "update"),
+        cases = ((["update", "check"], "update check"),
+                 (["update", "check", "--deployment-digest", SELECTION["deploymentDigest"]], "update check"),
                  (["check"], "update check"))
         for arguments, command in cases:
             with self.subTest(arguments=arguments):
@@ -163,7 +163,7 @@ class PublicCLIProcessTests(unittest.TestCase):
                 self.assertEqual(value.get("target", {}).get("deploymentDigest"), SELECTION["deploymentDigest"])
                 self.assertEqual(value.get("target", {}).get("ci"), "VERIFIED")
                 self.assertIs(value.get("applyRechecksUnderLock"), True)
-                self.assertEqual(value.get("apply"), "sudo asa update apply --root " + shlex.quote(str(self.root))
+                self.assertEqual(value.get("apply"), "sudo asa update --root " + shlex.quote(str(self.root))
                                  + " --deployment-digest " + SELECTION["deploymentDigest"])
                 self.assertEqual(process.returncode, 0 if value["status"] == "PLANNED" else 2)
                 self.assertTrue({"managerExitCode", "operation", "logPath", "automaticRetry"}.isdisjoint(value))
@@ -235,7 +235,7 @@ class PublicCLIProcessTests(unittest.TestCase):
     def test_every_required_read_command_uses_public_entry_and_no_files_change(self):
         commands = [
             ("version",), ("status",), ("doctor",), ("disk",), ("disk", "usage"), ("disk", "health"),
-            ("services",), ("services", "status"), ("update",), ("update", "check"), ("update", "plan"),
+            ("services",), ("services", "status"), ("update", "check"), ("update", "plan"),
             ("backup", "status"), ("backup", "list"), ("backup", "verify"), ("backup", "schedule"),
             ("cloud", "status"), ("restore", "plan"), ("history",), ("update", "history"),
             ("logs",), ("logs", "update"), ("logs", "backup"), ("config", "show"), (),
@@ -358,7 +358,7 @@ class PublicCLIProcessTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix", "POSIX privileged entry")
     def test_custom_registry_cannot_dispatch_root_mutation(self):
-        for arguments in (("update", "apply"), ("install",), ("backup", "create"),
+        for arguments in (("update",), ("update", "apply"), ("install",), ("backup", "create"),
                           ("backup", "schedule", "enable"), ("cloud", "sync")):
             process = self.invoke(*arguments, "--registry", str(self.registry), "--json")
             self.assertEqual(process.returncode, 2)
@@ -395,7 +395,7 @@ class OutputEnvelopeTests(unittest.TestCase):
                  "target": {"revision": "b" * 40, "schema": 304},
                  "available": True, "blockers": []}
         for action, report, required in (("status", status, "PostgreSQL сейчас"),
-                                         ("update check", check, "Для установки: asa update apply (в 1Panel) или sudo asa update apply")):
+                                         ("update check", check, "Для установки: asa update (в 1Panel) или sudo asa update")):
             with self.subTest(action=action), contextlib.redirect_stdout(io.StringIO()) as output:
                 self.assertEqual(asa_cli.emit(action, report, code=0), 0)
                 human = output.getvalue()
@@ -418,6 +418,13 @@ class OutputEnvelopeTests(unittest.TestCase):
 
 
 class DelegationContracts(unittest.TestCase):
+    def test_update_is_a_write_and_check_is_read_only(self):
+        self.assertTrue(asa_cli.SPECS["update"][1])
+        self.assertFalse(asa_cli.SPECS["update check"][1])
+        self.assertIn("update", asa_cli.WRITE_ACTIONS)
+        self.assertNotIn("update check", asa_cli.WRITE_ACTIONS)
+
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -425,11 +432,11 @@ class DelegationContracts(unittest.TestCase):
         self.options = asa_cli.command_parser().parse_args([])
         self.record = {"root": str(self.root), "project": "asa-fixture", "profile": "production", "bundle": "/opt/asa-setup/" + "a" * 40}
 
-    def test_update_read_dispatch_uses_resolver_even_as_root_and_never_calls_write_adapters(self):
+    def test_check_dispatch_uses_resolver_even_as_root_and_never_calls_write_adapters(self):
         from deployment import cli_observe, release_readonly
         document = {"format": asa_cli.FORMAT, "installations": [self.record]}
         plan = {"status": "PLANNED", "target": {"deploymentDigest": SELECTION["deploymentDigest"]}}
-        cases = ((["update"], "update"), (["update", "check"], "update check"),
+        cases = ((["update", "check"], "update check"),
                  (["update", "plan"], "update plan"), (["check"], "update check"))
         for words, command in cases:
             with self.subTest(command=words), patch.object(asa_cli.os, "geteuid", return_value=0, create=True), \
@@ -481,18 +488,19 @@ class DelegationContracts(unittest.TestCase):
         self.assertEqual(list(self.root.iterdir()), [])
 
     @unittest.skipUnless(os.name == "posix", "Linux explicit write adapter")
-    def test_bare_update_is_rejected_by_write_adapter_before_any_manager_process(self):
+    def test_bare_update_uses_exact_owned_write_adapter(self):
         with patch.object(asa_cli.os, "geteuid", return_value=0), \
                 patch.object(asa_cli, "verified_bundle", return_value={}), \
                 patch.object(asa_cli, "installation_record", return_value=self.record), \
                 patch.object(asa_cli, "run_reduced", return_value=0) as run:
-            with self.assertRaises(asa_cli.CLIError):
-                asa_cli.run_linux("update", self.record, self.options)
-            run.assert_not_called()
+            self.assertEqual(asa_cli.run_linux("update", self.record, self.options), 0)
+            run.assert_called_once()
+            self.assertIn("--intent", run.call_args.args[0])
+            self.assertEqual(run.call_args.args[0][run.call_args.args[0].index("--intent") + 1], "update")
 
     @unittest.skipUnless(os.name == "posix", "Linux setup adapter")
     def test_explicit_writes_delegate_exact_intent_digest_and_existing_operations(self):
-        cases = {"install": ("auto", "install"), "update apply": ("auto", "update"),
+        cases = {"install": ("auto", "install"), "update": ("auto", "update"), "update apply": ("auto", "update"),
                  "backup create": ("backup", None), "cloud sync": ("retry-cloud", None),
                  "backup schedule enable": ("schedule", None), "backup schedule disable": ("schedule", None)}
         self.options.deployment_digest = "sha256:" + "b" * 64
