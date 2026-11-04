@@ -4,6 +4,7 @@ import copy
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -256,18 +257,104 @@ class DiscoveryClassificationTests(unittest.TestCase):
 
 
 class InventoryExecutionTests(unittest.TestCase):
+    daemon_fields = {"ID": "daemon", "OSType": "linux", "Architecture": "x86_64", "DockerRootDir": "/var/lib/docker"}
+
+    def info_output(self, args, fields):
+        self.assertEqual(args[:3], ["docker", "info", "--format"])
+        self.assertEqual(len(args), 4)
+
+        def render(action):
+            # Interpret the actual scalar JSON actions, preserving every literal
+            # character around them; a malformed JSON envelope must stay broken.
+            field = re.fullmatch(r"\s*json\s+\.([A-Za-z][A-Za-z0-9]*)\s*", action.group(1))
+            self.assertIsNotNone(field, "unsupported Docker info template action")
+            self.assertIn(field.group(1), self.daemon_fields)
+            return json.dumps(fields[field.group(1)], ensure_ascii=False)
+
+        return re.sub(r"\{\{(.*?)\}\}", render, args[3])
+
     def empty_runner(self, args):
         if args[1] == "info":
-            return json.dumps({"id": "daemon", "os": "linux", "architecture": "x86_64", "root": "/var/lib/docker"})
+            return self.info_output(args, self.daemon_fields)
         if args[1:3] == ["compose", "version"]:
             return "2.39.4"
         return ""
 
     def test_truly_empty_daemon_is_complete_with_fingerprint(self):
-        result = docker_inventory(self.empty_runner)
+        calls = []
+        def runner(args):
+            calls.append(args)
+            return self.empty_runner(args)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "new-target"
+            result = docker_inventory(runner)
+            self.assertTrue(result["complete"])
+            self.assertEqual(len(result["fingerprint"]), 64)
+            self.assertEqual(result["containers"], [])
+            self.assertEqual(result["volumes"], [])
+            self.assertEqual(result["images"], [])
+            classified = classify_installation(root, result)
+            self.assertEqual(classified["state"], "FRESH")
+            self.assertEqual(classified["inventoryFingerprint"], result["fingerprint"])
+            self.assertEqual(list(Path(directory).iterdir()), [])
+        self.assertEqual(calls[1:], [
+            ["docker", "compose", "version", "--short"],
+            ["docker", "ps", "-aq", "--no-trunc"],
+            ["docker", "volume", "ls", "-q"],
+            ["docker", "ps", "-aq", "--no-trunc"],
+            ["docker", "volume", "ls", "-q"],
+        ])
+
+    def test_info_json_actions_preserve_escaped_identity_values(self):
+        fields = {**self.daemon_fields, "ID": 'daemon-"школа"\\node\n}}',
+                  "DockerRootDir": '/var/lib/"docker"\\storage\n{{archive}}'}
+        def runner(args):
+            return self.info_output(args, fields) if args[1] == "info" else self.empty_runner(args)
+
+        result = docker_inventory(runner)
         self.assertTrue(result["complete"])
-        self.assertEqual(len(result["fingerprint"]), 64)
-        self.assertEqual(result["containers"], [])
+        self.assertEqual(result["daemon"], {"id": fields["ID"], "os": fields["OSType"],
+                                          "architecture": fields["Architecture"], "root": fields["DockerRootDir"]})
+
+    def test_missing_or_invalid_daemon_fields_cannot_prove_fresh(self):
+        missing = object()
+        response_keys = {"ID": "id", "OSType": "os", "Architecture": "architecture", "DockerRootDir": "root"}
+        for field, response_key in response_keys.items():
+            for value in (missing, None, "", 7, False, [], {}):
+                with self.subTest(field=field, value="missing" if value is missing else value):
+                    fields = dict(self.daemon_fields)
+                    if value is not missing:
+                        fields[field] = value
+                    calls = []
+                    def runner(args):
+                        calls.append(args)
+                        if args[1] != "info":
+                            return self.empty_runner(args)
+                        output = self.info_output(args, fields)
+                        if value is missing:
+                            # A missing response key is distinct from a JSON null.
+                            response = json.loads(output)
+                            del response[response_key]
+                            return json.dumps(response)
+                        return output
+
+                    result = docker_inventory(runner)
+                    self.assertFalse(result["complete"])
+                    self.assertEqual(result["error"]["code"], "DOCKER_UNKNOWN")
+                    self.assertNotIn("fingerprint", result)
+                    self.assertEqual(classify_installation(None, result)["state"], "UNKNOWN")
+                    self.assertEqual(len(calls), 1)
+
+    def test_truncated_info_json_cannot_prove_fresh(self):
+        def runner(args):
+            output = self.empty_runner(args)
+            return output[:-1] if args[1] == "info" else output
+
+        result = docker_inventory(runner)
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["error"]["code"], "DOCKER_UNKNOWN")
+        self.assertEqual(classify_installation(None, result)["state"], "UNKNOWN")
 
     def test_docker_unavailable_does_not_return_empty_complete_inventory(self):
         def fail(args):

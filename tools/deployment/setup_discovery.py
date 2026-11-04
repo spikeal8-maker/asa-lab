@@ -83,7 +83,7 @@ def docker_inventory(runner=None):
                 "daemon": None, "containers": [], "volumes": [], "images": []}
     try:
         daemon = json.loads(runner(["docker", "info", "--format",
-            '{"id":{{json .ID}},"os":{{json .OSType}},"architecture":{{json .Architecture}},"root":{{json .DockerRootDir}}']))
+            '{"id":{{json .ID}},"os":{{json .OSType}},"architecture":{{json .Architecture}},"root":{{json .DockerRootDir}}}']))
         if not isinstance(daemon, dict) or not all(isinstance(daemon.get(key), str) and daemon[key]
                                                   for key in ("id", "os", "architecture", "root")):
             raise ValueError("Docker daemon identity is incomplete")
