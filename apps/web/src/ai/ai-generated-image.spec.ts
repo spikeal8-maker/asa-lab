@@ -5,6 +5,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { fetchWithSessionRefresh } from '../session-fetch';
 import { AiGeneratedImage, generatedImagePath } from './AiGeneratedImage';
 
+vi.mock('./ai-scope-api', async (original) => ({
+  ...(await original<typeof import('./ai-scope-api')>()),
+  createAiScopeCall: () => async () => ({ ok: false }),
+}));
 vi.mock('../session-fetch', () => ({ fetchWithSessionRefresh: vi.fn() }));
 const THREAD = '10000000-0000-4000-8000-000000000001';
 const image = (id: number) => ({

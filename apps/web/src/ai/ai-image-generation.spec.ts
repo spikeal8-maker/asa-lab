@@ -1,3 +1,4 @@
+import { AI_IMAGE_PRESETS, AI_IMAGE_UNAVAILABLE } from '@asa-lab/contracts';
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -17,7 +18,7 @@ const status = {
   enabled: true,
   ready: true,
   reason: null,
-  sizes: [512],
+  sizes: [768],
   dailyLimit: 10,
   remainingToday: 10,
 };
@@ -34,6 +35,11 @@ const job = {
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.mocked(call).mockReset();
+  vi.mocked(call).mockResolvedValue({
+    ok: false,
+    status: 503,
+    error: { code: 'unavailable', message: 'Unavailable' },
+  });
   vi.mocked(fetchWithSessionRefresh).mockReset();
   complete.mockReset();
   sessionStorage.clear();
@@ -147,7 +153,8 @@ it.each([
       )!;
     await act(async () => create().click());
     expect(sessionStorage.getItem('asa-ai-image:personal:' + THREAD)).toBeNull();
-    expect(host.textContent).toContain(message);
+    expect(host.textContent).toContain(AI_IMAGE_UNAVAILABLE);
+    expect(host.textContent).not.toContain(message);
     expect(statusReads).toBe(2);
     expect(
       host.querySelector<HTMLSelectElement>('select[aria-label="Размер изображения"]')!.value,
@@ -263,7 +270,7 @@ it('refreshes lost readiness after a confirmed 503 race while preserving the rej
   expect(sessionStorage.getItem('asa-ai-image:personal:' + THREAD)).toBeNull();
   expect(host.querySelector('textarea')!.value).toBe('Preserve this image description');
   expect(create().disabled).toBe(true);
-  expect(host.textContent).toContain('Локальная генерация больше не готова.');
+  expect(host.textContent).toContain(AI_IMAGE_UNAVAILABLE);
   expect(vi.mocked(call).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
   expect(vi.mocked(call).mock.calls.filter(([path]) => path.endsWith('/status'))).toHaveLength(2);
 });
@@ -295,7 +302,7 @@ it('reports queued and cancellation honestly without creating a second job', asy
       : { ...job, state: 'admitted', cancelRequested: init?.method === 'POST' },
   }));
   await render();
-  expect(host.textContent).toContain('Задание принято');
+  expect(host.textContent).toContain('В очереди');
   await act(async () =>
     Array.from(host.querySelectorAll('button'))
       .find((b) => b.getAttribute('aria-label') === 'Отменить задание')!
@@ -303,6 +310,18 @@ it('reports queued and cancellation honestly without creating a second job', asy
   );
   expect(vi.mocked(call).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
   expect(vi.mocked(call).mock.calls.some(([path]) => path.endsWith('/cancel'))).toBe(true);
+});
+it('distinguishes a reconciliation pause from an ordinary queued image without resubmission', async () => {
+  sessionStorage.setItem('asa-ai-image:personal:' + THREAD, REQUEST);
+  vi.mocked(call).mockImplementation(async (path) => ({
+    ok: true,
+    status: 200,
+    data: path.endsWith('/status') ? status : { ...job, state: 'admitted', queuePaused: true },
+  }));
+  await render();
+  expect(host.textContent).toContain('Очередь приостановлена');
+  expect(host.textContent).toContain('Задание можно отменить');
+  expect(vi.mocked(call).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
 });
 it('fetches the closed authenticated image route and revokes its object URL', async () => {
   const create = vi.fn(() => 'blob:private-image'),
@@ -353,7 +372,21 @@ it('a failed image is not presented as complete and never creates a text request
     data: path.endsWith('/status') ? status : { ...job, state: 'failed' },
   }));
   await render();
-  expect(host.textContent).toContain('Не удалось создать изображение.');
+  expect(host.textContent).toContain(AI_IMAGE_UNAVAILABLE);
   expect(complete).not.toHaveBeenCalled();
   expect(vi.mocked(call).mock.calls.every(([, init]) => !init?.method)).toBe(true);
+});
+
+it('shows the same six exact dimensions in the image composer', async () => {
+  vi.mocked(call).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { ...status, sizes: AI_IMAGE_PRESETS.map((p) => p.id) },
+  });
+  await render();
+  const sizes = host.querySelector<HTMLSelectElement>('select[aria-label="Размер изображения"]')!;
+  expect(Array.from(sizes.options).map((o) => o.textContent?.trim())).toEqual(
+    AI_IMAGE_PRESETS.map((p) => p.label),
+  );
+  expect(sizes.textContent).not.toContain('512');
 });

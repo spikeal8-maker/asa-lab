@@ -192,6 +192,172 @@ const personalInput = {
 };
 const classroomInput = { ...personalInput, scope: 'classroom' as const, classroomId: 'c1' };
 
+describe('opt-in document replacement validation preserves atomic revision semantics', () => {
+  const input = {
+    tenantId: 't1',
+    projectId: 'p1',
+    actor: personalInput.actor,
+    document: { schemaVersion: 4 },
+    baseRevision: 7,
+    mutationId: '00000000-0000-4000-8000-000000000860',
+  };
+  const previous = { schemaVersion: 5, annotations: [{ text: 'preserve me' }] };
+  function setup(
+    prepared: boolean,
+    validateReplacement: NonNullable<ReturnType<ModuleCatalogPort['get']>>['validateReplacement'],
+  ) {
+    let stored = { document: structuredClone(previous) as unknown, revision: 7 };
+    const load = vi.fn(async () => ({
+      project: personalProject,
+      draft: { projectId: 'p1', ...structuredClone(stored), updatedAt: 'now' },
+      versions: [],
+    }));
+    const save = vi.fn(async (value: SaveDraftInput) => {
+      if (value.baseRevision !== stored.revision) return null;
+      stored = { document: structuredClone(value.document), revision: stored.revision + 1 };
+      return { projectId: 'p1', ...stored, updatedAt: 'now' };
+    });
+    const { port } = repo({ load, saveDraft: save });
+    if (prepared) port.prepareDraftSave = async () => ({ moduleKey: 'electronics', save });
+    const module = { ...catalog().get('electronics')!, validateReplacement };
+    const usecase = new SaveDraftUseCase(port, { get: () => module, getCreatable: () => module });
+    return {
+      usecase,
+      port,
+      load,
+      save,
+      stored: () => stored,
+      setStored: (value: typeof stored) => {
+        stored = value;
+      },
+    };
+  }
+  const floor = (previous: unknown, next: unknown) =>
+    (previous as { schemaVersion: number }).schemaVersion >
+    (next as { schemaVersion: number }).schemaVersion
+      ? { ok: false as const, message: 'format downgrade denied' }
+      : { ok: true as const };
+
+  it.each([false, true])(
+    'denies a current revision downgrade without writing (prepared=%s)',
+    async (prepared) => {
+      const f = setup(prepared, floor);
+      expect(await f.usecase.execute(input)).toMatchObject({ ok: false, code: 'validation_error' });
+      expect(f.save).not.toHaveBeenCalled();
+      expect(f.load).toHaveBeenCalledTimes(1);
+      expect(f.stored().document).toEqual(previous);
+    },
+  );
+
+  it.each([false, true])(
+    'rejects a guessed future base before a racing upgrade could make it valid (prepared=%s)',
+    async (prepared) => {
+      const validate = vi.fn(floor);
+      const f = setup(prepared, validate);
+      f.setStored({ revision: 6, document: { schemaVersion: 4 } });
+      expect(await f.usecase.execute(input)).toMatchObject({
+        ok: false,
+        code: 'project_revision_conflict',
+      });
+      expect(validate).not.toHaveBeenCalled();
+      expect(f.save).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([false, true])(
+    'uses the existing CAS when an upgrade races after the authorized read (prepared=%s)',
+    async (prepared) => {
+      const f = setup(prepared, () => {
+        f.setStored({ revision: 8, document: structuredClone(previous) });
+        return { ok: true };
+      });
+      f.setStored({ revision: 7, document: { schemaVersion: 4 } });
+      expect(await f.usecase.execute(input)).toMatchObject({
+        ok: false,
+        code: 'project_revision_conflict',
+      });
+      expect(f.save).toHaveBeenCalledTimes(1);
+      expect(f.stored()).toEqual({ revision: 8, document: previous });
+    },
+  );
+
+  it('passes stale requests to the existing replay/CAS implementation without a false downgrade error', async () => {
+    const validate = vi.fn(floor);
+    const f = setup(true, validate);
+    f.setStored({ revision: 8, document: previous });
+    expect(await f.usecase.execute(input)).toMatchObject({
+      ok: false,
+      code: 'project_revision_conflict',
+    });
+    expect(validate).not.toHaveBeenCalled();
+    expect(f.save).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([null, [], { ok: 'true' }, { ok: true, payload: {} }, undefined])(
+    'fails closed on malformed callback result %j',
+    async (verdict) => {
+      const f = setup(true, (() => verdict) as never);
+      expect(await f.usecase.execute(input)).toMatchObject({ ok: false, code: 'validation_error' });
+      expect(f.save).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([null, false, 0])('rejects a configured non-function validator %j', async (validator) => {
+    const f = setup(true, validator as never);
+    expect(await f.usecase.execute(input)).toMatchObject({ ok: false, code: 'validation_error' });
+    expect(f.save).not.toHaveBeenCalled();
+  });
+
+  it('binds prepared authorization, guard read and CAS to the original command identity and revision', async () => {
+    const f = setup(true, floor);
+    const command = structuredClone({ ...input, document: { schemaVersion: 5, annotations: [] } });
+    f.port.prepareDraftSave = async () => {
+      command.actor.userId = 'other-user';
+      command.projectId = 'other-project';
+      command.baseRevision = 8;
+      command.mutationId = '00000000-0000-4000-8000-000000000999';
+      return { moduleKey: 'electronics', save: f.save };
+    };
+    f.load.mockImplementation(async () => {
+      command.document.schemaVersion = 1;
+      return {
+        project: personalProject,
+        draft: { projectId: 'p1', document: previous, revision: 7, updatedAt: 'now' },
+        versions: [],
+      };
+    });
+    expect((await f.usecase.execute(command)).ok).toBe(true);
+    expect(f.load).toHaveBeenCalledWith('t1', 'p1', input.actor, { includeVersions: false });
+    expect(f.save.mock.calls[0]?.[0]).toMatchObject({
+      projectId: 'p1',
+      actor: input.actor,
+      baseRevision: 7,
+      mutationId: input.mutationId,
+      document: { schemaVersion: 5 },
+    });
+  });
+
+  it('isolates callback mutations from both stored and incoming data and ignores a thrown validator', async () => {
+    const next = { schemaVersion: 5, annotations: [] };
+    const f = setup(true, (previous, payload) => {
+      (previous as Record<string, unknown>)['schemaVersion'] = 1;
+      (payload as Record<string, unknown>)['schemaVersion'] = 1;
+      return { ok: true };
+    });
+    expect((await f.usecase.execute({ ...input, document: next })).ok).toBe(true);
+    expect(next.schemaVersion).toBe(5);
+    expect(f.stored().document).toEqual(next);
+    const broken = setup(false, () => {
+      throw new Error('unavailable');
+    });
+    expect(await broken.usecase.execute(input)).toMatchObject({
+      ok: false,
+      code: 'validation_error',
+    });
+    expect(broken.save).not.toHaveBeenCalled();
+  });
+});
+
 describe('project domain rules', () => {
   it('validates titles, scopes and checkpoint labels without knowing subject modules', () => {
     expect(isValidProjectTitle('Схема 1')).toBe(true);

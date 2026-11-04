@@ -1,0 +1,592 @@
+{
+  "schemaVersion": 4,
+  "components": [
+    {
+      "id": "uno",
+      "kind": "visual",
+      "componentTypeId": "arduino-uno",
+      "electricalModelId": "arduino-uno",
+      "electricalModelVersion": 1,
+      "modelProfileId": "arduino-uno-r3",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 20,
+        "y": 200
+      },
+      "value": 5,
+      "stateProperties": {
+        "arduinoSource": "#include <Servo.h>\nServo motor;int k=0;void setup(){Serial.begin(9600);motor.attach(3);pinMode(13,OUTPUT);pinMode(2,INPUT_PULLUP);pinMode(4,OUTPUT);pinMode(6,OUTPUT);pinMode(7,OUTPUT);pinMode(8,OUTPUT);pinMode(9,OUTPUT);pinMode(10,OUTPUT);pinMode(11,OUTPUT);pinMode(12,OUTPUT);}void loop(){digitalWrite(4,HIGH);digitalWrite(6,HIGH);digitalWrite(7,HIGH);digitalWrite(8,HIGH);digitalWrite(9,HIGH);digitalWrite(10,HIGH);digitalWrite(11,HIGH);digitalWrite(12,LOW);digitalWrite(13,k);motor.write(k?135:45);Serial.println(k);Serial.println(digitalRead(2));if(Serial.available()){Serial.println(Serial.read());}k=1-k;delay(20);}"
+      },
+      "pinIds": [
+        "d4",
+        "d6",
+        "d7",
+        "d8",
+        "d9",
+        "d10",
+        "d11",
+        "d12",
+        "d13",
+        "power-gnd-1",
+        "power-5v",
+        "power-3v3",
+        "d2",
+        "d3"
+      ],
+      "variantId": "arduino-uno"
+    },
+    {
+      "id": "display",
+      "kind": "seven-segment",
+      "componentTypeId": "seven-segment-display",
+      "variantId": "seven-segment-display",
+      "electricalModelId": "seven-segment",
+      "electricalModelVersion": 1,
+      "modelProfileId": "single-digit-seven-segment-10pin",
+      "modelProfileVersion": 2,
+      "position": {
+        "x": 570,
+        "y": 20
+      },
+      "value": 0,
+      "stateProperties": {
+        "commonMode": "common-cathode",
+        "segmentColor": "red"
+      },
+      "pinIds": [
+        "top-1",
+        "top-2",
+        "top-3",
+        "top-4",
+        "top-5",
+        "bottom-1",
+        "bottom-2",
+        "bottom-3",
+        "bottom-4",
+        "bottom-5"
+      ],
+      "internalConnections": [["top-3", "bottom-3"]]
+    },
+    {
+      "id": "r-a",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 300,
+        "y": 100
+      },
+      "value": 330,
+      "pinIds": ["lead-1", "lead-2"],
+      "variantId": "resistor-axial",
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      }
+    },
+    {
+      "id": "r-b",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 300,
+        "y": 140
+      },
+      "value": 330,
+      "pinIds": ["lead-1", "lead-2"],
+      "variantId": "resistor-axial",
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      }
+    },
+    {
+      "id": "r-c",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 300,
+        "y": 180
+      },
+      "value": 330,
+      "pinIds": ["lead-1", "lead-2"],
+      "variantId": "resistor-axial",
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      }
+    },
+    {
+      "id": "r-d",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 300,
+        "y": 220
+      },
+      "value": 330,
+      "pinIds": ["lead-1", "lead-2"],
+      "variantId": "resistor-axial",
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      }
+    },
+    {
+      "id": "r-e",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 300,
+        "y": 260
+      },
+      "value": 330,
+      "pinIds": ["lead-1", "lead-2"],
+      "variantId": "resistor-axial",
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      }
+    },
+    {
+      "id": "r-f",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 300,
+        "y": 300
+      },
+      "value": 330,
+      "pinIds": ["lead-1", "lead-2"],
+      "variantId": "resistor-axial",
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      }
+    },
+    {
+      "id": "r-g",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 300,
+        "y": 340
+      },
+      "value": 330,
+      "pinIds": ["lead-1", "lead-2"],
+      "variantId": "resistor-axial",
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      }
+    },
+    {
+      "id": "r-dp",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 300,
+        "y": 380
+      },
+      "value": 330,
+      "pinIds": ["lead-1", "lead-2"],
+      "variantId": "resistor-axial",
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      }
+    },
+    {
+      "id": "servo",
+      "kind": "visual",
+      "componentTypeId": "servo-motor",
+      "variantId": "servo-motor",
+      "value": 0,
+      "position": {
+        "x": 750,
+        "y": 160
+      },
+      "pinIds": ["gnd", "vcc", "signal"],
+      "stateProperties": {}
+    },
+    {
+      "id": "led",
+      "kind": "led",
+      "componentTypeId": "led-5mm",
+      "value": 2,
+      "position": {
+        "x": 570,
+        "y": 300
+      },
+      "pinIds": ["anode", "cathode"],
+      "stateProperties": {
+        "ledColour": "red",
+        "ledBrightness": 0,
+        "ledFault": "none"
+      },
+      "variantId": "led-5mm"
+    },
+    {
+      "id": "led-r",
+      "kind": "resistor",
+      "value": 330,
+      "position": {
+        "x": 420,
+        "y": 300
+      },
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": ["lead-1", "lead-2"]
+    },
+    {
+      "id": "button",
+      "kind": "button",
+      "componentTypeId": "button-tactile-6mm",
+      "value": 0,
+      "state": false,
+      "position": {
+        "x": 640,
+        "y": 400
+      },
+      "pinIds": ["SW-A1", "SW-A2", "SW-B1", "SW-B2"],
+      "internalConnections": [
+        ["SW-A1", "SW-A2"],
+        ["SW-B1", "SW-B2"]
+      ],
+      "variantId": "button-tactile-6mm",
+      "stateProperties": {
+        "contactState": "released"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "pin-a",
+      "from": {
+        "componentId": "uno",
+        "terminal": "d4"
+      },
+      "to": {
+        "componentId": "r-a",
+        "terminal": "lead-1"
+      }
+    },
+    {
+      "id": "segment-a",
+      "from": {
+        "componentId": "r-a",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "top-4"
+      }
+    },
+    {
+      "id": "pin-b",
+      "from": {
+        "componentId": "uno",
+        "terminal": "d6"
+      },
+      "to": {
+        "componentId": "r-b",
+        "terminal": "lead-1"
+      }
+    },
+    {
+      "id": "segment-b",
+      "from": {
+        "componentId": "r-b",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "top-5"
+      }
+    },
+    {
+      "id": "pin-c",
+      "from": {
+        "componentId": "uno",
+        "terminal": "d7"
+      },
+      "to": {
+        "componentId": "r-c",
+        "terminal": "lead-1"
+      }
+    },
+    {
+      "id": "segment-c",
+      "from": {
+        "componentId": "r-c",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "bottom-4"
+      }
+    },
+    {
+      "id": "pin-d",
+      "from": {
+        "componentId": "uno",
+        "terminal": "d8"
+      },
+      "to": {
+        "componentId": "r-d",
+        "terminal": "lead-1"
+      }
+    },
+    {
+      "id": "segment-d",
+      "from": {
+        "componentId": "r-d",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "bottom-2"
+      }
+    },
+    {
+      "id": "pin-e",
+      "from": {
+        "componentId": "uno",
+        "terminal": "d9"
+      },
+      "to": {
+        "componentId": "r-e",
+        "terminal": "lead-1"
+      }
+    },
+    {
+      "id": "segment-e",
+      "from": {
+        "componentId": "r-e",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "bottom-1"
+      }
+    },
+    {
+      "id": "pin-f",
+      "from": {
+        "componentId": "uno",
+        "terminal": "d10"
+      },
+      "to": {
+        "componentId": "r-f",
+        "terminal": "lead-1"
+      }
+    },
+    {
+      "id": "segment-f",
+      "from": {
+        "componentId": "r-f",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "top-2"
+      }
+    },
+    {
+      "id": "pin-g",
+      "from": {
+        "componentId": "uno",
+        "terminal": "d11"
+      },
+      "to": {
+        "componentId": "r-g",
+        "terminal": "lead-1"
+      }
+    },
+    {
+      "id": "segment-g",
+      "from": {
+        "componentId": "r-g",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "top-1"
+      }
+    },
+    {
+      "id": "pin-dp",
+      "from": {
+        "componentId": "uno",
+        "terminal": "d12"
+      },
+      "to": {
+        "componentId": "r-dp",
+        "terminal": "lead-1"
+      }
+    },
+    {
+      "id": "segment-dp",
+      "from": {
+        "componentId": "r-dp",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "bottom-5"
+      }
+    },
+    {
+      "id": "common",
+      "from": {
+        "componentId": "display",
+        "terminal": "top-3"
+      },
+      "to": {
+        "componentId": "uno",
+        "terminal": "power-gnd-1"
+      }
+    },
+    {
+      "id": "extra17",
+      "from": {
+        "componentId": "uno",
+        "terminal": "power-5v"
+      },
+      "to": {
+        "componentId": "servo",
+        "terminal": "vcc"
+      }
+    },
+    {
+      "id": "extra18",
+      "from": {
+        "componentId": "uno",
+        "terminal": "power-gnd-1"
+      },
+      "to": {
+        "componentId": "servo",
+        "terminal": "gnd"
+      }
+    },
+    {
+      "id": "extra19",
+      "from": {
+        "componentId": "uno",
+        "terminal": "d3"
+      },
+      "to": {
+        "componentId": "servo",
+        "terminal": "signal"
+      }
+    },
+    {
+      "id": "extra20",
+      "from": {
+        "componentId": "uno",
+        "terminal": "d13"
+      },
+      "to": {
+        "componentId": "led-r",
+        "terminal": "lead-1"
+      }
+    },
+    {
+      "id": "extra21",
+      "from": {
+        "componentId": "led-r",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "led",
+        "terminal": "anode"
+      }
+    },
+    {
+      "id": "extra22",
+      "from": {
+        "componentId": "led",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "uno",
+        "terminal": "power-gnd-1"
+      }
+    },
+    {
+      "id": "extra23",
+      "from": {
+        "componentId": "uno",
+        "terminal": "d2"
+      },
+      "to": {
+        "componentId": "button",
+        "terminal": "SW-A1"
+      }
+    },
+    {
+      "id": "extra24",
+      "from": {
+        "componentId": "button",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "uno",
+        "terminal": "power-gnd-1"
+      }
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "simulation": {
+    "running": true,
+    "maxIterations": 24
+  }
+}

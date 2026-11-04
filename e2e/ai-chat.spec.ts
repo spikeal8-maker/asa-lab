@@ -197,6 +197,8 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
         updatedAt: NOW,
       });
     }
+    if (path === '/api/admin/v1/ai/ollama/model-detail')
+      return respond(route, { capabilities: ['completion'], thinking: null, contextMax: null });
     if (path === '/api/admin/v1/ai/ollama/models' && method === 'POST') {
       return respond(route, { models: [{ name: 'ornith:9b', size: 60000 }] });
     }
@@ -323,11 +325,18 @@ for (const width of [320, 390, 1024, 1440]) {
         imageReads += 1;
         return route.fulfill({ contentType: 'image/png', body: bytes });
       });
-      await page.goto('/#/ai');
+      // App readiness is asserted by the real controls below; unrelated lazy
+      // resources must not hold navigation's document `load` event hostage.
+      await page.goto('/#/ai', { waitUntil: 'domcontentloaded' });
+      await expect(page.getByRole('button', { name: 'Тёмная тема чата' })).toBeVisible();
       if (theme === 'dark') await page.getByRole('button', { name: 'Тёмная тема чата' }).click();
       if (width < 1120)
         await page.getByRole('button', { name: 'Открыть историю диалогов', exact: true }).click();
       await page.getByRole('button', { name: 'Файлы учебного проекта', exact: true }).click();
+      // History opens at the latest reply; private image bytes load only on visibility.
+      await page
+        .getByRole('button', { name: 'Открыть: Схема подключения.png', exact: true })
+        .scrollIntoViewIfNeeded();
       const image = page.getByRole('img', { name: 'Схема подключения.png' });
       await expect(image).toBeVisible();
       await expect
@@ -357,6 +366,9 @@ for (const width of [320, 390, 1024, 1440]) {
         await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Черновик сохранён');
         await page.getByRole('button', { name: 'Открыть историю диалогов', exact: true }).click();
         await page.getByRole('button', { name: 'Файлы учебного проекта', exact: true }).click();
+        await page
+          .getByRole('button', { name: 'Открыть: Схема подключения.png', exact: true })
+          .scrollIntoViewIfNeeded();
         await expect(page.locator('.chat-saved-file').first()).toContainText(
           'Миниатюра недоступна',
         );
@@ -409,7 +421,7 @@ test('AI downloads code and complete answers as real local files', async ({ page
     page
       .locator('.chat-turn-assistant .chat-message-actions')
       .getByRole('button', { name: 'Копировать', exact: true }),
-  ).toHaveText('Копировать');
+  ).toHaveAttribute('aria-label', 'Копировать');
   await expect(page.getByRole('button', { name: 'Новый вариант ответа', exact: true })).toHaveText(
     'Попробовать снова',
   );
@@ -772,7 +784,8 @@ for (const selection of ['single', 'switch', 'switch-error', 'retry'] as const) 
       await expect(send).toBeDisabled();
       expect(fake.requests).toHaveLength(0);
       if (selection === 'retry') {
-        await page.getByRole('button', { name: 'Обновить переписку' }).click();
+        // Explicitly reselecting the same thread retries only its failed history GET.
+        await page.getByRole('button', { name: 'Диалог 0', exact: true }).click();
         await expect.poll(() => releases.length).toBe(2);
       }
       releases[1]!();
@@ -876,7 +889,10 @@ test('AI pending and stopped replays keep request identity and state', async ({ 
   await composer.fill('Запрос без завершённого ответа');
   await send.click();
   await expect(composer).toBeEnabled();
-  await expect(page.locator('.asa-ai-error')).toContainText('Запрос уже был принят');
+  await expect(page.locator('.asa-ai-error')).toHaveText(
+    'Сообщение сохранено, но ответ пока не завершён. Повторная отправка этого сообщения не запустит модель заново. Можно отправить новое уточнение.',
+  );
+  await expect(page.locator('.asa-ai-error')).not.toContainText('Запрос уже был принят');
   await expect(composer).toHaveValue('Запрос без завершённого ответа');
   await expect(turns).toHaveCount(1);
   expect(fake.requests[1]).toBe(fake.requests[0]);
@@ -1152,7 +1168,7 @@ for (const theme of ['light', 'dark'] as const) {
       }
       await expect(page.locator('.asa-ai-layout')).toHaveAttribute('data-chat-theme', theme);
       await expect(page.locator('.chat-start-state')).toBeVisible();
-      await expect(page.getByRole('combobox', { name: 'Модель ИИ' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Модель ИИ' })).toBeVisible();
       await expect(page.locator('summary.chat-attach-button')).toBeVisible();
       await expect(page.locator('.asa-ai-layout')).toHaveCSS(
         'background-color',
@@ -1682,7 +1698,7 @@ for (const width of [1440, 1024, 600, 390, 320]) {
     await page.getByRole('button', { name: 'Отправить сообщение' }).click();
     await expect(page.getByTestId('ai-pending-message')).toContainText('Что такое Arduino?');
     await expect(
-      page.getByRole('status', { name: '' }).filter({ hasText: 'Модель формирует ответ' }),
+      page.getByRole('status', { name: '' }).filter({ hasText: 'Обдумываю ответ…' }),
     ).toBeVisible();
     fake.release();
     await expect(page.getByText('Arduino — это платформа для электроники.')).toBeVisible();
@@ -1841,16 +1857,89 @@ test('AI renders GFM tables, code and safe links without injecting HTML', async 
 test('AI model picker uses only admin-allowed OpenAI models', async ({ page }) => {
   const fake = await fixture(page);
   await page.goto('/#/ai');
-  const picker = page.getByRole('combobox', { name: 'Модель ИИ' });
+  const picker = page.getByRole('button', { name: 'Модель ИИ' });
   await expect(picker).toBeVisible();
-  await expect(picker.getByRole('option')).toHaveCount(2);
-  await picker.selectOption('gpt-4.1-mini');
+  await picker.click();
+  const choices = page.getByRole('listbox', { name: 'Модель ИИ' });
+  await expect(choices.getByRole('option')).toHaveCount(2);
+  await choices.getByRole('option', { name: 'gpt-4.1-mini' }).click();
+  await expect(picker).toContainText('gpt-4.1-mini');
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Выбранная модель');
   await page.getByRole('button', { name: 'Отправить сообщение' }).click();
   fake.release();
   await expect(page.getByText('Arduino — это платформа для электроники.')).toBeVisible();
   expect(fake.requests).toHaveLength(1);
   expect(fake.models).toEqual(['gpt-4.1-mini']);
+});
+
+test('compact chat menus preserve keyboard escape, draft and right alignment', async ({ page }) => {
+  await fixture(page);
+  await page.setViewportSize({ width: 390, height: 750 });
+  await page.goto('/#/ai');
+  const draft = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await draft.fill('Сохранённый черновик');
+  const model = page.getByRole('button', { name: 'Модель ИИ' });
+  await model.focus();
+  await model.press('ArrowDown');
+  const modelMenu = page.getByRole('listbox', { name: 'Модель ИИ' });
+  await expect(modelMenu).toBeVisible();
+  await modelMenu.press('Escape');
+  await expect(modelMenu).toHaveCount(0);
+  await expect(model).toBeFocused();
+  await expect(draft).toHaveValue('Сохранённый черновик');
+  await model.click();
+  await model.press('Tab');
+  await expect(modelMenu).toHaveCount(0);
+  await model.focus();
+  await model.press('Enter');
+  await expect(modelMenu.getByRole('option', { name: 'gpt-5-mini' })).toBeFocused();
+  await modelMenu.getByRole('option', { name: 'gpt-5-mini' }).press('Tab');
+  await expect(modelMenu).toHaveCount(0);
+  await model.focus();
+  await model.click();
+  await model.press('Shift+Tab');
+  await expect(modelMenu).toHaveCount(0);
+
+  const tools = page.locator('.chat-tools-menu');
+  await tools.locator('summary').click();
+  const imageMode = tools.getByRole('button', { name: 'Генерация изображений' });
+  const imageLabel = imageMode.locator('.ai-compact-select-name');
+  await expect(imageLabel).toHaveText('Авто');
+  await expect(imageLabel).toHaveCSS('font-size', '13px');
+  expect(await imageLabel.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await imageMode.click();
+  const submenu = page.getByRole('listbox', { name: 'Генерация изображений' });
+  await expect(submenu).toBeVisible();
+  const bounds = await submenu.boundingBox();
+  const trigger = await imageMode.boundingBox();
+  expect(Math.abs(bounds!.x + bounds!.width - (trigger!.x + trigger!.width))).toBeLessThan(12);
+  await submenu.press('Escape');
+  await expect(submenu).toHaveCount(0);
+  await expect(tools).toHaveAttribute('open', '');
+  await imageMode.click();
+  await submenu.getByRole('option', { name: 'Авто' }).focus();
+  await submenu.getByRole('option', { name: 'Авто' }).press('Shift+Tab');
+  await expect(submenu).toHaveCount(0);
+  await imageMode.click();
+  await page
+    .getByRole('listbox', { name: 'Генерация изображений' })
+    .getByRole('option', { name: 'Авто' })
+    .click();
+  await expect(imageMode).toContainText('Авто');
+  await expect(draft).toHaveValue('Сохранённый черновик');
+});
+
+test('compact tool mode keeps the full Auto label at 320px', async ({ page }) => {
+  await fixture(page);
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto('/#/ai');
+  await page.locator('.chat-tools-menu summary').click();
+  const label = page
+    .getByRole('button', { name: 'Генерация изображений' })
+    .locator('.ai-compact-select-name');
+  await expect(label).toHaveText('Авто');
+  await expect(label).toHaveCSS('font-size', '13px');
+  expect(await label.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
 });
 
 for (const width of [1440, 600, 390, 320]) {
@@ -1982,7 +2071,7 @@ test('AI composer keeps one centered input and shows only real attachment tools'
   await expect(page.getByLabel('Выбранные вложения')).toContainText('lesson.txt');
   await expect(page.getByLabel('Выбранные вложения')).toContainText('16 Б');
   await expect(page.locator('.chat-attachment-chip.is-file')).toHaveAttribute(
-    'title',
+    'data-ai-tooltip',
     'lesson.txt · 16 Б',
   );
   expect(fake.requests).toHaveLength(0);
@@ -2067,8 +2156,9 @@ for (const width of [320, 390]) {
     await fixture(page);
     await page.goto('/#/ai');
 
+    // Real 128×128 RGB PNG: valid IDAT CRC/zlib stream for createImageBitmap in the worker.
     const pixel = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==',
+      'iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAA+UlEQVR4nO3RMQ0AMAzAsPIau4HePRg9YikAInnOfVps1g/iAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEA7AADaAQDQDgCAdgAAtAMAoB0AAO0AAGgHAEC7D3GJxlW/L8PeAAAAAElFTkSuQmCC',
       'base64',
     );
     const details = page.locator('details.chat-tools-menu');
@@ -2182,19 +2272,13 @@ test('AI theme is explicitly light by default and respects the chosen appearance
     await expect(popup).toHaveCSS('color', text);
     await expect(popup).toHaveCSS('color-scheme', theme);
     await expect(tools.getByRole('button', { name: 'Фото и файлы' })).toBeVisible();
-    const select = tools.getByRole('combobox', { name: 'Генерация изображений' });
-    await expect(select).toHaveCSS('background-color', surface);
-    await expect(select).toHaveCSS('color', text);
-    await expect(select.locator('option').first()).toHaveCSS('background-color', surface);
-    await select.focus();
-    await expect(select).toHaveCSS('outline-width', '2px');
-    await select.hover();
-    await expect(select).toHaveCSS(
-      'background-color',
-      theme === 'dark' ? 'rgb(50, 50, 53)' : 'rgb(234, 234, 234)',
-    );
-    await select.selectOption('auto');
-    await expect(select).toHaveValue('auto');
+    const select = tools.getByRole('button', { name: 'Генерация изображений' });
+    await select.click();
+    const submenu = page.getByRole('listbox', { name: 'Генерация изображений' });
+    await expect(submenu).toHaveCSS('background-color', surface);
+    await expect(submenu).toHaveCSS('color', text);
+    await submenu.getByRole('option', { name: 'Авто' }).click();
+    await expect(select).toContainText('Авто');
     await tools.locator('summary').click();
   }
   await checkMenu('dark');
@@ -2276,4 +2360,27 @@ test('AI composer frame and Send stay fully visible at ordinary viewport heights
     expect(geometry.dockScrollTop).toBe(0);
     expect(geometry.dockScrollHeight).toBeLessThanOrEqual(geometry.dockClientHeight + 1);
   }
+});
+
+test('AI keeps the next draft editable and preserves it when the current answer completes', async ({
+  page,
+}) => {
+  const fake = await fixture(page);
+  await page.goto('/#/ai');
+  const input = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await input.fill('Первый вопрос');
+  await input.press('Enter');
+  try {
+    await expect(page.getByRole('button', { name: 'Остановить генерацию' })).toBeVisible();
+    await expect(input).toBeEnabled();
+    await expect(input).toHaveValue('');
+    await input.fill('Следующий вопрос — мой черновик');
+  } finally {
+    fake.release();
+  }
+  await expect(page.getByRole('button', { name: 'Остановить генерацию' })).toHaveCount(0);
+  await expect(input).toHaveValue('Следующий вопрос — мой черновик');
+  await expect(
+    page.getByRole('button', { name: 'Отправить сообщение', exact: true }),
+  ).toBeEnabled();
 });

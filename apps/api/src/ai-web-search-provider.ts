@@ -71,13 +71,16 @@ export function searchThumbnailUrl(value: unknown): string | null {
 export function parseSearxResults(
   value: unknown,
   imageMode: boolean,
+  limit = 8,
 ): { sources: AiWebSource[]; images: AiWebImage[] } {
   const data = record(value);
   if (!Array.isArray(data['results'])) throw new AiWebProviderError();
   const sources: AiWebSource[] = [],
     images: AiWebImage[] = [],
     seen = new Set<string>();
-  for (const raw of data['results'].slice(0, 32)) {
+  const seenImages = new Set<string>();
+  const count = Math.max(1, Math.min(12, limit));
+  for (const raw of data['results'].slice(0, 48)) {
     const item = record(raw),
       url = publicWebUrl(item['url']);
     if (!url || seen.has(url)) continue;
@@ -92,12 +95,34 @@ export function parseSearxResults(
     });
     if (imageMode) {
       const thumbnailUrl = searchThumbnailUrl(item['thumbnail_src']);
-      if (thumbnailUrl && images.length < 6)
-        images.push({ id: images.length + 1, title, sourceUrl: url, thumbnailUrl });
+      const originalUrl = publicWebUrl(item['img_src']);
+      const identity = originalUrl ?? thumbnailUrl;
+      if (thumbnailUrl && identity && !seenImages.has(identity)) {
+        seenImages.add(identity);
+        images.push({
+          id: images.length + 1,
+          title,
+          sourceUrl: url,
+          thumbnailUrl,
+          ...(originalUrl ? { originalUrl } : {}),
+        });
+      }
     }
-    if (sources.length === 8) break;
+    if (!imageMode && sources.length === count) break;
   }
-  return { sources, images };
+  if (!imageMode) return { sources: sources.slice(0, count), images };
+  // Keep relevance order within each group, prefer an available original, and remove duplicates.
+  const selected = images
+    .sort((a, b) => Number(!!b.originalUrl) - Number(!!a.originalUrl))
+    .slice(0, count)
+    .map((image, index) => ({ ...image, id: index + 1 }));
+  return {
+    images: selected,
+    sources: selected.flatMap((image, index) => {
+      const source = sources.find((item) => item.url === image.sourceUrl);
+      return source ? [{ ...source, id: index + 1 }] : [];
+    }),
+  };
 }
 function cityLabel(item: Record<string, unknown>): string {
   const address = record(item['address']);
@@ -322,6 +347,7 @@ export function publicWebUrl(value: unknown): string | null {
     const u = new URL(value);
     if (
       u.protocol !== 'https:' ||
+      u.href.length > 2048 ||
       u.username ||
       u.password ||
       (u.port && u.port !== '443') ||
@@ -336,6 +362,18 @@ export function publicWebUrl(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+export function providedPageUrls(prompt: string): string[] {
+  if (/не\s+(?:открывай|читай|переходи)|do not (?:open|read|visit)/iu.test(prompt)) return [];
+  return [
+    ...new Set(
+      (prompt.match(/https:\/\/[^\s<>"`]+/giu) ?? []).flatMap((raw) => {
+        const url = publicWebUrl(raw.replace(/[),.;]+$/g, ''));
+        return url ? [url] : [];
+      }),
+    ),
+  ].slice(0, 3);
 }
 
 export async function boundedWebResponse(response: Response, limit = MAX_BODY): Promise<Buffer> {
@@ -421,7 +459,7 @@ export class FreeInternetProvider {
       new TextDecoder('utf-8', { fatal: true }).decode(await boundedWebResponse(response)),
     );
   }
-  async search(query: string, images: boolean, signal: AbortSignal) {
+  async search(query: string, images: boolean, signal: AbortSignal, limit = 8) {
     if (!this.searchBase) throw new AiWebProviderError();
     const url = new URL('search', this.searchBase);
     url.search = new URLSearchParams({
@@ -432,7 +470,7 @@ export class FreeInternetProvider {
       categories: images ? 'images' : 'general',
       engines: images ? 'bing images,duckduckgo images' : 'bing,duckduckgo,wikipedia',
     }).toString();
-    return parseSearxResults(await this.json(await this.response(url.href, signal)), images);
+    return parseSearxResults(await this.json(await this.response(url.href, signal)), images, limit);
   }
   async weather(
     cityInput: string,

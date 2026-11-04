@@ -1,0 +1,116 @@
+{
+  "run": 41026543811,
+  "source": "reports\\field-boundary-544-proof-41026543811\\artifact\\reports\\playwright\\electronics-simulation-ELE-3dc78--through-all-four-rotations\\instrument525-raw.json",
+  "rawSha256": "d14246179bf5b75d86f7d5724145a81b79f59c0f062077786feffe7e38101f6a",
+  "attachments": [
+    {
+      "source": "reports\\field-boundary-544-proof-41026543811\\artifact\\reports\\playwright\\electronics-simulation-ELE-3dc78--through-all-four-rotations\\trace.zip",
+      "sha256": "7e43c72379fc1113385ff4521daf72a7be6d9750eb8491104f39522d86b2f7ed"
+    }
+  ],
+  "sourceSha": "e1be12d19f8669c1145020c756551dd2188ed10f",
+  "sourceBranch": "codex/field-boundary-proof-544",
+  "originalErrors": [
+    {
+      "type": "after",
+      "callId": "expect@227",
+      "endTime": 839613.363,
+      "annotations": [],
+      "error": {
+        "name": "",
+        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m",
+        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n    at /workspace/e2e/electronics-simulation.spec.ts:3998:13"
+      }
+    },
+    {
+      "type": "after",
+      "callId": "expect@232",
+      "endTime": 839774.865,
+      "annotations": [],
+      "error": {
+        "name": "",
+        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m",
+        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m\n    at /workspace/e2e/electronics-simulation.spec.ts:4011:13"
+      }
+    },
+    {
+      "type": "after",
+      "callId": "expect@234",
+      "endTime": 839902.185,
+      "annotations": [],
+      "error": {
+        "name": "",
+        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m",
+        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m\n    at /workspace/e2e/electronics-simulation.spec.ts:4011:13"
+      }
+    },
+    {
+      "type": "after",
+      "callId": "expect@236",
+      "endTime": 840177.884,
+      "annotations": [],
+      "error": {
+        "name": "",
+        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m",
+        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m\n    at /workspace/e2e/electronics-simulation.spec.ts:4011:13"
+      }
+    },
+    {
+      "type": "after",
+      "callId": "expect@238",
+      "endTime": 840694.927,
+      "annotations": [],
+      "error": {
+        "name": "",
+        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m",
+        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m\n    at /workspace/e2e/electronics-simulation.spec.ts:4011:13"
+      }
+    },
+    {
+      "type": "after",
+      "callId": "expect@240",
+      "endTime": 841715.461,
+      "annotations": [],
+      "error": {
+        "name": "",
+        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m",
+        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m\n    at /workspace/e2e/electronics-simulation.spec.ts:4011:13"
+      }
+    },
+    {
+      "type": "after",
+      "callId": "expect@242",
+      "endTime": 842736.138,
+      "annotations": [],
+      "error": {
+        "name": "",
+        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m",
+        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m\n    at /workspace/e2e/electronics-simulation.spec.ts:4011:13"
+      }
+    },
+    {
+      "type": "after",
+      "callId": "expect@244",
+      "endTime": 843778.752,
+      "annotations": [],
+      "error": {
+        "name": "",
+        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m",
+        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m\n    at /workspace/e2e/electronics-simulation.spec.ts:4011:13"
+      }
+    },
+    {
+      "type": "after",
+      "callId": "test.step@230",
+      "endTime": 843780.714,
+      "annotations": [],
+      "error": {
+        "name": "",
+        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate",
+        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeCloseTo\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m, \u001b[22mprecision\u001b[2m)\u001b[22m\n\nExpected: \u001b[32m-2.999999865\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\nExpected precision:    6\nExpected difference: < \u001b[32m0.0000005\u001b[39m\nReceived difference:   \u001b[31m2.999999865\u001b[39m\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate\n    at /workspace/e2e/electronics-simulation.spec.ts:4011:13"
+      }
+    }
+  ],
+  "extractedScreenshotSha256": "f0fcd0fc8e4f28f1915f06a2f20b8fd4ea5a6b3731f8417baa90c5362f4cdf53",
+  "note": "Last screencast frame extracted unchanged from original trace.zip; all original errors preserved above."
+}

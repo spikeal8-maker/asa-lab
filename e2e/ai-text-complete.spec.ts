@@ -560,7 +560,11 @@ test('AI creates a fresh variant of the chosen earlier answer without changing l
   await select(page, thread.title);
   const draft = page.getByRole('textbox', { name: 'Сообщение ИИ' });
   await draft.fill('Мой неотправленный вопрос');
-  await page.getByRole('combobox', { name: 'Модель ИИ' }).selectOption('gpt-4.1-mini');
+  await page.getByRole('button', { name: 'Модель ИИ' }).click();
+  await page
+    .getByRole('listbox', { name: 'Модель ИИ' })
+    .getByRole('option', { name: 'gpt-4.1-mini' })
+    .click();
   await page
     .locator('.chat-turn-assistant')
     .filter({ hasText: 'Оригинальный ответ' })

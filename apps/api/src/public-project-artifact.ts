@@ -2,6 +2,10 @@ import type pg from 'pg';
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import {
   validatePublicProjectDisplayArtifact,
+  publicArduinoBlocks,
+  PUBLIC_ELECTRONICS_PROPERTIES,
+  PUBLIC_ELECTRONICS_EDITOR_PROPERTIES,
+  PUBLIC_THREE_D_NODE_FIELDS,
   type PublicProjectDisplayArtifact,
   type PublicArtifactProvenance,
 } from '@asa-lab/contracts';
@@ -69,7 +73,7 @@ function rawWithinBounds(value: unknown): boolean {
 export function createPublicArtifactAdapters(
   registry: ModuleRegistry,
 ): ReadonlyMap<string, Adapter> {
-  return new Map([
+  return new Map<string, Adapter>([
     [
       'electronics',
       (document, provenance) => {
@@ -81,6 +85,7 @@ export function createPublicArtifactAdapters(
         const source = parsed.document as {
           components: Record<string, unknown>[];
           connections: Record<string, unknown>[];
+          simulation: { maxIterations: number };
         };
         const candidate = {
           schemaVersion: 2,
@@ -105,7 +110,73 @@ export function createPublicArtifactAdapters(
           ),
         };
         const validated = validatePublicProjectDisplayArtifact(candidate);
-        return validated.ok ? validated.artifact : null;
+        if (!validated.ok) return null;
+        // Unknown physical configuration fails closed to the inert V2 viewer.
+        // Only explicitly classified editor metadata is omitted from execution.
+        const simulationComponents = source.components.map((c, index) => {
+          const component = {
+            ...candidate.components[index],
+            ...pick(c, [
+              'electricalModelId',
+              'electricalModelVersion',
+              'modelProfileId',
+              'modelProfileVersion',
+              'wiperPosition',
+              'holeBindings',
+              'internalConnections',
+            ]),
+          };
+          if (c.stateProperties && typeof c.stateProperties === 'object') {
+            const properties = c.stateProperties as Record<string, unknown>;
+            if (
+              Object.keys(properties).some(
+                (key) =>
+                  !PUBLIC_ELECTRONICS_PROPERTIES.includes(key) &&
+                  !PUBLIC_ELECTRONICS_EDITOR_PROPERTIES.includes(key),
+              )
+            )
+              return null;
+            const projected = pick(properties, PUBLIC_ELECTRONICS_PROPERTIES);
+            // Only the frozen published sketch may supply the public block graph.
+            delete projected.arduinoBlocks;
+            if (['blocks', 'blocks-text'].includes(String(properties.arduinoCodeMode))) {
+              const blocks = publicArduinoBlocks(properties.arduinoWorkspace);
+              if (blocks) projected.arduinoBlocks = blocks;
+            }
+            return { ...component, stateProperties: projected };
+          }
+          return component;
+        });
+        if (simulationComponents.some((c) => c === null)) return validated.artifact;
+        const simulation = validatePublicProjectDisplayArtifact({
+          ...candidate,
+          schemaVersion: 3,
+          status: 'simulation',
+          solverIterations: source.simulation?.maxIterations,
+          components: simulationComponents,
+        });
+        return simulation.ok ? simulation.artifact : validated.artifact;
+      },
+    ],
+    [
+      'three-d',
+      (document, provenance) => {
+        if (!rawWithinBounds(document)) return null;
+        const entry = registry.get('three-d');
+        if (!entry?.provider) return null;
+        const parsed = validationMessage(entry, document);
+        if (!parsed.ok) return null;
+        const source = parsed.document as { nodes: Record<string, unknown>[] };
+        const result = validatePublicProjectDisplayArtifact({
+          schemaVersion: 4,
+          status: 'display',
+          viewerFamily: 'three-d',
+          provenance,
+          capabilities: { readOnly: true, interactive: true, download: false },
+          units: 'mm',
+          nodes: source.nodes.map((node) => pick(node, PUBLIC_THREE_D_NODE_FIELDS)),
+        });
+        return result.ok ? result.artifact : null;
       },
     ],
   ]);

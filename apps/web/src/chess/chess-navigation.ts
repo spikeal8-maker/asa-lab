@@ -1,4 +1,5 @@
-export type ChessPage = 'home' | 'play' | 'online' | 'puzzles' | 'learning' | 'bots' | 'review';
+export type ChessPage =
+  'home' | 'play' | 'online' | 'network' | 'puzzles' | 'learning' | 'local' | 'bots' | 'review';
 
 export type ChessPanelTab = 'game' | 'analysis' | 'versions';
 
@@ -11,8 +12,10 @@ const CHESS_PAGES = new Set<ChessPage>([
   'home',
   'play',
   'online',
+  'network',
   'puzzles',
   'learning',
+  'local',
   'bots',
   'review',
 ]);

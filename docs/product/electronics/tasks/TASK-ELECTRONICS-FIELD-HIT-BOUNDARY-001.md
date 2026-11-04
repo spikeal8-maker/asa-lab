@@ -13,6 +13,20 @@ review: independent
 
 # Native grabbing across the visible field boundary
 
+## Current-source proof-only qualification
+
+Under the owner's continued remaining-plan programme, verify the already
+integrated repair rather than compose it again. Confirm current source contains
+the preserved root-or-grid alpha fallback, finite unbounded drag delta and all
+32 native boundary cases. Use the existing canonical isolated GitHub workflow;
+no local stack, product change, workflow shortcut or repeated causal BEFORE.
+Retain complete native/document/Save/CAS/cookies-only reopen/regrab artifacts and
+obtain fresh independent exact-SHA review. Report failures by cause before any
+separate repair selection. The issue548 acceptance dependency remains; proof
+does not itself authorize closure, deployment or owner acceptance. Selection,
+SHA and status are recorded only in current.yaml. This proof-only boundary
+supersedes the older composition instructions below for this execution.
+
 Bounded [544](https://github.com/spikeal8-maker/asa-lab/issues/544), existing programme452 / E03. Selection only canonical current.yaml on main. Primary electronics.ui.workbench in components/ui-assets-persistence.yaml, exact Stage pointer routing and owner E03/E15/E16 distinctions. No new programme/editor/audit, artwork, world-coordinate migration, solver or deployment.
 
 ## Prove the cause before product edits

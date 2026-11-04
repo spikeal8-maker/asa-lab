@@ -1,4 +1,12 @@
 import {
+  ELECTRONICS_TIMED_ENGINE_CONTRACT_VERSION,
+  resetElectronicsTimedState,
+} from './timed-state.js';
+export {
+  ELECTRONICS_TIMED_ENGINE_CONTRACT_VERSION,
+  resetElectronicsTimedState,
+} from './timed-state.js';
+import {
   advanceArduinoCircuitClock,
   createOwnedArduinoCircuitClockRequest,
   type ArduinoCircuitClockAdvance,
@@ -32,7 +40,6 @@ export type {
 } from './domain/led-temporal-observation.js';
 
 export const ELECTRONICS_ENGINE_CONTRACT_VERSION = 1 as const;
-export const ELECTRONICS_TIMED_ENGINE_CONTRACT_VERSION = 1 as const;
 
 export const ELECTRONICS_ENGINE_CAPABILITIES = [
   'parse-document',
@@ -338,14 +345,6 @@ export function projectElectronicsArduinoSerial(
   } catch {
     return [];
   }
-}
-
-export function resetElectronicsTimedState(): ElectronicsTimedState {
-  return {
-    version: ELECTRONICS_TIMED_ENGINE_CONTRACT_VERSION,
-    lifecycle: 'running',
-    continuation: null,
-  };
 }
 
 export function pauseElectronicsTimedState(state: ElectronicsTimedState): ElectronicsTimedState {

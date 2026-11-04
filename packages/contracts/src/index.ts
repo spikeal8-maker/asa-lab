@@ -49,10 +49,14 @@ export function packageInfo(): PackageInfo {
 
 export {
   ELECTRONICS_DISPLAY_LIMITS,
+  PUBLIC_ELECTRONICS_PROPERTIES,
+  PUBLIC_ELECTRONICS_EDITOR_PROPERTIES,
   validatePublicProjectDisplayArtifact,
 } from './public-project-display-artifact.js';
 export type {
   ElectronicsDisplayArtifact,
+  ElectronicsSimulationArtifact,
+  PublicSimulationComponent,
   PublicProjectDisplayArtifact,
   PublicDisplayComponent,
   PublicDisplayConnection,
@@ -61,6 +65,13 @@ export type {
   PublicDisplayVisualProperties,
 } from './public-project-display-artifact.js';
 export type { PublicScratchPlayerBootstrap } from './public-scratch-player';
+export {
+  validatePublicThreeDArtifact,
+  PUBLIC_THREE_D_NODE_FIELDS,
+  PUBLIC_THREE_D_LIMITS,
+  PUBLIC_THREE_D_PRIMITIVES,
+} from './public-three-d-artifact.js';
+export type { PublicThreeDArtifact, PublicThreeDNode } from './public-three-d-artifact.js';
 
 export type {
   AiOllamaCloudModel,
@@ -76,3 +87,40 @@ export type {
   AiTokenBudgetUpdate,
   AiTokenBudgetsOwn,
 } from './ai-token-budgets.js';
+
+export {
+  AI_IMAGE_PRESETS,
+  aiImagePreset,
+  aiImageDimensions,
+  isAiImageSize,
+  aiImageSizeLabel,
+} from './ai-image-generation.js';
+export type { AiImageStoredSize } from './ai-image-generation.js';
+
+export { AI_IMAGE_RECIPES } from './ai-image-generation.js';
+export type { AiImageRecipe } from './ai-image-generation.js';
+export {
+  AI_TEXT_UNAVAILABLE,
+  AI_IMAGE_UNAVAILABLE,
+  AI_SEARCH_UNAVAILABLE,
+  aiPublicErrorMessage,
+  AI_CHAT_TOOLS,
+  AI_TOOL_ACTIVITY_LABELS,
+  isAiToolActivity,
+} from './ai-chat-feedback.js';
+export type { AiChatTool, AiToolActivity } from './ai-chat-feedback.js';
+
+export { publicArduinoBlocks } from './public-arduino-blocks.js';
+
+export type {
+  ChessNetworkScope,
+  ChessNetworkPolicy,
+  ChessNetworkAccess,
+  ChessNetworkLobby,
+  ChessLobbyPlayer,
+  ChessNetworkInvite,
+  ChessNetworkMatch,
+  ChessNetworkAction,
+} from './chess-network.js';
+
+export type { CheckersNetworkMatch, CheckersNetworkPosition } from './checkers-network.js';

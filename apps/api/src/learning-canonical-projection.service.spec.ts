@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import {
   LearningCanonicalProjectionService,
+  canonicalCourseParticipationKey,
   canonicalProjectionKey,
   canonicalReadsEnabled,
 } from './learning-canonical-projection.service.js';
@@ -234,6 +235,173 @@ describe('LRN-M0-007 canonical projection boundary', () => {
 
     expect(item?.surface.selectedResult).toBeNull();
     expect(item?.state.provenance.conflicts).toContain('pointer_scope_mismatch');
+  });
+
+  it('exposes exact course participation applicability without work or an attempt', async () => {
+    const runId = '70000000-0000-4000-8000-000000000041';
+    const pool = poolWith({
+      ...base,
+      kind: 'course_project',
+      activityRunId: runId,
+      legacyWork: null,
+      participation: { applicable: true, status: 'active', excused: true },
+    });
+    const projection = new LearningCanonicalProjectionService(pool, {});
+    for (const result of [
+      await projection.forSeat(base.seatId, '2026-08-21T00:00:00.000Z'),
+      await projection.forAccount(
+        '50000000-0000-4000-8000-000000000099',
+        '2026-08-21T00:00:00.000Z',
+      ),
+    ]) {
+      const value = result.get(canonicalProjectionKey(base.seatId, base.classroomAssignmentId));
+      expect(value?.participationApplicability).toEqual({ applicable: true, excused: true });
+      expect(value?.state.provenance.activityRunId).toBe(runId);
+      expect(value?.surface.flags).toContain('excused');
+    }
+  });
+
+  it('retains two distinct Activity Runs sharing one handout without hiding excusal', async () => {
+    const runA = '70000000-0000-4000-8000-000000000041';
+    const runB = '70000000-0000-4000-8000-000000000042';
+    const pool = poolWith(
+      {
+        ...base,
+        kind: 'course_project',
+        activityRunId: runA,
+        legacyWork: null,
+        participation: { applicable: true, status: 'active', excused: false },
+      },
+      {
+        ...base,
+        kind: 'course_project',
+        activityRunId: runB,
+        legacyWork: null,
+        participation: { applicable: true, status: 'active', excused: true },
+      },
+    );
+    const service = new LearningCanonicalProjectionService(pool, {});
+    for (const snapshot of [
+      await service.forSeatCourseRuns(base.seatId, '2026-08-21T00:00:00.000Z'),
+      await service.forAccountCourseRuns(
+        '50000000-0000-4000-8000-000000000099',
+        '2026-08-21T00:00:00.000Z',
+      ),
+    ]) {
+      expect(snapshot.projections.size).toBe(1);
+      expect(snapshot.participationByRun.size).toBe(2);
+      expect(snapshot.courseProjectionsByRun.size).toBe(2);
+      const runAKey = canonicalCourseParticipationKey(base.seatId, runA);
+      const runBKey = canonicalCourseParticipationKey(base.seatId, runB);
+      expect(snapshot.courseProjectionsByRun.get(runAKey)?.surface.activityRunId).toBe(runA);
+      expect(snapshot.courseProjectionsByRun.get(runBKey)?.surface.activityRunId).toBe(runB);
+      expect(
+        snapshot.participationByRun.get(canonicalCourseParticipationKey(base.seatId, runA)),
+      ).toEqual({
+        classroomAssignmentId: base.classroomAssignmentId,
+        applicable: true,
+        excused: false,
+      });
+      expect(
+        snapshot.participationByRun.get(canonicalCourseParticipationKey(base.seatId, runB)),
+      ).toEqual({
+        classroomAssignmentId: base.classroomAssignmentId,
+        applicable: true,
+        excused: true,
+      });
+    }
+    expect(pool.query).toHaveBeenCalledTimes(2);
+  });
+
+  it('isolates a selected accepted result from another run and learner seat', async () => {
+    const runA = '70000000-0000-4000-8000-000000000041';
+    const runB = '70000000-0000-4000-8000-000000000042';
+    const foreignSeat = '50000000-0000-4000-8000-000000000002';
+    const acceptedAttempt = {
+      id: '80000000-0000-4000-8000-000000000041',
+      attemptNumber: 1,
+      state: 'closed',
+      reviewDecision: 'accepted',
+      startedAt: '2026-10-27T09:00:00.000Z',
+      submittedAt: '2026-10-27T09:20:00.000Z',
+      lateState: 'on_time',
+    };
+    const acceptedResult = {
+      id: '90000000-0000-4000-8000-000000000041',
+      attemptId: acceptedAttempt.id,
+      rawPoints: 20,
+      maxPoints: 20,
+      percentageBasisPoints: 10000,
+      displayGrade: '5',
+      outcome: 'passed',
+      publishedAt: '2026-10-27T09:30:00.000Z',
+      completionValue: true,
+    };
+    const accepted = {
+      ...base,
+      kind: 'course_project',
+      activityRunId: runA,
+      participation: { applicable: true, status: 'active', excused: false },
+      legacyWork: null,
+      attempt: acceptedAttempt,
+      selectedAttemptExists: true,
+      resultSelectionSource: 'canonical',
+      selectedAttemptId: acceptedAttempt.id,
+      selectedRevision: acceptedResult,
+    };
+    const awaiting = {
+      ...base,
+      kind: 'course_project',
+      activityRunId: runB,
+      participation: { applicable: true, status: 'active', excused: false },
+      legacyWork: null,
+      attempt: {
+        ...acceptedAttempt,
+        id: '80000000-0000-4000-8000-000000000042',
+        state: 'submitted',
+        reviewDecision: null,
+      },
+    };
+    const pool = poolWith(accepted, awaiting, {
+      ...accepted,
+      seatId: foreignSeat,
+      activityRunId: runB,
+    });
+    const snapshot = await new LearningCanonicalProjectionService(pool, {}).forAccountCourseRuns(
+      '50000000-0000-4000-8000-000000000099',
+      '2026-10-27T10:00:00.000Z',
+    );
+    expect(snapshot.projections.size).toBe(2);
+    expect(snapshot.courseProjectionsByRun.size).toBe(3);
+    const acceptedKey = canonicalCourseParticipationKey(base.seatId, runA);
+    const awaitingKey = canonicalCourseParticipationKey(base.seatId, runB);
+    const foreignKey = canonicalCourseParticipationKey(foreignSeat, runB);
+    const acceptedState = snapshot.courseProjectionsByRun.get(acceptedKey)?.surface;
+    const awaitingState = snapshot.courseProjectionsByRun.get(awaitingKey)?.surface;
+    const foreignState = snapshot.courseProjectionsByRun.get(foreignKey)?.surface;
+    expect(acceptedState?.selectedResult?.completionValue).toBe(true);
+    expect(awaitingState).toMatchObject({
+      activityRunId: runB,
+      workflowState: 'submitted',
+      selectedResult: null,
+    });
+    expect(foreignState?.selectedResult?.completionValue).toBe(true);
+  });
+
+  it('fails closed when one seat and ActivityRun have duplicate canonical evidence', async () => {
+    const runId = '70000000-0000-4000-8000-000000000041';
+    const evidence = {
+      ...base,
+      kind: 'course_project',
+      activityRunId: runId,
+      participation: { applicable: true, status: 'active', excused: false },
+      legacyWork: null,
+    };
+    const service = new LearningCanonicalProjectionService(poolWith(evidence, evidence), {});
+    const snapshot = await service.forSeatCourseRuns(base.seatId, '2026-10-27T10:00:00.000Z');
+    const runKey = canonicalCourseParticipationKey(base.seatId, runId);
+    expect(snapshot.courseProjectionsByRun.get(runKey)).toBeNull();
+    expect(snapshot.participationByRun.has(runKey)).toBe(false);
   });
 
   it('has an explicit reversible legacy cutover that bypasses canonical reads', async () => {

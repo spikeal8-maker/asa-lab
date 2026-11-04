@@ -45,6 +45,13 @@ describe('administrative publication transport', () => {
             reason: 'Enable',
           }),
         () => controller.list(request()),
+        () =>
+          controller.reactions(request(), ID, {
+            enabled: false,
+            reason: 'Safety',
+            expectedVersion: 0,
+            expectedRevisionId: ID,
+          }),
         () => controller.image(request(), ID, {} as FastifyReply),
         () =>
           controller.hide(request(), ID, {

@@ -301,16 +301,30 @@ it('reuses frozen class, deadline and request ID after a lost response and close
     .mockResolvedValueOnce({
       ok: true,
       status: 200,
+      data: { runId: 'unconfirmed-run', versionNumber: 2, reused: false },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
       data: { runId: 'run', versionNumber: 1, reused: true },
     });
   const attempt: CourseAssignAttempt = { classroomId: 'class', dueDate: '2027-04-01' };
-  const props = { courseId: 'course', version, attempt, onClose: vi.fn(), onBusyChange: vi.fn() };
+  const onAssigned = vi.fn();
+  const props = {
+    courseId: 'course',
+    version,
+    attempt,
+    onClose: vi.fn(),
+    onBusyChange: vi.fn(),
+    onAssigned,
+  };
   await mount(createElement(CourseAssignDialog, props));
   await act(async () => {
     button('Назначить').click();
     await flush();
   });
   expect(container!.textContent).toContain('Lost response');
+  expect(onAssigned).not.toHaveBeenCalled();
   expect(
     [...container!.querySelectorAll('button')].some((item) =>
       item.textContent?.includes('Новое назначение'),
@@ -328,7 +342,15 @@ it('reuses frozen class, deadline and request ID after a lost response and close
     await flush();
   });
   expect(assign.mock.calls[1]).toEqual(frozen);
+  expect(container!.textContent).toContain('Сервер не подтвердил выбранную версию');
+  expect(onAssigned).not.toHaveBeenCalled();
+  await act(async () => {
+    button('Повторить назначение').click();
+    await flush();
+  });
+  expect(assign.mock.calls[2]).toEqual(frozen);
   expect(container!.textContent).toContain('Сервер подтвердил версию 1');
+  expect(onAssigned).toHaveBeenCalledTimes(1);
   expect(button('Назначить').disabled).toBe(true);
 });
 

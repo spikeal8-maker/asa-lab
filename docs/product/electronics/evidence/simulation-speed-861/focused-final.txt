@@ -1,0 +1,17 @@
+
+ RUN  v4.1.11 C:/Users/spike/.codex/worktrees/electronics-reverse-led-simple/ASA-lab
+
+ ✓ |parallel| apps/web/src/electronics/testing/simulation-pacing.spec.ts (7 tests) 9ms
+ ✓ |parallel| apps/web/src/electronics/testing/simulation-speed-control.spec.ts (1 test) 63ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-header-time.spec.ts (1 test) 139ms
+ ✓ |parallel| apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts (99 tests) 2943ms
+     ✓ 25ms completed observations expose both 50ms blink phases without changing canonical state  1170ms
+     ✓ 25ms completed observations expose both 100ms blink phases without changing canonical state  775ms
+ ✓ |parallel| apps/web/src/electronics/testing/led-temporal-presentation.spec.ts (173 tests) 2492ms
+     ✓ keeps a real 1ms neighbour visible before, at and after another LED thermally fails  1178ms
+ ✓ |parallel| apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts (80 tests) 2167ms
+
+ Test Files  6 passed (6)
+      Tests  361 passed (361)
+   Start at  07:23:33
+   Duration  6.13s (transform 4.15s, setup 0ms, import 8.86s, tests 7.81s, environment 2.79s)

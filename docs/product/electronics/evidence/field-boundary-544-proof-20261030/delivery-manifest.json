@@ -1,0 +1,82 @@
+[
+  {
+    "path": "artifact-metadata.json",
+    "bytes": 740,
+    "sha256": "34c88bb378c446fed0d8a646b053666ce84c50f9c2af68ee9f9f4061f12ec0b1"
+  },
+  {
+    "path": "artifact-metadata.json.gz",
+    "bytes": 442,
+    "sha256": "3c8a6e10c80fe8fdddc609881150f7d2b6383d702cdd7aa8fe64e9f8a7dbb05e"
+  },
+  {
+    "path": "browser.log.gz",
+    "bytes": 137606,
+    "sha256": "ce4396249bdc9ed712052c976c7a8614fde6fe1cda40039d82294125f83c67ab"
+  },
+  {
+    "path": "extracted-artifact-manifest.json",
+    "bytes": 287711,
+    "sha256": "f3dc2f3094cc7da66851967d42a8b8341fb3ff272539b98ee5e3b5c1d27089bb"
+  },
+  {
+    "path": "extracted-artifact-manifest.json.gz",
+    "bytes": 59347,
+    "sha256": "84e2196e1268e4d4884755d94dd18e910fd626d99bf5cf61cf2eadf9eed4b4e5"
+  },
+  {
+    "path": "failed86.txt",
+    "bytes": 13701,
+    "sha256": "b45f327f9539956904ea7c5d6f044971d54509b8175489ba7cdac27bce8bf5af"
+  },
+  {
+    "path": "failed86.txt.gz",
+    "bytes": 2591,
+    "sha256": "b0b46150e54d004240c712c29c07c59d6213807d44b6a01ad161611cb29d890e"
+  },
+  {
+    "path": "field32-index.json",
+    "bytes": 95696,
+    "sha256": "148929b69a565b2ccd9bc70271283190e9e84b41834acfe01d70b8487865d105"
+  },
+  {
+    "path": "field32-index.json.gz",
+    "bytes": 10534,
+    "sha256": "fc0e35c836ddd264c297758688e2f78db9b7de81afe84ee85b446bd27434bebb"
+  },
+  {
+    "path": "field32-raw-and-images.zip",
+    "bytes": 22833424,
+    "sha256": "eb958c13e847465350e221f6b0b0a7aae26563718052d26b3a20b0621172abfd"
+  },
+  {
+    "path": "focused.log.gz",
+    "bytes": 37122,
+    "sha256": "e80a1d462ab35cf2c9846a9d5b15bec43e52a0e552a452e89543ad347f1a02a0"
+  },
+  {
+    "path": "index-proof.py",
+    "bytes": 3996,
+    "sha256": "82125a8b024dfe704492c7dc36af24ac94a2d19a4591bbbe0efbb658f1d1fc32"
+  },
+  {
+    "path": "index-proof.py.gz",
+    "bytes": 1724,
+    "sha256": "41a10d2db01810125eec4c54853bbdb137208f49e86c78dc8dbf97e78e68b6d4"
+  },
+  {
+    "path": "RECEIPT.md",
+    "bytes": 3827,
+    "sha256": "30ba1e5775a9f238cefbef6b76adffae42e6f2b1e51bc08fba9d7b0ea50fc9dc"
+  },
+  {
+    "path": "RECEIPT.md.gz",
+    "bytes": 2180,
+    "sha256": "664b7001bbd9399253f3e44f6fe6bfe3e3602e38f84bae76dc0fcb19c59fd013"
+  },
+  {
+    "path": "REVIEW.md",
+    "bytes": 1981,
+    "sha256": "a862a11f6e8902f8d075b2a75f9993aa1b772fb827529e004e49df3b483ee79c"
+  }
+]

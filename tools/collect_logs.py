@@ -24,6 +24,7 @@ import zlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from deployment.paths import atomic_bytes
+from deployment import operational
 from resource_sampling import ResourceSampler
 from memory_sampling import CAPTURE_SECONDS, capture_memory
 
@@ -40,6 +41,7 @@ DATABASE_DIAGNOSTICS = json.loads((Path(__file__).resolve().parent.parent /
 # public diagnostic projection (two different rows can have identical messages).
 DATABASE_NATIVE_KEYS = {table: ('event_hash',) if table == 'max_webhook_events' else ('id',)
                         for table in DATABASE_DIAGNOSTICS['sources']}
+DATABASE_NATIVE_KEYS.update({table: ('owner_principal_id', 'request_id') for table in ('ai_image_jobs','ai_usage_journal')})
 DATABASE_IDENTITY_LIMIT = 256
 DATABASE_BATCH_ROWS = 128
 DATABASE_BATCH_BYTES = 4 * 1024 * 1024
@@ -83,6 +85,36 @@ def database_diagnostics(origin, value):
 
 def history_error(reason):
     return RuntimeError(f"Diagnostic history/index inconsistency: {reason}; private payloads were preserved; restore a consistent diagnostic snapshot")
+
+
+def verify_successor_retirements(retired, metadata, ledger, key):
+    """Verify typed operator authority in core code; no incident-tool dependency at startup."""
+    try:
+        canonical = lambda value: json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
+        bindings = {}
+        for batch_id, batch in ledger.items():
+            if batch.get('kind') != 'verified-successor-v1' or not isinstance(batch.get('fileBindings'), dict) or len(batch['fileBindings']) > 32:
+                raise ValueError('invalid successor ledger')
+            proof = batch.get('ledgerProof')
+            value = {k:v for k,v in batch.items() if k != 'ledgerProof'}
+            if batch.get('metadataSha256') != batch_id or not isinstance(proof, str) or not hmac.compare_digest(proof, hmac.new(key, b'asa-retired-successor-ledger-v1\0'+canonical(value), hashlib.sha256).hexdigest()):
+                raise ValueError('invalid successor ledger proof')
+            for name, digest in batch['fileBindings'].items():
+                if name in retired:
+                    if name in bindings and bindings[name] != digest: raise ValueError('conflicting successor bindings')
+                    bindings[name] = digest
+        for name in retired:
+            meta = metadata.get(name, {})
+            if name not in bindings and 'retirementAuthority' not in meta and 'retirementAuthorityProof' not in meta: continue
+            if name not in bindings: raise ValueError('missing successor ledger binding')
+            if name in bindings and hashlib.sha256(canonical(meta)).hexdigest() != bindings[name]: raise ValueError('binding differs')
+            if meta.get('retirementAuthority', {}).get('kind') != 'verified-successor-v1': raise ValueError('wrong authority')
+            value = {k:v for k,v in meta.items() if k != 'retirementAuthorityProof'}
+            proof = meta.get('retirementAuthorityProof')
+            if not isinstance(proof, str) or not hmac.compare_digest(proof, hmac.new(key, b'asa-retired-successor-v1\0'+canonical(value), hashlib.sha256).hexdigest()):
+                raise ValueError('wrong authority proof')
+    except (ValueError, TypeError, KeyError, AttributeError):
+        raise history_error('retired successor authority is invalid') from None
 
 
 def immutable_segment_bytes(path, data):
@@ -223,6 +255,7 @@ def subsystem(source: str, payload=None, origin="") -> str:
     if source in ("postgres", "migration"): return "database"
     if source.startswith("minio"): return "storage"
     if source == "tunnel": return "network"
+    if origin in ('ai_image_jobs', 'ai_usage_journal'): return 'diagnostics'
     if origin in ("product_analytics_events", "classroom_activity_events", "grade_change_events"):
         return {"product_analytics_events": "analytics", "classroom_activity_events": "classrooms", "grade_change_events": "learning"}[origin]
     if source == "auth": return "access"
@@ -561,7 +594,7 @@ class Collector:
                 self.set_state('history:audit', audit)
             else:
                 self.set_state('history:audit', dict(generation=uuid.uuid4().hex, cursor=max(active, default=''),
-                    checked=len(active), total=len(active), lastCompletedAt=now(), deadline=time.time()+900, state='complete'))
+                    checked=len(active), total=len(active), lastCompletedAt=now(), deadline=time.time()+900, state='complete', incomplete=False))
             self.db.execute('DELETE FROM history_mapping_changes')
         except (ValueError, TypeError, KeyError, IndexError, OSError, EOFError, sqlite3.Error, zlib.error) as exc:
             if continuous:
@@ -731,8 +764,16 @@ class Collector:
             actual = canonical["Config"]["Labels"].get("com.docker.compose.project.working_dir", "")
             if os.path.normcase(os.path.abspath(actual)) != os.path.normcase(str(self.root)):
                 raise RuntimeError("Collector root differs from the canonical installation")
-            if any(c['Config']['Labels'].get('com.docker.compose.project.working_dir') != actual for c in inspected):
-                raise RuntimeError('Mixed installation roots; collection stopped')
+            if any(c['Config']['Labels'].get('com.docker.compose.project.working_dir') != actual or
+                   c['Config']['Labels'].get('com.docker.compose.project') != project for c in inspected):
+                raise RuntimeError('Mixed installation roots/projects; collection stopped')
+            observed_services = [c['Config']['Labels'].get('com.docker.compose.service') for c in inspected]
+            previous_services = operational.compose_service_ids(self.state('docker:required-services', []))
+            required_services = operational.compose_service_ids(previous_services, observed_services)
+            self.set_state('docker:required-services', required_services)
+            for service in set(previous_services) - set(observed_services):
+                self.status(service + ':recent', 'unavailable',
+                            'Previously observed canonical Compose service is absent from the current inventory')
             if getattr(self, 'sampler', None):
                 self.sampler.set_targets(tuple(c['Id'] for c in inspected if c.get('State', {}).get('Running', True)), canonical['Id'])
             self.postgres = canonical["Id"]
@@ -819,11 +860,21 @@ class Collector:
             CASE WHEN a.atthasmissing THEN to_jsonb(a.attmissingval)->0 ELSE 'null'::jsonb END)
             FROM pg_attribute a WHERE a.attrelid='public."{table}"'::regclass
             AND a.attnum>0 AND NOT a.attisdropped)::text'''
+        projection = DATABASE_DIAGNOSTICS['sources'][table].get('projection')
+        columns = '*'
+        if projection is not None:
+            # AI prompts, output/storage keys, profile snapshots and model names
+            # never cross the PostgreSQL subprocess boundary in the first place.
+            names = {column, *DATABASE_NATIVE_KEYS[table]}
+            if not isinstance(projection, dict) or any(not re.fullmatch('[a-z_]{1,64}', name) for name in (*projection, *projection.values())):
+                raise ValueError('Invalid closed database projection')
+            columns = ','.join(f'"{name}"' for name in sorted(names)) + ',' + ','.join(f'"{source}" AS "{name}"' for name, source in projection.items())
+            defaults_sql = "'{}'::text"
         # Limit before encoding. The doubled UTF-8 length also bounds CSV quote
         # escaping; the extra allowance covers separators and the final trailer.
         sql = f'''BEGIN READ ONLY; SET LOCAL statement_timeout='15s';
             COPY (WITH candidates AS MATERIALIZED (
-                SELECT * FROM public."{table}" WHERE {condition} ORDER BY {order} LIMIT {DATABASE_BATCH_ROWS + 1}
+                SELECT {columns} FROM public."{table}" WHERE {condition} ORDER BY {order} LIMIT {DATABASE_BATCH_ROWS + 1}
             ), encoded AS MATERIALIZED (
                 SELECT row_to_json(t)::text AS raw, {defaults_sql} AS defaults,
                     row_number() OVER (ORDER BY {order}) AS n FROM candidates t
@@ -867,7 +918,7 @@ class Collector:
         if not getattr(self, "postgres", None):
             self.status("database-events", "unavailable", "Canonical PostgreSQL was not identified")
             return
-        tables = {table: rule['timeColumn'] for table, rule in DATABASE_DIAGNOSTICS['sources'].items()}
+        tables = {table: rule['timeColumn'] for table, rule in DATABASE_DIAGNOSTICS['sources'].items() if not rule.get('operational')}
         if history is True:
             turn = self.state('database:history:turn', 0) % len(tables)
             self.set_state('database:history:turn', turn + 1)
@@ -930,8 +981,33 @@ class Collector:
         self.status('database-history' if history is True else "database-events", 'error' if failures else 'pending' if pending else 'ok',
                     f'{failures} table sources require attention' if failures else f'{pending} database sources have queued backlog' if pending else '')
 
+    def operational_database(self):
+        for table, rule in DATABASE_DIAGNOSTICS['sources'].items():
+            if not rule.get('operational'): continue
+            source, key = 'database-events:' + table, 'db:operational:' + table
+            if not getattr(self, 'postgres', None):
+                self.status(source, 'unavailable', 'Canonical PostgreSQL was not identified')
+                continue
+            try:
+                # These ledgers have no updated_at. Reconcile bounded retained
+                # pages continuously, so long-queued jobs' late outcomes are
+                # observed instead of waiting for a six-hour historical pass.
+                cutoff = (datetime.now(UTC)-timedelta(days=self.config.get('retentionDays',30))).isoformat()
+                column = rule['timeColumn']
+                rows, more, after = self.database_batch(table, f'"{column}">=TIMESTAMPTZ \'{cutoff}\'', self.state(key))
+                observed = now()
+                for value, defaults in rows: self.add_database_row(table, value, defaults, observed)
+                self.set_state(key, after if more else None)
+                self.status(source, 'pending' if more else 'ok', 'Bounded AI ledger reconciliation queued' if more else 'Typed AI ledger observed; silent worker exception causes are not recorded by this source', observed if not more else None)
+            except Exception:
+                self.status(source, 'error', 'AI diagnostic projection unavailable; no raw rows persisted')
+
     def files(self):
-        configured = [{"source": "updates", "path": str(self.root / ".asa" / "logs")}, *self.config.get("fileSources", [])]
+        if not any(item['source'] == 'updates' for item in self.config.get('fileSources', [])):
+            # Retire only the old implicit missing .asa/logs health row. Retained
+            # event/history bytes and explicitly configured file sources survive.
+            self.db.execute("DELETE FROM sources WHERE name='updates'")
+        configured = [*self.config.get("fileSources", [])]
         if os.name == "nt" and self.config.get("includeDockerDesktop", True):
             configured.append({"source": "docker-desktop", "path": str(Path(os.environ.get("LOCALAPPDATA", "")) / "Docker" / "log")})
         cutoff = time.time() - self.config.get("retentionDays", 30) * 86400
@@ -1217,6 +1293,10 @@ class Collector:
             with opener(file, 'rb') as stream: raw = stream.read(4*1024*1024+1)
             if len(raw) != meta.get('rawBytes') or hashlib.sha256(raw).hexdigest() != meta.get('sha256'):
                 raise ValueError('affected immutable segment checksum differs')
+            if meta.get('retirementAuthority', {}).get('kind') == 'verified-successor-v1':
+                with file.open('rb') as stream: data = stream.read(8*1024*1024+1)
+                if len(data) != meta.get('bytes') or len(data) > 8*1024*1024 or hashlib.sha256(data).hexdigest() != meta['retirementAuthority']['predecessorCompressedSha256']:
+                    raise ValueError('affected successor-authorized file bytes differ')
             if mapping:
                 first,last = map(int, file.name.split('.')[0].split('-')[1:])
                 rows = self.db.execute('SELECT id FROM events WHERE seq BETWEEN ? AND ? ORDER BY seq', (first,last)).fetchall()
@@ -1298,7 +1378,11 @@ class Collector:
             raw = gzip.decompress(data) if meta["file"].endswith(".gz") else data
             if len(raw) != meta["rawBytes"] or hashlib.sha256(raw).hexdigest() != meta["sha256"]:
                 raise RuntimeError("Compaction original failed verification; originals preserved")
-            events.extend(json.loads(line) for line in raw.splitlines())
+            original_events = [json.loads(line) for line in raw.splitlines()]
+            if len(original_events) != meta['count']:
+                raise RuntimeError("Compaction original count differs; originals preserved")
+            self.verify_affected_segment(meta)
+            events.extend(original_events)
         if len(events) != intent["count"] or len({e["id"] for e in events}) != len(events):
             raise RuntimeError("Compaction identities failed verification; originals preserved")
         for event in events:
@@ -1312,6 +1396,17 @@ class Collector:
         finally: self.reader_format = old_format
         segments = self.state("segments", {})
         retired = self.state("retired:segments", {})
+        # Original mapping is still present and verified here. Persist its exact
+        # metadata in the SAME transaction as retirement/remapping, before the
+        # durable intent is removed. Newly written originals need not have been
+        # in the previous catalog or the process-local verification cache.
+        retired_metadata = self.state('retired:metadata', {})
+        for original in intent['originals']:
+            prior = retired_metadata.get(original['file'])
+            if prior is not None and prior != original:
+                raise history_error('compaction original retirement metadata differs')
+            retired_metadata[original['file']] = dict(original)
+        self.set_state('retired:metadata', retired_metadata)
         for offset, event in enumerate(events):
             self.db.execute("UPDATE events SET seq=? WHERE id=?", (intent["first"]+offset, bytes.fromhex(event["id"])))
         for original in intent["originals"]:
@@ -1425,6 +1520,8 @@ class Collector:
         self.db.commit()
         retired = self.state("retired:segments", {})
         retired_metadata = self.state('retired:metadata', {})
+        successor_ledger = self.state('retired:successor-recovery:v1', {})
+        verify_successor_retirements(retired, retired_metadata, successor_ledger, self.verification_key)
         # Resolve every existing legacy retirement before any cleanup or fresh
         # publication. Unverifiable debt must not disappear behind active quota.
         for name in retired:
@@ -1518,6 +1615,9 @@ class Collector:
                 retired.setdefault(segment["file"], None)
             else: canonical.append(segment)
         canonical, retired = self.compact(canonical, retired)
+        # finish_compaction committed original metadata; do not overwrite that
+        # durable addition with publish()'s earlier pre-compaction local snapshot.
+        retired_metadata.update({name:meta for name,meta in self.state('retired:metadata', {}).items() if name in retired})
         segments = []
         for meta in canonical:
             if meta["last"] < cutoff:
@@ -1622,7 +1722,9 @@ class Collector:
         audit = self.state('history:audit', {})
         audit_public = {k:v for k,v in audit.items() if k not in ('boundary',)}
         if audit and audit.get('state') != 'complete' and time.time() > audit.get('deadline', 0): audit_public['state'] = 'overdue'
-        catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), historyAudit=audit_public, sources=sources, segments=segments)
+        catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), historyAudit=audit_public, sources=sources, segments=segments,
+            requiredSources=operational.required_sources(self.config, DATABASE_DIAGNOSTICS['sources'],
+                'windows' if os.name == 'nt' else 'linux', self.state('docker:required-services', [])))
         atomic_bytes(self.store / 'catalog.json', json.dumps(catalog, ensure_ascii=False).encode('utf-8'))
         self.verified_metadata = {s['file']: s for s in segments}
         # The resource spool remains replayable until both index and catalog
@@ -1657,6 +1759,8 @@ class Collector:
             self.database(history=True)
             self.checkpoint()
             self.files()
+            operational.collect(self, normalize)
+            self.operational_database()
             self.windows(background=True)
             self.linux()
             self.lifecycle()
@@ -1843,7 +1947,7 @@ def main():
             raise ValueError('Invalid installation project')
         # The running collector needs public installation identity, not .env
         # credentials. Canonical Docker labels are checked on every cycle.
-        install = SimpleNamespace(root=args.root, state=args.root / '.asa', project=installation['project'])
+        install = SimpleNamespace(root=args.root, state=args.root / '.asa', project=installation['project'], settings=installation)
         safe_paths(install)
         validate_config(install)
         for key, lower, upper in (("retentionDays", 1, 365), ("maxBytes", 16 * 1024 * 1024, 10 * 1024 * 1024 * 1024), ("intervalSeconds", 10, 300)):

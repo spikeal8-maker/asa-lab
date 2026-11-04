@@ -1,0 +1,471 @@
+{
+  "topSelf": [
+    {
+      "function": "(idle)",
+      "selfMs": 73.187,
+      "inclusiveMs": 73.187,
+      "line": 0,
+      "source": ""
+    },
+    {
+      "function": "advanceRuntime",
+      "selfMs": 58.718,
+      "inclusiveMs": 140.768,
+      "line": 18194,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "post",
+      "selfMs": 26.381,
+      "inclusiveMs": 27.978,
+      "line": 118,
+      "source": ""
+    },
+    {
+      "function": "advance",
+      "selfMs": 22.318,
+      "inclusiveMs": 167.987,
+      "line": 18170,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "",
+      "selfMs": 14.175,
+      "inclusiveMs": 14.175,
+      "line": 14768,
+      "source": "contexts/electronics/domain/models/device-model.ts"
+    },
+    {
+      "function": "(garbage collector)",
+      "selfMs": 12.662,
+      "inclusiveMs": 12.662,
+      "line": 0,
+      "source": ""
+    },
+    {
+      "function": "advanceArduinoCircuitClock",
+      "selfMs": 12.551,
+      "inclusiveMs": 271.188,
+      "line": 28910,
+      "source": "contexts/electronics/domain/arduino-circuit-scheduler.ts"
+    },
+    {
+      "function": "solveCircuitBase",
+      "selfMs": 10.041,
+      "inclusiveMs": 24.636,
+      "line": 25084,
+      "source": "contexts/electronics/domain/solver.ts"
+    },
+    {
+      "function": "expireTones",
+      "selfMs": 8.022,
+      "inclusiveMs": 8.022,
+      "line": 15964,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "advanceRuntime",
+      "selfMs": 7.792,
+      "inclusiveMs": 18.855,
+      "line": 18194,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "validateCallArguments",
+      "selfMs": 7.484,
+      "inclusiveMs": 7.484,
+      "line": 16754,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "solveCircuitStep",
+      "selfMs": 7.079,
+      "inclusiveMs": 14.452,
+      "line": 25782,
+      "source": "contexts/electronics/domain/solver.ts"
+    },
+    {
+      "function": "evaluateSyntax",
+      "selfMs": 6.566,
+      "inclusiveMs": 12.974,
+      "line": 16724,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "declareVariable",
+      "selfMs": 6.334,
+      "inclusiveMs": 21.284,
+      "line": 17517,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "advanceRuntime",
+      "selfMs": 5.881,
+      "inclusiveMs": 7.519,
+      "line": 18194,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "simulationInputDigest",
+      "selfMs": 5.288,
+      "inclusiveMs": 15.367,
+      "line": 21275,
+      "source": "contexts/electronics/domain/simulation-input-digest.ts"
+    },
+    {
+      "function": "writeFileUtf8",
+      "selfMs": 5.19,
+      "inclusiveMs": 5.19,
+      "line": 0,
+      "source": ""
+    },
+    {
+      "function": "applyRuntimeAction",
+      "selfMs": 4.774,
+      "inclusiveMs": 4.774,
+      "line": 15978,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "",
+      "selfMs": 4.706,
+      "inclusiveMs": 10.894,
+      "line": 29175,
+      "source": "contexts/electronics/domain/arduino-circuit-scheduler.ts"
+    },
+    {
+      "function": "solveCircuitStep",
+      "selfMs": 4.662,
+      "inclusiveMs": 10.716,
+      "line": 25782,
+      "source": "contexts/electronics/domain/solver.ts"
+    },
+    {
+      "function": "step",
+      "selfMs": 4.607,
+      "inclusiveMs": 102.503,
+      "line": 28873,
+      "source": "contexts/electronics/domain/arduino-circuit-scheduler.ts"
+    },
+    {
+      "function": "convertedNumber",
+      "selfMs": 4.452,
+      "inclusiveMs": 7.607,
+      "line": 14841,
+      "source": "contexts/electronics/domain/arduino-values.ts"
+    }
+  ],
+  "topInclusive": [
+    {
+      "function": "(root)",
+      "selfMs": 0.0,
+      "inclusiveMs": 566.692,
+      "line": 0,
+      "source": ""
+    },
+    {
+      "function": "evaluateSimulationWorkerRequestBatched",
+      "selfMs": 0.0,
+      "inclusiveMs": 301.829,
+      "line": 30313,
+      "source": "apps/web/src/electronics/simulation-worker-evaluator.ts"
+    },
+    {
+      "function": "advanceElectronicsRequest",
+      "selfMs": 0.0,
+      "inclusiveMs": 296.973,
+      "line": 29977,
+      "source": "contexts/electronics/engine.ts"
+    },
+    {
+      "function": "",
+      "selfMs": 0.0,
+      "inclusiveMs": 296.973,
+      "line": 29972,
+      "source": "contexts/electronics/engine.ts"
+    },
+    {
+      "function": "step",
+      "selfMs": 4.273,
+      "inclusiveMs": 295.33,
+      "line": 28873,
+      "source": "contexts/electronics/domain/arduino-circuit-scheduler.ts"
+    },
+    {
+      "function": "advanceArduinoCircuitClock",
+      "selfMs": 12.551,
+      "inclusiveMs": 271.188,
+      "line": 28910,
+      "source": "contexts/electronics/domain/arduino-circuit-scheduler.ts"
+    },
+    {
+      "function": "",
+      "selfMs": 4.404,
+      "inclusiveMs": 172.39,
+      "line": 0,
+      "source": ""
+    },
+    {
+      "function": "advance",
+      "selfMs": 22.318,
+      "inclusiveMs": 167.987,
+      "line": 18170,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "advanceRuntime",
+      "selfMs": 58.718,
+      "inclusiveMs": 140.768,
+      "line": 18194,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "evaluateSimulationWorkerRequestBatched",
+      "selfMs": 0.0,
+      "inclusiveMs": 130.36,
+      "line": 30313,
+      "source": "apps/web/src/electronics/simulation-worker-evaluator.ts"
+    },
+    {
+      "function": "advanceElectronicsRequest",
+      "selfMs": 0.0,
+      "inclusiveMs": 123.804,
+      "line": 29977,
+      "source": "contexts/electronics/engine.ts"
+    },
+    {
+      "function": "",
+      "selfMs": 0.0,
+      "inclusiveMs": 123.804,
+      "line": 29972,
+      "source": "contexts/electronics/engine.ts"
+    },
+    {
+      "function": "step",
+      "selfMs": 4.607,
+      "inclusiveMs": 102.503,
+      "line": 28873,
+      "source": "contexts/electronics/domain/arduino-circuit-scheduler.ts"
+    },
+    {
+      "function": "advanceArduinoCircuitClock",
+      "selfMs": 1.519,
+      "inclusiveMs": 97.896,
+      "line": 28910,
+      "source": "contexts/electronics/domain/arduino-circuit-scheduler.ts"
+    },
+    {
+      "function": "(idle)",
+      "selfMs": 73.187,
+      "inclusiveMs": 73.187,
+      "line": 0,
+      "source": ""
+    },
+    {
+      "function": "",
+      "selfMs": 0.0,
+      "inclusiveMs": 42.234,
+      "line": 29386,
+      "source": "contexts/electronics/domain/arduino-circuit-scheduler.ts"
+    },
+    {
+      "function": "",
+      "selfMs": 1.573,
+      "inclusiveMs": 40.71,
+      "line": 29386,
+      "source": "contexts/electronics/domain/arduino-circuit-scheduler.ts"
+    },
+    {
+      "function": "",
+      "selfMs": 0.0,
+      "inclusiveMs": 40.658,
+      "line": 29223,
+      "source": "contexts/electronics/domain/arduino-circuit-scheduler.ts"
+    },
+    {
+      "function": "",
+      "selfMs": 0.0,
+      "inclusiveMs": 37.964,
+      "line": 29223,
+      "source": "contexts/electronics/domain/arduino-circuit-scheduler.ts"
+    },
+    {
+      "function": "evaluateSyntax",
+      "selfMs": 2.805,
+      "inclusiveMs": 32.351,
+      "line": 16724,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "evaluateValue",
+      "selfMs": 0.0,
+      "inclusiveMs": 32.351,
+      "line": 16716,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "evaluate",
+      "selfMs": 0.0,
+      "inclusiveMs": 32.351,
+      "line": 16712,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "post",
+      "selfMs": 26.381,
+      "inclusiveMs": 27.978,
+      "line": 118,
+      "source": ""
+    },
+    {
+      "function": "",
+      "selfMs": 0.0,
+      "inclusiveMs": 27.978,
+      "line": 30381,
+      "source": "../../../../AppData/Local/Temp/asa-realtime-cause-029hwnkw/entry.mjs"
+    },
+    {
+      "function": "",
+      "selfMs": 0.0,
+      "inclusiveMs": 27.978,
+      "line": 30381,
+      "source": "../../../../AppData/Local/Temp/asa-realtime-cause-029hwnkw/entry.mjs"
+    },
+    {
+      "function": "solveRcCircuitWithHeldArduino",
+      "selfMs": 0.0,
+      "inclusiveMs": 26.462,
+      "line": 25762,
+      "source": "contexts/electronics/domain/solver.ts"
+    },
+    {
+      "function": "solveCircuitBase",
+      "selfMs": 10.041,
+      "inclusiveMs": 24.636,
+      "line": 25084,
+      "source": "contexts/electronics/domain/solver.ts"
+    },
+    {
+      "function": "executeSimpleStatement",
+      "selfMs": 0.0,
+      "inclusiveMs": 23.122,
+      "line": 16924,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "function": "solveRcCircuitWithHeldArduino",
+      "selfMs": 1.615,
+      "inclusiveMs": 22.372,
+      "line": 25762,
+      "source": "contexts/electronics/domain/solver.ts"
+    },
+    {
+      "function": "declareVariable",
+      "selfMs": 6.334,
+      "inclusiveMs": 21.284,
+      "line": 17517,
+      "source": "contexts/electronics/domain/arduino-program-runtime.ts"
+    }
+  ],
+  "profileDurationMs": 566.914,
+  "coverage": [
+    {
+      "name": "createOwnedClockedArduinoRuntime",
+      "calls": 8
+    },
+    {
+      "name": "createArduinoQualityLayoutOwner",
+      "calls": 8
+    },
+    {
+      "name": "verifyCircuitQuality",
+      "calls": 34
+    },
+    {
+      "name": "createArduinoQualityTraversal",
+      "calls": 8
+    },
+    {
+      "name": "ordinaryOwnedContinuation",
+      "calls": 6
+    },
+    {
+      "name": "createOwnedArduinoCircuitClockRequest",
+      "calls": 8
+    },
+    {
+      "name": "advanceArduinoCircuitClock",
+      "calls": 402
+    },
+    {
+      "name": "createElectronicsAdvanceSession",
+      "calls": 8
+    }
+  ],
+  "unprofiled": [
+    {
+      "label": "no-delay",
+      "index": 0,
+      "horizon": 0,
+      "computeMs": 4.9068999999999505,
+      "wallMs": 4.930700000000115,
+      "savedStateEqual": true
+    },
+    {
+      "label": "no-delay",
+      "index": 1,
+      "horizon": 1000,
+      "computeMs": 11.055299999999988,
+      "wallMs": 19.4679000000001,
+      "savedStateEqual": true
+    },
+    {
+      "label": "no-delay",
+      "index": 2,
+      "horizon": 26000,
+      "computeMs": 56.70959999999991,
+      "wallMs": 97.60050000000001,
+      "savedStateEqual": true
+    },
+    {
+      "label": "no-delay",
+      "index": 3,
+      "horizon": 51000,
+      "computeMs": 36.98999999999978,
+      "wallMs": 72.20799999999986,
+      "savedStateEqual": true
+    },
+    {
+      "label": "millis",
+      "index": 0,
+      "horizon": 0,
+      "computeMs": 4.263999999999896,
+      "wallMs": 4.279600000000073,
+      "savedStateEqual": true
+    },
+    {
+      "label": "millis",
+      "index": 1,
+      "horizon": 1000,
+      "computeMs": 12.269900000000007,
+      "wallMs": 26.053499999999985,
+      "savedStateEqual": true
+    },
+    {
+      "label": "millis",
+      "index": 2,
+      "horizon": 26000,
+      "computeMs": 95.79249999999911,
+      "wallMs": 160.28819999999996,
+      "savedStateEqual": true
+    },
+    {
+      "label": "millis",
+      "index": 3,
+      "horizon": 51000,
+      "computeMs": 79.5672999999997,
+      "wallMs": 145.06870000000004,
+      "savedStateEqual": true
+    }
+  ]
+}

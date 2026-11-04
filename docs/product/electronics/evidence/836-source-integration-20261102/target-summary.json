@@ -1,0 +1,1922 @@
+{
+  "mirrors": [
+    {
+      "file": "0d72326ac2-instrument525-raw.json",
+      "width": 1024,
+      "mirror": {
+        "name": "none",
+        "x": false,
+        "y": false
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "28fd3c8a7e-instrument525-raw.json",
+      "width": 320,
+      "mirror": {
+        "name": "none",
+        "x": false,
+        "y": false
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "2c89f81d38-instrument525-raw.json",
+      "width": 1440,
+      "mirror": {
+        "name": "x",
+        "x": true,
+        "y": false
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "352a0fc31a-instrument525-raw.json",
+      "width": 1440,
+      "mirror": {
+        "name": "y",
+        "x": false,
+        "y": true
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "3626f7f268-instrument525-raw.json",
+      "width": 1024,
+      "mirror": {
+        "name": "y",
+        "x": false,
+        "y": true
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "434e44f318-instrument525-raw.json",
+      "width": 390,
+      "mirror": {
+        "name": "y",
+        "x": false,
+        "y": true
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "607bdd7e19-instrument525-raw.json",
+      "width": 320,
+      "mirror": {
+        "name": "x",
+        "x": true,
+        "y": false
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "65b295c2f6-instrument525-raw.json",
+      "width": 1440,
+      "mirror": {
+        "name": "xy",
+        "x": true,
+        "y": true
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "8e3183e70e-instrument525-raw.json",
+      "width": 390,
+      "mirror": {
+        "name": "x",
+        "x": true,
+        "y": false
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "bbf7ebf8ed-instrument525-raw.json",
+      "width": 320,
+      "mirror": {
+        "name": "xy",
+        "x": true,
+        "y": true
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "c5b3fa6884-instrument525-raw.json",
+      "width": 1024,
+      "mirror": {
+        "name": "xy",
+        "x": true,
+        "y": true
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "df93b69b06-instrument525-raw.json",
+      "width": 1440,
+      "mirror": {
+        "name": "none",
+        "x": false,
+        "y": false
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "ee69294b04-instrument525-raw.json",
+      "width": 390,
+      "mirror": {
+        "name": "xy",
+        "x": true,
+        "y": true
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "ef47d3a272-instrument525-raw.json",
+      "width": 390,
+      "mirror": {
+        "name": "none",
+        "x": false,
+        "y": false
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "f48a741b6a-instrument525-raw.json",
+      "width": 1024,
+      "mirror": {
+        "name": "x",
+        "x": true,
+        "y": false
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    },
+    {
+      "file": "fb84f1e1af-instrument525-raw.json",
+      "width": 320,
+      "mirror": {
+        "name": "y",
+        "x": false,
+        "y": true
+      },
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "ledgerErrors": [],
+      "readouts": 24,
+      "readings": 49,
+      "bodyAxesErrorMax": 1.8369701987210297e-16,
+      "readingKeys": [
+        "text",
+        "raw",
+        "rect",
+        "finite",
+        "axesError",
+        "windowAxesError",
+        "windowMatrixError",
+        "windowPositionError",
+        "centerError"
+      ],
+      "puts": [
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 2,
+          "responseRevision": 3,
+          "CASplus1": true
+        },
+        {
+          "status": 200,
+          "requestExpected": true,
+          "responseExpected": true,
+          "baseRevision": 3,
+          "responseRevision": 4,
+          "CASplus1": true
+        }
+      ],
+      "savedExpected": true,
+      "renderedEquality": true,
+      "healthAfterCleanup": {
+        "original": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        },
+        "reopened": {
+          "consoleErrors": 0,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "httpServerErrors": 0,
+          "allowedAnonymousSessionProbes": 0,
+          "allowedAdminAccessProbes": 0
+        }
+      },
+      "allReadingsFinite": true,
+      "maxGlyphAxesError": 1.8369701987210297e-16,
+      "maxWindowAxesError": 1.8369701987210297e-16
+    }
+  ],
+  "e11": [
+    {
+      "file": "1c4a4c4bb9-e11-outline-stopped-zoom-group-1440-raw.json",
+      "width": 1440,
+      "scenario": "stopped-zoom-group",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 0,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "zoom-in",
+        "zoom-in",
+        "zoom-out",
+        "zoom-out",
+        "zoom-in",
+        "zoom-in",
+        "zoom-out",
+        "zoom-out",
+        "zoom-in",
+        "zoom-in",
+        "zoom-out",
+        "zoom-out",
+        "group",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "23adad676f-e11-outline-running-controls-320-raw.json",
+      "width": 320,
+      "scenario": "running-controls",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 343,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "complete-ready-lamp-presentation",
+        "running",
+        "running",
+        "native-actuator-exposure-zoom",
+        "running-switch-keyboard-selection",
+        "native-runtime-controls",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "32394d940c-e11-outline-running-controls-1440-raw.json",
+      "width": 1440,
+      "scenario": "running-controls",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 341,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "complete-ready-lamp-presentation",
+        "running",
+        "running",
+        "running-switch-keyboard-selection",
+        "native-runtime-controls",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "3c424a03cf-e11-outline-transform-persistence-1024-raw.json",
+      "width": 1024,
+      "scenario": "transform-persistence",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 0,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "transformed",
+        "native-led-exposure-zoom",
+        "transformed",
+        "transformed",
+        "transformed",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "67c58e59be-e11-outline-stopped-fit-1440-raw.json",
+      "width": 1440,
+      "scenario": "stopped-fit",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 0,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "7a65091ddd-e11-outline-stopped-fit-320-raw.json",
+      "width": 320,
+      "scenario": "stopped-fit",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 0,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "816df174cf-e11-outline-running-controls-1024-raw.json",
+      "width": 1024,
+      "scenario": "running-controls",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 331,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "complete-ready-lamp-presentation",
+        "running",
+        "running",
+        "running-switch-keyboard-selection",
+        "native-runtime-controls",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "842d33122e-e11-outline-stopped-fit-390-raw.json",
+      "width": 390,
+      "scenario": "stopped-fit",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 0,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "8a3596987b-e11-outline-transform-persistence-1440-raw.json",
+      "width": 1440,
+      "scenario": "transform-persistence",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 0,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "transformed",
+        "native-led-exposure-zoom",
+        "transformed",
+        "transformed",
+        "transformed",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "a80a7fa97d-e11-outline-stopped-zoom-group-1024-raw.json",
+      "width": 1024,
+      "scenario": "stopped-zoom-group",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 0,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "zoom-in",
+        "zoom-in",
+        "zoom-out",
+        "zoom-out",
+        "zoom-in",
+        "zoom-in",
+        "zoom-out",
+        "zoom-out",
+        "zoom-in",
+        "zoom-in",
+        "zoom-out",
+        "zoom-out",
+        "group",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "ab9733ab23-e11-outline-transform-persistence-320-raw.json",
+      "width": 320,
+      "scenario": "transform-persistence",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 0,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "transformed",
+        "native-led-exposure-zoom",
+        "transformed",
+        "transformed",
+        "transformed",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "b7bc111218-e11-outline-stopped-zoom-group-390-raw.json",
+      "width": 390,
+      "scenario": "stopped-zoom-group",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 0,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "zoom-in",
+        "zoom-in",
+        "zoom-out",
+        "zoom-out",
+        "zoom-in",
+        "zoom-in",
+        "zoom-out",
+        "zoom-out",
+        "zoom-in",
+        "zoom-in",
+        "zoom-out",
+        "zoom-out",
+        "group",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "d7645d4726-e11-outline-stopped-zoom-group-320-raw.json",
+      "width": 320,
+      "scenario": "stopped-zoom-group",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 0,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "zoom-in",
+        "zoom-in",
+        "zoom-out",
+        "zoom-out",
+        "zoom-in",
+        "zoom-in",
+        "zoom-out",
+        "zoom-out",
+        "zoom-in",
+        "zoom-in",
+        "zoom-out",
+        "zoom-out",
+        "group",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "ea984824a6-e11-outline-stopped-fit-1024-raw.json",
+      "width": 1024,
+      "scenario": "stopped-fit",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 0,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "fit",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "f70eca0d9f-e11-outline-running-controls-390-raw.json",
+      "width": 390,
+      "scenario": "running-controls",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 353,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "complete-ready-lamp-presentation",
+        "running",
+        "running",
+        "native-actuator-exposure-zoom",
+        "running-switch-keyboard-selection",
+        "native-runtime-controls",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    },
+    {
+      "file": "fa6499f019-e11-outline-transform-persistence-390-raw.json",
+      "width": 390,
+      "scenario": "transform-persistence",
+      "journeyComplete": true,
+      "lastCheckpoint": "complete",
+      "lifecycleErrors": [],
+      "workerErrors": [],
+      "workerCount": 0,
+      "serverFinite": true,
+      "serverPassed": true,
+      "phases": [
+        "initial-editor-delivery",
+        "overview",
+        "transformed",
+        "native-led-exposure-zoom",
+        "transformed",
+        "transformed",
+        "transformed",
+        "transformed",
+        "whole-save",
+        "fresh-storage-origins",
+        "pre-app-storage",
+        "cookies-only-editor-delivery",
+        "reopened-draft-storage",
+        "cookies-reopen",
+        "cookies-reopen",
+        "cookies-reopen-zoom",
+        "reopen-finally"
+      ]
+    }
+  ],
+  "piezo": [
+    {
+      "file": "2ff86ec34e-piezo-piezo-passive-buzzer-originals.json",
+      "primaryFailure": null,
+      "lastCheckpoint": "before:raw-attachment",
+      "errors": [],
+      "puts": 1,
+      "pcmRecords": 7,
+      "pcmPages": [
+        "cookies-only",
+        "initial"
+      ],
+      "limitations": {
+        "schoolFrequency": "NOT_PROVED",
+        "schoolAudibility": "NOT_VERIFIED",
+        "T3": "PENDING"
+      },
+      "supplements": {
+        "initial:sounding-png": "CAPTURED",
+        "cookies-only:sounding-png": "CAPTURED",
+        "cookies-dom": "CAPTURED",
+        "cookies-png": "CAPTURED",
+        "cookies-context-close": "CAPTURED",
+        "final-dom": "CAPTURED",
+        "final-png": "CAPTURED",
+        "final-server-document": "CAPTURED",
+        "raw-attachment": "CAPTURED"
+      },
+      "recordFields": [
+        "action",
+        "audio",
+        "pcm",
+        "project-request",
+        "project-response",
+        "publication",
+        "request",
+        "response"
+      ],
+      "nativePCM": [
+        {
+          "page": "initial",
+          "contextTime": 0.5717913832199546,
+          "gainId": 1,
+          "rms": 0.030157724677858776,
+          "zeroCrossingHz": 1000.0071523501967
+        },
+        {
+          "page": "initial",
+          "contextTime": 1.4425396825396826,
+          "gainId": 1,
+          "rms": 0.0,
+          "zeroCrossingHz": 0
+        },
+        {
+          "page": "initial",
+          "contextTime": 1.9417687074829932,
+          "gainId": 1,
+          "rms": 0.0,
+          "zeroCrossingHz": 0
+        },
+        {
+          "page": "cookies-only",
+          "contextTime": 0.4614965986394558,
+          "gainId": 1,
+          "rms": 0.030157453892618518,
+          "zeroCrossingHz": 999.9941955293128
+        },
+        {
+          "page": "cookies-only",
+          "contextTime": 1.3206349206349206,
+          "gainId": 1,
+          "rms": 0.0017962113346999913,
+          "zeroCrossingHz": 999.981204645389
+        },
+        {
+          "page": "cookies-only",
+          "contextTime": 1.7008616780045351,
+          "gainId": 1,
+          "rms": 0.0,
+          "zeroCrossingHz": 0
+        },
+        {
+          "page": "cookies-only",
+          "contextTime": 2.1710657596371883,
+          "gainId": 1,
+          "rms": 0.0,
+          "zeroCrossingHz": 0
+        }
+      ],
+      "savedExpected": true
+    },
+    {
+      "file": "548646f5a2-piezo-piezo-disc-originals.json",
+      "primaryFailure": null,
+      "lastCheckpoint": "before:raw-attachment",
+      "errors": [],
+      "puts": 1,
+      "pcmRecords": 6,
+      "pcmPages": [
+        "cookies-only",
+        "initial"
+      ],
+      "limitations": {
+        "schoolFrequency": "NOT_PROVED",
+        "schoolAudibility": "NOT_VERIFIED",
+        "T3": "PENDING"
+      },
+      "supplements": {
+        "initial:sounding-png": "CAPTURED",
+        "cookies-only:sounding-png": "CAPTURED",
+        "cookies-dom": "CAPTURED",
+        "cookies-png": "CAPTURED",
+        "cookies-context-close": "CAPTURED",
+        "final-dom": "CAPTURED",
+        "final-png": "CAPTURED",
+        "final-server-document": "CAPTURED",
+        "raw-attachment": "CAPTURED"
+      },
+      "recordFields": [
+        "action",
+        "audio",
+        "pcm",
+        "project-request",
+        "project-response",
+        "publication",
+        "request",
+        "response"
+      ],
+      "nativePCM": [
+        {
+          "page": "initial",
+          "contextTime": 0.531156462585034,
+          "gainId": 1,
+          "rms": 0.019726393052319914,
+          "zeroCrossingHz": 999.9998360990742
+        },
+        {
+          "page": "initial",
+          "contextTime": 1.401904761904762,
+          "gainId": 1,
+          "rms": 0.0,
+          "zeroCrossingHz": 0
+        },
+        {
+          "page": "initial",
+          "contextTime": 1.921451247165533,
+          "gainId": 1,
+          "rms": 0.0,
+          "zeroCrossingHz": 0
+        },
+        {
+          "page": "cookies-only",
+          "contextTime": 0.7024036281179138,
+          "gainId": 1,
+          "rms": 0.01971938453220721,
+          "zeroCrossingHz": 1000.0000278259828
+        },
+        {
+          "page": "cookies-only",
+          "contextTime": 1.401904761904762,
+          "gainId": 1,
+          "rms": 0.0,
+          "zeroCrossingHz": 0
+        },
+        {
+          "page": "cookies-only",
+          "contextTime": 2.0027210884353743,
+          "gainId": 1,
+          "rms": 0.0,
+          "zeroCrossingHz": 0
+        }
+      ],
+      "savedExpected": true
+    },
+    {
+      "file": "5d3e4c897c-piezo-original-active-originals.json",
+      "primaryFailure": null,
+      "lastCheckpoint": "before:raw-attachment",
+      "errors": [],
+      "puts": 1,
+      "pcmRecords": 10,
+      "pcmPages": [
+        "cookies-only",
+        "initial"
+      ],
+      "limitations": {
+        "schoolFrequency": "NOT_PROVED",
+        "schoolAudibility": "NOT_VERIFIED",
+        "T3": "PENDING"
+      },
+      "supplements": {
+        "initial:sounding-png": "CAPTURED",
+        "cookies-only:sounding-png": "CAPTURED",
+        "cookies-dom": "CAPTURED",
+        "cookies-png": "CAPTURED",
+        "cookies-context-close": "CAPTURED",
+        "final-dom": "CAPTURED",
+        "final-png": "CAPTURED",
+        "final-server-document": "CAPTURED",
+        "raw-attachment": "CAPTURED"
+      },
+      "recordFields": [
+        "action",
+        "audio",
+        "pcm",
+        "project-request",
+        "project-response",
+        "publication",
+        "request",
+        "response"
+      ],
+      "nativePCM": [
+        {
+          "page": "initial",
+          "contextTime": 0.5224489795918368,
+          "gainId": 1,
+          "rms": 0.029656172500422743,
+          "zeroCrossingHz": 2300.0053250394863
+        },
+        {
+          "page": "initial",
+          "contextTime": 0.531156462585034,
+          "gainId": 2,
+          "rms": 0.029656161999427628,
+          "zeroCrossingHz": 2299.989759162741
+        },
+        {
+          "page": "initial",
+          "contextTime": 1.4802721088435373,
+          "gainId": 1,
+          "rms": 0.0022521509553467814,
+          "zeroCrossingHz": 2299.9897376281865
+        },
+        {
+          "page": "initial",
+          "contextTime": 1.4802721088435373,
+          "gainId": 2,
+          "rms": 0.0022521509553467814,
+          "zeroCrossingHz": 2299.9897376281865
+        },
+        {
+          "page": "initial",
+          "contextTime": 1.761814058956916,
+          "gainId": 1,
+          "rms": 0.0,
+          "zeroCrossingHz": 0
+        },
+        {
+          "page": "initial",
+          "contextTime": 1.761814058956916,
+          "gainId": 2,
+          "rms": 0.0,
+          "zeroCrossingHz": 0
+        },
+        {
+          "page": "cookies-only",
+          "contextTime": 1.0826303854875283,
+          "gainId": 1,
+          "rms": 0.02965512067654345,
+          "zeroCrossingHz": 2299.987472019497
+        },
+        {
+          "page": "cookies-only",
+          "contextTime": 1.0826303854875283,
+          "gainId": 2,
+          "rms": 0.02965512067654345,
+          "zeroCrossingHz": 2299.987472019497
+        },
+        {
+          "page": "cookies-only",
+          "contextTime": 2.7022222222222223,
+          "gainId": 1,
+          "rms": 0.0,
+          "zeroCrossingHz": 0
+        },
+        {
+          "page": "cookies-only",
+          "contextTime": 2.7109297052154195,
+          "gainId": 2,
+          "rms": 0.0,
+          "zeroCrossingHz": 0
+        }
+      ],
+      "savedExpected": true
+    }
+  ]
+}

@@ -1,0 +1,504 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button "ASA Lab" [ref=e6] [cursor=pointer]:
+        - img [ref=e7] [cursor=pointer]
+        - generic [ref=e8] [cursor=pointer]: ASA Lab
+      - textbox "Название проекта" [ref=e9]: Compact controls preserve pupil intent blocks-text all-widths
+    - status "Последние изменения сохранены в этом браузере. Ожидается отправка на сервер." [ref=e10]: Ждёт отправки
+    - navigation "Представления проекта" [ref=e11]:
+      - button "Цепи" [pressed] [ref=e12] [cursor=pointer]:
+        - img [ref=e13] [cursor=pointer]
+        - generic [ref=e16] [cursor=pointer]: Цепи
+      - button "Схемы" [ref=e17] [cursor=pointer]:
+        - img [ref=e18] [cursor=pointer]
+        - generic [ref=e20] [cursor=pointer]: Схемы
+      - button "Компоненты" [ref=e21] [cursor=pointer]:
+        - img [ref=e22] [cursor=pointer]
+        - generic [ref=e27] [cursor=pointer]: Компоненты
+  - toolbar "Инструменты редактора" [ref=e29]:
+    - generic [ref=e30]:
+      - button "Копировать (Ctrl+C)" [disabled] [ref=e31]:
+        - img [ref=e32]
+      - button "Вставить (Ctrl+V)" [disabled] [ref=e35]:
+        - img [ref=e36]
+      - button "Удалить (Delete)" [disabled] [ref=e40]:
+        - img [ref=e41]
+      - button "Отменить (Ctrl+Z)" [ref=e44] [cursor=pointer]:
+        - img [ref=e45] [cursor=pointer]
+      - button "Повторить (Ctrl+Shift+Z)" [disabled] [ref=e48]:
+        - img [ref=e49]
+      - button "Заметки" [ref=e53] [cursor=pointer]:
+        - img [ref=e54] [cursor=pointer]
+      - button "Добавить текст на схему" [ref=e57] [cursor=pointer]:
+        - generic [ref=e58] [cursor=pointer]: T
+      - button "Показать или скрыть заметки" [ref=e59] [cursor=pointer]:
+        - img [ref=e60] [cursor=pointer]
+      - group [ref=e65]:
+        - img [ref=e68] [cursor=pointer]
+      - button "Автоматическая прокладка провода под 90 градусов" [ref=e71] [cursor=pointer]:
+        - img [ref=e72] [cursor=pointer]
+        - img [ref=e75] [cursor=pointer]
+      - button "Повернуть на 45° (R)" [disabled] [ref=e78]:
+        - img [ref=e79]
+      - button "Отразить" [disabled] [ref=e82]:
+        - img [ref=e83]
+    - generic [ref=e86]:
+      - button "Закрыть редактор кода" [pressed] [ref=e87] [cursor=pointer]:
+        - img [ref=e88] [cursor=pointer]
+        - text: Код
+      - button "Начать моделирование" [ref=e90] [cursor=pointer]:
+        - img [ref=e91] [cursor=pointer]
+        - text: Начать моделирование
+      - button "Сохранить проект" [ref=e93] [cursor=pointer]:
+        - img [ref=e94] [cursor=pointer]
+        - text: Сохранить
+      - button "Отправить — пока недоступно" [disabled] [ref=e97]: Отправить
+  - generic [ref=e98]:
+    - region "Рабочее поле электронной схемы" [ref=e99]:
+      - img [ref=e100]:
+        - button "Arduino Uno. Перетащите для перемещения." [ref=e104]:
+          - button "Перезапустить Arduino" [ref=e106] [cursor=pointer]
+        - generic [ref=e124]:
+          - button "Осевой резистор. Перетащите для перемещения." [ref=e126]
+          - button "Светодиод 5 мм. Перетащите для перемещения." [ref=e137]
+          - button "Тактовая кнопка 6×6 мм. Перетащите для перемещения." [ref=e140]
+        - generic [ref=e151]:
+          - generic [ref=e152]:
+            - 'button "Arduino Uno: вывод A0, свободен" [ref=e154]'
+            - 'button "Arduino Uno: вывод A1, свободен" [ref=e156]'
+            - 'button "Arduino Uno: вывод A2, свободен" [ref=e158]'
+            - 'button "Arduino Uno: вывод A3, свободен" [ref=e160]'
+            - 'button "Arduino Uno: вывод A4, свободен" [ref=e162]'
+            - 'button "Arduino Uno: вывод A5, свободен" [ref=e164]'
+            - 'button "Arduino Uno: вывод AREF, свободен" [ref=e166]'
+            - 'button "Arduino Uno: вывод D0 / RX, свободен" [ref=e168]'
+            - 'button "Arduino Uno: вывод D1 / TX, свободен" [ref=e170]'
+            - 'button "Arduino Uno: вывод D10 ~, свободен" [ref=e172]'
+            - 'button "Arduino Uno: вывод D11 ~, свободен" [ref=e174]'
+            - 'button "Arduino Uno: вывод D12, свободен" [ref=e176]'
+            - 'button "Arduino Uno: вывод D13, подключён" [ref=e178]'
+            - 'button "Arduino Uno: вывод D2, подключён" [ref=e180]'
+            - 'button "Arduino Uno: вывод D3 ~, свободен" [ref=e182]'
+            - 'button "Arduino Uno: вывод D4, свободен" [ref=e184]'
+            - 'button "Arduino Uno: вывод D5 ~, свободен" [ref=e186]'
+            - 'button "Arduino Uno: вывод D6 ~, свободен" [ref=e188]'
+            - 'button "Arduino Uno: вывод D7, свободен" [ref=e190]'
+            - 'button "Arduino Uno: вывод D8, свободен" [ref=e192]'
+            - 'button "Arduino Uno: вывод D9 ~, свободен" [ref=e194]'
+            - 'button "Arduino Uno: вывод GND, свободен" [ref=e196]'
+            - 'button "Arduino Uno: вывод IOREF, свободен" [ref=e198]'
+            - 'button "Arduino Uno: вывод 3.3V, свободен" [ref=e200]'
+            - 'button "Arduino Uno: вывод 5V, свободен" [ref=e202]'
+            - 'button "Arduino Uno: вывод GND, подключён" [ref=e204]'
+            - 'button "Arduino Uno: вывод GND, свободен" [ref=e206]'
+            - 'button "Arduino Uno: вывод RESET, свободен" [ref=e208]'
+            - 'button "Arduino Uno: вывод SCL, свободен" [ref=e210]'
+            - 'button "Arduino Uno: вывод SDA, свободен" [ref=e212]'
+            - 'button "Arduino Uno: вывод VIN, свободен" [ref=e214]'
+          - generic [ref=e215]:
+            - 'button "Осевой резистор: вывод Вывод 1, подключён" [ref=e217]'
+            - 'button "Осевой резистор: вывод Вывод 2, подключён" [ref=e219]'
+          - generic [ref=e220]:
+            - 'button "Светодиод 5 мм: вывод Катод, подключён" [ref=e222]'
+            - 'button "Светодиод 5 мм: вывод Анод, подключён" [ref=e224]'
+          - generic [ref=e225]:
+            - 'button "Тактовая кнопка 6×6 мм: вывод 1a, подключён" [ref=e227]'
+            - 'button "Тактовая кнопка 6×6 мм: вывод 2a, подключён" [ref=e229]'
+            - 'button "Тактовая кнопка 6×6 мм: вывод 1b, свободен" [ref=e231]'
+            - 'button "Тактовая кнопка 6×6 мм: вывод 2b, свободен" [ref=e233]'
+      - generic [ref=e234]:
+        - button "Подогнать проект" [ref=e235] [cursor=pointer]:
+          - img [ref=e236] [cursor=pointer]
+        - button "Увеличить масштаб" [ref=e239] [cursor=pointer]:
+          - img [ref=e240] [cursor=pointer]
+        - button "Уменьшить масштаб" [ref=e243] [cursor=pointer]:
+          - img [ref=e244] [cursor=pointer]
+        - generic "Масштаб 100 процентов" [ref=e247]: 100%
+    - complementary "Библиотека компонентов" [ref=e248]:
+      - button "Свернуть библиотеку" [ref=e249] [cursor=pointer]:
+        - img [ref=e250] [cursor=pointer]
+      - generic [ref=e252]:
+        - generic [ref=e253]:
+          - generic [ref=e254]: Компоненты
+          - combobox "Категория компонентов" [ref=e255]:
+            - option "Основные"
+            - option "Все компоненты" [selected]
+            - option "Питание"
+            - option "Макетки и монтаж"
+            - option "Пассивные"
+            - option "Полупроводники"
+            - option "Ввод и управление"
+            - option "Вывод и индикация"
+            - option "Датчики"
+            - option "Двигатели и приводы"
+            - option "Контроллеры"
+            - option "Измерительные приборы"
+            - option "В разработке"
+        - button "Переключить на список" [ref=e256] [cursor=pointer]:
+          - img [ref=e257] [cursor=pointer]
+      - generic [ref=e262]:
+        - generic [ref=e263]: Поиск компонентов
+        - textbox "Поиск компонентов" [ref=e264]
+        - img [ref=e265]
+      - generic [ref=e268]:
+        - article [ref=e269]:
+          - button "Резистор" [ref=e270] [cursor=pointer]:
+            - generic [ref=e283] [cursor=pointer]: Резистор
+        - article [ref=e284]:
+          - button "Светодиод" [ref=e285] [cursor=pointer]:
+            - generic [ref=e289] [cursor=pointer]: Светодиод
+        - article [ref=e290]:
+          - button "Кнопка" [ref=e291] [cursor=pointer]:
+            - generic [ref=e305] [cursor=pointer]: Кнопка
+        - article [ref=e306]:
+          - button "Потенциометр" [ref=e307] [cursor=pointer]:
+            - generic [ref=e309]:
+              - img
+            - generic [ref=e311] [cursor=pointer]: Потенциометр
+        - article [ref=e312]:
+          - button "Конденсатор" [ref=e313] [cursor=pointer]:
+            - generic [ref=e317] [cursor=pointer]: Конденсатор
+        - article [ref=e318]:
+          - button "Ползунковый переключатель" [ref=e319] [cursor=pointer]:
+            - generic [ref=e328] [cursor=pointer]: Ползунковый переключатель
+        - article [ref=e329]:
+          - button "Выключатель SPST" [ref=e330] [cursor=pointer]:
+            - generic [ref=e339] [cursor=pointer]: Выключатель SPST
+        - article [ref=e340]:
+          - button "Батарея 9 В" [ref=e341] [cursor=pointer]:
+            - generic [ref=e345] [cursor=pointer]: Батарея 9 В
+        - article [ref=e346]:
+          - button "Батарея 3 В" [ref=e347] [cursor=pointer]:
+            - generic [ref=e351] [cursor=pointer]: Батарея 3 В
+        - article [ref=e352]:
+          - button "Батарейный отсек AA" [ref=e353] [cursor=pointer]:
+            - generic [ref=e357] [cursor=pointer]: Батарейный отсек AA
+        - article [ref=e358]:
+          - button "Макетная плата" [ref=e359] [cursor=pointer]:
+            - generic [ref=e363] [cursor=pointer]: Макетная плата
+        - article [ref=e364]:
+          - button "Семисегментный индикатор" [ref=e365] [cursor=pointer]:
+            - generic [ref=e369] [cursor=pointer]: Семисегментный индикатор
+        - article [ref=e370]:
+          - button "Arduino Uno" [ref=e371] [cursor=pointer]:
+            - generic [ref=e376] [cursor=pointer]: Arduino Uno
+        - article [ref=e377]:
+          - button "Вибромотор" [ref=e378] [cursor=pointer]:
+            - generic [ref=e380]:
+              - img
+            - generic [ref=e382] [cursor=pointer]: Вибромотор
+        - article [ref=e383]:
+          - button "Двигатель постоянного тока" [ref=e384] [cursor=pointer]:
+            - generic [ref=e386]:
+              - img
+            - generic [ref=e388] [cursor=pointer]: Двигатель постоянного тока
+        - article [ref=e389]:
+          - button "Микросерво" [ref=e390] [cursor=pointer]:
+            - generic [ref=e392]:
+              - img
+            - generic [ref=e394] [cursor=pointer]: Микросерво
+        - article [ref=e395]:
+          - button "Мотор-редуктор" [ref=e396] [cursor=pointer]:
+            - generic [ref=e398]:
+              - img "TT Motor Gearbox Front View"
+            - generic [ref=e400] [cursor=pointer]: Мотор-редуктор
+        - article [ref=e401]:
+          - button "Транзистор" [ref=e402] [cursor=pointer]:
+            - generic [ref=e406] [cursor=pointer]: Транзистор
+        - article [ref=e407]:
+          - button "RGB-светодиод" [ref=e408] [cursor=pointer]:
+            - generic [ref=e413] [cursor=pointer]: RGB-светодиод
+        - article [ref=e414]:
+          - button "Диод" [ref=e415] [cursor=pointer]:
+            - generic [ref=e419] [cursor=pointer]: Диод
+        - article [ref=e420]:
+          - button "Фоторезистор" [ref=e421] [cursor=pointer]:
+            - generic [ref=e425] [cursor=pointer]: Фоторезистор
+        - article [ref=e426]:
+          - button "Датчик влажности почвы" [ref=e427] [cursor=pointer]:
+            - generic [ref=e431] [cursor=pointer]: Датчик влажности почвы
+        - article [ref=e432]:
+          - button "Ультразвуковой датчик расстояния" [ref=e433] [cursor=pointer]:
+            - generic [ref=e437] [cursor=pointer]: Ультразвуковой датчик расстояния
+        - article [ref=e438]:
+          - button "Пироэлектрический ИК-датчик" [ref=e439] [cursor=pointer]:
+            - generic [ref=e443] [cursor=pointer]: Пироэлектрический ИК-датчик
+        - article [ref=e444]:
+          - button "Пьезоэлемент" [ref=e445] [cursor=pointer]:
+            - generic [ref=e449] [cursor=pointer]: Пьезоэлемент
+        - article [ref=e450]:
+          - button "Датчик температуры" [ref=e451] [cursor=pointer]:
+            - generic [ref=e453]:
+              - generic:
+                - generic: TMP
+            - generic [ref=e455] [cursor=pointer]: Датчик температуры
+        - article [ref=e456]:
+          - button "Мультиметр" [ref=e457] [cursor=pointer]:
+            - img [ref=e460]:
+              - img [ref=e462]
+            - generic [ref=e481] [cursor=pointer]: Мультиметр
+        - article [ref=e482]:
+          - button "Лампа" [ref=e483] [cursor=pointer]:
+            - generic [ref=e487] [cursor=pointer]: Лампа
+        - article [ref=e488]:
+          - button "Регулируемый источник питания" [ref=e489] [cursor=pointer]:
+            - img [ref=e492]:
+              - generic [ref=e499]: CV
+              - generic [ref=e552]: "0"
+              - generic [ref=e553]: 30 V
+              - generic [ref=e555]: CC
+              - generic [ref=e608]: "0"
+              - generic [ref=e609]: 5 A
+              - generic [ref=e612] [cursor=pointer]: "OFF"
+              - generic [ref=e618]: VOLTAGE
+              - generic [ref=e619]: SUPPLY
+              - generic [ref=e621]: 5.00 V
+              - generic [ref=e622]: 1.000 A
+            - generic [ref=e624] [cursor=pointer]: Регулируемый источник питания
+        - article [ref=e625]:
+          - button "Генератор сигналов" [ref=e626] [cursor=pointer]:
+            - img "Signal Generator Panel" [ref=e629]:
+              - generic [ref=e630]:
+                - generic [ref=e696]: 1 Hz
+                - generic [ref=e697]: 1 MHz
+                - generic [ref=e755]: "0"
+                - generic [ref=e756]: 10 V
+                - generic [ref=e814]: "-5 V"
+                - generic [ref=e815]: +5 V
+                - generic [ref=e830] [cursor=pointer]: "OFF"
+                - generic [ref=e835]: FUNCTION
+                - generic [ref=e836]: GENERATOR
+              - generic:
+                - generic: 1.00 kHz
+                - generic: 5.00 Vpp
+                - generic: +0.00 V
+            - generic [ref=e839] [cursor=pointer]: Генератор сигналов
+        - article [ref=e840]:
+          - button "Осциллограф" [ref=e841] [cursor=pointer]:
+            - generic [ref=e843]:
+              - img "Oscilloscope Component":
+                - generic:
+                  - generic: Voltage
+                  - generic: Time
+                - generic:
+                  - generic: "OFF"
+                  - generic: 1.00 V/div · 1.00 ms/div
+            - generic [ref=e845] [cursor=pointer]: Осциллограф
+    - region "Редактор кода Arduino" [ref=e846]:
+      - separator "Изменить ширину редактора кода" [ref=e847]
+      - generic [ref=e848]:
+        - group [ref=e849]:
+          - generic "Блоки с текстом" [ref=e850] [cursor=pointer]:
+            - generic [ref=e851] [cursor=pointer]: Блоки с текстом
+            - img [ref=e852] [cursor=pointer]
+        - button "Проверить код" [ref=e854] [cursor=pointer]:
+          - img [ref=e855] [cursor=pointer]
+          - generic [ref=e857] [cursor=pointer]: Проверить код
+        - button "Скачать .ino" [ref=e858] [cursor=pointer]:
+          - img [ref=e859] [cursor=pointer]
+        - button "Команды" [ref=e861] [cursor=pointer]:
+          - img [ref=e862] [cursor=pointer]
+          - generic [ref=e864] [cursor=pointer]: Команды
+        - generic "Размер текста" [ref=e865]:
+          - generic [ref=e866]: Aa
+          - combobox "Размер текста Arduino" [active] [ref=e867]:
+            - option "12 px"
+            - option "13 px"
+            - option "14 px"
+            - option "15 px"
+            - option "16 px"
+            - option "18 px"
+            - option "20 px" [selected]
+        - combobox "Программируемая плата" [ref=e868]:
+          - option "1 (Arduino Uno)" [selected]
+      - generic [ref=e869]:
+        - generic [ref=e870]:
+          - separator "Изменить ширину палитры блоков" [ref=e871]
+          - generic [ref=e873]:
+            - img [ref=e874]:
+              - generic [ref=e880]:
+                - generic [ref=e884]: в начале
+                - generic [ref=e888]: долгое время
+            - img [ref=e896]
+            - img [ref=e899]
+            - img [ref=e902]
+            - img [ref=e903]:
+              - generic [ref=e906]:
+                - generic [ref=e907]:
+                  - generic [ref=e912]: ВЫСОКИЙ
+                  - generic [ref=e915]: назначить встроенный светодиод на
+                - generic [ref=e916]:
+                  - generic [ref=e921]: ВЫСОКИЙ
+                  - generic [ref=e926]: "0"
+                  - generic [ref=e929]: назначить вывод
+                  - generic [ref=e931]: на
+                - generic [ref=e932]:
+                  - generic [ref=e937]: "0"
+                  - generic [ref=e941]: "3"
+                  - generic [ref=e944]: назначить ШИМ-вывод
+                  - generic [ref=e946]: на
+                - generic [ref=e947]:
+                  - generic [ref=e952]: "0"
+                  - generic [ref=e956]: "0"
+                  - generic [ref=e959]: повернуть сервопривод на выводе
+                  - generic [ref=e961]: на
+                  - generic [ref=e963]: °
+                - generic [ref=e964]:
+                  - generic [ref=e969]: "440"
+                  - generic [ref=e973]: "0"
+                  - generic [ref=e976]: воспроизвести
+                  - generic [ref=e978]: Гц на выводе
+                - generic [ref=e979]:
+                  - generic [ref=e984]: "262"
+                  - generic [ref=e988]: "1"
+                  - generic [ref=e992]: "0"
+                  - generic [ref=e995]: воспроизвести запись на выводе
+                  - generic [ref=e997]: с тоном
+                  - generic [ref=e999]: Гц в течение
+                  - generic [ref=e1001]: с
+                - generic [ref=e1002]:
+                  - generic [ref=e1007]: "0"
+                  - generic [ref=e1010]: выключить динамик на выводе
+                - generic [ref=e1011]:
+                  - generic [ref=e1016]: hello world
+                  - generic [ref=e1018]: вывести на монитор
+                  - generic [ref=e1021]: с новой строки
+                - generic [ref=e1023]:
+                  - generic [ref=e1028]: "255"
+                  - generic [ref=e1032]: "0"
+                  - generic [ref=e1036]: "0"
+                  - generic [ref=e1040]: "3"
+                  - generic [ref=e1045]: "3"
+                  - generic [ref=e1050]: "3"
+                  - generic [ref=e1053]: "RGB: выводы R"
+                  - generic [ref=e1055]: G
+                  - generic [ref=e1057]: B
+                  - generic [ref=e1059]: яркость R
+                  - generic [ref=e1061]: G
+                  - generic [ref=e1063]: B
+                - generic [ref=e1064]:
+                  - generic [ref=e1069]: "0"
+                  - generic [ref=e1074]: "0"
+                  - generic [ref=e1079]: "0"
+                  - generic [ref=e1084]: "0"
+                  - generic [ref=e1089]: "0"
+                  - generic [ref=e1094]: "0"
+                  - generic [ref=e1097]: "настроить ЖК-экран: RS"
+                  - generic [ref=e1099]: E
+                  - generic [ref=e1101]: D4
+                  - generic [ref=e1103]: D5
+                  - generic [ref=e1105]: D6
+                  - generic [ref=e1107]: D7
+                - generic [ref=e1108]:
+                  - generic [ref=e1113]: hello world
+                  - generic [ref=e1115]: печатать на ЖК-экран
+                - generic [ref=e1116]:
+                  - generic [ref=e1121]: "0"
+                  - generic [ref=e1125]: "0"
+                  - generic [ref=e1127]: задать положение на ЖК-экране столбец
+                  - generic [ref=e1129]: строка
+                - generic [ref=e1133]: на ЖК-экране очистить экран
+                - generic [ref=e1134]:
+                  - generic [ref=e1137]: настроить тип ЖК-экрана
+                  - generic [ref=e1140]: 16 × 2
+                  - generic [ref=e1143]: для I2C с адресом
+                  - generic [ref=e1146]: 32 (0x20)
+                - generic [ref=e1148]:
+                  - generic [ref=e1151]: настроить тип светодиодного экрана
+                  - generic [ref=e1154]: "1"
+                  - generic [ref=e1157]: для 7-сегментных часов с адресом
+                  - generic [ref=e1160]: 112 (0x70)
+                - generic [ref=e1162]:
+                  - generic [ref=e1167]: "1234"
+                  - generic [ref=e1169]: печатать на светодиодный экран
+                  - generic [ref=e1172]: "1"
+                  - generic [ref=e1175]: значение
+                - generic [ref=e1176]:
+                  - generic [ref=e1179]: на светодиодном экране
+                  - generic [ref=e1182]: "1"
+                  - generic [ref=e1185]: очистить экран
+                - generic [ref=e1186]:
+                  - generic [ref=e1191]: "8"
+                  - generic [ref=e1195]: "0"
+                  - generic [ref=e1198]: настроить светодиодную ленту
+                  - generic [ref=e1200]: вывод
+                  - generic [ref=e1202]: светодиодов
+                - generic [ref=e1203]:
+                  - generic [ref=e1208]: "0"
+                  - generic [ref=e1212]: "255"
+                  - generic [ref=e1216]: "0"
+                  - generic [ref=e1220]: "0"
+                  - generic [ref=e1222]: светодиод
+                  - generic [ref=e1224]: установить R
+                  - generic [ref=e1226]: G
+                  - generic [ref=e1228]: B
+            - img [ref=e1229]
+            - img
+            - img
+          - tablist "Категории блоков" [ref=e1232]:
+            - tab "Выход" [selected] [ref=e1233] [cursor=pointer]: Выход
+            - tab "Управление" [ref=e1235] [cursor=pointer]: Управление
+            - tab "Вход" [ref=e1237] [cursor=pointer]: Вход
+            - tab "Мат. данные" [ref=e1239] [cursor=pointer]: Мат. данные
+            - tab "Замечание" [ref=e1241] [cursor=pointer]: Замечание
+            - tab "Переменные" [ref=e1243] [cursor=pointer]: Переменные
+          - group "Размер блоков в палитре" [ref=e1245]:
+            - button "Уменьшить блоки в палитре" [ref=e1246] [cursor=pointer]: −
+            - status "Текущий размер блоков" [ref=e1247]: 100%
+            - button "Увеличить блоки в палитре" [ref=e1248] [cursor=pointer]: +
+        - generic [ref=e1249]:
+          - generic [ref=e1250]:
+            - generic [ref=e1251]: "1"
+            - generic [ref=e1252]: "2"
+            - generic [ref=e1253]: "3"
+            - generic [ref=e1254]: "4"
+            - generic [ref=e1255]: "5"
+            - generic [ref=e1256]: "6"
+            - generic [ref=e1257]: "7"
+            - generic [ref=e1258]: "8"
+            - generic [ref=e1259]: "9"
+            - generic [ref=e1260]: "10"
+            - generic [ref=e1261]: "11"
+            - generic [ref=e1262]: "12"
+            - generic [ref=e1263]: "13"
+          - generic:
+            - generic:
+              - generic: // C++ code generated by ASA Lab
+            - generic:
+              - generic: // Arduino Uno R3
+            - generic:
+              - generic: void
+              - generic: setup
+              - text: ()
+            - generic: "{"
+            - generic: "}"
+            - generic:
+              - generic: void
+              - generic: loop
+              - text: ()
+            - generic: "{"
+            - generic: "}"
+          - textbox "Сгенерированный код Arduino" [ref=e1264]: "// C++ code generated by ASA Lab // Arduino Uno R3 void setup() { } void loop() { }"
+          - region "Проверка кода Arduino" [ref=e1265]:
+            - 'button "Проверка кода Блокирующих: 0 Примечаний: 0 Ошибок не найдено" [ref=e1266] [cursor=pointer]':
+              - generic [ref=e1267] [cursor=pointer]: ✓
+              - strong [ref=e1268] [cursor=pointer]: Проверка кода
+              - generic [ref=e1269] [cursor=pointer]: "Блокирующих: 0"
+              - generic [ref=e1270] [cursor=pointer]: "Примечаний: 0"
+              - generic: Ошибок не найдено
+              - img [ref=e1271] [cursor=pointer]
+      - generic [ref=e1273]:
+        - button "Монитор последовательного интерфейса Остановлен" [ref=e1274] [cursor=pointer]:
+          - text: Монитор последовательного интерфейса
+          - generic [ref=e1276] [cursor=pointer]: Остановлен
+          - img [ref=e1277] [cursor=pointer]
+        - generic [ref=e1281]:
+          - textbox [disabled] [ref=e1282]
+          - textbox [ref=e1283]: —
+          - button [disabled] [ref=e1284]: Отпр.
+          - button [ref=e1285] [cursor=pointer]: Очист.
+```

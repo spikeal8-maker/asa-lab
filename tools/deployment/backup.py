@@ -1,6 +1,7 @@
 """Consistent PostgreSQL + MinIO export; verification never restores the live DB."""
 
 import datetime as dt
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,7 @@ import time
 import uuid
 
 from .contracts import atomic_json, inventory_files, require, verify_backup, verify_embedded_entry_http
+from .restore_toc import plan_restore_toc
 from .system import run
 from .paths import atomic_json as private_json, plain_paths
 
@@ -288,8 +290,70 @@ def attest_backup_mounts(root, config):
     return external_diagnostics
 
 
+def write_recovery_compose_files(config_dir, recovery, allowed):
+    """Include the private nested Compose overlay in the full backup.
+
+    Paths are from Installation.files, never from a user-supplied backup
+    manifest. Explicitly reject path traversal before creating directories.
+    """
+    config_dir = Path(config_dir)
+    require(config_dir.is_dir() and not config_dir.is_symlink()
+            and not (getattr(config_dir.lstat(), "st_file_attributes", 0)
+                     & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)),
+            "BACKUP_CONFIGURATION", "Recovery configuration root must be a real directory.")
+    for file, content in recovery["files"].items():
+        require(file in allowed and isinstance(content, str), "BACKUP_CONFIGURATION",
+                "Unexpected recovery configuration path or content.")
+        relative = Path(file)
+        require(not relative.is_absolute() and ".." not in relative.parts
+                and bool(relative.parts), "BACKUP_CONFIGURATION",
+                "Recovery Compose configuration must stay inside the private backup.")
+        parent = config_dir
+        for part in relative.parts[:-1]:
+            parent = parent / part
+            if not parent.exists() and not parent.is_symlink():
+                parent.mkdir(mode=0o700)
+            require(parent.is_dir() and not parent.is_symlink()
+                    and not (getattr(parent.lstat(), "st_file_attributes", 0)
+                             & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)),
+                    "BACKUP_CONFIGURATION", "Recovery path must not traverse a symlink or junction.")
+        target = parent / relative.name
+        require(not target.exists() and not target.is_symlink(),
+                "BACKUP_CONFIGURATION", "Recovery file already exists; never overwrite a file or symlink.")
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(target, flags, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(content)
+
+
 def export_backup(install, destination=None, *, snapshot_id=None, installation_id=None,
-                  operation_id=None, hold_writers=False, freeze_timeout_seconds=900):
+                  operation_id=None, hold_writers=False, freeze_timeout_seconds=900, trigger="manual"):
+    from .operational import append_safely, stamp
+    started = time.monotonic()
+    event = {'version': 1, 'operation': 'backup', 'producer': 'manager', 'trigger': trigger, 'phase': 'backup'}
+    try:
+        final = _export_backup(install, destination, snapshot_id=snapshot_id,
+                               installation_id=installation_id, operation_id=operation_id,
+                               hold_writers=hold_writers, freeze_timeout_seconds=freeze_timeout_seconds)
+    except BaseException:
+        append_safely(install.root, {**event, 'at': stamp(), 'status': 'failed', 'durationMs': round((time.monotonic()-started)*1000)})
+        raise
+    summary = {}
+    try:
+        manifest = final/'manifest.json'
+        with manifest.open('rb') as stream: summary['manifestSha256'] = hashlib.file_digest(stream,'sha256').hexdigest()
+        if manifest.stat().st_size <= 1024**2:
+            files = json.loads(manifest.read_text(encoding='utf-8'))['files']
+            if all(type(item.get('bytes')) is int and item['bytes'] >= 0 for item in files.values()):
+                summary['verifiedPayloadBytes'] = sum(item['bytes'] for item in files.values())
+    except (OSError, ValueError, KeyError, TypeError):
+        pass  # Backup verification already passed; unknown optional counts stay absent.
+    append_safely(install.root, {**event, **summary, 'at': stamp(), 'status': 'succeeded', 'durationMs': round((time.monotonic()-started)*1000)})
+    return final
+
+
+def _export_backup(install, destination=None, *, snapshot_id=None, installation_id=None,
+                   operation_id=None, hold_writers=False, freeze_timeout_seconds=900):
     managed = installation_id is not None
     require(not hold_writers or managed, "BACKUP_IDENTITY", "Удержание записи требует идентичности установки и операции.")
     if managed:
@@ -378,9 +442,7 @@ def export_backup(install, destination=None, *, snapshot_id=None, installation_i
         os.chmod(partial / "private.env", 0o600)
         config_dir = partial / "configuration"
         config_dir.mkdir()
-        for file, content in recovery["files"].items():
-            require(file in install.files, "BACKUP_CONFIGURATION", "Unexpected recovery configuration path.")
-            (config_dir / file).write_text(content, encoding="utf-8")
+        write_recovery_compose_files(config_dir, recovery, install.files)
         atomic_json(config_dir / "runtime-configuration.json", recovery)
         if recovery["installedRelease"]:
             atomic_json(config_dir / "installed-release.json", recovery["installedRelease"])
@@ -460,17 +522,24 @@ def restore_check(install, backup, database):
                              "-U", install.env["POSTGRES_USER"], "-d", install.env["POSTGRES_DB"], input_data=query + ";\n", capture=True)
     require(not exists, "RESTORE_EXISTS", "Restore-test database already exists.", "Choose a new *_test database; no database is deleted automatically.")
     remote = f"/tmp/asa-restore-{uuid.uuid4().hex}.dump"
+    remote_toc = remote + ".list"
     try:
         upload_dump(install, Path(backup).resolve() / "database.dump", remote)
-        install.compose("exec", "-T", "postgres", "pg_restore", "--list", remote, capture=True)
+        toc = install.compose("exec", "-T", "postgres", "pg_restore", "--list", remote, capture=True)
+        plan = plan_restore_toc(toc)
+        # Both files are private, seekable PostgreSQL-owned files. Never stream
+        # an archive into pg_restore when its data order needs random access.
+        install.compose("exec", "-T", "postgres", "sh", "-eu", "-c",
+                        'umask 077; cat > "$1"', "asa-restore-plan", remote_toc,
+                        input_data=plan, capture=True)
         db_command(install, 'createdb -U "$POSTGRES_USER" "$RESTORE_DATABASE"', database=database)
         # Keep ACLs; target admin owns restored objects. Missing referenced roles
         # fail closed instead of silently weakening RLS or creating superusers.
         install.compose("exec", "-T", "postgres", "pg_restore", "--exit-on-error", "--single-transaction", "--no-owner",
-                        "-U", install.env["POSTGRES_USER"], "-d", database, remote)
+                        "--use-list", remote_toc, "-U", install.env["POSTGRES_USER"], "-d", database, remote)
         db_command(install, 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$RESTORE_DATABASE" -c "SELECT count(*) FROM schema_migrations"', database=database)
         require(privileges(install, database) == manifest["applicationPrivileges"],
                 "RESTORE_PRIVILEGES", "Restored application table privileges/RLS differ from the source.")
         print(f"RESTORE_CHECK verified database and object checksums: {database}; application journeys still require acceptance.")
     finally:
-        install.compose("exec", "-T", "postgres", "rm", "-f", remote, capture=True)
+        install.compose("exec", "-T", "postgres", "rm", "-f", remote, remote_toc, capture=True)

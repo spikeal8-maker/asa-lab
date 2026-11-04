@@ -248,6 +248,81 @@ Authorization и body и проверяет отсутствие маркера 
   длинные сообщения, ошибку и готовность скачивания.
 - Не выполняется очистка production logs, БД, volumes или существующих архивов.
 
+## Обязательные подключённые источники
+
+`GET /api/admin/v1/logs/status` разделяет две проверки. `coverageComplete: false`
+сохраняет ограничения всей истории: установка не доказывает события до начала
+сбора, неизвестный аварийный хвост и все возможные внешние источники. Отдельный
+`requiredCoverage` проверяет конечный набор подключённых обязательных источников
+в текущем наблюдении; его `state: ok` не меняет глобальный исторический флаг.
+
+Host catalog публикует `requiredSources`:
+
+```json
+{
+  "version": 1,
+  "policy": "asa-connected-v1",
+  "platform": "linux",
+  "auditMaxAgeSeconds": 900,
+  "sources": [
+    {"source":"docker","applicable":true,"maxAgeSeconds":300,"requireThrough":false},
+    {"source":"windows:Security","applicable":false,"maxAgeSeconds":300,"requireThrough":true,"reason":"other-platform"}
+  ]
+}
+```
+
+Это сокращённый пример формата, а не достаточная декларация. API требует весь
+baseline: Docker, свежие полосы `api/web/scratch/postgres/minio:recent`,
+`database-events` и каждую таблицу действующего database diagnostic contract,
+`metrics`, `docker-lifecycle`, `operations:updates`, `operations:backup`, применимые источники ОС и
+все дополнительные объявленные настроенные источники. Наблюдаемые дополнительные
+`*:recent`, `database-events:*`, `operations:*`, `provider:*` также нельзя молча
+исключить. Оператор и нагрузочный runner дополнительно фиксируют точный ожидаемый
+набор настроенных backup/provider/file источников; API не угадывает конфигурацию
+внешних компьютеров. Набор из одного API, пустой набор или неизвестная версия
+не могут подтвердить обязательное покрытие.
+
+`operations:backup` объявляется всегда: сборщик наблюдает локальные результаты
+операций даже без внешнего `backupSuccessReceipt`. Пока подтверждённой успешной
+копии нет, источник остаётся `pending`, а обязательное покрытие — неполным.
+Отсутствие настройки не исключает резервирование из проверки. При настроенном
+внешнем receipt просроченное или некорректное подтверждение также не даёт `ok`.
+
+Каждая применимая строка требует `ok`, свежих `checkedAt` и `lastCollectedAt`,
+отсутствия явного gap/stale/incomplete и, при `requireThrough: true`, свежего
+`collectedThrough`. Интервалы ограничены 10–900 секундами; штатный publisher
+использует 300. Будущее более чем на 5 секунд не считается свежим доказательством.
+`pending/error/unavailable`, пропущенная строка и незавершённый курсор не дают
+зелёного результата. Неприменимость разрешена только явной политикой другой ОС:
+Windows и её явно перечисленные каналы на Linux (включая обязательные
+Application/System/Security), `linux:journal` на Windows.
+Просто проигнорировать недоступный источник нельзя.
+
+Каталог должен быть полным и содержать проверяемые метаданные сегментов.
+`historyAudit` подтверждает недавнюю завершённую проверку retained-целостности:
+`incomplete: false`, согласованные checked/total и срок до 900 секунд. Новый
+running sweep допустим только с недавним доказательством предыдущего завершения
+и неистёкшим deadline. Первый незавершённый, просроченный или повреждённый audit
+не подтверждает покрытие. Это проверка сохранившихся байтов, не доказательство
+полноты всех исторических событий.
+
+Нативный writer API проверяется отдельно: реальный `flush`, idle/ready состояние,
+accepted/persisted без pending, отсутствие dropped/failures и исправный защищённый
+каталог. SHA-256 его immutable-сегментов проверяется порциями с бюджетом 250 мс
+на status; доказательства тех же immutable metadata используются до 300 секунд.
+Новые сегменты требуют нового доказательства. Холодная/частичная/просроченная
+проверка и изменившийся snapshot дают unknown, а не ложный успех. Это ограниченный
+кэш недавней проверки, не непрерывный аудит диска. Search/export всегда проверяет
+выбранные реальные байты независимо от этого status-кэша.
+
+Ответ `requiredCoverage` содержит `version`, `policy`, `state` (`ok`, `incomplete`,
+`unknown`), `requiredSourceIds`, `excludedSourceIds`, результаты `sources` с
+`requireThrough/maxAgeSeconds/checkedAt/collectedThrough/reason`, `native` с
+безопасными счётчиками, `historyAudit` и `limitations`. Только совместные `ok`
+host/source/native/audit доказательства дают `requiredCoverage.state: ok`.
+Админка называет это исправным сбором обязательных подключённых источников и
+продолжает показывать, что полнота всей истории не подтверждена.
+
 ## Эксплуатация
 
 ### Установка сборщика
@@ -257,6 +332,28 @@ Authorization и body и проверяет отсутствие маркера 
 подготавливают и сверяют сборщик своей канонической установки. Ручной второй шаг
 для обычного запуска больше не нужен. `doctor`, `check` и `log_collector.py status`
 только читают состояние: не создают `.env`, каталоги, задачи или службы.
+Если installed checkout старого выпуска не содержит один из пяти текущих digest
+inputs (например legacy dfee без `tools/deployment/operational.py`), read-only status
+возвращает `unavailable / COLLECTOR_SOURCE_CONTRACT`, `scriptDigest: null` и закрытую
+причину missing/unreadable/unsafe input. Он не вычисляет альтернативный четырёхфайловый
+digest и не объявляет legacy runtime проверенным или просто `stale`. Некорректные,
+недоступные или перенаправленные config/metadata дают `COLLECTOR_STATUS_CONFIG` без
+raw текста, путей или секретов. Состояние приложения проверяется отдельно: такое
+предупреждение само по себе не обрывает остальные guards `doctor/check` и не
+означает здоровую log coverage или разрешение update.
+Неверный тип heartbeat `checkedAt` также даёт закрытый `unavailable`, а не исключение
+парсера. Проверка root/project остаётся точной по каноническому Installation.root;
+Windows 8.3 alias в тестах приводится к тому же canonical path, не принимается
+как альтернативная production identity.
+
+Этот compatibility path действует только при наблюдении. Алгоритм `digest`,
+ownership/identity/config проверки prepare/reconcile/install/update не ослаблены;
+отсутствующие файлы не создаются и старый collector не запускается. Внешнему
+approved manager для read-only config validation дополнительно нужен собственный
+`tools/deployment/operational.py` из того же reviewed tooling closure; это не
+подстановка файла в installed checkout. Реальный bootstrap/OCI check требует
+отдельной проверки, а старый CLI без immutable selector по-прежнему не является
+поддерживаемым способом сохранить выбранный release.
 Прямой `docker compose up` сам по себе не устанавливает host runner.
 Для явного повторного согласования уже существующей установки доступна обёртка:
 
@@ -284,6 +381,38 @@ API получает дополнительную числовую группу 
 Rootless Docker / user namespace remapping пока не подтверждены для автоматического
 host-store доступа и не входят в этот режим поддержки. Недостаток прав остаётся
 видимым `degraded`/`unavailable`, без открытия журналов всем пользователям.
+
+Для Linux, который уже обслуживается непосредственно root, предусмотрен отдельный
+явно выбранный режим `system-root`. Выбор сохраняется в приватной
+`.asa/installation.json`; обычные последующие install/update/source up/reconcile
+используют его без повторного ввода. Новая установка выбирает его флагами менеджера:
+
+```bash
+python3 tools/asa_manager.py install --collector-mode system-root --collector-reader-gid 1000
+```
+
+`1000` — пример заранее выбранной ненулевой группы чтения API; она не должна
+совпадать с группой Docker socket. Для уже работающей root-установки выбор можно
+сделать командой `python3 tools/log_collector.py prepare --mode system-root
+--reader-gid 1000`, затем выполнить штатный install/update для применения группы
+API или `sh tools/install-log-collector.sh`, если API уже имеет нужную группу.
+Prepare и reconcile сами не перезапускают API. Команды выполняются из канонического
+каталога с уже имеющимися правами root. `status`, `doctor` и `check` режим не выбирают.
+
+Root-служба допустима только для root-owned checkout: runtime Python, все файлы
+`tools`, контракт `apps/api/src/database-diagnostic-contract.json`, конфигурация,
+диагностическое хранилище и родительские каталоги проверяются
+на владельца root, отсутствие symlink и записи для группы/остальных. Доверенный
+системный Python может использовать штатный symlink на проверяемый executable;
+его каталог также должен контролироваться root. Установщик не исправляет чужое
+владение или writable checkout автоматически. Существующий непривилегированный
+runner и чужой legacy unit автоматически в root-режим не переводятся. Проверки
+точного argv, effective unit, владельца и дополнительных команд сохраняются.
+Приватный индекс остаётся `root`, `0700`; опубликованные журналы — `root`, группа
+чтения API, каталоги `2750`, файлы `0640`, mount API только read-only. Членство
+пользователей в Docker/системных группах, права socket, sudo и lingering не меняются.
+Это привилегированный сборщик ОС, поэтому root-controlled checkout — обязательная
+граница доверия, включая обновление его исходников.
 
 Перед изменением задачи/службы сверяются точные action, root, owner и interpreter;
 для systemd также effective unit path, drop-ins, дополнительные команды,
@@ -329,6 +458,7 @@ adapter неприменим, исключается из completeness aggregate
 | --- | --- | --- |
 | Windows 11 x64 | Python 3.11+, Git, Docker Desktop с Linux amd64 containers, Task Scheduler, пользователь Docker вошёл в систему | Без входа пользователя сбор не обещается; Windows Security требует имеющихся прав |
 | Linux amd64 с systemd и rootful Docker Engine | Python 3.11+, Git, systemctl и busctl с JSON-поддержкой, Docker Compose plugin, оператор уже имеет доступ к Docker; работает user manager либо заранее разрешён system mode | User mode до входа требует existing linger; system journal без прав честно unavailable |
+| Linux amd64, явно выбранный `system-root` | Те же runtime/systemd требования; существующий root-доступ, root-controlled canonical checkout и persisted ненулевой API reader GID | Автостарт при загрузке; существующий nonroot runner не конвертируется; никакие Docker-права другим аккаунтам не выдаются |
 
 Общие требования приложения, диска/RAM и браузеров описаны в
 [Portable Operations](PORTABLE_OPERATIONS.md). ARM, macOS, non-systemd Linux и
@@ -593,3 +723,36 @@ Do not blindly trust a Docker gateway CIDR on a reachable host port: all callers
 through that port may appear to have the same trusted peer. A proposed external
 rate policy must account for school NAT traffic and retain abuse protection;
 raising limits without these checks is not the application IP fix.
+
+## Операционные источники диагностики
+
+Версионированная декларация обязательных источников, закрытые события update/backup,
+сводки Ollama/ComfyUI и безопасная проекция AI-ledger описаны в
+[Operational diagnostics](OPERATIONAL_DIAGNOSTICS.md). Источники активируются только
+после штатного обновления; этот документ не подтверждает live-сбор. Отсутствие
+реальной квитанции или ошибка источника не заменяется пустым успешным журналом.
+
+### Container stdout/stderr disk budget
+
+The base Compose configuration explicitly selects Docker `json-file` logging with
+`max-size: 10m` and `max-file: 5` for the eight owned services: `postgres`, `api`,
+`web`, `scratch`, `minio`, `minio-init`, `search`, and `migration`. These settings
+survive the supported dev/test/staging/production overlays. They bound the rotating
+stdout/stderr files per container; they do not change the shared Docker daemon or
+other projects. Additional preview/test-only services are outside this policy.
+
+The eight logging mappings are written explicitly without YAML anchors or aliases.
+This preserves the same Compose values while admitting the CI transport guard's
+existing duplicate-key and zero-alias YAML parser. The dependency-free Python
+resource regression checks the eight complete explicit logging mappings; the
+Node-provisioned CI transport guard separately parses the full Compose model.
+
+Existing containers acquire the policy only when recreated through an authorized
+normal ASA release/update operation. Persistent volumes and installation identity
+must be retained. Do not truncate live logs, prune Docker storage, or recreate a
+working database merely to apply this source change. Docker rotation, the host
+collector's separate default 1 GiB budget, and the API native journal's separate
+128 MiB budget are independent. Rotation does not guarantee a retention duration
+or that a delayed collector captured every event; monitor source gaps and disk
+usage. The real merged Compose contract runs in Linux CI with
+`ASA_TEST_DOCKER_COMPOSE=1 python -m unittest tools.deployment.test_resources -v`.

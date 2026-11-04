@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react';
 
 export type AiChatIconName =
+  | 'check'
+  | 'monitor'
+  | 'phone'
+  | 'play'
+  | 'stop'
+  | 'chevron-down'
   | 'attachment'
   | 'image'
   | 'video'
@@ -18,6 +24,22 @@ export type AiChatIconName =
   | 'sun';
 
 const paths: Record<AiChatIconName, ReactNode> = {
+  monitor: (
+    <>
+      <rect x="3" y="4" width="18" height="13" rx="2" />
+      <path d="M8 21h8m-4-4v4" />
+    </>
+  ),
+  phone: (
+    <>
+      <rect x="6" y="2" width="12" height="20" rx="2" />
+      <path d="M11 18h2" />
+    </>
+  ),
+  play: <path d="m8 4 12 8-12 8Z" />,
+  stop: <rect x="5" y="5" width="14" height="14" rx="2" />,
+  check: <path d="m5 12 4 4L19 6" />,
+  'chevron-down': <path d="m6 9 6 6 6-6" />,
   attachment: (
     <path d="m21.4 11.6-8.8 8.8a6 6 0 0 1-8.5-8.5L13 3a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8l8.1-8.1" />
   ),

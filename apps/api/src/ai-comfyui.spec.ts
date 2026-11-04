@@ -76,3 +76,34 @@ describe('ComfyUI private read-only detection', () => {
     ).rejects.toMatchObject({ code: 'ai_comfy_invalid' });
   });
 });
+
+it.each([undefined, '', null, 42, 'x'.repeat(41), 'bad\nversion'])(
+  'keeps missing/bad version %s diagnostic when discovery protocol is valid',
+  async (version) => {
+    const fetchImpl = vi.fn<typeof fetch>(async (url, init) => {
+      expect(init?.method).toBe('GET');
+      const path = new URL(String(url)).pathname;
+      return new Response(
+        JSON.stringify(
+          path === '/system_stats'
+            ? version === undefined
+              ? {}
+              : { system: { comfyui_version: version } }
+            : data[path],
+        ),
+      );
+    });
+    const found = await discoverComfyUi('http://127.0.0.1:8188', fetchImpl);
+    expect(found.version).toBe('неизвестна');
+    expect(found.connected).toBe(true);
+    expect(found.fluxKlein4bFound).toBe(true);
+  },
+);
+it('rejects a wrong-service 404 even with optional version metadata', async () => {
+  await expect(
+    discoverComfyUi(
+      'http://127.0.0.1:11434',
+      vi.fn(async () => new Response('{}', { status: 404 })),
+    ),
+  ).rejects.toMatchObject({ code: 'ai_comfy_unavailable' });
+});

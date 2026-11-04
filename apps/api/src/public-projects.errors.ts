@@ -8,6 +8,14 @@ export function publicationError(code: string, message: string, status: number):
 export function throwPublicationError(cause: unknown): never {
   const code = typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : null;
   switch (code) {
+    case 'P5R01':
+      throw publicationError('unauthorized', 'Войдите в аккаунт или класс заново.', 401);
+    case 'P5R02':
+      throw publicationError('own_work', 'Нельзя поставить лайк своей работе.', 403);
+    case 'P5R03':
+      throw publicationError('reactions_disabled', 'Реакции отключены администратором.', 403);
+    case '22023':
+      throw publicationError('validation_error', 'Проверьте данные запроса.', 400);
     case 'P5C03':
       throw publicationError(
         'acquisition_disabled',

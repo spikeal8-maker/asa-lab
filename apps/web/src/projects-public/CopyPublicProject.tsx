@@ -35,14 +35,18 @@ export function copyError(status: number, code?: string): string {
 
 export function CopyPublicProject({
   publication,
+  onCopied,
 }: {
   readonly publication: PublicProject;
+  readonly onCopied?: () => void;
 }): JSX.Element | null {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signIn, setSignIn] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [href, setHref] = useState<string | null>(null);
+  const [receiptVisible, setReceiptVisible] = useState(false);
+  const receiptTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlight = useRef(false);
   const intentKey = useRef<string | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -72,6 +76,7 @@ export function CopyPublicProject({
     const unsubscribeLogout = onSessionLoggedOut(retire);
     return () => {
       active.current = false;
+      if (receiptTimer.current) clearTimeout(receiptTimer.current);
       controller.current?.abort();
       unsubscribeContext();
       unsubscribeLogout();
@@ -113,6 +118,9 @@ export function CopyPublicProject({
         return;
       }
       setHref(destination);
+      onCopied?.();
+      setReceiptVisible(true);
+      receiptTimer.current = setTimeout(() => setReceiptVisible(false), 3500);
     } catch {
       if (active.current && !retired.current) setError(copyError(0));
     } finally {
@@ -126,12 +134,20 @@ export function CopyPublicProject({
   return (
     <section className="public-project-copy" aria-label="Личная копия проекта" aria-busy={busy}>
       {href ? (
-        <>
-          <p role="status">Приватная копия создана. Откройте её в редакторе.</p>
+        <div className="publication-copy-success">
           <PortalLink className="btn-secondary" href={href}>
+            <span className="publication-copy-check" aria-hidden="true">
+              ✓
+            </span>
             Открыть мою копию
           </PortalLink>
-        </>
+          {receiptVisible ? (
+            <div role="status" className="publication-copy-receipt">
+              <strong>Добавлено в мои проекты</strong>
+              <small>{publication.title} · личная редактируемая копия</small>
+            </div>
+          ) : null}
+        </div>
       ) : (
         <button
           type="button"
@@ -140,10 +156,20 @@ export function CopyPublicProject({
           title="Личная копия появится в Моих проектах. Оригинал автора сохранится."
           onClick={() => void createCopy()}
         >
+          <span
+            className={busy ? 'publication-copy-spinner' : 'publication-copy-plus'}
+            aria-hidden="true"
+          >
+            {busy ? '' : '+'}
+          </span>
           {busy ? 'Создаём копию…' : 'Добавить в мои проекты'}
         </button>
       )}
-      {busy ? <p role="status">Создаём личный проект. Дождитесь результата…</p> : null}
+      {busy ? (
+        <span className="sr-only" role="status">
+          Создаём личный проект. Дождитесь результата…
+        </span>
+      ) : null}
       {error ? (
         <p className="notice-error" role="alert">
           {error}

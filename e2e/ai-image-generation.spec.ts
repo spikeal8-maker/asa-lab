@@ -1,3 +1,9 @@
+import {
+  AI_IMAGE_PRESETS,
+  type AiImageGenerationJob,
+  type AiImageJobState,
+} from '../packages/contracts/src/ai-image-generation';
+import { AI_IMAGE_UNAVAILABLE } from '../packages/contracts/src/ai-chat-feedback';
 import { expect, test, type Page } from '@playwright/test';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 import { generationPolicyFixture } from '../apps/web/src/admin/testing/ai-generation-policy.fixture';
@@ -22,9 +28,12 @@ async function imageFixture(page: Page) {
   const errors: string[] = [];
   const imagePosts: Record<string, unknown>[] = [];
   const imageReads: string[] = [];
+  const imageCancels: { method: string; path: string }[] = [];
   const threadId = '70000000-0000-4000-8000-000000000001';
   let requestId = '';
-  let state = 'admitted';
+  let state: AiImageJobState = 'admitted';
+  let acceptedPrompt = 'Птица на дереве';
+  let queuePaused = false;
   let uncertain = false;
   const png = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aMfoAAAAASUVORK5CYII=',
@@ -34,7 +43,7 @@ async function imageFixture(page: Page) {
     requestId,
     width: 512,
     height: 512,
-    mimeType: 'image/png',
+    mimeType: 'image/png' as const,
     sizeBytes: png.length,
     downloadUrl: '/ignore/untrusted-url',
   });
@@ -43,11 +52,22 @@ async function imageFixture(page: Page) {
     enabled: true,
     dailyLimit: 10,
     globalConcurrency: 1,
-    sizes: [512, 768, 1024],
+    sizes: AI_IMAGE_PRESETS.map((p) => p.id),
     ready: true,
     reason: null,
     recipe: 'flux2-klein-4b-v1',
   };
+  const receipt = (): AiImageGenerationJob => ({
+    threadId,
+    requestId,
+    state,
+    prompt: acceptedPrompt,
+    createdAt: '2026-10-26T00:00:00Z',
+    cancelRequested: state === 'cancelled',
+    queuePaused: state === 'admitted' && queuePaused,
+    errorCode: null,
+    image: state === 'complete' ? image() : null,
+  });
 
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/api/**', async (route) => {
@@ -120,15 +140,25 @@ async function imageFixture(page: Page) {
         revision: 1,
         updatedAt: null,
       });
+    if (path === '/api/admin/v1/ai/comfyui/settings')
+      return json({
+        configurationVersion: 2,
+        baseUrl: 'http://192.168.1.112:8188',
+        source: 'saved',
+      });
     if (path === '/api/admin/v1/ai/comfyui/status')
       return json({
         connected: true,
-        baseUrl: 'http://127.0.0.1:8188',
-        version: '0.42.1',
+        baseUrl: 'http://192.168.1.112:8188',
+        version: '0.19.3',
         diffusionModels: ['flux-2-klein-4b-fp8.safetensors'],
         textEncoders: ['qwen_3_4b_fp4_flux2.safetensors'],
         vaeModels: ['flux2-vae.safetensors'],
         fluxKlein4bFound: true,
+        recipe: 'flux2-klein-4b-v1',
+        recipeReady: true,
+        recipeReason: null,
+        devices: [{ name: 'cuda:0 NVIDIA GeForce RTX 3060', vramTotalBytes: 12 * 1024 ** 3 }],
         checkedAt: '2026-10-26T09:00:00Z',
       });
     if (path === '/api/admin/v1/ai/generation-policy') {
@@ -214,32 +244,18 @@ async function imageFixture(page: Page) {
       const body = request.postDataJSON();
       imagePosts.push(body);
       requestId = body.requestId;
+      acceptedPrompt = body.prompt;
       if (uncertain) return route.abort();
-      return json({
-        threadId,
-        requestId,
-        state,
-        prompt: body.prompt,
-        createdAt: '2026-10-26T00:00:00Z',
-        cancelRequested: false,
-        errorCode: null,
-        image: null,
-      });
+      return json(receipt());
     }
     if (path.includes('/image-generations/')) {
-      imageReads.push(path);
+      if (request.method() === 'GET') imageReads.push(path);
       if (path.endsWith('/image')) return route.fulfill({ contentType: 'image/png', body: png });
-      if (path.endsWith('/cancel')) state = 'cancelled';
-      return json({
-        threadId,
-        requestId,
-        state,
-        prompt: 'Птица на дереве',
-        createdAt: '2026-10-26T00:00:00Z',
-        cancelRequested: false,
-        errorCode: null,
-        image: state === 'complete' ? image() : null,
-      });
+      if (path.endsWith('/cancel')) {
+        imageCancels.push({ method: request.method(), path });
+        state = 'cancelled';
+      }
+      return json(receipt());
     }
     return json({ items: [], meta: { total: 0 } });
   });
@@ -248,6 +264,7 @@ async function imageFixture(page: Page) {
     errors,
     imagePosts,
     imageReads,
+    imageCancels,
     complete: () => {
       state = 'complete';
     },
@@ -257,11 +274,23 @@ async function imageFixture(page: Page) {
     uncertain: () => {
       uncertain = true;
     },
+    pauseQueue: (paused = true) => {
+      queuePaused = paused;
+    },
     threadId,
     conflict: () => {
       conflict = true;
     },
   };
+}
+
+const QUEUED = 'В очереди. Изображение начнёт создаваться, когда освободится видеокарта.';
+async function expectQueued(page: Page) {
+  const notice = page.getByRole('status').filter({ hasText: QUEUED });
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveText(QUEUED);
+  await expect(page.getByRole('button', { name: 'Отменить задание', exact: true })).toBeEnabled();
+  await expect(page.getByRole('img', { name: 'Созданное изображение' })).toHaveCount(0);
 }
 
 async function noOverflow(page: Page) {
@@ -271,6 +300,96 @@ async function noOverflow(page: Page) {
     ),
   ).toBe(true);
 }
+test('image tab never widens the mobile viewport during keyboard navigation', async ({ page }) => {
+  await imageFixture(page);
+  await page.setViewportSize({ width: 390, height: 850 });
+  await page.goto('/#/admin/ai?section=overview');
+  await page.getByRole('tab', { name: 'Обзор', exact: true }).focus();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'Транскрибация', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.keyboard.press('ArrowLeft'); // Видео
+  await page.keyboard.press('ArrowLeft'); // Изображения
+  await expect(page.getByRole('tab', { name: 'Изображения', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  const layout = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    offending: Array.from(document.querySelectorAll('body *'))
+      .filter((element) => {
+        const bounds = element.getBoundingClientRect();
+        return bounds.width > 1 && bounds.left < innerWidth && bounds.right > innerWidth + 1;
+      })
+      .slice(0, 12)
+      .map((element) => ({
+        tag: element.tagName,
+        className: typeof element.className === 'string' ? element.className : '',
+        right: Math.round(element.getBoundingClientRect().right),
+        width: Math.round(element.getBoundingClientRect().width),
+      })),
+  }));
+  expect(layout.scrollWidth, JSON.stringify(layout.offending)).toBeLessThanOrEqual(layout.viewport);
+});
+
+test('image workbench: responsive settings and an explicit preview', async ({ page }) => {
+  const fixture = await imageFixture(page);
+  await page.goto('/#/admin/ai?section=comfyui');
+
+  const local = page.getByRole('tab', { name: 'ComfyUI', exact: true });
+  const api = page.getByRole('tab', { name: 'API-провайдеры' });
+  await expect(local).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: 'Пробная генерация' })).toBeVisible();
+  await expect(page.getByLabel('Состояние локальной генерации')).toContainText('RTX 3060');
+
+  for (const width of [3840, 1440, 1024, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 850 });
+    await expect(page.getByRole('heading', { name: 'Настройки генерации' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Адрес ComfyUI' })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Разрешённые размеры' })).toBeVisible();
+    const technicalDetails = page.locator('.asa-image-diagnostics');
+    await expect(technicalDetails).toHaveCount(1);
+    await expect(technicalDetails).not.toHaveAttribute('open');
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await noOverflow(page);
+      await page.screenshot({
+        path: test.info().outputPath('image-workbench-' + width + '-os-' + scheme + '.png'),
+        fullPage: true,
+      });
+    }
+  }
+
+  await api.click();
+  await expect(api).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: 'Polza AI' })).toBeVisible();
+  await expect(page.getByText('Не подключён')).toBeVisible();
+  expect(fixture.imagePosts).toHaveLength(0);
+
+  await local.click();
+  await page
+    .getByRole('textbox', { name: 'Описание тестового изображения' })
+    .fill('Школьный робот на светлом фоне');
+  await page.getByRole('button', { name: 'Сгенерировать' }).click();
+  await expect.poll(() => fixture.imagePosts.length).toBe(1);
+  expect(fixture.imagePosts[0]).toMatchObject({
+    prompt: 'Школьный робот на светлом фоне',
+    size: 1024,
+  });
+  fixture.complete();
+  await expect(page.getByRole('img', { name: 'Созданное изображение' })).toBeVisible({
+    timeout: 18000,
+  });
+  await noOverflow(page);
+  await page.screenshot({
+    path: test.info().outputPath('image-workbench-result.png'),
+    fullPage: true,
+  });
+});
+
 test('image intent is a removable token in the same input and preserves the draft', async ({
   page,
 }) => {
@@ -357,7 +476,7 @@ test('image Auto sends a native image-tool allowance from plain chat without ope
   expect(requests[0]).toMatchObject({
     message: 'Нарисуй кота на белом фоне',
     model: 'ollama-local',
-    nativeImage: { mode: 'auto', size: 512 },
+    nativeImage: { mode: 'auto', size: 1024 },
   });
   expect(fixture.imagePosts).toHaveLength(0);
 });
@@ -380,7 +499,7 @@ for (const width of [1440, 1024, 390, 320]) {
       await noOverflow(page);
       await page.screenshot({ path: testInfo.outputPath(`image-mode-${width}-${theme}.png`) });
       await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-      await expect(page.getByText('Задание принято…')).toBeVisible();
+      await expectQueued(page);
       expect(fixture.imagePosts).toHaveLength(1);
       fixture.complete();
       await expect(page.getByRole('img', { name: 'Созданное изображение' })).toBeVisible({
@@ -429,9 +548,10 @@ test('unknown image POST resumes with GET only after reload', async ({ page }) =
   if (await page.getByRole('button', { name: 'Открыть историю' }).isVisible())
     await page.getByRole('button', { name: 'Открыть историю' }).click();
   await page.getByRole('button', { name: 'Локальные изображения', exact: true }).click();
-  await expect(page.getByText('Задание принято…')).toBeVisible();
+  await expectQueued(page);
   expect(fixture.imagePosts).toHaveLength(1);
   expect(fixture.imageReads.length).toBeGreaterThan(0);
+  expect(fixture.imageCancels).toHaveLength(0);
 });
 test('an older image API leaves text tools intact and generation disabled', async ({ page }) => {
   await imageFixture(page);
@@ -451,11 +571,51 @@ test('a cancelled image job is never labelled complete', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Птица на дереве');
   const mode = page.getByRole('region', { name: 'Создать изображение' });
   await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-  await expect(page.getByText('Задание принято…')).toBeVisible();
+  await expectQueued(page);
   await mode.getByRole('button', { name: 'Отменить задание', exact: true }).click();
   await expect(page.getByText('Задание отменено.')).toBeVisible();
   await expect(page.getByRole('img', { name: 'Созданное изображение' })).toHaveCount(0);
   expect(fixture.imagePosts).toHaveLength(1);
+});
+
+test('a queued image clears its pause notice by GET and stays cancellable on mobile', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 850 });
+  const fixture = await imageFixture(page);
+  fixture.pauseQueue();
+  await page.goto('/#/ai');
+  await page.getByLabel('Инструменты чата').click();
+  await page.getByRole('button', { name: 'Изображение', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Птица на дереве');
+  const mode = page.getByRole('region', { name: 'Создать изображение' });
+  await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Очередь приостановлена' })).toHaveText(
+    'Очередь приостановлена: проверяем неопределённый результат генерации. Задание можно отменить.',
+  );
+  await expect(mode.getByRole('button', { name: 'Отменить задание', exact: true })).toBeEnabled();
+  await expect(page.getByRole('img', { name: 'Созданное изображение' })).toHaveCount(0);
+  await noOverflow(page);
+  expect(fixture.imagePosts).toHaveLength(1);
+  expect(fixture.imageCancels).toHaveLength(0);
+  const reads = fixture.imageReads.length;
+  fixture.pauseQueue(false);
+  await expectQueued(page);
+  expect(fixture.imageReads.length).toBeGreaterThan(reads);
+  expect(fixture.imagePosts).toHaveLength(1);
+  await mode.getByRole('button', { name: 'Отменить задание', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Задание отменено.' })).toHaveText(
+    'Задание отменено.',
+  );
+  expect(fixture.imageCancels).toEqual([
+    {
+      method: 'POST',
+      path: `/api/ai/threads/${fixture.threadId}/image-generations/${fixture.imagePosts[0]!.requestId}/cancel`,
+    },
+  ]);
+  expect(fixture.imagePosts).toHaveLength(1);
+  await expect(page.getByRole('img', { name: 'Созданное изображение' })).toHaveCount(0);
+  expect(fixture.errors).toEqual([]);
 });
 test('a confirmed rejected first image POST permits an explicit corrected request with a new UUID', async ({
   page,
@@ -478,13 +638,14 @@ test('a confirmed rejected first image POST permits an explicit corrected reques
   const mode = page.getByRole('region', { name: 'Создать изображение' });
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Птица на дереве');
   await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-  await expect(mode.getByText('Размер больше не разрешён.', { exact: true })).toBeVisible();
+  await expect(mode.getByText(AI_IMAGE_UNAVAILABLE, { exact: true })).toBeVisible();
+  await expect(page.getByText('Размер больше не разрешён.', { exact: true })).toHaveCount(0);
   await expect(
     mode.getByRole('button', { name: 'Создать изображение', exact: true }),
   ).toBeEnabled();
   expect(fixture.imagePosts).toHaveLength(0);
   await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-  await expect(page.getByText('Задание принято…')).toBeVisible();
+  await expectQueued(page);
   expect(attempted).toHaveLength(2);
   expect(attempted[1]!.requestId).not.toBe(attempted[0]!.requestId);
   expect(fixture.imagePosts).toHaveLength(1);

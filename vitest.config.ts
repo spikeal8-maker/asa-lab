@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url';
 // Share aliases explicitly while keeping the projects' file sets disjoint.
 const sharedAliases = [
   {
+    find: '@asa-lab/electronics/timed-state',
+    replacement: fileURLToPath(new URL('./contexts/electronics/timed-state.ts', import.meta.url)),
+  },
+  {
     find: '@asa-lab/electronics/rendering',
     replacement: fileURLToPath(new URL('./contexts/electronics/rendering.ts', import.meta.url)),
   },
@@ -24,6 +28,14 @@ const sharedAliases = [
   {
     find: '@asa-lab/electronics',
     replacement: fileURLToPath(new URL('./contexts/electronics/index.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/three-d/document',
+    replacement: fileURLToPath(new URL('./contexts/three-d/domain/document.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/three-d/operations',
+    replacement: fileURLToPath(new URL('./contexts/three-d/domain/operations.ts', import.meta.url)),
   },
   {
     find: '@asa-lab/three-d',

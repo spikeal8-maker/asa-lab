@@ -1,0 +1,184 @@
+{
+  "rejected_source": "66146712f2ea9f099f5109b49153948a72b5a286",
+  "canonical_selection": "369d7c90722226ed6ffeb5d77e233e4feb357ab4",
+  "hash_scope": "Stored Git blob bytes after LF normalization; gzip payloads retain original raw bytes.",
+  "states": 144,
+  "native_actions": 1448,
+  "files": [
+    {
+      "path": "r1-before/provenance.json",
+      "bytes": 415,
+      "sha256": "4123bb1d06ab8e7617d53125b34613e92a8e0e793a1812ac5f11ed9194d7ea7f"
+    },
+    {
+      "path": "r1-before/reviewer-pausing-geometry.json.gz",
+      "bytes": 881,
+      "sha256": "41e2a2bf57deb14a82e0f0c43a67d2096bbc5480583d24bb8be78024268e6b6c"
+    },
+    {
+      "path": "r1-build.log.gz",
+      "bytes": 5096,
+      "sha256": "b03fe151f0bf0b76414fecc55d263e81653b654dc1698bbcade86d978b50ec1d"
+    },
+    {
+      "path": "r1-caps.log.gz",
+      "bytes": 446,
+      "sha256": "c4a9e1203dc791533bbb53d0a72bddbf15c32e7277f23f27e1f70ed57c5dc415"
+    },
+    {
+      "path": "r1-focused.log.gz",
+      "bytes": 340,
+      "sha256": "8d48f2cb91639174b3d187cb1fd9e5788eb9653f43946bcc6d1f52971dbfd947"
+    },
+    {
+      "path": "r1-harness-attempt/geometry.json.gz",
+      "bytes": 934,
+      "sha256": "5fd39ad26ebcf8bdfec6c2c49ec0b866a092e09ea26d0192c65257ae217d32df"
+    },
+    {
+      "path": "r1-native-after/1024-1-running-1.png",
+      "bytes": 24688,
+      "sha256": "94438c59e7d648f1e48bda6d720770791872c5ace76105bc3f68516bc4b9265e"
+    },
+    {
+      "path": "r1-native-after/1024-1.25-running-1.png",
+      "bytes": 36608,
+      "sha256": "6433db28cf50d2b7badec2287c60340ee07ccf0871d10662fab736df176915ef"
+    },
+    {
+      "path": "r1-native-after/1152-1-running-1.png",
+      "bytes": 25888,
+      "sha256": "66f0019a43cb76002349999cdcc86c02c73571c4ff33d73783bddb64071ee8fa"
+    },
+    {
+      "path": "r1-native-after/1152-1.25-running-1.png",
+      "bytes": 38557,
+      "sha256": "cbf083feb773576ba02087894692425c8a98d80a47d7f861aedbc779d25334dc"
+    },
+    {
+      "path": "r1-native-after/1440-1-running-1.png",
+      "bytes": 29309,
+      "sha256": "cee664128aa2617ef72b2095ae8438ba5db9617b41952ef49e89c17f490f33b7"
+    },
+    {
+      "path": "r1-native-after/1440-1.25-running-1.png",
+      "bytes": 42313,
+      "sha256": "438b76fa412587145722c5659f3a44845459b86f4afee5b786b528fce5b6a685"
+    },
+    {
+      "path": "r1-native-after/320-1-paused-0.png",
+      "bytes": 12606,
+      "sha256": "ae09357ace73a38ee6071d3a351a61f116cebaff266f80250188ff535653ba42"
+    },
+    {
+      "path": "r1-native-after/320-1-pausing-0.png",
+      "bytes": 12592,
+      "sha256": "ea35c2a95d5a61a754371048c048d7fd7d385b85b29de3ee0d047abe3be69642"
+    },
+    {
+      "path": "r1-native-after/320-1-running-0.1.png",
+      "bytes": 12551,
+      "sha256": "7bade3f5ebc74d3e236e844e4d1daaaaa860b64738102fba7c0f5ce11dac4ee0"
+    },
+    {
+      "path": "r1-native-after/320-1-running-1.png",
+      "bytes": 12469,
+      "sha256": "b1c2f32ec1b078f143faa546c9f17cd00bf56072de1b2ccfd903746285bd3180"
+    },
+    {
+      "path": "r1-native-after/320-1-running-10.png",
+      "bytes": 12553,
+      "sha256": "5ee0828940312ecea3cc69aa10b998ac3b1aac7b2acee92c69099138f7c1dd2f"
+    },
+    {
+      "path": "r1-native-after/320-1.25-paused-0.png",
+      "bytes": 17953,
+      "sha256": "09cdea277e36f570871f08a3f6d22d06b17668c939c5b4911b5bb7030323e9fe"
+    },
+    {
+      "path": "r1-native-after/320-1.25-pausing-0.png",
+      "bytes": 17938,
+      "sha256": "22a8f6b55fb4b7adc2de17925fbfa734e692b97c085ae00425e1511617c1de0d"
+    },
+    {
+      "path": "r1-native-after/320-1.25-running-0.1.png",
+      "bytes": 17760,
+      "sha256": "36097d09c9696ec981ea5ffb5bf20454230df5a499766e26f084af2fd0ff346a"
+    },
+    {
+      "path": "r1-native-after/320-1.25-running-1.png",
+      "bytes": 17643,
+      "sha256": "f7dbc1c05b069e35e271d9f22938a62b29e18089bcbb8fa4783063b9bfc1fd9d"
+    },
+    {
+      "path": "r1-native-after/320-1.25-running-10.png",
+      "bytes": 17788,
+      "sha256": "436fda214cd33a0f9f4fbfd723ef5f5246f237265e5127dfcfcfee5a4077526d"
+    },
+    {
+      "path": "r1-native-after/390-1-paused-0.png",
+      "bytes": 14191,
+      "sha256": "4bf313f2b391c5e7458c9478af235773d6c9ee35f94f1d3f6bdb1005e03bcec0"
+    },
+    {
+      "path": "r1-native-after/390-1-pausing-0.png",
+      "bytes": 14195,
+      "sha256": "1dc2b52d0ab7b294729c1a663e70fbd7eecb253d5363c9274fc901013f30f96e"
+    },
+    {
+      "path": "r1-native-after/390-1-running-0.1.png",
+      "bytes": 14112,
+      "sha256": "8cd65f5801c21a4df06c3f1fce41fd46675d5da50a8343f71fd2577759b6ce00"
+    },
+    {
+      "path": "r1-native-after/390-1-running-1.png",
+      "bytes": 14063,
+      "sha256": "3bd2fecdfbc3965139a375d2ab0324c75bac64ceb9340b45d5d85349cc6e4a5c"
+    },
+    {
+      "path": "r1-native-after/390-1-running-10.png",
+      "bytes": 14147,
+      "sha256": "fec834e7910c160b6eb198e4562ac60a90e1b754f17a2642174f557b83e4d9ba"
+    },
+    {
+      "path": "r1-native-after/390-1.25-paused-0.png",
+      "bytes": 20295,
+      "sha256": "3c04fa0449d15b52eecc075456ec998676cde9c14601606896033638d14160d6"
+    },
+    {
+      "path": "r1-native-after/390-1.25-pausing-0.png",
+      "bytes": 20266,
+      "sha256": "762f38fc9a77e5f38180fd73d28b0bd5a6e0d05cb64329e8975cf06d2fb59c71"
+    },
+    {
+      "path": "r1-native-after/390-1.25-running-0.1.png",
+      "bytes": 20063,
+      "sha256": "8afed3ba3da3d4abc08c24dd542df2f507f506a67752b30bb934452008f66c75"
+    },
+    {
+      "path": "r1-native-after/390-1.25-running-1.png",
+      "bytes": 19974,
+      "sha256": "fac9d3fcc948f5901c034d217227dc4f8baec8623002c88403391f2cd7c6ecce"
+    },
+    {
+      "path": "r1-native-after/390-1.25-running-10.png",
+      "bytes": 20102,
+      "sha256": "c078f2a3f39c29137bc4b5ac4864262285abb1c80e576540cd89e75e1c26dcd2"
+    },
+    {
+      "path": "r1-native-after/geometry.json.gz",
+      "bytes": 6585,
+      "sha256": "597c760923997952219e32389353f5d71bfe0b299c73e38cba12c744742f1b80"
+    },
+    {
+      "path": "R1-RECEIPT.md",
+      "bytes": 3199,
+      "sha256": "0443c8343d99333a50179afd8a368bb235cc01e1303b3339d4f31e870ba1a6b7"
+    },
+    {
+      "path": "r1-routing.log.gz",
+      "bytes": 3796,
+      "sha256": "8ff2f09749d022720186492fa8f6be47ba39da1986b0221fcd705de71d90197c"
+    }
+  ]
+}

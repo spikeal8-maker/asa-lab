@@ -6,8 +6,18 @@ import { ARDUINO_COMPLETIONS } from '../arduino-source-language';
 import webViteConfig from '../../../vite.config';
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
-const blocksSource = readFileSync(resolve(electronicsRoot, 'arduino-blocks.ts'), 'utf8');
-const blockUiSource = readFileSync(resolve(electronicsRoot, 'arduino-block-ui.ts'), 'utf8');
+// Definitions/format/theme are now shared with the read-only viewer. Keep the
+// same contract assertions over their canonical sources rather than the old file layout.
+const blocksSource = [
+  'arduino-blocks.ts',
+  'arduino-block-definitions.ts',
+  'arduino-block-schema.ts',
+]
+  .map((file) => readFileSync(resolve(electronicsRoot, file), 'utf8'))
+  .join('\n');
+const blockUiSource = ['arduino-block-ui.ts', 'arduino-block-appearance.ts']
+  .map((file) => readFileSync(resolve(electronicsRoot, file), 'utf8'))
+  .join('\n');
 const panelSource = readFileSync(resolve(electronicsRoot, 'ArduinoCodePanel.tsx'), 'utf8');
 const serialMonitorSource = readFileSync(
   resolve(electronicsRoot, 'ArduinoSerialMonitor.tsx'),
@@ -34,6 +44,21 @@ const editorSource = readFileSync(
 const css = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
 
 describe('Arduino programming room contract', () => {
+  it('keeps shared static block metadata outside the executable solver chunk', () => {
+    if (typeof webViteConfig !== 'function') throw new Error('Expected the canonical Vite config');
+    const config = webViteConfig({ command: 'build', mode: 'production' });
+    if (config instanceof Promise) throw new Error('Expected synchronous Vite config');
+    const output = config.build?.rollupOptions?.output;
+    if (!output || Array.isArray(output) || typeof output.manualChunks !== 'function')
+      throw new Error('Expected canonical chunk boundaries');
+    const graph = { getModuleInfo: () => null, getModuleIds: () => ([] as string[]).values() };
+    expect(
+      output.manualChunks('/repo/contexts/electronics/domain/arduino-block-support.ts', graph),
+    ).toBe('electronics-block-support');
+    expect(output.manualChunks('/repo/contexts/electronics/domain/solver.ts', graph)).toBe(
+      'electronics-simulation-core',
+    );
+  });
   it('initializes Scratch media with the same local directory as the emitted pinned assets', () => {
     expect(panelSource).toContain(
       "media: new URL('.', new URL(scratchZoomInUrl, document.baseURI)).href",
@@ -130,12 +155,12 @@ describe('Arduino programming room contract', () => {
   it('opens as independent resizable drawer and palette without moving the circuit', () => {
     expect(editorSource).toContain("codeOpen ? ' code-open' : ''");
     expect(editorSource).toContain("'--arduino-code-panel-width'");
-    expect(panelSource).toContain('DrawerResizeHandle');
+    expect(panelSource).toContain('HorizontalResizeHandle');
     expect(panelSource).toContain('role="separator"');
     expect(panelSource).toContain('ARDUINO_FLYOUT_MIN_WIDTH = 220');
     expect(panelSource).toContain('ARDUINO_FLYOUT_MAX_WIDTH = 520');
     expect(panelSource).toContain('ARDUINO_FLYOUT_DEFAULT_WIDTH = 290');
-    expect(panelSource).toContain('PaletteResizeHandle');
+    expect(panelSource).toContain('kind="palette"');
     expect(panelSource).toContain('Изменить ширину палитры блоков');
     expect(panelSource).toContain('Уменьшить блоки в палитре');
     expect(panelSource).toContain('Увеличить блоки в палитре');
@@ -223,9 +248,9 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('analyseArduinoSourceSupport(source)');
     expect(panelSource).toContain('<strong>Проверка кода</strong>');
     expect(panelSource).toContain('Блокирующих: {unsupportedCount}');
-    expect(panelSource).toContain('Ограничений: {limitedCount}');
+    expect(panelSource).toContain('Примечаний: {limitedCount}');
     expect(panelSource).toContain('Моделирование заблокировано');
-    expect(panelSource).toContain('Это проверка модели ASA Lab, а не компиляция Arduino C++');
+    expect(panelSource).toContain('Это проверка симулятора, не компиляция C++');
     expect(panelSource).toContain('onDiagnosticsOpenChange');
     expect(panelSource).toContain('previousUnsupportedCountRef');
     expect(panelSource).toContain('unsupportedCount > previousCount');

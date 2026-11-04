@@ -79,28 +79,45 @@ async function input(value: string) {
 }
 async function click(text: string) {
   await act(async () =>
-    [...host.querySelectorAll('button')].find((b) => b.textContent === text)!.click(),
+    [...host.querySelectorAll('button')]
+      .find((b) => b.textContent === text || b.getAttribute('aria-label') === text)!
+      .click(),
   );
 }
 it('shows the portable guide and GPU while keeping connection separate from recipe readiness', async () => {
   await render();
   expect(host.textContent).toContain('RTX 3060');
-  expect(host.textContent).toContain('workflow ASA пока не совместим');
+  expect(host.textContent).toContain('Генерация не готова');
   expect(host.querySelector<HTMLAnchorElement>('a[href*="COMFYUI_LOCAL_IMAGES"]')?.href).toContain(
     '/docs/deployment/COMFYUI_LOCAL_IMAGES.md',
   );
   expect(host.textContent).toContain('qwen_3_4b_fp4_flux2.safetensors');
 });
+it('rejects malformed GPU metadata without crashing or marking the connection ready', async () => {
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation(async (path, init) => {
+    if (path.endsWith('/status'))
+      return { ok: true, status: 200, data: { ...details, devices: [{}] } };
+    return original(path, init);
+  });
+  await render();
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('несовместим');
+  expect(host.textContent).not.toContain('ComfyUI подключён');
+});
 it('probes the entered LAN origin without saving and saves it explicitly with a version', async () => {
   await render();
   await input('http://192.168.5.20:8188');
-  await click('Проверить');
+  await click('Проверить адрес');
   expect(vi.mocked(call).mock.calls.at(-1)?.[0]).toBe('/api/admin/v1/ai/comfyui/probe');
   expect(host.textContent).toContain('ещё не сохранён');
   await click('Сохранить адрес');
-  const [path, init] = vi.mocked(call).mock.calls.at(-1)!;
-  expect(path).toBe('/api/admin/v1/ai/comfyui/settings');
-  expect(init?.method).toBe('PUT');
+  const puts = vi
+    .mocked(call)
+    .mock.calls.filter(
+      ([path, init]) => path === '/api/admin/v1/ai/comfyui/settings' && init?.method === 'PUT',
+    );
+  expect(puts).toHaveLength(1);
+  const [, init] = puts[0]!;
   expect(JSON.parse(String(init?.body))).toMatchObject({
     baseUrl: 'http://192.168.5.20:8188',
     configurationVersion: 1,
@@ -123,5 +140,131 @@ it('shows a refused URL or busy-job error without hiding it in collapsed details
   expect(alert.closest('details')).toBeNull();
   expect(host.querySelector<HTMLInputElement>('[aria-label="Адрес ComfyUI"]')!.value).toBe(
     'http://192.168.5.21:8188',
+  );
+});
+it('invalidates a previously connected GPU when a fresh status check fails', async () => {
+  await render();
+  expect(host.textContent).toContain('ComfyUI подключён');
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation(async (path, init) => {
+    if (path === '/api/admin/v1/ai/comfyui/status')
+      return {
+        ok: false,
+        status: 503,
+        error: { code: 'ai_comfy_unreachable', message: 'Нет связи с ComfyUI' },
+      };
+    return original(path, init);
+  });
+  await click('Проверить состояние');
+  expect(host.textContent).toContain('Нет связи с ComfyUI');
+  expect(host.querySelector('[aria-label="Состояние локальной генерации"]')).not.toBeNull();
+  expect(host.textContent).not.toContain('ComfyUI подключён');
+  expect(host.textContent).not.toContain('Workflow совместим');
+});
+
+it('fails closed when manual ComfyUI probe throws after previously confirmed GPU', async () => {
+  await render();
+  expect(host.textContent).toContain('ComfyUI подключён');
+  vi.mocked(call).mockRejectedValueOnce(new TypeError('simulated network interruption'));
+  await click('Проверить адрес');
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('Нет связи с ComfyUI');
+  expect(host.textContent).not.toContain('ComfyUI подключён');
+  expect(host.textContent).not.toContain('Workflow совместим');
+  await click('Проверить адрес');
+  expect(host.textContent).toContain('ComfyUI подключён');
+});
+
+it('preserves the request ID after uncertain settings PUT', async () => {
+  await render();
+  await input('http://192.168.5.20:8188');
+  vi.mocked(call).mockRejectedValueOnce(new TypeError('simulated lost response'));
+  await click('Сохранить адрес');
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+    'Результат сохранения адреса не подтверждён',
+  );
+  expect(host.textContent).not.toContain('ComfyUI подключён');
+  await click('Сохранить адрес');
+  const writes = vi
+    .mocked(call)
+    .mock.calls.filter(
+      ([url, init]) => url === '/api/admin/v1/ai/comfyui/settings' && init?.method === 'PUT',
+    );
+  expect(writes).toHaveLength(2);
+  expect(JSON.parse(String(writes[0]?.[1]?.body)).requestId).toBe(
+    JSON.parse(String(writes[1]?.[1]?.body)).requestId,
+  );
+});
+
+it('ignores a delayed background success after a newer manual probe fails', async () => {
+  let resolveStatus!: (value: unknown) => void;
+  const pending = new Promise((resolve) => {
+    resolveStatus = resolve;
+  });
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation(async (path, init) => {
+    if (path.endsWith('/status')) return pending as never;
+    if (path.endsWith('/probe')) throw new TypeError('network lost');
+    return original(path, init);
+  });
+  await render();
+  await click('Проверить адрес');
+  await act(async () => resolveStatus({ ok: true, status: 200, data: details }));
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('Нет связи с ComfyUI');
+  expect(host.textContent).not.toContain('ComfyUI подключён');
+});
+
+it('keeps an in-flight settings save authoritative when refresh is attempted', async () => {
+  await render();
+  const newUrl = 'http://192.168.5.20:8188';
+  await input(newUrl);
+  const imageReadsBefore = vi
+    .mocked(call)
+    .mock.calls.filter(([path]) => path.endsWith('/images')).length;
+  let resolvePut!: (value: unknown) => void;
+  const pendingPut = new Promise((resolve) => {
+    resolvePut = resolve;
+  });
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation(async (path, init) => {
+    if (path.endsWith('/settings') && init?.method === 'PUT') return pendingPut as never;
+    if (path.endsWith('/status'))
+      return { ok: true, status: 200, data: { ...details, baseUrl: newUrl } };
+    return original(path, init);
+  });
+  await click('Сохранить адрес');
+  const refresh = [...host.querySelectorAll('button')].find(
+    (button) => button.getAttribute('aria-label') === 'Проверить состояние',
+  )!;
+  expect(refresh.disabled).toBe(true);
+  await click('Проверить состояние');
+  await act(async () =>
+    resolvePut({
+      ok: true,
+      status: 200,
+      data: {
+        config: { ...config, baseUrl: newUrl, configurationVersion: 2 },
+        status: { ...details, baseUrl: newUrl },
+      },
+    }),
+  );
+  expect(host.querySelector<HTMLInputElement>('[aria-label="Адрес ComfyUI"]')!.value).toBe(newUrl);
+  expect(host.textContent).toContain('Адрес сохранён');
+  expect(host.textContent).toContain('ComfyUI подключён');
+  expect(vi.mocked(call).mock.calls.filter(([path]) => path.endsWith('/images'))).toHaveLength(
+    imageReadsBefore + 1,
+  );
+  expect(refresh.disabled).toBe(false);
+});
+
+it('reloads saved image readiness after explicitly changing the ComfyUI endpoint', async () => {
+  await render();
+  const before = vi.mocked(call).mock.calls.filter(([path]) => path.endsWith('/images')).length;
+  await input('http://192.168.5.20:8188');
+  await click('Сохранить адрес');
+  expect(vi.mocked(call).mock.calls.filter(([path]) => path.endsWith('/images'))).toHaveLength(
+    before + 1,
+  );
+  expect(host.querySelector<HTMLInputElement>('[aria-label="Адрес ComfyUI"]')!.value).toBe(
+    'http://192.168.5.20:8188',
   );
 });

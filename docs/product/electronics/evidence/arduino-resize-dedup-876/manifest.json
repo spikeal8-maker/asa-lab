@@ -1,0 +1,25 @@
+{
+  "task": "TASK-ELECTRONICS-ARDUINO-RESIZE-DEDUP-001",
+  "baseline": "a34a4129f57d50e70b2d8506f91a410615f9e8e3",
+  "beforeProductSHA": "21ebdb1b311e773967dd29389d6ef3442c9522cb",
+  "candidateSourceSha256": "0ccd6c5863474cae7ad4c971523ec19a2d8c7bf676268084f4256c88986ed046",
+  "nativeReceiptsEqual": true,
+  "actualEmptyReceiptsEqualExceptSourceLabel": true,
+  "mobileFunctionBytesUnchanged": true,
+  "reference": {
+    "status": "historical accepted873 measurement; no new baseline heavy build",
+    "arduino": 1999925,
+    "editor": 187859
+  },
+  "after": {
+    "arduino": 1998988,
+    "editor": 187859,
+    "initialGraph": 555957,
+    "allEightCaps": "PASS",
+    "nxFreshTasks": 7,
+    "cache": "Skipped (--skip-nx-cache), NX_SKIP_NX_CACHE=true"
+  },
+  "historicalDifferenceBytes": 937,
+  "originalEmptyClaimRetracted": true,
+  "zipSha256": "a86861b3ca11d5f4ee9576db398472a624158297a18642dae830d019fced626f"
+}

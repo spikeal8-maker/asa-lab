@@ -1,0 +1,11 @@
+{
+  "run": 41080294495,
+  "sha": "3a9b3e1d97c370e650d8a895e488897c2a455d07",
+  "artifact": 12993156197,
+  "selected_raw_count": 16,
+  "full_zip_downloaded": false,
+  "path": "selected-raw16.zip",
+  "bytes": 11014079,
+  "sha256": "13e5c61ec3e71fb156c81c831394c5498539ff3fd68c045749076d2be3493ab9",
+  "result": "NOT_READY_all16_journeyComplete_false_DOMorder_oracle_browserCollectors_screenshots_notexecuted"
+}

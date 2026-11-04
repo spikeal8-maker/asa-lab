@@ -3106,14 +3106,6 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
 
   await createPublishedProjectActivityAfterLogin(
     page,
-    electronicsTitle,
-    'electronics',
-    'completion',
-    electronicsSample,
-    electronicsGoal,
-  );
-  await createPublishedProjectActivityAfterLogin(
-    page,
     threeDTitle,
     'three-d',
     'completion',
@@ -3187,7 +3179,175 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await editor.getByLabel('Текст блока', { exact: true }).fill('Перед Electronics');
 
   await addCourseBlock(page, 'Практика');
-  await selectCoursePractice(page, electronicsTitle);
+  await editor.getByRole('button', { name: 'Создать задание для урока', exact: true }).click();
+  const inlineAuthor = page.getByRole('dialog', { name: 'Новое задание для урока', exact: true });
+  await expect(inlineAuthor).toBeVisible();
+  await expect(inlineAuthor.locator('.course-dialog-header')).toHaveCount(0);
+  await expect(
+    inlineAuthor.getByRole('button', { name: 'Вернуться к уроку', exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    inlineAuthor.getByRole('button', { name: 'Вернуться к уроку', exact: true }),
+  ).toBeFocused();
+  await expect(
+    inlineAuthor.getByRole('group', { name: 'Действия задания', exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    inlineAuthor.getByRole('button', { name: 'Добавить в урок', exact: true }),
+  ).toBeDisabled();
+  await inlineAuthor.getByLabel('Среда задания', { exact: true }).selectOption('electronics');
+  await inlineAuthor.getByLabel('Название задания', { exact: true }).fill(electronicsTitle);
+  await inlineAuthor.getByLabel('Цель задания', { exact: true }).fill(electronicsGoal);
+  await inlineAuthor
+    .getByLabel('Содержание', { exact: true })
+    .fill('Соберите цепь, сохраните проект и сдайте точную редакцию.');
+  await inlineAuthor.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  await inlineAuthor.getByLabel('Файл схемы или изображения', { exact: true }).setInputFiles({
+    name: 'course-activity-sample.png',
+    mimeType: 'image/png',
+    buffer: electronicsSample,
+  });
+  page.once('dialog', (dialog) => void dialog.dismiss());
+  await inlineAuthor.getByRole('button', { name: 'Вернуться к уроку', exact: true }).click();
+  await expect(inlineAuthor).toBeVisible();
+  await expect(inlineAuthor.getByLabel('Название задания', { exact: true })).toHaveValue(
+    electronicsTitle,
+  );
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const action = inlineAuthor.getByRole('button', {
+      name: 'Добавить в урок',
+      exact: true,
+    });
+    await action.scrollIntoViewIfNeeded();
+    await expect(action).toBeVisible();
+    const bounds = (await action.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    await inlineAuthor.getByLabel('Название задания', { exact: true }).focus();
+    await expect
+      .poll(() =>
+        inlineAuthor.evaluate((element) => {
+          const title = element
+            .querySelector('[aria-label="Название задания"]')!
+            .getBoundingClientRect();
+          const toolbar = element
+            .querySelector('.assignment-document-topbar')!
+            .getBoundingClientRect();
+          return title.top - toolbar.bottom;
+        }),
+      )
+      .toBeGreaterThanOrEqual(0);
+    const inlineLayout = await inlineAuthor.evaluate((element) => {
+      const bounds = (selector: string) => {
+        const node = element.querySelector(selector);
+        if (!node) return null;
+        const rect = node.getBoundingClientRect();
+        return { x: rect.x, right: rect.right, width: rect.width, height: rect.height };
+      };
+      const topbar = element.querySelector('.assignment-document-topbar');
+      return {
+        viewportWidth: innerWidth,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        topbar: bounds('.assignment-document-topbar'),
+        saveState: bounds('.assignment-document-save-state'),
+        topbarMarginInline: topbar ? getComputedStyle(topbar).marginInline : null,
+      };
+    });
+    expect(inlineLayout.topbar?.height, JSON.stringify(inlineLayout)).toBeLessThanOrEqual(
+      width < 761 ? 130 : 96,
+    );
+    expect(inlineLayout.scrollWidth, JSON.stringify(inlineLayout)).toBeLessThanOrEqual(
+      inlineLayout.clientWidth,
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `${evidenceDir}/course-inline-task-author-${width}.png`,
+      fullPage: false,
+    });
+    const longTitle =
+      'Исследование электрических цепей и проверка подробного проектного задания. '.repeat(3);
+    const longBody =
+      'Соберите цепь, проверьте каждое соединение и подробно опишите наблюдения.\n'.repeat(24);
+    await inlineAuthor.getByLabel('Название задания', { exact: true }).fill(longTitle);
+    await inlineAuthor.getByLabel('Содержание', { exact: true }).fill(longBody);
+    await inlineAuthor.getByLabel('Название задания', { exact: true }).focus();
+    await expect
+      .poll(() =>
+        inlineAuthor.evaluate((element) => {
+          const title = element
+            .querySelector('[aria-label="Название задания"]')!
+            .getBoundingClientRect();
+          const toolbar = element
+            .querySelector('.assignment-document-topbar')!
+            .getBoundingClientRect();
+          return title.top - toolbar.bottom;
+        }),
+      )
+      .toBeGreaterThanOrEqual(0);
+    for (const label of ['Название задания', 'Содержание']) {
+      await expect
+        .poll(() =>
+          inlineAuthor
+            .getByLabel(label, { exact: true })
+            .evaluate((field) => field.scrollHeight - field.clientHeight),
+        )
+        .toBeLessThanOrEqual(2);
+    }
+    expect(
+      await inlineAuthor
+        .getByLabel('Содержание', { exact: true })
+        .evaluate((field) => field.clientHeight),
+    ).toBeGreaterThan(200);
+    await inlineAuthor.evaluate((element) => element.scrollTo(0, 0));
+    await page.screenshot({
+      path: `${evidenceDir}/course-inline-task-author-long-${width}.png`,
+      fullPage: false,
+    });
+    await inlineAuthor.getByLabel('Название задания', { exact: true }).fill(electronicsTitle);
+    await inlineAuthor
+      .getByLabel('Содержание', { exact: true })
+      .fill('Соберите цепь, сохраните проект и сдайте точную редакцию.');
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await inlineAuthor.getByRole('button', { name: 'Создать задание', exact: true }).click();
+  await expect(
+    inlineAuthor.getByText('Черновик сохранён. Публикация — отдельное действие.'),
+  ).toBeVisible();
+  await inlineAuthor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+  const inlinePreview = inlineAuthor.getByRole('dialog', {
+    name: 'Как увидит ученик',
+    exact: true,
+  });
+  await inlinePreview
+    .getByRole('button', { name: `Открыть образец: ${electronicsTitle}`, exact: true })
+    .click();
+  const inlineLightbox = page.getByRole('dialog', {
+    name: `Образец: ${electronicsTitle}`,
+    exact: true,
+  });
+  await expect(inlineLightbox).toBeVisible();
+  await inlineLightbox.getByRole('button', { name: 'Закрыть', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(inlineLightbox).toBeHidden();
+  await expect(inlineAuthor).toBeVisible();
+  await inlinePreview.getByRole('button', { name: 'Закрыть предпросмотр', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(inlinePreview).toBeHidden();
+  await expect(inlineAuthor).toBeVisible();
+  await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
+  await inlineAuthor.getByRole('button', { name: 'Добавить в урок', exact: true }).click();
+  await expect(inlineAuthor).toBeHidden();
+  await expect(
+    editor.getByRole('button', { name: 'Создать задание для урока', exact: true }).first(),
+  ).toBeFocused();
+  await expect(page.locator('#root')).not.toHaveAttribute('inert', '');
+  await expect(editor.locator('.course-practice-picker').first()).toContainText(electronicsTitle);
+  await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
+  await expect(editor.getByLabel('Текст блока', { exact: true })).toHaveValue('Перед Electronics');
 
   await addCourseBlock(page, 'Врезка');
   await editor.getByLabel('Текст врезки', { exact: true }).fill('Между двумя практиками');
@@ -4598,6 +4758,15 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   );
   await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
+  const usagePath = `/api/courses/${courseId}/usage`;
+  const unusedRead = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === usagePath,
+  );
+  await openCourseActions(page);
+  await editor.getByRole('button', { name: 'Использование', exact: true }).click();
+  const usage = editor.getByRole('region', { name: 'Использование курса', exact: true });
+  expect(await (await unusedRead).json()).toEqual({ items: [] });
+  await expect(usage).toContainText('В доступных вам классах курс пока не используется.');
   await openCourseActions(page);
   await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   const assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
@@ -4605,6 +4774,9 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   const firstResponse = page.waitForResponse(
     (response) =>
       response.request().method() === 'POST' && new URL(response.url()).pathname === assignmentPath,
+  );
+  const usageRead = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === usagePath,
   );
   await assignDialog.getByRole('button', { name: 'Назначить', exact: true }).click();
   const assigned = await firstResponse;
@@ -4619,7 +4791,118 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   await expect(assignDialog.getByRole('status')).toContainText('Сервер подтвердил версию 1');
   await assignDialog.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
 
+  // The same mounted Usage must refresh after the real confirmed assignment;
+  // closing/reopening it here would conceal the stale-empty regression.
+  const usageResponse = await usageRead;
+  expect(usageResponse.status()).toBe(200);
+  expect(await usageResponse.json()).toEqual({
+    items: [
+      {
+        id: originalReceipt.runId,
+        classroomId,
+        classroomTitle: classTitle,
+        classroomStatus: 'active',
+        courseVersionId: expect.any(String),
+        versionNumber: 1,
+        title: courseTitle,
+        status: 'open',
+        audienceType: 'whole_class',
+      },
+    ],
+  });
+  const authorIdentity = (
+    await admin.query(
+      'SELECT account_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+      [teacher.tenantId, teacher.teacherId],
+    )
+  ).rows[0];
+  const membership = (
+    await admin.query(
+      'DELETE FROM classroom_memberships WHERE classroom_id=$1 AND account_id=$2 RETURNING *',
+      [classroomId, authorIdentity.account_id],
+    )
+  ).rows[0];
+  expect(membership).toBeTruthy();
+  try {
+    const revokedUsage = await page.request.get(usagePath);
+    expect(revokedUsage.status()).toBe(200);
+    expect(await revokedUsage.json()).toEqual({ items: [] });
+  } finally {
+    await admin.query(
+      'INSERT INTO classroom_memberships SELECT * FROM jsonb_populate_record(NULL::classroom_memberships,$1::jsonb)',
+      [JSON.stringify(membership)],
+    );
+  }
+  const foreignAuthor = await seedTeacher(admin, 'usage-foreign-course');
+  const foreignIdentity = (
+    await admin.query(
+      'SELECT principal_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+      [foreignAuthor.tenantId, foreignAuthor.teacherId],
+    )
+  ).rows[0];
+  // Legacy course_save resolves an organization author's tenant through an
+  // owned assignment; seedTeacher alone has no personal-workspace fallback.
+  await admin.query(
+    "INSERT INTO teacher_assignments(tenant_id,owner_principal_id,title,brief,module_key,visibility) VALUES($1,$2,'Foreign course anchor','anchor','electronics','private')",
+    [foreignAuthor.tenantId, foreignIdentity.principal_id],
+  );
+  const foreignCourseId = (
+    await admin.query(
+      "SELECT course_save($1,NULL,'Foreign private course',NULL,NULL,'private') AS id",
+      [foreignIdentity.principal_id],
+    )
+  ).rows[0].id;
+  expect(foreignCourseId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  );
+  expect(
+    (
+      await admin.query('SELECT tenant_id,owner_principal_id FROM courses WHERE id=$1', [
+        foreignCourseId,
+      ])
+    ).rows,
+  ).toEqual([
+    { tenant_id: foreignAuthor.tenantId, owner_principal_id: foreignIdentity.principal_id },
+  ]);
+  const foreignUsage = await page.request.get(`/api/courses/${foreignCourseId}/usage`);
+  expect(foreignUsage.status()).toBe(404);
+  expect(await foreignUsage.json()).toEqual({
+    error: { code: 'not_found', message: 'Курс не найден.' },
+  });
+  await expect(usage).toContainText(classTitle);
+  await expect(usage).toContainText('Версия 1');
+  await expect(usage).toContainText('Весь класс');
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await usage.scrollIntoViewIfNeeded();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+    ).toBeLessThanOrEqual(0);
+    const bounds = await usage.getByRole('link', { name: 'Открыть обучение класса' }).boundingBox();
+    expect(bounds!.height).toBeGreaterThanOrEqual(44);
+    await page.screenshot({ path: `${evidenceDir}/course-usage-${width}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await usage.getByRole('button', { name: 'Закрыть использование' }).click();
+  await openCourseStructure(page);
+  await editor.locator('.course-lesson-link').filter({ hasText: lessonTitle }).click();
+  const draftText = editor.getByLabel('Текст блока', { exact: true });
+  await draftText.fill(lessonText + ' Несохранённое дополнение автора.');
+  await openCourseActions(page);
+  await editor.getByRole('button', { name: 'Использование', exact: true }).click();
+  await expect(usage.getByRole('link', { name: 'Открыть обучение класса' })).toBeVisible();
+  const authorUrl = page.url();
+  await usage.getByRole('link', { name: 'Открыть обучение класса' }).click();
+  await expect(page).toHaveURL(authorUrl);
+  await expect(draftText).toHaveValue(lessonText + ' Несохранённое дополнение автора.');
+  await expect(editor.getByRole('alert')).toContainText('Сначала сохраните изменения урока');
+  await draftText.fill(lessonText);
+  await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок сохранён.',
+  );
   const learner = await learnerAssignments(browser, joinCode, 'fix08-learner-' + suffix);
+  expect((await learner.page.request.get(usagePath)).status()).toBe(401);
   const learnerFailures = collectBrowserFailures(learner.page, {
     allowAdminAccessProbe: true,
   });
@@ -4764,6 +5047,21 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   expect(((await deliveries.json()) as { items: unknown[] }).items).toHaveLength(2);
   expect(await protectedDelivery()).toEqual(originalDelivery);
   await readOldLearning();
+  // Navigate only after the original stateful archive/retry continuation.
+  // Leaving the editor earlier discards its completed in-memory assignment
+  // receipt and would invalidate the existing “Новое назначение” assertion.
+  await assignDialog.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
+  await usage
+    .locator(`a[href="#/classrooms/${classroomId}?courseRun=${originalReceipt.runId}"]`)
+    .click();
+  await expect(page).toHaveURL(
+    new URL(`/#/classrooms/${classroomId}?courseRun=${originalReceipt.runId}`, page.url()).href,
+  );
+  await expect(
+    page
+      .getByTestId('classroom-course-run')
+      .getByRole('heading', { name: courseTitle, exact: true }),
+  ).toBeVisible();
   expect(pageErrors).toEqual([]);
   expect(serverErrors).toEqual([]);
   learnerFailures.assertEmpty();
@@ -4792,6 +5090,12 @@ test('Course media errors survive saved author preview and learner delivery with
   const videoTitle = 'Сохранённое видео платформы';
   const audioTitle = 'Сохранённое аудио платформы';
   const fileLabel = 'Памятка к сохранённому уроку';
+  // Only exact provisional URLs are allowed to fail while previewing an unsaved lesson.
+  const initialMediaUrls = [
+    '/assets/initial-' + suffix + '.png',
+    '/assets/initial-' + suffix + '.webm',
+    '/assets/initial-' + suffix + '.wav',
+  ];
   const media = [
     {
       url: imageUrl,
@@ -4815,7 +5119,11 @@ test('Course media errors survive saved author preview and learner delivery with
   // publication, assignment and learner responses always come from the API.
   async function observeMedia(target: Page) {
     const origin = new URL(target.url()).origin;
-    const expectedUrls = new Set(media.map((item) => new URL(item.url, origin).href));
+    const expectedUrls = new Set(
+      [...media.map((item) => item.url), ...initialMediaUrls].map(
+        (url) => new URL(url, origin).href,
+      ),
+    );
     const requestCounts = new Map<string, number>();
     const responses = new Map<string, number[]>();
     const consoleErrors: string[] = [];
@@ -4954,7 +5262,7 @@ test('Course media errors survive saved author preview and learner delivery with
       await expect(open).toHaveAttribute('rel', 'noreferrer');
     }
 
-    for (const width of [1440, 390, 320]) {
+    for (const width of [1440, 1024, 390, 320]) {
       await target.setViewportSize({ width, height: 900 });
       for (const item of media) {
         const fallback = scope.locator(item.selector).locator('.lesson-media-error');
@@ -5035,7 +5343,7 @@ test('Course media errors survive saved author preview and learner delivery with
     await expect(imageWrapper.getByRole('button', { name: 'Повторить загрузку' })).toHaveCount(0);
     await expect(scope.locator('.lesson-media-error')).toHaveCount(2);
     await expect(imageWrapper).toBeFocused();
-    for (const width of [1440, 390, 320]) {
+    for (const width of [1440, 1024, 390, 320]) {
       await target.setViewportSize({ width, height: 900 });
       await imageWrapper.scrollIntoViewIfNeeded();
       await expect(imageWrapper.locator('img')).toBeVisible();
@@ -5146,6 +5454,51 @@ test('Course media errors survive saved author preview and learner delivery with
     await expect(editor.getByLabel('Название урока')).toHaveValue(lessonTitle);
   }
   await reopen();
+  // Read-only witnesses are scoped to this synthetic class/course, not shared
+  // teacher state that other scenarios or notification polling may change.
+  async function academicRows() {
+    return (
+      await admin.query(
+        `WITH runs AS (
+           SELECT id FROM classroom_course_runs WHERE course_id=$1 OR classroom_id=$2
+         ), participations AS (
+           SELECT p.* FROM activity_participations p
+           JOIN activity_runs r ON r.id=p.activity_run_id
+           WHERE r.classroom_id=$2 OR r.source_course_run_id IN (SELECT id FROM runs)
+         ), attempts AS (
+           SELECT a.* FROM learning_attempts a WHERE a.classroom_id=$2
+             OR a.activity_participation_id IN (SELECT id FROM participations)
+         )
+         SELECT jsonb_build_object(
+           'enrollments',(SELECT COALESCE(jsonb_agg(to_jsonb(e) ORDER BY e.id),'[]'::jsonb)
+             FROM course_enrollments e WHERE e.course_run_id IN (SELECT id FROM runs)),
+           'participations',(SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.id),'[]'::jsonb) FROM participations p),
+           'attempts',(SELECT COALESCE(jsonb_agg(to_jsonb(a) ORDER BY a.id),'[]'::jsonb) FROM attempts a),
+           'submissions',(SELECT COALESCE(jsonb_agg(to_jsonb(s) ORDER BY s.id),'[]'::jsonb)
+             FROM learning_submissions s WHERE s.attempt_id IN (SELECT id FROM attempts)),
+           'results',(SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.id),'[]'::jsonb)
+             FROM assessment_results r WHERE r.attempt_id IN (SELECT id FROM attempts)),
+           'completion',(SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.id),'[]'::jsonb)
+             FROM classroom_course_lesson_progress p WHERE p.run_id IN (SELECT id FROM runs)),
+           'notifications',(SELECT COALESCE(jsonb_agg(to_jsonb(n) ORDER BY n.id),'[]'::jsonb)
+             FROM learning_notifications n WHERE n.classroom_id=$2 OR n.course_run_id IN (SELECT id FROM runs))
+         ) AS value`,
+        [courseId, classroomId],
+      )
+    ).rows[0].value;
+  }
+  const beforeInlineAcademic = await academicRows();
+  expect(Object.values(beforeInlineAcademic)).toEqual(Array(7).fill([]));
+  const inlineAcademicWrites: string[] = [];
+  const observeInlineWrite = (request: import('@playwright/test').Request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (
+      !['GET', 'HEAD', 'OPTIONS'].includes(request.method()) &&
+      /^\/api\/(?:courses|learning|classrooms|class-join)(?:\/|$)/.test(pathname)
+    )
+      inlineAcademicWrites.push(request.method() + ' ' + pathname);
+  };
+  page.on('request', observeInlineWrite);
   await editor.getByLabel('Ссылка на изображение').fill(imageUrl);
   await editor.getByLabel('Описание изображения').fill(imageAlt);
   await editor.getByLabel('Подпись изображения').fill(imageCaption);
@@ -5163,6 +5516,93 @@ test('Course media errors survive saved author preview and learner delivery with
     .filter({ has: page.getByLabel('Ссылка на аудио') })
     .getByLabel('Название медиа')
     .fill(audioTitle);
+
+  // The author sees the actual learner media renderer without saving or
+  // publishing. Missing resources expose the same native error and retry,
+  // and the HTTPS PDF stays a link: it must not make a speculative request.
+  const beforeAuthorMediaPreview = await outline();
+  const authorImage = editor.getByRole('region', {
+    name: 'Предпросмотр вложения блока 2',
+    exact: true,
+  });
+  const authorImg = authorImage.locator('img');
+  await expect(authorImg).toHaveAttribute('src', imageUrl);
+  await authorImg.scrollIntoViewIfNeeded();
+  await expect(authorImage.getByRole('alert')).toHaveText('Не удалось загрузить изображение');
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await authorImage.scrollIntoViewIfNeeded();
+    const imageWrapper = authorImage.locator('.lesson-media-block');
+    const retry = authorImage.getByRole('button', { name: 'Повторить загрузку', exact: true });
+    for (const control of [
+      authorImage,
+      authorImage.getByRole('alert'),
+      retry,
+      authorImage.getByRole('link', { name: 'Открыть отдельно', exact: true }),
+    ]) {
+      const bounds = await control.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x, 'inline control left at ' + width).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width, 'inline control right at ' + width).toBeLessThanOrEqual(
+        width,
+      );
+    }
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+      'inline page overflow at ' + width,
+    ).toBeLessThanOrEqual(0);
+    // Tab from the existing focusable media wrapper must reach the native
+    // retry button; activating it keeps focus in the remounted media block.
+    await imageWrapper.focus();
+    await page.keyboard.press('Tab');
+    await expect(retry).toBeFocused();
+    const beforeRetry = authorObserver.requestCounts.get(imageUrl) ?? 0;
+    const retried = page.waitForResponse(
+      (response) =>
+        response.url() === new URL(imageUrl, page.url()).href &&
+        response.request().method() === 'GET',
+    );
+    await page.keyboard.press('Enter');
+    expect((await retried).status()).toBe(404);
+    expect(authorObserver.requestCounts.get(imageUrl)).toBeGreaterThan(beforeRetry);
+    await expect(authorImage.getByRole('alert')).toHaveText('Не удалось загрузить изображение');
+    await expect(imageWrapper).toBeFocused();
+    await page.screenshot({ path: directory + '/inline-error-' + width + '.png', fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const authorFile = editor.getByRole('region', {
+    name: 'Предпросмотр вложения блока 3',
+    exact: true,
+  });
+  const authorFileLink = authorFile.getByRole('link', { name: new RegExp(fileLabel) });
+  await expect(authorFileLink).toHaveAttribute('href', fileUrl);
+  await expect(authorFileLink).toHaveAttribute('target', '_blank');
+  await expect(authorFileLink).toHaveAttribute('rel', 'noreferrer');
+  await expect(
+    editor.getByRole('region', { name: 'Предпросмотр вложения блока 4' }).locator('video'),
+  ).toHaveAttribute('src', videoUrl);
+  await expect(
+    editor.getByRole('region', { name: 'Предпросмотр вложения блока 5' }).locator('audio'),
+  ).toHaveAttribute('src', audioUrl);
+  for (const kind of ['video', 'audio']) {
+    const control = editor.locator('.lesson-block-edit-preview').locator(kind);
+    await expect(control).toHaveAttribute('controls', '');
+    await expect(control).toHaveAttribute('preload', 'metadata');
+    await expect(control).not.toHaveAttribute('autoplay', '');
+  }
+  expect(await outline(), 'inline author preview must not write the draft').toEqual(
+    beforeAuthorMediaPreview,
+  );
+  expect(await academicRows(), 'inline preview must not create or change academic history').toEqual(
+    beforeInlineAcademic,
+  );
+  page.off('request', observeInlineWrite);
+  expect(inlineAcademicWrites, 'inline preview must not send academic mutation commands').toEqual(
+    [],
+  );
+
   const save = page.waitForResponse(
     (response) =>
       response.request().method() === 'PATCH' && new URL(response.url()).pathname === lessonPath,

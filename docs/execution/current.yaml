@@ -81,6 +81,203 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: devex-engine
+    worktree_id: devex-engine-20261030
+    owned_paths:
+      - tools/ci_metrics.py
+      - tools/test_ci_metrics.py
+      - tools/gate-governance.sh
+      - tools/devex_plan.py
+      - tools/devex-dependencies.mjs
+      - tools/test_devex_plan.py
+      - tools/test-devex-dependencies.mjs
+      - tools/test_devex_plan_integration.py
+    task:
+      id: TASK-DEVEX-ENGINE-001
+      issue: 881
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: package_d_preflight_and_required_context_candidate
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
+        of ASA-DEVEX-ENGINE-001 packages A-G on 2026-10-30. No production, live database, local Docker runtime or
+        host network operations. Docker/browser/data execution uses isolated CI only.
+        Owner confirms progression after C on 2026-11-02: separate LOCAL_PASS from CI_PENDING and RELEASE_NOT_READY,
+        prove bounded checks on real small UI changes, repair browser runner compatibility and measure edit-to-result,
+        CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
+        On 2026-11-03 the owner reprioritized recovery first, then protected PR integration and existing addressed CI.
+        Owner explicitly approves independent development of tools/test_ci_image_transport.py in this isolated
+        branch while the D13 physical checkout, index, HEAD and all WIP remain untouched. A matching relative path
+        alone is an integration risk, not a perpetual development veto. Initial minimal preflight/policy repair is
+        authorized after independent read-only verification of exact own paths and physical isolation. Unknown
+        status, physical overlap, filesystem aliases and unplanned scope remain blocked. This coordination is
+        usable only after acceptance on canonical main and never substitutes for merge-candidate CI, required
+        GitHub checks/review or release evidence. Production, live data, local Docker, network and secrets stay prohibited.
+        The owner subsequently authorizes minimal GitHub main protection: ordinary changes through PR,
+        strict ASA / required from GitHub Actions, admin enforcement and no bypass, force push or deletion.
+        No second account, access grant or formal GitHub approval requirement is authorized; independent
+        technical review of critical exact-SHA changes remains required. Live GitHub restrictions apply
+        even where legacy direct_main metadata describes PRs as optional.
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/.codex/worktrees/devex-engine-20261030/ASA-lab
+          branch: codex/recovery-delivery-20261103
+        peer:
+          worktree: E:/ASA-previews/electronics-classroom-d13-candidate-20261019
+          branch: codex/electronics-classroom-d2-d4-649
+          head: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+          path_sha256:
+            tools/test_ci_image_transport.py: ced65c7414d4283a546cad5aef843365d8d0efcbc5a67c350f0c0063cb5314a9
+        paths:
+          - tools/test_ci_image_transport.py
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 98d7fbb42ae9e53113cb45ada4b4301334de9c27
+      head_sha: null
+      observed_at: '2026-11-03T16:35:11Z'
+      main:
+        branch: main
+        sha: 98d7fbb42ae9e53113cb45ada4b4301334de9c27
+      observation_note: >-
+        Main98d7fbb4 passed General41668252953 all5 actual jobs and Publications41668252727.
+        Portable41673912975 passed both host contracts and source-image smoke: clean boot, verified complete
+        backup, PostgreSQL/object checksum restore into asalab_delivery_restore_test, restricted-role login,
+        ACL/RLS and origin checks. Existing real PostgreSQL supported0225-prefix upgrade reaches0304 and
+        verifies preserved ledger/checksums and zero-apply rerun; no current SQL repair or historical migration
+        rewrite selected. Prior E974/F975/G978/F979/G980 remain accepted without repeated audit or tests.
+        Owner's new explicit isolated-development consent supersedes indefinite D13 logical-path waiting;
+        foreign guard remains15addedlines on16cbed5d, with its byte fingerprint pinned above. This PR changes
+        the preflight prerequisite and records consent; it does not implement D or import foreign WIP.
+        A bounded CI admission repair separates working-push aggregate display names from the unchanged
+        PR/main ASA / required context; all four native mandatory jobs and fail-closed checks remain intact.
+        After policy/consent acceptance, repeat exact8path D preflight; genuine SAFE_TO_START is required.
+        The initial protection snapshot had no required checks/reviews or rulesets. Owner-authorized minimal
+        protection is now applied and read back: strict ASA / required app15368, mandatory PR, zero formal
+        approvals, admin enforcement; all other parameters are unchanged and before/restore payloads saved.
+        General41686002301 passed all5 exactcf262 jobs, yet cancelled duplicate push41685995018 left a second
+        same-name failed required context. This candidate fixes that confirmed admission collision without
+        changing protection or tools/ci_required.py; new final-SHA CI and positive admission remain pending.
+        Full Main/release/RLS/auth/migration evidence and exact merged-tree checks remain mandatory. No deployment,
+        forced publication, working database, local Docker or network action; owner acceptance remains pending.
+        Fetch main before writes and recover exact Git/CI; this dated snapshot grants no edit or release authority.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    programme:
+      id: ASA-DEVEX-ENGINE-001
+      selected_slice: D
+      selected_subslice: D-CONDITIONAL-GENERAL-CONTRACT-001
+      verification_pending_slices: []
+      remaining_slices: [D, E, F, G]
+      deployment_authorized: false
+      working_database_actions_authorized: false
+      partial_slices:
+        - id: D-PARALLEL-UI-CI
+          source_sha: 6176394ff255e911ccb4e93788b9ea47e7c065ba
+          integrated_sha: 4be7dca052e3b02cfb11bb9ab15e86c565f4d553
+          pr: 945
+          exact_source_general_run: 41510340520
+          independent_review: approved
+          real_ui_pilots:
+            - change_class: L0
+              pr: 948
+              source_sha: 1bb2501bdaca88cc3c8d25daac081de058ced85c
+              scoped_ci_run: 41499682067
+              full_ci_run: 41499681853
+              full_ci_jobs_passed: 4
+            - change_class: L1
+              pr: 956
+              source_sha: f1381233e81fcf738127bbe718781e874663ad0f
+              scoped_ci_run: 41503951850
+              full_ci_run: 41503951810
+              full_ci_jobs_passed: 4
+          source_general_jobs_passed: 5
+        - id: F-MINIMAL-ENTRY-001
+          source_sha: cb023dc6cea4249f43b3893b54f6add543c9652b
+          integrated_sha: 9ce041a292e4bb8463ca368b71aa595eb5ae6df1
+          pr: 975
+          exact_source_general_run: 41589321193
+          independent_review: approved
+        - id: G-RELEASE-QUEUE-001
+          source_sha: 6a6b50cd7eacdd5849a476c66e79781e2e27f464
+          integrated_sha: ec534c8da79fe080358534b6f5cff001c8c90421
+          pr: 978
+          exact_source_general_run: 41590658339
+          independent_review: approved
+        - id: D-ADDRESSED-FOCUSED-ROUTING-001
+          source_sha: f503764c3d7060da3a51331ecf7fc2436df7e1df
+          integrated_sha: 900f2e10b7abf180a26b465ad5e2b9e1a5cc0aee
+          pr: 967
+          exact_source_general_run: 41540467267
+          independent_review: approved
+        - id: G-FULL-RELEASE-EVIDENCE-001
+          source_sha: 82029c5745a9b8d47f9a49302c61275056e2f491
+          integrated_sha: 50b1dc159e654823de3e319f3c0f9528971e10ef
+          pr: 969
+          exact_source_general_run: 41565687242
+          independent_review: approved
+        - id: E-WEB-CACHE-001
+          source_sha: aaf00ad5bc6c09d5906208e4dbd5914eab429589
+          integrated_sha: 9caddfbeff635507f9b10deaf9ea5bb08da9d22c
+          pr: 974
+          exact_source_general_run: 41596023473
+          independent_review: approved
+        - id: F-PREFLIGHT-INVOCATION-SNAPSHOT-001
+          source_sha: 57dbfa2ec9037f2029e6dc90383fedb687f98661
+          integrated_sha: 237e71e7d2f8ab31f1366dfbc41bd182aea05942
+          pr: 979
+          exact_source_general_run: 41615953580
+          independent_review: approved
+        - id: G-EARLY-STALE-CANDIDATE-001
+          source_sha: 92669603d1264e2ee8c357d76ec151d22fd10362
+          integrated_sha: ff90d55c4859201555c451b5c24f9689bfbd4045
+          pr: 980
+          exact_source_general_run: 41616930713
+          independent_review: approved
+      completed_slices:
+        - id: PREFLIGHT
+          source_sha: bbf6bb3223e1cbb9d4196741787b26e09eae7e34
+          integrated_sha: f25653a37e19079bd45fbd7208a0c8b5cc64459c
+          pr: 882
+          exact_source_general_run: 41093374361
+          independent_review: approved
+          evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6528951157
+        - id: A
+          source_sha: 2c5407f3711903203dabd3d71b28a78981e5dd77
+          integrated_sha: 5905889681b40b58d757680fda16e247b49c7869
+          pr: 887
+          exact_source_general_run: 41111731364
+          independent_review: approved
+          evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6531875035
+          baseline_report: docs/testing/evidence/devex-baseline-20261030.json
+        - id: B
+          source_sha: baae3ffd5f58f67cd0b9c114cdea61af1e9c6717
+          integrated_sha: ec0956bea68a6c592ab1e98388b1027ef3cc03f2
+          pr: 898
+          exact_source_general_run: 41342442748
+          independent_review: approved
+          evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6563214545
+          shadow_control_report: docs/testing/evidence/devex-shadow-control-set-20261030.json
+        - id: C
+          source_sha: 879184a5c68c165532153d546139b7050dc6b93d
+          integrated_sha: 413590622e6c8638e06eb629b8bd8dd87558bcc2
+          pr: 912
+          exact_source_general_run: 41350335177
+          independent_review: approved
+          evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6564721821
   - id: deployment-runtime-search-prebackup
     worktree_id: deployment-runtime-search-prebackup-20261029
     owned_paths:
@@ -616,7 +813,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: image_presets_adaptation_with_composer_ci_pending
+      checkpoint: chat_visual_controls_selected
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -639,6 +836,235 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-LOCAL-CLEAN-TRANSITION-001
+          issue: 373
+          scope: guarded clean database and bucket transition of existing local review installation
+          status: in_progress
+          selected_at: '2026-10-30'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R28, R31]
+          acceptance_checks: [C17, C20, C25, C28]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner explicitly orders a complete current-version local installation at
+            the existing loopback portal and selects a clean new database while retaining
+            the entire old database and files. Implement one guarded explicit legacy-review
+            transition, not a relaxation of normal identity/update/backup guards. Preserve
+            canonical root, single Compose project, ports, PostgreSQL/MinIO volumes, old
+            database/bucket, secrets, unpublished branches, WIP and owner backups. Verify
+            complete old DB/object/config/source export first; use a pinned eligible published
+            main release. Create separate fresh DB and object bucket within existing services,
+            then attest target identity and exact service/schema revisions. No old migration
+            ledger rewrites, no tenant/RLS policy change, no volume deletion, no second stack,
+            no host network/security changes. Require negative tests, isolated success evidence
+            and independent exact-source review before the owner-authorized live transition.
+        - id: ASAI-CHAT-VISUAL-CONTROLS-001
+          issue: 373
+          scope: compact accessible model and tool menus plus subtle history scrollbar
+          status: in_progress
+          selected_at: '2026-10-30'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R28, R31]
+          acceptance_checks: [C17, C20, C25, C28]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner commissions the nine-point chat refinement programme and authorizes
+            incremental review on existing D2R2 Docker portal http://127.0.0.1:4610.
+            First bounded slice: subtle history scrollbar, compact model selector,
+            rounded readable model/tool menus with right-aligned mode and chevron.
+            Preserve model authorization, ranking, tool semantics, drafts and attachments.
+            Validate light/dark, keyboard and mobile with independent review before publication.
+            Preview only through existing canonical installation workflow; preserve live WIP,
+            database, secrets and other Docker projects. Later slices separately cover real
+            streaming/animation, found-image actions, isolated HTML/SVG previews and copy blocks.
+        - id: ASAI-POLZA-STT-853
+          issue: 373
+          scope: finish existing PR853 encrypted Polza keys and microphone transcription
+          status: in_progress
+          selected_at: '2026-10-30'
+          source_pr: 874
+          supersedes_pr: 853
+          candidate_sha: 8307d3afa7899c87cde9f7ec53cbdae8b37d5071
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R28, R31]
+          acceptance_checks: [C17, C20, C25, C28]
+          implementation_started: true
+          implementation_complete: true
+          independent_review: approved_exact_source
+          ci_status: pending_exact_8307d3af
+          focused_ci_run: 41060067681
+          general_ci_run: 41060067663
+          local_transcription: not_implemented
+          paid_live_test: pending_key_and_runtime
+          paid_test_authorization: one_synthetic_audio_up_to_10_seconds_max_1_RUB
+          deployment: not_performed
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner requests completion and testing of existing PR853 Polza API keys and
+            speech transcription for microphone. Adapt onto current main while preserving
+            accepted ComfyUI workbench and model policies. Resolve migration version collision,
+            prevent transcript loss, and test capture/audio validation with mocked provider.
+            Inventory local transcription honestly; do not install a new engine or download models.
+            Independent review and exact-source gates required. No deployment, live database
+            changes, GPU changes or paid upstream calls without explicit separate authorization.
+        - id: ASAI-IMAGE-WORKBENCH-856
+          issue: 373
+          scope: finish existing PR856 compact image settings and explicit authenticated preview
+          status: in_progress
+          selected_at: '2026-10-30'
+          source_pr: 856
+          candidate_sha: 9667aa2a1dc604dcb9639b9ec4747402525c5aa7
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R27, R31]
+          acceptance_checks: [C17, C20, C24, C28]
+          implementation_started: true
+          implementation_complete: true
+          independent_review: approved_exact_source
+          focused_tests: 25_pass
+          narrow_browser: 3_ui_pass_and_1_final_repair_pass
+          ci_status: focused_and_general_pass_on_source_9667aa2a
+          main_integration: merged
+          integrated_sha: 9d7cfaac0d065d9b8cb7221a4692697619092161
+          integrated_at: 2026-10-30T09:31:20Z
+          focused_ci_run: 41031386477
+          code_ci_job: 123983393378
+          nx_code_gate_tasks: 97_uncached
+          runtime_gpu_acceptance: PASS_test_explicit_1024_png_and_reload
+          api_provider_integration: issue857_not_connected
+          browser_visual_acceptance: light_compact_reviewed_dark_not_verified
+          owner_acceptance: pending
+          demo_status: PARTIAL_test_real_image_smoke
+          selection: >-
+            Owner explicitly orders completion and source publication of existing PR856.
+            Preserve workbench rather than create competing page. Compact connection/profile
+            status, saved FP4/FP8 capability probe, explicit prompt/size/generate/result panel,
+            honest API-provider tab. Diagnose exact CI/review failures and repair only own scope;
+            no false paid-provider connection, no paid requests or browser secrets. Independent
+            exact-source review and required gates before main. Source publication is not
+            deployment; no Docker/server/working DB/config/GPU or production host mutations.
+          owner_refinement: Always-visible endpoint and actions; one actual GPU status line; visible compact sizes; one optional technical help; no nested essential controls. GPU compatibility is capability-based, not an RTX3060 requirement.
+          final_repair_evidence: Four new cached-thread denial and uncertain/storage-failure tests plus21 existing image lifecycle tests PASS; final source independently approved. Replacement is explicit after known preadmission403 and verified UUID removal, never a retry of unknown admission.
+          ci_source_sha: 9667aa2a1dc604dcb9639b9ec4747402525c5aa7
+          general_ci_run: 41031386411
+          learning_ci_run: 41031386381
+          runtime_owner_authorization: Owner explicitly requested updating test.asa-lab.ru and testing real ComfyUI generation with the FP8 profile on 2026-10-30; this supersedes the preceding source-only no-deployment boundary for this test installation only.
+          deployment_test_revision: e1a16c578d582ee6157dfd7ffe5bb18719ad21d2
+          deployment_test_updated_at: '2026-10-30T11:53:55.855043Z'
+          deployment_test_schema: 282
+          deployment_test_backup: verified_pre_update_full_database_objects_configuration
+          deployment_test_health: six_healthy_services_api_web_scratch_same_revision
+          runtime_image_recipe: flux2-klein-4b-fp8-izo-v1
+          runtime_image_dimensions: 1024x1024
+          runtime_image_bytes: 713517
+          runtime_image_png_sha256: 1a8cf8c7462f190fb0d291930edb8e790fb86b7963ac5b2ab5e0d6f1d2a526c2
+          runtime_image_scope: Explicit image tool in own personal chat after update, complete job and decoded PNG; both pre-update and post-update images reload from saved history. Automatic text-model tool choice, other GPUs and fresh weight hashes are not accepted by this smoke. Owner acceptance remains pending.
+        - id: ASAI-COMPACT-HUMAN-SETTINGS
+          issue: 373
+          scope: urgent human-readable provider/model order and compact monthly budgets
+          status: in_progress
+          selected_at: '2026-10-29'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R20, R23, R31]
+          acceptance_checks: [C17, C20, C28]
+          implementation_started: true
+          implementation_complete: true
+          integrated_sha: 6d19511ecb881fc757de6437e5e9d20ccc48060c
+          independent_review: approved_exact_source
+          focused_tests: 17_ui_pass
+          ci_status: types_lint_review_pass_remote_ci_pending
+          browser_visual_acceptance: NOT_RUN
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner asks to prioritize compact Settings with only enabled/configured providers,
+            full-width provider rows and model rows, visible user-visibility checkboxes,
+            up/down ordering controls instead of numeric ranks, separate default selection,
+            compact global/per-user monthly budget table and minimal plain-language help.
+            Preserve authoritative eligibility, key union, hidden preferences/caps, default,
+            CAS and quota enforcement. Do not hide chosen models merely for temporary upstream
+            unavailability. No speculative DeepSeek model names or adapters. Focused UI tests,
+            types and review before source integration. No server/Docker/config updates.
+            Dashboard request is a later slice: infrastructure status, image/search/weather
+            counts and per-model coloured daily graphs with model filters; do not mix it here.
+        - id: ASAI-OLLAMA-INFERENCE-ADAPTATION
+          issue: 373
+          scope: urgent adaptation of PR816 Ollama context and reasoning controls
+          status: in_progress
+          selected_at: '2026-10-29'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R20, R31]
+          acceptance_checks: [C17, C20]
+          implementation_started: true
+          implementation_complete: true
+          integrated_sha: b55111d51a1f12aa0103584ce254b9f710066af1
+          independent_review: approved_exact_source
+          focused_tests: 64_pass
+          ci_status: focused_types_review_pass_remote_ci_pending
+          production_runtime_acceptance: NOT_RUN
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          source_pr: 816
+          selection: >-
+            Owner explicitly requires completing prepared context and thinking settings urgently.
+            Port only applicable PR816 hunks into current main, preserving provider independence,
+            model eligibility, token budgets, capability-based ComfyUI and clean composer.
+            Preserve unchanged Qwen120000 context/xhigh and num_predict=-1 defaults; no implicit
+            downgrade to65536/default. Model-specific metadata/capabilities determine supported
+            reasoning choices; unsupported values fail before dispatch. Persist admin choices
+            with auth, validation, CAS and exact runtime application for native/streaming paths.
+            Append next unused migration above0281, expected0282, without modifying published SQL.
+            Focused adapter/controller/UI/PGlite upgrade tests, types and independent review
+            precede source publication. No Docker/server/config updates, model downloads,
+            live GPU/paid inference or deployment. Existing LIVE legacy WIP is preserved and
+            not an active writer; only the explicitly coordinated author checkout may change.
+        - id: ASAI-COMFY-CAPABILITY-COMPATIBILITY
+          issue: 373
+          scope: capability-based ComfyUI compatibility and versioned existing FP8 profile
+          status: in_progress
+          selected_at: '2026-10-29'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R27, R31]
+          acceptance_checks: [C17, C20, C24, C28]
+          implementation_started: true
+          implementation_complete: true
+          candidate_sha: b289ba8412fed3d78985d7ca35eceba1a7e3813c
+          integrated_sha: fc0a95a46d95e2a10c5bba957ee7cf64aabc20d2
+          source_branch: codex/ai-comfy-capability-compatibility-20261029
+          independent_review: approved_source_p2_fix_and_final_composition
+          focused_tests: 110_pass_exact_final_composition
+          ci_status: remote_ci_pending
+          production_connectivity: NOT_RUN
+          model_hash_reverification: NOT_RUN
+          gpu_acceptance: NOT_RUN
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner requires compatibility across ComfyUI versions, not a one-version whitelist.
+            Design per-capability adapters checking actual node/input/output contracts and
+            installed models, with explicit incompatibility reasons and safe fallbacks for
+            differing API/graph capabilities. Never claim universal operation when required
+            nodes/models are absent, and never bypass immutable recipe/digest/recovery guards.
+            Existing original recipe needs an absent FP4 encoder; the inspected0.19.3 node
+            has measured FP8 workflow nodes/files. Add a separate immutable FP8 recipe using
+            the documented checked profile, preserving old recipe identities and active jobs.
+            Consume integrated0280 six presets; use next free migration if schema expansion
+            is necessary. Distinguish connection, capability compatibility, model provenance
+            and actual GPU acceptance. No broad version downgrade or file renaming shortcut.
+            Read-only diagnostics:11434 is Ollama; ComfyUI at192.168.1.112:8188 answers all four
+            discovery routes from the TEST API container. This does not prove production
+            asa-lab.ru connectivity; production observed4ddc3a26/schema279, test813e1f00/schema275.
+            Desktop Commander returned monthly usage exhaustion: do not retry/reconnect it.
+            No new model hashes or GPU runs were obtained. User forbids site/Docker/config
+            updates; no deployment was started. Source-only work may continue.
+            Remaining owner repairs: readable Settings priority controls and visibility,
+            PR816 context/thinking preserving Qwen120K/xhigh, PR830 search test window with
+            user-entered query, expanded image instructions/local-vs-network guidance and
+            readable system prompt/tool documentation. Do not call these completed.
         - id: ASAI-IMAGE-PRESETS-ADAPTATION
           issue: 373
           scope: adapt prepared PR825 six image presets and approved brain navigation icon
@@ -647,7 +1073,13 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R16, R19, R27, R31]
           acceptance_checks: [C17, C20, C24, C28]
-          implementation_started: false
+          implementation_started: true
+          implementation_complete: true
+          integrated_sha: 86e55680276bcb34b5ba5aa69cb4ed3827d2095c
+          independent_review: source_challenge_pass
+          focused_tests: 214_pass
+          governance: pass
+          ci_status: remote_ci_pending
           owner_acceptance: pending
           demo_status: NOT_RUN
           source_pr: 825
@@ -679,7 +1111,8 @@ parallel_lanes:
           candidate_sha: 4fac7ef6db5a401b468056446323bbc449f0e789
           integrated_sha: 4fac7ef6db5a401b468056446323bbc449f0e789
           independent_review: approved_exact_source
-          ci_status: unit_types_review_pass_browser_pending
+          ci_status: focused_ci_pass
+          focused_ci_run: 40785722748
           focused_tests: 185_pass_no_nx_cache
           owner_acceptance: pending
           demo_status: NOT_RUN
@@ -4897,51 +5330,25 @@ parallel_lanes:
     owned_paths:
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-SAVE-INDICATOR-001
-      issue: 569
+      id: TASK-ELECTRONICS-GOVERNANCE-014
+      issue: 929
       branch: main
       base_branch: main
       pr: null
       status: done
-      checkpoint: all_four_owner_save_points_in_main_technical_accepted_STOP
-      kind: repair
+      kind: maintenance
+      checkpoint: accepted_static_split_routes_repaired_114_regressions_PASS
       owner_acceptance: pending
-      programme_issue: 452
-      owner_problem: E01 verify all four approved saving and server-request points
-        together; publish missing truthful indicator only after permitted review
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+        - docs/product/electronics/components/arduino-peripherals.yaml
         - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY transfer preserved569 indicator and compatible tests onto
-        main containing570 and571; verify all four points on one exact candidate.
-        Preserve existing local protection and all suspended work.
-      baseline_sha: 796f52cc8de7ebabf5a18fab3db956cf25170df7
-      preserved_source_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
-      technical_acceptance: accepted_exact_main_general_and_new_independent_review
-      publication_authorization: owner_explicit_all_four_points_in_main;
-        development_publication_only_after_new_independent_functional_verification
-      school_actions: deferred_by_owner_no_installation_actions
-      deployment: not_run
-      database_actions: none
-      next_action: STOP all four approved saving points technically accepted; no next
-        task selected;566 and programme452 remain open; no deployment or owner
-        acceptance
-      accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
-      integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
-      source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
-      independent_review: approved
-      independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
-      independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
-      exact_main_general_run: 38626738375
-      exact_main_general_conclusion: success
-      source_focused_run: 38623487785
-      source_focused_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
-      source_directed_browser_cases: 3
-      point3_verification: PRESERVED_PASS immediate synchronous local draft/readback;
-        held remote reply retains pupil166.7; no new storage repair
-      resolved_acceptance_blocker: ELECTRONICS-569-EXACT-GATES
-      historical_task_snapshots: Preserved unchanged; accepted_slices569570571 records
-        supersede their historical pending/blocked snapshots
+        - docs/product/electronics/evidence/hygiene-baseline.yaml
+      scope: Documentation-only existing Electronics source-route and stale-large-source repair after accepted6e0; no product source, thresholds or foreign-state changes.
+      owner_authorization: Owner asks to repair Electronics errors and publish verified source while preserving foreign changes; current accepted static block split invalidates four routing checks.
+      next_action: STOP; documentation-only baseline repaired. Resume independently checked caption integration and separately selected desktop layout task.
+      routing_result: PASS_30components167cards_114regressiontests_control_plane_require_github_PASS
+      actual_arduino_blocks_bytes: 34881
+      self_review: PASS_documentation_only_all_accepted_product_blobs_and_limits_unchanged
     suspended_slices:
     - task_id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
       accepted_task_snapshot:
@@ -6601,6 +7008,51 @@ parallel_lanes:
       owner_acceptance: pending
       deployment: not_run
     suspended_tasks:
+    - task_id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+      issue: 569
+      task:
+        id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+        issue: 569
+        branch: main
+        base_branch: main
+        pr: null
+        status: done
+        checkpoint: all_four_owner_save_points_in_main_technical_accepted_STOP
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E01 verify all four approved saving and server-request points together; publish missing truthful
+          indicator only after permitted review
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: ONLY transfer preserved569 indicator and compatible tests onto main containing570 and571; verify
+          all four points on one exact candidate. Preserve existing local protection and all suspended work.
+        baseline_sha: 796f52cc8de7ebabf5a18fab3db956cf25170df7
+        preserved_source_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
+        technical_acceptance: accepted_exact_main_general_and_new_independent_review
+        publication_authorization: owner_explicit_all_four_points_in_main; development_publication_only_after_new_independent_functional_verification
+        school_actions: deferred_by_owner_no_installation_actions
+        deployment: not_run
+        database_actions: none
+        next_action: STOP all four approved saving points technically accepted; no next task selected;566 and programme452
+          remain open; no deployment or owner acceptance
+        accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+        integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+        source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+        independent_review: approved
+        independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+        independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
+        exact_main_general_run: 38626738375
+        exact_main_general_conclusion: success
+        source_focused_run: 38623487785
+        source_focused_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+        source_directed_browser_cases: 3
+        point3_verification: PRESERVED_PASS immediate synchronous local draft/readback; held remote reply retains pupil166.7;
+          no new storage repair
+        resolved_acceptance_blocker: ELECTRONICS-569-EXACT-GATES
+        historical_task_snapshots: Preserved unchanged; accepted_slices569570571 records supersede their historical
+          pending/blocked snapshots
     - task_id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
       issue: 466
       status: suspended_owner_direct_field_priority
@@ -7211,21 +7663,47 @@ parallel_lanes:
       - docs/product/games-platform/**
       - docs/product/ASA_CHECKERS_ONLINE_PLAY.md
     task:
-      id: TASK-GAMES-R1-BRIEF-001
+      id: TASK-CHECKERS-NETWORK-001
       issue: 250
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_review
-      checkpoint: r1_delivery_brief_review_ready
+      status: in_progress
+      checkpoint: owner_selected_checkers_chess_parity_vertical
       owner_acceptance: pending
-      normative_refs:
-        - document: GAMES-R1-DELIVERY-BRIEF
-          revision: '1.0'
+      context_hints:
+        - docs/product/games-platform/R1_DELIVERY_BRIEF.md
+      repair_scope: >-
+        Owner explicitly requested Checkers parity with the completed Chess vertical:
+        compact ASA home/board and direct bot/local/network entry; real Russian-64
+        network matches, shared verified game identities and current teacher game/network
+        class/school/platform restrictions including linked personal Accounts; scoped
+        online players with avatars, directed invitations and per-game portal badges,
+        one-shot notification audio, authoritative rules/clocks, reconnect and durable
+        terminal history. Preserve existing lessons, assignments and local/bot play.
+        This owner-selected scope supersedes the old R1 private-invite-only UI limit.
+      next_action: >-
+        Deliver one bounded Checkers parity candidate, reuse existing Games identity,
+        network policy and notification safety mechanisms, add focused real two-user
+        PostgreSQL/Chromium evidence and NEW independent L3 exact-SHA review. Follow
+        normal checked publication to main; no installation or live database actions.
+      exclusions:
+        - Rated play, matchmaking queues, new infrastructure and unrelated cleanup.
+        - Tenant/RLS/Auth weakening or synthetic Games tenant.
+        - Local Docker, working database, deployment, backup or host network changes.
     revisions:
-      convergence_baseline_sha: 47c3fcaa180a673fb938f0509da25ff0f090eadf
-      head_sha: f1a6276a9dd29fc25073209247dc87d9ace0f466
+      kind: observed_snapshot
+      convergence_baseline_sha: 32ae3ad3948b1dd098ac517cb7bb692cec7d98f7
+      head_sha: null
+      observed_at: '2026-11-01T21:05:10Z'
+      main:
+        branch: main
+        sha: 32ae3ad3948b1dd098ac517cb7bb692cec7d98f7
+      observation_note: >-
+        Owner explicitly requested full Chess network and teacher scopes after the local
+        calibration candidate. Main General CI still in progress at selection; no PASS
+        or acceptance inferred. fetch main and exact CI before writes and integration.
     execution_lease:
       executor_id: codex-games-r1
       holder: unassigned
@@ -7234,13 +7712,34 @@ parallel_lanes:
       reviewer_role_requires_lease: false
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Chess R1 Focused
         commands:
-          - pnpm gate:governance
+          - pnpm gate:chess-r1
+      browser:
+        workflow: Chess R1 Focused
+        commands:
+          - pnpm gate:chess-r1:browser
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
+
+    suspended_tasks:
+      - task_id: TASK-GAMES-R1-BRIEF-001
+        reason: Preserve previous Checkers brief selection; owner prioritized the bounded Chess network vertical.
+        task:
+          id: TASK-GAMES-R1-BRIEF-001
+          issue: 250
+          branch: main
+          base_branch: main
+          pr: null
+          pr_draft: false
+          status: in_review
+          checkpoint: r1_delivery_brief_review_ready
+          owner_acceptance: pending
+          normative_refs:
+            - document: GAMES-R1-DELIVERY-BRIEF
+              revision: '1.0'
 
   - id: three-d
     worktree_id: three-d-opt-1-main
@@ -7322,6 +7821,203 @@ parallel_lanes:
       convergence_baseline_sha: 1b4ba64fe7680ab1a22d63c9d3a1433c63deeb66
       head_sha: fc9407e68da4557200b2217585797360d3550c8e
 
+  - id: electronics-late-image-consumer-907
+    parent_lane: electronics
+    worktree_id: electronics-late-image-consumer-907
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-LATE-IMAGE-CONSUMER-907.md
+    execution_coordination: >-
+      All836/525/902 Visual writers stopped. One clean writer changes the proven
+      late-owner-image consumer gap only;905 test validation is disjoint.
+      Preserve foreign workflow WIP, owner assets and every reviewed product blob.
+    task:
+      id: TASK-ELECTRONICS-LATE-IMAGE-CONSUMER-907
+      issue: 907
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: source_integrated_native_catalog_pass_whole_strict_open
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner commissioned full836 browser verification and error repair while
+        preserving newer fixes and foreign work. Repair existing pending failure
+        delivery without extra requests, retry cycles or relaxed assertions.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-LATE-IMAGE-CONSUMER-907.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 2212821f6f3d3f806680764f7708c2620edfcdf9
+      head_sha: null
+      main:
+        branch: main
+        sha: 2212821f6f3d3f806680764f7708c2620edfcdf9
+      observed_at: '2026-11-01T19:13:56Z'
+      observation_note: Selection only; fresh fetch main and exact CI required before writes.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+  - id: electronics-finite-evidence-905
+    parent_lane: electronics
+    worktree_id: electronics-finite-evidence-905
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-FINITE-EVIDENCE-905.md
+    execution_coordination: >-
+      E11 test path is shared;901 and902 writers have stopped with clean trees.
+      Preserve reviewed0d product blobs and every native/geometry/time invariant.
+      Existing foreign workflow WIP is excluded from this test-only scope.
+    task:
+      id: TASK-ELECTRONICS-FINITE-EVIDENCE-905
+      issue: 905
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: maintenance
+      risk: low
+      semantic_change: 'no'
+      checkpoint: source_integrated_owner_boundary_whole_strict_open
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner commissioned full836 browser verification and error repair while
+        preserving newer fixes and foreign work. This separate test-only repair
+        retains every numeric check and all original deadlines and thresholds.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-FINITE-EVIDENCE-905.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 2212821f6f3d3f806680764f7708c2620edfcdf9
+      head_sha: null
+      main:
+        branch: main
+        sha: 2212821f6f3d3f806680764f7708c2620edfcdf9
+      observed_at: '2026-11-01T19:13:56Z'
+      observation_note: Selection only; fresh fetch main and exact CI required before writes.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+  - id: electronics-selection-halo-902
+    parent_lane: electronics
+    worktree_id: electronics-selection-halo-902
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-HALO-902.md
+    execution_coordination: >-
+      ProductionComponentVisual is shared. Writer waits for525 source delivery
+      and STOP, then inherits that candidate; preserve text styles and all main
+      changes. No concurrent Visual edits or foreign WIP changes.
+    task:
+      id: TASK-ELECTRONICS-SELECTION-HALO-902
+      issue: 902
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: proven_geometry_repair_selected_waiting_525_writer_stop
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner commissioned complete836 qualification and error repair while
+        preserving newer changes. This separate dependency fixes proven existing
+        native selection geometry, without waiving pixel or timing assertions.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-HALO-902.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: ee425c3257a397dc4c02bc300ec0c13ee7090ecb
+      head_sha: null
+      main:
+        branch: main
+        sha: ee425c3257a397dc4c02bc300ec0c13ee7090ecb
+      observed_at: '2026-11-01T17:21:36Z'
+      observation_note: Selection only; fresh fetch main and exact CI required before writes.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+  - id: electronics-native-oracle-compat-901
+    parent_lane: electronics
+    worktree_id: electronics-native-oracle-compat-901
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-ORACLE-COMPAT-901.md
+    execution_coordination: >-
+      Test paths remain shared with existing wire and selection lanes. Scope
+      is the bounded card, not exclusive ownership. Both source paths were
+      checked clean in every local worktree before selection. Preserve WIP.
+    task:
+      id: TASK-ELECTRONICS-NATIVE-ORACLE-COMPAT-901
+      issue: 901
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: maintenance
+      risk: low
+      semantic_change: 'no'
+      checkpoint: proven_native_dom_oracle_compatibility_selected
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner explicitly commissioned full browser qualification and repair of836,
+        preserving newer fixes and foreign work. This separate bounded test-only
+        dependency addresses proven existing native oracle mismatches; no waiver
+        of remaining pixel, wire, timing or full browser requirements.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-ORACLE-COMPAT-901.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 78e87e73f4d49d845e4cccd1304b6eda376a967d
+      head_sha: null
+      main:
+        branch: main
+        sha: 78e87e73f4d49d845e4cccd1304b6eda376a967d
+      observed_at: '2026-11-01T16:50:00Z'
+      observation_note: Selection baseline only; fresh fetch main and exact CI are required before writes.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-committed-result-consumers
     parent_lane: electronics
     worktree_id: electronics-committed-result-consumers
@@ -7336,14 +8032,50 @@ parallel_lanes:
       id: TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001
       issue: 836
       branch: main
-      candidate_branch: codex/electronics-committed-result-consumers-20261028
+      candidate_branch: codex/electronics-836-final-qualification-20261101
       base_branch: main
-      pr: 839
+      pr: null
+      historical_source_pr: 839
       status: in_progress
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: piezo_native_pass_shared_ancillary_repair_selected
+      checkpoint: owner_approved_source_integration_full_strict_open
+      prepared_candidate_sha: 6a23c93e9880653c64856f32ea6a1dd92f315c83
+      source_integration_boundary:
+        decision_date: '2026-11-02'
+        authorization: explicit_owner_source_only_remaining_failures_open
+        owner_quote: Перенести проверенный срез №836 в main, остальные сбои оставить открытыми; сервер не трогать
+        reviewed_candidate_sha: 6a23c93e9880653c64856f32ea6a1dd92f315c83
+        main_integration: source_only_owner_approved
+        full_strict_acceptance: NOT_GRANTED
+        issue_closure: NOT_GRANTED
+        deployment: NOT_RUN_NOT_AUTHORIZED
+        evidence: docs/product/electronics/evidence/836-source-integration-20261102/README.md
+      latest_exact_general:
+        source_sha: 6a23c93e9880653c64856f32ea6a1dd92f315c83
+        run: 41345302875
+        conclusion: SUCCESS_all4_jobs
+      latest_exact_native:
+        source_sha: 6a23c93e9880653c64856f32ea6a1dd92f315c83
+        run: 41345471963
+        conclusion: CANCELLED_global50min_not_whole_qualification
+        scheduled_tests: 269
+        completed_tests: 261
+        passed_tests: 236
+        failed_tests: 25
+        uncompleted_tests: 8
+        target_independent_review: TARGET_EVIDENCE_PASS_FULL_GATE_NOT_READY
+        mirror_journeys_complete_and_healthy: 16
+        selection_journeys_complete_and_healthy: 16
+        piezo_three_cases: PASS_native_PCM_noTone_Stop_wholeSaveReopen
+        catalog_missing_image_case: PASS
+        remaining: 20_timing_classroom_4_compact_hit_ownership_1_denied_storage_caption
+      confirmed_prior_timing_failures:
+        source_before: b4c723b30abc5fa8e77b162fc27ccca59c2793f8
+        run_before: 41094573695
+        cases: [no_delay, millis]
+        boundary: Same_input_and_kernel_prior_failure_proven_not_zero_new_performance_impact
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001.md
@@ -7461,132 +8193,171 @@ parallel_lanes:
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     accepted_slices:
-      - task_id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
-        issue: 702
-        pr: 704
-        accepted_candidate_sha: d95f1b75fa8c222aa80dbe5e2ee92f951dba8ff0
-        integrated_sha: 107bbc6b80ae40516b6dd97c0665432143988e07
-        independent_review: approved
-        exact_candidate_focused_run: 40309167638
-        exact_candidate_general_run: 40309167651
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-      - task_id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
-        issue: 713
-        pr: 717
-        accepted_candidate_sha: 68eae0f19b91099a36c89c81820bc06d5425cf16
-        integrated_sha: 7a6558cacd4fe7d4f50517a3e34c10287f698d30
-        independent_review: approved
-        exact_candidate_focused_run: 40316339667
-        exact_candidate_general_run: 40316339889
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-      - task_id: TASK-PROJ-PUBLIC-PAGE-LAYOUT-001
-        issue: 211
-        pr: 780
-        accepted_candidate_sha: 94a969c5f147b984af9eb0fd68f82e4985ce6efe
-        integrated_sha: fbc37240624d4923b31facf747d632bfe04cb6f3
-        independent_review: approved
-        exact_candidate_focused_run: 40326845223
-        exact_candidate_general_run: 40326845387
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-      - task_id: TASK-PROJ-R7-03A-ARTIFACT-ENVELOPE-001
-        issue: 211
-        pr: 781
-        accepted_candidate_sha: cb367606632018b85e8864efd4cf066ae81e9cfc
-        integrated_sha: ceb28cca228fb03f9b0c44a1b1509e7aea32a38c
-        independent_review: approved
-        exact_candidate_focused_run: 40336671237
-        exact_candidate_general_run: 40336671236
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-      - task_id: TASK-PROJ-ELECTRONICS-PUBLIC-VIEWER-001
-        issue: 211
-        pr: 785
-        accepted_candidate_sha: 9f18bcc1d340c4606a0618c5fedddc5ed992ffa7
-        integrated_sha: 28055932d15e38eed4076249547fe09a227d42ca
-        independent_review: approved
-        exact_candidate_focused_run: 40361199752
-        exact_candidate_general_run: 40361199670
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-        evidence: docs/product/projects/evidence/electronics-viewer-20261026-acceptance.md
-      - task_id: TASK-PROJ-SCRATCH-PUBLIC-VIEWER-001
-        issue: 211
-        pr: 814
-        accepted_candidate_sha: 22d0cdcbfdb85166a5aaaec12dc6040a348a5a4d
-        integrated_sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
-        independent_review: approved
-        exact_candidate_focused_run: 40679082270
-        exact_candidate_general_run: 40679082222
-        exact_candidate_public_projects_run: 40679082362
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-        evidence: docs/product/projects/evidence/scratch-viewer-20261028-acceptance.md
-      - task_id: TASK-PROJ-STUDENT-PUBLICATION-POLICY-001
-        issue: 211
-        pr: 826
-        accepted_candidate_sha: 068e48bdc0095c1ae6445a3f08924f3ed4091872
-        integrated_sha: 5638358526d255886380fb52a3f8a1ebbc6d6db4
-        independent_review: approved
-        exact_candidate_focused_run: 40717387188
-        exact_candidate_general_run: 40717386887
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-        evidence: docs/product/projects/evidence/student-policy-20261028-acceptance.md
-      - task_id: TASK-PROJ-ACQUISITION-CONTROLS-001
-        issue: 211
-        pr: 837
-        accepted_candidate_sha: 1d7133f6e7e14769d73c33a6a172fa39dd4b0f21
-        integrated_sha: ab82a608b51fd9f84e6e3611be7b9d79d5953ce2
-        independent_review: approved
-        exact_candidate_focused_run: 40733497724
-        exact_candidate_general_run: 40733497796
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-        evidence: docs/product/projects/evidence/acquisition-controls-20261028-acceptance.md
+    - task_id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
+      issue: 702
+      pr: 704
+      accepted_candidate_sha: d95f1b75fa8c222aa80dbe5e2ee92f951dba8ff0
+      integrated_sha: 107bbc6b80ae40516b6dd97c0665432143988e07
+      independent_review: approved
+      exact_candidate_focused_run: 40309167638
+      exact_candidate_general_run: 40309167651
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+    - task_id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
+      issue: 713
+      pr: 717
+      accepted_candidate_sha: 68eae0f19b91099a36c89c81820bc06d5425cf16
+      integrated_sha: 7a6558cacd4fe7d4f50517a3e34c10287f698d30
+      independent_review: approved
+      exact_candidate_focused_run: 40316339667
+      exact_candidate_general_run: 40316339889
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+    - task_id: TASK-PROJ-PUBLIC-PAGE-LAYOUT-001
+      issue: 211
+      pr: 780
+      accepted_candidate_sha: 94a969c5f147b984af9eb0fd68f82e4985ce6efe
+      integrated_sha: fbc37240624d4923b31facf747d632bfe04cb6f3
+      independent_review: approved
+      exact_candidate_focused_run: 40326845223
+      exact_candidate_general_run: 40326845387
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+    - task_id: TASK-PROJ-R7-03A-ARTIFACT-ENVELOPE-001
+      issue: 211
+      pr: 781
+      accepted_candidate_sha: cb367606632018b85e8864efd4cf066ae81e9cfc
+      integrated_sha: ceb28cca228fb03f9b0c44a1b1509e7aea32a38c
+      independent_review: approved
+      exact_candidate_focused_run: 40336671237
+      exact_candidate_general_run: 40336671236
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+    - task_id: TASK-PROJ-ELECTRONICS-PUBLIC-VIEWER-001
+      issue: 211
+      pr: 785
+      accepted_candidate_sha: 9f18bcc1d340c4606a0618c5fedddc5ed992ffa7
+      integrated_sha: 28055932d15e38eed4076249547fe09a227d42ca
+      independent_review: approved
+      exact_candidate_focused_run: 40361199752
+      exact_candidate_general_run: 40361199670
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/electronics-viewer-20261026-acceptance.md
+    - task_id: TASK-PROJ-SCRATCH-PUBLIC-VIEWER-001
+      issue: 211
+      pr: 814
+      accepted_candidate_sha: 22d0cdcbfdb85166a5aaaec12dc6040a348a5a4d
+      integrated_sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
+      independent_review: approved
+      exact_candidate_focused_run: 40679082270
+      exact_candidate_general_run: 40679082222
+      exact_candidate_public_projects_run: 40679082362
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/scratch-viewer-20261028-acceptance.md
+    - task_id: TASK-PROJ-STUDENT-PUBLICATION-POLICY-001
+      issue: 211
+      pr: 826
+      accepted_candidate_sha: 068e48bdc0095c1ae6445a3f08924f3ed4091872
+      integrated_sha: 5638358526d255886380fb52a3f8a1ebbc6d6db4
+      independent_review: approved
+      exact_candidate_focused_run: 40717387188
+      exact_candidate_general_run: 40717386887
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/student-policy-20261028-acceptance.md
+    - task_id: TASK-PROJ-ACQUISITION-CONTROLS-001
+      issue: 211
+      pr: 837
+      accepted_candidate_sha: 1d7133f6e7e14769d73c33a6a172fa39dd4b0f21
+      integrated_sha: ab82a608b51fd9f84e6e3611be7b9d79d5953ce2
+      independent_review: approved
+      exact_candidate_focused_run: 40733497724
+      exact_candidate_general_run: 40733497796
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/acquisition-controls-20261028-acceptance.md
+    - task_id: TASK-PROJ-PUBLICATION-LIKES-001
+      issue: 211
+      pr: 866
+      accepted_candidate_sha: d90a263acfa43d129eb161971d377b0f46b0f9e7
+      integrated_sha: 388a60ee8dc8bd49a12aaec2bd9f35defd910dda
+      independent_review: approved
+      exact_candidate_focused_run: 41037641744
+      exact_candidate_general_run: 41037641010
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/publication-likes-20261030-acceptance.md
+    - task_id: TASK-PROJ-ELECTRONICS-PUBLIC-PLAYBACK-001
+      issue: 211
+      pr: 875
+      accepted_candidate_sha: 33fa430d64b79fdaa04f6bbe4d35f311823b2bbe
+      integrated_sha: fbdbdaefdda82391eda31640c06b1005538fefcb
+      independent_review: approved
+      exact_candidate_focused_run: 41068782161
+      exact_candidate_general_run: 41068782074
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/electronics-playback-20261030-acceptance.md
+    - task_id: TASK-PROJ-CATALOG-LAYOUT-001
+      issue: 211
+      pr: 880
+      accepted_candidate_sha: 6bd11e64842baaee28ad72a519f5d0b461ca03a8
+      integrated_sha: c729dbf92c97cf01a8753e17d0ee298d9004054b
+      independent_review: approved
+      exact_candidate_focused_run: 41087156379
+      exact_candidate_general_run: 41087156451
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/catalog-layout-20261030-acceptance.md
+    - task_id: TASK-PROJ-PUBLIC-AUTHOR-NAME-001
+      issue: 211
+      pr: 884
+      accepted_candidate_sha: 343235de2bb208926e5920b81a36c82266e44e18
+      integrated_sha: edfbd0057f1a37a473ced5799c6598e8c49aede1
+      independent_review: approved
+      exact_candidate_focused_run: 41095438714
+      exact_candidate_general_run: 41095438423
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/public-author-name-20261030-acceptance.md
     task:
-      id: TASK-PROJ-ACQUISITION-CONTROLS-001
+      id: TASK-PROJ-R7-04A-3D-001
       issue: 211
       branch: main
-      candidate_branch: codex/public-project-acquisition-controls-20261028
       base_branch: main
-      pr: 837
-      pr_draft: false
-      status: done
-      checkpoint: acquisition_controls_accepted_PR837_native_copies_verified
+      status: in_progress
+      checkpoint: owner_requested_3d_public_view_and_on_demand_previews
       kind: implementation
       risk: high
       semantic_change: 'yes'
       owner_acceptance: pending
       owner_authorization: >-
-        Continue the owner-commissioned publication programme after accepted PR826.
-        Owner clarified that download means both adding a personal project copy and
-        physically exporting a file. Global admin OFF overrides every Account/teacher/
-        StudentSeat and direct API. Class/Seat permissions cannot bypass it. Owner
-        approved author consent default OFF including old publications. DEC121 records
-        these decisions. Select one bounded slice: global/author controls and existing
-        native Electronics/3D public-domain copy for Account and allowed StudentSeat,
-        using canonical immutable source and Project writer, with real edit/save/reopen.
-        No second Account, Games, solver, AI, native export or like implementation in
-        this slice. One new author, independent exact Code/Security, real PG/browser
-        focused and General before Main. Controller continues remaining dependencies
-        after acceptance. Final guarded working-site update remains owner-authorized;
-        no working server/database actions in this source-only slice.
+        Owner explicitly requests 3D publication, confirms interactive rotation and zoom,
+        and requests genuine pointer-driven 3D previews in public catalog, Creator Home
+        and My Projects. Reuse canonical geometry without editor mutation services.
+        Public viewers read only the exact immutable published revision; private cards
+        use existing authenticated project reads. On-demand previews retain static
+        fallback and at most one active hover WebGL runtime. Add genuine isolated
+        examples and verify desktop/mobile, resource cleanup and no mutation requests.
+        No production deployment or production database writes.
       context_hints:
-        - docs/product/projects/tasks/PROJ-ACQUISITION-CONTROLS.md
-        - docs/product/projects/DECISION_LEDGER.md
-        - docs/agent/contracts/identity.yaml
-        - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
+      - docs/product/projects/tasks/PROJ-R7-04A-3D.md
+      - docs/product/projects/DECISION_LEDGER.md
+      - docs/agent/contracts/identity.yaml
     integration_dependencies:
       - id: TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001
         issue: 836
@@ -8424,18 +9195,15 @@ parallel_lanes:
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
+      convergence_baseline_sha: a2e380a26abbf10165a914efb609194222bf9c30
       head_sha: null
-      observed_at: '2026-10-28T12:10:13Z'
+      observed_at: '2026-10-30T11:22:26.491925+00:00'
       main:
         branch: main
-        sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
-      observation_note: >-
-        PR814 merged after exact source independent reviews and all required candidate gates.
-        Scratch run40679082270 attempt2 passed all three jobs; attempt1 PowerShell startup
-        timeout was infrastructure D, not bypassed. General40679082222 and Public Projects
-        40679082362 passed. Fetch main before writes. Select only the next audited class/Seat
-        permission and publishing slice; exports/reactions and final deployment are subsequent.
+        sha: a2e380a26abbf10165a914efb609194222bf9c30
+      observation_note: Dated owner selection after accepted likes PR866. Fetch main before writes. Existing Electronics
+        viewer is geometry only; V2 strips runtime/program properties and forces simulation off. Native public playback
+        is not yet implemented or accepted.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
@@ -8458,6 +9226,145 @@ parallel_lanes:
 
   - id: learning
     worktree_id: learning-course-01
+    accepted_slices:
+    - id: LRN-E1-COMPACT-AUTHORING
+      source_pr: 960
+      source_sha: f3e736b9ed52639132908d293f588759e516820a
+      integrated_sha: 3f6ae864746865d263eeaff9b7859f0ae4c5978b
+      integration_parent: 63b68fd7a44ed3bb2aa5d1fced75d8fbae28d3d2
+      status: technical_accepted
+      source_general_run: 41515306462
+      source_learning_run: 41515306629
+      source_account_run: 41515306616
+      source_public_run: 41515306747
+      independent_source_review: approved
+      independent_visual_review: approved
+      browser_cases_passed: 46
+      actual_images_reviewed: 20
+      visual_viewports: [1440, 1024, 390, 320]
+      qa_report_sha256: b5c7e0581353681631b6edb39202042a74d5264a081a13ce66bcd9ab77e6bc42
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/960
+      acceptance_limit: Compact task editor and saved Course journeys only; the four-kind programme continues. All ten source blobs match the reviewed candidate and only those ten paths changed from the actual integration parent.
+      owner_acceptance: pending
+      deployment: not_run
+    - id: LRN-E1-AUTHOR-USAGE-001
+      source_pr: 900
+      source_sha: 64dfb57fe4c37c80524cf039cf74b5e668a6c891
+      integrated_sha: fd7dd9dcc12ea74adb490ad9d435d730e866d4e7
+      status: technical_accepted
+      source_general_run: 41329857361
+      source_learning_run: 41329857282
+      source_account_run: 41329857340
+      source_public_run: 41329857387
+      independent_integration_review: approved
+      browser_cases_passed: 46
+      browser_skips_and_retries: 0
+      viewed_viewports: [1440, 1024, 390, 320]
+      qa_artifact: 13093411674
+      qa_manifest_sha256: 3b934d0962e8aefbf155dd9953222abb744455e58e982e5db478f323d1c92472
+      ci_prerequisite: LRN-E1-CI-RUNNER-001
+      ci_prerequisite_source: c1b9ae464bba403523770b523d3d849eab87db18
+      owner_acceptance: pending
+      deployment: not_run
+    - id: LRN-E1-MIXED-COMPLETION-739-RECOVERY
+      source_pr: 904
+      superseded_pr: 739
+      source_sha: a7cc0c907b6b96408819d38007da10768aaa2263
+      integrated_sha: 2212821f6f3d3f806680764f7708c2620edfcdf9
+      status: technical_accepted
+      source_general_run: 41337764380
+      source_learning_run: 41337764381
+      source_classroom_run: 41337764378
+      source_account_run: 41337764383
+      source_public_run: 41337764385
+      independent_source_review: approved
+      independent_integration_review: approved
+      browser_cases_passed: 46
+      browser_skips_and_retries: 0
+      qa_manifest_sha256: 9a71b19cf5c322ee8e76c85fd6b41793f6202d7fd4d23a09d54b873aab5a1029
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/904#issuecomment-6562511700
+      acceptance_limit: Core completion and authorized academic read-model only; no new visible counters or fresh raster proof of malformed-history completion.
+      owner_acceptance: pending
+      deployment: not_run
+    - id: LRN-E1-AUTHOR-MEDIA-727-RECOVERY
+      source_pr: 906
+      superseded_pr: 727
+      source_sha: 958e3544cceb4533dbad6acfca2abb801e8a1643
+      integrated_sha: 2ac9473a5b2d9aae3774af4aa7bbe951d7bd2de0
+      status: technical_accepted
+      source_general_run: 41341174147
+      source_general_attempt: 2
+      source_learning_run: 41341174153
+      source_account_run: 41341174165
+      source_public_run: 41341174171
+      independent_source_review: approved
+      independent_integration_review: approved
+      browser_cases_passed: 46
+      browser_skips_and_retries: 0
+      viewed_viewports: [1440, 1024, 390, 320]
+      viewed_pngs: 20
+      qa_artifact: 13097862252
+      qa_zip_sha256: d91725c1dc11c41e7757e7d67a88cd58f5e4562ee587ca04b43388199432106d
+      qa_manifest_sha256: 9acc94a2e5dec94c5675f9f2ee5711e1d8c3d3a909ef334e0ebf7d9d69e8a4aa
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/906#issuecomment-6562887648
+      diagnostic_retry: One unchanged-code Data-only retry after unrelated CRM5000ms timeout; same-SHA isolated case369ms and successful retry831ms; no source or timeout changes.
+      acceptance_limit: Inline media preview and truthful error/retry; no successful video/audio playback or separate inline-success/loading raster claim.
+      owner_acceptance: pending
+      deployment: not_run
+    - id: LRN-E1-EXACT-REVIEW-CONTEXT
+      source_pr: 908
+      source_sha: 4f88758e68aee3a37cc04a655fa5618093ff97aa
+      integrated_sha: e30a8d074d7e7128897fd6356c5f5de4e74f074e
+      status: technical_accepted
+      source_general_run: 41345676133
+      source_general_attempt: 1
+      source_learning_run: 41345676017
+      source_account_run: 41345676016
+      source_public_run: 41345676020
+      independent_source_review: approved
+      independent_integration_review: approved
+      browser_cases_passed: 46
+      browser_skips_and_retries: 0
+      controller_unit_cases_passed: 17
+      course_pg_cases_passed: 15
+      qa_manifest_sha256: e20df95577b938576a3f6299c23e1c0be0cde9ded6c5ed8ccb4364715a7bd4d2
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/908#issuecomment-6563588000
+      acceptance_limit: Exact authorized read prerequisite; client mock transport and restricted-PG controller, no new exact-query HTTP or raster claim. Unrelated-learner denials preserve existing stable learner alias semantics.
+      owner_acceptance: pending
+      deployment: not_run
+    - id: LRN-E1-VISIBLE-COURSE-TASK-CREATION
+      source_pr: 943
+      source_sha: c96dea558255c5e55e476a6f83610b2283fd5970
+      integrated_sha: ff27c2cdae7e35c47f39a2af0e415b7d16b2aaf6
+      status: technical_accepted
+      source_general_run: 41491774903
+      source_learning_run: 41491775038
+      source_account_run: 41491774993
+      source_public_run: 41491774907
+      independent_source_review: approved
+      integration_review_sha: dfe1dd504d3db32c66077bba44d18855bb061712
+      browser_cases_passed: 46
+      visual_viewports: [1440, 1024, 390, 320]
+      qa_report_sha256: 7ca839c530fc43e0118ae2928b1460a73b6b8de495d6f996e7346cec637a284d
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/943#issuecomment-6584236017
+      acceptance_limit: Exact inline project authoring and saved lesson; not complete Courses or Quiz. Owner subsequently requires a more compact authoring layout; that is the selected follow-up below.
+      owner_acceptance: pending
+      deployment: not_run
+    - id: LRN-PREVIEW-TELEMETRY-BASELINE-949
+      source_pr: 950
+      issue: 949
+      source_sha: e555f52dc607552bfc83b74dfdcc26ccbaa26f13
+      integrated_sha: dfe1dd504d3db32c66077bba44d18855bb061712
+      status: technical_accepted
+      source_general_run: 41492507572
+      source_learning_run: 41492507642
+      independent_source_review: approved
+      integration_review: approved
+      integration_parent: 553932661d76a57fcc6c4b69d1797c2bf95a9969
+      browser_cases_passed: 46
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/950#issuecomment-6583904170
+      acceptance_limit: Only exact same-origin diagnostics receipt exemption; every academic mutation assertion retained. Other accepted main changes between the two merges preserved; no new-main or installed acceptance inferred.
+      deployment: not_run
     owned_paths:
     - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
     - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
@@ -8524,7 +9431,67 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: design_approved_bounded_courses_main_integration_selected
+      checkpoint: complete_quiz_vertical_with_verified_parent_integration_repairs
+      selected_slice:
+        id: LRN-QUIZ-COMPLETE-COURSE-VERTICAL
+        status: in_progress
+        kind: implementation
+        owner_authorization: Owner renewed the complete compact assignment and Course authoring programme and explicitly authorized verified source integration into main on2026-11-03. Reuse the existing core; deliver visible desktop and phone functionality.
+        scope: One complete Quiz vertical across author question and Quiz drafts, publication and exact Course composition, class delivery, persisted learner player, immutable submission, automatic and manual assessment and the existing journal. All eight normative question types are included.
+        source_inputs:
+        - pr: 966
+          sha: 2d97266087b1cd11d8388cbfe02804e35eb8cb83
+        - pr: 939
+          sha: 4cc9938224a89a4cbfd556fd9b42dada3ca0bd46
+          use: Unfinished design provenance only; never apply its SQL wholesale.
+        expected_write_areas:
+        - Existing Learning authoring, Question bank and Quiz controllers, contracts and compact web editor.
+        - Existing Quiz attempt state, submission, assessment, reminders expiry sweep and canonical journal review.
+        - Additive forward SQL and strict migration-prefix fixtures, focused HTTP, mounted, PostgreSQL and real browser evidence.
+        - docs/product/learning/execution/LRN-QUIZ-COURSE-VERTICAL_EXECUTION_SPEC.md and relevant API/test contracts.
+        acceptance:
+        - Write DB-000 physical schema reuse proof and exact required SQL, constraints, indexes, FK actions and RLS in the execution spec before new physical implementation. No second academic runtime or general core refactor.
+        - Persist incomplete Question and Quiz author drafts and reopen them without fake publication. Publish immutable exact QuestionVersion and QuizVersion pins atomically; author-only draft references cannot enter published content.
+        - Support single_choice, multiple_choice, boolean, numeric, short_text, matching, ordering and long_text_manual through creation, learner interaction and assessment. Keep answer keys private until the pinned feedback policy permits release.
+        - Reuse the same compact assignment creator and Course composition. Native keyboard-accessible controls, compact grouped actions and usable320,390,1024,1440 layouts; no expanded decorative panels.
+        - Preserve existing stable Account and StudentSeat identity, activation, immutable policies, dense attempt ordinals, saved server answers, revision conflicts, replay and server-authoritative deadlines.
+        - Submit the existing attempt idempotently using confirmed answers. Extend the existing bounded lifecycle-managed expiry sweep for auto_submit or expire_without_submission; no duplicate attempts, new timer service or fabricated grades.
+        - Reuse existing five-type grading rules and extend matching and ordering deterministically. Manual pending work cannot produce final selected grades or course completion; teacher review uses the existing ClassroomGradebook seam.
+        - Prove the complete authored Course to class to learner to review and journal journey in isolated actual PostgreSQL and browser runs, plus full required exact-head gates and independent review.
+        dependencies: Essay957 and foundation2d have successful General and Learning workflows and independent source approval. Their final integration candidates Essay045dbcc and foundation2e3e002 are also source-approved; Essay045 has fresh47 browser passes and General governance, code and data success while Access is finishing. Full Quiz inherits both candidates. Integrate these dependencies together with the complete Quiz in one joint candidate after its own final exact-head repository, focused, browser and independent-review evidence; separate parent merges are no longer prerequisites. Do not infer acceptance from inherited receipts alone.
+        integration_strategy: Published publication0303 intersected the provisional private Essay303 after its final convergence. One controlled additional convergence is selected for the joint candidate against actual main01b6cc2fc, preserving all published SQL and foreign product changes. Renumber only private dependency files and update strict current-prefix fixtures, then test the joint result once rather than repeating equivalent parent-only cycles. Do not integrate conflicting parent PRs separately. If another published ordinal intersection invalidates this final convergence, stop integration for an owner integration window instead of chasing main indefinitely; independent development may continue.
+        migration_allocation: Actual published main01b6cc2fc ends at0303_publication_owner_editor.sql. Provisional joint order is Essay304, Quiz policy305, Quiz attempt state306 and complete Quiz307. Verify the actual published frontier before convergence; private claims are not reservations. Preserve every published byte and historical checksum, and attest byte identity of private dependency SQL across renames.
+        constraints: Expected areas are forecasts, not per-file permission leases. Inspect real unfinished overlaps before writing and preserve foreign drafts, especially owner ClassroomPage and related classroom WIP. No learner-file feature, Python runner, tenant or RLS model change, unrelated repair, new dependency or workflow, deployment, owner database or protected assets in this slice. Preserve existing tests, limits, retries and timeouts.
+        programme_next: After accepted Quiz integration complete immutable learner-file answers, then the combined four-kind Course authoring, composition and class journey acceptance. The programme does not end at this slice.
+      pending_validation_slices:
+      - id: LRN-E1-ESSAY-COURSE-VERTICAL
+        source_pr: 964
+        source_sha: 045dbcc1442530fadc962c383e924aaa62e843cd
+        source_review: approved
+        learning_run: 41617317893
+        general_run: 41617317904
+        exact_head_gates: focused_success_repository_access_pending
+        browser_journeys_passed: 47
+        responsive_visuals: 16 images at320,390,1024,1440; exact frozen review and journal accepted.
+        status: joint_candidate_dependency
+        remaining: Preserve the reviewed Essay SQL and UI in the complete Quiz joint candidate; rename its private migration after newly published publication303 and require the joint exact-head evidence. Do not repeat a separate parent-only integration cycle.
+        owner_acceptance: pending
+        deployment: not_run
+      - id: LRN-QUIZ-FOUNDATION-RECOVERY
+        source_pr: 966
+        source_sha: 2e3e00211ee91993331d05a67fed06b6368a1f83
+        source_review: approved
+        learning_run: 41617902701
+        general_run: 41617902840
+        exact_head_gates: pending
+        previous_approved_receipt: Source2d972660 with General41539125989 and Learning41539126101 SUCCESS;47 actual browser cases and114files1240PASS per partition.
+        previous_browser_journeys_passed: 47
+        previous_actual_regression: Source2d each partition114files1240PASS and1diagnosticSKIP; Quiz state13,policy10,HTTP5 pass.
+        status: joint_candidate_dependency
+        remaining: Preserve the independently reviewed foundation SQL and controller blobs in the complete Quiz joint candidate, rename private forward files and require the joint exact-head evidence. No separate parent merge is required.
+        acceptance_limit: Persisted Quiz foundation only; no complete editor, submission, grading or installed readiness claim.
+        owner_acceptance: pending
+        deployment: not_run
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
@@ -8584,14 +9551,18 @@ parallel_lanes:
         revision: '1.0'
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 0a4b50742b6e127320c01ed81060ae8e51c6eabe
+      convergence_baseline_sha: e30a8d074d7e7128897fd6356c5f5de4e74f074e
       head_sha: null
-      observed_at: '2026-09-17T11:25:00+00:00'
+      observed_at: '2026-11-01T20:54:38Z'
       main:
         branch: main
-        sha: 2c26781c83c247863ddb607b2988dceb95905aaf
-      observation_note: Dated main observation before the follow-up specification correction. It is not a live remote HEAD,
-        product candidate, proof of repairs or installed revision; agents must fetch main before writes.
+        sha: e30a8d074d7e7128897fd6356c5f5de4e74f074e
+      observation_note: >-
+        Dated post-PR908 integration observation. Exact4f passed all required
+        workflows attempt1, semantic QA and independent integration review.
+        Main push checks are separate and were running when observed; not PASS.
+        Fresh migration frontier ends0288; candidate0289 requires recheck.
+        Fetch main and exact source checks before new writes.
     execution_lease:
       executor_id: codex-learning-course-01
       holder: unassigned
@@ -9783,38 +10754,39 @@ parallel_lanes:
       base_branch: main
       pr: null
       status: in_progress
-      checkpoint: owner_resumed_preserved_candidate_composition_selected
+      checkpoint: exact_e1_32native_proof_approved_overall86fail_548_acceptance_open
+      proof_sha: e1be12d19f8669c1145020c756551dd2188ed10f
+      proof_run: 41026543811
+      proof_result: Field32of32_raw256files_independentAPPROVE_focused2565tests71freshNx_benchmarkPASS_General41026543011_all4SUCCESS_overallbrowser183pass86fail_notrelease
+      proof_report: docs/product/electronics/evidence/field-boundary-544-proof-20261030/REVIEW.md
       kind: repair
       owner_acceptance: pending
       selected_at: '2026-10-20T17:06:38.290383+00:00'
       owner_instruction: Owner selected issue544 with "займись этим"; resume only this paused field-grab task.
       repair_scope: >-
-        Recompose only proven SVG-root/grid alpha fallback and componentDragDelta artificial-bound removal,
-        preserving accepted main and mobile cue/Header, all foreign hook/Stage changes and priorities.
-        Append the exact preserved field regression block to current interactions prefix; restore mounted
-        workbench-field-drag regression and its single component registration only if absent.
-        Generated digest only when canonical generator requires a changed registered path.
+        Proof only on current main: confirm preserved SVG-root alpha fallback and unbounded finite drag
+        and existing32 native field scenarios. No product repair or repeated BEFORE. Run existing canonical
+        isolated GitHub CI, retain full native whole-document Save/PUT/revision/cookies-only reopen/regrab
+        evidence and fresh independent exact-SHA review. No local stack or workflow/test weakening.
       preserved_candidate_sha: a126dc75620eefb6c6f63b5fc2521b4338829688
       preserved_stage_candidate_sha: 3d1eacfe7c8619dfde8b90d274d133264fd3e6d5
       preserved_product_candidate_sha: 1ee348134b386113e3c341db7f975881250e8147
       preserved_oracle_sha: ebf3622f7572d59b418fc09f302dba460fcf1dd6
       historical_evidence: 32 whole-document native drag/Save/revision/cookies-only reopen journeys passed historically; not current exact-SHA acceptance.
       acceptance_dependency_issue: 548
-      next_action: One bounded author composes preserved hunks on accepted main; short focused checks and new independent exact-SHA review, ordinary source publication and CI in background. No repeated BEFORE or polling.
+      next_action: Bounded current-source proof complete; preserve all32 raw and224PNG plus independent verdict. No unrelated baseline repair or issue544 closure;548 acceptance remains open.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 88d10f34ed4eb2540fb420800940250d6824786a
+      convergence_baseline_sha: 46aab6bc166b706f643b7e2e850f263b84ec1f25
       head_sha: null
       observed_at: '2026-10-20T17:06:38.290383+00:00'
       main:
         branch: main
-        sha: 88d10f34ed4eb2540fb420800940250d6824786a
+        sha: 46aab6bc166b706f643b7e2e850f263b84ec1f25
       observation_note: >-
-        Dated selection only; fetch main and refresh current/dirty paths before writes. General39460089425 failed;
-        Release39461012617 and Scratch documentation39460089400 passed. No new runtime evidence claimed.
-        Existing 554 accepted lane and all historical paused snapshots remain unchanged. Owner resume
-        supersedes the former pause only for issue544. No core/LED/clock/worker/physics/assets/API/persistence,
-        CSS, mobile cue/Header, workflows, infrastructure or package edits. Actual dirty overlap stops writes.
+        Fresh fetch main before writes, clean controller HEAD46aab6 equals origin. General41025135797
+        in_progress not PASS. Source root-or-grid fallback and field regression present; source must be
+        checked by executor before dispatch. Proof-only dependency independent of Arduino cap blocker865.
     execution_lease:
       executor_id: electronics-field-544-resume
       holder: unassigned
@@ -11110,7 +12082,63 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: selected_test_only_finalization_phase_repair
+      checkpoint: product_after_individual_readout_counterreflection_selected
+      verified_complete_before:
+        candidate_sha: b4c723b30abc5fa8e77b162fc27ccca59c2793f8
+        strict_run: 41094573695
+        overall_workflow: CANCELLED_not_full_acceptance
+        independent_actual_review: BEFORE_READY_all16_complete
+        complete_journeys: 16
+        readings: 784
+        expected_glyph_axis_failures: 588
+        endpoint_checks: 1536
+        endpoint_failures: 0
+        successful_puts_with_exact_cas_and_documents: 32
+        trusted_native_deliveries: 496
+        healthy_browser_collectors_cases: 16
+        final_and_reopened_pngs: 32
+        boundary: Same_full_browser_blob_frozen_for_AFTER_no_threshold_or_journey_changes
+      paint_order_oracle_repair:
+        candidate_sha: b4c723b30abc5fa8e77b162fc27ccca59c2793f8
+        source_composition_review: APPROVE_new_independent_exact_five_hunks_and_frozen_dependencies
+        frozen_spec_blob: a3d5830c0b637e165cc60c8a43126e8f2ae8718f
+        frozen_spec_sha256: 09a2dc77dd8a6497c703f1d2cda9f374688e27023746c4fba49b6925170f12e1
+        strict_run: 41094573695
+        strict_result: CANCELLED_global50min_all16_complete_expected_BEFORE_glyph_failures
+        source_before_sha: 3a9b3e1d97c370e650d8a895e488897c2a455d07
+        source_before_run: 41080294495
+        actual_result: CANCELLED_global50min_focused_benchmark_PASS_0of16complete_due_false_DOMorder_after_saved_reopen
+        actual_evidence: All16_saved_reopened_full_docs_equal_32PUT200_CASplus1_no_ledger_errors_784readings588glyph_axis_errors_0window_center_endpoint_errors
+        independent_actual_review: NOT_READY_browser_collectors_final_screenshots_missing_preserve_original_failure_flags
+        selected_oracle: Explicit_fixture_paint_order_bench_supply_source_meter_load_generator_scope_preserve_strict_logical_document_order_elsewhere
+        selected_forensics: Snapshot_existing_both_browser_failure_counts_in_finally_preserve_success_assertions_and_screenshots
+        baseline_composition: reviewed877D_f2f94ad_pure_geometry_move_no_semantic_change
+        boundary: New_actual_complete16_BEFORE_required_before_product_AFTER_no_retrospective_PASS
+      native_observer_slider_repair:
+        source_before_sha: 8ebe3f2b2b6140a2750997d2392ae80aae586009
+        source_before_run: 41061516266
+        source_before_full_browser_blob: 06174a9675a5e670e3798a4adb7e40239a729a3a
+        cause: Ten_observer_addInitScript_after_initial_load_hash_navigation_never_installs_six_slider_centers_intercepted_by_wire
+        author_scope: Existing_test_observer_named_idempotent_initScript_plus_current_evaluate_readiness_and_existing_RECT_helper_generalized_for_two_slider_clicks
+        preservation: All16_full_matrix_full_document_ledger_CAS_finalSave_reopen_context_closures_native_action_counts_deadlines_and_unrelated_spec_bytes_unchanged
+        boundary: No_product_AFTER_before_new_complete16_causal_mirror_only_soft_failure_evidence_and_actual_review
+        preserved_candidate_sha: f33577dc27fc94caa5cf451bcbe957693fcbdb1d
+        source_review: APPROVE_frozen_test_dependency_only_no_complete_repair
+        full_browser_blob: b450bd6d148285008ba226bb688a315f1120eb1a
+        full_browser_sha256: d9c0c74dd49997636aca4decd6c61d0381b4aa649a030b8e094305ece7b0f93c
+        actual_remaining_cause: All9_native_points_blocked_by_wire_segment_hits_in6_verified_pose_reconstructions_need_separate877_dependency
+      resumed_before_qualification:
+        source_sha: 8ebe3f2b2b6140a2750997d2392ae80aae586009
+        source_review: APPROVE_new_independent_exact_source_and_final_composition
+        full_browser_blob: 06174a9675a5e670e3798a4adb7e40239a729a3a
+        full_browser_sha256: 73efacf7f218c9b5d06805c4b23fc088563ae184364f9a42a19b92b247202018
+        dependency: committed_instrument_projection873_integrated_not_mirror_product
+        workflow_run: 41061516266
+        qualification_profile: strict-real-time
+        observed_result: FAIL_browser_0of16_complete_focused_and_benchmark_PASS
+        actual_evidence: docs/product/electronics/evidence/instrument-525-before-41061516266/archive-index.json
+        hard_causes: Ten_original_document_observer_not_installed_checkpoint_dispatch_missing_six_slider_center_intercepted_by_supply_negative_wire
+        boundary: Existing_full16_BEFORE_only_no_product_AFTER_until_complete_and_new_actual_review
       kind: repair
       owner_acceptance: pending
       program_issue: 452
@@ -11118,15 +12146,20 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-INSTRUMENT-MIRROR-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       repair_scope: >-
-        One TEST-ONLY new BEFORE browser matrix for existing525 mirror readability. Source feasibility
-        5f9d07ae independently APPROVED but UNPUBLISHED,not product/runtime acceptance. Do not compose it
-        into BEFORE;leave accepted main product unchanged and preserve every foreign test/helper.
+        Product AFTER for independently qualified complete BEFORE. Counterreflect
+        each readout around its own center, preserving ordinary rotation, windows,
+        controls, values and owner SVGs. Compose reviewed877 native-hit support,
+        prepared836 consumers and901 test compatibility without losing main fixes.
       source_budget:
         expected_write_paths:
-        - e2e/electronics-simulation.spec.ts
-        - docs/product/electronics/generated/component-coverage.json
-        metadata: Canonical generator ONLY generatedFrom.browserEvidenceSha256;every other field/byte unchanged. Nonexistent apps/web/src/electronics/generated path must not be created.
-        forbidden: No production/Visual/presentation-unit/workflow/script/package/dependency/cap/core/hook/LED/assets/foreign edit or timeout workaround.
+          - apps/web/src/electronics/ProductionComponentVisual.tsx
+          - apps/web/src/electronics/production-asset-contracts.ts
+          - apps/web/src/electronics/testing/workbench-presentation.spec.ts
+        dependency_composition:
+          - Reviewed877D native-switch geometry and tests; adapt only necessary Stage integration to current836 leaves.
+          - Frozen b4 full simulation spec and canonical generated browser hash, unchanged BEFORE to AFTER.
+          - Prepared836 source51e4 and independently reviewed901 source2d03, preserving accepted main changes.
+        forbidden: No owner assets, core, clock, solver, API, waveform, package, lockfile, workflow, caps, retries or timeout changes.
       semantic_contract: Preserve ordinary rotation,per-readout own center and window placement,signed actual values/modes,body/terminal/hit/wire
         geometry,interactive controls and complete document. No always-horizontal digits or all-scene transform workaround.
         Existing owner rotation decision remains separate.
@@ -11227,7 +12260,10 @@ parallel_lanes:
         reopen: Cookies-only fresh context/origins and pre-app local-session empty;postload localdraft empty plus exact fixture saved hint,journal before assertions. Full fresh GET/server/rendered equality and no extra write through both closures;complete only after final durable ledger and both contexts closed.
         delivery: Freeze NEW full browser blob BEFORE/AFTER byte-identical;selfreview STOP,NEW exactSHA independent source/finalcomposition review before ONE justified existing strict run. All16complete plus NEWactualreview with causal mirror-only softfail before separate product AFTER. No acceptance/closure/release/deploy.
         evidence: docs/product/electronics/evidence/instrument-525-finalization-repair-selection-20261021.md
-      next_action: Assign ONE bounded TEST-ONLY finalization repair author under finalization_phase_contract;freeze unpublished for NEW independent source review. Do not wait for unrelated679/682 qualification or edit their paths.
+      next_action: >-
+        Assign one bounded product AFTER author; compose reviewed dependencies,
+        preserve frozen b4 full-spec bytes, obtain source/cap evidence and fresh
+        independent review before one combined strict run.
     execution_lease:
       executor_id: electronics-instrument-readouts-525
       holder: unassigned
@@ -13240,7 +14276,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_point2_physical_multiplex_verified_user_helpers_selected
+      checkpoint: mirror525_corrected_before_running_prepared_joint_budget_probe789_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13251,16 +14287,16 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-NPN-REUSE-001
-      consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
-      consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
-      consolidated_pending: [39]
+      current_slice: TASK-ELECTRONICS-BLOCK-MODULO-001
+      consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
+      consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
+      consolidated_pending: []
       consolidated_status_boundary: Sourceverified means scoped source and actualactions proof only, notinstalled owner release or completeCpluspluscompatibility. Point9 fixedbudget prevents oldprototype;38verifiedexistingruntimegeometryderivation andtrue2pinmodel;40/41 lackfullsync or confidentialincidentproof;45deployment explicitlyunauthorized. No globalstop whileindependentwork remains.
       consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: Electrical819andoptical821verified. Helpers824source4c50 independentlyAPPROVED45tests_and_native1and4carry. Full24nativecases1to4_lineartext_helpertext_genuineBlockly_at1440and390_show72counterstates. Canonical2441tests71freshNxallcapsPASS_after_one_classD_asset_timeout_retry; legacy20byteexact_plus5numericmacrobaseline_cases. Performance_NOT_realtime_100to125msmodel_cost1.55to6.62swall; nextdependency_is_bounded_measured_solver_reuse. No wholepoint2_or_arbitraryCplusplus_installed_save_deploy_owneracceptance_claim. PreserveforeignAI_changes.
+      execution_coordination: Regression858integrated7d5f_General40984218563success_all4jobs. NewSPSTdefaultOFF_no_blueglow_ordinaryLEDburst_samefirstfailedDOMframe. Remaining20_point6_859_sourcef741_newindependentAPPROVE379tests_native1440_390_and_old25byteoracle; canonical2489tests71freshNxall8capsPASS. Initial0b79rejected_reservedkeyword_admission_fixed_in_boundedrepair; no_pruned_oracle_or_weakened_contracts. Helpers824_24nativecasesremainaccepted; NPN833slowerexperiment_archivednotactive_performanceremainsopen. Speedslider861_source_fad679_General41003731109_all4SUCCESS_independent382tests4native_and_canonical2550tests71freshNx_allcapsPASS; MixedServo862_source84f65_General41009745129_all4SUCCESS_independent222tests4native_and_canonical2556tests71freshNx_on_one_unchanged_retry; Arduino_check_messages863_source097f2dba_General41016628210_all4SUCCESS_independent108tests16native_and_canonical2565tests71freshNx_one_unchanged_retry; Remainingplan_otheritems_open; no_arbitraryCplusplus_installed_or_owneracceptance_claim. No_server_orforeignchanges.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -14774,6 +15810,1050 @@ parallel_lanes:
       observed_at: '2026-10-28T14:54:00Z'
       observation_note: Main242d401f_published_helpers824; General40710169237_inprogress_notPASS. Independenthelper45tests_native1and4PASS; canonical2441tests71freshNxallcapsPASS. ExistingcacheexcludesNPN_hypothesis_for_measuredlag. Authoroneboundedsolverfile_plusmeaningfultests_androuting_thenSTOP; independentnewreview_required. ForeignProjects_baselinereport_task_and_allforeignfields_preserved. Fresh fetch main is required before integration.
 
+  - id: electronics-switch-burnout
+    parent_lane: electronics
+    worktree_id: electronics-switch-burnout
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SWITCH-BURNOUT-001.md
+    task:
+      id: TASK-ELECTRONICS-SWITCH-BURNOUT-001
+      issue: 858
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: independently_verified_default_off_no_glow_LED_burst_first_failed_frame
+      owner_acceptance: pending
+      execution_role: bounded_visual_defaults_executor_then_independent_review
+      owner_authorization: Owner30OctoberrequestsnewSPSTdefaultOFF_no_weirdOFFshadow_and_restoredtimelyburnouteffect_thencontinueplan. Preservehistoricalstate_trueopen_falseclosed_and_oldprojects. Actualbody_native_result_vs_staleStageoverlayseam; subscribeonlysmalloverlay_noeditorperframerender. No physicalfailurethreshold_clock_solver_or_ownerassetchange.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SWITCH-BURNOUT-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: f2ab693d60fe35824abbba9f48206dfec49eb7e0
+      convergence_baseline_sha: f2ab693d60fe35824abbba9f48206dfec49eb7e0
+      head_sha: null
+      observed_at: '2026-10-30T00:00:00Z'
+      observation_note: Fresh fetch main before edits. General_Account_PublicProjects_Release_exactf2ab_success. Rootclean_sourcepaths_nooverlap; legacyforeignworkflowdiffs_excluded. DefaultSPSTfalseclosed_and_CSSactiveglow_excludesonlySPDT_reproducedsource; nativebodyupdateswhileStageoverlayreadsparentmap. Coordinateactualdirtysourcepathswith836beforeedits_no_seamoverwrite. No server_Docker_DB_refactor_guard_or_capraise.
+    source_review_evidence:
+      source_candidate_sha: 1b0bfd3d5b025ba771c44529c526af854db5ce14
+      evidence_candidate_sha: 2584bcef16468b594ad9e29e85f50f4326ad3a08
+      independent_review: APPROVE_exact_product_28tests_and4nativecases_1440_390
+      canonical_gate: PASS_2443tests_71freshNx_no_cache_after_one_verified_classD_asset_timeout_retry
+      bundles: all8PASS_Editor170581of222000_Arduino1999997of2000000_initial555421of600000
+      report: docs/product/electronics/evidence/switch-burnout-858/README.md
+      integrated_main_sha: 7d5f6d93fb8555a6064e01c89a3e54538aa68911
+      general_ci_run: 40984218563
+      general_ci_conclusion: success_all4jobs_exact_integrated_sha
+
+  - id: electronics-arduino-switch-case
+    parent_lane: electronics
+    worktree_id: electronics-arduino-switch-case
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-SWITCH-001.md
+    task:
+      id: TASK-ELECTRONICS-ARDUINO-SWITCH-001
+      issue: 859
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: repaired_integral_switch_source_verified_new_independent_review_approved
+      owner_acceptance: pending
+      execution_role: new_bounded_runtime_executor_then_new_independent_review
+      owner_authorization: Owner30Octoberexplicitlyrequestsrepair858_thencontinueplan. Remaining20_point6_is_independentnext_language_slice. Real_integral_switchcase_default_fallthrough_breakcontinue_scopes_onceeffects_JSON; preserveoldbytes_and_guards. No arbitraryCplusplus_refactor_or_capraise.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-SWITCH-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: dabcfe06968e7a4d8414a96061a320a85286a898
+      convergence_baseline_sha: dabcfe06968e7a4d8414a96061a320a85286a898
+      head_sha: null
+      observed_at: '2026-10-30T00:00:00Z'
+      observation_note: Fresh fetch main before edits. Main_dabc_General_success_at_integration;858source1b0_independentAPPROVE28tests4native_and_canonical2443tests71freshNxallcapsPASS. Publish858_before_runtime859_mutations. Runtime141778of153189; Arduinoentry1999997of2000000_candidatefirst_buildcaps_before_broadgate. No server_Docker_DB_orforeignchanges.
+    source_review_evidence:
+      rejected_source_candidate_sha: 0b79cc42901fa8cad890509d6f6f12558f1cd7bb
+      first_review_verdict: REQUEST_CHANGES
+      reason: Newly_admitted_invalid_global_identifier_switch_executedGPIO_after_removing_old_keyword_ban
+      allowed_repair: Exact_case_sensitive_switch_identifier_reject_beforeGPIO_and_negative_proof;replace5obsolete_switch_unsupported_fixtures_with_valid_goto_preserving_contracts_and_add_positive_solver_scheduler_witnesses
+      repaired_source_candidate_sha: f74194ea85c6a70214c0cb7848d2e37a5ed1e331
+      evidence_candidate_sha: 0c9050eabc1332735c08fa4cf9f4d10e87a68f15
+      verdict: APPROVE_new_independent_review_exact_repaired_source
+      independent_tests: 379focused_PASS_old25programs1295122bytes_0afe4c1d_byteequal_and_native1440_390_display8_9_0_Serial_qualityPASS
+      canonical_gate: PASS_2489tests_71freshNx_no_cache_after_actual_code_and_obsolete_fixture_repair
+      bundles: all8PASS_Runtime149171of153189_Arduino1999981of2000000_Editor170581of222000_initial555421of600000
+      report: docs/product/electronics/evidence/arduino-switch-859/README.md
+
+  - id: electronics-canvas-annotations
+    parent_lane: electronics
+    worktree_id: electronics-canvas-annotations
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-CANVAS-ANNOTATIONS-001.md
+    task:
+      id: TASK-ELECTRONICS-CANVAS-ANNOTATIONS-001
+      issue: 860
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: independently_verified_schema5_annotations_legacy4_bytes_and_General_success
+      owner_acceptance: pending
+      execution_role: new_bounded_annotation_executor_then_new_independent_review
+      owner_authorization: Ownerexplicitprogrammecontinue_after30October858repair. Source859newindependentAPPROVE379tests_and_canonical2489tests71freshNxallcapsPASS. Choose_independent_remaining20point14_old39_new_canvas_text_not_browserlocalNotesPanel. Preserveoldprojects_and_liveclock; no server_DB_migration_RLS_refactor_or_capraise.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-CANVAS-ANNOTATIONS-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 7d5f6d93fb8555a6064e01c89a3e54538aa68911
+      convergence_baseline_sha: 7d5f6d93fb8555a6064e01c89a3e54538aa68911
+      head_sha: null
+      observed_at: '2026-10-30T00:00:00Z'
+      observation_note: Fresh fetch main before edits. General40984218563_exact7d5f_success_all4jobs. Verified859published0c78_before860mutations. BEFOREedit_dual_sourceinspection_corrected_initial_inventory_schema_assumptions;actualcanonical4_legacy1to3migration_newannotationformat5_not2. Required_normalizeLoadedDocument_and_threeway_merge_equality_candidate_preservation;digestdocumentversion5to4_onlyannotation_semantics_and_workerstructure_omitannotations. PreserveEMPTY4_and_browserlocalNotesPanel;old4clientsreject5. Exact7sourcepaths_checked72worktrees_no_dirty_overlap. No liveDB_server_Docker_orforeignchanges.
+
+    source_review_evidence:
+      rejected_source_candidate_sha: 71574f66cd705dea0f29ae019ecb0e205fba7f3f
+      first_review_verdict: REQUEST_CHANGES_missing_explicit_API_reason_allowlist
+      repaired_source_candidate_sha: f6b3a0a6eec281d2e972ee4ea929b5722089a4d5
+      verdict: APPROVE_new_independent_review_43tests_prior146_and_native1440_390_unchanged
+      canonical_gate: PASS_2517tests_71freshNx_no_cache_all8caps
+      general_ci: SUCCESS_40996527370_exact_f6b3_all4jobs
+      persistence: restricted_PG_5tests_PASS_prepared_unprepared_replay_downgrade_futurebase_and_CASrace
+      legacy_oracle: full13cases19716bytes_SHA256_50feaa528eaf2c655732396f69226ef157bb2bf01e41f1db0b503cc7505bc743_unchanged
+      report: docs/product/electronics/evidence/canvas-annotations-860/GATES.md
+
+  - id: electronics-simulation-speed
+    parent_lane: electronics
+    worktree_id: electronics-simulation-speed
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SIMULATION-SPEED-001.md
+    task:
+      id: TASK-ELECTRONICS-SIMULATION-SPEED-001
+      issue: 861
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: independently_verified_rate_pause_all_profiles_default1_bytes_and_General_success
+      owner_acceptance: pending
+      execution_role: new_bounded_speed_executor_then_new_independent_review
+      owner_authorization: Owner_requested_time_display_slider_0pause_fractional_slowdown_and_1to10_speed_and_explicit_complete_programme_continue. Point14_source_integrated5d086a3a_after_exactf6b3_General40996527370_all4success_independentAPPROVE_and_canonical2517tests71freshNx. No_server_Docker_liveDB_foreignchanges_refactor_or_capraise.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SIMULATION-SPEED-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 5d086a3a870f834c0421e883a6ca70652a672e82
+      convergence_baseline_sha: 5d086a3a870f834c0421e883a6ca70652a672e82
+      head_sha: null
+      observed_at: '2026-10-30T03:50:00Z'
+      observation_note: Fresh fetch main before edits. Source31blobs_exact_approvedf6b3_Main5d086_General_inprogress_not_inferredPASS. Readonly_design_refinement_completed. Preserve_current1path_bytes_and_all_clock_profiles. Author_records_preedit_oracle_before_source_mutation_and_candidate_caps_before_broadgate. Server_unchanged.
+
+    source_review_evidence:
+      rejected_source_candidate_sha: 3ebf0e16249e9a5c8c17e504e8179bfb6ba7b76d
+      first_review_verdict: REQUEST_CHANGES_obsolete_exact_clock_JSX_assertion
+      repaired_source_candidate_sha: fad679d57e803a38ac3a57e4abb9a6d0c926e137
+      verdict: APPROVE_new_independent_review_382tests_and_4fresh_native_journeys
+      canonical_gate: PASS_2550tests_71freshNx_no_cache_all8caps
+      general_ci: SUCCESS_41003731109_exact_fad679_all4jobs
+      native: desktop_mobile_pause_rates_inputonce_Serial_Reset_StopRun_and_lateoldresponse_dismissal_PASS
+      legacy_oracles: full144673bytes_b98bfe1f_and_controller36314bytes_a78deca9_BYTEquality_default1
+      independent_baseline_defect: Issue862_mixedServo_observation_missing_angle_preserved_not_repaired
+      report: docs/product/electronics/evidence/simulation-speed-861/GATES.md
+
+  - id: electronics-mixed-servo-observation
+    parent_lane: electronics
+    worktree_id: electronics-mixed-servo-observation
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-MIXED-SERVO-OBSERVATION-001.md
+    task:
+      id: TASK-ELECTRONICS-MIXED-SERVO-OBSERVATION-001
+      issue: 862
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: independently_verified_five_boundary_pose_forwarding_and_General_success
+      owner_acceptance: pending
+      execution_role: new_bounded_solver_executor_then_new_independent_review
+      owner_authorization: Ownercompleteprogramme_and_urgent_realServo_and_mixedcircuit_requirement. Speed861_source_integrateda43a4da3_after_fad679_General41003731109_all4success_independent382tests4native_and_canonical2550tests71freshNx. Separatebaseline862_proven_old9821_byteidentical_replay; decodecorrect_observationmissingangle. Onlyfiveoptionboundaries_no_equation_scheduler_UI_refactor_or_capraise. No_server_liveDB_Docker_foreignchanges.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-MIXED-SERVO-OBSERVATION-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: a43a4da3276f7497f64db7f2b8d6e1695c5dd524
+      convergence_baseline_sha: a43a4da3276f7497f64db7f2b8d6e1695c5dd524
+      head_sha: null
+      observed_at: '2026-10-30T05:05:00Z'
+      observation_note: Fresh fetch main before edits. Exact18sourceblobs_match_approvedfad679; maina43General41006367071_inprogress_notPASSclaim. Kernelunchanged9821_diagnostic. Cause_five_stepOption_constructions_lose_servoRuntimeStateById_while_preservingHC_SR04_Ping; maponlyread_for_angleprojection. Newauthorpublishes_before_fullmixed_and_legacyoracles_then_candidatecapsfirst_Arduino1999981of2000000. Preserveallunique_work_and_ownerassets.
+
+    source_review_evidence:
+      source_candidate_sha: 84f65b41bf58bf3506e15e41e3ee4b6459b905b2
+      verdict: APPROVE_new_independent_review_222tests_4fresh_native_and_fulloracle_reproduction
+      canonical_gate: PASS_2556tests_71freshNx_no_cache_all8caps_one_unchanged_retry
+      initial_gate_failure: existing_ownership_budget1_timeout5031ms_D_timing_variance_supported_isolated3281ms_fullretry3202ms_no_source_or_timeout_edits
+      general_ci: SUCCESS_41009745129_exact84f65_all4jobs
+      intentional_delta: only5knownServo_pose_metadata_fields_match_actual_decoder_90_90_135_45_45
+      legacy_oracles: full5legacy_cases_and_actual_physical_DCServo_BYTEquality
+      numerical_invariants: All other state, actions, Serial and measurements are unchanged; maximum KCL residual 6.4e-11 A.
+      report: docs/product/electronics/evidence/mixed-servo-862/GATES.md
+
+  - id: electronics-arduino-check-messages
+    parent_lane: electronics
+    worktree_id: electronics-arduino-check-messages
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-CHECK-MESSAGES-001.md
+    task:
+      id: TASK-ELECTRONICS-ARDUINO-CHECK-MESSAGES-001
+      issue: 863
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: implementation
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: independently_verified_copy_only_notes_and_blockers_General_success
+      owner_acceptance: pending
+      execution_role: new_bounded_message_executor_then_new_independent_review
+      owner_authorization: Ownerexplicitclear_non_educational_command_help_and_completeprogramme_easiest_first. Rootpoint7readonlyinventoryfoundno_autodelay_policy_and_realoldprojectcompatibility_issue; foundsmallerstale_checkProgram_model_limits_phrase. Onlycopy_and_presentation_no_support_reclassification_or_runtimefeatures. Source862integrated858ec30d_after84f65General41009745129_all4SUCCESS_independent222tests4native_canonical2556tests71freshNx_one_unchanged_retry. No_server_foreignchanges_refactor_or_capraise.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-CHECK-MESSAGES-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 858ec30d9ed8eb9b4648e1b68141a115a21ba45d
+      convergence_baseline_sha: 858ec30d9ed8eb9b4648e1b68141a115a21ba45d
+      head_sha: null
+      observed_at: '2026-10-30T06:33:07Z'
+      observation_note: Fresh fetch main before edits. Rootcleanexceptownnewcard_and_catalogue_speed21_stale_status_correction. Main858General41012801030_inprogress_notPASSclaim; 5kernel_sourceblobs_match_approved84f65_all4GeneralSUCCESS. Point7inventoryreadonlycomplete_no_new_policy_or_code_started. Newauthorrecords_before_diagnostics_structures_then_copyonly_preserve_status_codes_ranges_and_execution; actualrawcapsfirst_Arduino1999981of2000000. No oldCI_task_resume.
+
+    source_review_evidence:
+      source_candidate_sha: 097f2dba6b376130244c3fbbb3bdc1f65520dc6a
+      verdict: APPROVED_new_independent_review_108tests_16fresh_native_cases
+      source_invariance: 2production_files_58public_copy_leaves_only_all_noncopy_AST_identical
+      behavior_invariance: all_status_codes_severities_ranges_admission_runtime_generated_downloaded_and_savedsource_unchanged
+      canonical_gate: PASS_2565tests_71freshNx_no_cache_all8caps_one_unchanged_retry
+      initial_gate_failure: existing697asset_hash_timeout10262ms_limit5000_isolated139ms_fullretry313ms_allassets_bytes_unchanged_Dvariance_supported_no_test_timeout_edits
+      general_ci: SUCCESS_41016628210_exact097f2dba_all4jobs
+      frozen_manifest: 49GitLF_hashes_and_blobs_verified
+      report: docs/product/electronics/evidence/arduino-check-863/GATES.md
+
+  - id: electronics-block-auto-wait
+    parent_lane: electronics
+    worktree_id: electronics-block-auto-wait
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-AUTO-WAIT-001.md
+    task:
+      id: TASK-ELECTRONICS-BLOCK-AUTO-WAIT-001
+      issue: 864
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: before8fd7f251_proved_legacy_overwrite_dependency865_before_product_edits
+      prerequisite: TASK-ELECTRONICS-BLOCK-MOUNT-PRESERVATION-001
+      before_sha: 8fd7f251233c359d77935f556197807991d476c8
+      owner_acceptance: pending
+      execution_role: new_bounded_codegen_executor_then_new_independent_review
+      owner_authorization: Owner30Octoberexplicitasyncanswer_10ms_newprojects_recommended_to_question_aboutgeneratedCpp_repeatbody_without_userwait_and_oldprojects_unchanged_until_explicit_enable. Completeprogrammecontinue. Source863integrateddc2e1fc8_after097General41016628210_all4SUCCESS_independent108tests16native_canonical2565tests71freshNx_one_unchanged_retry. No hidden_workerwait_or_silentlegacy_retiming_no_refactor_capraise_server_foreignchanges.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-AUTO-WAIT-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: dc2e1fc8acef5f7c2b1985d0c139d824e20a72a1
+      convergence_baseline_sha: dc2e1fc8acef5f7c2b1985d0c139d824e20a72a1
+      head_sha: null
+      observed_at: '2026-10-30T07:44:56Z'
+      observation_note: Fresh fetch main before edits. All49frozen863blobs_match097_all4GeneralSUCCESS; maindc2General41019911586_inprogress_notinferredPASS. Point7readonlyinventoryactual_generator_verbatim_no_autodelay_existingworkspace_publish_onmount_oldprojects_risk. No_duration_invention_owner_now_approved10ms. Newauthorreportsconcrete_compatibility_provenance_and_nested_body_plan_before_source_mutation; beforeproof_and_capsfirst_Arduino1999925of2000000. StandaloneScratch_not_this_scope.
+
+  - id: electronics-block-mount-preservation
+    parent_lane: electronics
+    worktree_id: electronics-block-mount-preservation
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-MOUNT-PRESERVATION-001.md
+    task:
+      id: TASK-ELECTRONICS-BLOCK-MOUNT-PRESERVATION-001
+      issue: 865
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: completion_e4d_verified_2576tests71fresh_caps8_native_ready_held_for877
+      completion_candidate_sha: e4d3712d1db47aeb762bc9401781257bd4b66ad0
+      completion_review: APPROVE_new_independent_exact_source_native_and_canonical
+      completion_canonical: PASS_2576tests_71freshNx_cacheSkipped_all8caps_Arduino1999233
+      completion_native: Original16fixtures_and_source_bytes_exact_six_noedit_mounts_and_genuine_edit_export_reopen_adapter_both_widths_PASS
+      completion_publication: source_candidate_pushed_not_integrated_pending_primary877
+      completion_resume:
+        checkpoint: selected_recompose_preserved_candidate_after_approved_resize876
+        measured_reference_arduino_bytes: 1998988
+        fixed_arduino_cap_bytes: 2000000
+        reference_source: accepted876_exact84e4acc1_and_877_finalbuild_sameArduino
+        owner_authorization: Prior_finish_all_prepared_request_and_new_explicit_refactoring_876_supersede_budget_deferral_only
+        scope: Existing_saved_workspace_reader_and_loading_event_fix_only_no_waits_no_runtime
+        integration_order: Candidate_only_while877_strict_pending_controller_integrates_after_primary_dependency_qualification
+      candidate_sha: 46d388c04c876546dccf1427b7758e34792d901e
+      candidate_publication: published
+      candidate_acceptance: blocked
+      owner_cleanup_decision: Owner_explicitly_keep_candidate_continue_others_no_Arduino_cleanup_2026_10_30
+      size_evidence: Arduino2000170of2000000_other7capsPASS_reader13PASS_nativeAFTER_canonical_independentreview_NOT_RUN
+      report: reports/arduino-block-mount-865/README.md
+      owner_acceptance: pending
+      execution_role: bounded_executor_then_new_independent_review
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-MOUNT-PRESERVATION-001.md
+      owner_authorization: Owner continues complete programme easiest first; confirmed saved-work preservation defect is prerequisite to approved new-project10ms policy864. No automatic wait implementation in865.
+      before_sha: 8fd7f251233c359d77935f556197807991d476c8
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: e323f35c6e287c97e4bd40d1e768f3eeb4c6db05
+      convergence_baseline_sha: e323f35c6e287c97e4bd40d1e768f3eeb4c6db05
+      head_sha: null
+      observed_at: '2026-10-30T08:13:33Z'
+      observation_note: Fresh fetch main before edits; remote main equals clean controller HEAD. General in_progress not claimed PASS. BEFORE16fixtures6actualmounts all overwrite old source and XML; product unchanged. Repair selected before864.
+
+  - id: electronics-realtime-compute-cause
+    parent_lane: electronics
+    worktree_id: electronics-realtime-compute-cause
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-WORKER-WORK-QUANTUM-001.md
+    previous_task:
+      id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
+      issue: 539
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: analysis/inventory
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: short_actual_replay_complete_interpreter_and_host_yield_measured
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001.md
+      scope: Read-only short TEMP-only replay and CPU attribution of exact saved no-delay and independent-millis requests; no product/test/clock/solver edits or runtime acceptance.
+      owner_authorization: Owner requests fixing25 remaining Electronics failures easiest first plus completing8 unfinished; prepare measured timing cause while independently reviewed caption waits for isolated CI.
+      preservation: Keep selected682 private harness and all foreign work unchanged; no server, Docker, live DB, new dependencies, full-suite rerun or thresholds change.
+      next_action: STOP; read-only evidence complete, no runtime repair authorized by this card. Select a separate bounded product repair after simple desktop packing.
+      analysis_report: docs/product/electronics/evidence/realtime-compute-cause-20261102/REPORT.md
+      analysis_result: 16complete_states_equal_saved_originals_and_complete_response_repeats_equal_except_computeMs_owned_and_prepared_paths_active
+      measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
+
+    task:
+      id: TASK-ELECTRONICS-WORKER-WORK-QUANTUM-001
+      issue: 539
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: supported_worker_quantum_1024_experiment_selected
+      owner_acceptance: pending
+      owner_authorization: Owner explicitly resumes remaining plan and20 timing speed delay failures; one supported Worker cooperative quantum1024 experiment with complete parity and native responsiveness gates; public defaults/range and every per-step model guard remain unchanged. No unsafe trust cache. No yield replacement, clock change, cap increase, server or foreign changes.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-WORKER-WORK-QUANTUM-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+      previous_experiment:
+        task_id: TASK-ELECTRONICS-INTERPRETER-HOT-LOOP-001
+        status: completed_negative_no_product_activation
+        candidate_sha: 5943e737dc6338f6beb9311c5c87122ce1bd28da
+        independent_review: APPROVE_negative_evidence_only
+        result: Full320responses_equal_but_no_speed_gain_2145.70ms_before_2178.20ms_after_zero_timing_failures_closed
+        report: docs/product/electronics/evidence/interpreter-arity-20261103/REPORT.md
+      queue_copy_experiment:
+        task_id: TASK-ELECTRONICS-EVENT-QUEUE-COPY-001
+        status: completed_negative_no_product_activation
+        candidate_sha: 00ddd883a5f8f92996c7b786067d051231b124a4
+        independent_review: APPROVE_negative_evidence_only
+        result: Full320responses_equal_but_no_consistent_gain_median13.45ms_before_14.90ms_after_zero_timing_failures_closed
+        report: docs/product/electronics/evidence/event-queue-copy-20261103/REPORT.md
+      production_profile:
+        candidate_sha: 5bc1ac413e4c6f66c3128b306a8350a046907864
+        independent_review: APPROVE_diagnostic_evidence_only
+        report: docs/product/electronics/evidence/production-cpu-20261103/REPORT.md
+        result: NativeWorker160fullresponses_equal_6826samples_guard228.049ms_self_zero_timing_failures_closed
+      rejected_batch_design:
+        task_id: TASK-ELECTRONICS-SYNC-BATCH-GUARDS-001
+        result: NOT_SAFE_WITHIN_SELECTED_PATH_SET_no_source_edits_no_timing_failures_closed
+        independent_review: REJECT_before_product_edits
+        report: docs/product/electronics/evidence/sync-batch-guards-20261103/REPORT.md
+      next_scan_experiment:
+        candidate_sha: c88f07e4b9a0cc53d1d817226ea78bb1428d0a9e
+        independent_review: APPROVE_negative_evidence_only
+        result: Full320responses_equal_but_no_gain_compute4.30percent_slower_zero_timing_failures_closed
+        report: docs/product/electronics/evidence/next-event-scan-20261103/REPORT.md
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: eacb9fa9a1e6bfacd22d10c16ae017a5d551ef6f
+      head_sha: null
+      main:
+        branch: main
+        sha: eacb9fa9a1e6bfacd22d10c16ae017a5d551ef6f
+      observed_at: '2026-11-01T22:29:00Z'
+      observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Read-only cause measurement selected separately; caption candidate waits for original browser and General evidence; no runtime source authorization.
+
+  - id: electronics-compact-toolbar-hit
+    parent_lane: electronics
+    worktree_id: electronics-compact-toolbar-hit
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-COMPACT-CONTROLS-001.md
+    task:
+      id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
+      issue: 532
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: source_f641_four_native_journeys_and_general_verified_in_main
+      accepted_candidate_sha: f64141870b52458ad19b82b51582c47cb14460ea
+      independent_review: APPROVE_final_source_and_four_selected_actual_journeys
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
+      browser_run: 41525333022
+      general_run: 41527917133
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-COMPACT-CONTROLS-001.md
+      repair_scope: CSS-only desktop toolbar packing and strengthened existing native oracle; preserve all original four Code journeys and all mobile/emergency-caption behavior.
+      owner_authorization: Repair remaining Electronics failures easiest first; no server or foreign changes. Desktop-only authorship starts after this selection is published; inherit independently reviewed8080 caption source while its separate General finishes, without concurrent edits to the mobile caption.
+      next_action: The original four desktop/blocks Code journeys pass with87 selected compact phases, complete captions, native hit ownership and whole intent receipts. Mobile emergency E01 also passes. Broader fifth text-mobile qualification remains in Task870; owner acceptance and deployment are separate.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 6d5c2e9c68e8c1b3f2284455b3d5458043b723ed
+      head_sha: null
+      main:
+        branch: main
+        sha: 6d5c2e9c68e8c1b3f2284455b3d5458043b723ed
+      observed_at: '2026-11-01T22:45:00Z'
+      observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Desktop-only author may inherit reviewed8080 caption while its independent General finishes; mobile caption and runtime remain unchanged. No server or foreign code scope.
+
+  - id: electronics-host-yield-diagnosis
+    parent_lane: electronics
+    worktree_id: electronics-host-yield-diagnosis
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001.md
+    task:
+      id: TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001
+      issue: 934
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: analysis/inventory
+      risk: high
+      semantic_change: 'no'
+      checkpoint: canonical_vite_probe_reviewed_yields_not_material_no_runtime_change
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001.md
+      scope: TEMP-only real Chromium Worker measurement on frozen actual no-delay and millis requests; compare unchanged baseline, timer instrumentation and experimental MessageChannel yield. No repository runtime edits or acceptance.
+      owner_authorization: Owner requests fixing remaining20 Electronics timing failures after simple toolbar fixes; measure independent Worker cause while reviewed desktop candidate waits for CI.
+      next_action: Diagnostic complete with independent DIAGNOSTIC_PASS_WITH_LIMITS. Resume existing application failure evidence before separately selecting a bounded runtime repair; no scheduler replacement or additional profiling is justified by this probe.
+      corrected_probe_evidence: docs/product/electronics/evidence/host-yield-diagnosis-934-20261102/review-receipt.json
+      corrected_probe_result: Canonical Vite ES Worker54sourceModules18artifacts verified;48completeResponsesAndSavedStatesEqual;nativeWait0to1_10msPerRequest_not_material;zeroTimingFailuresClosed_no_runtime_acceptance
+      initial_probe_result: 48complete_responses_and_saved_states_match_cancellation8_7ms_no_stale300ms_but_44ignored_dist_modules901168bytes_and_unminified_IIFE_keepNames_make_production_perf_INCONCLUSIVE
+      initial_probe_evidence: OS_temp_asa_browser_yield_138859ec_report_receipt_manifest_independently_verified118files291source_entries
+      correction_boundary: Exactly one repeat for demonstrated build/provenance mismatch; no changed inputs, budgets, physical timing, deadlines or broader workload.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 60264f69e9abdfe97111bd4ec4e447c7a9cbd9a4
+      head_sha: null
+      main:
+        branch: main
+        sha: 60264f69e9abdfe97111bd4ec4e447c7a9cbd9a4
+      observed_at: '2026-11-02T00:20:23Z'
+      observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Browser measurement grants no repository runtime mutation, realtime acceptance or deployment.
+
+  - id: electronics-mobile-properties
+    parent_lane: electronics
+    worktree_id: electronics-mobile-properties
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-PROPERTIES-001.md
+      - apps/web/src/electronics/mobile-inspector-disclosure.tsx
+    task:
+      id: TASK-ELECTRONICS-MOBILE-PROPERTIES-001
+      issue: 952
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: repair
+      risk: medium
+      semantic_change: 'yes'
+      checkpoint: source_b77_general_and_three_native_journeys_verified_in_main
+      accepted_candidate_sha: b77a43e0d473cef72bf182b0700f19867f6dbdaa
+      independent_review: APPROVE_final_source_recipe_and_actual_three
+      report: docs/product/electronics/evidence/mobile-properties-952-20261103/REPORT.md
+      browser_run: 41539218485
+      general_run: 41542126607
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-PROPERTIES-001.md
+      scope: Phone component properties collapsed square by default, compact expandable inspector, original property editing and native pinch preserved; hide phone zoom buttons. Desktop remains expanded. No physics or deployment changes.
+      owner_authorization: Owner explicitly requests restoring phone component properties, compact collapse/expand, desktop immediate display and removal of phone zoom controls on2026-11-02.
+      next_action: Exact sourceb77a43e0 General41542126607 passes all four jobs; native three-case41539218485 and independent review pass complete phone390, phone568 and desktop1536 journeys, Save/server-only reopen, touch scaling and metadata preservation. Controller integrates the seven bounded source files without regressing the newer pin-settings journey in main. Physical OS-keyboard and settled partial-code interaction remain evidence limits; owner acceptance and deployment are separate.
+      integration_order: Source preparation only in independent worktree; main integration follows verified944 pin initialization.
+    gates:
+      focused:
+        workflow: Electronics M1 Focused Gate
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: dfe1dd504d3db32c66077bba44d18855bb061712
+      head_sha: null
+      main:
+        branch: main
+        sha: dfe1dd504d3db32c66077bba44d18855bb061712
+      observed_at: '2026-11-02T18:45:06Z'
+      observation_note: Observed snapshot only; fresh fetch main and inspect exact-SHA CI before new edits. General41500859121 was in_progress, not PASS. No source integration or deployment acceptance granted.
+
+  - id: electronics-block-pin-setup
+    parent_lane: electronics
+    worktree_id: electronics-block-pin-setup
+    owned_paths:
+      - apps/web/src/electronics/arduino-blocks.ts
+      - apps/web/src/electronics/arduino-output-pins.ts
+      - apps/web/src/electronics/testing/arduino-pin-inputs.spec.ts
+      - apps/web/src/electronics/testing/arduino-output-pins.spec.ts
+      - apps/web/src/electronics/arduino-program-state.ts
+      - apps/web/src/electronics/testing/arduino-program-state.spec.ts
+      - apps/web/src/electronics/testing/arduino-inactive-blocks.spec.ts
+      - e2e/electronics-block-pin-setup.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PIN-SETUP-001.md
+    task:
+      id: TASK-ELECTRONICS-BLOCK-PIN-SETUP-001
+      issue: 944
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: source_f641_general_and_seven_browser_verified_in_main
+      accepted_candidate_sha: f64141870b52458ad19b82b51582c47cb14460ea
+      independent_review: APPROVE_final_source_and_actual_seven
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
+      browser_run: 41525333022
+      general_run: 41527917133
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PIN-SETUP-001.md
+      scope: Generated explicit pinMode in setup, simplified computed commands and legacy preservation. Owner explicitly chooses all canonical GPIO as OUTPUT except button/sensor input ports; no whole-program range analysis. Owner also approves a persisted per-board input-port list in Arduino settings for computed input numbers.
+      owner_authorization: Owner urgently requests computed pin initialization repair for public project7ad29bb5 on2026-11-02, then explicitly instructs configuring all ports as outputs except ports assigned as inputs for buttons. Owner subsequently approves an explicit input-port list in Arduino settings. No server or foreign changes.
+      next_action: Verified source is integrated by the controller with original five scoped journeys and both owner settings journeys green. Owner acceptance and deployment remain separate; default-height mobile Reset and broader raw/empty/corrupt Task865 preservation are still open.
+    gates:
+      focused:
+        workflow: Electronics M1 Focused Gate
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: eb696b485daf7b80376aa8bb7949eea83628c8b6
+      head_sha: null
+      main:
+        branch: main
+        sha: eb696b485daf7b80376aa8bb7949eea83628c8b6
+      observed_at: '2026-11-02T16:52:27Z'
+      observation_note: Observed snapshot only, not live status; fresh fetch main and inspect exact-SHA CI before new edits. No deployment or acceptance granted.
+
+  - id: electronics-emergency-toolbar
+    parent_lane: electronics
+    worktree_id: electronics-emergency-toolbar
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-EMERGENCY-TOOLBAR-001.md
+    task:
+      id: TASK-ELECTRONICS-EMERGENCY-TOOLBAR-001
+      issue: 868
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: repair
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: caption_fixed_original_E01_and8_placement_pass_source_integrated
+      accepted_candidate_sha: a94eba7bf3bf8c4623184996c022f907d0972509
+      integrated_sha: 62ca03bb55f82539286ebff35705ccf76b33c11b
+      composition_review: APPROVE_169candidate_and29foreign_blobs_preserved
+      composition_gate: exact62ca_2565tests71freshNx_all8capsPASS_initialgraph555957
+      final_review_result: APPROVE_432native_states2928actions_all163manifest_entries
+      final_gate: canonical2565tests71freshNx_all8capsPASS_editor187859_Arduino1999925
+      general_ci_run: 41038088189
+      general_ci_observed: SUCCESS_all_four_jobs_exact_a94
+      source_publication: verified_candidate_main_source_not_release_or_owner_acceptance
+      source_review_evidence: done
+      final_report: docs/product/electronics/evidence/emergency-toolbar-868/GATES.md
+      rejected_r1_candidate_sha: 485112b50f45af24febcad11ab318f6549e24018
+      r1_review_result: REQUEST_CHANGES_100h_toolstrip41_844_and768_clock48_outside_toolbar47
+      r1_gate: canonical2565tests71freshNx_all8capsPASS_no_integration
+      rejected_candidate_sha: 66146712f2ea9f099f5109b49153948a72b5a286
+      initial_rejected_review_result: REQUEST_CHANGES_actual_pausing320_toolstrip16_516_below44
+      candidate_gate: canonical2565tests71freshNx_all8capsPASS_no_integration
+      repair_scope: Restore truthful visible emergency-copy caption in native toolbar across all original E01 widths and states; CSS only unless a proved cause requires separately selected scope.
+      current_owner_request: Repair remaining25 Electronics failures easiest first and complete8 unfinished cases; publish verified slices to main without server or foreign changes.
+      current_slice_baseline: 2a28f40dcd048fac1ce303bd207699c64199b041
+      current_slice_evidence: Strict41345471963 E01 denied-local-storage fails captionVisible after emergency JSON equality passed; actual CSS sets emergency button font-size0 and inserts JSON pseudo-label.
+      current_slice_next_action: STOP; caption source reviewed and tested. Continue separately selected desktop packing slice; remaining20 timing failures require separately selected cause-based repair.
+      caption_source_sha: 8080c1e4343e41be1ea13ab9eababc7c011df117
+      caption_general_run: 41357921928
+      caption_general_conclusion: SUCCESS_all_four_jobs_exact8080
+      caption_actual_run: 41356571160
+      caption_actual_conclusion: original_E01_and_exact8_unfinished_9PASS_retry0_ACTUAL_TARGET_PASS
+      caption_native: author432_states2928_actions_independent30_states228_actions_both_production_stylesheets
+      caption_report: docs/product/electronics/evidence/emergency-caption-868-20261102/README.md
+      programme_remaining: Four desktop toolbar hit failures and20 timing failures remain open; all8 formerly unfinished placement cases now completed and independently verified PASS.
+      owner_acceptance: pending
+      execution_role: bounded_css_executor_then_fresh_independent_review
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-EMERGENCY-TOOLBAR-001.md
+      owner_authorization: Owner continues programme easiest first no refactor/server/foreign changes. Fresh isolatedCI proves Save offscreen320 with emergency copy; truthful durability checks passed. Responsive geometry only.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 976c5658cd1a3c103111c7a80a42cbd21a1c35e0
+      convergence_baseline_sha: 976c5658cd1a3c103111c7a80a42cbd21a1c35e0
+      head_sha: null
+      observed_at: '2026-10-30T09:12:21Z'
+      observation_note: Fresh fetch main before edits; only foreignAI metadata since exact e1 proof, preserved by fast-forward. Exact e1 General all4SUCCESS, focusedPASS, browserFAIL183pass86fail but field32 independently verified. New868 cause confirmed320 Save outside viewport, no data loss reproduced.
+
+  - id: electronics-toolbar-oracle
+    parent_lane: electronics
+    worktree_id: electronics-toolbar-oracle
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-ORACLE-001.md
+    task:
+      id: TASK-ELECTRONICS-TOOLBAR-ORACLE-001
+      issue: 870
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: repair
+      risk: low
+      semantic_change: 'no'
+      checkpoint: all_96_current_compact_phases_verified_in_main
+      accepted_candidate_sha: 31f1b7b41f8fe62290cb9eec33e63d236d14a920
+      source_review_evidence: done
+      independent_review: APPROVE_source_and_combined_87_plus_9_actual_phases
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
+      owner_acceptance: pending
+      execution_role: bounded_test_executor_then_new_independent_review
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-ORACLE-001.md
+      owner_authorization: Owner continues remainingprogramme simplest first; actual frozenCI proves first four header assertions stale after accepted text tool and one-row policy. Test-only alignment, no product or generic paused timedAPI repair.
+      acceptance_boundary: Actual_clipping_measurement_only_all_original_95_phases_and_five_native_points_retained
+      current_repair_scope: Correct only the compact-case clipping collector/assertion to browser-computed actual intersections; preserve ancestor diagnostics, all bounds tolerances and genuine clipping/ownership tests. No product edits.
+      current_failure: No remaining compact-control qualification failure is demonstrated.
+      current_evidence: Run41525333022 independently approves87 compact phases and run41537679267 on identical relevant main31 source independently approves remaining9 text-mobile phases, 72 control observations and360 owned native points. Together96 cover historical95 plus981-native-closed; single attempts, retry0, unchanged whole intent receipts. This is viewport qualification, not phone-hardware or elapsed-clock proof.
+      current_next_action: Source and all preserved original compact cases are technically qualified. Owner acceptance, deployment and the separate runtime timing programme remain open; no further oracle mutation is selected.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 62ca03bb55f82539286ebff35705ccf76b33c11b
+      convergence_baseline_sha: 62ca03bb55f82539286ebff35705ccf76b33c11b
+      head_sha: null
+      observed_at: '2026-10-30T11:00:46Z'
+      observation_note: Fresh fetch main before edits; clean root HEAD equals origin62ca after reviewed868 source integration. Exacta94General41038088189_all4SUCCESS, composed62ca canonical2565tests71fresh/all8caps and independent compositionAPPROVE; newmainGeneral41043528373inprogress not PASS. No newfullbrowserclaim. PreserveforeignProjects1193 andalloldproof.
+
+  - id: electronics-sevenseg-inspector
+    parent_lane: electronics
+    worktree_id: electronics-sevenseg-inspector
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SEVENSEG-INSPECTOR-001.md
+    task:
+      id: TASK-ELECTRONICS-SEVENSEG-INSPECTOR-001
+      issue: 872
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: repair
+      risk: high
+      semantic_change: 'no'
+      checkpoint: source_review_evidence_done_db232_native16_canonical2565_71fresh
+      accepted_candidate_sha: db232e8c436dc44d6029b8f1c45bea13cf8373e4
+      integrated_sha: 0e96139d26f8865c3a5441223caf842f60aa671c
+      general_ci_run: 41050784162
+      general_ci_result: SUCCESS_all_four_jobs_exact_db232
+      source_review_evidence: done
+      independent_review: APPROVE_actualWorker16_committed_readout_isolation
+      report: docs/product/electronics/evidence/sevenseg-inspector-872/GATES.md
+      owner_acceptance: pending
+      execution_role: bounded_native_inspector_executor_then_new_independent_review
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SEVENSEG-INSPECTOR-001.md
+      owner_authorization: Owner explicitly asks finish panel in main then repair sevensegment inspector and all genuinely prepared work; no refactor/server/foreign edits. Earlier explicitNOArduino cleanup remains,865candidate kept. Prepared789 independent completion remains subsequent; superseded751/819 and rejected833 are not deliverables to restore.
+      product_boundary: selected_sevensegment_committed_readout_subscription_only_no_editor_perframe_render_or_physics_protocol_change
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: a2e380a26abbf10165a914efb609194222bf9c30
+      convergence_baseline_sha: a2e380a26abbf10165a914efb609194222bf9c30
+      head_sha: null
+      observed_at: '2026-10-30T11:29:31Z'
+      observation_note: Fresh fetch main before writes equals clean roota2;870candidatea85verified45Gitpaths_fullnonheaderbytespreserved_independentnative16_andcanonical2565tests71freshNxPASS. Maina2General41045380393inprogress notclaimedPASS. CachedMATH6E fiveactive/threeinactiveStagePASS_theninspector9907zero; no fullbrowserrerun. Sourceplan required before edits.
+
+  - id: electronics-instrument-native-projection
+    parent_lane: electronics
+    worktree_id: electronics-instrument-native-projection
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-INSTRUMENT-NATIVE-PROJECTION-001.md
+    task:
+      id: TASK-ELECTRONICS-INSTRUMENT-NATIVE-PROJECTION-001
+      issue: 873
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'no'
+      checkpoint: candidate5b622a1_native_review_pass_canonical2566_71fresh_caps8_pass
+      accepted_candidate_sha: 5b622a1763548100f3475b5e606d384df538a380
+      integrated_sha: 8ebe3f2b2b6140a2750997d2392ae80aae586009
+      general_ci_run: 41060131759
+      general_ci_result: SUCCESS_all_four_jobs_exact5b622a1
+      source_review_evidence: done
+      independent_review: APPROVE_exact5b622a1_actualWorker_1440_390_committed_isolation
+      report: docs/product/electronics/evidence/instrument-native-projection-873/GATES.md
+      owner_acceptance: pending
+      execution_role: bounded_native_projection_executor_then_new_independent_review
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-INSTRUMENT-NATIVE-PROJECTION-001.md
+      owner_authorization: Owner explicitly finish prepared work no refactor/server/foreign edits. Cached525 fails initial native readings before mirrors; missing committed instrument view subscription is new bounded dependency. Original mirror geometry remains separate; no oldprototype wholesale restore. OwnerNOArduino cleanup remains.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 5b8eb8df51e1a7bc437048c778c191dd73b24bd2
+      convergence_baseline_sha: 5b8eb8df51e1a7bc437048c778c191dd73b24bd2
+      head_sha: null
+      observed_at: '2026-10-30T12:49:48Z'
+      observation_note: Fresh fetch main before edits; foreignAI metadata only since0e96139, own pending872General-success receipt disjoint. Exactdb232 General41050784162_all4SUCCESS independent16_native_andcanonical2565tests71fresh; 789307f singlecapFAIL696B_no broaderproof_done. New873 depends on real cached525stale0 notmirrorgeometryassumption; existingport hasall measurements, no protocolchange.
+
+  - id: electronics-arduino-resize-dedup
+    parent_lane: electronics
+    worktree_id: electronics-arduino-resize-dedup
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-RESIZE-DEDUP-001.md
+    task:
+      id: TASK-ELECTRONICS-ARDUINO-RESIZE-DEDUP-001
+      issue: 876
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: maintenance
+      risk: high
+      semantic_change: 'no'
+      checkpoint: source_native_review_done_84e4acc1_canonical2566_71fresh_caps8_PASS
+      accepted_candidate_sha: 84e4acc1a6459d7feab5334db76824336fcaac6b
+      integrated_sha: 3b8e6e6acbced9f3f3f6eab1a7600de3ad96a9cf
+      general_ci_run: 41067824259
+      general_ci_result: SUCCESS_all_four_jobs_exact84e4acc1
+      source_review_evidence: done
+      independent_review: APPROVE_exact84e4acc1_native_parity_and_corrected_empty
+      report: docs/product/electronics/evidence/arduino-resize-dedup-876/GATES.md
+      arduino_bundle_bytes: 1998988
+      historical_873_savings_bytes: 937
+      canonical_attempt_note: First_unchanged_asset_hash_timeout_D_isolated175ms_PASS_single_controlled_sameSHA_retryPASS_no_timeout_or_source_changes
+      owner_acceptance: pending
+      execution_role: bounded_executor_then_new_independent_reviewer
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-RESIZE-DEDUP-001.md
+      owner_authorization: Explicit owner2026-10-30 refactoring request supersedes previous cleanup deferral for this selected same-file dedup. No server or foreign edits. Prepared865/789 composition remains separate and requires actual cap measurements.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: b0508299f640f9d08e2d1edbccf480975a0ebf85
+      head_sha: null
+      convergence_baseline_sha: b0508299f640f9d08e2d1edbccf480975a0ebf85
+      observed_at: '2026-10-30T13:35:49Z'
+      observation_note: Fresh fetch main required before writes. Main was clean at b050;873 exact5b622a1 General41060131759 all4SUCCESS. Mirror BEFORE41061516266 running exact8ebe, focused and benchmark PASS, actual browser pending. Readonly source plan identifies duplicated horizontal resize lifecycle, no edits or inferred byte saving. New remote3927f513 contains disjoint AI34paths without dependency or electronics changes; preserve all foreign bytes on convergence.
+
+  - id: electronics-psu-switch-native-hit
+    parent_lane: electronics
+    worktree_id: electronics-psu-switch-native-hit
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-SWITCH-NATIVE-HIT-001.md
+    task:
+      id: TASK-ELECTRONICS-PSU-SWITCH-NATIVE-HIT-001
+      issue: 877
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: reviewed_f2f94ad_geometry_helper_new525_DOMorder_oracle_dependency_pending
+      refactor_candidate_sha: f2f94ad22728ed744539ec490f53a74e1c8e1f47
+      refactor_review: APPROVE_new_independent_source_equivalence_native91_hygiene_and_composition
+      refactored_Stage_bytes: 63752
+      refactored_helper_bytes: 5298
+      general_run: 41087390394
+      general_result: FAIL_Access_Classroom_observation_loginHandle_fixture_Code_Data_Governance_PASS
+      general_classification: C_unchanged_classroom_fixture_before_Electronics_module_load_API_and_Access_paths_unchanged_do_not_repair_foreign
+      hygiene_repair:
+        failed_general_run: 41080002633
+        source_sha: 3a9b3e1d97c370e650d8a895e488897c2a455d07
+        classification: B_current_Stage_growth_exceeds_existing_review_threshold
+        current_Stage_git_bytes: 67514
+        reviewed_Stage_bytes: 54879
+        max_Stage_bytes: 65854
+        excess_bytes: 1660
+        selected_repair: Move_only_new_4428byte_pure_PSU_switch_clip_geometry_into_one_real_helper_Stage_keeps_projection_authority_state_DOM_handlers_and_clip_JSX
+        preservation: No_hygiene_baseline_or_cap_increase_no_semantic_layer_or_geometry_change_f335_spec_frozen
+      candidate_sha: 3a9b3e1d97c370e650d8a895e488897c2a455d07
+      preliminary_review: APPROVE_independent_source_native91_running_frame_and_final_test_metadata_composition
+      frozen_browser_blob: b450bd6d148285008ba226bb688a315f1120eb1a
+      frozen_browser_sha256: d9c0c74dd49997636aca4decd6c61d0381b4aa649a030b8e094305ece7b0f93c
+      strict_run: 41080294495
+      strict_result: in_progress_not_PASS
+      prior_strict_failures:
+        - run: 41077666273
+          sha: 2f9f3d8b7efea8ae688b1d628ffff95bb9f24250
+          classification: B_missing_generated_browser_hash_composition
+          browser: SKIPPED
+        - run: 41078870221
+          sha: bd733f49115fc7c28bcc12db3842b813c930be46
+          classification: B_VM_test_context_missing_new_actual_React_hooks
+          browser: SKIPPED
+      repair_validation: Full_Web_68files1146tests_PASS_component_information_guard_PASS_product_spec_and_native_artifacts_unchanged
+      owner_acceptance: pending
+      execution_role: bounded_executor_then_new_independent_source_native_review
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-SWITCH-NATIVE-HIT-001.md
+      owner_authorization: Owner finish mirror point in main and conduct refactoring, no server or foreign edits. Actual6 switch hit failures block complete525before; separate877 native hit dependency only, no mirror compensation. Compose frozen independently approved f33577d test dependency unchanged.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 837392b26e4a182f6b2cf3c3acc9986a7fc91a7c
+      convergence_baseline_sha: 837392b26e4a182f6b2cf3c3acc9986a7fc91a7c
+      head_sha: null
+      observed_at: '2026-10-30T14:41:43Z'
+      observation_note: Fresh fetch main required before writes. New837392b2 includes foreign Projects shared engine/package exports/Vite graph and controller imports; no Stage/ProductionVisual/e2e simulation overlap. Preserve all foreign code and AI/Projects state on one unpublished-doc convergence; new executor builds exact inherited baseline, no historical cap guarantee. Mirror41061516266 exact8ebe failed0of16complete; focused and benchmarkPASS. Actual16 raw archived in main. Frozenf33577d test dependency independently approved but all9 switch points blocked in6 reconstructed poses. Readonly clipping probe establishes feasibility only, not production proof. Refactor876 integrated3b8e6 and exact84 General41067824259 all4SUCCESS.
+
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
     worktree_id: electronics-owner45-block-modulo
@@ -14790,7 +16870,20 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: owner_wrapup_wip_archived_not_ready
+      checkpoint: selected_frozen_b4c_e4d_307f_joint_budget_probe_after_resize876
+      joint_budget_probe:
+        mode: verification_only_no_new_implementation
+        reviewed_mirror_baseline: b4c723b30abc5fa8e77b162fc27ccca59c2793f8
+        reviewed_saved_blocks: e4d3712d1db47aeb762bc9401781257bd4b66ad0
+        not_ready_modulo: 307f18d98d309add057e150bd90e66365352801f
+        boundary: Exact_source_composition_one_fresh_web_build_caps_then_STOP_no_rewrite_or_acceptance_or_main
+      completion_candidate_sha: 307f18d98d309add057e150bd90e66365352801f
+      completion_result: NOT_READY_Arduino2000696of2000000_other7capsPASS_numeric22PASS_AVRnative_remainingproof_NOT_RUN
+      completion_report: docs/product/electronics/evidence/modulo-789-completion-20261030/candidate-report.json.gz
+      completion_owner_instruction: Owner_explicitly_finish_prepared_after_panel_and_inspector_no_refactor_server_foreign_changes_2026_10_30
+      measured_parent_budget: Arduino1999925of2000000_75bytes_headroom_Editor187859of222000
+      resume_boundary: Recompose58112_do_not_apply_oldfiles_preserve_known_integral_generated_source_types_and_full_uint32_AVRproof_required
+      cleanup: explicitly_not_authorized
       preserved_wip_sha: 58112cb5dada2917e91056617d1e1eecd5bfd203
       wrapup_evidence: BEFOREactualWorkspacefloat-percentFAULT andold227179Bintegeroraclepreserved. New7pathadapterimplementationUNTESTED, AFTERnativeformatlintbuildcapsAVRNOT_RUN. Archivedpatch/fullcompressedoracleandbeforecpp/workspace docs/candidates/wrapup-20261026 only, noactivation.
       owner_acceptance: pending
@@ -14802,7 +16895,7 @@ parallel_lanes:
         - contexts/electronics/testing/**
         - apps/web/src/electronics/testing/arduino-numeric-blocks.spec.ts
         - apps/web/src/electronics/testing/arduino-loops.browser.mjs
-      candidate_boundary: Arduinoheadroom3B. BEFORErealWorkspacefailure, minimalexactknownportableadapter witholdintegeruint32preservation/floatingremainder thenONEbuildmeasure; ifFAILpreservewithoutbroadgate/cleanup/chase. AVRcompilerproofrequirednotclaimedifNOT_RUN. No allvarsint/interpreterfloatingpercent.
+      candidate_boundary: Historical3Bmargin_supersededby_actualparent75B_not_fitproof. BEFORErealWorkspacefailure, minimalexactknownportableadapter witholdintegeruint32preservation/floatingremainder thenONEbuildmeasure; ifFAILpreservewithoutbroadgate/cleanup/chase. AVRcompilerproofrequirednotclaimedifNOT_RUN. No allvarsint/interpreterfloatingpercent.
       runner_coordination: Diagnosticcleanworktreeonly;751authorUIseparatepaths. CPUhandoffexplicit first751nativeBEFORE, then789BEFORE, then751ownsfinalheavygate. No parallelheavycommands. Rootcurrentyamlonly.
       deployment: prohibited_by_owner
       database_actions: none_live
@@ -14906,12 +16999,12 @@ blocking:
       - independent_source_review
       - source_integration
     reason: >-
-      Exact068 native evidence records 270 correct same-run ready advances with both piezos
-      at2300Hz/0.8/energized, but visual consumers stay zero and running AudioContext creates
-      no voice. Source lacks reactive committed-result delivery to those consumers. Artifact
-      SHA25666ad8c1a1ac2465059410852d051f89ef83ba76ddc74800569377656f74c15ed verified;
-      selected JSON/trace CRC PASS. No installed update has run. Other89 failures are not
-      declared solved or harmless by this selected diagnosis.
+      Reviewed6a23 has successful General41345302875 and independent target evidence
+      for all3 piezo,16 mirror,16 selection journeys and catalog image failure.
+      Owner expressly approved source-only main integration on2November while
+      leaving remaining failures open. Strict41345471963 remains CANCELLED with
+      236PASS25FAIL8uncompleted; whole runtime acceptance, production update and
+      full stability are not granted. No server or installed update has run.
     unblock_requires: >-
       Independently reviewed bounded source with successful actual original-active visual
       and audio evidence, relevant optical/lifecycle regression checks, General and focused
@@ -15095,7 +17188,7 @@ blocking:
       - regression_authoring
       - documentation_update
       - focused_verification
-    reason: E1 corrections remain open, but owner review 2026-10-04 changed implementation priority to visible-first. V-UX2A Assignment list is the selected next visible slice; A6/A7/A8 backend/media work may proceed only when it blocks that exact visible flow. Owner acceptance and release/deployment claims remain blocked.
+    reason: E1 corrections remain open. The learning task selects the current bounded author-workspace slice; earlier visible-first assignments are historical evidence. Owner acceptance and release/deployment claims remain blocked until the required E1 corrections and evidence are complete.
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
   - id: ELECTRONICS-538-ASSET-548
     kind: acceptance_blocker

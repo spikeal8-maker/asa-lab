@@ -58,6 +58,31 @@ const expectedPending = [
   '0277', // Cloud pool provider projection.
   '0278', // Model selection policy.
   '0279', // Soft monthly token budgets.
+  '0280', // Six image presets.
+  '0281', // Versioned image profiles.
+  '0282', // Local inference overrides preserve legacy defaults.
+  '0283', // Canonical publication likes retain legacy reactions.
+  '0284', // Isolated Polza STT credentials and bounded speech admission.
+  '0285', // Existing public author name projection, immutable history preserved.
+  '0286', // Bounded search retrieval settings.
+  '0287', // Durable successful-publication-copy aggregate.
+  '0288', // Exact Course academic-result visibility without Project byte access.
+  '0289', // Persistent publication discussions and independent learner permission.
+  '0290', // Comment likes, pinning and stable ordering.
+  '0291', // Guarded Account/Seat comment avatars.
+  '0292', // Publication author avatars and projects-only catalog projection.
+  '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
+  '0294', // Accepted additive games-network schema in Main.
+  '0295', // Bounded document extraction with private originals.
+  '0296', // Private working files and immutable revisions.
+  '0297', // Polza text provider and bounded model catalogue.
+  '0298', // Exact owner-bound generated-image HTML binding.
+  '0299', // Selected Polza token budget catalog before publication.
+  '0300', // Unreleased durable image queue follows every published canonical migration.
+  '0301', // Scoped Chess presence and recipient-bound challenges.
+  '0302', // Private portal invitation notifications.
+  '0303', // Owner-only publication editor resolution.
+  '0304', // Russian-64 network matches reuse Games identity and policy.
 ];
 
 interface Identity {
@@ -121,9 +146,19 @@ async function legacySnapshot(db: pg.Pool) {
     project_versions: [],
     project_snapshots: [],
     project_publications: [],
-    // 0275 adds only these default-OFF consent columns. Keep every old field
+    project_reactions: ['publication_id'],
+    // Consent, reaction and discussion controls add only explicit default columns. Keep every old field
     // (and any unrecognized future field) in the strict preserved-data comparison.
-    project_publication_state: ['acquisition_allowed', 'acquisition_version'],
+    project_publication_state: [
+      'acquisition_allowed',
+      'acquisition_version',
+      'reactions_enabled',
+      'reactions_version',
+      'comments_enabled',
+      'comments_admin_enabled',
+      'comments_version',
+      'pinned_comment_id',
+    ],
     project_publication_revisions: [
       'module_key',
       'author_label',
@@ -475,6 +510,13 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         };
       });
 
+      // Nonempty legacy like/wow rows must survive the new reaction namespace exactly.
+      const legacyReactor = stranger.principal_id;
+      await db.query(
+        "INSERT INTO project_reactions(project_id,reactor_principal_id,kind) VALUES($1,$2,'like'),($1,$2,'wow')",
+        [legacy.projectId, legacyReactor],
+      );
+
       // Synthetic ciphertext is never decrypted or sent to any provider.
       const configurationVersion = (
         await app.query<{ version: string }>(
@@ -710,18 +752,28 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         expect(
           (
             await upgrade.query(
-              'SELECT acquisition_allowed, acquisition_version FROM project_publication_state ORDER BY id',
+              'SELECT acquisition_allowed, acquisition_version, reactions_enabled, reactions_version FROM project_publication_state ORDER BY id',
             )
           ).rows,
         ).toEqual(
           before.project_publication_state!.map(() => ({
             acquisition_allowed: false,
             acquisition_version: 0,
+            reactions_enabled: true,
+            reactions_version: 0,
           })),
         );
       } finally {
         upgrade.release();
       }
+      expect(
+        (
+          await db.query(
+            'SELECT count(*)::integer n FROM project_reactions WHERE project_id=$1 AND publication_id IS NULL',
+            [legacy.projectId],
+          )
+        ).rows,
+      ).toEqual([{ n: 2 }]);
       const ledgerAfter = await ledger(db);
       expect(ledgerAfter.slice(0, ledgerBefore.length)).toEqual(ledgerBefore);
       expect(ledgerAfter.slice(ledgerBefore.length).map((row) => row.version)).toEqual(
@@ -749,6 +801,22 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         })),
       );
       expect(await legacySnapshot(db)).toEqual(before);
+      // Check the new discussion defaults independently; do not hide data
+      // mutations by excluding added columns from the old-byte comparison.
+      expect(
+        (
+          await db.query(
+            'SELECT comments_enabled,comments_admin_enabled,comments_version,pinned_comment_id FROM public.project_publication_state ORDER BY id',
+          )
+        ).rows,
+      ).toEqual(
+        before.project_publication_state!.map(() => ({
+          comments_enabled: true,
+          comments_admin_enabled: true,
+          comments_version: 0,
+          pinned_comment_id: null,
+        })),
+      );
       for (const table of [
         'ai_assistant_threads',
         'ai_assistant_messages',
@@ -798,6 +866,7 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         (row) => row.version === '0227',
       )!.applied_at;
       const cloudProviderAppliedAt = ledgerAfter.find((row) => row.version === '0252')!.applied_at;
+      const polzaProviderAppliedAt = ledgerAfter.find((row) => row.version === '0297')!.applied_at;
       const configAfter = (await db.query('SELECT to_jsonb(c) AS item FROM ai_assistant_config c'))
         .rows[0]!.item;
       expect(configAfter).toEqual({
@@ -845,6 +914,17 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
           api_key_auth_tag: null,
           key_fingerprint: null,
           updated_at: providerCatalogAppliedAt,
+        },
+        {
+          provider: 'polza',
+          enabled: false,
+          revision: 1,
+          model: 'polza/unconfigured',
+          api_key_ciphertext: null,
+          api_key_iv: null,
+          api_key_auth_tag: null,
+          key_fingerprint: null,
+          updated_at: polzaProviderAppliedAt,
         },
       ]);
 

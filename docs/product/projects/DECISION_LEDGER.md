@@ -367,3 +367,98 @@ DEC-PROJ-116 «лайки только личного Account». Гостево�
 Ответ владельца про скачивания не подтверждает предложенные отдельно правила
 сохранения лайков при отзыве/republish и отключении реакций. DEC116/118 остаются
 действующими; новую схему retention этим уточнением не считать принятой.
+
+## 18. DEC-PROJ-122 — сохранение лайков и отключение реакций
+
+**Статус:** RESOLVED, прямое решение владельца от 30 октября 2026 года.
+
+Лайки канонической публикации сохраняются при обновлении, отзыве и повторной
+публикации той же работы. Отключение реакций администратором запрещает новые
+лайки, но действующий участник может убрать свой лайк. Снятие публичного доступа
+не раскрывает скрытую работу или личность других участников ради этой операции.
+Исторические лайки не пересчитываются в рейтинг или бонусы ИИ; старые реакции
+Gallery не переносятся и не удаляются. DEC116/118 продолжают определять допуск
+Account/StudentSeat, запрет лайка своей работе и административный аудит.
+
+Владелец выбрал завершение лайков следующим ограниченным срезом программы;
+Scratch asset-copy и физический экспорт этим решением не объявляются готовыми.
+Сайт в рамках этого исходного среза не обновляется.
+
+## 19. DEC-PROJ-123 — запуск опубликованной электроники и программа Arduino
+
+**Статус:** RESOLVED, прямое решение владельца от 30 октября 2026 года.
+
+В публичном просмотре электроники нужны настоящее моделирование, запуск,
+остановка, сброс и взаимодействие с кнопками/переключателями. Программа Arduino
+считается частью опубликованной версии и доступна для просмотра кода. Это
+решение заменяет требование отдельного авторского code-consent из старой
+спецификации для данного среза. При публикации кратко сообщать, что программа
+будет видна; новую обязательную галочку не добавлять. Приватный Working Draft
+не раскрывается и не используется для публичного запуска.
+
+Решение не разрешает редактирование или сохранение чужого проекта. Временные
+нажатия и значения регуляторов живут только в playback-сеансе. Права скачивания
+и публикации остаются прежними; они не выключают просмотр доступной работы.
+Использовать канонический движок/Worker и native presentation, не копировать
+физику или правила компонентов и не импортировать полный авторский редактор.
+
+Главная область страницы — схема; управление запуском компактное, код только
+чтение и только при наличии программы. Название, автор, лайк и ссылка не
+раздувают страницу; описание/лицензия ниже. Телефон — одна колонка без
+горизонтального переполнения. Игры остаются отдельным разделом по DEC119.
+
+## 20. DEC-PROJ-124 — существующее отображаемое имя является публичным
+
+Владелец 2026-10-30 прямо уточнил: имя, введённое при регистрации как отображаемое,
+является публичным именем автора. Пользовательского переключателя скрытия имени
+нет. Внутренний `profiles.visibility` не должен превращать это имя в «Автор проекта».
+Предыдущее объяснение такого поведения как пользовательской настройки неверно.
+
+Для имени не нужны новое поле, согласие на раскрытие всего профиля или ручная
+повторная публикация старых работ. Использовать существующий канонический источник
+имени и точную авторскую идентичность; остальные поля профиля, почта, логин и
+учебные данные не становятся публичными. Исторические исходники и неизменяемые
+версии не переписываются ради исправления текущего публичного представления.
+Решение заменяет прежнее условие публичности этого поля в публикациях Account,
+но не разрешает обходить видимость проектов или раскрывать школьные сведения.
+
+### Owner clarification — 2026-11-01: learner comment eligibility
+
+The owner explicitly requested a comments section beneath public publications and
+clarified that learner participation requires configured permission, or eventually
+an approved rating threshold. Comment permission is separate from publication
+permission: permission to publish does not automatically permit comments. Class
+and individual learner controls are required. Guest access is read-only. Existing
+proposal allows the publication owner to close discussion and platform moderation
+to manage comments; exact enforcement must be implemented server-side.
+
+Rating-based eligibility is deferred until a rating formula/threshold policy is
+approved and real rating data exists; do not invent scores or silently grant access.
+This clarification resolves the learner default direction, not R8-04 activation,
+all audience/moderation/rate-limit decisions, storage/API implementation or release
+acceptance. Comments remain unavailable until the bounded comments task is selected
+and its prerequisites and server authorization are verified. No fake comment input
+or fabricated comment count may stand in for implementation.
+
+### Owner implementation request — 2026-11-01: complete discussion slice
+
+The owner subsequently selected real comments storage, independent class and
+learner permissions, author closing and admin moderation, with isolated verification
+and visual examples, explicitly without deploying the site. Selection is recorded
+as `TASK-PROJ-R8-04-COMMENTS-001` in the execution control plane. Personal Accounts
+may write, guests read, classroom participation defaults OFF and each Seat may
+inherit/allow/deny. Publication permission does not grant comment permission.
+Rating-based access remains deferred. Implementation, verification and rollout
+boundaries: `evidence/publication-comments-20261101.md`. This is not production
+deployment, owner acceptance or release certification.
+
+### Owner implementation request — 2026-11-02: interactive 3D publications
+
+The owner requested 3D publication, confirmed rotation/zoom, and additionally asked
+for genuine pointer-driven model previews in the public catalog, Creator Home and
+My Projects. The selected slice is `TASK-PROJ-R7-04A-3D-001`. Reuse canonical geometry,
+publish only the exact immutable geometry projection, and retain native image
+fallback. Hover loads on demand with one active preview, reduced-motion support
+and explicit resource cleanup. This does not grant download/edit permissions or
+authorize production deployment. Implementation evidence:
+`evidence/public-three-d-viewer-20261102.md`.

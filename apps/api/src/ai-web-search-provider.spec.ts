@@ -71,6 +71,7 @@ it('preserves source order, normalizes plain text and skips only unsafe previews
           {
             title: 'Два',
             url: 'https://example.org/two',
+            content: '<b>Данные</b>',
             thumbnail_src: 'https://tse1.mm.bing.net/th?id=one',
           },
           {
@@ -83,11 +84,7 @@ it('preserves source order, normalizes plain text and skips only unsafe previews
       true,
     ),
   ).toMatchObject({
-    sources: [
-      { id: 1, title: 'Один', snippet: 'Данные' },
-      { id: 2, title: 'Два' },
-      { id: 3, title: 'Три' },
-    ],
+    sources: [{ id: 1, title: 'Два', snippet: 'Данные' }],
     images: [{ id: 1, title: 'Два', sourceUrl: 'https://example.org/two' }],
   });
 });
@@ -143,12 +140,14 @@ it('keeps Bing ts thumbnails from raw Searx image results as gallery metadata', 
       title: 'Сибирская кошка 1',
       sourceUrl: 'https://example.org/cats/one',
       thumbnailUrl: 'https://ts4.mm.bing.net/th?id=OIP.one&pid=15.1',
+      originalUrl: 'https://untrusted.example/raw-one.jpg',
     },
     {
       id: 2,
       title: 'Сибирская кошка 2',
       sourceUrl: 'https://example.org/cats/two',
       thumbnailUrl: 'https://ts2.mm.bing.net/th?id=OIP.two&pid=15.1',
+      originalUrl: 'https://untrusted.example/raw-two.jpg',
     },
   ]);
   expect(results.images.every((image) => searchThumbnailUrl(image.thumbnailUrl))).toBe(true);

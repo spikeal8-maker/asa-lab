@@ -91,7 +91,7 @@ const SECURITY_HEADERS = {
     "worker-src 'self' blob:",
     "manifest-src 'self'",
   ].join('; '),
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), payment=()',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
   'X-Content-Type-Options': 'nosniff',

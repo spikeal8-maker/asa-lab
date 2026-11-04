@@ -11,6 +11,7 @@ import {
   type ElectronicsWorkbenchController,
 } from '../electronics/use-electronics-workbench';
 import '../electronics/workbench.css';
+import '../electronics/workbench-mobile-properties.css';
 import {
   registerProjectSnapshotSource,
   startProjectSnapshots,

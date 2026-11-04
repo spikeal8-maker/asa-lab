@@ -477,8 +477,8 @@ const LANGUAGE_REFERENCE_METADATA = {
     title: 'Выбор из нескольких вариантов',
     signature: 'switch (value) { case ... }',
     category: 'control',
-    limits: 'Редактор показывает синтаксис, но симуляция такую конструкцию сейчас блокирует.',
-    example: 'switch (value) {\n  case 1: digitalWrite(13, HIGH); break;\n}',
+    limits: 'Целочисленные варианты и константные метки. Объявления ветвей — в блоках.',
+    example: 'switch (1) {\n  case 1: digitalWrite(13, HIGH); break;\n}',
   },
   'do-while': {
     command: 'do-while',

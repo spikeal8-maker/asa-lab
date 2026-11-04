@@ -21,6 +21,8 @@ export interface AdmissionDiagnostics {
 export const requestAdmissionDiagnostics = new WeakMap<object, AdmissionDiagnostics>();
 const VALIDATION_REASONS = new Set<string>([
   // Explicit API exposure policy; canonical classification stays in the module.
+  'electronics_annotations',
+  'electronics_annotation_version',
   'electronics_component_id',
   'electronics_component_kind',
   'electronics_component_name',

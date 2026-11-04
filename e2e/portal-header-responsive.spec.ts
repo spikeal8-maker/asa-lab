@@ -18,6 +18,15 @@ test('shared portal header stays on one row with useful labels and 4K scaling', 
   const state = await fixture(page, 15, { classes: 23, sidebar: 'expanded' });
   await page.goto('/#/classrooms');
   await expect(page.getByRole('navigation', { name: 'Разделы ASA Lab' })).toBeVisible();
+  // The same owner-approved brain glyph must appear in the desktop top AI link.
+  const aiBrain = page
+    .locator('.portal-global-nav')
+    .getByRole('link', { name: 'ИИ', exact: true })
+    .locator('.portal-ai-glyph svg');
+  await expect(aiBrain).toHaveCount(1);
+  await expect(aiBrain).toHaveAttribute('viewBox', '0 0 24 24');
+  await expect(aiBrain).toHaveAttribute('width', '20');
+  await expect(aiBrain).toHaveAttribute('height', '20');
   for (const width of widths) {
     await page.setViewportSize({ width, height: 1000 });
     await page.evaluate(
@@ -26,6 +35,8 @@ test('shared portal header stays on one row with useful labels and 4K scaling', 
           requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
         ),
     );
+    await expect(aiBrain, width + ': brain glyph rendered width').toHaveCSS('width', '20px');
+    await expect(aiBrain, width + ': brain glyph rendered height').toHaveCSS('height', '20px');
     const result = await page.evaluate(() => {
       const box = (selector: string) => {
         const element = document.querySelector<HTMLElement>(selector);
@@ -254,7 +265,8 @@ for (const account of [false, true]) {
         .click();
       await expect(globalSidebar).toBeHidden();
       await expect(page.locator('.portal-sidebar.mobile-open')).toHaveCount(0);
-      await expect(page.locator('.asa-ai-layout')).toHaveCSS('margin-left', '12px');
+      // The new edge-to-edge GPT layout intentionally removes the old 12px mobile frame.
+      await expect(page.locator('.asa-ai-layout')).toHaveCSS('margin-left', '0px');
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
         391,
       );
@@ -274,6 +286,11 @@ test('class seat discovers AI in the top bar and drawer with read-only school ac
     { path: '/api/ai/scopes', method: 'GET', seat: null },
     { path: '/api/ai/status', method: 'GET', seat: seatId },
     { path: '/api/ai/threads', method: 'GET', seat: seatId },
+    // Monthly budgets are read-only and strictly scoped to this same StudentSeat.
+    { path: '/api/ai/token-budgets', method: 'GET', seat: seatId },
+    // Capability discovery cannot grant generation; still requires this Seat ID.
+    { path: '/api/ai/image-generation/status', method: 'GET', seat: seatId },
+    { path: '/api/ai/web-search/status', method: 'GET', seat: seatId },
   ];
   const aiRequests: Array<{ path: string; method: string; seat: string | null }> = [];
   page.on('request', (request) => {
@@ -311,6 +328,21 @@ test('class seat discovers AI in the top bar and drawer with read-only school ac
       availableModels: ['gpt-5-mini'],
     },
     '/api/ai/threads': { items: [], nextCursor: null },
+    '/api/ai/token-budgets': { models: [] },
+    '/api/ai/image-generation/status': {
+      enabled: false,
+      ready: false,
+      sizes: [1024],
+      dailyLimit: 0,
+      remainingToday: 0,
+    },
+    '/api/ai/web-search/status': {
+      schemaVersion: 1,
+      provider: 'searxng',
+      weatherConfigured: false,
+      configured: false,
+      enabled: false,
+    },
   };
   await page.route('**/api/ai/**', (route) => {
     const request = route.request();

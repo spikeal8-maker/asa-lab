@@ -1,5 +1,7 @@
 # Установка, обновление и перенос ASA Lab
 
+**Windows:** новый единый мастер автоматического выбора install/update, проверка Git/Python/Docker и чистая изолированная БД: [WINDOWS_UNIFIED_SETUP.md](WINDOWS_UNIFIED_SETUP.md). Режим восстановления из архива пока только проверяет полный пакет и останавливается до импорта; никогда не заменяет школьные данные без отдельного разрешения.
+
 Один рабочий каталог, один Compose project, один набор данных. Для эксплуатации
 используется `tools/asa_manager.py`; PowerShell и shell оборачивают ту же программу.
 Нужны Git, Python 3.11+ и работающий Docker с Compose и Linux containers (amd64).
@@ -24,6 +26,12 @@ PostgreSQL. В Docker Desktop это память Linux VM, а не вся RAM �
 Windows/Linux, права, автозапуск и признаки неполного сбора описаны в
 [Admin Logs](ADMIN_LOGS.md#поддержка-host-collection). Сборщик не требует браузера;
 пользовательские браузерные сценарии проходят отдельные CI/owner gates.
+Для root-operated Linux режим коллектора выбирается один раз при установке:
+`python3 tools/asa_manager.py install --collector-mode system-root --collector-reader-gid 1000`.
+Число — выбранная ненулевая группа чтения API, отличная от группы Docker socket.
+Режим и GID сохраняются для последующих обновлений; root-controlled checkout и
+родительские каталоги обязательны. Это не выдаёт другому пользователю доступ к Docker.
+Порядок настройки существующей установки и границы доверия описаны в Admin Logs.
 Структурированные журналы API собираются дополнительно самим приложением, без
 Windows Task Scheduler/systemd и доступа контейнера к Docker socket. Compose
 автоматически подключает постоянный том `application-logs`; пересоздание API
@@ -137,6 +145,70 @@ checkout, контейнеры или БД. `update` заранее скачив
 менеджер: повторите ту же команду. При расписании повтор произойдёт следующим
 разрешённым запуском. До повтора контейнеры остаются на прежней версии.
 
+### Один immutable deployment на нескольких узлах
+
+Для согласованного H03 → School либо длительного qualification используйте один
+и тот же **deployment OCI digest**, а не меняющийся `stable`:
+
+```sh
+python3 tools/asa_manager.py check --profile production --deployment-digest sha256:ПОЛНЫЕ_64_LOWERCASE_HEX
+python3 tools/asa_manager.py update --profile production --deployment-digest sha256:ПОЛНЫЕ_64_LOWERCASE_HEX
+```
+
+Замените placeholder настоящим опубликованным digest. Допустима только строка
+`sha256:` и64 lowercase hex; полный image reference, tag, registry, JSON и путь
+не принимаются. Repository всегда канонический
+`ghcr.io/spikeal8-maker/asa-lab/deployment@DIGEST`. Перед извлечением манифеста
+проверяется точное Docker RepoDigests соответствие, затем используется локальный
+image ID. При mismatch нет fallback на stable. Без аргумента и без pending
+continuation сохраняется прежний stable default, включая zero-argument discovery
+существующего MCP adapter. Реальный OCI/Docker прогон нового selector этим source
+изменением не выполнен; совпадение RepoDigests требуется и на реальном daemon.
+
+`check` не сохраняет approval или выбор для последующего отдельного update:
+повторите тот же digest явно на обоих узлах. CI/publication, schema, ancestry,
+downgrade, identity/origin, locks, backup, data и readiness guards не обходятся.
+Каждая попытка заново извлекает выбранный artifact и проверяет exact CI; старый
+check/receipt не даёт разрешения на новую попытку и не имеет бессрочного TTL.
+
+При переключении checkout, требующем `RETRY_NEW_MANAGER`, explicit digest и
+fingerprint проверенного манифеста атомарно сохраняются в private
+`.asa/release-selection.json` **до** Git switch. Selector-aware continuation без
+аргумента прочитает тот же digest и заново выполнит preflight/CI. Другой digest,
+изменившийся манифест или некорректный checkpoint дают STOP без замены записи.
+Pending выбор удаляется только после принятого update либо полностью проверенного
+NO_CHANGE; failed/check-only попытки его сохраняют. Не удаляйте/переписывайте
+checkpoint вручную для обхода отказа. Это continuation, не вечная настройка
+расписания: после завершения обычный scheduled update снова использует stable.
+На Linux до switch дополнительно fsync каталогов state/root; отказ flush не
+допускает switch. На Windows file flush/atomic replace поддерживают обычный
+process restart; отдельная power-loss квалификация файловой системы не заявлена.
+
+Если CLI checkpoint конфликтует с externally pinned MCP discovery, менеджер
+отказывает с `RELEASE_SELECTOR_TRANSPORT` до мутаций. Используйте canonical CLI
+через существующий разрешённый admin executor с тем же digest. Этот срез не
+расширяет MCP schema/backend и не выбирает одну из двух привязок молча.
+
+**Bootstrap старой установки без selector.** Сам старый manager неизвестный флаг
+не поддерживает. Разместите отдельно approved clean canonical checkout с
+selector-aware manager и полным его stdlib tooling; старые исходники/manifest не
+переписывайте вручную. Поддерживаемый существующим `--root` путь:
+
+```sh
+python3 /APPROVED-TOOLS/tools/asa_manager.py check --root /CANONICAL-INSTALL --profile production --deployment-digest sha256:ПОЛНЫЕ_64_LOWERCASE_HEX
+python3 /APPROVED-TOOLS/tools/asa_manager.py update --root /CANONICAL-INSTALL --profile production --deployment-digest sha256:ПОЛНЫЕ_64_LOWERCASE_HEX
+```
+
+Здесь code/imports берутся из approved tool checkout, а `.env`, identity, Compose,
+state, данные и guarded Git switch принадлежат только `--root` установке.
+Проверки её canonical origin/чистоты/history продолжают действовать. После RETRY
+повторите тот же selector-aware tool command; можно использовать установленный
+manager только если он уже поддерживает selector. Если выбранный старый release
+его ещё не содержит, продолжайте approved совместимым внешним tool с `--root`,
+не запускайте старый CLI без флага: старый код pending pin не понимает.
+Это source-supported bootstrap, не подтверждение реальной установки/обновления
+старой School VM или произвольной совместимости любого будущего tooling.
+
 После перехода на готовые образы старые `asa-lab up` и `docker-update` блокируют
 пересборку этой установки. Не запускайте прямой `docker compose up`: он не
 читает закреплённый манифест из `.asa/installed-release.json`.
@@ -221,6 +293,26 @@ backup автоматически: срок хранения и размер н�
 python tools/asa_manager.py restore-check --profile dev --backup F:\ASA-Transfer\ИМЯ-КОПИИ --database asalab_transfer_test
 ```
 
+Восстановление использует исходный custom dump как seekable-файл и полный
+список `pg_restore --list`. План переносит только `TABLE DATA public
+ai_ollama_cloud_models` перед первым TABLE DATA: CHECK-функции настройки AI
+могут обращаться к этому каталогу уже при загрузке строки. Остальные записи
+схемы, данных, последовательностей, ACL, политик и RLS сохраняются; CHECK и
+триггеры не отключаются. Архивы до появления каталога проходят без перестановки.
+Дубликаты ID/записей каталога, повреждённый список и превышение лимитов
+(8 MiB, 50 000 записей, 16 384 символа в строке) блокируют создание тестовой БД.
+Временные dump и list имеют закрытые права и удаляются при успехе и ошибке;
+созданная тестовая БД при ошибке сохраняется для диагностики.
+
+Другие адаптеры восстановления могут использовать чистую функцию
+`deployment.restore_toc.plan_restore_toc(toc)` из `tools/deployment/restore_toc.py`:
+ей нужен **полный нефильтрованный** вывод `pg_restore --list` именно этого
+архива. Результат записывают в закрытый seekable list-файл и передают тому же
+архиву через `--use-list`, сохраняя `--exit-on-error --single-transaction` и ACL.
+Список нельзя составлять фильтрами `grep` или дополнять `--no-acl`,
+`--disable-triggers` либо `--clean`. [Документация PostgreSQL 17](https://www.postgresql.org/docs/17/app-pgrestore.html)
+описывает применение полного списка и порядка `--use-list`.
+
 Это ещё не ввод восстановленной установки в эксплуатацию: подключение MinIO и
 пользовательские действия отдельно проверяются в одноразовом CI. Для реального
 переноса на новый компьютер оператор сначала согласует исходный комплект и
@@ -274,3 +366,16 @@ Workflow `ASA Portable Release` повторно проверяет публик
 Новая private `.env` включает независимый CLASSROOM_CODE_SECRET и разные32-byte encryption/lookup keyrings StudentCode в режиме compat. Они генерируются только при отсутствии `.env`; существующие и архивные ключи не ротируются настройкой обслуживания. `configure`/успешная установка создаёт private backupDirectory (0700 на POSIX) и сохраняет instanceId, окно и пользовательский путь. Символьные ссылки и небезопасные права останавливают настройку.
 
 При проверке обновления схема опубликованного выпуска не может быть ниже реально работающей БД; смена SHA требует forward ancestry. Старый recovery-план не даёт права на downgrade. GitHub main и deployment:stable — разные состояния: новое main устанавливается как выпуск только после его CI/публикации.
+
+## Ограничение диска для журналов контейнеров
+
+Базовый Compose задаёт восьми собственным сервисам ASA драйвер `json-file`:
+`max-size: 10m`, `max-file: 5`. Настройка сохраняется в dev/test/staging/production
+и применяется к существующим контейнерам только при их штатном разрешённом
+пересоздании через опубликованный выпуск/обновление, с сохранением volumes,
+секретов и идентичности установки. Глобальные настройки Docker и чужие проекты
+не меняются. Удалять volumes, обрезать действующие журналы или выполнять prune
+для применения настройки нельзя. Это отдельный бюджет stdout/stderr каждого
+контейнера; 1 GiB сборщика хоста и 128 MiB нативного журнала API учитываются
+отдельно. Срок хранения в днях и полнота сбора при отставании сборщика не
+гарантируются; подробнее — [Admin Logs](ADMIN_LOGS.md#container-stdoutstderr-disk-budget).

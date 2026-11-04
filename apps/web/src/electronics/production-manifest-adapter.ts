@@ -367,7 +367,7 @@ function defaults(componentId: string): {
   if (componentId === 'button-tactile-6mm')
     return { value: 0, unit: '', state: false, properties: { contactState: 'released' } };
   if (componentId === 'switch-spdt' || componentId === 'switch-spst')
-    return { value: 0, unit: '', state: false, properties: componentId === 'switch-spst' ? { contactState: 'closed' } : { selectedThrow: 'left' } };
+    return { value: 0, unit: '', state: componentId === 'switch-spst', properties: componentId === 'switch-spst' ? { contactState: 'open' } : { selectedThrow: 'left' } };
   if (componentId === 'potentiometer')
     return {
       value: 1_000,

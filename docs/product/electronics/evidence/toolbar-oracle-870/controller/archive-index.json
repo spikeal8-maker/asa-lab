@@ -1,0 +1,92 @@
+[
+  {
+    "path": "canonical-a85.log.gz",
+    "bytes": 11676,
+    "sha256": "a69f95f5ca10c05b74ada3fe58e4802cba09e86b1be1c4ea4f7fe6b2f631486e"
+  },
+  {
+    "path": "independent/1180-bom-stopped.png",
+    "bytes": 21881,
+    "sha256": "56035cfbd8617abdb7ccffabb8a21fe03f2236e89ccccadc83f483b4b9f6d108"
+  },
+  {
+    "path": "independent/1180-breadboard-running.png",
+    "bytes": 24629,
+    "sha256": "97a67917fd65a83576c3316a8e3bbb8d6e29567b363b3460c1c1685db7a19cd8"
+  },
+  {
+    "path": "independent/1180-breadboard-stopped.png",
+    "bytes": 24982,
+    "sha256": "977186d67ce6c45d4752d00c4e9623ac120fdfafa21e3f2069e511ad2830ac5a"
+  },
+  {
+    "path": "independent/1180-schematic-stopped.png",
+    "bytes": 22628,
+    "sha256": "edd8dae8e4671b4b2dfb5e92c5f1f7a6083b8c99e0fb342650d167e97d57da08"
+  },
+  {
+    "path": "independent/1181-bom-stopped.png",
+    "bytes": 21897,
+    "sha256": "98fee41ebb66fe0860110ed6fd2e98589311a2f884e4a7c65336b3595b49d330"
+  },
+  {
+    "path": "independent/1181-breadboard-running.png",
+    "bytes": 24655,
+    "sha256": "f87dfc5c8486d0147bf613138d579b652bbd7fde8d5d257b3770c3eec18e4135"
+  },
+  {
+    "path": "independent/1181-breadboard-stopped.png",
+    "bytes": 24998,
+    "sha256": "8317b032c6b1efa10621085f478ef2dfab2967ac49004aaa4db393259cb2eb8f"
+  },
+  {
+    "path": "independent/1181-schematic-stopped.png",
+    "bytes": 22672,
+    "sha256": "4b290d86a3fbb889e9ca14e4e3dc7b9b0cffe7bd228afc743d68cc696a9c794a"
+  },
+  {
+    "path": "independent/1373-bom-stopped.png",
+    "bytes": 22809,
+    "sha256": "a3d4fec5c8fd8919a6dbc7abbed99929e291d101c4e8488dca7035df0628a817"
+  },
+  {
+    "path": "independent/1373-breadboard-running.png",
+    "bytes": 26997,
+    "sha256": "d2291cc31bd8e6083a5163d3fe37557375cf24c92e76f083f1243a402e2cea6c"
+  },
+  {
+    "path": "independent/1373-breadboard-stopped.png",
+    "bytes": 25902,
+    "sha256": "c61efc1e8cbabcb25c0223cb61a9388e46db6a593c31c5a55c5f85031d52ab89"
+  },
+  {
+    "path": "independent/1373-schematic-stopped.png",
+    "bytes": 23521,
+    "sha256": "7553eef961c562ff1f087adfee4a3063d3446251dac49f3b7b78bfcc9dcb853f"
+  },
+  {
+    "path": "independent/1374-bom-stopped.png",
+    "bytes": 22738,
+    "sha256": "6fd16855a5e1019bd985b036731be66ea9b204701e6ad0c94a6a462b5a25ec4b"
+  },
+  {
+    "path": "independent/1374-breadboard-running.png",
+    "bytes": 26928,
+    "sha256": "f19ba4b8f4a793fa6c2c9e40028cf01d3646ae2b910fbf51a2a42087888f2c29"
+  },
+  {
+    "path": "independent/1374-breadboard-stopped.png",
+    "bytes": 25835,
+    "sha256": "e276f1354cd4493ea2417fc86ae65cddb97d1d6179997280b174ec426f920bd2"
+  },
+  {
+    "path": "independent/1374-schematic-stopped.png",
+    "bytes": 23456,
+    "sha256": "e578961cbfa6fbc9362e36b2e22c2c26f538979ad10498b761ffe2d8a95b6256"
+  },
+  {
+    "path": "independent/geometry.json.gz",
+    "bytes": 2272,
+    "sha256": "cb6eae504ca9bb1d5f977350a2ab81a7d64105f75285941fc87d11516b697f5f"
+  }
+]

@@ -3,7 +3,7 @@ import pg from 'pg';
 import { expect, it, vi } from 'vitest';
 import { planMigrations } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan } from '../migration/isolated-postgres-plan';
-import { budgetFixture } from './ai-token-budgets.fixture';
+import { budgetFixture, unpublishedPolzaBudgetFixture } from './ai-token-budgets.fixture';
 
 // CI only: a fresh, uniquely owned database avoids rewriting another suite's
 // pending history to manufacture budget room. Never changes a working DB.
@@ -49,6 +49,7 @@ it('serializes actual global and principal admissions on independent PostgreSQL 
       throw new Error('SQL admission tests must never dispatch upstream');
     });
     const f = await budgetFixture(admin, runtime, upstream);
+    await unpublishedPolzaBudgetFixture(admin, runtime, f.actor, f.owner);
     // Each tiny global budget has exactly one remaining token. Two real owners
     // on two independent backends cannot both reserve it.
     await f.limits('1', null);

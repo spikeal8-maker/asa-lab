@@ -1,5 +1,10 @@
 import { parseElectronicsDocument } from '@asa-lab/electronics';
-import type { SchematicComponent, SchematicConnection, SchematicDocument } from '../api';
+import type {
+  SchematicAnnotation,
+  SchematicComponent,
+  SchematicConnection,
+  SchematicDocument,
+} from '../api';
 
 export interface ElectronicsMergeConflict {
   readonly path: string;
@@ -47,12 +52,14 @@ export function electronicsDocumentsEqual(
       components: left.components,
       connections: left.connections,
       maxIterations: left.simulation.maxIterations,
+      ...(left.schemaVersion === 5 ? { annotations: left.annotations ?? [] } : {}),
     },
     {
       schemaVersion: right.schemaVersion,
       components: right.components,
       connections: right.connections,
       maxIterations: right.simulation.maxIterations,
+      ...(right.schemaVersion === 5 ? { annotations: right.annotations ?? [] } : {}),
     },
   );
 }
@@ -93,7 +100,7 @@ function mergeNode(base: unknown, local: unknown, remote: unknown, path: string)
 }
 
 function mergeEntities<T extends { readonly id: string }>(
-  kind: 'components' | 'connections',
+  kind: 'components' | 'connections' | 'annotations',
   base: readonly T[],
   local: readonly T[],
   remote: readonly T[],
@@ -156,13 +163,23 @@ export function mergeElectronicsDocuments(
     'simulation.maxIterations',
   );
   if (!maxIterations.ok) return { ok: false, conflicts: maxIterations.conflicts };
-  const conflicts = [...components.conflicts, ...connections.conflicts];
+  const annotations = mergeEntities<SchematicAnnotation>(
+    'annotations',
+    base.annotations ?? [],
+    local.annotations ?? [],
+    remote.annotations ?? [],
+  );
+  const conflicts = [...components.conflicts, ...connections.conflicts, ...annotations.conflicts];
   if (conflicts.length > 0) return { ok: false, conflicts };
 
   const candidate = {
-    schemaVersion: 4,
+    schemaVersion:
+      base.schemaVersion === 5 || local.schemaVersion === 5 || remote.schemaVersion === 5 ? 5 : 4,
     components: components.values,
     connections: connections.values,
+    ...(base.schemaVersion === 5 || local.schemaVersion === 5 || remote.schemaVersion === 5
+      ? { annotations: annotations.values }
+      : {}),
     // Viewport and running state describe the local editor session, not shared
     // circuit intent. Keeping the local values prevents one collaborator's pan
     // or Start button from moving another collaborator's screen.

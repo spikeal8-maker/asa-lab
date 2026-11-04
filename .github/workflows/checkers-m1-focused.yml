@@ -1,6 +1,29 @@
 name: Checkers M1 Focused
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'contexts/checkers/**'
+      - 'contexts/games/**'
+      - 'packages/contracts/**'
+      - 'apps/api/src/checkers*'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/web/src/checkers/**'
+      - 'apps/web/src/games/**'
+      - 'apps/web/src/chess/ChessNetwork*'
+      - 'apps/web/src/components/ClassroomGamesSettings.tsx'
+      - 'apps/web/src/components/PortalHeader.tsx'
+      - 'apps/web/src/pages/GamesPage.tsx'
+      - 'apps/web/src/creator-portal/navigation.ts'
+      - 'tests/games-network/**'
+      - 'migrations/**'
+      - 'e2e/checkers*'
+      - 'e2e/games-navigation.spec.ts'
+      - 'tools/checkers-browser-gate.mjs'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/checkers-m1-focused.yml'
   pull_request:
     paths:
       - 'compose.test.yaml'
@@ -15,6 +38,7 @@ on:
       - 'apps/web/tsconfig.json'
       - 'e2e/checkers-module.spec.ts'
       - 'migrations/**checkers**'
+      - 'tools/checkers-browser-gate.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/checkers-m1-focused.yml'
@@ -61,7 +85,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Focused Checkers M1 gate
-        run: pnpm gate:checkers-m1
+        run: pnpm gate:checkers-network
 
   browser:
     name: Student, teacher, bot and safe class journeys
@@ -102,7 +126,7 @@ jobs:
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml --profile test
           run --rm --no-deps test-runner
-          pnpm gate:checkers-m1:browser
+          pnpm gate:checkers-network:browser
 
       - name: Show isolated stack state
         if: always()

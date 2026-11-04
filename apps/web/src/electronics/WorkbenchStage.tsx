@@ -1,6 +1,9 @@
 import { SPST_COMPONENT_TYPE } from './component-catalog';
+import { computeSupplySwitchClipGeometry } from './supply-switch-hit-geometry';
 import {
   memo,
+  useCallback,
+  useId,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -22,6 +25,18 @@ import {
   terminalPosition,
 } from './component-catalog';
 import { ProductionComponentVisual } from './NativeOpticalComponentVisual';
+import { NativeLedDiagnostic } from './NativeLedDiagnostic';
+import { CanvasAnnotationEditor, CanvasAnnotationLayer } from './CanvasAnnotationLayer';
+import {
+  useCommittedWorkbenchPresentation,
+  type WorkbenchDiagnosticIndicatorsController,
+  type WorkbenchComponentBodyController,
+} from './committed-result-presentation';
+import {
+  paintedComponentBounds,
+  paintedComponentPoint,
+  topRightBadgeAnchor,
+} from './component-presentation-geometry';
 import { productionBreadboard } from './production-manifest-adapter';
 import {
   diagnosticBadgeGeometry,
@@ -49,7 +64,6 @@ import {
   componentAssetVisibleBounds,
   componentHitMaskStatus,
   preloadComponentHitMask,
-  type ComponentVisibleBounds,
 } from './component-hit-testing';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 import { formatIlluminanceLux, photoresistorLightCondition } from './photoresistor-presentation';
@@ -224,6 +238,7 @@ function PickedUpPart({
     variantId: entry.variantId,
     position: { x: 0, y: 0 },
     value: entry.defaultValue,
+    ...(entry.defaultState === undefined ? {} : { state: entry.defaultState }),
     rotation: entry.defaultRotation,
     stateProperties: { ...entry.defaultStateProperties },
   };
@@ -242,7 +257,7 @@ function PickedUpPart({
             component={component}
             width={size.width}
             height={size.height}
-            visualState="default"
+            visualState={entry.key === SPST_COMPONENT_TYPE && entry.defaultState ? 'on' : 'default'}
             effectiveBrightness={0}
           />
         </g>
@@ -274,75 +289,418 @@ function tooltipPlacement(
   return { x: centre - point.x - half, y, width, textY: y + 15 / zoom };
 }
 
-function paintedComponentBounds(
-  component: SchematicComponent,
-  baseSize: { readonly width: number; readonly height: number },
-  renderedBounds: { readonly width: number; readonly height: number },
-  visibleBounds: ComponentVisibleBounds | null,
-): ComponentVisibleBounds {
-  const localBounds = visibleBounds ?? {
-    minX: 0,
-    minY: 0,
-    maxX: baseSize.width,
-    maxY: baseSize.height,
-  };
-  const radians = ((((component.rotation ?? 0) % 360) + 360) % 360) * (Math.PI / 180);
-  const cos = Math.cos(radians);
-  const sin = Math.sin(radians);
-  const mirrorX = component.stateProperties?.['mirrorX'] === true;
-  const mirrorY = component.stateProperties?.['mirrorY'] === true;
-  const points = [
-    { x: localBounds.minX, y: localBounds.minY },
-    { x: localBounds.maxX, y: localBounds.minY },
-    { x: localBounds.maxX, y: localBounds.maxY },
-    { x: localBounds.minX, y: localBounds.maxY },
-  ].map((point) => {
-    const localX = (mirrorX ? baseSize.width - point.x : point.x) - baseSize.width / 2;
-    const localY = (mirrorY ? baseSize.height - point.y : point.y) - baseSize.height / 2;
-    return {
-      x: component.position.x + renderedBounds.width / 2 + localX * cos - localY * sin,
-      y: component.position.y + renderedBounds.height / 2 + localX * sin + localY * cos,
-    };
+function componentBodyContainsClientPoint(
+  part: SVGGElement,
+  clientX: number,
+  clientY: number,
+  entry: NonNullable<ReturnType<typeof catalogEntry>>,
+  size: { readonly width: number; readonly height: number },
+): boolean {
+  // SPST is a derived runtime shape, never the three-pin reference alpha mask.
+  if (entry.key === SPST_COMPONENT_TYPE)
+    return Boolean(
+      part
+        .querySelector('.workbench-tinkercad-switch')
+        ?.contains(window.document.elementFromPoint(clientX, clientY)),
+    );
+  const matrix = part.getScreenCTM();
+  const canvas = part.ownerSVGElement;
+  if (!matrix || !canvas) return false;
+  const point = canvas.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  const local = point.matrixTransform(matrix.inverse());
+  return componentAssetContainsPoint(entry, size.width, size.height, local);
+}
+
+function isVisibleComponentBody(
+  event: {
+    readonly currentTarget: SVGGElement;
+    readonly clientX: number;
+    readonly clientY: number;
+  },
+  entry: NonNullable<ReturnType<typeof catalogEntry>>,
+  size: { readonly width: number; readonly height: number },
+): boolean {
+  return componentBodyContainsClientPoint(
+    event.currentTarget,
+    event.clientX,
+    event.clientY,
+    entry,
+    size,
+  );
+}
+
+function MotorReadouts({
+  controller,
+  components: orderedComponents,
+}: {
+  controller: ElectronicsWorkbenchController;
+  components: readonly SchematicComponent[];
+}): JSX.Element {
+  const c = useCommittedWorkbenchPresentation(controller);
+  const readoutGeometry = stageReadoutGeometry(c.viewport.zoom);
+  return (
+    <>
+      {orderedComponents.flatMap((component) => {
+        const isDirectMotor = component.componentTypeId === 'dc-motor';
+        const isGearmotor = component.componentTypeId === 'gearmotor';
+        if (!isDirectMotor && !isGearmotor) return [];
+        const entry = catalogEntry(component);
+        if (!entry?.asset || !entry.terminals || !entry.simulationSupported) return [];
+        const baseSize = renderedSize(entry, 0);
+        const bounds = renderedSize(entry, component.rotation ?? 0);
+        const paintedBounds = paintedComponentBounds(
+          component,
+          baseSize,
+          bounds,
+          componentAssetVisibleBounds(entry, baseSize.width, baseSize.height),
+        );
+        const result = c.runtimePresentationResultByComponent.get(component.id);
+        const rpm = c.simulationRunning
+          ? Number(isGearmotor ? (result?.outputRpm ?? 0) : (result?.motorRpm ?? 0))
+          : 0;
+        const label = formatMotorRpm(rpm);
+        const gearmotorReadoutPoint = isGearmotor
+          ? paintedComponentPoint(
+              component,
+              baseSize,
+              bounds,
+              gearmotorRpmBodyPoint(baseSize.width, baseSize.height),
+            )
+          : null;
+        return [
+          <text
+            key={`motor-rpm:${component.id}`}
+            className={`workbench-stage-readout workbench-motor-rpm${
+              isGearmotor ? ' workbench-gearmotor-rpm' : ''
+            }`}
+            data-testid={isGearmotor ? 'gearmotor-output-rpm' : 'dc-motor-rpm'}
+            data-screen-upright="true"
+            data-placement={isGearmotor ? 'primary-body' : 'above-component'}
+            data-component-id={component.id}
+            x={gearmotorReadoutPoint?.x ?? (paintedBounds.minX + paintedBounds.maxX) / 2}
+            y={gearmotorReadoutPoint?.y ?? paintedBounds.minY - readoutGeometry.gap}
+            fontSize={readoutGeometry.fontSize * (isGearmotor ? 1.4 : 1)}
+            textAnchor="middle"
+            dominantBaseline={isGearmotor ? 'middle' : 'auto'}
+            pointerEvents="none"
+            aria-label={`${isGearmotor ? 'Скорость выходного вала' : 'Скорость двигателя'}: ${label}`}
+          >
+            {label}
+          </text>,
+        ];
+      })}
+    </>
+  );
+}
+
+export function WorkbenchDiagnosticIndicators({
+  controller,
+  components: orderedComponents,
+}: {
+  controller: WorkbenchDiagnosticIndicatorsController;
+  components: readonly SchematicComponent[];
+}): JSX.Element {
+  const c = useCommittedWorkbenchPresentation(controller, (projection) =>
+    JSON.stringify([
+      [...projection.diagnosticsByComponent],
+      orderedComponents
+        .filter((component) => component.kind === 'rgb-led')
+        .map(
+          (component) =>
+            projection.runtimePresentationResultByComponent.get(component.id)?.presentationState,
+        ),
+    ]),
+  );
+  const badgeGeometry = diagnosticBadgeGeometry(c.viewport.zoom);
+  return (
+    <>
+      {orderedComponents
+        .filter((component) => component.kind !== 'wire')
+        .map((component) => {
+          const entry = catalogEntry(component);
+          if (!entry?.asset || !entry.terminals || !entry.simulationSupported) return null;
+          const baseSize = renderedSize(entry, 0);
+          const bounds = renderedSize(entry, component.rotation ?? 0);
+          const alphaBounds = componentAssetVisibleBounds(entry, baseSize.width, baseSize.height);
+          const anchorBounds =
+            entry.key === 'gearmotor'
+              ? gearmotorDiagnosticBodyBounds(baseSize.width, baseSize.height)
+              : alphaBounds;
+          const paintedBounds = paintedComponentBounds(component, baseSize, bounds, anchorBounds);
+          const badgeAnchor = topRightBadgeAnchor(paintedBounds, badgeGeometry.radius);
+          const badgeAnchorKind =
+            entry.key === 'gearmotor' ? 'primary-body-top-right' : 'owner-alpha-top-right';
+          return (
+            <NativeLedDiagnostic
+              key={component.id}
+              controller={c}
+              component={component}
+              entryKey={entry.key}
+              baseSize={baseSize}
+              badgeAnchor={badgeAnchor}
+              badgeAnchorKind={badgeAnchorKind}
+              badgeGeometry={badgeGeometry}
+            />
+          );
+        })}
+    </>
+  );
+}
+
+export function WorkbenchComponentBody({
+  controller,
+  component,
+  onSupplySwitchAvailability,
+}: {
+  controller: WorkbenchComponentBodyController;
+  component: SchematicComponent;
+  onSupplySwitchAvailability?: ((id: string, available: boolean) => void) | undefined;
+}): JSX.Element | null {
+  const c = useCommittedWorkbenchPresentation(controller, (projection) => {
+    const result = projection.runtimePresentationResultByComponent.get(component.id);
+    return JSON.stringify([
+      result?.presentationState,
+      result?.sourceOperatingMode,
+      projection.errorDiagnosticComponentIds.has(component.id),
+      (projection.diagnosticsByComponent.get(component.id) ?? []).map((item) => item.code),
+    ]);
   });
-  return {
-    minX: Math.min(...points.map((point) => point.x)),
-    minY: Math.min(...points.map((point) => point.y)),
-    maxX: Math.max(...points.map((point) => point.x)),
-    maxY: Math.max(...points.map((point) => point.y)),
-  };
-}
-
-function paintedComponentPoint(
-  component: SchematicComponent,
-  baseSize: { readonly width: number; readonly height: number },
-  renderedBounds: { readonly width: number; readonly height: number },
-  localPoint: { readonly x: number; readonly y: number },
-): { readonly x: number; readonly y: number } {
-  const radians = ((((component.rotation ?? 0) % 360) + 360) % 360) * (Math.PI / 180);
-  const cos = Math.cos(radians);
-  const sin = Math.sin(radians);
-  const mirrorX = component.stateProperties?.['mirrorX'] === true;
-  const mirrorY = component.stateProperties?.['mirrorY'] === true;
-  const localX = (mirrorX ? baseSize.width - localPoint.x : localPoint.x) - baseSize.width / 2;
-  const localY = (mirrorY ? baseSize.height - localPoint.y : localPoint.y) - baseSize.height / 2;
-  return {
-    x: component.position.x + renderedBounds.width / 2 + localX * cos - localY * sin,
-    y: component.position.y + renderedBounds.height / 2 + localX * sin + localY * cos,
-  };
-}
-
-function topRightBadgeAnchor(
-  bounds: ComponentVisibleBounds,
-  radius: number,
-): {
-  readonly x: number;
-  readonly y: number;
-} {
-  const inset = radius * 0.55;
-  return {
-    x: Math.max(bounds.minX + inset, bounds.maxX - inset),
-    y: Math.min(bounds.maxY - inset, bounds.minY + inset),
-  };
+  // This is the parent-render fallback. Live native/ordinary visual leaves own
+  // their observation; do not re-read the parent's stale callback on every commit.
+  const visualState = useMemo(
+    () => controller.componentVisualState(component),
+    [controller, component],
+  );
+  const document = c.document!;
+  const entry = catalogEntry(component);
+  if (!entry?.asset || !entry.terminals) return null;
+  const baseSize = renderedSize(entry, 0);
+  const selected = c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
+  const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
+  const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
+  const photoresistorPercent = Math.round(
+    Math.min(1, Math.max(0, Number(component.stateProperties?.['illumination'] ?? 0.5))) * 100,
+  );
+  const photoresistorLux = photoresistorIlluminanceLux(component);
+  const photoresistorResistance = photoresistorResistanceOhm(component);
+  const photoresistorLightText = `${photoresistorLightCondition(
+    photoresistorLux,
+  )}: ${formatIlluminanceLux(photoresistorLux)}`;
+  return (
+    <g
+      key={component.id}
+      className={`${selected ? 'workbench-component-selected' : ''}${
+        c.simulationRunning && selected && c.errorDiagnosticComponentIds.has(component.id)
+          ? ' workbench-component-diagnostic'
+          : ''
+      }${c.simulationRunning && component.state ? ' workbench-component-actuator-active' : ''}`}
+      data-testid="schematic-component"
+      data-component-id={component.id}
+      data-kind={component.kind}
+      data-presentation-state={
+        c.runtimePresentationResultByComponent.get(component.id)?.presentationState
+      }
+      data-source-operating-mode={
+        c.runtimePresentationResultByComponent.get(component.id)?.sourceOperatingMode
+      }
+      data-component-type={component.componentTypeId}
+      data-hit-mask-status={componentHitMaskStatus(entry, baseSize.width, baseSize.height)}
+      data-hole-bindings={Object.keys(component.holeBindings ?? {}).length}
+      data-hole-ids={Object.entries(component.holeBindings ?? {})
+        .map(([pinId, binding]) => `${pinId}:${binding.holeId}`)
+        .join(',')}
+      data-diagnostics={diagnostics.join(',')}
+      data-x={component.position.x}
+      data-y={component.position.y}
+    >
+      {Object.keys(component.holeBindings ?? {}).length > 0 ? (
+        <g className="workbench-mounted-leads" pointerEvents="none" aria-hidden="true">
+          {Object.keys(component.holeBindings ?? {}).map((terminal) => {
+            const physicalPoint = terminalPosition(
+              component,
+              component.position,
+              terminal,
+              component.rotation ?? 0,
+            );
+            const landingPoint = terminalPositionInDocument(document, component, terminal);
+            if (!physicalPoint || !landingPoint) return null;
+            return (
+              <line
+                key={terminal}
+                className={`workbench-mounted-lead${
+                  component.kind === 'source' && terminal === 'BAT+'
+                    ? ' positive'
+                    : component.kind === 'source' && terminal === 'BAT-'
+                      ? ' negative'
+                      : ''
+                }`}
+                data-mounted-terminal={terminal}
+                x1={physicalPoint.x}
+                y1={physicalPoint.y}
+                x2={landingPoint.x}
+                y2={landingPoint.y}
+                vectorEffect="non-scaling-stroke"
+              />
+            );
+          })}
+        </g>
+      ) : null}
+      <g
+        className={`workbench-part${selected ? ' selected' : ''}`}
+        transform={componentTransform(component)}
+        onPointerDown={(e) => {
+          if (isVisibleComponentBody(e, entry, baseSize)) {
+            c.startComponentDrag(e, component);
+          }
+        }}
+        onClick={(e) => {
+          if (!isVisibleComponentBody(e, entry, baseSize)) return;
+          e.stopPropagation();
+          c.selectComponent(component.id, e.shiftKey);
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label={`${entry.label}. Перетащите для перемещения.`}
+        onKeyDown={(e: ReactKeyboardEvent<SVGGElement>) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            c.selectComponent(component.id, e.shiftKey);
+          }
+        }}
+      >
+        <rect
+          className="workbench-component-body-hit"
+          data-hit-surface="owner-alpha-mask"
+          x={0}
+          y={0}
+          width={baseSize.width}
+          height={baseSize.height}
+          fill="#ffffff"
+          fillOpacity={0.001}
+          pointerEvents="none"
+        />
+        <ProductionComponentVisual
+          entry={entry}
+          component={component}
+          width={baseSize.width}
+          height={baseSize.height}
+          visualState={visualState}
+          effectiveBrightness={c.componentLedBrightness(component)}
+          effectiveArduinoLActive={c.componentArduinoLActive(component)}
+          preparedLedAsset={c.preparedComponentLedAsset(component)}
+          committedLedAsset={c.committedComponentLedAsset(component)}
+          rollbackLedAsset={c.rollbackComponentLedAsset(component)}
+          onLedAssetReadiness={c.onLedAssetReadiness}
+          result={c.runtimePresentationResultByComponent.get(component.id)}
+          selected={selected}
+          selectionOffset={1.6 / c.viewport.zoom}
+          simulationRunning={c.simulationRunning}
+          simulationTimeMs={c.simulationTimeMs}
+          onArduinoReset={
+            entry.key === 'arduino-uno' ? () => c.resetArduinoRuntime(component.id) : undefined
+          }
+          onSwitchActuate={
+            c.simulationRunning && component.kind === 'switch'
+              ? () => c.toggleComponentState(component.id)
+              : undefined
+          }
+          onMultimeterModeChange={
+            entry.key === 'multimeter'
+              ? (mode) => c.setMultimeterMeasurementMode(component.id, mode)
+              : undefined
+          }
+          onSupplySwitchAvailability={onSupplySwitchAvailability}
+          onRegulatedPowerSupplyChange={
+            entry.key === 'regulated-power-supply'
+              ? (patch) => c.setRegulatedPowerSupplyControls(component.id, patch)
+              : undefined
+          }
+          onSignalGeneratorChange={
+            entry.key === 'signal-generator'
+              ? (patch) => c.setSignalGeneratorControls(component.id, patch)
+              : undefined
+          }
+        />
+        {component.kind === 'potentiometer' && c.simulationRunning ? (
+          <circle
+            className="workbench-potentiometer-hit"
+            data-hit-surface="potentiometer-knob-face"
+            cx={baseSize.width * (71.5 / 144)}
+            cy={baseSize.height * (71 / 164)}
+            r={Math.min(baseSize.width / 144, baseSize.height / 164) * 71}
+            onPointerDown={(event) => c.startPotentiometerControl(event, component)}
+            aria-label="Повернуть ручку потенциометра"
+          />
+        ) : null}
+        {component.kind === 'photoresistor' && c.simulationRunning && selected ? (
+          <foreignObject
+            className="workbench-photoresistor-control-object"
+            data-testid="photoresistor-light-control"
+            x={(baseSize.width - 150) / 2}
+            y={-54}
+            width={150}
+            height={48}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <label className="workbench-photoresistor-control">
+              <span className="workbench-photoresistor-level" aria-hidden="true" />
+              <output title={photoresistorLightText}>
+                {formatIlluminanceLux(photoresistorLux)}
+              </output>
+              <span
+                className="workbench-photoresistor-range"
+                style={
+                  {
+                    '--photoresistor-position': `${photoresistorPercent}%`,
+                    '--photoresistor-thumb-shift': `-${photoresistorPercent}%`,
+                    '--photoresistor-fill-adjustment': `${(20 * photoresistorPercent) / 100}px`,
+                  } as CSSProperties
+                }
+              >
+                <span className="workbench-photoresistor-rail" aria-hidden="true" />
+                <span className="workbench-photoresistor-fill" aria-hidden="true" />
+                <span className="workbench-photoresistor-thumb" aria-hidden="true" />
+                <input
+                  aria-label="Освещённость фоторезистора"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={photoresistorPercent}
+                  aria-valuetext={`${photoresistorLightText}; сопротивление ${Math.round(
+                    photoresistorResistance,
+                  )} Ом`}
+                  onChange={(event) => {
+                    const illumination = Number(event.currentTarget.value) / 100;
+                    const preview = {
+                      ...component,
+                      stateProperties: {
+                        ...component.stateProperties,
+                        illumination,
+                      },
+                    };
+                    c.setSelectedProperties(
+                      { illumination },
+                      `Освещённость: ${formatIlluminanceLux(
+                        photoresistorIlluminanceLux(preview),
+                      )}.`,
+                    );
+                  }}
+                />
+              </span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M19.8 4.2l-2.1 2.1M6.3 17.7l-2.1 2.1" />
+              </svg>
+            </label>
+          </foreignObject>
+        ) : null}
+      </g>
+    </g>
+  );
 }
 
 export function WorkbenchStage({
@@ -354,6 +712,19 @@ export function WorkbenchStage({
 }): JSX.Element {
   const document = c.document!;
   const [hoveredBreadboardNet, setHoveredBreadboardNet] = useState<BreadboardHover>(null);
+  const switchClipId = useId().replace(/:/g, '');
+  const [liveSupplySwitches, setLiveSupplySwitches] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const onSupplySwitchAvailability = useCallback((id: string, available: boolean) => {
+    setLiveSupplySwitches((previous) => {
+      if (previous.has(id) === available) return previous;
+      const next = new Set(previous);
+      if (available) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
   const controllerRef = useRef(c);
   controllerRef.current = c;
   // React delegates wheel passively. Navigation must cancel the native default
@@ -600,48 +971,6 @@ export function WorkbenchStage({
     };
   }, [document.components]);
 
-  function componentBodyContainsClientPoint(
-    part: SVGGElement,
-    clientX: number,
-    clientY: number,
-    entry: NonNullable<ReturnType<typeof catalogEntry>>,
-    size: { readonly width: number; readonly height: number },
-  ): boolean {
-    // SPST is a derived runtime shape, never the three-pin reference alpha mask.
-    if (entry.key === SPST_COMPONENT_TYPE)
-      return Boolean(
-        part
-          .querySelector('.workbench-tinkercad-switch')
-          ?.contains(window.document.elementFromPoint(clientX, clientY)),
-      );
-    const matrix = part.getScreenCTM();
-    const canvas = part.ownerSVGElement;
-    if (!matrix || !canvas) return false;
-    const point = canvas.createSVGPoint();
-    point.x = clientX;
-    point.y = clientY;
-    const local = point.matrixTransform(matrix.inverse());
-    return componentAssetContainsPoint(entry, size.width, size.height, local);
-  }
-
-  function isVisibleComponentBody(
-    event: {
-      readonly currentTarget: SVGGElement;
-      readonly clientX: number;
-      readonly clientY: number;
-    },
-    entry: NonNullable<ReturnType<typeof catalogEntry>>,
-    size: { readonly width: number; readonly height: number },
-  ): boolean {
-    return componentBodyContainsClientPoint(
-      event.currentTarget,
-      event.clientX,
-      event.clientY,
-      entry,
-      size,
-    );
-  }
-
   function componentAtClientPoint(clientX: number, clientY: number) {
     const stage = c.stageRef.current;
     if (!stage) return null;
@@ -719,173 +1048,27 @@ export function WorkbenchStage({
       },
     ];
   });
-  const badgeGeometry = diagnosticBadgeGeometry(c.viewport.zoom);
-  const readoutGeometry = stageReadoutGeometry(c.viewport.zoom);
-  const motorReadouts = orderedComponents.flatMap((component) => {
-    const isDirectMotor = component.componentTypeId === 'dc-motor';
-    const isGearmotor = component.componentTypeId === 'gearmotor';
-    if (!isDirectMotor && !isGearmotor) return [];
-    const entry = catalogEntry(component);
-    if (!entry?.asset || !entry.terminals || !entry.simulationSupported) return [];
-    const baseSize = renderedSize(entry, 0);
-    const bounds = renderedSize(entry, component.rotation ?? 0);
-    const paintedBounds = paintedComponentBounds(
-      component,
-      baseSize,
-      bounds,
-      componentAssetVisibleBounds(entry, baseSize.width, baseSize.height),
-    );
-    const result = c.runtimePresentationResultByComponent.get(component.id);
-    const rpm = c.simulationRunning
-      ? Number(isGearmotor ? (result?.outputRpm ?? 0) : (result?.motorRpm ?? 0))
-      : 0;
-    const label = formatMotorRpm(rpm);
-    const gearmotorReadoutPoint = isGearmotor
-      ? paintedComponentPoint(
-          component,
-          baseSize,
-          bounds,
-          gearmotorRpmBodyPoint(baseSize.width, baseSize.height),
-        )
-      : null;
-    return [
-      <text
-        key={`motor-rpm:${component.id}`}
-        className={`workbench-stage-readout workbench-motor-rpm${
-          isGearmotor ? ' workbench-gearmotor-rpm' : ''
-        }`}
-        data-testid={isGearmotor ? 'gearmotor-output-rpm' : 'dc-motor-rpm'}
-        data-screen-upright="true"
-        data-placement={isGearmotor ? 'primary-body' : 'above-component'}
-        data-component-id={component.id}
-        x={gearmotorReadoutPoint?.x ?? (paintedBounds.minX + paintedBounds.maxX) / 2}
-        y={gearmotorReadoutPoint?.y ?? paintedBounds.minY - readoutGeometry.gap}
-        fontSize={readoutGeometry.fontSize * (isGearmotor ? 1.4 : 1)}
-        textAnchor="middle"
-        dominantBaseline={isGearmotor ? 'middle' : 'auto'}
-        pointerEvents="none"
-        aria-label={`${isGearmotor ? 'Скорость выходного вала' : 'Скорость двигателя'}: ${label}`}
-      >
-        {label}
-      </text>,
-    ];
+  const bodyPaintOrder = [
+    ...orderedComponents.filter(wiresAboveComponentBody),
+    ...orderedComponents.filter((part) => part.kind !== 'wire' && !wiresAboveComponentBody(part)),
+  ];
+  const { switchClips, hitDomain } = computeSupplySwitchClipGeometry({
+    bodyPaintOrder,
+    liveSupplySwitches,
+    pendingTerminal: c.pendingTerminal,
+    hitDomainPoints: routedWires.flatMap(({ points }) => points),
+    viewBox: c.viewBox,
+    stageBounds: c.stageRef.current?.getBoundingClientRect(),
+    projectPoint: paintedComponentPoint,
+    projectBounds: paintedComponentBounds,
   });
+  const badgeGeometry = diagnosticBadgeGeometry(c.viewport.zoom);
+  const motorReadouts = <MotorReadouts controller={c} components={orderedComponents} />;
   // One compact marker per component renders above wires. Detailed values stay
   // in the existing I inspector; the canvas deliberately has no tooltip card.
-  const diagnosticIndicators = orderedComponents
-    .filter((component) => component.kind !== 'wire')
-    .map((component) => {
-      const entry = catalogEntry(component);
-      if (!entry?.asset || !entry.terminals || !entry.simulationSupported) return null;
-      const baseSize = renderedSize(entry, 0);
-      const bounds = renderedSize(entry, component.rotation ?? 0);
-      const alphaBounds = componentAssetVisibleBounds(entry, baseSize.width, baseSize.height);
-      const anchorBounds =
-        entry.key === 'gearmotor'
-          ? gearmotorDiagnosticBodyBounds(baseSize.width, baseSize.height)
-          : alphaBounds;
-      const paintedBounds = paintedComponentBounds(component, baseSize, bounds, anchorBounds);
-      const badgeAnchor = topRightBadgeAnchor(paintedBounds, badgeGeometry.radius);
-      const badgeAnchorKind =
-        entry.key === 'gearmotor' ? 'primary-body-top-right' : 'owner-alpha-top-right';
-      const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
-      const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
-      const actionableDiagnostics = componentDiagnostics.filter(
-        (diagnostic) => diagnostic.severity !== 'info',
-      );
-      const isLedIndicator = entry.key === 'led-5mm';
-      const isRgbLed = entry.key === 'rgb-led';
-      const ledBurned =
-        (isLedIndicator || isRgbLed) &&
-        (c.runtimePresentationResultByComponent.get(component.id)?.presentationState === 'failed' ||
-          (isRgbLed && diagnostics.includes('led_burnout')));
-      const ledOvercurrent = isLedIndicator && diagnostics.includes('led_overcurrent');
-      const primaryDiagnostic = ledBurned
-        ? actionableDiagnostics.find((diagnostic) => diagnostic.code === 'led_burnout')
-        : ledOvercurrent
-          ? actionableDiagnostics.find((diagnostic) => diagnostic.code === 'led_overcurrent')
-          : actionableDiagnostics[0];
-      const diagnosticText = primaryDiagnostic
-        ? `${primaryDiagnostic.message}${
-            primaryDiagnostic.suggestedAction ? ` ${primaryDiagnostic.suggestedAction}` : ''
-          }`
-        : '';
-      // The ordinary Tinkercad LED keeps reverse and disconnected states
-      // visually quiet. Its on-canvas marker exists only for actual
-      // over-current, and the destructive state replaces it with the
-      // starburst. Other components retain their existing diagnostics.
-      const showDiagnosticIndicator = isLedIndicator
-        ? ledOvercurrent || ledBurned
-        : !isRgbLed || ledBurned;
-      if (!c.simulationRunning || !primaryDiagnostic || !showDiagnosticIndicator) return null;
-      return (
-        // Слой рисуется поверх схемы, поэтому метка обязана называть свою
-        // деталь: иначе по разметке не понять, о чём предупреждение, — ни
-        // тесту, ни человеку, который читает страницу.
-        <g
-          key={component.id}
-          transform={`translate(${badgeAnchor.x} ${badgeAnchor.y})`}
-          data-testid="component-diagnostic"
-          data-screen-upright="true"
-          data-anchor={badgeAnchorKind}
-          data-component-id={component.id}
-          data-component-type={component.componentTypeId}
-          data-kind={component.kind}
-        >
-          <g
-            className={`workbench-component-diagnostic-indicator${
-              ledBurned ? ' workbench-led-burnout-explosion' : ''
-            }${c.errorDiagnosticComponentIds.has(component.id) ? ' error' : ''}`}
-            data-testid={
-              ledBurned
-                ? entry.key === 'rgb-led'
-                  ? 'rgb-led-burnout-explosion'
-                  : 'led-burnout-explosion'
-                : isLedIndicator
-                  ? 'led-diagnostic-badge'
-                  : 'component-diagnostic-indicator'
-            }
-            data-diagnostic-count={actionableDiagnostics.length}
-            pointerEvents="all"
-            role="img"
-            tabIndex={0}
-            aria-label={diagnosticText}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              c.selectComponent(component.id, event.shiftKey);
-            }}
-          >
-            {ledBurned ? (
-              // Sized from the part, not from the screen: the burst is ~85% of
-              // the component's smaller side and lives in world units, so it
-              // grows and shrinks together with the LED when zooming instead of
-              // covering it at every zoom level.
-              <g
-                transform={`scale(${(Math.min(baseSize.width, baseSize.height) * 0.85) / 68})`}
-                aria-hidden="true"
-              >
-                <path
-                  className="workbench-led-explosion-outer"
-                  d="M0-30 7-17 20-24 18-9 33-8 22 3 34 13 18 14 19 30 6 21 0 35-7 21-20 29-18 14-34 13-22 3-33-8-18-9-20-24-7-17Z"
-                />
-                <path
-                  className="workbench-led-explosion-inner"
-                  d="M0-22 5-11 16-16 13-5 24 0 13 5 16 16 5 11 0 23-5 11-16 16-13 5-24 0-13-5-16-16-5-11Z"
-                />
-              </g>
-            ) : (
-              <>
-                <circle r={badgeGeometry.radius} vectorEffect="non-scaling-stroke" />
-                <text y={badgeGeometry.textBaseline} fontSize={badgeGeometry.fontSize}>
-                  !
-                </text>
-              </>
-            )}
-          </g>
-        </g>
-      );
-    });
+  const diagnosticIndicators = (
+    <WorkbenchDiagnosticIndicators controller={c} components={orderedComponents} />
+  );
   const unsupportedModelIndicators = orderedComponents
     .filter((component) => component.kind !== 'wire')
     .map((component) => {
@@ -932,233 +1115,14 @@ export function WorkbenchStage({
         </g>
       );
     });
-  function renderComponentBody(component: SchematicComponent): JSX.Element | null {
-    const entry = catalogEntry(component);
-    if (!entry?.asset || !entry.terminals) return null;
-    const baseSize = renderedSize(entry, 0);
-    const selected = c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
-    const visualState = c.componentVisualState(component);
-    const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
-    const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
-    const photoresistorPercent = Math.round(
-      Math.min(1, Math.max(0, Number(component.stateProperties?.['illumination'] ?? 0.5))) * 100,
-    );
-    const photoresistorLux = photoresistorIlluminanceLux(component);
-    const photoresistorResistance = photoresistorResistanceOhm(component);
-    const photoresistorLightText = `${photoresistorLightCondition(
-      photoresistorLux,
-    )}: ${formatIlluminanceLux(photoresistorLux)}`;
+  function renderComponentBody(component: SchematicComponent): JSX.Element {
     return (
-      <g
+      <WorkbenchComponentBody
         key={component.id}
-        className={`${selected ? 'workbench-component-selected' : ''}${
-          c.simulationRunning && selected && c.errorDiagnosticComponentIds.has(component.id)
-            ? ' workbench-component-diagnostic'
-            : ''
-        }${c.simulationRunning && component.state ? ' workbench-component-actuator-active' : ''}`}
-        data-testid="schematic-component"
-        data-component-id={component.id}
-        data-kind={component.kind}
-        data-presentation-state={
-          c.runtimePresentationResultByComponent.get(component.id)?.presentationState
-        }
-        data-source-operating-mode={
-          c.runtimePresentationResultByComponent.get(component.id)?.sourceOperatingMode
-        }
-        data-component-type={component.componentTypeId}
-        data-hit-mask-status={componentHitMaskStatus(entry, baseSize.width, baseSize.height)}
-        data-hole-bindings={Object.keys(component.holeBindings ?? {}).length}
-        data-hole-ids={Object.entries(component.holeBindings ?? {})
-          .map(([pinId, binding]) => `${pinId}:${binding.holeId}`)
-          .join(',')}
-        data-diagnostics={diagnostics.join(',')}
-        data-x={component.position.x}
-        data-y={component.position.y}
-      >
-        {Object.keys(component.holeBindings ?? {}).length > 0 ? (
-          <g className="workbench-mounted-leads" pointerEvents="none" aria-hidden="true">
-            {Object.keys(component.holeBindings ?? {}).map((terminal) => {
-              const physicalPoint = terminalPosition(
-                component,
-                component.position,
-                terminal,
-                component.rotation ?? 0,
-              );
-              const landingPoint = terminalPositionInDocument(document, component, terminal);
-              if (!physicalPoint || !landingPoint) return null;
-              return (
-                <line
-                  key={terminal}
-                  className={`workbench-mounted-lead${
-                    component.kind === 'source' && terminal === 'BAT+'
-                      ? ' positive'
-                      : component.kind === 'source' && terminal === 'BAT-'
-                        ? ' negative'
-                        : ''
-                  }`}
-                  data-mounted-terminal={terminal}
-                  x1={physicalPoint.x}
-                  y1={physicalPoint.y}
-                  x2={landingPoint.x}
-                  y2={landingPoint.y}
-                  vectorEffect="non-scaling-stroke"
-                />
-              );
-            })}
-          </g>
-        ) : null}
-        <g
-          className={`workbench-part${selected ? ' selected' : ''}`}
-          transform={componentTransform(component)}
-          onPointerDown={(e) => {
-            if (isVisibleComponentBody(e, entry, baseSize)) {
-              c.startComponentDrag(e, component);
-            }
-          }}
-          onClick={(e) => {
-            if (!isVisibleComponentBody(e, entry, baseSize)) return;
-            e.stopPropagation();
-            c.selectComponent(component.id, e.shiftKey);
-          }}
-          role="button"
-          tabIndex={0}
-          aria-label={`${entry.label}. Перетащите для перемещения.`}
-          onKeyDown={(e: ReactKeyboardEvent<SVGGElement>) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              c.selectComponent(component.id, e.shiftKey);
-            }
-          }}
-        >
-          <rect
-            className="workbench-component-body-hit"
-            data-hit-surface="owner-alpha-mask"
-            x={0}
-            y={0}
-            width={baseSize.width}
-            height={baseSize.height}
-            fill="#ffffff"
-            fillOpacity={0.001}
-            pointerEvents="none"
-          />
-          <ProductionComponentVisual
-            entry={entry}
-            component={component}
-            width={baseSize.width}
-            height={baseSize.height}
-            visualState={visualState}
-            effectiveBrightness={c.componentLedBrightness(component)}
-            effectiveArduinoLActive={c.componentArduinoLActive(component)}
-            preparedLedAsset={c.preparedComponentLedAsset(component)}
-            committedLedAsset={c.committedComponentLedAsset(component)}
-            rollbackLedAsset={c.rollbackComponentLedAsset(component)}
-            onLedAssetReadiness={c.onLedAssetReadiness}
-            result={c.runtimePresentationResultByComponent.get(component.id)}
-            selected={selected}
-            selectionOffset={1.6 / c.viewport.zoom}
-            simulationRunning={c.simulationRunning}
-            simulationTimeMs={c.simulationTimeMs}
-            onArduinoReset={
-              entry.key === 'arduino-uno' ? () => c.resetArduinoRuntime(component.id) : undefined
-            }
-            onSwitchActuate={
-              c.simulationRunning && component.kind === 'switch'
-                ? () => c.toggleComponentState(component.id)
-                : undefined
-            }
-            onMultimeterModeChange={
-              entry.key === 'multimeter'
-                ? (mode) => c.setMultimeterMeasurementMode(component.id, mode)
-                : undefined
-            }
-            onRegulatedPowerSupplyChange={
-              entry.key === 'regulated-power-supply'
-                ? (patch) => c.setRegulatedPowerSupplyControls(component.id, patch)
-                : undefined
-            }
-            onSignalGeneratorChange={
-              entry.key === 'signal-generator'
-                ? (patch) => c.setSignalGeneratorControls(component.id, patch)
-                : undefined
-            }
-          />
-          {component.kind === 'potentiometer' && c.simulationRunning ? (
-            <circle
-              className="workbench-potentiometer-hit"
-              data-hit-surface="potentiometer-knob-face"
-              cx={baseSize.width * (71.5 / 144)}
-              cy={baseSize.height * (71 / 164)}
-              r={Math.min(baseSize.width / 144, baseSize.height / 164) * 71}
-              onPointerDown={(event) => c.startPotentiometerControl(event, component)}
-              aria-label="Повернуть ручку потенциометра"
-            />
-          ) : null}
-          {component.kind === 'photoresistor' && c.simulationRunning && selected ? (
-            <foreignObject
-              className="workbench-photoresistor-control-object"
-              data-testid="photoresistor-light-control"
-              x={(baseSize.width - 150) / 2}
-              y={-54}
-              width={150}
-              height={48}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <label className="workbench-photoresistor-control">
-                <span className="workbench-photoresistor-level" aria-hidden="true" />
-                <output title={photoresistorLightText}>
-                  {formatIlluminanceLux(photoresistorLux)}
-                </output>
-                <span
-                  className="workbench-photoresistor-range"
-                  style={
-                    {
-                      '--photoresistor-position': `${photoresistorPercent}%`,
-                      '--photoresistor-thumb-shift': `-${photoresistorPercent}%`,
-                      '--photoresistor-fill-adjustment': `${(20 * photoresistorPercent) / 100}px`,
-                    } as CSSProperties
-                  }
-                >
-                  <span className="workbench-photoresistor-rail" aria-hidden="true" />
-                  <span className="workbench-photoresistor-fill" aria-hidden="true" />
-                  <span className="workbench-photoresistor-thumb" aria-hidden="true" />
-                  <input
-                    aria-label="Освещённость фоторезистора"
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={photoresistorPercent}
-                    aria-valuetext={`${photoresistorLightText}; сопротивление ${Math.round(
-                      photoresistorResistance,
-                    )} Ом`}
-                    onChange={(event) => {
-                      const illumination = Number(event.currentTarget.value) / 100;
-                      const preview = {
-                        ...component,
-                        stateProperties: {
-                          ...component.stateProperties,
-                          illumination,
-                        },
-                      };
-                      c.setSelectedProperties(
-                        { illumination },
-                        `Освещённость: ${formatIlluminanceLux(
-                          photoresistorIlluminanceLux(preview),
-                        )}.`,
-                      );
-                    }}
-                  />
-                </span>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M19.8 4.2l-2.1 2.1M6.3 17.7l-2.1 2.1" />
-                </svg>
-              </label>
-            </foreignObject>
-          ) : null}
-        </g>
-      </g>
+        controller={c}
+        component={component}
+        onSupplySwitchAvailability={onSupplySwitchAvailability}
+      />
     );
   }
 
@@ -1312,6 +1276,19 @@ export function WorkbenchStage({
         onPointerCancel={handleStagePointerCancel}
       >
         <defs>
+          {switchClips.map((hole, index) => (
+            <clipPath
+              key={index}
+              id={`${switchClipId}-supply-${index}`}
+              clipPathUnits="userSpaceOnUse"
+            >
+              <path
+                clipPath={index ? `url(#${switchClipId}-supply-${index - 1})` : undefined}
+                clipRule="evenodd"
+                d={`M ${hitDomain!.minX} ${hitDomain!.minY} H ${hitDomain!.maxX} V ${hitDomain!.maxY} H ${hitDomain!.minX} Z ${hole.path}`}
+              />
+            </clipPath>
+          ))}
           <pattern id="asa-grid-small" width="20" height="20" patternUnits="userSpaceOnUse">
             <path d="M20 0H0V20" fill="none" stroke="#eceff2" strokeWidth="0.8" />
           </pattern>
@@ -1336,7 +1313,14 @@ export function WorkbenchStage({
         {/* Wire hit geometry shares the saved-wire paint layer. Ordinary
             components are painted later, so an invisible wire target cannot
             steal input where the wire is visually hidden beneath a part. */}
-        <g className="workbench-wire-layer workbench-wire-hit-layer">
+        <g
+          className="workbench-wire-layer workbench-wire-hit-layer"
+          clipPath={
+            switchClips.length
+              ? `url(#${switchClipId}-supply-${switchClips.length - 1})`
+              : undefined
+          }
+        >
           {routedWires.map(({ wire, path }) => (
             <path
               key={wire.id}
@@ -1559,6 +1543,9 @@ export function WorkbenchStage({
             height={Math.abs(c.marquee.current.y - c.marquee.start.y)}
           />
         ) : null}
+        {c.annotations ? (
+          <CanvasAnnotationLayer controller={c.annotations} toWorld={c.annotationWorldPoint} />
+        ) : null}
         <g className="workbench-diagnostic-layer" data-testid="diagnostic-layer">
           <g className="workbench-stage-readout-layer" pointerEvents="none">
             {motorReadouts}
@@ -1567,6 +1554,7 @@ export function WorkbenchStage({
           {unsupportedModelIndicators}
         </g>
       </svg>
+      {c.annotations ? <CanvasAnnotationEditor controller={c.annotations} /> : null}
       {placementEntry ? (
         <div className="workbench-placement">
           <p role="status">
@@ -1594,10 +1582,20 @@ export function WorkbenchStage({
         <button type="button" onClick={c.fitScene} aria-label="Подогнать проект">
           <FitIcon />
         </button>
-        <button type="button" onClick={() => c.zoomBy(1.18)} aria-label="Увеличить масштаб">
+        <button
+          className="workbench-stage-zoom-step"
+          type="button"
+          onClick={() => c.zoomBy(1.18)}
+          aria-label="Увеличить масштаб"
+        >
           <ZoomInIcon />
         </button>
-        <button type="button" onClick={() => c.zoomBy(0.85)} aria-label="Уменьшить масштаб">
+        <button
+          className="workbench-stage-zoom-step"
+          type="button"
+          onClick={() => c.zoomBy(0.85)}
+          aria-label="Уменьшить масштаб"
+        >
           <ZoomOutIcon />
         </button>
         <span aria-label={`Масштаб ${Math.round(c.viewport.zoom * 100)} процентов`}>

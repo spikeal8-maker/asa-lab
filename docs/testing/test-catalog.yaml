@@ -26,6 +26,36 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-PUBLICATION-BROWSER-ISOLATION-001
+    title: Publication browser partitions preserve every scenario and use sequential owned API lifecycles without retry or limiter changes
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: node --test tools/projects-publication-partitions.test.mjs
+    timeout_seconds: 30
+    owner: identity
+    artifacts: [node-test-report]
+  - id: TST-JOINT-PREFIX-CANONICAL-MIGRATIONS-001
+    title: Real historical Course and joint Learning prefixes reach the complete canonical tail while preserving data, defaults, ACL, ledger and rejected unsupported history
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/migration/course-structure-forward-upgrade.pg.spec.ts tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts --maxWorkers=1
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-SCHOOL-CANONICAL-MIGRATIONS-001
+    title: Canonical published migrations and byte-preserved unreleased queue upgrade school schema 286 through 300 with exact ledger and owned uncertain jobs intact
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm gate:ai-image-queue
+    timeout_seconds: 1200
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
   - id: TST-AI-TOKEN-BUDGETS-CORE-001
     title: Soft monthly model budgets, actual journal settlement, retained unknowns, complete native rounds, own-principal privacy and independent CAS settings
     suite: authorization
@@ -118,6 +148,16 @@ tests:
     timeout_seconds: 180
     owner: ai-assistant
     artifacts: [vitest-report, private-storage-reconciliation-report]
+  - id: TST-AI-FIXTURE-STARTUP-001
+    title: Actual fixture CLI rejects incomplete asynchronous startup without Docker or network access
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: node --test tests/ai-attachments/minio-fixture.test.mjs
+    timeout_seconds: 30
+    owner: ai-assistant
+    artifacts: [node-test-report]
   - id: TST-AI-CLOUD-PG-001
     title: Separate encrypted cloud provider credentials, Ollama Cloud transport, paid admission and durable usage
     suite: authorization
@@ -292,6 +332,12 @@ tests:
     owner: admin-auth
     artifacts: [owner-evidence-report, production-version-report, recovery-report]
   - id: TST-ARCH-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared governance resources serialize and different groups may run independently.
+      order: 10
+      group: governance
+      after: []
     title: Architecture foundation validation
     suite: governance
     level: repository
@@ -369,6 +415,12 @@ tests:
     artifacts: [console-report]
 
   - id: TST-FORMAT-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 10
+      group: workspace
+      after: []
     title: Repository formatting
     suite: static
     level: repository
@@ -380,6 +432,12 @@ tests:
     artifacts: [console-report]
 
   - id: TST-LINT-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 20
+      group: workspace
+      after: []
     title: Repository lint
     suite: static
     level: repository
@@ -391,6 +449,12 @@ tests:
     artifacts: [console-report]
 
   - id: TST-TYPE-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 30
+      group: workspace
+      after: []
     title: Strict TypeScript typecheck
     suite: static
     level: repository
@@ -413,6 +477,12 @@ tests:
     artifacts: [nx-project-graph, console-report]
 
   - id: TST-BUILD-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 50
+      group: workspace
+      after: ["TST-TYPE-001"]
     title: Production build
     suite: static
     level: repository
@@ -424,6 +494,12 @@ tests:
     artifacts: [build-manifest]
 
   - id: TST-CONTRACT-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 40
+      group: workspace
+      after: []
     title: OpenAPI and JSON Schema validation
     suite: contracts
     level: repository
@@ -479,6 +555,9 @@ tests:
     artifacts: [console-report]
 
   - id: TST-MIGRATION-001
+    local_check:
+      eligible: false
+      reason: Formal database checks require isolated CI; local Docker and working databases are never started.
     title: Database migration smoke against isolated PostgreSQL
     suite: integration
     level: database
@@ -501,6 +580,9 @@ tests:
     artifacts: [junit]
 
   - id: TST-RLS-001
+    local_check:
+      eligible: false
+      reason: Formal database checks require isolated CI; local Docker and working databases are never started.
     title: Runtime database role and RLS defense-in-depth
     suite: authorization
     level: database
@@ -523,6 +605,12 @@ tests:
     artifacts: [authorization-matrix, junit]
 
   - id: TST-SECRET-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared security resources serialize and different groups may run independently.
+      order: 10
+      group: security
+      after: []
     title: Secret scanning
     suite: security
     level: repository
@@ -1437,3 +1525,142 @@ tests:
     timeout_seconds: 900
     owner: projects
     artifacts: [playwright-report, public-projects-copy-screenshots]
+
+  - id: TST-DEVEX-CI-METRICS-001
+    title: Read-only CI collection, bounded pagination, attempts, honest timing and billing, static DAG coverage and offline JSON reproduction
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: [TASK-DEVEX-ENGINE-001]
+    command: python tools/test_ci_metrics.py
+    timeout_seconds: 60
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-SHADOW-UNIT-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared python-tests resources serialize and different groups may run independently.
+      order: 10
+      group: python-tests
+      after: []
+    title: Shadow selection fail-closed, Git diff and independent required-check controls without Node dependencies
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: python tools/test_devex_plan.py
+    timeout_seconds: 120
+    owner: devex-engine
+    artifacts: [test-report]
+  - id: TST-DEVEX-SHADOW-INTEGRATION-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 20
+      group: workspace
+      after: []
+    title: Real Nx graph, TypeScript import parser and historical shadow selection controls
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:devex-plan:integration
+    timeout_seconds: 300
+    owner: devex-engine
+    artifacts: [shadow-control-report]
+
+  - id: TST-DEVEX-CI-REQUIRED-001
+    title: Exact-source General aggregate rejects missing skipped cancelled failed and inapplicable mandatory jobs
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: python tools/test_ci_required.py
+    timeout_seconds: 60
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-CHECK-001
+    title: Changed local runner preflight, actual subprocess failure and timeout, safe scheduling and isolated Python bootstrap
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:dev-check
+    local_check:
+      eligible: true
+      reason: Owned temporary execution fixtures only; no application server, browser or database.
+      order: 20
+      group: workspace
+      after: []
+    timeout_seconds: 300
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-COLLECT-PICKER-FORMAT-001
+    title: Collection picker production and complete component test-family formatting
+    suite: static
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-local-ui.mjs --format
+    local_check:
+      eligible: true
+      reason: Fixed owned production and test-family files only; no runtime.
+      order: 10
+      group: workspace
+      after: []
+    timeout_seconds: 60
+    owner: devex-engine
+    artifacts: [console-report]
+
+  - id: TST-COLLECT-PICKER-LINT-001
+    title: Collection picker production component and complete test-family ESLint
+    suite: static
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-local-ui.mjs --lint
+    local_check:
+      eligible: true
+      reason: Fixed owned TypeScript component and test-family files only; no runtime.
+      order: 20
+      group: workspace
+      after: [TST-COLLECT-PICKER-FORMAT-001]
+    timeout_seconds: 120
+    owner: devex-engine
+    artifacts: [console-report]
+
+  - id: TST-COLLECT-PICKER-UNIT-001
+    title: Actual collection picker busy, create, mutation and close lifecycle
+    suite: integration
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-local-ui.mjs --components
+    local_check:
+      eligible: true
+      reason: Actual production React component with jsdom and mocked API; no server, browser or database.
+      order: 30
+      group: workspace
+      after: [TST-COLLECT-PICKER-LINT-001]
+    timeout_seconds: 120
+    owner: devex-engine
+    artifacts: [vitest-report]
+
+  # Requires the built Web SPA. Controlled REST proves UI behavior only;
+  # existing real authorization/RLS/data journeys remain separate and mandatory.
+  - id: TST-COLLECT-PICKER-BROWSER-001
+    title: Built My Projects collection picker lifecycle and four viewport geometry with controlled REST
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test --config playwright.settings-ui.config.ts e2e/project-collections-baseline.spec.ts
+    local_check:
+      eligible: false
+      reason: Isolated CI browser verification only.
+    timeout_seconds: 300
+    owner: devex-engine
+    artifacts: [playwright-report, collection-picker-screenshots, collection-picker-geometry]

@@ -320,7 +320,7 @@ async function verifyKeyboardAndTouch(page: Page) {
   await page.emulateMedia({ colorScheme: 'light' });
   const overviewTab = page.getByRole('tab', { name: 'Обзор', exact: true });
   const settingsTab = page.getByRole('tab', { name: 'Настройки', exact: true });
-  const lastTab = page.getByRole('tab', { name: 'Изображения', exact: true });
+  const lastTab = page.getByRole('tab', { name: 'Транскрибация', exact: true });
   const visibleSelection = async () => {
     await expect
       .poll(() =>
@@ -377,7 +377,7 @@ async function verifyKeyboardAndTouch(page: Page) {
         };
       }),
     );
-  expect(targets).toHaveLength(9);
+  expect(targets).toHaveLength(11);
   for (const target of targets) {
     expect(target.width, target.label).toBeGreaterThanOrEqual(44);
     expect(target.height, target.label).toBeGreaterThanOrEqual(44);
