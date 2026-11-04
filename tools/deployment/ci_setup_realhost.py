@@ -71,7 +71,8 @@ DIAGNOSTIC_REASONS = {"OPERATION_INTENT", "DOCKER_UNKNOWN", "BLOCKED_OWNER", "CO
     "EXISTING_ASA_RESOURCES", "EMPTY_TARGET", "ENV_MISSING", "SHARED_DATA_VOLUME", "DATA_IDENTITY_CHANGED",
     "BIND_BACKEND_UNSUPPORTED", "KNOWN_OPERATION", "UNKNOWN_INTERRUPTION", "ADOPTION_REQUIRED", "EXISTING_STOPPED",
     "CONSISTENT_INSTALLATION", "IDENTITY_UNVERIFIED", "DIAGNOSTIC_TIMEOUT", "DIAGNOSTIC_OUTPUT_LIMIT",
-    "DIAGNOSTIC_TRUST", "DIAGNOSTIC_OWNER", "DIAGNOSTIC_JSON", "DIAGNOSTIC_UID", "UNRECOGNIZED_REASON"}
+    "DIAGNOSTIC_TRUST", "DIAGNOSTIC_OWNER", "DIAGNOSTIC_JSON", "DIAGNOSTIC_UID", "DIAGNOSTIC_PLATFORM",
+    "DIAGNOSTIC_PROCESS_OWNERSHIP", "DIAGNOSTIC_PROCESS_CLEANUP", "UNRECOGNIZED_REASON"}
 DIAGNOSTIC_PATHS = {"opt": "/opt", "bundleParent": "/opt/asa-setup", "bundle": ".", "tools": "tools",
     "setup": "tools/asa_setup.py", "launcher": "tools/asa_setup_launcher.py", "deployment": "tools/deployment",
     "package": "tools/deployment/__init__.py", "discovery": "tools/deployment/setup_discovery.py",
@@ -88,7 +89,8 @@ COMMAND_DIAGNOSTIC_REASONS = DIAGNOSTIC_REASONS | {"COMMAND", "COMMAND_TIMEOUT",
     "LOCKED", "OPERATION_PENDING", "HEALTH", "TECHNICAL_ACCEPTANCE", "BROWSER_ACCEPTANCE", "INTERRUPTED", "CLI_UNAVAILABLE"}
 COMMAND_DIAGNOSTIC_ERRORS = {"DIAGNOSTIC_PATH", "DIAGNOSTIC_PERMISSIONS", "DIAGNOSTIC_SIZE", "DIAGNOSTIC_CHANGED",
     "DIAGNOSTIC_BINDING", "DIAGNOSTIC_INVOCATION", "DIAGNOSTIC_LOG_BASELINE", "DIAGNOSTIC_JSON", "DIAGNOSTIC_TIMEOUT",
-    "DIAGNOSTIC_INVENTORY", "DIAGNOSTIC_DOCKER_EXIT", "DIAGNOSTIC_OUTPUT_LIMIT"}
+    "DIAGNOSTIC_INVENTORY", "DIAGNOSTIC_DOCKER_EXIT", "DIAGNOSTIC_OUTPUT_LIMIT", "DIAGNOSTIC_PLATFORM",
+    "DIAGNOSTIC_PROCESS_OWNERSHIP", "DIAGNOSTIC_PROCESS_CLEANUP"}
 COMMAND_DIAGNOSTIC_OUTCOMES = {"ACCEPTED", "WARNING", "BLOCKED", "ERROR", "INTERRUPTED", "PREPARATION_REQUIRED", "NO_CHANGE"}
 # Ubuntu 24.04 ships /var/log root:syslog 0775; using it as an ancestor would
 # violate diagnostic_open's intentionally strict no-group-write trust contract.
@@ -98,6 +100,10 @@ SWITCH_STATES = {"created", "running", "paused", "restarting", "removing", "exit
 SWITCH_SQLSTATES = {"08001", "08006", "23502", "23503", "23505", "28000", "28P01", "3D000", "3F000",
     "42501", "42601", "42703", "42704", "42P01", "53100", "53200", "53300", "53400", "55P03", "57014", "XX000"}
 SWITCH_SECONDS = 60
+SWITCH_READ_STEPS = {"daemonBefore": "info", "beforeList": "ps", "beforeInspect": "inspect", "beforeRecheck": "ps",
+    "containerLogs": "logs", "afterList": "ps", "afterInspect": "inspect", "afterRecheck": "ps", "daemonAfter": "info"}
+SWITCH_READ_CATEGORIES = {"BUDGET_EXHAUSTED", "TIMEOUT", "OUTPUT_LIMIT", "NONZERO_EXIT", "UID_MISMATCH",
+    "PROBE_FAILURE", "INVALID_RESULT", "PROCESS_OWNERSHIP", "PROCESS_CLEANUP"}
 SWITCH_INSPECT = ('{"id":{{json .Id}},"name":{{json .Name}},"created":{{json .Created}},"image":{{json .Config.Image}},'
     '"imageId":{{json .Image}},"project":{{json (index .Config.Labels "com.docker.compose.project")}},'
     '"service":{{json (index .Config.Labels "com.docker.compose.service")}},'
@@ -107,7 +113,7 @@ SWITCH_INSPECT = ('{"id":{{json .Id}},"name":{{json .Name}},"created":{{json .Cr
     '"state":{{json .State.Status}},"running":{{json .State.Running}},"dead":{{json .State.Dead}},'
     '"oomKilled":{{json .State.OOMKilled}},"exitCode":{{json .State.ExitCode}},"restarts":{{json .RestartCount}},'
     '"started":{{json .State.StartedAt}},"finished":{{json .State.FinishedAt}},"error":{{json .State.Error}},'
-    '"health":{{if .State.Health}}{{json .State.Health.Status}}{{else}}"none"{{end}}}')
+    '"health":{{if eq (index .State "Health") nil}}"none"{{else}}{{json (index .State "Health").Status}}{{end}}}')
 
 
 class Failure(RuntimeError):
@@ -735,9 +741,13 @@ def candidate_bundle(context):
 
 def command_diagnostic_error(error):
     code = getattr(error, "code", None)
-    return {"status": "UNAVAILABLE", "binding": "UNVERIFIED", "observation": "AFTER_PUBLIC_FAILURE",
+    result = {"status": "UNAVAILABLE", "binding": "UNVERIFIED", "observation": "AFTER_PUBLIC_FAILURE",
             "observedAt": now(), "reasonCode": code if isinstance(code, str) and code in COMMAND_DIAGNOSTIC_ERRORS
             else "DIAGNOSTIC_UNAVAILABLE", "errorClass": diagnostic_error(error)}
+    observed = switch_command_projection(getattr(error, "docker_observation", None))
+    if observed:
+        result["failedObservation"] = observed
+    return result
 
 
 def diagnostic_open(path, base, uid, *, directory=False):
@@ -969,67 +979,84 @@ def timestamp_ns(value):
     return (moment - epoch).days * 86400 * 10**9 + (moment - epoch).seconds * 10**9 + int((match[2] or "").ljust(9, "0"))
 
 
+def switch_node_error_projection(block):
+    """One complete Node object; fields before its opening frame are not properties."""
+    rules, codes = set(), set()
+    if not block or not block[0].startswith(("error: ", "Error: ")):
+        return rules, codes
+    openings = [index for index, line in enumerate(block) if line.startswith("    at ") and line.endswith(" {")]
+    if len(openings) != 1 or block[-1:] != ["}"]:
+        return rules, codes
+    opening = openings[0]
+    prefix, properties = block[:opening + 1], block[opening + 1:-1]
+    role = any(re.fullmatch(r"\s+at (?:async )?file:///app/docker/provision-runtime-role\.mjs:[0-9]+:[0-9]+(?: \{)?", line) for line in prefix)
+    protocol = any(re.fullmatch(r"\s+at Parser\.parseErrorMessage \(/app/node_modules/(?:\.pnpm/pg-protocol@[0-9.]+/node_modules/)?pg-protocol/dist/parser\.js:[0-9]+:[0-9]+\)(?: \{)?", line) for line in prefix)
+    if not (role or protocol) or any(re.match(r"\s+(?:code|severity)\s*:", line) for line in prefix):
+        return rules, codes
+    code_lines = [line for line in properties if re.match(r"\s+code\s*:", line)]
+    severity_lines = [line for line in properties if re.match(r"\s+severity\s*:", line)]
+    if len(code_lines) != 1 or len(severity_lines) > 1:
+        return rules, codes
+    code = re.fullmatch(r"\s+code: '([A-Z0-9]{5}|ECONNREFUSED)',?", code_lines[0])
+    severity = re.fullmatch(r"\s+severity: '(ERROR|FATAL)',?", severity_lines[0]) if severity_lines else None
+    if not code or severity_lines and not severity or code[1] != "ECONNREFUSED" and not severity:
+        return rules, codes
+    if role:
+        rules.add("RUNTIME_ROLE_PROVISION_FAILURE")
+    if code[1] == "ECONNREFUSED":
+        rules.add("DATABASE_CONNECTION_REFUSED")
+    else:
+        rules.add("POSTGRES_SERVER_ERROR")
+        if code[1] in SWITCH_SQLSTATES:
+            codes.add(code[1])
+    return rules, codes
+
+
 def switch_log_projection(streams, service, invocation):
-    """Classify only timestamped Docker log entries from this invocation."""
-    rules, sqlstates, lines = set(), set(), []
+    """Parse each timestamped stream separately; never splice error-object fragments."""
+    rules, sqlstates = set(), set()
     require(service in SWITCH_SERVICES and sum(len(item) for item in streams) <= DIAGNOSTIC_LIMIT, "DIAGNOSTIC_OUTPUT_LIMIT")
     for raw in streams:
+        lines = []
         for line in raw.decode("utf-8", "replace").splitlines():
-            if len(line) > 8192:
-                continue
             stamp, separator, content = line.partition(" ")
             try:
                 within = invocation["startedNs"] <= timestamp_ns(stamp) <= invocation["finishedNs"]
             except (Failure, ValueError):
-                continue
-            if separator and within:
-                lines.append(content)
-    # Pinned tools/migrate.mjs catches errors; docker/provision-runtime-role.mjs
-    # has no catch, so Node prints a pg Error object and its own source frame.
-    if service == "migration":
-        for line in lines:
-            if line.startswith("db:migrate FAIL: "):
-                rules.add("MIGRATION_RUNNER_FAILURE")
-                message = line[len("db:migrate FAIL: "):]
-                for prefix, rule in (("password authentication failed for user ", "DATABASE_AUTHENTICATION_FAILURE"),
-                        ("permission denied for ", "DATABASE_PRIVILEGE_FAILURE"),
-                        ("connect ECONNREFUSED ", "DATABASE_CONNECTION_REFUSED")):
-                    if message.startswith(prefix):
-                        rules.add(rule)
-            if line == "BLOCKED: MIGRATION_DATABASE_URL and MIGRATION_EXPECT_DATABASE are required; DATABASE_URL is never an implicit migration target.":
-                rules.add("MIGRATION_REQUIRED_INPUT_MISSING")
-            if line.startswith("BLOCKED: migration URL targets ") or line.startswith("BLOCKED: set MIGRATION_CONFIRM exactly to "):
-                rules.add("MIGRATION_TARGET_ATTESTATION_FAILED")
-            if line == "MIGRATION_DATABASE_URL and ASA_APP_DB_PASSWORD are required":
-                rules.add("RUNTIME_ROLE_REQUIRED_INPUT_MISSING")
+                within = False
+            # A dropped or unframed line breaks the object, rather than joining
+            # the valid fragments on either side into invented complete evidence.
+            lines.append(content if len(line) <= 8192 and separator and within else None)
         for index, line in enumerate(lines):
-            if not line.startswith(("error: ", "Error: ")):
+            if line is None:
                 continue
-            block = []
-            for item in lines[index:index + 48]:
-                if block and item.startswith(("error: ", "Error: ")):
-                    break
-                block.append(item)
-                if item == "}":
-                    break
-            frame = any(re.fullmatch(r"\s+at (?:async )?file:///app/docker/provision-runtime-role\.mjs:[0-9]+:[0-9]+(?: \{)?", item) for item in block)
-            pg_frame = any(re.fullmatch(r"\s+at Parser\.parseErrorMessage \(/app/node_modules/(?:\.pnpm/pg-protocol@[0-9.]+/node_modules/)?pg-protocol/dist/parser\.js:[0-9]+:[0-9]+\)(?: \{)?", item) for item in block)
-            if not frame and not pg_frame:
-                continue
-            if frame:
-                rules.add("RUNTIME_ROLE_PROVISION_FAILURE")
-            object_open = any(item.startswith("    at ") and item.endswith(" {") for item in block)
-            if object_open and block[-1] == "}" and any(re.fullmatch(r"\s+severity: '(ERROR|FATAL)',?", item) for item in block):
-                rules.add("POSTGRES_SERVER_ERROR")
-                for item in block:
-                    code = re.fullmatch(r"\s+code: '([A-Z0-9]{5})',?", item)
-                    if code and code[1] in SWITCH_SQLSTATES:
-                        sqlstates.add(code[1])
-            if any(re.fullmatch(r"\s+code: 'ECONNREFUSED',?", item) for item in block):
-                rules.add("DATABASE_CONNECTION_REFUSED")
-    if service in ("minio", "minio-init"):
-        for line in lines:
-            if line.startswith(("mc: <ERROR> ", "ERROR ", "Error: ")):
+            if service == "migration":
+                if line.startswith("db:migrate FAIL: "):
+                    rules.add("MIGRATION_RUNNER_FAILURE")
+                    message = line[len("db:migrate FAIL: "):]
+                    for prefix, rule in (("password authentication failed for user ", "DATABASE_AUTHENTICATION_FAILURE"),
+                            ("permission denied for ", "DATABASE_PRIVILEGE_FAILURE"),
+                            ("connect ECONNREFUSED ", "DATABASE_CONNECTION_REFUSED")):
+                        if message.startswith(prefix):
+                            rules.add(rule)
+                if line == "BLOCKED: MIGRATION_DATABASE_URL and MIGRATION_EXPECT_DATABASE are required; DATABASE_URL is never an implicit migration target.":
+                    rules.add("MIGRATION_REQUIRED_INPUT_MISSING")
+                if line.startswith("BLOCKED: migration URL targets ") or line.startswith("BLOCKED: set MIGRATION_CONFIRM exactly to "):
+                    rules.add("MIGRATION_TARGET_ATTESTATION_FAILED")
+                if line == "MIGRATION_DATABASE_URL and ASA_APP_DB_PASSWORD are required":
+                    rules.add("RUNTIME_ROLE_REQUIRED_INPUT_MISSING")
+                if line.startswith(("error: ", "Error: ")):
+                    block = []
+                    for item in lines[index:index + 48]:
+                        if item is None or block and item.startswith(("error: ", "Error: ")):
+                            break
+                        block.append(item)
+                        if item == "}":
+                            break
+                    observed_rules, observed_codes = switch_node_error_projection(block)
+                    rules.update(observed_rules)
+                    sqlstates.update(observed_codes)
+            if service in ("minio", "minio-init") and line.startswith(("mc: <ERROR> ", "ERROR ", "Error: ")):
                 if "Access Denied" in line or "Access denied" in line:
                     rules.add("OBJECT_STORAGE_ACCESS_DENIED")
                 if "permission denied" in line or "Permission denied" in line:
@@ -1116,6 +1143,32 @@ def switch_state_projection(row, invocation):
     return value
 
 
+def switch_command_projection(value):
+    if not isinstance(value, dict) or not isinstance(value.get("step"), str):
+        return {}
+    step = value["step"]
+    if (step not in SWITCH_READ_STEPS or value.get("verb") != SWITCH_READ_STEPS[step]
+            or not isinstance(value.get("category"), str) or value["category"] not in SWITCH_READ_CATEGORIES
+            or type(value.get("attempted")) is not bool):
+        return {}
+    result = {key: value[key] for key in ("step", "verb", "category", "attempted")}
+    code = value.get("exitCode")
+    result["exitCode"] = code if type(code) is int and -128 <= code <= 255 else "UNAVAILABLE"
+    cleanup = value.get("cleanupReasonCode")
+    if isinstance(cleanup, str) and cleanup in ("DIAGNOSTIC_PROCESS_OWNERSHIP", "DIAGNOSTIC_PROCESS_CLEANUP"):
+        result["cleanupReasonCode"] = cleanup
+    return result
+
+
+def switch_command_failure(step, category, proof=None, *, reason="DIAGNOSTIC_DOCKER_EXIT", attempted=True):
+    proof = proof if isinstance(proof, dict) else {}
+    error = Failure(reason)
+    error.docker_observation = switch_command_projection({"step": step, "verb": SWITCH_READ_STEPS.get(step),
+        "category": category, "attempted": attempted, "exitCode": proof.get("exitCode"),
+        "cleanupReasonCode": proof.get("cleanupReasonCode")})
+    return error
+
+
 def switch_failure_observation(owner, environment, config, journal, invocation):
     """Bounded read-only local Docker observation; no readiness prerequisite."""
     deadline = time.monotonic() + SWITCH_SECONDS
@@ -1125,34 +1178,53 @@ def switch_failure_observation(owner, environment, config, journal, invocation):
     require(isinstance(expected_daemon, str) and HEX64.fullmatch(expected_daemon), "DIAGNOSTIC_BINDING")
     child_env = {key: environment[key] for key in ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "PYTHONDONTWRITEBYTECODE") if key in environment}
     child_env["DOCKER_HOST"] = "unix:///var/run/docker.sock"
-    def read(args, *, logs=False):
+    def read(step, args, *, logs=False):
+        require(SWITCH_READ_STEPS.get(step) == args[0], "DIAGNOSTIC_BINDING")
         remaining = deadline - time.monotonic()
-        require(remaining > 5, "DIAGNOSTIC_TIMEOUT")
-        require(args[0] in ("info", "ps", "inspect", "logs"), "DIAGNOSTIC_BINDING")
-        proof, raw = diagnostic_command(["docker", *args], timeout=min(8, remaining - 5),
-            environment=child_env, owner=owner, return_streams=logs)
-        require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
-        if proof.get("reasonCode") in ("DIAGNOSTIC_TIMEOUT", "DIAGNOSTIC_OUTPUT_LIMIT"):
-            raise Failure(proof["reasonCode"])
-        require(not proof.get("reasonCode") and proof.get("exitCode") == 0
-                and proof.get("actualUid", owner["uid"]) == owner["uid"], "DIAGNOSTIC_DOCKER_EXIT")
-        require(sum(map(len, raw)) <= DIAGNOSTIC_LIMIT if logs else len(raw) <= DIAGNOSTIC_LIMIT, "DIAGNOSTIC_OUTPUT_LIMIT")
+        if remaining <= 5:
+            raise switch_command_failure(step, "BUDGET_EXHAUSTED", reason="DIAGNOSTIC_TIMEOUT", attempted=False)
+        try:
+            proof, raw = diagnostic_command(["docker", *args], timeout=min(8, remaining - 5),
+                environment=child_env, owner=owner, return_streams=logs)
+        except BaseException:
+            raise switch_command_failure(step, "PROBE_FAILURE") from None
+        if not isinstance(proof, dict):
+            raise switch_command_failure(step, "INVALID_RESULT")
+        if time.monotonic() >= deadline:
+            raise switch_command_failure(step, "TIMEOUT", proof, reason="DIAGNOSTIC_TIMEOUT")
+        categories = {"DIAGNOSTIC_TIMEOUT": "TIMEOUT", "DIAGNOSTIC_OUTPUT_LIMIT": "OUTPUT_LIMIT",
+            "DIAGNOSTIC_PROCESS_OWNERSHIP": "PROCESS_OWNERSHIP", "DIAGNOSTIC_PROCESS_CLEANUP": "PROCESS_CLEANUP"}
+        reason = proof.get("reasonCode")
+        if isinstance(reason, str) and reason in categories:
+            raise switch_command_failure(step, categories[reason], proof, reason=reason)
+        if reason:
+            raise switch_command_failure(step, "PROBE_FAILURE", proof)
+        if type(proof.get("exitCode")) is not int:
+            raise switch_command_failure(step, "INVALID_RESULT", proof)
+        if proof["exitCode"] != 0:
+            raise switch_command_failure(step, "NONZERO_EXIT", proof)
+        if proof.get("actualUid", owner["uid"]) != owner["uid"]:
+            raise switch_command_failure(step, "UID_MISMATCH", proof)
+        if not (isinstance(raw, tuple) and len(raw) == 2 and all(isinstance(item, bytes) for item in raw) if logs else isinstance(raw, bytes)):
+            raise switch_command_failure(step, "INVALID_RESULT", proof)
+        if (sum(map(len, raw)) if logs else len(raw)) > DIAGNOSTIC_LIMIT:
+            raise switch_command_failure(step, "OUTPUT_LIMIT", proof, reason="DIAGNOSTIC_OUTPUT_LIMIT")
         return raw
-    def daemon():
-        require(hashlib.sha256(read(["info", "--format", "{{.ID}}"]).strip()).hexdigest() == expected_daemon, "DIAGNOSTIC_CHANGED")
-    def list_ids():
-        ids = read(["ps", "-aq", "--no-trunc", "--filter", "label=com.docker.compose.project=" + config["project"]]).decode("ascii").split()
+    def daemon(step):
+        require(hashlib.sha256(read(step, ["info", "--format", "{{.ID}}"]).strip()).hexdigest() == expected_daemon, "DIAGNOSTIC_CHANGED")
+    def list_ids(step):
+        ids = read(step, ["ps", "-aq", "--no-trunc", "--filter", "label=com.docker.compose.project=" + config["project"]]).decode("ascii").split()
         require(len(ids) <= len(SWITCH_SERVICES) and len(set(ids)) == len(ids)
                 and all(HEX64.fullmatch(item) for item in ids), "DIAGNOSTIC_INVENTORY")
         return ids
-    def inventory():
-        ids = list_ids()
-        records = [json.loads(line) for line in read(["inspect", "--format", SWITCH_INSPECT, *ids]).splitlines()] if ids else []
+    def inventory(point):
+        ids = list_ids(point + "List")
+        records = [json.loads(line) for line in read(point + "Inspect", ["inspect", "--format", SWITCH_INSPECT, *ids]).splitlines()] if ids else []
         result = switch_bind_records(records, ids, config, files, images, invocation)
-        require(set(list_ids()) == set(ids), "DIAGNOSTIC_CHANGED")
+        require(set(list_ids(point + "Recheck")) == set(ids), "DIAGNOSTIC_CHANGED")
         return result
-    daemon()
-    before = inventory()
+    daemon("daemonBefore")
+    before = inventory("before")
     logs, candidates = {}, []
     for service in SWITCH_SERVICES:
         row = before.get(service)
@@ -1163,13 +1235,13 @@ def switch_failure_observation(owner, environment, config, journal, invocation):
         return str(value // 10**9) + "." + str(value % 10**9).zfill(9)
     for service in candidates[:4]:
         try:
-            raw = read(["logs", "--timestamps", "--tail", "200", "--since", seconds(invocation["startedNs"]),
+            raw = read("containerLogs", ["logs", "--timestamps", "--tail", "200", "--since", seconds(invocation["startedNs"]),
                         "--until", seconds(invocation["finishedNs"]), before[service]["id"]], logs=True)
             logs[service] = switch_log_projection(raw, service, invocation)
         except BaseException as error:
             logs[service] = command_diagnostic_error(error)
-    after = inventory()
-    daemon()
+    after = inventory("after")
+    daemon("daemonAfter")
     require(switch_identity(before) == switch_identity(after), "DIAGNOSTIC_CHANGED")
     require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
     services = {}
@@ -1310,16 +1382,49 @@ def diagnostic_error(error):
     return name if name in DIAGNOSTIC_ERRORS else "OtherError"
 
 
+def diagnostic_unreaped(process, own_group):
+    """Keep the directly owned leader waitable until the last cleanup signal."""
+    require(type(process.pid) is int and process.pid > 0 and process.returncode is None,
+            "DIAGNOSTIC_PROCESS_OWNERSHIP")
+    try:
+        observed = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+        require(observed is None or observed.si_pid == process.pid, "DIAGNOSTIC_PROCESS_OWNERSHIP")
+        if own_group:
+            require(os.getpgid(process.pid) == os.getsid(process.pid) == process.pid,
+                    "DIAGNOSTIC_PROCESS_OWNERSHIP")
+        return observed
+    except (OSError, ChildProcessError):
+        raise Failure("DIAGNOSTIC_PROCESS_OWNERSHIP") from None
+
+
 def diagnostic_command(args, *, timeout, environment, owner=None, own_group=True, return_streams=False):
-    """Bound both streams in memory and terminate only this probe's process group."""
+    """Bound both streams; retain the owned leader until group cleanup finishes."""
     options = {} if owner is None else {"user": owner["uid"], "group": owner["gid"],
         "extra_groups": os.getgrouplist(owner["name"], owner["gid"])}
     result, output, errors = {}, bytearray(), bytearray()
     process = None
+    ownership_lost = False
+    def observe():
+        nonlocal ownership_lost
+        require(not ownership_lost, "DIAGNOSTIC_PROCESS_OWNERSHIP")
+        try:
+            return diagnostic_unreaped(process, own_group)
+        except BaseException:
+            ownership_lost = True  # Never reacquire authority over a possibly reused PID.
+            raise
+    def cleanup_error(error):
+        reason = getattr(error, "code", None)
+        reason = reason if reason == "DIAGNOSTIC_PROCESS_OWNERSHIP" else "DIAGNOSTIC_PROCESS_CLEANUP"
+        result["cleanupReasonCode"] = reason
+        result.setdefault("reasonCode", reason)
+        result.setdefault("errorClass", diagnostic_error(error))
     try:
+        require(sys.platform == "linux" and hasattr(os, "waitid") and hasattr(os, "WNOWAIT"),
+                "DIAGNOSTIC_PLATFORM")
         process = subprocess.Popen([str(item) for item in args], cwd="/", env=environment,
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=own_group,
             umask=0o077, **options)
+        observe()
         try:
             uid_line = next(line for line in Path(f"/proc/{process.pid}/status").read_text().splitlines() if line.startswith("Uid:"))
             result["actualUid"] = int(uid_line.split()[2])
@@ -1330,7 +1435,7 @@ def diagnostic_command(args, *, timeout, environment, owner=None, own_group=True
             for stream, target in ((process.stdout, output), (process.stderr, errors)):
                 os.set_blocking(stream.fileno(), False)
                 selector.register(stream, selectors.EVENT_READ, target)
-            while selector.get_map() or process.poll() is None:
+            while selector.get_map() or observe() is None:
                 require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
                 for key, _ in selector.select(min(0.1, max(0, deadline - time.monotonic()))):
                     data = os.read(key.fd, 4096)
@@ -1339,33 +1444,43 @@ def diagnostic_command(args, *, timeout, environment, owner=None, own_group=True
                         continue
                     require(len(output) + len(errors) + len(data) <= DIAGNOSTIC_LIMIT, "DIAGNOSTIC_OUTPUT_LIMIT")
                     key.data.extend(data)
-        result["exitCode"] = process.wait(timeout=1)
         # Preserve only a known Python exception class, never a traceback line.
         for line in errors.decode("utf-8", "replace").splitlines():
             name = line.partition(":")[0]
             if name in DIAGNOSTIC_ERRORS:
                 result["errorClass"] = name
     except BaseException as error:
-        result.update(errorClass=diagnostic_error(error), reasonCode=getattr(error, "code", "UNRECOGNIZED_REASON"))
+        reason = getattr(error, "code", None)
+        result.update(errorClass=diagnostic_error(error),
+            reasonCode=reason if isinstance(reason, str) and reason in DIAGNOSTIC_REASONS else "UNRECOGNIZED_REASON")
     finally:
         if process is not None:
-            # Descendants may retain pipes even after the immediate child exits.
+            # WNOWAIT reserves the leader's PID/session even after its exit.
+            # Nested probes share the caller's group and may signal only their PID.
             try:
-                os.killpg(process.pid, signal.SIGTERM) if own_group else process.terminate()
-            except ProcessLookupError:
-                pass
-            try:
-                process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                pass
-            try:
-                os.killpg(process.pid, signal.SIGKILL) if own_group else process.kill()
-            except ProcessLookupError:
-                pass
-            process.wait(timeout=2)
-            result.setdefault("exitCode", process.returncode)
-            process.stdout.close()
-            process.stderr.close()
+                observe()
+                try:
+                    (os.killpg if own_group else os.kill)(process.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                deadline = time.monotonic() + 1
+                while observe() is None and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                observe()
+                try:
+                    (os.killpg if own_group else os.kill)(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                # No process-group signal is permitted after this first reap.
+                result["exitCode"] = process.wait(timeout=2)
+            except BaseException as error:
+                cleanup_error(error)
+            finally:
+                for stream in (process.stdout, process.stderr):
+                    try:
+                        stream.close()
+                    except OSError as error:
+                        cleanup_error(error)
     return result, (bytes(output), bytes(errors)) if return_streams else bytes(output)
 
 
@@ -1376,6 +1491,7 @@ def diagnostic_command_projection(value):
         if type(value.get(key)) is int and low <= value[key] <= high:
             result[key] = value[key]
     for key, allowed in (("reasonCode", DIAGNOSTIC_REASONS), ("errorClass", DIAGNOSTIC_ERRORS),
+                         ("cleanupReasonCode", {"DIAGNOSTIC_PROCESS_OWNERSHIP", "DIAGNOSTIC_PROCESS_CLEANUP"}),
                          ("state", DIAGNOSTIC_STATES), ("status", {"OK", "ERROR", "BLOCKED", "UNAVAILABLE"})):
         if isinstance(value.get(key), str):
             if value[key] in allowed:

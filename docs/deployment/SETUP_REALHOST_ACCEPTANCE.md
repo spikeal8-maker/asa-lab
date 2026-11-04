@@ -250,6 +250,19 @@ complete, state и закрытые reason codes. Каждое внешнее н
 содержимое конфигурации не публикуются. Успешный поздний probe или изменение
 инвентаризации не доказывает состояние первой попытки и не меняет её FAIL.
 
+Linux probe удерживает непосредственно созданный процесс через
+`waitid(WEXITED | WNOHANG | WNOWAIT)`: `poll()`/`wait()` не освобождают PID до
+последнего сигнала очистки. Перед TERM и KILL проверяются принадлежность child,
+PGID и SID; потерянное подтверждение не восстанавливается повторной попыткой.
+После TERM ожидание ограничено одной секундой, после KILL — двумя секундами;
+только затем leader reap, pipes закрываются при любом исходе. Групповые сигналы
+адресуются и потомкам, удерживающим pipes после выхода leader; чужая либо
+неподтверждённая группа не сигналится.
+Nested probe без собственной session сигналит только свой прямой child PID.
+Неизвестная/reaped identity не даёт права на сигнал; ошибки ownership/cleanup
+имеют закрытые reason codes. `cleanupReasonCode` не заменяет исходный timeout,
+лимит вывода или исходный публичный FAIL.
+
 При неожиданном nonzero exit публичных `install`, `update apply`, `backup create`
 или `cloud sync` дополнительное поле `commandFailureDiagnostic` сохраняет
 закрытую проекцию текущей операции. Operation ID и installation ID берутся из
@@ -334,6 +347,15 @@ One-off, чужие, дублирующиеся и неполностью про
 `postgres:17.7-bookworm` из обоих закреплённых `compose.yaml`: это проверка
 Compose reference, не заявление о наличии PostgreSQL в ASA image manifest.
 
+Inspect template учитывает raw-map fallback Docker CLI с `missingkey=error`:
+отсутствующий или null `State.Health` даёт явный `none`. Пустой объект, scalar
+вместо Health и отсутствующий обязательный Status не маскируются как отсутствие
+healthcheck; неизвестный/null Status отклоняется закрытой проверкой inventory.
+Это проверено настоящим Go `text/template` по поведению
+[Docker CLI inspector.go](https://github.com/docker/cli/blob/fb2fe0eac78bb48b63905b31d95f3950dcb1b588/cli/command/inspect/inspector.go).
+Format reproduction не является запуском Docker daemon и не устанавливает
+причину прежнего `DIAGNOSTIC_DOCKER_EXIT` без измеренного failed verb.
+
 Перед публикацией повторяются inventory и проверка immutable identity. Изменение
 ID/name/created/image/image ID/project/root/config-files/one-off означает
 `UNAVAILABLE`: собранные log classifications не выдаются как связанные с прежним
@@ -354,15 +376,29 @@ samples по 64 КиБ суммарного stdout/stderr, `--tail 200`, `--sinc
 с резервом на очистку только собственного probe. Превышение времени или bytes
 даёт `UNAVAILABLE`, частичный поток не классифицируется как полный.
 
+Если сама Docker-команда не дала допустимого результата, `failedObservation`
+сохраняет только закрытые step/verb/category, bool `attempted`, допустимый
+числовой `exitCode` либо `UNAVAILABLE` и известный cleanup reason. Шаги различают
+`daemonBefore`/`daemonAfter`, `beforeList`/`afterList`,
+`beforeInspect`/`afterInspect`, `beforeRecheck`/`afterRecheck` и `containerLogs`.
+Categories отделяют budget/timeout/output limit, nonzero exit, UID mismatch,
+ownership/cleanup, invalid result и probe failure. Это exit именно
+диагностического Docker process, не Compose, контейнера или публичного CLI.
+Отказ до запуска явно имеет `attempted: false`; raw output и argv исключены.
+
 Native Compose dependency/one-shot/container errors имеют закрытые rule IDs.
 Operation log охватывает несколько стадий, поэтому его классификация явно
 помечена `PUBLIC_INVOCATION_MULTI_STAGE`, `causalProof: false`. Аналогично позднее
 состояние контейнера и совпадение log rule сами по себе не доказывают причину
 завершившегося Compose. Распознанные формы `tools/migrate.mjs` и необработанного
 Node/pg error из `docker/provision-runtime-role.mjs` различаются. SQLSTATE выходит
-только из полного error block с распознанным source/protocol frame, severity и
-кодом из закрытого списка PostgreSQL; message-only migration error не превращается
-в предполагаемый SQLSTATE. SQL, private object names, stack frames, credentials,
+только из полного error block внутри одного stdout или stderr с распознанным
+source/protocol frame и единственными severity/code после opening frame. Потоки
+не склеиваются; неполная/нетипизированная/out-of-range timestamp строка разрывает
+объект. Code/severity до opening frame и дубли, включая одинаковые значения,
+отклоняются. Разные полные объекты могут независимо подтвердить разные коды из
+закрытого списка PostgreSQL; message-only migration error не превращается в
+предполагаемый SQLSTATE. SQL, private object names, stack frames, credentials,
 argv, env и исходные строки остаются приватными. Неизвестные формы — `NO_MATCH`.
 
 При `DIAGNOSTIC_PERMISSIONS` CLI log дополнительно разрешены только metadata

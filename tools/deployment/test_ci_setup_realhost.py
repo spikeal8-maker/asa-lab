@@ -6,9 +6,11 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import signal
 import socket
 import stat
+import subprocess
 import sys
 import tempfile
 import time
@@ -228,6 +230,121 @@ class PostFailureDiagnosticTests(unittest.TestCase):
         self.assertEqual(result["exitCode"], 1)
         self.assertEqual(result["errorClass"], "PermissionError")
         self.assertNotIn("private-password", json.dumps(result))
+
+    @unittest.skipUnless(sys.platform == "linux", "Native WNOWAIT ownership checks require Linux waitid and process groups")
+    def test_exited_leader_remains_waitable_at_every_cleanup_signal_then_is_reaped(self):
+        signals, native_killpg = [], os.killpg
+        def signal_owned(pid, number):
+            observed = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            self.assertIsNotNone(observed)
+            self.assertEqual(observed.si_pid, pid)
+            self.assertEqual((os.getpgid(pid), os.getsid(pid)), (pid, pid))
+            signals.append((pid, number))
+            native_killpg(pid, number)
+        with patch.object(harness.os, "killpg", side_effect=signal_owned):
+            result, raw = harness.diagnostic_command([sys.executable, "-I", "-c", "raise SystemExit(7)"],
+                timeout=3, environment={"PATH": "/usr/bin:/bin"})
+        self.assertEqual(result.get("exitCode"), 7)
+        self.assertNotIn("reasonCode", result)
+        self.assertEqual(raw, b"")
+        self.assertEqual([number for _, number in signals], [signal.SIGTERM, signal.SIGKILL])
+        with self.assertRaises(ChildProcessError):
+            os.waitid(os.P_PID, signals[0][0], os.WEXITED | os.WNOHANG | os.WNOWAIT)
+
+    @unittest.skipUnless(sys.platform == "linux", "Native descendant cleanup requires Linux fork, WNOWAIT and process groups")
+    def test_descendant_retaining_pipes_is_killed_before_leader_reap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / "descendant-survived"
+            script = ("import os,signal,sys,time\n"
+                "if os.fork()==0:\n"
+                " signal.signal(signal.SIGTERM,signal.SIG_IGN)\n"
+                " print('child-ready',flush=True)\n"
+                " time.sleep(1)\n"
+                " open(sys.argv[1],'w').write('unexpected')\n"
+                " os._exit(0)\n"
+                "os._exit(7)\n")
+            signals, native_killpg = [], os.killpg
+            def signal_owned(pid, number):
+                observed = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+                self.assertIsNotNone(observed)
+                self.assertEqual(observed.si_pid, pid)
+                signals.append(number)
+                native_killpg(pid, number)
+            started = time.monotonic()
+            with patch.object(harness.os, "killpg", side_effect=signal_owned):
+                result, raw = harness.diagnostic_command([sys.executable, "-I", "-c", script, str(marker)],
+                    timeout=0.25, environment={"PATH": "/usr/bin:/bin"})
+            self.assertLess(time.monotonic() - started, 5)
+            self.assertEqual(result.get("reasonCode"), "DIAGNOSTIC_TIMEOUT")
+            self.assertEqual(result.get("exitCode"), 7)
+            self.assertIn(b"child-ready", raw)
+            self.assertEqual(signals, [signal.SIGTERM, signal.SIGKILL])
+            time.sleep(1.1)
+            self.assertFalse(marker.exists())
+
+    @unittest.skipUnless(sys.platform == "linux", "Native nested probes signal a direct Linux child without its inherited group")
+    def test_nested_probe_never_signals_its_inherited_process_group(self):
+        signals, native_kill = [], os.kill
+        def signal_owned(pid, number):
+            self.assertIsNotNone(os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT))
+            signals.append(number)
+            native_kill(pid, number)
+        with patch.object(harness.os, "killpg") as group, patch.object(harness.os, "kill", side_effect=signal_owned):
+            result, _ = harness.diagnostic_command([sys.executable, "-I", "-c", "raise SystemExit(4)"],
+                timeout=3, environment={"PATH": "/usr/bin:/bin"}, own_group=False)
+        self.assertEqual(result.get("exitCode"), 4)
+        self.assertEqual(signals, [signal.SIGTERM, signal.SIGKILL])
+        group.assert_not_called()
+
+    def test_unproven_or_already_reaped_child_is_never_signalled(self):
+        for returncode in (None, 0):
+            process = SimpleNamespace(pid=12345, returncode=returncode, stdout=io.BytesIO(), stderr=io.BytesIO())
+            with self.subTest(returncode=returncode), patch.object(harness.sys, "platform", "linux"), \
+                    patch.object(harness.subprocess, "Popen", return_value=process), \
+                    patch.object(harness.os, "WNOWAIT", 0x1000000, create=True), \
+                    patch.object(harness.os, "P_PID", 1, create=True), \
+                    patch.object(harness.os, "WEXITED", 4, create=True), \
+                    patch.object(harness.os, "WNOHANG", 1, create=True), \
+                    patch.object(harness.os, "waitid", side_effect=ChildProcessError("PRIVATE"), create=True) as waited, \
+                    patch.object(harness.os, "killpg", create=True) as group, patch.object(harness.os, "kill") as child:
+                result, raw = harness.diagnostic_command(["synthetic"], timeout=1, environment={})
+            self.assertEqual(result["reasonCode"], "DIAGNOSTIC_PROCESS_OWNERSHIP")
+            self.assertLessEqual(waited.call_count, 1)  # Lost authority is never reacquired in finally.
+            group.assert_not_called()
+            child.assert_not_called()
+            self.assertNotIn("PRIVATE", json.dumps(result))
+            self.assertEqual(raw, b"")
+
+    def test_cleanup_reason_projection_is_closed_and_preserves_primary_failure(self):
+        for cleanup in ("DIAGNOSTIC_PROCESS_OWNERSHIP", "DIAGNOSTIC_PROCESS_CLEANUP", "PRIVATE"):
+            observed = harness.diagnostic_command_projection({"reasonCode": "DIAGNOSTIC_TIMEOUT",
+                "cleanupReasonCode": cleanup, "stdout": "PRIVATE", "stderr": "PRIVATE"})
+            self.assertEqual(observed["reasonCode"], "DIAGNOSTIC_TIMEOUT")
+            self.assertEqual("cleanupReasonCode" in observed, cleanup != "PRIVATE")
+            self.assertNotIn("PRIVATE", json.dumps(observed))
+
+    @unittest.skipUnless(sys.platform == "linux", "Native cleanup-error preservation requires a directly owned Linux child")
+    def test_cleanup_error_does_not_replace_original_timeout_or_leak_message(self):
+        children, native_popen, native_killpg = [], subprocess.Popen, os.killpg
+        def spawn(*args, **kwargs):
+            child = native_popen(*args, **kwargs)
+            children.append(child)
+            return child
+        def sent_then_failed(pid, number):
+            os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            native_killpg(pid, number)
+            raise PermissionError("PRIVATE")
+        try:
+            with patch.object(harness.subprocess, "Popen", side_effect=spawn), \
+                    patch.object(harness.os, "killpg", side_effect=sent_then_failed):
+                result, _ = harness.diagnostic_command([sys.executable, "-I", "-c", "import time; time.sleep(10)"],
+                    timeout=0.15, environment={"PATH": "/usr/bin:/bin"})
+            self.assertEqual(result["reasonCode"], "DIAGNOSTIC_TIMEOUT")
+            self.assertEqual(result["cleanupReasonCode"], "DIAGNOSTIC_PROCESS_CLEANUP")
+            self.assertNotIn("PRIVATE", json.dumps(result))
+        finally:
+            for child in children:
+                child.wait(timeout=2)  # TERM above was delivered; test reaps its retained harmless child.
 
     def test_diagnostic_observation_cannot_be_root(self):
         with patch.object(harness.os, "geteuid", return_value=0, create=True), self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_UID"):
@@ -606,7 +723,8 @@ class SwitchDiagnosticTests(unittest.TestCase):
             self.assertNotIn("GH_TOKEN", options["environment"])
             self.assertNotIn("HTTPS_PROXY", options["environment"])
             proof = {"exitCode": 0, "actualUid": 999}
-            if command_failure and verb == command_failure[0]:
+            if (command_failure and verb == command_failure[0]
+                    and (len(command_failure) == 3 or sum(call[0][1] == verb for call in self.calls) == command_failure[3])):
                 return command_failure[1], command_failure[2]
             if verb == "info":
                 return proof, b"synthetic-daemon\n"
@@ -718,6 +836,49 @@ class SwitchDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
         self.assertEqual(harness.SWITCH_SECONDS, 60)
 
+    def test_failed_docker_read_reports_only_bound_step_verb_exit_and_category(self):
+        steps = (("daemonBefore", "info", 1), ("beforeList", "ps", 1), ("beforeInspect", "inspect", 1),
+            ("beforeRecheck", "ps", 2), ("containerLogs", "logs", 1), ("afterList", "ps", 3),
+            ("afterInspect", "inspect", 2), ("afterRecheck", "ps", 4), ("daemonAfter", "info", 2))
+        for step, verb, occurrence in steps:
+            with self.subTest(step=step):
+                failure = (verb, {"exitCode": 1, "actualUid": 999, "argv": ["PRIVATE"]}, b"PRIVATE", occurrence)
+                if verb == "logs":
+                    observed = self.observe(command_failure=failure)["services"]["migration"]["log"]
+                else:
+                    with self.assertRaises(harness.Failure) as caught:
+                        self.observe(command_failure=failure)
+                    observed = harness.command_diagnostic_error(caught.exception)
+                self.assertEqual(observed["reasonCode"], "DIAGNOSTIC_DOCKER_EXIT")
+                self.assertEqual(observed["failedObservation"], {"step": step, "verb": verb,
+                    "category": "NONZERO_EXIT", "attempted": True, "exitCode": 1})
+                self.assertNotIn("PRIVATE", json.dumps(observed))
+
+    def test_failed_read_categories_and_projection_reject_unknown_values_and_secrets(self):
+        for proof, category in (({"exitCode": -15, "reasonCode": "DIAGNOSTIC_TIMEOUT"}, "TIMEOUT"),
+                ({"exitCode": -9, "reasonCode": "DIAGNOSTIC_OUTPUT_LIMIT"}, "OUTPUT_LIMIT"),
+                ({"reasonCode": "DIAGNOSTIC_PROCESS_OWNERSHIP"}, "PROCESS_OWNERSHIP"),
+                ({"reasonCode": "DIAGNOSTIC_PROCESS_CLEANUP"}, "PROCESS_CLEANUP"),
+                ({"exitCode": True}, "INVALID_RESULT"), ({"exitCode": "PRIVATE"}, "INVALID_RESULT"),
+                ({"reasonCode": "PRIVATE"}, "PROBE_FAILURE"), ({"exitCode": 0, "actualUid": 0}, "UID_MISMATCH")):
+            with self.subTest(category=category), self.assertRaises(harness.Failure) as caught:
+                self.observe(command_failure=("info", proof, b"PRIVATE"))
+            observed = harness.command_diagnostic_error(caught.exception)
+            self.assertEqual(observed["failedObservation"]["category"], category)
+            self.assertNotIn("PRIVATE", json.dumps(observed))
+        with patch.object(harness.time, "monotonic", side_effect=(0, 61)), self.assertRaises(harness.Failure) as caught:
+            self.observe()
+        self.assertEqual(harness.command_diagnostic_error(caught.exception)["failedObservation"],
+            {"step": "daemonBefore", "verb": "info", "category": "BUDGET_EXHAUSTED", "attempted": False, "exitCode": "UNAVAILABLE"})
+        trusted = {"step": "beforeInspect", "verb": "inspect", "category": "NONZERO_EXIT", "attempted": True,
+            "exitCode": 1, "raw": "PRIVATE", "cleanupReasonCode": "PRIVATE"}
+        for key, value in (("step", "PRIVATE"), ("verb", "exec"), ("category", "PRIVATE"), ("attempted", "PRIVATE")):
+            self.assertEqual(harness.switch_command_projection({**trusted, key: value}), {})
+        for exit_code in (True, "PRIVATE", -129, 256):
+            observed = harness.switch_command_projection({**trusted, "exitCode": exit_code})
+            self.assertEqual(observed["exitCode"], "UNAVAILABLE")
+            self.assertNotIn("PRIVATE", json.dumps(observed))
+
     def test_native_compose_forms_are_multistage_observations_not_causal_proof(self):
         raw = (b'service "migration" didn\x27t complete successfully: exit 1\n'
                b'dependency failed to start: container asa-lab-dev-postgres-1 is unhealthy\n'
@@ -738,7 +899,8 @@ class SwitchDiagnosticTests(unittest.TestCase):
                 patch.object(harness, "switch_failure_observation") as observer:
             harness.command_failure_diagnostic(["install"], 2, public, invocation)
         observer.assert_not_called()
-        for outcome in (self.observe(), harness.Failure("DIAGNOSTIC_INVENTORY")):
+        for outcome in (self.observe(), harness.Failure("DIAGNOSTIC_INVENTORY"),
+                        harness.switch_command_failure("beforeInspect", "NONZERO_EXIT", {"exitCode": 1})):
             output = io.StringIO()
             with self.subTest(outcome=type(outcome).__name__), fixture.diagnostic_timestamp_fixture(switch=True) as (public, invocation), \
                     patch.object(harness, "switch_failure_observation", **({"side_effect": outcome} if isinstance(outcome, Exception)
@@ -794,6 +956,111 @@ class SwitchDiagnosticTests(unittest.TestCase):
         observed = harness.switch_log_projection((self.stamped(protocol), b""), "migration", invocation)
         self.assertEqual(observed["sqlstates"], ["42501"])
         self.assertEqual(observed["ruleIds"], ["POSTGRES_SERVER_ERROR"])
+
+    def test_sqlstate_never_joins_stdout_and_stderr_object_fragments(self):
+        invocation = self.fixture()[2]
+        opening = ["error: PRIVATE", "    at async file:///app/docker/provision-runtime-role.mjs:15:3 {"]
+        fields = ["  severity: 'ERROR',", "  code: '42501',", "}"]
+        for streams in ((self.stamped(opening), self.stamped(fields)),
+                        (self.stamped(fields), self.stamped(opening))):
+            observed = harness.switch_log_projection(streams, "migration", invocation)
+            self.assertEqual((observed["status"], observed["sqlstates"]), ("NO_MATCH", []))
+        for streams in ((self.stamped(opening + fields), b""), (b"", self.stamped(opening + fields))):
+            self.assertEqual(harness.switch_log_projection(streams, "migration", invocation)["sqlstates"], ["42501"])
+
+    def test_sqlstate_rejects_fields_before_opening_or_gaps_in_object(self):
+        invocation = self.fixture()[2]
+        header = "error: PRIVATE"
+        frame = "    at async file:///app/docker/provision-runtime-role.mjs:15:3 {"
+        for fields in (("  code: '42501',", "  severity: 'ERROR',"), ("  severity: 'ERROR',", "  code: '42501',")):
+            for lines in ([header, fields[0], frame, fields[1], "}"],
+                          [header, fields[0], frame, *fields, "}"]):
+                observed = harness.switch_log_projection((self.stamped(lines), b""), "migration", invocation)
+                self.assertEqual((observed["status"], observed["sqlstates"]), ("NO_MATCH", []))
+        for gap in (b"unframed PRIVATE\n", self.stamped(["PRIVATE"], timestamp="2026-11-04T12:00:01Z")):
+            raw = self.stamped([header, frame, "  severity: 'ERROR',"]) + gap + self.stamped(["  code: '42501',", "}"])
+            self.assertEqual(harness.switch_log_projection((raw, b""), "migration", invocation)["status"], "NO_MATCH")
+
+    def test_sqlstate_rejects_duplicate_and_conflicting_code_or_severity(self):
+        invocation = self.fixture()[2]
+        opening = ["error: PRIVATE", "    at async file:///app/docker/provision-runtime-role.mjs:15:3 {"]
+        fields = ["  severity: 'ERROR',", "  code: '42501',"]
+        for duplicate in ("  code: '42501',", "  code: '28P01',", "  code: 'ECONNREFUSED',",
+                          "  severity: 'ERROR',", "  severity: 'FATAL',", "  code: 'PRIVATE',"):
+            observed = harness.switch_log_projection((self.stamped(opening + fields + [duplicate, "}"]), b""), "migration", invocation)
+            self.assertEqual((observed["status"], observed["sqlstates"]), ("NO_MATCH", []))
+            self.assertNotIn("PRIVATE", json.dumps(observed))
+
+    @unittest.skipUnless(sys.platform == "linux", "Native Docker raw-map formatter reproduction uses the Linux Go toolchain")
+    def test_actual_go_template_handles_absent_health_without_hiding_invalid_states(self):
+        go = shutil.which("go")
+        if go is None:
+            self.skipTest("Go is unavailable; this is a formatter reproduction, not a Docker daemon test")
+        # Docker CLI inspector.go fb2fe0eac78bb48b63905b31d95f3950dcb1b588:
+        # typed Execute falls back to raw JSON with Option("missingkey=error").
+        program = '''package main
+import("bytes";"encoding/json";"os";"text/template")
+type Input struct { Template string; Values []map[string]any }
+func main() {
+ var inputs []Input; if json.NewDecoder(os.Stdin).Decode(&inputs)!=nil { os.Exit(2) }
+ fn:=template.FuncMap{"json":func(v any)(string,error){b,e:=json.Marshal(v);return string(b),e}}
+ all:=[][]map[string]any{}
+ for _,input:=range inputs {
+  t,e:=template.New("inspect").Funcs(fn).Option("missingkey=error").Parse(input.Template);if e!=nil{os.Exit(3)}
+  var typed bytes.Buffer;typedErr:=t.Execute(&typed,struct{ID string}{"synthetic"})
+  out:=[]map[string]any{}
+  for _,v:=range input.Values {
+   var b bytes.Buffer;err:=t.Execute(&b,v);r:=map[string]any{"ok":err==nil,"typedRejected":typedErr!=nil}
+   if err==nil {var row map[string]any;if json.Unmarshal(b.Bytes(),&row)!=nil{os.Exit(4)};r["row"]=row}
+   out=append(out,r)
+  };all=append(all,out)
+ };if json.NewEncoder(os.Stdout).Encode(all)!=nil{os.Exit(5)}
+}
+'''
+        config, journal, invocation, files, records = self.fixture()
+        row = records[2]
+        source = {"Id": row["id"], "Name": row["name"], "Created": row["created"], "Image": row["imageId"],
+            "RestartCount": row["restarts"], "Config": {"Image": row["image"], "Labels": {
+                "com.docker.compose.project": row["project"], "com.docker.compose.service": row["service"],
+                "com.docker.compose.project.working_dir": row["root"], "com.docker.compose.project.config_files": row["files"],
+                "com.docker.compose.oneoff": row["oneoff"]}},
+            "State": {"Status": row["state"], "Running": row["running"], "Dead": False, "OOMKilled": False,
+                "ExitCode": row["exitCode"], "StartedAt": row["started"], "FinishedAt": row["finished"], "Error": ""}}
+        values = [source]
+        for health in (None, {"Status": "healthy"}, {"Status": "starting"}, {"Status": "unhealthy"},
+                       {}, False, {"Unexpected": True}, {"Status": None}, {"Status": "PRIVATE"}):
+            item = json.loads(json.dumps(source))
+            item["State"]["Health"] = health
+            values.append(item)
+        values.append({key: value for key, value in source.items() if key != "State"})
+        baseline = harness.SWITCH_INSPECT.replace(
+            '{{if eq (index .State "Health") nil}}"none"{{else}}{{json (index .State "Health").Status}}{{end}}',
+            '{{if .State.Health}}{{json .State.Health.Status}}{{else}}"none"{{end}}')
+        self.assertNotEqual(baseline, harness.SWITCH_INSPECT)
+        with tempfile.TemporaryDirectory() as directory:
+            source_path = Path(directory) / "main.go"
+            source_path.write_text(program, encoding="utf-8")
+            environment = {**os.environ, "GOTOOLCHAIN": "local", "GO111MODULE": "off", "GOPROXY": "off",
+                           "GOSUMDB": "off", "GOTMPDIR": directory}
+            result = subprocess.run([go, "run", str(source_path)], input=json.dumps(
+                [{"Template": template, "Values": values} for template in (baseline, harness.SWITCH_INSPECT)]).encode(),
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=environment, timeout=120, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", "replace"))
+        old, fixed = json.loads(result.stdout)
+        self.assertFalse(old[0]["ok"])  # Actual missingkey=error, before repair.
+        self.assertEqual(old[5]["row"]["health"], "none")  # Baseline hides malformed {}.
+        self.assertTrue(all(item["typedRejected"] for item in old + fixed))
+        self.assertEqual([item["ok"] for item in fixed], [True] * 5 + [False] * 3 + [True, True, False])
+        images = harness.switch_image_references(config, journal)
+        for index, item in enumerate(fixed):
+            if not item["ok"]:
+                continue
+            if index < 5:
+                bound = harness.switch_bind_records([item["row"]], [row["id"]], config, files, images, invocation)
+                self.assertIn(bound["migration"]["health"], ("none", "healthy", "starting", "unhealthy"))
+            else:
+                with self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_INVENTORY"):
+                    harness.switch_bind_records([item["row"]], [row["id"]], config, files, images, invocation)
 
     def test_cli_path_metadata_is_closed_and_does_not_relax_read_permissions(self):
         info = SimpleNamespace(st_uid=0, st_gid=104, st_nlink=2, st_mode=stat.S_IFDIR | 0o775, secret="PRIVATE")
