@@ -55,7 +55,7 @@ SEMANTIC_CODES = frozenset({
 })
 READ_COMMANDS = (
     "version", "status", "doctor", "disk", "disk usage", "disk health", "services",
-    "services status", "update", "update check", "update plan", "update history",
+    "services status", "update check", "update plan", "update history",
     "backup status", "backup list", "backup verify", "backup schedule", "cloud status",
     "config show", "history", "logs", "logs update", "logs backup", "restore plan",
 )
@@ -140,7 +140,7 @@ def command_plan(context):
         options = ("--snapshot-id", context.last_local_success) if command == "backup verify" else \
             ("--snapshot-id", restore) if command == "restore plan" and restore is not None else ()
         argv = (ASA, *command.split(), "--root", root, "--json", "--no-color", *options)
-        seconds = 180 if command in ("update", "update check", "update plan") else 120 if command == "doctor" else 90
+        seconds = 180 if command in ("update check", "update plan") else 120 if command == "doctor" else 90
         cases.append((command.replace(" ", "-"), argv, command, "", seconds))
     return tuple(cases)
 
@@ -309,7 +309,7 @@ def _bare(captured, context, expectations, *, terminal):
     match = re.fullmatch(r"Сервисы: OK · healthy 6/([678])", lines[4])
     _require(match is not None, "BARE_OUTPUT")
     _require(lines[5] == "Последняя локальная копия: " + expectations.last_local_snapshot_at + " · RECORDED"
-             and lines[6] == "Справка: asa help · подробности: asa status · безопасная проверка: asa update", "BARE_OUTPUT")
+             and lines[6] == "Справка: asa help · подробности: asa status · безопасная проверка: asa check", "BARE_OUTPUT")
     if terminal:
         _require(captured.get("enterSent") is True and lines[7:] == ["", MENU, "Выбор: "], "PTY_PROMPT")
     else:

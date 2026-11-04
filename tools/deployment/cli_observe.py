@@ -613,7 +613,7 @@ class Observer:
                 "backupSpaceEstimate": space, "downtimeReasonCode": "NO_MEASURED_DURATION",
                 "spaceReasonCode": "NEW_IMAGE_UNPACKED_BYTES_UNKNOWN", "disk": self.disk(), "backup": backups,
                 "cloud": cloud, "blockers": blockers, "applyRechecksUnderLock": True,
-                "apply": "sudo asa update apply" + (" --root " + shlex.quote(str(self.root)) if self.root else "")
+                "apply": "sudo asa update" + (" --root " + shlex.quote(str(self.root)) if self.root else "")
                          + " --deployment-digest " + selection["deploymentDigest"]}
 
     def backup_space(self, database):

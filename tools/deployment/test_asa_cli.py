@@ -211,7 +211,7 @@ class PublicCLIProcessTests(unittest.TestCase):
     def test_every_required_read_command_uses_public_entry_and_no_files_change(self):
         commands = [
             ("version",), ("status",), ("doctor",), ("disk",), ("disk", "usage"), ("disk", "health"),
-            ("services",), ("services", "status"), ("update",), ("update", "check"), ("update", "plan"),
+            ("services",), ("services", "status"), ("update", "check"), ("update", "plan"),
             ("backup", "status"), ("backup", "list"), ("backup", "verify"), ("backup", "schedule"),
             ("cloud", "status"), ("restore", "plan"), ("history",), ("update", "history"),
             ("logs",), ("logs", "update"), ("logs", "backup"), ("config", "show"), (),
@@ -334,7 +334,7 @@ class PublicCLIProcessTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix", "POSIX privileged entry")
     def test_custom_registry_cannot_dispatch_root_mutation(self):
-        for arguments in (("update", "apply"), ("install",), ("backup", "create"),
+        for arguments in (("update",), ("update", "apply"), ("install",), ("backup", "create"),
                           ("backup", "schedule", "enable"), ("cloud", "sync")):
             process = self.invoke(*arguments, "--registry", str(self.registry), "--json")
             self.assertEqual(process.returncode, 2)
@@ -381,9 +381,15 @@ class DelegationContracts(unittest.TestCase):
         self.options = asa_cli.command_parser().parse_args([])
         self.record = {"root": str(self.root), "project": "asa-fixture", "profile": "production", "bundle": "/opt/asa-setup/" + "a" * 40}
 
+    def test_update_performs_controlled_write_and_check_stays_read_only(self):
+        self.assertTrue(asa_cli.SPECS["update"][1])
+        self.assertIn("update", asa_cli.WRITE_ACTIONS)
+        self.assertFalse(asa_cli.SPECS["update check"][1])
+        self.assertNotIn("update check", asa_cli.WRITE_ACTIONS)
+
     @unittest.skipUnless(os.name == "posix", "Linux setup adapter")
     def test_explicit_writes_delegate_exact_intent_digest_and_existing_operations(self):
-        cases = {"install": ("auto", "install"), "update apply": ("auto", "update"),
+        cases = {"install": ("auto", "install"), "update": ("auto", "update"), "update apply": ("auto", "update"),
                  "backup create": ("backup", None), "cloud sync": ("retry-cloud", None),
                  "backup schedule enable": ("schedule", None), "backup schedule disable": ("schedule", None)}
         self.options.deployment_digest = "sha256:" + "b" * 64

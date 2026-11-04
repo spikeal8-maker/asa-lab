@@ -6,8 +6,8 @@
 с действующим 1Panel. Существующий Windows Apply сохранён.
 
 **Без аргументов asa показывает компактную текущую сводку, а в интерактивном
-терминале предлагает меню. asa update только проверяет выпуск.**
-Обновление запускается исключительно через **sudo asa update apply**.
+терминале предлагает меню. asa check проверяет выпуск, а asa update обновляет.**
+В root-терминале 1Panel применяется **asa update**; в обычном терминале — sudo asa update.
 Без TTY или с параметром --json ввод не ожидается.
 
 ## Команды
@@ -22,9 +22,9 @@
 | asa disk, asa disk usage | Свободные байты и inodes на разделах приложения, Docker, PostgreSQL, MinIO и backup | Чтение |
 | asa disk health | SMART; для NVMe доступен резервный запрос nvme smart-log | Чтение; без прав/датчиков UNAVAILABLE |
 | asa services, asa services status | Docker/Compose, состав, здоровье и совпадение pinned образов | Чтение |
-| asa update, asa update check | Текущий и предлагаемый проверенный release | HTTP-чтение GHCR/GitHub; без Docker pull |
+| asa check, asa update check | Текущий и предлагаемый проверенный release | HTTP-чтение GHCR/GitHub; без Docker pull |
 | asa update plan | SHA/digest, диапазон схем, backup space budget и блокеры | Чтение |
-| sudo asa update apply | Обновление существующей установки с текущими locks, backup и приёмкой | Изменение; root supervisor, приложение от проверенного non-root оператора |
+| asa update, sudo asa update, sudo asa update apply | Обновление существующей установки с текущими locks, backup и приёмкой | Изменение; root supervisor, приложение от проверенного non-root оператора |
 | sudo asa install | Установка в чистую цель, конфигурация и owner onboarding | Изменение; root supervisor |
 | asa backup status | Последняя попытка, локальный успех и успешная доставка отдельно | Чтение |
 | asa backup list | До 100 записей копий выбранной установки | Чтение |
@@ -172,7 +172,7 @@ Bearer registry не пересылается blob host.
 digest, schema и pinned service images. Поле apply содержит полную команду
 с тем же --deployment-digest для применения проверенной immutable цели.
 
-Без digest команда sudo asa update apply разрешает выпуск заново и показывает
+Без digest команда sudo asa update разрешает выпуск заново и показывает
 новый план. Она не утверждает, что применяет ранее показанное значение stable.
 Digest и намерение сохраняются в первом durable журнале до preflight.
 Смена digest при resume блокируется. Переход в прежний protocol-1 setup
@@ -243,7 +243,7 @@ Config show не раскрывает неизвестные поля конфи
 
 Сохраняются регистрация %LOCALAPPDATA%\ASA-Lab\cli\asa.cmd, пользовательский
 PATH и существующий tools/asa-setup.ps1 -Mode update -Apply.
-Default asa update стал безопасным чтением metadata на обеих ОС.
+Default asa check сохраняет безопасное чтение metadata на обеих ОС; asa update вызывает контролируемое обновление.
 Reader modules копируются рядом с прежним пользовательским CLI
 из проверенного checkout.
 

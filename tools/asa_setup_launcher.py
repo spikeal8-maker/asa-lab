@@ -1278,7 +1278,7 @@ def main(argv=None):
         _require(isinstance(cloud_config, dict), "CONFIG_SCHEMA", "Раздел cloud должен быть JSON-объектом.", "Исправьте формат cloud.")
         command = remainder[0] if remainder and not remainder[0].startswith("-") else "auto"
         _require(not parsed.intent or command in ("auto", "resume", "acceptance"), "OPERATION_INTENT",
-                 "Намерение не относится к этой команде.", "Используйте asa install или asa update apply.")
+                 "Намерение не относится к этой команде.", "Используйте asa install или asa update.")
         _require(not parsed.deployment_digest or bool(re.fullmatch(r"sha256:[a-f0-9]{64}", parsed.deployment_digest)),
                  "RELEASE_SELECTOR", "Неверный deployment digest.", "Используйте digest из asa update plan.")
         _require(parsed.schedule_enabled is None or command == "schedule", "SCHEDULE_COMMAND",
@@ -1543,7 +1543,7 @@ def main(argv=None):
                      "Установка успешна, но команда asa не зарегистрирована.",
                      "Проверьте /usr/local/bin/asa и /etc/asa-lab/commands.json; данные приложения сохранены.")
             if not parsed.json:
-                print("[OK] Команды: asa help | asa status | asa update check | sudo asa update apply")
+                print("[OK] Команды: asa help | asa status | asa update check | sudo asa update")
         return report.returncode
     except SetupBlocked as exc:
         return emit_blocked(exc, as_json=parsed.json, operation_id=active_result.get("operationId"),
