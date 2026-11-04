@@ -1,5 +1,6 @@
 """Harness safety gates and isolated manager faults; no VM or live cloud claim."""
 
+import ast
 import contextlib
 import copy
 import hashlib
@@ -1424,6 +1425,166 @@ class CommandFailureDiagnosticTests(unittest.TestCase):
             target.chmod(0o600)
             with self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_CHANGED"):
                 harness.command_log_projection(target, base, os.geteuid(), phase="release", offset=before[2], identity=before)
+
+
+class PostSwitchReasonTests(unittest.TestCase):
+    # Independent literal expectations, with source provenance rather than a
+    # claim that a particular producer was observed in a failed guest.
+    PRODUCERS = {
+        ("deployment/setup_operation.py", "Runtime.commit_runtime"): ("DATA_IDENTITY", "MAINTENANCE_IDENTITY"),
+        ("deployment/setup_operation.py", "onboard_owner"): ("OWNER_FRESH_ONLY", "OWNER_IDENTITY", "OWNER_PASSWORD",
+            "OWNER_EXISTING_ACCOUNTS", "OWNER_REGISTRATION_AMBIGUOUS", "OWNER_REGISTRATION_IDENTITY", "OWNER_PLAN", "OWNER_ACCESS"),
+        ("deployment/setup_operation.py", "_NoRedirect.redirect_request"): ("OWNER_HTTP_REDIRECT",),
+        ("deployment/setup_operation.py", "_owner_request"): ("OWNER_RESPONSE", "OWNER_HTTP"),
+        ("deployment/setup_operation.py", "_bot_proof"): ("OWNER_BOT_CHALLENGE",),
+        ("deployment/setup_operation.py", "_owner_admin"): ("OWNER_API", "OWNER_ADMIN", "OWNER_ADMIN_IDENTITY"),
+        ("deployment/setup_config.py", "private_json"): ("PRIVATE_FILE", "PRIVATE_PERMISSIONS", "PRIVATE_FORMAT"),
+        ("deployment/setup_config.py", "save_private"): ("PRIVATE_DIRECTORY",),
+        ("deployment/setup_config.py", "read_installed_release"): ("RELEASE_FILE", "RELEASE_PERMISSIONS"),
+        ("deployment/setup_config.py", "replace_legacy_manager_state"): ("LEGACY_STATE_PATH", "LEGACY_STATE_FORMAT",
+            "LEGACY_STATE_FILE", "LEGACY_STATE_PERMISSIONS"),
+        ("asa_manager.py", "backup_directory"): ("BACKUP_PATH", "BACKUP_DIRECTORY", "BACKUP_PERMISSIONS"),
+        ("deployment/contracts.py", "read_env"): ("ENV",),
+        ("deployment/contracts.py", "attest_proxy_policy"): ("PROXY_POLICY",),
+        ("deployment/resources.py", "pool_configuration"): ("RESOURCE_CONFIG",),
+        ("deployment/system.py", "Installation.__init__"): ("PROFILE", "PROJECT", "PUBLIC_ORIGINS_MISSING"),
+        ("deployment/system.py", "public_origins_snapshot"): ("PUBLIC_ORIGINS_SNAPSHOT",),
+        ("deployment/system.py", "public_origins_environment"): ("PUBLIC_ORIGINS_POLICY",),
+        ("deployment/system.py", "_origin_private_read"): ("PUBLIC_ORIGINS_PERMISSIONS", "PUBLIC_ORIGINS_PATH"),
+        ("deployment/system.py", "public_origins_overlay"): ("PUBLIC_ORIGINS_CONTENT",),
+        ("deployment/system.py", "public_origins_recovery"): ("PUBLIC_ORIGINS_RECOVERY",),
+        ("deployment/setup_operation.py", "Store.path"): ("OPERATION_ID",),
+        ("deployment/setup_operation.py", "Store.read"): ("OPERATION_IDENTITY",),
+        ("deployment/setup_operation.py", "Store.pending"): ("OPERATIONS_AMBIGUOUS",),
+        ("deployment/setup_operation.py", "Store.validate_child"): ("DEPENDENT_IDENTITY", "DEPENDENT_BINDING"),
+        ("deployment/setup_operation.py", "Store._catalog"): ("DEPENDENT_PARENT_MISSING", "DEPENDENT_SOURCE",
+            "DEPENDENT_PARENT_STATE", "DEPENDENTS_AMBIGUOUS"),
+        ("deployment/system.py", "Installation.identity"): ("IDENTITY_PROJECT", "IDENTITY_ENV", "IDENTITY_ROOT",
+            "IDENTITY_FILES", "IDENTITY_DUPLICATE", "IDENTITY_MISSING"),
+        ("deployment/system.py", "Installation.data_identity"): ("IDENTITY_VOLUME", "DATABASE_ENGINE"),
+        ("deployment/contracts.py", "attest_database_targets"): ("DATABASE_TARGET",),
+    }
+
+    def records(self, reason):
+        values = CommandFailureDiagnosticTests.records(self)
+        public, config, journal, receipt, pins = values
+        public.update(reasonCode=reason, reasonCodes=[reason], message="PRIVATE_SECRET_CANARY")
+        public["operation"]["reasonCode"] = reason
+        receipt.update(reasonCode=reason, stage="switch", actionExecuted=True, executionCompleted=True,
+                       site={"technical": {"status": "passed"}}, nextAction="PRIVATE_SECRET_CANARY")
+        config["private"] = {"password": "PRIVATE_SECRET_CANARY"}
+        pin = pins["previous"]
+        journal.update(phase="switch", state="VERIFY_ONLY", result=copy.deepcopy(receipt), release=dict(pin),
+                       requestedDeploymentDigest=pin["deploymentDigest"])
+        journal["stages"]["release"] = {"status": "done", "revision": pin["revision"]}
+        journal["stages"]["switch"] = {"status": "done"}
+        return values
+
+    @contextlib.contextmanager
+    def observation(self, values, *, receipt_mtime=15 * 10**9):
+        public, config, journal, receipt, pins = values
+        invocation = {"startedNs": 10 * 10**9, "finishedNs": 20 * 10**9,
+                      "setupLogsBefore": {"status": "OBSERVED", "entries": {}}}
+        private = {".asa/setup.json": config, ".asa/setup-operations/" + "a" * 32 + ".json": journal,
+                   ".asa/setup-last-attempt.json": receipt}
+        def read(path, *_args, **_kwargs):
+            self.assertTrue(path.is_relative_to(harness.INSTALL_ROOT))
+            relative = path.relative_to(harness.INSTALL_ROOT).as_posix()
+            if relative not in private:
+                raise PermissionError("PRIVATE_SECRET_CANARY")
+            return json.dumps(private[relative]).encode(), SimpleNamespace(st_mtime_ns=receipt_mtime), False
+        with patch.object(harness, "guest_guard", return_value={"pins": pins}), \
+                patch.object(harness, "diagnostic_owner", return_value=({"uid": 999}, {})), \
+                patch.object(harness, "diagnostic_read", side_effect=read), \
+                patch.object(harness, "switch_failure_observation") as switch_probe:
+            yield public, invocation
+        switch_probe.assert_not_called()
+
+    def public_failure(self, public, invocation):
+        output = io.StringIO()
+        with patch.object(harness, "CLI_ACTIONS", []), \
+                patch.object(harness, "guest_phase", side_effect=lambda *_: harness.public_cli_result(
+                    ["install"], 2, json.dumps(public), invocation=invocation)), contextlib.redirect_stdout(output):
+            code = harness.guest_main("install")
+        self.assertNotIn("PRIVATE_SECRET_CANARY", output.getvalue())
+        observed = json.loads(output.getvalue())
+        self.assertEqual((code, observed["status"]), (1, "FAIL"))
+        self.assertEqual((observed["cliActions"][0]["exitCode"], observed["cliActions"][0]["status"]), (2, "BLOCKED"))
+        self.assertEqual(observed["cliActions"][0]["operationOutcome"], "BLOCKED")
+        return observed
+
+    def test_expected_codes_are_literal_guards_of_the_named_producers(self):
+        sources = {}
+        for (relative, name), expected in self.PRODUCERS.items():
+            if relative not in sources:
+                sources[relative] = ast.parse((HERE.parent / relative).read_text(encoding="utf-8"))
+            definition = sources[relative]
+            for part in name.split("."):
+                definition = next(node for node in definition.body if getattr(node, "name", None) == part)
+            literals = set()
+            for node in ast.walk(definition):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("require", "Blocked"):
+                    index = 1 if node.func.id == "require" else 0
+                    if len(node.args) > index and isinstance(node.args[index], ast.Constant):
+                        literals.add(node.args[index].value)
+            with self.subTest(source=relative, function=name):
+                self.assertLessEqual(set(expected), literals)
+
+    def test_known_post_switch_codes_survive_public_and_bound_receipt_failure(self):
+        reasons = {reason for group in self.PRODUCERS.values() for reason in group}
+        for reason in sorted(reasons):
+            with self.subTest(reason=reason):
+                with self.observation(self.records(reason)) as (public, invocation):
+                    observed = self.public_failure(public, invocation)
+                self.assertEqual(observed["reasonCode"], reason)
+                self.assertEqual(set(observed["cliActions"][0]["reasonCodes"]), {reason})
+                proof = observed["commandFailureDiagnostic"]
+                self.assertEqual((proof["status"], proof["binding"], proof["reasonCode"]), ("OBSERVED", "VERIFIED", reason))
+                self.assertEqual((proof["journalPhase"], proof["receiptStage"], proof["stages"]["switch"]), ("switch", "switch", "done"))
+                self.assertEqual((proof["selectedRelease"]["status"], proof["selectedRelease"]["pin"]), ("CONFIRMED", "previous"))
+                self.assertTrue(proof["acceptance"]["technicalCompleted"])
+                self.assertTrue(proof["acceptance"]["executionCompleted"])
+                self.assertFalse(proof["acceptance"]["applicationAccepted"])
+                self.assertNotIn("ownerCompleted", proof["acceptance"])
+                self.assertFalse(proof["acceptance"]["dataProtectionConfirmed"])
+                self.assertNotIn("owner_registration", proof["stages"])
+                self.assertNotIn("owner_grant", proof["stages"])
+                self.assertEqual(proof["logs"]["setup"]["status"], "UNAVAILABLE")
+
+    def test_unknown_and_non_string_post_switch_codes_remain_closed(self):
+        for reason in ("PRIVATE_SECRET_CANARY", "OWNER_IDENTITY_PRIVATE_SECRET_CANARY", "owner_identity",
+                       "OWNER_IDENTITY PRIVATE_SECRET_CANARY", None, True, 42, ["OWNER_IDENTITY"], {"code": "OWNER_IDENTITY"}):
+            with self.subTest(reason=reason):
+                values = self.records(reason)
+                projected = harness.command_operation_projection(*values, mode="install", code=2, uid=999)
+                self.assertEqual(projected["reasonCode"], "UNRECOGNIZED_REASON")
+                self.assertNotIn("PRIVATE_SECRET_CANARY", json.dumps(projected))
+                if isinstance(reason, str):
+                    with self.observation(values) as (public, invocation):
+                        observed = self.public_failure(public, invocation)
+                    self.assertEqual(observed["reasonCode"], "UNRECOGNIZED_REASON")
+                    self.assertEqual(observed["commandFailureDiagnostic"]["reasonCode"], "UNRECOGNIZED_REASON")
+
+    def test_new_code_never_binds_a_mismatched_or_stale_receipt(self):
+        changes = ((0, "operation", {"operationId": "a" * 32, "installationId": "b" * 32,
+                                    "outcome": "BLOCKED", "reasonCode": "OWNER_PASSWORD"}),
+                   (1, "installationId", "c" * 32), (1, "operatorUid", 0), (1, "root", "/foreign"),
+                   (2, "mode", "update"), (2, "root", "/foreign"), (2, "result", {}),
+                   (3, "operationId", "c" * 32), (3, "reasonCode", "OWNER_PASSWORD"), (3, "exitCode", 1),
+                   (None, "mtime", 10 * 10**9 - 1), (None, "mtime", 20 * 10**9 + 1))
+        for index, key, value in changes:
+            values = self.records("OWNER_IDENTITY")
+            if index is not None:
+                values[index][key] = value
+            with self.subTest(index=index, key=key, value=value), \
+                    self.observation(values, receipt_mtime=value if index is None else 15 * 10**9) as (public, invocation):
+                observed = self.public_failure(public, invocation)
+            self.assertEqual(observed["reasonCode"], "OWNER_IDENTITY")
+            proof = observed["commandFailureDiagnostic"]
+            self.assertEqual(proof["status"], "UNAVAILABLE")
+            self.assertEqual(proof["reasonCode"], "DIAGNOSTIC_INVOCATION" if index is None else "DIAGNOSTIC_BINDING")
+            self.assertEqual(proof["binding"], "UNVERIFIED")
+            self.assertNotIn("operationId", observed["cliActions"][0])
 
 
 class SwitchDiagnosticTests(unittest.TestCase):
