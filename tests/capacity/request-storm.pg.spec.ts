@@ -25,6 +25,10 @@ import {
   summarizeStorm,
 } from '../../tools/capacity/request-storm-contracts.mjs';
 import { edit } from './documents';
+import {
+  assertLatencySample,
+  assertLatencyScenario,
+} from '../../tools/capacity/classroom-scale-contracts.mjs';
 import type { storm } from './request-storm-client';
 
 declare global {
@@ -43,6 +47,12 @@ type Observation = {
   durationMs: number;
   injected: boolean;
   completed: boolean;
+  requestId?: string;
+  operationId?: string;
+  proxyReceivedAtMs?: number;
+  upstreamDispatchedAtMs?: number;
+  upstreamHeadersAtMs?: number;
+  proxyFinishedAtMs?: number;
 };
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 const execute = promisify(execFile);
@@ -69,6 +79,12 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
   () => {
     it('runs independent browser identities through the real API and PostgreSQL', async () => {
       const fixture = assertStormEnvironment(process.env);
+      const scenario = assertLatencyScenario(process.env.ASA_STORM_SCENARIO);
+      const sampleId =
+        scenario === 'latency' ? assertLatencySample(process.env.ASA_STORM_SAMPLE_ID) : undefined;
+      if (scenario === 'latency' && fixture.users !== 30)
+        throw Error('The bounded latency diagnostic uses exactly30 clients');
+      const epoch = () => performance.timeOrigin + performance.now();
       const sourceRoot = resolve(process.env.ASA_STORM_SOURCE_ROOT || '.');
       const sourceFactory = (await import(
         /* @vite-ignore */ pathToFileURL(resolve(sourceRoot, 'apps/api/dist/app.factory.js')).href
@@ -100,6 +116,8 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
       const javascriptErrors: string[] = [];
       const loginMs: number[] = [];
       const projectMs: number[] = [];
+      const operationTimings: ReturnType<typeof storm.latencyTimings>[] = [];
+      let timingReadErrors = 0;
       const correctness = {
         independentIdentities: 0,
         savesVerified: 0,
@@ -289,7 +307,17 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
             durationMs: 0,
             injected: false,
             completed: false,
+            ...(scenario === 'latency' ? { proxyReceivedAtMs: epoch() } : {}),
           };
+          if (scenario === 'latency') {
+            for (const [header, key] of [
+              ['x-asa-storm-request', 'requestId'],
+              ['x-asa-storm-operation', 'operationId'],
+            ] as const) {
+              const value = request.headers[header];
+              if (typeof value === 'string' && /^\d+:\d+$/.test(value)) record[key] = value;
+            }
+          }
           if (client >= 0) {
             activeHttp++;
             peakHttp = Math.max(peakHttp, activeHttp);
@@ -315,6 +343,7 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
             record.status = response.writableFinished ? response.statusCode : 499;
             record.completed = response.writableFinished;
             record.durationMs = performance.now() - began;
+            if (scenario === 'latency') record.proxyFinishedAtMs = epoch();
             records.push(record);
             if (client >= 0) {
               activeHttp--;
@@ -337,10 +366,12 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
           }
           const forward = () => {
             if (response.destroyed) return;
+            if (scenario === 'latency') record.upstreamDispatchedAtMs = epoch();
             const upstream = httpRequest(
               `${STORM_API_ORIGIN}${request.url}`,
               { method: request.method, headers: request.headers },
               (result) => {
+                if (scenario === 'latency') record.upstreamHeadersAtMs = epoch();
                 response.writeHead(result.statusCode || 502, result.headers);
                 result.pipe(response);
               },
@@ -431,7 +462,9 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
           // Each context represents a separate pupil's focused computer, not60 background tabs.
           const cdp = await context.newCDPSession(page);
           await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true });
-          await page.goto(`${STORM_ORIGIN}/__storm?client=${index}`);
+          await page.goto(
+            `${STORM_ORIGIN}/__storm?client=${index}${scenario === 'latency' ? '&scenario=latency' : ''}`,
+          );
           await page.waitForFunction(() => !!window.__asaStorm?.ready);
           expect(
             await page.evaluate(() => ({
@@ -483,159 +516,225 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
           await pages[1]!.evaluate((id) => window.__asaStorm.foreignRead(id), firstProject),
         );
         correctness.crossIdentityDenied++;
-        startPhase('healthy-notifications');
-        await wait(12000);
-        startPhase('portal-transitions');
-        await Promise.all(
-          pages.map((page) =>
-            page.evaluate(async () => {
-              for (const route of ['home', 'games', 'projects', 'editor.electronics'] as const)
-                window.__asaStorm.route(route);
-              await window.__asaStorm.requestBurst();
+        if (scenario === 'latency') {
+          // Same client/API/document size; isolate login and two real save/readback
+          // bursts without replaying the old reload/slow-channel/failure matrix.
+          startPhase('latency-healthy-settle');
+          await wait(3000);
+          startPhase('latency-healthy-save');
+          const healthyDocument = edit('electronics', 2);
+          const healthy = await Promise.all(
+            pages.map((page) =>
+              page.evaluate(
+                (document) => window.__asaStorm.saveAgain(document, 'healthy-save'),
+                healthyDocument,
+              ),
+            ),
+          );
+          healthy.forEach((value) => {
+            expect(documentDigest(value.document)).toBe(documentDigest(healthyDocument));
+            correctness.savesVerified++;
+          });
+          startPhase('latency-telemetry-outage-prepare');
+          fault = 'telemetry503';
+          await Promise.all(
+            pages.map((page) => page.evaluate(() => window.__asaStorm.touchActivity())),
+          );
+          await expect
+            .poll(
+              () =>
+                new Set(
+                  records
+                    .filter(
+                      (record) =>
+                        record.injected &&
+                        record.status === 503 &&
+                        record.phase === 'latency-telemetry-outage-prepare' &&
+                        record.client >= 0,
+                    )
+                    .map((record) => record.client),
+                ).size,
+              { timeout: 15000, interval: 100 },
+            )
+            .toBe(fixture.users);
+          startPhase('latency-telemetry-outage-save');
+          const outageDocument = edit('electronics', 3);
+          expect(JSON.stringify(outageDocument).length).toBe(
+            JSON.stringify(healthyDocument).length,
+          );
+          const outage = await Promise.all(
+            pages.map((page) =>
+              page.evaluate(
+                (document) => window.__asaStorm.saveAgain(document, 'telemetry-outage-save'),
+                outageDocument,
+              ),
+            ),
+          );
+          outage.forEach((value) => {
+            expect(documentDigest(value.document)).toBe(documentDigest(outageDocument));
+            correctness.savesVerified++;
+          });
+          fault = 'none';
+          expect(correctness.savesVerified).toBe(3 * fixture.users);
+          await Promise.all(pages.map((page) => page.evaluate(() => window.__asaStorm.stop())));
+          await wait(1500);
+        } else {
+          startPhase('healthy-notifications');
+          await wait(12000);
+          startPhase('portal-transitions');
+          await Promise.all(
+            pages.map((page) =>
+              page.evaluate(async () => {
+                for (const route of ['home', 'games', 'projects', 'editor.electronics'] as const)
+                  window.__asaStorm.route(route);
+                await window.__asaStorm.requestBurst();
+              }),
+            ),
+          );
+          startPhase('diagnostic-error-burst');
+          fault = 'diagnostic-errors';
+          await Promise.all(pages.map((page) => page.evaluate(() => window.__asaStorm.failures())));
+          await wait(3000);
+          fault = 'none';
+          startPhase('simultaneous-reload');
+          const reopened = await Promise.all(
+            pages.map(async (page) => {
+              await page.reload();
+              await page.waitForFunction(() => !!window.__asaStorm?.ready);
+              return page.evaluate(() => window.__asaStorm.resume());
             }),
-          ),
-        );
-        startPhase('diagnostic-error-burst');
-        fault = 'diagnostic-errors';
-        await Promise.all(pages.map((page) => page.evaluate(() => window.__asaStorm.failures())));
-        await wait(3000);
-        fault = 'none';
-        startPhase('simultaneous-reload');
-        const reopened = await Promise.all(
-          pages.map(async (page) => {
-            await page.reload();
+          );
+          reopened.forEach((id, index) => expect(id).toBe(identities[index]!.seatId));
+          correctness.reloadIdentities = reopened.length;
+          startPhase('network-offline-10s');
+          await Promise.all(contexts.map((context) => context.setOffline(true)));
+          await Promise.all(
+            pages.map((page) => page.evaluate(() => window.__asaStorm.requestBurst())),
+          );
+          await wait(10000);
+          startPhase('network-restored');
+          await Promise.all(contexts.map((context) => context.setOffline(false)));
+          await wait(4000);
+          const recovered = await Promise.all(
+            pages.map((page) => page.evaluate(() => window.__asaStorm.resume())),
+          );
+          recovered.forEach((id, index) => expect(id).toBe(identities[index]!.seatId));
+          correctness.recoveryIdentities = recovered.length;
+          startPhase('slow-chess-independent-checkers');
+          fault = 'slow-chess';
+          await wait(15000);
+          fault = 'none';
+          startPhase('temporary-notification-503');
+          fault = 'notifications503';
+          for (let index = 0; index < 6; index++) {
+            await Promise.all(
+              pages.map((page) => page.evaluate(() => window.__asaStorm.contextBurst())),
+            );
+            await wait(2000);
+          }
+          fault = 'none';
+          startPhase('notification-recovery');
+          await wait(35000);
+          startPhase('telemetry-outage-product-save');
+          fault = 'telemetry503';
+          await Promise.all(
+            pages.map((page) => page.evaluate(() => window.__asaStorm.touchActivity())),
+          );
+          const changed = edit('electronics', 2);
+          const duringOutage = await Promise.all(
+            pages.map((page) =>
+              page.evaluate((document) => window.__asaStorm.saveAgain(document), changed),
+            ),
+          );
+          duringOutage.forEach((value) => {
+            expect(documentDigest(value.document)).toBe(documentDigest(changed));
+            correctness.savesVerified++;
+          });
+          for (let index = 0; index < 8; index++) {
+            await Promise.all(
+              pages.map((page) => page.evaluate(() => window.__asaStorm.contextBurst())),
+            );
+            await wait(500);
+          }
+          fault = 'none';
+          startPhase('multiple-tabs');
+          const secondary: Page[] = [];
+          for (let index = 0; index < 3; index++) {
+            const page = await contexts[index]!.newPage();
+            secondary.push(page);
+            page.on('pageerror', (error) => javascriptErrors.push(error.name));
+            await page.goto(`${STORM_ORIGIN}/__storm?client=${fixture.users + index}`);
             await page.waitForFunction(() => !!window.__asaStorm?.ready);
-            return page.evaluate(() => window.__asaStorm.resume());
-          }),
-        );
-        reopened.forEach((id, index) => expect(id).toBe(identities[index]!.seatId));
-        correctness.reloadIdentities = reopened.length;
-        startPhase('network-offline-10s');
-        await Promise.all(contexts.map((context) => context.setOffline(true)));
-        await Promise.all(
-          pages.map((page) => page.evaluate(() => window.__asaStorm.requestBurst())),
-        );
-        await wait(10000);
-        startPhase('network-restored');
-        await Promise.all(contexts.map((context) => context.setOffline(false)));
-        await wait(4000);
-        const recovered = await Promise.all(
-          pages.map((page) => page.evaluate(() => window.__asaStorm.resume())),
-        );
-        recovered.forEach((id, index) => expect(id).toBe(identities[index]!.seatId));
-        correctness.recoveryIdentities = recovered.length;
-        startPhase('slow-chess-independent-checkers');
-        fault = 'slow-chess';
-        await wait(15000);
-        fault = 'none';
-        startPhase('temporary-notification-503');
-        fault = 'notifications503';
-        for (let index = 0; index < 6; index++) {
-          await Promise.all(
-            pages.map((page) => page.evaluate(() => window.__asaStorm.contextBurst())),
+            expect(await page.evaluate(() => window.__asaStorm.resume())).toBe(
+              identities[index]!.seatId,
+            );
+          }
+          await wait(12000);
+          await Promise.all(secondary.map((page) => page.close()));
+          startPhase('real-game-notification-and-match');
+          for (const game of ['chess', 'checkers'] as const) {
+            const target = await pages[1]!.evaluate(
+              (game) => window.__asaStorm.game(game, 'access'),
+              game,
+            );
+            const created = await pages[0]!.evaluate(
+              ({ game, target }) =>
+                window.__asaStorm.game(game, `players/${target}/challenge`, {
+                  scope: 'classroom',
+                  initialMs: 600000,
+                  incrementMs: 0,
+                  colorPreference: 'white',
+                }),
+              { game, target: text(object(target.player).playerId) },
+            );
+            const invite = object(created.invite);
+            await pages[1]!.waitForFunction(
+              ({ id, game }) =>
+                window.__asaStorm
+                  .notifications()
+                  .some((value) => value.id === id && value.game === game),
+              { id: invite.id, game },
+              { timeout: 12000 },
+            );
+            correctness.gameNotifications++;
+            const accepted = await pages[1]!.evaluate(
+              ({ game, code }) => window.__asaStorm.game(game, `invites/${code}/accept`, {}),
+              { game, code: invite.code },
+            );
+            const match = object(accepted.match);
+            await pages[0]!.evaluate(
+              ({ game, id, version }) =>
+                window.__asaStorm.game(game, `matches/${id}/commands`, {
+                  expectedVersion: version,
+                  action: 'resign',
+                }),
+              { game, id: match.id, version: match.version },
+            );
+            correctness.gameMatches++;
+          }
+          startPhase('final-save-readback');
+          const finals = await Promise.all(
+            pages.map((page) => page.evaluate(() => window.__asaStorm.verifySaved())),
           );
-          await wait(2000);
+          finals.forEach((value) => {
+            expect(documentDigest(value.document)).toBe(documentDigest(changed));
+            correctness.savesVerified++;
+          });
+          await Promise.all(pages.map((page) => page.evaluate(() => window.__asaStorm.stop())));
+          await wait(1500);
+          expect(correctness.gameMatches).toBe(2);
         }
-        fault = 'none';
-        startPhase('notification-recovery');
-        await wait(35000);
-        startPhase('telemetry-outage-product-save');
-        fault = 'telemetry503';
-        await Promise.all(
-          pages.map((page) => page.evaluate(() => window.__asaStorm.touchActivity())),
-        );
-        const changed = edit('electronics', 2);
-        const duringOutage = await Promise.all(
-          pages.map((page) =>
-            page.evaluate((document) => window.__asaStorm.saveAgain(document), changed),
-          ),
-        );
-        duringOutage.forEach((value) => {
-          expect(documentDigest(value.document)).toBe(documentDigest(changed));
-          correctness.savesVerified++;
-        });
-        for (let index = 0; index < 8; index++) {
-          await Promise.all(
-            pages.map((page) => page.evaluate(() => window.__asaStorm.contextBurst())),
-          );
-          await wait(500);
-        }
-        fault = 'none';
-        startPhase('multiple-tabs');
-        const secondary: Page[] = [];
-        for (let index = 0; index < 3; index++) {
-          const page = await contexts[index]!.newPage();
-          secondary.push(page);
-          page.on('pageerror', (error) => javascriptErrors.push(error.name));
-          await page.goto(`${STORM_ORIGIN}/__storm?client=${fixture.users + index}`);
-          await page.waitForFunction(() => !!window.__asaStorm?.ready);
-          expect(await page.evaluate(() => window.__asaStorm.resume())).toBe(
-            identities[index]!.seatId,
-          );
-        }
-        await wait(12000);
-        await Promise.all(secondary.map((page) => page.close()));
-        startPhase('real-game-notification-and-match');
-        for (const game of ['chess', 'checkers'] as const) {
-          const target = await pages[1]!.evaluate(
-            (game) => window.__asaStorm.game(game, 'access'),
-            game,
-          );
-          const created = await pages[0]!.evaluate(
-            ({ game, target }) =>
-              window.__asaStorm.game(game, `players/${target}/challenge`, {
-                scope: 'classroom',
-                initialMs: 600000,
-                incrementMs: 0,
-                colorPreference: 'white',
-              }),
-            { game, target: text(object(target.player).playerId) },
-          );
-          const invite = object(created.invite);
-          await pages[1]!.waitForFunction(
-            ({ id, game }) =>
-              window.__asaStorm
-                .notifications()
-                .some((value) => value.id === id && value.game === game),
-            { id: invite.id, game },
-            { timeout: 12000 },
-          );
-          correctness.gameNotifications++;
-          const accepted = await pages[1]!.evaluate(
-            ({ game, code }) => window.__asaStorm.game(game, `invites/${code}/accept`, {}),
-            { game, code: invite.code },
-          );
-          const match = object(accepted.match);
-          await pages[0]!.evaluate(
-            ({ game, id, version }) =>
-              window.__asaStorm.game(game, `matches/${id}/commands`, {
-                expectedVersion: version,
-                action: 'resign',
-              }),
-            { game, id: match.id, version: match.version },
-          );
-          correctness.gameMatches++;
-        }
-        startPhase('final-save-readback');
-        const finals = await Promise.all(
-          pages.map((page) => page.evaluate(() => window.__asaStorm.verifySaved())),
-        );
-        finals.forEach((value) => {
-          expect(documentDigest(value.document)).toBe(documentDigest(changed));
-          correctness.savesVerified++;
-        });
-        await Promise.all(pages.map((page) => page.evaluate(() => window.__asaStorm.stop())));
-        await wait(1500);
         expect(javascriptErrors).toEqual([]);
         const measured = summarizeStorm(records, performance.now() - started, fixture.users);
-        if (fixture.variant === 'candidate') {
+        if (fixture.variant === 'candidate' || scenario === 'latency') {
           expect(measured.unexpected5xx).toBe(0);
           expect(measured.unexpected429).toBe(0);
+        }
+        if (fixture.variant === 'candidate') {
           expect(peakNotificationsPerChannel).toBeLessThanOrEqual(1);
           // Four product requests plus independent identity-proof recovery reads can briefly overlap.
           expect(peakBusinessPerInstance).toBeLessThanOrEqual(6);
         }
-        expect(correctness.gameMatches).toBe(2);
         if (sampler) clearInterval(sampler);
         sampler = undefined;
         await samplePending;
@@ -649,6 +748,23 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
         loop.disable();
         const elapsedMs = performance.now() - started;
         const cpuUsed = process.cpuUsage(cpu);
+        if (scenario === 'latency') {
+          for (const page of pages) {
+            try {
+              const timing = await page.evaluate(() => window.__asaStorm.latencyTimings());
+              operationTimings.push(timing);
+              if (
+                timing.dropped ||
+                timing.operations.length !== 3 ||
+                timing.operations.some((operation) => operation.status !== 'VERIFIED')
+              )
+                timingReadErrors++;
+            } catch {
+              timingReadErrors++;
+            }
+          }
+          if (timingReadErrors || operationTimings.length !== fixture.users) success = false;
+        }
         const report = {
           schemaVersion: 1,
           fixture: 'real-browser-client-api-postgresql',
@@ -657,6 +773,16 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
           variant: fixture.variant,
           users: fixture.users,
           success,
+          scenario,
+          ...(sampleId
+            ? {
+                sampleId,
+                operationTimings,
+                timingReadErrors,
+                timingClock:
+                  'Epoch milliseconds from performance.timeOrigin+performance.now; compare local duration segments, not wall-clock offsets between Node and Chromium.',
+              }
+            : {}),
           host: {
             platform: process.platform,
             availableCpus: availableParallelism(),
@@ -689,9 +815,11 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
           ],
           records,
         };
-        mkdirSync('reports/request-storm', { recursive: true });
+        const reportDirectory =
+          scenario === 'latency' ? 'reports/classroom-scale/latency' : 'reports/request-storm';
+        mkdirSync(reportDirectory, { recursive: true });
         writeFileSync(
-          `reports/request-storm/${fixture.variant}-${fixture.users}.json`,
+          `${reportDirectory}/${sampleId || fixture.variant + '-' + fixture.users}.json`,
           JSON.stringify(report, null, 2),
         );
         await browser?.close();

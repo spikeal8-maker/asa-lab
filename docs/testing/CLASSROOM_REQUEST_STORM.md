@@ -168,7 +168,8 @@ budget: 611591 bytes versus 598366 bytes for the source baseline. Login,
 registration and organization-login forms now use the existing lazy page
 delivery boundary, so authenticated classroom reloads do not eagerly load
 those destinations. Normal page controls and authorization are unchanged;
-pending or failed chunk delivery retains a usable home exit and reload action.
+pending chunk delivery uses the existing loading fallback. A failed chunk
+offers a usable home exit and reload action.
 The subsequent fresh local build measured 594839 bytes. The same bundle gate
 remains mandatory in CI; its limit was not raised.
 
@@ -193,3 +194,219 @@ Production deployment and FRP configuration are outside this PR. Exact GitHub
 CI success, clean-image startup on the supported Docker hosts and the reported
 user journeys are separate checks; none implies that the public FRP service
 has been load-qualified.
+
+## P0-E: sequential full-editor capacity qualification
+
+`Classroom Full Editor Scale` is a separate test-only PR workflow. Its paths
+trigger `pull_request`, so the first version does not depend on a dispatch-only
+workflow already existing on main. It has one GitHub-hosted Ubuntu 24 job, one
+owned Compose stack and one Playwright worker. No production URL, existing
+database, remote Docker socket or self-hosted machine is accepted. The source
+guard requires the official repository, clean exact selected SHA and a unique
+run token. Generated test credentials and secrets are not report data.
+
+The unchanged server's guarded internal origin requires `NODE_ENV=test` and
+the database name `/asalab_test`. That database exists only in a new,
+run-labelled PostgreSQL volume in this workflow's own Compose project; the
+controller refuses existing project resources. The runtime role remains
+`asalab_app`, with the actual RLS, session authentication, rate limits and
+admission rules. All browser clients enter through the same Web proxy peer/NAT;
+there is no trusted-source-wide or address-budget bypass. Teacher registration
+uses a genuinely completed native bot challenge and ordinary credentials.
+Nevertheless, test mode does not enforce the production-only botProof or
+Secure-cookie settings. This explicit profile measures isolated Docker
+ingress capacity; it is not production authentication equivalence or an
+unqualified production capacity ceiling.
+
+The committed `SCALE_PROFILE` and its SHA256 fix the workload, SLO and resource
+floors before the first run. The controller first executes a two-StudentSeat
+calibration using the same native UI actions and both two-player game controls.
+Its result is `VALID_FIXTURE`, `INVALID_FIXTURE` or `BLOCKED_BY_RUNNER`; it is
+never evidence of a passing capacity level. Locator, setup or content-proof
+failure at calibration cannot establish that the server supports fewer than 30
+learners. Only a valid calibration permits this ladder:
+
+| Level | Classes and Seat distribution | Condition before it can start |
+| --- | --- | --- |
+| 30 | 1 class: 30 | Two-person full-editor calibration is valid. |
+| 60 | 2 classes: 30 + 30 | 30 has a complete, sealed PASS receipt. |
+| 100 | 4 classes: 30 + 30 + 30 + 10 | 30 and 60 both have complete PASS receipts. |
+| 150 | 5 classes of 30 | 30, 60 and 100 all pass. |
+| 200 | 7 classes: six of 30, one of 20 | Every preceding level passes. |
+
+The two-person calibration uses one actual classroom. Each measured Seat has
+its own class-specific join code and class ID in the identity proof. Game
+policy is enabled through the actual API for every classroom; the two game
+control players both belong to the first classroom. The receipt validates
+distinct classroom hashes and every client-to-cohort assignment, as well as
+the fixed class count and Seat distribution. No hidden peers are added.
+The workflow starts with a fresh owned database. Earlier-level synthetic rows
+remain for the later levels, while their browser contexts are closed; this
+retained-state choice is part of the profile, not an unreported cleanup step.
+
+Receipts must have the same source SHA, run ID/attempt/token, profile hash,
+environment hash and runtime image manifest hash. The first FAIL, INVALID or
+BLOCKED result stops the ladder; higher levels remain `NOT_RUN`. A report
+states the largest confirmed tested level for this profile. It does not infer
+absolute product capacity or extrapolate a Windows or public-FRP result.
+
+### Actual UI, persistence and operation denominators
+
+Every level provisions synthetic teacher/class/StudentSeats through actual
+application interfaces and gives every learner an independent cookie-backed
+browser context. A separate ordinary-account login is a control, outside the
+StudentSeat denominator. Teacher setup can retry a real 429 only with the same
+idempotency key and valid Retry-After, before the measurement barrier. Such
+responses remain recorded as setup observations. The fixed total wait budget
+is 120 seconds, at most three retries per setup operation, within the 12-minute
+level limit. No measured login or save receives a harness retry.
+
+All N learners use Electronics concurrently, then all N use Scratch
+concurrently. This is the real built Web application and embedded Scratch GUI
+served by the API/Web/Scratch production images, backed by migrated PostgreSQL
+and MinIO. The harness does not submit a substitute editor document, replace
+save code, advance a virtual clock or manufacture a telemetry success.
+Electronics starts with a blank project, places one `resistor-axial` and sets
+its resistance to `1000 + 10 * client + step` ohms for steps 1, 2 and 3. It does
+not add wires or run a simulation. Scratch adds an Apple sprite from the native
+library to the default project, renames it to `Scale-{client}-{step}`, changes
+its position to `x=(client%80)+step, y=0`, persists its costume through object
+storage and waits for the native minute autosave. No script blocks are added.
+These concrete small documents qualify this full-editor workload; they do not
+represent every circuit complexity or Scratch program. The separate lightweight
+fixture described above remains a transport diagnostic, not full-editor load.
+
+Each learner has 14 planned ledger entries: login, portal, and six operations per
+editor (open, save, reload, save during telemetry503, offline edit, recovery).
+Every entry exists before execution. STARTED, ACKNOWLEDGED, VERIFIED, FAILED and
+TIMED_OUT states are appended as complete snapshots to `operations.jsonl`.
+Failures and never-started users remain in the success denominator; HTTP200 or
+a saved indicator alone cannot become VERIFIED. Saves/reloads must read the
+document independently through the authenticated API, match the expected UI
+content and identity, and prove the appropriate revision change. The report
+retains content hashes and revisions instead of pupil content or credentials.
+Both games require a real invitation and accepted match. A final readback or
+observer failure still fails the workload even if all earlier ledger entries
+were complete.
+
+Telemetry503 is injected only on actual diagnostics/analytics requests. Before
+the outage edit, a native reload of the already saved editor must produce a
+real refused telemetry request for every learner. That preparation is outside
+the save timer. The normal reload proof remains a healthy operation. Each
+editor also includes 10 seconds offline and recovery. Expected offline errors
+and narrowly identified GET/HEAD navigation aborts remain explicit; a healthy
+timeout, aborted write or other network failure is not exempted.
+
+### Fixed SLO and runtime budget
+
+Every capacity level requires 100% authenticated learners and 100% verified save
+operations, no unexpected 5xx or 429 in measured traffic, and portal p95 no more
+than 2000 ms. Portal latency means the native Projects navigation until the
+usable list is visible, after login. Per-operation ratios and p50/p95/p99 are
+reported independently. HTTP summaries separately identify healthy successful
+product requests, the whole non-injected population, injected telemetry
+responses, incomplete requests and phase counts. No overall latency can erase
+an individual operation failure.
+The healthy product HTTP filter is completed 2xx/3xx under `/api/`, excluding
+analytics/diagnostics and phases containing `offline`, `recovery` or
+`telemetry-outage`. Whole non-injected latency and total browser RPS also
+retain static resources; API/static/inbox/diagnostic counts are separate.
+
+The hosted job has a 120-minute ceiling. The sequential Docker build has a
+30-minute budget and one BuildKit worker limited to 8 GiB and 3 CPUs. Build and
+browser workloads do not overlap. Each calibration/capacity attempt has a
+12-minute deadline, and the narrow latency experiment below has a 10-minute
+budget. The workflow's run step also has its own 105-minute outer deadline;
+therefore a slow build or setup can leave higher levels untested. Missing or
+partial evidence is not accepted as capacity success.
+
+Runtime container limits are PostgreSQL 1 GiB, API 1 GiB, Web 256 MiB,
+Scratch 512 MiB, MinIO 512 MiB, and the browser generator 8 GiB with 1 GiB shared
+memory. The controller stops when host MemAvailable falls below the larger of
+2 GiB or 15% of total memory, free disk falls below 10 GiB, a container reaches 85%
+of its memory limit, or an owned container OOM/restart occurs. These resource
+limits cannot be overridden after seeing a result. Measured exhaustion is
+`BLOCKED_BY_RUNNER`, not a claim that the server's capacity is below that level.
+An actual content/identity integrity failure is not hidden by a coincident
+resource limit.
+
+The API keeps its ordinary 10-connection pool, 5-second connection timeout and
+15-second statement/query timeouts, separate single-connection analytics and
+acquisition pools, and 8 libuv threads. `runtime-profile.json` captures the
+resolved API settings and actual PostgreSQL version, `max_connections`,
+`shared_buffers`, `work_mem`, and runtime role attributes before calibration.
+The role must not be superuser or bypass RLS. No pool/admission setting is
+raised to make a particular level pass.
+
+Resource artifacts retain host interval CPU/MemAvailable/disk, container
+CPU/memory/PIDs/OOM/restarts, Chromium process/RSS samples and available
+PostgreSQL pool/activity observations. Missing, dropped, zero-Chromium or
+non-monotonic resource observations invalidate acceptance. Chromium summed RSS
+can count shared memory more than once; the stop rule uses host available and
+container-accounted memory. The generator and server share one hosted runner,
+so measured capacity is constrained by this combined topology. No load reaches
+the production server, Windows desktop or public tunnel.
+The browser HTTP observer is bounded at 200000 records and control/verification
+observations at 50000 per level. Exceeding a bound retains the loss/failure
+evidence and prevents PASS; observations are not silently discarded.
+
+The controller verifies API/Web/Scratch image IDs and exact revision labels.
+It hashes JavaScript from the built Web/Scratch images; the browser must prove
+the actual loaded entry/runtime bytes against that manifest. Revision labels
+alone cannot validate served source. Reports preserve partial operations,
+resource-stop reasons and cleanup status even after failure. Cleanup is
+restricted to the run-labelled Compose project and its own BuildKit builder;
+it never prunes Docker or deletes another database/volume.
+
+### Narrow login/save latency diagnosis
+
+The previous lightweight comparison observed higher candidate login/save p95
+in some samples. A later exact-source 30-user login sample changed direction;
+the 60-user increase persisted. Fixed baseline-first order, burst timing and
+browser/post-response work are therefore competing explanations. Login POST
+and draft PUT do not use the selected portal GET queue. No source evidence yet
+proves that telemetry refusal causes those latency differences.
+
+After full-editor 30 passes, the controller pauses only its idle API/Web/Scratch
+services and runs one short 30-client **A-B / B-A** experiment. A is the pinned
+6a baseline, B is the exact candidate. Both use the same current measurement
+harness, the selected revision's actual client modules/API build, and fresh
+owned test databases. The controller verifies source-module provenance for
+each sample and then restores the unchanged full-editor images before 60.
+It does not replay the old long reload/offline/slow-notification matrix.
+
+The diagnostic measures login, a healthy save/readback and an equally sized
+changed document during observed real telemetry503. Bounded observation records
+the operation start, native fetch dispatch, response headers, JSON start/end,
+API result and readback completion, plus proxy receive/dispatch/headers/finish.
+Only synthetic client/operation/request integers join those records; no
+credentials, cookies or document contents are captured. Timing fields are
+enabled only for this explicit diagnostic scenario. Browser-local and
+proxy-local durations are computed separately; clock-origin differences are
+never labelled network latency. Missing JSON/readback boundaries, dropped
+observations or ambiguous joins invalidate the diagnostic.
+
+The four raw samples and segment p50/p95/p99 allow a reviewer to distinguish
+before-send work, upstream response time, body/JSON work, work after the API
+result and burst arrival spread. One AB/BA experiment is a causal aid, not a
+statistical regression verdict. It does not authorize a product change or
+prove an absolute capacity. Any subsequent fix needs a specific reproduced
+cause and its own bounded regression.
+
+Focused author checks, without starting Docker or browser load locally:
+
+```bash
+node tools/capacity/classroom-scale.mjs check
+```
+
+The runtime entry point is restricted to the isolated official CI fixture:
+
+```bash
+node tools/capacity/classroom-scale.mjs run
+```
+
+The artifact is `classroom-full-editor-scale-<exact SHA>-<attempt>` and contains
+`plan.json`, `image-manifest.json`, calibration and level receipts/raw ledgers,
+resource observations, the latency samples, final ladder summary, and any
+failure/cleanup report. Published results must link the exact workflow run and
+artifact; author unit/type/lint checks alone do not establish capacity 30 or 60.
