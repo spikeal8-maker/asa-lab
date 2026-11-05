@@ -61,13 +61,13 @@ def system_classification_fixture(root, compressed):
 
 
 def editor_classification_fixture(root, compressed):
-    """Five editor names, explicit levels and all three retained-history paths."""
+    """Six editor names, explicit levels and all three retained-history paths."""
     c = Collector(root, {'retentionDays': 365})
     c.reader_format = 2 if compressed else 1
     rows = []
     for generation in ('fresh', 'imported', 'legacy'):
         batch = []
-        for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+        for module in ('scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'):
             for level in ('info', 'warn', 'error'):
                 payload = {'kind': 'client_diagnostic', 'module': 'blocks' if module == 'scratch' else module,
                            'level': level, 'path': '/api/diagnostics/client', 'message': 'OBS015 failure marker'}
@@ -464,7 +464,7 @@ class CollectorTests(unittest.TestCase):
             c.db.close()
 
     def test_obs015_all_editor_names_and_route_source_priorities(self):
-        for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+        for module in ('scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'):
             with self.subTest(module=module):
                 reported = 'blocks' if module == 'scratch' else module
                 event = normalize('api', json.dumps({'kind': 'client_diagnostic', 'module': reported, 'level': 'warn'}), now(), module)
@@ -474,17 +474,24 @@ class CollectorTests(unittest.TestCase):
                 self.assertEqual((event['module'], event['subsystem']), (module, module))
         for source, payload, expected in (
             ('linux:journal', {'module': 'chess'}, ('system', 'host')),
+            ('linux:journal', {'module': 'robotics'}, ('system', 'host')),
             ('scratch', {'module': 'chess'}, ('scratch', 'scratch')),
+            ('scratch', {'module': 'robotics'}, ('scratch', 'scratch')),
             ('postgres', {'module': 'chess'}, ('system', 'database')),
+            ('postgres', {'module': 'robotics'}, ('system', 'database')),
             ('api', {'kind': 'client_diagnostic', 'module': 'unknown'}, ('portal', 'api')),
+            ('api', {'kind': 'client_diagnostic', 'module': 'robotics-extra'}, ('portal', 'api')),
+            ('api', {'path': '/api/robotics-extra/fixture'}, ('portal', 'api')),
+            ('api', {'path': '/api/robotics.invalid/fixture'}, ('portal', 'api')),
             ('api', {'path': '/api/projects/fixture', 'module': 'chess'}, ('chess', 'projects')),
+            ('api', {'path': '/api/projects/fixture', 'module': 'robotics'}, ('robotics', 'projects')),
         ):
             with self.subTest(source=source, payload=payload):
                 event = normalize(source, json.dumps(payload), now(), str(payload))
                 self.assertEqual((event['module'], event['subsystem']), expected)
 
     def test_obs015_truncated_json_keeps_classification_collected_before_truncation(self):
-        for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+        for module in ('scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'):
             payload = {'path': '/api/' + module + '/fixture', 'msg': 'x' * 20000, 'level': 'warn'}
             event = normalize('api', json.dumps(payload), now(), module)
             self.assertTrue(event['truncated'])
@@ -505,7 +512,7 @@ class CollectorTests(unittest.TestCase):
                     c.publish()
                     originals = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
                     rows = []; expected = {}
-                    for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+                    for module in ('scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'):
                         for level in ('info', 'warn', 'error'):
                             event = normalize('api', json.dumps({'path': '/api/' + module + '/fixture', 'msg': 'x' * 20000, 'level': level}), now(), module + level)
                             self.assertTrue(event['truncated'])
@@ -555,9 +562,9 @@ class CollectorTests(unittest.TestCase):
                 c, rows, originals = editor_classification_fixture(Path(temp), compressed)
                 try:
                     catalog = json.loads((c.store/'catalog.json').read_text(encoding='utf-8'))
-                    self.assertEqual(sum(meta['count'] for meta in catalog['segments']), 45)
+                    self.assertEqual(sum(meta['count'] for meta in catalog['segments']), 54)
                     for meta in catalog['segments']:
-                        self.assertEqual(set(meta['modules']), {'scratch', 'electronics', 'three-d', 'chess', 'checkers'})
+                        self.assertEqual(set(meta['modules']), {'scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'})
                         self.assertEqual(set(meta['subsystems']), set(meta['modules']))
                         self.assertEqual(set(meta['levels']), {'info', 'warn', 'error'})
                     for file, raw in originals.items(): self.assertEqual((c.store/file).read_bytes(), raw)

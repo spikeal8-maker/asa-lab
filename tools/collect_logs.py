@@ -228,7 +228,7 @@ def host_source(source: str) -> bool:
     return source.startswith(("windows:", "linux:")) or source in ("docker-desktop", "docker-lifecycle", "metrics")
 
 
-EDITOR_MODULES = ('scratch', 'electronics', 'three-d', 'chess', 'checkers')
+EDITOR_MODULES = ('scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers')
 LOG_MODULES = ('system', 'portal', 'auth', *EDITOR_MODULES)
 
 
@@ -251,7 +251,7 @@ def subsystem(source: str, payload=None, origin="") -> str:
             if re.search(pattern, route): return name
         if route == 'assignments': return 'learning'
         if route in ('session', 'workspaces', 'capabilities', 'schools'): return 'access'
-        return route if route in ("projects", "learning", "courses", "analytics", "diagnostics", "electronics", "chess", "checkers", "three-d") else "api"
+        return route if route in ("projects", "learning", "courses", "analytics", "diagnostics", "electronics", "robotics", "chess", "checkers", "three-d") else "api"
     if source in ("postgres", "migration"): return "database"
     if source.startswith("minio"): return "storage"
     if source == "tunnel": return "network"
