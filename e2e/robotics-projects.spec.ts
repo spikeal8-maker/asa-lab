@@ -281,7 +281,8 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     await page.getByRole('button', { name: 'Добавить в свободное место', exact: true }).click();
   }
   await page.getByRole('tab', { name: 'Робот', exact: true }).click();
-  await numberField(page, 'Длина корпуса', 0.18);
+  // Assembly inputs use millimetres; the saved document and publication use metres.
+  await numberField(page, 'Длина корпуса', 180);
   await page.getByRole('tab', { name: 'Электроника', exact: true }).click();
   await expect(page.locator('.workbench-canvas [data-component-id="uno"]')).toBeVisible();
   await page.getByRole('tab', { name: 'Программа', exact: true }).click();
