@@ -132,7 +132,7 @@
     "benchmark:electronics:load": "corepack pnpm nx run web:build --skip-nx-cache && node tools/run-electronics-load-benchmark.mjs",
     "benchmark:electronics:memory": "node tools/run-electronics-memory-benchmark.mjs",
     "benchmark:electronics:all": "corepack pnpm benchmark:electronics && corepack pnpm benchmark:electronics:browser && corepack pnpm benchmark:electronics:browser:low-end && corepack pnpm benchmark:electronics:load && corepack pnpm benchmark:electronics:memory",
-    "benchmark:electronics:ci": "corepack pnpm benchmark:electronics -- --quick && corepack pnpm benchmark:electronics:browser -- --quick && corepack pnpm benchmark:electronics:browser:low-end -- --quick && corepack pnpm benchmark:electronics:load -- --quick && corepack pnpm benchmark:electronics:memory -- --quick",
+    "benchmark:electronics:ci": "node --test tools/electronics-benchmark-assets.test.mjs && corepack pnpm benchmark:electronics -- --quick && corepack pnpm benchmark:electronics:browser -- --quick && corepack pnpm benchmark:electronics:browser:low-end -- --quick && corepack pnpm benchmark:electronics:load -- --quick && corepack pnpm benchmark:electronics:memory -- --quick",
     "generate:electronics-benchmark-golden": "node tools/update-electronics-benchmark-golden.mjs --accept",
     "e2e:three-d": "playwright test e2e/three-d-m0.spec.ts",
     "agent:context": "python tools/agent_context.py",

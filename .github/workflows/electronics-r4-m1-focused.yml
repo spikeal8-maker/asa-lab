@@ -27,6 +27,7 @@ on:
       - 'tools/run-electronics-classroom-browser.mjs'
       - 'tools/run-electronics-benchmark.mjs'
       - 'tools/run-electronics-browser-benchmark.mjs'
+      - 'tools/electronics-benchmark-assets*.mjs'
       - 'tools/run-electronics-load-benchmark.mjs'
       - 'tools/run-electronics-memory-benchmark.mjs'
       - 'tools/update-electronics-benchmark-golden.mjs'
