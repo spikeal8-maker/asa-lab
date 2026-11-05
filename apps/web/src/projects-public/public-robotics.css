@@ -17,12 +17,31 @@
   background: #fff;
 }
 
-.public-robotics-tools [role='group'],
-.public-robotics-tools label {
+.public-robotics-tools [role='group'] {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+.public-robotics-tools > label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.public-robotics-tools input[type='checkbox'] {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
 }
 
 .public-robotics-tools button {

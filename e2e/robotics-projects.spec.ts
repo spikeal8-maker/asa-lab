@@ -135,6 +135,42 @@ async function visibleControl(page: Page, control: Locator): Promise<void> {
   expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
 }
 
+async function gridControlGeometry(control: Locator): Promise<void> {
+  await expect(control).toBeVisible();
+  const geometry = await control.evaluate((element) => {
+    const label = element.closest('label');
+    if (!label || label.control !== element) throw new Error('Expected a native checkbox label');
+    const caption = Array.from(label.childNodes).find(
+      (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === 'Сетка',
+    );
+    if (!caption) throw new Error('Expected the grid checkbox caption');
+    const range = document.createRange();
+    range.selectNodeContents(caption);
+    const glyph = element.getBoundingClientRect();
+    const touch = label.getBoundingClientRect();
+    const text = range.getBoundingClientRect();
+    return {
+      glyphWidth: glyph.width,
+      glyphHeight: glyph.height,
+      touchWidth: touch.width,
+      touchHeight: touch.height,
+      captionFragments: range.getClientRects().length,
+      captionGap: text.left - glyph.right,
+      centerOffset: Math.abs(text.top + text.height / 2 - glyph.top - glyph.height / 2),
+    };
+  });
+  expect(geometry.glyphWidth).toBeGreaterThanOrEqual(14);
+  expect(geometry.glyphWidth).toBeLessThanOrEqual(24);
+  expect(geometry.glyphHeight).toBeGreaterThanOrEqual(14);
+  expect(geometry.glyphHeight).toBeLessThanOrEqual(24);
+  expect(geometry.touchWidth).toBeGreaterThanOrEqual(44);
+  expect(geometry.touchHeight).toBeGreaterThanOrEqual(44);
+  expect(geometry.captionFragments).toBe(1);
+  expect(geometry.captionGap).toBeGreaterThanOrEqual(3);
+  expect(geometry.captionGap).toBeLessThanOrEqual(16);
+  expect(geometry.centerOffset).toBeLessThanOrEqual(2);
+}
+
 async function cardPreview(page: Page, title: string): Promise<Locator> {
   const card = page
     .getByTestId('project-card')
@@ -505,10 +541,22 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     expect(ownerRoute.status()).toBe(200);
     expect(await ownerRoute.json()).toEqual({ editor: null });
 
+    const gridControl = publicView.getByRole('checkbox', { name: 'Сетка', exact: true });
     for (const width of WIDTHS) {
       await viewer.setViewportSize({ width, height: 900 });
       await noOverflow(viewer);
       await publicView.getByRole('button', { name: 'Поле', exact: true }).click();
+      await expect(gridControl).toBeEnabled();
+      await expect(gridControl).toBeChecked();
+      await gridControlGeometry(gridControl);
+      if (width === WIDTHS[0]) {
+        await gridControl.focus();
+        await expect(gridControl).toBeFocused();
+        await gridControl.press('Space');
+        await expect(gridControl).not.toBeChecked();
+        await gridControl.press('Space');
+        await expect(gridControl).toBeChecked();
+      }
       await publicView.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
       await expect(publicView.getByLabel('Текущий масштаб')).toHaveText('125%');
       await publicView.getByRole('button', { name: 'Показать целиком', exact: true }).click();
@@ -519,6 +567,9 @@ test('Robotics uses account projects, the main portal and an immutable publicati
       );
       await viewer.screenshot({ path: `${EVIDENCE}/viewer-field-${width}.png`, fullPage: true });
       await publicView.getByRole('button', { name: 'Конструкция', exact: true }).click();
+      await expect(gridControl).toBeDisabled();
+      await expect(gridControl).toBeChecked();
+      await gridControlGeometry(gridControl);
       await noOverflow(viewer);
       await viewer.screenshot({ path: `${EVIDENCE}/viewer-assembly-${width}.png`, fullPage: true });
     }
