@@ -5623,7 +5623,9 @@ def schedule_guest(context):
     settings = json.loads((INSTALL_ROOT / ".asa/installation.json").read_text())
     automatic = settings.get("automaticUpdates")
     public_cli(["backup", "schedule", "disable"], timeout=180)
-    fixture = owner_call("owner-schedule-fixture", timeout=300)
+    owner_fixture = owner_call("owner-schedule-fixture", timeout=300)
+    fixture = {key: owner_fixture[key] for key in ("dueEpoch", "time", "timezone", "unit", "operationId",
+               "fixtureOnlyTimeSelection", "publicCliTimeSetterClaimed", "clockChanged")}
     unit = fixture["unit"]
     public_cli(["backup", "schedule", "enable"], timeout=180)
     enabled = timer_properties(unit)

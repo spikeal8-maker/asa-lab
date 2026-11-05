@@ -2713,6 +2713,199 @@ class ScheduleStateRelayTests(unittest.TestCase):
 
 
 
+class ScheduleGuestReportBindingTests(unittest.TestCase):
+    """Only the schedule fixture payload may cross into the outer guest report."""
+
+    fixture_keys = ("dueEpoch", "time", "timezone", "unit", "operationId",
+                    "fixtureOnlyTimeSelection", "publicCliTimeSetterClaimed", "clockChanged")
+
+    def execute_chain(self, *, owner_change=None, owner_exit=0, inactive=False, host_change=None, missed_timer=False):
+        from deployment import backup_schedule, setup_config
+        from zoneinfo import ZoneInfoNotFoundError
+        real_path = Path
+        instant = 1900000000.0
+        commands = []
+        observations = []
+
+        def utc_only(name):
+            if name == "UTC":
+                return harness.dt.timezone.utc
+            raise ZoneInfoNotFoundError(name)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root, private, units = (real_path(temporary) / name for name in ("installation", "private", "units"))
+            for directory in (root / ".asa", private, units):
+                directory.mkdir(parents=True, mode=0o700)
+            (root / ".asa/installation.json").write_text(json.dumps({"automaticUpdates": False}))
+            _, _, inputs, _, _ = cli_read_fixture()
+            config = copy.deepcopy(inputs["config"])
+            config.update(format=setup_config.FORMAT, root=str(root), backupDirectory=str(root / "backups"), operatorUid=1001)
+            account = SimpleNamespace(pw_name="asa-setup", pw_dir="/var/lib/asa-setup/operator", pw_uid=1001, pw_gid=1001)
+            owner_output = io.StringIO()
+            # Model just the guest UID boundary. Keep real private-file metadata and
+            # the host platform intact; no pwd account or systemd is needed on Windows.
+            owner_os = SimpleNamespace(**{**vars(os), "geteuid": lambda: 1001})
+            root_os = SimpleNamespace(**{**vars(os), "geteuid": lambda: 0})
+            with patch.object(harness, "INSTALL_ROOT", root), patch.object(harness, "CLI_ACTIONS", []), \
+                    patch.object(harness, "guest_guard", return_value={}), patch.object(harness, "os", owner_os), \
+                    patch.object(harness.time, "time", return_value=instant), \
+                    patch.object(backup_schedule, "ZoneInfo", side_effect=utc_only), \
+                    patch.object(harness, "owner_installation", return_value=(setup_config, None, backup_schedule,
+                                 SimpleNamespace(root=root), None, config, None)), contextlib.redirect_stdout(owner_output):
+                owner_code = harness.guest_main("owner-schedule-fixture")
+            owner = json.loads(owner_output.getvalue())
+            self.assertEqual((owner_code, owner["phase"], owner["status"]), (0, "owner-schedule-fixture", "PASS"))
+            expected = {key: owner[key] for key in self.fixture_keys}
+            for suffix in (".timer", ".service"):
+                (units / (expected["unit"] + suffix)).write_text("synthetic unit\n")
+            if owner_change:
+                owner_change(owner)
+            owner_wire = json.dumps(owner).encode()
+
+            def command(_self, arguments, **kwargs):
+                self.assertEqual((arguments[0], arguments[-1]), ("runuser", "owner-schedule-fixture"))
+                self.assertEqual((kwargs["allowed"], kwargs["timeout"]), ((0, 1, 2), 300))
+                commands.append("owner_transport")
+                return owner_exit, owner_wire
+
+            def public(words, **kwargs):
+                commands.append("asa " + " ".join(words))
+                harness.CLI_ACTIONS.append({"command": "asa " + " ".join(words), "exitCode": 0,
+                                           "status": "OK", "reasonCodes": []})
+                return {"status": "OK", "exitCode": 0}
+
+            def properties(unit):
+                self.assertEqual(unit, expected["unit"])
+                observations.append(unit)
+                active = len(observations) != 2
+                if inactive and len(observations) == 1:
+                    active = False
+                return {"active": active, "enabled": len(observations) != 2, "persistent": True,
+                        "timerSha256": "a" * 64, "serviceSha256": "b" * 64}
+
+            def path(value, *parts):
+                return units if value == "/etc/systemd/system" and not parts else real_path(value, *parts)
+
+            def get_account(name):
+                self.assertEqual(name, "asa-setup")
+                return account
+
+            output = io.StringIO()
+            with patch.object(harness, "INSTALL_ROOT", root), patch.object(harness, "GUEST_PRIVATE", private), \
+                    patch.object(harness, "CLI_ACTIONS", []), patch.object(harness, "guest_guard", return_value={}), \
+                    patch.object(harness, "os", root_os), patch.dict(sys.modules, {"pwd": SimpleNamespace(getpwnam=get_account)}), \
+                    patch.object(harness.time, "time", return_value=instant), patch.object(harness, "Path", side_effect=path), \
+                    patch.object(harness.Commands, "run", command), patch.object(harness, "public_cli", side_effect=public), \
+                    patch.object(harness, "timer_properties", side_effect=properties), \
+                    patch.object(harness, "manifest_count", return_value=4), contextlib.redirect_stdout(output):
+                code = harness.guest_main("schedule")
+            report = json.loads(output.getvalue())
+            wire = copy.deepcopy(report)
+            if host_change:
+                host_change(wire)
+            ssh = Mock(return_value=(code, json.dumps(wire).encode()))
+            forbidden = Mock(side_effect=AssertionError("No VM, reboot or additional probe is permitted"))
+            host = object.__new__(harness.HostRun)
+            host.vm = SimpleNamespace(ssh=ssh, wait_ssh=forbidden, start=forbidden)
+            error, accepted = None, None
+            try:
+                accepted = host.missed_timer() if missed_timer else host.guest("schedule", timeout=300)
+            except harness.Failure as caught:
+                error = caught
+            ssh.assert_called_once_with("sudo /usr/bin/python3 -I -B /opt/asa-realhost/runner.py --guest-phase schedule",
+                                        timeout=300, allowed=(0, 1, 2))
+            forbidden.assert_not_called()
+            saved = private / "timer.json"
+            state = json.loads(saved.read_text()) if saved.exists() else None
+            return {"code": code, "report": report, "state": state, "expected": expected, "error": error,
+                    "accepted": accepted, "commands": commands, "observations": observations}
+
+    def test_actual_schedule_chain_keeps_outer_binding_and_exact_commands(self):
+        result = self.execute_chain()
+        self.assertIsNone(result["error"])
+        self.assertEqual(result["code"], 0)
+        self.assertEqual((result["report"]["format"], result["report"]["phase"], result["report"]["status"]),
+                         ("asa-realhost-guest-v1", "schedule", "PASS"))
+        self.assertEqual(result["accepted"], result["report"])
+        self.assertEqual({key: result["report"][key] for key in self.fixture_keys}, result["expected"])
+        self.assertEqual({key: result["state"][key] for key in self.fixture_keys}, result["expected"])
+        self.assertEqual(set(result["state"]), set(self.fixture_keys) | {"manifestCountBefore", "unitProperties"})
+        self.assertEqual(result["commands"], ["asa backup schedule disable", "owner_transport", "asa backup schedule enable",
+                                             "asa backup schedule disable", "asa backup schedule enable", "asa backup schedule"])
+        self.assertEqual(len(result["observations"]), 3)
+        self.assertEqual([row["command"] for row in result["report"]["cliActions"]],
+                         [value for value in result["commands"] if value.startswith("asa ")])
+        self.assertEqual(result["report"]["enableDisableEnable"], "PASS")
+        self.assertIs(result["report"]["automaticUpdatesUnchanged"], True)
+        self.assertEqual(result["report"]["scheduledAttemptsBeforePoweroff"], 0)
+
+    def test_owner_envelope_and_extra_fields_are_not_fixture_payload(self):
+        secret = "SCHEDULE_OWNER_ENVELOPE_SECRET_SENTINEL"
+        def change(value):
+            value.update(reasonCode=secret, arbitrary=secret, cliActions=[{"message": secret}])
+        result = self.execute_chain(owner_change=change)
+        self.assertIsNone(result["error"])
+        self.assertNotIn(secret, json.dumps(result["report"]))
+        self.assertNotIn(secret, json.dumps(result["state"]))
+        self.assertEqual(set(result["state"]), set(self.fixture_keys) | {"manifestCountBefore", "unitProperties"})
+        self.assertEqual(len(result["report"]["cliActions"]), 5)
+
+    def test_missing_semantic_fields_fail_before_enable_and_state_write(self):
+        for key in self.fixture_keys:
+            with self.subTest(key=key):
+                result = self.execute_chain(owner_change=lambda value: value.pop(key))
+                self.assertEqual(result["code"], 1)
+                self.assertEqual(result["report"]["phase"], "schedule")
+                self.assertEqual(result["error"].code, "HARNESS_EXCEPTION")
+                self.assertEqual(result["commands"], ["asa backup schedule disable", "owner_transport"])
+                self.assertEqual(result["observations"], [])
+                self.assertIsNone(result["state"])
+
+    def test_owner_format_phase_and_typed_exit_binding_remain_closed(self):
+        for change, exit_code in ((lambda value: value.update(format="other"), 0),
+                                  (lambda value: value.update(phase="owner-observe"), 0),
+                                  (lambda value: value.pop("format"), 0),
+                                  (None, False), (None, True)):
+            with self.subTest(change=change, exit_code=exit_code):
+                result = self.execute_chain(owner_change=change, owner_exit=exit_code)
+                self.assertEqual(result["error"].code, "OWNER_REPORT_INVALID")
+                self.assertEqual(result["report"]["phase"], "schedule")
+                self.assertEqual(result["commands"], ["asa backup schedule disable", "owner_transport"])
+                self.assertIsNone(result["state"])
+                self.assertEqual(result["observations"], [])
+
+    def test_owner_failures_keep_original_status_reason_and_host_evidence(self):
+        for status, code, reason in (("FAIL", 1, "FIXTURE_TIMER_MUST_BE_DISABLED"), ("BLOCKED", 2, "COMMAND_TIMEOUT")):
+            with self.subTest(status=status, code=code):
+                result = self.execute_chain(owner_change=lambda value: value.update(status=status, reasonCode=reason), owner_exit=code)
+                self.assertEqual(result["code"], code)
+                self.assertEqual((result["report"]["phase"], result["report"]["status"], result["report"]["reasonCode"]),
+                                 ("schedule", status, reason))
+                self.assertEqual((result["error"].code, result["error"].status), (reason, status))
+                self.assertEqual(result["error"].evidence, result["report"])
+                self.assertEqual(result["commands"], ["asa backup schedule disable", "owner_transport"])
+                self.assertIsNone(result["state"])
+
+    def test_inactive_timer_remains_an_original_timer_failure(self):
+        result = self.execute_chain(inactive=True)
+        self.assertEqual(result["code"], 1)
+        self.assertEqual((result["report"]["phase"], result["report"]["reasonCode"]), ("schedule", "TIMER_ENABLE"))
+        self.assertEqual(result["error"].code, "TIMER_ENABLE")
+        self.assertEqual(result["error"].evidence, result["report"])
+        self.assertEqual(result["commands"], ["asa backup schedule disable", "owner_transport", "asa backup schedule enable"])
+        self.assertEqual(len(result["observations"]), 1)
+        self.assertIsNone(result["state"])
+
+    def test_host_binding_still_blocks_foreign_envelopes_before_poweroff(self):
+        for key, value in (("phase", "owner-schedule-fixture"), ("format", "other")):
+            with self.subTest(key=key):
+                result = self.execute_chain(host_change=lambda report: report.update({key: value}), missed_timer=True)
+                self.assertEqual(result["code"], 0)
+                self.assertEqual(result["error"].code, "GUEST_REPORT_BINDING")
+                self.assertIsNone(getattr(result["error"], "evidence", None))
+                self.assertIsNone(result["accepted"])
+
+
 class CommandFailureDiagnosticTests(unittest.TestCase):
     def test_operator_log_root_is_under_protected_var_lib(self):
         # Ubuntu /var/log is commonly root:syslog mode 0775. Its group-write
