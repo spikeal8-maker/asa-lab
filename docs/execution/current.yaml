@@ -16963,67 +16963,77 @@ parallel_lanes:
 
   - id: robotics
     parent_lane: electronics
-    worktree_id: robotics-m0-shared-engine-20261105
+    worktree_id: robotics-m1-workspace-20261105
     owned_paths:
-      - apps/web/robotics-dev.html
-      - apps/web/src/robotics/**
-      - modules/robotics/**
-      - docs/product/robotics/**
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
+    - apps/web/robotics-dev.html
+    - apps/web/src/robotics/**
+    - modules/robotics/**
+    - docs/product/robotics/**
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
     task:
-      id: TASK-ELECTRONICS-ROBOTICS-M0-001
-      issue: 985
-      branch: codex/robotics-m0-shared-engine-20261105
+      id: TASK-ELECTRONICS-ROBOTICS-M1-001
+      issue: 989
+      branch: codex/robotics-m1-workspace-20261105
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: owner_selected_m0_registration_and_concrete_plan
+      checkpoint: owner_selected_m1_workspace_field_and_programming
       owner_acceptance: pending
-      owner_authorization: >-
-        Owner explicitly requests implementing robotics in a separate ASA Lab branch with a concrete
-        staged plan and visible results, reusing the canonical electronics engine, programming UI and
-        component catalog. Select only the bounded M0 shared-engine 2D robot slice. Missing components
-        may appear as disabled unsupported drafts in a robotics-only Arduino category; they must not
-        enter the shared electronics catalog or simulate invented behaviour. This registration is a
-        governance prerequisite, not implementation completion, owner acceptance or permission to
-        modify another lane's unfinished work. Product execution inherits this selection only after
-        canonical main acceptance; production deployment and working-database actions are not selected.
-      scope: >-
-        Build an isolated robotics development entry inside the existing Web/Vite boundary and a
-        robotics world module. Reuse useElectronicsWorkbench, WorkbenchStage and ArduinoCodePanel
-        through a bounded local project host. Drive kinematics from committed canonical gearmotor
-        observations for an Uno, two low-side FET/flyback motor channels and one HC-SR04 preset.
-        Add only the narrow validated runtime distance input seam needed by the world; retain the
-        existing timed override/Worker path and never commit sensor samples into the circuit document.
+      source_pr: 987
+      source_head_sha: 491c53bc3a3f0a732ac707f7a9235ea435c4e1f3
+      owner_authorization: 'Owner explicitly requests continuing Robotics according to the staged plan, with
+        visible results: separate Field / Robot / Electronics / Program sections, adding existing electronic
+        components, usable programming and editable field objects with simulated interaction. This selects bounded
+        M1 development on the M0 candidate, including its necessary canonical task registration. It does not
+        accept or merge M0, waive inherited integration evidence, authorize product merge/deployment, modify
+        working data or extend to the later 3D/hardware milestones.'
+      scope: Extend the existing local Robotics host with four explicit sections, shared WorkbenchSidebars and
+        ArduinoCodePanel, real robot Blockly presets, validated editable field/robot configuration and dynamic
+        round objects. Keep one visible mounted Stage and one electronics host; add only keyboard activation
+        and pending-program flush seams. Preserve committed time and the existing sensor/Worker contract.
       constraints:
-        - No copied solver, motor electrical model, Arduino interpreter, block generator, circuit editor or global catalog.
-        - M0 supports forward/coast and differential turns only; H-bridge reversal, dynamic mechanical load events and physical stall/contact claims are outside this slice.
-        - Sensor events follow committed source time and the existing 1024-event history bound; no hidden clock reset, history pruning or wall-time physics.
-        - Functional layout remains provisional and must be usable at 320, 390, 1024 and 1440 pixels; provisional does not waive focus, overflow, overlap or primary-action access.
-        - Preserve every existing lane, blocker, owner asset, shared palette and production user flow; any shared source edit needs the exact product preflight plan.
-        - No new SSR, network service, account boundary, database, production activation or deployment; later milestones require separate canonical selection.
+      - No copied solver, motor equations, Arduino interpreter, block generator, circuit editor or component
+        catalog.
+      - M1 uses a kinematic robot driven by canonical committed RPM plus dynamic circular objects. Reverse torque/load/stall
+        feedback is not supported by the public timed input and is not claimed; static or blocked chassis contact
+        explicitly pauses the experience.
+      - Source-time integration, nearest physical HC-SR04 hit, accumulated input budget and the existing bounded
+        run remain intact. No hidden reset, history pruning, wall-time mechanics or synthetic native presentation
+        ACK.
+      - Shared UI changes are limited to explicit keyboard scope and program publication flush with unchanged
+        legacy defaults; planned exact paths and their real consumers require focused regression evidence.
+      - M0 product PR987 remains unmerged and owner acceptance pending. Its open D13 timing delta and existing
+        baseline CI failures are inherited acceptance risks; this selection permits isolated M1 development and
+        does not declare them resolved.
+      - Old M0 local projects must reopen without source/workspace/circuit loss. Source field configuration and
+        runtime object motion remain separate; drag commits one history step.
+      - All four sections, primary actions, errors and focus must be usable at 320/390/1024/1440. A functional
+        preview is not final owner visual acceptance.
+      - No production activation, server persistence/auth changes, database/host/deployment operations, new dependencies,
+        CI rewrite, unrelated lane repairs or automatic next milestone.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
-        - docs/product/robotics/README.md
-        - docs/product/robotics/IMPLEMENTATION_PLAN.md
-      gate_boundary: >-
-        The focused command validates this registration and documentation only. The repository gate
-        remains the existing integration boundary. M0 runtime, browser and engine-parity acceptance
-        still require the concrete task card's executable evidence; neither metadata nor a governance
-        PASS claims a working robot. No future or nonexistent gate is registered here.
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
+      - docs/product/robotics/M1_WORKSPACE_PLAN.md
+      - docs/product/robotics/README.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
+      gate_boundary: The registered focused command validates canonical registration/docs only. Product evidence
+        requires real shared editor/Blockly, immediate publication, field/object dynamics, persistence compatibility
+        and four-viewport browser checks on the final candidate. Required CI, independent review, inherited baseline
+        risks and owner acceptance remain separate; no missing future gate is registered.
     revisions:
-      convergence_baseline_sha: 3e40aafc11d19b8b3efb9a2e45a61cf91a313b07
-      head_sha: 3e40aafc11d19b8b3efb9a2e45a61cf91a313b07
+      convergence_baseline_sha: 6a876a942985780297cf346a9a85077be7479d0b
+      head_sha: 491c53bc3a3f0a732ac707f7a9235ea435c4e1f3
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
         commands:
-          - pnpm gate:governance
+        - pnpm gate:governance
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
-          - pnpm gate:repository
+        - pnpm gate:repository
 
 integration:
   owner_lane: visual-programming
