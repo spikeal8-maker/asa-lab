@@ -9,6 +9,87 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('client diagnostics isolation', () => {
+  it.each([
+    ['scope', '/api/modules', 'GET', null, null],
+    ['lifecycle', '/api/classrooms/awaiting-review', 'GET', null, null],
+    ['lifecycle', '/api/auth/me', 'GET', null, null],
+    ['manual', '/api/modules', 'GET', 'request_cancelled', 'cancelled'],
+    ['manual', '/api/auth/me', 'GET', 'request_cancelled', 'cancelled'],
+    ['timeout', '/api/auth/me', 'GET', 'request_failed', 'timeout'],
+    ['timeout', '/api/modules', 'GET', 'request_failed', 'timeout'],
+    ['network', '/api/modules', 'GET', 'request_failed', 'network'],
+    ['http', '/api/modules', 'GET', 'request_failed', 'http'],
+    ['lifecycle', '/api/projects/project/draft', 'PUT', 'request_failed', 'cancelled'],
+  ] as const)(
+    'keeps %s %s %s lifecycle handling separate from request failures',
+    async (kind, path, method, code, failureKind) => {
+      vi.resetModules();
+      vi.useFakeTimers();
+      vi.setSystemTime(1_000_000);
+      let productSignal: AbortSignal | null | undefined;
+      const transport = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+        if (input !== path) return Response.json({ accepted: true }, { status: 202 });
+        productSignal = init?.signal;
+        if (kind === 'network') throw new TypeError('Fixture offline');
+        if (kind === 'http')
+          return Response.json(
+            { error: { code: 'unavailable', message: 'Later' } },
+            { status: 503 },
+          );
+        return new Promise<Response>((_resolve, reject) => {
+          init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason), {
+            once: true,
+          });
+        });
+      });
+      const browser = {
+        fetch: transport,
+        sessionStorage: { getItem: () => null, setItem() {} },
+        location: { href: 'https://asa.invalid/', origin: 'https://asa.invalid' },
+        addEventListener: vi.fn(),
+      };
+      vi.stubGlobal('window', browser);
+      vi.stubGlobal('fetch', transport);
+      const { installClientDiagnostics } = await import('./client-diagnostics');
+      installClientDiagnostics();
+      // Product calls must pass through the actual browser diagnostics wrapper.
+      vi.stubGlobal('fetch', browser.fetch);
+      const { call } = await import('./api-call');
+      const { lifecycleCancellation, AUTH_REQUEST_TIMEOUT_MS } = await import('./auth-request');
+      const { invalidatePortalSession } = await import('./portal-requests');
+      const controller = new AbortController();
+      const result = call(path, { method, signal: controller.signal });
+      expect(productSignal).toBeDefined();
+      if (kind === 'scope') invalidatePortalSession();
+      else if (kind === 'lifecycle') {
+        const reason = lifecycleCancellation();
+        controller.abort(reason);
+        await result;
+        expect(productSignal!.reason).toBe(reason);
+      } else if (kind === 'manual') controller.abort();
+      else if (kind === 'timeout')
+        await vi.advanceTimersByTimeAsync(
+          path === '/api/auth/me' ? AUTH_REQUEST_TIMEOUT_MS : 30_000,
+        );
+      const outcome = await result;
+      expect(outcome.ok).toBe(false);
+      if (kind === 'timeout' && path === '/api/auth/me')
+        expect(outcome).toMatchObject({ error: { code: 'auth_timeout' } });
+      await vi.advanceTimersByTimeAsync(0);
+      const reports = transport.mock.calls.filter(([url]) => url === '/api/diagnostics/client');
+      if (code === null) expect(reports).toHaveLength(0);
+      else {
+        expect(reports).toHaveLength(1);
+        expect(JSON.parse(reports[0]![1]!.body as string)).toMatchObject({
+          code,
+          failureKind,
+          method,
+        });
+      }
+      invalidatePortalSession();
+    },
+  );
+
   it('aggregates a burst of distinct failing request attempts without retrying or consuming product responses', async () => {
     vi.resetModules();
     vi.useFakeTimers();

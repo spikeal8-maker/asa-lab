@@ -1,4 +1,4 @@
-import { abortable } from './auth-request';
+import { abortable, lifecycleCancellation } from './auth-request';
 import { subscribeTelemetry, telemetryContext } from './telemetry-context';
 import { isTelemetryPath } from './telemetry-contract';
 
@@ -18,7 +18,7 @@ const MAX_QUEUED = 64;
 const READ_DEADLINE_MS = 30_000;
 
 const pathname = (path: string): string => path.split('?')[0]!;
-const cancelled = (): DOMException => new DOMException('Request context changed', 'AbortError');
+const cancelled = lifecycleCancellation;
 const methodOf = (init: RequestInit): string => (init.method ?? 'GET').toUpperCase();
 export const isPortalRead = (path: string, init: RequestInit = {}): boolean =>
   methodOf(init) === 'GET' && init.body == null && PORTAL_READS.has(pathname(path));
@@ -185,7 +185,9 @@ export function portalRead<T>(
       shared.consumers -= 1;
       if (!shared.settled && shared.consumers === 0) {
         if (reads.get(key) === shared) reads.delete(key);
-        shared.controller.abort(cancelled());
+        // Preserve a manual cancellation or an authentication deadline from the
+        // last consumer. Only an explicitly tagged lifecycle exit stays silent.
+        shared.controller.abort(init.signal?.reason ?? cancelled());
       }
     });
 }

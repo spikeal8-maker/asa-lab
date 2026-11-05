@@ -233,7 +233,8 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
             __ASA_BUILD_REVISION__: JSON.stringify(fixture.source),
             'import.meta.env.VITE_ASA_BUILD_REVISION': JSON.stringify(fixture.source),
           },
-          esbuild: { jsx: 'automatic' },
+          // Vitest sets NODE_ENV=test; match JSX output to the production React above.
+          esbuild: { jsx: 'automatic', jsxDev: false },
           build: {
             write: false,
             minify: false,
@@ -280,7 +281,10 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
             return;
           }
           const tag = request.headers['x-asa-storm-client'];
-          const client = typeof tag === 'string' && /^\d+$/.test(tag) ? Number(tag) : -1;
+          // Page setup precedes the measurement clock. Preserve it as observer traffic,
+          // including requests that finish after the simultaneous-login barrier.
+          const client =
+            phase !== 'setup' && typeof tag === 'string' && /^\d+$/.test(tag) ? Number(tag) : -1;
           const telemetry = /^\/api\/(?:diagnostics|analytics)\//.test(url.pathname);
           const notification = /^\/api\/games\/(chess|checkers)\/notifications$/.test(url.pathname);
           const key = `${client}:${url.pathname}`;
@@ -447,6 +451,7 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
         }
         started = performance.now();
         cpu = process.cpuUsage();
+        previousHostCpu = hostCpu();
         loop.enable();
         sampler = setInterval(sample, 1000);
         sample();
@@ -700,7 +705,10 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
             proxy!.close(() => done());
           });
         await app?.close();
-        await Promise.all([runtime.end(), analytics.end(), observer.end()]);
+        // createApiApp owns the supplied API pools and closes them on shutdown or failure.
+        await Promise.all(
+          [runtime, analytics, observer].filter((pool) => !pool.ending).map((pool) => pool.end()),
+        );
       }
     }, 600000);
   },

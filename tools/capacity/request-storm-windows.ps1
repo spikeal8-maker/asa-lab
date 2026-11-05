@@ -75,7 +75,7 @@ function Invoke-Docker {
     Get-Content -LiteralPath $log -Tail 25 | ForEach-Object { Write-Host $_ }
     throw "Docker step '$Name' failed with exit code $code."
   }
-  return [pscustomobject]@{ ExitCode = $code; Output = [string](Get-Content -LiteralPath $log -Raw); Log = $log }
+  return [pscustomobject]@{ ExitCode = $code; Output = [IO.File]::ReadAllText($log); Log = $log }
 }
 
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw 'This proof requires Windows Docker Desktop.' }

@@ -1,3 +1,4 @@
+import { lifecycleCancellation } from '../auth-request';
 import type { GameKey } from './game-catalog';
 
 export const GAME_NOTIFICATION_INTERVAL_MS = 5000;
@@ -112,7 +113,7 @@ export function startGameNotificationCoordinator(options: GameNotificationCoordi
       flight.cancelled = true;
       clock.clearTimeout(flight.deadline);
       flight.deadline = undefined;
-      flight.controller.abort();
+      flight.controller.abort(lifecycleCancellation());
     }
   }
 
@@ -236,7 +237,9 @@ export function startGameNotificationCoordinator(options: GameNotificationCoordi
       if (stopped || flight.cancelled) return;
       flight.timedOut = true;
       failed(channel, 0);
-      flight.controller.abort();
+      flight.controller.abort(
+        new DOMException('Notification request deadline exceeded', 'TimeoutError'),
+      );
     }, GAME_NOTIFICATION_TIMEOUT_MS);
     try {
       const result = await options.request(channel.game, flight.controller.signal);

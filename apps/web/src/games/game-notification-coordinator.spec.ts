@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { isLifecycleCancellation } from '../auth-request';
 import {
   startGameNotificationCoordinator,
   type GameNotificationResult,
@@ -39,6 +40,27 @@ afterEach(() => {
 });
 
 describe('production notification coordinator', () => {
+  it('finds a new invitation on the next 5s poll after both shared-player inboxes were empty', async () => {
+    let incoming: { id: string; expiresAt: number }[] = [];
+    const snapshots: GameNotificationSnapshot[] = [];
+    const coordinator = startGameNotificationCoordinator({
+      request: async (game) => ok(game === 'chess' ? incoming : [], 'fixture-player'),
+      publish: (snapshot) => snapshots.push(snapshot),
+      activity: 'active',
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(snapshots.at(-1)).toEqual({ playerId: 'fixture-player', incoming: [] });
+    incoming = [{ id: 'new-real-invitation', expiresAt: 60_000 }];
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(snapshots.at(-1)?.incoming).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(snapshots.at(-1)).toEqual({
+      playerId: 'fixture-player',
+      incoming: [{ game: 'chess', id: 'new-real-invitation', expiresAt: 60_000 }],
+    });
+    coordinator.stop();
+  });
+
   it('delivers a fast channel immediately while the slow channel stays single-flight', async () => {
     const slow = deferred<GameNotificationResult>();
     const snapshots: GameNotificationSnapshot[] = [];
@@ -210,7 +232,11 @@ describe('production notification coordinator', () => {
       random: () => 0,
     });
     await vi.advanceTimersByTimeAsync(12_000);
-    expect(request.mock.calls.find(([game]) => game === 'chess')![1].aborted).toBe(true);
+    const stalledSignal = request.mock.calls.find(([game]) => game === 'chess')![1];
+    expect(stalledSignal.aborted).toBe(true);
+    expect(stalledSignal.reason).toBeInstanceOf(DOMException);
+    expect(stalledSignal.reason.name).toBe('TimeoutError');
+    expect(isLifecycleCancellation(stalledSignal.reason)).toBe(false);
     await vi.advanceTimersByTimeAsync(120_000);
     expect(request.mock.calls.filter(([game]) => game === 'chess')).toHaveLength(1);
     expect(request.mock.calls.filter(([game]) => game === 'checkers').length).toBeGreaterThan(20);
@@ -239,6 +265,9 @@ describe('production notification coordinator', () => {
     expect(request).toHaveBeenCalledTimes(2);
     coordinator.setActivity('paused');
     expect(request.mock.calls.every(([, signal]) => signal.aborted)).toBe(true);
+    expect(request.mock.calls.every(([, signal]) => isLifecycleCancellation(signal.reason))).toBe(
+      true,
+    );
     expect(vi.getTimerCount()).toBe(0);
     coordinator.setActivity('active');
     await vi.advanceTimersByTimeAsync(60_000);

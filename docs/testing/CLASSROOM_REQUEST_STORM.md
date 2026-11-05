@@ -91,6 +91,9 @@ session. Focus emulation represents separate foreground classroom computers.
 Three additional tabs share only their own learner's context. The lightweight
 React fixture exercises the actual transport and notification hooks; it is not
 the full editor UI. Existing real UI journeys remain separate evidence.
+Measurement starts at the simultaneous-login barrier after page preparation.
+Requests started before that barrier remain observer traffic even if they
+finish later, so request counts, concurrency and elapsed time share one boundary.
 
 Artifacts include per-variant JSON, comparison JSON and the job's PostgreSQL
 Docker resource samples. Reports separate deliberate injected errors from
@@ -136,8 +139,12 @@ fresh clone and the committed PowerShell orchestrator:
 git clone --single-branch --branch fix/p0-classroom-request-storm https://github.com/spikeal8-maker/asa-lab.git asa-lab-request-storm-proof
 Set-Location asa-lab-request-storm-proof
 $stormRevision = (git rev-parse HEAD).Trim()
-powershell.exe -NoProfile -File .\tools\capacity\request-storm-windows.ps1 -ExpectedRevision $stormRevision -ExpectedComputerName $env:COMPUTERNAME
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File .\tools\capacity\request-storm-windows.ps1 -ExpectedRevision $stormRevision -ExpectedComputerName $env:COMPUTERNAME
 ```
+
+`RemoteSigned` applies only to that new PowerShell process and the reviewed
+Git checkout. It does not change persistent execution policies or profiles;
+machine/user Group Policy continues to take precedence.
 
 The orchestrator verifies a clean official checkout and the explicitly named
 local test computer. It uses the local `desktop-linux` context, its own random

@@ -133,6 +133,7 @@ import {
   setPortalSessionKey,
 } from './portal-requests';
 import { onAccountVerificationRequired } from './auth-verification';
+import { lifecycleCancellation } from './auth-request';
 import './auth-verification.css';
 import {
   canUseClasses,
@@ -704,7 +705,7 @@ export function App(): JSX.Element {
           );
       });
     }
-    return () => controller.abort();
+    return () => controller.abort(lifecycleCancellation());
   }, [learnerAttention, attentionIdentity, attentionRoute, attentionRevision]);
 
   /**
@@ -723,7 +724,7 @@ export function App(): JSX.Element {
     void api.awaitingReviewTotal(controller.signal).then((result) => {
       if (!controller.signal.aborted && result.ok) setAwaitingReview(result.data.total);
     });
-    return () => controller.abort();
+    return () => controller.abort(lifecycleCancellation());
   }, [teacherAttention, attentionIdentity, attentionRoute, attentionRevision]);
 
   const zoneReported = useRef(false);

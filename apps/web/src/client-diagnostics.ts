@@ -1,5 +1,5 @@
 import { newClientId } from './client-id';
-import { isAuthRequest } from './auth-request';
+import { isAuthRequest, isLifecycleCancellation } from './auth-request';
 import {
   REQUEST_OPERATIONS,
   REQUEST_METHODS,
@@ -326,7 +326,11 @@ export function installClientDiagnostics(): void {
       return response;
     } catch (failure) {
       const failureKind = requestFailureKind(failure, signal);
-      if (active.instanceId === context.instanceId)
+      const lifecycleRead =
+        failureKind === 'cancelled' &&
+        ['GET', 'HEAD'].includes(method) &&
+        isLifecycleCancellation(signal?.reason);
+      if (active.instanceId === context.instanceId && !lifecycleRead)
         reportClientDiagnostic(
           failureKind === 'cancelled' && ['GET', 'HEAD'].includes(method)
             ? 'request_cancelled'
