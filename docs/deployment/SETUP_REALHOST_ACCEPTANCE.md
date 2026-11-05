@@ -766,3 +766,80 @@ Pins находятся в `tools/deployment/fixtures/setup-realhost-pins.json`.
 Runtime provenance повторно проверяет штатный release verifier по точным
 publication и General CI runs; зелёный workflow со skipped publish не считается
 опубликованным runtime.
+
+## Закрытый диагностический отчёт из artifact
+
+Отдельный job `Closed native evidence report` выполняется после `realhost`
+и читает artifact `asa-realhost-evidence-<source SHA>` только из своего
+workflow run. Его короткий job log доступен через обычный GitHub Actions API
+для чтения логов. Это дополнительный способ получить диагностику, когда
+локальное чтение ZIP временно недоступно. Исходные `evidence.json` и
+`runner-preparation.json` продолжают сохраняться штатным upload step.
+
+Job использует точный source SHA события, закреплённые checkout/download
+actions и только `contents: read` / `actions: read`. В нём нет VM, Docker,
+sudo, установки пакетов или provider действий. `continue-on-error` относится
+только к этому дополнительному job: исходные команды, permissions, бюджеты
+и результат `realhost` остаются прежними. Отказ exporter не превращает
+native FAIL в PASS.
+
+`ci_realhost_evidence_report.py` читает ровно два фиксированных файла,
+не импортирует harness/product/checker, не запускает дочерние процессы и
+не обращается к сети. Файлы открываются через закреплённые directory/file
+descriptors без следования symlink; hardlink, чужой владелец, group/world
+write, специальные файлы и изменение metadata во время чтения запрещены.
+Нормализованный download-artifact режим 0644 допустим: требование 0600
+от private файлов работающей установки к скачанному artifact не применяется.
+Пределы: 4 MiB для native evidence, 64 KiB для runner preparation, 128 KiB
+для выходного JSON; глубина JSON 32 и общий бюджет 50 000 узлов. Duplicate
+keys, неверный UTF-8, NaN/Infinity и превышение лимитов дают закрытую причину
+UNAVAILABLE без исходного содержимого или текста исключения.
+
+Перед native projection должны совпасть source revision обоих документов,
+а `runner-preparation.runId/runAttempt` — с текущими GitHub run и attempt.
+Одного имени artifact и SHA недостаточно для повторной попытки того же run.
+Ранний runner guard может не записать эти identity fields: тогда binding
+остаётся UNAVAILABLE. Нет поиска предыдущего успешного artifact или fallback
+к другому attempt. При отмене workflow или отсутствии upload отчёт также
+может отсутствовать либо сообщать UNAVAILABLE.
+
+Между маркерами `ASA_REALHOST_REPORT_BEGIN` и
+`ASA_REALHOST_REPORT_END` выводится только ASCII JSON формата
+`asa-realhost-evidence-report-v1`. `reportStatus` описывает доступность
+экспорта, `nativeConclusion` — исходный результат job, а `sourceStatus`
+в native разделе — записанный outcome harness. Даже AVAILABLE не является
+новой приёмкой: `revalidatedRuntime` всегда false. Неизвестные значения
+не публикуются как произвольные строки; закрытые unavailable/unrecognized
+состояния и отсутствующие поля сохраняются отдельно.
+
+Экспорт включает записанные native phases/checks, runner resources, общие
+lifecycle/control/backup/reboot факты и связанные с публичным отказом
+`receiptDetails`. Сохраняются различия MISSING/NULL/UNRECOGNIZED,
+browser runtime provenance, шесть browser checks и ошибки из конечного
+списка, а также policy/outcome/local/encryption/cloud у backup.
+`DECLARED_FIRST_BACKUP_CHILD` остаётся заявленной родителем связью;
+exporter не читает новый child journal и не повышает её до такого доказательства.
+Он также не повторяет binding работающего manager или проверку runtime pins.
+Raw browser component pin strings, сообщения, logs, stack traces, paths,
+URLs, credentials, cookies и тела API-ответов в этот отчёт не попадают.
+
+CLI-раздел показывает только реально записанные completed cases, отдельные
+human pipe/PTY results, filesystem/control comparisons и четыре существующих
+checked JSON-примера: help, status, disk, update-check. Дополнительные
+observations сохраняют optional disk/cloud UNAVAILABLE и restore
+BLOCKED_PLAN. JSON update-plan отдельно не сохраняется producer, поэтому
+доступен только его case outcome. Failed case может отсутствовать среди
+completed cases; exporter не придумывает его exit или stdout. Каталог help
+из 29 команд не является доказательством их выполнения: 29 JSON cases и
+два bare modes — отдельный состав read suite, а write calls видны только
+в записанных `cliActions` соответствующей фазы. Частичный suite сохраняет
+полезные выполненные examples, одновременно показывая FAIL, failedCase и
+CHANGED/UNAVAILABLE у filesystem/control. Неизмеренные полное место и
+downtime не превращаются в числовые обещания.
+
+Отчёт намеренно не является полным дампом artifact и не заменяет критерии
+приёмки. Отсутствующий phase/check/action не означает PASS. Принудительно
+ожидаемый отказ облачной fault case, same-ID recovery с отказом повторного
+экспорта и успешный новый backup остаются разными записанными фактами.
+Новая native приёмка и причина исторического browser failure из наличия
+exporter не следуют.
