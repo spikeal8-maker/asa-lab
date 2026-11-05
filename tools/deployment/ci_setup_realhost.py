@@ -469,6 +469,163 @@ def prepare_kvm_access(commands):
     return {"devicePresent": True, "currentUidAccessGranted": granted, "currentUidReadWrite": True}
 
 
+def qemu_output_form(data, args):
+    """Observe one upstream 8.2.2 record, without claiming binary or causal proof."""
+    if not isinstance(data, bytes) or not data or len(data) > 65536:
+        return "UNRECOGNIZED"
+    first, separator, _ = data.partition(b"\n")
+    if not separator or not first or len(first) > 4096 or any(value < 32 or value > 126 for value in first):
+        return "UNRECOGNIZED"
+    line = first.decode("ascii")
+    if not isinstance(args, (list, tuple)) or not args or args[0] != "qemu-system-x86_64":
+        return "UNRECOGNIZED"
+    if re.fullmatch(r"Could not access KVM kernel module: [ -~]{1,256}", line):
+        return "KVM_DEVICE_OPEN_FAILED"
+    if re.fullmatch(r"ioctl\(KVM_CREATE_VM\) failed: [1-9][0-9]{0,3} [ -~]{1,256}", line):
+        return "KVM_CREATE_VM_FAILED"
+    prefixes = [("qemu-system-x86_64: ", None)]
+    for index, value in enumerate(args[:-1]):
+        if value in ("-drive", "-netdev", "-qmp") and isinstance(args[index + 1], str):
+            argument = args[index + 1]
+            if argument and all(32 <= ord(char) <= 126 for char in argument):
+                prefixes.append(("qemu-system-x86_64: " + value + " " + argument + ": ", value))
+    for prefix, context in sorted(prefixes, key=lambda item: len(item[0]), reverse=True):
+        if not line.startswith(prefix):
+            continue
+        body = line[len(prefix):]
+        if context in (None, "-netdev") and "user,id=net0,ipv6=off,hostfwd=tcp:127.0.0.1:2222-:22" in args:
+            if body == "Could not set up host forwarding rule 'tcp:127.0.0.1:2222-:22'":
+                return "HOST_FORWARDING_SETUP_FAILED"
+        if context in (None, "-drive") and re.fullmatch(r'Failed to get (?:shared )?"[A-Za-z][A-Za-z -]{0,63}" lock(?:: [ -~]{1,256})?', body):
+            return "BLOCK_IMAGE_LOCK_FAILED"
+        if context is None and re.fullmatch(r"cannot set up guest memory '[A-Za-z0-9_.-]{1,128}': [ -~]{1,256}", body):
+            return "GUEST_MEMORY_SETUP_FAILED"
+        if context == "-qmp":
+            option = prefix[len("qemu-system-x86_64: -qmp "):-2]
+            if option.startswith("unix:") and option.endswith(",server=on,wait=off"):
+                path = option[5:-len(",server=on,wait=off")]
+                for message in ("Failed to create Unix socket", "Failed to listen on socket",
+                                "Failed to unlink socket " + path, "Failed to bind socket to " + path):
+                    if re.fullmatch(re.escape(message) + r": [ -~]{1,256}", body):
+                        return "QMP_UNIX_SOCKET_SETUP_FAILED"
+                if body == "UNIX socket path '" + path + "' is too long":
+                    return "QMP_UNIX_SOCKET_SETUP_FAILED"
+        return "UNRECOGNIZED"
+    return "UNRECOGNIZED"
+
+
+def qemu_output_anchor(stream):
+    try:
+        metadata = os.fstat(stream.fileno())
+        return (metadata.st_dev, metadata.st_ino, metadata.st_size, metadata.st_uid)
+    except Exception:
+        return None
+
+
+def qemu_output_observation(stream, anchor, args):
+    result = {"status": "UNAVAILABLE", "class": None, "reason": "FD_UNVERIFIED",
+              "sourceContract": "UPSTREAM_V8_2_2_FORM", "binaryBinding": "UNVERIFIED", "causalProof": False}
+    try:
+        if (not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "geteuid") or not isinstance(anchor, tuple) or len(anchor) != 4
+                or any(type(value) is not int or value < 0 for value in anchor)):
+            return result
+        path = Path(stream.name)
+        parent = path.parent.lstat()
+        before = os.fstat(stream.fileno())
+        valid = lambda value: (stat.S_ISREG(value.st_mode) and value.st_uid == os.geteuid()
+                               and value.st_nlink == 1 and not value.st_mode & 0o022)
+        if (path.name != "qemu-private.log" or not stat.S_ISDIR(parent.st_mode) or parent.st_uid != os.geteuid()
+                or parent.st_mode & 0o077 or not valid(before)
+                or (before.st_dev, before.st_ino, before.st_uid) != (anchor[0], anchor[1], anchor[3])
+                or type(anchor[2]) is not int or not 0 <= anchor[2] <= before.st_size):
+            return result
+        size = before.st_size - anchor[2]
+        if size > 65536:
+            return {**result, "reason": "OUTPUT_LIMIT"}
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0))
+        with os.fdopen(fd, "rb") as source:
+            observed = os.fstat(source.fileno())
+            identity = lambda value: (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns,
+                                      value.st_ctime_ns, value.st_uid, value.st_mode, value.st_nlink)
+            if not valid(observed) or identity(observed) != identity(before):
+                return result
+            source.seek(anchor[2])
+            data = source.read(size + 1)
+            if len(data) != size or identity(os.fstat(source.fileno())) != identity(before) or identity(os.fstat(stream.fileno())) != identity(before):
+                return result
+        if not data:
+            return {**result, "status": "EMPTY", "reason": "NO_FRESH_OUTPUT"}
+        first, separator, _ = data.partition(b"\n")
+        if not separator or len(first) > 4096:
+            return {**result, "reason": "INCOMPLETE_RECORD"}
+        return {**result, "status": "OBSERVED", "class": qemu_output_form(data, args), "reason": None}
+    except Exception:
+        return {**result, "reason": "READ_UNAVAILABLE"}
+
+
+def qemu_start_observation(attempt, output):
+    unavailable = {"status": "UNAVAILABLE", "causalProof": False}
+    if (not isinstance(attempt, dict) or type(attempt.get("number")) is not int or not 1 <= attempt["number"] <= 2
+            or attempt.get("acceleration") not in ("kvm", "tcg") or type(attempt.get("created")) is not bool
+            or type(attempt.get("qmpPath")) is not bool or attempt.get("qmpQuery") not in ("NOT_ATTEMPTED", "ATTEMPTED", "ERROR", "RETURNED")):
+        return unavailable
+    code = attempt.get("returnCode")
+    if code is not None and (type(code) is not int or not -128 <= code <= 255):
+        return unavailable
+    if (not attempt["created"] and (code is not None or attempt["qmpPath"] or attempt["qmpQuery"] != "NOT_ATTEMPTED")
+            or not attempt["qmpPath"] and attempt["qmpQuery"] != "NOT_ATTEMPTED"):
+        return unavailable
+    classes = ("UNRECOGNIZED", "KVM_DEVICE_OPEN_FAILED", "KVM_CREATE_VM_FAILED", "HOST_FORWARDING_SETUP_FAILED",
+               "GUEST_MEMORY_SETUP_FAILED", "BLOCK_IMAGE_LOCK_FAILED", "QMP_UNIX_SOCKET_SETUP_FAILED")
+    reason = output.get("reason") if isinstance(output, dict) else None
+    status = output.get("status") if isinstance(output, dict) else None
+    observed = (isinstance(output, dict) and status == "OBSERVED" and reason is None and output.get("class") in classes
+                and attempt["created"] and code is not None)
+    absent = (isinstance(output, dict) and "class" in output and output["class"] is None
+              and ((status == "EMPTY" and reason == "NO_FRESH_OUTPUT" and attempt["created"] and code is not None)
+                   or (status == "UNAVAILABLE" and reason in ("FD_UNVERIFIED", "OUTPUT_LIMIT", "READ_UNAVAILABLE",
+                                                              "INCOMPLETE_RECORD", "PROCESS_NOT_EXITED"))))
+    safe_output = {"status": status, "class": output["class"], "reason": reason} if observed or absent else {
+        "status": "UNAVAILABLE", "class": None, "reason": "INVALID_OBSERVATION"}
+    safe_output.update(sourceContract="UPSTREAM_V8_2_2_FORM", binaryBinding="UNVERIFIED", causalProof=False)
+    return {"status": "OBSERVED", "observation": "AFTER_START_FAILURE", "attempt": attempt["number"],
+            "acceleration": attempt["acceleration"], "processCreated": attempt["created"],
+            "termination": "NOT_CREATED" if not attempt["created"] else "NOT_RECORDED" if code is None else "SIGNAL" if code < 0 else "EXIT",
+            "exitCode": code if code is not None and code >= 0 else None,
+            "signal": -code if code is not None and code < 0 else None,
+            "qmpPathObserved": attempt["qmpPath"], "qmpQuery": attempt["qmpQuery"],
+            "output": safe_output, "causalProof": False}
+
+
+def timer_start_observation(setup):
+    result = {"status": "UNAVAILABLE", "causalProof": False}
+    if not isinstance(setup, dict) or setup.get("format") != "asa-realhost-guest-v1" or setup.get("phase") != "schedule" or setup.get("status") != "PASS":
+        return result
+    due, properties = setup.get("dueEpoch"), setup.get("unitProperties")
+    if type(due) is not int or due <= 0 or not isinstance(properties, dict):
+        return result
+    flag = lambda value: value if type(value) is bool else "UNAVAILABLE"
+    actions = []
+    recorded = setup.get("cliActions")
+    if isinstance(recorded, list) and len(recorded) > 8:
+        return result
+    for row in recorded if isinstance(recorded, list) else []:
+        if (not isinstance(row, dict) or row.get("command") not in ("asa backup schedule", "asa backup schedule enable", "asa backup schedule disable")
+                or row.get("status") not in ("OK", "RECORDED", "PLANNED", "UNAVAILABLE", "BLOCKED", "FAILED")
+                or type(row.get("exitCode")) is not int or not 0 <= row["exitCode"] <= 255):
+            return result
+        actions.append({key: row[key] for key in ("command", "status", "exitCode")})
+    return {"status": "OBSERVED", "observation": "BEFORE_TIMER_COLD_START", "dueEpoch": due,
+            "enableDisableEnable": "PASS" if setup.get("enableDisableEnable") == "PASS" else "UNAVAILABLE",
+            "fixtureOnlyTimeSelection": flag(setup.get("fixtureOnlyTimeSelection")),
+            "publicCliTimeSetterClaimed": flag(setup.get("publicCliTimeSetterClaimed")),
+            "clockChanged": flag(setup.get("clockChanged")), "automaticUpdatesUnchanged": flag(setup.get("automaticUpdatesUnchanged")),
+            "unitProperties": {key: flag(properties.get(key)) for key in ("active", "enabled", "persistent")},
+            "cliActions": actions, "cliActionsState": "OBSERVED" if isinstance(recorded, list) else "UNAVAILABLE", "milestones": {key: True for key in ("scheduleCompleted", "offlineWindowVerified",
+                "poweroffCompleted", "offlineBeforeDueVerified", "waitedPastDue", "diskInodePreserved")},
+            "persistentRecovery": "NOT_REACHED", "boundedRetry": "NOT_REACHED", "causalProof": False}
+
+
 class VM:
     def __init__(self, directory, commands):
         self.directory, self.commands = Path(directory), commands
@@ -503,41 +660,68 @@ class VM:
     def start(self):
         require(self.process is None or self.process.poll() is not None, "QEMU_ALREADY_RUNNING")
         choices = [self.acceleration] if self.acceleration else (["kvm", "tcg"] if os.access("/dev/kvm", os.R_OK | os.W_OK) else ["tcg"])
-        for acceleration in choices:
-            if self.qmp_path.exists():
-                self.qmp_path.unlink()
-            if self.serial is not None:
-                self.serial.close()
-            self.serial = (self.directory / "qemu-private.log").open("ab")
-            args = ["qemu-system-x86_64", "-machine", "q35", "-accel", acceleration,
-                    "-cpu", "host" if acceleration == "kvm" else "max", "-smp", str(GUEST_CPUS),
-                    "-m", str(GUEST_MEMORY_MIB), "-display", "none", "-monitor", "none",
-                    "-serial", "file:" + str(self.directory / "serial-private.log"),
-                    "-qmp", "unix:" + str(self.qmp_path) + ",server=on,wait=off",
-                    "-drive", "file=" + str(self.directory / "guest.qcow2") + ",if=virtio,format=qcow2,discard=unmap",
-                    "-drive", "file=" + str(self.directory / "seed.img") + ",if=virtio,format=raw,readonly=on",
-                    "-netdev", "user,id=net0,ipv6=off,hostfwd=tcp:127.0.0.1:2222-:22",
-                    "-device", "virtio-net-pci,netdev=net0", "-rtc", "base=utc,clock=host"]
-            self.process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=self.serial, stderr=self.serial)
-            deadline = time.monotonic() + 20
-            proof = None
-            while time.monotonic() < deadline and self.process.poll() is None:
-                self.commands.guard()
+        attempt, output = None, None
+        try:
+            for number, acceleration in enumerate(choices, 1):
+                attempt = {"number": number, "acceleration": acceleration, "created": False, "returnCode": None, "qmpPath": False, "qmpQuery": "NOT_ATTEMPTED"}
+                output = {"status": "UNAVAILABLE", "class": None, "reason": "PROCESS_NOT_EXITED"}
                 if self.qmp_path.exists():
+                    self.qmp_path.unlink()
+                if self.serial is not None:
+                    self.serial.close()
+                self.serial = (self.directory / "qemu-private.log").open("ab")
+                try:
+                    anchor = qemu_output_anchor(self.serial)
+                except Exception:
+                    anchor = None
+                args = ["qemu-system-x86_64", "-machine", "q35", "-accel", acceleration,
+                        "-cpu", "host" if acceleration == "kvm" else "max", "-smp", str(GUEST_CPUS),
+                        "-m", str(GUEST_MEMORY_MIB), "-display", "none", "-monitor", "none",
+                        "-serial", "file:" + str(self.directory / "serial-private.log"),
+                        "-qmp", "unix:" + str(self.qmp_path) + ",server=on,wait=off",
+                        "-drive", "file=" + str(self.directory / "guest.qcow2") + ",if=virtio,format=qcow2,discard=unmap",
+                        "-drive", "file=" + str(self.directory / "seed.img") + ",if=virtio,format=raw,readonly=on",
+                        "-netdev", "user,id=net0,ipv6=off,hostfwd=tcp:127.0.0.1:2222-:22",
+                        "-device", "virtio-net-pci,netdev=net0", "-rtc", "base=utc,clock=host"]
+                self.process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=self.serial, stderr=self.serial)
+                attempt["created"] = True
+                deadline = time.monotonic() + 20
+                proof = None
+                while time.monotonic() < deadline and self.process.poll() is None:
+                    self.commands.guard()
+                    if self.qmp_path.exists():
+                        attempt["qmpPath"] = True
+                        try:
+                            attempt["qmpQuery"] = "ATTEMPTED"
+                            proof = self.query("query-kvm")
+                            attempt["qmpQuery"] = "RETURNED"
+                            break
+                        except (OSError, ValueError):
+                            attempt["qmpQuery"] = "ERROR"
+                    time.sleep(0.2)
+                if self.process.poll() is not None:
+                    attempt["returnCode"] = self.process.returncode
                     try:
-                        proof = self.query("query-kvm")
-                        break
-                    except (OSError, ValueError):
-                        pass
-                time.sleep(0.2)
-            if self.process.poll() is not None:
-                self.serial.close()
-                continue
-            require(proof is not None, "BLOCKED_QMP_UNAVAILABLE", status="BLOCKED")
-            verify_acceleration(proof, acceleration)
-            self.acceleration = acceleration
-            return {"requested": acceleration, "queryKvm": proof, "cpus": GUEST_CPUS, "memoryMiB": GUEST_MEMORY_MIB}
-        raise Failure("BLOCKED_QEMU_START", status="BLOCKED")
+                        output = qemu_output_observation(self.serial, anchor, args)
+                    except Exception:
+                        output = {"status": "UNAVAILABLE", "class": None, "reason": "READ_UNAVAILABLE"}
+                    self.serial.close()
+                    continue
+                require(proof is not None, "BLOCKED_QMP_UNAVAILABLE", status="BLOCKED")
+                verify_acceleration(proof, acceleration)
+                self.acceleration = acceleration
+                return {"requested": acceleration, "queryKvm": proof, "cpus": GUEST_CPUS, "memoryMiB": GUEST_MEMORY_MIB}
+            raise Failure("BLOCKED_QEMU_START", status="BLOCKED")
+        except BaseException as error:
+            try:
+                if not hasattr(error, "evidence"):
+                    error.evidence = {"qemuStartObservation": qemu_start_observation(attempt, output)}
+            except BaseException:
+                try:
+                    error.evidence = {"qemuStartObservation": {"status": "UNAVAILABLE", "causalProof": False}}
+                except BaseException:
+                    pass
+            raise
 
     def ssh(self, command, *, timeout=60, allowed=(0,)):
         return self.commands.run(["ssh", *self.ssh_args, "-p", "2222", "asa-ci@127.0.0.1", command], timeout=timeout, allowed=allowed)
@@ -827,7 +1011,22 @@ class HostRun:
             self.guard()
             time.sleep(1)
         require((self.workspace / "guest.qcow2").stat().st_ino == disk.st_ino, "TIMER_DISK_REPLACED")
-        self.vm.start()
+        try:
+            self.vm.start()
+        except BaseException as error:
+            try:
+                observed = timer_start_observation(setup)
+            except BaseException:
+                observed = {"status": "UNAVAILABLE", "causalProof": False}
+            try:
+                evidence = getattr(error, "evidence", None)
+                if evidence is None:
+                    error.evidence = {"timerStartupObservation": observed}
+                elif type(evidence) is dict and set(evidence) == {"qemuStartObservation"}:
+                    evidence["timerStartupObservation"] = observed
+            except BaseException:
+                pass
+            raise
         after = self.vm.wait_ssh(600)
         verify_boot_change(before, after)
         deadline = time.monotonic() + 1200

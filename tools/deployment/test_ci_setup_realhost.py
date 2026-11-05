@@ -6756,6 +6756,328 @@ class PerformedBackupFaultTests(unittest.TestCase):
             partial.assert_not_called()
 
 
+class QemuStartupObservationTests(unittest.TestCase):
+    def arguments(self, directory="/private/owned"):
+        return ["qemu-system-x86_64", "-drive", "file=" + directory + "/guest.qcow2,if=virtio,format=qcow2,discard=unmap",
+                "-netdev", "user,id=net0,ipv6=off,hostfwd=tcp:127.0.0.1:2222-:22",
+                "-qmp", "unix:" + directory + "/qmp.sock,server=on,wait=off"]
+
+    def start_case(self, returncode=17, *, payload=b"", spawn_error=None, query=None, query_error=None, deadline=False,
+                   guard_error=None, diagnostic_error=False, acceleration="kvm"):
+        with tempfile.TemporaryDirectory() as directory:
+            vm = harness.VM(directory, harness.Commands(guard=Mock(side_effect=guard_error)))
+            vm.acceleration = acceleration
+            process = Mock(returncode=returncode)
+            process.poll.return_value = returncode
+            calls = []
+
+            def spawn(args, **kwargs):
+                calls.append((args, kwargs))
+                if spawn_error is not None:
+                    raise spawn_error
+                kwargs["stderr"].write(payload[len(calls) - 1] if isinstance(payload, tuple) else payload)
+                kwargs["stderr"].flush()
+                if query is not None or query_error is not None:
+                    vm.qmp_path.touch()
+                return process
+
+            caught = result = None
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(patch.object(harness.subprocess, "Popen", side_effect=spawn))
+                if deadline:
+                    stack.enter_context(patch.object(harness.time, "monotonic", side_effect=[1000.0, 1021.0]))
+                if query is not None or query_error is not None:
+                    stack.enter_context(patch.object(vm, "query", return_value=query, side_effect=query_error))
+                if diagnostic_error:
+                    stack.enter_context(patch.object(harness, "qemu_output_observation", side_effect=RuntimeError("PRIVATE_DIAGNOSTIC_SECRET")))
+                try:
+                    result = vm.start()
+                except BaseException as error:
+                    caught = error
+                finally:
+                    if vm.serial is not None:
+                        vm.serial.close()
+            return caught, result, calls, process
+
+    def test_actual_start_keeps_exit_and_signal_states_without_reclassifying_failure(self):
+        for code, termination, exit_code, number in ((0, "EXIT", 0, None), (17, "EXIT", 17, None), (-15, "SIGNAL", None, 15)):
+            with self.subTest(code=code):
+                error, result, calls, process = self.start_case(code, payload=b"Could not access KVM kernel module: PRIVATE_ERRNO_TEXT\n")
+                self.assertIsNone(result)
+                self.assertEqual((error.code, error.status), ("BLOCKED_QEMU_START", "BLOCKED"))
+                self.assertTrue(hasattr(error, "evidence"), "current startup observation was lost")
+                observed = error.evidence["qemuStartObservation"]
+                self.assertEqual((observed["termination"], observed["exitCode"], observed["signal"]), (termination, exit_code, number))
+                self.assertEqual((observed["attempt"], observed["acceleration"], observed["processCreated"]), (1, "kvm", True))
+                self.assertFalse(observed["causalProof"])
+                self.assertFalse(observed["output"]["causalProof"])
+                self.assertNotIn("PRIVATE", json.dumps(observed))
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(calls[0][0][calls[0][0].index("-accel") + 1], "kvm")
+                process.terminate.assert_not_called()
+        with patch.object(harness.os, "access", return_value=True):
+            error, _, calls, _ = self.start_case(17, acceleration=None, payload=(b"Could not access KVM kernel module: denied\n", b"PRIVATE_CURRENT_UNKNOWN\n"))
+        self.assertTrue(hasattr(error, "evidence"), "current fallback observation was lost")
+        observed = error.evidence["qemuStartObservation"]
+        self.assertEqual((observed["attempt"], observed["acceleration"]), (2, "tcg"))
+        self.assertEqual([args[args.index("-accel") + 1] for args, _ in calls], ["kvm", "tcg"])
+        self.assertNotEqual(observed["output"]["class"], "KVM_DEVICE_OPEN_FAILED")
+        self.assertNotIn("PRIVATE", json.dumps(observed))
+
+    def test_spawn_qmp_deadline_and_guard_errors_keep_the_original_boundary(self):
+        original = OSError("PRIVATE_SPAWN_SECRET")
+        error, _, _, _ = self.start_case(spawn_error=original)
+        self.assertIs(error, original)
+        self.assertEqual(harness.safe_error(error), "HARNESS_EXCEPTION")
+        self.assertEqual(error.evidence["qemuStartObservation"]["termination"], "NOT_CREATED")
+        error, _, _, _ = self.start_case(None, deadline=True)
+        self.assertEqual(error.code, "BLOCKED_QMP_UNAVAILABLE")
+        self.assertEqual(error.evidence["qemuStartObservation"]["output"]["reason"], "PROCESS_NOT_EXITED")
+        original = harness.Failure("BLOCKED_HOST_DISK_RESERVE", status="BLOCKED")
+        error, _, _, _ = self.start_case(None, guard_error=original)
+        self.assertIs(error, original)
+        self.assertNotIn("PRIVATE", json.dumps(error.evidence))
+        original = harness.Failure("QMP_GREETING")
+        error, _, _, _ = self.start_case(None, query_error=original)
+        self.assertIs(error, original)
+        self.assertEqual(error.evidence["qemuStartObservation"]["qmpQuery"], "ATTEMPTED")
+
+    def test_successful_start_and_invalid_kernel_proof_keep_existing_semantics(self):
+        error, result, calls, _ = self.start_case(None, query={"enabled": True, "present": True})
+        self.assertIsNone(error)
+        self.assertEqual(result, {"requested": "kvm", "queryKvm": {"enabled": True, "present": True},
+                                  "cpus": harness.GUEST_CPUS, "memoryMiB": harness.GUEST_MEMORY_MIB})
+        self.assertEqual(set(calls[0][1]), {"stdin", "stdout", "stderr"})
+        error, result, _, _ = self.start_case(None, query={"enabled": False, "present": True})
+        self.assertIsNone(result)
+        self.assertEqual((error.code, error.status), ("QMP_KVM_PROOF", "FAIL"))
+        self.assertEqual(error.evidence["qemuStartObservation"]["qmpQuery"], "RETURNED")
+        with tempfile.TemporaryDirectory() as directory, patch.object(harness.subprocess, "Popen") as spawn:
+            vm = harness.VM(directory, harness.Commands())
+            vm.process = Mock()
+            vm.process.poll.return_value = None
+            with self.assertRaises(harness.Failure) as caught:
+                vm.start()
+            self.assertEqual(caught.exception.code, "QEMU_ALREADY_RUNNING")
+            self.assertFalse(hasattr(caught.exception, "evidence"))
+            spawn.assert_not_called()
+
+    def test_supported_upstream_first_records_have_only_finite_classes(self):
+        args = self.arguments()
+        qmp = "qemu-system-x86_64: -qmp " + args[-1] + ": "
+        net = "qemu-system-x86_64: -netdev " + args[4] + ": "
+        rows = (("Could not access KVM kernel module: Permission denied", "KVM_DEVICE_OPEN_FAILED"),
+                ("ioctl(KVM_CREATE_VM) failed: 12 Cannot allocate memory", "KVM_CREATE_VM_FAILED"),
+                (net + "Could not set up host forwarding rule 'tcp:127.0.0.1:2222-:22'", "HOST_FORWARDING_SETUP_FAILED"),
+                ("qemu-system-x86_64: cannot set up guest memory 'pc.ram': Cannot allocate memory", "GUEST_MEMORY_SETUP_FAILED"),
+                ('qemu-system-x86_64: Failed to get "write" lock', "BLOCK_IMAGE_LOCK_FAILED"),
+                ('qemu-system-x86_64: Failed to get shared "write" lock: Resource temporarily unavailable', "BLOCK_IMAGE_LOCK_FAILED"),
+                (qmp + "Failed to bind socket to /private/owned/qmp.sock: Address already in use", "QMP_UNIX_SOCKET_SETUP_FAILED"),
+                (qmp + "Failed to listen on socket: Permission denied", "QMP_UNIX_SOCKET_SETUP_FAILED"),
+                (qmp + "UNIX socket path '/private/owned/qmp.sock' is too long", "QMP_UNIX_SOCKET_SETUP_FAILED"))
+        for line, expected in rows:
+            with self.subTest(expected=expected, line=line):
+                self.assertEqual(harness.qemu_output_form((line + "\nPRIVATE_LATER_LINE\n").encode(), args), expected)
+
+    def test_unknown_truncated_foreign_and_spoofed_records_are_not_scanned(self):
+        valid = b"Could not access KVM kernel module: Permission denied\n"
+        rows = [b"", valid[:-1], b"\n" + valid, b"PRIVATE_OUTER\n" + valid, b"warning: " + valid,
+                b"guest: " + valid, b"path=/tmp/" + valid, valid.replace(b"KVM", b"KVMX"),
+                valid.replace(b"KVM", "K\u0423M".encode()), valid.replace(b"module", b"module\x00"),
+                b"x" * 65537, b"x" * 4097 + b"\n" + valid,
+                b'qemu-system-x86_64: Description=Failed to get "write" lock\n',
+                b'qemu-system-x86_64: Failed to get \\"write\\" lock\n',
+                b'qemu-system-x86_64: -qmp unix:/foreign/qmp.sock,server=on,wait=off: Failed to listen on socket: denied\n',
+                b'qemu-system-x86_64: -drive file=/foreign/disk: Failed to get "write" lock\n',
+                b'qemu-system-x86_64: warning: cannot set up guest memory \'pc.ram\': denied\n']
+        for data in rows:
+            with self.subTest(data=data[:60]):
+                self.assertEqual(harness.qemu_output_form(data, self.arguments()), "UNRECOGNIZED")
+        for args in (None, [], ["foreign-program"], "qemu-system-x86_64"):
+            self.assertEqual(harness.qemu_output_form(valid, args), "UNRECOGNIZED")
+
+    def test_closed_start_projection_rejects_types_and_inconsistent_output(self):
+        attempt = {"number": 1, "acceleration": "kvm", "created": True, "returnCode": 1, "qmpPath": False, "qmpQuery": "NOT_ATTEMPTED"}
+        output = {"status": "OBSERVED", "class": "KVM_DEVICE_OPEN_FAILED", "reason": None, "private": "PRIVATE_CANARY", "causalProof": True}
+        result = harness.qemu_start_observation(attempt, output)
+        self.assertEqual(result["output"]["class"], "KVM_DEVICE_OPEN_FAILED")
+        self.assertFalse(result["output"]["causalProof"])
+        self.assertNotIn("PRIVATE", json.dumps(result))
+        for key, value in (("number", True), ("number", 3), ("acceleration", "PRIVATE"), ("created", 1),
+                           ("returnCode", True), ("returnCode", -129), ("returnCode", 256), ("qmpPath", None), ("qmpQuery", "PRIVATE")):
+            with self.subTest(key=key, value=value):
+                self.assertEqual(harness.qemu_start_observation({**attempt, key: value}, output)["status"], "UNAVAILABLE")
+        for observed in ({**output, "class": "PRIVATE"}, {**output, "reason": "PRIVATE"}, {"status": "OBSERVED"},
+                         {"status": "UNAVAILABLE", "reason": "FD_UNVERIFIED"}, None):
+            self.assertEqual(harness.qemu_start_observation(attempt, observed)["output"]["reason"], "INVALID_OBSERVATION")
+        self.assertEqual(harness.qemu_start_observation({**attempt, "created": False}, output)["status"], "UNAVAILABLE")
+        self.assertEqual(harness.qemu_start_observation({**attempt, "qmpQuery": "RETURNED"}, output)["status"], "UNAVAILABLE")
+        not_created = {**attempt, "created": False, "returnCode": None}
+        self.assertEqual(harness.qemu_start_observation(not_created, {"status": "EMPTY", "class": None, "reason": "NO_FRESH_OUTPUT"})["output"]["reason"], "INVALID_OBSERVATION")
+
+    @unittest.skipUnless(os.name == "posix" and hasattr(os, "O_NOFOLLOW"), "Current host output FD proof needs POSIX no-follow semantics")
+    def test_private_fd_range_excludes_stale_output_and_rejects_unsafe_files(self):
+        valid = b"Could not access KVM kernel module: PRIVATE_ERRNO\n"
+        def observe(data, mutate=None, old=b"PRIVATE_OLD\n"):
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "qemu-private.log"
+                path.write_bytes(old)
+                path.chmod(0o644)
+                with path.open("ab") as stream:
+                    anchor = harness.qemu_output_anchor(stream)
+                    stream.write(data)
+                    stream.flush()
+                    if mutate:
+                        replacement = mutate(path, stream, anchor)
+                        if replacement is not None:
+                            anchor = replacement
+                    return harness.qemu_output_observation(stream, anchor, self.arguments(directory))
+        self.assertEqual(observe(valid)["class"], "KVM_DEVICE_OPEN_FAILED")
+        self.assertEqual(observe(b"PRIVATE_NEW\n", old=valid)["class"], "UNRECOGNIZED")
+        self.assertEqual(observe(b"")["status"], "EMPTY")
+        self.assertEqual(observe(valid[:-1])["reason"], "INCOMPLETE_RECORD")
+        self.assertEqual(observe(b"x" * 65537)["reason"], "OUTPUT_LIMIT")
+        def symlink(path, stream, anchor):
+            held = path.with_name("held")
+            path.rename(held)
+            path.symlink_to(held)
+        def replacement(path, stream, anchor):
+            path.rename(path.with_name("held"))
+            path.write_bytes(valid)
+        def hardlink(path, stream, anchor):
+            os.link(path, path.with_name("alias"))
+        def shrink(path, stream, anchor):
+            stream.truncate(0)
+        for mutate in (symlink, replacement, hardlink, lambda p, s, a: p.chmod(0o666),
+                       shrink, lambda p, s, a: (a[0], a[1], a[2], False)):
+            with self.subTest(mutate=mutate):
+                observed = observe(valid, mutate)
+                self.assertEqual(observed["status"], "UNAVAILABLE")
+                self.assertNotIn("PRIVATE", json.dumps(observed))
+        actual = harness.os.fstat
+        class ForeignOwner:
+            def __init__(self, value): self.value = value
+            def __getattr__(self, name): return getattr(self.value, name)
+            @property
+            def st_uid(self): return os.geteuid() + 1
+        with patch.object(harness.os, "fstat", side_effect=lambda fd: ForeignOwner(actual(fd))):
+            self.assertEqual(observe(valid)["status"], "UNAVAILABLE")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "qemu-private.log"
+            with path.open("ab") as stream:
+                anchor = harness.qemu_output_anchor(stream)
+                stream.write(valid)
+                stream.flush()
+                counter = [0]
+                def changed(fd):
+                    counter[0] += 1
+                    if counter[0] == 3:
+                        stream.write(b"PRIVATE_CONCURRENT\n")
+                        stream.flush()
+                    return actual(fd)
+                with patch.object(harness.os, "fstat", side_effect=changed):
+                    self.assertEqual(harness.qemu_output_observation(stream, anchor, self.arguments(directory))["status"], "UNAVAILABLE")
+
+    def timer_chain(self, *, startup_error=None, due=2000, inode_changed=False, projection_error=False):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "guest.qcow2").write_bytes(b"private synthetic disk identity")
+            host = object.__new__(harness.HostRun)
+            host.workspace, host.output = root, root / "evidence.json"
+            host.evidence = harness.initial_evidence("a" * 40)
+            host.guard = Mock()
+            setup = {"format": "asa-realhost-guest-v1", "phase": "schedule", "status": "PASS", "dueEpoch": due,
+                     "unit": "PRIVATE_UNIT", "operationId": "PRIVATE_OPERATION", "raw": "PRIVATE_VALUE",
+                     "enableDisableEnable": "PASS", "fixtureOnlyTimeSelection": True, "publicCliTimeSetterClaimed": False,
+                     "clockChanged": False, "automaticUpdatesUnchanged": True,
+                     "unitProperties": {"active": True, "enabled": True, "persistent": True, "private": "PRIVATE_PROPERTY"},
+                     "cliActions": [{"command": "asa backup schedule " + action, "exitCode": 0, "status": "OK", "private": "PRIVATE_ACTION"}
+                                    for action in ("disable", "enable", "disable", "enable")]}
+            def ssh(command, **kwargs):
+                if command == "sudo systemctl poweroff":
+                    if inode_changed:
+                        (root / "guest.qcow2").rename(root / "old.qcow2")
+                        (root / "guest.qcow2").write_bytes(b"different disk")
+                    return 0, b""
+                phase = command.split()[-1]
+                value = setup if phase == "schedule" else {"format": "asa-realhost-guest-v1", "phase": phase, "status": "PASS"}
+                return 0, json.dumps(value).encode()
+            host.vm = Mock()
+            host.vm.ssh.side_effect = ssh
+            host.vm.wait_ssh.side_effect = ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"]
+            host.vm.process.poll.return_value = 0
+            host.vm.start.side_effect = startup_error
+            caught = result = None
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(patch.object(harness.time, "time", side_effect=[1810.0, 1810.0, 2071.0]))
+                stack.enter_context(patch.object(harness.time, "monotonic", return_value=1000.0))
+                stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                if projection_error:
+                    stack.enter_context(patch.object(harness, "timer_start_observation", side_effect=RuntimeError("PRIVATE_PROJECTOR")))
+                try:
+                    result = host.phase("real_persistent_timer", host.missed_timer)
+                except BaseException as error:
+                    caught = error
+            return caught, result, json.loads(host.output.read_text()), host.vm, setup
+
+    def test_actual_timer_chain_retains_schedule_and_milestones_on_same_failure(self):
+        original = harness.Failure("BLOCKED_QEMU_START", status="BLOCKED")
+        error, result, evidence, vm, setup = self.timer_chain(startup_error=original)
+        self.assertIs(error, original)
+        self.assertIsNone(result)
+        phase = evidence["phases"][0]
+        self.assertEqual((phase["status"], phase["reasonCode"]), ("BLOCKED", "BLOCKED_QEMU_START"))
+        self.assertIn("evidence", phase, "successful schedule facts were lost at cold-start failure")
+        observed = phase["evidence"]["timerStartupObservation"]
+        self.assertEqual(observed["dueEpoch"], setup["dueEpoch"])
+        self.assertEqual(observed["enableDisableEnable"], "PASS")
+        self.assertTrue(all(observed["milestones"].values()))
+        self.assertEqual(observed["persistentRecovery"], "NOT_REACHED")
+        self.assertEqual(len(observed["cliActions"]), 4)
+        self.assertNotIn("PRIVATE", json.dumps(observed))
+        vm.start.assert_called_once_with()
+        self.assertEqual(vm.wait_ssh.call_count, 1)
+        for changes in ({"phase": "timer-probe"}, {"status": "FAIL"}, {"dueEpoch": True}, {"unitProperties": []},
+                        {"cliActions": [{"command": "asa backup schedule enable", "status": "OK", "exitCode": True}]},
+                        {"cliActions": [{"command": "PRIVATE", "status": "OK", "exitCode": 0}]}):
+            with self.subTest(changes=changes):
+                self.assertEqual(harness.timer_start_observation({**setup, **changes})["status"], "UNAVAILABLE")
+        unknown = harness.timer_start_observation({**setup, "clockChanged": "PRIVATE", "unitProperties": {"active": 1}})
+        self.assertEqual(unknown["clockChanged"], "UNAVAILABLE")
+        self.assertEqual(unknown["unitProperties"], {"active": "UNAVAILABLE", "enabled": "UNAVAILABLE", "persistent": "UNAVAILABLE"})
+        self.assertNotIn("PRIVATE", json.dumps(unknown))
+
+    def test_timer_success_and_prestart_window_disk_guards_remain_strict(self):
+        error, result, evidence, vm, setup = self.timer_chain()
+        self.assertIsNone(error)
+        self.assertEqual(result["fixtureSchedulePreparation"], setup)
+        self.assertEqual(evidence["phases"][0]["status"], "PASS")
+        self.assertNotIn("timerStartupObservation", result)
+        for changes, code in (({"due": 1815}, "TIMER_OFFLINE_WINDOW"), ({"inode_changed": True}, "TIMER_DISK_REPLACED")):
+            with self.subTest(changes=changes):
+                error, _, evidence, vm, _ = self.timer_chain(**changes)
+                self.assertEqual(error.code, code)
+                self.assertNotIn("evidence", evidence["phases"][0])
+                vm.start.assert_not_called()
+
+    def test_projection_errors_and_foreign_evidence_never_replace_original_failure(self):
+        error, _, _, _ = self.start_case(17, diagnostic_error=True)
+        self.assertEqual((error.code, error.status), ("BLOCKED_QEMU_START", "BLOCKED"))
+        self.assertEqual(error.evidence["qemuStartObservation"]["output"]["reason"], "READ_UNAVAILABLE")
+        self.assertNotIn("PRIVATE", json.dumps(error.evidence))
+        original = harness.Failure("BLOCKED_QEMU_START", status="BLOCKED")
+        error, _, evidence, _, _ = self.timer_chain(startup_error=original, projection_error=True)
+        self.assertIs(error, original)
+        self.assertEqual(evidence["phases"][0]["evidence"]["timerStartupObservation"], {"status": "UNAVAILABLE", "causalProof": False})
+        original = harness.Failure("BLOCKED_QEMU_START", status="BLOCKED")
+        original.evidence = {"existing": {"known": True}}
+        original_evidence = original.evidence
+        error, _, _, _, _ = self.timer_chain(startup_error=original)
+        self.assertIs(error, original)
+        self.assertIs(error.evidence, original_evidence)
+        self.assertEqual(error.evidence, {"existing": {"known": True}})
+
+
 if __name__ == "__main__":
     if sys.argv[1:] == ["--evidence"]:
         suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
