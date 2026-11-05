@@ -56,6 +56,7 @@ interface CapturedSnapshot {
 
 const sources = new Map<string, RegisteredSnapshotSource>();
 const lastSent = new Map<string, CapturedSnapshot>();
+const confirmedSources = new Map<string, RegisteredSnapshotSource>();
 const pending = new Map<string, Promise<boolean>>();
 const deniedWrites = new Set<string>();
 const activeDeliveries = new Map<string, AbortController>();
@@ -71,6 +72,7 @@ export function setProjectSnapshotWriteAllowed(projectId: string, allowed: boole
     return;
   }
   deniedWrites.add(projectId);
+  confirmedSources.delete(projectId);
   activeDeliveries.get(projectId)?.abort();
 }
 if (typeof window !== 'undefined')
@@ -78,6 +80,7 @@ if (typeof window !== 'undefined')
     for (const controller of activeDeliveries.values()) controller.abort();
     sources.clear();
     lastSent.clear();
+    confirmedSources.clear();
     pending.clear();
     deniedWrites.clear();
     activeDeliveries.clear();
@@ -110,9 +113,34 @@ export function registerProjectSnapshotSource(
 ): () => void {
   const registration = { capture: source, revision };
   sources.set(projectId, registration);
+  confirmedSources.delete(projectId);
   return () => {
-    if (sources.get(projectId) === registration) sources.delete(projectId);
+    if (sources.get(projectId) === registration) {
+      sources.delete(projectId);
+      confirmedSources.delete(projectId);
+    }
   };
+}
+
+/**
+ * A successful send and a deduplicated capture both prove the current source's
+ * picture is stored. A replacement source must capture again before it can use
+ * the previous bytes' acknowledgement; revision numbers alone are insufficient.
+ */
+export function isProjectSnapshotConfirmed(projectId: string, sourceRevision: number): boolean {
+  const registered = sources.get(projectId);
+  if (
+    !registered ||
+    deniedWrites.has(projectId) ||
+    confirmedSources.get(projectId) !== registered ||
+    lastSent.get(projectId)?.sourceRevision !== sourceRevision
+  )
+    return false;
+  try {
+    return registered.revision() === sourceRevision;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -179,6 +207,9 @@ export async function captureProjectSnapshot(projectId: string): Promise<Capture
 async function sendSnapshot(projectId: string, options: { unloading?: boolean }): Promise<boolean> {
   const registered = sources.get(projectId);
   if (!registered || deniedWrites.has(projectId)) return false;
+  // A failed fresh capture must not inherit an earlier confirmation merely
+  // because its provider still reports the same revision.
+  confirmedSources.delete(projectId);
   const captured = await captureProjectSnapshot(projectId);
   if (
     !captured ||
@@ -191,8 +222,10 @@ async function sendSnapshot(projectId: string, options: { unloading?: boolean })
   if (
     acknowledged?.image === captured.image &&
     acknowledged.sourceRevision === captured.sourceRevision
-  )
+  ) {
+    confirmedSources.set(projectId, registered);
     return false;
+  }
   if (options.unloading === true && captured.image.length > KEEPALIVE_LIMIT_BYTES) return false;
   const controller = new AbortController();
   activeDeliveries.set(projectId, controller);
@@ -214,9 +247,14 @@ async function sendSnapshot(projectId: string, options: { unloading?: boolean })
   // browser or a revision conflict must leave the same bytes eligible for the
   // next scheduled attempt.
   if (!result?.ok) return false;
-  if (sources.get(projectId) !== registered || registered.revision() !== captured.sourceRevision)
+  if (
+    deniedWrites.has(projectId) ||
+    sources.get(projectId) !== registered ||
+    registered.revision() !== captured.sourceRevision
+  )
     return false;
   lastSent.set(projectId, captured);
+  confirmedSources.set(projectId, registered);
   return true;
 }
 

@@ -18,7 +18,10 @@ import {
 } from '../../electronics/native-optical-presentation';
 import { SimulationPacing } from '../../electronics/simulation-pacing';
 import { configureProductionLibrary } from '../../electronics/production-manifest-adapter';
+import { isProjectSnapshotConfirmed } from '../../modules/project-snapshot';
+import { publicProjectsApi } from '../../projects-public/api';
 import { createDefaultRoboticsProject } from '../robotics-project';
+import { RoboticsEditor } from '../RoboticsEditor';
 import { RoboticsLab, RoboticsWorkspace } from '../RoboticsLab';
 import { useRoboticsProject } from '../use-robotics-project';
 
@@ -149,8 +152,24 @@ vi.mock('../../electronics/ArduinoCodePanel', () => ({
   },
 }));
 
+// JSDOM has no SVG rasterizer. Keep the real source-preview registration,
+// capture, timers, acknowledgement and publication flow around this boundary.
+vi.mock('../../modules/svg-snapshot', () => ({
+  rasteriseSvgStage: async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 120;
+    canvas.height = 360;
+    return canvas;
+  },
+}));
+
 let root: Root;
 let container: HTMLDivElement;
+let accountEditorCount = 0;
+const originalScrollIntoView = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  'scrollIntoView',
+);
 
 function control(label: string): HTMLButtonElement {
   const found = [...container.querySelectorAll('button')].find((button) =>
@@ -170,6 +189,95 @@ function metric(id: string): HTMLElement {
   const node = container.querySelector<HTMLElement>(`[data-testid="${id}"]`);
   if (!node) throw new Error(`Missing metric: ${id}`);
   return node;
+}
+
+async function mountAccountEditor() {
+  act(() => root.unmount());
+  root = createRoot(container);
+  const project: Project = {
+    id: `64d1b8a0-4500-4000-8000-${String(++accountEditorCount).padStart(12, '0')}`,
+    scope: 'personal',
+    classroomId: null,
+    moduleKey: 'robotics',
+    title: 'Публикуемый робот',
+    status: 'active',
+    createdAt: '2026-11-05T12:00:00Z',
+    updatedAt: '2026-11-05T12:00:00Z',
+    preview: null,
+    snapshotRevision: null,
+    copiedFrom: null,
+  };
+  vi.spyOn(api, 'openProject').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      project,
+      draft: {
+        projectId: project.id,
+        document: createDefaultRoboticsProject(),
+        revision: 1,
+        updatedAt: project.updatedAt,
+      },
+      versions: [],
+      result: null,
+    },
+  });
+  vi.spyOn(api, 'accountAvatar').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { avatarDataUrl: null },
+  });
+  const snapshot = vi
+    .spyOn(api, 'saveProjectSnapshot')
+    .mockImplementation(async (projectId, _image, sourceRevision) => ({
+      ok: true,
+      status: 200,
+      data: {
+        snapshot: {
+          projectId,
+          sourceRevision,
+          contentType: 'image/webp',
+          width: 480,
+          height: 360,
+          capturedAt: project.updatedAt,
+        },
+      },
+    }));
+  const publication = vi.spyOn(publicProjectsApi, 'status').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { publication: null, canPublish: true, reasonCode: null },
+  });
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    fillStyle: '',
+    fillRect: vi.fn(),
+    drawImage: vi.fn(),
+  } as unknown as CanvasRenderingContext2D);
+  vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(
+    'data:image/webp;base64,c25hcHNob3Q=',
+  );
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  });
+  await act(async () => {
+    root.render(
+      createElement(RoboticsEditor, {
+        projectId: project.id,
+        user: {
+          id: '64d1b8a0-4500-4000-8000-000000000099',
+          identityKind: 'account',
+          displayName: 'Автор',
+          email: 'author@isolated.test',
+        },
+        onBack: vi.fn(),
+      }),
+    );
+  });
+  const svg = metric('robotics-source-preview').querySelector('svg')!;
+  const [x, y, width, height] = svg.getAttribute('viewBox')!.split(/\s+/).map(Number);
+  Object.defineProperty(svg, 'viewBox', { value: { baseVal: { x, y, width, height } } });
+  return { project, snapshot, publication };
 }
 
 function electricalObservation(
@@ -278,10 +386,88 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   localStorage.clear();
+  vi.useRealTimers();
   vi.restoreAllMocks();
+  if (originalScrollIntoView)
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScrollIntoView);
+  else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
 });
 
 describe('robotics UI integration with the common workbench port', () => {
+  it.each(['Save', 'automatic snapshot'] as const)(
+    'opens the actual publication dialog after %s already confirmed the source without another PUT',
+    async (trigger) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+      const { project, snapshot, publication } = await mountAccountEditor();
+      if (trigger === 'Save') await click('Сохранить');
+      else await act(async () => vi.advanceTimersByTimeAsync(4000));
+      expect(snapshot).toHaveBeenCalledTimes(1);
+      expect(snapshot.mock.calls[0]?.[2]).toBe(1);
+      expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(true);
+
+      await click('Публикация');
+      expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
+        'Публикация проекта',
+      );
+      expect(container.querySelector('[data-testid="publication-publish"]')).not.toBeNull();
+      expect(publication).toHaveBeenCalledWith(project.id);
+      expect(snapshot).toHaveBeenCalledTimes(1);
+      expect(container.textContent).not.toContain('Не удалось подготовить изображение');
+    },
+  );
+
+  it('keeps publication closed when the current snapshot was not acknowledged', async () => {
+    const { project, snapshot, publication } = await mountAccountEditor();
+    snapshot.mockResolvedValue({
+      ok: false,
+      status: 500,
+      error: { code: 'request_failed', message: 'Failed' },
+    });
+    await click('Публикация');
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(false);
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(publication).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Не удалось подготовить изображение');
+  });
+
+  it('retains a newer program and refuses publication when an old snapshot acknowledgement arrives', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    const { project, snapshot, publication } = await mountAccountEditor();
+    let acknowledge!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      acknowledge = resolve;
+    });
+    const success = snapshot.getMockImplementation()!;
+    snapshot.mockImplementationOnce(async (...args) => {
+      await waiting;
+      return success(...args);
+    });
+    await click('Публикация');
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    const source = 'void setup(){} void loop(){delay(91);}';
+    const circuit = port.host!.getCurrentDocument()!;
+    act(() =>
+      port.host!.commitDocument({
+        ...circuit,
+        components: circuit.components.map((part) =>
+          part.id === 'uno'
+            ? { ...part, stateProperties: { ...part.stateProperties, arduinoSource: source } }
+            : part,
+        ),
+      }),
+    );
+    await act(async () => acknowledge());
+    expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(false);
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(publication).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Не удалось подготовить изображение');
+    expect(
+      port.host!.getCurrentDocument()!.components.find((part) => part.id === 'uno')!.stateProperties
+        ?.arduinoSource,
+    ).toBe(source);
+  });
+
   it('hosts the same program editor in an account project and flushes it to Project Core without opening standalone storage', async () => {
     act(() => root.unmount());
     root = createRoot(container);

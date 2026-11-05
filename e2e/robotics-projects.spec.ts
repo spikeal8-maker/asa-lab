@@ -1,10 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import type { PublicRoboticsArtifact } from '@asa-lab/contracts';
-import type { Project, ProjectDraft } from '../apps/web/src/api';
-import type { RoboticsProject } from '../apps/web/src/robotics/robotics-project';
-import type { ProjectPublicationStatus, PublicProject } from '../apps/web/src/projects-public/api';
+import type { PublicRoboticsArtifact } from '../packages/contracts/src/public-robotics-artifact';
+import type { Project, ProjectDraft } from '../contexts/projects/domain/project';
+import type { RoboticsProject } from '../contexts/robotics/domain/document';
 import { collectBrowserFailures } from './browser-failures';
 import { accountMenu, openAccountMenu, openPortalSection } from './portal-navigation';
 
@@ -17,6 +16,24 @@ const PRIVATE_SOURCE = 'ROBOTICS_PRIVATE_PROGRAM_MUST_NOT_APPEAR_PUBLICLY';
 const origin = (page: Page): string => new URL(page.url()).origin;
 const digest = (value: unknown): string =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
+
+function record(value: unknown): Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Expected an API response object');
+  return value as Record<string, unknown>;
+}
+
+function responseString(value: unknown): string {
+  if (typeof value !== 'string' || value.length === 0)
+    throw new Error('Expected a nonempty API string');
+  return value;
+}
+
+function responseRevision(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
+    throw new Error('Expected a positive API revision');
+  return value;
+}
 
 async function register(page: Page, label: string) {
   const unique = randomUUID().replaceAll('-', '');
@@ -57,7 +74,10 @@ async function login(page: Page, credentials: { email: string; password: string 
 async function readProject(
   page: Page,
   projectId: string,
-): Promise<{ project: Project; draft: ProjectDraft<RoboticsProject> }> {
+): Promise<{
+  project: Project;
+  draft: Omit<ProjectDraft, 'document'> & { document: RoboticsProject };
+}> {
   const response = await page.request.get(`/api/projects/${projectId}`);
   expect(response.status()).toBe(200);
   return response.json();
@@ -120,11 +140,60 @@ async function cardPreview(page: Page, title: string): Promise<Locator> {
     )
     .toBe(true);
   const frame = await card.locator('.project-card-frame').boundingBox();
+  const imageBox = await image.boundingBox();
+  const cardBox = await card.boundingBox();
   expect(frame).not.toBeNull();
-  expect(
-    Math.abs(frame!.height - (frame!.width * 3) / 4),
-    'a tall field must not stretch its card',
-  ).toBeLessThanOrEqual(1.5);
+  expect(imageBox).not.toBeNull();
+  expect(cardBox).not.toBeNull();
+  expect(frame!.width).toBeGreaterThan(32);
+  expect(frame!.height).toBeGreaterThan(32);
+  expect(frame!.height).toBeLessThan(cardBox!.height);
+  expect(imageBox!.x).toBeGreaterThanOrEqual(frame!.x - 1);
+  expect(imageBox!.y).toBeGreaterThanOrEqual(frame!.y - 1);
+  expect(imageBox!.x + imageBox!.width).toBeLessThanOrEqual(frame!.x + frame!.width + 1);
+  expect(imageBox!.y + imageBox!.height).toBeLessThanOrEqual(frame!.y + frame!.height + 1);
+  expect(await image.evaluate((element) => getComputedStyle(element).objectFit)).toBe('contain');
+  // Home shelves and My Projects deliberately have different card shapes.
+  // Respect their actual CSS ratio; an auto frame is sized by its square card.
+  for (const surface of [card, card.locator('.project-card-frame')]) {
+    const ratio = await surface.evaluate((element) => getComputedStyle(element).aspectRatio);
+    if (ratio === 'auto') continue;
+    const [horizontal, vertical = 1] = ratio.split('/').map(Number);
+    const box = (await surface.boundingBox())!;
+    expect(horizontal).toBeGreaterThan(0);
+    expect(vertical).toBeGreaterThan(0);
+    expect(Math.abs(box.height - (box.width * vertical!) / horizontal!)).toBeLessThanOrEqual(2);
+  }
+  const raster = await image.evaluate(async (element) => {
+    const picture = element as HTMLImageElement;
+    await picture.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = picture.naturalWidth;
+    canvas.height = picture.naturalHeight;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Could not inspect the saved preview');
+    context.drawImage(picture, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let opaque = true;
+    let nonBackgroundPixels = 0;
+    for (let offset = 0; offset < pixels.length; offset += 4) {
+      opaque &&= pixels[offset + 3] === 255;
+      if (
+        Math.abs(pixels[offset]! - pixels[0]!) +
+          Math.abs(pixels[offset + 1]! - pixels[1]!) +
+          Math.abs(pixels[offset + 2]! - pixels[2]!) >
+        24
+      )
+        nonBackgroundPixels += 1;
+    }
+    return { opaque, nonBackgroundPixels, png: canvas.toDataURL('image/png') };
+  });
+  expect(raster.opaque).toBe(true);
+  expect(raster.nonBackgroundPixels).toBeGreaterThan(1000);
+  const png = Buffer.from(raster.png.split(',')[1]!, 'base64');
+  expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+  const location = new URL(page.url()).hash.startsWith('#/projects') ? 'my-projects' : 'home';
+  writeFileSync(`${EVIDENCE}/source-preview-${location}-${page.viewportSize()!.width}.png`, png);
   return card;
 }
 
@@ -281,7 +350,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     await page.screenshot({ path: `${EVIDENCE}/home-${width}.png`, fullPage: true });
   }
   await openPortalSection(page, 'Проекты');
-  await page.getByRole('tab', { name: 'Робототехника', exact: true }).click();
+  await page.getByRole('tab', { name: 'Виртуальная робототехника', exact: true }).click();
   for (const width of WIDTHS) {
     await page.setViewportSize({ width, height: 900 });
     await cardPreview(page, title);
@@ -346,9 +415,18 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     }
     const statusResponse = await restored.request.get(`/api/projects/${projectId}/publication`);
     expect(statusResponse.status()).toBe(200);
-    const publication = ((await statusResponse.json()) as ProjectPublicationStatus).publication!;
+    const publicationRecord = record(record(await statusResponse.json()).publication);
+    const publication = {
+      publicationId: responseString(publicationRecord.publicationId),
+      revisionId: responseString(publicationRecord.revisionId),
+      revisionNo: responseRevision(publicationRecord.revisionNo),
+      state: responseString(publicationRecord.state),
+    };
     expect(publication.state).toBe('public');
-    await publicationDialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+    await publicationDialog
+      .locator('.project-properties-head')
+      .getByRole('button', { name: 'Закрыть', exact: true })
+      .click();
 
     const otherAccount = await browser.newContext({
       baseURL: origin(restored),
@@ -386,7 +464,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
       `/api/public-projects/${publication.publicationId}`,
     );
     expect(publicResponse.status()).toBe(200);
-    const publicMetadata = (await publicResponse.json()).publication as PublicProject;
+    const publicMetadata = record(record(await publicResponse.json()).publication);
     expect(publicMetadata.capabilities).toMatchObject({ canCopy: false, downloadFormats: [] });
     const artifactPath = `/api/public-projects/${publication.publicationId}/artifact?revisionId=${publication.revisionId}`;
     const artifactResponse = await viewer.request.get(artifactPath);

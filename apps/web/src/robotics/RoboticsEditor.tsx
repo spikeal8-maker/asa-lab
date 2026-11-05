@@ -4,7 +4,7 @@ import { AppBootShell } from '../components/AppBootShell';
 import { EditorHeader } from '../components/editor-chrome/EditorHeader';
 import { useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 import { ProjectProperties } from '../components/ProjectProperties';
-import { sendProjectSnapshot } from '../modules/project-snapshot';
+import { isProjectSnapshotConfirmed, sendProjectSnapshot } from '../modules/project-snapshot';
 import { useReportProjectSaveEvidence } from '../modules/project-save-evidence';
 import { RoboticsWorkspace } from './RoboticsLab';
 import { RoboticsProjectPreview } from './robotics-project-preview';
@@ -94,10 +94,15 @@ function OpenedRoboticsEditor({
       // Commit the just-saved source SVG before capturing its revision receipt.
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (!active.current) return;
-      const snapshotSaved = await sendProjectSnapshot(projectId);
+      const sourceRevision = controller.getSavedRevision();
+      await sendProjectSnapshot(projectId);
       if (!active.current) return;
       if (publishing) {
-        if (!snapshotSaved || controller.getSavedRevision() === null) {
+        if (
+          sourceRevision === null ||
+          controller.getSavedRevision() !== sourceRevision ||
+          !isProjectSnapshotConfirmed(projectId, sourceRevision)
+        ) {
           host.setNotice(
             'Не удалось подготовить изображение сохранённого проекта. Повторите публикацию.',
           );
