@@ -513,7 +513,14 @@ def windows_powershell_environment(parent):
     return {key: value for key, value in parent.items() if key.casefold() != "psmodulepath"}
 
 
-def check_windows_module_environment(directory, powershell):
+def module_probe_snapshot(process):
+    # Keep the actual result before evaluating an oracle; never dump the environment.
+    return {"exitCode": process.returncode,
+            "stdout": process.stdout[-16384:], "stderr": process.stderr[-16384:],
+            "stdoutCharacters": len(process.stdout), "stderrCharacters": len(process.stderr)}
+
+
+def check_windows_module_environment(directory, powershell, logs):
     parent = dict(os.environ)
     unavailable = directory / "empty-module-search-path"
     unavailable.mkdir()
@@ -523,7 +530,21 @@ def check_windows_module_environment(directory, powershell):
     probe.write_text(
         'param([Parameter(Mandatory = $true)][string]$Path)\n'
         "$ErrorActionPreference = 'Stop'\n"
+        "[Console]::WriteLine('FRP_PROBE_VERSION=' + $PSVersionTable.PSVersion.ToString())\n"
+        "[Console]::WriteLine('FRP_PROBE_EDITION=' + $PSVersionTable.PSEdition)\n"
+        "[Console]::WriteLine('FRP_PROBE_PSHOME=' + $PSHOME)\n"
+        "[Console]::WriteLine('FRP_PROBE_IS64BIT=' + [Environment]::Is64BitProcess)\n"
+        "[Console]::WriteLine('FRP_PROBE_MODULEPATH=' + $env:PSModulePath)\n"
+        "[Console]::WriteLine('FRP_PROBE_WINPSMODULEPATH=' + $env:WinPSModulePath)\n"
+        "[Console]::WriteLine('FRP_PROBE_AUTOLOAD=' + [string]$PSModuleAutoLoadingPreference)\n"
+        "foreach ($loaded in @(Get-Module -Name Microsoft.PowerShell.Utility)) {\n"
+        "  [Console]::WriteLine('FRP_PROBE_INITIAL_UTILITY=' + $loaded.Path)\n"
+        "}\n"
         "$command = Get-Command -Name 'Get-FileHash' -ErrorAction Stop\n"
+        "[Console]::WriteLine('FRP_PROBE_COMMAND_TYPE=' + $command.CommandType)\n"
+        "[Console]::WriteLine('FRP_PROBE_COMMAND_MODULE=' + $command.ModuleName)\n"
+        "[Console]::WriteLine('FRP_PROBE_COMMAND_MODULE_PATH=' + $command.Module.Path)\n"
+        "[Console]::WriteLine('FRP_PROBE_COMMAND_MODULE_VERSION=' + $command.Module.Version)\n"
         '$hash = (& $command -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()\n'
         '[ordered]@{ version = $PSVersionTable.PSVersion.ToString(); '
         'edition = $PSVersionTable.PSEdition; module = $command.ModuleName; sha256 = $hash } '
@@ -537,15 +558,25 @@ def check_windows_module_environment(directory, powershell):
     inherited["PSMODULEPATH"] = str(unavailable)
     rejected = subprocess.run(command, env=inherited, text=True, encoding="utf-8",
                               errors="replace", stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, timeout=15)
-    require(rejected.returncode != 0 and "Get-FileHash" in rejected.stdout,
-            "Empty module search path did not reproduce the Windows cmdlet-resolution failure")
+                              stderr=subprocess.PIPE, timeout=15)
+    evidence_path = logs / "windows-module-probes.json"
+    evidence = {"schemaVersion": 1, "negativeModulePath": str(unavailable),
+                "expectedSha256": digest(payload), "negative": module_probe_snapshot(rejected),
+                "restored": None}
+    evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
     restored = subprocess.run(command, env=windows_powershell_environment(inherited),
                               text=True, encoding="utf-8", errors="replace",
-                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=15)
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
+    evidence["restored"] = module_probe_snapshot(restored)
+    evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+    # Collect both real child outcomes first, but preserve every existing pass condition.
+    require(rejected.returncode != 0 and "Get-FileHash" in rejected.stdout + rejected.stderr,
+            "Empty module search path did not reproduce the Windows cmdlet-resolution failure; "
+            f"exit={rejected.returncode}; see {evidence_path.name}")
     require(restored.returncode == 0,
-            f"Windows PowerShell default module restoration failed: {restored.stdout[-2000:]}")
-    result = json.loads(restored.stdout)
+            "Windows PowerShell default module restoration failed: "
+            f"{(restored.stdout + restored.stderr)[-2000:]}")
+    result = json.loads(restored.stdout.splitlines()[-1])
     require(result["version"].startswith("5.1.") and result["edition"] == "Desktop",
             "The native staging regression requires actual Windows PowerShell 5.1")
     require(result["module"] == "Microsoft.PowerShell.Utility" and
@@ -558,12 +589,12 @@ def check_windows_module_environment(directory, powershell):
             "parentEnvironmentUnchanged": True}
 
 
-def staging_checks(directory, manifest, binary, revision):
+def staging_checks(directory, manifest, binary, revision, logs):
     if os.name != "nt":
         return {"status": "NOT_RUN", "reason": "Native Windows PowerShell 5.1 is required"}
     powershell = "powershell.exe"
     script = ROOT / "tools/frp-client-stage.ps1"
-    module_environment = check_windows_module_environment(directory, powershell)
+    module_environment = check_windows_module_environment(directory, powershell, logs)
 
     def invoke(destination, expected):
         return subprocess.run(
@@ -604,6 +635,17 @@ def staging_checks(directory, manifest, binary, revision):
 
 
 class IntegrityTests(unittest.TestCase):
+    def test_module_probe_evidence_keeps_exit_and_bounded_both_streams(self):
+        success = subprocess.CompletedProcess(["powershell.exe"], 0, "metadata\n{}\n", "")
+        snapshot = module_probe_snapshot(success)
+        self.assertEqual((snapshot["exitCode"], snapshot["stdout"], snapshot["stderr"]),
+                         (0, success.stdout, ""))
+        failed = subprocess.CompletedProcess(["powershell.exe"], 1, "s" * 17000, "e" * 18000)
+        snapshot = module_probe_snapshot(failed)
+        self.assertEqual(snapshot["exitCode"], 1)
+        self.assertEqual((len(snapshot["stdout"]), len(snapshot["stderr"])), (16384, 16384))
+        self.assertEqual((snapshot["stdoutCharacters"], snapshot["stderrCharacters"]), (17000, 18000))
+
     def test_windows_child_environment_preserves_everything_except_module_search_path(self):
         parent = {"PSMODULEPATH": "pwsh7-upper", "PSModulePath": "pwsh7-mixed",
                   "psmodulepath": "pwsh7-lower", "WinPSModulePath": "preserve-winps-hint",
@@ -709,7 +751,7 @@ def main():
                 report["runs"].append(result)
                 if role == "candidate":
                     candidate_binary = binaries["frpc"]
-            report["staging"] = staging_checks(workspace, manifest, candidate_binary, revision)
+            report["staging"] = staging_checks(workspace, manifest, candidate_binary, revision, logs)
         report["success"] = True
         print("Candidate PASS; baseline defect EXPECTED_DEFECT_REPRODUCED; public compatibility NOT_VERIFIED",
               flush=True)
