@@ -351,8 +351,8 @@ bundle, application identity и исходным Docker daemon. До подго�
 настоящий `/usr/local/bin/asa`; Python manager boundary не подменяется.
 
 Используются неизменённый `cloud_storage.py` из Ops revision
-`80dafa3659e23806963da922c6ddd33ed14fa020`, SHA256
-`72e35bbb3043acefb423cfe706f82b089eaba974deb04f16df8f335093c59d0c`, и образ
+`f11426d7040f44c024aa12c4962876986aa0e3ca`, SHA256
+`c6e30c3d1fa8aaa57e14c89b22c5677af5f5c5e132881925f2197949d7797d08`, и образ
 `rclone/rclone@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5`.
 Для Linux amd64 закреплён image ID
 `sha256:7ab08c1ee84502fb76ec95b3dc759aa46a9074cce2967d540e0ab50d8c844af4`

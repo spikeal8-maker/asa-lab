@@ -287,8 +287,8 @@ class PinnedComponentTests(unittest.TestCase):
             "playwright": acceptance.PLAYWRIGHT_VERSION})
 
     def test_reviewed_browser_source_and_runtime_pins_are_exact(self):
-        self.assertEqual(acceptance.OPS_REVISION, "a5ceab84d8fe2cd24cc8b41a2d38df80820e6d5f")
-        self.assertEqual(acceptance.BROWSER_SHA256, "ac769c701bb4760b2750b55da4ee8ba99700b25dde70d6076c201b1890d3292b")
+        self.assertEqual(acceptance.OPS_REVISION, "f11426d7040f44c024aa12c4962876986aa0e3ca")
+        self.assertEqual(acceptance.BROWSER_SHA256, "c445903be3327a64b869117171960cd531fa82426fcd5702da7bebfdcd7c6fab")
         self.assertEqual(acceptance.FIXTURE_SHA256, "64de2bc8478d5aaa60f60fa1b0035448d8c467cf0ffcc92a0aa0be22d3b4786f")
         self.assertEqual(acceptance.PLAYWRIGHT_VERSION, "1.56.0")
 
