@@ -32,6 +32,7 @@ const port = vi.hoisted(() => ({
   options: null as {
     runtimeInputEventLimit?: number;
     reportSimulationDiagnostics?: boolean;
+    keyboardShortcutsEnabled?: boolean;
   } | null,
   toggle: vi.fn<() => Promise<void>>(),
   reset: vi.fn<() => void>(),
@@ -67,6 +68,9 @@ vi.mock('../../electronics/use-electronics-workbench', () => ({
       fitScene: port.fit,
       selection: null,
       removeSelection: port.remove,
+      cancelFamilyPlacement: vi.fn(),
+      setLibraryOpen: vi.fn(),
+      libraryOpen: true,
     };
   },
 }));
@@ -85,6 +89,11 @@ vi.mock('../../electronics/WorkbenchStage', () => ({
       `${controller.document.components.length} canonical components`,
     );
   },
+}));
+
+vi.mock('../../electronics/WorkbenchSidebars', () => ({
+  WorkbenchSidebars: () =>
+    createElement('aside', { 'data-testid': 'canonical-library' }, 'Общий каталог'),
 }));
 
 vi.mock('../../electronics/ArduinoCodePanel', () => ({
@@ -240,7 +249,31 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(port.options).toEqual({
       runtimeInputEventLimit: 1000,
       reportSimulationDiagnostics: false,
+      keyboardShortcutsEnabled: false,
     });
+  });
+
+  it('changes the active page, gates scheme keyboard commands and keeps the same observation stage', async () => {
+    const stage = metric('canonical-stage');
+    for (const [name, id] of [
+      ['Электроника', 'electronics'],
+      ['Программа', 'program'],
+      ['Робот', 'robot'],
+      ['Поле', 'field'],
+    ]) {
+      const tab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
+        (item) => item.textContent === name,
+      )!;
+      await act(async () => tab.click());
+      expect(container.querySelector(`#robotics-panel-${id}`)?.hasAttribute('hidden')).toBe(false);
+      expect(container.querySelectorAll('[role="tabpanel"]:not([hidden])')).toHaveLength(1);
+      expect(document.activeElement).toBe(tab);
+      expect(port.options?.keyboardShortcutsEnabled).toBe(id === 'electronics');
+      expect(metric('canonical-stage')).toBe(stage);
+      expect(stage.closest('[hidden]')).toBeNull();
+    }
+    expect(port.stageMounts).toBe(1);
+    expect(port.stageUnmounts).toBe(0);
   });
 
   it('pauses and resumes the existing run, while serial buttons never move the robot directly', async () => {
@@ -266,6 +299,34 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(port.reset).toHaveBeenCalledOnce();
     expect(port.host?.simulationRunning).toBe(false);
     expect(metric('robotics-time').dataset.microseconds).toBe('0');
+  });
+
+  it('applies the new-run pace after the host starts and preserves pause across navigation', async () => {
+    const commands: { rate: number; running: boolean }[] = [];
+    port.setRate.mockImplementation((rate) => {
+      commands.push({ rate, running: port.host?.simulationRunning ?? false });
+      port.pacing!.request(rate);
+      if (rate === 0) port.pacing!.settlePause();
+    });
+    await click('Запустить');
+    expect(commands.at(-1)).toEqual({ rate: 1, running: true });
+    act(() => port.presentation!.setObservation(electricalObservation(100_000)));
+    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(0.25);
+    await click('Пауза');
+    const pausedCommandCount = commands.length;
+    act(() => container.querySelector<HTMLButtonElement>('#robotics-tab-robot')!.click());
+    act(() => container.querySelector<HTMLButtonElement>('#robotics-tab-field')!.click());
+    expect(commands).toHaveLength(pausedCommandCount);
+    expect(port.pacing!.read().phase).toBe('paused');
+    await click('Остановить');
+    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('0.25');
+    expect(metric('robotics-time').dataset.microseconds).toBe('0');
+    await click('Запустить');
+    expect(commands.at(-1)).toEqual({ rate: 1, running: true });
+    await click('Пауза');
+    await click('Сбросить');
+    await click('Запустить');
+    expect(commands.at(-1)).toEqual({ rate: 1, running: true });
   });
 
   it('moves only on a committed observation and sends distance without changing the saved source', async () => {

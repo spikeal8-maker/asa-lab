@@ -198,6 +198,31 @@ describe('Robotics project built from the real Electronics catalogue', () => {
     expect(running.ok && running.project.circuit.simulation.running).toBe(false);
   });
 
+  it('migrates only M0 omissions and retains the exact legacy source and circuit', () => {
+    const original = createDefaultRoboticsProject();
+    const legacy = JSON.parse(JSON.stringify(original));
+    legacy.schemaVersion = 1;
+    delete legacy.world.physicsProfile;
+    delete legacy.world.field.balls;
+    delete legacy.world.field.floorMarks;
+    legacy.circuit.components[0].stateProperties.arduinoSource =
+      '// own source\nvoid setup(){} void loop(){delay(42);}';
+    const parsed = parseRoboticsProject(legacy);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) throw new Error(parsed.message);
+    expect(parsed.project.schemaVersion).toBe(2);
+    expect(parsed.project.circuit).toEqual(legacy.circuit);
+    expect(parsed.project.world.field.balls).toEqual([]);
+    expect(parsed.project.world.field.floorMarks).toEqual([]);
+    expect(parsed.project.world.physicsProfile).toBe('kinematic-rover-discs-v1');
+    expect(parseRoboticsProject({ ...legacy, schemaVersion: 2 })).toMatchObject({ ok: false });
+    for (const key of ['balls', 'floorMarks']) {
+      const damaged = JSON.parse(JSON.stringify(original));
+      delete damaged.world.field[key];
+      expect(parseRoboticsProject(damaged)).toMatchObject({ ok: false });
+    }
+  });
+
   it('updates only the initial environment during an explicit stopped field change', () => {
     const original = createDefaultRoboticsProject();
     const originalJson = JSON.stringify(original);
@@ -238,7 +263,7 @@ describe('Robotics project built from the real Electronics catalogue', () => {
       },
     };
     expect(validateRoboticsBindings(wrongMotor)).toContain('неподдерживаемый тип');
-    expect(parseRoboticsProject({ ...original, schemaVersion: 2 }).ok).toBe(false);
+    expect(parseRoboticsProject({ ...original, schemaVersion: 999 }).ok).toBe(false);
     expect(
       parseRoboticsProject({ ...original, circuit: { ...original.circuit, schemaVersion: 999 } })
         .ok,

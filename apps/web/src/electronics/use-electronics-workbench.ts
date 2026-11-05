@@ -317,6 +317,8 @@ export interface ElectronicsWorkbenchHostOptions {
   readonly runtimeInputEventLimit?: number;
   /** A local host has no diagnostics backend; ordinary editors keep reporting. */
   readonly reportSimulationDiagnostics?: boolean;
+  /** Embedded editors may scope keyboard commands to their active editing page. */
+  readonly keyboardShortcutsEnabled?: boolean;
 }
 
 export function useElectronicsWorkbench(projectId: string, userId: string, seatLearner = false) {
@@ -332,6 +334,7 @@ export function useElectronicsWorkbenchHost(
 ) {
   const runtimeInputEventLimit = options.runtimeInputEventLimit;
   const reportSimulationDiagnostics = options.reportSimulationDiagnostics !== false;
+  const keyboardShortcutsEnabled = options.keyboardShortcutsEnabled !== false;
   const {
     project,
     document,
@@ -3510,7 +3513,15 @@ export function useElectronicsWorkbenchHost(
     },
   };
 
-  useEffect(() => bindWorkbenchShortcuts(shortcutActionsRef, spacePressedRef), []);
+  useEffect(() => {
+    spacePressedRef.current = false;
+    if (!keyboardShortcutsEnabled) return;
+    const unbind = bindWorkbenchShortcuts(shortcutActionsRef, spacePressedRef);
+    return () => {
+      unbind();
+      spacePressedRef.current = false;
+    };
+  }, [keyboardShortcutsEnabled]);
 
   const filteredCatalog = useMemo(() => {
     const query = libraryQuery.trim().toLocaleLowerCase('ru');

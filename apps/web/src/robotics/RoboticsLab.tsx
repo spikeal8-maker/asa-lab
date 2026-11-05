@@ -8,7 +8,9 @@ import {
   useSyncExternalStore,
   type CSSProperties,
 } from 'react';
-import { ArduinoCodePanel } from '../electronics/ArduinoCodePanel';
+import { ArduinoCodePanel, type ArduinoCodePanelHandle } from '../electronics/ArduinoCodePanel';
+import { WorkbenchSidebars } from '../electronics/WorkbenchSidebars';
+import { readArduinoProgramState } from '../electronics/arduino-program-state';
 import { NativeOpticalProvider } from '../electronics/NativeOpticalComponentVisual';
 import { WorkbenchStage } from '../electronics/WorkbenchStage';
 import { useCommittedObservation } from '../electronics/committed-result-presentation';
@@ -20,16 +22,21 @@ import {
 } from './robotics-project';
 import {
   advanceRoboticsWorld,
-  createRoboticsWorldDocument,
   createRoboticsWorldState,
   measureRoboticsDistance,
-  ROBOTICS_FIELD_PRESETS,
   ROBOTICS_RUN_LIMIT_MICROSECONDS,
   ROBOTICS_SENSOR_INTERVAL_MICROSECONDS,
-  type RoboticsFieldPresetId,
 } from './world';
 import { useLocalRoboticsProject } from './use-local-robotics-project';
 import { RobotField } from './RobotField';
+import { RobotFieldEditor } from './RobotFieldEditor';
+import { RobotAssemblyPanel } from './RobotAssemblyPanel';
+import {
+  createRoboticsProgramPreset,
+  DEFAULT_ROBOTICS_PROGRAM_PRESET_ID,
+  ROBOTICS_PROGRAM_PRESETS,
+  type RoboticsProgramPresetId,
+} from './robotics-program-presets';
 
 const WORKBENCH_OPTIONS = {
   runtimeInputEventLimit: 1000,
@@ -37,7 +44,21 @@ const WORKBENCH_OPTIONS = {
 } as const;
 const number = (value: number, digits = 1) =>
   value.toLocaleString('ru-RU', { maximumFractionDigits: digits, minimumFractionDigits: digits });
-const FUTURE_MODULES = ['Драйвер с реверсом', 'Датчик цвета', 'Датчик линии', 'Энкодер'];
+const SECTIONS = [
+  { id: 'field', label: 'Поле' },
+  { id: 'robot', label: 'Робот' },
+  { id: 'electronics', label: 'Электроника' },
+  { id: 'program', label: 'Программа' },
+] as const;
+type Section = (typeof SECTIONS)[number]['id'];
+
+function programIdentity(project: RoboticsProject): string {
+  return JSON.stringify(
+    project.circuit.components
+      .filter((component) => component.componentTypeId === 'arduino-uno')
+      .map((component) => [component.id, readArduinoProgramState(component.stateProperties)]),
+  );
+}
 
 function SmallIcon({ name }: { name: 'play' | 'pause' | 'reset' | 'code' | 'save' | 'stop' }) {
   return (
@@ -78,13 +99,18 @@ function SmallIcon({ name }: { name: 'play' | 'pause' | 'reset' | 'code' | 'save
 }
 
 export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProject }) {
-  const [seed] = useState(() => initialProject ?? createDefaultRoboticsProject());
-  const local = useLocalRoboticsProject(seed);
-  const controller = useElectronicsWorkbenchHost(
-    'asa-robotics-local-v1',
-    local.host,
-    WORKBENCH_OPTIONS,
+  const [seed] = useState(
+    () =>
+      initialProject ??
+      createDefaultRoboticsProject(createRoboticsProgramPreset(DEFAULT_ROBOTICS_PROGRAM_PRESET_ID)),
   );
+  const [section, setSection] = useState<Section>('field');
+  const [compactLayout, setCompactLayout] = useState(() => window.innerWidth <= 760);
+  const local = useLocalRoboticsProject(seed);
+  const controller = useElectronicsWorkbenchHost('asa-robotics-local-v1', local.host, {
+    ...WORKBENCH_OPTIONS,
+    keyboardShortcutsEnabled: section === 'electronics',
+  });
   const controllerRef = useRef(controller);
   controllerRef.current = controller;
   const observation = useCommittedObservation(controller.nativeOpticalPresentation);
@@ -102,15 +128,21 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
   const haltedRef = useRef<string | null>(null);
   const [lastCommand, setLastCommand] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(true);
-  const [codeOpen, setCodeOpen] = useState(false);
+  const codeOpen = section === 'program';
   const [codeMounted, setCodeMounted] = useState(false);
   const [codeWidth, setCodeWidth] = useState(() =>
     Math.max(320, Math.min(1456, window.innerWidth - 74)),
   );
   const [codeHeight, setCodeHeight] = useState(70);
-  const codeSectionRef = useRef<HTMLElement | null>(null);
+  const programHandle = useRef<ArduinoCodePanelHandle | null>(null);
+  const [programRevision, setProgramRevision] = useState(0);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [programPreset, setProgramPreset] = useState<RoboticsProgramPresetId | ''>('');
+  const stageHostRef = useRef<HTMLDivElement | null>(null);
+  const tabRefs = useRef<Partial<Record<Section, HTMLButtonElement | null>>>({});
   const codeHostRef = useRef<HTMLDivElement | null>(null);
-  const codeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const measuredProgramWidth = useRef<number | null>(null);
+  const previousPaletteOpen = useRef(paletteOpen);
   const previousRun = useRef(false);
   const previousWorld = useRef(sourceWorld);
 
@@ -128,7 +160,8 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
   useLayoutEffect(() => {
     if (
       (controller.simulationRunning && !previousRun.current) ||
-      (!controller.simulationRunning && previousWorld.current !== sourceWorld)
+      (!controller.simulationRunning &&
+        (previousRun.current || previousWorld.current !== sourceWorld))
     )
       resetWorld();
     previousRun.current = controller.simulationRunning;
@@ -136,11 +169,27 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
   }, [controller.simulationRunning, sourceWorld, resetWorld]);
 
   useEffect(() => {
+    // Establish the requested pace after the shared passive run lifecycle has
+    // installed its command receiver. A previous paused presenter keeps rate 0
+    // through Reset; setting 1 before that receiver exists cannot resume it.
+    if (controller.simulationRunning) controllerRef.current.setSimulationRate(1);
+  }, [controller.simulationRunning]);
+
+  useEffect(() => {
+    const resized = () => setCompactLayout(window.innerWidth <= 760);
+    window.addEventListener('resize', resized);
+    return () => window.removeEventListener('resize', resized);
+  }, []);
+  useEffect(() => {
+    if (compactLayout) controllerRef.current.setLibraryOpen(false);
+  }, [compactLayout]);
+
+  useEffect(() => {
     // Presentation-only fitting. Physical component dimensions and world time
     // stay unchanged, and the shared stage remains mounted throughout.
     const frame = window.requestAnimationFrame(() => controllerRef.current.fitScene());
     return () => window.cancelAnimationFrame(frame);
-  }, [local.openRevision]);
+  }, [local.openRevision, section, compactLayout]);
 
   const halt = useCallback((message: string) => {
     if (haltedRef.current) return;
@@ -204,7 +253,7 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
       time - lastSensorAt.current < ROBOTICS_SENSOR_INTERVAL_MICROSECONDS
     )
       return;
-    const measured = measureRoboticsDistance(sourceWorld, next.pose);
+    const measured = measureRoboticsDistance(sourceWorld, next.pose, next.balls);
     if (measured.status !== 'ok') {
       halt(measured.message);
       return;
@@ -237,8 +286,8 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
   }, [budget?.exhausted, controller.simulationRunning, controller.simulationStatus, halt]);
 
   const distance = useMemo(
-    () => measureRoboticsDistance(sourceWorld, worldState.pose),
-    [sourceWorld, worldState.pose],
+    () => measureRoboticsDistance(sourceWorld, worldState.pose, worldState.balls),
+    [sourceWorld, worldState.pose, worldState.balls],
   );
   const bindingError = validateRoboticsBindings(local.robotProject);
   const running = controller.simulationRunning;
@@ -261,15 +310,15 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
       ),
     ),
   ];
-  const preset = ROBOTICS_FIELD_PRESETS.find(
-    (item) =>
-      item.widthMeters === sourceWorld.field.widthMeters &&
-      item.heightMeters === sourceWorld.field.heightMeters,
-  );
-  const obstacle = sourceWorld.field.obstacles[0];
-
   function primaryAction() {
     if (!running) {
+      flushProgram();
+      controller.cancelFamilyPlacement();
+      const error = validateRoboticsBindings(local.getCurrentProject());
+      if (error) {
+        controller.setNotice(error);
+        return;
+      }
       controller.setSimulationRate(1);
       void controller.toggleSimulation();
     } else if (paused) controller.setSimulationRate(pace.lastNonZero);
@@ -284,45 +333,92 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
     controller.sendArduinoSerialRx(sourceWorld.bindings.boardId, command);
     setLastCommand(label);
   }
-  function changePreset(value: string) {
-    const selected = ROBOTICS_FIELD_PRESETS.find((item) => item.id === value);
-    if (!selected) return;
-    const next = createRoboticsWorldDocument(selected.id as RoboticsFieldPresetId);
-    local.setWorld({ ...sourceWorld, field: next.field, initialPose: next.initialPose });
+  function flushProgram() {
+    programHandle.current?.flushPendingPublication();
   }
-  function changeObstacle(xMeters: number) {
-    if (!obstacle || !Number.isFinite(xMeters)) return;
-    local.setWorld({
-      ...sourceWorld,
-      field: {
-        ...sourceWorld.field,
-        obstacles: sourceWorld.field.obstacles.map((item) =>
-          item.id === obstacle.id ? { ...item, xMeters } : item,
-        ),
-      },
-    });
+  function saveProject() {
+    flushProgram();
+    void controller.saveNow();
   }
   function openSaved() {
+    flushProgram();
     if (
-      controller.saveStatus !== 'saved' &&
+      local.hasUnsavedChanges() &&
       !window.confirm('Открыть сохранённый проект? Несохранённые изменения будут заменены.')
     )
       return;
-    local.openSavedProject();
+    if (local.openSavedProject()) setProgramPreset('');
   }
-  function openCode() {
+  function navigate(next: Section) {
+    flushProgram();
+    controller.cancelFamilyPlacement();
+    if (compactLayout && next === 'electronics' && section !== 'electronics')
+      controller.setLibraryOpen(false);
+    if (next === 'program') setCodeMounted(true);
+    setSection(next);
+    tabRefs.current[next]?.focus();
+  }
+  function chooseProgram(id: RoboticsProgramPresetId) {
+    if (running) return;
+    flushProgram();
+    const metadata = ROBOTICS_PROGRAM_PRESETS.find((candidate) => candidate.id === id);
+    if (
+      !metadata ||
+      !window.confirm(
+        `Заменить текущую программу примером «${metadata.label}»? Схема и поле сохранятся. Изменение можно отменить.`,
+      )
+    )
+      return;
+    const current = local.getCurrentProject();
+    const board = current.circuit.components.find(
+      (part) => part.id === current.world.bindings.boardId,
+    );
+    if (board?.componentTypeId !== 'arduino-uno') {
+      controller.setNotice('Выберите существующую Arduino Uno в разделе «Робот».');
+      return;
+    }
+    const program = createRoboticsProgramPreset(id);
+    controller.updateArduinoProgram(board.id, {
+      arduinoCodeMode: program.mode,
+      arduinoWorkspace: program.workspaceJson,
+      arduinoSource: program.source,
+      arduinoInputPins: program.inputPins,
+    });
+    setProgramPreset(id);
+    // A deliberate source replacement gets a fresh workspace; navigation does not.
+    setProgramRevision((value) => value + 1);
     setCodeMounted(true);
-    setCodeOpen((value) => !value);
   }
-  useEffect(() => {
-    if (!codeOpen) return;
-    codeSectionRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-  }, [codeOpen]);
+  function moveHistory(direction: 'undo' | 'redo') {
+    flushProgram();
+    const previous = programIdentity(local.getCurrentProject());
+    controller[direction]();
+    if (programIdentity(local.getCurrentProject()) !== previous) {
+      setProgramPreset('');
+      setProgramRevision((value) => value + 1);
+    }
+  }
+  useLayoutEffect(() => {
+    if (stageHostRef.current) stageHostRef.current.inert = section !== 'electronics';
+    // The catalog starts structural placement; runtime controls in the shared
+    // inspector remain available. Keep the real Stage and native leaves visible.
+    const library = stageHostRef.current?.querySelector<HTMLElement>('.workbench-library');
+    if (library) library.inert = running;
+  }, [section, running, controller.libraryOpen]);
   useLayoutEffect(() => {
     if (!codeOpen || !codeHostRef.current) return;
     const host = codeHostRef.current;
+    let frame: number | null = null;
     const measure = () => {
-      if (host.clientWidth > 0) setCodeWidth(host.clientWidth);
+      if (host.clientWidth <= 0) return;
+      const previous = measuredProgramWidth.current;
+      const width = host.clientWidth;
+      measuredProgramWidth.current = width;
+      setCodeWidth(width);
+      if ((previous !== null && previous !== width) || (previous === null && width <= 760)) {
+        if (frame !== null) window.cancelAnimationFrame(frame);
+        frame = window.requestAnimationFrame(() => programHandle.current?.revealProgramStart());
+      }
     };
     measure();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
@@ -331,13 +427,28 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
     return () => {
       observer?.disconnect();
       window.removeEventListener('resize', measure);
+      if (frame !== null) window.cancelAnimationFrame(frame);
     };
   }, [codeOpen]);
+  useLayoutEffect(() => {
+    const wasOpen = previousPaletteOpen.current;
+    previousPaletteOpen.current = paletteOpen;
+    if (!codeOpen || paletteOpen || !wasOpen) return;
+    const frame = window.requestAnimationFrame(() => programHandle.current?.revealProgramStart());
+    return () => window.cancelAnimationFrame(frame);
+  }, [codeOpen, paletteOpen]);
+
+  const board = local.robotProject.circuit.components.find(
+    (part) => part.id === sourceWorld.bindings.boardId,
+  );
+  const programState = readArduinoProgramState(board?.stateProperties);
+  const canCommand = running && !starting && pace.phase === 'running' && !haltReason;
 
   return (
     <main
       className="robotics-lab"
       data-testid="robotics-lab"
+      data-section={section}
       data-input-admitted={budget?.admitted ?? 0}
       data-input-accepted={budget?.accepted ?? 0}
       data-input-pending={budget?.pending ?? 0}
@@ -349,12 +460,9 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
           <span className="robotics-brand-mark" aria-hidden="true">
             A<span>·</span>
           </span>
-          <div>
-            <span className="robotics-eyebrow">ASA LAB</span>
-            <h1>
-              Робототехника <span className="robotics-mode-badge">2D</span>
-            </h1>
-          </div>
+          <h1>
+            Робототехника <span className="robotics-mode-badge">2D</span>
+          </h1>
         </div>
         <div className="robotics-save-area">
           <span className={`robotics-save-status ${controller.saveStatus}`} role="status">
@@ -362,29 +470,56 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
               ? 'Сохранено на устройстве'
               : controller.saveStatus === 'error'
                 ? 'Не удалось сохранить'
-                : 'Есть несохранённые изменения'}
+                : 'Есть изменения'}
           </span>
-          <div className="robotics-save-buttons">
-            <button
-              type="button"
-              className="robotics-button"
-              onClick={() => void controller.saveNow()}
-            >
-              <SmallIcon name="save" />
-              Сохранить
-            </button>
-            <button
-              type="button"
-              className="robotics-button subtle"
-              disabled={running || !local.hasSavedProject}
-              onClick={openSaved}
-            >
-              Открыть сохранённое
-            </button>
-          </div>
+          <button type="button" className="robotics-button" onClick={saveProject}>
+            <SmallIcon name="save" />
+            Сохранить
+          </button>
+          <button
+            type="button"
+            className="robotics-button subtle"
+            disabled={running || !local.hasSavedProject}
+            onClick={openSaved}
+          >
+            Открыть
+          </button>
         </div>
       </header>
-
+      <nav className="robotics-tabs" role="tablist" aria-label="Разделы робототехники">
+        {SECTIONS.map((item, index) => (
+          <button
+            type="button"
+            key={item.id}
+            id={`robotics-tab-${item.id}`}
+            role="tab"
+            aria-selected={section === item.id}
+            aria-controls={`robotics-panel-${item.id}`}
+            tabIndex={section === item.id ? 0 : -1}
+            ref={(element) => {
+              tabRefs.current[item.id] = element;
+            }}
+            onClick={() => navigate(item.id)}
+            onKeyDown={(event) => {
+              const offset = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+              const next =
+                event.key === 'Home'
+                  ? SECTIONS[0]
+                  : event.key === 'End'
+                    ? SECTIONS[SECTIONS.length - 1]
+                    : offset
+                      ? SECTIONS[(index + offset + SECTIONS.length) % SECTIONS.length]
+                      : null;
+              if (next) {
+                event.preventDefault();
+                navigate(next.id);
+              }
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
       <section className="robotics-run-bar" aria-label="Управление моделированием">
         <div className="robotics-run-buttons">
           <button
@@ -412,22 +547,30 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
             Сбросить
           </button>
         </div>
-        <div className={`robotics-run-state${running && !paused && !haltReason ? ' active' : ''}`}>
-          <span className="robotics-state-dot" aria-hidden="true" />
-          {haltReason
-            ? 'Остановлено — требуется сброс'
-            : starting
-              ? 'Запускаем схему'
-              : paused
-                ? 'На паузе'
-                : pausing
-                  ? 'Завершаем шаг'
-                  : running
-                    ? 'Программа выполняется'
-                    : 'Готов к запуску'}
+        <div className="robotics-run-readout">
+          <span className={`robotics-state-dot${running && !paused ? ' active' : ''}`} />
+          <span>
+            {haltReason
+              ? 'Нужен сброс'
+              : starting
+                ? 'Запуск…'
+                : paused
+                  ? 'На паузе'
+                  : pausing
+                    ? 'Завершаем шаг'
+                    : running
+                      ? 'Выполняется'
+                      : 'Готов к запуску'}
+          </span>
+          <output
+            data-testid="robotics-time"
+            data-microseconds={worldState.atMicroseconds}
+            aria-label="Время"
+          >
+            {number(worldState.atMicroseconds / 1_000_000)} с
+          </output>
         </div>
       </section>
-
       <div
         className="robotics-notice"
         data-testid="robotics-notice"
@@ -439,324 +582,281 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
           <p key={message}>{message}</p>
         ))}
       </div>
-
-      <div className="robotics-dashboard">
+      <div className="robotics-workspace">
         <section
-          className="robotics-card robotics-field-card"
-          aria-labelledby="robotics-field-heading"
+          className="robotics-panel robotics-field-panel"
+          role="tabpanel"
+          id="robotics-panel-field"
+          aria-labelledby="robotics-tab-field"
+          hidden={section !== 'field'}
         >
-          <div className="robotics-card-heading">
-            <div>
-              <h2 id="robotics-field-heading">Поле</h2>
-              <p>Робот, препятствие и путь</p>
-            </div>
-            <label className="robotics-grid-toggle">
-              <input
-                type="checkbox"
-                checked={showGrid}
-                onChange={(event) => setShowGrid(event.target.checked)}
-              />
-              Сетка
-            </label>
-          </div>
-          <div className="robotics-field-controls">
-            <label htmlFor="robotics-field-preset">Размер поля</label>
-            <select
-              id="robotics-field-preset"
-              value={preset?.id ?? ''}
-              disabled={running}
-              onChange={(event) => changePreset(event.target.value)}
-            >
-              {!preset ? <option value="">Свой размер</option> : null}
-              {ROBOTICS_FIELD_PRESETS.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="robotics-field-canvas">
-            <RobotField
-              world={sourceWorld}
-              state={worldState}
-              distance={distance}
-              showGrid={showGrid}
-            />
-          </div>
-          <div className="robotics-field-legend">
-            <span>
-              <i className="robotics-legend-ray" />
-              Луч HC-SR04
-            </span>
-            <span>
-              <i className="robotics-legend-trail" />
-              След робота
-            </span>
-            <span>Клетка {Math.round(sourceWorld.field.gridMeters * 100)} см</span>
-          </div>
-          {obstacle ? (
-            <label className="robotics-obstacle-control">
-              <span>
-                Положение препятствия <output>{number(obstacle.xMeters * 100, 0)} см</output>
-              </span>
-              <input
-                type="range"
-                aria-label="Положение препятствия"
-                min={0.5}
-                max={sourceWorld.field.widthMeters - obstacle.widthMeters - 0.04}
-                step={0.01}
-                value={obstacle.xMeters}
-                disabled={running}
-                onChange={(event) => changeObstacle(Number(event.target.value))}
-              />
-            </label>
-          ) : null}
+          <RobotFieldEditor
+            world={sourceWorld}
+            state={worldState}
+            distance={distance}
+            running={running}
+            showGrid={showGrid}
+            onShowGridChange={setShowGrid}
+            onCommit={local.setWorld}
+          />
         </section>
-
-        <aside className="robotics-console" aria-label="Показания и конфигурация робота">
-          <section className="robotics-card robotics-telemetry">
-            <div className="robotics-card-heading">
-              <h2>Показания</h2>
-              <span className="robotics-small-badge">HC-SR04</span>
-            </div>
-            <dl className="robotics-metrics">
-              <div className="robotics-metric distance">
-                <dt>До препятствия</dt>
-                <dd
-                  data-testid="robotics-distance"
-                  data-distance-meters={distance.status === 'ok' ? distance.distanceMeters : ''}
-                >
-                  {distance.status === 'ok' ? (
-                    <>
-                      {number(distance.distanceMeters * 100)} <small>см</small>
-                    </>
-                  ) : (
-                    'Вне диапазона'
-                  )}
-                </dd>
-              </div>
-              <div className="robotics-metric">
-                <dt>Модельное время</dt>
-                <dd data-testid="robotics-time" data-microseconds={worldState.atMicroseconds}>
-                  {number(worldState.atMicroseconds / 1_000_000)} <small>с</small>
-                </dd>
-              </div>
-              <div className="robotics-metric">
-                <dt>Левый мотор</dt>
-                <dd data-testid="robotics-left-rpm" data-rpm={worldState.leftRpm}>
-                  {number(worldState.leftRpm, 0)} <small>об/мин</small>
-                </dd>
-              </div>
-              <div className="robotics-metric">
-                <dt>Правый мотор</dt>
-                <dd data-testid="robotics-right-rpm" data-rpm={worldState.rightRpm}>
-                  {number(worldState.rightRpm, 0)} <small>об/мин</small>
-                </dd>
-              </div>
-            </dl>
-          </section>
-          <section className="robotics-card robotics-drive">
-            <div className="robotics-card-heading">
-              <div>
-                <h2>Команды</h2>
-                <p>В программу через Serial</p>
-              </div>
-            </div>
-            <div className="robotics-drive-pad">
-              <button
-                type="button"
-                className="forward"
-                disabled={!running || starting || pace.phase !== 'running' || Boolean(haltReason)}
-                onClick={() => sendCommand('F', 'Вперёд')}
-              >
-                <span aria-hidden="true">↑</span>Вперёд
-              </button>
-              <button
-                type="button"
-                disabled={!running || starting || pace.phase !== 'running' || Boolean(haltReason)}
-                onClick={() => sendCommand('L', 'Влево')}
-              >
-                <span aria-hidden="true">↶</span>Влево
-              </button>
-              <button
-                type="button"
-                className="motor-stop"
-                disabled={!running || starting || pace.phase !== 'running' || Boolean(haltReason)}
-                onClick={() => sendCommand('S', 'Отключить приводы')}
-              >
-                <span aria-hidden="true">■</span>Выбег
-              </button>
-              <button
-                type="button"
-                disabled={!running || starting || pace.phase !== 'running' || Boolean(haltReason)}
-                onClick={() => sendCommand('R', 'Вправо')}
-              >
-                <span aria-hidden="true">↷</span>Вправо
-              </button>
-            </div>
-            <p className="robotics-command-status">
-              {paused || pausing
-                ? 'Продолжите программу, чтобы отправить команду.'
-                : lastCommand
-                  ? `Отправлено: ${lastCommand}`
-                  : running
-                    ? 'Программа управляет приводами.'
-                    : 'Сначала запустите программу.'}
-            </p>
-            <p className="robotics-help">
-              Скетч реагирует на расстояние. После отключения питания колёса продолжают свободный
-              выбег.
-            </p>
-          </section>
-          <details className="robotics-card robotics-configuration">
-            <summary>Сборка · двухколёсная тележка</summary>
-            <dl>
-              <div>
-                <dt>Плата</dt>
-                <dd>Arduino Uno</dd>
-              </div>
-              <div>
-                <dt>Колёса</dt>
-                <dd>Ø {number(sourceWorld.robot.wheelRadiusMeters * 2000, 0)} мм</dd>
-              </div>
-              <div>
-                <dt>Колея</dt>
-                <dd>{number(sourceWorld.robot.wheelTrackMeters * 1000, 0)} мм</dd>
-              </div>
-              <div>
-                <dt>Привод</dt>
-                <dd>Два FET-ключа · вперёд и поворот</dd>
-              </div>
-            </dl>
-            <p className="robotics-help">
-              Первый учебный пресет. Контакт останавливает демонстрацию; нагрузка от столкновения на
-              мотор пока не рассчитывается.
-            </p>
-            <h3>Arduino · будущие модули</h3>
-            <ul className="robotics-future-modules">
-              {FUTURE_MODULES.map((label) => (
-                <li key={label}>
-                  <span className="robotics-module-placeholder" aria-hidden="true" />
-                  <span>
-                    <strong>{label}</strong>
-                    <small>Модель ещё не подключена</small>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </details>
-        </aside>
-      </div>
-
-      <section
-        className="robotics-card robotics-electronics"
-        aria-labelledby="robotics-electronics-heading"
-      >
-        <div className="robotics-card-heading robotics-schematic-heading">
-          <div>
-            <h2 id="robotics-electronics-heading">Электроника робота</h2>
-            <p>Настоящая схема и редактор ASA Lab</p>
-          </div>
-          <div className="robotics-schematic-actions">
-            <button type="button" className="robotics-button" onClick={controller.fitScene}>
-              Вписать схему
-            </button>
-            <button
-              ref={codeButtonRef}
-              type="button"
-              className={`robotics-button${codeOpen ? ' selected' : ''}`}
-              aria-expanded={codeOpen}
-              aria-controls="robotics-program"
-              onClick={openCode}
-            >
-              <SmallIcon name="code" />
-              Программа
-            </button>
-          </div>
-        </div>
-        <div className="robotics-edit-actions" aria-label="Редактирование схемы">
-          <button type="button" disabled={running || !controller.canUndo} onClick={controller.undo}>
-            Отменить
-          </button>
-          <button type="button" disabled={running || !controller.canRedo} onClick={controller.redo}>
-            Повторить
-          </button>
-          <button
-            type="button"
-            disabled={running || !controller.selection}
-            onClick={controller.removeSelection}
-          >
-            Удалить выбранное
-          </button>
-          <span>
-            {running
-              ? 'Для изменения схемы остановите моделирование.'
-              : 'Соединяйте выводы и редактируйте схему обычными инструментами.'}
-          </span>
-        </div>
-        <NativeOpticalProvider port={controller.nativeOpticalPresentation}>
-          <div className="workbench-shell library-collapsed robotics-workbench">
-            <div className="workbench-main">
-              <WorkbenchStage controller={controller} showGrid={showGrid} />
-            </div>
-          </div>
-        </NativeOpticalProvider>
-      </section>
-
-      {codeMounted ? (
         <section
-          id="robotics-program"
-          ref={codeSectionRef}
-          className="robotics-card robotics-program"
-          hidden={!codeOpen}
-          aria-labelledby="robotics-program-heading"
+          className="robotics-panel robotics-robot-panel"
+          role="tabpanel"
+          id="robotics-panel-robot"
+          aria-labelledby="robotics-tab-robot"
+          hidden={section !== 'robot'}
         >
-          <div className="robotics-card-heading">
-            <div>
-              <h2 id="robotics-program-heading">Программа Arduino</h2>
-              <p>Общие блоки, C++ и монитор порта</p>
+          <RobotAssemblyPanel
+            project={local.robotProject}
+            running={running}
+            onCommit={local.setWorld}
+            onOpenElectronics={() => {
+              navigate('electronics');
+              controller.setLibraryOpen(true);
+            }}
+          />
+        </section>
+        <section
+          className="robotics-panel robotics-electronics-panel"
+          role="tabpanel"
+          id="robotics-panel-electronics"
+          aria-labelledby="robotics-tab-electronics"
+          aria-owns={section === 'electronics' ? 'robotics-scheme' : undefined}
+          hidden={section !== 'electronics'}
+        >
+          <div className="robotics-panel-toolbar">
+            <h2>Схема робота</h2>
+            <div className="robotics-inline-actions">
+              <button type="button" className="robotics-button" onClick={controller.fitScene}>
+                Вписать
+              </button>
+              <button
+                type="button"
+                className="robotics-button"
+                onClick={() => controller.setLibraryOpen((value) => !value)}
+                aria-pressed={controller.libraryOpen}
+                disabled={running}
+              >
+                Компоненты
+              </button>
+              <button
+                type="button"
+                className="robotics-button"
+                disabled={running || !controller.selection}
+                onClick={controller.removeSelection}
+              >
+                Удалить
+              </button>
             </div>
-            <button
-              type="button"
-              className="robotics-button subtle"
-              onClick={() => {
-                setCodeOpen(false);
-                codeButtonRef.current?.focus();
-              }}
-            >
-              Закрыть программу
-            </button>
           </div>
+          <p className="robotics-edit-hint">
+            {running
+              ? 'Остановите моделирование для изменения схемы.'
+              : 'Выберите компонент в библиотеке, разместите его на схеме и соедините выводы.'}
+          </p>
+        </section>
+        <section
+          className="robotics-panel robotics-program-panel"
+          role="tabpanel"
+          id="robotics-panel-program"
+          data-palette-open={paletteOpen}
+          aria-labelledby="robotics-tab-program"
+          hidden={!codeOpen}
+        >
+          <div className="robotics-panel-toolbar">
+            <h2>Программа</h2>
+            {programState.mode !== 'text' ? (
+              <button
+                type="button"
+                className="robotics-button robotics-palette-toggle"
+                aria-pressed={paletteOpen}
+                onClick={() => setPaletteOpen((value) => !value)}
+              >
+                {paletteOpen ? 'Скрыть палитру' : 'Палитра блоков'}
+              </button>
+            ) : null}
+            {programState.mode !== 'text' ? (
+              <button
+                type="button"
+                className="robotics-button robotics-program-start"
+                onClick={() => programHandle.current?.revealProgramStart()}
+              >
+                К началу
+              </button>
+            ) : null}
+            <label className="robotics-preset-label">
+              Пример
+              <select
+                aria-label="Пример программы"
+                value={programPreset}
+                disabled={running}
+                onChange={(event) => chooseProgram(event.target.value as RoboticsProgramPresetId)}
+              >
+                <option value="" disabled>
+                  Выбрать…
+                </option>
+                {ROBOTICS_PROGRAM_PRESETS.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {programPreset === 'push-one-shot' ? (
+            <p className="robotics-edit-hint">
+              Для опыта поставьте мяч перед роботом. В «Роботе» задайте датчик: вперёд 0 мм, влево
+              100 мм, угол 90°. Ближняя граница HC-SR04 — 2 см.
+            </p>
+          ) : null}
+          {programState.mode === 'text' && !programState.workspaceJson ? (
+            <p className="robotics-edit-hint">
+              Открыт текстовый скетч. Можно редактировать C++ или явно заменить его роботным
+              примером.
+            </p>
+          ) : null}
           <div
             ref={codeHostRef}
             className="workbench-shell robotics-program-shell"
-            style={
-              {
-                '--arduino-code-panel-width': `${codeWidth}px`,
-                '--robotics-code-height': `${codeHeight}vh`,
-              } as CSSProperties
-            }
+            style={{ '--arduino-code-panel-width': `${codeWidth}px` } as CSSProperties}
           >
-            <ArduinoCodePanel
-              controller={controller}
-              open={codeOpen}
-              drawerWidth={codeWidth}
-              onDrawerWidthChange={(width) =>
-                setCodeWidth(Math.max(460, Math.min(width, window.innerWidth - 32)))
-              }
-              mobileHeightPercent={codeHeight}
-              onMobileHeightChange={(height) => setCodeHeight(Math.max(45, Math.min(height, 90)))}
-              onClose={() => {
-                setCodeOpen(false);
-                codeButtonRef.current?.focus();
-              }}
-            />
+            {codeMounted ? (
+              <ArduinoCodePanel
+                key={`${local.openRevision}:${programRevision}`}
+                controller={controller}
+                open={codeOpen}
+                drawerWidth={codeWidth}
+                onDrawerWidthChange={setCodeWidth}
+                mobileHeightPercent={codeHeight}
+                onMobileHeightChange={setCodeHeight}
+                onClose={() => navigate('field')}
+                programHandleRef={programHandle}
+              />
+            ) : null}
           </div>
         </section>
-      ) : null}
+        <aside className="robotics-observation" aria-label="Наблюдение за роботом">
+          {section !== 'field' ? (
+            <div className="robotics-mini-field">
+              <div className="robotics-panel-toolbar">
+                <h2>Поле</h2>
+                <button type="button" onClick={() => navigate('field')} aria-label="Открыть поле">
+                  ↗
+                </button>
+              </div>
+              <RobotField
+                world={sourceWorld}
+                state={worldState}
+                distance={distance}
+                showGrid={showGrid}
+                testIdPrefix="robotics-preview"
+              />
+            </div>
+          ) : null}
+          <dl className="robotics-metrics">
+            <div>
+              <dt>До препятствия</dt>
+              <dd
+                data-testid="robotics-distance"
+                data-distance-meters={distance.status === 'ok' ? distance.distanceMeters : ''}
+              >
+                {distance.status === 'ok'
+                  ? `${number(distance.distanceMeters * 100)} см`
+                  : 'Вне диапазона'}
+              </dd>
+            </div>
+            <div>
+              <dt>Левый мотор</dt>
+              <dd data-testid="robotics-left-rpm" data-rpm={worldState.leftRpm}>
+                {number(worldState.leftRpm, 0)} об/мин
+              </dd>
+            </div>
+            <div>
+              <dt>Правый мотор</dt>
+              <dd data-testid="robotics-right-rpm" data-rpm={worldState.rightRpm}>
+                {number(worldState.rightRpm, 0)} об/мин
+              </dd>
+            </div>
+          </dl>
+          <details className="robotics-drive" open={section === 'field'}>
+            <summary>Команды Serial</summary>
+            <div className="robotics-drive-pad">
+              {(
+                [
+                  ['F', 'Вперёд', '↑'],
+                  ['L', 'Влево', '↶'],
+                  ['S', 'Выбег', '■'],
+                  ['R', 'Вправо', '↷'],
+                ] as const
+              ).map(([command, label, symbol]) => (
+                <button
+                  type="button"
+                  key={command}
+                  disabled={!canCommand}
+                  onClick={() => sendCommand(command, label)}
+                >
+                  <span aria-hidden="true">{symbol}</span>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="robotics-help">
+              Команды F/L/R/S работают, если программа их обрабатывает.{' '}
+              {paused || pausing
+                ? 'Продолжите программу, чтобы отправить команду.'
+                : lastCommand
+                  ? `Отправлено: ${lastCommand}.`
+                  : !running
+                    ? 'Сначала запустите программу.'
+                    : ''}
+            </p>
+          </details>
+        </aside>
+        <section
+          className={`robotics-schematic ${section === 'electronics' ? 'editing' : 'preview'}`}
+          id="robotics-scheme"
+          aria-label={
+            section === 'electronics' ? 'Редактор электрической схемы' : 'Схема: наблюдение'
+          }
+        >
+          <div className="robotics-preview-heading">
+            <h2>Схема</h2>
+            <button type="button" onClick={() => navigate('electronics')}>
+              Открыть схему ↗
+            </button>
+          </div>
+          <div
+            ref={stageHostRef}
+            className={`workbench-shell robotics-workbench${controller.libraryOpen && section === 'electronics' ? '' : ' library-collapsed'}`}
+          >
+            <NativeOpticalProvider port={controller.nativeOpticalPresentation}>
+              <div className="workbench-main">
+                <WorkbenchStage controller={controller} showGrid={showGrid} />
+                {section === 'electronics' ? <WorkbenchSidebars controller={controller} /> : null}
+              </div>
+            </NativeOpticalProvider>
+          </div>
+        </section>
+      </div>
       <footer className="robotics-footer">
-        <span>ASA Lab Robotics · первый рабочий пресет</span>
-        <span>Один запуск — до 40 секунд модельного времени</span>
+        <div className="robotics-history" aria-label="История проекта">
+          <button
+            type="button"
+            disabled={running || !controller.canUndo}
+            onClick={() => moveHistory('undo')}
+          >
+            Отменить
+          </button>
+          <button
+            type="button"
+            disabled={running || !controller.canRedo}
+            onClick={() => moveHistory('redo')}
+          >
+            Повторить
+          </button>
+        </div>
+        <span>Один опыт — до 40 с</span>
       </footer>
     </main>
   );

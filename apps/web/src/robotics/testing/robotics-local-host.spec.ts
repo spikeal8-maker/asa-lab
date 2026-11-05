@@ -93,6 +93,31 @@ describe('robotics local project host', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('reports pending edits and saves the latest source in the same event before React rerenders', async () => {
+    mount();
+    await act(async () => local.host.saveNow());
+    expect(local.hasUnsavedChanges()).toBe(false);
+    const fromPreviousRender = local;
+    await act(async () => {
+      fromPreviousRender.host.commitDocument(
+        editProgram(currentDocument(), 'void setup(){} void loop(){delay(37);}'),
+      );
+      // The render snapshot is still saved; the synchronous source is already dirty.
+      expect(fromPreviousRender.host.saveStatus).toBe('saved');
+      expect(fromPreviousRender.hasUnsavedChanges()).toBe(true);
+      expect(
+        fromPreviousRender.getCurrentProject().circuit.components[0]!.stateProperties!
+          .arduinoSource,
+      ).toContain('delay(37)');
+      await fromPreviousRender.host.saveNow();
+      expect(fromPreviousRender.hasUnsavedChanges()).toBe(false);
+    });
+    expect(
+      JSON.parse(localStorage.getItem(ROBOTICS_LOCAL_PROJECT_KEY)!).circuit.components[0]
+        .stateProperties.arduinoSource,
+    ).toContain('delay(37)');
+  });
+
   it('retains rapid successive program edits before React commits a render', () => {
     mount();
     const getCurrentDocument = local.host.getCurrentDocument;

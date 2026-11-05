@@ -2,6 +2,7 @@ import { parseElectronicsEngineDocument } from '@asa-lab/electronics/engine';
 import type { SchematicDocument } from '../api';
 import { productionCatalogEntry } from '../electronics/production-manifest-adapter';
 import { addComponentToDocument } from '../electronics/workbench-document';
+import type { RoboticsPresetProgram } from './robotics-program-presets';
 import {
   createRoboticsWorldDocument,
   measureRoboticsDistance,
@@ -10,7 +11,7 @@ import {
 } from './world';
 
 export interface RoboticsProject {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly title: string;
   readonly circuit: SchematicDocument;
   readonly world: RoboticsWorldDocument;
@@ -95,7 +96,7 @@ const PRESET_CONNECTIONS: readonly (readonly [string, string, string, string])[]
   ['right-flyback', 'cathode', 'right-motor', 'positive'],
 ];
 
-export function createDefaultRoboticsProject(): RoboticsProject {
+export function createDefaultRoboticsProject(program?: RoboticsPresetProgram): RoboticsProject {
   let circuit: SchematicDocument = {
     schemaVersion: 4,
     components: [],
@@ -117,9 +118,15 @@ export function createDefaultRoboticsProject(): RoboticsProject {
             ...component,
             stateProperties: {
               ...component.stateProperties,
-              arduinoCodeMode: 'text',
-              arduinoSource: ROBOTICS_ARDUINO_SOURCE,
-              arduinoSerialOpen: true,
+              arduinoCodeMode: program?.mode ?? 'text',
+              arduinoSource: program?.source ?? ROBOTICS_ARDUINO_SOURCE,
+              ...(program
+                ? {
+                    arduinoWorkspace: program.workspaceJson,
+                    arduinoInputPins: program.inputPins,
+                  }
+                : {}),
+              arduinoSerialOpen: !program,
               arduinoBaudRate: 9600,
             },
           }
@@ -133,7 +140,7 @@ export function createDefaultRoboticsProject(): RoboticsProject {
   };
   const world = createRoboticsWorldDocument();
   const project = withRoboticsWorld(
-    { schemaVersion: 1, title: 'Первый робот ASA Lab', circuit, world },
+    { schemaVersion: 2, title: 'Первый робот ASA Lab', circuit, world },
     world,
   );
   const parsed = parseElectronicsEngineDocument(project.circuit);
@@ -208,8 +215,18 @@ export function parseRoboticsProject(
     if (typeof value !== 'object' || value === null || Array.isArray(value))
       throw new Error('Некорректный локальный проект робототехники.');
     const source = value as Record<string, unknown>;
-    if (source.schemaVersion !== 1)
+    if (source.schemaVersion !== 1 && source.schemaVersion !== 2)
       throw new Error('Эта версия проекта робототехники не поддерживается.');
+    if (source.schemaVersion === 2) {
+      const scene = source.world as Partial<RoboticsWorldDocument> | null;
+      if (
+        !scene ||
+        scene.physicsProfile !== 'kinematic-rover-discs-v1' ||
+        !Array.isArray(scene.field?.balls) ||
+        !Array.isArray(scene.field?.floorMarks)
+      )
+        throw new Error('Проект повреждён: отсутствуют обязательные данные поля.');
+    }
     if (typeof source.title !== 'string' || source.title.trim() === '' || source.title.length > 80)
       throw new Error('Название проекта должно содержать от 1 до 80 символов.');
     const world = parseRoboticsWorldDocument(source.world);
@@ -221,7 +238,7 @@ export function parseRoboticsProject(
     circuit.simulation = { ...circuit.simulation, running: false };
     return {
       ok: true,
-      project: { schemaVersion: 1, title: source.title, circuit, world: world.world },
+      project: { schemaVersion: 2, title: source.title, circuit, world: world.world },
     };
   } catch (error) {
     return {

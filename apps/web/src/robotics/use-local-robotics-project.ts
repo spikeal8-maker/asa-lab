@@ -83,6 +83,10 @@ export function useLocalRoboticsProject(initialProject: RoboticsProject) {
   }, []);
 
   const getCurrentProject = useCallback(() => sourceRef.current, []);
+  const hasUnsavedChanges = useCallback(
+    () => JSON.stringify(sourceRef.current) !== savedBytesRef.current,
+    [],
+  );
   const getCurrentDocument = useCallback(() => sourceRef.current.circuit, []);
   const commitDocument = useCallback(
     (next: SchematicDocument, message?: string): void => {
@@ -298,6 +302,7 @@ export function useLocalRoboticsProject(initialProject: RoboticsProject) {
     host,
     robotProject,
     getCurrentProject,
+    hasUnsavedChanges,
     setWorld,
     hasSavedProject,
     openSavedProject,

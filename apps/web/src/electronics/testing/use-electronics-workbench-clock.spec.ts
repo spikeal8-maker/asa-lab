@@ -301,10 +301,17 @@ function localProjectHost(): ElectronicsWorkbenchProjectHost {
   };
 }
 
-function LocalHostProbe({ projectState }: { projectState: ElectronicsWorkbenchProjectHost }) {
+function LocalHostProbe({
+  projectState,
+  keyboardShortcutsEnabled,
+}: {
+  projectState: ElectronicsWorkbenchProjectHost;
+  keyboardShortcutsEnabled?: boolean;
+}) {
   workbench = useElectronicsWorkbenchHost('local-robotics', projectState, {
     runtimeInputEventLimit: 1000,
     reportSimulationDiagnostics: false,
+    ...(keyboardShortcutsEnabled === undefined ? {} : { keyboardShortcutsEnabled }),
   });
   return null;
 }
@@ -411,6 +418,70 @@ afterEach(async () => {
 });
 
 describe('shared workbench with a local project host', () => {
+  it('scopes shortcuts to the embedded editing page and restores the legacy default exactly once', async () => {
+    const projectState = {
+      ...localProjectHost(),
+      simulationRunning: false,
+      simulationStatus: 'stopped' as const,
+    };
+    const key = (code: string, ctrlKey = false) =>
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          code,
+          key: code === 'Delete' ? 'Delete' : code,
+          ctrlKey,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    await act(async () =>
+      root.render(createElement(LocalHostProbe, { projectState, keyboardShortcutsEnabled: false })),
+    );
+    act(() => workbench.selectComponent('uno', false));
+    act(() => {
+      key('ArrowRight');
+      key('Delete');
+      key('KeyV', true);
+      key('KeyZ', true);
+      key('Enter', true);
+    });
+    expect(projectState.commitDocument).not.toHaveBeenCalled();
+    expect(projectState.undo).not.toHaveBeenCalled();
+    expect(projectState.toggleSimulation).not.toHaveBeenCalled();
+    for (let cycle = 0; cycle < 2; cycle += 1) {
+      await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+      act(() => key('ArrowRight'));
+      expect(projectState.commitDocument).toHaveBeenCalledTimes(cycle + 1);
+      await act(async () =>
+        root.render(
+          createElement(LocalHostProbe, { projectState, keyboardShortcutsEnabled: false }),
+        ),
+      );
+      act(() => key('ArrowRight'));
+      expect(projectState.commitDocument).toHaveBeenCalledTimes(cycle + 1);
+    }
+  });
+
+  it('never restarts the Worker generation when only keyboard scope changes', async () => {
+    const projectState = localProjectHost();
+    await act(async () =>
+      root.render(createElement(LocalHostProbe, { projectState, keyboardShortcutsEnabled: true })),
+    );
+    const active = worker();
+    expect(active.start).toHaveBeenCalledOnce();
+    const stopped = active.stop.mock.calls.length;
+    for (const enabled of [false, true, false, true])
+      await act(async () =>
+        root.render(
+          createElement(LocalHostProbe, { projectState, keyboardShortcutsEnabled: enabled }),
+        ),
+      );
+    expect(worker()).toBe(active);
+    expect(active.start).toHaveBeenCalledOnce();
+    expect(active.stop).toHaveBeenCalledTimes(stopped);
+    expect(active.restart).not.toHaveBeenCalled();
+  });
+
   it('keeps a local failure visible and resets the host without scheduling backend diagnostics', async () => {
     const projectState = localProjectHost();
     await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
