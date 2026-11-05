@@ -376,6 +376,53 @@ describe('Arduino replaceable pin menus', () => {
     expect(generateArduinoCode(w)).not.toContain('pinMode(port, OUTPUT);\n}');
   });
 
+  it('keeps numeric analog channel zero as an input for an actual potentiometer circuit', () => {
+    const setup = w.newBlock('asa_setup');
+    const sample = assign('sample', '0');
+    setup.getInput('DO')!.connection!.connect(sample.previousConnection!);
+    const read = w.newBlock('asa_analog_read');
+    connect(read, 'PIN', number('0'));
+    connect(sample, 'VALUE', read);
+    const result = run(
+      [
+        {
+          id: 'pot',
+          kind: 'potentiometer',
+          componentTypeId: 'potentiometer',
+          value: 10000,
+          wiperPosition: 0.5,
+          position: { x: 100, y: 0 },
+          pinIds: ['terminal-1', 'terminal-2', 'wiper'],
+        },
+      ],
+      [
+        {
+          id: 'high',
+          from: { componentId: 'uno', terminal: 'power-5v' },
+          to: { componentId: 'pot', terminal: 'terminal-1' },
+        },
+        {
+          id: 'low',
+          from: { componentId: 'uno', terminal: 'power-gnd-1' },
+          to: { componentId: 'pot', terminal: 'terminal-2' },
+        },
+        {
+          id: 'sample',
+          from: { componentId: 'pot', terminal: 'wiper' },
+          to: { componentId: 'uno', terminal: 'a0' },
+        },
+      ],
+    );
+    const runtime = result.controllerState!.boards[0]!.runtime;
+    expect(runtime.pinModes.a0).toBe('INPUT');
+    expect(runtime.pinModes.d0).toBe('OUTPUT');
+    expect(runtime.variables.sample).toBeGreaterThanOrEqual(510);
+    expect(runtime.variables.sample).toBeLessThanOrEqual(513);
+    expect(
+      result.components.find((part) => part.componentId === 'pot')!.terminalVoltages?.wiper,
+    ).toBeCloseTo(2.5, 3);
+  });
+
   it('drives twenty independent resistor/LED branches including A0–A5', () => {
     const setup = w.newBlock('asa_setup');
     let next = setup.getInput('DO')!.connection!;

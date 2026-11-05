@@ -12,6 +12,34 @@ import { loginWithOrganization } from './organization-login';
 const EVIDENCE = 'e2e/artifacts/public-projects';
 const WIDTHS = [320, 360, 390, 430, 768, 1024, 1440] as const;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
+
+test('only the publication owner can resolve its private editor', async ({ page, browser }) => {
+  await page.goto('/#/explore');
+  await register(page, 'Автор редактора публикации');
+  const projectId = await createProject(
+    page,
+    'Работа автора ' + randomUUID(),
+    await raster(page, 'Owner'),
+  );
+  const published = await publish(page, projectId);
+  const target = `/api/public-projects/${published.publicationId}/editor`;
+  const owner = await page.request.get(target);
+  expect(owner.status()).toBe(200);
+  expect(await owner.json()).toEqual({ editor: { projectId, moduleKey: 'electronics' } });
+  expect(owner.headers()['cache-control']).toContain('no-store');
+  const other = await browser.newContext({ baseURL: origin(page) });
+  try {
+    expect((await other.request.get(new URL(target, page.url()).toString())).status()).toBe(401);
+    const stranger = await other.newPage();
+    await stranger.goto(new URL('/#/explore', page.url()).toString());
+    await register(stranger, 'Другой пользователь');
+    const foreign = await stranger.request.get(new URL(target, page.url()).toString());
+    expect(foreign.status()).toBe(200);
+    expect(await foreign.json()).toEqual({ editor: null });
+  } finally {
+    await other.close();
+  }
+});
 test('preview cards have no vignette or added strips and electronics uses a white background', async ({
   page,
 }) => {
@@ -67,7 +95,7 @@ test('preview cards have no vignette or added strips and electronics uses a whit
       const columns = await page
         .getByTestId('public-project-grid')
         .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
-      expect(columns).toBe(4);
+      expect(columns).toBe(width <= 600 ? 2 : 4);
       const authorStyle = await card.locator('.public-project-author').evaluate((element) => ({
         wrapping: getComputedStyle(element).whiteSpace,
         overflow: getComputedStyle(element).textOverflow,
@@ -95,7 +123,7 @@ test('preview cards have no vignette or added strips and electronics uses a whit
       expect(sortBox!.width).toBeLessThanOrEqual(148);
       expect(Math.abs(sortBox!.x + sortBox!.width - toolsBox!.x - toolsBox!.width)).toBeLessThan(1);
       const bounds = await card.boundingBox();
-      expect(Math.abs(bounds!.width / bounds!.height - 4 / 3)).toBeLessThan(0.025);
+      expect(Math.abs(bounds!.width / bounds!.height - 1)).toBeLessThan(0.025);
       const catalogBox = await page.getByTestId('public-project-catalog').boundingBox();
       if (width >= 1920) {
         expect(catalogBox!.width).toBeGreaterThan(width - 350);
@@ -117,13 +145,16 @@ test('preview cards have no vignette or added strips and electronics uses a whit
       expect(titleStyle.overflow).toBe('ellipsis');
       expect(titleStyle.wrapping).toBe('nowrap');
       if (width <= 390) expect(titleStyle.truncated).toBe(true);
-      const labels = await card
-        .locator(
-          '.public-project-card-body h2, .public-project-card-meta, .public-project-author, .publication-module',
-        )
-        .evaluateAll((elements) => elements.map((element) => getComputedStyle(element).textShadow));
-      expect(labels.every((shadow) => shadow !== 'none' && shadow.includes('255, 255, 255'))).toBe(
-        true,
+      await expect(card.locator('.public-project-card-identity')).toHaveCSS(
+        'background-color',
+        'rgba(0, 0, 0, 0)',
+      );
+      await expect(
+        card.locator('.publication-module .project-module-artwork clipPath circle'),
+      ).toHaveCount(1);
+      await expect(card.locator('.public-project-card-meta')).toHaveCSS(
+        'background-color',
+        'rgba(255, 255, 255, 0.8)',
       );
       const styles = await card.evaluate((el) => ({
         vignette: getComputedStyle(el.querySelector('.public-project-card-cover')!, '::after')
@@ -310,7 +341,11 @@ async function openPublicationDialog(page: Page, title: string) {
 
 async function expectPublicImage(page: Page): Promise<void> {
   const image = page.getByTestId('public-project-preview');
-  await expect(image).toBeVisible();
+  const live = page.locator('.public-three-d-stage[data-ready="true"] canvas');
+  await expect
+    .poll(async () => (await live.isVisible()) || (await image.isVisible()), { timeout: 30000 })
+    .toBe(true);
+  if (await live.isVisible()) return;
   await expect
     .poll(() =>
       image.evaluate((element) => {
@@ -538,12 +573,45 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
   await ok(snapshot);
   const snapshotBytes = await snapshot.body();
   expect(snapshotBytes.length).toBeGreaterThan(1000);
-  const sourceHash = createHash('sha256').update(snapshotBytes).digest('hex');
+  // Native card captures exclude the workplane/selection helpers on a white
+  // background; the live authoring document must still keep its grid enabled.
+  const snapshotCorners = await page.evaluate(async (url) => {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d')!;
+    context.drawImage(image, 0, 0);
+    return [
+      [3, 3],
+      [canvas.width - 4, 3],
+      [3, canvas.height - 4],
+      [canvas.width - 4, canvas.height - 4],
+    ].map(([x, y]) => [...context.getImageData(x!, y!, 1, 1).data]);
+  }, `/api/projects/${projectId}/snapshot`);
+  expect(
+    snapshotCorners.every(
+      (rgba) => rgba.slice(0, 3).every((value) => value >= 250) && rgba[3] === 255,
+    ),
+  ).toBe(true);
+  expect(
+    (await (await page.request.get(`/api/projects/${projectId}`)).json()).draft.document.grid
+      .visible,
+  ).toBe(true);
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  const dialog = await openPublicationDialog(page, title);
+  await page.getByRole('button', { name: 'Публикация', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Публикация проекта', exact: true });
+  await expect(dialog).toBeVisible();
+  const publicationSnapshot = await page.request.get(`/api/projects/${projectId}/snapshot`);
+  await ok(publicationSnapshot);
+  const sourceHash = createHash('sha256')
+    .update(await publicationSnapshot.body())
+    .digest('hex');
   await dialog
     .getByLabel('Описание проекта')
     .fill('Параллелепипед создан в настоящем 3D редакторе. Превью сохранено самим редактором.');
@@ -559,10 +627,50 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
   const guestContext = await browser.newContext();
   try {
     const guest = await guestContext.newPage();
+    const privateReads: string[] = [];
+    guest.on('request', (request) => {
+      if (new URL(request.url()).pathname.startsWith('/api/projects/'))
+        privateReads.push(request.url());
+    });
     await guest.goto('/#/explore');
+    const publicCard = guest.getByTestId('public-project-card').filter({ hasText: title });
+    await expect(publicCard).toBeVisible();
+    await expect(guest.locator('.three-d-hover-live canvas')).toHaveCount(0);
+    await publicCard.hover();
+    await expect(publicCard.locator('.three-d-hover-live')).toHaveClass(/is-ready/);
+    const hoverCanvas = publicCard.locator('.three-d-hover-live canvas');
+    const hoverBefore = createHash('sha256')
+      .update(await hoverCanvas.screenshot())
+      .digest('hex');
+    const bounds = (await publicCard.boundingBox())!;
+    await guest.mouse.move(bounds.x + bounds.width * 0.85, bounds.y + bounds.height * 0.3);
+    await expect
+      .poll(async () =>
+        createHash('sha256')
+          .update(await hoverCanvas.screenshot())
+          .digest('hex'),
+      )
+      .not.toBe(hoverBefore);
+    await guest.mouse.move(0, 0);
+    await expect(guest.locator('.three-d-hover-live canvas')).toHaveCount(0);
+    expect(privateReads).toEqual([]);
     await guest.getByRole('link', { name: `Открыть проект «${title}»` }).click();
     await expect(guest).toHaveURL(new RegExp(`#/public-projects/${publicationId}$`));
     await expect(guest.getByTestId('public-project-title')).toHaveText(title);
+    const liveModel = guest.getByTestId('public-three-d-viewer');
+    await expect(liveModel.locator('.public-three-d-stage')).toHaveAttribute('data-ready', 'true');
+    const canvas = liveModel.locator('canvas');
+    const cameraBefore = createHash('sha256')
+      .update(await canvas.screenshot())
+      .digest('hex');
+    await guest.getByRole('button', { name: 'Повернуть модель вправо', exact: true }).click();
+    await expect
+      .poll(async () =>
+        createHash('sha256')
+          .update(await canvas.screenshot())
+          .digest('hex'),
+      )
+      .not.toBe(cameraBefore);
     await expectPublicImage(guest);
     const dto = await publication(guest, publicationId);
     expect(dto.moduleKey).toBe('three-d');
@@ -592,6 +700,47 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
   } finally {
     await guestContext.close();
   }
+  const before = (await (await page.request.get(`/api/projects/${projectId}`)).json()).draft;
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    if (
+      ['PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
+      new URL(request.url()).pathname.startsWith('/api/projects/')
+    )
+      writes.push(request.url());
+  });
+  for (const route of ['home', 'projects']) {
+    await page.goto(`/#/${route}`);
+    const card = page.getByTestId('project-card').filter({ hasText: title });
+    await expect(card).toBeVisible();
+    await card.hover();
+    await expect(card.locator('.three-d-hover-live')).toHaveClass(/is-ready/);
+    const canvas = card.locator('.three-d-hover-live canvas');
+    const first = createHash('sha256')
+      .update(await canvas.screenshot())
+      .digest('hex');
+    const box = (await card.boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.85, box.y + box.height * 0.3);
+    await expect
+      .poll(async () =>
+        createHash('sha256')
+          .update(await canvas.screenshot())
+          .digest('hex'),
+      )
+      .not.toBe(first);
+    await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(1);
+    await page.mouse.move(0, 0);
+    await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await card.hover();
+    await page.waitForTimeout(250);
+    await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+  }
+  expect((await (await page.request.get(`/api/projects/${projectId}`)).json()).draft).toEqual(
+    before,
+  );
+  expect(writes).toEqual([]);
 });
 
 test('ordinary Account publishes in UI; anonymous V1 survives draft V2 until explicit update and revoke', async ({
@@ -828,7 +977,7 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         const top = cards[0].getBoundingClientRect().top;
         return cards.filter((card) => Math.abs(card.getBoundingClientRect().top - top) < 2).length;
       });
-      expect(rowCount).toBe(4);
+      expect(rowCount).toBe(width <= 600 ? 2 : 4);
       const searchBounds = await guest.getByRole('search').boundingBox();
       expect(searchBounds!.width).toBeLessThanOrEqual(260);
       expect(
@@ -864,7 +1013,7 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         const module = card.querySelector('.publication-module')!.getBoundingClientRect();
         const likes = card.querySelector('.public-project-card-meta')!.getBoundingClientRect();
         return {
-          aspect: Math.abs(bounds.width / bounds.height - 4 / 3),
+          aspect: Math.abs(bounds.width / bounds.height - 1),
           titleInside: footer.top >= cover.top && footer.bottom <= cover.bottom,
           fullBleed: Math.abs(cover.height - (bounds.height - 2)),
           identityFits: identity.right <= module.left && identity.left >= cover.left,

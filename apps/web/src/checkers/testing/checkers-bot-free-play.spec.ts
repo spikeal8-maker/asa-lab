@@ -28,10 +28,10 @@ describe('CK-102 bot free play', () => {
     );
     for (const bot of CHECKERS_BOTS) {
       expect(markup).toContain(bot.displayName);
-      expect(markup).toContain(`Играть с ${bot.displayName}`);
+      expect(markup).toContain(`${bot.displayName} · уровень ${bot.rung}`);
     }
-    expect(markup).toContain('Случайно — сторона выбирается при старте');
-    expect(markup).toContain('Лестница ASA Bot');
+    expect(markup).toContain('Случайный цвет');
+    expect(markup).toContain('Открыть учебную лестницу');
     expect(markup).not.toContain('Сначала предыдущий уровень');
     expect(markup).not.toContain('disabled=""');
   });

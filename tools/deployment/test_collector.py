@@ -3,11 +3,13 @@ import datetime as dt
 import json
 import os
 import subprocess
+import stat
 from pathlib import Path
 import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+from contextlib import nullcontext
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -22,13 +24,187 @@ from deployment import ci_collector_cleanup as ci_cleanup
 
 def fixture(root):
     (root / 'tools').mkdir()
-    for name in ('collect_logs.py', 'collect-windows-logs.ps1', 'resource_sampling.py', 'memory_sampling.py'):
+    for name in ('collect_logs.py', 'collect-windows-logs.ps1', 'resource_sampling.py', 'memory_sampling.py', 'deployment/operational.py'):
+        (root/'tools'/name).parent.mkdir(parents=True,exist_ok=True)
         (root / 'tools' / name).write_text('fixture-' + name)
     (root / '.env').write_text('COMPOSE_PROJECT_NAME=asa-lab-dev\n')
+    contract = root / 'apps/api/src/database-diagnostic-contract.json'
+    contract.parent.mkdir(parents=True)
+    contract.write_text('{}')
     return Installation(root, 'dev')
 
 
 class CollectorLifecycleTests(unittest.TestCase):
+    @staticmethod
+    def trusted_stats(path, *, foreign=None, writable=None):
+        """Synthetic ownership only; tests never chmod or chown the host tree."""
+        original = CollectorLifecycleTests.original_lstat(path)
+        uid = 1234 if foreign is not None and path == foreign else 0
+        mode = stat.S_IFMT(original.st_mode) | (0o777 if writable is not None and path == writable else 0o755)
+        return SimpleNamespace(st_uid=uid, st_gid=1000, st_mode=mode,
+                               st_size=original.st_size, st_nlink=original.st_nlink)
+
+    original_lstat = Path.lstat
+
+    def test_root_selection_is_explicit_and_preserves_operator_security(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = fixture(Path(directory))
+            with patch('deployment.collector.WINDOWS', False), patch('deployment.collector.os.geteuid', return_value=0, create=True), \
+                    patch('deployment.collector.root_runner_paths'), patch('deployment.collector.docker_group_gid', return_value=0):
+                lifecycle.select_root_mode(install, 1000)
+                selected = Installation(install.root, 'dev')
+                self.assertEqual(selected.settings['collectorMode'], 'system-root')
+                self.assertEqual(selected.settings['collectorReaderGid'], 1000)
+                self.assertEqual(selected.settings['format'], 'asa-installation-v1')
+                self.assertEqual(selected.settings['project'], install.project)
+                operator = lifecycle.linux_operator(selected)
+                self.assertEqual((operator.pw_name, operator.pw_uid, operator.pw_gid), ('root', 0, 1000))
+                identity = lifecycle.runner_identity(selected)
+                self.assertEqual((identity['mode'], identity['owner']), ('system-root', 'root'))
+                lifecycle.select_root_mode(selected, 1000)
+                with self.assertRaises(Blocked): lifecycle.select_root_mode(selected, 2000)
+
+    def test_root_mode_never_escalates_nonroot_or_accepts_socket_group(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = fixture(Path(directory))
+            with patch('deployment.collector.WINDOWS', False), patch('deployment.collector.os.geteuid', return_value=1000, create=True), self.assertRaises(Blocked):
+                lifecycle.select_root_mode(install, 1000)
+            with patch('deployment.collector.WINDOWS', False), patch('deployment.collector.os.geteuid', return_value=0, create=True), \
+                    patch('deployment.collector.root_runner_paths'), patch('deployment.collector.docker_group_gid', return_value=1000), self.assertRaises(Blocked):
+                lifecycle.select_root_mode(install, 1000)
+            self.assertFalse((install.state/'installation.json').exists())
+
+    def test_root_selection_refuses_existing_nonroot_runner(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = fixture(Path(directory)); install.state.mkdir()
+            atomic_json(install.state/'collector-runner.json', {'mode':'system','owner':'operator'})
+            with patch('deployment.collector.WINDOWS', False), patch('deployment.collector.os.geteuid', return_value=0, create=True), \
+                    patch('deployment.collector.root_runner_paths'), self.assertRaises(Blocked):
+                lifecycle.select_root_mode(install, 1000)
+            self.assertEqual(json.loads((install.state/'collector-runner.json').read_text())['owner'], 'operator')
+
+    def test_root_selection_legacy_unit_conflict_preserves_all_configuration(self):
+        original_exists = Path.exists
+        for existing_metadata in (False, True):
+            with self.subTest(existing_metadata=existing_metadata), tempfile.TemporaryDirectory() as directory:
+                install = fixture(Path(directory))
+                if existing_metadata:
+                    atomic_json(install.state/'installation.json', {'project': install.project, 'automaticUpdates': True})
+                    install = Installation(install.root, 'dev')
+                before = {str(p.relative_to(install.root)): p.read_bytes()
+                          for p in install.root.rglob('*') if p.is_file()}
+                legacy = Path('/etc/systemd/system/asa-log-collector.service')
+                with patch('deployment.collector.WINDOWS', False), patch('deployment.collector.os.geteuid', return_value=0, create=True), \
+                        patch('deployment.collector.root_runner_paths'), patch('deployment.collector.docker_group_gid', return_value=0), \
+                        patch.object(Path, 'exists', lambda path: path == legacy or original_exists(path)):
+                    with self.assertRaises(Blocked) as error:
+                        lifecycle.select_root_mode(install, 1000)
+                self.assertEqual(error.exception.code, 'COLLECTOR_RUNNER_OWNER')
+                after = {str(p.relative_to(install.root)): p.read_bytes()
+                         for p in install.root.rglob('*') if p.is_file()}
+                self.assertEqual(after, before)
+
+    def test_actual_once_entrypoint_starts_legacy_nonroot_and_root_installations(self):
+        from deployment.ci_collector_fixture import copy_collector_fixture
+        modes = ('legacy', 'nonroot') + (() if os.name == 'nt' else ('system-root',))
+        for mode in modes:
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                copy_collector_fixture(Path(__file__).resolve().parents[2], root)
+                metadata = {'format': 'asa-installation-v1', 'project': 'asa-entrypoint-test', 'profile': 'dev'}
+                if mode == 'system-root':
+                    metadata.update(collectorMode='system-root', collectorReaderGid=1000)
+                atomic_json(root/'.asa/installation.json', metadata)
+                if mode == 'nonroot':
+                    atomic_json(root/'.asa/collector-runner.json', {'mode': 'user', 'owner': 'operator'})
+                atomic_json(root/'.asa/log-collector.json', {'version': 1, 'project': metadata['project'], 'fileSources': []})
+                # Execute the real script's main(), config and publication.
+                # Block its external-process boundary: Windows
+                # executable search does not honor a child's overridden PATH.
+                empty_bin = root/'empty-bin'; empty_bin.mkdir()
+                environment = {**os.environ, 'PATH': str(empty_bin)}
+                bootstrap = """import runpy,sys
+from unittest.mock import patch
+script=sys.argv.pop(1)
+sys.argv[0]=script
+sys.path.insert(0,str(__import__('pathlib').Path(script).parent))
+with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture external source unavailable')), patch('subprocess.Popen', side_effect=FileNotFoundError('startup fixture external source unavailable')):
+    namespace=runpy.run_path(script,run_name='asa_startup_fixture')
+    if sys.platform == 'win32':
+        # This checks startup, not Windows host adapters. Preserve actual index
+        # and catalog publication while isolating native host enumeration.
+        with patch.object(namespace['Collector'],'cycle',namespace['Collector'].publish):
+            namespace['main']()
+    else:
+        namespace['main']()
+"""
+                try:
+                    result = subprocess.run([sys.executable, '-E', '-c', bootstrap, str(root/'tools/collect_logs.py'), '--root', str(root), '--once'],
+                                            cwd=empty_bin, env=environment, capture_output=True, timeout=20)
+                except subprocess.TimeoutExpired as error:
+                    self.fail((error.stderr or b'').decode('utf-8', errors='replace'))
+                self.assertEqual(result.returncode, 0, result.stderr.decode('utf-8', errors='replace'))
+                store = root/'.asa/diagnostics/store'
+                process = json.loads((store/'collector-process.json').read_text(encoding='utf-8'))
+                health = json.loads((store/'collector-health.json').read_text(encoding='utf-8'))
+                self.assertEqual(process['project'], metadata['project'])
+                self.assertEqual(len(process['nonce']), 32)
+                self.assertEqual(health['state'], 'ok')
+                self.assertIsNotNone(health['lastSuccessAt'])
+                self.assertTrue((store/'catalog.json').is_file())
+
+    def test_root_selection_rejects_existing_group_conflict_without_persisting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = fixture(Path(directory)); install.env['ASA_LOG_READER_GID'] = '2000'
+            with patch('deployment.collector.WINDOWS', False), patch('deployment.collector.os.geteuid', return_value=0, create=True), \
+                    patch('deployment.collector.root_runner_paths'), self.assertRaises(Blocked):
+                lifecycle.select_root_mode(install, 1000)
+            self.assertFalse((install.state/'installation.json').exists())
+
+    def test_root_selection_rejects_nonstandard_socket_group(self):
+        with patch('deployment.collector.docker_group_gid', return_value=999), \
+                patch('deployment.collector.docker_socket_gid', return_value=1000), self.assertRaises(Blocked):
+            lifecycle.verify_reader_gid(1000)
+
+    def test_root_flags_are_prepare_only_and_paired(self):
+        for arguments in (['status', '--mode', 'system-root', '--reader-gid', '1000'],
+                          ['reconcile', '--mode', 'system-root', '--reader-gid', '1000'],
+                          ['prepare', '--mode', 'system-root'], ['prepare', '--reader-gid', '1000']):
+            with self.subTest(arguments=arguments), patch('deployment.collector.Installation',
+                    side_effect=AssertionError('must reject before accessing installation')):
+                self.assertEqual(lifecycle.main(arguments), 2)
+
+    def test_root_trust_checks_foreign_or_writable_runtime_and_parents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = fixture(Path(directory)); code = install.root/'tools/collect_logs.py'
+            for bad in (code, install.root/'apps/api/src/database-diagnostic-contract.json', install.root.parent):
+                for kind in ('foreign', 'writable'):
+                    with self.subTest(path=str(bad), kind=kind), patch.object(Path, 'lstat',
+                            lambda path: self.trusted_stats(path, **{kind:bad})), self.assertRaises(Blocked) as error:
+                        lifecycle.root_runner_paths(install)
+                    self.assertEqual(error.exception.code, 'COLLECTOR_ROOT_TRUST')
+            with patch.object(Path, 'lstat', lambda path:self.trusted_stats(path)):
+                lifecycle.root_runner_paths(install)
+
+    def test_root_unit_remains_fixed_identity_and_has_no_implicit_conversion(self):
+        identity = dict(root='/srv/asa', owner='root', mode='system-root')
+        text = lifecycle.systemd_unit(identity, '/usr/bin/python3')
+        self.assertIn('User=root\n', text)
+        self.assertIn('WantedBy=multi-user.target', text)
+        lifecycle.verify_systemd_unit(text, identity, '/usr/bin/python3')
+        with self.assertRaises(Blocked):
+            lifecycle.verify_systemd_unit(text.replace('User=root', 'User=operator'), identity, '/usr/bin/python3')
+        with self.assertRaises(Blocked):
+            lifecycle.verify_systemd_unit(text + 'ExecStartPost=/bin/foreign\n', identity, '/usr/bin/python3')
+        with self.assertRaises(Blocked):
+            lifecycle.verify_systemd_unit(text, {**identity, 'mode':'system', 'owner':'operator'}, '/usr/bin/python3')
+
+    def test_manager_readonly_actions_refuse_root_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = fixture(Path(directory))
+            with patch('asa_manager.Installation', side_effect=AssertionError('must reject before installation access')):
+                self.assertEqual(asa_manager.main(['check','--root',str(install.root),'--collector-mode','system-root','--collector-reader-gid','1000']), 2)
+
     def native_config(self):
         return {'services': {'api': {'environment': {'ASA_APPLICATION_LOG_STORE': '/var/lib/asa-application-logs'},
             'volumes': [{'type': 'volume', 'source': 'application-logs', 'target': '/var/lib/asa-application-logs'}]}},
@@ -96,9 +272,177 @@ class CollectorLifecycleTests(unittest.TestCase):
             module.unlink()
             with self.assertRaises(FileNotFoundError): lifecycle.digest(root)
 
+    def test_legacy_four_source_status_is_unavailable_and_doctor_check_continue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory).resolve();install=fixture(root)
+            (root/'tools/deployment/operational.py').unlink()
+            legacy=lifecycle.hashlib.sha256()
+            for name in ('collect_logs.py','collect-windows-logs.ps1','resource_sampling.py','memory_sampling.py'):
+                legacy.update(name.encode());legacy.update((root/'tools'/name).read_bytes())
+            atomic_json(install.state/'collector-runner.json',dict(root=str(root),project=install.project,mode='user'))
+            atomic_json(install.state/'diagnostics/store/collector-process.json',dict(
+                checkedAt=dt.datetime.now(dt.timezone.utc).isoformat(),root=str(root),project=install.project,
+                pid=123,nonce='a'*32,scriptDigest=legacy.hexdigest()))
+            before={str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()}
+            result=lifecycle.status(install)
+            self.assertEqual((result['state'],result['code'],result['reason']),
+                             ('unavailable','COLLECTOR_SOURCE_CONTRACT','missing_input'))
+            self.assertIsNone(result['scriptDigest'])
+            with self.assertRaises(FileNotFoundError):lifecycle.digest(root)
+            selected={'revision':'a'*40,'schema':203,'images':{}}
+            with patch.object(install,'identity',return_value={}),patch.object(install,'readiness',return_value={'revision':'a'*40,'schema':203}), \
+                 patch('asa_manager.run'),patch('asa_manager.check_resources'),patch('asa_manager.clean_checkout'), \
+                 patch('asa_manager.backup_directory'),patch('asa_manager.attest_editor_env'), \
+                 patch('asa_manager.discover_release',return_value=selected),patch('asa_manager.assert_ci') as ci:
+                asa_manager.doctor(install)
+                asa_manager.update(install,check=True)
+                ci.assert_called_once_with(selected)
+            after={str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()}
+            self.assertEqual(after,before)
+
+    def test_status_unreadable_source_is_closed_and_preserves_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory).resolve();install=fixture(root);target=root/'tools/deployment/operational.py'
+            original=Path.read_bytes;denials=[]
+            def denied(path):
+                if path.resolve()==target.resolve():
+                    denials.append(path);raise PermissionError('SYNTHETIC-PRIVATE-NEVER-OUTPUT')
+                return original(path)
+            with patch.object(Path,'read_bytes',denied):result=lifecycle.status(install)
+            self.assertEqual(len(denials),1)
+            self.assertEqual((result['state'],result['code'],result['reason']),
+                             ('unavailable','COLLECTOR_SOURCE_CONTRACT','unreadable_input'))
+            self.assertNotIn('SYNTHETIC',json.dumps(result));self.assertIsNone(result['scriptDigest'])
+
+    def test_status_invalid_configuration_and_registration_never_look_running(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory).resolve();install=fixture(root)
+            for config in ({'version':2},{'project':'foreign'},{'intervalSeconds':True},['invalid']):
+                atomic_json(install.state/'log-collector.json',config)
+                before=(install.state/'log-collector.json').read_bytes()
+                result=lifecycle.status(install)
+                self.assertEqual((result['state'],result['code']),('unavailable','COLLECTOR_STATUS_CONFIG'))
+                self.assertEqual((install.state/'log-collector.json').read_bytes(),before)
+            atomic_json(install.state/'log-collector.json',{})
+            atomic_json(install.state/'collector-runner.json',dict(root='/foreign',project=install.project,mode='user'))
+            self.assertEqual(lifecycle.status(install)['code'],'COLLECTOR_STATUS_CONFIG')
+            (install.state/'collector-runner.json').write_text('SYNTHETIC-INVALID-JSON',encoding='utf-8')
+            result=lifecycle.status(install)
+            self.assertEqual(result['state'],'unavailable');self.assertNotIn('SYNTHETIC',json.dumps(result))
+
+    def test_status_valid_full_source_retains_running_and_stale_semantics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory).resolve();install=fixture(root)
+            atomic_json(install.state/'collector-runner.json',dict(root=str(root),project=install.project,mode='user'))
+            process=dict(checkedAt=dt.datetime.now(dt.timezone.utc).isoformat(),root=str(root),project=install.project,
+                         pid=123,nonce='a'*32,scriptDigest=lifecycle.digest(root))
+            atomic_json(install.state/'diagnostics/store/collector-process.json',process)
+            before={str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()}
+            result=lifecycle.status(install)
+            self.assertEqual(result['state'],'running');self.assertEqual(result['scriptDigest'],process['scriptDigest'])
+            self.assertEqual({str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()},before)
+            process['scriptDigest']='f'*64
+            atomic_json(install.state/'diagnostics/store/collector-process.json',process)
+            self.assertEqual(lifecycle.status(install)['state'],'stale')
+
+    def test_status_invalid_heartbeat_timestamp_types_are_closed_unavailable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory).resolve();install=fixture(root)
+            atomic_json(install.state/'collector-runner.json',dict(root=str(install.root),project=install.project,mode='user'))
+            for value in (123,[],True,False,None,{}):
+                atomic_json(install.state/'diagnostics/store/collector-process.json',dict(
+                    checkedAt=value,root=str(install.root),project=install.project,pid=123,nonce='a'*32,
+                    scriptDigest=lifecycle.digest(install.root)))
+                before={str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()}
+                result=lifecycle.status(install)
+                self.assertEqual((result['state'],result['code'],result['reason']),
+                                 ('unavailable','COLLECTOR_STATUS_CONFIG','invalid_heartbeat_timestamp'))
+                self.assertIsNone(result['scriptDigest'])
+                self.assertEqual({str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()},before)
+
+    @unittest.skipUnless(os.name=='nt','Actual Windows short-path fixture')
+    def test_status_windows_short_path_fixture_uses_canonical_identity_and_denial_target(self):
+        import ctypes
+        with tempfile.TemporaryDirectory() as directory:
+            raw=Path(directory)/'Long Source Status Fixture';raw.mkdir()
+            buffer=ctypes.create_unicode_buffer(32768)
+            short_path=ctypes.windll.kernel32.GetShortPathNameW
+            short_path.argtypes=[ctypes.c_wchar_p,ctypes.c_wchar_p,ctypes.c_uint32]
+            short_path.restype=ctypes.c_uint32
+            length=short_path(str(raw),buffer,len(buffer))
+            self.assertGreater(length,0);self.assertLess(length,len(buffer))
+            alias=Path(buffer.value)
+            if str(alias)==str(raw):self.skipTest('8.3 aliases unavailable on this filesystem')
+            root=alias.resolve();install=fixture(root)
+            self.assertEqual(install.root,raw.resolve())
+            atomic_json(install.state/'collector-runner.json',dict(root=str(install.root),project=install.project,mode='user'))
+            atomic_json(install.state/'diagnostics/store/collector-process.json',dict(
+                checkedAt=dt.datetime.now(dt.timezone.utc).isoformat(),root=str(install.root),project=install.project,
+                pid=123,nonce='a'*32,scriptDigest=lifecycle.digest(install.root)))
+            self.assertEqual(lifecycle.status(install)['state'],'running')
+            target=(install.root/'tools/deployment/operational.py').resolve();original=Path.read_bytes;denials=[]
+            def denied(path):
+                if path.resolve()==target:
+                    denials.append(path);raise PermissionError('synthetic denial')
+                return original(path)
+            with patch.object(Path,'read_bytes',denied):result=lifecycle.status(install)
+            self.assertEqual(result['reason'],'unreadable_input');self.assertEqual(len(denials),1)
+
+    def test_status_unsafe_input_paths_refused_without_reading_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory).resolve();install=fixture(root)
+            original=lifecycle.plain_paths
+            def source_redirect(path,names):
+                if any(str(name).startswith('tools/') for name in names):raise ValueError('SYNTHETIC-FOREIGN-PATH')
+                return original(path,names)
+            with patch.object(lifecycle,'plain_paths',side_effect=source_redirect):result=lifecycle.status(install)
+            self.assertEqual((result['state'],result['reason']),('unavailable','unsafe_input_path'))
+            self.assertNotIn('SYNTHETIC',json.dumps(result))
+            with patch.object(lifecycle,'safe_paths',side_effect=Blocked('COLLECTOR_PATH','foreign','stop')):
+                self.assertEqual(lifecycle.status(install)['code'],'COLLECTOR_STATUS_CONFIG')
+
+    def test_status_actual_hardlinked_source_and_config_are_unavailable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory).resolve();install=fixture(root);target=root/'tools/deployment/operational.py'
+            source=target.read_bytes();target.unlink()
+            outside=root/'foreign-preserved';outside.write_bytes(source)
+            os.link(outside,target)
+            self.assertEqual(lifecycle.status(install)['reason'],'unsafe_input_path')
+            self.assertEqual(outside.read_bytes(),source)
+            target.unlink();target.write_bytes(source)
+            outside_config=root/'foreign-config';outside_config.write_bytes(b'SYNTHETIC-PRIVATE-INVALID')
+            install.state.mkdir(exist_ok=True);os.link(outside_config,install.state/'log-collector.json')
+            result=lifecycle.status(install)
+            self.assertEqual(result['code'],'COLLECTOR_STATUS_CONFIG')
+            self.assertNotIn('SYNTHETIC',json.dumps(result));self.assertEqual(outside_config.read_bytes(),b'SYNTHETIC-PRIVATE-INVALID')
+
+    @unittest.skipUnless(os.name!='nt','POSIX FIFO status input')
+    def test_status_rejects_fifo_without_opening_or_blocking(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory).resolve();install=fixture(root);target=root/'tools/deployment/operational.py'
+            target.unlink();os.mkfifo(target,0o600)
+            self.assertEqual(lifecycle.status(install)['reason'],'unsafe_input_path')
+            target.unlink();target.write_text('restored synthetic source',encoding='utf-8')
+            install.state.mkdir(exist_ok=True);os.mkfifo(install.state/'log-collector.json',0o600)
+            self.assertEqual(lifecycle.status(install)['code'],'COLLECTOR_STATUS_CONFIG')
+
+    def test_status_observation_does_not_weaken_strict_prepare_or_reconcile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory).resolve();install=fixture(root)
+            with patch.object(lifecycle,'_prepare_host',side_effect=Blocked('COLLECTOR_RUNNER_OWNER','foreign','stop')), \
+                 patch.object(lifecycle,'native_application_logging') as native,self.assertRaises(Blocked) as denied:
+                lifecycle.prepare(install)
+            self.assertEqual(denied.exception.code,'COLLECTOR_RUNNER_OWNER');native.assert_not_called()
+            with patch.object(lifecycle,'runner_lock',return_value=nullcontext()), \
+                 patch.object(install,'identity'),patch.object(lifecycle,'finalize_permissions'), \
+                 patch.object(lifecycle,'reader_probe'),patch.object(lifecycle,'runner_identity',side_effect=Blocked('COLLECTOR_RUNNER_OWNER','foreign','stop')), \
+                 patch.object(lifecycle,'reconcile_runner') as start:
+                result=lifecycle.reconcile(install,wait_seconds=0)
+            self.assertEqual((result['state'],result['code']),('degraded','COLLECTOR_RUNNER_OWNER'));start.assert_not_called()
+
     def test_status_and_manager_doctor_check_do_not_create_state(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory); install = fixture(root)
+            root = Path(directory).resolve(); install = fixture(root)
             before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
             result = lifecycle.status(install)
             self.assertEqual(result['state'], 'unavailable')
@@ -137,7 +481,7 @@ class CollectorLifecycleTests(unittest.TestCase):
 
     def test_stale_or_future_or_foreign_process_never_counts_as_running(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory); install = fixture(root)
+            root = Path(directory).resolve(); install = fixture(root)
             store = install.state / 'diagnostics/store'; store.mkdir(parents=True)
             identity = process_identity(root, install.project)
             for change in ({}, {'root': 'foreign'}, {'project': 'foreign'}, {'pid': -1}, {'nonce': 'not-a-nonce'}, {'checkedAt': '2099-01-01T00:00:00Z'}, {'checkedAt': '2000-01-01T00:00:00Z'}):
@@ -148,12 +492,12 @@ class CollectorLifecycleTests(unittest.TestCase):
 
     def test_restart_requires_new_nonce_and_failed_start_only_degrades_collector(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory); install = fixture(root)
+            root = Path(directory).resolve(); install = fixture(root)
             (install.state / 'diagnostics/store').mkdir(parents=True)
             (install.state / 'diagnostics/private').mkdir()
             identity = process_identity(root, install.project); write_process_health(root, identity)
             runner = {'root': str(root), 'project': install.project, 'scriptDigest': lifecycle.digest(root), 'mode': 'windows-task'}
-            with patch.object(install, 'identity'), patch('deployment.collector.finalize_permissions'), patch('deployment.collector.reader_probe'), patch('deployment.collector.runner_identity', return_value=runner), patch('deployment.collector.reconcile_runner', return_value='owned runner') as start:
+            with patch('deployment.collector.os.geteuid', return_value=1000, create=True), patch.object(install, 'identity'), patch('deployment.collector.finalize_permissions'), patch('deployment.collector.reader_probe'), patch('deployment.collector.runner_identity', return_value=runner), patch('deployment.collector.reconcile_runner', return_value='owned runner') as start:
                 failed = lifecycle.reconcile(install, wait_seconds=0)
                 self.assertEqual(failed['state'], 'degraded'); self.assertEqual(failed['code'], 'COLLECTOR_START')
                 def restarted(*args):

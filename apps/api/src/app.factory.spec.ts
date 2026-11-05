@@ -1,3 +1,4 @@
+import { MutationAbuseProtection } from './abuse-protection';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +23,43 @@ afterEach(async () => {
 });
 
 describe('API application factory', () => {
+  it('notification polling does not spend the shared school mutation budget; mutations retain their guard', async () => {
+    const consume = vi.spyOn(MutationAbuseProtection.prototype, 'consume');
+    const app = await createApiApp({
+      pool: null,
+      analyticsPool: null,
+      acquisitionPool: null,
+      webDist: null,
+      allowedWebOrigin: 'http://127.0.0.1:4612',
+    });
+    try {
+      const http = app.getHttpAdapter().getInstance();
+      for (let index = 0; index < 901; index++) {
+        const response = await http.inject({
+          method: 'GET',
+          url:
+            index % 2 === 0
+              ? '/api/games/chess/notifications'
+              : '/api/games/checkers/notifications',
+          headers: { 'x-game-presence': '1' },
+        });
+        // This fixture deliberately has no DB: route exists and fails closed.
+        expect(response.statusCode).toBe(503);
+      }
+      expect(consume).not.toHaveBeenCalled();
+      await http.inject({
+        method: 'POST',
+        url: '/api/games/chess/lobby',
+        headers: { origin: 'http://127.0.0.1:4612' },
+        payload: { scope: 'platform' },
+      });
+      expect(consume).toHaveBeenCalledOnce();
+    } finally {
+      consume.mockRestore();
+      await app.close();
+    }
+  }, 30000);
+
   it('sanitizes the real Nest provider exception zone before rethrow and closes transferred pools once', async () => {
     const canary = 'postgres://canary_password@secret-provider.invalid/private';
     const failure = new Error(canary);

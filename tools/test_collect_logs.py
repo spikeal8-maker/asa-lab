@@ -17,6 +17,7 @@ from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIR
 from test_database_diagnostics import DatabaseDiagnosticTests  # Included by the canonical collector test runner.
 from test_database_identity import ActualDatabaseIdentityTests, DatabaseIdentityUnitTests
 from test_database_progress import ActualDatabaseProgressTests, DatabaseProgressUnitTests, response
+from test_compose_required_sources import ObservedComposePolicyTests
 
 
 def system_classification_fixture(root, compressed):
@@ -922,7 +923,7 @@ class CollectorTests(unittest.TestCase):
             def command(args, **kwargs):
                 if args[1] == 'ps': return b'new-container\npostgres-container'
                 if args[1] == 'inspect':
-                    records = [dict(Id=cid, Created=created.isoformat(), Config=dict(Labels={'com.docker.compose.service': service, 'com.docker.compose.project.working_dir': str(collector.root)})) for cid, service in [('new-container', 'api'), ('postgres-container', 'postgres')]]
+                    records = [dict(Id=cid, Created=created.isoformat(), Config=dict(Labels={'com.docker.compose.project': 'asa-lab-dev', 'com.docker.compose.service': service, 'com.docker.compose.project.working_dir': str(collector.root)})) for cid, service in [('new-container', 'api'), ('postgres-container', 'postgres')]]
                     return '\n'.join(json.dumps(c) for c in records).encode()
                 calls.append(args)
                 return (now() + ' ERROR startup failure\n').encode()
@@ -993,6 +994,17 @@ class CollectorTests(unittest.TestCase):
             # confused with an external index replacement on the next publish.
             collector.publish()
             collector.db.close()
+
+
+def load_tests(loader, tests, pattern):
+    # Existing explicit collector CI entrypoint must run the new regression files;
+    # broad discovery already selects them and must not run them twice.
+    import fnmatch
+    if not pattern or not fnmatch.fnmatch('test_retired_metadata_atomic.py', pattern):
+        import test_retired_metadata_atomic, test_retired_successor_recovery
+        tests.addTests(loader.loadTestsFromModule(test_retired_metadata_atomic))
+        tests.addTests(loader.loadTestsFromModule(test_retired_successor_recovery))
+    return tests
 
 
 if __name__ == '__main__':

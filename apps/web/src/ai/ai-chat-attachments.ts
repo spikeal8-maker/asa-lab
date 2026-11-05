@@ -2,12 +2,14 @@ import { createAiScopeCall, aiScopeHeaders } from './ai-scope-api';
 import { fetchWithSessionRefresh } from '../session-fetch';
 
 export const AI_CHAT_FILE_ACCEPT =
-  '.png,.jpg,.jpeg,.webp,.txt,.md,.markdown,.js,.jsx,.ts,.tsx,.py,.c,.cpp,.h,.hpp,.ino,.json,.css,.html,.xml,.yaml,.yml,.sql,.sh,.java,.rs,.go';
+  '.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp,.txt,.md,.markdown,.js,.jsx,.ts,.tsx,.py,.c,.cpp,.h,.hpp,.ino,.json,.css,.html,.xml,.yaml,.yml,.sql,.sh,.java,.rs,.go';
 
 export interface AiChatFileDraft {
   readonly uploadId: string;
   readonly file: File;
   readonly preview: string | null;
+  readonly originalBytes?: number;
+  readonly dimensions?: string | undefined;
 }
 
 interface Receipt {
@@ -34,9 +36,14 @@ export function checkAiChatFiles(files: readonly File[]): string | null {
       return 'Имя файла не подходит для безопасной загрузки.';
     const extension = file.name.split('.').at(-1)?.toLowerCase() ?? '';
     if (!otherExtensions.has(extension))
-      return 'Этот формат пока не поддерживается. Выберите изображение, текст или файл кода.';
-    if (file.size > (imageExtensions.has(extension) ? 8 * 1024 * 1024 : 512 * 1024))
-      return 'Файл превышает допустимый размер (8 МБ для изображения, 512 КБ для текста).';
+      return 'Этот формат пока не поддерживается. Выберите PDF, DOCX, XLSX, изображение, текст или код.';
+    if (
+      file.size >
+      (imageExtensions.has(extension) || ['pdf', 'docx', 'xlsx'].includes(extension)
+        ? 8 * 1024 * 1024
+        : 512 * 1024)
+    )
+      return 'Файл превышает допустимый размер (8 МБ для изображения или документа, 512 КБ для текста).';
     total += file.size;
   }
   if (total > 20 * 1024 * 1024) return 'Общий размер вложений превышает 20 МБ.';

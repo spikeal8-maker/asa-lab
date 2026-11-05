@@ -243,30 +243,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.home-shelf-controls {
-  position: absolute;
-  top: -37px;
-  right: 144px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 4px;
-  height: 28px;
-}
-.home-shelf-controls button {
-  width: 36px;
-  height: 28px;
-  border: 1px solid #cde0ec;
-  background: white;
-  color: #0877b3;
-  border-radius: 6px;
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-}
-.home-shelf-controls button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
 .home-empty-create {
   display: flex;
   flex-direction: column;
@@ -496,9 +472,6 @@
     -webkit-line-clamp: 2;
     white-space: normal;
     min-height: 32px;
-  }
-  .home-shelf-controls {
-    display: none;
   }
   .home-module-all {
     min-height: 44px;

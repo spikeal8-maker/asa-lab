@@ -1,3 +1,4 @@
+import { AI_IMAGE_UNAVAILABLE, aiPublicErrorMessage } from '@asa-lab/contracts';
 import { aiImageSizeLabel, isAiImageSize } from '@asa-lab/contracts';
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import type {
@@ -38,15 +39,20 @@ export function imageGenerationStatusShape(value: unknown): value is AiImageGene
   );
 }
 const labels: Record<AiImageGenerationJob['state'], string> = {
-  admitted: 'Задание принято…',
+  admitted: 'В очереди. Изображение начнёт создаваться, когда освободится видеокарта.',
   submitting: 'Передаём задание модели…',
-  unknown: 'Результат пока неизвестен. Проверяем сохранённое задание без повторной отправки.',
+  unknown: 'Проверяю изображение…',
   running: 'Создаём изображение…',
   storing: 'Сохраняем изображение…',
   complete: 'Изображение создано.',
-  failed: 'Не удалось создать изображение.',
+  failed: AI_IMAGE_UNAVAILABLE,
   cancelled: 'Задание отменено.',
 };
+function jobLabel(job: AiImageGenerationJob): string {
+  return job.state === 'admitted' && job.queuePaused
+    ? 'Очередь приостановлена: проверяем неопределённый результат генерации. Задание можно отменить.'
+    : labels[job.state];
+}
 export function AiImageGeneration({
   threadId,
   seatId,
@@ -122,7 +128,7 @@ export function AiImageGeneration({
         setSize((previous) =>
           result.data.sizes.includes(previous) ? previous : result.data.sizes[0]!,
         );
-      } else setNotice('Генерация изображений недоступна. Возможно, требуется обновление API.');
+      } else setNotice(AI_IMAGE_UNAVAILABLE);
     });
     return () => {
       mounted.current = false;
@@ -195,7 +201,7 @@ export function AiImageGeneration({
           }
           return;
         }
-      } else setNotice('Статус задания пока неизвестен. Повторная отправка не выполняется.');
+      } else setNotice('Проверяю изображение…');
       timer = window.setTimeout(
         () => void poll(),
         Math.min(15000, 1500 * 2 ** Math.min(attempt++, 4)),
@@ -277,7 +283,7 @@ export function AiImageGeneration({
         recoveryVersion.current += 1;
         setJob(null);
         setUnresolved(false);
-        setNotice(result.error.message);
+        setNotice(aiPublicErrorMessage(result.error.code, AI_IMAGE_UNAVAILABLE));
         if (receiptCleared) onNotAdmitted?.(submittedPrompt);
         if (initial && result.status === 403 && receiptCleared) onDefiniteThreadDenial?.(id);
         // Also cancel an early GET started when this POST created a thread.
@@ -304,15 +310,12 @@ export function AiImageGeneration({
       } else
         setNotice(
           result.status
-            ? result.error.message
-            : 'Ответ сервера неизвестен. Проверяем задание без повторной отправки.',
+            ? aiPublicErrorMessage(result.error.code, AI_IMAGE_UNAVAILABLE)
+            : 'Проверяю изображение…',
         );
       setCheck((n) => n + 1);
     } catch {
-      if (mounted.current)
-        setNotice(
-          'Не удалось сохранить или проверить задание. Новая генерация не запущена автоматически.',
-        );
+      if (mounted.current) setNotice(AI_IMAGE_UNAVAILABLE);
     } finally {
       inFlight.current = false;
       if (mounted.current) setSending(false);
@@ -371,11 +374,11 @@ export function AiImageGeneration({
         (job
           ? job.cancelRequested && !terminal(job)
             ? 'Отмена запрошена. Проверяем состояние задания…'
-            : labels[job.state]
+            : jobLabel(job)
           : status && (!status.enabled || !status.ready)
-            ? 'Генерация изображений сейчас недоступна.'
+            ? AI_IMAGE_UNAVAILABLE
             : status && status.remainingToday < 1
-              ? 'Дневной лимит изображений исчерпан.'
+              ? AI_IMAGE_UNAVAILABLE
               : ''),
     });
   }, [disabled, sending, pending, job, unresolved, status, notice, onStateChange]);
@@ -521,12 +524,12 @@ export function AiImageGeneration({
           (job
             ? job.cancelRequested && !terminal(job)
               ? 'Отмена запрошена. Проверяем состояние задания…'
-              : labels[job.state]
+              : jobLabel(job)
             : status
               ? !status.enabled
-                ? 'Генерация выключена администратором.'
+                ? AI_IMAGE_UNAVAILABLE
                 : !status.ready
-                  ? 'Локальная генерация пока не готова.'
+                  ? AI_IMAGE_UNAVAILABLE
                   : 'Доступно до 00:00 UTC: ' + status.remainingToday
               : 'Проверяем доступность…')}
       </p>

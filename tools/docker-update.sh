@@ -258,6 +258,8 @@ write_receipt() {
   shift
   : >"$path"
   for line in "$@"; do printf '%s\n' "$line" >>"$path"; done
+  python3 tools/deployment/operational.py source-update --root "$repo_root" --receipt "$path" --trigger "${ASA_OPERATION_TRIGGER:-unknown}" ||
+    printf '%s\n' 'Operation diagnostics failed; original update receipt is preserved.' >&2
 }
 
 main() {

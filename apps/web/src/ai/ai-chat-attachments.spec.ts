@@ -69,9 +69,20 @@ describe('ASA chat uploads and exact request recovery', () => {
   });
 
   it('rejects unsupported formats, empty and oversized attachments before network calls', () => {
-    expect(checkAiChatFiles([new File(['x'], 'lesson.pdf')])).toMatch(/не поддерживается/);
+    expect(checkAiChatFiles([new File(['x'], 'lesson.exe')])).toMatch(/не поддерживается/);
     expect(checkAiChatFiles([new File([], 'empty.ino')])).toMatch(/пустой/);
     expect(checkAiChatFiles(Array.from({ length: 5 }, () => draft().file))).toMatch(/четырёх/);
     expect(requests.scope).not.toHaveBeenCalled();
   });
 });
+
+it.each(['pdf', 'docx', 'xlsx'])(
+  'accepts bounded %s document descriptors without uploading on selection',
+  (extension) => {
+    expect(checkAiChatFiles([new File(['document bytes'], 'review.' + extension)])).toBeNull();
+    expect(
+      checkAiChatFiles([new File([new Uint8Array(8 * 1024 * 1024 + 1)], 'review.' + extension)]),
+    ).not.toBeNull();
+    expect(requests.bytes).not.toHaveBeenCalled();
+  },
+);

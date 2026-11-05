@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 /** Native scrolling: touch, trackpad and keyboard work without carousel libraries. */
 export function HomeShelf({
@@ -9,21 +9,33 @@ export function HomeShelf({
   children: ReactNode;
 }): JSX.Element {
   const track = useRef<HTMLUListElement>(null);
-  const [edges, setEdges] = useState({ start: true, end: true });
-  const update = (): void => {
-    const node = track.current;
-    if (node)
-      setEdges({
-        start: node.scrollLeft < 2,
-        end: node.scrollLeft + node.clientWidth >= node.scrollWidth - 2,
-      });
-  };
   useEffect(() => {
-    update();
-    const observer = new ResizeObserver(update);
-    if (track.current) observer.observe(track.current);
-    return () => observer.disconnect();
-  }, [children]);
+    const node = track.current;
+    if (!node) return;
+    const wheel = (event: WheelEvent): void => {
+      // Preserve pinch zoom, native horizontal gestures, and scrolling inside menus.
+      if (
+        event.ctrlKey ||
+        event.shiftKey ||
+        Math.abs(event.deltaX) >= Math.abs(event.deltaY) ||
+        (event.target instanceof Element && event.target.closest('.project-card-menu'))
+      )
+        return;
+      const max = node.scrollWidth - node.clientWidth;
+      if (
+        max <= 1 ||
+        (event.deltaY < 0 && node.scrollLeft <= 1) ||
+        (event.deltaY > 0 && node.scrollLeft >= max - 1)
+      )
+        return;
+      if (!event.cancelable) return;
+      event.preventDefault();
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? node.clientWidth : 1;
+      node.scrollBy({ left: event.deltaY * unit, behavior: 'instant' });
+    };
+    node.addEventListener('wheel', wheel, { passive: false });
+    return () => node.removeEventListener('wheel', wheel);
+  }, []);
   const move = (direction: number): void => {
     const node = track.current;
     node?.scrollBy({
@@ -38,7 +50,6 @@ export function HomeShelf({
         className="home-shelf-track project-card-grid"
         aria-label={label}
         tabIndex={0}
-        onScroll={update}
         onKeyDown={(event) => {
           if (
             event.target !== event.currentTarget ||
@@ -51,24 +62,6 @@ export function HomeShelf({
       >
         {children}
       </ul>
-      <div className="home-shelf-controls">
-        <button
-          type="button"
-          aria-label={`${label}: предыдущие`}
-          disabled={edges.start}
-          onClick={() => move(-1)}
-        >
-          ‹
-        </button>
-        <button
-          type="button"
-          aria-label={`${label}: следующие`}
-          disabled={edges.end}
-          onClick={() => move(1)}
-        >
-          ›
-        </button>
-      </div>
     </div>
   );
 }

@@ -84,6 +84,11 @@ export interface PublicationLikeState {
 
 /** Public reads use only the immutable publication namespace. */
 export const publicProjectsApi = {
+  editor: (publicationId: string, signal?: AbortSignal) =>
+    call<{ editor: { projectId: string; moduleKey: string } | null }>(
+      `/api/public-projects/${encodeURIComponent(publicationId)}/editor`,
+      { cache: 'no-store', ...(signal ? { signal } : {}) },
+    ),
   likeState: (publicationId: string, signal: AbortSignal) =>
     call<PublicationLikeState>(`/api/public-projects/${encodeURIComponent(publicationId)}/like`, {
       cache: 'no-store',
@@ -111,7 +116,7 @@ export const publicProjectsApi = {
       return {
         ok: false,
         status: 502,
-        error: { code: 'invalid_public_artifact', message: 'Некорректный формат схемы' },
+        error: { code: 'invalid_public_artifact', message: 'Некорректный формат просмотра' },
       };
     return { ok: true, status: result.status, data: { artifact: validated.artifact } };
   },

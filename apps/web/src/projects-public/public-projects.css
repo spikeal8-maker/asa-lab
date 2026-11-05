@@ -151,7 +151,7 @@
   cursor: pointer;
 }
 .public-projects-category[data-module]:not([data-module=''])::before {
-  content: '';
+  content: none;
   flex: 0 0 6px;
   width: 6px;
   height: 6px;
@@ -485,6 +485,39 @@
 }
 .public-project-card-meta svg[fill='currentColor'] {
   color: #c83d68;
+}
+.public-project-card
+  :is(
+    .public-project-author,
+    .publication-module,
+    .public-project-card-date,
+    .public-project-card-marks > span,
+    .public-project-card-body h2,
+    .public-project-card-meta
+  ) {
+  text-shadow: none;
+  filter: none;
+}
+.public-project-card .public-project-card-identity,
+.public-project-card .public-project-card-topline > .publication-module,
+.public-project-card .public-project-card-body h2,
+.public-project-card .public-project-card-meta,
+.public-project-card .public-project-card-date,
+.public-project-card .public-project-card-marks > span {
+  background: rgb(255 255 255 / 80%);
+  border-radius: 999px;
+  box-shadow: none;
+  padding: 3px 7px;
+}
+.public-project-card .public-project-card-identity {
+  flex: 0 1 auto;
+  max-width: calc(100% - 72px);
+}
+.public-project-card .public-project-card-meta svg {
+  filter: none;
+}
+.public-project-card .public-project-avatar {
+  box-shadow: none;
 }
 .publication-module {
   display: inline-block;
@@ -1137,7 +1170,7 @@
   display: block;
   width: 100%;
   height: clamp(300px, calc(100svh - 360px), 620px);
-  touch-action: pan-y;
+  touch-action: none;
   cursor: grab;
   background: radial-gradient(#dce8e1 1px, transparent 1px) 0 0 / 20px 20px;
 }
@@ -2701,5 +2734,179 @@
   }
   .publication-comment-form.is-inline-reply {
     margin-left: 20px;
+  }
+}
+
+/* Two readable cards on narrow screens; keep overlays local to their content. */
+@media (max-width: 600px) {
+  .public-project-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .public-project-card .public-project-author {
+    font-size: 11px;
+  }
+  .public-project-card .public-project-avatar {
+    flex-basis: 18px;
+    width: 18px;
+    height: 18px;
+    font-size: 8px;
+  }
+  .public-project-card .public-project-card-identity {
+    max-width: calc(100% - 46px);
+  }
+  .public-project-card .public-project-card-topline > .publication-module {
+    max-width: 40%;
+    font-size: 9px;
+  }
+  .public-project-card .public-project-card-body h2 {
+    font-size: 11px;
+  }
+  .public-project-card .public-project-card-meta {
+    font-size: 10px;
+  }
+  .public-project-card .public-project-card-meta svg {
+    width: 11px;
+    height: 11px;
+  }
+  .public-project-card .public-project-card-date {
+    font-size: 8px;
+  }
+}
+
+/* Square previews, quiet author reveal and shared module pictograms. */
+.public-project-card-link {
+  aspect-ratio: 1;
+}
+.public-project-card-topline {
+  top: 5px;
+  left: 5px;
+  right: 5px;
+  align-items: flex-start;
+}
+.public-project-card .public-project-card-identity {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  flex: 1;
+  max-width: calc(100% - 38px);
+}
+.public-project-card .public-project-author-caption {
+  opacity: 0;
+  transition: opacity 120ms ease;
+  text-shadow:
+    0 0 2px #fff,
+    0 0 3px #fff;
+}
+.public-project-card-link:is(:hover, :focus-visible) .public-project-author-caption {
+  opacity: 1;
+}
+.public-project-card .public-project-author {
+  text-shadow: inherit;
+}
+.public-project-card .public-project-card-topline > .publication-module {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  max-width: none;
+  padding: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 80%);
+  color: #235faf;
+}
+.public-project-card .public-project-card-topline > .publication-module[data-module='electronics'] {
+  color: #08755b;
+}
+.public-project-card .public-project-card-topline > .publication-module[data-module='blocks'] {
+  color: #7752af;
+}
+.public-projects-categories button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.public-projects-categories button svg {
+  flex-shrink: 0;
+}
+.public-projects-categories button::before {
+  content: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .public-project-card .public-project-author-caption {
+    transition: none;
+  }
+}
+
+/* Contain the whole project between the fixed overlay controls. */
+.public-project-card-cover .publication-preview {
+  box-sizing: border-box;
+  padding: 36px 8px 34px;
+  background: #fff;
+}
+.public-project-card-cover .publication-preview img,
+.public-project-card-cover .three-d-hover-preview > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  object-fit: contain;
+}
+
+/* Owner-supplied illustrated module badges. */
+.public-project-card .public-project-card-topline > .publication-module {
+  width: 34px;
+  height: 34px;
+  background: transparent;
+}
+.public-project-card .publication-module .project-module-artwork {
+  width: 34px;
+  height: 34px;
+}
+.project-module-artwork {
+  display: block;
+  flex-shrink: 0;
+}
+.public-projects-categories .project-module-artwork {
+  width: 28px;
+  height: 28px;
+}
+
+.public-project-card .public-project-card-topline > .publication-module,
+.public-project-card .publication-module .project-module-artwork {
+  width: 24px;
+  height: 24px;
+}
+
+/* Larger author identity; interaction remains confined to each published viewer. */
+.public-project-card .public-project-avatar {
+  flex-basis: 32px;
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
+}
+.public-project-detail-avatar {
+  flex-basis: 48px;
+  width: 48px;
+  height: 48px;
+}
+.publication-owner-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.publication-owner-actions > .btn-secondary {
+  min-height: 34px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .public-project-card .public-project-avatar {
+    flex-basis: 28px;
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
   }
 }

@@ -8,6 +8,7 @@ import './ai-generation-policy.css';
 const PROVIDERS = [
   { id: 'openai', label: 'OpenAI' },
   { id: 'deepseek', label: 'DeepSeek' },
+  { id: 'polza', label: 'Polza AI' },
   { id: 'ollama-cloud', label: 'Ollama Cloud' },
   { id: 'ollama', label: 'Ollama · локально' },
 ] as const;
@@ -54,11 +55,13 @@ export function AdminAiGenerationPolicy({
   provider,
   onDirtyChange,
   onEligibleModels,
+  onCatalogSaved,
 }: {
   readonly section: 'prompt' | 'settings' | 'connections';
   readonly provider?: string;
   readonly onDirtyChange?: (dirty: boolean) => void;
   readonly onEligibleModels?: (ids: readonly string[]) => void;
+  readonly onCatalogSaved?: () => void;
   readonly onAccessDenied: () => void;
 }) {
   const [config, setConfig] = useState<AiGenerationPolicy | null>(null);
@@ -225,6 +228,7 @@ export function AdminAiGenerationPolicy({
         apply(reply.data);
         attempt.current = null;
         setNotice('Настройки сохранены. Запрос к модели не выполнялся.');
+        onCatalogSaved?.();
       } else setError('Сервер вернул несовместимые настройки. Загрузите актуальную версию.');
     } catch {
       setError(
@@ -353,6 +357,7 @@ export function AdminAiGenerationPolicy({
       });
       if (reply.ok && policyShape(reply.data)) {
         const data = reply.data;
+        onCatalogSaved?.();
         if (config && data.configurationVersion !== config.configurationVersion) {
           setConflict(true);
           setError(
@@ -699,6 +704,16 @@ export function AdminAiGenerationPolicy({
                                 />
                                 <span>
                                   <strong>{model.label}</strong>
+                                  {model.inputModalities ? (
+                                    <span
+                                      className="asa-ai-model-vision"
+                                      title="Возможности выбранной модели по серверному каталогу API"
+                                    >
+                                      {model.inputModalities.includes('image')
+                                        ? 'Vision · читает изображения'
+                                        : 'Только текст'}
+                                    </span>
+                                  ) : null}
                                   {model.id !== model.label ? (
                                     <small title={model.id}>{model.id}</small>
                                   ) : null}

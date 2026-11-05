@@ -5,6 +5,7 @@ import { URL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import pg from 'pg';
+import { runPublicationBrowserPartitions } from './projects-publication-partitions.mjs';
 
 // Both gates require the same real PostgreSQL boundary as CI. Missing database
 // access is a failure, never a skipped suite that can be reported as acceptance.
@@ -167,6 +168,7 @@ function run(args) {
   // receipt after browser execution, including on a failing browser run.
   if (args.includes('playwright')) verifyEmittedViewerGraph();
   if (result.status !== 0) process.exit(result.status ?? 1);
+  return result.status;
 }
 
 if (browser) {
@@ -177,25 +179,9 @@ if (browser) {
     }
   }
   verifyBuiltRevision();
-  run([
-    'exec',
-    'playwright',
-    'test',
-    'e2e/publication-likes.spec.ts',
-    'e2e/publication-comments.spec.ts',
-    'e2e/student-project-policy.spec.ts',
-    'e2e/public-projects.spec.ts',
-    'e2e/public-project-electronics-viewer.spec.ts',
-    'e2e/public-project-electronics-player.spec.ts',
-    'e2e/public-project-copy.spec.ts',
-    'e2e/public-project-admin-moderation.spec.ts',
-    'e2e/gallery.spec.ts',
-    'e2e/project-hub.spec.ts',
-    '--workers=1',
-    '--reporter=list',
-    '--output=reports/playwright/projects-publication',
-  ]);
+  runPublicationBrowserPartitions(run, env);
 } else {
+  run(['exec', 'node', '--test', 'tools/projects-publication-partitions.test.mjs']);
   run(['exec', 'node', '--test', 'tools/public-electronics-emitted-graph.test.mjs']);
   run(['db:migrate:check']);
   // Nx follows ^build dependencies. API injection tests import the built API;

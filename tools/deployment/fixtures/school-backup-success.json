@@ -1,0 +1,31 @@
+{
+  "contract": "asa-school-verified-cloud-receipt-v1",
+  "producerRepository": "spikeal8-maker/Server-setings",
+  "producerRevision": "8ae8d4bcd578bb05598ecb487b242772383d0ab3",
+  "producerPath": "scripts/school-nightly-database-backup.py",
+  "producerLfSha256": "fda5db30f0d3d79384682c6e96c50b706dbc502d51de9fbb14785ccd3a0f35d5",
+  "receipts": {
+    "manual": {
+      "status": "verified_cloud_sha256",
+      "trigger": "manual",
+      "project": "asa-lab-school",
+      "createdAt": "2026-11-01T00:20:00+00:00",
+      "archive": "asa-school-01-20261101T002000Z-a1b2c3d4.tar.age",
+      "size": 1024,
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "remote": "app:/School-VM100/Database-Backups",
+      "restore_rehearsal": false
+    },
+    "scheduled": {
+      "status": "verified_cloud_sha256",
+      "trigger": "scheduled",
+      "project": "asa-lab-school",
+      "createdAt": "2026-11-01T00:20:00+00:00",
+      "archive": "asa-school-01-20261101T002000Z-a1b2c3d4.tar.age",
+      "size": 1024,
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "remote": "app:/School-VM100/Database-Backups",
+      "restore_rehearsal": false
+    }
+  }
+}
