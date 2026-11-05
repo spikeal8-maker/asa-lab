@@ -25,10 +25,10 @@ function currentDocument(): SchematicDocument {
   return document;
 }
 
-function mount() {
+function mount(beforeHistoryChange?: () => void) {
   const initial = createDefaultRoboticsProject();
   function Harness() {
-    local = useLocalRoboticsProject(initial);
+    local = useLocalRoboticsProject(initial, beforeHistoryChange);
     return createElement('output', null, local.host.saveStatus);
   }
   container = document.createElement('div');
@@ -243,6 +243,80 @@ describe('robotics local project host', () => {
       expect(local.host.redo()).toBe(true);
     });
     expect(local.getCurrentProject()).toEqual(changed);
+  });
+
+  it('invalidates restored programs synchronously for every host Undo/Redo while Save preserves Redo', async () => {
+    mount();
+    const original = local.getCurrentProject();
+    const source = 'void setup(){} void loop(){delay(37);}';
+    act(() => local.host.commitDocument(editProgram(currentDocument(), source)));
+    expect(local.programRevision).toBe(0);
+    const changed = local.getCurrentProject();
+    const beforeUndoRender = local;
+    await act(async () => {
+      expect(beforeUndoRender.host.undo()).toBe(true);
+      expect(beforeUndoRender.getProgramRevision()).toBe(1);
+      expect(beforeUndoRender.programRevision).toBe(0);
+      expect(beforeUndoRender.getCurrentProject()).toEqual(original);
+      await beforeUndoRender.host.saveNow();
+    });
+    expect(local.programRevision).toBe(1);
+    expect(local.host.canRedo).toBe(true);
+    expect(JSON.parse(localStorage.getItem(ROBOTICS_LOCAL_PROJECT_KEY)!)).toEqual(original);
+    const beforeRedoRender = local;
+    await act(async () => {
+      expect(beforeRedoRender.host.redo()).toBe(true);
+      expect(beforeRedoRender.getProgramRevision()).toBe(2);
+      expect(beforeRedoRender.getCurrentProject()).toEqual(changed);
+      await beforeRedoRender.host.saveNow();
+    });
+    expect(local.programRevision).toBe(2);
+    expect(JSON.parse(localStorage.getItem(ROBOTICS_LOCAL_PROJECT_KEY)!)).toEqual(changed);
+    act(() => expect(local.host.redo()).toBe(false));
+    expect(local.programRevision).toBe(2);
+  });
+
+  it('flushes a pending program before choosing the history target without discarding its Redo', () => {
+    let pending = true;
+    const flush = vi.fn(() => {
+      if (!pending) return;
+      pending = false;
+      local.host.commitDocument(
+        editProgram(currentDocument(), 'void setup(){} void loop(){delay(38);}'),
+      );
+    });
+    mount(flush);
+    const original = local.getCurrentProject();
+    act(() => expect(local.host.undo()).toBe(true));
+    expect(flush).toHaveBeenCalledOnce();
+    expect(local.getCurrentProject()).toEqual(original);
+    expect(local.programRevision).toBe(1);
+    expect(local.host.canRedo).toBe(true);
+    act(() => expect(local.host.redo()).toBe(true));
+    expect(flush).toHaveBeenCalledTimes(2);
+    expect(local.programRevision).toBe(2);
+    expect(currentDocument().components[0]!.stateProperties!.arduinoSource).toContain('delay(38)');
+  });
+
+  it('shares the replacement boundary with examples and Open but keeps it unchanged for field history', async () => {
+    mount();
+    await act(async () => local.host.saveNow());
+    act(() =>
+      local.replaceProgram(() =>
+        local.host.commitDocument(
+          editProgram(currentDocument(), 'void setup(){} void loop(){delay(39);}'),
+        ),
+      ),
+    );
+    expect(local.programRevision).toBe(1);
+    act(() => local.setWorld(createRoboticsWorldDocument('compact')));
+    act(() => expect(local.host.undo()).toBe(true));
+    act(() => expect(local.host.redo()).toBe(true));
+    expect(local.programRevision).toBe(1);
+    act(() => expect(local.openSavedProject()).toBe(true));
+    expect(local.programRevision).toBe(2);
+    act(() => expect(local.openSavedProject()).toBe(true));
+    expect(local.programRevision).toBe(2);
   });
 
   it('allows an erroneous editable project to be saved but fails closed on missing motor bindings', async () => {

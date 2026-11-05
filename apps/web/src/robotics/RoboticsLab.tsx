@@ -52,14 +52,6 @@ const SECTIONS = [
 ] as const;
 type Section = (typeof SECTIONS)[number]['id'];
 
-function programIdentity(project: RoboticsProject): string {
-  return JSON.stringify(
-    project.circuit.components
-      .filter((component) => component.componentTypeId === 'arduino-uno')
-      .map((component) => [component.id, readArduinoProgramState(component.stateProperties)]),
-  );
-}
-
 function SmallIcon({ name }: { name: 'play' | 'pause' | 'reset' | 'code' | 'save' | 'stop' }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="robotics-icon">
@@ -106,7 +98,7 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
   );
   const [section, setSection] = useState<Section>('field');
   const [compactLayout, setCompactLayout] = useState(() => window.innerWidth <= 760);
-  const local = useLocalRoboticsProject(seed);
+  const local = useLocalRoboticsProject(seed, flushProgram);
   const controller = useElectronicsWorkbenchHost('asa-robotics-local-v1', local.host, {
     ...WORKBENCH_OPTIONS,
     keyboardShortcutsEnabled: section === 'electronics',
@@ -135,13 +127,18 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
   );
   const [codeHeight, setCodeHeight] = useState(70);
   const programHandle = useRef<ArduinoCodePanelHandle | null>(null);
-  const [programRevision, setProgramRevision] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [programPreset, setProgramPreset] = useState<RoboticsProgramPresetId | ''>('');
+  const [chosenProgramPreset, setChosenProgramPreset] = useState<{
+    id: RoboticsProgramPresetId;
+    revision: number;
+  } | null>(null);
+  const programPreset =
+    chosenProgramPreset?.revision === local.programRevision ? chosenProgramPreset.id : '';
   const stageHostRef = useRef<HTMLDivElement | null>(null);
   const tabRefs = useRef<Partial<Record<Section, HTMLButtonElement | null>>>({});
   const codeHostRef = useRef<HTMLDivElement | null>(null);
   const measuredProgramWidth = useRef<number | null>(null);
+  const revealedProgramRevision = useRef(local.programRevision);
   const previousPaletteOpen = useRef(paletteOpen);
   const previousRun = useRef(false);
   const previousWorld = useRef(sourceWorld);
@@ -334,6 +331,7 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
     setLastCommand(label);
   }
   function flushProgram() {
+    if (local.getProgramRevision() !== local.programRevision) return;
     programHandle.current?.flushPendingPublication();
   }
   function saveProject() {
@@ -347,7 +345,7 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
       !window.confirm('Открыть сохранённый проект? Несохранённые изменения будут заменены.')
     )
       return;
-    if (local.openSavedProject()) setProgramPreset('');
+    if (local.openSavedProject()) setChosenProgramPreset(null);
   }
   function navigate(next: Section) {
     flushProgram();
@@ -362,13 +360,7 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
     if (running) return;
     flushProgram();
     const metadata = ROBOTICS_PROGRAM_PRESETS.find((candidate) => candidate.id === id);
-    if (
-      !metadata ||
-      !window.confirm(
-        `Заменить текущую программу примером «${metadata.label}»? Схема и поле сохранятся. Изменение можно отменить.`,
-      )
-    )
-      return;
+    if (!metadata) return;
     const current = local.getCurrentProject();
     const board = current.circuit.components.find(
       (part) => part.id === current.world.bindings.boardId,
@@ -377,27 +369,35 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
       controller.setNotice('Выберите существующую Arduino Uno в разделе «Робот».');
       return;
     }
+    const boardName = board.name?.trim() || 'Arduino Uno R3';
+    if (
+      !window.confirm(
+        `Заменить программу платы робота «${boardName}» (${board.id}) примером «${metadata.label}»? Редактор откроет эту плату. Программы других плат, схема и поле сохранятся. Изменение можно отменить.`,
+      )
+    )
+      return;
     const program = createRoboticsProgramPreset(id);
-    controller.updateArduinoProgram(board.id, {
-      arduinoCodeMode: program.mode,
-      arduinoWorkspace: program.workspaceJson,
-      arduinoSource: program.source,
-      arduinoInputPins: program.inputPins,
-    });
-    setProgramPreset(id);
-    // A deliberate source replacement gets a fresh workspace; navigation does not.
-    setProgramRevision((value) => value + 1);
+    local.replaceProgram(() =>
+      controller.updateArduinoProgram(board.id, {
+        arduinoCodeMode: program.mode,
+        arduinoWorkspace: program.workspaceJson,
+        arduinoSource: program.source,
+        arduinoInputPins: program.inputPins,
+      }),
+    );
+    controller.selectComponent(board.id, false);
+    setChosenProgramPreset({ id, revision: local.getProgramRevision() });
     setCodeMounted(true);
   }
-  function moveHistory(direction: 'undo' | 'redo') {
-    flushProgram();
-    const previous = programIdentity(local.getCurrentProject());
-    controller[direction]();
-    if (programIdentity(local.getCurrentProject()) !== previous) {
-      setProgramPreset('');
-      setProgramRevision((value) => value + 1);
-    }
-  }
+  // A publication retained by the previous editor must not overwrite an Undo
+  // in the same event or from a pending debounce before its effect is disposed.
+  const programController = {
+    ...controller,
+    updateArduinoProgram: (...args: Parameters<typeof controller.updateArduinoProgram>) => {
+      if (local.getProgramRevision() !== local.programRevision) return;
+      controller.updateArduinoProgram(...args);
+    },
+  };
   useLayoutEffect(() => {
     if (stageHostRef.current) stageHostRef.current.inert = section !== 'electronics';
     // The catalog starts structural placement; runtime controls in the shared
@@ -415,9 +415,16 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
       const width = host.clientWidth;
       measuredProgramWidth.current = width;
       setCodeWidth(width);
-      if ((previous !== null && previous !== width) || (previous === null && width <= 760)) {
+      if (
+        revealedProgramRevision.current !== local.programRevision ||
+        (previous !== null && previous !== width) ||
+        (previous === null && width <= 760)
+      ) {
         if (frame !== null) window.cancelAnimationFrame(frame);
-        frame = window.requestAnimationFrame(() => programHandle.current?.revealProgramStart());
+        frame = window.requestAnimationFrame(() => {
+          programHandle.current?.revealProgramStart();
+          revealedProgramRevision.current = local.programRevision;
+        });
       }
     };
     measure();
@@ -429,7 +436,7 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
       window.removeEventListener('resize', measure);
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
-  }, [codeOpen]);
+  }, [codeOpen, local.programRevision]);
   useLayoutEffect(() => {
     const wasOpen = previousPaletteOpen.current;
     previousPaletteOpen.current = paletteOpen;
@@ -723,8 +730,8 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
           >
             {codeMounted ? (
               <ArduinoCodePanel
-                key={`${local.openRevision}:${programRevision}`}
-                controller={controller}
+                key={`${local.openRevision}:${local.programRevision}`}
+                controller={programController}
                 open={codeOpen}
                 drawerWidth={codeWidth}
                 onDrawerWidthChange={setCodeWidth}
@@ -844,14 +851,14 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
           <button
             type="button"
             disabled={running || !controller.canUndo}
-            onClick={() => moveHistory('undo')}
+            onClick={() => controller.undo()}
           >
             Отменить
           </button>
           <button
             type="button"
             disabled={running || !controller.canRedo}
-            onClick={() => moveHistory('redo')}
+            onClick={() => controller.redo()}
           >
             Повторить
           </button>

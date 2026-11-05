@@ -22,6 +22,17 @@ function messageOf(reason: unknown): string {
   return reason instanceof Error ? reason.message : 'Хранилище браузера недоступно.';
 }
 
+function programIdentity(project: RoboticsProject): string {
+  return JSON.stringify(
+    project.circuit.components
+      .filter(
+        (component) =>
+          component.componentTypeId === 'arduino-uno' || component.variantId === 'arduino-uno',
+      )
+      .map((component) => [component.id, readArduinoProgramState(component.stateProperties)]),
+  );
+}
+
 function readLocalProject(initial: RoboticsProject) {
   try {
     const raw = window.localStorage.getItem(ROBOTICS_LOCAL_PROJECT_KEY);
@@ -44,7 +55,10 @@ function readLocalProject(initial: RoboticsProject) {
 }
 
 /** A local document host for the shared workbench; it owns no electrical runtime. */
-export function useLocalRoboticsProject(initialProject: RoboticsProject) {
+export function useLocalRoboticsProject(
+  initialProject: RoboticsProject,
+  beforeHistoryChange?: () => void,
+) {
   const [opening] = useState(() => readLocalProject(cloneJson(initialProject)));
   const [robotProject, setRobotProject] = useState(opening.project);
   const sourceRef = useRef(robotProject);
@@ -59,6 +73,22 @@ export function useLocalRoboticsProject(initialProject: RoboticsProject) {
   const runningRef = useRef(false);
   const [simulationStatus, setSimulationStatus] = useState<SimulationRuntimeStatus>('stopped');
   const [openRevision, setOpenRevision] = useState(0);
+  const [programRevision, setProgramRevision] = useState(0);
+  const programRevisionRef = useRef(programRevision);
+  const beforeHistoryChangeRef = useRef(beforeHistoryChange);
+  beforeHistoryChangeRef.current = beforeHistoryChange;
+
+  const getProgramRevision = useCallback(() => programRevisionRef.current, []);
+  const replaceProgram = useCallback((apply: () => void): void => {
+    const previous = programIdentity(sourceRef.current);
+    apply();
+    if (programIdentity(sourceRef.current) === previous) return;
+    // History, Open and explicit examples all invalidate the live editor at
+    // this source boundary. The ref also rejects stale publications before
+    // React has had a chance to mount the restored workspace.
+    programRevisionRef.current += 1;
+    setProgramRevision(programRevisionRef.current);
+  }, []);
 
   const publish = useCallback((next: RoboticsProject, record = true): void => {
     if (JSON.stringify(next) === JSON.stringify(sourceRef.current)) return;
@@ -121,6 +151,7 @@ export function useLocalRoboticsProject(initialProject: RoboticsProject) {
       direction: -1 | 1,
       allow?: (current: SchematicDocument, target: SchematicDocument) => boolean,
     ): boolean => {
+      beforeHistoryChangeRef.current?.();
       const history = historyRef.current;
       const target = history.entries[history.cursor + direction];
       const current = sourceRef.current;
@@ -131,17 +162,19 @@ export function useLocalRoboticsProject(initialProject: RoboticsProject) {
       )
         return false;
       history.cursor += direction;
-      publish(
-        {
-          ...cloneJson(target),
-          circuit: retainAnnotationVersion(current.circuit, cloneJson(target.circuit)),
-        },
-        false,
+      replaceProgram(() =>
+        publish(
+          {
+            ...cloneJson(target),
+            circuit: retainAnnotationVersion(current.circuit, cloneJson(target.circuit)),
+          },
+          false,
+        ),
       );
       setNotice(direction < 0 ? 'Изменение отменено.' : 'Изменение повторено.');
       return true;
     },
-    [publish],
+    [publish, replaceProgram],
   );
   const undo = useCallback(
     (allow?: (current: SchematicDocument, target: SchematicDocument) => boolean) =>
@@ -193,11 +226,13 @@ export function useLocalRoboticsProject(initialProject: RoboticsProject) {
         return false;
       }
       const project = parsed.project;
-      sourceRef.current = project;
+      replaceProgram(() => {
+        sourceRef.current = project;
+        setRobotProject(project);
+      });
       historyRef.current = { entries: [project], cursor: 0 };
       savedBytesRef.current = JSON.stringify(project);
       saveFailedRef.current = false;
-      setRobotProject(project);
       setHasSavedProject(true);
       setSaveStatus('saved');
       setSaveError(null);
@@ -208,7 +243,7 @@ export function useLocalRoboticsProject(initialProject: RoboticsProject) {
       setNotice(`Не удалось открыть сохранение. ${messageOf(reason)}`);
       return false;
     }
-  }, []);
+  }, [replaceProgram]);
 
   const confirmSimulationStarted = useCallback((): void => {
     setSimulationStatus((current) => (current === 'starting' ? 'running' : current));
@@ -307,5 +342,8 @@ export function useLocalRoboticsProject(initialProject: RoboticsProject) {
     hasSavedProject,
     openSavedProject,
     openRevision,
+    programRevision,
+    getProgramRevision,
+    replaceProgram,
   };
 }

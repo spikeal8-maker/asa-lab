@@ -1,11 +1,15 @@
 /* @vitest-environment jsdom */
-import { act, createElement, useEffect } from 'react';
+import { act, createElement, useEffect, useImperativeHandle, type Ref } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SchematicDocument, SolveResult } from '../../api';
-import type { ElectronicsWorkbenchProjectHost } from '../../electronics/use-electronics-workbench';
+import type {
+  ElectronicsWorkbenchController,
+  ElectronicsWorkbenchProjectHost,
+} from '../../electronics/use-electronics-workbench';
+import type { ArduinoCodePanelHandle } from '../../electronics/ArduinoCodePanel';
 import type { LiveSimulationInputBudget } from '../../electronics/live-simulation-worker-controller';
 import type { SimulationStatusMessage } from '../../electronics/simulation-failure';
 import {
@@ -43,6 +47,10 @@ const port = vi.hoisted(() => ({
   remove: vi.fn<() => void>(),
   stageMounts: 0,
   stageUnmounts: 0,
+  programMounts: 0,
+  programUnmounts: 0,
+  programFlush: vi.fn<() => void>(),
+  programPublish: null as ElectronicsWorkbenchController['updateArduinoProgram'] | null,
 }));
 
 vi.mock('../../electronics/use-electronics-workbench', () => ({
@@ -71,6 +79,19 @@ vi.mock('../../electronics/use-electronics-workbench', () => ({
       cancelFamilyPlacement: vi.fn(),
       setLibraryOpen: vi.fn(),
       libraryOpen: true,
+      updateArduinoProgram: (
+        ...[id, properties]: Parameters<ElectronicsWorkbenchController['updateArduinoProgram']>
+      ) => {
+        const current = host.getCurrentDocument()!;
+        host.commitDocument({
+          ...current,
+          components: current.components.map((component) =>
+            component.id === id
+              ? { ...component, stateProperties: { ...component.stateProperties, ...properties } }
+              : component,
+          ),
+        });
+      },
     };
   },
 }));
@@ -97,12 +118,34 @@ vi.mock('../../electronics/WorkbenchSidebars', () => ({
 }));
 
 vi.mock('../../electronics/ArduinoCodePanel', () => ({
-  ArduinoCodePanel: ({ open, onClose }: { open: boolean; onClose: () => void }) =>
-    createElement(
+  ArduinoCodePanel: ({
+    open,
+    onClose,
+    controller,
+    programHandleRef,
+  }: {
+    open: boolean;
+    onClose: () => void;
+    controller: ElectronicsWorkbenchController;
+    programHandleRef?: Ref<ArduinoCodePanelHandle>;
+  }) => {
+    port.programPublish = controller.updateArduinoProgram;
+    useEffect(() => {
+      port.programMounts += 1;
+      return () => {
+        port.programUnmounts += 1;
+      };
+    }, []);
+    useImperativeHandle(programHandleRef, () => ({
+      flushPendingPublication: () => port.programFlush(),
+      revealProgramStart: () => {},
+    }));
+    return createElement(
       'section',
       { 'data-testid': 'canonical-program', hidden: !open },
       createElement('button', { type: 'button', onClick: onClose }, 'Закрыть общий редактор'),
-    ),
+    );
+  },
 }));
 
 let root: Root;
@@ -200,6 +243,10 @@ beforeEach(() => {
   port.options = null;
   port.stageMounts = 0;
   port.stageUnmounts = 0;
+  port.programMounts = 0;
+  port.programUnmounts = 0;
+  port.programPublish = null;
+  port.programFlush.mockReset();
   port.toggle.mockImplementation(async () => {
     port.presentation!.setObservation(null);
     await port.host!.toggleSimulation();
@@ -274,6 +321,42 @@ describe('robotics UI integration with the common workbench port', () => {
     }
     expect(port.stageMounts).toBe(1);
     expect(port.stageUnmounts).toBe(0);
+  });
+
+  it('resynchronizes direct host history and rejects stale editor flush/publication in the same event', async () => {
+    await click('Программа');
+    const original = port.host!.getCurrentDocument()!;
+    const publishFromOldEditor = port.programPublish!;
+    const changedSource = 'void setup(){} void loop(){delay(37);}';
+    act(() => publishFromOldEditor('uno', { arduinoSource: changedSource }));
+    expect(port.programMounts).toBe(1);
+    port.programFlush.mockImplementation(() =>
+      publishFromOldEditor('uno', { arduinoSource: changedSource }),
+    );
+    await act(async () => {
+      expect(port.host!.undo()).toBe(true);
+      // A retained debounce and Save may run before React disposes the old panel.
+      publishFromOldEditor('uno', { arduinoSource: changedSource });
+      control('Сохранить').click();
+      expect(port.host!.getCurrentDocument()).toEqual(original);
+    });
+    expect(port.programMounts).toBe(2);
+    expect(port.programUnmounts).toBe(1);
+    expect(port.host!.canRedo).toBe(true);
+    expect(JSON.parse(localStorage.getItem('asa-lab:robotics:local-project:v1')!).circuit).toEqual(
+      original,
+    );
+    await act(async () => {
+      expect(port.host!.redo()).toBe(true);
+      control('Сохранить').click();
+    });
+    expect(port.programMounts).toBe(3);
+    expect(
+      JSON.parse(
+        localStorage.getItem('asa-lab:robotics:local-project:v1')!,
+      ).circuit.components.find((component: { id: string }) => component.id === 'uno')
+        .stateProperties.arduinoSource,
+    ).toBe(changedSource);
   });
 
   it('pauses and resumes the existing run, while serial buttons never move the robot directly', async () => {

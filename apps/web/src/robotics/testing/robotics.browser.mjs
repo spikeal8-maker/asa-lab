@@ -19,6 +19,7 @@ let browser;
 let page;
 let server;
 let nextDialogAccepted = true;
+let lastDialogMessage = '';
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
 const record = (scenario, details = {}) => {
   receipts.push({ scenario, ...details });
@@ -133,7 +134,7 @@ async function programView() {
         clip.bottom = Math.min(clip.bottom, rect.bottom);
       }
     }
-    return { first: first.toJSON(), clip, scrollX: w.scrollX, scrollY: w.scrollY };
+    return { first: first.toJSON(), clip, scrollX: w.scrollX, scrollY: w.scrollY, scale: w.scale };
   });
 }
 async function visibleProgramStart(label) {
@@ -148,6 +149,218 @@ async function visibleProgramStart(label) {
     `${label}: top edge is clipped: ${JSON.stringify(view)}`,
   );
   return view;
+}
+function savedProgram(project, boardId = 'uno') {
+  const properties = project.circuit.components.find((part) => part.id === boardId).stateProperties;
+  return { source: properties.arduinoSource, workspace: properties.arduinoWorkspace };
+}
+async function workspaceIdentity() {
+  return page.evaluate(() => {
+    const S = window.roboticsTestBlockly;
+    const workspace = S.Workspace.getAll().find((entry) => entry.rendered && !entry.isFlyout);
+    return { id: workspace.id, scale: workspace.scale };
+  });
+}
+async function editThreshold(value) {
+  await page.evaluate((next) => {
+    const S = window.roboticsTestBlockly;
+    const workspace = S.Workspace.getAll().find((entry) => entry.rendered && !entry.isFlyout);
+    const assignment = workspace
+      .getAllBlocks(false)
+      .find(
+        (block) =>
+          block.type === 'asa_var_set' && block.getField('NAME')?.getText() === 'safeStopEchoUs',
+      );
+    if (!assignment) throw new Error('The robot threshold assignment must be editable');
+    assignment.getInputTargetBlock('VALUE').setFieldValue(String(next), 'VALUE');
+  }, value);
+}
+async function verifyProgramHistory() {
+  await nav('Программа');
+  await bindBlockly();
+  const original = savedProgram(await save());
+  assert.match(original.source, /safeStopEchoUs\s*=\s*3480/);
+  const oldWorkspace = await workspaceIdentity();
+  await editThreshold(3700);
+  const edited = savedProgram(await save());
+  assert.match(edited.source, /safeStopEchoUs\s*=\s*3700/);
+  await nav('Электроника');
+  const keys = [];
+  for (const [key, expected, redo] of [
+    ['Control+z', original, true],
+    ['Control+y', edited, false],
+    ['Control+z', original, true],
+    ['Control+Shift+z', edited, false],
+    ['Control+z', original, true],
+  ]) {
+    await page.keyboard.press(key);
+    assert.deepEqual(savedProgram(await save()), expected, `${key}: immediate Save`);
+    assert.equal(await blockGraph(), expected.workspace, `${key}: live hidden workspace`);
+    assert.equal(
+      await page.getByRole('button', { name: 'Повторить', exact: true }).isEnabled(),
+      redo,
+      `${key}: Save preserves the history branch`,
+    );
+    await delay(220);
+    assert.deepEqual(savedProgram(await save()), expected, `${key}: after old debounce`);
+    keys.push({ key, threshold: expected === original ? 3480 : 3700, redo });
+  }
+  const restoredWorkspace = await workspaceIdentity();
+  assert.notEqual(restoredWorkspace.id, oldWorkspace.id);
+  const graphBeforeReveal = await blockGraph();
+  await nav('Программа');
+  await delay(180);
+  const restoredView = await visibleProgramStart('restored hidden program');
+  assert.equal(restoredView.scale, restoredWorkspace.scale, 'revealing never changes zoom');
+  assert.equal(await blockGraph(), graphBeforeReveal, 'revealing never edits the restored graph');
+
+  // A pending block publication must enter history before its immediate Undo.
+  await editThreshold(3800);
+  await nav('Электроника');
+  await page.keyboard.press('Control+z');
+  assert.deepEqual(savedProgram(await save()), original);
+  await delay(220);
+  assert.deepEqual(savedProgram(await save()), original);
+  assert.equal(await blockGraph(), original.workspace);
+  assert.equal(
+    await page.getByRole('button', { name: 'Повторить', exact: true }).isEnabled(),
+    true,
+  );
+  await nav('Программа');
+  await delay(180);
+  await visibleProgramStart('pending edit restored after keyboard Undo');
+
+  const beforeField = await save();
+  const preservedWorkspace = await workspaceIdentity();
+  const view = await programView();
+  await page.mouse.move(view.clip.right - 25, view.clip.top + 90);
+  await page.mouse.wheel(0, 120);
+  await delay(100);
+  const panned = await programView();
+  await nav('Поле');
+  if (!(await page.getByRole('spinbutton', { name: 'Шаг сетки', exact: true }).isVisible()))
+    await page.getByText('Размеры и учебная сцена', { exact: true }).click();
+  await numberField('Шаг сетки', 0.12);
+  await nav('Электроника');
+  await page.keyboard.press('Control+z');
+  assert.deepEqual((await save()).world, beforeField.world);
+  assert.deepEqual(
+    await workspaceIdentity(),
+    preservedWorkspace,
+    'field Undo keeps the live editor',
+  );
+  await nav('Программа');
+  await delay(100);
+  const afterField = await programView();
+  assert.equal(afterField.scrollX, panned.scrollX);
+  assert.equal(afterField.scrollY, panned.scrollY);
+  assert.equal(await blockGraph(), original.workspace);
+  await page.getByRole('button', { name: 'К началу', exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await delay(180);
+  await editThreshold(3900);
+  await nav('Электроника');
+  await page.keyboard.press('Control+z');
+  assert.deepEqual(savedProgram(await save()), original);
+  const mobileRestored = await workspaceIdentity();
+  const mobileGraph = await blockGraph();
+  await nav('Программа');
+  await delay(180);
+  const mobileView = await visibleProgramStart('restored hidden program on mobile');
+  assert.equal(mobileView.scale, mobileRestored.scale);
+  assert.equal(await blockGraph(), mobileGraph);
+  await page.screenshot({
+    path: resolve(output, 'robotics-history-restored-390.png'),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await delay(180);
+  record(
+    'keyboard program Undo/Redo keeps source, live graph, Save and Redo aligned; field history preserves editor and pan',
+    {
+      keys,
+      oldWorkspace,
+      restoredWorkspace,
+      restoredView,
+      preservedWorkspace,
+      mobileView,
+    },
+  );
+}
+async function verifyPresetTarget() {
+  const before = await save();
+  const boundId = before.world.bindings.boardId;
+  await nav('Электроника');
+  const uno = page.locator(`.workbench-canvas [data-component-id="${boundId}"] > .workbench-part`);
+  await uno.focus();
+  await uno.press('Enter');
+  await page.keyboard.press('Control+d');
+  const duplicated = await save();
+  const second = duplicated.circuit.components.find(
+    (part) => part.componentTypeId === 'arduino-uno' && part.id !== boundId,
+  );
+  assert.ok(second, 'the common Duplicate command adds a second real Uno');
+  await nav('Программа');
+  const boardSelector = page.getByRole('combobox', { name: 'Программируемая плата', exact: true });
+  await boardSelector.selectOption(second.id);
+  await bindBlockly();
+  await editThreshold(3910);
+  nextDialogAccepted = false;
+  await page
+    .getByRole('combobox', { name: 'Пример программы', exact: true })
+    .selectOption('push-one-shot');
+  assert.ok(lastDialogMessage.includes(`(${boundId})`), 'confirmation identifies the bound Uno');
+  const cancelled = await save();
+  assert.equal(
+    await boardSelector.inputValue(),
+    second.id,
+    'Cancel keeps the displayed second Uno',
+  );
+  assert.deepEqual(savedProgram(cancelled, boundId), savedProgram(duplicated, boundId));
+  assert.match(savedProgram(cancelled, second.id).source, /safeStopEchoUs\s*=\s*3910/);
+  await editThreshold(3920);
+  await page
+    .getByRole('combobox', { name: 'Пример программы', exact: true })
+    .selectOption('push-one-shot');
+  assert.ok(lastDialogMessage.includes(`(${boundId})`));
+  assert.equal(
+    await boardSelector.inputValue(),
+    boundId,
+    'confirmed example opens its actual target',
+  );
+  const confirmed = await save();
+  assert.match(savedProgram(confirmed, boundId).source, /delay\(800\)/);
+  assert.match(savedProgram(confirmed, second.id).source, /safeStopEchoUs\s*=\s*3920/);
+  assert.equal(await blockGraph(), savedProgram(confirmed, boundId).workspace);
+  await delay(220);
+  const settled = await save();
+  assert.deepEqual(savedProgram(settled, boundId), savedProgram(confirmed, boundId));
+  assert.deepEqual(savedProgram(settled, second.id), savedProgram(confirmed, second.id));
+  await page.screenshot({
+    path: resolve(output, 'robotics-preset-target-1440.png'),
+    fullPage: true,
+  });
+  record(
+    'robot example names and opens its bound Uno; Cancel and replacement preserve the other pending sketch',
+    {
+      boundId,
+      secondId: second.id,
+      confirmation: lastDialogMessage,
+    },
+  );
+  // Return the journey to one bound board through the same public UI.
+  await nav('Электроника');
+  const duplicate = page.locator(
+    `.workbench-canvas [data-component-id="${second.id}"] > .workbench-part`,
+  );
+  await duplicate.focus();
+  await duplicate.press('Enter');
+  await page
+    .locator('#robotics-panel-electronics')
+    .getByRole('button', { name: 'Удалить', exact: true })
+    .click();
+  await preset('safe-rover');
+  assert.equal((await save()).circuit.components.length, before.circuit.components.length);
 }
 async function dragObject(id, dx, dy, cancel = false) {
   const selected = page.locator(`#robotics-panel-field [data-scene-key="${id}"]`);
@@ -305,6 +518,7 @@ try {
   page.setDefaultNavigationTimeout(90_000);
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('dialog', async (dialog) => {
+    lastDialogMessage = dialog.message();
     const accept = nextDialogAccepted;
     nextDialogAccepted = true;
     if (accept) await dialog.accept();
@@ -566,6 +780,8 @@ try {
   record(
     'cancelled preset preserves pending edit; confirmed Open and preset cannot revive old debounce',
   );
+  await verifyProgramHistory();
+  await verifyPresetTarget();
 
   await nav('Поле');
   const sceneBefore = await save();
