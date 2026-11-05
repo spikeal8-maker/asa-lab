@@ -409,6 +409,11 @@ const upgradeArtifacts = [
     '0306_robotics_publications.sql',
     '7c88a610329dc61030dc2155ffc33cf573062f18425044173026e67723737f11',
   ],
+  [
+    '0307',
+    '0307_robotics_telemetry_v2.sql',
+    '3ea56361e766b572a5e83b4bce8d68ac90e3b82b92c79eabe6750619b8e71779',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

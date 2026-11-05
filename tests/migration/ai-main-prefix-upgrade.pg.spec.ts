@@ -85,6 +85,7 @@ const expectedPending = [
   '0304', // Russian-64 network matches reuse Games identity and policy.
   '0305', // Robotics projects and authenticated module activity.
   '0306', // Robotics in the existing immutable publication catalog.
+  '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
 ];
 
 interface Identity {

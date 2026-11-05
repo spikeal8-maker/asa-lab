@@ -62,6 +62,26 @@ async function createProject(token: string) {
   return created.json().project.id as string;
 }
 
+async function accountExpectation(token: string) {
+  const response = await inject(app, {
+    method: 'GET',
+    url: '/api/auth/me',
+    cookies: { asa_session: token },
+  });
+  expect(response.statusCode, response.body).toBe(200);
+  const session = response.json();
+  expect(session).toMatchObject({
+    authenticated: true,
+    account: { id: expect.any(String) },
+    activeWorkspace: { workspaceId: expect.any(String) },
+  });
+  return {
+    kind: 'account' as const,
+    accountId: session.account.id as string,
+    workspaceId: session.activeWorkspace.workspaceId as string,
+  };
+}
+
 function editedProject(): RoboticsProject {
   const initial = createInitialRoboticsProject();
   return {
@@ -319,5 +339,170 @@ describe('Robotics account projects through the real API and RLS role', () => {
       [id],
     );
     expect(sessions.rows).toEqual([{ module_key: 'robotics' }]);
+  });
+
+  it('persists the browser V2 Robotics session and direct visit without relaxing actor or payload guards', async () => {
+    const owner = await registerAccount();
+    const stranger = await registerAccount();
+    const projectId = await createProject(owner.token);
+    const actorExpectation = await accountExpectation(owner.token);
+    const strangerExpectation = await accountExpectation(stranger.token);
+    const start = {
+      schemaVersion: 2,
+      eventId: randomUUID(),
+      actorExpectation,
+      visitId: randomUUID(),
+      clientOccurredAt: new Date().toISOString(),
+      operation: 'start',
+      sessionId: randomUUID(),
+      projectId,
+      moduleKey: 'robotics',
+    };
+    const request = {
+      method: 'POST' as const,
+      url: '/api/analytics/v2/module-session',
+      cookies: { asa_session: owner.token },
+      payload: start,
+    };
+    const opened = await inject(app, request);
+    expect(opened.statusCode, opened.body).toBe(200);
+    expect(opened.json()).toMatchObject({
+      accepted: true,
+      state: 'persisted',
+      schemaVersion: 2,
+      eventId: start.eventId,
+      receiptId: start.eventId,
+      operation: 'start',
+      sessionId: start.sessionId,
+      result: { creditedSeconds: 0, sessionState: 'open' },
+    });
+    const replay = await inject(app, request);
+    expect(replay.statusCode, replay.body).toBe(200);
+    expect(replay.json()).toEqual(opened.json());
+    expect(
+      (
+        await admin.query(
+          'SELECT module_key,account_id,workspace_id,project_id,visit_id FROM product_module_sessions WHERE id=$1',
+          [start.sessionId],
+        )
+      ).rows,
+    ).toEqual([
+      {
+        module_key: 'robotics',
+        account_id: actorExpectation.accountId,
+        workspace_id: actorExpectation.workspaceId,
+        project_id: projectId,
+        visit_id: start.visitId,
+      },
+    ]);
+    expect(
+      (
+        await admin.query(
+          "SELECT module_key FROM product_analytics_events WHERE flow_id=$1 AND event_type='module.opened'",
+          [start.sessionId],
+        )
+      ).rows,
+    ).toEqual([{ module_key: 'robotics' }]);
+
+    const visit = {
+      schemaVersion: 2,
+      eventId: randomUUID(),
+      actorExpectation,
+      eventType: 'visit.observed',
+      visitId: start.visitId,
+      clientOccurredAt: new Date().toISOString(),
+      entryRoute: 'editor.robotics',
+      referrerOrigin: null,
+    };
+    const visitRequest = { ...request, url: '/api/analytics/v2/events', payload: visit };
+    const observed = await inject(app, visitRequest);
+    expect(observed.statusCode, observed.body).toBe(200);
+    expect(observed.json()).toMatchObject({
+      accepted: true,
+      state: 'persisted',
+      schemaVersion: 2,
+      eventId: visit.eventId,
+      operation: 'visit.observed',
+      recordId: expect.any(Number),
+    });
+    const replayedVisit = await inject(app, visitRequest);
+    expect(replayedVisit.statusCode, replayedVisit.body).toBe(200);
+    expect(replayedVisit.json()).toEqual(observed.json());
+    expect(
+      (
+        await admin.query(
+          'SELECT entry_route,account_id,workspace_id FROM product_analytics_events WHERE receipt_event_id=$1',
+          [visit.eventId],
+        )
+      ).rows,
+    ).toEqual([
+      {
+        entry_route: 'editor.robotics',
+        account_id: actorExpectation.accountId,
+        workspace_id: actorExpectation.workspaceId,
+      },
+    ]);
+
+    const wrongActor = await inject(app, {
+      ...request,
+      cookies: { asa_session: stranger.token },
+    });
+    expect(wrongActor.statusCode, wrongActor.body).toBe(409);
+    expect(wrongActor.json().error.code).toBe('context_mismatch');
+    const foreignProject = await inject(app, {
+      ...request,
+      cookies: { asa_session: stranger.token },
+      payload: {
+        ...start,
+        eventId: randomUUID(),
+        sessionId: randomUUID(),
+        actorExpectation: strangerExpectation,
+      },
+    });
+    expect(foreignProject.statusCode, foreignProject.body).toBe(403);
+    expect(foreignProject.json().error.code).toBe('context_denied');
+    for (const invalidRequest of [
+      { ...request, payload: { ...start, eventId: randomUUID(), moduleKey: 'robotics.invalid' } },
+      {
+        ...visitRequest,
+        payload: { ...visit, eventId: randomUUID(), entryRoute: 'editor.robotics.invalid' },
+      },
+      {
+        ...request,
+        payload: { ...start, eventId: randomUUID(), source: 'private Arduino program' },
+      },
+    ]) {
+      const invalid = await inject(app, invalidRequest);
+      expect(invalid.statusCode, invalid.body).toBe(400);
+      expect(invalid.json().error.code).toBe('validation_error');
+    }
+    const closed = await inject(app, {
+      ...request,
+      payload: {
+        schemaVersion: 2,
+        eventId: randomUUID(),
+        actorExpectation,
+        operation: 'close',
+        sessionId: start.sessionId,
+        visitId: start.visitId,
+        clientOccurredAt: new Date().toISOString(),
+      },
+    });
+    expect(closed.statusCode, closed.body).toBe(200);
+    expect(closed.json()).toMatchObject({
+      accepted: true,
+      state: 'persisted',
+      operation: 'close',
+      sessionId: start.sessionId,
+      result: { sessionState: 'closed' },
+    });
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::integer AS count FROM product_module_sessions WHERE project_id=$1',
+          [projectId],
+        )
+      ).rows,
+    ).toEqual([{ count: 1 }]);
   });
 });

@@ -20,7 +20,7 @@ async function functionSnapshots(client: pg.PoolClient): Promise<FunctionSnapsho
             pg_get_functiondef(oid) AS definition
        FROM pg_proc
       WHERE pronamespace='public'::regnamespace
-        AND proname IN ('analytics_record_event','analytics_start_module_session','admin_get_product_dashboard')
+        AND proname IN ('analytics_record_event','analytics_start_module_session','admin_get_product_dashboard','analytics_ingest_v2')
       ORDER BY oid::regprocedure::text`,
     )
   ).rows;
@@ -33,6 +33,7 @@ async function history(client: pg.PoolClient) {
     'project_drafts',
     'product_analytics_events',
     'product_module_sessions',
+    'analytics_operation_receipts',
   ])
     rows[table] = (
       await client.query(
@@ -43,7 +44,7 @@ async function history(client: pg.PoolClient) {
 }
 
 describe('Robotics Project Core additive migration', () => {
-  it('upgrades exactly 0304 to 0305, preserving existing source, sessions, grants and learning limits', async () => {
+  it('upgrades 0304 to 0305 and 0306 to 0307, preserving source, receipts, grants and learning limits', async () => {
     const source = process.env['TEST_DATABASE_URL'];
     const appSource = process.env['APP_TEST_DATABASE_URL'];
     if (
@@ -257,6 +258,88 @@ describe('Robotics Project Core additive migration', () => {
             )
           ).rows,
         ).toEqual([{ module_key: 'robotics' }]);
+
+        // The V2 browser writer also accepts a direct editor visit. Its SQL
+        // boundary must retain all existing receipts and authority checks.
+        const catalogPlan = planMigrations().filter((item) => Number(item.version) <= 306);
+        expect(catalogPlan.at(-1)?.version).toBe('0306');
+        expect(await applyIsolatedTestPlan(client, catalogPlan)).toBe(1);
+        const ingest = (operation: string, semantic: object, eventId = randomUUID()) =>
+          runtime!.query(
+            `SELECT analytics_ingest_v2($1,'account',$2,$3,NULL,$4,NULL,$5,$6::jsonb,
+              '{}'::jsonb,clock_timestamp()) AS receipt`,
+            [
+              eventId,
+              actor.account_id,
+              actor.principal_id,
+              actor.workspace_id,
+              operation,
+              JSON.stringify(semantic),
+            ],
+          );
+        const visit = {
+          outcome: 'succeeded',
+          visitId: randomUUID(),
+          clientOccurredAt: new Date().toISOString(),
+          entryRoute: 'editor.robotics',
+          referrerOrigin: null,
+        };
+        const opened = { outcome: 'succeeded', moduleKey: 'robotics', flowId: randomUUID() };
+        await ingest('visit.observed', { ...visit, entryRoute: 'editor.blocks' });
+        await expect(ingest('visit.observed', visit)).rejects.toMatchObject({ code: '22023' });
+        await expect(ingest('module.opened', opened)).rejects.toMatchObject({ code: '22023' });
+        const beforeV2Rows = await history(client);
+        const beforeV2Functions = await functionSnapshots(client);
+        const beforeV2Ledger = (
+          await client.query(
+            'SELECT to_jsonb(item) AS item FROM schema_migrations item ORDER BY version',
+          )
+        ).rows;
+        const v2Plan = planMigrations().filter((item) => Number(item.version) <= 307);
+        expect(v2Plan.at(-1)?.version).toBe('0307');
+        expect((await inspectPlan(client, v2Plan)).map((item) => item.version)).toEqual(['0307']);
+        expect(await applyIsolatedTestPlan(client, v2Plan)).toBe(1);
+        expect(await applyIsolatedTestPlan(client, v2Plan)).toBe(0);
+        expect(await history(client)).toEqual(beforeV2Rows);
+        expect(
+          (
+            await client.query(
+              "SELECT to_jsonb(item) AS item FROM schema_migrations item WHERE version<>'0307' ORDER BY version",
+            )
+          ).rows,
+        ).toEqual(beforeV2Ledger);
+        const oldV2Modules = "'electronics','three-d','chess','checkers','blocks'";
+        const oldV2Routes =
+          "'home','projects','editor.electronics','editor.three-d','editor.chess','editor.checkers','editor.blocks','games','classes','learning','account','admin','public','unknown'";
+        expect(await functionSnapshots(client)).toEqual(
+          beforeV2Functions.map((snapshot) => ({
+            ...snapshot,
+            definition: snapshot.definition
+              .replaceAll(oldV2Modules, `${oldV2Modules},'robotics'`)
+              .replaceAll(
+                oldV2Routes,
+                oldV2Routes.replace("'editor.blocks',", "'editor.blocks','editor.robotics',"),
+              ),
+          })),
+        );
+        expect((await ingest('visit.observed', visit)).rows[0]?.receipt).toMatchObject({
+          accepted: true,
+          state: 'persisted',
+          operation: 'visit.observed',
+          recordId: expect.any(Number),
+        });
+        expect((await ingest('module.opened', opened)).rows[0]?.receipt).toMatchObject({
+          accepted: true,
+          state: 'persisted',
+          operation: 'module.opened',
+          recordId: expect.any(Number),
+        });
+        await expect(
+          ingest('visit.observed', { ...visit, entryRoute: 'editor.robotics.invalid' }),
+        ).rejects.toMatchObject({ code: '22023' });
+        await expect(
+          ingest('module.opened', { ...opened, moduleKey: 'robotics.invalid' }),
+        ).rejects.toMatchObject({ code: '22023' });
       } finally {
         client.release();
       }
