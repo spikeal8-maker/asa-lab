@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
 import { URL } from 'node:url';
+export { digest as documentDigest } from './contracts.mjs';
 
 export const STORM_ORIGIN = 'http://127.0.0.1:4612';
 export const STORM_API_ORIGIN = 'http://127.0.0.1:4611';
@@ -56,10 +56,6 @@ export function stormRoute(path) {
     .split('?')[0]
     .replace(/(\/invites\/)[^/]+/g, '$1:code')
     .replace(/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/gi, ':id');
-}
-
-export function documentDigest(document) {
-  return createHash('sha256').update(JSON.stringify(document)).digest('hex');
 }
 
 export function summarizeStorm(records, elapsedMs, users) {

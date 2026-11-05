@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   assertStormEnvironment,
+  documentDigest,
   stormRoute,
   summarizeStorm,
 } from '../../tools/capacity/request-storm-contracts.mjs';
@@ -18,6 +19,40 @@ const fixture = () => ({
 });
 
 describe('request-storm workload boundaries and honest evidence', () => {
+  it('compares nested JSON content independently of PostgreSQL object key order', () => {
+    const original = {
+      schemaVersion: 4,
+      components: [{ id: 'r0', position: { x: 10, y: 20 }, value: 1001 }],
+      simulation: { running: false, maxIterations: 24 },
+    };
+    const reopened = {
+      components: [{ value: 1001, id: 'r0', position: { y: 20, x: 10 } }],
+      simulation: { maxIterations: 24, running: false },
+      schemaVersion: 4,
+    };
+    expect(documentDigest(reopened)).toBe(documentDigest(original));
+  });
+
+  it('detects changed values, missing fields and changed array order after saving', () => {
+    const original = {
+      components: [
+        { id: 'r0', value: 1001 },
+        { id: 'r1', value: 2001 },
+      ],
+      simulation: { running: false },
+    };
+    const changed = [
+      {
+        ...original,
+        components: [{ id: 'r0', value: 1002 }, original.components[1]],
+      },
+      { components: original.components },
+      { ...original, components: [...original.components].reverse() },
+    ];
+    for (const document of changed)
+      expect(documentDigest(document)).not.toBe(documentDigest(original));
+  });
+
   it('accepts only the explicitly selected disposable fixture', () => {
     expect(assertStormEnvironment(fixture())).toMatchObject({ users: 60, variant: 'candidate' });
   });
