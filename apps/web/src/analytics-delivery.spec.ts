@@ -70,6 +70,7 @@ function deferNext(transport: ReturnType<typeof fixture>['transport']) {
 }
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.spyOn(Math, 'random').mockReturnValue(0);
   vi.setSystemTime(new Date('2026-10-11T12:00:00Z'));
 });
 afterEach(() => {
@@ -77,8 +78,37 @@ afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 describe('immutable actor-scoped browser delivery', () => {
+  it('preserves Retry-After across repeated ready/online notifications and a real pause/resume', async () => {
+    const f = fixture();
+    // This unit owns event delivery; the runtime suite exercises the independent quality stream.
+    vi.spyOn(f.quality, 'start').mockImplementation(() => {});
+    f.transport.mockResolvedValueOnce(
+      new Response('{}', { status: 503, headers: { 'retry-after': '10' } }),
+    );
+    const result = f.worker.open(id(10), id(11), 'electronics', id(12));
+    await pump();
+    const original = f.transport.mock.calls[0]![1]!.body;
+    for (let n = 0; n < 100; n++) {
+      f.worker.pause(false);
+      f.worker.retryNow();
+    }
+    await vi.advanceTimersByTimeAsync(4000);
+    f.worker.pause(true);
+    await vi.advanceTimersByTimeAsync(1000);
+    f.worker.pause(false);
+    for (let n = 0; n < 100; n++) f.worker.pause(false);
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(f.transport).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await result).toBe(true);
+    expect(f.transport).toHaveBeenCalledTimes(2);
+    expect(f.transport.mock.calls[1]![1]!.body).toBe(original);
+    expect(f.worker.canRecoverAuthentication()).toBe(false);
+    expect(f.quality.read().counters).toMatchObject({ retried: 1, acknowledged: 1 });
+  });
   it.each([200, 401, 503])(
     'keeps the ordinary envelope and waiter through pause, ignoring late HTTP%s from the old attempt',
     async (status) => {

@@ -5,6 +5,7 @@ import {
   isTelemetryPath,
   safeReferrer,
   sendTelemetry,
+  telemetryRetryDelay,
   validEnvelope,
   type AnalyticsEnvelope,
 } from './telemetry-contract';
@@ -34,8 +35,62 @@ const receipt = {
 afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 describe('actual v2 envelopes and persistence receipts', () => {
+  it('spreads repeated retries without reducing their exponential floor or the server cooldown', () => {
+    const random = vi.spyOn(Math, 'random');
+    for (const failures of [1, 2, 3, 10, 1000]) {
+      random.mockReturnValue(0);
+      const earliest = telemetryRetryDelay(failures);
+      random.mockReturnValue(0.999);
+      const latest = telemetryRetryDelay(failures);
+      expect(earliest).toBe(Math.min(30_000, 1000 * 2 ** Math.min(5, failures - 1)));
+      expect(latest).toBeGreaterThan(earliest);
+      expect(latest).toBeLessThanOrEqual(60_000);
+      expect(telemetryRetryDelay(failures, 120_000)).toBe(120_000 + Math.floor(0.999 * earliest));
+    }
+    random.mockReturnValue(0);
+    const firstClient = telemetryRetryDelay(1, 20_000);
+    random.mockReturnValue(0.999);
+    const secondClient = telemetryRetryDelay(1, 20_000);
+    expect(firstClient).toBe(20_000);
+    expect(secondClient).toBe(20_999);
+  });
+  it.each([
+    ['20', 20_000],
+    ['999999999', 300_000],
+    ['Thu, 05 Nov 2026 12:00:30 GMT', 30_000],
+    ['Wed, 04 Nov 2026 12:00:30 GMT', undefined],
+    ['not-a-date', undefined],
+  ])(
+    'honors bounded Retry-After %s without escalating telemetry into foreground or auth work',
+    async (header, delay) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-11-05T12:00:00Z'));
+      const transport = vi.fn<typeof fetch>(
+        async () =>
+          new Response('{}', {
+            status: 503,
+            headers: { 'retry-after': header },
+          }),
+      );
+      const outcome = await sendTelemetry(
+        '/api/analytics/v2/events',
+        event,
+        { status: 200, confirmed: () => true },
+        transport,
+      );
+      expect(outcome).toEqual(
+        delay === undefined ? { kind: 'retry' } : { kind: 'retry', retryAfterMs: delay },
+      );
+      expect(transport.mock.calls[0]![1]).toMatchObject({
+        priority: 'low',
+        credentials: 'same-origin',
+      });
+      expect(transport).toHaveBeenCalledTimes(1);
+    },
+  );
   it('does not start a transport after its owner was already cancelled', async () => {
     const controller = new AbortController();
     controller.abort();

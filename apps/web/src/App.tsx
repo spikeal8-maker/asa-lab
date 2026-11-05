@@ -13,13 +13,26 @@ import {
   useRef,
   useState,
 } from 'react';
-import { setTelemetryContext, telemetryActor, telemetryRoute } from './telemetry-context';
+import {
+  setTelemetryContext,
+  telemetryActor,
+  telemetryContext,
+  telemetryRoute,
+} from './telemetry-context';
 import { api, type ClassroomStudentSession, type SessionPayload } from './api';
-import { LoginPage } from './pages/LoginPage';
+const LoginPage = lazy(() =>
+  import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })),
+);
 import { MaxLinkPage } from './pages/MaxLinkPage';
 import { AccountConfirmationPage } from './pages/AccountConfirmationPage';
-import { RegisterPage } from './pages/RegisterPage';
-import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
+const RegisterPage = lazy(() =>
+  import('./pages/RegisterPage').then((module) => ({ default: module.RegisterPage })),
+);
+const OrganizationLoginPage = lazy(() =>
+  import('./pages/OrganizationLoginPage').then((module) => ({
+    default: module.OrganizationLoginPage,
+  })),
+);
 import { JoinClassPage } from './pages/JoinClassPage';
 import { studentSessionPayload } from './creator-portal/student-session';
 import type { PublicIntent } from './pages/PublicEntryPage';
@@ -113,6 +126,12 @@ import { AppBootShell } from './components/AppBootShell';
 import { PageDeliveryBoundary } from './components/PageDeliveryBoundary';
 import { isMaxLaunchLocation, leaveMaxLaunch, readMaxInitData } from './max-auth';
 import { onSessionLoggedOut } from './session-fetch';
+import {
+  onPortalMutation,
+  portalAttentionRoute,
+  portalSessionKey,
+  setPortalSessionKey,
+} from './portal-requests';
 import { onAccountVerificationRequired } from './auth-verification';
 import './auth-verification.css';
 import {
@@ -179,12 +198,9 @@ function publicViewFromHash(): PublicView {
 
 export function App(): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
+  const portalScope = portalSessionKey(session);
   usePortalGameNotifications(
-    session.kind === 'authenticated'
-      ? `account:${session.session.user.id}`
-      : session.kind === 'student'
-        ? `seat:${session.session.student.seatId}`
-        : '',
+    session.kind === 'authenticated' || session.kind === 'student' ? portalScope : '',
   );
   usePresentationSessionLifetime(
     session.kind === 'checking'
@@ -287,6 +303,9 @@ export function App(): JSX.Element {
     ['authenticated', 'student', 'anonymous'].includes(session.kind) &&
     !(session.kind === 'authenticated' && session.session.verification?.required);
   const telemetryEntry = telemetryRoute(view, window.location.pathname.startsWith('/admin'));
+  useLayoutEffect(() => {
+    setPortalSessionKey(portalScope);
+  }, [portalScope]);
   useLayoutEffect(() => {
     setTelemetryContext(telemetryBinding, telemetryReady, telemetryEntry);
     if (telemetryReady && telemetryBinding)
@@ -439,6 +458,7 @@ export function App(): JSX.Element {
    */
   const resolveStudent = useCallback(async (): Promise<void> => {
     const seat = await api.classroomStudentMe();
+    if (!seat.ok && seat.error.code === 'request_cancelled') return;
     setSession(
       seat.ok && seat.data.authenticated
         ? { kind: 'student', session: seat.data }
@@ -447,6 +467,11 @@ export function App(): JSX.Element {
   }, []);
 
   const checkSession = useCallback(async () => {
+    // Retire the previous scope before starting its replacement identity read.
+    // The following React layout effects must observe this same checking epoch,
+    // otherwise an anonymous/error -> checking commit cancels its own /me.
+    setPortalSessionKey(portalSessionKey({ kind: 'checking' }));
+    setTelemetryContext(null, false, telemetryContext().route);
     setSession({ kind: 'checking' });
     const launchData = maxLaunchData.current;
     const isMaxLaunch = isMaxLaunchLocation();
@@ -475,6 +500,11 @@ export function App(): JSX.Element {
       }
     }
     const result = await api.me();
+    if (
+      !result.ok &&
+      (result.error.code === 'request_cancelled' || result.error.code === 'auth_cancelled')
+    )
+      return;
     if (result.ok) {
       if (result.data.authenticated) {
         setSession({ kind: 'authenticated', session: result.data });
@@ -630,38 +660,52 @@ export function App(): JSX.Element {
    */
   /** Work a learner still owes, for the dot on their class. */
   const [unfinished, setUnfinished] = useState(0);
-  const attentionIdentity =
-    session.kind === 'authenticated'
-      ? session.session.user.id
-      : session.kind === 'student'
-        ? session.session.student.seatId
-        : session.kind;
+  const [attentionRevision, setAttentionRevision] = useState(0);
+  const attentionIdentity = portalScope;
+  const attentionRoute = portalAttentionRoute(view);
+  const learnerAttention =
+    session.kind === 'student'
+      ? 'seat'
+      : session.kind === 'authenticated' &&
+          !session.session.verification?.required &&
+          !session.session.navigation.classroomManagement
+        ? 'account'
+        : null;
+  const teacherAttention =
+    session.kind === 'authenticated' &&
+    !session.session.verification?.required &&
+    session.session.navigation.classroomManagement;
+  useEffect(
+    () =>
+      onPortalMutation((path) => {
+        if (
+          /^\/api\/(?:class-join|classrooms|learning|courses)(?:\/|$)/.test(path) &&
+          !path.startsWith('/api/learning/notifications')
+        )
+          setAttentionRevision((revision) => revision + 1);
+      }),
+    [],
+  );
   useEffect(() => {
     setUnfinished(0);
     setAwaitingReview(0);
   }, [attentionIdentity]);
   useEffect(() => {
-    let current = true;
-    if (session.kind === 'student') {
-      void api.seatAssignmentCounts().then((result) => {
-        if (current && result.ok) setUnfinished(result.data.unfinished);
+    const controller = new AbortController();
+    if (learnerAttention === 'seat') {
+      void api.seatAssignmentCounts(controller.signal).then((result) => {
+        if (!controller.signal.aborted && result.ok) setUnfinished(result.data.unfinished);
       });
-    } else if (
-      session.kind === 'authenticated' &&
-      !session.session.verification?.required &&
-      !session.session.navigation.classroomManagement
-    ) {
-      void api.attendedAssignments().then((result) => {
-        if (current && result.ok)
+    } else if (learnerAttention === 'account') {
+      void api.attendedAssignments(controller.signal).then((result) => {
+        if (!controller.signal.aborted && result.ok)
           setUnfinished(
             result.data.items.filter((item) => item.status === 'open' && !item.submittedAt).length,
           );
       });
     }
-    return () => {
-      current = false;
-    };
-  }, [session, view]);
+    return () => controller.abort();
+  }, [learnerAttention, attentionIdentity, attentionRoute, attentionRevision]);
 
   /**
    * Сколько работ ждёт ответа во всех классах преподавателя.
@@ -671,19 +715,16 @@ export function App(): JSX.Element {
    * хука безусловен, как и требуется.
    */
   useEffect(() => {
-    let current = true;
-    if (session.kind !== 'authenticated' || session.session.verification?.required) return;
-    if (!session.session.navigation.classroomManagement) {
+    if (!teacherAttention) {
       setAwaitingReview(0);
       return;
     }
-    void api.awaitingReviewTotal().then((result) => {
-      if (current && result.ok) setAwaitingReview(result.data.total);
+    const controller = new AbortController();
+    void api.awaitingReviewTotal(controller.signal).then((result) => {
+      if (!controller.signal.aborted && result.ok) setAwaitingReview(result.data.total);
     });
-    return () => {
-      current = false;
-    };
-  }, [session, view]);
+    return () => controller.abort();
+  }, [teacherAttention, attentionIdentity, attentionRoute, attentionRevision]);
 
   const zoneReported = useRef(false);
   useEffect(() => {
@@ -832,24 +873,32 @@ export function App(): JSX.Element {
       publicView.kind !== 'sign-up' &&
       publicView.kind !== 'organization-sign-in'
     ) {
+      const leaveMaxSignIn = () => {
+        setPendingMaxLink(null);
+        setMaxLaunchMessage(null);
+        maxLaunchData.current = null;
+        leaveMaxLaunch();
+        setPublicViewState({ kind: 'entry' });
+      };
       return (
-        <LoginPage
-          onSignedIn={signedIn}
-          onCreateAccount={() => setPublicView({ kind: 'sign-up' })}
-          onOrganizationLogin={() => setPublicView({ kind: 'organization-sign-in' })}
-          contextMessage={
-            pendingMaxLink
-              ? 'Войдите в существующий аккаунт. Затем вы сможете подтвердить привязку MAX.'
-              : (maxLaunchMessage ?? '')
-          }
-          onBack={() => {
-            setPendingMaxLink(null);
-            setMaxLaunchMessage(null);
-            maxLaunchData.current = null;
-            leaveMaxLaunch();
-            setPublicViewState({ kind: 'entry' });
-          }}
-        />
+        <PageDeliveryBoundary
+          key="auth-max-sign-in"
+          label="Открываем вход"
+          backLabel="На главную"
+          onBack={leaveMaxSignIn}
+        >
+          <LoginPage
+            onSignedIn={signedIn}
+            onCreateAccount={() => setPublicView({ kind: 'sign-up' })}
+            onOrganizationLogin={() => setPublicView({ kind: 'organization-sign-in' })}
+            contextMessage={
+              pendingMaxLink
+                ? 'Войдите в существующий аккаунт. Затем вы сможете подтвердить привязку MAX.'
+                : (maxLaunchMessage ?? '')
+            }
+            onBack={leaveMaxSignIn}
+          />
+        </PageDeliveryBoundary>
       );
     }
 
@@ -888,23 +937,30 @@ export function App(): JSX.Element {
 
     if (publicView.kind === 'sign-up') {
       return (
-        <RegisterPage
-          onRegistered={signedIn}
-          {...(pendingMaxLink
-            ? {
-                maxInitData: pendingMaxLink,
-                onMaxRegistered: (payload: SessionPayload) => {
-                  setPendingMaxLink(null);
-                  setMaxLaunchMessage(null);
-                  maxLaunchData.current = null;
-                  leaveMaxLaunch();
-                  signedIn(payload);
-                },
-              }
-            : {})}
-          onBackToLogin={() => setPublicView({ kind: 'sign-in' })}
-          onHome={goToPublicHome}
-        />
+        <PageDeliveryBoundary
+          key="auth-sign-up"
+          label="Открываем регистрацию"
+          backLabel="На главную"
+          onBack={goToPublicHome}
+        >
+          <RegisterPage
+            onRegistered={signedIn}
+            {...(pendingMaxLink
+              ? {
+                  maxInitData: pendingMaxLink,
+                  onMaxRegistered: (payload: SessionPayload) => {
+                    setPendingMaxLink(null);
+                    setMaxLaunchMessage(null);
+                    maxLaunchData.current = null;
+                    leaveMaxLaunch();
+                    signedIn(payload);
+                  },
+                }
+              : {})}
+            onBackToLogin={() => setPublicView({ kind: 'sign-in' })}
+            onHome={goToPublicHome}
+          />
+        </PageDeliveryBoundary>
       );
     }
     if (publicView.kind === 'join-class') {
@@ -919,28 +975,42 @@ export function App(): JSX.Element {
     }
     if (publicView.kind === 'organization-sign-in') {
       return (
-        <OrganizationLoginPage
-          onSignedIn={signedIn}
-          onBack={() => setPublicView({ kind: 'sign-in' })}
-          onHome={goToPublicHome}
-        />
+        <PageDeliveryBoundary
+          key="auth-organization-sign-in"
+          label="Открываем вход через организацию"
+          backLabel="На главную"
+          onBack={goToPublicHome}
+        >
+          <OrganizationLoginPage
+            onSignedIn={signedIn}
+            onBack={() => setPublicView({ kind: 'sign-in' })}
+            onHome={goToPublicHome}
+          />
+        </PageDeliveryBoundary>
       );
     }
     if (publicView.kind === 'sign-in') {
       return (
-        <LoginPage
-          onSignedIn={signedIn}
-          onCreateAccount={() => setPublicView({ kind: 'sign-up' })}
-          onClassCodeLogin={() => setPublicView({ kind: 'join-class' })}
-          onOrganizationLogin={() => setPublicView({ kind: 'organization-sign-in' })}
-          onBack={() => {
-            if (isPublicProjectView(view)) {
-              setPublicViewState({ kind: 'entry' });
-              setView(view);
-            } else setPublicView({ kind: 'entry' });
-          }}
-          onHome={goToPublicHome}
-        />
+        <PageDeliveryBoundary
+          key="auth-sign-in"
+          label="Открываем вход"
+          backLabel="На главную"
+          onBack={goToPublicHome}
+        >
+          <LoginPage
+            onSignedIn={signedIn}
+            onCreateAccount={() => setPublicView({ kind: 'sign-up' })}
+            onClassCodeLogin={() => setPublicView({ kind: 'join-class' })}
+            onOrganizationLogin={() => setPublicView({ kind: 'organization-sign-in' })}
+            onBack={() => {
+              if (isPublicProjectView(view)) {
+                setPublicViewState({ kind: 'entry' });
+                setView(view);
+              } else setPublicView({ kind: 'entry' });
+            }}
+            onHome={goToPublicHome}
+          />
+        </PageDeliveryBoundary>
       );
     }
     if (isPublicProjectView(view)) {
