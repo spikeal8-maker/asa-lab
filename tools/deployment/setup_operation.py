@@ -231,6 +231,57 @@ class Store:
         journal["events"].append({"stage": stage, "status": status, "at": now()})
         self.save(journal)
 
+    def replay(self, journal):
+        """Reissue a bound terminal result without replaying business actions.
+
+        The caller still holds operation_lock. A fresh delivery marker lets the
+        root supervisor distinguish this write from a child that produced no
+        receipt. It does not refresh the original acceptance observation.
+        """
+        require(isinstance(journal, dict), "OPERATION_IDENTITY", "Ожидается связанный журнал операции.")
+        recorded = self.read(journal.get("operationId"))
+        require(json.dumps(recorded, sort_keys=True) == json.dumps(journal, sort_keys=True), "OPERATION_IDENTITY",
+                "Сохранённый журнал изменился перед повторной выдачей результата.")
+        require(journal.get("state") == "TERMINAL" and journal.get("mode") in ("install", "update"),
+                "OPERATION_MODE", "Повторная выдача требует завершённой install/update операции.")
+        value = journal.get("result")
+        codes = {**{name: (0,) for name in TERMINAL}, "NO_CHANGE": (0, 2), "ERROR": (1,), "BLOCKED": (2,)}
+        require(isinstance(value, dict) and value.get("format") == "asa-setup-result-v1"
+                and value.get("operationId") == journal["operationId"]
+                and value.get("installationId") == self.installation_id
+                and value.get("mode") == journal["mode"]
+                and isinstance(value.get("outcome"), str) and value["outcome"] in codes
+                and type(value.get("exitCode")) is int and value["exitCode"] in codes[value["outcome"]],
+                "OPERATION_RESULT", "Результат не связан с завершённой операцией.")
+        output = copy.deepcopy(value)
+        require(json.dumps(finalize(output), sort_keys=True) == json.dumps(value, sort_keys=True),
+                "OPERATION_RESULT", "Сохранённый итог операции противоречив.")
+        require(isinstance(journal.get("phase"), str) and value.get("stage") == journal["phase"],
+                "OPERATION_RESULT", "Стадия квитанции не совпадает с завершённым журналом.")
+        # finish also marks a formerly verified missing snapshot. Reissuing
+        # cannot reinterpret that old observation or change its exit/outcome.
+        receipt = value.get("backup", {})
+        local = receipt.get("local", {})
+        require(isinstance(local, dict), "OPERATION_RESULT", "Неизвестная форма прежнего результата backup.")
+        marks_verified = (local.get("error") == "BACKUP_RESUME_SNAPSHOT_MISSING"
+            and (receipt.get("snapshotId") in journal.get("verifiedBackupSnapshots", [])
+                 or local.get("status") == "OK"))
+        require(not marks_verified or local.get("previouslyVerified") is True,
+                "OPERATION_RESULT", "Повторная выдача изменила бы прежнее свидетельство backup.")
+        previous = value.get("terminalReplay")
+        require(previous is None or isinstance(previous, dict)
+                and set(previous) == {"format", "invocationId", "reportedAt"}
+                and previous.get("format") == "asa-setup-terminal-replay-v1"
+                and isinstance(previous.get("invocationId"), str) and OPERATION_ID.fullmatch(previous["invocationId"])
+                and isinstance(previous.get("reportedAt"), str) and 0 < len(previous["reportedAt"]) <= 64,
+                "OPERATION_RESULT", "Свидетельство повторной выдачи имеет неизвестный формат.")
+        invocation_id = uuid.uuid4().hex
+        require(not previous or invocation_id != previous["invocationId"], "OPERATION_RESULT",
+                "Новый вызов не получил отдельную идентичность выдачи.")
+        output["terminalReplay"] = {"format": "asa-setup-terminal-replay-v1",
+                                    "invocationId": invocation_id, "reportedAt": now()}
+        return self.finish(journal, output)
+
     def finish(self, journal, outcome):
         receipt = outcome.get("backup", {})
         previous = journal.get("result", {}).get("backup", {})

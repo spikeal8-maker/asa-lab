@@ -637,7 +637,7 @@ def execute(args):
             runtime.deployment_digest = bind_selection(journal, intent=args.intent, deployment_digest=args.deployment_digest)
             store.save(journal)
             if journal.get("state") == "TERMINAL" and args.command != "acceptance":
-                output = store.finish(journal, journal["result"])
+                output = store.replay(journal)
             else:
                 output = Engine(runtime, store).execute(journal, resume=bool(pending or args.command == "resume"), acceptance_only=args.command == "acceptance")
         else:
