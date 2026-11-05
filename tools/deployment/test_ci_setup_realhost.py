@@ -47,6 +47,11 @@ def cli_read_fixture():
                        for service in harness.CLI_IMAGES}}}
     context = {"pins": pins, "sourceRevision": "d" * 40, "ageRecipient": fixture.RECIPIENT,
                "cliReleaseExpectations": harness.cli_release_expectations(selections, pins)}
+    context["acquisition"] = {"mode": "candidate", "approvedRevision": "", "sourceRevision": context["sourceRevision"]}
+    context["cliDefaultTargetExpectation"] = {"revision": "f" * 40, "schema": pins["current"]["schema"] + 1,
+        "images": {service: "ghcr.io/" + harness.REPOSITORY + "/" + service + "@sha256:" + "c" * 64
+                   for service in harness.CLI_IMAGES}, "deploymentDigest": "sha256:" + "e" * 64,
+        "manifestDigest": "sha256:" + "f" * 64, "ci": "VERIFIED", "publicationRunId": 123, "selector": "stable-before-vm"}
     owner = {"uid": 1001, "gid": 1001, "name": "asa-setup", "home": "/var/lib/asa-setup/operator",
              "root": str(harness.INSTALL_ROOT)}
     config = {"root": str(harness.INSTALL_ROOT), "installationId": "e" * 32, "operatorUid": owner["uid"],
@@ -108,17 +113,21 @@ class CLIReadWiringTests(unittest.TestCase):
         self.inputs["config"]["ignoredSecret"] = "PRIVATE_TOKEN_SENTINEL"
         expected, stamp = self.expected()
         self.assertEqual(expected.installed.revision, self.context["pins"]["previous"]["revision"])
-        self.assertEqual(expected.target.revision, self.context["pins"]["current"]["revision"])
-        self.assertEqual(expected.deployment_digest, self.context["pins"]["current"]["deploymentDigest"])
+        target = self.context["cliDefaultTargetExpectation"]
+        self.assertEqual(expected.target.revision, target["revision"])
+        self.assertEqual(expected.deployment_digest, target["deploymentDigest"])
+        self.assertNotIn(expected.target.revision, (self.context["sourceRevision"], self.context["pins"]["current"]["revision"]))
         self.assertEqual(expected.snapshot_ids, (self.inputs["backup"]["snapshotId"],))
         self.assertEqual(expected.accepted_operation_id, self.inputs["receipt"]["operationId"])
         self.assertEqual(stamp, self.inputs["backup"]["snapshotAt"])
         self.assertNotIn("PRIVATE_TOKEN_SENTINEL", repr(expected))
         self.assertEqual(len(cli_runtime.command_plan(expected)) + 2, 31)
-        updates = [case for case in cli_runtime.command_plan(expected) if case[2] == "update"]
-        self.assertEqual(len(updates), 1)
-        self.assertNotIn("apply", updates[0][1])
-        self.assertNotIn("--deployment-digest", updates[0][1])  # Stable drift remains observable.
+        updates = [case for case in cli_runtime.command_plan(expected) if case[2] in ("update", "update check", "update plan")]
+        self.assertEqual(len(updates), 3)
+        for case in updates:
+            arguments = case[1]
+            self.assertNotIn("apply", arguments)
+            self.assertNotIn("--deployment-digest", arguments)  # Stable drift remains observable.
 
     def test_context_rejects_cross_operation_snapshot_and_release_substitution(self):
         changes = (
@@ -335,6 +344,161 @@ class CLIReadWiringTests(unittest.TestCase):
                 groups.assert_called_once_with("asa-setup", owner["gid"])
                 self.assertEqual((options["user"], options["group"], options["extra_groups"]),
                                  (owner["uid"], owner["gid"], [1001, 999]))
+
+
+class CLIDefaultTargetTests(unittest.TestCase):
+    def setUp(self):
+        root = patch.object(harness, "INSTALL_ROOT", PurePosixPath("/srv/asa-lab"))
+        root.start()
+        self.addCleanup(root.stop)
+        self.context, self.owner, self.inputs, self.paths, self.selections = cli_read_fixture()
+
+    def expected(self):
+        return harness.cli_fixture_context(cli_checks, self.context, self.owner, self.inputs, self.paths)[0]
+
+    def selected_stable(self):
+        target = self.context["cliDefaultTargetExpectation"]
+        return {"ci": target["ci"], "deploymentDigest": target["deploymentDigest"], "manifestDigest": target["manifestDigest"],
+            "release": {"format": "asa-deployment-v2", "repository": harness.REPOSITORY, "platform": "linux/amd64",
+                        **{key: target[key] for key in ("revision", "schema", "images", "publicationRunId")}}}
+
+    def test_pre_vm_selector_resolves_stable_independently_in_both_modes(self):
+        for mode in ("candidate", "published"):
+            selected = {**self.selections, "stable": self.selected_stable()}
+            resolve = Mock(side_effect=[selected[name] for name in ("previous", "current", "stable")])
+            output = io.StringIO()
+            with self.subTest(mode=mode), patch.dict(sys.modules, {
+                    "deployment.release_readonly": SimpleNamespace(resolve_release=resolve)}), \
+                    patch.object(sys, "argv", ["selector", str(HERE.parent), mode]), \
+                    patch.object(sys, "path", list(sys.path)), \
+                    patch.object(sys, "stdin", SimpleNamespace(buffer=io.BytesIO(json.dumps(self.context["pins"]).encode()))), \
+                    contextlib.redirect_stdout(output):
+                exec(compile(harness.CLI_RELEASE_PROGRAM, "<pre-vm-release-selector>", "exec"), {})
+            self.assertEqual([call.args for call in resolve.call_args_list], [
+                (self.context["pins"]["previous"]["deploymentDigest"],),
+                (self.context["pins"]["current"]["deploymentDigest"],), ()])
+            self.assertEqual(json.loads(output.getvalue()), selected)
+
+    def test_all_update_forms_bind_stable_and_reject_controlled_or_source_substitution(self):
+        import test_realhost_cli_checks as examples
+        expected = self.expected()
+        target, controlled = self.context["cliDefaultTargetExpectation"], self.context["cliReleaseExpectations"]["current"]
+        self.assertEqual((expected.target.revision, expected.target.schema, expected.target.images),
+                         (target["revision"], target["schema"], target["images"]))
+        self.assertEqual((expected.deployment_digest, expected.manifest_digest),
+                         (target["deploymentDigest"], target["manifestDigest"]))
+        self.assertEqual(expected.installed.revision, self.context["pins"]["previous"]["revision"])
+        self.assertEqual(controlled["revision"], "959d52079d8c5659e86f084ad2453bd3eb68fe34")
+        for command in ("update", "update check", "update plan"):
+            document = examples.envelope(command, examples.update(expected))
+            with self.subTest(command=command):
+                cli_checks.check_read_result(command, document, returncode=0, expected=expected)
+            for field, value, code in (
+                    ("revision", controlled["revision"], "RELEASE_PIN_MISMATCH"),
+                    ("revision", self.context["sourceRevision"], "RELEASE_PIN_MISMATCH"),
+                    ("deploymentDigest", controlled["deploymentDigest"], "RELEASE_PIN_MISMATCH"),
+                    ("manifestDigest", controlled["manifestDigest"], "RELEASE_PIN_MISMATCH"),
+                    ("images", controlled["images"], "RELEASE_PIN_MISMATCH"),
+                    ("schema", controlled["schema"], "SCHEMA_MISMATCH")):
+                changed = copy.deepcopy(document)
+                changed["target"][field] = value
+                with self.subTest(command=command, field=field, value=value), self.assertRaisesRegex(cli_checks.CLIReadCheckError, code):
+                    cli_checks.check_read_result(command, changed, returncode=0, expected=expected)
+
+    def test_missing_or_malformed_default_never_falls_back_to_controlled_target(self):
+        target = self.context.pop("cliDefaultTargetExpectation")
+        with self.assertRaisesRegex(harness.Failure, "CLI_READ_DEFAULT_TARGET"):
+            self.expected()
+        for value in (None, [], {}, *({**target, **change} for change in (
+                {"revision": self.context["sourceRevision"][:-1]}, {"revision": True}, {"schema": True},
+                {"deploymentDigest": "stable"}, {"manifestDigest": None}, {"ci": "UNVERIFIED"},
+                {"images": self.context["pins"]["current"]}, {"publicationRunId": False},
+                {"selector": "from-cli"}, {"extra": "PRIVATE_TOKEN"}))):
+            self.context["cliDefaultTargetExpectation"] = value
+            with self.subTest(value=value), self.assertRaisesRegex(harness.Failure, "CLI_READ_DEFAULT_TARGET"):
+                self.expected()
+
+    def test_default_expectation_cannot_replace_controlled_or_published_setup_identity(self):
+        original = copy.deepcopy(self.context)
+        self.context["cliReleaseExpectations"]["current"] = copy.deepcopy(self.context["cliDefaultTargetExpectation"])
+        with self.assertRaisesRegex(harness.Failure, "CLI_READ_RELEASE_PIN"):
+            self.expected()
+        for acquisition, code in ((None, "ACQUISITION_MODE_BINDING"), ({}, "ACQUISITION_MODE_BINDING"),
+                ({**original["acquisition"], "approvedRevision": original["sourceRevision"]}, "ACQUISITION_MODE_BINDING"),
+                ({**original["acquisition"], "sourceRevision": original["cliDefaultTargetExpectation"]["revision"]}, "ACQUISITION_MODE_BINDING"),
+                ({**original["acquisition"], "mode": "published"}, "PUBLISHED_CONTEXT")):
+            self.context = copy.deepcopy(original)
+            self.context["acquisition"] = acquisition
+            with self.subTest(acquisition=acquisition), self.assertRaisesRegex(harness.Failure, code):
+                self.expected()
+        published, _, _ = published_fixture()
+        self.context = copy.deepcopy(original)
+        self.context["acquisition"] = published["acquisition"]
+        with self.assertRaisesRegex(harness.Failure, "CLI_READ_DEFAULT_TARGET"):
+            self.expected()
+
+    def materials(self, mode, *, stable_revision=None):
+        runner = object.__new__(harness.HostRun)
+        runner.args, runner.pins = SimpleNamespace(revision=self.context["sourceRevision"]), self.context["pins"]
+        runner.acquisition = copy.deepcopy(self.context["acquisition"])
+        if mode == "published":
+            runner.acquisition = {"mode": mode, "approvedRevision": runner.args.revision, "sourceRevision": runner.args.revision}
+        selected = {**self.selections, "stable": self.selected_stable()}
+        selected["stable"]["release"]["revision"] = stable_revision or (
+            runner.args.revision if mode == "published" else selected["stable"]["release"]["revision"])
+        digest, helper = "a" * 64, b"# immutable published helper fixture\n"
+
+        def command(arguments, **options):
+            if arguments[0] == "gpgv":
+                return 0, ("[GNUPG:] VALIDSIG " + runner.pins["ubuntu"]["signingFingerprint"] + "\n").encode()
+            if arguments[:2] == ["git", "show"]:
+                return 0, helper
+            if arguments[:2] == ["age-keygen", "-y"]:
+                return 0, fixture.RECIPIENT.encode()
+            if arguments[:2] == ["age-keygen", "-o"]:
+                return 0, b""
+            if len(arguments) > 4 and arguments[4] == harness.CLI_RELEASE_PROGRAM:
+                self.assertEqual(json.loads(options["source"]), runner.pins)
+                return 0, json.dumps(selected).encode()
+            self.assertEqual(arguments[1], "tools/deployment/setup_bundle.py")
+            return 0, json.dumps({"revision": runner.args.revision, "sha256": digest, "attested": False}).encode()
+
+        def download(url, destination, **options):
+            if destination.name == "SHA256SUMS":
+                destination.write_text(runner.pins["ubuntu"]["sha256"] + "  " + runner.pins["ubuntu"]["url"].rsplit("/", 1)[1] + "\n")
+            return {"url": url, "sha256": options.get("expected", digest), "bytes": (
+                harness.GH_PIN["bytes"] if destination.name == "github-cli.tar.gz" else runner.pins["onePanel"]["bytes"])}
+
+        with tempfile.TemporaryDirectory() as temporary:
+            runner.workspace, runner.source = Path(temporary), Path(temporary) / "source"
+            runner.commands, runner.download = SimpleNamespace(run=Mock(side_effect=command)), Mock(side_effect=download)
+            with patch.object(harness, "hash_file", side_effect=lambda path: (
+                    hashlib.sha256(helper).hexdigest() if path.name == "asa_setup_acquire.py" else digest)), \
+                    patch.object(harness, "cli_helper_hashes", return_value={name: digest for name in harness.CLI_HELPERS}):
+                evidence = runner.materials()
+            saved = json.loads((runner.workspace / "context.json").read_text())
+        return runner, evidence, saved
+
+    def test_materials_freeze_independent_default_without_changing_acquisition_or_controlled_pins(self):
+        for mode in ("candidate", "published"):
+            with self.subTest(mode=mode):
+                runner, evidence, saved = self.materials(mode)
+                self.assertEqual(saved, runner.context)
+                self.assertEqual(saved["acquisition"]["mode"], mode)
+                self.assertEqual(saved["acquisition"]["approvedRevision"], runner.args.revision if mode == "published" else "")
+                self.assertIs(evidence["candidateBundle"]["attested"], False)
+                self.assertEqual(evidence["candidateBundle"]["sourceOracleOnly"], mode == "published")
+                self.assertEqual(evidence["defaultCliTarget"], saved["cliDefaultTargetExpectation"])
+                self.assertEqual(evidence["defaultCliTarget"]["revision"], runner.args.revision if mode == "published"
+                                 else self.context["cliDefaultTargetExpectation"]["revision"])
+                self.assertEqual(saved["cliReleaseExpectations"], self.context["cliReleaseExpectations"])
+                self.assertEqual(evidence["controlledUpdateTarget"], self.context["cliReleaseExpectations"]["current"])
+                self.assertEqual(harness.guest_acquisition_mode(saved), mode)
+                self.assertEqual(evidence["githubCliArchive"] is not None, mode == "published")
+
+    def test_published_materials_reject_independent_stable_revision(self):
+        with self.assertRaisesRegex(harness.Failure, "CLI_READ_DEFAULT_TARGET"):
+            self.materials("published", stable_revision=self.context["cliDefaultTargetExpectation"]["revision"])
 
 
 @unittest.skipUnless(os.name == "posix", "POSIX process and filesystem boundary")
@@ -4244,6 +4408,7 @@ def published_fixture():
     helper = b"# synthetic released helper, never executed in this test\n"
     context.update(nonce="e" * 32, acquisition={"mode": "published", "approvedRevision": context["sourceRevision"],
         "sourceRevision": context["sourceRevision"], "helperSha256": hashlib.sha256(helper).hexdigest()})
+    context["cliDefaultTargetExpectation"]["revision"] = context["sourceRevision"]
     owner = {"name": "asa-ci", "uid": 1001, "gid": 1001, "home": "/home/asa-ci", "groups": [27, 1001], "nonce": context["nonce"]}
     return context, owner, helper
 

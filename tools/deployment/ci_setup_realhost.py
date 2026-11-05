@@ -194,8 +194,7 @@ sys.path.insert(0, sys.argv[1])
 from deployment.release_readonly import resolve_release
 pins = json.loads(sys.stdin.buffer.read(65536))
 selected = {name: resolve_release(pins[name]["deploymentDigest"]) for name in ("previous", "current")}
-if len(sys.argv) == 3 and sys.argv[2] == "published":
-    selected["stable"] = resolve_release()
+selected["stable"] = resolve_release()
 print(json.dumps(selected))
 """
 SWITCH_SERVICES = ("postgres", "minio", "migration", "minio-init", "api", "search", "web", "scratch")
@@ -339,13 +338,14 @@ def cli_default_target_binding(value, revision):
 
 
 def cli_default_target_expectation(selected, revision):
+    """Freeze verified stable; published acquisition also pins its approved revision."""
     require(type(selected) is dict and selected.get("ci") == "VERIFIED", "CLI_READ_DEFAULT_TARGET")
     release = selected.get("release")
     require(type(release) is dict and release.get("format") == "asa-deployment-v2"
             and release.get("repository") == REPOSITORY and release.get("platform") == "linux/amd64", "CLI_READ_DEFAULT_TARGET")
     return cli_default_target_binding({key: release.get(key) for key in ("revision", "schema", "images", "publicationRunId")} | {
         "ci": selected["ci"], "deploymentDigest": selected.get("deploymentDigest"), "manifestDigest": selected.get("manifestDigest"),
-        "selector": "stable-before-vm"}, revision)
+        "selector": "stable-before-vm"}, release.get("revision") if revision is None else revision)
 
 
 def host_environment(environment, revision, actual_revision, *, free, memory, cpus, os_release):
@@ -680,16 +680,15 @@ class HostRun:
         _, selected = self.commands.run([sys.executable, "-I", "-B", "-c", CLI_RELEASE_PROGRAM, self.source / "tools", acquisition["mode"]],
             source=json.dumps(self.pins).encode(), timeout=300)
         selected = json.loads(selected)
-        require(type(selected) is dict and set(selected) == ({"previous", "current", "stable"}
-                if acquisition["mode"] == "published" else {"previous", "current"}), "CLI_READ_RELEASE_PIN")
+        require(type(selected) is dict and set(selected) == {"previous", "current", "stable"}, "CLI_READ_RELEASE_PIN")
         release_expectations = cli_release_expectations({name: selected[name] for name in ("previous", "current")}, self.pins)
         self.context = {"format": "asa-realhost-context-v1", "sourceRevision": self.args.revision,
                         "nonce": uuid.uuid4().hex, "bundleSha256": proof["sha256"], "ageRecipient": recipient,
                         "pins": self.pins, "helperSha256": hash_file(self.source / "tools/deployment/ci_setup_smoke.py"),
                         "cliHelperSha256": cli_helper_hashes(self.source, self.args.revision, self.commands),
                         "cliReleaseExpectations": release_expectations, "acquisition": acquisition}
-        if acquisition["mode"] == "published":
-            self.context["cliDefaultTargetExpectation"] = cli_default_target_expectation(selected["stable"], self.args.revision)
+        self.context["cliDefaultTargetExpectation"] = cli_default_target_expectation(selected["stable"],
+            self.args.revision if acquisition["mode"] == "published" else None)
         write_json(work / "context.json", self.context)
         return {"ubuntu": image, "ubuntuSignature": "PASS", "onePanel": archive,
                 "candidateBundle": {"sha256": proof["sha256"], "revision": self.args.revision, "attested": False,
@@ -1271,11 +1270,10 @@ def cli_fixture_context(checks, context, owner, inputs, filesystem_paths):
                 and all(type(release["images"][service]) is str and re.fullmatch(
                     re.escape("ghcr.io/" + REPOSITORY + "/" + service + "@sha256:") + r"[a-f0-9]{64}",
                     release["images"][service]) for service in CLI_IMAGES), "CLI_READ_RELEASE_PIN")
-    if context.get("acquisition", {}).get("mode") == "published":
-        published_context(context)
-        target = cli_default_target_binding(context.get("cliDefaultTargetExpectation"), context["sourceRevision"])
-    else:
-        require("cliDefaultTargetExpectation" not in context, "CLI_READ_DEFAULT_TARGET")
+    mode = guest_acquisition_mode(context)
+    target = context.get("cliDefaultTargetExpectation")
+    require(type(target) is dict, "CLI_READ_DEFAULT_TARGET")
+    target = cli_default_target_binding(target, context["sourceRevision"] if mode == "published" else target.get("revision"))
     identity, operation, backup = supplied.get("installationId"), receipt.get("operationId"), inputs["backup"]
     require(type(identity) is str and re.fullmatch(r"[a-f0-9]{32}", identity)
             and type(operation) is str and re.fullmatch(r"[a-f0-9]{32}", operation), "CLI_READ_CONTEXT")
