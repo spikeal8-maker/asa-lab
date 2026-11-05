@@ -22,9 +22,7 @@
   margin: 0;
 }
 
-.robotics-lab button,
-.robotics-lab select,
-.robotics-lab input {
+:where(.robotics-lab button, .robotics-lab select, .robotics-lab input) {
   font: inherit;
 }
 
@@ -687,6 +685,32 @@
 }
 
 .robotics-lab .robotics-program-shell .arduino-drawer-resize-handle {
+  display: none;
+}
+
+/* Wrapped Serial headings share the available height with the monitor body. */
+.robotics-program-shell .arduino-serial-monitor {
+  display: flex;
+  flex-direction: column;
+}
+
+.robotics-program-shell .arduino-serial-monitor:not(.open) {
+  flex-basis: auto;
+}
+
+.robotics-program-shell .arduino-serial-title {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 34px;
+  padding-block: 6px;
+}
+
+.robotics-program-shell .arduino-serial-body {
+  flex: 1;
+  height: auto;
+}
+
+.robotics-program-shell .arduino-serial-body[aria-hidden='true'] {
   display: none;
 }
 

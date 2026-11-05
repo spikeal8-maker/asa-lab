@@ -1,4 +1,4 @@
-/* global document, console, URL, setTimeout */
+/* global document, console, URL, setTimeout, Node, getComputedStyle */
 import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -57,6 +57,63 @@ async function pause() {
   await delay(500);
   assert.deepEqual(await observation(), first, 'paused committed world must not advance');
   return first;
+}
+
+async function serialLayout(width, open) {
+  const title = page.locator('.robotics-program .arduino-serial-title');
+  if ((await title.getAttribute('aria-expanded')) !== String(open)) await title.click();
+  await title.scrollIntoViewIfNeeded();
+  const layout = await until(
+    `full Serial heading and form fit at ${width}px, open=${open}`,
+    () =>
+      title.evaluate((element) => {
+        const monitor = element.closest('.arduino-serial-monitor');
+        const form = monitor?.querySelector('form');
+        const buttonBounds = element.getBoundingClientRect();
+        const monitorBounds = monitor?.getBoundingClientRect();
+        const contains = (outer, inner) =>
+          outer &&
+          inner.left >= outer.left - 1 &&
+          inner.right <= outer.right + 1 &&
+          inner.top >= outer.top - 1 &&
+          inner.bottom <= outer.bottom + 1;
+        const textLines = [];
+        for (const node of element.childNodes) {
+          if (
+            node.nodeType !== Node.TEXT_NODE ||
+            !node.textContent.includes('Монитор последовательного интерфейса')
+          )
+            continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          for (const rect of range.getClientRects()) {
+            textLines.push({
+              height: rect.height,
+              insideButton: contains(buttonBounds, rect),
+              insideMonitor: contains(monitorBounds, rect),
+            });
+          }
+        }
+        const expanded = element.getAttribute('aria-expanded') === 'true';
+        return {
+          open: expanded,
+          fontSize: getComputedStyle(element).fontSize,
+          titleHeight: buttonBounds.height,
+          monitorHeight: monitorBounds?.height,
+          buttonFits: contains(monitorBounds, buttonBounds),
+          textLines,
+          formFits: !expanded || (form && contains(monitorBounds, form.getBoundingClientRect())),
+        };
+      }),
+    (value) =>
+      value.open === open &&
+      value.buttonFits &&
+      value.formFits &&
+      value.textLines.length > 0 &&
+      value.textLines.every((line) => line.insideButton && line.insideMonitor),
+    3000,
+  );
+  receipts.push({ scenario: 'Serial title and form remain unclipped', width, ...layout });
 }
 
 try {
@@ -237,6 +294,9 @@ try {
     assert.ok(layout.content <= layout.viewport + 1, `program page overflow at ${width}px`);
     assert.ok(layout.panelWidth >= layout.shellWidth - 2, `unused program column at ${width}px`);
     assert.ok(await editor.isVisible(), `shared text editor visible at ${width}px`);
+    await serialLayout(width, true);
+    await serialLayout(width, false);
+    await serialLayout(width, true);
     await page.screenshot({
       path: resolve(output, `robotics-program-${width}.png`),
       fullPage: true,
@@ -317,6 +377,11 @@ try {
   );
   await pause();
   receipts.push({ scenario: 'valid source recovery uses the same engine', recovered });
+  await page.getByRole('button', { name: 'Программа', exact: true }).click();
+  assert.equal(await editor.inputValue(), originalSource);
+  await page.locator('.robotics-program').screenshot({
+    path: resolve(output, 'robotics-program-default-1440.png'),
+  });
   assert.deepEqual(errors, [], 'no browser page errors');
   assert.deepEqual(forbiddenRequests, [], 'local robotics must not call API or external services');
   console.log(JSON.stringify({ result: 'PASS', receipts, output }, null, 2));
