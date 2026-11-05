@@ -987,14 +987,125 @@ def public_cli_result(words, code, raw, *, allowed=(0,), invocation=None):
     CLI_ACTIONS.append(record)
     if code not in allowed:
         error = Failure(reasons[-1] if reasons else "PUBLIC_CLI_FAILED")
-        try:
-            error.command_failure_diagnostic = command_failure_diagnostic(words, code, result, invocation)
-        except BaseException as failure:
-            error.command_failure_diagnostic = command_diagnostic_error(failure)
-        if error.command_failure_diagnostic.get("binding") == "VERIFIED":
-            record.update({key: error.command_failure_diagnostic[key] for key in ("operationId", "installationId")})
+        if words == ["status"] or words == ("status",):
+            try:
+                record["readCommandDiagnostic"] = public_status_failure_projection(words, code, raw, invocation)
+            except BaseException as failure:
+                reason = failure.code if type(failure) is Failure else None
+                record["readCommandDiagnostic"] = {
+                    "format": "asa-public-status-diagnostic-v1", "status": "UNAVAILABLE", "source": "UNVERIFIED",
+                    "reasonCode": reason if type(reason) is str and reason in {
+                        "READ_DIAGNOSTIC_SIZE", "READ_DIAGNOSTIC_JSON", "READ_DIAGNOSTIC_BINDING",
+                        "READ_DIAGNOSTIC_INVOCATION"} else "READ_DIAGNOSTIC_UNAVAILABLE"}
+        else:
+            try:
+                error.command_failure_diagnostic = command_failure_diagnostic(words, code, result, invocation)
+            except BaseException as failure:
+                error.command_failure_diagnostic = command_diagnostic_error(failure)
+            if error.command_failure_diagnostic.get("binding") == "VERIFIED":
+                record.update({key: error.command_failure_diagnostic[key] for key in ("operationId", "installationId")})
         raise error
     return result
+
+
+def public_status_failure_projection(words, code, raw, invocation):
+    """Project only this failed public stdout; no manager receipt or new I/O."""
+    require(type(words) in (list, tuple) and tuple(words) == ("status",)
+            and type(code) is int and code == 1, "READ_DIAGNOSTIC_BINDING")
+    require(type(raw) in (bytes, str) and len(raw) <= DIAGNOSTIC_LIMIT, "READ_DIAGNOSTIC_SIZE")
+    try:
+        encoded = raw.encode("utf-8") if type(raw) is str else raw
+        require(len(encoded) <= DIAGNOSTIC_LIMIT, "READ_DIAGNOSTIC_SIZE")
+
+        def unique_object(pairs):
+            result = {}
+            for key, value in pairs:
+                require(key not in result, "READ_DIAGNOSTIC_JSON")
+                result[key] = value
+            return result
+
+        def nonfinite(_value):
+            raise Failure("READ_DIAGNOSTIC_JSON")
+
+        public = json.loads(encoded.decode("utf-8"), object_pairs_hook=unique_object, parse_constant=nonfinite)
+    except (ValueError, UnicodeError, RecursionError):
+        raise Failure("READ_DIAGNOSTIC_JSON") from None
+    require(type(public) is dict and public.get("format") == "asa-cli-result-v1"
+            and public.get("command") == "status" and type(public.get("exitCode")) is int
+            and public["exitCode"] == code and type(public.get("status")) is str
+            and public["status"] in {"UNAVAILABLE", "FAILED"}, "READ_DIAGNOSTIC_BINDING")
+    # Commands.run supplies these together with this exact stdout/return code.
+    # Their shape is checked, but no independent manager/installation binding is
+    # asserted and no process IDs, timestamps or command paths are exported.
+    require(type(invocation) is dict and type(invocation.get("pid")) is int
+            and 0 < invocation["pid"] <= 2**31 - 1
+            and all(type(invocation.get(key)) is int for key in ("startedNs", "finishedNs"))
+            and 0 < invocation["startedNs"] <= invocation["finishedNs"] < 2**63,
+            "READ_DIAGNOSTIC_INVOCATION")
+
+    def field(record, key, *, allowed=None, kind=str):
+        if key not in record:
+            return {"state": "MISSING"}
+        value = record[key]
+        if value is None:
+            return {"state": "NULL"}
+        valid = type(value) is kind
+        if valid and kind is int:
+            valid = 0 <= value <= 99_999_999
+        if valid and allowed is not None:
+            valid = value in allowed
+        return {"state": "OBSERVED", "value": value} if valid else {"state": "UNRECOGNIZED"}
+
+    def component(record, key, states, reasons):
+        if key not in record:
+            return None, {"state": "MISSING"}
+        if record[key] is None:
+            return None, {"state": "NULL"}
+        if type(record[key]) is not dict:
+            return None, {"state": "UNRECOGNIZED"}
+        source = record[key]
+        return source, {"state": "OBSERVED", "status": field(source, "status", allowed=states),
+                        "reason": receipt_reason(source, "reasonCode", reasons)}
+
+    services, service_result = component(public, "services", {"OK", "FAILED", "UNAVAILABLE"},
+        {"INSTALLATION_IDENTITY", "NO_CONTAINERS", "OUTPUT_LIMIT", "PROBE_FAILED",
+         "TOOL_OR_ACCESS", "DOCKER_IDENTITY"})
+    if services is not None:
+        for name in ("docker", "compose"):
+            _, service_result[name] = component(services, name, {"OK", "UNAVAILABLE"}, {"TOOL_OR_ACCESS"})
+        if "containers" not in services:
+            service_result["containers"] = {"state": "MISSING"}
+        elif services["containers"] is None:
+            service_result["containers"] = {"state": "NULL"}
+        elif type(services["containers"]) is not list:
+            service_result["containers"] = {"state": "UNRECOGNIZED"}
+        elif len(services["containers"]) > 64:
+            service_result["containers"] = {"state": "LIMIT_EXCEEDED"}
+        else:
+            rows = []
+            for item in services["containers"]:
+                if type(item) is not dict:
+                    rows.append({"state": "UNRECOGNIZED"})
+                    continue
+                rows.append({"state": "OBSERVED",
+                    "service": field(item, "service", allowed={"api", "web", "postgres", "minio",
+                        "scratch", "search", "migration", "minio-init"}),
+                    "running": field(item, "running", kind=bool),
+                    "health": field(item, "health", allowed={"starting", "healthy", "unhealthy"})})
+            service_result["containers"] = {"state": "OBSERVED", "items": rows}
+    database, database_result = component(public, "database", {"OK", "UNAVAILABLE"},
+        {"POSTGRES_UNAVAILABLE", "POSTGRES_QUERY_UNAVAILABLE"})
+    if database is not None:
+        database_result["schema"] = field(database, "schema", kind=int)
+    site, site_result = component(public, "site", {"OK", "FAILED", "UNAVAILABLE"},
+        {"ENTRY_ORIGIN_UNAVAILABLE"})
+    if site is not None:
+        site_result["reportedSchema"] = field(site, "reportedSchema", kind=int)
+        _, site_result["editorEndpoint"] = component(site, "editorEndpoint", {"OK", "UNAVAILABLE"}, set())
+    return {"format": "asa-public-status-diagnostic-v1", "status": "OBSERVED",
+            "source": "CAPTURED_PUBLIC_STDOUT", "command": "status", "publicExitCode": code,
+            "publicStatus": public["status"], "topReason": receipt_reason(public, "reasonCode", set()),
+            "services": service_result, "database": database_result, "site": site_result}
 
 
 def candidate_bundle(context):

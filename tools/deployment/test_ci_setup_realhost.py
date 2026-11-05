@@ -1133,6 +1133,262 @@ class PostFailureDiagnosticTests(unittest.TestCase):
             self.assertFalse(target.exists())
 
 
+class PublicStatusDiagnosticTests(unittest.TestCase):
+    SECRET = "PRIVATE_COOKIE_EMAIL_PASSWORD_MUST_NOT_APPEAR"
+
+    def public(self):
+        return {"format": "asa-cli-result-v1", "command": "status", "exitCode": 1,
+                "status": "UNAVAILABLE", "root": "/private/" + self.SECRET,
+                "services": {"status": "UNAVAILABLE", "reasonCode": "DOCKER_IDENTITY",
+                    "docker": {"status": "OK", "version": self.SECRET},
+                    "compose": {"status": "OK", "version": self.SECRET}, "containers": []},
+                "database": {"status": "UNAVAILABLE", "reasonCode": "POSTGRES_UNAVAILABLE"},
+                "site": {"status": "OK", "origin": "https://" + self.SECRET, "revision": self.SECRET,
+                    "reportedSchema": 304, "https": "UNAVAILABLE", "editorEndpoint": {"status": "OK"},
+                    "browserAcceptance": {"status": "NOT_RUN", "historical": {"password": self.SECRET}}},
+                "history": {"password": self.SECRET}, "backup": {"password": self.SECRET}}
+
+    def invocation(self):
+        return {"pid": 1234, "startedNs": 1_800_000_000_000_000_000,
+                "finishedNs": 1_800_000_001_000_000_000, "setupLogsBefore": {"status": "NOT_REQUIRED"}}
+
+    def project(self, public=None, *, words=("status",), code=1, raw=None, invocation=None):
+        value = self.public() if public is None else public
+        return harness.public_status_failure_projection(words, code,
+            json.dumps(value).encode("utf-8") if raw is None else raw,
+            self.invocation() if invocation is None else invocation)
+
+    def test_captured_status_components_are_closed_and_do_not_claim_manager_binding(self):
+        with patch("builtins.open", side_effect=AssertionError("no follow-up files")), \
+             patch.object(harness.os, "open", side_effect=AssertionError("no follow-up descriptors")), \
+             patch.object(harness.subprocess, "Popen", side_effect=AssertionError("no follow-up process")):
+            result = self.project()
+        self.assertEqual((result["status"], result["source"], result["publicStatus"], result["publicExitCode"]),
+                         ("OBSERVED", "CAPTURED_PUBLIC_STDOUT", "UNAVAILABLE", 1))
+        self.assertEqual(result["services"]["reason"], {"state": "RECOGNIZED", "code": "DOCKER_IDENTITY"})
+        self.assertEqual(result["database"]["reason"], {"state": "RECOGNIZED", "code": "POSTGRES_UNAVAILABLE"})
+        self.assertEqual(result["site"]["status"], {"state": "OBSERVED", "value": "OK"})
+        self.assertEqual(result["site"]["reportedSchema"], {"state": "OBSERVED", "value": 304})
+        self.assertEqual(result["site"]["reason"], {"state": "MISSING"})
+        self.assertNotIn(self.SECRET, json.dumps(result))
+        for name in ("binding", "operationId", "installationId", "pid", "startedNs", "root", "origin"):
+            self.assertNotIn('"' + name + '"', json.dumps(result))
+
+    def test_reason_presence_types_unknown_and_unicode_values_remain_distinct(self):
+        expected = (
+            ({}, {"state": "MISSING"}),
+            ({"reasonCode": None}, {"state": "NULL"}),
+            ({"reasonCode": "DOCKER_IDENTITY"}, {"state": "RECOGNIZED", "code": "DOCKER_IDENTITY"}),
+            ({"reasonCode": "DOCKER_IDENTIT\u0423"}, {"state": "UNRECOGNIZED", "type": "STRING"}),
+            ({"reasonCode": self.SECRET}, {"state": "UNRECOGNIZED", "type": "STRING"}),
+            ({"reasonCode": True}, {"state": "UNRECOGNIZED", "type": "NON_STRING"}),
+            ({"reasonCode": {"raw": self.SECRET}}, {"state": "UNRECOGNIZED", "type": "NON_STRING"}),
+        )
+        for supplied, outcome in expected:
+            with self.subTest(outcome=outcome):
+                public = self.public()
+                public["services"].pop("reasonCode")
+                public["services"].update(supplied)
+                result = self.project(public)
+                self.assertEqual(result["services"]["reason"], outcome)
+                self.assertNotIn(self.SECRET, json.dumps(result))
+        public = self.public()
+        public["site"]["reasonCode"] = "HTTP_UNAVAILABLE"
+        self.assertEqual(self.project(public)["site"]["reason"],
+                         {"state": "UNRECOGNIZED", "type": "STRING"})
+
+    def test_only_actual_component_reason_codes_are_recognized(self):
+        for component, codes in (
+                ("services", ("INSTALLATION_IDENTITY", "NO_CONTAINERS", "OUTPUT_LIMIT",
+                              "PROBE_FAILED", "TOOL_OR_ACCESS", "DOCKER_IDENTITY")),
+                ("database", ("POSTGRES_UNAVAILABLE", "POSTGRES_QUERY_UNAVAILABLE")),
+                ("site", ("ENTRY_ORIGIN_UNAVAILABLE",))):
+            for code in codes:
+                with self.subTest(component=component, code=code):
+                    public = self.public()
+                    public[component]["reasonCode"] = code
+                    self.assertEqual(self.project(public)[component]["reason"],
+                                     {"state": "RECOGNIZED", "code": code})
+        public = self.public()
+        for name in ("docker", "compose"):
+            public["services"][name] = {"status": "UNAVAILABLE", "reasonCode": "TOOL_OR_ACCESS"}
+            result = self.project(public)["services"][name]
+            self.assertEqual(result["status"], {"state": "OBSERVED", "value": "UNAVAILABLE"})
+            self.assertEqual(result["reason"], {"state": "RECOGNIZED", "code": "TOOL_OR_ACCESS"})
+
+    def test_missing_null_and_malformed_components_do_not_become_success(self):
+        for component in ("services", "database", "site"):
+            for value, state in ((None, "NULL"), ([], "UNRECOGNIZED"), (True, "UNRECOGNIZED")):
+                with self.subTest(component=component, state=state):
+                    public = self.public()
+                    public[component] = value
+                    self.assertEqual(self.project(public)[component], {"state": state})
+            public = self.public()
+            public.pop(component)
+            self.assertEqual(self.project(public)[component], {"state": "MISSING"})
+            public[component] = {"status": "\u041eK", "reasonCode": self.SECRET, "raw": self.SECRET}
+            result = self.project(public)
+            self.assertEqual(result[component]["status"], {"state": "UNRECOGNIZED"})
+            self.assertEqual(result["publicStatus"], "UNAVAILABLE")
+            self.assertNotIn(self.SECRET, json.dumps(result))
+
+    def test_health_running_and_schema_are_typed_without_raw_names(self):
+        public = self.public()
+        public["services"]["containers"] = [
+            {"service": "minio-init", "running": False, "health": None, "secret": self.SECRET},
+            {"service": "api", "running": True, "health": "healthy", "id": self.SECRET},
+            {"service": self.SECRET, "running": 1, "health": True},
+            {"service": {"raw": self.SECRET}, "running": "true", "health": "HEALTHY"},
+            self.SECRET,
+        ]
+        result = self.project(public)
+        rows = result["services"]["containers"]["items"]
+        self.assertEqual(rows[0]["running"], {"state": "OBSERVED", "value": False})
+        self.assertEqual(rows[0]["health"], {"state": "NULL"})
+        self.assertEqual(rows[1]["health"], {"state": "OBSERVED", "value": "healthy"})
+        for key in ("service", "running", "health"):
+            self.assertEqual(rows[2][key], {"state": "UNRECOGNIZED"})
+            self.assertEqual(rows[3][key], {"state": "UNRECOGNIZED"})
+        self.assertEqual(rows[4], {"state": "UNRECOGNIZED"})
+        self.assertNotIn(self.SECRET, json.dumps(result))
+        for invalid in (True, -1, 100_000_000, 304.0, "304", {"raw": self.SECRET}):
+            public["database"]["schema"] = public["site"]["reportedSchema"] = invalid
+            result = self.project(public)
+            self.assertEqual(result["database"]["schema"], {"state": "UNRECOGNIZED"})
+            self.assertEqual(result["site"]["reportedSchema"], {"state": "UNRECOGNIZED"})
+        public["services"]["containers"] = [{"raw": self.SECRET}] * 65
+        self.assertEqual(self.project(public)["services"]["containers"], {"state": "LIMIT_EXCEEDED"})
+
+    def test_failed_top_status_is_not_upgraded_when_all_component_statuses_are_ok(self):
+        public = self.public()
+        public["status"] = "FAILED"
+        for component in ("services", "database", "site"):
+            public[component]["status"] = "OK"
+            public[component].pop("reasonCode", None)
+        public["database"]["schema"] = 304
+        result = self.project(public)
+        self.assertEqual(result["publicStatus"], "FAILED")
+        self.assertEqual(result["publicExitCode"], 1)
+        self.assertEqual(result["status"], "OBSERVED")
+
+    def test_envelope_and_actual_exit_are_strictly_bound(self):
+        for key, value in (("command", "doctor"), ("command", None), ("format", "asa-setup-result-v1"),
+                           ("exitCode", True), ("exitCode", 0), ("exitCode", 1.0),
+                           ("status", "OK"), ("status", "UNAVAILABL\u0415"), ("status", [])):
+            public = self.public()
+            public[key] = value
+            with self.subTest(key=key, value=value), self.assertRaisesRegex(harness.Failure, "READ_DIAGNOSTIC_BINDING"):
+                self.project(public)
+        for code in (True, 1.0, 0, 2, "1"):
+            with self.subTest(code=code), self.assertRaisesRegex(harness.Failure, "READ_DIAGNOSTIC_BINDING"):
+                self.project(code=code)
+        for words in (["version"], ["status", "extra"], "status", [], None):
+            with self.subTest(words=words), self.assertRaisesRegex(harness.Failure, "READ_DIAGNOSTIC_BINDING"):
+                self.project(words=words)
+        for key in ("format", "command", "exitCode", "status"):
+            public = self.public()
+            public.pop(key)
+            with self.subTest(missing=key), self.assertRaisesRegex(harness.Failure, "READ_DIAGNOSTIC_BINDING"):
+                self.project(public)
+
+    def test_missing_or_malformed_capture_metadata_is_unverified(self):
+        for invocation in ({}, {"pid": 1}, None, [], True):
+            with self.subTest(invocation=invocation), self.assertRaisesRegex(harness.Failure, "READ_DIAGNOSTIC_INVOCATION"):
+                harness.public_status_failure_projection(["status"], 1, json.dumps(self.public()), invocation)
+        for key, value in (("pid", True), ("pid", 0), ("pid", -1), ("pid", 2**31),
+                           ("startedNs", True), ("startedNs", 0), ("finishedNs", 1.0),
+                           ("finishedNs", 1), ("finishedNs", 2**63)):
+            invocation = self.invocation()
+            invocation[key] = value
+            with self.subTest(key=key, value=value), self.assertRaisesRegex(harness.Failure, "READ_DIAGNOSTIC_INVOCATION"):
+                self.project(invocation=invocation)
+
+    def test_duplicate_nonfinite_invalid_utf8_and_oversized_json_are_rejected(self):
+        raw = json.dumps(self.public())
+        for malformed in (raw[:-1] + ', "command":"status"}',
+                          raw.replace('"reportedSchema": 304', '"reportedSchema":304,"reportedSchema":304'),
+                          raw[:-1] + ', "unused":NaN}', raw[:-1] + ', "unused":Infinity}',
+                          raw + "\n{}", b"\xff", raw.encode()[:-1]):
+            with self.subTest(kind=type(malformed).__name__), self.assertRaisesRegex(harness.Failure, "READ_DIAGNOSTIC_JSON"):
+                self.project(raw=malformed)
+        for oversized in (b" " * (harness.DIAGNOSTIC_LIMIT + 1),
+                          "\u0410" * (harness.DIAGNOSTIC_LIMIT // 2 + 1)):
+            with self.subTest(kind=type(oversized).__name__), self.assertRaisesRegex(harness.Failure, "READ_DIAGNOSTIC_SIZE"):
+                self.project(raw=oversized)
+
+    def test_failed_status_keeps_closed_diagnostic_and_original_phase_failure(self):
+        public = self.public()
+        output = io.StringIO()
+        with patch.object(harness, "CLI_ACTIONS", []), patch.object(harness, "guest_guard", return_value={}), \
+             patch.object(harness, "command_failure_diagnostic", side_effect=AssertionError("no manager read")) as manager, \
+             patch.object(harness, "guest_phase", side_effect=lambda *_: harness.public_cli_result(
+                 ["status"], 1, json.dumps(public), invocation=self.invocation())), \
+             contextlib.redirect_stdout(output):
+            code = harness.guest_main("install")
+        recorded = json.loads(output.getvalue())
+        self.assertEqual((code, recorded["status"], recorded["reasonCode"]), (1, "FAIL", "PUBLIC_CLI_FAILED"))
+        self.assertEqual(recorded["cliActions"][0]["exitCode"], 1)
+        diagnostic = recorded["cliActions"][0]["readCommandDiagnostic"]
+        self.assertEqual(diagnostic["services"]["reason"]["code"], "DOCKER_IDENTITY")
+        self.assertEqual(diagnostic["publicStatus"], "UNAVAILABLE")
+        self.assertNotIn("commandFailureDiagnostic", recorded)
+        self.assertNotIn(self.SECRET, output.getvalue())
+        manager.assert_not_called()
+
+    def test_real_child_stdout_and_exit_are_used_without_followup_probe(self):
+        public = json.dumps(self.public())
+        commands = harness.Commands()
+        code, raw = commands.run([sys.executable, "-I", "-B", "-c",
+            "import sys; print(" + repr(public) + "); sys.exit(1)"], timeout=10, allowed=(1,))
+        with patch.object(harness, "CLI_ACTIONS", []), \
+             patch.object(harness, "command_failure_diagnostic", side_effect=AssertionError("no manager read")) as manager:
+            with self.assertRaisesRegex(harness.Failure, "PUBLIC_CLI_FAILED"):
+                harness.public_cli_result(["status"], code, raw, invocation=commands.last_invocation)
+            diagnostic = harness.CLI_ACTIONS[0]["readCommandDiagnostic"]
+        self.assertEqual((code, diagnostic["status"], diagnostic["source"]),
+                         (1, "OBSERVED", "CAPTURED_PUBLIC_STDOUT"))
+        self.assertEqual(diagnostic["database"]["reason"]["code"], "POSTGRES_UNAVAILABLE")
+        self.assertNotIn(self.SECRET, json.dumps(diagnostic))
+        manager.assert_not_called()
+
+    def test_projection_exception_cannot_replace_primary_failure_or_leak_its_message(self):
+        secret = self.SECRET
+
+        class PrivateError(RuntimeError):
+            @property
+            def code(self):
+                raise RuntimeError(secret)
+
+        for failure in (RuntimeError(secret), PrivateError(secret)):
+            output = io.StringIO()
+            with self.subTest(kind=type(failure).__name__), \
+                 patch.object(harness, "CLI_ACTIONS", []), patch.object(harness, "guest_guard", return_value={}), \
+                 patch.object(harness, "public_status_failure_projection", side_effect=failure), \
+                 patch.object(harness, "guest_phase", side_effect=lambda *_: harness.public_cli_result(
+                     ["status"], 1, json.dumps(self.public()), invocation=self.invocation())), \
+                 contextlib.redirect_stdout(output):
+                code = harness.guest_main("install")
+            recorded = json.loads(output.getvalue())
+            self.assertEqual((code, recorded["status"], recorded["reasonCode"]), (1, "FAIL", "PUBLIC_CLI_FAILED"))
+            self.assertEqual(recorded["cliActions"][0]["readCommandDiagnostic"],
+                {"format": "asa-public-status-diagnostic-v1", "status": "UNAVAILABLE", "source": "UNVERIFIED",
+                 "reasonCode": "READ_DIAGNOSTIC_UNAVAILABLE"})
+            self.assertNotIn(secret, output.getvalue())
+
+    def test_invalid_capture_records_unavailable_and_allowed_exit_does_not_project(self):
+        public = self.public()
+        with patch.object(harness, "CLI_ACTIONS", []):
+            with self.assertRaisesRegex(harness.Failure, "PUBLIC_CLI_FAILED"):
+                harness.public_cli_result(["status"], 1, json.dumps(public), invocation={})
+            self.assertEqual(harness.CLI_ACTIONS[0]["readCommandDiagnostic"]["reasonCode"],
+                             "READ_DIAGNOSTIC_INVOCATION")
+        with patch.object(harness, "CLI_ACTIONS", []), \
+             patch.object(harness, "public_status_failure_projection") as projection:
+            self.assertEqual(harness.public_cli_result(["status"], 1, json.dumps(public), allowed=(1,)), public)
+            projection.assert_not_called()
+            self.assertNotIn("readCommandDiagnostic", harness.CLI_ACTIONS[0])
+
+
 class CommandFailureDiagnosticTests(unittest.TestCase):
     def test_operator_log_root_is_under_protected_var_lib(self):
         # Ubuntu /var/log is commonly root:syslog mode 0775. Its group-write
