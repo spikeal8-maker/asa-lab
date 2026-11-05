@@ -2216,6 +2216,342 @@ class PublicStatusDiagnosticTests(unittest.TestCase):
             self.assertNotIn("readCommandDiagnostic", harness.CLI_ACTIONS[0])
 
 
+class ScheduleFailureObservationTests(unittest.TestCase):
+    def setUp(self):
+        changed = patch.object(harness, "INSTALL_ROOT", PurePosixPath("/srv/asa-lab"))
+        changed.start()
+        self.addCleanup(changed.stop)
+
+    def records(self, action="enable"):
+        start = 1_800_000_000_200_000_000
+        config = {"format": "asa-setup-config-v1", "installationId": "a" * 32,
+                  "root": str(harness.INSTALL_ROOT), "operatorUid": 999}
+        receipt = {"format": "asa-setup-root-actions-v1", "installationId": config["installationId"],
+                   "operationId": "b" * 32, "kind": "schedule", "status": "FAILED",
+                   "reasonCode": "BACKUP_SCHEDULE_INACTIVE"}
+        old = (1, 2, 100, start - 100, start - 100)
+        before = {"status": "OBSERVED", "action": action, "identity": {key: config[key] for key in
+                  ("installationId", "root", "operatorUid")}, "sourceRevision": "c" * 40,
+                  "receipt": {"status": "PRESENT", "metadata": old, "sha256": "d" * 64},
+                  "capturedNs": start - 50}
+        return {"words": ["backup", "schedule", action], "code": 2,
+                "public": {"format": "asa-cli-result-v1", "command": "backup schedule " + action,
+                           "status": "BLOCKED", "exitCode": 2, "managerExitCode": 2,
+                           "reasonCode": "ROOT_ACTION", "reasonCodes": ["ROOT_ACTION"],
+                           "operation": {"outcome": "BLOCKED", "reasonCode": "ROOT_ACTION"}},
+                "context": {"sourceRevision": "c" * 40}, "owner": {"uid": 999},
+                "config": config, "receipt": receipt,
+                "info": SimpleNamespace(st_dev=1, st_ino=3, st_size=100,
+                                        st_mtime_ns=start + 50, st_ctime_ns=start + 50),
+                "invocation": {"pid": 1234, "startedNs": start, "finishedNs": start + 100,
+                               "rootActionBefore": before}}
+
+    @contextlib.contextmanager
+    def environment(self, values, reader=None):
+        def read(path, base, uid, **kwargs):
+            self.assertEqual(base, harness.INSTALL_ROOT)
+            self.assertEqual(uid, 999)
+            self.assertIn(path.name, ("setup.json", "setup-root-actions.json"))
+            key = "config" if path.name == "setup.json" else "receipt"
+            self.assertEqual(kwargs["maximum"], (256 if key == "config" else 64) * 1024)
+            value = values[key]
+            if isinstance(value, BaseException):
+                raise value
+            raw = value if type(value) in (str, bytes) else json.dumps(value).encode()
+            return raw, values["info"], False
+        with patch.object(harness, "guest_guard", return_value=values["context"]) as guest, \
+                patch.object(harness, "diagnostic_owner", return_value=(values["owner"], {})), \
+                patch.object(harness, "diagnostic_read", side_effect=reader or read) as opened:
+            yield guest, opened
+
+    def observe(self, values):
+        return harness.schedule_failure_observation(values["words"], values["code"],
+                json.dumps(values["public"]), values["invocation"])
+
+    def test_two_actions_observe_only_finite_receipt_fields_without_causal_or_operation_binding(self):
+        for action in ("enable", "disable"):
+            for reason in ("BACKUP_SCHEDULE_CALENDAR", "BACKUP_SYSTEMD", "BACKUP_SCHEDULE_INACTIVE", "PermissionError"):
+                values = self.records(action)
+                values["receipt"]["reasonCode"] = reason
+                values["public"]["operation"].update(operationId="f" * 32, installationId="e" * 32)
+                with self.subTest(action=action, reason=reason), self.environment(values) as (_, opened):
+                    result = self.observe(values)
+                self.assertEqual((result["status"], result["binding"], result["causalProof"]),
+                                 ("OBSERVED", "UNVERIFIED", False))
+                self.assertEqual(result["fileBinding"], "INSTALLATION_AND_FRESHNESS_ONLY")
+                self.assertEqual(result["requestedAction"], action)
+                self.assertEqual(result["receiptReason"], {"state": "RECOGNIZED", "code": reason})
+                self.assertNotIn("operationId", result)
+                self.assertNotIn("installationId", result)
+                self.assertEqual([call.args[0].name for call in opened.call_args_list], ["setup.json", "setup-root-actions.json"])
+
+    def test_ok_receipt_after_public_failure_is_observation_not_success_and_copies_no_unused_data(self):
+        values = self.records()
+        secret = "PRIVATE_CREDENTIAL_MUST_NOT_ESCAPE"
+        values["receipt"].update(status="OK", schedule={"format": "asa-backup-schedule-v1",
+            "installationId": values["config"]["installationId"], "lastLocalSuccess": {"path": secret}})
+        values["receipt"].pop("reasonCode")
+        values["config"]["backup"] = {"cloud": {"rcloneConfigFile": secret}}
+        with self.environment(values):
+            result = self.observe(values)
+        self.assertEqual(result["status"], "OBSERVED")
+        self.assertEqual(result["receiptStatus"], "OK")
+        self.assertEqual(result["receiptReason"], {"state": "MISSING"})
+        self.assertFalse(result["causalProof"])
+        self.assertNotIn(secret, json.dumps(result))
+        self.assertNotIn("schedule", result)
+
+    def test_baseline_present_or_absent_uses_fixed_private_reads_and_keeps_identity_internal(self):
+        for absent in (False, True):
+            values = self.records()
+            start = values["invocation"]["startedNs"]
+            values["info"].st_mtime_ns = values["info"].st_ctime_ns = start - 100
+            if absent:
+                values["receipt"] = FileNotFoundError("PRIVATE")
+            with self.subTest(absent=absent), self.environment(values), patch.object(harness.time, "time_ns", return_value=start - 50):
+                before = harness.schedule_failure_baseline(values["words"])
+            self.assertEqual(before["status"], "OBSERVED")
+            self.assertEqual(before["identity"], values["invocation"]["rootActionBefore"]["identity"])
+            self.assertEqual(before["receipt"]["status"], "ABSENT" if absent else "PRESENT")
+            if not absent:
+                self.assertEqual(before["receipt"]["sha256"], hashlib.sha256(json.dumps(values["receipt"]).encode()).hexdigest())
+            fresh = self.records()
+            fresh["invocation"]["rootActionBefore"] = before
+            with self.environment(fresh):
+                self.assertEqual(self.observe(fresh)["status"], "OBSERVED")
+
+    def test_invalid_public_context_and_unavailable_or_other_action_baseline_do_no_followup_reads(self):
+        changes = [
+            lambda v: v.update(code=True),
+            lambda v: v["public"].update(exitCode=True),
+            lambda v: v["public"].update(managerExitCode=True),
+            lambda v: v["public"].update(command="backup schedule disable"),
+            lambda v: v["public"].update(status="OK"),
+            lambda v: v["public"].update(format="asa-setup-result-v1"),
+            lambda v: v["invocation"].update(pid=True),
+            lambda v: v["invocation"].update(startedNs=True),
+            lambda v: v["invocation"].update(rootActionBefore={"status": "UNAVAILABLE"}),
+            lambda v: v["invocation"]["rootActionBefore"].update(action="disable"),
+            lambda v: v["invocation"]["rootActionBefore"].update(capturedNs=v["invocation"]["startedNs"] + 1),
+            lambda v: v["invocation"]["rootActionBefore"]["identity"].update(operatorUid=True),
+            lambda v: v["invocation"]["rootActionBefore"]["receipt"].update(metadata=(True, 2, 100, 1, 1)),
+        ]
+        for change in changes:
+            values = self.records()
+            change(values)
+            with self.subTest(change=changes.index(change)), self.environment(values) as (guest, opened), self.assertRaises(harness.Failure):
+                self.observe(values)
+            guest.assert_not_called()
+            opened.assert_not_called()
+
+    def test_metadata_requires_both_full_ns_timestamps_and_a_changed_pre_call_file(self):
+        for field in ("st_mtime_ns", "st_ctime_ns"):
+            for offset in (-1, 101):
+                values = self.records()
+                setattr(values["info"], field, values["invocation"]["startedNs"] + offset)
+                with self.subTest(field=field, offset=offset), self.environment(values), self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_INVOCATION"):
+                    self.observe(values)
+        for offset in (0, 50, 100):
+            values = self.records()
+            values["info"].st_mtime_ns = values["info"].st_ctime_ns = values["invocation"]["startedNs"] + offset
+            with self.environment(values):
+                self.assertEqual(self.observe(values)["status"], "OBSERVED")
+        values = self.records()
+        before = values["invocation"]["rootActionBefore"]
+        values["invocation"]["startedNs"] = before["capturedNs"]
+        values["info"].st_mtime_ns = values["info"].st_ctime_ns = before["capturedNs"]
+        before["receipt"]["metadata"] = harness.diagnostic_metadata(values["info"])
+        with self.environment(values), self.assertRaisesRegex(harness.Failure, "SCHEDULE_DIAGNOSTIC_BASELINE"):
+            self.observe(values)
+
+    def test_config_owner_source_or_installation_drift_never_binds_a_receipt(self):
+        changes = [
+            lambda v: v["owner"].update(uid=1000),
+            lambda v: v["context"].update(sourceRevision="f" * 40),
+            lambda v: v["config"].update(installationId="f" * 32),
+            lambda v: v["config"].update(operatorUid=True),
+            lambda v: v["config"].update(root="/foreign"),
+            lambda v: v["config"].update(format="UNKNOWN"),
+        ]
+        for change in changes:
+            values = self.records()
+            change(values)
+            with self.subTest(change=changes.index(change)), self.environment(values) as (_, opened), self.assertRaises(harness.Failure):
+                self.observe(values)
+            self.assertNotIn("setup-root-actions.json", [call.args[0].name for call in opened.call_args_list])
+
+    def test_malformed_receipt_unknown_unicode_and_secret_values_fail_closed(self):
+        changes = [
+            {"format": "UNKNOWN"}, {"kind": "repair-collector"}, {"installationId": "f" * 32},
+            {"operationId": None}, {"operationId": "Ａ" * 32}, {"status": "passed"},
+            {"status": False}, {"reasonCode": None}, {"reasonCode": ["BACKUP_SYSTEMD"]},
+            {"reasonCode": "BACKUP_SYSTEMD\nPRIVATE"}, {"reasonCode": "BACKUP_SYSTEMＤ"},
+            {"reasonCode": "PRIVATE_SECRET"}, {"unexpected": "PRIVATE_SECRET"},
+            {"schedule": []}, {"schedule": {"format": "UNKNOWN", "installationId": "a" * 32}},
+            {"status": "OK"},
+        ]
+        for change in changes:
+            values = self.records()
+            values["receipt"].update(change)
+            with self.subTest(change=change), self.environment(values), self.assertRaisesRegex(harness.Failure, "SCHEDULE_DIAGNOSTIC_RECEIPT"):
+                self.observe(values)
+        values = self.records()
+        values["receipt"].pop("reasonCode")
+        with self.environment(values), self.assertRaisesRegex(harness.Failure, "SCHEDULE_DIAGNOSTIC_RECEIPT"):
+            self.observe(values)
+
+    def test_duplicate_nonfinite_invalid_utf8_and_oversized_json_are_not_observed(self):
+        samples = (b'{"kind":"schedule","kind":"schedule"}', b'{"secret":NaN}', b'{"secret":Infinity}',
+                   b'{"nested":{"x":1,"x":2}}', b"\xff", b"[]" , b" " * (64 * 1024 + 1))
+        for sample in samples:
+            values = self.records()
+            values["receipt"] = sample
+            with self.subTest(sample=sample[:40]), self.environment(values), self.assertRaises(harness.Failure):
+                self.observe(values)
+        values = self.records()
+        with self.environment(values) as (guest, opened), self.assertRaises(harness.Failure):
+            harness.schedule_failure_observation(values["words"], 2,
+                '{"format":"asa-cli-result-v1","exitCode":2,"exitCode":2}', values["invocation"])
+        guest.assert_not_called()
+        opened.assert_not_called()
+
+    def test_observation_deadline_and_missing_receipt_fail_without_extra_commands(self):
+        values = self.records()
+        values["receipt"] = FileNotFoundError("PRIVATE")
+        with self.environment(values), self.assertRaises(FileNotFoundError):
+            self.observe(values)
+        with self.environment(self.records()) as (_, opened), patch.object(harness.time, "monotonic", side_effect=[100.0, 106.0]), self.assertRaisesRegex(harness.Failure, "DIAGNOSTIC_TIMEOUT"):
+            self.observe(self.records())
+        opened.assert_not_called()
+        with self.environment(self.records()), patch.object(harness.time, "monotonic", side_effect=[100.0, 106.0]):
+            self.assertEqual(harness.schedule_failure_baseline(values["words"])["reasonCode"], "DIAGNOSTIC_TIMEOUT")
+
+    def test_public_caller_captures_a_distinct_baseline_before_each_actual_run(self):
+        for action in ("enable", "disable"):
+            values = self.records(action)
+            order = []
+            runner = Mock()
+            runner.last_invocation = {key: values["invocation"][key] for key in ("pid", "startedNs", "finishedNs")}
+            runner.run.side_effect = lambda *_args, **_kwargs: (order.append("run") or (2, json.dumps(values["public"]).encode()))
+            def baseline(_words):
+                order.append("baseline")
+                return values["invocation"]["rootActionBefore"]
+            observed = harness.schedule_diagnostic_error(harness.Failure("DIAGNOSTIC_JSON"))
+            with self.subTest(action=action), patch.object(harness, "CLI_ACTIONS", []), \
+                    patch.object(harness, "command_log_baseline", return_value={"status": "NOT_REQUIRED"}), \
+                    patch.object(harness, "schedule_failure_baseline", side_effect=baseline), \
+                    patch.object(harness, "Commands", return_value=runner), patch.object(harness, "guest_environment", return_value={}), \
+                    patch.object(harness, "schedule_failure_observation", return_value=observed) as projection, \
+                    self.assertRaisesRegex(harness.Failure, "UNRECOGNIZED_REASON"):
+                harness.public_cli(values["words"], timeout=180)
+            self.assertEqual(order, ["baseline", "run"])
+            self.assertIs(projection.call_args.args[3]["rootActionBefore"], values["invocation"]["rootActionBefore"])
+            self.assertEqual(projection.call_args.args[3]["pid"], 1234)
+            self.assertEqual(runner.run.call_args.kwargs["timeout"], 180)
+
+    def test_diagnostic_error_or_observed_receipt_preserves_original_public_and_guest_failure(self):
+        values = self.records()
+        with self.environment(values):
+            observation = self.observe(values)
+        for diagnostic in (observation, RuntimeError("PRIVATE_SECRET")):
+            output = io.StringIO()
+            with self.subTest(diagnostic=type(diagnostic).__name__), patch.object(harness, "CLI_ACTIONS", []), \
+                    patch.object(harness, "guest_guard", return_value=values["context"]), \
+                    patch.object(harness, "schedule_failure_observation", **({"side_effect": diagnostic} if isinstance(diagnostic, Exception) else {"return_value": diagnostic})), \
+                    patch.object(harness, "command_failure_diagnostic") as manager, \
+                    patch.object(harness, "guest_phase", side_effect=lambda *_: harness.public_cli_result(
+                        values["words"], 2, json.dumps(values["public"]), invocation=values["invocation"])), \
+                    contextlib.redirect_stdout(output):
+                code = harness.guest_main("schedule")
+            result = json.loads(output.getvalue())
+            self.assertEqual((code, result["status"], result["reasonCode"]), (1, "FAIL", "UNRECOGNIZED_REASON"))
+            self.assertEqual((result["cliActions"][0]["exitCode"], result["cliActions"][0]["status"]), (2, "BLOCKED"))
+            self.assertEqual(result["cliActions"][0]["reasonCodes"], ["UNRECOGNIZED_REASON", "UNRECOGNIZED_REASON"])
+            self.assertEqual(result["commandFailureDiagnostic"]["binding"], "UNVERIFIED")
+            self.assertNotIn("PRIVATE_SECRET", output.getvalue())
+            manager.assert_not_called()
+
+    def test_expected_exit_unsupported_action_and_failed_baseline_never_probe_new_state(self):
+        values = self.records()
+        with patch.object(harness, "CLI_ACTIONS", []), patch.object(harness, "schedule_failure_observation") as observe:
+            harness.public_cli_result(values["words"], 2, json.dumps(values["public"]), allowed=(2,))
+        observe.assert_not_called()
+        for words in (["backup", "schedule"], ["install"], None, ["backup", "schedule", True]):
+            with self.subTest(words=words), patch.object(harness, "guest_guard") as guest:
+                self.assertEqual(harness.schedule_failure_baseline(words), {"status": "NOT_REQUIRED"})
+            guest.assert_not_called()
+        values["receipt"] = PermissionError("PRIVATE_SECRET")
+        with self.environment(values):
+            before = harness.schedule_failure_baseline(values["words"])
+        self.assertEqual(before["status"], "UNAVAILABLE")
+        self.assertNotIn("PRIVATE_SECRET", json.dumps(before))
+        values["invocation"]["rootActionBefore"] = before
+        with self.environment(values) as (guest, opened), self.assertRaises(harness.Failure):
+            self.observe(values)
+        guest.assert_not_called()
+        opened.assert_not_called()
+
+    @unittest.skipUnless(sys.platform == "linux", "Linux no-follow private file descriptors")
+    def test_real_private_fd_reads_require_a_new_file_and_allow_identical_republished_bytes(self):
+        values = self.records()
+        with tempfile.TemporaryDirectory() as directory, patch.object(harness, "INSTALL_ROOT", Path(directory)):
+            root = Path(directory); root.chmod(0o700)
+            state = root / ".asa"; state.mkdir(mode=0o700)
+            values["config"]["root"] = str(root)
+            atomic_json(state / "setup.json", values["config"])
+            atomic_json(state / "setup-root-actions.json", values["receipt"])
+            real_read = harness.diagnostic_read
+            def read(path, base, uid, **kwargs):
+                self.assertEqual(uid, 999)  # Scoped account model; FD ownership uses the actual local fixture owner.
+                return real_read(path, base, os.geteuid(), **kwargs)
+            with self.environment(values, read):
+                before = harness.schedule_failure_baseline(values["words"])
+                self.assertEqual(before["status"], "OBSERVED")
+                started = time.time_ns()
+                atomic_json(state / "setup-root-actions.json", values["receipt"])
+                finished = time.time_ns()
+                values["invocation"] = {"pid": 1234, "startedNs": started, "finishedNs": finished, "rootActionBefore": before}
+                result = self.observe(values)
+            self.assertEqual(result["status"], "OBSERVED")
+            self.assertFalse(result["causalProof"])
+
+    @unittest.skipUnless(sys.platform == "linux", "Linux no-follow private file descriptors")
+    def test_real_private_fd_reader_rejects_aliases_writable_files_foreign_owner_and_oversize(self):
+        for fault in ("symlink", "hardlink", "permissions", "owner", "oversize"):
+            values = self.records()
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory, patch.object(harness, "INSTALL_ROOT", Path(directory)):
+                root = Path(directory); root.chmod(0o700)
+                state = root / ".asa"; state.mkdir(mode=0o700)
+                values["config"]["root"] = str(root)
+                atomic_json(state / "setup.json", values["config"])
+                target = state / "setup-root-actions.json"
+                atomic_json(target, values["receipt"])
+                real_read = harness.diagnostic_read
+                broken = [False]
+                def read(path, base, uid, **kwargs):
+                    actual_uid = os.geteuid() + 1 if broken[0] and fault == "owner" and path == target else os.geteuid()
+                    return real_read(path, base, actual_uid, **kwargs)
+                with self.environment(values, read):
+                    before = harness.schedule_failure_baseline(values["words"])
+                    self.assertEqual(before["status"], "OBSERVED")
+                    started = time.time_ns()
+                    if fault == "symlink":
+                        target.rename(state / "other.json"); target.symlink_to(state / "other.json")
+                    elif fault == "hardlink":
+                        os.link(target, state / "other.json")
+                    elif fault == "permissions":
+                        target.chmod(0o644)
+                    elif fault == "oversize":
+                        target.write_bytes(b" " * (64 * 1024 + 1))
+                    broken[0] = True
+                    values["invocation"] = {"pid": 1234, "startedNs": started, "finishedNs": time.time_ns(), "rootActionBefore": before}
+                    with self.assertRaises((harness.Failure, OSError)) as caught:
+                        self.observe(values)
+                    unavailable = harness.schedule_diagnostic_error(caught.exception)
+                self.assertEqual(unavailable["status"], "UNAVAILABLE")
+                self.assertFalse(unavailable["causalProof"])
+
+
 class CommandFailureDiagnosticTests(unittest.TestCase):
     def test_operator_log_root_is_under_protected_var_lib(self):
         # Ubuntu /var/log is commonly root:syslog mode 0775. Its group-write

@@ -143,7 +143,10 @@ class BackupWorkflowTests(unittest.TestCase):
                 deliver.assert_called_once()
                 export.assert_not_called()
                 encrypt.assert_not_called()
-            target.write_bytes(first[:-1] + b"x")
+            corrupted = first[:-1] + bytes([first[-1] ^ 1])
+            self.assertNotEqual(corrupted, first)
+            self.assertEqual(len(corrupted), len(first))
+            target.write_bytes(corrupted)
             with self.assertRaisesRegex(Blocked, "ciphertext"):
                 flow.encrypt_snapshot(install, value, RECIPIENT)
 

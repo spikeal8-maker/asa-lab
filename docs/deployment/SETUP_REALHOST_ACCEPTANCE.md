@@ -574,6 +574,18 @@ root, non-root operator UID, mode, exit, outcome и reason; полный `journa
 операцию и не приобретает mutation lock. Это новое read-only наблюдение после
 отказа, обозначенное `AFTER_PUBLIC_FAILURE` и `observedAt`.
 
+Для отказа `backup schedule enable/disable` отдельный format
+`asa-root-action-observation-v1` в `commandFailureDiagnostic` наблюдает только
+фиксированную private `setup-root-actions.json`: baseline снимается до public
+вызова, после него повторно проверяются владелец, обычный файл без ссылок,
+installation/root и изменение файла; полные mtime/ctime ns должны лежать внутри
+интервала вызова. Выводятся только закрытые status/reason. Это
+`AFTER_PUBLIC_FAILURE`, `binding: UNVERIFIED`, `causalProof: false`: файл не
+доказывает автора записи или причину именно этого child. Его operation ID может
+ссылаться на предыдущий last-attempt и не выдаётся за новую schedule operation.
+Даже receipt `OK` не меняет исходный public FAIL; stale/unsafe/неполное состояние
+даёт `UNAVAILABLE`, без повторного включения timer или повтора отказавшей команды.
+
 В artifact разрешены только известные `journalPhase`, `receiptStage`, state,
 intent/done/failed для фиксированного списка стадий и типизированные acceptance
 flags. Неизвестные имена, uppercase reason strings и значения заменяются

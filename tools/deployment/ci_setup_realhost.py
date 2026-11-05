@@ -110,6 +110,18 @@ DIAGNOSTIC_PATHS = {"opt": "/opt", "bundleParent": "/opt/asa-setup", "bundle": "
     "package": "tools/deployment/__init__.py", "discovery": "tools/deployment/setup_discovery.py",
     "configuration": "tools/deployment/setup_config.py", "contracts": "tools/deployment/contracts.py"}
 COMMAND_DIAGNOSTIC_MODES = {"install": "install", "update apply": "update", "backup create": "backup", "cloud sync": "retry-cloud"}
+SCHEDULE_DIAGNOSTIC_ACTIONS = (("backup", "schedule", "enable"), ("backup", "schedule", "disable"))
+# Literal failures caught by asa_setup.root_action for schedule. Unknown values
+# are unavailable, never arbitrary private strings accepted by a code pattern.
+SCHEDULE_RECEIPT_REASONS = {"ROOT_ACTION_IDENTITY", "CONFIG_FORMAT", "CONFIG_KEYS", "CONFIG_IDENTITY", "CONFIG_PROFILE",
+    "CONFIG_PROJECT", "CONFIG_PATH", "CONFIG_BROWSER", "CONFIG_PORTS", "CONFIG_MISSING", "PRIVATE_FILE",
+    "PRIVATE_PERMISSIONS", "PRIVATE_FORMAT", "EDITOR_ENTRY", "PROFILE", "ORIGIN", "BACKUP_IDENTITY",
+    "BACKUP_FILE_TYPE", "BACKUP_FILE_CHANGED", "BACKUP_SCHEDULE", "BACKUP_SCHEDULE_TIMEZONE", "BACKUP_SCHEDULE_PATH",
+    "BACKUP_SCHEDULE_OPERATOR", "BACKUP_SCHEDULE_ROOT", "BACKUP_SCHEDULE_OWNER", "BACKUP_SCHEDULE_TRUST",
+    "BACKUP_SCHEDULE_DIRECTORY", "BACKUP_SCHEDULE_DUPLICATE", "BACKUP_SCHEDULE_CONFLICT", "BACKUP_SCHEDULE_CALENDAR",
+    "BACKUP_SCHEDULE_INACTIVE", "BACKUP_SYSTEMD", "BACKUP_SYSTEMD_UNAVAILABLE", "OSError", "PermissionError",
+    "FileNotFoundError", "NotADirectoryError", "IsADirectoryError", "FileExistsError", "BlockingIOError",
+    "InterruptedError", "TimeoutError", "ValueError", "JSONDecodeError", "UnicodeDecodeError"}
 COMMAND_DIAGNOSTIC_STAGES = ("created", "bootstrap", "configured", "preflight", "acceptance_preflight", "release", "source",
     "handoff", "environment", "settings", "images", "space", "migration_plan", "backup_preflight", "backup", "switch",
     "owner_registration", "owner_grant", "browser", "first_backup_space", "first_backup", "backup_continuation",
@@ -970,10 +982,13 @@ def root_json(name):
 def public_cli(words, *, options=(), allowed=(0,), timeout=1200):
     command = ["/usr/local/bin/asa", *words, "--root", str(INSTALL_ROOT), "--json", "--no-color", *options]
     baseline = command_log_baseline(words)
+    schedule_before = schedule_failure_baseline(words) if schedule_diagnostic_action(words) else None
     commands = Commands()
     code, raw = commands.run(command, timeout=timeout, environment=guest_environment(), allowed=(0, 1, 2, 130))
-    return public_cli_result(words, code, raw, allowed=allowed,
-                             invocation={**commands.last_invocation, "setupLogsBefore": baseline})
+    invocation = {**commands.last_invocation, "setupLogsBefore": baseline}
+    if schedule_before is not None:
+        invocation["rootActionBefore"] = schedule_before
+    return public_cli_result(words, code, raw, allowed=allowed, invocation=invocation)
 
 
 def public_cli_result(words, code, raw, *, allowed=(0,), invocation=None):
@@ -1003,6 +1018,11 @@ def public_cli_result(words, code, raw, *, allowed=(0,), invocation=None):
                     "reasonCode": reason if type(reason) is str and reason in {
                         "READ_DIAGNOSTIC_SIZE", "READ_DIAGNOSTIC_JSON", "READ_DIAGNOSTIC_BINDING",
                         "READ_DIAGNOSTIC_INVOCATION"} else "READ_DIAGNOSTIC_UNAVAILABLE"}
+        elif schedule_diagnostic_action(words):
+            try:
+                error.command_failure_diagnostic = schedule_failure_observation(words, code, raw, invocation)
+            except BaseException as failure:
+                error.command_failure_diagnostic = schedule_diagnostic_error(failure)
         else:
             try:
                 error.command_failure_diagnostic = command_failure_diagnostic(words, code, result, invocation)
@@ -1644,6 +1664,159 @@ def diagnostic_read(path, base, uid, *, maximum=2 * 1024**2, offset=0, tail=None
         return raw, before, start > offset
     finally:
         os.close(descriptor)
+
+
+def schedule_diagnostic_action(words):
+    if type(words) in (list, tuple) and all(type(word) is str for word in words) and tuple(words) in SCHEDULE_DIAGNOSTIC_ACTIONS:
+        return words[-1]
+    return None
+
+
+def schedule_diagnostic_json(raw, maximum):
+    require(type(raw) in (bytes, str), "DIAGNOSTIC_JSON")
+    require(0 < len(raw) <= maximum, "DIAGNOSTIC_SIZE")
+    try:
+        raw = raw.encode("utf-8") if type(raw) is str else raw
+        require(0 < len(raw) <= maximum, "DIAGNOSTIC_SIZE")
+
+        def unique_object(pairs):
+            value = {}
+            for key, item in pairs:
+                require(key not in value, "DIAGNOSTIC_JSON")
+                value[key] = item
+            return value
+
+        def nonfinite(_value):
+            raise Failure("DIAGNOSTIC_JSON")
+
+        value = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_object, parse_constant=nonfinite)
+    except (ValueError, UnicodeError, RecursionError):
+        raise Failure("DIAGNOSTIC_JSON") from None
+    require(type(value) is dict, "DIAGNOSTIC_JSON")
+    return value
+
+
+def schedule_diagnostic_identity(config, uid):
+    require(type(uid) is int and 0 < uid < 2**31 and type(config) is dict
+            and config.get("format") == "asa-setup-config-v1"
+            and type(config.get("operatorUid")) is int and config["operatorUid"] == uid
+            and config.get("root") == str(INSTALL_ROOT)
+            and type(config.get("installationId")) is str
+            and re.fullmatch(r"[a-f0-9]{32}", config["installationId"]), "SCHEDULE_DIAGNOSTIC_IDENTITY")
+    return {"installationId": config["installationId"], "root": config["root"], "operatorUid": uid}
+
+
+def schedule_diagnostic_error(error):
+    code = error.code if type(error) is Failure else None
+    allowed = COMMAND_DIAGNOSTIC_ERRORS | {"DIAGNOSTIC_OWNER", "DIAGNOSTIC_TRUST", "DIAGNOSTIC_PLATFORM",
+        "SCHEDULE_DIAGNOSTIC_BASELINE", "SCHEDULE_DIAGNOSTIC_IDENTITY", "SCHEDULE_DIAGNOSTIC_RECEIPT"}
+    return {"format": "asa-root-action-observation-v1", "status": "UNAVAILABLE", "binding": "UNVERIFIED",
+            "observation": "AFTER_PUBLIC_FAILURE", "causalProof": False,
+            "reasonCode": code if type(code) is str and code in allowed else "DIAGNOSTIC_UNAVAILABLE"}
+
+
+def schedule_failure_baseline(words):
+    """Read only fixed state before the call; unavailable evidence never blocks it."""
+    action = schedule_diagnostic_action(words)
+    if action is None:
+        return {"status": "NOT_REQUIRED"}
+    try:
+        deadline = time.monotonic() + 5
+        context = guest_guard()
+        owner, _ = diagnostic_owner(context)
+        require(type(context.get("sourceRevision")) is str
+                and re.fullmatch(r"[a-f0-9]{40}", context["sourceRevision"]), "DIAGNOSTIC_TRUST")
+        require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
+        raw, _, truncated = diagnostic_read(INSTALL_ROOT / ".asa/setup.json", INSTALL_ROOT, owner["uid"], maximum=256 * 1024)
+        require(truncated is False, "DIAGNOSTIC_SIZE")
+        identity = schedule_diagnostic_identity(schedule_diagnostic_json(raw, 256 * 1024), owner["uid"])
+        require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
+        try:
+            raw, info, truncated = diagnostic_read(INSTALL_ROOT / ".asa/setup-root-actions.json", INSTALL_ROOT,
+                                                   owner["uid"], maximum=64 * 1024)
+            require(truncated is False, "DIAGNOSTIC_SIZE")
+            receipt = {"status": "PRESENT", "metadata": diagnostic_metadata(info), "sha256": hashlib.sha256(raw).hexdigest()}
+        except FileNotFoundError:
+            receipt = {"status": "ABSENT"}
+        require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
+        return {"status": "OBSERVED", "action": action, "identity": identity, "sourceRevision": context["sourceRevision"],
+                "receipt": receipt, "capturedNs": time.time_ns()}
+    except BaseException as error:
+        return schedule_diagnostic_error(error)
+
+
+def schedule_failure_observation(words, code, raw, invocation):
+    """Fresh installation file observation, never a same-child or manager receipt."""
+    action = schedule_diagnostic_action(words)
+    require(action is not None and type(code) is int and code in (1, 2), "DIAGNOSTIC_BINDING")
+    public = schedule_diagnostic_json(raw, 64 * 1024)
+    require(public.get("format") == "asa-cli-result-v1" and public.get("command") == " ".join(words)
+            and type(public.get("exitCode")) is int and public["exitCode"] == code
+            and type(public.get("managerExitCode")) is int and public["managerExitCode"] == code
+            and public.get("status") == ("BLOCKED" if code == 2 else "FAILED"), "DIAGNOSTIC_BINDING")
+    require(type(invocation) is dict and type(invocation.get("pid")) is int and 0 < invocation["pid"] < 2**31
+            and all(type(invocation.get(key)) is int for key in ("startedNs", "finishedNs"))
+            and 0 < invocation["startedNs"] <= invocation["finishedNs"] < 2**63, "DIAGNOSTIC_INVOCATION")
+    before = invocation.get("rootActionBefore")
+    require(type(before) is dict and before.get("status") == "OBSERVED" and before.get("action") == action
+            and type(before.get("capturedNs")) is int and 0 < before["capturedNs"] <= invocation["startedNs"]
+            and type(before.get("sourceRevision")) is str and re.fullmatch(r"[a-f0-9]{40}", before["sourceRevision"])
+            and type(before.get("identity")) is dict, "SCHEDULE_DIAGNOSTIC_BASELINE")
+    identity = before["identity"]
+    require(set(identity) == {"installationId", "root", "operatorUid"}, "SCHEDULE_DIAGNOSTIC_BASELINE")
+    expected = schedule_diagnostic_identity({"format": "asa-setup-config-v1", **identity}, identity["operatorUid"])
+    previous = before.get("receipt")
+    require(type(previous) is dict and previous.get("status") in ("PRESENT", "ABSENT"), "SCHEDULE_DIAGNOSTIC_BASELINE")
+    if previous["status"] == "PRESENT":
+        metadata = previous.get("metadata")
+        require(type(metadata) in (list, tuple) and len(metadata) == 5
+                and all(type(item) is int and 0 <= item < 2**63 for item in metadata)
+                and metadata[2] <= 64 * 1024 and all(0 < item <= before["capturedNs"] for item in metadata[3:])
+                and type(previous.get("sha256")) is str and re.fullmatch(r"[a-f0-9]{64}", previous["sha256"]),
+                "SCHEDULE_DIAGNOSTIC_BASELINE")
+
+    deadline = time.monotonic() + 5
+    context = guest_guard()
+    owner, _ = diagnostic_owner(context)
+    require(context.get("sourceRevision") == before["sourceRevision"] and type(owner.get("uid")) is int
+            and owner["uid"] == expected["operatorUid"], "SCHEDULE_DIAGNOSTIC_IDENTITY")
+    require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
+    data, _, truncated = diagnostic_read(INSTALL_ROOT / ".asa/setup.json", INSTALL_ROOT, owner["uid"], maximum=256 * 1024)
+    require(truncated is False, "DIAGNOSTIC_SIZE")
+    require(schedule_diagnostic_identity(schedule_diagnostic_json(data, 256 * 1024), owner["uid"]) == expected,
+            "SCHEDULE_DIAGNOSTIC_IDENTITY")
+    require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
+    data, info, truncated = diagnostic_read(INSTALL_ROOT / ".asa/setup-root-actions.json", INSTALL_ROOT,
+                                            owner["uid"], maximum=64 * 1024)
+    require(truncated is False, "DIAGNOSTIC_SIZE")
+    metadata = diagnostic_metadata(info)
+    require(all(type(timestamp) is int and invocation["startedNs"] <= timestamp <= invocation["finishedNs"]
+                for timestamp in metadata[3:]), "DIAGNOSTIC_INVOCATION")
+    require(previous["status"] == "ABSENT" or tuple(previous["metadata"]) != metadata, "SCHEDULE_DIAGNOSTIC_BASELINE")
+    require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
+    receipt = schedule_diagnostic_json(data, 64 * 1024)
+    require(set(receipt) <= {"format", "operationId", "installationId", "kind", "status", "reasonCode", "schedule"}
+            and receipt.get("format") == "asa-setup-root-actions-v1" and receipt.get("kind") == "schedule"
+            and receipt.get("installationId") == expected["installationId"]
+            and type(receipt.get("operationId")) is str and re.fullmatch(r"[a-f0-9]{32}", receipt["operationId"])
+            and type(receipt.get("status")) is str and receipt["status"] in ("OK", "FAILED"),
+            "SCHEDULE_DIAGNOSTIC_RECEIPT")
+    if "schedule" in receipt:
+        saved = receipt["schedule"]
+        require(type(saved) is dict and saved.get("format") == "asa-backup-schedule-v1"
+                and saved.get("installationId") == expected["installationId"], "SCHEDULE_DIAGNOSTIC_RECEIPT")
+    if receipt["status"] == "FAILED":
+        require(type(receipt.get("reasonCode")) is str and receipt["reasonCode"] in SCHEDULE_RECEIPT_REASONS,
+                "SCHEDULE_DIAGNOSTIC_RECEIPT")
+    else:
+        require("reasonCode" not in receipt and "schedule" in receipt, "SCHEDULE_DIAGNOSTIC_RECEIPT")
+    # operationId may refer to the previous last-attempt, not this public call.
+    # Ownership, file replacement and time bounds do not identify its writer.
+    return {"format": "asa-root-action-observation-v1", "status": "OBSERVED", "binding": "UNVERIFIED",
+            "observation": "AFTER_PUBLIC_FAILURE", "observedAt": now(), "causalProof": False,
+            "source": "FIXED_ROOT_ACTION_RECEIPT", "fileBinding": "INSTALLATION_AND_FRESHNESS_ONLY",
+            "requestedAction": action, "freshness": "CHANGED_DURING_INVOCATION", "receiptStatus": receipt["status"],
+            "receiptReason": receipt_reason(receipt, "reasonCode", SCHEDULE_RECEIPT_REASONS)}
 
 
 def command_log_baseline(words):
