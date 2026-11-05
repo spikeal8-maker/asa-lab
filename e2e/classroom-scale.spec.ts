@@ -25,6 +25,9 @@ type StormContracts = typeof import('../tools/capacity/request-storm-contracts.m
 let assertScaleEnvironment: ScaleContracts['assertScaleEnvironment'];
 let assertScaleImages: ScaleContracts['assertScaleImages'];
 let assertScaleSecureContext: ScaleContracts['assertScaleSecureContext'];
+let assertScaleServiceWorkerProof: ScaleContracts['assertScaleServiceWorkerProof'];
+let installScaleServiceWorkerBlocker: ScaleContracts['installScaleServiceWorkerBlocker'];
+let validateScaleServiceWorkers: ScaleContracts['validateScaleServiceWorkers'];
 let classifyScaleNetworkFailure: ScaleContracts['classifyScaleNetworkFailure'];
 let summarizeScaleNetworkEvidence: ScaleContracts['summarizeScaleNetworkEvidence'];
 let createScaleLedger: ScaleContracts['createScaleLedger'];
@@ -37,10 +40,25 @@ let SCALE_ORIGIN: ScaleContracts['SCALE_ORIGIN'];
 let SCALE_PROFILE: ScaleContracts['SCALE_PROFILE'];
 let SCALE_PROFILE_HASH: ScaleContracts['SCALE_PROFILE_HASH'];
 let SCALE_PROJECTS_LINK_SELECTOR: ScaleContracts['SCALE_PROJECTS_LINK_SELECTOR'];
+let SCALE_SERVICE_WORKER_MARKER: ScaleContracts['SCALE_SERVICE_WORKER_MARKER'];
+let SCALE_SERVICE_WORKER_PROBE_PATH: ScaleContracts['SCALE_SERVICE_WORKER_PROBE_PATH'];
 let scaleHash: ScaleContracts['scaleHash'];
 let stormRoute: StormContracts['stormRoute'];
 
 type Data = Record<string, unknown>;
+type ServiceWorkerEvidence = {
+  client: number;
+  contextId: string;
+  preparedAtMs: number;
+  installedBeforePages: boolean;
+  initialWorkers: number;
+  workerEvents: number;
+  observedWorkerRequests: number;
+  probeRequests: number;
+  finalWorkers?: number;
+  finalizedAtMs?: number;
+  proofs: Data[];
+};
 type Editor = 'electronics' | 'scratch';
 type OperationStatus =
   'NOT_STARTED' | 'STARTED' | 'ACKNOWLEDGED' | 'VERIFIED' | 'FAILED' | 'TIMED_OUT';
@@ -434,6 +452,9 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       assertScaleEnvironment,
       assertScaleImages,
       assertScaleSecureContext,
+      assertScaleServiceWorkerProof,
+      installScaleServiceWorkerBlocker,
+      validateScaleServiceWorkers,
       classifyScaleNetworkFailure,
       summarizeScaleNetworkEvidence,
       createScaleLedger,
@@ -446,6 +467,8 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       SCALE_PROFILE,
       SCALE_PROFILE_HASH,
       SCALE_PROJECTS_LINK_SELECTOR,
+      SCALE_SERVICE_WORKER_MARKER,
+      SCALE_SERVICE_WORKER_PROBE_PATH,
       scaleHash,
     } = await import('../tools/capacity/classroom-scale-contracts.mjs'));
     ({ stormRoute } = await import('../tools/capacity/request-storm-contracts.mjs'));
@@ -498,6 +521,8 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
     }> = [];
     const browserSamples: Data[] = [];
     const secureContexts: Data[] = [];
+    const serviceWorkers: ServiceWorkerEvidence[] = [];
+    const serviceWorkerContexts = new Map<BrowserContext, ServiceWorkerEvidence>();
     const observerJournal = createScaleObserverJournal();
     const loadedAssets: Array<Asset & { actualHash: string; executed: true }> = [];
     const assetInFlight = new Set<string>();
@@ -531,6 +556,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       playwrightNetworkFailures,
       browserSamples,
       secureContexts,
+      serviceWorkers,
       javascriptErrors,
       integrityFailures,
       observerRequests,
@@ -596,6 +622,113 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       raw['peakActiveHttp'] = peakActiveHttp;
       atomicJson(resolve(directory, 'raw.json'), raw);
     };
+    const prepareServiceWorkers = async (context: BrowserContext, client: number) => {
+      const evidence: ServiceWorkerEvidence = {
+        client,
+        contextId: randomUUID(),
+        preparedAtMs: Date.now(),
+        installedBeforePages: context.pages().length === 0,
+        initialWorkers: context.serviceWorkers().length,
+        workerEvents: 0,
+        observedWorkerRequests: 0,
+        probeRequests: 0,
+        proofs: [],
+      };
+      if (!evidence.installedBeforePages || evidence.initialWorkers)
+        throw new FixtureFailure('service_worker_context_not_fresh');
+      serviceWorkers.push(evidence);
+      serviceWorkerContexts.set(context, evidence);
+      // Listen before newPage, including init-script errors in early documents.
+      // No pageerror category is suppressed and these lifetime counters never reset.
+      context.on('weberror', (error) =>
+        javascriptErrors.push({ client, phase, name: error.error().name }),
+      );
+      context.on('serviceworker', () => evidence.workerEvents++);
+      context.on('request', (request) => {
+        // Auxiliary observations only: PW 1.55.1 does not expose every worker
+        // request without an experimental toggle. No such toggle is enabled;
+        // interception, lifetime worker events and native snapshots are required.
+        if (request.serviceWorker()) evidence.observedWorkerRequests++;
+        if (new URL(request.url()).pathname === SCALE_SERVICE_WORKER_PROBE_PATH)
+          evidence.probeRequests++;
+      });
+      // Avoid Playwright 1.55.1's unguarded navigator.serviceWorker getter.
+      // This single synchronous init applies to every new/navigated document,
+      // including child frames; it neither changes routing/cache nor the sandbox.
+      await context.addInitScript(installScaleServiceWorkerBlocker, evidence.contextId);
+    };
+    const attestServiceWorkers = async (
+      target: Page | Frame,
+      client: number,
+      context: 'top' | 'scratch',
+      stage: string,
+    ) => {
+      const page = 'page' in target ? target.page() : target;
+      const evidence = serviceWorkerContexts.get(page.context());
+      if (!evidence || evidence.client !== client)
+        throw new FixtureFailure('service_worker_proof_wrong_actor');
+      const actual = await target.evaluate(
+        async ({ marker, probePath, contextId }) => {
+          const read = (globalThis as unknown as Record<string, unknown>)[marker];
+          if (typeof read !== 'function') return { error: 'missing_init_marker' };
+          const before = read() as Record<string, unknown>;
+          if (
+            before['contextId'] !== contextId ||
+            before['state'] !== 'blocked' ||
+            before['instanceBlocked'] !== true ||
+            before['prototypeBlocked'] !== true
+          )
+            return { ...before, error: 'registration_not_blocked' };
+          const container = navigator.serviceWorker;
+          const probeUrl = location.origin + probePath;
+          const attempts = [
+            container.register(probeUrl),
+            ServiceWorkerContainer.prototype.register.call(container, probeUrl),
+          ];
+          // Snapshot synchronously: unrelated product registrations in a later
+          // microtask must not be mistaken for a third call from this probe.
+          const after = read() as Record<string, unknown>;
+          const result = await Promise.all(attempts);
+          return {
+            ...after,
+            origin: location.origin,
+            topLevel: window.top === window,
+            interceptedCalls:
+              Number(after['blockedRegistrations']) - Number(before['blockedRegistrations']),
+            fulfilledUndefined: result.every((value) => value === undefined),
+            registrationCount: (await container.getRegistrations()).length,
+            hasController: container.controller !== null,
+          };
+        },
+        {
+          marker: SCALE_SERVICE_WORKER_MARKER,
+          probePath: SCALE_SERVICE_WORKER_PROBE_PATH,
+          contextId: evidence.contextId,
+        },
+      );
+      const proof = { client, context, stage, atMs: Date.now(), ...actual };
+      if (evidence.proofs.length >= SCALE_PROFILE.maximumHttpObservations) {
+        raw['droppedObservations'] = Number(raw['droppedObservations']) + 1;
+        throw new FixtureFailure('service_worker_proof_bound');
+      }
+      evidence.proofs.push(proof);
+      try {
+        assertScaleServiceWorkerProof(proof);
+      } catch {
+        persist(); // Preserve the failing native proof before stopping.
+        throw new FixtureFailure('service_worker_registration_blocking_unproven');
+      }
+    };
+    const finishServiceWorkers = async (context: BrowserContext) => {
+      const evidence = serviceWorkerContexts.get(context);
+      if (!evidence) throw new FixtureFailure('service_worker_lifetime_missing');
+      for (const page of context.pages())
+        await attestServiceWorkers(page, evidence.client, 'top', 'context-final');
+      evidence.finalWorkers = context.serviceWorkers().length;
+      evidence.finalizedAtMs = Date.now();
+      // Successful proofs use the existing checkpoint/final persistence cadence;
+      // do not add a full raw.json rewrite per pupil to measured editor phases.
+    };
     const attestSecureContext = async (
       target: Page | Frame,
       client: number,
@@ -634,6 +767,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       } catch {
         throw new FixtureFailure('browser_secure_context_or_sha256_unavailable');
       }
+      await attestServiceWorkers(target, client, context, stage);
     };
     const attestScratchFrame = async (learner: Learner, stage: string) => {
       const iframe = await learner.page.locator('iframe[title="Scratch runtime"]').elementHandle();
@@ -795,9 +929,6 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
         frameId: initial.frameTree.frame.id,
         loaderId: initial.frameTree.frame.loaderId,
       });
-      page.on('pageerror', (error) =>
-        javascriptErrors.push({ client: learner.client, phase, name: error.name }),
-      );
       page.on('request', (request) => {
         if (!measuredAt || finishedAt || new URL(request.url()).origin !== SCALE_ORIGIN) return;
         if (requestRecords.length >= SCALE_PROFILE.maximumHttpObservations) {
@@ -1295,7 +1426,9 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
         baseURL: SCALE_ORIGIN,
         locale: 'en-US',
         viewport: { width: 1366, height: 900 },
+        serviceWorkers: 'allow',
       });
+      await prepareServiceWorkers(setupContext, -1);
       const setupPage = await setupContext.newPage();
       setupPage.setDefaultTimeout(SCALE_PROFILE.deadlinesMs.login);
       const suffix = identity.runToken.slice(0, 12) + '-' + users;
@@ -1387,14 +1520,21 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
         }
         persist();
       }
+      await finishServiceWorkers(setupContext);
       await setupContext.close();
       setupContext = undefined;
 
       accountControl['status'] = 'STARTED';
       accountControl['startedAtMs'] = Date.now();
-      accountContext = await browser.newContext({ baseURL: SCALE_ORIGIN, locale: 'en-US' });
+      accountContext = await browser.newContext({
+        baseURL: SCALE_ORIGIN,
+        locale: 'en-US',
+        serviceWorkers: 'allow',
+      });
+      await prepareServiceWorkers(accountContext, -2);
       const accountPage = await accountContext.newPage();
       await accountPage.goto(SCALE_ORIGIN + '/#/', { waitUntil: 'domcontentloaded' });
+      await attestServiceWorkers(accountPage, -2, 'top', 'account-entry');
       await accountPage
         .getByRole('banner')
         .getByRole('button', { name: 'Войти', exact: true })
@@ -1411,6 +1551,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       )
         throw new IntegrityFailure('account_login_identity_mismatch');
       await accountPage.reload({ waitUntil: 'domcontentloaded' });
+      await attestServiceWorkers(accountPage, -2, 'top', 'account-reload');
       await expect(accountPage.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
       if (
         object((await call(accountContext.request, 'GET', '/api/auth/me'))['account'])['id'] !==
@@ -1419,6 +1560,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
         throw new IntegrityFailure('account_reload_identity_mismatch');
       accountControl['status'] = 'VERIFIED';
       accountControl['endedAtMs'] = Date.now();
+      await finishServiceWorkers(accountContext);
       await accountContext.close();
       accountContext = undefined;
 
@@ -1428,8 +1570,9 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
           baseURL: SCALE_ORIGIN,
           locale: 'en-US',
           viewport: { width: 1366, height: 900 },
-          serviceWorkers: 'block',
+          serviceWorkers: 'allow',
         });
+        await prepareServiceWorkers(context, client);
         const page = await context.newPage();
         const learner: Learner = {
           client,
@@ -1614,6 +1757,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
               secondary.getByRole('main', { name: 'Главная', exact: true }),
             ).toBeVisible();
             await checkSeat(learner);
+            await attestServiceWorkers(secondary, learner.client, 'top', 'secondary-tab');
           });
         } finally {
           await navigate(secondaryIdentity, 'close-second-tab', () => secondary.close());
@@ -1728,6 +1872,8 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
           }
         }),
       );
+      await Promise.all(learners.map((learner) => finishServiceWorkers(learner.context)));
+      validateScaleServiceWorkers(serviceWorkers, users);
       await Promise.allSettled([...pending]);
       if (
         !mainEntryPath ||

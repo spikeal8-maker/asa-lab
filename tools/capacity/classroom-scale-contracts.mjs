@@ -836,6 +836,146 @@ export function validateScaleSecureContexts(proofs, users) {
         throw Error('Every learner requires actual top-page and Scratch-frame crypto evidence');
 }
 
+export const SCALE_SERVICE_WORKER_PROBE_PATH = '/__asa_scale_service_worker_probe__.js';
+export const SCALE_SERVICE_WORKER_MARKER = '__asaScaleServiceWorkerBlocker';
+
+/** Serialized unchanged into context.addInitScript before any page exists.
+ * Playwright 1.55.1's built-in blocker reads this getter without handling the
+ * native opaque-sandbox denial. No pageerror is filtered by this replacement. */
+export function installScaleServiceWorkerBlocker(contextId) {
+  const realm = globalThis;
+  const marker = '__asaScaleServiceWorkerBlocker';
+  let state = 'unavailable';
+  let blockedRegistrations = 0;
+  let container;
+  try {
+    container = realm.navigator.serviceWorker;
+  } catch (error) {
+    if (
+      !(error instanceof realm.DOMException) ||
+      error.name !== 'SecurityError' ||
+      error.message !==
+        "Failed to read the 'serviceWorker' property from 'Navigator': Service worker is disabled because the context is sandboxed and lacks the 'allow-same-origin' flag." ||
+      realm.origin !== 'null' ||
+      realm.top === realm
+    )
+      throw error;
+    // This document already has a native registration prohibition. Do not
+    // change its origin, sandbox or navigator getter to make it accessible.
+    state = 'opaque-denied';
+  }
+  const prototype = container && realm.ServiceWorkerContainer?.prototype;
+  const blocked = async () => {
+    blockedRegistrations++;
+    // Match Playwright's fulfilled-undefined registration blocker.
+  };
+  if (container) {
+    if (typeof container.register !== 'function' || typeof prototype?.register !== 'function')
+      throw Error('Service worker registration surface is unavailable');
+    for (const target of [prototype, container])
+      Object.defineProperty(target, 'register', {
+        value: blocked,
+        writable: false,
+        configurable: false,
+      });
+    state = 'blocked';
+  }
+  Object.defineProperty(realm, marker, {
+    configurable: false,
+    writable: false,
+    value: () => ({
+      version: 1,
+      contextId,
+      state,
+      blockedRegistrations,
+      instanceBlocked: Boolean(container && container.register === blocked),
+      prototypeBlocked: Boolean(prototype && prototype.register === blocked),
+    }),
+  });
+}
+
+export function assertScaleServiceWorkerProof(proof) {
+  if (
+    !proof ||
+    proof.origin !== SCALE_ORIGIN ||
+    !['top', 'scratch'].includes(proof.context) ||
+    proof.topLevel !== (proof.context === 'top') ||
+    !finite(proof.atMs) ||
+    typeof proof.stage !== 'string' ||
+    !proof.stage ||
+    proof.version !== 1 ||
+    proof.state !== 'blocked' ||
+    proof.instanceBlocked !== true ||
+    proof.prototypeBlocked !== true ||
+    proof.interceptedCalls !== 2 ||
+    !integer(proof.blockedRegistrations) ||
+    proof.blockedRegistrations < 2 ||
+    proof.fulfilledUndefined !== true ||
+    proof.registrationCount !== 0 ||
+    proof.hasController !== false
+  )
+    throw Error('Actual document service worker registration blocking is unproven');
+}
+
+export function validateScaleServiceWorkers(contexts, users) {
+  if (
+    !Array.isArray(contexts) ||
+    contexts.length !== users + 2 ||
+    new Set(contexts.map((context) => context.client)).size !== users + 2 ||
+    new Set(contexts.map((context) => context.contextId)).size !== users + 2
+  )
+    throw Error('Every actor requires its own service worker lifetime evidence');
+  for (const context of contexts) {
+    if (
+      !Number.isSafeInteger(context.client) ||
+      context.client < -2 ||
+      context.client >= users ||
+      typeof context.contextId !== 'string' ||
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(
+        context.contextId,
+      ) ||
+      context.installedBeforePages !== true ||
+      !finite(context.preparedAtMs) ||
+      !finite(context.finalizedAtMs) ||
+      context.finalizedAtMs < context.preparedAtMs ||
+      context.initialWorkers !== 0 ||
+      context.finalWorkers !== 0 ||
+      context.workerEvents !== 0 ||
+      context.observedWorkerRequests !== 0 ||
+      context.probeRequests !== 0 ||
+      !Array.isArray(context.proofs) ||
+      !context.proofs.length ||
+      context.proofs.length > SCALE_PROFILE.maximumHttpObservations
+    )
+      throw Error('Service worker escaped the fixture or lifetime evidence is incomplete');
+    for (const proof of context.proofs) {
+      assertScaleServiceWorkerProof(proof);
+      if (
+        proof.contextId !== context.contextId ||
+        proof.client !== context.client ||
+        proof.atMs < context.preparedAtMs ||
+        proof.atMs > context.finalizedAtMs
+      )
+        throw Error('Service worker proof is outside its actor lifetime');
+    }
+    const required =
+      context.client === -1
+        ? [['top', 'setup']]
+        : context.client === -2
+          ? [
+              ['top', 'account-entry'],
+              ['top', 'account-reload'],
+            ]
+          : [
+              ['top', 'seat-entry'],
+              ['scratch', 'scratch-open'],
+            ];
+    for (const [kind, stage] of required)
+      if (!context.proofs.some((proof) => proof.context === kind && proof.stage === stage))
+        throw Error('Fresh actor/document service worker proof is missing');
+  }
+}
+
 const protocolId = (value) => typeof value === 'string' && /^[A-Za-z0-9._-]{1,128}$/.test(value);
 const samePage = (failure, window) =>
   failure.client === window.client && failure.pageId === window.pageId;
@@ -1383,6 +1523,7 @@ function evaluateScaleWorkload(raw, identity, resources, calibration) {
       throw Error('Non-monotonic or missing runner samples');
     validateScaleAssets(raw.provenance, identity);
     validateScaleSecureContexts(raw.secureContexts, raw.users);
+    validateScaleServiceWorkers(raw.serviceWorkers, raw.users);
     const plannedCohorts = scaleCohortPlan(raw.users, calibration);
     if (
       raw.classCount !== plannedCohorts.length ||

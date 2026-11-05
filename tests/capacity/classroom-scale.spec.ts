@@ -35,6 +35,11 @@ import {
   assertScaleDriverNetwork,
   assertScaleSecureContext,
   validateScaleSecureContexts,
+  SCALE_SERVICE_WORKER_MARKER,
+  SCALE_SERVICE_WORKER_PROBE_PATH,
+  installScaleServiceWorkerBlocker,
+  assertScaleServiceWorkerProof,
+  validateScaleServiceWorkers,
   classifyScaleNetworkFailure,
   summarizeScaleNetworkEvidence,
   createScaleLedger,
@@ -370,6 +375,7 @@ function completeRaw(users = 30, calibration = false) {
         secureProof(client, 'scratch', 'scratch-open'),
       ]).flat(),
     ],
+    serviceWorkers: serviceWorkerEvidence(users),
     provenance: {
       sourceSha,
       imageManifestHash: identity.imageManifestHash,
@@ -412,6 +418,269 @@ function secureProof(client: number, context: 'top' | 'scratch', stage: string) 
     error: null,
   };
 }
+
+function serviceWorkerEvidence(users: number) {
+  return Array.from({ length: users + 2 }, (_, index) => {
+    const client = index - 2;
+    const contextId = '00000000-0000-4000-8000-' + String(index).padStart(12, '0');
+    const stages =
+      client === -1
+        ? [['top', 'setup']]
+        : client === -2
+          ? [
+              ['top', 'account-entry'],
+              ['top', 'account-reload'],
+            ]
+          : [
+              ['top', 'seat-entry'],
+              ['scratch', 'scratch-open'],
+            ];
+    return {
+      client,
+      contextId,
+      preparedAtMs: 1000,
+      finalizedAtMs: 2000,
+      installedBeforePages: true,
+      initialWorkers: 0,
+      finalWorkers: 0,
+      workerEvents: 0,
+      observedWorkerRequests: 0,
+      probeRequests: 0,
+      proofs: stages.map(([context, stage]) => ({
+        client,
+        contextId,
+        context,
+        stage,
+        atMs: 1500,
+        origin: SCALE_ORIGIN,
+        topLevel: context === 'top',
+        version: 1,
+        state: 'blocked',
+        instanceBlocked: true,
+        prototypeBlocked: true,
+        interceptedCalls: 2,
+        blockedRegistrations: 2,
+        fulfilledUndefined: true,
+        registrationCount: 0,
+        hasController: false,
+      })),
+    };
+  });
+}
+
+const opaqueServiceWorkerMessage =
+  "Failed to read the 'serviceWorker' property from 'Navigator': Service worker is disabled because the context is sandboxed and lacks the 'allow-same-origin' flag.";
+
+function serviceWorkerRealm(
+  options: {
+    failure?: unknown;
+    opaque?: boolean;
+    top?: boolean;
+    unavailable?: boolean;
+    locked?: boolean;
+  } = {},
+) {
+  const nativeRegister = vi.fn(async () => 'native-registration');
+  class NativeServiceWorkerContainer {
+    register = nativeRegister;
+  }
+  // Native methods are on the prototype; use the actual serialized initializer
+  // in a fresh VM realm, with only the browser API boundary supplied by this test.
+  Object.defineProperty(NativeServiceWorkerContainer.prototype, 'register', {
+    value: nativeRegister,
+    writable: !options.locked,
+    configurable: !options.locked,
+  });
+  const container = Object.create(NativeServiceWorkerContainer.prototype) as {
+    register: (url: string) => Promise<unknown>;
+  };
+  const navigator = Object.defineProperty({}, 'serviceWorker', {
+    get: () => {
+      if (options.failure) throw options.failure;
+      return options.unavailable ? undefined : container;
+    },
+  });
+  const realm: Record<string, unknown> = {
+    DOMException,
+    navigator,
+    ServiceWorkerContainer: NativeServiceWorkerContainer,
+    origin: options.opaque ? 'null' : SCALE_ORIGIN,
+  };
+  const contextId = '00000000-0000-4000-8000-000000000001';
+  runInNewContext(
+    'globalThis.top = ' +
+      (options.top === false ? '{};' : 'globalThis;') +
+      '(' +
+      installScaleServiceWorkerBlocker.toString() +
+      ')(' +
+      JSON.stringify(contextId) +
+      ');',
+    realm,
+  );
+  return {
+    realm,
+    container,
+    nativeRegister,
+    prototype: NativeServiceWorkerContainer.prototype,
+    snapshot: () => (realm[SCALE_SERVICE_WORKER_MARKER] as () => Record<string, unknown>)(),
+  };
+}
+
+describe('fixture-only service worker boundary', () => {
+  it('blocks actual instance and prototype calls before returning, without calling native register', async () => {
+    const fixture = serviceWorkerRealm();
+    expect(fixture.snapshot()).toMatchObject({
+      version: 1,
+      contextId: '00000000-0000-4000-8000-000000000001',
+      state: 'blocked',
+      blockedRegistrations: 0,
+      instanceBlocked: true,
+      prototypeBlocked: true,
+    });
+    const first = fixture.container.register(SCALE_ORIGIN + SCALE_SERVICE_WORKER_PROBE_PATH);
+    const second = fixture.prototype.register.call(fixture.container);
+    expect(fixture.snapshot()['blockedRegistrations']).toBe(2);
+    await expect(first).resolves.toBeUndefined();
+    await expect(second).resolves.toBeUndefined();
+    await fixture.container.register('/another-script.js');
+    expect(fixture.snapshot()['blockedRegistrations']).toBe(3);
+    expect(fixture.nativeRegister).not.toHaveBeenCalled();
+    for (const target of [fixture.container, fixture.prototype])
+      expect(Object.getOwnPropertyDescriptor(target, 'register')).toMatchObject({
+        writable: false,
+        configurable: false,
+      });
+    expect(
+      Object.getOwnPropertyDescriptor(fixture.realm, SCALE_SERVICE_WORKER_MARKER),
+    ).toMatchObject({
+      writable: false,
+      configurable: false,
+    });
+  });
+
+  it('handles only the native opaque nested-document denial, retaining its native prohibition', () => {
+    const fixture = serviceWorkerRealm({
+      failure: new DOMException(opaqueServiceWorkerMessage, 'SecurityError'),
+      opaque: true,
+      top: false,
+    });
+    expect(fixture.snapshot()).toMatchObject({ state: 'opaque-denied', blockedRegistrations: 0 });
+    expect(fixture.nativeRegister).not.toHaveBeenCalled();
+    expect(() => (fixture.realm['navigator'] as Navigator).serviceWorker).toThrow();
+  });
+
+  it.each([
+    {
+      failure: Object.assign(new Error(opaqueServiceWorkerMessage), { name: 'SecurityError' }),
+      opaque: true,
+      top: false,
+    },
+    {
+      failure: new DOMException('unrelated security failure', 'SecurityError'),
+      opaque: true,
+      top: false,
+    },
+    {
+      failure: new DOMException(opaqueServiceWorkerMessage, 'InvalidStateError'),
+      opaque: true,
+      top: false,
+    },
+    {
+      failure: new DOMException(opaqueServiceWorkerMessage, 'SecurityError'),
+      opaque: false,
+      top: false,
+    },
+    {
+      failure: new DOMException(opaqueServiceWorkerMessage, 'SecurityError'),
+      opaque: true,
+      top: true,
+    },
+    { failure: new TypeError('unexpected navigator getter failure'), opaque: true, top: false },
+  ])('rethrows unexpected getter errors, including lookalikes: %j', (options) => {
+    expect(() => serviceWorkerRealm(options)).toThrow(options.failure);
+  });
+
+  it('does not swallow descriptor errors or attest an unavailable early document', () => {
+    expect(() => serviceWorkerRealm({ locked: true })).toThrow();
+    const fixture = serviceWorkerRealm({ unavailable: true });
+    expect(fixture.snapshot()['state']).toBe('unavailable');
+    expect(() => assertScaleServiceWorkerProof(fixture.snapshot())).toThrow();
+  });
+
+  it('requires native proof for setup, account and every distinct pupil context', () => {
+    expect(() => validateScaleServiceWorkers(serviceWorkerEvidence(2), 2)).not.toThrow();
+    for (const client of [-2, -1, 0, 1]) {
+      const incomplete = serviceWorkerEvidence(2).filter((context) => context.client !== client);
+      expect(() => validateScaleServiceWorkers(incomplete, 2)).toThrow();
+    }
+    const reused = serviceWorkerEvidence(2);
+    reused[1]!.contextId = reused[0]!.contextId;
+    expect(() => validateScaleServiceWorkers(reused, 2)).toThrow();
+  });
+
+  it.each([
+    { installedBeforePages: false },
+    { initialWorkers: 1 },
+    { finalWorkers: 1 },
+    { finalWorkers: undefined },
+    { finalWorkers: '0' },
+    { workerEvents: 1 },
+    { observedWorkerRequests: 1 },
+    { probeRequests: 1 },
+    { finalizedAtMs: undefined },
+    { finalizedAtMs: 999 },
+    { proofs: [] },
+    { contextId: 'missing-context-identity' },
+  ])('rejects incomplete or escaped lifetime evidence: %j', (change) => {
+    const evidence = serviceWorkerEvidence(2);
+    Object.assign(evidence[2]!, change);
+    expect(() => validateScaleServiceWorkers(evidence, 2)).toThrow();
+  });
+
+  it.each([
+    { state: 'unavailable' },
+    { state: 'opaque-denied' },
+    { version: undefined },
+    { instanceBlocked: false },
+    { prototypeBlocked: false },
+    { interceptedCalls: 1 },
+    { fulfilledUndefined: false },
+    { registrationCount: 1 },
+    { hasController: true },
+    { contextId: '00000000-0000-4000-8000-000000000099' },
+    { client: 1 },
+    { atMs: 999 },
+    { atMs: 2001 },
+    { stage: 'wrong-document-stage' },
+  ])('requires fresh successful register interception in each actual document: %j', (change) => {
+    const evidence = serviceWorkerEvidence(2);
+    Object.assign(evidence[2]!.proofs[0]!, change);
+    expect(() => validateScaleServiceWorkers(evidence, 2)).toThrow();
+  });
+
+  it('keeps both level and calibration invalid after any worker event or unexpected JavaScript error', () => {
+    for (const calibration of [false, true]) {
+      const users = calibration ? 2 : 30;
+      const evaluate = calibration ? evaluateScaleCalibration : evaluateScaleLevel;
+      const expected = calibration ? 'INVALID_FIXTURE' : 'INVALID';
+      const raw = completeRaw(users, calibration);
+      raw.serviceWorkers[2]!.workerEvents++;
+      expect(evaluate(raw, identity, [resource()]).status).toBe(expected);
+      expect(
+        evaluate({ ...completeRaw(users, calibration), serviceWorkers: undefined }, identity, [
+          resource(),
+        ]).status,
+      ).toBe(expected);
+      expect(
+        evaluate(
+          { ...completeRaw(users, calibration), javascriptErrors: [{ name: 'SecurityError' }] },
+          identity,
+          [resource()],
+        ).status,
+      ).toBe(calibration ? 'INVALID_FIXTURE' : 'FAIL');
+    }
+  });
+});
 
 function ingressConfig() {
   return {
