@@ -205,8 +205,20 @@ database, remote Docker socket or self-hosted machine is accepted. The source
 guard requires the official repository, clean exact selected SHA and a unique
 run token. Generated test credentials and secrets are not report data.
 
-The unchanged server's guarded internal origin requires `NODE_ENV=test` and
-the database name `/asalab_test`. That database exists only in a new,
+The full-editor browser enters at `http://127.0.0.1:8080`. Its test container
+uses `network_mode: service:web`, so loopback is the actual owned Web service,
+not a hostname alias or an insecure-browser exception. Its inherited networks
+are reset; only the test override adds the private database network to Web so
+the independent PostgreSQL observer retains access from that namespace. This
+does not add published ports or change the production Compose topology. The
+controller validates the resolved origins/networks and the driver's actual
+`container:<owned-web-ID>` network mode, after checking both resource identities.
+
+The unchanged API uses its normal canonical-origin configuration
+(`ASA_WEB_PORT=8080`, matching `ASA_WEB_ORIGIN`). The previous
+`ASA_ISOLATED_TEST_WEB_ORIGIN` exception is removed from this override, not
+broadened in application code. The runtime remains `NODE_ENV=test` with the
+database name `/asalab_test`. That database exists only in a new,
 run-labelled PostgreSQL volume in this workflow's own Compose project; the
 controller refuses existing project resources. The runtime role remains
 `asalab_app`, with the actual RLS, session authentication, rate limits and
@@ -219,7 +231,29 @@ ingress capacity; it is not production authentication equivalence or an
 unqualified production capacity ceiling.
 
 The committed `SCALE_PROFILE` and its SHA256 fix the workload, SLO and resource
-floors before the first run. The controller first executes a two-StudentSeat
+floors before the first run. The corrected profile hash is
+`3d8cea39cb6d87ff45476c4ed37471b8056debf139879c3b3d500d6fe8aeef8f`.
+The earlier `f09621f095efaff7548f76be2035eb1984254f966c50ff21b6a97aa3d6edca68`
+profile remains historical: its only changed leaf is `ingress.origin`, from
+`http://web:8080` to the real loopback entry. A regression restores that one
+leaf and recomputes the old digest, preserving all operation denominators,
+SLOs, deadlines and resource thresholds. The old N=2 result on `b0f3f0e8`
+was `INVALID_FIXTURE`: both Scratch editors reported `runtime_crypto_unavailable`
+after seven successful asset uploads each and never sent a draft PUT. It is
+not capacity evidence and is not rewritten as a passing run.
+
+Before registration, each learner's top-page workload, and native Scratch
+editing/reopening, the actual browser document computes SHA-256 of a fixed
+non-secret challenge. `raw.json.secureContexts` records the real origin,
+`isSecureContext`, `crypto.subtle` availability, frame/top identity and digest.
+Missing, incorrect or incomplete top-page/iframe evidence prevents PASS.
+The entry uses the standard loopback trust rule in
+[Secure Contexts](https://www.w3.org/TR/secure-contexts/#is-origin-trustworthy)
+and the documented Compose
+[service network namespace](https://docs.docker.com/reference/compose-file/services/#network_mode);
+it does not disable crypto, CSRF, origin, session or browser-security checks.
+
+The controller first executes a two-StudentSeat
 calibration using the same native UI actions and both two-player game controls.
 Its result is `VALID_FIXTURE`, `INVALID_FIXTURE` or `BLOCKED_BY_RUNNER`; it is
 never evidence of a passing capacity level. Locator, setup or content-proof
@@ -293,9 +327,33 @@ Telemetry503 is injected only on actual diagnostics/analytics requests. Before
 the outage edit, a native reload of the already saved editor must produce a
 real refused telemetry request for every learner. That preparation is outside
 the save timer. The normal reload proof remains a healthy operation. Each
-editor also includes 10 seconds offline and recovery. Expected offline errors
-and narrowly identified GET/HEAD navigation aborts remain explicit; a healthy
-timeout, aborted write or other network failure is not exempted.
+editor also includes 10 seconds offline and recovery. Offline classification
+uses each actual context's interval from `setOffline(true)` through the ACK of
+`setOffline(false)`, including requests made while recovery is still pending.
+Global phase names do not grant an exception; errors from requests starting
+after that ACK remain unexpected.
+
+A passive CDP observer records only the request/page/frame/loader identifiers,
+sanitized route, method, timestamps, error and cancellation flag needed for
+network attribution. Active entries are bounded and removed on completion;
+request headers, bodies and credentials are not stored. Every Playwright
+failure remains independently recorded, and per-page method/route/error
+multisets must agree with CDP. Missing, duplicate or contradictory evidence
+prevents PASS. The observer does not change cache, connectivity or product code.
+
+An `ERR_ABORTED` navigation exception requires an actual completed action window.
+For POST it is restricted to `/api/analytics/v2/module-session`,
+`/api/analytics/v2/quality` and `/api/diagnostics/quality`: the canceled request
+must start inside its own native reload, belong to the previous main-frame
+loader, fail within that reload window, and have an observed replacement loader.
+A delayed failure callback can therefore be attributed without assuming that a
+Frame object identifies one document. New/unknown loaders, other pages, incomplete
+reloads, generic telemetry POSTs, login, project/save writes, healthy timeouts
+and other errors are not exempted. Receipts report expected navigation aborts,
+expected reload telemetry aborts, deliberate offline failures and unexpected
+failures separately. These new witnesses do not retroactively prove that the
+twelve old telemetry aborts satisfy the stricter rule; the corrected native CI
+must establish that.
 
 ### Fixed SLO and runtime budget
 
@@ -360,10 +418,9 @@ it never prunes Docker or deletes another database/volume.
 
 ### Narrow login/save latency diagnosis
 
-The previous lightweight comparison observed higher candidate login/save p95
-in some samples. A later exact-source 30-user login sample changed direction;
-the 60-user increase persisted. Fixed baseline-first order, burst timing and
-browser/post-response work are therefore competing explanations. Login POST
+The previous lightweight comparisons observed higher candidate login/save p95
+in some samples and changes of direction in later samples. Fixed baseline-first
+order, burst timing and browser/post-response work are therefore competing explanations. Login POST
 and draft PUT do not use the selected portal GET queue. No source evidence yet
 proves that telemetry refusal causes those latency differences.
 
@@ -374,6 +431,10 @@ harness, the selected revision's actual client modules/API build, and fresh
 owned test databases. The controller verifies source-module provenance for
 each sample and then restores the unchanged full-editor images before 60.
 It does not replay the old long reload/offline/slow-notification matrix.
+All four A/B samples keep the same ordinary loopback entry
+`http://127.0.0.1:4612`. The latency summary records that entry separately from
+the full-editor `http://127.0.0.1:8080` origin and its corrected profile hash;
+the lightweight diagnostic is not relabelled as another full-editor workload.
 
 The diagnostic measures login, a healthy save/readback and an equally sized
 changed document during observed real telemetry503. Bounded observation records

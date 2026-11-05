@@ -14,6 +14,7 @@ import {
   test,
   type APIRequestContext,
   type BrowserContext,
+  type Frame,
   type Page,
   type Request,
   type Response,
@@ -23,11 +24,15 @@ type ScaleContracts = typeof import('../tools/capacity/classroom-scale-contracts
 type StormContracts = typeof import('../tools/capacity/request-storm-contracts.mjs');
 let assertScaleEnvironment: ScaleContracts['assertScaleEnvironment'];
 let assertScaleImages: ScaleContracts['assertScaleImages'];
+let assertScaleSecureContext: ScaleContracts['assertScaleSecureContext'];
+let classifyScaleNetworkFailure: ScaleContracts['classifyScaleNetworkFailure'];
+let summarizeScaleNetworkEvidence: ScaleContracts['summarizeScaleNetworkEvidence'];
 let createScaleLedger: ScaleContracts['createScaleLedger'];
 let createScaleObserverJournal: ScaleContracts['createScaleObserverJournal'];
 let readScaleChromiumResources: ScaleContracts['readScaleChromiumResources'];
 let scaleCohortPlan: ScaleContracts['scaleCohortPlan'];
 let SCALE_DATABASE: ScaleContracts['SCALE_DATABASE'];
+let SCALE_CRYPTO_CHALLENGE: ScaleContracts['SCALE_CRYPTO_CHALLENGE'];
 let SCALE_ORIGIN: ScaleContracts['SCALE_ORIGIN'];
 let SCALE_PROFILE: ScaleContracts['SCALE_PROFILE'];
 let SCALE_PROFILE_HASH: ScaleContracts['SCALE_PROFILE_HASH'];
@@ -86,15 +91,63 @@ type HttpRecord = {
   injected: boolean;
   completed: boolean;
 };
-type NetworkFailure = {
+type ProtocolRequest = {
   client: number;
+  pageId: number;
+  phase: string;
+  route: string;
+  method: string;
+  requestId: string;
+  frameId: string;
+  loaderId: string;
+  startedAtMs: number;
+  protocolTimestamp: number;
+  redirected: boolean;
+};
+type NetworkFailure = ProtocolRequest & {
+  failedAtMs: number;
+  observedFailureAtMs: number;
+  error: string;
+  canceled: boolean;
+  expected: boolean;
+  reason: string;
+  boundaryId: number | null;
+};
+type PlaywrightFailure = {
+  client: number;
+  pageId: number;
   phase: string;
   route: string;
   method: string;
   error: string;
-  expected: boolean;
-  reason: string;
-  navigationWindow: boolean;
+  startedAtMs: number;
+  observedFailureAtMs: number;
+};
+type NavigationWindow = {
+  id: number;
+  client: number;
+  pageId: number;
+  action: string;
+  startedAtMs: number;
+  endedAtMs?: number;
+  completed: boolean;
+  frameId: string;
+  previousLoaderId: string;
+  committedLoaderId: string;
+  committedAtMs?: number;
+  commits: number;
+};
+type OfflineWindow = {
+  id: number;
+  client: number;
+  pageId: number;
+  startedAtMs: number;
+  appliedAtMs?: number;
+  onlineRequestedAtMs?: number;
+  endedAtMs?: number;
+  completed: boolean;
+  offlineApplied: boolean;
+  onlineAcknowledged: boolean;
 };
 type Draft = {
   projectId: string;
@@ -104,6 +157,7 @@ type Draft = {
 };
 type Learner = {
   client: number;
+  pageId: number;
   seatId: string;
   studentCode: string;
   classroomId: string;
@@ -379,11 +433,15 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
     ({
       assertScaleEnvironment,
       assertScaleImages,
+      assertScaleSecureContext,
+      classifyScaleNetworkFailure,
+      summarizeScaleNetworkEvidence,
       createScaleLedger,
       createScaleObserverJournal,
       readScaleChromiumResources,
       scaleCohortPlan,
       SCALE_DATABASE,
+      SCALE_CRYPTO_CHALLENGE,
       SCALE_ORIGIN,
       SCALE_PROFILE,
       SCALE_PROFILE_HASH,
@@ -422,13 +480,11 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
     const operations = createScaleLedger(users, calibration) as Operation[];
     const learners: Learner[] = [];
     const requestRecords: HttpRecord[] = [];
-    const requests = new Map<
-      Request,
-      { record: HttpRecord; learner: Learner; navigationWindow: boolean }
-    >();
+    const requests = new Map<Request, { record: HttpRecord; learner: Learner }>();
     const injected = new WeakSet<Request>();
     const pending = new Set<Promise<void>>();
     const networkFailures: NetworkFailure[] = [];
+    const playwrightNetworkFailures: PlaywrightFailure[] = [];
     const javascriptErrors: Array<{ client: number; phase: string; name: string }> = [];
     const integrityFailures: Array<{ client: number; operation: string; code: string }> = [];
     const observerRequests: HttpRecord[] = [];
@@ -441,17 +497,20 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       attempt: number;
     }> = [];
     const browserSamples: Data[] = [];
+    const secureContexts: Data[] = [];
     const observerJournal = createScaleObserverJournal();
     const loadedAssets: Array<Asset & { actualHash: string; executed: true }> = [];
     const assetInFlight = new Set<string>();
     const assetManifest = new Map(manifest.assets.map((asset) => [asset.path, asset]));
     const phaseTimes: Array<{ name: string; startedAtMs: number; endedAtMs?: number }> = [];
-    const navigationWindows: Array<{
-      client: number;
-      action: string;
-      startedAtMs: number;
-      endedAtMs?: number;
-    }> = [];
+    const navigationWindows: NavigationWindow[] = [];
+    const offlineWindows: OfflineWindow[] = [];
+    const activeNavigations = new Map<number, NavigationWindow>();
+    const activeOffline = new Map<BrowserContext, OfflineWindow>();
+    const documents = new Map<number, { frameId: string; loaderId: string }>();
+    const protocolCleanup: Array<() => Promise<void>> = [];
+    let nextPageId = 0;
+    let protocolRequestCount = 0;
     const games = {
       chessInvitations: 0,
       checkersInvitations: 0,
@@ -469,7 +528,9 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       operations,
       requests: requestRecords,
       networkFailures,
+      playwrightNetworkFailures,
       browserSamples,
+      secureContexts,
       javascriptErrors,
       integrityFailures,
       observerRequests,
@@ -492,6 +553,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       scratchPersistence: 'native upstream minute autosave; no timer or private method changes',
       phaseTimes,
       navigationWindows,
+      offlineWindows,
     };
     let phase = 'setup';
     let measuredAt = 0;
@@ -523,11 +585,63 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       }
     };
     const persist = () => {
+      for (const failure of networkFailures)
+        Object.assign(
+          failure,
+          classifyScaleNetworkFailure(failure, navigationWindows, offlineWindows),
+        );
       raw['elapsedMs'] = measuredAt ? Math.max(1, (finishedAt || Date.now()) - measuredAt) : 0;
       raw['observerErrors'] = observerJournal.state.count;
       raw['observerFailureDetailsDropped'] = observerJournal.state.dropped;
       raw['peakActiveHttp'] = peakActiveHttp;
       atomicJson(resolve(directory, 'raw.json'), raw);
+    };
+    const attestSecureContext = async (
+      target: Page | Frame,
+      client: number,
+      context: 'top' | 'scratch',
+      stage: string,
+    ) => {
+      const actual = await target.evaluate(async (challenge: string) => {
+        const proof = {
+          origin: location.origin,
+          isSecureContext: globalThis.isSecureContext,
+          topLevel: window.top === window,
+          hasSubtle: typeof globalThis.crypto?.subtle?.digest === 'function',
+          sha256: null as string | null,
+          error: null as string | null,
+        };
+        if (proof.hasSubtle) {
+          try {
+            const digest = await globalThis.crypto.subtle.digest(
+              'SHA-256',
+              new TextEncoder().encode(challenge),
+            );
+            proof.sha256 = Array.from(new Uint8Array(digest), (byte) =>
+              byte.toString(16).padStart(2, '0'),
+            ).join('');
+          } catch {
+            proof.error = 'digest_failed';
+          }
+        }
+        return proof;
+      }, SCALE_CRYPTO_CHALLENGE);
+      const proof = { client, context, stage, atMs: Date.now(), ...actual };
+      secureContexts.push(proof);
+      persist(); // Keep the actual result even when the prerequisite fails.
+      try {
+        assertScaleSecureContext(proof);
+      } catch {
+        throw new FixtureFailure('browser_secure_context_or_sha256_unavailable');
+      }
+    };
+    const attestScratchFrame = async (learner: Learner, stage: string) => {
+      const iframe = await learner.page.locator('iframe[title="Scratch runtime"]').elementHandle();
+      const frame = await iframe?.contentFrame();
+      if (!frame || frame.parentFrame() !== learner.page.mainFrame())
+        throw new FixtureFailure('actual_scratch_frame_missing');
+      await attestSecureContext(frame, learner.client, 'scratch', stage);
+      await iframe?.dispose();
     };
     const beginPhase = (name: string) => {
       const atMs = Date.now();
@@ -587,8 +701,100 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
           samplePending = undefined;
         });
     };
-    const attach = (learner: Learner) => {
+    const attach = async (learner: Learner) => {
       const page = learner.page;
+      const cdp = await learner.context.newCDPSession(page);
+      const protocolRequests = new Map<string, ProtocolRequest>();
+      protocolCleanup.push(async () => {
+        protocolRequests.clear();
+        if (!page.isClosed()) await cdp.detach();
+      });
+      const protocolEvent = (action: () => void) => {
+        if (finishedAt) return;
+        try {
+          action();
+        } catch (error) {
+          observerJournal.record('passive-network-witness', phase, error);
+        }
+      };
+      cdp.on('Page.frameNavigated', (event) =>
+        protocolEvent(() => {
+          if (event.frame.parentId) return;
+          const current = {
+            frameId: event.frame.id as string,
+            loaderId: event.frame.loaderId as string,
+          };
+          documents.set(learner.pageId, current);
+          const window = activeNavigations.get(learner.pageId);
+          if (window && window.action.startsWith('native-reload-')) {
+            window.commits++;
+            if (window.frameId === current.frameId) {
+              window.committedLoaderId = current.loaderId;
+              window.committedAtMs = Date.now();
+            }
+          }
+        }),
+      );
+      cdp.on('Network.requestWillBeSent', (event) =>
+        protocolEvent(() => {
+          if (!measuredAt || new URL(event.request.url).origin !== SCALE_ORIGIN) return;
+          if (protocolRequestCount >= SCALE_PROFILE.maximumHttpObservations) {
+            raw['droppedObservations'] = Number(raw['droppedObservations']) + 1;
+            return;
+          }
+          if (protocolRequests.has(event.requestId) && !event.redirectResponse)
+            throw new FixtureFailure('duplicate_protocol_request_id');
+          protocolRequestCount++;
+          protocolRequests.set(event.requestId, {
+            client: learner.client,
+            pageId: learner.pageId,
+            phase,
+            route: stormRoute(new URL(event.request.url).pathname),
+            method: event.request.method,
+            requestId: event.requestId,
+            frameId: event.frameId ?? '',
+            loaderId: event.loaderId,
+            startedAtMs: event.wallTime * 1000,
+            protocolTimestamp: event.timestamp,
+            redirected: event.redirectResponse !== undefined,
+          });
+        }),
+      );
+      cdp.on('Network.loadingFinished', (event) => protocolRequests.delete(event.requestId));
+      cdp.on('Network.loadingFailed', (event) =>
+        protocolEvent(() => {
+          const request = protocolRequests.get(event.requestId);
+          protocolRequests.delete(event.requestId);
+          if (!request) return; // Foreign origin or a request preceding measurement.
+          if (networkFailures.length >= SCALE_PROFILE.maximumHttpObservations) {
+            raw['droppedObservations'] = Number(raw['droppedObservations']) + 1;
+            return;
+          }
+          networkFailures.push({
+            ...request,
+            failedAtMs: request.startedAtMs + (event.timestamp - request.protocolTimestamp) * 1000,
+            observedFailureAtMs: Date.now(),
+            error: event.errorText,
+            canceled: event.canceled === true,
+            expected: false,
+            reason: 'unexpected_network_failure',
+            boundaryId: null,
+          });
+        }),
+      );
+      // Passive observation only: no interception, cache/network emulation or
+      // runtime mutation is enabled by this witness session.
+      await cdp.send('Page.enable');
+      await cdp.send('Network.enable', {
+        maxTotalBufferSize: 1024,
+        maxResourceBufferSize: 1024,
+        maxPostDataSize: 0,
+      });
+      const initial = await cdp.send('Page.getFrameTree');
+      documents.set(learner.pageId, {
+        frameId: initial.frameTree.frame.id,
+        loaderId: initial.frameTree.frame.loaderId,
+      });
       page.on('pageerror', (error) =>
         javascriptErrors.push({ client: learner.client, phase, name: error.name }),
       );
@@ -610,7 +816,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
           completed: false,
         };
         requestRecords.push(record);
-        requests.set(request, { record, learner, navigationWindow: learner.navigating });
+        requests.set(request, { record, learner });
         activeHttp++;
         peakActiveHttp = Math.max(peakActiveHttp, activeHttp);
       });
@@ -673,31 +879,21 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
         const tracked = requests.get(request);
         if (!tracked) return;
         const error = request.failure()?.errorText ?? 'unknown_network_error';
-        const offline =
-          tracked.record.phase.includes('offline') && error === 'net::ERR_INTERNET_DISCONNECTED';
-        const navigationWindow = tracked.navigationWindow || learner.navigating;
-        const navigation =
-          navigationWindow &&
-          ['GET', 'HEAD'].includes(request.method()) &&
-          error === 'net::ERR_ABORTED';
-        networkFailures.push({
+        playwrightNetworkFailures.push({
           client: learner.client,
+          pageId: learner.pageId,
           phase: tracked.record.phase,
           route: tracked.record.route,
           method: request.method(),
           error,
-          expected: offline || navigation,
-          reason: offline
-            ? 'deliberate_context_offline'
-            : navigation
-              ? 'explicit_native_navigation'
-              : 'unexpected_network_failure',
-          navigationWindow,
+          startedAtMs: tracked.record.startedAtMs,
+          observedFailureAtMs: Date.now(),
         });
         tracked.record.durationMs = Date.now() - tracked.record.startedAtMs;
         activeHttp--;
         requests.delete(request);
       });
+      return cdp;
     };
     const call = async (
       request: APIRequestContext,
@@ -935,19 +1131,64 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       body: () => Promise<T>,
     ): Promise<T> => {
       const prior = learner.navigating;
-      const window = {
+      if (activeNavigations.has(learner.pageId))
+        throw new FixtureFailure('overlapping_native_navigation');
+      const document = documents.get(learner.pageId);
+      const window: NavigationWindow = {
+        id: navigationWindows.length,
         client: learner.client,
+        pageId: learner.pageId,
         action,
         startedAtMs: Date.now(),
-        endedAtMs: undefined as number | undefined,
+        completed: false,
+        frameId: document?.frameId ?? '',
+        previousLoaderId: document?.loaderId ?? '',
+        committedLoaderId: '',
+        commits: 0,
       };
       navigationWindows.push(window);
+      activeNavigations.set(learner.pageId, window);
       learner.navigating = true;
       try {
-        return await body();
+        const result = await body();
+        window.completed = true;
+        return result;
       } finally {
         window.endedAtMs = Date.now();
+        activeNavigations.delete(learner.pageId);
         learner.navigating = prior;
+      }
+    };
+    const setOffline = async (learner: Learner, offline: boolean) => {
+      if (offline) {
+        if (activeOffline.has(learner.context))
+          throw new FixtureFailure('overlapping_offline_transition');
+        const window: OfflineWindow = {
+          id: offlineWindows.length,
+          client: learner.client,
+          pageId: learner.pageId,
+          startedAtMs: Date.now(),
+          completed: false,
+          offlineApplied: false,
+          onlineAcknowledged: false,
+        };
+        offlineWindows.push(window);
+        activeOffline.set(learner.context, window);
+        await learner.context.setOffline(true);
+        window.appliedAtMs = Date.now();
+        window.offlineApplied = true;
+      } else {
+        const window = activeOffline.get(learner.context);
+        if (!window || !window.offlineApplied)
+          throw new FixtureFailure('online_without_owned_offline_transition');
+        window.onlineRequestedAtMs = Date.now();
+        await learner.context.setOffline(false);
+        // The global phase changes before this command resolves. Its actual ACK
+        // is the boundary; a request inside the pending command is still offline.
+        window.endedAtMs = Date.now();
+        window.onlineAcknowledged = true;
+        window.completed = true;
+        activeOffline.delete(learner.context);
       }
     };
     const reload = (learner: Learner, editor: Editor) =>
@@ -957,6 +1198,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
           timeout: SCALE_PROFILE.deadlinesMs.editor,
         });
         await editorReady(learner.page, editor);
+        if (editor === 'scratch') await attestScratchFrame(learner, 'scratch-reload');
       });
     const projectsVisible = async (page: Page) => {
       await expect(page.getByRole('heading', { name: 'Мои проекты', exact: true })).toBeVisible({
@@ -1002,6 +1244,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
           object(object(await result[0].json())['project'])['id'],
         );
         await editorReady(page, editor);
+        if (editor === 'scratch') await attestScratchFrame(learner, 'scratch-open');
         acknowledge(operation);
         await checkSeat(learner);
         learner.drafts[editor] = await readDraft(learner, editor);
@@ -1026,7 +1269,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
         { timeout: recovery ? SCALE_PROFILE.deadlinesMs.recovery : SCALE_PROFILE.deadlinesMs.save },
       );
       const action = async () => {
-        if (recovery) await learner.context.setOffline(false);
+        if (recovery) await setOffline(learner, false);
         else await editContent(learner, editor, step);
         if (editor === 'electronics' && !recovery)
           await learner.page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
@@ -1061,6 +1304,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       // Real registration/login forms and a valid native BotCheck interaction.
       // The fixed isolated NODE_ENV=test ingress has explicitly reported limits.
       await setupPage.goto(SCALE_ORIGIN + '/#/', { waitUntil: 'domcontentloaded' });
+      await attestSecureContext(setupPage, -1, 'top', 'setup');
       await setupPage.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
       await setupPage.getByLabel('Email', { exact: true }).fill(email);
       await setupPage
@@ -1189,6 +1433,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
         const page = await context.newPage();
         const learner: Learner = {
           client,
+          pageId: nextPageId++,
           seatId: credential.id,
           studentCode: credential.code,
           classroomId: credential.classroomId,
@@ -1202,8 +1447,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
           closed: false,
         };
         learners.push(learner);
-        attach(learner);
-        const cdp = await context.newCDPSession(page);
+        const cdp = await attach(learner);
         await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true });
         // Each context is one pupil's focused machine, not a background tab.
         await page.goto(
@@ -1212,6 +1456,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
             waitUntil: 'domcontentloaded',
           },
         );
+        await attestSecureContext(page, client, 'top', 'seat-entry');
         await page.getByLabel('Код ученика', { exact: true }).fill(credential.code);
         if (client === 0) {
           const script = await page
@@ -1327,7 +1572,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
           `${editor}-offline-edit`,
           SCALE_PROFILE.offlineMs + 15000,
           async (learner, operation) => {
-            await learner.context.setOffline(true);
+            await setOffline(learner, true);
             await editContent(learner, editor, 3);
             if (editor === 'electronics') {
               await learner.page
@@ -1353,8 +1598,13 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       beginPhase('multiple-tabs');
       for (const learner of learners.slice(0, Math.min(users, 3))) {
         const secondary = await learner.context.newPage();
-        const secondaryIdentity = { ...learner, page: secondary, navigating: false };
-        attach(secondaryIdentity);
+        const secondaryIdentity = {
+          ...learner,
+          page: secondary,
+          pageId: nextPageId++,
+          navigating: false,
+        };
+        await attach(secondaryIdentity);
         try {
           // A real second tab shares the Seat cookie, but never writes the first
           // tab's project. Its auth is checked against the independent endpoint.
@@ -1489,6 +1739,8 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
         )
       )
         throw new FixtureFailure('executed_entry_provenance_missing');
+      persist();
+      raw['networkSummary'] = summarizeScaleNetworkEvidence(raw);
       if (networkFailures.some((failure) => !failure.expected))
         throw new FixtureFailure('unexpected_browser_network_failure');
       if (javascriptErrors.length) throw new FixtureFailure('javascript_error_observed');
@@ -1522,6 +1774,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       if (lastPhase) lastPhase.endedAtMs = finishedAt;
       if (sampler) clearInterval(sampler);
       if (checkpoint) clearInterval(checkpoint);
+      await Promise.allSettled(protocolCleanup.map((cleanup) => cleanup()));
       await samplePending;
       for (const { record } of requests.values())
         record.durationMs = finishedAt - record.startedAtMs;

@@ -25,6 +25,8 @@ import {
   assertScaleDockerContext,
   assertScaleEnvironment,
   assertScaleImages,
+  assertScaleIngressConfig,
+  assertScaleDriverNetwork,
   createScaleLedger,
   evaluateScaleLevel,
   readScaleMemInfo,
@@ -35,7 +37,11 @@ import {
   scaleLadderSummary,
   summarizeLatencyTimings,
 } from './classroom-scale-contracts.mjs';
-import { STORM_BASELINE, assertStormClientProvenance } from './request-storm-contracts.mjs';
+import {
+  STORM_BASELINE,
+  STORM_ORIGIN,
+  assertStormClientProvenance,
+} from './request-storm-contracts.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const reports = resolve(root, 'reports/classroom-scale');
@@ -291,6 +297,7 @@ async function run() {
   mkdirSync(resolve(root, 'e2e/artifacts'), { recursive: true, mode: 0o777 });
   mkdirSync(resolve(root, '.asa/diagnostics/store'), { recursive: true });
   const config = JSON.parse(await composeCapture(['config', '--format', 'json']));
+  assertScaleIngressConfig(config);
   if (
     Object.values(config.volumes || {}).some((volume) => volume.external) ||
     Object.values(config.networks || {}).some((network) => network.external)
@@ -328,7 +335,6 @@ async function run() {
   const apiEnvironment = config.services.api.environment;
   if (
     apiEnvironment.NODE_ENV !== 'test' ||
-    apiEnvironment.ASA_ISOLATED_TEST_WEB_ORIGIN !== SCALE_PROFILE.ingress.origin ||
     Number(apiEnvironment.ASA_DB_POOL_MAX) !== SCALE_PROFILE.server.apiPoolMax ||
     Number(apiEnvironment.UV_THREADPOOL_SIZE) !== SCALE_PROFILE.server.uvThreadpoolSize
   )
@@ -781,12 +787,19 @@ async function run() {
         const metadata = ownMetadata(
           JSON.parse(await capture('docker', ['inspect', driverName]))[0],
         );
+        const web = containerIds.find((container) => container.service === 'web');
+        if (!web) throw Error('Missing owned Web namespace');
+        const webMetadata = ownMetadata(
+          JSON.parse(await capture('docker', ['inspect', web.id]))[0],
+        );
+        const network = assertScaleDriverNetwork(metadata, webMetadata);
         writeJson(resolve(directory, 'container-exit.json'), {
           id: metadata.Id,
           exitCode: metadata.State.ExitCode,
           oomKilled: metadata.State.OOMKilled,
           restartCount: metadata.RestartCount,
           image: metadata.Image,
+          network,
         });
         observationsPaused = true;
         await monitorPending;
@@ -1074,6 +1087,9 @@ async function latencyProfile(env, monitored, composeCapture, output) {
     candidateSha: env.ASA_SCALE_SHA,
     baselineSha: STORM_BASELINE,
     users: 30,
+    entryOrigin: STORM_ORIGIN,
+    fullEditorOrigin: SCALE_PROFILE.ingress.origin,
+    fullEditorProfileHash: env.ASA_SCALE_PROFILE_HASH,
     order: samples.map((sample) => sample.sampleId),
     samples,
     causalConclusion: 'UNRESOLVED_UNTIL_TIMESTAMP_ANALYSIS',

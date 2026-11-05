@@ -6,11 +6,17 @@ import { join } from 'node:path';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import { resolveIsolatedTestWebOrigin } from '../../apps/api/src/origin-policy';
+import {
+  isAllowedMutationOrigin,
+  resolveCanonicalWebOrigin,
+  resolveIsolatedTestWebOrigin,
+} from '../../apps/api/src/origin-policy';
 import { PortalHeader } from '../../apps/web/src/components/PortalHeader';
 import { studentSessionPayload } from '../../apps/web/src/creator-portal/student-session';
 import {
   SCALE_LEVELS,
+  SCALE_ORIGIN,
+  SCALE_CRYPTO_CHALLENGE,
   SCALE_PROFILE,
   SCALE_PROFILE_HASH,
   SCALE_PROJECTS_LINK_SELECTOR,
@@ -20,6 +26,12 @@ import {
   assertScaleDockerContext,
   assertScaleEnvironment,
   assertScaleImages,
+  assertScaleIngressConfig,
+  assertScaleDriverNetwork,
+  assertScaleSecureContext,
+  validateScaleSecureContexts,
+  classifyScaleNetworkFailure,
+  summarizeScaleNetworkEvidence,
   createScaleLedger,
   createScaleObserverJournal,
   evaluateScaleLevel,
@@ -271,7 +283,7 @@ function environment() {
     ASA_SCALE_USERS: '30',
     ASA_SCALE_MODE: 'capacity',
     ASA_E2E_EXTERNAL: 'true',
-    ASA_E2E_BASE_URL: 'http://web:8080',
+    ASA_E2E_BASE_URL: SCALE_ORIGIN,
     TEST_DATABASE_URL: 'postgresql://postgres:synthetic@postgres:5432/asalab_test',
     APP_TEST_DATABASE_URL: 'postgresql://asalab_app:synthetic@postgres:5432/asalab_test',
   };
@@ -338,11 +350,21 @@ function completeRaw(users = 30, calibration = false) {
     droppedObservations: 0,
     integrityFailures: [],
     javascriptErrors: [],
-    networkFailures: [],
+    networkFailures: [] as Array<Record<string, unknown>>,
+    playwrightNetworkFailures: [] as Array<Record<string, unknown>>,
+    navigationWindows: [] as Array<Record<string, unknown>>,
+    offlineWindows: [] as Array<Record<string, unknown>>,
     accountControl: { status: 'VERIFIED' },
     observerRequests: [],
     games: { chessInvitations: 1, checkersInvitations: 1, chessMatches: 1, checkersMatches: 1 },
     browserSamples: [{ chromiumProcesses: users + 5, chromiumRssBytes: 1024 * 1024 }],
+    secureContexts: [
+      secureProof(-1, 'top', 'setup'),
+      ...Array.from({ length: users }, (_, client) => [
+        secureProof(client, 'top', 'seat-entry'),
+        secureProof(client, 'scratch', 'scratch-open'),
+      ]).flat(),
+    ],
     provenance: {
       sourceSha,
       imageManifestHash: identity.imageManifestHash,
@@ -370,6 +392,138 @@ function completeRaw(users = 30, calibration = false) {
     ],
   };
 }
+
+function secureProof(client: number, context: 'top' | 'scratch', stage: string) {
+  return {
+    client,
+    context,
+    stage,
+    atMs: 1000,
+    origin: SCALE_ORIGIN,
+    isSecureContext: true,
+    topLevel: context === 'top',
+    hasSubtle: true,
+    sha256: scaleHash(SCALE_CRYPTO_CHALLENGE),
+    error: null,
+  };
+}
+
+function ingressConfig() {
+  return {
+    services: {
+      api: {
+        environment: {
+          NODE_ENV: 'test',
+          ASA_WEB_PORT: '8080',
+          ASA_WEB_ORIGIN: SCALE_ORIGIN,
+          ASA_BLOCKS_RUNTIME_ORIGIN: SCALE_ORIGIN,
+        },
+      },
+      web: {
+        build: { args: { ASA_BLOCKS_RUNTIME_ORIGIN: SCALE_ORIGIN } },
+        environment: { ASA_BLOCKS_RUNTIME_ORIGIN: SCALE_ORIGIN },
+        networks: { application: {}, 'scratch-runtime': {}, database: {} },
+      },
+      scratch: {
+        build: { args: { ASA_BLOCKS_PARENT_ORIGIN: SCALE_ORIGIN } },
+        environment: { ASA_BLOCKS_PARENT_ORIGIN: SCALE_ORIGIN },
+      },
+      'test-runner': {
+        environment: { ASA_E2E_BASE_URL: SCALE_ORIGIN },
+        network_mode: 'service:web',
+      },
+    },
+  };
+}
+
+describe('real loopback browser prerequisites', () => {
+  it('changes only the invalid ingress origin in the frozen workload profile', () => {
+    expect(SCALE_ORIGIN).toBe('http://127.0.0.1:8080');
+    expect(
+      scaleHash({
+        ...SCALE_PROFILE,
+        ingress: { ...SCALE_PROFILE.ingress, origin: 'http://web:8080' },
+      }),
+    ).toBe('f09621f095efaff7548f76be2035eb1984254f966c50ff21b6a97aa3d6edca68');
+    expect(SCALE_PROFILE_HASH).not.toBe(
+      'f09621f095efaff7548f76be2035eb1984254f966c50ff21b6a97aa3d6edca68',
+    );
+  });
+
+  it('uses the unchanged canonical-origin guard, without broadening isolated test trust', () => {
+    const allowedWebOrigin = resolveCanonicalWebOrigin('8080', SCALE_ORIGIN);
+    expect(allowedWebOrigin).toBe(SCALE_ORIGIN);
+    const policy = { allowedWebOrigin, allowedLocalApiOrigin: 'http://127.0.0.1:4611' };
+    expect(isAllowedMutationOrigin({ ...policy, origin: SCALE_ORIGIN })).toBe(true);
+    for (const origin of ['http://web:8080', 'http://127.0.0.1:8081', undefined])
+      expect(isAllowedMutationOrigin({ ...policy, origin })).toBe(false);
+    expect(
+      isAllowedMutationOrigin({ ...policy, origin: SCALE_ORIGIN, secFetchSite: 'cross-site' }),
+    ).toBe(false);
+    expect(() =>
+      resolveIsolatedTestWebOrigin(SCALE_ORIGIN, 'test', environment().TEST_DATABASE_URL),
+    ).toThrow();
+  });
+
+  it('rejects mismatched origins, independent namespaces and missing private observer access', () => {
+    expect(() => assertScaleIngressConfig(ingressConfig())).not.toThrow();
+    const changes = [
+      { 'test-runner': { ...ingressConfig().services['test-runner'], network_mode: 'host' } },
+      { 'test-runner': { ...ingressConfig().services['test-runner'], networks: { database: {} } } },
+      { web: { ...ingressConfig().services.web, networks: { application: {} } } },
+      {
+        scratch: {
+          ...ingressConfig().services.scratch,
+          environment: { ASA_BLOCKS_PARENT_ORIGIN: 'http://web:8080' },
+        },
+      },
+      {
+        api: {
+          environment: {
+            ...ingressConfig().services.api.environment,
+            ASA_ISOLATED_TEST_WEB_ORIGIN: 'http://web:8080',
+          },
+        },
+      },
+    ];
+    for (const changed of changes)
+      expect(() =>
+        assertScaleIngressConfig({ services: { ...ingressConfig().services, ...changed } }),
+      ).toThrow();
+    const web = { Id: 'a'.repeat(64) };
+    const driver = {
+      Id: 'b'.repeat(64),
+      HostConfig: { NetworkMode: 'container:' + web.Id },
+      NetworkSettings: { Networks: {} },
+    };
+    expect(assertScaleDriverNetwork(driver, web).webId).toBe(web.Id);
+    for (const mode of ['host', 'default', 'container:' + 'c'.repeat(64)])
+      expect(() =>
+        assertScaleDriverNetwork({ ...driver, HostConfig: { NetworkMode: mode } }, web),
+      ).toThrow();
+  });
+
+  it('requires actual browser crypto in every top page and actual Scratch frame', () => {
+    const proof = secureProof(0, 'scratch', 'scratch-open');
+    expect(() => assertScaleSecureContext(proof)).not.toThrow();
+    for (const changed of [
+      { origin: 'http://web:8080' },
+      { isSecureContext: false },
+      { hasSubtle: false },
+      { sha256: '0'.repeat(64) },
+      { error: 'digest_failed' },
+      { topLevel: true },
+    ])
+      expect(() => assertScaleSecureContext({ ...proof, ...changed })).toThrow();
+    const raw = completeRaw(2, true);
+    expect(() => validateScaleSecureContexts(raw.secureContexts, 2)).not.toThrow();
+    raw.secureContexts.pop();
+    expect(evaluateScaleCalibration(raw, identity, [resource()]).status).toBe('INVALID_FIXTURE');
+    expect(
+      evaluateScaleLevel({ ...completeRaw(), secureContexts: [] }, identity, [resource()]).status,
+    ).toBe('INVALID');
+  });
+});
 
 describe('capacity test-target and immutable pre-run thresholds', () => {
   it('accepts only the official exact-source hosted fixture and its private test database', () => {
@@ -646,6 +800,206 @@ describe('unplanned HTTP failures, sampler failures and runner limits', () => {
   });
 });
 
+function reloadWindow() {
+  return {
+    id: 0,
+    client: 0,
+    pageId: 0,
+    action: 'native-reload-electronics',
+    startedAtMs: 1000,
+    endedAtMs: 1500,
+    completed: true,
+    frameId: 'main-frame',
+    previousLoaderId: 'old-loader',
+    committedLoaderId: 'new-loader',
+    committedAtMs: 1150,
+    commits: 1,
+  };
+}
+
+function protocolFailure() {
+  return {
+    client: 0,
+    pageId: 0,
+    phase: 'electronics-reload',
+    route: '/api/analytics/v2/module-session',
+    method: 'POST',
+    requestId: '123.45',
+    frameId: 'main-frame',
+    loaderId: 'old-loader',
+    startedAtMs: 1100,
+    failedAtMs: 1200,
+    canceled: true,
+    redirected: false,
+    error: 'net::ERR_ABORTED',
+    expected: false,
+    reason: 'unexpected_network_failure',
+    boundaryId: null,
+  };
+}
+
+describe('passive network witnesses and actual browser-action boundaries', () => {
+  it('counts only the three proven telemetry endpoints with exact old-document reload evidence', () => {
+    const raw = completeRaw();
+    raw.navigationWindows = [reloadWindow()];
+    for (const [index, route] of [
+      '/api/analytics/v2/module-session',
+      '/api/analytics/v2/quality',
+      '/api/diagnostics/quality',
+    ].entries()) {
+      const failure = { ...protocolFailure(), requestId: '123.' + index, route };
+      // Its loadingFailed callback can follow the new document's commit. The
+      // actual request/old loader, not the surviving Frame object, is the witness.
+      const expected = classifyScaleNetworkFailure(failure, raw.navigationWindows, []);
+      expect(expected).toEqual({
+        expected: true,
+        reason: 'explicit_native_reload_telemetry',
+        boundaryId: 0,
+      });
+      raw.networkFailures.push({ ...failure, ...expected });
+      raw.playwrightNetworkFailures.push(failure);
+    }
+    expect(evaluateScaleLevel(raw, identity, [resource()])).toMatchObject({
+      status: 'PASS',
+      network: {
+        expectedReloadTelemetryAborts: 3,
+        expectedOfflineFailures: 0,
+        unexpectedFailures: 0,
+      },
+    });
+  });
+
+  it.each([
+    { startedAtMs: 999 },
+    { failedAtMs: 1501 },
+    { pageId: 1 },
+    { client: 1 },
+    { loaderId: 'new-loader' },
+    { loaderId: '' },
+    { frameId: 'foreign-frame' },
+    { requestId: '' },
+    { canceled: false },
+    { redirected: true },
+    { route: '/api/diagnostics/client' },
+    { route: '/api/auth/login' },
+    { route: '/api/projects', method: 'POST' },
+    { route: '/api/projects/:id/draft', method: 'PUT' },
+    { route: '/api/projects/:id', method: 'PATCH' },
+    { error: 'net::ERR_TIMED_OUT' },
+  ])('never exempts an unrelated, unproven or business failure: %j', (changed) => {
+    const failure = { ...protocolFailure(), ...changed };
+    expect(classifyScaleNetworkFailure(failure, [reloadWindow()], []).expected).toBe(false);
+    const raw = {
+      ...completeRaw(),
+      networkFailures: [failure],
+      playwrightNetworkFailures: [failure],
+      navigationWindows: [reloadWindow()],
+    };
+    expect(['FAIL', 'INVALID']).toContain(evaluateScaleLevel(raw, identity, [resource()]).status);
+    expect(
+      evaluateScaleLevel({ ...raw, networkFailures: [{ ...failure, expected: true }] }, identity, [
+        resource(),
+      ]).status,
+    ).toBe('INVALID');
+  });
+
+  it.each([
+    { completed: false },
+    { committedLoaderId: '' },
+    { committedLoaderId: 'old-loader' },
+    { commits: 2 },
+    { committedAtMs: 999 },
+    { committedAtMs: 1501 },
+    { action: 'native-projects-navigation' },
+  ])(
+    'requires one completed native reload with its own real document replacement: %j',
+    (changed) => {
+      expect(
+        classifyScaleNetworkFailure(protocolFailure(), [{ ...reloadWindow(), ...changed }], [])
+          .expected,
+      ).toBe(false);
+      expect(
+        classifyScaleNetworkFailure(protocolFailure(), [reloadWindow(), reloadWindow()], [])
+          .expected,
+      ).toBe(false);
+    },
+  );
+
+  it('fails closed on missing CDP, cross-page count substitutions and duplicate protocol IDs', () => {
+    const raw = completeRaw();
+    const failure = protocolFailure();
+    raw.playwrightNetworkFailures = [failure];
+    expect(() => summarizeScaleNetworkEvidence(raw)).toThrow(/disagree/);
+    raw.networkFailures = [{ ...failure, pageId: 1 }];
+    expect(() => summarizeScaleNetworkEvidence(raw)).toThrow(/disagree/);
+    raw.networkFailures = [failure, failure];
+    raw.playwrightNetworkFailures = [failure, failure];
+    expect(() => summarizeScaleNetworkEvidence(raw)).toThrow(/ambiguous/);
+    expect(
+      evaluateScaleLevel({ ...completeRaw(), observerErrors: 1 }, identity, [resource()]).status,
+    ).toBe('INVALID');
+  });
+
+  it('uses the context offline-to-online ACK interval, including requests while recovery is pending', () => {
+    const window = {
+      id: 0,
+      client: 0,
+      pageId: 0,
+      startedAtMs: 1000,
+      appliedAtMs: 1001,
+      onlineRequestedAtMs: 2000,
+      endedAtMs: 2020,
+      completed: true,
+      offlineApplied: true,
+      onlineAcknowledged: true,
+    };
+    const failure = {
+      ...protocolFailure(),
+      phase: 'electronics-recovery',
+      route: '/api/diagnostics/client',
+      error: 'net::ERR_INTERNET_DISCONNECTED',
+      canceled: false,
+      startedAtMs: 2000.3,
+      failedAtMs: 2000.4,
+    };
+    const expected = classifyScaleNetworkFailure(failure, [], [window]);
+    expect(expected).toEqual({
+      expected: true,
+      reason: 'deliberate_context_offline',
+      boundaryId: 0,
+    });
+    const raw = {
+      ...completeRaw(),
+      networkFailures: [{ ...failure, ...expected }],
+      playwrightNetworkFailures: [failure],
+      offlineWindows: [window],
+    };
+    expect(evaluateScaleLevel(raw, identity, [resource()])).toMatchObject({
+      status: 'PASS',
+      network: { expectedOfflineFailures: 1 },
+    });
+    for (const changed of [
+      { startedAtMs: 2021, failedAtMs: 2022 },
+      { client: 1 },
+      { pageId: 1 },
+      { error: 'net::ERR_TIMED_OUT' },
+      { error: 'net::ERR_ABORTED' },
+    ])
+      expect(classifyScaleNetworkFailure({ ...failure, ...changed }, [], [window]).expected).toBe(
+        false,
+      );
+    for (const changed of [
+      { completed: false },
+      { onlineAcknowledged: false },
+      { offlineApplied: false },
+    ])
+      expect(classifyScaleNetworkFailure(failure, [], [{ ...window, ...changed }]).expected).toBe(
+        false,
+      );
+    expect(classifyScaleNetworkFailure(failure, [], [window, window]).expected).toBe(false);
+  });
+});
+
 describe('sequential scale orchestration', () => {
   const receipt = (users: number, status = 'PASS') => ({ ...identity, users, status });
 
@@ -676,19 +1030,27 @@ describe('sequential scale orchestration', () => {
   it('does not exempt a healthy timeout or an aborted write as navigation', () => {
     const base = completeRaw();
     for (const failure of [
-      { error: 'net::ERR_TIMED_OUT', phase: 'portal', method: 'GET', navigationWindow: false },
-      { error: 'net::ERR_ABORTED', phase: 'portal', method: 'PUT', navigationWindow: true },
+      { ...protocolFailure(), error: 'net::ERR_TIMED_OUT', phase: 'portal', method: 'GET' },
+      { ...protocolFailure(), error: 'net::ERR_ABORTED', phase: 'portal', method: 'PUT' },
     ]) {
       expect(
         evaluateScaleLevel(
-          { ...base, networkFailures: [{ ...failure, expected: true }] },
+          {
+            ...base,
+            networkFailures: [{ ...failure, expected: true }],
+            playwrightNetworkFailures: [failure],
+          },
           identity,
           [resource()],
         ).status,
       ).toBe('INVALID');
       expect(
         evaluateScaleLevel(
-          { ...base, networkFailures: [{ ...failure, expected: false }] },
+          {
+            ...base,
+            networkFailures: [{ ...failure, expected: false }],
+            playwrightNetworkFailures: [failure],
+          },
           identity,
           [resource()],
         ).status,

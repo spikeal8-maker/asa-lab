@@ -6,8 +6,9 @@ import process from 'node:process';
 import { URL } from 'node:url';
 
 export const SCALE_LEVELS = Object.freeze([30, 60, 100, 150, 200]);
-export const SCALE_ORIGIN = 'http://web:8080';
+export const SCALE_ORIGIN = 'http://127.0.0.1:8080';
 export const SCALE_DATABASE = 'asalab_test';
+export const SCALE_CRYPTO_CHALLENGE = 'asa-classroom-scale-secure-context-v1';
 // The public header's "Проекты" link opens the gallery. The measured Seat
 // journey must click the native personal-project link instead.
 export const SCALE_PROJECTS_LINK_SELECTOR =
@@ -352,6 +353,246 @@ const sha = (value) => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value)
 const digest = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const finite = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const integer = (value) => Number.isSafeInteger(value) && value >= 0;
+
+/** Validate the resolved Compose configuration, before creating any resources.
+ * The ordinary canonical loopback origin policy remains the application guard;
+ * the old web:8080-only isolated-origin exception is deliberately absent. */
+export function assertScaleIngressConfig(config) {
+  const { api, web, scratch, 'test-runner': driver } = config.services || {};
+  if (
+    api?.environment?.NODE_ENV !== 'test' ||
+    String(api.environment.ASA_WEB_PORT) !== '8080' ||
+    api.environment.ASA_WEB_ORIGIN !== SCALE_ORIGIN ||
+    'ASA_ISOLATED_TEST_WEB_ORIGIN' in api.environment ||
+    api.environment.ASA_BLOCKS_RUNTIME_ORIGIN !== SCALE_ORIGIN ||
+    web?.build?.args?.ASA_BLOCKS_RUNTIME_ORIGIN !== SCALE_ORIGIN ||
+    web?.environment?.ASA_BLOCKS_RUNTIME_ORIGIN !== SCALE_ORIGIN ||
+    scratch?.build?.args?.ASA_BLOCKS_PARENT_ORIGIN !== SCALE_ORIGIN ||
+    scratch?.environment?.ASA_BLOCKS_PARENT_ORIGIN !== SCALE_ORIGIN ||
+    driver?.environment?.ASA_E2E_BASE_URL !== SCALE_ORIGIN ||
+    driver?.network_mode !== 'service:web' ||
+    (driver.networks && Object.keys(driver.networks).length) ||
+    !['application', 'scratch-runtime', 'database'].every((name) => name in (web.networks || {}))
+  )
+    throw Error('Capacity requires its exact owned Web loopback namespace and origin');
+}
+
+/** This is used only after the controller has checked both containers' project,
+ * run-token and working-directory labels. A service name alone is not proof. */
+export function assertScaleDriverNetwork(driver, web) {
+  if (
+    !/^[a-f0-9]{64}$/.test(driver?.Id || '') ||
+    !/^[a-f0-9]{64}$/.test(web?.Id || '') ||
+    driver.Id === web.Id ||
+    driver.HostConfig?.NetworkMode !== 'container:' + web.Id ||
+    Object.keys(driver.NetworkSettings?.Networks || {}).length
+  )
+    throw Error('Browser runner does not share the exact owned Web network namespace');
+  return { driverId: driver.Id, webId: web.Id, networkMode: driver.HostConfig.NetworkMode };
+}
+
+/** The browser computes the digest itself in the actual top document/iframe.
+ * A trustworthy-looking URL or Node-side crypto availability is insufficient. */
+export function assertScaleSecureContext(proof) {
+  if (
+    !proof ||
+    !['top', 'scratch'].includes(proof.context) ||
+    proof.origin !== SCALE_ORIGIN ||
+    proof.isSecureContext !== true ||
+    proof.hasSubtle !== true ||
+    proof.topLevel !== (proof.context === 'top') ||
+    proof.sha256 !== scaleHash(SCALE_CRYPTO_CHALLENGE) ||
+    proof.error !== null
+  )
+    throw Error('Actual browser secure context and SHA-256 are required');
+}
+
+export function validateScaleSecureContexts(proofs, users) {
+  if (!Array.isArray(proofs) || proofs.length > 1 + users * 8)
+    throw Error('Missing or unbounded browser secure-context evidence');
+  for (const proof of proofs) {
+    assertScaleSecureContext(proof);
+    if (
+      !Number.isSafeInteger(proof.client) ||
+      proof.client < -1 ||
+      proof.client >= users ||
+      !finite(proof.atMs)
+    )
+      throw Error('Invalid browser secure-context attribution');
+  }
+  if (
+    !proofs.some(
+      (proof) => proof.client === -1 && proof.context === 'top' && proof.stage === 'setup',
+    )
+  )
+    throw Error('Missing early secure-context prerequisite');
+  for (let client = 0; client < users; client++)
+    for (const [context, stage] of [
+      ['top', 'seat-entry'],
+      ['scratch', 'scratch-open'],
+    ])
+      if (
+        !proofs.some(
+          (proof) => proof.client === client && proof.context === context && proof.stage === stage,
+        )
+      )
+        throw Error('Every learner requires actual top-page and Scratch-frame crypto evidence');
+}
+
+const protocolId = (value) => typeof value === 'string' && /^[A-Za-z0-9._-]{1,128}$/.test(value);
+const samePage = (failure, window) =>
+  failure.client === window.client && failure.pageId === window.pageId;
+const completedWindow = (window) =>
+  integer(window.id) &&
+  window.completed === true &&
+  finite(window.startedAtMs) &&
+  finite(window.endedAtMs) &&
+  window.endedAtMs >= window.startedAtMs;
+const reloadTelemetry = new Set([
+  '/api/analytics/v2/module-session',
+  '/api/analytics/v2/quality',
+  '/api/diagnostics/quality',
+]);
+
+/** Classify from passive protocol evidence and completed, harness-owned actions.
+ * Phase labels and the old navigationWindow boolean cannot grant an exception. */
+export function classifyScaleNetworkFailure(failure, navigationWindows, offlineWindows) {
+  const result = (reason, boundaryId = null) => ({
+    expected: reason !== 'unexpected_network_failure',
+    reason,
+    boundaryId,
+  });
+  if (failure.error === 'net::ERR_INTERNET_DISCONNECTED') {
+    const matches = offlineWindows.filter(
+      (window) =>
+        samePage(failure, window) &&
+        completedWindow(window) &&
+        window.offlineApplied === true &&
+        window.onlineAcknowledged === true &&
+        finite(window.appliedAtMs) &&
+        finite(window.onlineRequestedAtMs) &&
+        window.startedAtMs <= window.appliedAtMs &&
+        window.appliedAtMs <= window.onlineRequestedAtMs &&
+        window.onlineRequestedAtMs <= window.endedAtMs &&
+        failure.startedAtMs <= window.endedAtMs &&
+        failure.failedAtMs >= window.startedAtMs,
+    );
+    if (matches.length === 1) return result('deliberate_context_offline', matches[0].id);
+  }
+  if (failure.error === 'net::ERR_ABORTED' && failure.canceled === true) {
+    const matches = navigationWindows.filter(
+      (window) =>
+        samePage(failure, window) &&
+        completedWindow(window) &&
+        failure.failedAtMs >= window.startedAtMs &&
+        failure.failedAtMs <= window.endedAtMs,
+    );
+    if (matches.length === 1) {
+      const window = matches[0];
+      if (['GET', 'HEAD'].includes(failure.method))
+        return result('explicit_native_navigation', window.id);
+      if (
+        failure.method === 'POST' &&
+        reloadTelemetry.has(failure.route) &&
+        ['native-reload-electronics', 'native-reload-scratch'].includes(window.action) &&
+        failure.startedAtMs >= window.startedAtMs &&
+        failure.redirected === false &&
+        protocolId(failure.requestId) &&
+        protocolId(window.previousLoaderId) &&
+        protocolId(window.frameId) &&
+        protocolId(window.committedLoaderId) &&
+        window.commits === 1 &&
+        window.previousLoaderId !== window.committedLoaderId &&
+        finite(window.committedAtMs) &&
+        window.committedAtMs >= window.startedAtMs &&
+        window.committedAtMs <= window.endedAtMs &&
+        failure.frameId === window.frameId &&
+        failure.loaderId === window.previousLoaderId
+      )
+        return result('explicit_native_reload_telemetry', window.id);
+    }
+  }
+  return result('unexpected_network_failure');
+}
+
+/** Playwright failures are retained independently. Compare per-page multisets,
+ * not one global count: duplicate identical failures are still counted, while
+ * missing/extra/foreign-page CDP events cannot manufacture complete evidence. */
+export function summarizeScaleNetworkEvidence(raw) {
+  for (const key of [
+    'networkFailures',
+    'playwrightNetworkFailures',
+    'navigationWindows',
+    'offlineWindows',
+  ])
+    if (!Array.isArray(raw[key]) || raw[key].length > SCALE_PROFILE.maximumHttpObservations)
+      throw Error('Missing or unbounded browser network evidence');
+  const multiset = (failures) => {
+    const counts = new Map();
+    for (const failure of failures) {
+      if (
+        !integer(failure.client) ||
+        failure.client >= raw.users ||
+        !integer(failure.pageId) ||
+        typeof failure.method !== 'string' ||
+        typeof failure.route !== 'string' ||
+        typeof failure.error !== 'string'
+      )
+        throw Error('Unattributed browser network failure');
+      const key = JSON.stringify([
+        failure.client,
+        failure.pageId,
+        failure.method,
+        failure.route,
+        failure.error,
+      ]);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return canonicalJson([...counts].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+  };
+  if (multiset(raw.networkFailures) !== multiset(raw.playwrightNetworkFailures))
+    throw Error('Playwright and passive CDP failure observations disagree');
+  const seen = new Set();
+  const counts = {
+    failures: raw.networkFailures.length,
+    playwrightFailures: raw.playwrightNetworkFailures.length,
+    expectedNavigationAborts: 0,
+    expectedReloadTelemetryAborts: 0,
+    expectedOfflineFailures: 0,
+    unexpectedFailures: 0,
+  };
+  for (const failure of raw.networkFailures) {
+    const key = failure.pageId + ':' + failure.requestId;
+    if (
+      !protocolId(failure.requestId) ||
+      seen.has(key) ||
+      !finite(failure.startedAtMs) ||
+      !finite(failure.failedAtMs) ||
+      failure.failedAtMs < failure.startedAtMs ||
+      typeof failure.canceled !== 'boolean'
+    )
+      throw Error('Missing or ambiguous protocol request witness');
+    seen.add(key);
+    const classified = classifyScaleNetworkFailure(
+      failure,
+      raw.navigationWindows,
+      raw.offlineWindows,
+    );
+    if (
+      failure.expected === true &&
+      (!classified.expected ||
+        failure.reason !== classified.reason ||
+        failure.boundaryId !== classified.boundaryId)
+    )
+      throw Error('A generic network failure was incorrectly exempted');
+    if (failure.expected !== true) counts.unexpectedFailures++;
+    else if (classified.reason === 'deliberate_context_offline') counts.expectedOfflineFailures++;
+    else if (classified.reason === 'explicit_native_reload_telemetry')
+      counts.expectedReloadTelemetryAborts++;
+    else counts.expectedNavigationAborts++;
+  }
+  return counts;
+}
 
 export function assertScaleEnvironment(env, browser = false) {
   if (
@@ -744,6 +985,7 @@ function evaluateScaleWorkload(raw, identity, resources, calibration) {
     )
       throw Error('Non-monotonic or missing runner samples');
     validateScaleAssets(raw.provenance, identity);
+    validateScaleSecureContexts(raw.secureContexts, raw.users);
     const plannedCohorts = scaleCohortPlan(raw.users, calibration);
     if (
       raw.classCount !== plannedCohorts.length ||
@@ -803,19 +1045,8 @@ function evaluateScaleWorkload(raw, identity, resources, calibration) {
     if (receipt.verificationHttp.unexpected429) receipt.reasons.push('verification_429');
     if (!Array.isArray(raw.javascriptErrors) || raw.javascriptErrors.length)
       receipt.reasons.push('javascript_errors');
-    if (!Array.isArray(raw.networkFailures)) throw Error('Missing network failure observations');
-    for (const failure of raw.networkFailures) {
-      if (failure.expected === true) {
-        const offline =
-          failure.error === 'net::ERR_INTERNET_DISCONNECTED' && failure.phase.includes('offline');
-        const navigation =
-          failure.error === 'net::ERR_ABORTED' &&
-          ['GET', 'HEAD'].includes(failure.method) &&
-          failure.navigationWindow === true;
-        if (!offline && !navigation)
-          throw Error('A generic network failure was incorrectly exempted');
-      } else receipt.reasons.push('unexpected_network_failure');
-    }
+    receipt.network = summarizeScaleNetworkEvidence(raw);
+    if (receipt.network.unexpectedFailures) receipt.reasons.push('unexpected_network_failure');
     if (raw.accountControl?.status !== 'VERIFIED')
       receipt.reasons.push('ordinary_account_login_unconfirmed');
     if (

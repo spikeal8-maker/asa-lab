@@ -39,8 +39,10 @@ services:
       ASA_DB_STATEMENT_TIMEOUT_MS: '15000'
       ASA_DB_QUERY_TIMEOUT_MS: '15000'
       APP_DATABASE_URL: postgres://asalab_app:${ASA_SCALE_APP_PASSWORD}@postgres:5432/asalab_test
-      ASA_ISOLATED_TEST_WEB_ORIGIN: http://web:8080
-      ASA_BLOCKS_RUNTIME_ORIGIN: http://web:8080
+      ASA_WEB_PORT: '8080'
+      ASA_WEB_ORIGIN: http://127.0.0.1:8080
+      ASA_ISOLATED_TEST_WEB_ORIGIN: !reset null
+      ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:8080
       ASA_BLOCKS_RUNTIME_SIGNING_KEY: ${ASA_SCALE_SIGNING_KEY:?generated test signing key required}
       ASA_OBJECT_STORAGE_ENDPOINT: http://minio:9000
       ASA_OBJECT_STORAGE_REGION: us-east-1
@@ -55,9 +57,13 @@ services:
     mem_limit: 256m
     build:
       args:
-        ASA_BLOCKS_RUNTIME_ORIGIN: http://web:8080
+        ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:8080
     environment:
-      ASA_BLOCKS_RUNTIME_ORIGIN: http://web:8080
+      ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:8080
+    # The test runner shares this namespace. Preserve its independent PostgreSQL
+    # observer through the owned private network; no database port is added.
+    networks:
+      - database
     ports: !override
       - '127.0.0.1:4612:8080'
 
@@ -67,9 +73,9 @@ services:
     mem_limit: 512m
     build:
       args:
-        ASA_BLOCKS_PARENT_ORIGIN: http://web:8080
+        ASA_BLOCKS_PARENT_ORIGIN: http://127.0.0.1:8080
     environment:
-      ASA_BLOCKS_PARENT_ORIGIN: http://web:8080
+      ASA_BLOCKS_PARENT_ORIGIN: http://127.0.0.1:8080
     ports: !reset []
 
   minio:
@@ -95,6 +101,10 @@ services:
     restart: 'no'
     mem_limit: 8g
     shm_size: 1gb
+    # A real loopback origin is browser-trustworthy without insecure flags or
+    # weakening Web Crypto. The namespace belongs to this project's Web only.
+    network_mode: service:web
+    networks: !reset []
     environment:
       CI: 'true'
       GITHUB_ACTIONS: ${GITHUB_ACTIONS}
@@ -112,7 +122,7 @@ services:
       TEST_DATABASE_URL: postgres://postgres:${ASA_SCALE_ADMIN_PASSWORD}@postgres:5432/asalab_test
       APP_TEST_DATABASE_URL: postgres://asalab_app:${ASA_SCALE_APP_PASSWORD}@postgres:5432/asalab_test
       ASA_E2E_EXTERNAL: 'true'
-      ASA_E2E_BASE_URL: http://web:8080
+      ASA_E2E_BASE_URL: http://127.0.0.1:8080
     command:
       [
         'corepack',
