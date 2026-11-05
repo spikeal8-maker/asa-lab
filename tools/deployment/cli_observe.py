@@ -227,7 +227,7 @@ class Observer:
                     '"project":{{json (index .Config.Labels "com.docker.compose.project")}},'
                     '"workingDir":{{json (index .Config.Labels "com.docker.compose.project.working_dir")}},'
                     '"image":{{json .Config.Image}},"running":{{json .State.Running}},'
-                    '"health":{{if .State.Health}}{{json .State.Health.Status}}{{else}}null{{end}},"mounts":{{json .Mounts}}}')
+                    '"health":{{with index .State "Health"}}{{json .Status}}{{else}}null{{end}},"mounts":{{json .Mounts}}}')
         response = probe(["docker", "inspect", "--format", template, *ids])
         try:
             rows = [json.loads(line) for line in response.get("output", "").splitlines()]

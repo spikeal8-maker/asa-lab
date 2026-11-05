@@ -4,6 +4,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -126,6 +128,24 @@ class ObservationTests(unittest.TestCase):
             with patch.object(observe, "probe", side_effect=self.docker(rows)):
                 self.assertNotEqual(reader.services()["status"], "OK")
 
+
+    def test_completed_auxiliary_container_does_not_change_required_health(self):
+        rows = self.containers()
+        rows.append({"id": "f" * 64, "service": "minio-init", "project": "asa-fixture",
+                     "workingDir": str(self.root), "running": False, "health": None,
+                     "mounts": [], "image": RELEASE["images"]["minio"]})
+        before = self.tree()
+        with patch.object(observe, "probe", side_effect=self.docker(rows)), \
+             patch.object(self.reader, "site", return_value={"status": "OK",
+                 "revision": RELEASE["revision"], "reportedSchema": RELEASE["schema"]}):
+            value = self.reader.status()
+        self.assertEqual(value["status"], "OK")
+        self.assertEqual(value["services"]["status"], "OK")
+        self.assertEqual(value["database"], {"status": "OK", "schema": 304, "bytes": 1024})
+        self.assertEqual(value["services"]["containers"][-1],
+                         {"service": "minio-init", "running": False, "health": None})
+        self.assertEqual(self.tree(), before)
+
     def test_live_schema_and_image_pins_are_observed(self):
         with patch.object(observe, "probe", side_effect=self.docker(self.containers())):
             self.assertEqual(self.reader.containers()["status"], "OK")
@@ -227,6 +247,192 @@ class ObservationTests(unittest.TestCase):
         self.assertNotIn("output", result)
         result = observe.probe([sys.executable, "-I", "-B", "-c", "import time; time.sleep(2)"], timeout=.05)
         self.assertEqual(result["status"], "UNAVAILABLE")
+
+
+class GoInspectFormatTests(unittest.TestCase):
+    """Real Go templates with Docker's typed-to-raw inspect fallback, no daemon."""
+
+    setUp = ObservationTests.setUp
+    write = ObservationTests.write
+    tree = ObservationTests.tree
+    containers = ObservationTests.containers
+
+    @classmethod
+    def setUpClass(cls):
+        compiler = shutil.which("go")
+        if compiler is None:
+            raise unittest.SkipTest("Go compiler unavailable; real inspect formatter not executed")
+        temporary = tempfile.TemporaryDirectory(prefix="asa-inspect-format-")
+        cls.addClassCleanup(temporary.cleanup)
+        directory = Path(temporary.name)
+        source = directory / "inspect.go"
+        source.write_text(r'''package main
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "os"
+    "text/template"
+)
+
+func main() {
+    var request struct {
+        Format string
+        Rows []json.RawMessage
+    }
+    if err := json.NewDecoder(os.Stdin).Decode(&request); err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(2)
+    }
+    tmpl, err := template.New("").Funcs(template.FuncMap{
+        "json": func(value interface{}) (string, error) {
+            encoded, err := json.Marshal(value)
+            return string(encoded), err
+        },
+    }).Parse(request.Format)
+    if err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(2)
+    }
+    failed := false
+    for _, document := range request.Rows {
+        var raw interface{}
+        decoder := json.NewDecoder(bytes.NewReader(document))
+        decoder.UseNumber()
+        if err := decoder.Decode(&raw); err != nil {
+            fmt.Fprintln(os.Stderr, err)
+            os.Exit(2)
+        }
+        // Docker v29.9.3 InspectResponse has ID, not Id. Its template
+        // inspector retries the raw JSON with missingkey=error on failure.
+        typed := struct { ID string }{}
+        var output bytes.Buffer
+        if err := tmpl.Execute(&output, typed); err != nil {
+            output.Reset()
+            if err := tmpl.Option("missingkey=error").Execute(&output, raw); err != nil {
+                fmt.Fprintln(os.Stderr, err)
+                failed = true
+                continue
+            }
+        }
+        fmt.Fprintln(os.Stdout, output.String())
+    }
+    if failed {
+        os.Exit(1)
+    }
+}
+''', encoding="utf-8")
+        cls.renderer = directory / ("inspect.exe" if os.name == "nt" else "inspect")
+        environment = {**os.environ, "GOTOOLCHAIN": "local", "GOPROXY": "off",
+                       "GOSUMDB": "off", "GOWORK": "off", "GOENV": "off",
+                       "GOCACHE": str(directory / "cache")}
+        completed = subprocess.run([compiler, "build", "-o", str(cls.renderer), str(source)],
+                                   cwd=directory, env=environment, capture_output=True,
+                                   text=True, encoding="utf-8", timeout=120)
+        if completed.returncode != 0:
+            raise AssertionError("Local Go inspect renderer did not compile: " + completed.stderr)
+
+    def raw_containers(self):
+        rows = []
+        for item in self.containers():
+            rows.append({"Id": item["id"], "Config": {"Image": item["image"], "Labels": {
+                "com.docker.compose.project": item["project"],
+                "com.docker.compose.service": item["service"],
+                "com.docker.compose.project.working_dir": item["workingDir"]}},
+                "State": {"Running": item["running"], "Health": {"Status": item["health"]}},
+                "Mounts": item["mounts"]})
+        return rows
+
+    def docker_renderer(self, rows):
+        def probe(argv, **kwargs):
+            if argv[:2] == ["docker", "ps"]:
+                return {"status": "OK", "output": "\n".join(format(index, "064x")
+                        for index in range(1, len(rows) + 1))}
+            if argv[:2] == ["docker", "inspect"]:
+                self.assertEqual(argv[2], "--format")
+                rendered = subprocess.run([str(self.renderer)],
+                    input=json.dumps({"Format": argv[3], "Rows": rows}), capture_output=True,
+                    text=True, encoding="utf-8", timeout=10)
+                self.last_render = rendered
+                return {"status": "OK", "output": rendered.stdout} if rendered.returncode == 0 \
+                    else observe.unavailable("PROBE_FAILED")
+            if argv[:2] == ["docker", "exec"]:
+                self.assertEqual(argv[3:6], ["sh", "-eu", "-c"])
+                self.assertIn("default_transaction_read_only=on", argv[-1])
+                return {"status": "OK", "output": "SET\n0304|1024"}
+            return observe.unavailable("TOOL_OR_ACCESS")
+        return probe
+
+    def test_actual_template_accepts_absent_or_null_health_on_completed_init(self):
+        before = self.tree()
+        for present in (False, True):
+            with self.subTest(health="null" if present else "absent"):
+                rows = self.raw_containers()
+                auxiliary = json.loads(json.dumps(rows[3]))
+                auxiliary["Id"] = "f" * 64
+                auxiliary["Config"]["Labels"]["com.docker.compose.service"] = "minio-init"
+                auxiliary["State"] = {"Running": False}
+                if present:
+                    auxiliary["State"]["Health"] = None
+                rows.append(auxiliary)
+                reader = observe.Observer({"root": str(self.root), "project": "asa-fixture"})
+                with patch.object(observe, "probe", side_effect=self.docker_renderer(rows)), \
+                     patch.object(reader, "site", return_value={"status": "OK",
+                         "revision": RELEASE["revision"], "reportedSchema": RELEASE["schema"]}):
+                    value = reader.status()
+                self.assertEqual(self.last_render.returncode, 0)
+                self.assertEqual(value["status"], "OK")
+                self.assertEqual(value["services"]["status"], "OK")
+                self.assertEqual(value["database"], {"status": "OK", "schema": 304, "bytes": 1024})
+                self.assertEqual(value["services"]["containers"][-1],
+                                 {"service": "minio-init", "running": False, "health": None})
+        self.assertEqual(self.tree(), before)
+
+    def test_required_service_without_health_stays_failed(self):
+        for present in (False, True):
+            with self.subTest(health="null" if present else "absent"):
+                rows = self.raw_containers()
+                rows[0]["State"].pop("Health")
+                if present:
+                    rows[0]["State"]["Health"] = None
+                reader = observe.Observer({"root": str(self.root), "project": "asa-fixture"})
+                with patch.object(observe, "probe", side_effect=self.docker_renderer(rows)), \
+                     patch.object(reader, "site", return_value={"status": "OK",
+                         "revision": RELEASE["revision"], "reportedSchema": RELEASE["schema"]}):
+                    value = reader.status()
+                self.assertEqual(self.last_render.returncode, 0)
+                self.assertEqual(value["services"]["status"], "FAILED")
+                self.assertEqual(value["status"], "FAILED")
+
+    def test_malformed_health_and_identity_fields_fail_closed(self):
+        mutations = (
+            ("health-string", lambda row: row["State"].update(Health="NEVER_PRINT_THIS_SECRET")),
+            ("health-array", lambda row: row["State"].update(Health=[{"Status": "healthy"}])),
+            ("health-no-status", lambda row: row["State"].update(Health={"Other": "healthy"})),
+            ("health-unknown-status", lambda row: row["State"].update(Health={"Status": "unknown"})),
+            ("health-boolean-status", lambda row: row["State"].update(Health={"Status": True})),
+            ("running-integer", lambda row: row["State"].update(Running=1)),
+            ("running-string", lambda row: row["State"].update(Running="true")),
+            ("running-null", lambda row: row["State"].update(Running=None)),
+            ("mounts-object", lambda row: row.update(Mounts={})),
+            ("missing-state", lambda row: row.pop("State")),
+            ("foreign-project", lambda row: row["Config"]["Labels"].update(
+                {"com.docker.compose.project": "other-project"})),
+            ("foreign-directory", lambda row: row["Config"]["Labels"].update(
+                {"com.docker.compose.project.working_dir": "/other"})),
+        )
+        for name, mutate in mutations:
+            with self.subTest(name=name):
+                rows = self.raw_containers()
+                mutate(rows[0])
+                reader = observe.Observer({"root": str(self.root), "project": "asa-fixture"})
+                with patch.object(observe, "probe", side_effect=self.docker_renderer(rows)):
+                    value = reader.services()
+                    database = reader.database()
+                self.assertEqual(value["status"], "UNAVAILABLE")
+                self.assertEqual(value["reasonCode"], "DOCKER_IDENTITY")
+                self.assertEqual(database, observe.unavailable("POSTGRES_UNAVAILABLE"))
+                self.assertNotIn("NEVER_PRINT_THIS_SECRET", json.dumps(value))
 
 
 if __name__ == "__main__":
