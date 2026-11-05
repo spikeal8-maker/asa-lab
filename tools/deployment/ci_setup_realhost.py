@@ -2720,8 +2720,16 @@ def owner_call(phase, *, timeout=900):
         # Only current owner-phase blockers may cross the subprocess boundary.
         blocked = (type(code) is int and code == 2 and result.get("status") == "BLOCKED"
                    and reason in ("BLOCKED_FAULT_GUEST_DISK", "COMMAND_TIMEOUT"))
-        raise Failure(reason if isinstance(reason, str) and CODE.fullmatch(reason) else "OWNER_PHASE_FAILED",
-                      status="BLOCKED" if blocked else "FAIL")
+        error = Failure(reason if isinstance(reason, str) and CODE.fullmatch(reason) else "OWNER_PHASE_FAILED",
+                        status="BLOCKED" if blocked else "FAIL")
+        browser_phase = {"owner-seed": ("CONTROL_BROWSER_BEFORE", "BEFORE"),
+                         "owner-final": ("CONTROL_BROWSER_AFTER", "AFTER")}.get(phase)
+        if browser_phase and code == 1 and result.get("status") == "FAIL" and reason == browser_phase[0]:
+            try:
+                error.control_browser_diagnostic = control_browser_evidence(result.get("controlBrowserDiagnostic"), browser_phase[1])
+            except BaseException:
+                error.control_browser_diagnostic = {"format": "asa-realhost-control-browser-v1", "phase": browser_phase[1], "binding": "UNAVAILABLE"}
+        raise error
     return result
 
 
@@ -3271,12 +3279,123 @@ def control_fingerprint(install, helpers, acceptance, identities):
             "authenticatedS3Sha256": hashlib.sha256(actual_object.encode()).hexdigest()}
 
 
+def control_browser_evidence(value, phase):
+    """Rebuild the closed diagnostic at each process boundary; never relay raw data."""
+    phase = phase if type(phase) is str and phase in ("BEFORE", "AFTER") else "UNAVAILABLE"
+    unavailable = {"format": "asa-realhost-control-browser-v1", "phase": phase, "binding": "UNAVAILABLE"}
+    try:
+        require(type(value) is dict and phase != "UNAVAILABLE", "CONTROL_BROWSER_DIAGNOSTIC")
+        if value == unavailable:
+            return unavailable
+        require(set(value) == {"format", "phase", "binding", "fixtureArgument", "target", "runtimeProvenance",
+                               "status", "reason", "checks", "error"}
+                and value["format"] == unavailable["format"] and value["phase"] == phase
+                and value["binding"] == "DIRECT_INVOCATION" and value["fixtureArgument"] == "REALHOST_CONTROL"
+                and value["target"] == ("PREVIOUS_RUNTIME" if phase == "BEFORE" else "CURRENT_RUNTIME"),
+                "CONTROL_BROWSER_DIAGNOSTIC")
+        status, provenance, checks = value["status"], value["runtimeProvenance"], value["checks"]
+        require(type(status) is str and status in ("failed", "incomplete", "environment_failed")
+                and type(provenance) is str and provenance in ("PINNED_INVOCATION", "NOT_RECORDED")
+                and type(checks) is dict and set(checks) == set(RECEIPT_BROWSER_CHECKS)
+                and all(type(item) is str and item in ("passed", "failed", "not_run") for item in checks.values()),
+                "CONTROL_BROWSER_DIAGNOSTIC")
+        require((status == "failed" and provenance == "PINNED_INVOCATION"
+                 and all(item in ("passed", "failed") for item in checks.values()) and "failed" in checks.values())
+                or (status != "failed" and all(item == "not_run" for item in checks.values())), "CONTROL_BROWSER_DIAGNOSTIC")
+
+        def reason(record, allowed, *, http=False):
+            require(type(record) is dict and type(record.get("state")) is str, "CONTROL_BROWSER_DIAGNOSTIC")
+            state = record["state"]
+            if state in ("MISSING", "NULL") and set(record) == {"state"}:
+                return {"state": state}
+            if state == "UNRECOGNIZED" and set(record) == {"state", "type"} and record["type"] in ("STRING", "NON_STRING"):
+                return {"state": state, "type": record["type"]}
+            if state == "RECOGNIZED" and set(record) == {"state", "code"} and type(record["code"]) is str and record["code"] in allowed:
+                return {"state": state, "code": record["code"]}
+            if (http and state == "RECOGNIZED" and set(record) == {"state", "code", "httpStatus"}
+                    and record["code"] == "API_STATUS" and type(record["httpStatus"]) is int and 100 <= record["httpStatus"] <= 599):
+                return {"state": state, "code": "API_STATUS", "httpStatus": record["httpStatus"]}
+            raise Failure("CONTROL_BROWSER_DIAGNOSTIC")
+
+        error = value["error"]
+        require(type(error) is dict, "CONTROL_BROWSER_DIAGNOSTIC")
+        if set(error) == {"state"} and type(error["state"]) is str and error["state"] in ("MISSING", "NULL", "UNRECOGNIZED"):
+            projected_error = {"state": error["state"]}
+        else:
+            require(set(error) == {"stage", "code"} and type(error["stage"]) is str
+                    and error["stage"] in RECEIPT_BROWSER_STAGES | {"UNAVAILABLE", "UNRECOGNIZED"}, "CONTROL_BROWSER_DIAGNOSTIC")
+            projected_error = {"stage": error["stage"], "code": reason(error["code"], RECEIPT_BROWSER_ERRORS, http=True)}
+        return {"format": unavailable["format"], "phase": phase, "binding": "DIRECT_INVOCATION",
+                "fixtureArgument": "REALHOST_CONTROL", "target": "PREVIOUS_RUNTIME" if phase == "BEFORE" else "CURRENT_RUNTIME",
+                "runtimeProvenance": provenance, "status": status,
+                "reason": reason(value["reason"], RECEIPT_BROWSER_REASONS),
+                "checks": {key: checks[key] for key in RECEIPT_BROWSER_CHECKS}, "error": projected_error}
+    except BaseException:
+        return unavailable
+
+
+def control_browser_projection(report, *, phase, operation_id, instance_id, browser, release, context):
+    """Bind an existing return value to direct call arguments, not a manager receipt."""
+    unavailable = control_browser_evidence(None, phase)
+    try:
+        pin = context["pins"]["browser"]
+        target = context["pins"]["previous" if phase == "BEFORE" else "current"]
+        require(phase in ("BEFORE", "AFTER") and type(operation_id) is str and re.fullmatch(r"[a-f0-9]{32}", operation_id)
+                and type(instance_id) is str and re.fullmatch(r"[a-f0-9]{32}", instance_id)
+                and type(browser) is dict and browser.get("fixturePath") == str(INSTALL_ROOT / ".asa/acceptance/realhost-control.json")
+                and type(pin.get("componentSha256")) is str and re.fullmatch(r"[a-f0-9]{64}", pin["componentSha256"])
+                and browser.get("componentSha256") == pin["componentSha256"]
+                and type(pin.get("opsRevision")) is str and re.fullmatch(r"[a-f0-9]{40}", pin["opsRevision"])
+                and type(release.get("revision")) is str and re.fullmatch(r"[a-f0-9]{40}", release["revision"])
+                and release["revision"] == target["revision"] and type(release.get("schema")) is int
+                and type(target.get("schema")) is int and release["schema"] == target["schema"], "CONTROL_BROWSER_DIAGNOSTIC")
+        require(type(report) is dict and report.get("format") == "asa-setup-acceptance-v1" and report.get("kind") == "browser"
+                and report.get("operationId") == operation_id and report.get("instanceId") == instance_id
+                and report.get("installationId") == instance_id, "CONTROL_BROWSER_DIAGNOSTIC")
+        runtime = ("revision", "entryOrigin", "invocationId", "componentSha256", "componentRevision")
+        provenance = "NOT_RECORDED"
+        if any(key in report for key in runtime):
+            require(all(key in report for key in runtime) and report["revision"] == release["revision"]
+                    and report["entryOrigin"] == ORIGIN and type(report["invocationId"]) is str
+                    and re.fullmatch(r"[a-f0-9]{32}", report["invocationId"])
+                    and report["componentSha256"] == pin["componentSha256"]
+                    and report["componentRevision"] == pin["opsRevision"], "CONTROL_BROWSER_DIAGNOSTIC")
+            provenance = "PINNED_INVOCATION"
+        checks = report.get("checks")
+        require(type(checks) is dict and set(checks) == set(RECEIPT_BROWSER_CHECKS), "CONTROL_BROWSER_DIAGNOSTIC")
+        error = report.get("error")
+        projected_error = {"state": "MISSING" if "error" not in report else "NULL" if error is None else "UNRECOGNIZED"}
+        if type(error) is dict:
+            projected_error = {"stage": receipt_choice(error.get("stage"), RECEIPT_BROWSER_STAGES),
+                               "code": receipt_reason(error, "code", RECEIPT_BROWSER_ERRORS)}
+            code = error.get("code")
+            if type(code) is str and re.fullmatch(r"API_STATUS_[1-5][0-9]{2}", code):
+                projected_error["code"] = {"state": "RECOGNIZED", "code": "API_STATUS", "httpStatus": int(code[-3:])}
+        return control_browser_evidence({"format": unavailable["format"], "phase": phase, "binding": "DIRECT_INVOCATION",
+            "fixtureArgument": "REALHOST_CONTROL", "target": "PREVIOUS_RUNTIME" if phase == "BEFORE" else "CURRENT_RUNTIME",
+            "runtimeProvenance": provenance, "status": receipt_choice(report.get("status"), {"failed", "incomplete", "environment_failed"}),
+            "reason": receipt_reason(report, "reasonCode", RECEIPT_BROWSER_REASONS),
+            "checks": {key: receipt_choice(checks[key], {"passed", "failed", "not_run"}) for key in RECEIPT_BROWSER_CHECKS},
+            "error": projected_error}, phase)
+    except BaseException:
+        return unavailable
+
+
 def owner_seed(context):
     config_module, acceptance, _, install, helpers, config, release = owner_installation(context)
     _, before_ids = control_rows(install, helpers)
     browser = {**config["browser"], "fixturePath": str(INSTALL_ROOT / ".asa/acceptance/realhost-control.json")}
-    report = acceptance.browser_acceptance(install, release, uuid.uuid4().hex, browser)
-    require(report["status"] == "passed", "CONTROL_BROWSER_BEFORE")
+    operation_id = uuid.uuid4().hex
+    report = acceptance.browser_acceptance(install, release, operation_id, browser)
+    try:
+        require(report["status"] == "passed", "CONTROL_BROWSER_BEFORE")
+    except Failure as error:
+        try:
+            error.control_browser_diagnostic = control_browser_evidence(control_browser_projection(report, phase="BEFORE",
+                operation_id=operation_id, instance_id=install.settings.get("instanceId"), browser=browser, release=release, context=context), "BEFORE")
+        except BaseException:
+            error.control_browser_diagnostic = {"format": "asa-realhost-control-browser-v1", "phase": "BEFORE", "binding": "UNAVAILABLE"}
+        raise
     _, after_ids = control_rows(install, helpers)
     identities = {table: sorted(set(after_ids[table]) - set(before_ids[table])) for table in TABLES}
     require(all(identities[table] for table in TABLES) and len(identities["projects"]) >= 2, "CONTROL_COHORT_INCOMPLETE")
@@ -3300,8 +3419,17 @@ def owner_observe(context, *, browser=False):
     require(current == saved["fingerprint"], "CONTROL_DATA_CHANGED")
     output = {"preserved": True, "runtimeRevision": release["revision"], "schema": release["schema"], "fingerprint": current}
     if browser:
-        report = acceptance.browser_acceptance(install, release, uuid.uuid4().hex, saved["browser"])
-        require(report["status"] == "passed", "CONTROL_BROWSER_AFTER")
+        operation_id = uuid.uuid4().hex
+        report = acceptance.browser_acceptance(install, release, operation_id, saved["browser"])
+        try:
+            require(report["status"] == "passed", "CONTROL_BROWSER_AFTER")
+        except Failure as error:
+            try:
+                error.control_browser_diagnostic = control_browser_evidence(control_browser_projection(report, phase="AFTER",
+                    operation_id=operation_id, instance_id=install.settings.get("instanceId"), browser=saved["browser"], release=release, context=context), "AFTER")
+            except BaseException:
+                error.control_browser_diagnostic = {"format": "asa-realhost-control-browser-v1", "phase": "AFTER", "binding": "UNAVAILABLE"}
+            raise
         output["browser"] = browser_projection(report)
     return output
 
@@ -5224,6 +5352,13 @@ def guest_main(phase, *, control_deadline=None):
         return_code = 0 if result["status"] in ("PASS", "PENDING") else 2 if result["status"] == "BLOCKED" else 1
     except BaseException as error:
         result.update(status=getattr(error, "status", "FAIL"), reasonCode=safe_error(error))
+        browser_phase = {"owner-seed": ("CONTROL_BROWSER_BEFORE", "BEFORE"), "seed": ("CONTROL_BROWSER_BEFORE", "BEFORE"),
+                         "owner-final": ("CONTROL_BROWSER_AFTER", "AFTER"), "final": ("CONTROL_BROWSER_AFTER", "AFTER")}.get(phase)
+        if browser_phase and result["status"] == "FAIL" and result["reasonCode"] == browser_phase[0]:
+            try:
+                result["controlBrowserDiagnostic"] = control_browser_evidence(getattr(error, "control_browser_diagnostic", None), browser_phase[1])
+            except BaseException:
+                result["controlBrowserDiagnostic"] = {"format": "asa-realhost-control-browser-v1", "phase": browser_phase[1], "binding": "UNAVAILABLE"}
         if hasattr(error, "post_failure_diagnostic"):
             result["postFailureDiagnostic"] = post_failure_projection(error.post_failure_diagnostic)
         if hasattr(error, "command_failure_diagnostic"):

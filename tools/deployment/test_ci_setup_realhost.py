@@ -1133,6 +1133,346 @@ class PostFailureDiagnosticTests(unittest.TestCase):
             self.assertFalse(target.exists())
 
 
+class ControlBrowserDiagnosticTests(unittest.TestCase):
+    def setUp(self):
+        self.root = patch.object(harness, "INSTALL_ROOT", PurePosixPath("/srv/asa-lab"))
+        self.root.start()
+        self.addCleanup(self.root.stop)
+        self.context = {"pins": harness.pin_manifest(HERE / "fixtures/setup-realhost-pins.json")}
+        self.operation, self.instance = "c" * 32, "a" * 32
+        self.browser = {"fixturePath": str(harness.INSTALL_ROOT / ".asa/acceptance/realhost-control.json"),
+                        "componentSha256": self.context["pins"]["browser"]["componentSha256"]}
+        self.install = SimpleNamespace(settings={"instanceId": self.instance})
+        self.secret = "PRIVATE_CREDENTIAL_NEVER_REPORT"
+
+    def report(self, phase="BEFORE", *, status="failed", runtime=True):
+        target = self.context["pins"]["previous" if phase == "BEFORE" else "current"]
+        value = {"format": "asa-setup-acceptance-v1", "kind": "browser",
+                 "operationId": self.operation, "installationId": self.instance, "instanceId": self.instance,
+                 "status": status, "reasonCode": "BROWSER_USER_FLOW_FAILED" if status == "failed" else "BROWSER_ENVIRONMENT_FAILED",
+                 "checks": {name: "failed" if status == "failed" else "not_run" for name in harness.RECEIPT_BROWSER_CHECKS}}
+        if runtime:
+            value.update(revision=target["revision"], entryOrigin=harness.ORIGIN, invocationId="d" * 32,
+                         componentSha256=self.context["pins"]["browser"]["componentSha256"],
+                         componentRevision=self.context["pins"]["browser"]["opsRevision"])
+        if status == "failed":
+            value["error"] = {"stage": "blocks_save", "code": "SAVE_NOT_OBSERVED"}
+        return value
+
+    def project(self, value, phase="BEFORE", **changes):
+        arguments = {"phase": phase, "operation_id": self.operation, "instance_id": self.instance,
+                     "browser": self.browser, "release": self.context["pins"]["previous" if phase == "BEFORE" else "current"],
+                     "context": self.context}
+        arguments.update(changes)
+        return harness.control_browser_projection(value, **arguments)
+
+    @contextlib.contextmanager
+    def owner(self, phase, value):
+        saved = {"ids": {}, "fingerprint": {"known": True}, "browser": self.browser}
+        config_module = SimpleNamespace(private_json=Mock(return_value=saved), save_private=Mock())
+        acceptance = SimpleNamespace(browser_acceptance=Mock(return_value=value))
+        config = {"installationId": "e" * 32, "browser": {**self.browser, "fixturePath": "/srv/asa-lab/.asa/acceptance/fixture.json"}}
+        release = self.context["pins"]["previous" if phase == "BEFORE" else "current"]
+        with patch.object(harness, "owner_installation", return_value=(config_module, acceptance, None, self.install, None, config, release)), \
+                patch.object(harness, "control_rows", return_value=({}, {})) as rows, \
+                patch.object(harness, "control_fingerprint", return_value=saved["fingerprint"]) as fingerprint, \
+                patch.object(harness, "s3_command") as s3, \
+                patch.object(harness.uuid, "uuid4", return_value=SimpleNamespace(hex=self.operation)) as identifier:
+            yield SimpleNamespace(config_module=config_module, acceptance=acceptance, config=config, saved=saved,
+                                  release=release, rows=rows, fingerprint=fingerprint, s3=s3, identifier=identifier)
+
+    def owner_json(self, phase, value):
+        name = "owner-seed" if phase == "BEFORE" else "owner-final"
+        output = io.StringIO()
+        with self.owner(phase, value), patch.object(harness, "guest_guard", return_value=self.context), \
+                patch.object(harness.os, "geteuid", create=True, return_value=1001), \
+                patch.object(harness, "CLI_ACTIONS", []), contextlib.redirect_stdout(output):
+            code = harness.guest_main(name)
+        return code, json.loads(output.getvalue())
+
+    def relay(self, phase, code, child):
+        name = "owner-seed" if phase == "BEFORE" else "owner-final"
+        account = SimpleNamespace(pw_name="asa-setup", pw_dir="/var/lib/asa-setup/operator")
+        with patch.dict(sys.modules, {"pwd": SimpleNamespace(getpwnam=Mock(return_value=account))}), \
+                patch.object(harness.Commands, "run", return_value=(code, json.dumps(child).encode())) as command:
+            with self.assertRaises(harness.Failure) as caught:
+                harness.owner_call(name, timeout=73)
+        self.assertEqual(command.call_args.kwargs["timeout"], 73)
+        self.assertEqual(command.call_args.kwargs["allowed"], (0, 1, 2))
+        self.assertEqual(command.call_args.args[0][:5], ["runuser", "-u", "asa-setup", "--", "/usr/bin/python3"])
+        return caught.exception
+
+    def test_direct_before_and_after_binding_omits_private_identifiers(self):
+        for phase in ("BEFORE", "AFTER"):
+            with self.subTest(phase=phase):
+                value = self.project(self.report(phase), phase)
+                self.assertEqual(value["binding"], "DIRECT_INVOCATION")
+                self.assertEqual(value["phase"], phase)
+                self.assertEqual(value["target"], "PREVIOUS_RUNTIME" if phase == "BEFORE" else "CURRENT_RUNTIME")
+                self.assertEqual(value["fixtureArgument"], "REALHOST_CONTROL")
+                self.assertEqual(value["runtimeProvenance"], "PINNED_INVOCATION")
+                for private in (self.operation, self.instance, "d" * 32, harness.ORIGIN, self.browser["fixturePath"],
+                                self.context["pins"]["browser"]["componentSha256"], self.context["pins"]["browser"]["opsRevision"]):
+                    self.assertNotIn(private, json.dumps(value))
+                self.assertNotIn("VERIFIED_PARENT_OPERATION", json.dumps(value))
+
+    def test_replayed_or_foreign_report_and_call_arguments_are_unavailable(self):
+        original = self.report()
+        for key, value in (("format", "foreign"), ("kind", "technical"), ("operationId", "f" * 32),
+                           ("installationId", "e" * 32), ("instanceId", "b" * 32),
+                           ("revision", self.context["pins"]["current"]["revision"]), ("entryOrigin", "https://private.invalid"),
+                           ("componentSha256", "b" * 64), ("componentRevision", "f" * 40),
+                           ("invocationId", True), ("invocationId", "d" * 31 + "\u0430")):
+            with self.subTest(key=key, value=value):
+                self.assertEqual(self.project({**original, key: value})["binding"], "UNAVAILABLE")
+        for changes in ({"operation_id": "f" * 32}, {"operation_id": True}, {"instance_id": "b" * 32},
+                        {"browser": {**self.browser, "fixturePath": "/private/other.json"}},
+                        {"browser": {**self.browser, "componentSha256": "f" * 64}},
+                        {"release": {**self.context["pins"]["previous"], "schema": True}},
+                        {"release": self.context["pins"]["current"]}):
+            with self.subTest(changes=changes):
+                self.assertEqual(self.project(original, **changes)["binding"], "UNAVAILABLE")
+
+    def test_before_and_after_cannot_exchange_report_target_or_relay(self):
+        for phase, other in (("BEFORE", "AFTER"), ("AFTER", "BEFORE")):
+            with self.subTest(phase=phase):
+                self.assertEqual(self.project(self.report(other), phase)["binding"], "UNAVAILABLE")
+                value = self.project(self.report(other), other)
+                self.assertEqual(harness.control_browser_evidence(value, phase)["binding"], "UNAVAILABLE")
+                release = self.context["pins"]["current" if phase == "BEFORE" else "previous"]
+                self.assertEqual(self.project(self.report(phase), phase, release=release)["binding"], "UNAVAILABLE")
+
+    def test_early_and_bound_environment_failures_keep_actual_provenance(self):
+        for phase in ("BEFORE", "AFTER"):
+            for status, runtime in (("incomplete", False), ("environment_failed", False), ("environment_failed", True)):
+                with self.subTest(phase=phase, status=status, runtime=runtime):
+                    report = self.report(phase, status=status, runtime=runtime)
+                    report["reasonCode"] = "BROWSER_FIXTURE_PERMISSIONS" if status == "incomplete" else "BROWSER_RUNTIME_UNAVAILABLE"
+                    value = self.project(report, phase)
+                    self.assertEqual(value["binding"], "DIRECT_INVOCATION")
+                    self.assertEqual(value["status"], status)
+                    self.assertEqual(value["runtimeProvenance"], "PINNED_INVOCATION" if runtime else "NOT_RECORDED")
+                    self.assertEqual(set(value["checks"].values()), {"not_run"})
+                    self.assertEqual(value["reason"]["code"], report["reasonCode"])
+
+    def test_reason_and_error_missing_null_unknown_are_distinct_and_private(self):
+        for key in ("reasonCode", "error"):
+            for mode in ("missing", "null", "string", "object"):
+                report = self.report()
+                report.pop(key)
+                if mode != "missing":
+                    report[key] = None if mode == "null" else self.secret if mode == "string" else {"secret": self.secret}
+                value = self.project(report)
+                projected = value["reason" if key == "reasonCode" else "error"]
+                if key == "error" and mode == "object":
+                    self.assertEqual(projected["stage"], "UNAVAILABLE")
+                    self.assertEqual(projected["code"]["state"], "MISSING")
+                else:
+                    self.assertEqual(projected["state"], {"missing": "MISSING", "null": "NULL", "string": "UNRECOGNIZED", "object": "UNRECOGNIZED"}[mode])
+                self.assertNotIn(self.secret, json.dumps(value))
+        report = self.report()
+        report.update(reasonCode="\u0412ROWSER_USER_FLOW_FAILED", secret=self.secret)
+        report["error"] = {"stage": self.secret, "code": self.secret, "message": self.secret, "cookie": self.secret}
+        value = self.project(report)
+        self.assertEqual(value["reason"]["state"], "UNRECOGNIZED")
+        self.assertEqual(value["error"]["stage"], "UNRECOGNIZED")
+        self.assertEqual(value["error"]["code"]["state"], "UNRECOGNIZED")
+        self.assertNotIn(self.secret, json.dumps(value))
+
+    def test_exact_error_codes_and_ascii_http_statuses_only(self):
+        for code in (*harness.RECEIPT_BROWSER_ERRORS, "API_STATUS_100", "API_STATUS_401", "API_STATUS_599"):
+            report = self.report()
+            report["error"]["code"] = code
+            result = self.project(report)["error"]["code"]
+            self.assertEqual(result["state"], "RECOGNIZED")
+            if code.startswith("API_STATUS_"):
+                self.assertEqual(result, {"state": "RECOGNIZED", "code": "API_STATUS", "httpStatus": int(code[-3:])})
+        for code in ("API_STATUS_099", "API_STATUS_600", "API_STATUS_\u0664\u0660\u0661", "API_STATUS_401\n",
+                     "SAVE_NOT_OBSERVED " + self.secret, True, [self.secret], {"token": self.secret}):
+            report = self.report()
+            report["error"]["code"] = code
+            result = self.project(report)
+            self.assertEqual(result["error"]["code"]["state"], "UNRECOGNIZED")
+            self.assertNotIn(self.secret, json.dumps(result))
+
+    def test_inconsistent_checks_and_partial_runtime_fail_closed(self):
+        changes = [
+            {"status": "passed"}, {"status": True}, {"checks": {name: "passed" for name in harness.RECEIPT_BROWSER_CHECKS}},
+            {"checks": {name: "not_run" for name in harness.RECEIPT_BROWSER_CHECKS}},
+            {"checks": {}}, {"checks": {name: True for name in harness.RECEIPT_BROWSER_CHECKS}},
+            {"checks": {**self.report()["checks"], "private": self.secret}}, {"status": "incomplete"}]
+        for change in changes:
+            self.assertEqual(self.project({**self.report(), **change})["binding"], "UNAVAILABLE")
+        for key in ("revision", "entryOrigin", "invocationId", "componentSha256", "componentRevision"):
+            report = self.report()
+            report.pop(key)
+            self.assertEqual(self.project(report)["binding"], "UNAVAILABLE")
+
+    def test_closed_relay_rejects_extra_fields_and_false_numeric_types(self):
+        original = self.project(self.report())
+        cases = [{**original, "secret": self.secret}, {**original, "status": "passed"},
+                 {**original, "reason": {"state": "RECOGNIZED", "code": self.secret}},
+                 {**original, "reason": {"state": "UNRECOGNIZED", "type": self.secret}},
+                 {**original, "error": {"stage": "blocks_save", "code": {"state": "RECOGNIZED", "code": "API_STATUS", "httpStatus": True}}},
+                 {**original, "error": {"stage": "blocks_save", "code": {"state": "RECOGNIZED", "code": "API_STATUS", "httpStatus": float("nan")}}},
+                 {**original, "error": {"stage": "blocks_save", "code": {"state": "MISSING"}, "message": self.secret}},
+                 {**original, "checks": {**original["checks"], "teacher_login": {"private": self.secret}}}]
+        for case in cases:
+            result = harness.control_browser_evidence(case, "BEFORE")
+            self.assertEqual(result["binding"], "UNAVAILABLE")
+            self.assertNotIn(self.secret, json.dumps(result))
+        result = harness.control_browser_evidence(original, "BEFORE")
+        original["checks"]["teacher_login"] = self.secret
+        original["error"]["code"]["code"] = self.secret
+        self.assertNotIn(self.secret, json.dumps(result))
+
+    def test_before_guard_keeps_new_operation_and_stops_following_writes(self):
+        with self.owner("BEFORE", self.report()) as state, self.assertRaises(harness.Failure) as caught:
+            harness.owner_seed(self.context)
+        self.assertEqual((caught.exception.code, caught.exception.status), ("CONTROL_BROWSER_BEFORE", "FAIL"))
+        self.assertEqual(caught.exception.control_browser_diagnostic["binding"], "DIRECT_INVOCATION")
+        state.identifier.assert_called_once_with()
+        call = state.acceptance.browser_acceptance.call_args
+        self.assertEqual(call.args[2], self.operation)
+        self.assertEqual(call.kwargs, {})
+        self.assertEqual(call.args[3]["fixturePath"], self.browser["fixturePath"])
+        self.assertNotEqual(state.config["browser"]["fixturePath"], self.browser["fixturePath"])
+        self.assertEqual(state.rows.call_count, 1)
+        state.s3.assert_not_called()
+        state.fingerprint.assert_not_called()
+        state.config_module.save_private.assert_not_called()
+
+    def test_after_guard_uses_saved_browser_and_default_instance_binding(self):
+        with self.owner("AFTER", self.report("AFTER")) as state, self.assertRaises(harness.Failure) as caught:
+            harness.owner_observe(self.context, browser=True)
+        self.assertEqual((caught.exception.code, caught.exception.status), ("CONTROL_BROWSER_AFTER", "FAIL"))
+        self.assertEqual(caught.exception.control_browser_diagnostic["binding"], "DIRECT_INVOCATION")
+        call = state.acceptance.browser_acceptance.call_args
+        self.assertIs(call.args[3], state.saved["browser"])
+        self.assertEqual(call.args[2], self.operation)
+        self.assertEqual(call.kwargs, {})
+        state.identifier.assert_called_once_with()
+        state.fingerprint.assert_called_once()
+        state.s3.assert_not_called()
+        state.config_module.save_private.assert_not_called()
+
+    def test_fingerprint_failure_and_readonly_observe_never_run_browser(self):
+        with self.owner("AFTER", self.report("AFTER")) as state:
+            result = harness.owner_observe(self.context)
+            self.assertTrue(result["preserved"])
+            state.acceptance.browser_acceptance.assert_not_called()
+            state.identifier.assert_not_called()
+            state.fingerprint.return_value = {"changed": True}
+            with self.assertRaises(harness.Failure) as caught:
+                harness.owner_observe(self.context, browser=True)
+            self.assertEqual(caught.exception.code, "CONTROL_DATA_CHANGED")
+            self.assertFalse(hasattr(caught.exception, "control_browser_diagnostic"))
+            state.acceptance.browser_acceptance.assert_not_called()
+
+    def test_successful_owner_paths_do_not_project_or_change_proofs(self):
+        for phase in ("BEFORE", "AFTER"):
+            report = self.report(phase)
+            report.update(status="passed", checks={key: "passed" for key in harness.RECEIPT_BROWSER_CHECKS})
+            report.pop("reasonCode")
+            report.pop("error")
+            with self.owner(phase, report) as state, patch.object(harness, "control_browser_projection") as projector:
+                if phase == "BEFORE":
+                    before = {table: [] for table in harness.TABLES}
+                    after = {table: ["first", "second"] if table == "projects" else ["first"] for table in harness.TABLES}
+                    state.rows.side_effect = [({}, before), ({}, after)]
+                    observed = harness.owner_seed(self.context)
+                    self.assertTrue(observed["independentCohort"])
+                    state.s3.assert_called_once_with(self.install, None, create=True)
+                    state.config_module.save_private.assert_called_once()
+                else:
+                    observed = harness.owner_observe(self.context, browser=True)
+                    self.assertTrue(observed["preserved"])
+                self.assertEqual(observed["browser"]["status"], "PASS")
+                self.assertNotIn("controlBrowserDiagnostic", observed)
+                projector.assert_not_called()
+
+    def test_actual_guest_json_and_owner_relay_preserve_both_failure_paths(self):
+        for phase in ("BEFORE", "AFTER"):
+            for status, runtime in (("failed", True), ("incomplete", False), ("environment_failed", False), ("environment_failed", True)):
+                with self.subTest(phase=phase, status=status, runtime=runtime):
+                    code, child = self.owner_json(phase, self.report(phase, status=status, runtime=runtime))
+                    self.assertEqual((code, child["status"]), (1, "FAIL"))
+                    expected = "CONTROL_BROWSER_" + phase
+                    self.assertEqual(child["reasonCode"], expected)
+                    output = io.StringIO()
+                    account = SimpleNamespace(pw_name="asa-setup", pw_dir="/var/lib/asa-setup/operator")
+                    with patch.object(harness, "guest_guard", return_value=self.context), \
+                            patch.dict(sys.modules, {"pwd": SimpleNamespace(getpwnam=Mock(return_value=account))}), \
+                            patch.object(harness.Commands, "run", return_value=(code, json.dumps(child).encode())) as command, \
+                            patch.object(harness.os, "geteuid", create=True, return_value=0), \
+                            patch.object(harness, "panel_and_docker_identity") as later, patch.object(harness, "CLI_ACTIONS", []), \
+                            contextlib.redirect_stdout(output):
+                        outer_code = harness.guest_main("seed" if phase == "BEFORE" else "final")
+                    outer = json.loads(output.getvalue())
+                    self.assertEqual((outer_code, outer["status"], outer["reasonCode"], outer["cliActions"]), (1, "FAIL", expected, []))
+                    self.assertEqual(outer["controlBrowserDiagnostic"], child["controlBrowserDiagnostic"])
+                    self.assertNotIn(self.operation, output.getvalue())
+                    command.assert_called_once()
+                    later.assert_not_called()
+
+    def test_owner_phase_exit_status_reason_and_cross_point_are_checked(self):
+        code, original = self.owner_json("BEFORE", self.report())
+        cases = [
+            (True, original, "OWNER_REPORT_INVALID"), (1, {**original, "phase": "owner-final"}, "OWNER_REPORT_INVALID"),
+            (1, {**original, "format": "foreign"}, "OWNER_REPORT_INVALID"),
+            (2, original, "CONTROL_BROWSER_BEFORE"), (1, {**original, "status": "BLOCKED"}, "CONTROL_BROWSER_BEFORE"),
+            (1, {**original, "reasonCode": "CONTROL_BROWSER_AFTER"}, "CONTROL_BROWSER_AFTER")]
+        for actual_code, child, reason in cases:
+            error = self.relay("BEFORE", actual_code, child)
+            self.assertEqual(error.code, reason)
+            self.assertFalse(hasattr(error, "control_browser_diagnostic"))
+        foreign = self.project(self.report("AFTER"), "AFTER")
+        error = self.relay("BEFORE", code, {**original, "controlBrowserDiagnostic": foreign})
+        self.assertEqual(error.control_browser_diagnostic["binding"], "UNAVAILABLE")
+
+    def test_diagnostic_exceptions_cannot_replace_original_failure_or_leak(self):
+        for phase in ("BEFORE", "AFTER"):
+            with patch.object(harness, "control_browser_projection", side_effect=RuntimeError(self.secret)):
+                code, child = self.owner_json(phase, self.report(phase))
+            self.assertEqual((code, child["reasonCode"]), (1, "CONTROL_BROWSER_" + phase))
+            self.assertEqual(child["controlBrowserDiagnostic"]["binding"], "UNAVAILABLE")
+            self.assertNotIn(self.secret, json.dumps(child))
+            with patch.object(harness, "control_browser_evidence", side_effect=RuntimeError(self.secret)):
+                error = self.relay(phase, code, child)
+                self.assertEqual(error.code, "CONTROL_BROWSER_" + phase)
+                output = io.StringIO()
+                with patch.object(harness, "guest_guard", return_value={}), patch.object(harness, "guest_phase", side_effect=error), \
+                        contextlib.redirect_stdout(output):
+                    outer_code = harness.guest_main("seed" if phase == "BEFORE" else "final")
+            outer = json.loads(output.getvalue())
+            self.assertEqual((outer_code, outer["reasonCode"]), (1, "CONTROL_BROWSER_" + phase))
+            self.assertEqual(outer["controlBrowserDiagnostic"]["binding"], "UNAVAILABLE")
+            self.assertNotIn(self.secret, output.getvalue())
+
+    def test_unrelated_phase_or_error_never_adopts_browser_diagnostic(self):
+        for phase, reason in (("install", "CONTROL_BROWSER_BEFORE"), ("seed", "CONTROL_BROWSER_AFTER"),
+                              ("final", "CONTROL_BROWSER_BEFORE"), ("owner-observe", "CONTROL_BROWSER_AFTER"),
+                              ("seed", "CONTROL_DATA_CHANGED")):
+            error = harness.Failure(reason)
+            error.control_browser_diagnostic = {**self.project(self.report()), "secret": self.secret}
+            output = io.StringIO()
+            with patch.object(harness, "guest_guard", return_value={}), patch.object(harness, "guest_phase", side_effect=error), \
+                    contextlib.redirect_stdout(output):
+                code = harness.guest_main(phase)
+            result = json.loads(output.getvalue())
+            self.assertEqual((code, result["status"], result["reasonCode"]), (1, "FAIL", reason))
+            self.assertNotIn("controlBrowserDiagnostic", result)
+            self.assertNotIn(self.secret, output.getvalue())
+
+    def test_consecutive_owner_failures_do_not_reuse_diagnostic(self):
+        code, child = self.owner_json("BEFORE", self.report())
+        self.assertEqual(self.relay("BEFORE", code, child).control_browser_diagnostic["binding"], "DIRECT_INVOCATION")
+        child.pop("controlBrowserDiagnostic")
+        self.assertEqual(self.relay("BEFORE", code, child).control_browser_diagnostic["binding"], "UNAVAILABLE")
+        child["reasonCode"] = "CONTROL_DATA_CHANGED"
+        self.assertFalse(hasattr(self.relay("BEFORE", code, child), "control_browser_diagnostic"))
+
+
 class PublicStatusDiagnosticTests(unittest.TestCase):
     SECRET = "PRIVATE_COOKIE_EMAIL_PASSWORD_MUST_NOT_APPEAR"
 
