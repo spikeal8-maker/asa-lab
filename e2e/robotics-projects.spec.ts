@@ -51,8 +51,14 @@ async function register(page: Page, label: string) {
   await page.getByLabel('Дата рождения', { exact: true }).fill('1991-04-18');
   await page.getByLabel('Пароль', { exact: true }).fill(credentials.password);
   const botCheck = page.getByRole('checkbox', { name: 'Я не робот' });
-  if (await botCheck.isVisible()) await botCheck.check();
-  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+  if (await botCheck.isVisible()) {
+    await botCheck.press('Space');
+    await expect(botCheck).toBeChecked();
+    await expect(page.locator('.bot-check')).toHaveAttribute('data-status', 'ready');
+  }
+  const submit = page.getByRole('button', { name: 'Создать аккаунт', exact: true });
+  await expect(submit).toBeEnabled();
+  await submit.click();
   await expect(page).toHaveURL(/#\/home$/);
   return credentials;
 }
@@ -66,8 +72,14 @@ async function login(page: Page, credentials: { email: string; password: string 
   await page.getByLabel('Почта или логин', { exact: true }).fill(credentials.email);
   await page.getByLabel('Пароль', { exact: true }).fill(credentials.password);
   const botCheck = page.getByRole('checkbox', { name: 'Я не робот' });
-  if (await botCheck.isVisible()) await botCheck.check();
-  await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  if (await botCheck.isVisible()) {
+    await botCheck.press('Space');
+    await expect(botCheck).toBeChecked();
+    await expect(page.locator('.bot-check')).toHaveAttribute('data-status', 'ready');
+  }
+  const submit = page.getByRole('button', { name: 'Войти', exact: true });
+  await expect(submit).toBeEnabled();
+  await submit.click();
   await expect(page).toHaveURL(/#\/home$/);
 }
 
