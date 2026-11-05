@@ -780,5 +780,221 @@ class ScheduleStateCaptureTests(unittest.TestCase):
         self.assertEqual(receipt["scheduleObservation"]["status"], "UNAVAILABLE")
 
 
+
+class ScheduleWorkingDirectoryTests(unittest.TestCase):
+    @staticmethod
+    def zone(name):
+        if name != "Etc/UTC":
+            raise schedule.ZoneInfoNotFoundError(name)
+        return dt.timezone.utc
+
+    @classmethod
+    def units(cls, root="/srv/asa-lab"):
+        from pathlib import PurePosixPath
+        with patch.object(schedule, "Path", PurePosixPath), patch.object(schedule, "ZoneInfo", side_effect=cls.zone):
+            return schedule.render_units(root, ID, "operator",
+                {"enabled": True, "time": "03:00", "timezone": "Etc/UTC", "maxAgeHours": 26},
+                "/opt/asa-setup/pinned/tools/asa_setup.py")
+
+    def test_literal_scalar_preserves_spaces_quotes_backslashes_dollars_and_percent(self):
+        for root, expected in (
+                ("/srv/asa-lab", "/srv/asa-lab"),
+                ("/srv/asa lab", "/srv/asa lab"),
+                ('/srv/asa"quote', '/srv/asa"quote'),
+                ("/srv/asa'quote", "/srv/asa'quote"),
+                ("/srv/asa\\literal", "/srv/asa\\literal"),
+                ("/srv/asa$n", "/srv/asa$n"),
+                ("/srv/asa%n", "/srv/asa%%n"),
+                ("/srv/Школа АСА", "/srv/Школа АСА")):
+            with self.subTest(root=root):
+                service = self.units(root)[schedule.unit_name(ID) + ".service"]
+                self.assertIn("WorkingDirectory=" + expected + "\n", service)
+        service = self.units()[schedule.unit_name(ID) + ".service"]
+        command = '"/usr/bin/python3" "-I" "/opt/asa-setup/pinned/tools/asa_setup.py" "backup" "--root" "/srv/asa-lab" "--scheduled" "--non-interactive"'
+        self.assertIn("ExecStart=" + command + "\n", service)
+        self.assertIn("ExecCondition=" + command + ' "--schedule-budget-check"\n', service)
+
+    def test_terminal_space_and_backslash_use_only_same_directory_suffix(self):
+        for root, expected in (
+                ("/srv/asa ", "/srv/asa /."),
+                ("/srv/asa\\", "/srv/asa\\/."),
+                ("/srv/asa\\ ", "/srv/asa\\ /."),
+                ("/srv/asa%n ", "/srv/asa%%n /.")):
+            with self.subTest(root=root):
+                service = self.units(root)[schedule.unit_name(ID) + ".service"]
+                self.assertIn("WorkingDirectory=" + expected + "\n", service)
+
+    def test_invalid_scalar_and_control_characters_fail_before_writes_or_commands(self):
+        with patch.object(schedule, "atomic_bytes") as write, patch.object(schedule.subprocess, "run") as run:
+            for value in (None, True, 1, b"/srv/asa", "", "relative", *("/srv/asa" + chr(n) for n in range(32))):
+                with self.subTest(value=value), self.assertRaises(Blocked) as caught:
+                    schedule._working_directory(value)
+                self.assertEqual(caught.exception.code, "BACKUP_SCHEDULE_PATH")
+            for character in ("\n", "\r", "\t", "\x00"):
+                with self.subTest(character=repr(character)), self.assertRaises(Blocked) as caught:
+                    self.units("/srv/asa" + character + "other")
+                self.assertEqual(caught.exception.code, "BACKUP_SCHEDULE_PATH")
+            write.assert_not_called()
+            run.assert_not_called()
+
+    def test_duplicate_recognition_is_whole_legacy_or_scalar_line_not_a_prefix(self):
+        root = "/srv/asa-lab"
+        for line in ('WorkingDirectory="/srv/asa-lab"', "WorkingDirectory=/srv/asa-lab"):
+            with self.subTest(line=line):
+                self.assertTrue(schedule._same_working_directory("[Service]\n" + line + "\nExecStart=/bin/true\n", root))
+        for line in ('WorkingDirectory="/srv/asa-lab-other"', "WorkingDirectory=/srv/asa-lab-other",
+                     "# WorkingDirectory=/srv/asa-lab", "Description=WorkingDirectory=/srv/asa-lab",
+                     "WorkingDirectory=/srv/asa-lab extra", "WorkingDirectory=/srv/asa",
+                     'WorkingDirectory="/srv/asa-lab" extra'):
+            with self.subTest(line=line):
+                self.assertFalse(schedule._same_working_directory("[Service]\n" + line + "\n", root))
+        self.assertTrue(schedule._same_working_directory("WorkingDirectory=/srv/asa /.\n", "/srv/asa "))
+        self.assertTrue(schedule._same_working_directory('WorkingDirectory="/srv/asa "\n', "/srv/asa "))
+
+    @staticmethod
+    def duplicate_guard(directory, root, units):
+        # Execute the actual pre-write duplicate loop on real private fixture files.
+        import ast
+        import copy
+        source = Path(schedule.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "install_schedule")
+        loops = [node for node in function.body if isinstance(node, ast.For)
+                 and ast.get_source_segment(source, node.iter) == 'directory.glob("asa-backup-*.service")']
+        assert len(loops) == 1
+        namespace = dict(vars(schedule), directory=directory, root=root, units=units, marker="# ASA installation: " + ID)
+        exec(compile(ast.fix_missing_locations(ast.Module(body=copy.deepcopy(loops), type_ignores=[])),
+                     "<actual-schedule-duplicate-guard>", "exec"), namespace)
+
+    def test_actual_duplicate_guard_blocks_legacy_and_scalar_foreign_installation_before_io(self):
+        from pathlib import PurePosixPath
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            existing = directory / "asa-backup-foreign.service"
+            for line in ('WorkingDirectory="/srv/asa-lab"', "WorkingDirectory=/srv/asa-lab"):
+                existing.write_text("# ASA installation: foreign\n[Service]\n" + line + "\n")
+                before = existing.read_bytes()
+                with self.subTest(line=line), patch.object(schedule, "atomic_bytes") as write, \
+                        patch.object(schedule.subprocess, "run") as run, self.assertRaises(Blocked) as caught:
+                    self.duplicate_guard(directory, PurePosixPath("/srv/asa-lab"), self.units())
+                self.assertEqual(caught.exception.code, "BACKUP_SCHEDULE_DUPLICATE")
+                self.assertEqual(existing.read_bytes(), before)
+                write.assert_not_called()
+                run.assert_not_called()
+
+    def test_actual_duplicate_guard_keeps_identity_and_foreign_root_boundaries(self):
+        from pathlib import PurePosixPath
+        root = PurePosixPath("/srv/asa-lab")
+        units = self.units()
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            own = directory / (schedule.unit_name(ID) + ".service")
+            own.write_text(units[own.name])
+            self.duplicate_guard(directory, root, units)
+            own.unlink()
+            foreign = directory / "asa-backup-foreign.service"
+            for line in ('WorkingDirectory="/srv/asa-lab-other"', "WorkingDirectory=/srv/asa-lab-other"):
+                foreign.write_text("# ASA installation: foreign\n[Service]\n" + line + "\n")
+                self.duplicate_guard(directory, root, units)
+            foreign.write_text(units[own.name])
+            with self.assertRaises(Blocked) as caught:
+                self.duplicate_guard(directory, root, units)
+            self.assertEqual(caught.exception.code, "BACKUP_SCHEDULE_DUPLICATE")
+
+    def test_actual_duplicate_guard_rejects_parser_whitespace_before_any_write(self):
+        from pathlib import PurePosixPath
+        lines = (
+            ' WorkingDirectory="/srv/asa-lab"',
+            'WorkingDirectory="/srv/asa-lab" ',
+            '\tWorkingDirectory="/srv/asa-lab"\t',
+            ' WorkingDirectory = "/srv/asa-lab" \r',
+            " WorkingDirectory=/srv/asa-lab",
+            "WorkingDirectory = /srv/asa-lab",
+            "\tWorkingDirectory\t= \t/srv/asa-lab \t\r",
+            "WorkingDirectory=/srv/asa-lab ",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            existing = directory / "asa-backup-foreign.service"
+            for line in lines:
+                existing.write_text("# ASA installation: foreign\n[Service]\n" + line + "\n")
+                before = existing.read_bytes()
+                with self.subTest(line=line):
+                    with patch.object(schedule, "atomic_bytes") as write, \
+                            patch.object(schedule.subprocess, "run") as run, self.assertRaises(Blocked) as caught:
+                        self.duplicate_guard(directory, PurePosixPath("/srv/asa-lab"), self.units())
+                    self.assertEqual(caught.exception.code, "BACKUP_SCHEDULE_DUPLICATE")
+                    self.assertEqual(existing.read_bytes(), before)
+                    write.assert_not_called()
+                    run.assert_not_called()
+
+    def test_syntax_whitespace_does_not_trim_literal_root_or_match_comments_and_prefixes(self):
+        for root, line in (
+                ("/srv/asa-lab", "\tWorkingDirectory \t= \t/srv/asa-lab \t\r"),
+                ("/srv/asa lab", " WorkingDirectory = /srv/asa lab "),
+                ("/srv/asa ", "WorkingDirectory = /srv/asa /. "),
+                ("/srv/asa ", 'WorkingDirectory = "/srv/asa " '),
+                ("/srv/asa\\", "WorkingDirectory = /srv/asa\\/. \t"),
+                ("/srv/asa\u00a0", "WorkingDirectory = /srv/asa\u00a0 \t"),
+                ("/srv/asa=value", "WorkingDirectory = /srv/asa=value")):
+            with self.subTest(root=root, line=line):
+                self.assertTrue(schedule._same_working_directory("[Service]\n" + line + "\n", root))
+        for line in ("\vWorkingDirectory=/srv/asa-lab", "\fWorkingDirectory=/srv/asa-lab",
+                     "\u00a0WorkingDirectory=/srv/asa-lab", "WorkingDirectory=/srv/asa-lab\u00a0",
+                     "WorkingDirectory=/srv/asa-lab\v", " WorkingDirectory = /srv/asa-lab-other ",
+                     ' WorkingDirectory = "/srv/asa-lab-other" ', " # WorkingDirectory = /srv/asa-lab",
+                     " ; WorkingDirectory = /srv/asa-lab", " Description = WorkingDirectory=/srv/asa-lab",
+                     " WorkingDirectory = /srv/asa-lab extra ", " WorkingDirectory = /srv/asa-lab=other"):
+            with self.subTest(line=line):
+                self.assertFalse(schedule._same_working_directory("[Service]\n" + line + "\n", "/srv/asa-lab"))
+        self.assertFalse(schedule._same_working_directory("WorkingDirectory = /srv/asa \n", "/srv/asa "))
+        self.assertFalse(schedule._same_working_directory("WorkingDirectory = /srv/asa\\ \n", "/srv/asa\\"))
+
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "The actual systemd unit parser belongs to the Linux boundary")
+    def test_offline_parser_checks_both_units_and_preserves_normalized_directory_inode(self):
+        import re
+        import shutil
+        import subprocess
+        analyzer = shutil.which("systemd-analyze")
+        if analyzer is None:
+            self.skipTest("systemd-analyze is unavailable; pure serializer and duplicate guards still execute")
+        roots = ("/srv/asa-lab", "/srv/asa lab", '/srv/asa"quote', "/srv/asa\\literal",
+                 "/srv/asa$n%n", "/srv/asa ", "/srv/asa\\", "/srv/asa\\ ", "/srv/Школа АСА")
+        with tempfile.TemporaryDirectory(prefix="asa-unit-parser-") as temporary:
+            sandbox = Path(temporary)
+            sandbox.chmod(0o700)
+            directory = sandbox / "etc/systemd/system"
+            directory.mkdir(parents=True)
+            for name in ("sysinit.target", "basic.target", "shutdown.target", "timers.target", "sockets.target",
+                         "network-online.target", "time-sync.target", "time-set.target"):
+                (directory / name).write_text("[Unit]\nDescription=Offline parser fixture\nDefaultDependencies=no\n")
+            executable = sandbox / "usr/bin/python3"
+            executable.parent.mkdir(parents=True)
+            executable.write_text("#!/bin/sh\nexit 0\n")
+            executable.chmod(0o755)  # Existence-only fixture; verify never executes it.
+            for root in roots:
+                with self.subTest(root=root):
+                    expected = sandbox / root.lstrip("/")
+                    expected.mkdir(parents=True)
+                    units = self.units(root)
+                    for name, content in units.items():
+                        (directory / name).write_text(content, encoding="utf-8")
+                    service = schedule.unit_name(ID) + ".service"
+                    timer = schedule.unit_name(ID) + ".timer"
+                    completed = subprocess.run([analyzer, "--root=" + str(sandbox), "--man=no", "verify",
+                        "/etc/systemd/system/" + service, "/etc/systemd/system/" + timer],
+                        stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=20,
+                        env={"PATH": "/usr/bin:/bin", "LC_ALL": "C.UTF-8", "SYSTEMD_LOG_LEVEL": "debug", "SYSTEMD_PAGER": "cat"})
+                    self.assertEqual(completed.returncode, 0, completed.stderr[-2000:])
+                    self.assertNotIn("WorkingDirectory= path is not absolute", completed.stderr)
+                    self.assertNotIn("bad unit file setting", completed.stderr)
+                    values = re.findall(r"^\t+WorkingDirectory: (.*)$", completed.stdout, re.MULTILINE)
+                    self.assertEqual(values, [root])
+                    actual = sandbox / values[0].lstrip("/")
+                    self.assertEqual((actual.stat().st_dev, actual.stat().st_ino),
+                                     (expected.stat().st_dev, expected.stat().st_ino))
+
+
 if __name__ == "__main__":
     unittest.main()

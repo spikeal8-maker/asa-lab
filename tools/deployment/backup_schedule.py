@@ -46,6 +46,27 @@ def _quoted(value, *, environment=True):
     return '"' + (escaped.replace("$", "$$") if environment else escaped) + '"'
 
 
+def _working_directory(value):
+    """WorkingDirectory is a literal path scalar, not an ExecStart argument."""
+    require(isinstance(value, str) and value.startswith("/") and not any(ord(char) < 32 for char in value),
+            "BACKUP_SCHEDULE_PATH", "Рабочий каталог должен быть абсолютным путём без управляющих символов.")
+    # Preserve a terminal space through strstrip and a terminal backslash through
+    # logical-line continuation. systemd simplifies only the same-directory /.
+    suffix = "/." if value.endswith((" ", "\\")) else ""
+    return value.replace("%", "%%") + suffix
+
+
+def _same_working_directory(text, root):
+    # Match systemd's syntax whitespace, not Unicode/literal path whitespace.
+    # Previously written quoted values remain recognized for duplicate safety.
+    values = {_quoted(str(root), environment=False), _working_directory(str(root))}
+    for line in text.split("\n"):
+        key, separator, value = line.partition("=")
+        if separator and key.strip(" \t\n\r") == "WorkingDirectory" and value.strip(" \t\n\r") in values:
+            return True
+    return False
+
+
 def render_units(root, installation_id, operator, settings, entrypoint):
     """Return systemd contents; does not install units or enable the schedule."""
     settings = validate_schedule(settings)
@@ -69,7 +90,7 @@ StartLimitBurst=3
 [Service]
 Type=oneshot
 User={operator}
-WorkingDirectory={_quoted(str(root), environment=False)}
+WorkingDirectory={_working_directory(str(root))}
 ExecCondition={condition}
 ExecStart={command}
 UMask=0077
@@ -136,7 +157,7 @@ def install_schedule(root, installation_id, operator, settings, entrypoint, *, u
     for existing in directory.glob("asa-backup-*.service"):
         plain_paths(directory, (existing.name,))
         text = existing.read_text(encoding="utf-8")
-        if marker in text or "WorkingDirectory=" + _quoted(str(root), environment=False) in text:
+        if marker in text or _same_working_directory(text, root):
             require(existing.name in units and text.startswith(marker + "\n"),
                     "BACKUP_SCHEDULE_DUPLICATE", "Для этой установки уже существует другое задание backup.",
                     "Разберите существующее задание до включения нового; оно не удаляется автоматически.")
