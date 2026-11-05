@@ -1335,6 +1335,7 @@ class PublicStatusDiagnosticTests(unittest.TestCase):
         self.assertNotIn(self.SECRET, output.getvalue())
         manager.assert_not_called()
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Actual child requires Linux process-group cleanup")
     def test_real_child_stdout_and_exit_are_used_without_followup_probe(self):
         public = json.dumps(self.public())
         commands = harness.Commands()
