@@ -1645,6 +1645,82 @@ class AcceptanceReceiptDiagnosticTests(unittest.TestCase):
     def project(self, values):
         return harness.command_operation_projection(*values, mode="install", code=1, uid=999)
 
+    def test_exact_identity_marker_survives_full_binding_without_changing_failure(self):
+        marker, sentinel = "SYNTHETIC_LOGIN_IDENTITY_MISMATCH", "PRIVATE_IDENTITY_CANARY"
+        self.assertEqual(harness.RECEIPT_BROWSER_ERRORS, {
+            "SAVE_NOT_OBSERVED", "REOPEN_VALUE_MISMATCH", "REOPEN_DRAFT_MISMATCH", "RuntimeError", marker})
+        baseline = self.project(self.records())
+        values = self.records()
+        values[3]["site"]["browser"]["error"] = {"stage": "teacher_login_submit", "code": marker,
+            "email": sentinel, "response": {"cookie": sentinel}, "message": sentinel}
+        self.rebind(values)
+        before = copy.deepcopy(values)
+        with patch.object(harness, "diagnostic_read", side_effect=AssertionError("new file read")), \
+                patch.object(harness.subprocess, "run", side_effect=AssertionError("new command")), \
+                patch.object(harness.urllib.request, "urlopen", side_effect=AssertionError("new network")):
+            observed = self.project(values)
+        self.assertEqual(values, before)
+        self.assertEqual((observed["status"], observed["binding"], observed["publicExitCode"],
+                          observed["managerExitCode"], observed["outcome"]), ("OBSERVED", "VERIFIED", 1, 1, "ERROR"))
+        self.assertEqual(observed["acceptance"], baseline["acceptance"])
+        self.assertFalse(observed["acceptance"]["applicationAccepted"])
+        self.assertFalse(observed["acceptance"]["browserCompleted"])
+        browser = observed["receiptDetails"]["browser"]
+        self.assertEqual((browser["binding"], browser["runtimeProvenance"], browser["status"]),
+                         ("VERIFIED_PARENT_OPERATION", "PINNED_INVOCATION", "failed"))
+        self.assertEqual(browser["error"], {"stage": "teacher_login_submit",
+            "code": {"state": "RECOGNIZED", "code": marker}})
+        self.assertEqual(browser["reason"], {"state": "RECOGNIZED", "code": "BROWSER_USER_FLOW_FAILED"})
+        self.assertNotIn(sentinel, json.dumps(observed))
+
+    def test_identity_marker_near_unicode_type_and_private_values_remain_closed(self):
+        marker, sentinel = "SYNTHETIC_LOGIN_IDENTITY_MISMATCH", "PRIVATE_IDENTITY_CANARY"
+        candidates = (marker + "_EXTRA", marker + " ", marker + "\n", marker.lower(), marker + "\u200b",
+            "ＳYNTHETIC_LOGIN_IDENTITY_MISMATCH", marker + "_" + sentinel, sentinel,
+            None, True, 2, [marker], {"code": marker})
+        for code in candidates:
+            with self.subTest(value_type=type(code).__name__):
+                values = self.records()
+                values[3]["site"]["browser"]["error"] = {"stage": "teacher_login_submit", "code": code,
+                    "response": {"cookie": sentinel}}
+                observed = self.project(self.rebind(values))
+                expected = ({"state": "NULL"} if code is None else
+                    {"state": "UNRECOGNIZED", "type": "STRING" if type(code) is str else "NON_STRING"})
+                self.assertEqual(observed["receiptDetails"]["browser"]["error"],
+                                 {"stage": "teacher_login_submit", "code": expected})
+                self.assertEqual((observed["outcome"], observed["publicExitCode"]), ("ERROR", 1))
+                self.assertNotIn(sentinel, json.dumps(observed))
+        values = self.records()
+        values[3]["site"]["browser"]["error"] = {"stage": "teacher_login_submit", "private": sentinel}
+        error = self.project(self.rebind(values))["receiptDetails"]["browser"]["error"]
+        self.assertEqual(error["code"], {"state": "MISSING"})
+        self.assertNotIn(sentinel, json.dumps(error))
+
+    def test_identity_marker_cannot_bypass_outer_stage_or_runtime_pin_binding(self):
+        marker = "SYNTHETIC_LOGIN_IDENTITY_MISMATCH"
+        values = self.records()
+        values[3]["site"]["browser"]["error"] = {"stage": "teacher_login_submit", "code": marker}
+        self.rebind(values)
+        for target in ("public_operation", "journal_result"):
+            changed = copy.deepcopy(values)
+            if target == "public_operation":
+                changed[0]["operation"]["operationId"] = "e" * 32
+            else:
+                changed[2]["result"]["site"]["browser"]["error"]["code"] = "RuntimeError"
+            with self.subTest(target=target), self.assertRaisesRegex(harness.Failure, "^DIAGNOSTIC_BINDING$"):
+                self.project(changed)
+        changed = copy.deepcopy(values)
+        changed[2]["stages"]["browser"]["evidence"]["error"]["code"] = "RuntimeError"
+        self.assertEqual(self.project(changed)["receiptDetails"]["browser"], {"binding": "UNAVAILABLE"})
+        for key, value in (("operationId", "e" * 32), ("installationId", "e" * 32), ("instanceId", "e" * 32),
+                           ("invocationId", True), ("componentSha256", "e" * 64), ("componentRevision", "e" * 40)):
+            changed = copy.deepcopy(values)
+            changed[3]["site"]["browser"][key] = value
+            with self.subTest(key=key):
+                observed = self.project(self.rebind(changed))
+                self.assertEqual(observed["receiptDetails"]["browser"], {"binding": "UNAVAILABLE"})
+                self.assertEqual((observed["outcome"], observed["publicExitCode"]), ("ERROR", 1))
+
     def test_finalizer_collisions_now_preserve_distinct_nested_failures(self):
         with patch.object(harness, "now", return_value="fixed"):
             first, second = (self.project(self.records(browser_failed=value)) for value in (True, False))

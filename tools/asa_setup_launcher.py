@@ -49,7 +49,7 @@ CHROMIUM_PACKAGES = ("python3.12-venv", "xvfb", "fonts-noto-color-emoji", "fonts
     "libxdamage1", "libxext6", "libxfixes3", "libxkbcommon0", "libxrandr2")
 PACKAGE_ALLOWLIST = frozenset(("git", "python3", "curl", "ca-certificates", "age", "rclone", "gnupg",
                               "docker-compose-v2", *DOCKER_PACKAGES, *CHROMIUM_PACKAGES))
-CLOUD_SOURCE_SHA256 = "72e35bbb3043acefb423cfe706f82b089eaba974deb04f16df8f335093c59d0c"
+CLOUD_SOURCE_SHA256 = "c6e30c3d1fa8aaa57e14c89b22c5677af5f5c5e132881925f2197949d7797d08"
 OPERATOR_NAME = "asa-setup"
 OPERATOR_STATE = Path("/var/lib/asa-setup")
 BOOTSTRAP_LOCK = Path("/run/asa-setup-bootstrap.lock")

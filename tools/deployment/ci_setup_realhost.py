@@ -60,7 +60,7 @@ CLOUD_CONTAINER = CLOUD_PROJECT + "-rclone-1"
 CLOUD_IMAGE = "rclone/rclone@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5"
 # The pinned linux/amd64 OCI config identifies rclone v1.75.2, source be8d6044.
 CLOUD_IMAGE_ID = "sha256:7ab08c1ee84502fb76ec95b3dc759aa46a9074cce2967d540e0ab50d8c844af4"
-CLOUD_SOURCE_SHA256 = "72e35bbb3043acefb423cfe706f82b089eaba974deb04f16df8f335093c59d0c"
+CLOUD_SOURCE_SHA256 = "c6e30c3d1fa8aaa57e14c89b22c5677af5f5c5e132881925f2197949d7797d08"
 CLOUD_INSPECT = ('{"id":{{json .Id}},"name":{{json .Name}},"created":{{json .Created}},'
     '"image":{{json .Config.Image}},"imageId":{{json .Image}},"user":{{json .Config.User}},'
     '"labels":{{json .Config.Labels}},"mounts":{{json .Mounts}},"ports":{{json .HostConfig.PortBindings}},'
@@ -155,7 +155,8 @@ RECEIPT_BROWSER_REASONS = {"BROWSER_USER_FLOW_FAILED", "BROWSER_RUNTIME_UNAVAILA
 RECEIPT_BROWSER_STAGES = {"browser_launch", "release_provenance", "teacher_registration_or_login",
     "teacher_login_identity", "teacher_login_submit", "test_classroom", "student_login", "course_open",
     "blocks_project", "blocks_save", "electronics_project", "electronics_save"}
-RECEIPT_BROWSER_ERRORS = {"SAVE_NOT_OBSERVED", "REOPEN_VALUE_MISMATCH", "REOPEN_DRAFT_MISMATCH", "RuntimeError"}
+RECEIPT_BROWSER_ERRORS = {"SAVE_NOT_OBSERVED", "REOPEN_VALUE_MISMATCH", "REOPEN_DRAFT_MISMATCH", "RuntimeError",
+    "SYNTHETIC_LOGIN_IDENTITY_MISMATCH"}
 RECEIPT_BACKUP_ERRORS = {"AGE_ENVELOPE", "AGE_RECIPIENT", "AGE_NOT_CONFIGURED", "BACKUP", "BACKUP_ACTIVE_JOB",
     "BACKUP_BOOT_ID", "BACKUP_CIPHERTEXT_DRIFT", "BACKUP_CIPHERTEXT_MISSING", "BACKUP_CIPHERTEXT_UNKNOWN",
     "BACKUP_CLOUD_PROOF", "BACKUP_COMMAND_FAILED", "BACKUP_COMMAND_TIMEOUT", "BACKUP_CONFIGURATION", "BACKUP_DATA_IDENTITY",
