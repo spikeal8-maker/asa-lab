@@ -182,7 +182,8 @@ schema 304 остаются прежними. Evidence различает `defau
     фиксирует окно; затем SIGINT и обязательный SIGCONT. Дождаться всех своих
     потомков, освобождения lock и стабильных partial bytes. Для обоих fault
     operation IDs повтор публичного backup должен восстановить оставшийся
-    owned hold и вернуть BLOCKED / `BACKUP_RESUME_SNAPSHOT_MISSING`, сохранив
+    owned hold и вернуть публичный FAILED / exit 1 (manager ERROR), с nested
+    backup receipt BLOCKED / `BACKUP_RESUME_SNAPSHOT_MISSING`, сохранив
     исходный partial и последний успешный backup. После этого отдельная новая
     операция должна создать и проверить полный AGE backup; success pointer
     должен перейти к нему. Оба incomplete snapshot сохраняются до уничтожения VM.
@@ -491,8 +492,9 @@ inotify tests не требуют обхода этого guard и сохран�
 
 Same-ID команда проверяется отдельно от cleanup после SIGINT: evidence отмечает,
 оставался ли maintenance hold перед её запуском. Её ожидаемый результат —
-публичный BLOCKED/exit 2 и `BACKUP_RESUME_SNAPSHOT_MISSING` в durable backup
-receipt, без нового export. Наличие complete backup или обновление прошлого
+публичный FAILED/exit 1 (manager ERROR) и nested BLOCKED с
+`BACKUP_RESUME_SNAPSHOT_MISSING` в durable backup receipt, без нового export.
+Наличие complete backup или обновление прошлого
 success pointer до отдельной новой успешной операции считается FAIL. Synthetic
 S3 key удаляется только целевым authenticated `mc rm` после подтверждённой
 готовности приложения; никакой recursive очистки нет. Incomplete snapshots и

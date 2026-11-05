@@ -5701,6 +5701,371 @@ func main() {
             harness.cloud_container_identity(observed[3]["row"], self.earliest)
 
 
+class PerformedBackupFaultTests(unittest.TestCase):
+    OPERATION = "a" * 32
+    INSTALLATION = "b" * 32
+    SNAPSHOT = "20261105T000000Z-abcdef12"
+    SECRET = "PRIVATE_PARTIAL_BACKUP_CANARY"
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        root = patch.object(harness, "INSTALL_ROOT", self.root)
+        root.start()
+        self.addCleanup(root.stop)
+        self.actions = []
+        actions = patch.object(harness, "CLI_ACTIONS", self.actions)
+        actions.start()
+        self.addCleanup(actions.stop)
+
+    def public_result(self, value):
+        import asa_cli
+        return {"format": "asa-cli-result-v1", "command": "backup create",
+                "exitCode": value["exitCode"], "managerExitCode": value["exitCode"],
+                "status": {1: "FAILED", 2: "BLOCKED", 130: "INTERRUPTED"}.get(value["exitCode"], "OK"),
+                "operation": asa_cli.public_operation(value), "reasonCode": value.get("reasonCode"),
+                "reasonCodes": [value["reasonCode"]] if value.get("reasonCode") else [], "automaticRetry": False}
+
+    def product_route(self, *, interrupted=False, recover=True):
+        """Actual execute -> auxiliary -> Store/run_backup; only external IO is substituted."""
+        import asa_setup
+        from deployment.setup_config import private_json, save_private
+        from deployment.setup_operation import Store
+        from deployment.test_setup_terminal_replay import fixture_owner
+        from deployment.system import run
+        state = self.root / ".asa"
+        state.mkdir(mode=0o700)
+        install = SimpleNamespace(root=self.root, state=state, settings={}, profile="production", project="asa-synthetic")
+        policy = {"policy": "best-effort", "ageRecipient": fixture.RECIPIENT, "cloud": {"enabled": False},
+                  "schedule": {"enabled": False, "time": "03:00", "timezone": "Etc/UTC", "maxAgeHours": 26}}
+        config = {"format": "asa-setup-config-v1", "installationId": self.INSTALLATION, "root": str(self.root),
+                  "operatorUid": 12345, "project": install.project, "profile": install.profile,
+                  "entryOrigin": "https://asa.example.invalid", "backup": policy}
+        runtime = SimpleNamespace(root=self.root, install=install, config=config,
+            identity=Mock(), recover_owned_backup=Mock(return_value=None), preflight=Mock(), estimate=Mock(),
+            backup_preflight=Mock(), current=Mock(return_value={"revision": "c" * 40, "schema": 304}))
+        runtime.backup = Mock(side_effect=lambda journal, **kwargs: flow.run_backup(install,
+            operation_id=journal["operationId"], installation_id=self.INSTALLATION, policy=policy,
+            snapshot_id=kwargs["snapshot_id"]))
+        runtime.resume_saved_backup = Mock(side_effect=lambda journal, snapshot_id: flow.run_backup(install,
+            operation_id=journal["operationId"], installation_id=self.INSTALLATION, policy=policy,
+            snapshot_id=snapshot_id, allow_export=False))
+        partial = self.root / "backups" / (self.SNAPSHOT + ".incomplete")
+
+        def export(actual, **kwargs):
+            self.assertIs(actual, install)
+            partial.mkdir(mode=0o700)
+            (partial / "database.dump").write_bytes(b"synthetic-database")
+            (partial / "globals.sql").write_bytes(b"synthetic-roles")
+            (partial / "objects").mkdir()
+            (partial / "objects/part.1").write_bytes(b"synthetic-partial")
+            if interrupted:
+                raise KeyboardInterrupt
+            run([sys.executable, "-I", "-c", "import sys; sys.stderr.write(" + repr(self.SECRET) + "); raise SystemExit(1)"], capture=True)
+
+        def recorded():
+            manager = private_json(state / "setup-last-attempt.json")
+            return {"public": self.public_result(manager), "manager": manager,
+                    "receipt": flow.load_receipt(install, self.SNAPSHOT, self.INSTALLATION),
+                    "journal": Store(self.root, self.INSTALLATION).read(self.OPERATION)}
+
+        with fixture_owner(self.root), contextlib.ExitStack() as stack:
+            save_private(state / "setup.json", config)
+            stack.enter_context(patch.object(asa_setup.setup_host, "check_owner", return_value={"uid": 12345}))
+            stack.enter_context(patch.object(asa_setup, "load_config", return_value=copy.deepcopy(config)))
+            stack.enter_context(patch.object(asa_setup, "prepare_config", return_value=copy.deepcopy(config)))
+            stack.enter_context(patch.object(asa_setup.setup_discovery, "docker_inventory", return_value={"complete": True}))
+            stack.enter_context(patch.object(asa_setup, "installation_discovery", return_value={"state": "MANAGED"}))
+            stack.enter_context(patch.object(asa_setup, "Runtime", return_value=runtime))
+            stack.enter_context(patch.object(asa_setup, "_new_snapshot_id", return_value=self.SNAPSHOT))
+            stack.enter_context(patch.object(asa_setup.backup_schedule, "schedule_status", return_value={"configuration": {"enabled": False}}))
+            exporter = stack.enter_context(patch.object(flow, "export_backup", side_effect=export))
+            replay = stack.enter_context(patch.object(Store, "replay", side_effect=AssertionError("backup must use auxiliary continuation")))
+            args = ["backup", "--root", str(self.root), "--operation-id", self.OPERATION, "--non-interactive", "--json"]
+            with contextlib.redirect_stdout(io.StringIO()):
+                if interrupted:
+                    self.assertEqual(asa_setup.execute(asa_setup.parser().parse_args(args)), 130)
+                    initial = recorded()
+                else:
+                    self.assertEqual(asa_setup.execute(asa_setup.parser().parse_args(args)), 1)
+                    initial = recorded()
+                    self.assertEqual(initial["journal"]["state"], "TERMINAL")
+                before = {p.relative_to(partial).as_posix(): p.read_bytes() for p in partial.rglob("*") if p.is_file()}
+                resumed = None
+                if recover:
+                    self.assertEqual(asa_setup.execute(asa_setup.parser().parse_args(args)), 1)
+                    resumed = recorded()
+                after = {p.relative_to(partial).as_posix(): p.read_bytes() for p in partial.rglob("*") if p.is_file()}
+            self.assertEqual(exporter.call_count, 1)
+            self.assertEqual(runtime.backup.call_count, 1)
+            self.assertEqual(runtime.resume_saved_backup.call_count, int(recover))
+            replay.assert_not_called()
+        self.assertEqual(before, after)
+        self.assertFalse((self.root / "backups" / self.SNAPSHOT).exists())
+        self.assertFalse((state / "setup-backups/last-local-success.json").exists())
+        self.assertNotIn(self.SECRET, json.dumps({"initial": initial, "resumed": resumed}))
+        return initial, resumed
+
+    def validate(self, value, *, recovery):
+        harness.require_performed_fault(value["public"], value["receipt"], value["journal"],
+            operation_id=self.OPERATION, installation_id=self.INSTALLATION, snapshot_id=self.SNAPSHOT, recovery=recovery)
+
+    @contextlib.contextmanager
+    def child_boundary(self, public):
+        """Portable real PID/stdout/exit seam, not a native process-group proof."""
+        observed = {"events": []}
+        baseline = {"status": "OBSERVED", "entries": {}}
+
+        def logs(words):
+            self.assertEqual(words, ["backup", "create"])
+            observed["events"].append("baseline")
+            return baseline
+
+        class Child:
+            def __init__(inner, command, **kwargs):
+                observed["events"].append("spawn")
+                observed["command"], observed["kwargs"] = command, kwargs
+                observed["beforeSpawnNs"] = time.time_ns()
+                program = "import sys; print(" + repr(json.dumps(public)) + "); raise SystemExit(" + str(public["exitCode"]) + ")"
+                inner.process = subprocess.Popen([sys.executable, "-I", "-c", program],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                observed["pid"] = inner.process.pid
+
+            def __enter__(inner):
+                return inner
+
+            def wait(inner, timeout):
+                observed["waitTimeout"] = timeout
+                raw, error = inner.process.communicate(timeout=min(timeout, 10))
+                self.assertEqual(error, b"")
+                observed["afterWaitNs"] = time.time_ns()
+                observed["events"].append("wait")
+                return inner.process.returncode, raw
+
+            def proof(inner):
+                self.assertIsNotNone(inner.process.returncode)
+                observed["events"].append("proof")
+                return {"allOwnedProcessesExited": True}
+
+            def __exit__(inner, *_):
+                if inner.process.poll() is None:
+                    inner.process.kill()
+                inner.process.wait(timeout=3)
+                inner.process.stdout.close()
+                inner.process.stderr.close()
+
+        with patch.object(harness, "command_log_baseline", side_effect=logs), \
+                patch.object(harness, "OwnedFaultProcess", Child), \
+                patch.object(harness, "guest_environment", return_value={}), \
+                patch.object(harness, "public_cli_result", wraps=harness.public_cli_result) as parsed:
+            yield observed, parsed, baseline
+
+    def assert_invocation(self, observed, parsed, baseline):
+        invocation = parsed.call_args.kwargs["invocation"]
+        self.assertEqual(observed["events"][:3], ["baseline", "spawn", "wait"])
+        self.assertEqual(invocation["pid"], observed["pid"])
+        self.assertIs(type(invocation["pid"]), int)
+        self.assertGreater(invocation["pid"], 0)
+        self.assertLessEqual(invocation["startedNs"], observed["beforeSpawnNs"])
+        self.assertLessEqual(observed["afterWaitNs"], invocation["finishedNs"])
+        self.assertIs(invocation["setupLogsBefore"], baseline)
+
+    def partial_model(self):
+        # Sizes are a caller-contract fixture; native RLIMIT proof has its own tests.
+        return {"operationId": self.OPERATION, "snapshotId": self.SNAPSHOT,
+                "syntheticPartBytes": harness.FAULT_FILE_LIMIT, "objectBytes": harness.FAULT_FILE_LIMIT,
+                "databaseBytes": 100, "globalsBytes": 50, "treeSha256": "d" * 64,
+                "stableAfterQuiescence": True, "operationLockReleased": True}
+
+    def test_real_product_route_local_failure_and_terminal_same_id_continuation(self):
+        first, resumed = self.product_route()
+        for value, recovery in ((first, False), (resumed, True)):
+            with self.subTest(recovery=recovery):
+                self.validate(value, recovery=recovery)
+                self.assertEqual((value["public"]["status"], value["public"]["exitCode"], value["manager"]["outcome"]), ("FAILED", 1, "ERROR"))
+                self.assertEqual(value["receipt"]["outcome"], "BLOCKED")
+                self.assertFalse(value["manager"]["dataProtectionConfirmed"])
+        self.assertEqual(first["receipt"]["local"], {"status": "FAILED", "executionStatus": "RUNNING", "error": "COMMAND"})
+        self.assertEqual(resumed["receipt"]["local"], {"status": "FAILED", "executionStatus": "UNKNOWN", "error": "BACKUP_RESUME_SNAPSHOT_MISSING"})
+
+    def test_interrupted_export_uses_the_same_no_reexport_recovery_contract(self):
+        first, resumed = self.product_route(interrupted=True)
+        self.assertEqual((first["public"]["status"], first["manager"]["outcome"], first["manager"]["exitCode"]),
+                         ("INTERRUPTED", "INTERRUPTED", 130))
+        self.validate(resumed, recovery=True)
+        self.assertEqual(resumed["journal"]["stages"]["backup_continuation"]["status"], "done")
+
+    def test_never_started_and_original_interrupt_keep_distinct_finalizer_contracts(self):
+        from deployment.setup_result import result, finalize
+        receipt = {"policy": "best-effort", "outcome": "BLOCKED", "snapshotAt": None,
+            "local": {"status": "FAILED", "executionStatus": "NOT_RUN", "error": "BACKUP_RESUME_SNAPSHOT_MISSING"},
+            "encryption": {"status": "PENDING"}, "cloud": {"status": "NOT_CONFIGURED"}}
+        for verified, outcome, code in ((False, "BLOCKED", 2), (True, "ERROR", 1)):
+            with self.subTest(previouslyVerified=verified):
+                backup = copy.deepcopy(receipt)
+                if verified:
+                    backup["local"]["previouslyVerified"] = True
+                value = finalize(result(self.OPERATION, self.INSTALLATION, "backup", outcome="BLOCKED", code=2, backup=backup))
+                self.assertEqual((value["outcome"], value["exitCode"]), (outcome, code))
+        value = finalize(result(self.OPERATION, self.INSTALLATION, "backup", outcome="INTERRUPTED", code=130, backup=receipt))
+        self.assertEqual((value["outcome"], value["exitCode"]), ("INTERRUPTED", 130))
+
+    def test_public_types_identity_and_unrelated_failure_cannot_satisfy_performed_fault(self):
+        first, _ = self.product_route(recover=False)
+        changes = (("format", "unknown"), ("command", "update apply"), ("status", "BLOCKED"),
+                   ("exitCode", True), ("exitCode", 0), ("exitCode", 2), ("exitCode", 130),
+                   ("managerExitCode", True), ("managerExitCode", 2), ("reasonCode", self.SECRET),
+                   ("reasonCodes", [self.SECRET]), ("operation", None))
+        for key, replacement in changes:
+            with self.subTest(key=key, replacement=replacement):
+                value = copy.deepcopy(first)
+                value["public"][key] = replacement
+                with self.assertRaises(harness.Failure) as caught:
+                    self.validate(value, recovery=False)
+                self.assertEqual(caught.exception.code, "FAULT_PARTIAL_RECEIPT")
+                self.assertNotIn(self.SECRET, str(caught.exception))
+        for key, replacement in (("operationId", "c" * 32), ("installationId", "c" * 32), ("outcome", "BLOCKED"),
+                                 ("actionExecuted", 1), ("applicationAccepted", True), ("dataProtectionConfirmed", 0),
+                                 ("reasonCode", "COMMAND_TIMEOUT")):
+            with self.subTest(operationKey=key):
+                value = copy.deepcopy(first)
+                value["public"]["operation"][key] = replacement
+                with self.assertRaisesRegex(harness.Failure, "FAULT_PARTIAL_RECEIPT"):
+                    self.validate(value, recovery=False)
+
+    def test_durable_receipt_journal_stage_and_recovery_shape_are_exact(self):
+        first, resumed = self.product_route()
+        changes = (("receipt", "installationId", "c" * 32), ("receipt", "snapshotId", "20261105T000000Z-abcdef13"),
+                   ("receipt", "format", "unknown"), ("receipt", "policy", "required"), ("receipt", "outcome", "WARNING"),
+                   ("receipt", "snapshotAt", "2026-11-05T00:00:00Z"), ("receipt", "encryption", {"status": "OK"}),
+                   ("receipt", "cloud", {"status": "FAILED"}), ("receipt", "writers", {"held": True}),
+                   ("journal", "format", "unknown"), ("journal", "root", str(self.root / "other")),
+                   ("journal", "operationId", "c" * 32), ("journal", "snapshotId", "20261105T000000Z-abcdef13"),
+                   ("journal", "mode", "install"), ("journal", "state", "RECOVERY_REQUIRED"),
+                   ("journal", "phase", "backup_preflight"), ("journal", "stages", {}), ("journal", "result", {}))
+        for template, recovery in ((first, False), (resumed, True)):
+            for group, key, replacement in changes:
+                with self.subTest(recovery=recovery, group=group, key=key):
+                    value = copy.deepcopy(template)
+                    value[group][key] = replacement
+                    with self.assertRaises(harness.Failure):
+                        self.validate(value, recovery=recovery)
+            for key, replacement in (("status", "OK"), ("executionStatus", "NOT_RUN"), ("error", "COMMAND_TIMEOUT"),
+                                     ("previouslyVerified", True), ("verifiedAt", "2026-11-05T00:00:00Z")):
+                with self.subTest(recovery=recovery, local=key):
+                    value = copy.deepcopy(template)
+                    value["receipt"]["local"][key] = replacement
+                    with self.assertRaises(harness.Failure):
+                        self.validate(value, recovery=recovery)
+        for group in ("backup", "backup_continuation"):
+            value = copy.deepcopy(resumed)
+            value["journal"]["stages"][group]["status"] = "intent"
+            with self.assertRaisesRegex(harness.Failure, "FAULT_RECOVERY_CONTRACT"):
+                self.validate(value, recovery=True)
+        value = copy.deepcopy(first)
+        value["journal"]["result"]["backup"]["cloud"]["secret"] = self.SECRET
+        with self.assertRaisesRegex(harness.Failure, "FAULT_PARTIAL_RECEIPT"):
+            self.validate(value, recovery=False)
+        for recovery in (None, 0, 1, "recovery"):
+            with self.assertRaises(harness.Failure):
+                self.validate(first, recovery=recovery)
+
+    def test_initial_partial_accepts_only_the_performed_failure_with_measured_bytes(self):
+        first, _ = self.product_route(recover=False)
+        partial = self.partial_model()
+        with self.child_boundary(first["public"]) as (observed, parsed, baseline), \
+                patch.object(harness.uuid, "uuid4", return_value=SimpleNamespace(hex=self.OPERATION)), \
+                patch.object(harness, "prepare_backup_fault", return_value={"completeSnapshots": 4}), \
+                patch.object(harness, "stable_partial", return_value=partial), \
+                patch.object(harness, "fault_fixture", return_value={"installationId": self.INSTALLATION}), \
+                patch.object(harness, "fault_baseline") as unchanged, \
+                patch.object(harness, "recover_partial", return_value={"publicExitCode": 1}) as recovery, \
+                patch.object(harness, "write_json") as written:
+            evidence = harness.partial_fault_guest({})
+        self.assert_invocation(observed, parsed, baseline)
+        self.assertEqual(parsed.call_args.kwargs["allowed"], (1,))
+        self.assertTrue(observed["kwargs"]["file_limit"])
+        self.assertEqual(observed["waitTimeout"], harness.FAULT_WINDOW_SECONDS + harness.FAULT_QUIESCENCE_SECONDS)
+        self.assertEqual((evidence["publicExitCode"], evidence["receipt"]["outcome"], evidence["receipt"]["localStatus"]), (1, "BLOCKED", "FAILED"))
+        self.assertTrue(evidence["observedObjectFileLimitReached"])
+        self.assertEqual(self.actions[-1]["operationOutcome"], "ERROR")
+        unchanged.assert_called_once()
+        recovery.assert_called_once()
+        self.assertIs(written.call_args.args[1], partial)
+
+    def test_same_id_recovery_accepts_failed_one_only_after_bound_missing_snapshot(self):
+        _, resumed = self.product_route()
+        before = self.partial_model()
+        with self.child_boundary(resumed["public"]) as (observed, parsed, baseline), \
+                patch.object(harness, "fault_fixture", return_value={"installationId": self.INSTALLATION}), \
+                patch.object(harness, "stable_partial", return_value=copy.deepcopy(before)), \
+                patch.object(harness, "fault_baseline") as unchanged, \
+                patch.object(harness, "owner_call", return_value={"exactOriginalWritersRestored": True, "control": {}}) as owner:
+            evidence = harness.recover_partial({}, self.OPERATION, before, time.monotonic() + 900)
+        self.assert_invocation(observed, parsed, baseline)
+        self.assertEqual(parsed.call_args.kwargs["allowed"], (1,))
+        self.assertEqual(observed["waitTimeout"], harness.FAULT_RECOVERY_SECONDS)
+        self.assertEqual(evidence["publicExitCode"], 1)
+        self.assertEqual(evidence["receipt"]["localReasonCode"], "BACKUP_RESUME_SNAPSHOT_MISSING")
+        self.assertTrue(evidence["sameSnapshotAndPartialBytes"])
+        self.assertTrue(evidence["lastLocalSuccessPreserved"])
+        owner.assert_called_once_with("owner-fault-observe", timeout=360)
+        unchanged.assert_called_once()
+
+    def test_wrong_size_and_changed_partial_still_block_after_correct_public_exit(self):
+        first, resumed = self.product_route()
+        # Each path has already received a legitimate product ERROR/1. It still
+        # must fail on missing size proof or changed bytes, before owner success.
+        with patch.object(harness, "completed_fault_command", return_value=(resumed["public"], {"allOwnedProcessesExited": True})), \
+                patch.object(harness, "fault_fixture", return_value={"installationId": self.INSTALLATION}), \
+                patch.object(harness, "stable_partial", return_value={**self.partial_model(), "treeSha256": "e" * 64}), \
+                patch.object(harness, "owner_call") as owner, self.assertRaisesRegex(harness.Failure, "FAULT_RECOVERY_REEXPORTED"):
+            harness.recover_partial({}, self.OPERATION, self.partial_model(), time.monotonic() + 900)
+        owner.assert_not_called()
+        for field, size in (("syntheticPartBytes", harness.FAULT_FILE_LIMIT - 1), ("objectBytes", 0),
+                            ("databaseBytes", harness.FAULT_FILE_LIMIT), ("globalsBytes", 0)):
+            with self.subTest(field=field), self.child_boundary(first["public"]), \
+                    patch.object(harness.uuid, "uuid4", return_value=SimpleNamespace(hex=self.OPERATION)), \
+                    patch.object(harness, "prepare_backup_fault", return_value={}), \
+                    patch.object(harness, "stable_partial", return_value={**self.partial_model(), field: size}), \
+                    patch.object(harness, "fault_receipt") as receipt, \
+                    patch.object(harness, "recover_partial") as recovery, \
+                    self.assertRaisesRegex(harness.Failure, "BLOCKED_FAULT_SIZE_LIMIT_NOT_REACHED"):
+                harness.partial_fault_guest({})
+            receipt.assert_not_called()
+            recovery.assert_not_called()
+
+    def test_unexpected_exit_uses_actual_invocation_and_keeps_original_failure(self):
+        first, _ = self.product_route(recover=False)
+        public = copy.deepcopy(first["public"])
+        public.update(exitCode=2, managerExitCode=2, status="BLOCKED", reasonCode="COMMAND", reasonCodes=["COMMAND"])
+        public["operation"].update(outcome="BLOCKED", reasonCode="COMMAND")
+        for initial in (False, True):
+            captured = []
+
+            def diagnostic(words, code, value, invocation):
+                captured.append(invocation)
+                raise ValueError(self.SECRET)
+
+            with self.subTest(initial=initial), self.child_boundary(public) as (observed, parsed, baseline), \
+                    patch.object(harness, "command_failure_diagnostic", side_effect=diagnostic), \
+                    patch.object(harness.uuid, "uuid4", return_value=SimpleNamespace(hex=self.OPERATION)), \
+                    patch.object(harness, "prepare_backup_fault", return_value={}), \
+                    patch.object(harness, "stable_partial") as partial, self.assertRaises(harness.Failure) as caught:
+                if initial:
+                    harness.partial_fault_guest({})
+                else:
+                    harness.completed_fault_command(self.OPERATION, deadline=time.monotonic() + 900, timeout=120, allowed=(1,))
+            self.assert_invocation(observed, parsed, baseline)
+            self.assertEqual(captured, [parsed.call_args.kwargs["invocation"]])
+            self.assertEqual(caught.exception.code, "COMMAND")
+            self.assertEqual(caught.exception.command_failure_diagnostic["status"], "UNAVAILABLE")
+            self.assertNotIn(self.SECRET, json.dumps(caught.exception.command_failure_diagnostic))
+            self.assertNotIn("proof", observed["events"])
+            partial.assert_not_called()
+
+
 if __name__ == "__main__":
     if sys.argv[1:] == ["--evidence"]:
         suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])

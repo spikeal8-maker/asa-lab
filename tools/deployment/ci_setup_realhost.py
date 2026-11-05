@@ -5019,7 +5019,7 @@ def stable_partial(operation_id):
     return {**second, "stableAfterQuiescence": True, "operationLockReleased": True}
 
 
-def fault_receipt(operation_id):
+def fault_receipt(operation_id, *, public=None, recovery=None):
     snapshot = fault_binding(operation_id)
     receipt = json.loads((INSTALL_ROOT / ".asa/setup-backups" / (snapshot + ".json")).read_text())
     journal = json.loads((INSTALL_ROOT / ".asa/setup-operations" / (operation_id + ".json")).read_text())
@@ -5027,7 +5027,60 @@ def fault_receipt(operation_id):
             and journal.get("operationId") == operation_id and journal.get("snapshotId") == snapshot, "FAULT_RECEIPT_IDENTITY")
     require(receipt.get("local", {}).get("status") != "OK" and receipt.get("outcome") not in ("ACCEPTED", "WARNING")
             and journal.get("result", {}).get("dataProtectionConfirmed") is not True, "FAULT_FALSE_BACKUP_SUCCESS")
+    if recovery is not None:
+        require_performed_fault(public, receipt, journal, operation_id=operation_id,
+            installation_id=fault_fixture()["installationId"], snapshot_id=snapshot, recovery=recovery)
     return fault_receipt_projection(receipt, journal)
+
+
+def require_performed_fault(public, receipt, journal, *, operation_id, installation_id, snapshot_id, recovery):
+    """A performed local failure is ERROR/1; the nested backup stays BLOCKED."""
+    code = "FAULT_RECOVERY_CONTRACT" if recovery is True else "FAULT_PARTIAL_RECEIPT"
+    require(type(recovery) is bool and all(isinstance(value, dict) for value in (public, receipt, journal)), code)
+    operation, result = public.get("operation"), journal.get("result")
+    local, encryption, cloud = (receipt.get(name) for name in ("local", "encryption", "cloud"))
+    stages = journal.get("stages")
+    require(all(isinstance(value, dict) for value in (operation, result, local, encryption, cloud, stages)), code)
+    require(public.get("format") == "asa-cli-result-v1" and public.get("command") == "backup create"
+            and public.get("status") == "FAILED" and type(public.get("exitCode")) is int and public["exitCode"] == 1
+            and type(public.get("managerExitCode")) is int and public["managerExitCode"] == 1
+            and operation.get("outcome") == "ERROR" and operation.get("actionExecuted") is True
+            and operation.get("applicationAccepted") is False and operation.get("dataProtectionConfirmed") is False
+            and public.get("reasonCode") is None and public.get("reasonCodes") == []
+            and operation.get("reasonCode") is None, code)
+    require(all(isinstance(value, str) and re.fullmatch(r"[a-f0-9]{32}", value)
+                for value in (operation_id, installation_id))
+            and all(value.get("operationId") == operation_id and value.get("installationId") == installation_id
+                    for value in (operation, receipt, journal, result))
+            and receipt.get("snapshotId") == journal.get("snapshotId") == snapshot_id, code)
+    require(receipt.get("format") == "asa-backup-operation-v1" and receipt.get("policy") == "best-effort"
+            and receipt.get("outcome") == "BLOCKED" and receipt.get("snapshotAt") is None
+            and local.get("status") == "FAILED" and local.get("executionStatus") == ("UNKNOWN" if recovery else "RUNNING")
+            and local.get("error") == ("BACKUP_RESUME_SNAPSHOT_MISSING" if recovery else "COMMAND")
+            and not any(local.get(key) for key in ("previouslyVerified", "verifiedAt", "manifestSha256"))
+            and encryption.get("status") == "PENDING" and cloud.get("status") == "NOT_CONFIGURED"
+            and isinstance(receipt.get("writers"), dict) and receipt["writers"].get("held") is False, code)
+    require(journal.get("format") == "asa-setup-operation-v1" and journal.get("root") == str(INSTALL_ROOT)
+            and journal.get("mode") == result.get("mode") == "backup" and journal.get("state") == "TERMINAL"
+            and journal.get("phase") == result.get("stage") == "backup"
+            and result.get("format") == "asa-setup-result-v1" and result.get("outcome") == "ERROR"
+            and type(result.get("exitCode")) is int and result["exitCode"] == 1
+            and result.get("actionExecuted") is True and result.get("executionCompleted") is False
+            and result.get("applicationAccepted") is False and result.get("dataProtectionConfirmed") is False
+            and result.get("reasonCode") is None, code)
+    stage, backup = stages.get("backup"), result.get("backup")
+    require(isinstance(stage, dict) and stage.get("status") == "done" and isinstance(stage.get("evidence"), dict)
+            and isinstance(backup, dict) and backup.get("status") == "FAILED", code)
+    # The manager adds schedule/row summaries to the same durable backup receipt.
+    require(canonical_hash({key: value for key, value in backup.items() if key not in ("status", "schedule")}) == canonical_hash(receipt)
+            and canonical_hash({key: value for key, value in stage["evidence"].items() if key != "schedule"}) == canonical_hash(receipt), code)
+    if recovery:
+        continuation = stages.get("backup_continuation")
+        require(isinstance(continuation, dict) and continuation.get("status") == "done"
+                and isinstance(continuation.get("evidence"), dict)
+                and canonical_hash({key: value for key, value in continuation["evidence"].items() if key != "schedule"}) == canonical_hash(receipt), code)
+    else:
+        require("backup_continuation" not in stages, code)
 
 
 def fault_receipt_projection(receipt, journal):
@@ -5063,9 +5116,13 @@ def fault_public_command(operation_id):
 
 
 def completed_fault_command(operation_id, *, deadline, timeout, allowed):
+    baseline = command_log_baseline(["backup", "create"])
+    started_ns = time.time_ns()
     with OwnedFaultProcess(fault_public_command(operation_id), environment=guest_environment(), deadline=deadline) as child:
         code, raw = child.wait(timeout)
-        value = public_cli_result(["backup", "create"], code, raw, allowed=allowed)
+        invocation = {"pid": child.process.pid, "startedNs": started_ns, "finishedNs": time.time_ns(), "setupLogsBefore": baseline}
+        require(type(code) is int, "PUBLIC_CLI_RESULT")
+        value = public_cli_result(["backup", "create"], code, raw, allowed=allowed, invocation=invocation)
         return value, child.proof()
 
 
@@ -5116,19 +5173,20 @@ def recover_partial(context, operation_id, before, deadline):
     held_before = (INSTALL_ROOT / ".asa/maintenance.json").exists()
     try:
         value, processes = completed_fault_command(operation_id, deadline=deadline,
-            timeout=FAULT_RECOVERY_SECONDS, allowed=(2,))
+            timeout=FAULT_RECOVERY_SECONDS, allowed=(1,))
     except Failure as error:
         if error.code in ("BLOCKED_FAULT_PHASE_BUDGET", "BLOCKED_FAULT_QUIESCENCE_BUDGET"):
             raise Failure("BLOCKED_FAULT_RECOVERY_BUDGET", status="BLOCKED") from None
         raise
-    receipt = fault_receipt(operation_id)
-    require(value.get("status") == "BLOCKED" and receipt.get("outcome") == "BLOCKED"
+    require(value.get("status") == "FAILED", "FAULT_RECOVERY_CONTRACT")
+    receipt = fault_receipt(operation_id, public=value, recovery=True)
+    require(receipt.get("outcome") == "BLOCKED"
             and receipt.get("localReasonCode") == "BACKUP_RESUME_SNAPSHOT_MISSING", "FAULT_RECOVERY_CONTRACT")
     after = stable_partial(operation_id)
     require(after == before, "FAULT_RECOVERY_REEXPORTED")
     fault_baseline()
     observation = owner_call("owner-fault-observe", timeout=360)
-    return {"publicExitCode": 2, "receipt": receipt, "sameSnapshotAndPartialBytes": True,
+    return {"publicExitCode": 1, "receipt": receipt, "sameSnapshotAndPartialBytes": True,
             "holdRemainedBeforeSameIdCommand": held_before,
             "allOwnedProcessesExited": processes["allOwnedProcessesExited"],
             "exactOriginalWritersRestored": observation["exactOriginalWritersRestored"],
@@ -5142,15 +5200,19 @@ def partial_fault_guest(context):
         evidence["baseline"] = prepare_backup_fault(context)
         operation_id = uuid.uuid4().hex
         evidence["operationId"] = operation_id
+        baseline = command_log_baseline(["backup", "create"])
+        started_ns = time.time_ns()
         with OwnedFaultProcess(fault_public_command(operation_id), environment=guest_environment(), file_limit=True, deadline=deadline) as child:
             code, raw = child.wait(FAULT_WINDOW_SECONDS + FAULT_QUIESCENCE_SECONDS)
-            public_cli_result(["backup", "create"], code, raw, allowed=(2,))
+            invocation = {"pid": child.process.pid, "startedNs": started_ns, "finishedNs": time.time_ns(), "setupLogsBefore": baseline}
+            require(type(code) is int, "PUBLIC_CLI_RESULT")
+            value = public_cli_result(["backup", "create"], code, raw, allowed=(1,), invocation=invocation)
             evidence["processes"] = child.proof()
         partial = stable_partial(operation_id)
         require(partial["syntheticPartBytes"] == FAULT_FILE_LIMIT and partial["objectBytes"] > 0
                 and 0 < partial["databaseBytes"] < FAULT_FILE_LIMIT and 0 < partial["globalsBytes"] < FAULT_FILE_LIMIT,
                 "BLOCKED_FAULT_SIZE_LIMIT_NOT_REACHED", status="BLOCKED")
-        receipt = fault_receipt(operation_id)
+        receipt = fault_receipt(operation_id, public=value, recovery=False)
         require(receipt["localStatus"] == "FAILED" and receipt["outcome"] == "BLOCKED", "FAULT_PARTIAL_RECEIPT")
         evidence.update(publicExitCode=code, partial=partial, receipt=receipt, observedObjectFileLimitReached=True)
         fault_baseline()
