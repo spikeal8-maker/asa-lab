@@ -287,7 +287,7 @@ class PinnedComponentTests(unittest.TestCase):
             "playwright": acceptance.PLAYWRIGHT_VERSION})
 
     def test_reviewed_browser_source_and_runtime_pins_are_exact(self):
-        self.assertEqual(acceptance.OPS_REVISION, "f11426d7040f44c024aa12c4962876986aa0e3ca")
+        self.assertEqual(acceptance.OPS_REVISION, "a328523a20b1a63775206aa3096a7052930a03e8")
         self.assertEqual(acceptance.BROWSER_SHA256, "c445903be3327a64b869117171960cd531fa82426fcd5702da7bebfdcd7c6fab")
         self.assertEqual(acceptance.FIXTURE_SHA256, "64de2bc8478d5aaa60f60fa1b0035448d8c467cf0ffcc92a0aa0be22d3b4786f")
         self.assertEqual(acceptance.PLAYWRIGHT_VERSION, "1.56.0")
@@ -303,7 +303,7 @@ class PinnedComponentTests(unittest.TestCase):
             "launcher": asa_setup_launcher.CLOUD_SOURCE_SHA256,
             "harness": ci_setup_realhost.CLOUD_SOURCE_SHA256,
         }
-        expected = "c6e30c3d1fa8aaa57e14c89b22c5677af5f5c5e132881925f2197949d7797d08"
+        expected = "e494038f3d1ad7e6ae7bc72f0cc0ff8bb3ab3a18d8a96a42d0302f46764ae760"
         self.assertEqual(observed, {name: expected for name in ("manifest", "backup", "launcher", "harness")})
 
     def test_cloud_manifest_and_three_runtime_guards_match_reviewed_source_bytes(self):

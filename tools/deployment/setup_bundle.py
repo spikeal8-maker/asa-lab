@@ -24,7 +24,7 @@ import uuid
 REPOSITORY = "spikeal8-maker/asa-lab"
 WORKFLOW = ".github/workflows/setup-release.yml"
 OPS_REPOSITORY = "spikeal8-maker/Server-setings"
-OPS_REVISION = "f11426d7040f44c024aa12c4962876986aa0e3ca"
+OPS_REVISION = "a328523a20b1a63775206aa3096a7052930a03e8"
 FORMAT = "asa-setup-bundle-v1"
 MANIFEST = "setup-bundle.json"
 MAX_FILE_BYTES = 4 * 1024 * 1024

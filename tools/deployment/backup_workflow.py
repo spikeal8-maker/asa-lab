@@ -24,7 +24,7 @@ from .contracts import Blocked, file_hash, require, verify_backup
 from .paths import atomic_json as _atomic_json, plain_paths
 
 
-TRANSPORT_SHA256 = "c6e30c3d1fa8aaa57e14c89b22c5677af5f5c5e132881925f2197949d7797d08"
+TRANSPORT_SHA256 = "e494038f3d1ad7e6ae7bc72f0cc0ff8bb3ab3a18d8a96a42d0302f46764ae760"
 SNAPSHOT = re.compile(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,32}")
 INSTALLATION = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 OPERATION = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{7,79}")
