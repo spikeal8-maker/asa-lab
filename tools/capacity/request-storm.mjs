@@ -3,7 +3,11 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
 import console from 'node:console';
-import { assertStormEnvironment, STORM_BASELINE } from './request-storm-contracts.mjs';
+import {
+  assertStormClientProvenance,
+  assertStormEnvironment,
+  STORM_BASELINE,
+} from './request-storm-contracts.mjs';
 
 const mode = process.argv[2] || 'unit';
 const unitPaths = [
@@ -59,6 +63,12 @@ if (mode === 'browser') {
   if (![30, 60].includes(users)) throw Error('Choose the measured 30 or 60 users');
   const before = JSON.parse(readFileSync(`reports/request-storm/baseline-${users}.json`, 'utf8'));
   const after = JSON.parse(readFileSync(`reports/request-storm/candidate-${users}.json`, 'utf8'));
+  const clientSource = (report) => {
+    const proof = assertStormClientProvenance(report.clientSource, report.source);
+    const { source, sourceRoot, moduleCount, moduleFingerprint, bundleFingerprint } = proof;
+    return { source, sourceRoot, moduleCount, moduleFingerprint, bundleFingerprint };
+  };
+  const clientSources = { before: clientSource(before), after: clientSource(after) };
   const candidateHead = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   if (
     !before.success ||
@@ -83,6 +93,7 @@ if (mode === 'browser') {
     users,
     beforeSource: before.source,
     afterSource: after.source,
+    clientSources,
     requests: metric('requests'),
     requestsPerSecond: metric('requestsPerSecond'),
     requestsPerMinute: metric('requestsPerMinute'),

@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { availableParallelism, cpus, freemem, totalmem } from 'node:os';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { build, type Plugin } from 'vite';
+import { build } from 'vite';
 import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { FixtureCookieJar } from '../../tools/capacity/contracts.mjs';
@@ -17,8 +17,11 @@ import {
   documentDigest,
   STORM_ORIGIN,
   STORM_API_ORIGIN,
+  stormChromiumResources,
+  stormClientProvenance,
   stormQuantiles,
   stormRoute,
+  stormSourcePlugin,
   summarizeStorm,
 } from '../../tools/capacity/request-storm-contracts.mjs';
 import { edit } from './documents';
@@ -89,6 +92,7 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
       let app: Awaited<ReturnType<ApiFactory['createApiApp']>> | undefined;
       let proxy: Server | undefined;
       let browser: Browser | undefined;
+      let clientSource: ReturnType<typeof stormClientProvenance> | undefined;
       const contexts: BrowserContext[] = [];
       const pages: Page[] = [];
       const records: Observation[] = [];
@@ -146,21 +150,16 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
             previousHostCpu = currentHostCpu;
             let chromiumResources: Data = { supported: false };
             if (process.platform === 'linux') {
-              const { stdout } = await execute('ps', ['-eo', 'comm=,rss=,pcpu='], {
+              const { stdout } = await execute('ps', ['-eo', 'pid=,ppid=,rss=,pcpu=,comm='], {
                 timeout: 1500,
                 maxBuffer: 1048576,
+                env: { ...process.env, LC_ALL: 'C' },
               });
-              const processes = stdout
-                .trim()
-                .split('\n')
-                .map((row) => row.trim().split(/\s+/))
-                .filter(([name]) => /^(?:chrome|chromium)/.test(name ?? ''));
-              chromiumResources = {
-                supported: true,
-                processes: processes.length,
-                rssSumBytes: processes.reduce((sum, row) => sum + Number(row[1]) * 1024, 0),
-                lifetimeCpuPercentSum: processes.reduce((sum, row) => sum + Number(row[2]), 0),
-              };
+              chromiumResources = stormChromiumResources(
+                stdout,
+                process.pid,
+                browser?.isConnected() ?? false,
+              );
             }
             samples.push({
               elapsedMs: Math.round(performance.now() - started),
@@ -213,20 +212,10 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
         );
         expect(identity.rows[0].name).toBe(fixture.database);
         const entry = resolve('tests/capacity/request-storm-client.tsx');
-        const remap: Plugin = {
-          name: 'exact-request-storm-client-source',
-          resolveId(source, importer) {
-            if (importer?.split('?')[0] === entry && source.startsWith('../../apps/'))
-              return this.resolve(resolve(sourceRoot, source.slice(6)), importer, {
-                skipSelf: true,
-              });
-            return null;
-          },
-        };
         const built = await build({
           configFile: false,
           logLevel: 'warn',
-          plugins: [remap],
+          plugins: [stormSourcePlugin(entry, sourceRoot)],
           resolve: { dedupe: ['react', 'react-dom'] },
           define: {
             'process.env.NODE_ENV': '"production"',
@@ -242,10 +231,12 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
           },
         });
         const bundles = Array.isArray(built) ? built : [built];
-        const script = bundles
+        const chunks = bundles
           .flatMap((bundle) => ('output' in bundle ? bundle.output : []))
-          .find((item) => item.type === 'chunk');
-        if (!script || script.type !== 'chunk') throw Error('Missing real client bundle');
+          .filter((item) => item.type === 'chunk');
+        clientSource = stormClientProvenance(chunks, sourceRoot, fixture.source);
+        const script = chunks.find((item) => item.isEntry);
+        if (!script || chunks.length !== 1) throw Error('Expected one real client IIFE bundle');
         app = await sourceFactory.createApiApp({
           pool: runtime,
           analyticsPool: analytics,
@@ -645,6 +636,10 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
           expect(peakBusinessPerInstance).toBeLessThanOrEqual(6);
         }
         expect(correctness.gameMatches).toBe(2);
+        if (sampler) clearInterval(sampler);
+        sampler = undefined;
+        await samplePending;
+        expect(samples.length).toBeGreaterThan(0);
         expect(sampleErrors).toBe(0);
         success = true;
       } finally {
@@ -658,6 +653,7 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
           schemaVersion: 1,
           fixture: 'real-browser-client-api-postgresql',
           source: fixture.source,
+          clientSource,
           variant: fixture.variant,
           users: fixture.users,
           success,
@@ -688,7 +684,7 @@ describe.skipIf(process.env.ASA_REQUEST_STORM !== '1')(
             'lightweight client harness; full editor UI is verified separately',
             'loopback ingress; public FRP not loaded',
             'Node CPU includes workload controller and API; PostgreSQL container usage is a separate artifact',
-            'Chromium RSS is the sum across processes and may count shared pages more than once; ps CPU is lifetime average, host CPU is interval utilization',
+            'Chromium RSS sums this workload process tree and may count shared pages more than once; ps CPU is lifetime average, host CPU is interval utilization',
             'Latency includes the deliberately slow notification phase; use per-phase records for healthy-only latency',
           ],
           records,
