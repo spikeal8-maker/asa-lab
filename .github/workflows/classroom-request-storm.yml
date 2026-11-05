@@ -1,0 +1,217 @@
+name: Classroom Request Storm
+on:
+  pull_request:
+    paths:
+      - 'apps/web/src/portal-requests*'
+      - 'apps/web/src/api-call.ts'
+      - 'apps/web/src/App*.tsx'
+      - 'apps/web/src/App-session-check.spec.ts'
+      - 'apps/web/src/api.ts'
+      - 'apps/web/src/session-fetch*'
+      - 'apps/web/src/games/game-notification*'
+      - 'apps/web/src/client-diagnostic*'
+      - 'apps/web/src/telemetry-*'
+      - 'apps/web/src/analytics-delivery*'
+      - 'apps/api/src/client-diagnostics*'
+      - 'apps/api/src/application-log-store*'
+      - 'tests/capacity/request-storm*'
+      - 'tools/capacity/request-storm*'
+      - '.github/workflows/classroom-request-storm.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: request-storm-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx build api --skip-nx-cache
+      - run: node tools/capacity/request-storm.mjs unit
+      - run: pnpm exec nx run web:typecheck --skip-nx-cache
+  workload:
+    needs: unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        users: [30, 60]
+    services:
+      postgres:
+        image: postgres:17.7
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: request-storm-ci-only
+          POSTGRES_DB: postgres
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+      ASA_REQUEST_STORM: '1'
+      ASA_STORM_USERS: ${{ matrix.users }}
+      ASA_STORM_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_APP_DB_PASSWORD: request-storm-ci-only
+      ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4612
+      ASA_BLOCKS_RUNTIME_SIGNING_KEY: '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 6a876a942985780297cf346a9a85077be7479d0b
+          path: baseline
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: candidate/pnpm-lock.yaml
+      - name: Build both exact sources with their frozen lockfiles
+        run: |
+          pnpm --dir baseline install --frozen-lockfile
+          pnpm --dir baseline exec nx build api --skip-nx-cache
+          pnpm --dir candidate install --frozen-lockfile
+          pnpm --dir candidate exec nx build api --skip-nx-cache
+          pnpm --dir candidate exec playwright install --with-deps chromium
+      - name: Prepare two fresh disposable databases
+        working-directory: candidate
+        run: |
+          psql postgresql://postgres:request-storm-ci-only@127.0.0.1:5432/postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE asa_request_storm_baseline_test'
+          psql postgresql://postgres:request-storm-ci-only@127.0.0.1:5432/postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE asa_request_storm_candidate_test'
+          for variant in baseline candidate; do
+            export MIGRATION_DATABASE_URL="postgresql://postgres:request-storm-ci-only@127.0.0.1:5432/asa_request_storm_${variant}_test"
+            export MIGRATION_EXPECT_DATABASE="asa_request_storm_${variant}_test"
+            export MIGRATION_CONFIRM="APPLY:asa_request_storm_${variant}_test"
+            pnpm --dir "../$variant" db:migrate
+            psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'request-storm-ci-only'"
+          done
+      - name: Observe this job's PostgreSQL container
+        run: |
+          mkdir -p candidate/reports/request-storm
+          docker stats --format '{{json .}}' '${{ job.services.postgres.id }}' > candidate/reports/request-storm/postgres-docker-stats.jsonl &
+          echo "$!" > candidate/reports/request-storm/docker-stats.pid
+      - name: Run the same client workload before and after
+        working-directory: candidate
+        run: |
+          for variant in baseline candidate; do
+            export ASA_STORM_VARIANT="$variant"
+            export ASA_STORM_SOURCE_ROOT="$(realpath ../$variant)"
+            export ASA_STORM_SOURCE_SHA="$(git -C "$ASA_STORM_SOURCE_ROOT" rev-parse HEAD)"
+            export ASA_STORM_RUN_ID="$(node -e 'process.stdout.write(crypto.randomUUID())')"
+            export TEST_DATABASE_URL="postgresql://postgres:request-storm-ci-only@127.0.0.1:5432/asa_request_storm_${variant}_test"
+            export APP_TEST_DATABASE_URL="postgresql://asalab_app:request-storm-ci-only@127.0.0.1:5432/asa_request_storm_${variant}_test"
+            node tools/capacity/request-storm.mjs measure
+          done
+          node tools/capacity/request-storm.mjs compare "$ASA_STORM_USERS"
+      - name: Stop only this run's resource observer
+        if: always()
+        run: |
+          if [ -f candidate/reports/request-storm/docker-stats.pid ]; then
+            kill "$(cat candidate/reports/request-storm/docker-stats.pid)" || true
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: request-storm-${{ matrix.users }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: candidate/reports/request-storm/
+          retention-days: 30
+          if-no-files-found: error
+  runtime-browser:
+    needs: unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+      COMPOSE_PROJECT_NAME: asa-storm-${{ github.run_id }}
+      ASA_TEST_UID: '1000'
+      ASA_TEST_GID: '1000'
+      ASA_BLOCKS_RUNTIME_SIGNING_KEY: '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Prepare this job's evidence directories
+        run: |
+          mkdir -p reports e2e/artifacts .asa/diagnostics/store
+          chmod -R 0777 reports e2e/artifacts
+      - name: Build production API and Web and the browser runner from this exact commit
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+      - name: Verify exact source revision on both production images
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, subprocess
+          revision = os.environ['ASA_BUILD_REVISION']
+          images = json.loads(subprocess.check_output(['docker', 'image', 'inspect', 'asa-lab-api:' + revision, 'asa-lab-web:' + revision]))
+          assert all(image['Config']['Labels']['org.opencontainers.image.revision'] == revision for image in images)
+          print(json.dumps([{'id': image['Id'], 'revision': image['Config']['Labels']['org.opencontainers.image.revision']} for image in images]))
+          PYTHON
+      - name: Start only this job's disposable PostgreSQL
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          up -d --wait --wait-timeout 120 postgres
+      - name: Apply the committed migrations to the new test database
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          run --rm --no-deps migration
+      - name: Start the built API and Web
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          up -d --wait --wait-timeout 240 --no-deps api web
+      - name: Real game and electronics persistence journeys
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          run --rm --no-deps -e NX_SKIP_NX_CACHE=true test-runner node tools/capacity/request-storm.mjs browser
+      - name: Retain runtime identities and status
+        if: always()
+        run: |
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test ps -a > reports/request-storm-docker-status.txt
+          docker image inspect "asa-lab-api:$ASA_IMAGE_TAG" "asa-lab-web:$ASA_IMAGE_TAG" --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.revision"}}' > reports/request-storm-image-identities.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: request-storm-runtime-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            reports
+            e2e/artifacts/checkers/network
+            e2e/artifacts/chess/network
+            e2e/artifacts/electronics-simulation
+          if-no-files-found: error
+          retention-days: 30
+      - name: Stop only this run's isolated containers and keep all database volumes
+        if: always()
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          down
