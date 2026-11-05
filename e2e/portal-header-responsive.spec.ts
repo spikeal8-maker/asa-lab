@@ -291,6 +291,7 @@ test('class seat discovers AI in the top bar and drawer with read-only school ac
     // Capability discovery cannot grant generation; still requires this Seat ID.
     { path: '/api/ai/image-generation/status', method: 'GET', seat: seatId },
     { path: '/api/ai/web-search/status', method: 'GET', seat: seatId },
+    { path: '/api/ai/stt/status', method: 'GET', seat: seatId },
   ];
   const aiRequests: Array<{ path: string; method: string; seat: string | null }> = [];
   page.on('request', (request) => {
@@ -343,6 +344,7 @@ test('class seat discovers AI in the top bar and drawer with read-only school ac
       configured: false,
       enabled: false,
     },
+    '/api/ai/stt/status': { enabled: false, model: 'ai-sage/gigaam-v3', maxAudioSeconds: 30 },
   };
   await page.route('**/api/ai/**', (route) => {
     const request = route.request();
