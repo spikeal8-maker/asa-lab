@@ -851,5 +851,71 @@ class HelpEvidenceTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, "FIELD_SET")
 
 
+class UpdateRejectionSectionTests(unittest.TestCase):
+    def test_field_set_rejections_identify_only_the_fixed_update_group(self):
+        paths = (
+            ("UPDATE_ENVELOPE", ("checkedAt",)),
+            ("UPDATE_TARGET", ("target", "images", "api")),
+            ("UPDATE_CURRENT", ("current", "schema")),
+            ("UPDATE_CURRENT_DATABASE", ("currentDatabase", "bytes")),
+            ("UPDATE_MIGRATIONS", ("migrations", "fromSchema")),
+            ("UPDATE_DISK", ("disk", "database", "bytes")),
+            ("UPDATE_SPACE", ("backupSpaceEstimate", "imageBytes")),
+            ("UPDATE_BACKUP", ("backup", "lastAttempt", "local", "bytes")),
+            ("UPDATE_CLOUD", ("cloud", "transport", "reasonCode")),
+        )
+        context = fixture()
+        for command in ("update", "update check", "update plan"):
+            for section, path in paths:
+                document = examples(context)[command][0]
+                del at(document, path[:-1])[path[-1]]
+                before = copy.deepcopy(document)
+                with self.subTest(command=command, section=section), self.assertRaises(CLIReadCheckError) as raised:
+                    check_read_result(command, document, returncode=0, expected=context)
+                self.assertEqual(raised.exception.code, "FIELD_SET")
+                self.assertEqual(getattr(raised.exception, "section", None), section)
+                self.assertEqual(str(raised.exception), "FIELD_SET")
+                self.assertEqual(document, before)
+
+    def test_section_wrapper_keeps_original_exception_and_never_copies_unknown_names(self):
+        from deployment import realhost_cli_checks as checks
+        for section in ("UPDATE_BACKUP", SECRET, "UPDATE_BACKUP\u200b", None, True):
+            original = CLIReadCheckError("FIELD_SET")
+            with self.subTest(section_type=type(section).__name__), self.assertRaises(CLIReadCheckError) as raised:
+                checks._update_section(section, mock.Mock(side_effect=original))
+            self.assertIs(raised.exception, original)
+            self.assertEqual(original.section, "UPDATE_BACKUP" if section == "UPDATE_BACKUP" else None)
+            self.assertNotIn(SECRET, str(original))
+        document = examples(fixture())["status"][0]
+        del document["database"]["bytes"]
+        with self.assertRaises(CLIReadCheckError) as raised:
+            check_read_result("status", document, returncode=0, expected=fixture())
+        self.assertEqual(raised.exception.code, "FIELD_SET")
+        self.assertIsNone(raised.exception.section)
+
+    def test_success_and_validator_order_are_unchanged(self):
+        from deployment import realhost_cli_checks as checks
+        context = fixture()
+        original = checks._update_section
+        events = []
+        def observed(section, validator, *args, **kwargs):
+            events.append((section, validator.__name__))
+            return original(section, validator, *args, **kwargs)
+        document = examples(context)["update check"][0]
+        before = copy.deepcopy(document)
+        with mock.patch.object(checks, "_update_section", side_effect=observed):
+            result = check_read_result("update check", document, returncode=0, expected=context)
+        self.assertEqual(document, before)
+        self.assertEqual((result["status"], result["exitCode"]), ("PLANNED", 0))
+        self.assertNotIn("section", result)
+        self.assertNotIn("rejectionContext", result)
+        self.assertEqual(events, [
+            ("UPDATE_ENVELOPE", "_shape"), ("UPDATE_TARGET", "_shape"), ("UPDATE_TARGET", "_release"),
+            ("UPDATE_CURRENT", "_release"), ("UPDATE_CURRENT_DATABASE", "_database"),
+            ("UPDATE_MIGRATIONS", "_shape"), ("UPDATE_DISK", "_disk"), ("UPDATE_SPACE", "_space"),
+            ("UPDATE_BACKUP", "_backups"), ("UPDATE_CLOUD", "_cloud"),
+        ])
+
+
 if __name__ == "__main__":
     unittest.main()

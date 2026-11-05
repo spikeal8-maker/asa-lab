@@ -1,6 +1,7 @@
 """Coordinator seams, real temporary files and harmless native child processes.
 
-No test invokes /usr/local/bin/asa or imports a product implementation.
+No test invokes /usr/local/bin/asa. Rejection probes call the public producer
+with modeled external observations and no host or network commands.
 """
 import copy
 import json
@@ -504,6 +505,240 @@ class NativeTransportTests(unittest.TestCase):
             self.assertEqual(len({call.args[0] for call in kills.call_args_list}), 1)
             time.sleep(1.1)
             self.assertFalse(Path(marker).exists())
+
+
+class RejectionContextTests(unittest.TestCase):
+    def setUp(self):
+        self.context = fixture()
+
+    def reject(self, document, code=0, *, command="update check", checker=check_read_result):
+        with self.assertRaises(runtime.CLIRuntimeError) as raised:
+            runtime._checked(checker, command, captured(json.dumps(document).encode(), code), self.context, "")
+        return raised.exception
+
+    def public_plan(self, *, second_database_unavailable=False, invalid_release=False):
+        import contextlib
+        import io
+        import socket
+        from pathlib import PurePosixPath
+        import asa_cli
+        from deployment import cli_observe, release_readonly, test_realhost_cli_checks as source_fixture
+
+        context = self.context
+        reader = cli_observe.Observer.__new__(cli_observe.Observer)
+        reader.root, reader.project, reader.errors = PurePosixPath(context.root), context.project, []
+        reader.config = {"backup": {"policy": "best-effort"}, "backupDirectory": context.filesystem_paths["backups"]}
+        reader.settings = {}
+        reader._containers = {"status": "OK", "items": [
+            {"service": "postgres", "id": "1" * 64, "running": True,
+             "mounts": [{"Destination": "/var/lib/postgresql/data", "Source": context.filesystem_paths["postgres"]}]},
+            {"service": "minio", "id": "2" * 64, "running": True,
+             "mounts": [{"Destination": "/data", "Source": context.filesystem_paths["minio"]}]},
+        ]}
+        reader.installed = lambda: source_fixture.release(context)
+        reader.backups = lambda: source_fixture.backups(context)
+        reader.cloud = source_fixture.cloud
+        reader.backup_space = lambda _database: copy.deepcopy(source_fixture.update(context)["backupSpaceEstimate"])
+        selection = {"release": {"revision": context.target.revision, "schema": context.target.schema,
+                                  "images": dict(context.target.images)},
+                     "deploymentDigest": context.deployment_digest, "manifestDigest": context.manifest_digest,
+                     "checkedAt": STAMP, "ci": "VERIFIED"}
+        database_queries = []
+        def observation(command, **_kwargs):
+            if command == ["docker", "info", "--format", "{{.DockerRootDir}}"]:
+                return {"status": "OK", "output": context.filesystem_paths["docker"]}
+            self.assertEqual(command[:3], ["docker", "exec", "1" * 64])
+            self.assertIn("default_transaction_read_only=on", command[-1])
+            database_queries.append(command)
+            self.assertLessEqual(len(database_queries), 2)
+            if second_database_unavailable and len(database_queries) == 2:
+                return {"status": "UNAVAILABLE", "reasonCode": "PROBE_FAILED"}
+            return {"status": "OK", "output": "SET\n304|1000000"}
+        def filesystem(path):
+            name = next(name for name, expected in context.filesystem_paths.items() if str(path) == expected)
+            return copy.deepcopy(source_fixture.disk(context)["filesystems"][name])
+        with contextlib.ExitStack() as stack:
+            if invalid_release:
+                # The real resolver must reject this metadata before blob/CI I/O.
+                registry = SimpleNamespace(manifest=lambda _ref: ({"schemaVersion": 1}, context.deployment_digest))
+                stack.enter_context(patch.object(release_readonly, "RegistryReader", return_value=registry))
+            else:
+                stack.enter_context(patch.object(release_readonly, "resolve_release", return_value=selection))
+            stack.enter_context(patch.object(cli_observe, "Observer", return_value=reader))
+            stack.enter_context(patch.object(cli_observe, "probe", side_effect=observation))
+            stack.enter_context(patch.object(cli_observe, "filesystem", side_effect=filesystem))
+            stack.enter_context(patch.object(asa_cli, "own_modules"))
+            stack.enter_context(patch.object(asa_cli, "read_registry", return_value={}))
+            stack.enter_context(patch.object(asa_cli, "registry_entry", return_value={"root": context.root}))
+            stack.enter_context(patch.object(asa_cli, "windows_home", return_value=Path("unused-home")))
+            stack.enter_context(patch.object(subprocess, "Popen", side_effect=AssertionError("unexpected process")))
+            stack.enter_context(patch.object(socket, "socket", side_effect=AssertionError("unexpected network")))
+            stdout, stderr = io.StringIO(), io.StringIO()
+            stack.enter_context(contextlib.redirect_stdout(stdout))
+            stack.enter_context(contextlib.redirect_stderr(stderr))
+            code = asa_cli.main(["update", "check", "--root", context.root, "--json", "--no-color"])
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(len(database_queries), 0 if invalid_release else 2)
+        return json.loads(stdout.getvalue()), code
+
+    def test_actual_public_producer_collisions_retain_distinct_closed_observations(self):
+        document, code = self.public_plan()
+        projected = runtime._checked(check_read_result, "update check", captured(json.dumps(document).encode(), code), self.context, "")
+        self.assertEqual((projected["status"], code), ("PLANNED", 0))
+        self.assertNotIn("rejectionContext", projected)
+        for options, status, exit_code, section in (
+                ({"invalid_release": True}, "BLOCKED", 2, "UPDATE_ENVELOPE"),
+                ({"second_database_unavailable": True}, "PLANNED", 0, "UPDATE_DISK")):
+            with self.subTest(section=section):
+                document, code = self.public_plan(**options)
+                error = self.reject(document, code)
+                self.assertEqual((error.code, error.semantic_code), ("CLI_SEMANTICS", "FIELD_SET"))
+                observed = getattr(error, "rejection_context", None)
+                self.assertIsInstance(observed, dict)
+                self.assertEqual((observed["status"], observed["binding"]), ("OBSERVED", "CAPTURED_RESPONSE"))
+                self.assertEqual((observed["actualExitCode"], observed["section"]), (exit_code, section))
+                self.assertEqual(observed["publicStatus"], {"state": "RECOGNIZED", "value": status})
+                if options.get("invalid_release"):
+                    self.assertEqual(observed["publicReason"], {"state": "RECOGNIZED", "code": "RELEASE_OCI"})
+                else:
+                    self.assertEqual(observed["publicReason"], {"state": "MISSING"})
+                    self.assertEqual(observed["components"]["currentDatabase"]["status"], {"state": "RECOGNIZED", "value": "OK"})
+                    self.assertEqual(observed["components"]["disk.database"], {
+                        "state": "OBSERVED", "status": {"state": "RECOGNIZED", "value": "UNAVAILABLE"},
+                        "reason": {"state": "RECOGNIZED", "code": "POSTGRES_QUERY_UNAVAILABLE"}})
+
+    def test_format_command_and_strict_actual_exit_binding_fail_closed(self):
+        base = {"format": "asa-cli-result-v1", "command": "update check", "exitCode": 2,
+                "status": "BLOCKED", "reasonCode": "RELEASE_OCI"}
+        cases = [("format", "asa-cli-result-v1\u200b"), ("format", None), ("format", {}),
+                 ("command", "update"), ("command", "update check\u200b"), ("command", None),
+                 ("exitCode", True), ("exitCode", 0), ("exitCode", "2")]
+        for key, value in cases:
+            document = {**base, key: value}
+            with self.subTest(field=key, kind=type(value).__name__):
+                error = self.reject(document, 2)
+                self.assertEqual(error.rejection_context, {"format": runtime.REJECTION_FORMAT,
+                                 "status": "UNAVAILABLE", "reasonCode": "REJECTION_BINDING"})
+                self.assertEqual(error.code, "CLI_SEMANTICS")
+        for actual in (True, None, "2"):
+            with self.subTest(actual_type=type(actual).__name__):
+                error = self.reject(base, actual)
+                self.assertEqual(error.code, "CLI_CHECKER")
+                self.assertIsNone(error.rejection_context)
+
+    def test_missing_null_unknown_and_unicode_values_are_distinct_and_private(self):
+        base = {"format": "asa-cli-result-v1", "command": "update check", "exitCode": 2}
+        for value, expected in ((None, "NULL"), (SECRET, "UNRECOGNIZED"),
+                                ("RELEASE_OCI\u200b", "UNRECOGNIZED"), (True, "UNRECOGNIZED"),
+                                ({SECRET: SECRET}, "UNRECOGNIZED")):
+            with self.subTest(kind=type(value).__name__):
+                document = {**base, "status": value, "reasonCode": value,
+                            "disk": {"database": {"status": value, "reasonCode": value}}}
+                observed = self.reject(document, 2).rejection_context
+                self.assertEqual(observed["publicStatus"], {"state": expected})
+                self.assertEqual(observed["publicReason"], {"state": expected})
+                self.assertEqual(observed["components"]["disk.database"]["reason"], {"state": expected})
+                self.assertNotIn(SECRET, json.dumps(observed))
+                self.assertNotIn("\\u200b", json.dumps(observed))
+        observed = self.reject(base, 2).rejection_context
+        self.assertEqual(observed["publicStatus"], {"state": "MISSING"})
+        self.assertEqual(observed["publicReason"], {"state": "MISSING"})
+        for value, expected in ((None, "NULL"), ([], "UNRECOGNIZED"), (SECRET, "UNRECOGNIZED")):
+            observed = self.reject({**base, "disk": {"database": value}}, 2).rejection_context
+            self.assertEqual(observed["components"]["disk.database"], {"state": expected})
+        observed = self.reject({**base, "disk": SECRET}, 2).rejection_context
+        self.assertEqual(observed["components"]["disk.database"], {"state": "UNAVAILABLE"})
+
+    def test_unknown_fields_prose_and_checker_sections_never_escape(self):
+        document = examples(self.context)["update check"][0]
+        document[SECRET] = {"password": SECRET}
+        for name in ("message", "apply", "stdout", "stderr", "url", "root", "operationId", "target"):
+            document[name] = SECRET
+        for name in ("current", "currentDatabase", "disk", "backup", "cloud"):
+            document[name] = {SECRET: SECRET, "status": SECRET, "reasonCode": SECRET, "message": SECRET}
+        observed = self.reject(document).rejection_context
+        self.assertEqual(observed["section"], "UPDATE_ENVELOPE")
+        self.assertEqual(set(observed["components"]), set(runtime.REJECTION_COMPONENTS))
+        self.assertLess(len(json.dumps(observed).encode()), 16384)
+        self.assertNotIn(SECRET, json.dumps(observed))
+        def bad_checker(*_args, **_kwargs):
+            error = ValueError(SECRET)
+            error.code, error.section = "FIELD_SET", SECRET
+            raise error
+        error = self.reject(document, checker=bad_checker)
+        self.assertEqual(error.rejection_context["section"], "UNAVAILABLE")
+        self.assertEqual(str(error), "CLI_SEMANTICS")
+        self.assertNotIn(SECRET, json.dumps(error.rejection_context))
+
+    def test_first_rejection_is_retained_without_success_case_or_stale_context(self):
+        for failed_label, reason, expected_count in (("update-check", "RELEASE_OCI", 15),
+                                                     ("update-plan", "RELEASE_LAYER", 16)):
+            coordinator = CoordinatorTests()
+            coordinator.setUp()
+            def mutate(label, document):
+                if label == failed_label:
+                    document.clear()
+                    document.update(format="asa-cli-result-v1", command=failed_label.replace("-", " "),
+                                    exitCode=2, status="BLOCKED", reasonCode=reason)
+            coordinator.mutate = mutate
+            with self.subTest(failed_case=failed_label), self.assertRaises(runtime.CLIRuntimeError) as raised:
+                coordinator.suite()
+            evidence = raised.exception.evidence
+            self.assertEqual((evidence["status"], evidence["reasonCode"], evidence["semanticCode"]),
+                             ("FAIL", "CLI_SEMANTICS", "FIELD_SET"))
+            self.assertEqual(evidence["failedCase"], failed_label)
+            self.assertEqual(len(evidence["cases"]), expected_count)
+            self.assertEqual(len(coordinator.invocations), expected_count + 1)
+            self.assertNotIn(failed_label, {row["case"] for row in evidence["cases"]})
+            self.assertNotIn(failed_label, evidence["examples"])
+            self.assertEqual(evidence["rejectionContext"]["command"], failed_label.replace("-", " "))
+            self.assertEqual(evidence["rejectionContext"]["publicReason"], {"state": "RECOGNIZED", "code": reason})
+            self.assertEqual(evidence["filesystem"]["status"], "UNCHANGED")
+            self.assertEqual(evidence["control"]["status"], "UNCHANGED")
+            self.assertEqual(coordinator.events[-2:], [("filesystem", 2), ("control", "after")])
+        coordinator = CoordinatorTests()
+        coordinator.setUp()
+        result = coordinator.suite()
+        self.assertEqual(result["status"], "PASS")
+        self.assertNotIn("rejectionContext", result)
+
+    def test_projection_and_after_control_errors_cannot_replace_original_failure(self):
+        coordinator = CoordinatorTests()
+        coordinator.setUp()
+        def mutate(label, document):
+            if label == "update-check":
+                del document["checkedAt"]
+        coordinator.mutate = mutate
+        files = iter((fingerprint(), fingerprint("4")))
+        def after(phase, _deadline):
+            if phase == "after":
+                raise RuntimeError(SECRET)
+            return control()
+        with patch.object(runtime, "_rejection_context", side_effect=RuntimeError(SECRET)), \
+                self.assertRaises(runtime.CLIRuntimeError) as raised:
+            coordinator.suite(files=lambda *_: next(files), controls=after)
+        evidence = raised.exception.evidence
+        self.assertEqual((raised.exception.code, raised.exception.semantic_code), ("CLI_SEMANTICS", "FIELD_SET"))
+        self.assertEqual((evidence["status"], evidence["failedCase"]), ("FAIL", "update-check"))
+        self.assertEqual(evidence["rejectionContext"], {"format": runtime.REJECTION_FORMAT,
+                         "status": "UNAVAILABLE", "reasonCode": "REJECTION_PROJECTION"})
+        self.assertEqual(evidence["filesystem"]["status"], "CHANGED")
+        self.assertEqual(evidence["control"], {"status": "UNAVAILABLE", "reasonCode": "CONTROL_CALLBACK"})
+        self.assertNotIn(SECRET, json.dumps(evidence))
+
+    def test_malformed_json_and_nonupdate_failures_do_not_gain_observed_binding(self):
+        cases = ((b'{"format":1,"format":2}', "CLI_JSON"), (b'{"value":NaN}', "CLI_JSON"),
+                 (b'\xff', "CLI_UTF8"), (b'x' * (runtime.OUTPUT_LIMIT + 1), "CLI_UTF8"))
+        for raw, expected in cases:
+            with self.subTest(code=expected), self.assertRaises(runtime.CLIRuntimeError) as raised:
+                runtime._checked(check_read_result, "update check", captured(raw), self.context, "")
+            self.assertEqual(raised.exception.code, expected)
+            self.assertIsNone(raised.exception.rejection_context)
+        document = examples(self.context)["status"][0]
+        del document["database"]["bytes"]
+        error = self.reject(document, command="status")
+        self.assertEqual((error.code, error.semantic_code), ("CLI_SEMANTICS", "FIELD_SET"))
+        self.assertIsNone(error.rejection_context)
 
 
 if __name__ == "__main__":

@@ -67,6 +67,10 @@ HELP_PARAMETERS = (
     "--non-interactive",
 )
 ENVELOPE = frozenset({"format", "command", "exitCode"})
+UPDATE_REJECTION_SECTIONS = frozenset({
+    "UPDATE_ENVELOPE", "UPDATE_TARGET", "UPDATE_CURRENT", "UPDATE_CURRENT_DATABASE",
+    "UPDATE_MIGRATIONS", "UPDATE_DISK", "UPDATE_SPACE", "UPDATE_BACKUP", "UPDATE_CLOUD",
+})
 
 
 class CLIReadCheckError(ValueError):
@@ -74,6 +78,7 @@ class CLIReadCheckError(ValueError):
 
     def __init__(self, code):
         self.code = code if type(code) is str and code in ERROR_CODES else "FIELD_TYPE"
+        self.section = None
         super().__init__(self.code)
 
 
@@ -605,22 +610,31 @@ def _space(value, context, database, disk):
             "requiredInodes": required_inodes, "snapshotEntries": entries, "sufficient": True}
 
 
+def _update_section(section, validator, *args, **kwargs):
+    """Attach a fixed validator group, never a claim about an exact nested leaf."""
+    try:
+        return validator(*args, **kwargs)
+    except CLIReadCheckError as error:
+        error.section = section if type(section) is str and section in UPDATE_REJECTION_SECTIONS else None
+        raise
+
+
 def _update(value, context):
-    _shape(value, ("status", "checkedAt", "current", "currentDatabase", "target", "available", "migrations", "requiredSpaceBytes", "estimatedDowntimeSeconds", "backupSpaceEstimate", "downtimeReasonCode", "spaceReasonCode", "disk", "backup", "cloud", "blockers", "applyRechecksUnderLock", "apply"), envelope=True)
+    _update_section("UPDATE_ENVELOPE", _shape, value, ("status", "checkedAt", "current", "currentDatabase", "target", "available", "migrations", "requiredSpaceBytes", "estimatedDowntimeSeconds", "backupSpaceEstimate", "downtimeReasonCode", "spaceReasonCode", "disk", "backup", "cloud", "blockers", "applyRechecksUnderLock", "apply"), envelope=True)
     _equal(value["status"], "PLANNED")
     target = value["target"]
-    _shape(target, ("revision", "schema", "images", "deploymentDigest", "manifestDigest", "ci"))
-    selected = _release(target, context.target, target=True)
+    _update_section("UPDATE_TARGET", _shape, target, ("revision", "schema", "images", "deploymentDigest", "manifestDigest", "ci"))
+    selected = _update_section("UPDATE_TARGET", _release, target, context.target, target=True)
     _equal(target["deploymentDigest"], context.deployment_digest, "RELEASE_PIN_MISMATCH")
     _equal(target["manifestDigest"], context.manifest_digest, "RELEASE_PIN_MISMATCH")
     _equal(target["ci"], "VERIFIED")
     selected["deploymentDigest"], selected["manifestDigest"], selected["ci"] = context.deployment_digest, context.manifest_digest, "VERIFIED"
-    current = _release(value["current"], context.installed)
-    database = _database(value["currentDatabase"], context)
+    current = _update_section("UPDATE_CURRENT", _release, value["current"], context.installed)
+    database = _update_section("UPDATE_CURRENT_DATABASE", _database, value["currentDatabase"], context)
     _need(context.target.schema >= context.installed.schema, "SCHEMA_MISMATCH")
     _equal(value["available"], context.target.revision != context.installed.revision)
     migrations = value["migrations"]
-    _shape(migrations, ("status", "fromSchema", "toSchema", "exactList", "reasonCode"))
+    _update_section("UPDATE_MIGRATIONS", _shape, migrations, ("status", "fromSchema", "toSchema", "exactList", "reasonCode"))
     _equal(migrations["status"], "SCHEMA_RANGE_ONLY")
     _equal(migrations["fromSchema"], context.installed.schema, "SCHEMA_MISMATCH")
     _equal(migrations["toSchema"], context.target.schema, "SCHEMA_MISMATCH")
@@ -637,7 +651,7 @@ def _update(value, context):
     _need(not blockers)
     _equal(value["applyRechecksUnderLock"], True)
     _text(value["apply"], 2048)  # An invocation hint is not evidence or executable input.
-    disk = _disk(value["disk"], context)
+    disk = _update_section("UPDATE_DISK", _disk, value["disk"], context)
     return {"status": "PLANNED", "checkedAt": _time(value["checkedAt"]), "current": current,
             "currentDatabase": database, "target": selected, "available": value["available"],
             "migrations": {"status": "SCHEMA_RANGE_ONLY", "fromSchema": context.installed.schema,
@@ -645,8 +659,9 @@ def _update(value, context):
                            "reasonCode": "EXACT_PLAN_REQUIRES_VERIFIED_MIGRATION_RUNTIME"},
             "requiredSpaceBytes": None, "estimatedDowntimeSeconds": None,
             "spaceReasonCode": "NEW_IMAGE_UNPACKED_BYTES_UNKNOWN", "downtimeReasonCode": "NO_MEASURED_DURATION",
-            "backupSpaceEstimate": _space(value["backupSpaceEstimate"], context, database, disk),
-            "disk": disk, "backup": _backups(value["backup"], context), "cloud": _cloud(value["cloud"], context),
+            "backupSpaceEstimate": _update_section("UPDATE_SPACE", _space, value["backupSpaceEstimate"], context, database, disk),
+            "disk": disk, "backup": _update_section("UPDATE_BACKUP", _backups, value["backup"], context),
+            "cloud": _update_section("UPDATE_CLOUD", _cloud, value["cloud"], context),
             "blockers": [], "applyRechecksUnderLock": True}
 
 

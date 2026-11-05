@@ -53,6 +53,38 @@ SEMANTIC_CODES = frozenset({
     "RELEASE_PIN_MISMATCH", "SCHEMA_MISMATCH", "SNAPSHOT_MISMATCH", "OPERATION_MISMATCH",
     "MEASUREMENT_INCONSISTENT", "HELP_CONTRACT",
 })
+REJECTION_FORMAT = "asa-realhost-cli-rejection-v1"
+UPDATE_REJECTION_SECTIONS = frozenset({
+    "UPDATE_ENVELOPE", "UPDATE_TARGET", "UPDATE_CURRENT", "UPDATE_CURRENT_DATABASE",
+    "UPDATE_MIGRATIONS", "UPDATE_DISK", "UPDATE_SPACE", "UPDATE_BACKUP", "UPDATE_CLOUD",
+})
+REJECTION_STATUSES = frozenset({
+    "OK", "RECORDED", "PLANNED", "BLOCKED", "FAILED", "UNAVAILABLE", "INTERRUPTED",
+    "BLOCKED_PLAN", "NOT_CONFIGURED", "SCHEMA_RANGE_ONLY", "MEASURED_BACKUP_BUDGET",
+})
+# These are source literal observations, not accepted outcomes or a regex for
+# arbitrary producer strings. A new/unknown reason remains UNRECOGNIZED.
+REJECTION_REASONS = frozenset({
+    "RELEASE", "RELEASE_UNAVAILABLE", "RELEASE_AUTH", "RELEASE_BUDGET", "RELEASE_DIGEST_MISMATCH",
+    "RELEASE_JSON", "RELEASE_LAYER", "RELEASE_OCI", "RELEASE_PLATFORM", "RELEASE_REDIRECT",
+    "RELEASE_SELECTOR", "RELEASE_SIZE", "CI_BLOCKED", "CI_UNAVAILABLE", "CLI_UNAVAILABLE",
+    "USAGE", "INTERRUPTED", "INSTALLED_RELEASE_UNAVAILABLE", "CURRENT_SCHEMA_UNAVAILABLE",
+    "SCHEMA_DOWNGRADE", "BACKUP_POLICY_UNAVAILABLE", "REQUIRED_CLOUD_TRANSPORT_UNAVAILABLE",
+    "BACKUP_SPACE", "BACKUP_EVIDENCE_MISSING", "BACKUP_PATH", "CLOUD_NOT_CONFIGURED",
+    "CLOUD_TRANSPORT_UNAVAILABLE", "NO_READ_ONLY_PROVIDER_PROBE", "POSTGRES_UNAVAILABLE",
+    "POSTGRES_QUERY_UNAVAILABLE", "STORAGE_MEASUREMENT_UNAVAILABLE", "SPACE_MEASUREMENT_UNAVAILABLE",
+    "SPACE", "FILESYSTEM_OR_ACCESS", "ROOT_REQUIRED", "DOCKER_DATA_ROOT", "STORAGE_MOUNT",
+    "USE_DISK_HEALTH", "EXACT_PLAN_REQUIRES_VERIFIED_MIGRATION_RUNTIME", "SCHEDULE_CONFIGURATION",
+})
+REJECTION_COMPONENTS = (
+    "current", "currentDatabase", "migrations", "backupSpaceEstimate", "disk", "disk.database",
+    "disk.filesystems.application", "disk.filesystems.backups", "disk.filesystems.docker",
+    "disk.filesystems.postgres", "disk.filesystems.minio", "backup", "backup.lastAttempt",
+    "backup.lastAttempt.local", "backup.lastAttempt.encryption", "backup.lastAttempt.cloud",
+    "backup.lastLocalSuccess", "backup.lastLocalSuccess.local", "backup.lastLocalSuccess.encryption",
+    "backup.lastLocalSuccess.cloud", "backup.lastCloudSuccess", "backup.schedule", "cloud",
+    "cloud.transport", "cloud.remote", "cloud.lastDelivery",
+)
 READ_COMMANDS = (
     "version", "status", "doctor", "disk", "disk usage", "disk health", "services",
     "services status", "update", "update check", "update plan", "update history",
@@ -86,6 +118,7 @@ class CLIRuntimeError(RuntimeError):
         self.code = code if type(code) is str and code in ERROR_CODES else "UNEXPECTED_ERROR"
         self.semantic_code = semantic_code if type(semantic_code) is str and semantic_code in SEMANTIC_CODES else None
         self.evidence = evidence
+        self.rejection_context = None
         super().__init__(self.code)
 
 
@@ -475,12 +508,60 @@ def _control_call(callback, phase, deadline):
     return _control(result)
 
 
+def _rejection_value(document, key, allowed, output):
+    if key not in document:
+        return {"state": "MISSING"}
+    value = document[key]
+    if value is None:
+        return {"state": "NULL"}
+    if type(value) is str and value in allowed:
+        return {"state": "RECOGNIZED", output: value}
+    return {"state": "UNRECOGNIZED"}
+
+
+def _rejection_component(document, path):
+    value = document
+    for key in path.split("."):
+        if type(value) is not dict:
+            return {"state": "UNAVAILABLE"}
+        if key not in value:
+            return {"state": "MISSING"}
+        value = value[key]
+    if value is None:
+        return {"state": "NULL"}
+    if type(value) is not dict:
+        return {"state": "UNRECOGNIZED"}
+    return {"state": "OBSERVED", "status": _rejection_value(value, "status", REJECTION_STATUSES, "value"),
+            "reason": _rejection_value(value, "reasonCode", REJECTION_REASONS, "code")}
+
+
+def _rejection_context(command, document, returncode, section):
+    """Closed observation of this parsed stdout, never acceptance or receipt proof."""
+    if not (type(command) is str and command in ("update", "update check", "update plan")
+            and type(document) is dict and document.get("format") == "asa-cli-result-v1"
+            and document.get("command") == command and type(returncode) is int and returncode in (0, 1, 2)
+            and type(document.get("exitCode")) is int and document["exitCode"] == returncode):
+        return {"format": REJECTION_FORMAT, "status": "UNAVAILABLE", "reasonCode": "REJECTION_BINDING"}
+    return {"format": REJECTION_FORMAT, "status": "OBSERVED", "binding": "CAPTURED_RESPONSE",
+            "command": command, "actualExitCode": returncode,
+            "section": section if type(section) is str and section in UPDATE_REJECTION_SECTIONS else "UNAVAILABLE",
+            "publicStatus": _rejection_value(document, "status", REJECTION_STATUSES, "value"),
+            "publicReason": _rejection_value(document, "reasonCode", REJECTION_REASONS, "code"),
+            "components": {path: _rejection_component(document, path) for path in REJECTION_COMPONENTS}}
+
+
 def _checked(checker, command, captured, context, topic):
     document = _json_result(captured)
     try:
         result = checker(command, document, returncode=captured["returncode"], expected=context, help_topic=topic)
     except Exception as error:
-        raise CLIRuntimeError("CLI_SEMANTICS", semantic_code=getattr(error, "code", None)) from None
+        failure = CLIRuntimeError("CLI_SEMANTICS", semantic_code=getattr(error, "code", None))
+        if command in ("update", "update check", "update plan"):
+            try:
+                failure.rejection_context = _rejection_context(command, document, captured["returncode"], getattr(error, "section", None))
+            except Exception:
+                failure.rejection_context = {"format": REJECTION_FORMAT, "status": "UNAVAILABLE", "reasonCode": "REJECTION_PROJECTION"}
+        raise failure from None
     _require(type(result) is dict and result.get("format") == "asa-cli-result-v1" and result.get("command") == command
              and type(result.get("exitCode")) is int and result["exitCode"] == captured["returncode"]
              and result.get("status") in ("OK", "RECORDED", "PLANNED", "UNAVAILABLE", "BLOCKED_PLAN"), "CLI_CHECKER")
@@ -560,6 +641,8 @@ def run_cli_suite(context, expectations, *, checker, control_snapshot, tokens=No
         evidence["reasonCode"], evidence["failedCase"] = primary.code, current
         if primary.semantic_code is not None:
             evidence["semanticCode"] = primary.semantic_code
+        if primary.rejection_context is not None:
+            evidence["rejectionContext"] = primary.rejection_context
         primary.evidence = evidence
         raise primary
     evidence["status"] = "PASS"
