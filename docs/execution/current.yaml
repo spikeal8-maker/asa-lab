@@ -16967,64 +16967,75 @@ parallel_lanes:
     owned_paths:
     - apps/web/robotics-dev.html
     - apps/web/src/robotics/**
+    - contexts/robotics/**
     - modules/robotics/**
     - docs/product/robotics/**
     - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
     - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
     task:
-      id: TASK-ELECTRONICS-ROBOTICS-M1-001
-      issue: 989
+      id: TASK-ELECTRONICS-ROBOTICS-PORTAL-001
+      issue: 994
       branch: codex/robotics-m1-workspace-20261105
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: owner_selected_m1_workspace_field_and_programming
+      checkpoint: owner_selected_full_robotics_portal_integration
       owner_acceptance: pending
-      source_pr: 987
-      source_head_sha: 491c53bc3a3f0a732ac707f7a9235ea435c4e1f3
-      owner_authorization: 'Owner explicitly requests continuing Robotics according to the staged plan, with
-        visible results: separate Field / Robot / Electronics / Program sections, adding existing electronic
-        components, usable programming and editable field objects with simulated interaction. This selects bounded
-        M1 development on the M0 candidate, including its necessary canonical task registration. It does not
-        accept or merge M0, waive inherited integration evidence, authorize product merge/deployment, modify
-        working data or extend to the later 3D/hardware milestones.'
-      scope: Extend the existing local Robotics host with four explicit sections, shared WorkbenchSidebars and
-        ArduinoCodePanel, real robot Blockly presets, validated editable field/robot configuration and dynamic
-        round objects. Keep one visible mounted Stage and one electronics host; add only keyboard activation
-        and pending-program flush seams. Preserve committed time and the existing sensor/Worker contract.
+      source_pr: 991
+      source_head_sha: e99ee2f4798631dc5526d1b3fba7c31236ed66a2
+      owner_authorization: >-
+        Owner explicitly instructs all five proposed steps: real account project with circuit/program/world,
+        main editor and Create navigation, Home/My Projects with preview and reopening, publication and
+        another user's read-only view, and full normal-site browser journey across independent sessions.
+        This authorizes the necessary canonical registration and coordinated bounded implementation on
+        the existing Robotics candidate. Root continues the selected programme through all five steps.
+        Product main merge, deployment, working database operations and owner acceptance are not granted
+        by registration; inherited M0/M1 integration failures are not waived.
+      scope: >-
+        Connect Robotics to the existing Module SDK and Project Core with a browser/server-safe document
+        and provider, forward migrations, canonical server project host, portal editor and navigation,
+        source snapshots, strict immutable public artifact and normal publication catalogue/viewer.
+        Reuse the existing electronics/Arduino/Blockly/catalog and preserve M1 source/history boundaries.
       constraints:
-      - No copied solver, motor equations, Arduino interpreter, block generator, circuit editor or component
-        catalog.
-      - M1 uses a kinematic robot driven by canonical committed RPM plus dynamic circular objects. Reverse torque/load/stall
-        feedback is not supported by the public timed input and is not claimed; static or blocked chassis contact
-        explicitly pauses the experience.
-      - Source-time integration, nearest physical HC-SR04 hit, accumulated input budget and the existing bounded
-        run remain intact. No hidden reset, history pruning, wall-time mechanics or synthetic native presentation
-        ACK.
-      - Shared UI changes are limited to explicit keyboard scope and program publication flush with unchanged
-        legacy defaults; planned exact paths and their real consumers require focused regression evidence.
-      - M0 product PR987 remains unmerged and owner acceptance pending. Its open D13 timing delta and existing
-        baseline CI failures are inherited acceptance risks; this selection permits isolated M1 development and
-        does not declare them resolved.
-      - Old M0 local projects must reopen without source/workspace/circuit loss. Source field configuration and
-        runtime object motion remain separate; drag commits one history step.
-      - All four sections, primary actions, errors and focus must be usable at 320/390/1024/1440. A functional
-        preview is not final owner visual acceptance.
-      - No production activation, server persistence/auth changes, database/host/deployment operations, new dependencies,
-        CI rewrite, unrelated lane repairs or automatic next milestone.
+      - Shared robotics package may move existing pure world code without behavioural change; no copied
+        electrical solver, motor equations, Arduino interpreter, generator, editor or catalog.
+      - Existing Project Core identity, Account/StudentSeat, ACL/RLS, revisions, CAS and idempotency remain
+        authoritative. No global role, tenant redesign or UI-only permission check.
+      - Save the whole authored circuit/program/world and accept unfinished editable circuits. Run remains
+        fail-closed on invalid bindings or unsupported topology. Preserve replacement/downgrade protection.
+      - Pending Arduino changes flush before Save/Run/navigation/publication. Restored program revisions
+        reject stale editor callbacks; field-only history retains the workspace.
+      - Runtime pose/ball motion and source documents stay separate. Confirmed server revision controls
+        source snapshots; local recovery is scoped to project and principal, never global cross-user state.
+      - Public artifact exposes allowlisted scene/robot geometry and immutable provenance only, without
+        private Arduino source, Blockly, bindings, draft or rights. Copy/download and learning flags remain
+        unchanged. Public viewer does not invent runtime outputs.
+      - Forward migrations and necessary workspace metadata are allowed; released migrations and owner
+        assets remain unchanged. External dependencies and a separate backend/service are not required.
+      - Preserve fresh main request-coalescing/cancellation and telemetry contracts. Only add the robotics
+        module to necessary existing lists; no unrelated refactor or CI weakening.
+      - Main-site evidence uses built Web/API and real isolated PostgreSQL with restricted runtime role;
+        no mock or dev-only browser pass substitutes for two-account create/save/reopen/publish/view.
+      - Source e99ee2f has General SUCCESS and independent UI/domain PASS; Electronics/3D and external
+        MinIO-related Checkers/AI failures remain inherited acceptance risks until classified and resolved.
+      - No working database, host/Docker update, deployment, new hardware/3D milestone or automatic product
+        merge. Functional mobile/desktop layout is required; visual owner acceptance remains pending.
       context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
+      - docs/product/robotics/PORTAL_INTEGRATION_PLAN.md
+      - docs/agent/contracts/identity.yaml
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
-      - docs/product/robotics/M1_WORKSPACE_PLAN.md
-      - docs/product/robotics/README.md
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
-      gate_boundary: The registered focused command validates canonical registration/docs only. Product evidence
-        requires real shared editor/Blockly, immediate publication, field/object dynamics, persistence compatibility
-        and four-viewport browser checks on the final candidate. Required CI, independent review, inherited baseline
-        risks and owner acceptance remain separate; no missing future gate is registered.
+      gate_boundary: >-
+        Registration uses governance only. The product candidate must pass targeted robotics/provider/host/
+        artifact checks, real PostgreSQL migration/project/publication checks, normal-site browser journey,
+        types/build/budgets and independent final-SHA review. Required CI and owner acceptance are separate.
+      deployment: not_authorized
+      database_actions: isolated_tests_only
     revisions:
-      convergence_baseline_sha: 6a876a942985780297cf346a9a85077be7479d0b
-      head_sha: 491c53bc3a3f0a732ac707f7a9235ea435c4e1f3
+      convergence_baseline_sha: d0bf7cbeb129ff991272f006fc379ee004cb00f8
+      head_sha: e99ee2f4798631dc5526d1b3fba7c31236ed66a2
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
