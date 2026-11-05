@@ -1,8 +1,11 @@
-"""Portable semantic tests with synthetic public JSON, without a product import."""
+"""Portable semantic tests, including the public producer-to-checker boundary."""
+import contextlib
 import copy
 from dataclasses import replace
+import io
 import json
 import os
+from pathlib import Path, PurePosixPath
 import socket
 import subprocess
 import unittest
@@ -642,6 +645,161 @@ class ReadEvidenceTests(unittest.TestCase):
             self.assertEqual(raised.exception.code, "UNSUPPORTED_COMMAND")
         self.assertEqual(str(CLIReadCheckError(SECRET)), "FIELD_TYPE")
         self.assertEqual(str(CLIReadCheckError({"password": SECRET})), "FIELD_TYPE")
+
+
+class OneShotServiceEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.context = fixture()
+
+    def inspection_rows(self):
+        names = ("api", "web", "postgres", "minio", "scratch", "search", "migration", "minio-init")
+        images = self.context.installed.images
+        return [{"id": format(index, "064x"), "service": name,
+                 "project": self.context.project, "workingDir": self.context.root,
+                 "image": images.get(name, images["api"] if name == "migration" else
+                                     images["minio"] if name == "minio-init" else "postgres:17"),
+                 "running": name not in ("migration", "minio-init"),
+                 "health": "healthy" if name not in ("migration", "minio-init") else None,
+                 "mounts": []}
+                for index, name in enumerate(names, 1)]
+
+    def public_result(self, words, rows):
+        import asa_cli
+        from deployment import cli_observe
+
+        # Keep the real parser, routing, inventory, service/database observation,
+        # status aggregation and UTF-8 JSON emission. Only external observations
+        # and registry/trust setup are fixtures; no Docker or host is exercised.
+        reader = cli_observe.Observer.__new__(cli_observe.Observer)
+        reader.root = PurePosixPath(self.context.root)
+        reader.project, reader._containers, reader.errors = self.context.project, None, []
+        reader.installed = lambda: release(self.context)
+        reader.site = lambda: status(self.context)["site"]
+        reader.backups = lambda: backups(self.context)
+        reader.history = lambda: history(self.context)
+        reader.host = lambda: status(self.context, doctor=True)["host"]
+        reader.disk = lambda: disk(self.context)
+        reader.disk_health = disk_health
+        reader.cloud = cloud
+
+        def probe(command, **kwargs):
+            if command[:3] == ["docker", "ps", "-aq"]:
+                return {"status": "OK", "output": "\n".join(row["id"] for row in rows)}
+            if command[:2] == ["docker", "inspect"]:
+                return {"status": "OK", "output": "\n".join(json.dumps(row) for row in rows)}
+            if command == ["docker", "version", "--format", "{{.Server.Version}}"]:
+                return {"status": "OK", "output": "29.9.3"}
+            if command == ["docker", "compose", "version", "--short"]:
+                return {"status": "OK", "output": "2.40.3"}
+            if command[:2] == ["docker", "exec"]:
+                self.assertEqual(command[2], next(row["id"] for row in rows if row["service"] == "postgres"))
+                self.assertIn("default_transaction_read_only=on", command[-1])
+                return {"status": "OK", "output": "SET\n304|1000000"}
+            raise AssertionError("Unexpected child command")
+
+        with mock.patch.object(cli_observe, "probe", side_effect=probe), \
+                mock.patch.object(cli_observe, "Observer", return_value=reader), \
+                mock.patch.object(asa_cli, "own_modules"), \
+                mock.patch.object(asa_cli, "read_registry", return_value={}), \
+                mock.patch.object(asa_cli, "registry_entry", return_value={"root": self.context.root}), \
+                mock.patch.object(asa_cli, "windows_home", return_value=Path("unused-home")), \
+                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("process I/O")), \
+                mock.patch.object(socket, "socket", side_effect=AssertionError("network I/O")), \
+                contextlib.redirect_stdout(io.StringIO()) as output, \
+                contextlib.redirect_stderr(io.StringIO()):
+            code = asa_cli.main([*words, "--root", self.context.root, "--json", "--no-color"])
+        return json.loads(output.getvalue()), code
+
+    def checked(self, words, rows):
+        document, code = self.public_result(words, rows)
+        self.assertEqual((document["status"], code), ("OK", 0))
+        projected = check_read_result(" ".join(words) if words else "status", document,
+                                      returncode=code, expected=self.context)
+        return document, projected
+
+    def test_bare_json_preserves_all_typed_one_shot_observations(self):
+        for name in ("migration", "minio-init"):
+            for health in (None, "starting", "healthy", "unhealthy"):
+                for running in (False, True):
+                    with self.subTest(service=name, health=health, running=running):
+                        rows = self.inspection_rows()
+                        row = next(row for row in rows if row["service"] == name)
+                        row.update(health=health, running=running)
+                        document, projected = self.checked([], rows)
+                        expected = {"service": name, "running": running, "health": health}
+                        for value in (document, projected):
+                            self.assertEqual(next(item for item in value["services"]["containers"]
+                                                  if item["service"] == name), expected)
+                        self.assertEqual(document["database"], database())
+
+    def test_public_service_and_status_forms_share_the_same_oracle(self):
+        rows = self.inspection_rows()
+        rows[-2]["health"], rows[-1]["health"] = "unhealthy", "starting"
+        for words in (["status"], ["doctor"], ["services"], ["services", "status"]):
+            with self.subTest(words=words):
+                document, projected = self.checked(words, rows)
+                raw = document if words[0] == "services" else document["services"]
+                result = projected if words[0] == "services" else projected["services"]
+                self.assertEqual(result["containers"], sorted(raw["containers"], key=lambda row: row["service"]))
+                self.assertTrue(all(set(row) == {"service", "running", "health"} for row in result["containers"]))
+
+    def test_six_required_services_still_need_running_and_healthy(self):
+        for name in ("api", "web", "postgres", "minio", "scratch", "search"):
+            for running, health in ((False, "healthy"), (True, None), (True, "starting"), (True, "unhealthy")):
+                with self.subTest(service=name, running=running, health=health):
+                    rows = self.inspection_rows()
+                    next(row for row in rows if row["service"] == name).update(running=running, health=health)
+                    document, code = self.public_result([], rows)
+                    self.assertEqual(code, 1)
+                    self.assertIn(document["status"], ("FAILED", "UNAVAILABLE"))
+                    # Also challenge the nested guard under a forged healthy top.
+                    document["services"]["status"] = "OK"
+                    with self.assertRaises(CLIReadCheckError):
+                        check_read_result("services", envelope("services", document["services"]),
+                                          returncode=0, expected=self.context)
+
+    def test_one_shot_schema_identity_and_top_status_guards_are_unchanged(self):
+        document, _ = self.public_result(["services"], self.inspection_rows())
+        mutations = []
+        for field, values in (("running", (0, 1, None, "false", [])),
+                              ("health", (True, 0, {}, "UNKNOWN", SECRET))):
+            for value in values:
+                changed = copy.deepcopy(document)
+                changed["containers"][-1][field] = value
+                mutations.append(changed)
+        for state in ("FAILED", "UNAVAILABLE"):
+            changed = copy.deepcopy(document)
+            changed["status"] = state
+            mutations.append(changed)
+        for mutation in ("duplicate", "unknown", "missing-required", "missing-field", "extra-field"):
+            changed = copy.deepcopy(document)
+            if mutation == "duplicate":
+                changed["containers"].append(copy.deepcopy(changed["containers"][-1]))
+            elif mutation == "unknown":
+                changed["containers"][-1]["service"] = "foreign-job"
+            elif mutation == "missing-required":
+                changed["containers"] = changed["containers"][1:]
+            elif mutation == "missing-field":
+                del changed["containers"][-1]["health"]
+            else:
+                changed["containers"][-1]["ExitCode"] = 0
+            mutations.append(changed)
+        for index, changed in enumerate(mutations):
+            with self.subTest(case=index), self.assertRaises(CLIReadCheckError) as error:
+                check_read_result("services", changed, returncode=0, expected=self.context)
+            self.assertIn(error.exception.code, ERROR_CODES)
+            self.assertNotIn(SECRET, str(error.exception))
+
+    def test_foreign_inventory_identity_is_not_repaired_by_one_shot_tolerance(self):
+        for field, value in (("project", "foreign"), ("workingDir", "/srv/foreign"), ("id", "invalid")):
+            with self.subTest(field=field):
+                rows = self.inspection_rows()
+                rows[-1][field] = value
+                document, code = self.public_result([], rows)
+                self.assertEqual(code, 1)
+                self.assertEqual(document["status"], "UNAVAILABLE")
+                with self.assertRaises(CLIReadCheckError):
+                    check_read_result("status", document, returncode=code, expected=self.context)
 
 
 class HelpEvidenceTests(unittest.TestCase):

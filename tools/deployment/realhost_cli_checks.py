@@ -285,8 +285,8 @@ def _services(value, *, envelope=False):
         _need(item["health"] in (None, "starting", "healthy", "unhealthy"))
         if name in RUNNING_SERVICES:
             _need(running and item["health"] == "healthy")
-        else:
-            _need(item["health"] is None or item["health"] == "healthy")
+        # One-shot rows retain the observed health; an inherited server probe
+        # does not establish job completion or the health of the live services.
         services[name] = {"service": name, "running": running, "health": item["health"]}
     _need(set(RUNNING_SERVICES) <= services.keys(), "INSTALLATION_IDENTITY")
     return {"status": "OK", "docker": "OK", "compose": "OK",
