@@ -1,9 +1,19 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment jsdom
+import '../../apps/web/src/blocks/preview-env.d.ts';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { describe, expect, it, vi } from 'vitest';
 import { resolveIsolatedTestWebOrigin } from '../../apps/api/src/origin-policy';
+import { PortalHeader } from '../../apps/web/src/components/PortalHeader';
+import { studentSessionPayload } from '../../apps/web/src/creator-portal/student-session';
 import {
   SCALE_LEVELS,
   SCALE_PROFILE,
   SCALE_PROFILE_HASH,
+  SCALE_PROJECTS_LINK_SELECTOR,
   assertLatencySample,
   assertLatencyScenario,
   assertPriorScaleLevels,
@@ -11,9 +21,11 @@ import {
   assertScaleEnvironment,
   assertScaleImages,
   createScaleLedger,
+  createScaleObserverJournal,
   evaluateScaleLevel,
   evaluateScaleCalibration,
   readScaleMemInfo,
+  readScaleChromiumResources,
   runScaleLadder,
   scaleHash,
   scaleLadderSummary,
@@ -24,6 +36,214 @@ import {
   summarizeLatencyTimings,
   scaleCohortPlan,
 } from '../../tools/capacity/classroom-scale-contracts.mjs';
+
+vi.mock('../../apps/web/src/components/PresentationPreferences', () => ({
+  usePresentation: () => ({ draft: { sidebar: 'expanded' }, loaded: true, busy: false }),
+}));
+vi.mock('../../apps/web/src/creator-portal/QuickProjectCreation', () => ({
+  QuickCreateMenu: () => null,
+}));
+
+describe('native full-editor fixture navigation', () => {
+  it('clicks the real Seat personal-project link, distinct from the public gallery', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const navigate = vi.fn();
+    try {
+      await act(async () => {
+        root.render(
+          createElement(PortalHeader, {
+            session: studentSessionPayload({
+              authenticated: true,
+              student: {
+                seatId: 'scale-seat',
+                displayName: 'Ученик',
+                safeMode: true,
+                avatarKey: null,
+              },
+              classroom: { id: 'scale-class', title: 'Класс', teacherDisplayName: 'Учитель' },
+              expiresAt: '2099-01-01T00:00:00.000Z',
+            }),
+            canTeach: false,
+            seatLearner: true,
+            active: 'home',
+            onNavigate: navigate,
+            onSessionChanged: vi.fn(),
+            onLoggedOut: vi.fn(),
+          }),
+        );
+      });
+      const projects = container.querySelectorAll<HTMLAnchorElement>(SCALE_PROJECTS_LINK_SELECTOR);
+      expect(projects).toHaveLength(1);
+      expect(projects[0]!.tagName).toBe('A');
+      expect(projects[0]!.getAttribute('href')).toBe('/#/projects');
+      expect(
+        container.querySelector('.portal-global-nav a[aria-label="Проекты"]')?.getAttribute('href'),
+      ).toBe('/#/explore');
+      await act(async () => projects[0]!.click());
+      expect(navigate).toHaveBeenCalledExactlyOnceWith('projects');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('bounded observer failure evidence', () => {
+  it('preserves the actual subprocess cause while excluding arbitrary secret-bearing data', () => {
+    const journal = createScaleObserverJournal();
+    const error = Object.assign(new Error('postgres://private:secret@postgres/private'), {
+      code: 'ENOENT',
+      syscall: 'spawn ps',
+      path: 'ps',
+      errno: -2,
+      spawnargs: ['private-query'],
+      sql: 'private-query',
+    });
+    journal.record('browser-process-sample', 'portal', error, 1000);
+    expect(journal.state).toMatchObject({
+      count: 1,
+      dropped: 0,
+      details: [
+        { atMs: 1000, stage: 'browser-process-sample', code: 'ENOENT', syscall: 'spawn ps' },
+      ],
+    });
+    expect(JSON.stringify(journal.state)).not.toMatch(/secret|private|postgres:\/\//);
+  });
+
+  it('keeps all failure counts after the diagnostic bound and records database timeouts separately', () => {
+    const journal = createScaleObserverJournal();
+    journal.record('postgres-sample', 'portal', new Error('Query read timeout'), 1000);
+    for (let index = 1; index < 40; index++)
+      journal.record(
+        'browser-resource-sample',
+        'portal',
+        new TypeError('arbitrary detail'),
+        1000 + index,
+      );
+    expect(journal.state.count).toBe(40);
+    expect(journal.state.details).toHaveLength(32);
+    expect(journal.state.dropped).toBe(8);
+    expect(journal.state.details[0]).toMatchObject({
+      stage: 'postgres-sample',
+      messageCategory: 'query_read_timeout',
+    });
+  });
+});
+
+describe('native Linux process observation without a procps dependency', () => {
+  async function snapshot(run: (directory: string) => Promise<void>) {
+    const directory = await mkdtemp(join(tmpdir(), 'asa-scale-proc-'));
+    try {
+      await mkdir(join(directory, 'self'));
+      const auxv = Buffer.alloc(32);
+      auxv.writeBigUInt64LE(17n, 0);
+      auxv.writeBigUInt64LE(100n, 8);
+      await writeFile(join(directory, 'self/auxv'), auxv);
+      await writeFile(join(directory, 'uptime'), '600.00 0.00\n');
+      for (const row of [
+        {
+          pid: 10,
+          parent: 1,
+          name: 'node (worker)',
+          cpu: 10,
+          started: 40000,
+          rss: 700,
+          state: 'S',
+        },
+        {
+          pid: 20,
+          parent: 10,
+          name: 'headless_shell',
+          cpu: 300,
+          started: 50000,
+          rss: 1000,
+          state: 'S',
+        },
+        {
+          pid: 21,
+          parent: 20,
+          name: 'chrome-renderer',
+          cpu: 1000,
+          started: 55000,
+          rss: 500,
+          state: 'R',
+        },
+        { pid: 25, parent: 10, name: 'chromium', cpu: 0, started: 50000, rss: 0, state: 'Z' },
+        { pid: 40, parent: 20, name: 'node', cpu: 9000, started: 50000, rss: 8000, state: 'S' },
+        { pid: 99, parent: 1, name: 'chrome', cpu: 9000, started: 50000, rss: 9000, state: 'S' },
+      ]) {
+        const fields = Array<string>(50).fill('0');
+        fields[0] = row.state;
+        fields[1] = String(row.parent);
+        fields[11] = String(row.cpu);
+        fields[12] = '0';
+        fields[19] = String(row.started);
+        await mkdir(join(directory, String(row.pid)));
+        await writeFile(
+          join(directory, String(row.pid), 'stat'),
+          `${row.pid} (${row.name}) ${fields.join(' ')}\n`,
+        );
+        await writeFile(
+          join(directory, String(row.pid), 'status'),
+          `Name:\t${row.name}\nState:\t${row.state}\nPid:\t${row.pid}\nPPid:\t${row.parent}\nVmRSS:\t${row.rss} kB\n`,
+        );
+      }
+      // A vanished process is a normal enumeration race, not an invented sample.
+      await mkdir(join(directory, '777'));
+      await run(directory);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+
+  it('measures only live owned Chromium descendants, preserving RSS and lifetime CPU semantics', async () => {
+    await snapshot(async (directory) => {
+      const sample = await readScaleChromiumResources(10, true, directory);
+      expect(sample).toMatchObject({
+        source: 'linux-procfs',
+        scope: 'workload-process-descendants',
+        processes: 2,
+        rssSumBytes: 1500 * 1024,
+        ticksPerSecond: 100,
+      });
+      expect(sample.lifetimeCpuPercentSum).toBeCloseTo(23);
+    });
+  });
+
+  it('uses the measured kernel clock frequency instead of assuming100Hz', async () => {
+    await snapshot(async (directory) => {
+      const auxv = Buffer.alloc(32);
+      auxv.writeBigUInt64LE(17n, 0);
+      auxv.writeBigUInt64LE(1000n, 8);
+      await writeFile(join(directory, 'self/auxv'), auxv);
+      const sample = await readScaleChromiumResources(10, true, directory);
+      expect(sample.ticksPerSecond).toBe(1000);
+      expect(sample.lifetimeCpuPercentSum).toBeCloseTo(100 * (0.3 / 550 + 1 / 545));
+    });
+  });
+
+  it.each([
+    ['invalid-clock', 'invalid_proc_clock'],
+    ['invalid-stat', 'invalid_proc_stat'],
+    ['invalid-rss', 'invalid_proc_status'],
+    ['missing-owner', 'missing_proc_owner'],
+    ['missing-browser', 'missing_owned_chromium'],
+  ])('rejects %s rather than reporting successful zero samples', async (kind, code) => {
+    await snapshot(async (directory) => {
+      if (kind === 'invalid-clock') await writeFile(join(directory, 'self/auxv'), Buffer.alloc(32));
+      if (kind === 'invalid-stat') await writeFile(join(directory, '20/stat'), 'invalid stat');
+      if (kind === 'invalid-rss')
+        await writeFile(join(directory, '20/status'), 'Pid:\t20\nVmRSS:\tunknown kB\n');
+      if (kind === 'missing-owner') await rm(join(directory, '10/stat'));
+      if (kind === 'missing-browser') await rm(join(directory, '20/stat'));
+      await expect(readScaleChromiumResources(10, true, directory)).rejects.toMatchObject({ code });
+    });
+  });
+});
 
 const sourceSha = 'a'.repeat(40);
 const hash = 'b'.repeat(64);

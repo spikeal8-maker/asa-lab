@@ -1,9 +1,220 @@
 import { createHash } from 'node:crypto';
+import { readFile, readdir } from 'node:fs/promises';
+import { endianness } from 'node:os';
+import { join } from 'node:path';
+import process from 'node:process';
 import { URL } from 'node:url';
 
 export const SCALE_LEVELS = Object.freeze([30, 60, 100, 150, 200]);
 export const SCALE_ORIGIN = 'http://web:8080';
 export const SCALE_DATABASE = 'asalab_test';
+// The public header's "Проекты" link opens the gallery. The measured Seat
+// journey must click the native personal-project link instead.
+export const SCALE_PROJECTS_LINK_SELECTOR =
+  'nav[aria-label="Личные и рабочие разделы"] a[aria-label="Мои проекты"][href="/#/projects"]';
+
+/** Preserve machine-readable causes without persisting URLs, SQL, credentials,
+ * request bodies or arbitrary exception messages. The count remains unbounded
+ * evidence even when the bounded diagnostic details are full. */
+export function createScaleObserverJournal() {
+  const state = {
+    count: 0,
+    dropped: 0,
+    details: /** @type {Array<Record<string, string | number | boolean | null>>} */ ([]),
+  };
+  const codes = new Set([
+    'ENOENT',
+    'EACCES',
+    'EPERM',
+    'ETIMEDOUT',
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'EPIPE',
+    'EIO',
+    'ENOSPC',
+    'ABORT_ERR',
+    'ERR_CHILD_PROCESS_STDIO_MAXBUFFER',
+    'served_script_incomplete',
+    'served_script_differs_from_image',
+    'served_script_not_in_manifest',
+    'invalid_proc_clock',
+    'invalid_proc_stat',
+    'invalid_proc_status',
+    'missing_proc_owner',
+    'missing_owned_chromium',
+    'unsupported_proc_architecture',
+    'proc_process_bound',
+  ]);
+  const categories = new Map([
+    ['Query read timeout', 'query_read_timeout'],
+    ['timeout exceeded when trying to connect', 'connection_timeout'],
+    ['Connection terminated unexpectedly', 'connection_terminated'],
+    ['Invalid Chromium process sample', 'invalid_chromium_process_sample'],
+    ['Live Chromium has no owned process samples', 'no_owned_chromium_process_sample'],
+  ]);
+  return {
+    state,
+    record(stage, phase, error, atMs = Date.now()) {
+      state.count++;
+      if (state.details.length >= 32) {
+        state.dropped++;
+        return;
+      }
+      const cause = error && typeof error === 'object' ? error : {};
+      const label = (value) =>
+        typeof value === 'string' && /^[a-z][a-z0-9_-]{0,79}$/.test(value) ? value : 'unknown';
+      state.details.push({
+        atMs,
+        stage: label(stage),
+        phase: label(phase),
+        name: [
+          'Error',
+          'TypeError',
+          'RangeError',
+          'TimeoutError',
+          'AbortError',
+          'FixtureFailure',
+        ].includes(cause.name)
+          ? cause.name
+          : 'Error',
+        code:
+          typeof cause.code === 'string' &&
+          (codes.has(cause.code) || /^[0-9][A-Z0-9]{4}$/.test(cause.code))
+            ? cause.code
+            : 'unknown',
+        syscall: ['spawn ps', 'read', 'open', 'connect'].includes(cause.syscall)
+          ? cause.syscall
+          : null,
+        command: cause.path === 'ps' ? 'ps' : null,
+        errno:
+          Number.isSafeInteger(cause.errno) && Math.abs(cause.errno) <= 4095 ? cause.errno : null,
+        signal: ['SIGTERM', 'SIGKILL', 'SIGABRT'].includes(cause.signal) ? cause.signal : null,
+        killed: cause.killed === true,
+        messageCategory: categories.get(cause.message) ?? 'unclassified',
+      });
+    },
+  };
+}
+
+/** The pinned slim test image has no procps/ps. Read the same process fields
+ * directly: RSS is KiB from status; lifetime CPU uses stat ticks and the actual
+ * AT_CLKTCK value, never an assumed100Hz or an unavailable-data zero fallback. */
+export async function readScaleChromiumResources(ownerPid, browserLive, procRoot = '/proc') {
+  const signal = globalThis.AbortSignal.timeout(2000);
+  const fail = (code) => {
+    throw Object.assign(new Error(code), { code });
+  };
+  if (!['x64', 'arm64'].includes(process.arch) || endianness() !== 'LE')
+    fail('unsupported_proc_architecture');
+  const auxv = await readFile(join(procRoot, 'self/auxv'), { signal });
+  let ticksPerSecond = 0;
+  if (auxv.length % 16 !== 0) fail('invalid_proc_clock');
+  for (let offset = 0; offset < auxv.length; offset += 16) {
+    const type = auxv.readBigUInt64LE(offset);
+    if (type === 0n) break;
+    // Linux AT_CLKTCK (auxvec.h): frequency at which times() increments.
+    if (type === 17n) ticksPerSecond = Number(auxv.readBigUInt64LE(offset + 8));
+  }
+  if (!Number.isSafeInteger(ticksPerSecond) || ticksPerSecond <= 0) fail('invalid_proc_clock');
+  const pids = (await readdir(procRoot)).filter((entry) => /^[1-9][0-9]*$/.test(entry));
+  if (pids.length > 16384) fail('proc_process_bound');
+  const number = (value) => {
+    if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) fail('invalid_proc_stat');
+    return Number(value);
+  };
+  const rows = [];
+  // Keep simultaneous filesystem reads bounded at higher learner counts.
+  for (let offset = 0; offset < pids.length; offset += 32) {
+    const chunk = await Promise.all(
+      pids.slice(offset, offset + 32).map(async (pid) => {
+        let stat;
+        try {
+          stat = await readFile(join(procRoot, pid, 'stat'), { encoding: 'utf8', signal });
+        } catch (error) {
+          if (error?.code === 'ENOENT') return null; // A process exited during enumeration.
+          throw error;
+        }
+        const first = stat.indexOf(' (');
+        const last = stat.lastIndexOf(') ');
+        if (first < 0 || last <= first || stat.slice(0, first) !== pid) fail('invalid_proc_stat');
+        const fields = stat
+          .slice(last + 2)
+          .trim()
+          .split(/\s+/);
+        if (fields.length < 20 || !/^[RSDZTWtXxKWPIN]$/.test(fields[0])) fail('invalid_proc_stat');
+        return {
+          pid: number(pid),
+          parent: number(fields[1]),
+          name: stat.slice(first + 2, last),
+          state: fields[0],
+          cpuTicks: number(fields[11]) + number(fields[12]),
+          startedTicks: number(fields[19]),
+        };
+      }),
+    );
+    rows.push(...chunk.filter(Boolean));
+  }
+  if (!rows.some((row) => row.pid === ownerPid)) fail('missing_proc_owner');
+  const owned = new Set([ownerPid]);
+  const pending = [ownerPid];
+  for (let index = 0; index < pending.length; index++)
+    for (const row of rows)
+      if (row.parent === pending[index] && !owned.has(row.pid)) {
+        owned.add(row.pid);
+        pending.push(row.pid);
+      }
+  const chromium = rows.filter(
+    (row) =>
+      owned.has(row.pid) &&
+      !['Z', 'X', 'x'].includes(row.state) &&
+      /^(?:chrome|chromium|headless_shell)(?:$|[-_])/.test(row.name),
+  );
+  const samples = [];
+  for (let offset = 0; offset < chromium.length; offset += 32) {
+    const chunk = await Promise.all(
+      chromium.slice(offset, offset + 32).map(async (row) => {
+        let status;
+        try {
+          status = await readFile(join(procRoot, String(row.pid), 'status'), {
+            encoding: 'utf8',
+            signal,
+          });
+        } catch (error) {
+          if (error?.code === 'ENOENT') return null;
+          throw error;
+        }
+        const pid = /^Pid:\s*(\d+)\s*$/m.exec(status);
+        const rss = /^VmRSS:\s*(\d+)\s+kB\s*$/m.exec(status);
+        if (/^State:\s*[ZXx]\b/m.test(status)) return null; // Exited after the stat read.
+        if (!pid || Number(pid[1]) !== row.pid || !rss) fail('invalid_proc_status');
+        return { ...row, rssBytes: number(rss[1]) * 1024 };
+      }),
+    );
+    samples.push(...chunk.filter(Boolean));
+  }
+  const uptime = Number(
+    (await readFile(join(procRoot, 'uptime'), { encoding: 'utf8', signal })).trim().split(/\s+/)[0],
+  );
+  if (!Number.isFinite(uptime) || uptime <= 0) fail('invalid_proc_clock');
+  let lifetimeCpuPercentSum = 0;
+  for (const sample of samples) {
+    const lifetime = uptime - sample.startedTicks / ticksPerSecond;
+    if (lifetime <= 0) fail('invalid_proc_clock');
+    lifetimeCpuPercentSum += (100 * sample.cpuTicks) / ticksPerSecond / lifetime;
+  }
+  const rssSumBytes = samples.reduce((sum, sample) => sum + sample.rssBytes, 0);
+  if (browserLive && (!samples.length || !rssSumBytes)) fail('missing_owned_chromium');
+  return {
+    supported: true,
+    source: 'linux-procfs',
+    scope: 'workload-process-descendants',
+    processes: samples.length,
+    rssSumBytes,
+    lifetimeCpuPercentSum,
+    ticksPerSecond,
+  };
+}
+
 export const SCALE_OPERATIONS = Object.freeze([
   'login',
   'portal',

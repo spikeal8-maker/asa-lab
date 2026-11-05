@@ -1,6 +1,4 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import {
   appendFileSync,
   existsSync,
@@ -26,13 +24,15 @@ type StormContracts = typeof import('../tools/capacity/request-storm-contracts.m
 let assertScaleEnvironment: ScaleContracts['assertScaleEnvironment'];
 let assertScaleImages: ScaleContracts['assertScaleImages'];
 let createScaleLedger: ScaleContracts['createScaleLedger'];
+let createScaleObserverJournal: ScaleContracts['createScaleObserverJournal'];
+let readScaleChromiumResources: ScaleContracts['readScaleChromiumResources'];
 let scaleCohortPlan: ScaleContracts['scaleCohortPlan'];
 let SCALE_DATABASE: ScaleContracts['SCALE_DATABASE'];
 let SCALE_ORIGIN: ScaleContracts['SCALE_ORIGIN'];
 let SCALE_PROFILE: ScaleContracts['SCALE_PROFILE'];
 let SCALE_PROFILE_HASH: ScaleContracts['SCALE_PROFILE_HASH'];
+let SCALE_PROJECTS_LINK_SELECTOR: ScaleContracts['SCALE_PROJECTS_LINK_SELECTOR'];
 let scaleHash: ScaleContracts['scaleHash'];
-let stormChromiumResources: StormContracts['stormChromiumResources'];
 let stormRoute: StormContracts['stormRoute'];
 
 type Data = Record<string, unknown>;
@@ -132,7 +132,6 @@ class IntegrityFailure extends Error {
   }
 }
 
-const execute = promisify(execFile);
 const wait = (milliseconds: number) => new Promise<void>((done) => setTimeout(done, milliseconds));
 const telemetryPattern = /\/api\/(?:analytics|diagnostics)\//;
 const uuidPattern = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
@@ -381,15 +380,17 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       assertScaleEnvironment,
       assertScaleImages,
       createScaleLedger,
+      createScaleObserverJournal,
+      readScaleChromiumResources,
       scaleCohortPlan,
       SCALE_DATABASE,
       SCALE_ORIGIN,
       SCALE_PROFILE,
       SCALE_PROFILE_HASH,
+      SCALE_PROJECTS_LINK_SELECTOR,
       scaleHash,
     } = await import('../tools/capacity/classroom-scale-contracts.mjs'));
-    ({ stormChromiumResources, stormRoute } =
-      await import('../tools/capacity/request-storm-contracts.mjs'));
+    ({ stormRoute } = await import('../tools/capacity/request-storm-contracts.mjs'));
   });
 
   test('all planned pupils authenticate, edit, save, reopen and recover in the full editors', async ({
@@ -440,6 +441,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       attempt: number;
     }> = [];
     const browserSamples: Data[] = [];
+    const observerJournal = createScaleObserverJournal();
     const loadedAssets: Array<Asset & { actualHash: string; executed: true }> = [];
     const assetInFlight = new Set<string>();
     const assetManifest = new Map(manifest.assets.map((asset) => [asset.path, asset]));
@@ -480,6 +482,8 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
         assets: loadedAssets,
       },
       observerErrors: 0,
+      observerFailures: observerJournal.state.details,
+      observerFailureDetailsDropped: 0,
       droppedObservations: 0,
       elapsedMs: 0,
       measuredTraffic:
@@ -494,7 +498,6 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
     let finishedAt = 0;
     let activeHttp = 0;
     let peakActiveHttp = 0;
-    let observerErrors = 0;
     let setupRetryWaitMs = 0;
     let samplePending: Promise<void> | undefined;
     let sampler: ReturnType<typeof setInterval> | undefined;
@@ -521,7 +524,8 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
     };
     const persist = () => {
       raw['elapsedMs'] = measuredAt ? Math.max(1, (finishedAt || Date.now()) - measuredAt) : 0;
-      raw['observerErrors'] = observerErrors;
+      raw['observerErrors'] = observerJournal.state.count;
+      raw['observerFailureDetailsDropped'] = observerJournal.state.dropped;
       raw['peakActiveHttp'] = peakActiveHttp;
       atomicJson(resolve(directory, 'raw.json'), raw);
     };
@@ -539,10 +543,10 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       appendFileSync(resolve(directory, 'operations.jsonl'), JSON.stringify({ operation }) + '\n');
     operations.forEach(journal);
 
-    const observe = (promise: Promise<void>) => {
+    const observe = (promise: Promise<void>, stage: string) => {
       const guarded = promise
-        .catch(() => {
-          observerErrors++;
+        .catch((error: unknown) => {
+          observerJournal.record(stage, phase, error);
         })
         .finally(() => pending.delete(guarded));
       pending.add(guarded);
@@ -550,35 +554,34 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
     const sample = () => {
       if (samplePending) return;
       samplePending = (async () => {
-        const [processes, database] = await Promise.all([
-          execute('ps', ['-eo', 'pid=,ppid=,rss=,pcpu=,comm='], {
-            timeout: 2000,
-            maxBuffer: 1048576,
-            env: { ...process.env, LC_ALL: 'C' },
-          }),
+        const [processes, database] = await Promise.allSettled([
+          readScaleChromiumResources(process.pid, browser.isConnected()),
           observer.query(`SELECT count(*)::int AS connections,
             count(*) FILTER (WHERE state='active')::int AS active,
             count(*) FILTER (WHERE wait_event_type='Lock')::int AS lock_waiters
             FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()`),
         ]);
-        const chromium = stormChromiumResources(
-          processes.stdout,
-          process.pid,
-          browser.isConnected(),
-        );
+        if (processes.status === 'rejected')
+          observerJournal.record('browser-process-sample', phase, processes.reason);
+        if (database.status === 'rejected')
+          observerJournal.record('postgres-sample', phase, database.reason);
+        if (processes.status === 'rejected' || database.status === 'rejected') return;
+        const chromium = processes.value;
         browserSamples.push({
           atMs: Date.now(),
           phase,
           chromiumProcesses: chromium.processes,
           chromiumRssBytes: chromium.rssSumBytes,
           chromiumLifetimeCpuPercentSum: chromium.lifetimeCpuPercentSum,
+          chromiumResourceSource: chromium.source,
+          chromiumClockTicksPerSecond: chromium.ticksPerSecond,
           nodeRssBytes: process.memoryUsage().rss,
           browserRequestsActive: activeHttp,
-          postgres: database.rows[0],
+          postgres: database.value.rows[0],
         });
       })()
-        .catch(() => {
-          observerErrors++;
+        .catch((error: unknown) => {
+          observerJournal.record('browser-resource-sample', phase, error);
         })
         .finally(() => {
           samplePending = undefined;
@@ -636,7 +639,11 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
         if (assetInFlight.has(url.pathname)) return;
         const expected = assetManifest.get(url.pathname);
         if (!expected) {
-          observerErrors++;
+          observerJournal.record(
+            'script-provenance',
+            phase,
+            new FixtureFailure('served_script_not_in_manifest'),
+          );
           return;
         }
         assetInFlight.add(url.pathname);
@@ -650,6 +657,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
               throw new FixtureFailure('served_script_differs_from_image');
             loadedAssets.push({ ...expected, bytes: bytes.length, actualHash, executed: true });
           })(),
+          'script-provenance',
         );
       });
       page.on('requestfinished', (request) => {
@@ -970,7 +978,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
         const page = learner.page;
         if (editor === 'scratch') {
           await page.getByRole('button', { name: 'ASA Lab', exact: true }).first().click();
-          await page.getByRole('button', { name: 'Проекты', exact: true }).first().click();
+          await page.locator(SCALE_PROJECTS_LINK_SELECTOR).click();
           await projectsVisible(page);
         }
         const menu = page.locator('.portal-header .portal-quick-create');
@@ -1250,7 +1258,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       );
       await parallel('portal', SCALE_PROFILE.deadlinesMs.portal, (learner, operation) =>
         navigate(learner, 'native-projects-navigation', async () => {
-          await learner.page.getByRole('button', { name: 'Проекты', exact: true }).first().click();
+          await learner.page.locator(SCALE_PROJECTS_LINK_SELECTOR).click();
           await projectsVisible(learner.page);
           acknowledge(operation);
         }),
@@ -1484,7 +1492,7 @@ test.describe('P0 full editor classroom capacity — isolated hosted runner only
       if (networkFailures.some((failure) => !failure.expected))
         throw new FixtureFailure('unexpected_browser_network_failure');
       if (javascriptErrors.length) throw new FixtureFailure('javascript_error_observed');
-      if (observerErrors) throw new FixtureFailure('observer_incomplete');
+      if (observerJournal.state.count) throw new FixtureFailure('observer_incomplete');
       raw['workloadComplete'] = true;
     } catch (error) {
       raw['workloadComplete'] = false;

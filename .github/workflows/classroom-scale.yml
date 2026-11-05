@@ -71,6 +71,7 @@ jobs:
           name: classroom-full-editor-scale-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
           path: |
             candidate/reports/classroom-scale/
+            candidate/reports/playwright/
             candidate/e2e/artifacts/
           retention-days: 30
           if-no-files-found: error
