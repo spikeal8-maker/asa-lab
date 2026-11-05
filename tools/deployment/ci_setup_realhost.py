@@ -393,13 +393,14 @@ class Commands:
     def __init__(self, *, guard=None):
         self.guard = guard or (lambda: None)
 
-    def run(self, args, *, timeout=60, cwd=None, environment=None, source=None, allowed=(0,)):
+    def run(self, args, *, timeout=60, cwd=None, environment=None, source=None, allowed=(0,), own_group=True):
+        require(type(own_group) is bool, "COMMAND_PROCESS_GROUP")
         # Temporary raw output remains private and is never forwarded to CI.
         with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
             started_ns = time.time_ns()
             process = subprocess.Popen([str(arg) for arg in args], cwd=cwd, env=environment,
                                        stdin=subprocess.PIPE if source is not None else subprocess.DEVNULL,
-                                       stdout=stdout, stderr=stderr, start_new_session=True)
+                                       stdout=stdout, stderr=stderr, start_new_session=own_group)
             if source is not None:
                 process.stdin.write(source)
                 process.stdin.close()
@@ -417,11 +418,11 @@ class Commands:
                 return process.returncode, data
             finally:
                 if process.poll() is None:
-                    os.killpg(process.pid, signal.SIGTERM)
+                    (os.killpg if own_group else os.kill)(process.pid, signal.SIGTERM)
                     try:
                         process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
-                        os.killpg(process.pid, signal.SIGKILL)
+                        (os.killpg if own_group else os.kill)(process.pid, signal.SIGKILL)
                         process.wait(timeout=5)
 
 
@@ -932,7 +933,8 @@ def guest_guard(*, control_deadline=None):
     require(HEX40.fullmatch(context["sourceRevision"]) and Path("/proc/1/comm").read_text().strip() == "systemd",
             "REAL_GUEST_SYSTEMD")
     if control_deadline is None:
-        _, observed = Commands().run(["systemd-detect-virt", "--vm"])
+        # This fixed probe can run inside an already owned fault session.
+        _, observed = Commands().run(["systemd-detect-virt", "--vm"], own_group=False)
     else:
         require(type(control_deadline) in (int, float) and math.isfinite(control_deadline)
                 and 0 < control_deadline - time.monotonic() <= CLI_CONTROL_SECONDS, "CLI_CONTROL_DEADLINE")
@@ -4218,7 +4220,7 @@ def cloud_prepare_guest(context, *, credential=False):
     environment = {key: value for key, value in guest_environment().items() if key not in ("GH_TOKEN", "GITHUB_TOKEN")}
     environment.update(DOCKER_HOST="unix:///var/run/docker.sock", DOCKER_CONFIG=str(GUEST_PRIVATE / "cloud-docker-config"))
     def read(args):
-        report, raw = diagnostic_command(["docker", *args], timeout=12, environment=environment)
+        report, raw = diagnostic_command(["docker", *args], timeout=12, environment=environment, own_group=False)
         require(report.get("exitCode") == 0 and not report.get("reasonCode") and not report.get("cleanupReasonCode"),
                 "BLOCKED_CLOUD_FAULT_COMMAND", status="BLOCKED")
         return raw

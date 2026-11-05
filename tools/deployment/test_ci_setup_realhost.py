@@ -5243,6 +5243,242 @@ class PublishedPrivateFileTests(unittest.TestCase):
                     harness.published_archive(context, setup_bundle)
 
 
+class NestedFaultProbeTests(unittest.TestCase):
+    @contextlib.contextmanager
+    def guest_inputs(self, *, marker_uid=0, nonce=None):
+        context = {"nonce": "a" * 32, "sourceRevision": "b" * 40}
+        marker = Path("/etc/asa-realhost-disposable")
+        contents = {marker: json.dumps({"format": "asa-realhost-disposable-v1", "nonce": nonce or context["nonce"],
+                                      "sourceRevision": context["sourceRevision"]}),
+            harness.GUEST_HOME / "context.json": json.dumps(context), Path("/proc/1/comm"): "systemd\n",
+            Path("/etc/os-release"): 'ID=ubuntu\nVERSION_ID="24.04"\n'}
+        with patch.object(Path, "lstat", return_value=SimpleNamespace(st_mode=stat.S_IFREG | 0o644, st_uid=marker_uid)), \
+                patch.object(Path, "read_text", lambda path, *args, **kwargs: contents[path]), \
+                patch.object(harness.platform, "machine", return_value="x86_64"):
+            yield context
+
+    def test_fixed_virtualization_probe_shares_session_after_existing_identity_checks(self):
+        with self.guest_inputs() as expected, patch.object(harness.Commands, "run", return_value=(0, b"kvm\n")) as run:
+            self.assertEqual(harness.guest_guard(), expected)
+        run.assert_called_once_with(["systemd-detect-virt", "--vm"], own_group=False)
+        for metadata in ({"marker_uid": 1001}, {"nonce": "c" * 32}):
+            with self.subTest(metadata=metadata), self.guest_inputs(**metadata), \
+                    patch.object(harness.Commands, "run") as run, self.assertRaises(harness.Failure):
+                harness.guest_guard()
+            run.assert_not_called()
+        with self.guest_inputs(), patch.object(harness.Commands, "run", return_value=(0, b"docker\n")), \
+                self.assertRaisesRegex(harness.Failure, "REAL_GUEST_VIRTUALIZATION"):
+            harness.guest_guard()
+
+    def test_group_mode_is_strict_and_default_still_creates_a_session(self):
+        for value in (None, 0, 1, "false", [], {}):
+            with self.subTest(value=value), patch.object(harness.subprocess, "Popen") as start, \
+                    self.assertRaisesRegex(harness.Failure, "COMMAND_PROCESS_GROUP"):
+                harness.Commands().run(["not-executed"], own_group=value)
+            start.assert_not_called()
+        for options, expected in (({}, True), ({"own_group": True}, True), ({"own_group": False}, False)):
+            child = Mock(pid=123, returncode=0)
+            child.poll.return_value = 0
+            with self.subTest(options=options), patch.object(harness.subprocess, "Popen", return_value=child) as start, \
+                    patch.object(harness.os, "kill") as kill, patch.object(harness.os, "killpg", create=True) as group:
+                self.assertEqual(harness.Commands().run(["not-executed"], **options), (0, b""))
+            self.assertIs(start.call_args.kwargs["start_new_session"], expected)
+            kill.assert_not_called()
+            group.assert_not_called()
+
+    def test_timeout_and_sigint_cleanup_address_only_the_unreaped_owned_target(self):
+        kill_signal = getattr(signal, "SIGKILL", 9)
+        for own_group in (False, True):
+            for interrupted in (False, True):
+                for escalate in (False, True):
+                    child = Mock(pid=123, returncode=None)
+                    child.poll.return_value = None
+                    child.wait.side_effect = [subprocess.TimeoutExpired("synthetic", 5), 0] if escalate else [0]
+                    primary = KeyboardInterrupt()
+                    guard = Mock(side_effect=primary) if interrupted else Mock()
+                    with self.subTest(own_group=own_group, interrupted=interrupted, escalate=escalate), \
+                            patch.object(harness.subprocess, "Popen", return_value=child), \
+                            patch.object(harness.os, "kill") as kill, patch.object(harness.os, "killpg", create=True) as group, \
+                            patch.object(harness.signal, "SIGKILL", kill_signal, create=True), \
+                            patch.object(harness.time, "monotonic", side_effect=[100.0, 101.0]), \
+                            self.assertRaises(KeyboardInterrupt if interrupted else harness.Failure) as caught:
+                        harness.Commands(guard=guard).run(["not-executed"], timeout=0, own_group=own_group)
+                    if interrupted:
+                        self.assertIs(caught.exception, primary)
+                    else:
+                        self.assertEqual((caught.exception.code, caught.exception.status), ("COMMAND_TIMEOUT", "BLOCKED"))
+                    selected, other = (group, kill) if own_group else (kill, group)
+                    self.assertEqual([call.args for call in selected.call_args_list],
+                                     [(123, signal.SIGTERM)] + ([(123, kill_signal)] if escalate else []))
+                    other.assert_not_called()
+                    self.assertEqual([call.kwargs for call in child.wait.call_args_list],
+                                     [{"timeout": 5}] * (2 if escalate else 1))
+
+    def test_exited_child_is_not_signalled_after_poll_reaps_it(self):
+        child = Mock(pid=123, returncode=0)
+        child.poll.side_effect = [None, 0]
+        primary = KeyboardInterrupt()
+        with patch.object(harness.subprocess, "Popen", return_value=child), \
+                patch.object(harness.os, "kill") as kill, patch.object(harness.os, "killpg", create=True) as group, \
+                self.assertRaises(KeyboardInterrupt) as caught:
+            harness.Commands(guard=Mock(side_effect=primary)).run(["not-executed"], own_group=False)
+        self.assertIs(caught.exception, primary)
+        kill.assert_not_called()
+        group.assert_not_called()
+        child.wait.assert_not_called()
+
+    def test_both_cloud_preparation_branches_keep_fixed_probes_in_outer_session(self):
+        context = {"nonce": "c" * 32, "sourceRevision": "d" * 40}
+        owner = {"uid": 1001, "gid": 1001, "name": "asa-setup"}
+        earliest = harness.timestamp_ns("2026-11-04T12:00:00Z")
+        record = NativeCloudContractTests.record(self)
+        process = {"pid": 101, "pgid": 101, "sid": 101, "startTime": 1000, "state": "S"}
+        with patch.object(harness.time, "time_ns", return_value=earliest + 10**9):
+            binding = harness.cloud_container_identity(record, earliest)
+        saved = {"format": "asa-realhost-cloud-isolation-v1", "nonce": context["nonce"],
+            "sourceRevision": context["sourceRevision"], "earliestNs": earliest, "observedNs": earliest + 10**9,
+            "container": binding, "process": process, "namespaceInode": 102}
+        environment = {"HOME": "/root", "DOCKER_HOST": "unix:///var/run/docker.sock",
+                       "DOCKER_CONFIG": str(harness.GUEST_PRIVATE / "cloud-docker-config")}
+        for credential in (False, True):
+            launcher = SimpleNamespace(CLOUD_SOURCE_SHA256=harness.CLOUD_SOURCE_SHA256,
+                prepare_cloud_transport=Mock(return_value={"format": "asa-cloud-preparation-v1", "project": harness.CLOUD_PROJECT,
+                    "image": harness.CLOUD_IMAGE, "reused": credential, "tokenConfigured": credential, "deliveryVerified": False}))
+            spec = SimpleNamespace(loader=SimpleNamespace(exec_module=Mock()))
+            raw = json.dumps(record).encode() if credential else b""
+            with self.subTest(credential=credential), patch.object(harness.os, "geteuid", return_value=0, create=True), \
+                    patch.dict(os.environ, environment, clear=True), patch.object(harness.os.path, "lexists", return_value=False), \
+                    patch.object(harness, "diagnostic_owner", return_value=(owner, {})), \
+                    patch.object(harness, "guest_environment", return_value={"HOME": "/root", "GH_TOKEN": "PRIVATE_SENTINEL"}), \
+                    patch.object(harness.importlib.util, "spec_from_file_location", return_value=spec), \
+                    patch.object(harness.importlib.util, "module_from_spec", return_value=launcher), \
+                    patch.object(harness.time, "time_ns", return_value=earliest + 2 * 10**9), \
+                    patch.object(harness, "diagnostic_read", return_value=(json.dumps(saved).encode(), None, False)), \
+                    patch.object(harness, "diagnostic_command", return_value=({"exitCode": 0}, raw)) as command, \
+                    patch.object(harness, "proc_identity", return_value=process), \
+                    patch.object(harness, "network_namespace_inode", return_value=100), \
+                    patch.object(Path, "stat", return_value=SimpleNamespace(st_ino=102)):
+                self.assertEqual(harness.cloud_prepare_guest(context, credential=credential)["reused"], credential)
+            self.assertEqual(len(command.call_args_list), 1 if credential else 4)
+            for call in command.call_args_list:
+                self.assertEqual(call.args[0][0], "docker")
+                self.assertIs(call.kwargs.get("own_group", True), False)
+                self.assertEqual(call.kwargs["timeout"], 12)
+                self.assertNotIn("GH_TOKEN", call.kwargs["environment"])
+            launcher.prepare_cloud_transport.assert_called_once()
+
+    def test_real_escape_and_identity_changes_are_still_blocked_without_group_signals(self):
+        anchor = {"pid": 10, "ppid": 1, "pgid": 10, "sid": 10, "startTime": 100, "state": "S"}
+        for state in ("S", "Z", "X"):
+            for difference in ({"pgid": 11}, {"sid": 11}, {"pgid": 11, "sid": 11}):
+                child = {**anchor, "pid": 11, "ppid": 10, "startTime": 101, "state": state, **difference}
+                subject = object.__new__(harness.OwnedFaultProcess)
+                subject.closed, subject.history, subject.anchor = False, {}, anchor
+                subject.process = SimpleNamespace(pid=10)
+                with self.subTest(state=state, difference=difference), \
+                        patch.object(harness, "proc_identity", side_effect={10: anchor, 11: child}.get), \
+                        patch.object(Path, "iterdir", return_value=[Path("/proc/10"), Path("/proc/11")]), \
+                        patch.object(harness.os, "killpg", create=True) as group, \
+                        self.assertRaisesRegex(harness.Failure, "BLOCKED_FAULT_PROCESS_ESCAPED_GROUP"):
+                    subject.signal(signal.SIGTERM)
+                group.assert_not_called()
+        with patch.object(harness, "native_proc_namespace", return_value=False), \
+                patch.object(harness.subprocess, "Popen") as start, \
+                self.assertRaisesRegex(harness.Failure, "BLOCKED_FAULT_PROC_NAMESPACE"):
+            harness.OwnedFaultProcess(["not-executed"], environment={})
+        start.assert_not_called()
+
+
+@unittest.skipUnless(sys.platform == "linux", "Actual nested POSIX sessions, signals and waitid require Linux")
+class LinuxNestedFaultProbeTests(unittest.TestCase):
+    def test_actual_guest_probe_shares_its_callers_session(self):
+        # Filesystem metadata is a fixture; both Python processes and Commands.run
+        # are real. No VM command, Docker command or /proc namespace bypass runs.
+        script = '''
+import json, os, pathlib, sys
+from unittest.mock import patch
+from types import SimpleNamespace
+sys.path.insert(0, sys.argv[1])
+import ci_setup_realhost as h
+outer = {'pid': os.getpid(), 'ppid': os.getppid(), 'pgid': os.getpgrp(), 'sid': os.getsid(0)}
+target = pathlib.Path(sys.argv[2])
+probe = "import json,os,pathlib,sys; pathlib.Path(sys.argv[1]).write_text(json.dumps({'pid':os.getpid(),'ppid':os.getppid(),'pgid':os.getpgrp(),'sid':os.getsid(0)})); print('qemu')"
+original = h.subprocess.Popen
+def spawn(args, **kwargs):
+    assert args == ['systemd-detect-virt', '--vm']
+    return original([sys.executable, '-I', '-B', '-c', probe, str(target)], **kwargs)
+context = {'nonce':'a'*32, 'sourceRevision':'b'*40}
+files = {pathlib.Path('/etc/asa-realhost-disposable'):json.dumps({'format':'asa-realhost-disposable-v1',**context}),
+         h.GUEST_HOME/'context.json':json.dumps(context), pathlib.Path('/proc/1/comm'):'systemd',
+         pathlib.Path('/etc/os-release'):'ID=ubuntu\\nVERSION_ID="24.04"\\n'}
+with patch.object(h.Path,'lstat',return_value=SimpleNamespace(st_mode=0o100644,st_uid=0)), \\
+     patch.object(h.Path,'read_text',lambda path,*args,**kwargs:files[path]), \\
+     patch.object(h.platform,'machine',return_value='x86_64'), patch.object(h.subprocess,'Popen',side_effect=spawn):
+    assert h.guest_guard() == context
+print(json.dumps({'outer':outer,'inner':json.loads(target.read_text())}))
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            completed = subprocess.run([sys.executable, "-I", "-B", "-c", script, str(HERE), str(Path(directory) / "identity.json")],
+                start_new_session=True, stdin=subprocess.DEVNULL, capture_output=True, timeout=8, check=True)
+        self.assertEqual(completed.stderr, b"")
+        observed = json.loads(completed.stdout)
+        outer, inner = observed["outer"], observed["inner"]
+        self.assertEqual((outer["pgid"], outer["sid"]), (outer["pid"], outer["pid"]))
+        self.assertEqual(inner["ppid"], outer["pid"])
+        # Start times are explicit model values: this is not native /proc proof.
+        anchor, descendant = {**outer, "startTime": 100, "state": "S"}, {**inner, "startTime": 101, "state": "S"}
+        subject = object.__new__(harness.OwnedFaultProcess)
+        subject.closed, subject.history, subject.anchor = False, {}, anchor
+        subject.process = SimpleNamespace(pid=outer["pid"])
+        with patch.object(harness, "proc_identity", side_effect={outer["pid"]: anchor, inner["pid"]: descendant}.get), \
+                patch.object(Path, "iterdir", return_value=[Path("/proc") / str(pid) for pid in (outer["pid"], inner["pid"]) ]):
+            self.assertEqual(len(subject.members()), 2)
+        self.assertEqual((inner["pgid"], inner["sid"]), (outer["pgid"], outer["sid"]))
+
+    def test_real_shared_probe_timeout_and_sigint_reap_only_the_direct_child(self):
+        original = harness.subprocess.Popen
+        for interrupted in (False, True):
+            children = []
+            def start(*args, **kwargs):
+                child = original(*args, **kwargs)
+                children.append(child)
+                return child
+            guard = Mock(side_effect=lambda: signal.raise_signal(signal.SIGINT)) if interrupted else Mock()
+            with self.subTest(interrupted=interrupted), patch.object(harness.subprocess, "Popen", side_effect=start), \
+                    patch.object(harness.os, "killpg", side_effect=AssertionError("shared group must not be signalled")) as group, \
+                    self.assertRaises(KeyboardInterrupt if interrupted else harness.Failure) as caught:
+                harness.Commands(guard=guard).run([sys.executable, "-I", "-B", "-c", "import time; time.sleep(30)"],
+                                               timeout=0.1, own_group=False)
+            if not interrupted:
+                self.assertEqual(caught.exception.code, "COMMAND_TIMEOUT")
+            self.assertEqual(len(children), 1)
+            self.assertIsNotNone(children[0].returncode)
+            group.assert_not_called()
+
+    def test_real_shared_diagnostic_probe_keeps_session_and_reaps_timeout_or_interrupt(self):
+        probe = "import json,os; print(json.dumps({'pid':os.getpid(),'ppid':os.getppid(),'pgid':os.getpgrp(),'sid':os.getsid(0)}))"
+        with patch.object(harness.os, "killpg", side_effect=AssertionError("shared group must not be signalled")) as group:
+            result, raw = harness.diagnostic_command([sys.executable, "-I", "-B", "-c", probe],
+                timeout=3, environment={"PATH": os.defpath}, own_group=False)
+        self.assertEqual(result.get("exitCode"), 0)
+        self.assertNotIn("reasonCode", result)
+        observed = json.loads(raw)
+        self.assertEqual((observed["ppid"], observed["pgid"], observed["sid"]), (os.getpid(), os.getpgrp(), os.getsid(0)))
+        group.assert_not_called()
+        for interrupted in (False, True):
+            with self.subTest(interrupted=interrupted), contextlib.ExitStack() as stack:
+                if interrupted:
+                    stack.enter_context(patch.object(harness.selectors.DefaultSelector, "select",
+                                                    side_effect=lambda *_: signal.raise_signal(signal.SIGINT)))
+                group = stack.enter_context(patch.object(harness.os, "killpg", side_effect=AssertionError("shared group must not be signalled")))
+                result, _ = harness.diagnostic_command([sys.executable, "-I", "-B", "-c", "import time; time.sleep(30)"],
+                    timeout=0.1, environment={"PATH": os.defpath}, own_group=False)
+            self.assertEqual(result.get("exitCode"), -signal.SIGTERM)
+            self.assertIn("reasonCode", result)
+            self.assertNotIn("cleanupReasonCode", result)
+            group.assert_not_called()
+
+
 if __name__ == "__main__":
     if sys.argv[1:] == ["--evidence"]:
         suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
