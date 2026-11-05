@@ -506,17 +506,71 @@ def run_fixture(version, role, binaries, directory, logs, resources):
                 "Owned process cleanup failed: " + "; ".join(cleanup_errors))
 
 
+def windows_powershell_environment(parent):
+    # pwsh -> Python -> powershell.exe bypasses pwsh's direct-launch path cleanup.
+    # Let Windows PowerShell construct its own standard module search path:
+    # https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_psmodulepath#starting-windows-powershell-from-powershell-7
+    return {key: value for key, value in parent.items() if key.casefold() != "psmodulepath"}
+
+
+def check_windows_module_environment(directory, powershell):
+    parent = dict(os.environ)
+    unavailable = directory / "empty-module-search-path"
+    unavailable.mkdir()
+    payload = directory / "sha256 module fixture.bin"
+    payload.write_bytes(bytes(range(256)) * 1025)
+    probe = directory / "module-hash-probe.ps1"
+    probe.write_text(
+        'param([Parameter(Mandatory = $true)][string]$Path)\n'
+        "$ErrorActionPreference = 'Stop'\n"
+        "$command = Get-Command -Name 'Get-FileHash' -ErrorAction Stop\n"
+        '$hash = (& $command -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()\n'
+        '[ordered]@{ version = $PSVersionTable.PSVersion.ToString(); '
+        'edition = $PSVersionTable.PSEdition; module = $command.ModuleName; sha256 = $hash } '
+        '| ConvertTo-Json -Compress\n',
+        encoding="utf-8",
+    )
+    command = [powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned",
+               "-File", str(probe), "-Path", str(payload)]
+    # A child-only negative control: never modify the parent or machine module path.
+    inherited = windows_powershell_environment(parent)
+    inherited["PSMODULEPATH"] = str(unavailable)
+    rejected = subprocess.run(command, env=inherited, text=True, encoding="utf-8",
+                              errors="replace", stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, timeout=15)
+    require(rejected.returncode != 0 and "Get-FileHash" in rejected.stdout,
+            "Empty module search path did not reproduce the Windows cmdlet-resolution failure")
+    restored = subprocess.run(command, env=windows_powershell_environment(inherited),
+                              text=True, encoding="utf-8", errors="replace",
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=15)
+    require(restored.returncode == 0,
+            f"Windows PowerShell default module restoration failed: {restored.stdout[-2000:]}")
+    result = json.loads(restored.stdout)
+    require(result["version"].startswith("5.1.") and result["edition"] == "Desktop",
+            "The native staging regression requires actual Windows PowerShell 5.1")
+    require(result["module"] == "Microsoft.PowerShell.Utility" and
+            result["sha256"] == digest(payload), "Restored native SHA-256 differs from Python")
+    require(dict(os.environ) == parent, "Windows child setup modified the parent environment")
+    return {"status": "PASS", "negativeControl": "isolated_empty_module_directory",
+            "negativeExitCode": rejected.returncode, "restoredExitCode": restored.returncode,
+            "powershellVersion": result["version"], "module": result["module"],
+            "sampleBytes": payload.stat().st_size, "sha256": result["sha256"],
+            "parentEnvironmentUnchanged": True}
+
+
 def staging_checks(directory, manifest, binary, revision):
     if os.name != "nt":
         return {"status": "NOT_RUN", "reason": "Native Windows PowerShell 5.1 is required"}
     powershell = "powershell.exe"
     script = ROOT / "tools/frp-client-stage.ps1"
+    module_environment = check_windows_module_environment(directory, powershell)
 
     def invoke(destination, expected):
         return subprocess.run(
             [powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned",
              "-File", str(script), "-ExpectedRevision", expected, "-Destination", str(destination)],
-            cwd=ROOT, text=True, encoding="utf-8", errors="replace",
+            cwd=ROOT, env=windows_powershell_environment(os.environ),
+            text=True, encoding="utf-8", errors="replace",
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=150,
         )
 
@@ -545,10 +599,25 @@ def staging_checks(directory, manifest, binary, revision):
     }, "Stager wrote unexpected files")
     return {"status": "PASS", "wrongRevisionRejected": True, "existingDirectoryPreserved": True,
             "binarySha256": receipt["binarySha256"], "receipt": receipt,
+            "moduleEnvironment": module_environment,
             "powershell": "Windows PowerShell 5.1", "executionPolicy": "process-only RemoteSigned"}
 
 
 class IntegrityTests(unittest.TestCase):
+    def test_windows_child_environment_preserves_everything_except_module_search_path(self):
+        parent = {"PSMODULEPATH": "pwsh7-upper", "PSModulePath": "pwsh7-mixed",
+                  "psmodulepath": "pwsh7-lower", "WinPSModulePath": "preserve-winps-hint",
+                  "PSModulePathExtra": "preserve-unrelated", "PATH": "preserve-executable-path",
+                  "HTTPS_PROXY": "preserve-proxy", "PSExecutionPolicyPreference": "RemoteSigned"}
+        before = parent.copy()
+        expected = {"WinPSModulePath": "preserve-winps-hint", "PSModulePathExtra": "preserve-unrelated",
+                    "PATH": "preserve-executable-path", "HTTPS_PROXY": "preserve-proxy",
+                    "PSExecutionPolicyPreference": "RemoteSigned"}
+        self.assertEqual(windows_powershell_environment(parent), expected)
+        self.assertEqual(parent, before)
+        self.assertEqual(windows_powershell_environment(expected), expected)
+        self.assertIsNot(windows_powershell_environment(expected), expected)
+
     def test_manifest_rejects_untrusted_source_and_unknown_fields(self):
         good = json.loads(MANIFEST.read_text())
         for change in ("source", "unknown", "size"):
