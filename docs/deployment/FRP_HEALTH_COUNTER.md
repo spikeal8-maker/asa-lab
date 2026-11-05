@@ -75,7 +75,7 @@ GitHub token не требуется. Распаковываются тольк�
 | Среда | CPU и runtime | Что проверяется |
 | --- | --- | --- |
 | GitHub `ubuntu-24.04` | amd64, Python 3.12, FRP 0.69.1 и 0.71.1 | Реальный health-контракт, HTTP, reconnect, cleanup. |
-| GitHub `windows-2025` | amd64, Python 3.12, Windows PowerShell 5.1, те же FRP | Тот же контракт и отдельный вызов staging-скрипта в Windows PowerShell. |
+| GitHub `windows-2025` | amd64, Python 3.12, Windows PowerShell 5.1 и PowerShell 7 (`pwsh.exe`), те же FRP | Тот же контракт, проверка границы PS7 → Python → PS5 и staging в Windows PowerShell. |
 | Локальный Linux amd64 | Python 3.12, Git, доступ к официальным release assets | Тот же native gate; Windows staging явно `NOT_RUN`. |
 
 Для native gate планировать не менее 512 MiB свободного диска и 1 GiB доступной
@@ -89,6 +89,18 @@ RAM. Stager отдельно проверяет минимум 256 MiB своб�
 Windows job обязателен для проверки PowerShell 5.1. Linux PASS не заменяет его.
 Отчёт с `sourceDirty: true` является проверкой рабочего дерева с указанными
 хешами, а не доказательством неизменённого опубликованного commit.
+
+Windows harness, включая отдельный локальный запуск, требует обе установленные
+версии PowerShell. Он обнаруживает настоящий Utility manifest в `$PSHOME` PS7,
+проверяет импорт и SHA-256 в PS7, затем фиксирует несовместимость того же manifest
+в PS5.1 и отказ `Get-FileHash` при его приоритете в module search path. После
+удаления только `PSModulePath` из копии окружения дочернего процесса обязательны
+native PS5.1 Utility, тот же SHA-256 и все staging assertions. Пустой каталог не
+используется как negative: PS5.1 способен найти системный модуль через
+[fallback поиска модулей](https://github.com/PowerShell/PowerShell/blob/v6.0.0/src/System.Management.Automation/engine/Modules/ModuleIntrinsics.cs#L998-L1032).
+Все четыре subprocess result сохраняются в `windows-module-probes.json` с
+ограниченными stdout/stderr. Сам `frp-client-stage.ps1` остаётся PS5.1-only и не
+получает зависимости от PS7; системное окружение и policy не меняются.
 
 ## Как запускается контракт
 

@@ -16,6 +16,7 @@ import platform
 import queue
 import re
 import secrets
+import shutil
 import socket
 import stat
 import subprocess
@@ -520,12 +521,137 @@ def module_probe_snapshot(process):
             "stdoutCharacters": len(process.stdout), "stderrCharacters": len(process.stderr)}
 
 
+def utility_compatibility_reason(result, manifest, manifest_sha256):
+    require(result["version"].startswith("5.1.") and result["edition"] == "Desktop" and
+            result["is64BitProcess"] is True,
+            "Compatibility witness must run in actual Windows PowerShell 5.1")
+    require(Path(result["manifest"]).resolve() == manifest.resolve() and
+            result["manifestSha256"] == manifest_sha256,
+            "Windows PowerShell did not read the exact positively verified Core manifest")
+    if result["imported"]:
+        require(Path(result["modulePath"]).resolve() == manifest.resolve() and
+                result["exportsHash"] is False,
+                "Core Utility import did not demonstrate the missing Get-FileHash export")
+        return "missing_Get-FileHash_export"
+    ids = {"Modules_InsufficientPowerShellVersion", "Modules_PSEditionNotSupported"}
+    types = {"System.BadImageFormatException", "System.IO.FileLoadException",
+             "System.TypeLoadException", "System.Reflection.ReflectionTypeLoadException",
+             "System.MissingMethodException"}
+    require(result["errorStage"] == "import" and (
+        result["errorId"].split(",")[0] in ids or types.intersection(result["exceptionTypes"])
+    ), "Core Utility failed for an unclassified reason, not a demonstrated runtime incompatibility")
+    return "native_runtime_import_error"
+
+
 def check_windows_module_environment(directory, powershell, logs):
     parent = dict(os.environ)
-    unavailable = directory / "empty-module-search-path"
-    unavailable.mkdir()
     payload = directory / "sha256 module fixture.bin"
     payload.write_bytes(bytes(range(256)) * 1025)
+    expected_hash = digest(payload)
+    evidence_path = logs / "windows-module-probes.json"
+    evidence = {"schemaVersion": 1, "expectedSha256": expected_hash}
+
+    def run_probe(label, command, env):
+        result = subprocess.run(command, env=env, text=True, encoding="utf-8",
+                                errors="replace", stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, timeout=15)
+        evidence[label] = module_probe_snapshot(result)
+        evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+        return result
+
+    # Inspect/import the installed module in fresh native processes. No fake module or manifest.
+    utility_probe = directory / "utility-import-probe.ps1"
+    utility_probe.write_text(r"""
+param([Parameter(Mandatory = $true)][string]$Path, [string]$Manifest)
+$ErrorActionPreference = 'Stop'
+if (-not $Manifest) {
+  $Manifest = [IO.Path]::Combine($PSHOME, 'Modules', 'Microsoft.PowerShell.Utility', 'Microsoft.PowerShell.Utility.psd1')
+}
+$Manifest = [IO.Path]::GetFullPath($Manifest)
+$result = [ordered]@{
+  version = $PSVersionTable.PSVersion.ToString(); edition = $PSVersionTable.PSEdition
+  psHome = $PSHOME; clrVersion = [Environment]::Version.ToString(); is64BitProcess = [Environment]::Is64BitProcess
+  manifest = $Manifest; manifestSha256 = $null; imported = $false
+  modulePath = $null; moduleVersion = $null; compatibleEditions = @()
+  exportsHash = $false; sha256 = $null; errorStage = $null; errorId = ''
+  exceptionTypes = @(); errorMessage = $null; utilityAssemblies = @()
+}
+$stage = 'manifest_read'
+try {
+  $stream = [IO.File]::OpenRead($Manifest)
+  $algorithm = [Security.Cryptography.SHA256]::Create()
+  try { $result.manifestSha256 = [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+  finally { $algorithm.Dispose(); $stream.Dispose() }
+  $stage = 'import'
+  $modules = @(Import-Module -Name $Manifest -PassThru -ErrorAction Stop)
+  $stage = 'module_identity'
+  $selected = @($modules | Where-Object { $_.Path -ieq $Manifest })
+  if ($selected.Count -ne 1) { throw 'Import did not select the exact requested module manifest.' }
+  $module = $selected[0]
+  $result.imported = $true
+  $result.modulePath = $module.Path
+  $result.moduleVersion = $module.Version.ToString()
+  $result.compatibleEditions = @($module.CompatiblePSEditions)
+  $result.exportsHash = $module.ExportedCommands.ContainsKey('Get-FileHash')
+  if ($result.exportsHash) {
+    $stage = 'hash'
+    $hashCommand = $module.ExportedCommands['Get-FileHash']
+    $result.sha256 = (& $hashCommand -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+  }
+}
+catch {
+  $result.errorStage = $stage
+  $result.errorId = $_.FullyQualifiedErrorId
+  $result.errorMessage = $_.Exception.Message
+  $exception = $_.Exception
+  while ($exception -and $result.exceptionTypes.Count -lt 8) {
+    $result.exceptionTypes += $exception.GetType().FullName
+    $exception = $exception.InnerException
+  }
+}
+foreach ($assembly in [AppDomain]::CurrentDomain.GetAssemblies()) {
+  if ($assembly.GetName().Name -eq 'Microsoft.PowerShell.Commands.Utility') {
+    $result.utilityAssemblies += [ordered]@{ identity = $assembly.FullName; path = $assembly.Location }
+  }
+}
+$result | ConvertTo-Json -Compress -Depth 5
+if ($result.errorMessage) { exit 1 }
+exit 0
+""".lstrip(), encoding="utf-8")
+    pwsh = shutil.which("pwsh.exe")
+    require(pwsh, "The Windows cross-version fixture requires the runner's installed PowerShell 7")
+    arguments = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned",
+                 "-File", str(utility_probe), "-Path", str(payload)]
+    core = run_probe("corePositive", [pwsh, *arguments], parent)
+    require(core.returncode == 0,
+            f"Installed PowerShell 7 Utility positive control failed; see {evidence_path.name}")
+    core_result = json.loads(core.stdout.splitlines()[-1])
+    core_manifest = Path(core_result["manifest"])
+    expected_manifest = Path(core_result["psHome"]) / "Modules" / "Microsoft.PowerShell.Utility" / \
+        "Microsoft.PowerShell.Utility.psd1"
+    require(core_result["version"].startswith("7.") and core_result["edition"] == "Core" and
+            core_result["is64BitProcess"] is True and
+            core_manifest.resolve() == expected_manifest.resolve() and core_manifest.is_file(),
+            "PowerShell 7 did not discover its own installed Utility manifest")
+    require(core_result["imported"] and core_result["exportsHash"] and
+            Path(core_result["modulePath"]).resolve() == core_manifest.resolve() and
+            core_result["sha256"] == expected_hash and
+            core_result["manifestSha256"] == digest(core_manifest) and
+            "Core" in core_result["compatibleEditions"] and
+            "Desktop" not in core_result["compatibleEditions"],
+            "The exact installed Core-only Utility manifest did not pass its native hash control")
+    compatibility = run_probe(
+        "winPSCompatibility", [powershell, *arguments, "-Manifest", str(core_manifest)],
+        windows_powershell_environment(parent),
+    )
+    compatibility_result = json.loads(compatibility.stdout.splitlines()[-1])
+    reason = utility_compatibility_reason(
+        compatibility_result, core_manifest, core_result["manifestSha256"],
+    )
+    require(compatibility.returncode == (0 if compatibility_result["imported"] else 1),
+            "Native Utility compatibility result and process exit disagree")
+    evidence["compatibilityReason"] = reason
+
     probe = directory / "module-hash-probe.ps1"
     probe.write_text(
         'param([Parameter(Mandatory = $true)][string]$Path)\n'
@@ -540,38 +666,39 @@ def check_windows_module_environment(directory, powershell, logs):
         "foreach ($loaded in @(Get-Module -Name Microsoft.PowerShell.Utility)) {\n"
         "  [Console]::WriteLine('FRP_PROBE_INITIAL_UTILITY=' + $loaded.Path)\n"
         "}\n"
-        "$command = Get-Command -Name 'Get-FileHash' -ErrorAction Stop\n"
+        "try { $command = Get-Command -Name 'Get-FileHash' -ErrorAction Stop }\n"
+        "catch {\n"
+        "  foreach ($loaded in @(Get-Module -Name Microsoft.PowerShell.Utility)) {\n"
+        "    [Console]::WriteLine('FRP_PROBE_FAILED_UTILITY=' + $loaded.Path)\n"
+        "  }\n"
+        "  [Console]::WriteLine('FRP_PROBE_LOOKUP_ERROR_ID=' + $_.FullyQualifiedErrorId)\n"
+        "  throw\n"
+        "}\n"
         "[Console]::WriteLine('FRP_PROBE_COMMAND_TYPE=' + $command.CommandType)\n"
         "[Console]::WriteLine('FRP_PROBE_COMMAND_MODULE=' + $command.ModuleName)\n"
         "[Console]::WriteLine('FRP_PROBE_COMMAND_MODULE_PATH=' + $command.Module.Path)\n"
         "[Console]::WriteLine('FRP_PROBE_COMMAND_MODULE_VERSION=' + $command.Module.Version)\n"
         '$hash = (& $command -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()\n'
         '[ordered]@{ version = $PSVersionTable.PSVersion.ToString(); '
-        'edition = $PSVersionTable.PSEdition; module = $command.ModuleName; sha256 = $hash } '
+        'edition = $PSVersionTable.PSEdition; module = $command.ModuleName; sha256 = $hash; '
+        'psHome = $PSHOME; modulePath = $command.Module.Path } '
         '| ConvertTo-Json -Compress\n',
         encoding="utf-8",
     )
     command = [powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned",
                "-File", str(probe), "-Path", str(payload)]
-    # A child-only negative control: never modify the parent or machine module path.
+    # Real Core Utility first, then the measured native module directory: reproduce the
+    # pwsh -> Python -> Windows PowerShell collision rather than relying on an empty path.
     inherited = windows_powershell_environment(parent)
-    inherited["PSMODULEPATH"] = str(unavailable)
-    rejected = subprocess.run(command, env=inherited, text=True, encoding="utf-8",
-                              errors="replace", stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE, timeout=15)
-    evidence_path = logs / "windows-module-probes.json"
-    evidence = {"schemaVersion": 1, "negativeModulePath": str(unavailable),
-                "expectedSha256": digest(payload), "negative": module_probe_snapshot(rejected),
-                "restored": None}
-    evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
-    restored = subprocess.run(command, env=windows_powershell_environment(inherited),
-                              text=True, encoding="utf-8", errors="replace",
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
-    evidence["restored"] = module_probe_snapshot(restored)
-    evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+    inherited["PSMODULEPATH"] = os.pathsep.join((
+        str(core_manifest.parent.parent), str(Path(compatibility_result["psHome"]) / "Modules"),
+    ))
+    evidence["negativeModulePath"] = inherited["PSMODULEPATH"]
+    rejected = run_probe("negative", command, inherited)
+    restored = run_probe("restored", command, windows_powershell_environment(inherited))
     # Collect both real child outcomes first, but preserve every existing pass condition.
     require(rejected.returncode != 0 and "Get-FileHash" in rejected.stdout + rejected.stderr,
-            "Empty module search path did not reproduce the Windows cmdlet-resolution failure; "
+            "Installed Core Utility precedence did not reproduce the Windows cmdlet-resolution failure; "
             f"exit={rejected.returncode}; see {evidence_path.name}")
     require(restored.returncode == 0,
             "Windows PowerShell default module restoration failed: "
@@ -580,9 +707,15 @@ def check_windows_module_environment(directory, powershell, logs):
     require(result["version"].startswith("5.1.") and result["edition"] == "Desktop",
             "The native staging regression requires actual Windows PowerShell 5.1")
     require(result["module"] == "Microsoft.PowerShell.Utility" and
-            result["sha256"] == digest(payload), "Restored native SHA-256 differs from Python")
+            result["sha256"] == expected_hash, "Restored native SHA-256 differs from Python")
+    native_manifest = Path(result["psHome"]) / "Modules" / "Microsoft.PowerShell.Utility" / \
+        "Microsoft.PowerShell.Utility.psd1"
+    require(Path(result["modulePath"]).resolve() == native_manifest.resolve(),
+            "Restored Get-FileHash did not come from the native Windows PowerShell Utility")
     require(dict(os.environ) == parent, "Windows child setup modified the parent environment")
-    return {"status": "PASS", "negativeControl": "isolated_empty_module_directory",
+    return {"status": "PASS", "negativeControl": "installed_Core_Utility_precedence",
+            "corePowerShellVersion": core_result["version"], "coreManifest": str(core_manifest),
+            "coreManifestSha256": core_result["manifestSha256"], "compatibilityReason": reason,
             "negativeExitCode": rejected.returncode, "restoredExitCode": restored.returncode,
             "powershellVersion": result["version"], "module": result["module"],
             "sampleBytes": payload.stat().st_size, "sha256": result["sha256"],
@@ -635,6 +768,29 @@ def staging_checks(directory, manifest, binary, revision, logs):
 
 
 class IntegrityTests(unittest.TestCase):
+    def test_utility_compatibility_requires_actual_export_or_runtime_mismatch(self):
+        manifest = Path("native-core-utility.psd1").resolve()
+        native = {"version": "5.1.26100.33648", "edition": "Desktop", "is64BitProcess": True,
+                  "manifest": str(manifest), "manifestSha256": "a" * 64,
+                  "imported": True, "modulePath": str(manifest), "exportsHash": False}
+        self.assertEqual(utility_compatibility_reason(native, manifest, "a" * 64),
+                         "missing_Get-FileHash_export")
+        load_error = {**native, "imported": False, "errorStage": "import", "errorId": "load_error",
+                      "exceptionTypes": ["System.BadImageFormatException"]}
+        self.assertEqual(utility_compatibility_reason(load_error, manifest, "a" * 64),
+                         "native_runtime_import_error")
+        for invalid in (
+            {**native, "exportsHash": True},
+            {**native, "modulePath": str(manifest.parent / "different.psd1")},
+            {**native, "manifestSha256": "b" * 64},
+            {**native, "is64BitProcess": False},
+            {**load_error, "exceptionTypes": ["System.UnauthorizedAccessException"]},
+            {**load_error, "exceptionTypes": ["System.IO.FileNotFoundException"]},
+            {**load_error, "errorStage": "manifest_read"},
+        ):
+            with self.subTest(invalid=invalid), self.assertRaises(ContractError):
+                utility_compatibility_reason(invalid, manifest, "a" * 64)
+
     def test_module_probe_evidence_keeps_exit_and_bounded_both_streams(self):
         success = subprocess.CompletedProcess(["powershell.exe"], 0, "metadata\n{}\n", "")
         snapshot = module_probe_snapshot(success)
