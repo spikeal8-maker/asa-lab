@@ -7,6 +7,7 @@ import {
   useState,
   useSyncExternalStore,
   type CSSProperties,
+  type ReactNode,
 } from 'react';
 import { ArduinoCodePanel, type ArduinoCodePanelHandle } from '../electronics/ArduinoCodePanel';
 import { WorkbenchSidebars } from '../electronics/WorkbenchSidebars';
@@ -28,6 +29,7 @@ import {
   ROBOTICS_SENSOR_INTERVAL_MICROSECONDS,
 } from './world';
 import { useLocalRoboticsProject } from './use-local-robotics-project';
+import type { RoboticsProjectController } from './use-robotics-project';
 import { RobotField } from './RobotField';
 import { RobotFieldEditor } from './RobotFieldEditor';
 import { RobotAssemblyPanel } from './RobotAssemblyPanel';
@@ -96,10 +98,23 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
       initialProject ??
       createDefaultRoboticsProject(createRoboticsProgramPreset(DEFAULT_ROBOTICS_PROGRAM_PRESET_ID)),
   );
+  const local = useLocalRoboticsProject(seed);
+  return <RoboticsWorkspace project={local} />;
+}
+
+/** The same M1 workspace is hosted by either a local or an account project. */
+export function RoboticsWorkspace({
+  project: local,
+  projectId = 'asa-robotics-local-v1',
+  header,
+}: {
+  readonly project: RoboticsProjectController;
+  readonly projectId?: string;
+  readonly header?: ReactNode;
+}) {
   const [section, setSection] = useState<Section>('field');
   const [compactLayout, setCompactLayout] = useState(() => window.innerWidth <= 760);
-  const local = useLocalRoboticsProject(seed, flushProgram);
-  const controller = useElectronicsWorkbenchHost('asa-robotics-local-v1', local.host, {
+  const controller = useElectronicsWorkbenchHost(projectId, local.host, {
     ...WORKBENCH_OPTIONS,
     keyboardShortcutsEnabled: section === 'electronics',
   });
@@ -127,6 +142,15 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
   );
   const [codeHeight, setCodeHeight] = useState(70);
   const programHandle = useRef<ArduinoCodePanelHandle | null>(null);
+  const flushRef = useRef(flushProgram);
+  flushRef.current = flushProgram;
+  useLayoutEffect(() => {
+    const release = local.registerProgramFlush(() => flushRef.current());
+    return () => {
+      flushRef.current();
+      release();
+    };
+  }, [local.registerProgramFlush]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [chosenProgramPreset, setChosenProgramPreset] = useState<{
     id: RoboticsProgramPresetId;
@@ -462,37 +486,39 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
       data-input-inflight={budget?.inFlight ?? 0}
       data-input-exhausted={budget?.exhausted ?? false}
     >
-      <header className="robotics-header">
-        <div className="robotics-brand">
-          <span className="robotics-brand-mark" aria-hidden="true">
-            A<span>·</span>
-          </span>
-          <h1>
-            Робототехника <span className="robotics-mode-badge">2D</span>
-          </h1>
-        </div>
-        <div className="robotics-save-area">
-          <span className={`robotics-save-status ${controller.saveStatus}`} role="status">
-            {controller.saveStatus === 'saved'
-              ? 'Сохранено на устройстве'
-              : controller.saveStatus === 'error'
-                ? 'Не удалось сохранить'
-                : 'Есть изменения'}
-          </span>
-          <button type="button" className="robotics-button" onClick={saveProject}>
-            <SmallIcon name="save" />
-            Сохранить
-          </button>
-          <button
-            type="button"
-            className="robotics-button subtle"
-            disabled={running || !local.hasSavedProject}
-            onClick={openSaved}
-          >
-            Открыть
-          </button>
-        </div>
-      </header>
+      {header ?? (
+        <header className="robotics-header">
+          <div className="robotics-brand">
+            <span className="robotics-brand-mark" aria-hidden="true">
+              A<span>·</span>
+            </span>
+            <h1>
+              Робототехника <span className="robotics-mode-badge">2D</span>
+            </h1>
+          </div>
+          <div className="robotics-save-area">
+            <span className={`robotics-save-status ${controller.saveStatus}`} role="status">
+              {controller.saveStatus === 'saved'
+                ? 'Сохранено на устройстве'
+                : controller.saveStatus === 'error'
+                  ? 'Не удалось сохранить'
+                  : 'Есть изменения'}
+            </span>
+            <button type="button" className="robotics-button" onClick={saveProject}>
+              <SmallIcon name="save" />
+              Сохранить
+            </button>
+            <button
+              type="button"
+              className="robotics-button subtle"
+              disabled={running || !local.hasSavedProject}
+              onClick={openSaved}
+            >
+              Открыть
+            </button>
+          </div>
+        </header>
+      )}
       <nav className="robotics-tabs" role="tablist" aria-label="Разделы робототехники">
         {SECTIONS.map((item, index) => (
           <button

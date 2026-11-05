@@ -83,6 +83,8 @@ const expectedPending = [
   '0302', // Private portal invitation notifications.
   '0303', // Owner-only publication editor resolution.
   '0304', // Russian-64 network matches reuse Games identity and policy.
+  '0305', // Robotics projects and authenticated module activity.
+  '0306', // Robotics in the existing immutable publication catalog.
 ];
 
 interface Identity {

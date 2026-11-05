@@ -1,4 +1,8 @@
 import { parseElectronicsEngineDocument } from '@asa-lab/electronics/engine';
+import {
+  parseRoboticsProject as parseSharedRoboticsProject,
+  type RoboticsProject as SharedRoboticsProject,
+} from '@asa-lab/robotics/document';
 import type { SchematicDocument } from '../api';
 import { productionCatalogEntry } from '../electronics/production-manifest-adapter';
 import { addComponentToDocument } from '../electronics/workbench-document';
@@ -10,11 +14,13 @@ import {
   type RoboticsWorldDocument,
 } from './world';
 
-export interface RoboticsProject {
-  readonly schemaVersion: 2;
-  readonly title: string;
+export interface RoboticsProject extends Omit<SharedRoboticsProject, 'circuit'> {
   readonly circuit: SchematicDocument;
-  readonly world: RoboticsWorldDocument;
+}
+
+/** The editor owns mutable circuit data; shared domain/API data stays readonly. */
+export function toRoboticsWebProject(project: SharedRoboticsProject): RoboticsProject {
+  return { ...project, circuit: structuredClone(project.circuit) as SchematicDocument };
 }
 
 export const ROBOTICS_ARDUINO_SOURCE = `// ASA Lab: два мотора через FET, HC-SR04 и настоящее выполнение Arduino.
@@ -211,40 +217,6 @@ export function parseRoboticsProject(
 ):
   | { readonly ok: true; readonly project: RoboticsProject }
   | { readonly ok: false; readonly message: string } {
-  try {
-    if (typeof value !== 'object' || value === null || Array.isArray(value))
-      throw new Error('Некорректный локальный проект робототехники.');
-    const source = value as Record<string, unknown>;
-    if (source.schemaVersion !== 1 && source.schemaVersion !== 2)
-      throw new Error('Эта версия проекта робототехники не поддерживается.');
-    if (source.schemaVersion === 2) {
-      const scene = source.world as Partial<RoboticsWorldDocument> | null;
-      if (
-        !scene ||
-        scene.physicsProfile !== 'kinematic-rover-discs-v1' ||
-        !Array.isArray(scene.field?.balls) ||
-        !Array.isArray(scene.field?.floorMarks)
-      )
-        throw new Error('Проект повреждён: отсутствуют обязательные данные поля.');
-    }
-    if (typeof source.title !== 'string' || source.title.trim() === '' || source.title.length > 80)
-      throw new Error('Название проекта должно содержать от 1 до 80 символов.');
-    const world = parseRoboticsWorldDocument(source.world);
-    if (!world.ok) return world;
-    const electrical = parseElectronicsEngineDocument(source.circuit);
-    if (!electrical.ok) return { ok: false, message: `Схема: ${electrical.message}` };
-    // The canonical parser validates the shape; a fresh deep clone makes it a mutable Web document.
-    const circuit = structuredClone(electrical.document) as SchematicDocument;
-    circuit.simulation = { ...circuit.simulation, running: false };
-    return {
-      ok: true,
-      project: { schemaVersion: 2, title: source.title, circuit, world: world.world },
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      message:
-        error instanceof Error ? error.message : 'Не удалось прочитать проект робототехники.',
-    };
-  }
+  const parsed = parseSharedRoboticsProject(value);
+  return parsed.ok ? { ok: true, project: toRoboticsWebProject(parsed.project) } : parsed;
 }

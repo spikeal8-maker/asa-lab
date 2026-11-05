@@ -2,6 +2,76 @@
   background: #edf2f6;
   color: #183448;
 }
+.robotics-portal-editor {
+  background: #edf2f6;
+  color: #183448;
+  min-width: 0;
+}
+.robotics-portal-editor .robotics-lab {
+  grid-template-rows: auto 44px 48px auto minmax(0, 1fr) 30px;
+}
+.robotics-portal-editor .editor-header {
+  grid-row: 1;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  border-radius: 10px;
+}
+.robotics-portal-editor .editor-header-title-input {
+  width: 100%;
+  max-width: 320px;
+}
+.robotics-project-snapshot {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 480px;
+  height: 360px;
+  pointer-events: none;
+}
+.robotics-project-snapshot > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+@media (max-width: 760px) {
+  .robotics-portal-editor .robotics-lab {
+    grid-template-rows: auto 44px 44px auto minmax(0, 1fr) 28px;
+  }
+  .robotics-portal-editor .editor-header {
+    height: auto;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    padding-bottom: 4px;
+    overflow: visible;
+  }
+  .robotics-portal-editor .editor-header-brand-zone {
+    height: 42px;
+  }
+  .robotics-portal-editor .editor-header-title-input {
+    margin-right: 6px;
+    max-width: none;
+  }
+  .robotics-portal-editor .editor-header-trailing {
+    justify-content: space-between;
+    padding: 0 6px;
+  }
+  .robotics-portal-editor .editor-header-navigation {
+    display: flex;
+  }
+  .robotics-portal-editor .editor-header-status {
+    display: flex;
+    grid-row: 3;
+    min-height: 18px;
+    justify-content: flex-start;
+    font-size: 11px;
+  }
+  .robotics-portal-editor .editor-header-avatar {
+    display: none;
+  }
+  .robotics-portal-editor .editor-header-item {
+    padding-inline: 9px;
+    font-size: 12px;
+  }
+}
 .robotics-lab {
   --robotics-border: #d5e0e8;
   --robotics-accent: #087d9b;

@@ -4,7 +4,7 @@ export interface PublicArtifactProvenance {
   readonly revisionNumber: number;
 }
 
-export type PublicArtifactViewerFamily = 'three-d' | 'electronics' | 'blocks';
+export type PublicArtifactViewerFamily = 'three-d' | 'electronics' | 'blocks' | 'robotics';
 
 /** v1 has no module payload or runtime/export capability. Extend via a new schema version. */
 export interface PublicArtifactCapabilities {
@@ -138,7 +138,8 @@ export function validatePublicArtifact(input: unknown): PublicArtifactValidation
       envelope.reason === 'viewer-not-available' &&
       (envelope.viewerFamily === 'three-d' ||
         envelope.viewerFamily === 'electronics' ||
-        envelope.viewerFamily === 'blocks')
+        envelope.viewerFamily === 'blocks' ||
+        envelope.viewerFamily === 'robotics')
     ) {
       artifact = {
         ...common,

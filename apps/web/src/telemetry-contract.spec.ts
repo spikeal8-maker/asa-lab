@@ -38,6 +38,22 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('actual v2 envelopes and persistence receipts', () => {
+  it('admits robotics under its own module and route without accepting arbitrary module strings', () => {
+    const envelope = {
+      schemaVersion: 2,
+      eventId: event.eventId,
+      actorExpectation: actor,
+      visitId: event.visitId,
+      clientOccurredAt: event.clientOccurredAt,
+      operation: 'start',
+      sessionId: id(6),
+      projectId: id(7),
+      moduleKey: 'robotics',
+    };
+    expect(validEnvelope(envelope)).toBe(true);
+    expect(validEnvelope({ ...envelope, moduleKey: 'robotics?private=source' })).toBe(false);
+    expect(validEnvelope({ ...event, entryRoute: 'editor.robotics' })).toBe(true);
+  });
   it('spreads repeated retries without reducing their exponential floor or the server cooldown', () => {
     const random = vi.spyOn(Math, 'random');
     for (const failures of [1, 2, 3, 10, 1000]) {

@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SchematicDocument, SolveResult } from '../../api';
+import { api, type Project, type SchematicDocument, type SolveResult } from '../../api';
 import type {
   ElectronicsWorkbenchController,
   ElectronicsWorkbenchProjectHost,
@@ -19,7 +19,8 @@ import {
 import { SimulationPacing } from '../../electronics/simulation-pacing';
 import { configureProductionLibrary } from '../../electronics/production-manifest-adapter';
 import { createDefaultRoboticsProject } from '../robotics-project';
-import { RoboticsLab } from '../RoboticsLab';
+import { RoboticsLab, RoboticsWorkspace } from '../RoboticsLab';
+import { useRoboticsProject } from '../use-robotics-project';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -281,6 +282,75 @@ afterEach(() => {
 });
 
 describe('robotics UI integration with the common workbench port', () => {
+  it('hosts the same program editor in an account project and flushes it to Project Core without opening standalone storage', async () => {
+    act(() => root.unmount());
+    root = createRoot(container);
+    const read = vi.spyOn(Storage.prototype, 'getItem');
+    const project: Project = {
+      id: '64d1b8a0-4500-4000-8000-000000000001',
+      scope: 'personal',
+      classroomId: null,
+      moduleKey: 'robotics',
+      title: 'Проект аккаунта',
+      status: 'active',
+      createdAt: '2026-11-05T12:00:00Z',
+      updatedAt: '2026-11-05T12:00:00Z',
+      preview: null,
+      snapshotRevision: null,
+      copiedFrom: null,
+    };
+    const opened = {
+      project,
+      draft: {
+        projectId: project.id,
+        document: createDefaultRoboticsProject(),
+        revision: 1,
+        updatedAt: project.updatedAt,
+      },
+      versions: [],
+    };
+    const save = vi
+      .spyOn(api, 'saveDraft')
+      .mockImplementation(async (projectId, document, revision) => ({
+        ok: true,
+        status: 200,
+        data: {
+          draft: { projectId, document, revision: revision + 1, updatedAt: project.updatedAt },
+          result: null,
+        },
+      }));
+    let account!: ReturnType<typeof useRoboticsProject>;
+    function AccountHarness() {
+      account = useRoboticsProject(opened, '64d1b8a0-4500-4000-8000-000000000002');
+      return createElement(RoboticsWorkspace, {
+        project: account,
+        projectId: project.id,
+        header: createElement('header', null, project.title),
+      });
+    }
+    act(() => root.render(createElement(AccountHarness)));
+    await click('Программа');
+    const source = 'void setup(){} void loop(){delay(43);}';
+    port.programFlush.mockImplementation(() =>
+      port.programPublish!('uno', { arduinoSource: source }),
+    );
+    await act(async () => {
+      expect(await account.saveAll()).toBe(true);
+    });
+    expect(port.host?.project?.id).toBe(project.id);
+    expect(port.host?.saveStatus).toBe('saved');
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0]![0]).toBe(project.id);
+    expect(
+      account.getCurrentProject().circuit.components.find((part) => part.id === 'uno')!
+        .stateProperties?.arduinoSource,
+    ).toBe(source);
+    expect(read.mock.calls.some(([key]) => key === 'asa-lab:robotics:local-project:v1')).toBe(
+      false,
+    );
+    expect(container.textContent).toContain('Проект аккаунта');
+    expect(container.textContent).not.toContain('Сохранено на устройстве');
+  });
   it('keeps the same mounted canonical stage when opening and closing the canonical programmer', async () => {
     const stage = metric('canonical-stage');
     expect(stage.textContent).toContain('9 canonical components');

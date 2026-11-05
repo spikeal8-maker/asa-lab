@@ -2,6 +2,7 @@ import { CHESS_MODULE } from '@asa-lab/chess';
 import { CHECKERS_MODULE } from '@asa-lab/checkers';
 import { ELECTRONICS_MODULE } from '@asa-lab/electronics';
 import { THREE_D_MODULE } from '@asa-lab/three-d';
+import { ROBOTICS_MODULE } from '@asa-lab/robotics';
 import {
   ModuleRegistry,
   defineFutureModule,
@@ -15,27 +16,6 @@ function future(manifest: Omit<ModuleManifestV1, 'availability'>): RegisteredMod
 }
 
 const FUTURE_MODULES: readonly RegisteredModule[] = [
-  future({
-    moduleKey: 'robotics',
-    moduleVersion: '0.1.0',
-    displayName: 'Виртуальная робототехника',
-    shortDescription: 'Роботы, миры, датчики, исполнительные механизмы и программы.',
-    defaultProjectTitlePrefix: 'Проект робототехники',
-    projectType: 'robot-world',
-    schemaVersion: 1,
-    editorRoute: '/projects/:projectId/robotics',
-    viewerRoute: '/view/projects/:versionId/robotics',
-    safeModeSupported: true,
-    previewKind: 'scene',
-    iconKey: 'robot',
-    categories: ['robotics', 'coding'],
-    learningCapabilities: {
-      assignable: false,
-      editableEvidence: false,
-      submitProjectVersion: false,
-      preview: 'none',
-    },
-  }),
   future({
     moduleKey: 'drawing',
     moduleVersion: '0.1.0',
@@ -67,6 +47,7 @@ export function createApiModuleRegistry(): ModuleRegistry {
     CHECKERS_MODULE,
     THREE_D_MODULE,
     BLOCKS_MODULE,
+    ROBOTICS_MODULE,
     ...FUTURE_MODULES,
   ]);
 }

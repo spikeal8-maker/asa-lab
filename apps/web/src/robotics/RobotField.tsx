@@ -7,6 +7,16 @@ import type {
 
 export type RoboticsObjectKey = 'robot' | `wall:${string}` | `ball:${string}` | `mark:${string}`;
 
+/** The same drawing accepts source-only published geometry and a full editable world. */
+type RoboticsFieldGeometry = Pick<RoboticsWorldDocument, 'robot' | 'initialPose'> & {
+  readonly field: Omit<RoboticsWorldDocument['field'], 'balls'> & {
+    readonly balls: readonly Pick<
+      RoboticsWorldDocument['field']['balls'][number],
+      'id' | 'label' | 'xMeters' | 'yMeters' | 'radiusMeters'
+    >[];
+  };
+};
+
 export function RobotField({
   world,
   state,
@@ -22,9 +32,9 @@ export function RobotField({
   onPointerCancel,
   onLostPointerCapture,
 }: {
-  world: RoboticsWorldDocument;
-  state: RoboticsWorldState;
-  distance: RoboticsDistanceMeasurement;
+  world: RoboticsFieldGeometry;
+  state?: RoboticsWorldState;
+  distance?: RoboticsDistanceMeasurement;
   showGrid: boolean;
   selection?: RoboticsObjectKey | null;
   editable?: boolean;
@@ -47,8 +57,9 @@ export function RobotField({
   const halfTrack = (robot.wheelTrackMeters * 1000) / 2;
   const sensorX = robot.sensorForwardMeters * 1000;
   const sensorY = -robot.sensorLateralMeters * 1000;
-  const pose = state.pose;
-  const trail = state.trail
+  const pose = state?.pose ?? world.initialPose;
+  const currentTrail = state?.trail ?? [];
+  const trail = currentTrail
     .map((point) => `${point.xMeters * 1000},${height - point.yMeters * 1000}`)
     .join(' ');
 
@@ -86,7 +97,7 @@ export function RobotField({
       <desc id={`robotics-field-description-${id}`}>
         {view === 'robot'
           ? `Корпус ${length} на ${bodyWidth} миллиметров. Колёса L и R и положение HC-SR04. Бирюзовая стрелка показывает направление датчика относительно корпуса.`
-          : `Поле ${width} на ${height} миллиметров. Робот: X ${Math.round(pose.xMeters * 1000)}, Y ${Math.round(pose.yMeters * 1000)} миллиметров. Бирюзовый луч показывает измерение датчика, оранжевая линия — пройденный путь.`}
+          : `Поле ${width} на ${height} миллиметров. Робот: X ${Math.round(pose.xMeters * 1000)}, Y ${Math.round(pose.yMeters * 1000)} миллиметров. ${state ? 'Бирюзовый луч показывает измерение датчика, оранжевая линия — пройденный путь.' : 'Сохранённая сцена и начальное положение робота.'}`}
       </desc>
       <defs>
         <pattern
@@ -203,7 +214,7 @@ export function RobotField({
             />
           ))}
           {world.field.balls.map((ball) => {
-            const current = state.balls.find((entry) => entry.id === ball.id) ?? ball;
+            const current = state?.balls.find((entry) => entry.id === ball.id) ?? ball;
             return (
               <g
                 key={ball.id}
@@ -213,10 +224,18 @@ export function RobotField({
                 data-x-meters={current.xMeters}
                 data-y-meters={current.yMeters}
                 data-velocity-x={
-                  'velocityXMetersPerSecond' in current ? current.velocityXMetersPerSecond : 0
+                  state
+                    ? 'velocityXMetersPerSecond' in current
+                      ? current.velocityXMetersPerSecond
+                      : 0
+                    : undefined
                 }
                 data-velocity-y={
-                  'velocityYMetersPerSecond' in current ? current.velocityYMetersPerSecond : 0
+                  state
+                    ? 'velocityYMetersPerSecond' in current
+                      ? current.velocityYMetersPerSecond
+                      : 0
+                    : undefined
                 }
                 transform={`translate(${current.xMeters * 1000} ${height - current.yMeters * 1000})`}
               >
@@ -238,7 +257,7 @@ export function RobotField({
               </g>
             );
           })}
-          {state.trail.length > 1 ? (
+          {currentTrail.length > 1 ? (
             <polyline
               points={trail}
               pointerEvents="none"
@@ -249,7 +268,7 @@ export function RobotField({
               strokeLinejoin="round"
             />
           ) : null}
-          {distance.status === 'ok' ? (
+          {distance?.status === 'ok' ? (
             <g aria-hidden="true" pointerEvents="none">
               <line
                 x1={distance.origin.xMeters * 1000}
