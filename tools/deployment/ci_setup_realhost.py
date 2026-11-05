@@ -8,8 +8,10 @@ onboarding, browser fixtures and private CLI logs are never artifacts.
 """
 
 import argparse
+import base64
 import datetime as dt
 import hashlib
+import hmac
 import importlib.util
 import io
 import ipaddress
@@ -2727,6 +2729,11 @@ def owner_call(phase, *, timeout=900):
                 error.control_browser_diagnostic = control_browser_evidence(result.get("controlBrowserDiagnostic"), browser_phase[1])
             except BaseException:
                 error.control_browser_diagnostic = {"format": "asa-realhost-control-browser-v1", "phase": browser_phase[1], "binding": "UNAVAILABLE"}
+        if phase == "owner-observe" and code == 1 and result.get("status") == "FAIL" and reason == "CONTROL_DATA_CHANGED":
+            try:
+                error.control_comparison = control_comparison_evidence(result.get("controlComparison"))
+            except BaseException:
+                pass  # A diagnostic cannot replace the original owner failure.
         raise error
     return result
 
@@ -3255,6 +3262,128 @@ def s3_command(install, helpers, *, create=False):
                            prefix + suffix, capture=True, timeout=90)
 
 
+def control_runtime_role_credential(verifier, password):
+    """Only the generated native fixture credential may ignore SCRAM salt churn."""
+    require(type(password) is str and re.fullmatch(r"[a-f0-9]{48}", password), "CONTROL_ROLE_CREDENTIAL")
+    require(type(verifier) is str and len(verifier) == 133, "CONTROL_ROLE_CREDENTIAL")
+    match = re.fullmatch(r"SCRAM-SHA-256\$4096:([A-Za-z0-9+/]{22}==)\$([A-Za-z0-9+/]{43}=):([A-Za-z0-9+/]{43}=)", verifier)
+    require(match is not None, "CONTROL_ROLE_CREDENTIAL")
+    values = []
+    for encoded, size in zip(match.groups(), (16, 32, 32)):
+        try:
+            decoded = base64.b64decode(encoded, validate=True)
+        except ValueError:
+            raise Failure("CONTROL_ROLE_CREDENTIAL") from None
+        require(len(decoded) == size and base64.b64encode(decoded).decode("ascii") == encoded, "CONTROL_ROLE_CREDENTIAL")
+        values.append(decoded)
+    salt, stored_key, server_key = values
+    secret = password.encode("ascii")
+    salted = hashlib.pbkdf2_hmac("sha256", secret, salt, 4096, dklen=32)
+    client_key = hmac.new(salted, b"Client Key", hashlib.sha256).digest()
+    stored_matches = hmac.compare_digest(hashlib.sha256(client_key).digest(), stored_key)
+    server_matches = hmac.compare_digest(hmac.new(salted, b"Server Key", hashlib.sha256).digest(), server_key)
+    require(stored_matches and server_matches, "CONTROL_ROLE_CREDENTIAL")
+    # This identity is hashed with the full role row, never emitted separately.
+    return {"format": "asa-native-runtime-role-credential-v1", "algorithm": "SCRAM-SHA-256", "iterations": 4096,
+            "saltBytes": 16, "storedKeyBytes": 32, "serverKeyBytes": 32,
+            "credentialIdentity": hmac.new(secret, b"asa-native-runtime-app-role-v1", hashlib.sha256).hexdigest()}
+
+
+def control_role_fingerprint(install, helpers, postgres):
+    """Keep every role attribute exact except the verified app-role salt bytes."""
+    statement = """SELECT json_agg(t ORDER BY rolname) FROM (
+      SELECT rolname,rolsuper,rolinherit,rolcreaterole,rolcreatedb,rolcanlogin,
+             rolreplication,rolbypassrls,rolconnlimit,rolpassword,rolvaliduntil
+      FROM pg_authid WHERE rolname !~ '^pg_' AND rolname <> 'asa_ci_restore_admin'
+    ) t"""
+    raw = helpers.sql_container(postgres, install.env["POSTGRES_USER"], install.env["POSTGRES_DB"], statement)
+    require(type(raw) is str and len(raw) <= 64 * 1024, "CONTROL_ROLE_ROWS")
+    try:
+        require(len(raw.encode("utf-8")) <= 64 * 1024, "CONTROL_ROLE_ROWS")
+    except UnicodeError:
+        raise Failure("CONTROL_ROLE_ROWS") from None
+
+    def unique_object(pairs):
+        value = {}
+        for key, item in pairs:
+            require(key not in value, "CONTROL_ROLE_ROWS")
+            value[key] = item
+        return value
+
+    def nonfinite(value):
+        raise Failure("CONTROL_ROLE_ROWS")
+
+    try:
+        rows = json.loads(raw, object_pairs_hook=unique_object, parse_constant=nonfinite)
+    except (ValueError, RecursionError):
+        raise Failure("CONTROL_ROLE_ROWS") from None
+    require(type(rows) is list and 1 <= len(rows) <= 128, "CONTROL_ROLE_ROWS")
+    flags = ("rolsuper", "rolinherit", "rolcreaterole", "rolcreatedb", "rolcanlogin", "rolreplication", "rolbypassrls")
+    fields = set(flags) | {"rolname", "rolconnlimit", "rolpassword", "rolvaliduntil"}
+    names = []
+    for row in rows:
+        require(type(row) is dict and set(row) == fields and type(row["rolname"]) is str
+                and 1 <= len(row["rolname"]) <= 63 and all(type(row[key]) is bool for key in flags)
+                and type(row["rolconnlimit"]) is int and -1 <= row["rolconnlimit"] <= 2**31 - 1
+                and (row["rolpassword"] is None or type(row["rolpassword"]) is str and len(row["rolpassword"]) <= 1024)
+                and (row["rolvaliduntil"] is None or type(row["rolvaliduntil"]) is str and len(row["rolvaliduntil"]) <= 128),
+                "CONTROL_ROLE_ROWS")
+        names.append(row["rolname"])
+    require(names.count("asalab_app") == 1 and len(names) == len(set(names)), "CONTROL_ROLE_ROWS")
+    normalized = []
+    for row in rows:
+        value = dict(row)
+        if row["rolname"] == "asalab_app":
+            value["rolpassword"] = control_runtime_role_credential(row["rolpassword"], install.env.get("ASA_APP_DB_PASSWORD"))
+        normalized.append(value)
+    return hashlib.sha256(json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def control_comparison_projection(before, after):
+    """Describe only the already-collected comparison; never expose row values."""
+    components = ("rolesSha256", "aclRlsSha256", "privateEnvironmentSha256", "storageIdentitySha256", "authenticatedS3Sha256")
+    tables = (*TABLES, "project_drafts")
+
+    def shape(value):
+        return (type(value) is dict and set(value) == {"rows", *components}
+                and type(value["rows"]) is dict and set(value["rows"]) == set(tables))
+
+    def digest(value):
+        return type(value) is str and re.fullmatch(r"[a-f0-9]{64}", value) is not None
+
+    def row(value):
+        return (type(value) is dict and set(value) == {"rows", "sha256"}
+                and type(value["rows"]) is int and 0 <= value["rows"] <= 2**63 - 1 and digest(value["sha256"]))
+
+    available = shape(before) and shape(after)
+    result = {"format": "asa-realhost-control-comparison-v1", "phase": "owner-observe",
+              "shape": "SAME" if available else "UNAVAILABLE", "components": {}, "tables": {}}
+    for key in components:
+        known = available and digest(before[key]) and digest(after[key])
+        result["components"][key] = ("SAME" if before[key] == after[key] else "CHANGED") if known else "UNAVAILABLE"
+    for key in tables:
+        known = available and row(before["rows"][key]) and row(after["rows"][key])
+        result["tables"][key] = ("SAME" if before["rows"][key] == after["rows"][key] else "CHANGED") if known else "UNAVAILABLE"
+    return result
+
+
+def control_comparison_evidence(value):
+    """Revalidate the small owner-process diagnostic at each failure boundary."""
+    empty = control_comparison_projection(None, None)
+    require(type(value) is dict and set(value) == set(empty) and type(value["format"]) is str and value["format"] == empty["format"]
+            and type(value["phase"]) is str and value["phase"] == "owner-observe" and type(value["shape"]) is str
+            and value["shape"] in ("SAME", "UNAVAILABLE"), "CONTROL_COMPARISON_INVALID")
+    output = {"format": empty["format"], "phase": "owner-observe", "shape": value["shape"]}
+    for group in ("components", "tables"):
+        require(type(value[group]) is dict and set(value[group]) == set(empty[group]), "CONTROL_COMPARISON_INVALID")
+        output[group] = {}
+        for key in empty[group]:
+            state = value[group][key]
+            require(type(state) is str and state in ("SAME", "CHANGED", "UNAVAILABLE"), "CONTROL_COMPARISON_INVALID")
+            output[group][key] = state
+    return output
+
+
 def control_fingerprint(install, helpers, acceptance, identities):
     rows, _ = control_rows(install, helpers, identities)
     records = install.identity()
@@ -3271,7 +3400,7 @@ def control_fingerprint(install, helpers, acceptance, identities):
     rows["project_drafts"] = {"rows": len(drafts), "sha256": canonical_hash(drafts)}
     actual_object = s3_command(install, helpers)
     require(actual_object == helpers.OBJECT_CONTENT, "AUTHENTICATED_S3_CONTENT")
-    return {"rows": rows, "rolesSha256": helpers.role_fingerprint(postgres, install.env["POSTGRES_USER"], install.env["POSTGRES_DB"]),
+    return {"rows": rows, "rolesSha256": control_role_fingerprint(install, helpers, postgres),
             "aclRlsSha256": canonical_hash(json.loads(privileges)), "privateEnvironmentSha256": canonical_hash(environment),
             "storageIdentitySha256": canonical_hash(acceptance.storage_identity(records)),
             "authenticatedS3Sha256": hashlib.sha256(actual_object.encode()).hexdigest()}
@@ -3414,7 +3543,14 @@ def owner_observe(context, *, browser=False):
     config_module, acceptance, _, install, helpers, config, release = owner_installation(context)
     saved = config_module.private_json(INSTALL_ROOT / ".asa/realhost-control-proof.json")
     current = control_fingerprint(install, helpers, acceptance, saved["ids"])
-    require(current == saved["fingerprint"], "CONTROL_DATA_CHANGED")
+    try:
+        require(current == saved["fingerprint"], "CONTROL_DATA_CHANGED")
+    except Failure as error:
+        try:
+            error.control_comparison = control_comparison_projection(saved["fingerprint"], current)
+        except BaseException:
+            pass  # Preserve the original comparison failure even if projection fails.
+        raise
     output = {"preserved": True, "runtimeRevision": release["revision"], "schema": release["schema"], "fingerprint": current}
     if browser:
         operation_id = uuid.uuid4().hex
@@ -5350,6 +5486,11 @@ def guest_main(phase, *, control_deadline=None):
         return_code = 0 if result["status"] in ("PASS", "PENDING") else 2 if result["status"] == "BLOCKED" else 1
     except BaseException as error:
         result.update(status=getattr(error, "status", "FAIL"), reasonCode=safe_error(error))
+        if phase in ("owner-observe", "update") and result["status"] == "FAIL" and result["reasonCode"] == "CONTROL_DATA_CHANGED":
+            try:
+                result["controlComparison"] = control_comparison_evidence(getattr(error, "control_comparison", None))
+            except BaseException:
+                pass
         browser_phase = {"owner-seed": ("CONTROL_BROWSER_BEFORE", "BEFORE"), "seed": ("CONTROL_BROWSER_BEFORE", "BEFORE"),
                          "owner-final": ("CONTROL_BROWSER_AFTER", "AFTER"), "final": ("CONTROL_BROWSER_AFTER", "AFTER")}.get(phase)
         if browser_phase and result["status"] == "FAIL" and result["reasonCode"] == browser_phase[0]:

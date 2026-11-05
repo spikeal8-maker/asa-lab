@@ -1,6 +1,7 @@
 """Harness safety gates and isolated manager faults; no VM or live cloud claim."""
 
 import ast
+import base64
 import contextlib
 import copy
 import hashlib
@@ -1295,6 +1296,327 @@ class PostFailureDiagnosticTests(unittest.TestCase):
                 harness.first_install_attempt({}, [])
             probe.assert_not_called()
             self.assertFalse(target.exists())
+
+
+class NativeRoleOracleTests(unittest.TestCase):
+    PASSWORD = "0123456789abcdef0123456789abcdef0123456789abcdef"
+    # Independent Node v24 core crypto golden vectors: pbkdf2Sync(password,
+    # salt,4096,32,'sha256'), SHA256(HMAC(key,'Client Key')), HMAC(key,'Server Key').
+    # Salts are 000102...0f and 101112...1f; these are synthetic, never credentials.
+    FIRST = "SCRAM-SHA-256$4096:AAECAwQFBgcICQoLDA0ODw==$/+Nfy5Ly+jWn678Tn45PSD+LF630Q8qeUa2Ioqqg2QQ=:gqDke8k56bJjEZh62XTa3P0b3SQkOBNTwU+eVpufu+E="
+    SECOND = "SCRAM-SHA-256$4096:EBESExQVFhcYGRobHB0eHw==$XYGCi4jEf80NDgOErGoGn7rySHjxGMca4ko+S31H/a4=:3jCjxIbiKNjrx2cTF6pVOAjV5TixM16FEAni5+CQVzc="
+    ROTATED = "SCRAM-SHA-256$4096:AAECAwQFBgcICQoLDA0ODw==$SEjVM+W1TDqJGdDUtLVMAQKvqkMKHPLV8CpiU3vXdXs=:noeAg5r91Hm20nIsjC29QdZ0LYsG+fAiSWNdCav36p0="
+
+    def setUp(self):
+        self.install = SimpleNamespace(env={"POSTGRES_USER": "asalab_admin", "POSTGRES_DB": "asalab",
+            "ASA_APP_DB_PASSWORD": self.PASSWORD}, identity=Mock(return_value={"postgres": {"id": "fixture-pg"}}))
+
+    def role(self, verifier=None, **changes):
+        value = {"rolname": "asalab_app", "rolsuper": False, "rolinherit": True, "rolcreaterole": False,
+            "rolcreatedb": False, "rolcanlogin": True, "rolreplication": False, "rolbypassrls": False,
+            "rolconnlimit": -1, "rolpassword": self.FIRST if verifier is None else verifier, "rolvaliduntil": None}
+        value.update(changes)
+        return value
+
+    def digest(self, rows, *, raw=None):
+        helpers = SimpleNamespace(sql_container=Mock(return_value=json.dumps(rows) if raw is None else raw))
+        value = harness.control_role_fingerprint(self.install, helpers, "fixture-pg")
+        return value, helpers
+
+    def fingerprint(self, roles):
+        identities = {name: ["11111111-1111-4111-8111-111111111111"] for name in harness.TABLES}
+        rows = {name: {"rows": 1, "sha256": "a" * 64} for name in harness.TABLES}
+        helpers = SimpleNamespace(PRIVILEGES_SQL="fixture privileges", OBJECT_CONTENT="fixture object")
+
+        def query(container, user, database, statement):
+            self.assertEqual((container, user, database), ("fixture-pg", "asalab_admin", "asalab"))
+            if "FROM pg_authid" in statement:
+                self.assertIn("rolpassword", statement)
+                self.assertIn("rolname <> 'asa_ci_restore_admin'", statement)
+                return json.dumps(roles)
+            if statement == helpers.PRIVILEGES_SQL:
+                return "[]"
+            self.assertIn("FROM public.project_drafts", statement)
+            return json.dumps([{"project_id": identities["projects"][0], "revision": 2}])
+
+        helpers.sql_container = Mock(side_effect=query)
+        # The parent implementation uses this exact raw-verifier digest; it
+        # must fail the same-password/different-salt owner-observation test.
+        helpers.role_fingerprint = lambda *args: hashlib.sha256(json.dumps(roles, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        acceptance = SimpleNamespace(storage_identity=Mock(return_value={"mount": "fixture"}))
+        with patch.object(harness, "control_rows", return_value=(rows, identities)), \
+                patch.object(harness, "s3_command", return_value=helpers.OBJECT_CONTENT):
+            return harness.control_fingerprint(self.install, helpers, acceptance, identities)
+
+    def test_independent_node_golden_vectors_and_explicit_policy_identity(self):
+        first = harness.control_runtime_role_credential(self.FIRST, self.PASSWORD)
+        second = harness.control_runtime_role_credential(self.SECOND, self.PASSWORD)
+        self.assertEqual(first, second)
+        self.assertEqual(first, {"format": "asa-native-runtime-role-credential-v1", "algorithm": "SCRAM-SHA-256",
+            "iterations": 4096, "saltBytes": 16, "storedKeyBytes": 32, "serverKeyBytes": 32,
+            "credentialIdentity": "fd58bd7e595b93bcc5483ed14840495e4631c4cb1a0eddcb89a0f8b11d6f53ee"})
+
+    def test_same_password_new_salt_passes_actual_fingerprint_and_owner_guard(self):
+        before = self.fingerprint([self.role()])
+        after = self.fingerprint([self.role(self.SECOND)])
+        config = SimpleNamespace(private_json=Mock(return_value={"ids": {}, "fingerprint": before}))
+        acceptance = SimpleNamespace(browser_acceptance=Mock())
+        with patch.object(harness, "owner_installation", return_value=(config, acceptance, None, self.install, None, {},
+                {"revision": "b" * 40, "schema": 304})), patch.object(harness, "control_fingerprint", return_value=after):
+            observed = harness.owner_observe({})
+        self.assertTrue(observed["preserved"])
+        self.assertEqual(before, after)
+        acceptance.browser_acceptance.assert_not_called()
+
+    def test_changed_plaintext_does_not_canonicalize_to_original_identity(self):
+        before, _ = self.digest([self.role()])
+        self.install.env["ASA_APP_DB_PASSWORD"] = "1" + self.PASSWORD[1:]
+        with self.assertRaisesRegex(harness.Failure, "^CONTROL_ROLE_CREDENTIAL$"):
+            self.digest([self.role()])
+        after, _ = self.digest([self.role(self.ROTATED)])
+        self.assertNotEqual(before, after)
+        value = harness.control_runtime_role_credential(self.ROTATED, self.install.env["ASA_APP_DB_PASSWORD"])
+        self.assertEqual(value["credentialIdentity"], "c87ae02c800ab8b6ad938026afd3f68f315885ee73529687534766c9b1864faf")
+
+    def test_each_key_is_verified_and_both_constant_time_comparisons_execute(self):
+        prefix, keys = self.FIRST.rsplit("$", 1)
+        stored, server = keys.split(":")
+        compare = harness.hmac.compare_digest
+        for index in (0, 1):
+            values = [stored, server]
+            raw = bytearray(base64.b64decode(values[index])); raw[0] ^= 1
+            values[index] = base64.b64encode(raw).decode()
+            with self.subTest(key=index), patch.object(harness.hmac, "compare_digest", wraps=compare) as checked, \
+                    self.assertRaisesRegex(harness.Failure, "^CONTROL_ROLE_CREDENTIAL$"):
+                harness.control_runtime_role_credential(prefix + "$" + ":".join(values), self.PASSWORD)
+            self.assertEqual(checked.call_count, 2)
+
+    def test_unsupported_policy_shapes_and_noncanonical_base64_fail_before_pbkdf(self):
+        cases = [None, True, 1, [], {}, self.FIRST.encode(), self.FIRST + "secret-canary", self.FIRST + "\n",
+            self.FIRST.replace("4096", "4095"), self.FIRST.replace("4096", "8192"), self.FIRST.replace("4096", "04096"),
+            self.FIRST.replace("4096", "999999999"), self.FIRST.replace("4096", "４０９６"),
+            self.FIRST.replace("SHA-256", "SHA-512"), self.FIRST.replace("Dw==", "Dx=="),
+            self.FIRST.replace("2QQ=", "2QR="), self.FIRST.replace("u+E=", "u+F="),
+            self.FIRST.replace("AAECAwQFBgcICQoLDA0ODw==", base64.b64encode(b"s" * 15).decode()),
+            self.FIRST.replace("AAECAwQFBgcICQoLDA0ODw==", base64.b64encode(b"s" * 17).decode()),
+            self.FIRST.replace("=:", ":"), self.FIRST.replace("+", "-", 1), self.FIRST.replace("/", "_", 1)]
+        for value in cases:
+            with self.subTest(value_type=type(value).__name__), patch.object(harness.hashlib, "pbkdf2_hmac") as derive, \
+                    self.assertRaisesRegex(harness.Failure, "^CONTROL_ROLE_CREDENTIAL$") as caught:
+                harness.control_runtime_role_credential(value, self.PASSWORD)
+            derive.assert_not_called()
+            self.assertNotIn("secret-canary", str(caught.exception))
+
+    def test_only_generated_ascii_password_scope_is_supported(self):
+        for password in (None, True, 48, [], self.PASSWORD.encode(), "", self.PASSWORD[:-1], self.PASSWORD + "0",
+                         self.PASSWORD.upper(), "é" * 48, "\x00" * 48, "secret-canary"):
+            with self.subTest(kind=type(password).__name__), patch.object(harness.hashlib, "pbkdf2_hmac") as derive, \
+                    self.assertRaisesRegex(harness.Failure, "^CONTROL_ROLE_CREDENTIAL$"):
+                harness.control_runtime_role_credential(self.FIRST, password)
+            derive.assert_not_called()
+
+    def test_exactly_one_app_role_and_unique_role_names_are_required_before_derivation(self):
+        other = self.role(rolname="asalab_admin")
+        for rows in ([], [other], [self.role(), self.role()], [self.role(), other, other], [self.role()] * 129):
+            with self.subTest(count=len(rows)), patch.object(harness.hashlib, "pbkdf2_hmac") as derive, \
+                    self.assertRaisesRegex(harness.Failure, "^CONTROL_ROLE_ROWS$"):
+                self.digest(rows)
+            derive.assert_not_called()
+
+    def test_all_other_attributes_and_other_verifiers_stay_exact(self):
+        before, helper = self.digest([self.role(), self.role(rolname="asalab_admin")])
+        self.assertIn("rolpassword", helper.sql_container.call_args.args[3])
+        mutations = [{name: not self.role()[name]} for name in ("rolsuper", "rolinherit", "rolcreaterole", "rolcreatedb",
+                     "rolcanlogin", "rolreplication", "rolbypassrls")]
+        mutations += [{"rolconnlimit": 20}, {"rolvaliduntil": "2027-01-01 00:00:00+00"}]
+        for change in mutations:
+            after, _ = self.digest([self.role(**change), self.role(rolname="asalab_admin")])
+            self.assertNotEqual(before, after, change)
+        other_changed, _ = self.digest([self.role(), self.role(self.SECOND, rolname="asalab_admin")])
+        self.assertNotEqual(before, other_changed)
+        other_added, _ = self.digest([self.role(), self.role(rolname="asalab_admin"), self.role(rolname="extra_role")])
+        self.assertNotEqual(before, other_added)
+
+    def test_role_json_types_duplicates_and_size_fail_closed(self):
+        malformed = [None, [], 1, True, "", "null", "{}", "[]", "NaN", "[secret-canary", " " * (64 * 1024 + 1),
+                     "é" * (33 * 1024), json.dumps([self.role()]).replace('"rolsuper": false', '"rolsuper": false, "rolsuper": true')]
+        for raw in malformed:
+            helpers = SimpleNamespace(sql_container=Mock(return_value=raw))
+            with self.subTest(kind=type(raw).__name__), patch.object(harness.hashlib, "pbkdf2_hmac") as derive, \
+                    self.assertRaisesRegex(harness.Failure, "^CONTROL_ROLE_ROWS$") as caught:
+                harness.control_role_fingerprint(self.install, helpers, "fixture-pg")
+            derive.assert_not_called()
+            self.assertNotIn("secret-canary", str(caught.exception))
+        for change in ({"rolsuper": 1}, {"rolconnlimit": True}, {"rolconnlimit": -2}, {"rolconnlimit": 2**31},
+                       {"rolname": None}, {"rolname": "x" * 64}, {"rolpassword": True}, {"rolvaliduntil": []},
+                       {"unexpected": "secret-canary"}):
+            with self.subTest(keys=list(change)), self.assertRaisesRegex(harness.Failure, "^CONTROL_ROLE_ROWS$"):
+                self.digest([self.role(**change)])
+
+    def test_unrelated_control_components_keep_strict_owner_failure(self):
+        before = self.fingerprint([self.role()])
+        changes = []
+        for name in before:
+            if name != "rows":
+                current = copy.deepcopy(before); current[name] = "f" * 64; changes.append(current)
+        for name in before["rows"]:
+            current = copy.deepcopy(before); current["rows"][name]["sha256"] = "f" * 64; changes.append(current)
+        config = SimpleNamespace(private_json=Mock(return_value={"ids": {}, "fingerprint": before}))
+        for current in changes:
+            with patch.object(harness, "owner_installation", return_value=(config, None, None, self.install, None, {}, {})), \
+                    patch.object(harness, "control_fingerprint", return_value=current), \
+                    self.assertRaisesRegex(harness.Failure, "^CONTROL_DATA_CHANGED$"):
+                harness.owner_observe({})
+
+
+class ControlComparisonDiagnosticTests(unittest.TestCase):
+    def setUp(self):
+        self.before = {"rows": {name: {"rows": 2, "sha256": "a" * 64} for name in (*harness.TABLES, "project_drafts")},
+            **{key: "b" * 64 for key in ("rolesSha256", "aclRlsSha256", "privateEnvironmentSha256", "storageIdentitySha256", "authenticatedS3Sha256")}}
+        self.after = copy.deepcopy(self.before); self.after["rolesSha256"] = "c" * 64
+        self.secret = "CREDENTIAL_RESPONSE_SECRET_CANARY"
+
+    def owner_json(self, *, projector=None):
+        module = SimpleNamespace(private_json=Mock(return_value={"ids": {}, "fingerprint": self.before}))
+        output = io.StringIO()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(harness, "owner_installation", return_value=(module, None, None, None, None, {}, {})))
+            fingerprint = stack.enter_context(patch.object(harness, "control_fingerprint", return_value=self.after))
+            stack.enter_context(patch.object(harness, "guest_guard", return_value={}))
+            stack.enter_context(patch.object(harness.os, "geteuid", create=True, return_value=1001))
+            stack.enter_context(patch.object(harness, "CLI_ACTIONS", []))
+            if projector is not None:
+                stack.enter_context(patch.object(harness, "control_comparison_projection", side_effect=projector))
+            stack.enter_context(contextlib.redirect_stdout(output))
+            code = harness.guest_main("owner-observe")
+        module.private_json.assert_called_once()
+        fingerprint.assert_called_once()
+        return code, json.loads(output.getvalue())
+
+    def relay(self, code, value, *, phase="owner-observe"):
+        account = SimpleNamespace(pw_name="asa-setup", pw_dir="/var/lib/asa-setup/operator")
+        with patch.dict(sys.modules, {"pwd": SimpleNamespace(getpwnam=Mock(return_value=account))}), \
+                patch.object(harness.Commands, "run", return_value=(code, json.dumps(value))), self.assertRaises(harness.Failure) as caught:
+            harness.owner_call(phase)
+        return caught.exception
+
+    def test_exact_eleven_comparisons_and_closed_output(self):
+        result = harness.control_comparison_projection(self.before, self.after)
+        self.assertEqual(set(result), {"format", "phase", "shape", "components", "tables"})
+        self.assertEqual(len(result["components"]) + len(result["tables"]), 11)
+        self.assertEqual(result["components"]["rolesSha256"], "CHANGED")
+        self.assertEqual(set(result["tables"].values()), {"SAME"})
+        self.assertNotIn("a" * 64, json.dumps(result))
+        self.assertNotIn("rows", result["tables"]["accounts"])
+        self.assertEqual(harness.control_comparison_evidence(result), result)
+        result["components"]["rolesSha256"] = self.secret
+        with self.assertRaisesRegex(harness.Failure, "^CONTROL_COMPARISON_INVALID$"):
+            harness.control_comparison_evidence(result)
+
+    def test_each_fixed_component_and_table_change_is_observable(self):
+        for key in self.before:
+            if key != "rows":
+                after = copy.deepcopy(self.before); after[key] = "e" * 64
+                observed = harness.control_comparison_projection(self.before, after)
+                self.assertEqual([name for name, status in observed["components"].items() if status == "CHANGED"], [key])
+        for name in self.before["rows"]:
+            for field, value in (("sha256", "e" * 64), ("rows", 3)):
+                after = copy.deepcopy(self.before); after["rows"][name][field] = value
+                observed = harness.control_comparison_projection(self.before, after)
+                self.assertEqual([name for name, status in observed["tables"].items() if status == "CHANGED"], [name])
+
+    def test_missing_unknown_and_malformed_values_are_unavailable_without_disclosure(self):
+        for value in (None, True, [], {**self.before, "unknown": self.secret}, {**self.before, "rows": {}}):
+            result = harness.control_comparison_projection(self.before, value)
+            self.assertEqual(result["shape"], "UNAVAILABLE")
+            self.assertEqual(set(result["components"].values()) | set(result["tables"].values()), {"UNAVAILABLE"})
+            self.assertNotIn(self.secret, json.dumps(result))
+        for invalid in (True, -1, 2**63, 1.0, self.secret, None):
+            after = copy.deepcopy(self.before); after["rows"]["accounts"]["rows"] = invalid
+            result = harness.control_comparison_projection(self.before, after)
+            self.assertEqual(result["tables"]["accounts"], "UNAVAILABLE")
+            self.assertNotIn(self.secret, json.dumps(result))
+        after = copy.deepcopy(self.before); after["rolesSha256"] = self.secret
+        self.assertEqual(harness.control_comparison_projection(self.before, after)["components"]["rolesSha256"], "UNAVAILABLE")
+
+    def test_owner_json_owner_relay_and_actual_update_failure_preserve_diagnostic(self):
+        code, child = self.owner_json()
+        self.assertEqual((code, child["status"], child["reasonCode"]), (1, "FAIL", "CONTROL_DATA_CHANGED"))
+        context = {"pins": {"previous": {"revision": "a" * 40}, "current": {"deploymentDigest": "sha256:" + "b" * 64}}}
+        receipt = {"version": {"previous": "a" * 40}}
+        account = SimpleNamespace(pw_name="asa-setup", pw_dir="/var/lib/asa-setup/operator")
+        output = io.StringIO()
+        actions = []
+
+        def public(words, **kwargs):
+            actions.append({"command": "asa " + " ".join(words), "exitCode": 0, "status": "OK"})
+
+        with patch.object(harness, "guest_guard", return_value=context), \
+                patch.object(harness.os, "geteuid", create=True, return_value=0), \
+                patch.dict(sys.modules, {"pwd": SimpleNamespace(getpwnam=Mock(return_value=account))}), \
+                patch.object(harness.Commands, "run", return_value=(code, json.dumps(child))) as command, \
+                patch.object(harness, "public_cli", side_effect=public) as cli, \
+                patch.object(harness, "last_setup_receipt", return_value=receipt), \
+                patch.object(harness, "require_application") as application, patch.object(harness, "manifest_count") as later, \
+                patch.object(harness, "CLI_ACTIONS", actions), contextlib.redirect_stdout(output):
+            outer_code = harness.guest_main("update")
+        outer = json.loads(output.getvalue())
+        self.assertEqual((outer_code, outer["status"], outer["reasonCode"]), (1, "FAIL", "CONTROL_DATA_CHANGED"))
+        self.assertEqual(outer["controlComparison"], child["controlComparison"])
+        self.assertEqual(outer["cliActions"], actions)
+        self.assertEqual(cli.call_count, 3)
+        application.assert_called_once_with(receipt, context["pins"]["current"])
+        command.assert_called_once(); later.assert_not_called()
+        self.assertEqual(command.call_args.args[0][-1], "owner-observe")
+        self.assertEqual(command.call_args.kwargs["timeout"], 360)
+
+    def test_owner_phase_exit_status_reason_and_diagnostic_shape_are_bound(self):
+        code, child = self.owner_json()
+        variants = [(True, child), (2, child), (1, {**child, "status": "BLOCKED"}),
+                    (1, {**child, "phase": "owner-final"}), (1, {**child, "format": "foreign"}),
+                    (1, {**child, "reasonCode": "CONTROL_BROWSER_AFTER"})]
+        for actual, value in variants:
+            error = self.relay(actual, value)
+            self.assertFalse(hasattr(error, "control_comparison"))
+        mutations = [{**child["controlComparison"], "phase": "owner-final"},
+                     {**child["controlComparison"], "extra": self.secret},
+                     {**child["controlComparison"], "components": {"rolesSha256": "SAME"}},
+                     {**child["controlComparison"], "shape": True}]
+        for changed in mutations:
+            error = self.relay(code, {**child, "controlComparison": changed})
+            self.assertEqual(error.code, "CONTROL_DATA_CHANGED")
+            self.assertFalse(hasattr(error, "control_comparison"))
+            self.assertNotIn(self.secret, str(error))
+
+    def test_projection_failure_keeps_original_failure_and_does_not_add_reads(self):
+        code, child = self.owner_json(projector=RuntimeError(self.secret))
+        self.assertEqual((code, child["reasonCode"]), (1, "CONTROL_DATA_CHANGED"))
+        self.assertNotIn("controlComparison", child)
+        self.assertNotIn(self.secret, json.dumps(child))
+        code, child = self.owner_json()
+        with patch.object(harness, "control_comparison_evidence", side_effect=RuntimeError(self.secret)):
+            error = self.relay(code, child)
+        self.assertEqual(error.code, "CONTROL_DATA_CHANGED")
+        self.assertFalse(hasattr(error, "control_comparison"))
+
+    def test_unrelated_outer_phase_or_reason_does_not_adopt_comparison(self):
+        for phase, reason in (("seed", "CONTROL_DATA_CHANGED"), ("owner-final", "CONTROL_DATA_CHANGED"),
+                              ("update", "CONTROL_BROWSER_AFTER"), ("update", "COMMAND")):
+            error = harness.Failure(reason)
+            error.control_comparison = harness.control_comparison_projection(self.before, self.after)
+            output = io.StringIO()
+            with patch.object(harness, "guest_guard", return_value={}), patch.object(harness, "guest_phase", side_effect=error), \
+                    contextlib.redirect_stdout(output):
+                code = harness.guest_main(phase)
+            value = json.loads(output.getvalue())
+            self.assertEqual((code, value["status"], value["reasonCode"]), (1, "FAIL", reason))
+            self.assertNotIn("controlComparison", value)
+
+    def test_consecutive_owner_calls_do_not_reuse_previous_comparison(self):
+        code, child = self.owner_json()
+        self.assertTrue(hasattr(self.relay(code, child), "control_comparison"))
+        del child["controlComparison"]
+        self.assertFalse(hasattr(self.relay(code, child), "control_comparison"))
 
 
 class ControlBrowserDiagnosticTests(unittest.TestCase):
