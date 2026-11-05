@@ -3,7 +3,8 @@ import '../../apps/web/src/blocks/preview-env.d.ts';
 import { writeFileSync } from 'node:fs';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
@@ -29,6 +30,8 @@ import {
   assertScaleImages,
   assertScaleIngressConfig,
   assertScaleApiIngressEnvironment,
+  summarizeScaleApiEnvironment,
+  SCALE_API_ENV_PROBE_SCRIPT,
   assertScaleDriverNetwork,
   assertScaleSecureContext,
   validateScaleSecureContexts,
@@ -453,8 +456,16 @@ function changedIngressConfig(path: string, value: unknown) {
 function apiIngressMetadata() {
   return {
     Id: 'a'.repeat(64),
+    State: { Running: true, StartedAt: '2026-11-05T18:00:00.000Z' },
+    RestartCount: 0,
+    HostConfig: { Init: true },
     Config: {
-      Labels: { 'com.docker.compose.service': 'api' },
+      Labels: {
+        'com.docker.compose.service': 'api',
+        'com.docker.compose.project': 'asa-scale-synthetic',
+        'io.asalab.scale.run': 'a'.repeat(32),
+        'com.docker.compose.project.working_dir': '/workspace/synthetic',
+      },
       Env: [
         'NODE_ENV=test',
         'ASA_WEB_PORT=8080',
@@ -462,6 +473,33 @@ function apiIngressMetadata() {
         'ASA_BLOCKS_RUNTIME_ORIGIN=' + SCALE_ORIGIN,
         'APP_DATABASE_URL=postgres://private:secret@postgres/asalab_test',
       ],
+    },
+  };
+}
+
+function apiIngressProof(metadata: object = apiIngressMetadata()) {
+  const startupEnvironment = summarizeScaleApiEnvironment(apiIngressMetadata().Config.Env);
+  return {
+    nonce: 'b'.repeat(32),
+    requestedAtMs: 1000,
+    completedAtMs: 1002,
+    after: structuredClone(metadata),
+    transport: 'completed',
+    result: {
+      schemaVersion: 1,
+      status: 'ok',
+      containerId: 'a'.repeat(64),
+      nonce: 'b'.repeat(32),
+      observedAtMs: 1001,
+      pid1: { pid: 1, executable: 'docker-init', startTimeTicks: '1234', startupEnvironment },
+      api: {
+        pid: 7,
+        startTimeTicks: '1235',
+        directChild: true,
+        identityStable: true,
+        startupEnvironment,
+      },
+      exec: { pid: 9, targetOwn: false, targetType: 'undefined', environment: startupEnvironment },
     },
   };
 }
@@ -579,8 +617,8 @@ describe('durable, nonsecret ingress preflight evidence', () => {
 });
 
 describe('actual owned API ingress environment before calibration', () => {
-  it('requires runtime absence and exact canonical fields without recording other environment values', () => {
-    const evidence = assertScaleApiIngressEnvironment(apiIngressMetadata());
+  it('requires native absence even for absent metadata, and never records other environment values', () => {
+    const evidence = assertScaleApiIngressEnvironment(apiIngressMetadata(), apiIngressProof());
     expect(evidence).toMatchObject({
       valid: true,
       isolatedKeyCount: 0,
@@ -588,7 +626,6 @@ describe('actual owned API ingress environment before calibration', () => {
     });
     expect(JSON.stringify(evidence)).not.toMatch(/APP_DATABASE_URL|private|secret|postgres:/);
     for (const entry of [
-      'ASA_ISOLATED_TEST_WEB_ORIGIN',
       'ASA_ISOLATED_TEST_WEB_ORIGIN=',
       'ASA_ISOLATED_TEST_WEB_ORIGIN=null',
       'ASA_ISOLATED_TEST_WEB_ORIGIN= ',
@@ -597,12 +634,12 @@ describe('actual owned API ingress environment before calibration', () => {
       const metadata = apiIngressMetadata();
       metadata.Config.Env.push(entry);
       const record = vi.fn();
-      expect(() => assertScaleApiIngressEnvironment(metadata, record)).toThrow(
-        'Config.Env.ASA_ISOLATED_TEST_WEB_ORIGIN',
-      );
+      expect(() =>
+        assertScaleApiIngressEnvironment(metadata, apiIngressProof(metadata), record),
+      ).toThrow('Config.Env.ASA_ISOLATED_TEST_WEB_ORIGIN');
       expect(record.mock.calls[0]![0]).toMatchObject({ valid: false, isolatedKeyCount: 1 });
       expect(() =>
-        assertScaleApiIngressEnvironment(metadata, (evidence) =>
+        assertScaleApiIngressEnvironment(metadata, apiIngressProof(metadata), (evidence) =>
           Object.assign(evidence, { valid: true, mismatches: [] }),
         ),
       ).toThrow('Config.Env.ASA_ISOLATED_TEST_WEB_ORIGIN');
@@ -616,7 +653,9 @@ describe('actual owned API ingress environment before calibration', () => {
         metadata.Config.Env = metadata.Config.Env.filter(
           (entry) => !entry.startsWith(key + '='),
         ).concat(replacement);
-        expect(() => assertScaleApiIngressEnvironment(metadata)).toThrow('Config.Env.' + key);
+        expect(() => assertScaleApiIngressEnvironment(metadata, apiIngressProof(metadata))).toThrow(
+          'Config.Env.' + key,
+        );
       }
     }
     for (const metadata of [
@@ -629,7 +668,251 @@ describe('actual owned API ingress environment before calibration', () => {
         Config: { ...apiIngressMetadata().Config, Labels: { 'com.docker.compose.service': 'web' } },
       },
     ])
-      expect(() => assertScaleApiIngressEnvironment(metadata)).toThrow();
+      expect(() => assertScaleApiIngressEnvironment(metadata, apiIngressProof(metadata))).toThrow();
+  });
+});
+
+describe('metadata unset markers require fresh native proof', () => {
+  it('permits one bare marker only with independent process absence, rejecting assignments and duplicates', () => {
+    const metadata = apiIngressMetadata();
+    metadata.Config.Env.push('ASA_ISOLATED_TEST_WEB_ORIGIN');
+    expect(assertScaleApiIngressEnvironment(metadata, apiIngressProof(metadata))).toMatchObject({
+      valid: true,
+      targetForms: {
+        count: 1,
+        bare: 1,
+        assignedEmpty: 0,
+        assignedNonempty: 0,
+        absent: false,
+        duplicate: false,
+      },
+    });
+    for (const source of [metadata, apiIngressMetadata()])
+      expect(() => assertScaleApiIngressEnvironment(source)).toThrow('probe.');
+    for (const entries of [
+      ['ASA_ISOLATED_TEST_WEB_ORIGIN', 'ASA_ISOLATED_TEST_WEB_ORIGIN'],
+      ['ASA_ISOLATED_TEST_WEB_ORIGIN', 'ASA_ISOLATED_TEST_WEB_ORIGIN='],
+      ['ASA_ISOLATED_TEST_WEB_ORIGIN=', 'ASA_ISOLATED_TEST_WEB_ORIGIN=private-secret'],
+    ]) {
+      const invalid = apiIngressMetadata();
+      invalid.Config.Env.push(...entries);
+      const record = vi.fn();
+      expect(() =>
+        assertScaleApiIngressEnvironment(invalid, apiIngressProof(invalid), record),
+      ).toThrow('Config.Env.ASA_ISOLATED_TEST_WEB_ORIGIN');
+      expect(record.mock.calls[0]![0].targetForms).toMatchObject({ count: 2, duplicate: true });
+      expect(JSON.stringify(record.mock.calls)).not.toContain('private-secret');
+    }
+  });
+
+  it.each([
+    ['nonce', 'c'.repeat(32)],
+    ['result.nonce', 'c'.repeat(32)],
+    ['result.containerId', 'c'.repeat(64)],
+    ['result.observedAtMs', 999],
+    ['result.observedAtMs', 1003],
+    ['requestedAtMs', -1],
+    ['completedAtMs', 7000],
+    ['transport', 'exec_failed'],
+    ['result', null],
+    ['result.status', 'error'],
+    ['result.schemaVersion', 0],
+    ['result.pid1.pid', 2],
+    ['result.pid1.executable', 'node'],
+    ['result.api.directChild', false],
+    ['result.api.identityStable', false],
+    ['result.api.startTimeTicks', ''],
+    ['result.pid1.startTimeTicks', 1234],
+    ['result.api.startTimeTicks', ['1235']],
+    ['result.pid1.startTimeTicks', '1'.repeat(21)],
+    ['result.exec.pid', 7],
+    ['result.exec.targetOwn', true],
+    ['result.exec.targetType', 'string'],
+    ['after.Id', 'c'.repeat(64)],
+    ['after.State.Running', false],
+    ['after.State.StartedAt', '2026-11-05T18:01:00.000Z'],
+    ['after.RestartCount', 1],
+    ['after.HostConfig.Init', false],
+  ])('rejects incomplete, stale or mismatched native evidence: %s=%s', (path, value) => {
+    const proof = apiIngressProof();
+    const parts = (path as string).split('.');
+    const key = parts.pop()!;
+    const parent = parts.reduce(
+      (entry, part) => entry[part] as Record<string, unknown>,
+      proof as Record<string, unknown>,
+    );
+    parent[key] = value;
+    expect(() => assertScaleApiIngressEnvironment(apiIngressMetadata(), proof)).toThrow('probe.');
+  });
+
+  it('requires PID1 startup, actual API startup and exec-current absence independently', () => {
+    for (const location of ['pid1', 'api', 'exec'] as const) {
+      const proof = apiIngressProof();
+      const contaminated = summarizeScaleApiEnvironment([
+        ...apiIngressMetadata().Config.Env,
+        'ASA_ISOLATED_TEST_WEB_ORIGIN=private-secret',
+      ]);
+      if (location === 'exec') proof.result.exec.environment = contaminated;
+      else proof.result[location].startupEnvironment = contaminated;
+      const record = vi.fn();
+      expect(() => assertScaleApiIngressEnvironment(apiIngressMetadata(), proof, record)).toThrow(
+        'probe.',
+      );
+      expect(JSON.stringify(record.mock.calls)).not.toContain('private-secret');
+    }
+    const proof = apiIngressProof();
+    const after = apiIngressMetadata();
+    after.Config.Labels['io.asalab.scale.run'] = 'c'.repeat(32);
+    proof.after = after;
+    expect(() => assertScaleApiIngressEnvironment(apiIngressMetadata(), proof)).toThrow(
+      'probe.container',
+    );
+  });
+});
+
+// Execute the exact builtin program against a controlled procfs reader. This is
+// a unit fixture for bounds/parser/identity, never a claim of native Docker proof.
+function executeApiProbeFixture(changed: Record<string, string> = {}, deniedPath?: string) {
+  const metadata = apiIngressMetadata();
+  const stat = (pid: number) =>
+    pid + ' (controlled) ' + ['S', ...Array(18).fill('0'), '1234'].join(' ');
+  const files: Record<string, string> = {
+    '/proc/1/stat': stat(1),
+    '/proc/7/stat': stat(7),
+    '/proc/1/task/1/children': '7',
+    '/proc/7/cmdline': 'node\0dist/main.js\0',
+    '/proc/1/environ': metadata.Config.Env.join('\0') + '\0',
+    '/proc/7/environ': metadata.Config.Env.join('\0') + '\0',
+    ...changed,
+  };
+  const links: Record<string, string> = {
+    '/proc/1/exe': '/sbin/docker-init',
+    '/proc/7/exe': '/usr/local/bin/node',
+    '/proc/7/cwd': '/app',
+  };
+  let nextFd = 1;
+  const handles = new Map<number, { bytes: Buffer; position: number }>();
+  const reader = {
+    realpathSync: (path: string) => path,
+    readlinkSync: (path: string) => {
+      if (!(path in links)) throw Object.assign(new Error('unavailable'), { code: 'ENOENT' });
+      return links[path];
+    },
+    openSync: (path: string) => {
+      if (path === deniedPath) throw Object.assign(new Error('private-secret'), { code: 'EACCES' });
+      if (!(path in files)) throw Object.assign(new Error('unavailable'), { code: 'ENOENT' });
+      const fd = nextFd++;
+      handles.set(fd, { bytes: Buffer.from(files[path]!), position: 0 });
+      return fd;
+    },
+    readSync: (fd: number, buffer: Buffer, offset: number, length: number) => {
+      const handle = handles.get(fd)!;
+      const count = Math.min(31, length, handle.bytes.length - handle.position);
+      handle.bytes.copy(buffer, offset, handle.position, handle.position + count);
+      handle.position += count;
+      return count;
+    },
+    closeSync: (fd: number) => handles.delete(fd),
+  };
+  let output = '';
+  const child = {
+    argv: ['/usr/local/bin/node', metadata.Id, 'b'.repeat(32)],
+    execPath: '/usr/local/bin/node',
+    pid: 9,
+    exitCode: 0,
+    env: Object.fromEntries(
+      metadata.Config.Env.map((entry) => [
+        entry.slice(0, entry.indexOf('=')),
+        entry.slice(entry.indexOf('=') + 1),
+      ]),
+    ),
+    stdout: {
+      write: (text: string) => {
+        output += text;
+      },
+    },
+  };
+  runInNewContext(
+    SCALE_API_ENV_PROBE_SCRIPT,
+    {
+      require: (name: string) => {
+        if (name === 'node:fs') return reader;
+        if (name === 'node:path') return { basename };
+        throw Error('Unexpected module ' + name);
+      },
+      process: child,
+      Buffer,
+      Date: { now: () => 1001 },
+    },
+    { timeout: 1000 },
+  );
+  expect(handles.size).toBe(0);
+  expect(output).not.toContain('private-secret');
+  return { exitCode: child.exitCode, result: JSON.parse(output) };
+}
+
+describe('fixed builtin API probe program', () => {
+  it('reads init and the unique API child separately, including partial procfs reads', () => {
+    const execution = executeApiProbeFixture();
+    expect(execution.exitCode).toBe(0);
+    expect(execution.result).toMatchObject({
+      status: 'ok',
+      pid1: { pid: 1 },
+      api: { pid: 7, directChild: true },
+      exec: { pid: 9, targetOwn: false, targetType: 'undefined' },
+    });
+    expect(
+      assertScaleApiIngressEnvironment(apiIngressMetadata(), {
+        ...apiIngressProof(),
+        result: execution.result,
+      }).valid,
+    ).toBe(true);
+  });
+
+  it.each([
+    [{ '/proc/1/environ': 'A=' + 'x'.repeat(65536) + '\0' }, undefined, 'startup-environments'],
+    [{ '/proc/7/cmdline': 'node\0other.js\0' }, undefined, 'api-identity'],
+    [{ '/proc/1/task/1/children': '7 '.repeat(17) }, undefined, 'api-identity'],
+    [{}, '/proc/7/environ', 'startup-environments'],
+  ] as const)('fails closed on a bounded native observation error', (changed, denied, stage) => {
+    const execution = executeApiProbeFixture(changed, denied);
+    expect(execution.exitCode).toBe(1);
+    expect(execution.result).toMatchObject({ status: 'error', stage });
+    expect(() =>
+      assertScaleApiIngressEnvironment(apiIngressMetadata(), {
+        ...apiIngressProof(),
+        result: execution.result,
+      }),
+    ).toThrow('probe.');
+  });
+
+  it('checks the complete last startup record even when procfs omits a trailing NUL', () => {
+    const environment = apiIngressMetadata().Config.Env.join('\0');
+    const complete = executeApiProbeFixture({
+      '/proc/1/environ': environment,
+      '/proc/7/environ': environment,
+    });
+    expect(complete.exitCode).toBe(0);
+    expect(
+      assertScaleApiIngressEnvironment(apiIngressMetadata(), {
+        ...apiIngressProof(),
+        result: complete.result,
+      }).valid,
+    ).toBe(true);
+    for (const tail of [
+      'ASA_ISOLATED_TEST_WEB_ORIGIN',
+      'ASA_ISOLATED_TEST_WEB_ORIGIN=',
+      'ASA_ISOLATED_TEST_WEB_ORIGIN=private-secret',
+    ]) {
+      const present = executeApiProbeFixture({ '/proc/7/environ': environment + '\0' + tail });
+      expect(present.exitCode).toBe(0);
+      expect(() =>
+        assertScaleApiIngressEnvironment(apiIngressMetadata(), {
+          ...apiIngressProof(),
+          result: present.result,
+        }),
+      ).toThrow('probe.apiStartup');
+    }
   });
 });
 

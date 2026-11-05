@@ -452,53 +452,322 @@ export function assertScaleIngressConfig(config, recordEvidence) {
   return evidence;
 }
 
-/** Call only after the controller's project/run/working-directory ownership check.
- * A null Compose model must produce no actual container variable, even empty.
- * @param {object} metadata
- * @param {(evidence: object) => void} [recordEvidence]
- */
-export function assertScaleApiIngressEnvironment(metadata, recordEvidence) {
-  const raw = metadata?.Config?.Env;
+/** Fixed public projection; never returns arbitrary environment values. */
+export function summarizeScaleApiEnvironment(raw) {
   const validShape = Array.isArray(raw) && raw.every((entry) => typeof entry === 'string');
   const entries = validShape ? raw : [];
-  const isolatedKey = 'ASA_ISOLATED_TEST_WEB_ORIGIN';
-  const isolatedKeyCount = entries.filter(
-    (entry) => entry === isolatedKey || entry.startsWith(isolatedKey + '='),
+  const key = 'ASA_ISOLATED_TEST_WEB_ORIGIN';
+  const bare = entries.filter((entry) => entry === key).length;
+  const assignedEmpty = entries.filter((entry) => entry === key + '=').length;
+  const assignedNonempty = entries.filter(
+    (entry) => entry.startsWith(key + '=') && entry !== key + '=',
   ).length;
-  const fields = [
-    ['NODE_ENV', 'test'],
-    ['ASA_WEB_PORT', '8080'],
-    ['ASA_WEB_ORIGIN', SCALE_ORIGIN],
-    ['ASA_BLOCKS_RUNTIME_ORIGIN', SCALE_ORIGIN],
-  ].map(([key, expected]) => {
-    const values = entries.filter((entry) => entry === key || entry.startsWith(key + '='));
-    return {
+  const count = bare + assignedEmpty + assignedNonempty;
+  return {
+    validShape,
+    target: {
+      count,
+      bare,
+      assignedEmpty,
+      assignedNonempty,
+      absent: count === 0,
+      duplicate: count > 1,
+    },
+    fields: [
+      ['NODE_ENV', 'test'],
+      ['ASA_WEB_PORT', '8080'],
+      ['ASA_WEB_ORIGIN', SCALE_ORIGIN],
+      ['ASA_BLOCKS_RUNTIME_ORIGIN', SCALE_ORIGIN],
+    ].map(([name, expected]) => {
+      const values = entries.filter((entry) => entry === name || entry.startsWith(name + '='));
+      return {
+        key: name,
+        expected,
+        count: values.length,
+        matches: values.length === 1 && values[0] === name + '=' + expected,
+      };
+    }),
+  };
+}
+
+// Fixed, read-only builtin program. /proc/<pid>/environ is explicitly startup
+// environment, not a claim to read another Node process's current process.env.
+// The API has init:true and api-entrypoint.sh execs node dist/main.js in /app.
+export const SCALE_API_ENV_PROBE_SCRIPT = `
+const fs = require('node:fs');
+const path = require('node:path');
+const SCALE_ORIGIN = ${JSON.stringify(SCALE_ORIGIN)};
+const summarize = ${summarizeScaleApiEnvironment.toString()};
+const [containerId, nonce] = process.argv.slice(1);
+let stage = 'arguments';
+function boundedRead(file, limit) {
+  const fd = fs.openSync(file, 'r');
+  const buffer = Buffer.alloc(limit + 1);
+  let size = 0;
+  try {
+    while (size <= limit) {
+      const count = fs.readSync(fd, buffer, size, buffer.length - size, null);
+      if (!count) return buffer.subarray(0, size);
+      size += count;
+    }
+    throw Error('bound');
+  } finally { fs.closeSync(fd); }
+}
+function nullRecords(file, limit) {
+  const bytes = boundedRead(file, limit);
+  if (!bytes.length) return [];
+  const end = bytes[bytes.length - 1] === 0 ? bytes.length - 1 : bytes.length;
+  return bytes.subarray(0, end).toString('utf8').split('\\0');
+}
+function startTime(pid) {
+  const stat = boundedRead('/proc/' + pid + '/stat', 8192).toString('utf8');
+  const tail = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\\s+/);
+  if (!/^[1-9][0-9]{0,19}$/.test(tail[19] || '')) throw Error('stat');
+  return tail[19];
+}
+function children() {
+  const text = boundedRead('/proc/1/task/1/children', 512).toString('utf8').trim();
+  const values = text ? text.split(/\\s+/) : [];
+  if (!values.length || values.length > 16 || values.some((value) => !/^[1-9][0-9]*$/.test(value))) throw Error('children');
+  return values.map(Number);
+}
+let ownNode;
+function isApi(pid) {
+  const args = nullRecords('/proc/' + pid + '/cmdline', 8192);
+  return args.length === 2 && args[0] === 'node' && args[1] === 'dist/main.js' &&
+    fs.readlinkSync('/proc/' + pid + '/cwd') === '/app' &&
+    fs.readlinkSync('/proc/' + pid + '/exe') === ownNode;
+}
+try {
+  if (!/^[a-f0-9]{64}$/.test(containerId || '') || !/^[a-f0-9]{32}$/.test(nonce || '')) throw Error('arguments');
+  stage = 'pid1-identity';
+  ownNode = fs.realpathSync(process.execPath);
+  const initExecutable = path.basename(fs.readlinkSync('/proc/1/exe'));
+  if (!['docker-init', 'tini'].includes(initExecutable)) throw Error('init');
+  const initStart = startTime(1);
+  stage = 'api-identity';
+  const candidates = [];
+  for (const pid of children()) {
+    if (pid === process.pid) continue;
+    try { if (isApi(pid)) candidates.push(pid); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+  if (candidates.length !== 1) throw Error('ambiguous-api');
+  const apiPid = candidates[0];
+  const apiStart = startTime(apiPid);
+  stage = 'startup-environments';
+  const pid1Startup = summarize(nullRecords('/proc/1/environ', 65536));
+  const apiStartup = summarize(nullRecords('/proc/' + apiPid + '/environ', 65536));
+  stage = 'exec-environment';
+  const execEnvironment = summarize(Object.entries(process.env).map(([key, value]) => key + '=' + value));
+  const target = 'ASA_ISOLATED_TEST_WEB_ORIGIN';
+  const execTargetOwn = Object.hasOwn(process.env, target);
+  const execTargetType = typeof process.env[target];
+  stage = 'identity-recheck';
+  if (startTime(1) !== initStart || startTime(apiPid) !== apiStart || !children().includes(apiPid) || !isApi(apiPid)) throw Error('changed-process');
+  process.stdout.write(JSON.stringify({
+    schemaVersion: 1, status: 'ok', containerId, nonce, observedAtMs: Date.now(),
+    pid1: { pid: 1, executable: initExecutable, startTimeTicks: initStart, startupEnvironment: pid1Startup },
+    api: { pid: apiPid, startTimeTicks: apiStart, directChild: true, identityStable: true, startupEnvironment: apiStartup },
+    exec: { pid: process.pid, targetOwn: execTargetOwn, targetType: execTargetType, environment: execEnvironment },
+  }));
+} catch (error) {
+  process.stdout.write(JSON.stringify({ schemaVersion: 1, status: 'error', containerId, nonce,
+    stage, code: ['EACCES','EPERM','ENOENT'].includes(error.code) ? error.code : 'probe_failed' }));
+  process.exitCode = 1;
+}
+`;
+
+const scaleProbeNonce = (value) => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
+const scaleProcessTicks = (value) => typeof value === 'string' && /^[1-9][0-9]{0,19}$/.test(value);
+
+function safeNativeEnvironment(value) {
+  const expected = summarizeScaleApiEnvironment([
+    'NODE_ENV=test',
+    'ASA_WEB_PORT=8080',
+    'ASA_WEB_ORIGIN=' + SCALE_ORIGIN,
+    'ASA_BLOCKS_RUNTIME_ORIGIN=' + SCALE_ORIGIN,
+  ]);
+  const target = Object.fromEntries(
+    ['count', 'bare', 'assignedEmpty', 'assignedNonempty'].map((key) => [
       key,
-      expected,
-      count: values.length,
-      matches: values.length === 1 && values[0] === key + '=' + expected,
-    };
-  });
-  const containerId = /^[a-f0-9]{64}$/.test(metadata?.Id || '') ? metadata.Id : null;
+      integer(value?.target?.[key]) ? value.target[key] : null,
+    ]),
+  );
+  const fields = expected.fields.map((field, index) => ({
+    key: field.key,
+    count: integer(value?.fields?.[index]?.count) ? value.fields[index].count : null,
+    matches:
+      value?.fields?.[index]?.key === field.key &&
+      value.fields[index].expected === field.expected &&
+      value.fields[index].count === 1 &&
+      value.fields[index].matches === true,
+  }));
+  return {
+    valid:
+      value?.validShape === true &&
+      value?.target?.absent === true &&
+      value.target.duplicate === false &&
+      Object.values(target).every((count) => count === 0) &&
+      Array.isArray(value?.fields) &&
+      value.fields.length === 4 &&
+      fields.every((field) => field.matches),
+    target,
+    fields,
+  };
+}
+
+/** Ownership is checked by the controller before and after the bounded exec.
+ * Even absent metadata requires a fresh, matching actual-process observation.
+ * @param {object} metadata
+ * @param {object} [proof]
+ * @param {(evidence: object) => void} [recordEvidence]
+ */
+export function assertScaleApiIngressEnvironment(metadata, proof, recordEvidence) {
+  const environment = summarizeScaleApiEnvironment(metadata?.Config?.Env);
+  const containerId = digest(metadata?.Id) ? metadata.Id : null;
   const apiService = metadata?.Config?.Labels?.['com.docker.compose.service'] === 'api';
+  const result = proof?.result;
+  const after = proof?.after;
+  const nonceMatches = scaleProbeNonce(proof?.nonce) && result?.nonce === proof.nonce;
+  const sameContainer =
+    containerId !== null &&
+    result?.containerId === containerId &&
+    after?.Id === containerId &&
+    metadata.State?.Running === true &&
+    after.State?.Running === true &&
+    typeof metadata.State.StartedAt === 'string' &&
+    Number.isFinite(Date.parse(metadata.State.StartedAt)) &&
+    after.State.StartedAt === metadata.State.StartedAt &&
+    integer(metadata.RestartCount) &&
+    after.RestartCount === metadata.RestartCount &&
+    metadata.HostConfig?.Init === true &&
+    after.HostConfig?.Init === true &&
+    [
+      'com.docker.compose.project',
+      'io.asalab.scale.run',
+      'com.docker.compose.project.working_dir',
+      'com.docker.compose.service',
+    ].every(
+      (key) =>
+        typeof metadata.Config?.Labels?.[key] === 'string' &&
+        metadata.Config.Labels[key].length > 0 &&
+        after.Config?.Labels?.[key] === metadata.Config.Labels[key],
+    );
+  const fresh =
+    integer(proof?.requestedAtMs) &&
+    integer(proof?.completedAtMs) &&
+    integer(result?.observedAtMs) &&
+    proof.completedAtMs >= proof.requestedAtMs &&
+    proof.completedAtMs - proof.requestedAtMs <= 5000 &&
+    result.observedAtMs >= proof.requestedAtMs &&
+    result.observedAtMs <= proof.completedAtMs;
+  const pid1 = safeNativeEnvironment(result?.pid1?.startupEnvironment);
+  const api = safeNativeEnvironment(result?.api?.startupEnvironment);
+  const exec = safeNativeEnvironment(result?.exec?.environment);
+  const nativeIdentity =
+    result?.schemaVersion === 1 &&
+    result?.status === 'ok' &&
+    result?.pid1?.pid === 1 &&
+    ['docker-init', 'tini'].includes(result?.pid1?.executable) &&
+    scaleProcessTicks(result?.pid1?.startTimeTicks) &&
+    integer(result?.api?.pid) &&
+    result.api.pid > 1 &&
+    scaleProcessTicks(result?.api?.startTimeTicks) &&
+    result.api.directChild === true &&
+    result.api.identityStable === true &&
+    integer(result?.exec?.pid) &&
+    result.exec.pid > 1 &&
+    result.exec.pid !== result.api.pid &&
+    result.exec.targetOwn === false &&
+    result.exec.targetType === 'undefined';
+  const metadataUnset =
+    environment.target.count === 0 ||
+    (environment.target.count === 1 && environment.target.bare === 1);
   const mismatches = [
     ...(!containerId ? ['Id'] : []),
     ...(!apiService ? ['Config.Labels.com.docker.compose.service'] : []),
-    ...(!validShape ? ['Config.Env'] : []),
-    ...(isolatedKeyCount ? ['Config.Env.' + isolatedKey] : []),
-    ...fields.filter((field) => !field.matches).map((field) => 'Config.Env.' + field.key),
+    ...(!environment.validShape ? ['Config.Env'] : []),
+    ...(!metadataUnset ? ['Config.Env.ASA_ISOLATED_TEST_WEB_ORIGIN'] : []),
+    ...environment.fields
+      .filter((field) => !field.matches)
+      .map((field) => 'Config.Env.' + field.key),
+    ...(!nonceMatches ? ['probe.nonce'] : []),
+    ...(!sameContainer ? ['probe.container'] : []),
+    ...(!fresh ? ['probe.freshness'] : []),
+    ...(!nativeIdentity ? ['probe.processIdentity'] : []),
+    ...(!pid1.valid ? ['probe.pid1Startup'] : []),
+    ...(!api.valid ? ['probe.apiStartup'] : []),
+    ...(!exec.valid ? ['probe.execEnvironment'] : []),
+    ...(proof?.transport !== 'completed' ? ['probe.transport'] : []),
   ];
   const failure = mismatches.join(', ');
   const valid = mismatches.length === 0;
   const evidence = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     valid,
     containerId,
     apiService,
-    validEnvironmentShape: validShape,
-    isolatedKeyCount,
+    validEnvironmentShape: environment.validShape,
+    isolatedKeyCount: environment.target.count,
+    targetForms: environment.target,
+    fields: environment.fields,
+    probe: {
+      scriptSha256: scaleHash(SCALE_API_ENV_PROBE_SCRIPT),
+      nonceMatches,
+      sameContainer,
+      fresh,
+      nativeIdentity,
+      nonce: scaleProbeNonce(proof?.nonce) ? proof.nonce : null,
+      observedNonce: scaleProbeNonce(result?.nonce) ? result.nonce : null,
+      requestedAtMs: integer(proof?.requestedAtMs) ? proof.requestedAtMs : null,
+      completedAtMs: integer(proof?.completedAtMs) ? proof.completedAtMs : null,
+      transport: ['completed', 'exec_failed', 'parse_failed', 'inspect_failed'].includes(
+        proof?.transport,
+      )
+        ? proof.transport
+        : 'missing-or-invalid',
+      errorStage: [
+        'arguments',
+        'pid1-identity',
+        'api-identity',
+        'startup-environments',
+        'exec-environment',
+        'identity-recheck',
+      ].includes(result?.stage)
+        ? result.stage
+        : null,
+      errorCode: ['EACCES', 'EPERM', 'ENOENT', 'probe_failed'].includes(result?.code)
+        ? result.code
+        : null,
+      completed: proof?.transport === 'completed',
+      pid1Startup: pid1,
+      apiStartup: api,
+      execEnvironment: exec,
+      observedAtMs: integer(result?.observedAtMs) ? result.observedAtMs : null,
+      apiPid: integer(result?.api?.pid) ? result.api.pid : null,
+      observedContainerId: digest(result?.containerId) ? result.containerId : null,
+      afterContainerId: digest(after?.Id) ? after.Id : null,
+      pid1Pid: integer(result?.pid1?.pid) ? result.pid1.pid : null,
+      pid1Executable: ['docker-init', 'tini'].includes(result?.pid1?.executable)
+        ? result.pid1.executable
+        : null,
+      apiDirectChild: typeof result?.api?.directChild === 'boolean' ? result.api.directChild : null,
+      apiIdentityStable:
+        typeof result?.api?.identityStable === 'boolean' ? result.api.identityStable : null,
+      execPid: integer(result?.exec?.pid) ? result.exec.pid : null,
+      execTargetOwn: typeof result?.exec?.targetOwn === 'boolean' ? result.exec.targetOwn : null,
+      execTargetType: ['undefined', 'string'].includes(result?.exec?.targetType)
+        ? result.exec.targetType
+        : null,
+      pid1StartTimeTicks: scaleProcessTicks(result?.pid1?.startTimeTicks)
+        ? result.pid1.startTimeTicks
+        : null,
+      apiStartTimeTicks: scaleProcessTicks(result?.api?.startTimeTicks)
+        ? result.api.startTimeTicks
+        : null,
+    },
     mismatches,
-    fields,
   };
   recordEvidence?.(evidence);
   if (!valid) throw Error('Owned API runtime ingress environment mismatch: ' + failure);

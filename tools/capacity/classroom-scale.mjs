@@ -27,6 +27,7 @@ import {
   assertScaleImages,
   assertScaleIngressConfig,
   assertScaleApiIngressEnvironment,
+  SCALE_API_ENV_PROBE_SCRIPT,
   assertScaleDriverNetwork,
   createScaleLedger,
   evaluateScaleLevel,
@@ -623,14 +624,61 @@ async function run() {
       const metadata = ownMetadata(
         JSON.parse(await capture('docker', ['inspect', container.id]))[0],
       );
-      if (service === 'api')
-        assertScaleApiIngressEnvironment(metadata, (ingress) =>
+      if (service === 'api') {
+        const proof = {
+          nonce: randomBytes(16).toString('hex'),
+          requestedAtMs: Date.now(),
+          completedAtMs: 0,
+          result: null,
+          after: null,
+          transport: 'exec_failed',
+        };
+        try {
+          const output = await capture(
+            'docker',
+            [
+              'exec',
+              container.id,
+              'node',
+              '-e',
+              SCALE_API_ENV_PROBE_SCRIPT,
+              container.id,
+              proof.nonce,
+            ],
+            { timeout: 5000, maxBuffer: 16384 },
+          );
+          proof.completedAtMs = Date.now();
+          proof.transport = 'parse_failed';
+          proof.result = JSON.parse(output);
+          proof.transport = 'inspect_failed';
+          proof.after = ownMetadata(
+            JSON.parse(await capture('docker', ['inspect', container.id], { timeout: 5000 }))[0],
+          );
+          proof.transport = 'completed';
+        } catch (error) {
+          proof.completedAtMs ||= Date.now();
+          // The fixed native program emits only its bounded public error code.
+          // Never persist arbitrary Docker stderr or a full environment.
+          if (
+            proof.transport === 'exec_failed' &&
+            typeof error?.stdout === 'string' &&
+            error.stdout.length <= 16384
+          ) {
+            try {
+              proof.result = JSON.parse(error.stdout);
+            } catch {
+              /* Malformed output remains a failure. */
+            }
+          }
+        }
+        assertScaleApiIngressEnvironment(metadata, proof, (ingress) =>
           writeJson(resolve(reports, 'runtime-api-ingress.json'), {
             ...initialIdentity,
             stage: 'owned-api-before-calibration',
             ingress,
           }),
         );
+      }
       const image = JSON.parse(await capture('docker', ['image', 'inspect', metadata.Image]))[0];
       images.push({
         service,
