@@ -11,6 +11,78 @@ function reportRequest(address = '203.0.113.1'): FastifyRequest {
   } as unknown as FastifyRequest;
 }
 describe('bounded client diagnostics', () => {
+  it('accepts optional bounded occurrence aggregates and logs a replayed event only once', () => {
+    const controller = new ClientDiagnosticsController();
+    const first = Date.now() - 1000;
+    const body = {
+      code: 'request_failed',
+      module: 'portal',
+      revision: 'abcdef0',
+      eventId: '20000000-0000-4000-8000-000000000001',
+      occurredAt: first,
+      repetitionCount: 37,
+      firstOccurredAt: first,
+      lastOccurredAt: first + 1000,
+      operation: 'project_read',
+      method: 'GET',
+      failureKind: 'http',
+      httpStatus: 503,
+    };
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      expect(controller.report(reportRequest(), body)).toEqual({ accepted: true });
+      expect(controller.report(reportRequest(), body)).toEqual({ accepted: true });
+      expect(out).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(String(out.mock.calls[0]![0]))).toMatchObject(body);
+      // Old clients need none of the new fields or even a delivery event ID.
+      expect(
+        controller.report(reportRequest(), {
+          code: 'render_failed',
+          module: 'portal',
+          revision: 'abcdef0',
+        }),
+      ).toEqual({ accepted: true });
+    } finally {
+      out.mockRestore();
+    }
+  });
+  it('rejects partial, unbounded and malformed aggregates before logging', () => {
+    const controller = new ClientDiagnosticsController();
+    const body = {
+      code: 'request_failed',
+      module: 'portal',
+      revision: 'abcdef0',
+      eventId: '20000000-0000-4000-8000-000000000001',
+      occurredAt: 1_000_000,
+      repetitionCount: 2,
+      firstOccurredAt: 1_000_000,
+      lastOccurredAt: 1_001_000,
+    };
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      for (const extra of [
+        { repetitionCount: 0 },
+        { repetitionCount: 1.5 },
+        { repetitionCount: 1_000_001 },
+        { repetitionCount: '2' },
+        { repetitionCount: Infinity },
+        { repetitionCount: undefined },
+        { firstOccurredAt: undefined },
+        { firstOccurredAt: 999_999 },
+        { lastOccurredAt: undefined },
+        { lastOccurredAt: 999_999 },
+        { lastOccurredAt: 1_900_001 },
+        { lastOccurredAt: 'PRIVATE' },
+        { eventId: undefined },
+        { occurredAt: undefined },
+        { token: 'PRIVATE' },
+      ])
+        expect(() => controller.report(reportRequest(), { ...body, ...extra })).toThrow();
+      expect(out).not.toHaveBeenCalled();
+    } finally {
+      out.mockRestore();
+    }
+  });
   it('logs safe cancelled reads as info and rejects malformed or private request fields', () => {
     const controller = new ClientDiagnosticsController();
     const body = {
