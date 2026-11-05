@@ -532,5 +532,253 @@ class ScheduleTests(unittest.TestCase):
                 schedule.validate_schedule(settings)
 
 
+class ScheduleStateCaptureTests(unittest.TestCase):
+    @staticmethod
+    def settings():
+        return {"enabled": True, "time": "03:00", "timezone": "Etc/UTC", "maxAgeHours": 26}
+
+    @staticmethod
+    def zone(name):
+        if name != "Etc/UTC":
+            raise schedule.ZoneInfoNotFoundError(name)
+        return dt.timezone.utc
+
+    @staticmethod
+    def install_tail(root, settings):
+        # Execute the real post-enable statements, with privileged setup outside this seam.
+        import ast
+        import copy
+        source = Path(schedule.__file__).read_text(encoding="utf-8")
+        module = ast.parse(source)
+        function = next(node for node in module.body if isinstance(node, ast.FunctionDef) and node.name == "install_schedule")
+        indexes = [index for index, node in enumerate(function.body)
+                   if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
+                   and ast.get_source_segment(source, node.value.func) == "_systemctl"
+                   and '"enable" if settings["enabled"] else "disable"' in ast.get_source_segment(source, node)]
+        assert len(indexes) == 1
+        target = ast.FunctionDef(name="guard_tail",
+            args=ast.arguments(posonlyargs=[], args=[ast.arg(arg=key) for key in ("root", "installation_id", "settings")],
+                               kwonlyargs=[], kw_defaults=[], defaults=[]),
+            body=copy.deepcopy(function.body[indexes[0] + 1:]), decorator_list=[])
+        namespace = dict(vars(schedule))
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[target], type_ignores=[])), "<actual-schedule-guard>", "exec"), namespace)
+        return namespace["guard_tail"](root, ID, settings)
+
+    def run_status(self, timer="LoadState=loaded\nActiveState=inactive\nUnitFileState=enabled\n",
+                   *, timer_error=None, service_error=None, capture=True, guard=False):
+        import subprocess
+        calls, errors = [], []
+        observation = {}
+        actual_require = schedule.require
+
+        def require(*args):
+            try:
+                return actual_require(*args)
+            except Blocked as error:
+                errors.append(error)
+                raise
+
+        def run(argv, **kwargs):
+            self.assertEqual(argv[0:2], ["systemctl", "show"])
+            self.assertEqual(kwargs, {"capture_output": True, "text": True, "timeout": 40, "check": False})
+            is_timer = argv[2].endswith(".timer")
+            self.assertEqual(argv[2], schedule.unit_name(ID) + (".timer" if is_timer else ".service"))
+            self.assertEqual(argv[3], "--property=" + (
+                "LoadState,ActiveState,UnitFileState,NextElapseUSecRealtime,LastTriggerUSec" if is_timer else
+                "Result,ExecMainStatus,ExecMainExitTimestamp,NRestarts"))
+            calls.append("TIMER" if is_timer else "SERVICE")
+            error = timer_error if is_timer else service_error
+            if error == "timeout":
+                raise subprocess.TimeoutExpired(argv, 40)
+            return subprocess.CompletedProcess(argv, error or 0, timer if is_timer else "Result=success\nExecMainStatus=0\nNRestarts=0\n",
+                                               "PRIVATE_STDERR_SENTINEL" if error else "")
+
+        with tempfile.TemporaryDirectory() as temporary, patch.object(schedule, "ZoneInfo", side_effect=self.zone), \
+                patch.object(schedule, "now", return_value="FIXED"), patch.object(schedule, "require", side_effect=require), \
+                patch.object(schedule.subprocess, "run", side_effect=run):
+            if guard:
+                try:
+                    result = self.install_tail(Path(temporary), self.settings())
+                except Blocked as error:
+                    self.assertIs(error, errors[-1])
+                    return None, getattr(error, "schedule_observation", None), calls, error
+                return result, None, calls, None
+            result = schedule.schedule_status(Path(temporary), ID, self.settings(), **({"_observation": observation} if capture else {}))
+        return result, observation, calls, None
+
+    def test_actual_guard_preserves_same_blocked_and_distinguishes_failed_predicates(self):
+        observations = []
+        for active, enabled in (("activating", "enabled"), ("inactive", "enabled"), ("failed", "enabled"),
+                                ("active", "disabled"), ("active", "enabled-runtime")):
+            with self.subTest(active=active, enabled=enabled):
+                _, value, calls, error = self.run_status(f"LoadState=loaded\nActiveState={active}\nUnitFileState={enabled}\n", guard=True)
+                self.assertEqual(error.code, "BACKUP_SCHEDULE_INACTIVE")
+                self.assertEqual(str(error), "Настройка сохранена, но timer не запущен.")
+                self.assertEqual(calls, ["TIMER", "SERVICE"])
+                self.assertEqual((value["activeState"], value["unitFileState"]), (active, enabled))
+                self.assertEqual(value["queryError"], {"source": "NONE", "code": None})
+                self.assertFalse(value["running"])
+                observations.append(json.dumps(value, sort_keys=True))
+        self.assertEqual(len(set(observations)), 5)
+
+    def test_default_status_shape_and_healthy_guard_command_count_are_unchanged(self):
+        timer = "UnitFileState=enabled\r\nActiveState=active\r\nLoadState=loaded\r\n"
+        default, _, original_calls, _ = self.run_status(timer, capture=False)
+        captured, value, calls, _ = self.run_status(timer)
+        accepted, _, guard_calls, error = self.run_status(timer, guard=True)
+        self.assertEqual(default, captured)
+        self.assertEqual(default, accepted)
+        self.assertEqual(set(default), {"format", "installationId", "configuration", "installed", "running", "observedAt",
+                                      "nextRun", "lastRun", "lastLocalSuccess", "lastCloudSuccess", "lastServiceResult"})
+        self.assertEqual(original_calls, calls)
+        self.assertEqual(calls, guard_calls)
+        self.assertEqual(calls, ["TIMER", "SERVICE"])
+        self.assertIsNone(error)
+        self.assertTrue(value["running"])
+
+    def test_timer_query_failures_are_unavailable_with_the_original_query_source(self):
+        for failure, code in ((1, "BACKUP_SYSTEMD"), ("timeout", "BACKUP_SYSTEMD_UNAVAILABLE")):
+            with self.subTest(failure=failure):
+                _, value, calls, error = self.run_status(timer_error=failure, guard=True)
+                self.assertEqual(error.code, "BACKUP_SCHEDULE_INACTIVE")
+                self.assertEqual(calls, ["TIMER"])
+                self.assertEqual(value["timerQuery"], "UNAVAILABLE")
+                self.assertEqual(value["queryError"], {"source": "TIMER", "code": code})
+                self.assertTrue(all(value[key] == "UNAVAILABLE" for key in schedule.SCHEDULE_STATE_VALUES))
+                self.assertFalse(value["installed"])
+                self.assertFalse(value["running"])
+                self.assertNotIn("PRIVATE_STDERR_SENTINEL", json.dumps(value))
+
+    def test_service_query_failure_preserves_timer_fields_and_does_not_invent_startup_failure(self):
+        for active in ("active", "inactive"):
+            with self.subTest(active=active):
+                timer = f"LoadState=loaded\nActiveState={active}\nUnitFileState=enabled\n"
+                result, value, calls, error = self.run_status(timer, service_error=1, guard=active == "inactive")
+                self.assertEqual(calls, ["TIMER", "SERVICE"])
+                self.assertEqual(value["queryError"], {"source": "SERVICE", "code": "BACKUP_SYSTEMD"})
+                self.assertEqual(value["timerQuery"], "OBSERVED")
+                self.assertEqual(value["activeState"], active)
+                if active == "active":
+                    self.assertIsNone(error)
+                    self.assertTrue(result["running"])
+                    self.assertEqual(result["error"], "BACKUP_SYSTEMD")
+                else:
+                    self.assertEqual(error.code, "BACKUP_SCHEDULE_INACTIVE")
+
+    def test_missing_unknown_and_unicode_properties_are_not_substituted_as_inactive(self):
+        samples = [
+            ("LoadState=loaded\nUnitFileState=enabled\n", "MISSING"),
+            ("LoadState=loaded\nActiveState=\nUnitFileState=enabled\n", "UNRECOGNIZED"),
+            ("LoadState=loaded\nActiveState=аctive\nUnitFileState=enabled\n", "UNRECOGNIZED"),
+            ("LoadState=loaded\nActiveState=PRIVATE_STATE_SENTINEL\nUnitFileState=enabled\n", "UNRECOGNIZED"),
+        ]
+        for timer, expected in samples:
+            with self.subTest(expected=expected):
+                _, value, _, error = self.run_status(timer, guard=True)
+                self.assertEqual(error.code, "BACKUP_SCHEDULE_INACTIVE")
+                self.assertEqual(value["activeState"], expected)
+                self.assertNotEqual(value["activeState"], "inactive")
+                self.assertNotIn("PRIVATE_STATE_SENTINEL", json.dumps(value))
+
+    def test_closed_projection_rejects_types_unknown_keys_and_inconsistent_query_error(self):
+        import copy
+        _, valid, _, _ = self.run_status()
+        changes = [
+            lambda v: v.update(installed=1), lambda v: v.update(running=0),
+            lambda v: v.update(activeState=True), lambda v: v.update(timerQuery=None),
+            lambda v: v.update(loadState=["loaded"]), lambda v: v.update(private="SECRET"),
+            lambda v: v.update(queryError={"source": "NONE", "code": "BACKUP_SYSTEMD"}),
+            lambda v: v.update(queryError={"source": "TIMER", "code": "BACKUP_SYSTEMD"}),
+            lambda v: v.update(queryError={"source": "SERVICE", "code": None}),
+            lambda v: v.update(queryError={"source": "SERVICE", "code": "BACKUP_SYSTEMＤ"}),
+            lambda v: v.update(queryError={"source": None, "code": None}),
+            lambda v: v.update(queryError={"source": "NONE", "code": None, "message": "SECRET"}),
+            lambda v: v.update(timerQuery="UNAVAILABLE"), lambda v: v.update(installed=False),
+            lambda v: v.update(activeState="active"), lambda v: v.update(format="UNKNOWN"),
+        ]
+        for change in changes:
+            value = copy.deepcopy(valid)
+            change(value)
+            with self.subTest(case=changes.index(change)):
+                self.assertEqual(schedule.schedule_observation(value),
+                                 {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"})
+        self.assertEqual(schedule.schedule_observation(valid), valid)
+
+    def test_unknown_query_code_and_diagnostic_exception_do_not_replace_original_guard_failure(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(schedule, "ZoneInfo", side_effect=self.zone), \
+                patch.object(schedule, "_systemctl", side_effect=Blocked("PRIVATE_UNKNOWN", "PRIVATE_MESSAGE", "PRIVATE_ACTION")):
+            with self.assertRaises(Blocked) as caught:
+                self.install_tail(Path(temporary), self.settings())
+        self.assertEqual(caught.exception.code, "BACKUP_SCHEDULE_INACTIVE")
+        self.assertEqual(caught.exception.schedule_observation,
+                         {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"})
+        with patch.object(schedule, "schedule_observation", side_effect=RuntimeError("PRIVATE_MESSAGE")):
+            _, value, _, error = self.run_status(guard=True)
+        self.assertEqual(error.code, "BACKUP_SCHEDULE_INACTIVE")
+        self.assertEqual(value, {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"})
+        self.assertNotIn("PRIVATE", json.dumps(value))
+
+    def test_capture_before_the_guard_does_not_swallow_interruption(self):
+        with patch.object(schedule, "schedule_observation", side_effect=KeyboardInterrupt) as projection:
+            default, _, _, _ = self.run_status(capture=False)
+            self.assertFalse(default["running"])
+            projection.assert_not_called()
+            with self.assertRaises(KeyboardInterrupt):
+                self.run_status(guard=True)
+
+    def root_action(self, error):
+        import contextlib
+        import io
+        import asa_setup
+        import asa_setup_launcher
+        owner = {"uid": 1001, "gid": 1001, "name": "fixture-owner"}
+        config = {"operatorUid": 1001, "installationId": "a" * 32, "project": "fixture",
+                  "backup": {"schedule": self.settings()}}
+        with tempfile.TemporaryDirectory() as temporary:
+            args = asa_setup.parser().parse_args(["--root-action", "schedule", "--root", temporary, "--schedule-enabled", "true"])
+            with patch.object(asa_setup.os, "geteuid", return_value=0, create=True), \
+                    patch.object(asa_setup_launcher, "verify_bundle"), patch.object(asa_setup.setup_host, "check_owner", return_value=owner), \
+                    patch.object(asa_setup, "load_config", return_value=config), \
+                    patch.object(asa_setup, "operation_lock", return_value=contextlib.nullcontext(42)), \
+                    patch.object(asa_setup.setup_discovery, "docker_inventory", return_value={}), \
+                    patch.object(asa_setup.setup_discovery, "classify_installation", return_value={"state": "MANAGED"}), \
+                    patch.object(schedule, "install_schedule", side_effect=error), patch.object(schedule, "ZoneInfo", side_effect=self.zone), \
+                    patch.object(asa_setup_launcher, "_write_owner_json") as saved, patch.object(asa_setup, "_root_receipt") as receipt, \
+                    patch("sys.stdout", new_callable=io.StringIO) as output:
+                code = asa_setup.root_action(args)
+            saved.assert_not_called()
+            self.assertEqual(json.loads(output.getvalue()), receipt.call_args.args[2])
+            return code, json.loads(output.getvalue())
+
+    def test_actual_root_action_retains_failed_exit_and_closed_guard_snapshot(self):
+        _, captured, _, error = self.run_status(guard=True)
+        code, receipt = self.root_action(error)
+        self.assertEqual((code, receipt["status"], receipt["reasonCode"]), (2, "FAILED", "BACKUP_SCHEDULE_INACTIVE"))
+        self.assertEqual(receipt["scheduleObservation"], captured)
+        self.assertNotIn("installationId", captured)
+        self.assertNotIn("operationId", captured)
+        self.assertNotIn("observedAt", captured)
+
+    def test_actual_root_action_early_failure_and_bad_snapshot_keep_original_reason(self):
+        early = Blocked("BACKUP_SCHEDULE_CALENDAR", "PRIVATE", "PRIVATE")
+        code, receipt = self.root_action(early)
+        self.assertEqual((code, receipt["reasonCode"]), (2, "BACKUP_SCHEDULE_CALENDAR"))
+        self.assertNotIn("scheduleObservation", receipt)
+        for value in (None, {"private": "PRIVATE"}, {"queryError": {"source": "NONE", "code": "PRIVATE"}}):
+            error = Blocked("BACKUP_SCHEDULE_INACTIVE", "PRIVATE", "PRIVATE")
+            error.schedule_observation = value
+            with self.subTest(value=value):
+                code, receipt = self.root_action(error)
+                self.assertEqual((code, receipt["status"], receipt["reasonCode"]), (2, "FAILED", error.code))
+                self.assertEqual(receipt["scheduleObservation"],
+                                 {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"})
+                self.assertNotIn("PRIVATE", json.dumps(receipt))
+        error = Blocked("BACKUP_SCHEDULE_INACTIVE", "PRIVATE", "PRIVATE")
+        with patch.object(schedule, "schedule_observation", side_effect=RuntimeError("PRIVATE")):
+            code, receipt = self.root_action(error)
+        self.assertEqual((code, receipt["reasonCode"]), (2, error.code))
+        self.assertEqual(receipt["scheduleObservation"]["status"], "UNAVAILABLE")
+
+
 if __name__ == "__main__":
     unittest.main()

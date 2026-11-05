@@ -1745,6 +1745,46 @@ def schedule_failure_baseline(words):
         return schedule_diagnostic_error(error)
 
 
+def schedule_state_observation(value):
+    """Pure closed relay; provenance belongs to the enclosing file observation."""
+    unavailable = {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"}
+    states = {
+        "loadState": {"stub", "loaded", "not-found", "bad-setting", "error", "merged", "masked"},
+        "activeState": {"active", "reloading", "inactive", "failed", "activating", "deactivating", "maintenance"},
+        "unitFileState": {"enabled", "enabled-runtime", "linked", "linked-runtime", "alias", "masked", "masked-runtime",
+                          "static", "disabled", "indirect", "generated", "transient", "bad"},
+    }
+    try:
+        require(type(value) is dict and set(value) == {"format", "status", "installed", "running", "timerQuery",
+                "loadState", "activeState", "unitFileState", "queryError"}
+                and type(value["format"]) is str and type(value["status"]) is str
+                and value["format"] == unavailable["format"] and value["status"] == "OBSERVED"
+                and type(value["installed"]) is bool and type(value["running"]) is bool
+                and value["running"] is False and type(value["timerQuery"]) is str, "SCHEDULE_DIAGNOSTIC_RECEIPT")
+        require(all(type(value[key]) is str and value[key] in allowed | {"MISSING", "UNRECOGNIZED", "UNAVAILABLE"}
+                    for key, allowed in states.items()), "SCHEDULE_DIAGNOSTIC_RECEIPT")
+        error = value["queryError"]
+        require(type(error) is dict and set(error) == {"source", "code"} and type(error["source"]) is str,
+                "SCHEDULE_DIAGNOSTIC_RECEIPT")
+        require((error["source"] == "NONE" and error["code"] is None)
+                or (error["source"] in {"TIMER", "SERVICE"} and type(error["code"]) is str
+                    and error["code"] in {"BACKUP_SYSTEMD", "BACKUP_SYSTEMD_UNAVAILABLE"}), "SCHEDULE_DIAGNOSTIC_RECEIPT")
+        if value["timerQuery"] == "UNAVAILABLE":
+            require(all(value[key] == "UNAVAILABLE" for key in states) and value["installed"] is False
+                    and error["source"] == "TIMER", "SCHEDULE_DIAGNOSTIC_RECEIPT")
+        else:
+            require(value["timerQuery"] == "OBSERVED" and all(value[key] != "UNAVAILABLE" for key in states)
+                    and error["source"] in {"NONE", "SERVICE"}
+                    and value["installed"] == (value["loadState"] == "loaded")
+                    and value["running"] == (value["activeState"] == "active" and value["unitFileState"] == "enabled"),
+                    "SCHEDULE_DIAGNOSTIC_RECEIPT")
+        return {"format": unavailable["format"], "status": "OBSERVED", "installed": value["installed"], "running": value["running"],
+                "timerQuery": value["timerQuery"], "loadState": value["loadState"], "activeState": value["activeState"],
+                "unitFileState": value["unitFileState"], "queryError": {"source": error["source"], "code": error["code"]}}
+    except BaseException:
+        return unavailable
+
+
 def schedule_failure_observation(words, code, raw, invocation):
     """Fresh installation file observation, never a same-child or manager receipt."""
     action = schedule_diagnostic_action(words)
@@ -1795,7 +1835,7 @@ def schedule_failure_observation(words, code, raw, invocation):
     require(previous["status"] == "ABSENT" or tuple(previous["metadata"]) != metadata, "SCHEDULE_DIAGNOSTIC_BASELINE")
     require(time.monotonic() < deadline, "DIAGNOSTIC_TIMEOUT")
     receipt = schedule_diagnostic_json(data, 64 * 1024)
-    require(set(receipt) <= {"format", "operationId", "installationId", "kind", "status", "reasonCode", "schedule"}
+    require(set(receipt) <= {"format", "operationId", "installationId", "kind", "status", "reasonCode", "schedule", "scheduleObservation"}
             and receipt.get("format") == "asa-setup-root-actions-v1" and receipt.get("kind") == "schedule"
             and receipt.get("installationId") == expected["installationId"]
             and type(receipt.get("operationId")) is str and re.fullmatch(r"[a-f0-9]{32}", receipt["operationId"])
@@ -1812,11 +1852,19 @@ def schedule_failure_observation(words, code, raw, invocation):
         require("reasonCode" not in receipt and "schedule" in receipt, "SCHEDULE_DIAGNOSTIC_RECEIPT")
     # operationId may refer to the previous last-attempt, not this public call.
     # Ownership, file replacement and time bounds do not identify its writer.
-    return {"format": "asa-root-action-observation-v1", "status": "OBSERVED", "binding": "UNVERIFIED",
+    result = {"format": "asa-root-action-observation-v1", "status": "OBSERVED", "binding": "UNVERIFIED",
             "observation": "AFTER_PUBLIC_FAILURE", "observedAt": now(), "causalProof": False,
             "source": "FIXED_ROOT_ACTION_RECEIPT", "fileBinding": "INSTALLATION_AND_FRESHNESS_ONLY",
             "requestedAction": action, "freshness": "CHANGED_DURING_INVOCATION", "receiptStatus": receipt["status"],
             "receiptReason": receipt_reason(receipt, "reasonCode", SCHEDULE_RECEIPT_REASONS)}
+    if "scheduleObservation" in receipt:
+        result["scheduleObservation"] = {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"}
+        if receipt["status"] == "FAILED" and receipt.get("reasonCode") == "BACKUP_SCHEDULE_INACTIVE":
+            try:
+                result["scheduleObservation"] = schedule_state_observation(receipt["scheduleObservation"])
+            except BaseException:
+                pass
+    return result
 
 
 def command_log_baseline(words):

@@ -2552,6 +2552,167 @@ class ScheduleFailureObservationTests(unittest.TestCase):
                 self.assertFalse(unavailable["causalProof"])
 
 
+class ScheduleStateRelayTests(unittest.TestCase):
+    records = ScheduleFailureObservationTests.records
+    environment = ScheduleFailureObservationTests.environment
+    observe = ScheduleFailureObservationTests.observe
+
+    def setUp(self):
+        changed = patch.object(harness, "INSTALL_ROOT", PurePosixPath("/srv/asa-lab"))
+        changed.start()
+        self.addCleanup(changed.stop)
+
+    @staticmethod
+    def snapshot(active="inactive", enabled="enabled", *, query="NONE", code=None):
+        return {"format": "asa-backup-schedule-observation-v1", "status": "OBSERVED",
+                "installed": True, "running": active == "active" and enabled == "enabled", "timerQuery": "OBSERVED",
+                "loadState": "loaded", "activeState": active, "unitFileState": enabled,
+                "queryError": {"source": query, "code": code}}
+
+    def test_actual_file_projection_retains_distinct_states_with_original_provenance_and_reads(self):
+        for active, enabled in (("activating", "enabled"), ("inactive", "enabled"), ("failed", "enabled"),
+                                ("active", "disabled"), ("MISSING", "enabled"), ("UNRECOGNIZED", "enabled")):
+            values = self.records()
+            values["receipt"]["scheduleObservation"] = self.snapshot(active, enabled)
+            with self.subTest(active=active, enabled=enabled), self.environment(values) as (_, opened):
+                result = self.observe(values)
+            self.assertEqual(result["scheduleObservation"], values["receipt"]["scheduleObservation"])
+            self.assertEqual((result["status"], result["binding"], result["causalProof"]), ("OBSERVED", "UNVERIFIED", False))
+            self.assertEqual(result["fileBinding"], "INSTALLATION_AND_FRESHNESS_ONLY")
+            self.assertEqual(result["receiptReason"], {"state": "RECOGNIZED", "code": "BACKUP_SCHEDULE_INACTIVE"})
+            self.assertEqual([call.args[0].name for call in opened.call_args_list], ["setup.json", "setup-root-actions.json"])
+            self.assertNotIn("operationId", result["scheduleObservation"])
+            self.assertNotIn("installationId", result["scheduleObservation"])
+
+    def test_timer_unavailable_and_service_failure_keep_their_distinct_query_provenance(self):
+        timer = self.snapshot()
+        timer.update(timerQuery="UNAVAILABLE", installed=False, loadState="UNAVAILABLE",
+                     activeState="UNAVAILABLE", unitFileState="UNAVAILABLE",
+                     queryError={"source": "TIMER", "code": "BACKUP_SYSTEMD_UNAVAILABLE"})
+        service = self.snapshot(query="SERVICE", code="BACKUP_SYSTEMD")
+        for snapshot in (timer, service):
+            values = self.records()
+            values["receipt"]["scheduleObservation"] = snapshot
+            with self.subTest(query=snapshot["queryError"]), self.environment(values):
+                result = self.observe(values)
+            self.assertEqual(result["scheduleObservation"], snapshot)
+            self.assertFalse(result["causalProof"])
+
+    def test_malformed_snapshot_does_not_erase_known_receipt_reason_or_leak_values(self):
+        changes = [
+            lambda v: v.update(installed=1), lambda v: v.update(running=0),
+            lambda v: v.update(status="OK"), lambda v: v.update(timerQuery=False),
+            lambda v: v.update(loadState=None), lambda v: v.update(activeState=["inactive"]),
+            lambda v: v.update(activeState="inаctive"), lambda v: v.update(unitFileState="PRIVATE"),
+            lambda v: v.update(format="UNKNOWN"), lambda v: v.update(observedAt="PRIVATE"),
+            lambda v: v.update(operationId="PRIVATE"), lambda v: v.update(path="PRIVATE"),
+            lambda v: v.update(queryError={"source": "NONE", "code": "BACKUP_SYSTEMD"}),
+            lambda v: v.update(queryError={"source": "TIMER", "code": "BACKUP_SYSTEMD"}),
+            lambda v: v.update(queryError={"source": "SERVICE", "code": None}),
+            lambda v: v.update(queryError={"source": "SERVICE", "code": "BACKUP_SYSTEMＤ"}),
+            lambda v: v.update(queryError={"source": "NONE", "code": None, "stderr": "PRIVATE"}),
+            lambda v: v.update(queryError=None), lambda v: v.update(installed=False),
+            lambda v: v.update(timerQuery="UNAVAILABLE"),
+        ]
+        for change in changes:
+            values = self.records()
+            snapshot = self.snapshot()
+            change(snapshot)
+            values["receipt"]["scheduleObservation"] = snapshot
+            with self.subTest(case=changes.index(change)), self.environment(values):
+                result = self.observe(values)
+            self.assertEqual(result["scheduleObservation"],
+                             {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"})
+            self.assertEqual(result["receiptReason"], {"state": "RECOGNIZED", "code": "BACKUP_SCHEDULE_INACTIVE"})
+            self.assertEqual(result["status"], "OBSERVED")
+            self.assertNotIn("PRIVATE", json.dumps(result))
+
+    def test_unknown_timer_error_never_becomes_none_or_success(self):
+        for source, code in ((None, None), ("UNKNOWN", None), ("TIMER", None),
+                             ("TIMER", "PRIVATE"), ("SERVICE", "PRIVATE")):
+            snapshot = self.snapshot()
+            snapshot.update(timerQuery="UNAVAILABLE", installed=False, loadState="UNAVAILABLE",
+                            activeState="UNAVAILABLE", unitFileState="UNAVAILABLE",
+                            queryError={"source": source, "code": code})
+            with self.subTest(source=source, code=code):
+                result = harness.schedule_state_observation(snapshot)
+            self.assertEqual(result, {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"})
+            self.assertNotIn("queryError", result)
+
+    def test_snapshot_missing_or_wrong_failure_context_never_invents_capture(self):
+        values = self.records()
+        with self.environment(values):
+            self.assertNotIn("scheduleObservation", self.observe(values))
+        for reason in ("BACKUP_SYSTEMD", "BACKUP_SCHEDULE_CALENDAR"):
+            values = self.records()
+            values["receipt"].update(reasonCode=reason, scheduleObservation=self.snapshot())
+            with self.environment(values):
+                result = self.observe(values)
+            self.assertEqual(result["receiptReason"]["code"], reason)
+            self.assertEqual(result["scheduleObservation"]["status"], "UNAVAILABLE")
+        values = self.records()
+        values["receipt"].update(scheduleObservation=self.snapshot("active"))
+        with self.environment(values):
+            self.assertEqual(self.observe(values)["scheduleObservation"]["status"], "UNAVAILABLE")
+        values = self.records()
+        values["receipt"].update(status="OK", scheduleObservation=self.snapshot(),
+            schedule={"format": "asa-backup-schedule-v1", "installationId": values["config"]["installationId"]})
+        values["receipt"].pop("reasonCode")
+        with self.environment(values):
+            result = self.observe(values)
+        self.assertEqual(result["receiptStatus"], "OK")
+        self.assertEqual(result["scheduleObservation"]["status"], "UNAVAILABLE")
+
+    def test_nested_state_cannot_bypass_original_identity_time_or_public_exit_gates(self):
+        changes = [
+            lambda v: v["receipt"].update(installationId="f" * 32),
+            lambda v: setattr(v["info"], "st_mtime_ns", v["invocation"]["startedNs"] - 1),
+            lambda v: setattr(v["info"], "st_ctime_ns", v["invocation"]["finishedNs"] + 1),
+            lambda v: v["config"].update(operatorUid=1000),
+            lambda v: v["context"].update(sourceRevision="d" * 40),
+            lambda v: v["public"].update(exitCode=True),
+        ]
+        for change in changes:
+            values = self.records()
+            values["receipt"]["scheduleObservation"] = self.snapshot()
+            change(values)
+            with self.subTest(case=changes.index(change)), self.environment(values), self.assertRaises(harness.Failure):
+                self.observe(values)
+
+    def test_nested_duplicate_nonfinite_and_oversized_inputs_preserve_strict_json_boundary(self):
+        for bad in ('"queryError":{"source":"NONE","source":"TIMER","code":null}',
+                    '"running":NaN', '"installed":Infinity', '"activeState":"PRIVATE' + "X" * (64 * 1024) + '"'):
+            values = self.records()
+            raw = json.dumps(values["receipt"])
+            values["receipt"] = raw[:-1] + ',"scheduleObservation":{' + bad + "}}"
+            with self.subTest(sample=bad[:50]), self.environment(values), self.assertRaises(harness.Failure):
+                self.observe(values)
+
+    def test_public_guest_failure_keeps_observation_without_manager_binding_even_if_leaf_raises(self):
+        for raises in (False, True):
+            values = self.records()
+            values["receipt"]["scheduleObservation"] = self.snapshot()
+            output = io.StringIO()
+            with self.subTest(raises=raises), self.environment(values), patch.object(harness, "CLI_ACTIONS", []), \
+                    patch.object(harness, "command_failure_diagnostic") as manager, \
+                    patch.object(harness, "guest_phase", side_effect=lambda *_: harness.public_cli_result(
+                        values["words"], 2, json.dumps(values["public"]), invocation=values["invocation"])), \
+                    contextlib.ExitStack() as stack, contextlib.redirect_stdout(output):
+                if raises:
+                    stack.enter_context(patch.object(harness, "schedule_state_observation", side_effect=RuntimeError("PRIVATE")))
+                code = harness.guest_main("schedule")
+            result = json.loads(output.getvalue())
+            self.assertEqual((code, result["status"], result["reasonCode"]), (1, "FAIL", "UNRECOGNIZED_REASON"))
+            self.assertEqual((result["cliActions"][0]["exitCode"], result["cliActions"][0]["status"]), (2, "BLOCKED"))
+            observed = result["commandFailureDiagnostic"]
+            self.assertEqual((observed["status"], observed["binding"], observed["causalProof"]), ("OBSERVED", "UNVERIFIED", False))
+            self.assertEqual(observed["receiptReason"]["code"], "BACKUP_SCHEDULE_INACTIVE")
+            self.assertEqual(observed["scheduleObservation"]["status"], "UNAVAILABLE" if raises else "OBSERVED")
+            self.assertNotIn("PRIVATE", output.getvalue())
+            manager.assert_not_called()
+
+
+
 class CommandFailureDiagnosticTests(unittest.TestCase):
     def test_operator_log_root_is_under_protected_var_lib(self):
         # Ubuntu /var/log is commonly root:syslog mode 0775. Its group-write

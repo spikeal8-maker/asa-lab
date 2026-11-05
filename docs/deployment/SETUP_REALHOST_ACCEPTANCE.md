@@ -579,12 +579,25 @@ root, non-root operator UID, mode, exit, outcome и reason; полный `journa
 фиксированную private `setup-root-actions.json`: baseline снимается до public
 вызова, после него повторно проверяются владелец, обычный файл без ссылок,
 installation/root и изменение файла; полные mtime/ctime ns должны лежать внутри
-интервала вызова. Выводятся только закрытые status/reason. Это
+интервала вызова. Выводятся только закрытые status/reason и описанный ниже снимок. Это
 `AFTER_PUBLIC_FAILURE`, `binding: UNVERIFIED`, `causalProof: false`: файл не
 доказывает автора записи или причину именно этого child. Его operation ID может
 ссылаться на предыдущий last-attempt и не выдаётся за новую schedule operation.
 Даже receipt `OK` не меняет исходный public FAIL; stale/unsafe/неполное состояние
 даёт `UNAVAILABLE`, без повторного включения timer или повтора отказавшей команды.
+
+При `BACKUP_SCHEDULE_INACTIVE` поле `scheduleObservation` сохраняет уже полученный
+снимок непосредственно перед существующим guard: закрытые `loadState`,
+`activeState`, `unitFileState`, логические `installed`/`running` и `timerQuery`.
+`queryError` различает отказ запроса `TIMER` и отказ последующего запроса `SERVICE`;
+`NONE` допустим только при отсутствии ошибки обоих запросов. Отсутствующее свойство
+успешного timer-запроса — `MISSING`, неизвестное значение — `UNRECOGNIZED`,
+несостоявшийся запрос — `UNAVAILABLE`. Сбой service-запроса сохраняет прочитанные
+timer-поля и сам по себе не объявляется причиной startup failure. Повреждённый
+снимок даёт закрытый `UNAVAILABLE`, не стирая исходный reason или public failure.
+Новых запросов, ожиданий или повторов нет; snapshot наследует `UNVERIFIED` и
+`causalProof: false` внешнего файлового наблюдения. Default public status/API
+и прежний критерий enabled+active остаются неизменными.
 
 В artifact разрешены только известные `journalPhase`, `receiptStage`, state,
 intent/done/failed для фиксированного списка стадий и типизированные acceptance

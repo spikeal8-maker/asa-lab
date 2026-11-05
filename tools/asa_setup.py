@@ -209,6 +209,12 @@ def root_action(args):
             value["status"] = "OK"
         except (Blocked, OSError, ValueError) as error:
             value["reasonCode"] = getattr(error, "code", type(error).__name__)
+            if args.root_action == "schedule" and value["reasonCode"] == "BACKUP_SCHEDULE_INACTIVE":
+                value["scheduleObservation"] = {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"}
+                try:
+                    value["scheduleObservation"] = backup_schedule.schedule_observation(getattr(error, "schedule_observation", None))
+                except BaseException:
+                    pass  # Diagnostic failure must not replace the original root-action failure.
         _root_receipt(args.root, owner, value)
     print(json.dumps(value, ensure_ascii=True))
     return 0 if value["status"] == "OK" else 2
