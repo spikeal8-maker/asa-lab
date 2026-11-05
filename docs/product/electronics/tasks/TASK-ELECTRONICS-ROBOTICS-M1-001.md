@@ -90,4 +90,3 @@ Registration: scoped document/control-plane checks, форматирование
 ## Review и Stop
 
 Автор реализует этот ограниченный срез, показывает результаты шагов, выполняет focused/self-review и передаёт финальный diff. Независимый review проверяет shared editor/persistence, физическую границу, clock/input и usability. При FAIL — отдельное ограниченное исправление. Карточка не выбирает следующий milestone и не даёт owner acceptance или разрешение на product merge.
-
