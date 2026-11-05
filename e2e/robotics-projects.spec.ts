@@ -5,7 +5,7 @@ import type { PublicRoboticsArtifact } from '../packages/contracts/src/public-ro
 import type { Project, ProjectDraft } from '../contexts/projects/domain/project';
 import type { RoboticsProject } from '../contexts/robotics/domain/document';
 import { collectBrowserFailures } from './browser-failures';
-import { accountMenu, openAccountMenu, openPortalSection } from './portal-navigation';
+import { accountMenu, openAccountMenu, openPortalSection, portalTopBar } from './portal-navigation';
 
 // This spec uses the ordinary production entry, cookie sessions and Project Core
 // against e2e/server.mjs's real isolated PostgreSQL. No request is fulfilled,
@@ -284,7 +284,9 @@ test('Robotics uses account projects, the main portal and an immutable publicati
   // Assembly inputs use millimetres; the saved document and publication use metres.
   await numberField(page, 'Длина корпуса', 180);
   await page.getByRole('tab', { name: 'Электроника', exact: true }).click();
-  await expect(page.locator('.workbench-canvas [data-component-id="uno"]')).toBeVisible();
+  await expect(
+    page.locator('.workbench-canvas [data-testid="schematic-component"][data-component-id="uno"]'),
+  ).toBeVisible();
   await page.getByRole('tab', { name: 'Программа', exact: true }).click();
   await expect(page.getByTestId('arduino-block-workspace')).toBeVisible();
   await page
@@ -455,7 +457,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     );
     observe(viewer);
     await register(viewer, 'Читатель робототехники');
-    await viewer.getByLabel('Основная навигация').locator('a[href="/#/explore"]').click();
+    await portalTopBar(viewer).getByRole('link', { name: 'Проекты', exact: true }).click();
     await viewer
       .getByRole('group', { name: 'Среда проекта' })
       .getByRole('button', { name: 'Робототехника', exact: true })
