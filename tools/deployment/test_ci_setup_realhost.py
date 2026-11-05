@@ -5479,6 +5479,228 @@ print(json.dumps({'outer':outer,'inner':json.loads(target.read_text())}))
             group.assert_not_called()
 
 
+class CloudImageIdentityTests(unittest.TestCase):
+    # Independently hashed registry index -> linux/amd64 manifest -> config.
+    # Docker Engine docker-v29.9.3 (70efc0e...) containerd.GetImage keeps the
+    # index target ID and separately records the selected manifest descriptor.
+    INDEX = "sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5"
+    CONFIG = "sha256:7ab08c1ee84502fb76ec95b3dc759aa46a9074cce2967d540e0ab50d8c844af4"
+    MANIFEST = {"digest": "sha256:5a25abdcf2f2f093a03e1e6a13caddeb5fae3cd07ae6c699768e6f1917a5d3ce",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json", "size": 1920,
+        "platform": {"architecture": "amd64", "os": "linux"}}
+    GROUPS = {"id", "labels", "mounts", "imageReference", "imageIdentity", "security", "state"}
+
+    def setUp(self):
+        self.earliest = harness.timestamp_ns("2026-11-04T12:00:00Z")
+        clock = patch.object(harness.time, "time_ns", return_value=self.earliest + 10**9)
+        clock.start()
+        self.addCleanup(clock.stop)
+
+    def record(self, *, containerd=True):
+        record = NativeCloudContractTests().record()
+        record["imageId"] = self.INDEX if containerd else self.CONFIG
+        if containerd:
+            record["imageManifest"] = copy.deepcopy(self.MANIFEST)
+        return record
+
+    def unbound(self, record):
+        run = object.__new__(harness.CloudFault)
+        run.earliest_ns = self.earliest
+        run.binding = run.network_binding = run.init_process = run.empty_info = None
+        run.preparation_started = True
+        run.evidence = {}
+        network = {"id": "b" * 64, "name": harness.CLOUD_PROJECT + "_default", "driver": "bridge", "scope": "local",
+            "created": "2026-11-04T12:00:00.100000000Z", "containers": {"a" * 64: {}},
+            "labels": {"com.docker.compose.project": harness.CLOUD_PROJECT, "com.docker.compose.network": "default"}}
+        record = copy.deepcopy(record)
+        record["networks"] = {network["name"]: {"NetworkID": network["id"]}}
+        run.identifiers = Mock(side_effect=[["a" * 64], ["b" * 64]])
+        run.docker = Mock(side_effect=[json.dumps(record).encode(), json.dumps(network).encode()])
+        return run
+
+    def test_source_valid_legacy_and_containerd_keep_exact_observed_identity(self):
+        for containerd in (False, True):
+            with self.subTest(containerd=containerd):
+                record = self.record(containerd=containerd)
+                result = harness.cloud_container_identity(record, self.earliest)
+                self.assertEqual(result["imageId"], self.INDEX if containerd else self.CONFIG)
+                self.assertEqual(result["imageManifest"], self.MANIFEST if containerd else None)
+                self.assertEqual(result, json.loads(json.dumps(result)))
+                self.assertEqual(record, self.record(containerd=containerd))
+        explicit_null = {**self.record(containerd=False), "imageManifest": None}
+        self.assertEqual(harness.cloud_container_identity(explicit_null, self.earliest),
+                         harness.cloud_container_identity(self.record(containerd=False), self.earliest))
+
+    def test_index_needs_complete_exact_amd64_descriptor_and_never_accepts_manifest_as_image_id(self):
+        changes = [None, {}, [], "PRIVATE", True]
+        for key, value in (("digest", "sha256:" + "f" * 64), ("digest", self.CONFIG),
+                           ("mediaType", "application/vnd.oci.image.index.v1+json"),
+                           ("size", 1919), ("size", "1920"), ("size", 1920.0), ("size", True),
+                           ("size", float("nan")), ("platform", None), ("platform", []),
+                           ("platform", {"architecture": "arm64", "os": "linux"}),
+                           ("platform", {"architecture": "amd64", "os": "windows"}),
+                           ("platform", {"architecture": "amd64", "os": "linux", "variant": "PRIVATE"})):
+            changes.append({**self.MANIFEST, key: value})
+        changes.extend({key: value for key, value in self.MANIFEST.items() if key != missing} for missing in self.MANIFEST)
+        changes.append({**self.MANIFEST, "annotations": {"secret": "PRIVATE"}})
+        for descriptor in changes:
+            with self.subTest(descriptor=descriptor), self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_CONTAINER_IDENTITY"):
+                harness.cloud_container_identity({**self.record(), "imageManifest": descriptor}, self.earliest)
+        for image_id in (None, True, [], "sha256:" + "f" * 64, self.MANIFEST["digest"]):
+            with self.subTest(image_id=image_id), self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_CONTAINER_IDENTITY"):
+                harness.cloud_container_identity({**self.record(), "imageId": image_id}, self.earliest)
+        with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_CONTAINER_IDENTITY"):
+            harness.cloud_container_identity({key: value for key, value in self.record().items() if key != "imageManifest"}, self.earliest)
+
+    def test_legacy_cannot_hide_descriptor_or_foreign_config_reference(self):
+        for descriptor in ({}, False, "PRIVATE", self.MANIFEST):
+            with self.subTest(descriptor=descriptor), self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_CONTAINER_IDENTITY"):
+                harness.cloud_container_identity({**self.record(containerd=False), "imageManifest": descriptor}, self.earliest)
+        for containerd in (False, True):
+            for image in ("rclone/rclone:1.75.2", "foreign/rclone@" + self.INDEX, None, {"secret": "PRIVATE"}):
+                with self.subTest(containerd=containerd, image=image), self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_CONTAINER_IDENTITY"):
+                    harness.cloud_container_identity({**self.record(containerd=containerd), "image": image}, self.earliest)
+
+    def test_actual_bind_accepts_index_then_recheck_rejects_representation_or_descriptor_drift(self):
+        run = self.unbound(self.record())
+        process = {"pid": 101, "pgid": 101, "sid": 101, "startTime": 1000, "state": "S"}
+        with patch.object(harness, "proc_identity", return_value=process), \
+                patch.object(harness, "diagnostic_read", return_value=(b"", SimpleNamespace(st_gid=1000), None)) as read:
+            run.bind()
+        self.assertEqual(run.binding["imageId"], self.INDEX)
+        self.assertEqual(run.binding["imageManifest"], self.MANIFEST)
+        self.assertEqual(run.evidence["container"]["imageId"], self.INDEX)
+        self.assertNotIn("containerIdentityCheck", run.evidence)
+        self.assertEqual(run.docker.call_count, 2)
+        read.assert_called_once_with(harness.CLOUD_ROOT / "config/rclone.conf", harness.CLOUD_ROOT / "config", 1000, maximum=4096)
+        stable = self.record()
+        with patch.object(harness, "proc_identity", return_value=process):
+            run.docker = Mock(return_value=json.dumps(stable).encode())
+            self.assertEqual(run.container(), stable)
+            run.docker = Mock(return_value=json.dumps(self.record(containerd=False)).encode())
+            with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_CONTAINER_CHANGED"):
+                run.container()
+            changed = {**stable, "imageManifest": {**self.MANIFEST, "digest": "sha256:" + "f" * 64}}
+            run.docker = Mock(return_value=json.dumps(changed).encode())
+            with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_CONTAINER_IDENTITY"):
+                run.container()
+        self.assertEqual(run.binding["imageManifest"], self.MANIFEST)
+
+    def test_failed_bind_keeps_closed_predicates_and_unbound_cleanup_without_new_io(self):
+        mutations = {"id": {"id": "PRIVATE"}, "labels": {"labels": {**self.record()["labels"], "asa.owner": "PRIVATE"}},
+            "mounts": {"mounts": [{**item, "Source": "/PRIVATE"} for item in self.record()["mounts"]]},
+            "imageReference": {"image": "PRIVATE"}, "imageIdentity": {"imageId": "sha256:" + "f" * 64},
+            "security": {"user": "PRIVATE"}, "state": {"restarts": 1}}
+        for group, changes in mutations.items():
+            with self.subTest(group=group):
+                record = {**self.record(), **changes, "unexpected": {"secret": "PRIVATE"}}
+                run = self.unbound(record)
+                with patch.object(harness, "diagnostic_read") as read, patch.object(harness, "proc_identity") as process:
+                    with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_CONTAINER_IDENTITY"):
+                        run.bind()
+                projection = run.evidence["containerIdentityCheck"]
+                self.assertEqual(projection["status"], "OBSERVED")
+                self.assertEqual(set(projection["predicates"]), self.GROUPS)
+                self.assertEqual(projection["predicates"][group], "DIFFERENT")
+                self.assertEqual({value for name, value in projection["predicates"].items() if name != group}, {"SAME"})
+                self.assertNotIn("PRIVATE", json.dumps(projection))
+                self.assertNotIn(self.INDEX, json.dumps(projection))
+                self.assertIsNone(run.binding)
+                self.assertIsNone(run.network_binding)
+                self.assertNotIn("container", run.evidence)
+                read.assert_not_called()
+                process.assert_not_called()
+                self.assertEqual(run.docker.call_count, 2)
+                with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_UNBOUND_CLEANUP"):
+                    run.cleanup(None)
+                self.assertEqual(run.docker.call_count, 2)
+
+    def test_missing_or_malformed_predicates_are_unavailable_and_never_print_values(self):
+        for group, changes in (("id", {"id": None}), ("labels", {"labels": ["PRIVATE"]}),
+                               ("mounts", {"mounts": [{"Type": "bind", "Source": ["PRIVATE"], "RW": True}]}),
+                               ("imageReference", {"image": {"secret": "PRIVATE"}}),
+                               ("imageIdentity", {"imageManifest": None}), ("security", {"capDrop": None}),
+                               ("state", {"restarts": True})):
+            with self.subTest(group=group):
+                projection = harness.cloud_container_identity_observation({**self.record(), **changes})
+                self.assertEqual(projection["predicates"][group], "UNAVAILABLE")
+                self.assertTrue(set(projection["predicates"].values()) <= {"SAME", "DIFFERENT", "UNAVAILABLE"})
+                self.assertNotIn("PRIVATE", json.dumps(projection))
+        for value in (None, [], "PRIVATE", True):
+            self.assertEqual(harness.cloud_container_identity_observation(value),
+                             {"format": "asa-realhost-cloud-identity-v1", "status": "UNAVAILABLE"})
+
+    def test_diagnostic_failure_preserves_primary_exception_and_no_proof_or_side_effect(self):
+        run = self.unbound({**self.record(), "imageId": "sha256:" + "f" * 64})
+        primary = harness.Failure("CLOUD_FAULT_CONTAINER_IDENTITY")
+        with patch.object(harness, "cloud_container_identity", side_effect=primary), \
+                patch.object(harness, "cloud_container_identity_observation", side_effect=RuntimeError("PRIVATE")), \
+                self.assertRaises(harness.Failure) as caught:
+            run.bind()
+        self.assertIs(caught.exception, primary)
+        self.assertEqual(run.evidence, {"containerIdentityCheck": {"format": "asa-realhost-cloud-identity-v1", "status": "UNAVAILABLE"}})
+        self.assertIsNone(run.binding)
+        self.assertIsNone(run.network_binding)
+        self.assertEqual(run.docker.call_count, 2)
+
+    def test_identity_guard_failures_keep_earlier_freshness_exec_network_and_security_requirements(self):
+        for changes, reason in (({"created": "2026-11-03T12:00:00Z"}, "CLOUD_FAULT_CONTAINER_FRESHNESS"),
+                                ({"execIds": ["f" * 64, "f" * 64]}, "CLOUD_FAULT_EXEC_IDENTITY"),
+                                ({"networks": []}, "CLOUD_FAULT_EXEC_IDENTITY"),
+                                ({"capDrop": []}, "CLOUD_FAULT_CONTAINER_IDENTITY"),
+                                ({"readonly": False}, "CLOUD_FAULT_CONTAINER_IDENTITY"),
+                                ({"ports": {"5572/tcp": [{"HostPort": "5572"}]}}, "CLOUD_FAULT_CONTAINER_IDENTITY")):
+            with self.subTest(changes=changes), self.assertRaisesRegex(harness.Failure, reason):
+                harness.cloud_container_identity({**self.record(), **changes}, self.earliest)
+
+    @unittest.skipUnless(sys.platform == "linux", "Docker raw-map formatter reproduction uses the Linux Go toolchain")
+    def test_actual_go_template_keeps_absent_optional_manifest_and_containerd_descriptor(self):
+        go = shutil.which("go")
+        if go is None:
+            self.skipTest("Go is unavailable; this is a formatter reproduction, not a Docker daemon test")
+        program = '''package main
+import("bytes";"encoding/json";"os";"text/template")
+type Input struct { Template string; Values []map[string]any }
+func main() {
+ var input Input; if json.NewDecoder(os.Stdin).Decode(&input)!=nil { os.Exit(2) }
+ fn:=template.FuncMap{"json":func(v any)(string,error){b,e:=json.Marshal(v);return string(b),e}}
+ t,e:=template.New("inspect").Funcs(fn).Option("missingkey=error").Parse(input.Template);if e!=nil{os.Exit(3)}
+ var typed bytes.Buffer;typedErr:=t.Execute(&typed,struct{ID string}{"synthetic"})
+ out:=[]map[string]any{}
+ for _,v:=range input.Values {
+  var b bytes.Buffer;err:=t.Execute(&b,v);r:=map[string]any{"ok":err==nil,"typedRejected":typedErr!=nil}
+  if err==nil {var row map[string]any;if json.Unmarshal(b.Bytes(),&row)!=nil{os.Exit(4)};r["row"]=row}
+  out=append(out,r)
+ };if json.NewEncoder(os.Stdout).Encode(out)!=nil{os.Exit(5)}
+}
+'''
+        row = self.record(containerd=False)
+        source = {"Id": row["id"], "Name": row["name"], "Created": row["created"], "Image": row["imageId"],
+            "Config": {"Image": row["image"], "User": row["user"], "Labels": row["labels"]}, "Mounts": row["mounts"],
+            "HostConfig": {"PortBindings": row["ports"], "ReadonlyRootfs": row["readonly"], "Privileged": row["privileged"],
+                           "CapAdd": row["capAdd"], "CapDrop": row["capDrop"]},
+            "State": {"Status": row["state"], "Running": row["running"], "Paused": row["paused"], "Restarting": row["restarting"],
+                      "OOMKilled": row["oomKilled"], "Pid": row["pid"], "StartedAt": row["started"]},
+            "RestartCount": row["restarts"], "ExecIDs": row["execIds"], "NetworkSettings": {"Networks": row["networks"]}}
+        values = [source, {**source, "ImageManifestDescriptor": None},
+                  {**source, "Image": self.INDEX, "ImageManifestDescriptor": self.MANIFEST},
+                  {**source, "Image": self.INDEX, "ImageManifestDescriptor": {"secret": "PRIVATE"}}]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "main.go"
+            path.write_text(program, encoding="utf-8")
+            environment = {**os.environ, "GOTOOLCHAIN": "local", "GO111MODULE": "off", "GOPROXY": "off", "GOSUMDB": "off", "GOTMPDIR": directory}
+            result = subprocess.run([go, "run", str(path)], input=json.dumps({"Template": harness.CLOUD_INSPECT, "Values": values}).encode(),
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=environment, timeout=120, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", "replace"))
+        observed = json.loads(result.stdout)
+        self.assertTrue(all(value["ok"] and value["typedRejected"] for value in observed))
+        self.assertEqual([value["row"]["imageManifest"] for value in observed], [None, None, self.MANIFEST, {"secret": "PRIVATE"}])
+        for value in observed[:3]:
+            harness.cloud_container_identity(value["row"], self.earliest)
+        with self.assertRaisesRegex(harness.Failure, "CLOUD_FAULT_CONTAINER_IDENTITY"):
+            harness.cloud_container_identity(observed[3]["row"], self.earliest)
+
+
 if __name__ == "__main__":
     if sys.argv[1:] == ["--evidence"]:
         suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])

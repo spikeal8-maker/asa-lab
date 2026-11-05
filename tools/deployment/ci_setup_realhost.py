@@ -62,9 +62,12 @@ CLOUD_CONTAINER = CLOUD_PROJECT + "-rclone-1"
 CLOUD_IMAGE = "rclone/rclone@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5"
 # The pinned linux/amd64 OCI config identifies rclone v1.75.2, source be8d6044.
 CLOUD_IMAGE_ID = "sha256:7ab08c1ee84502fb76ec95b3dc759aa46a9074cce2967d540e0ab50d8c844af4"
+CLOUD_IMAGE_MANIFEST_ID = "sha256:5a25abdcf2f2f093a03e1e6a13caddeb5fae3cd07ae6c699768e6f1917a5d3ce"
+CLOUD_IMAGE_MANIFEST_BYTES = 1920
 CLOUD_SOURCE_SHA256 = "c6e30c3d1fa8aaa57e14c89b22c5677af5f5c5e132881925f2197949d7797d08"
 CLOUD_INSPECT = ('{"id":{{json .Id}},"name":{{json .Name}},"created":{{json .Created}},'
     '"image":{{json .Config.Image}},"imageId":{{json .Image}},"user":{{json .Config.User}},'
+    '"imageManifest":{{json (index . "ImageManifestDescriptor")}},'
     '"labels":{{json .Config.Labels}},"mounts":{{json .Mounts}},"ports":{{json .HostConfig.PortBindings}},'
     '"readonly":{{json .HostConfig.ReadonlyRootfs}},"state":{{json .State.Status}},'
     '"privileged":{{json .HostConfig.Privileged}},"capAdd":{{json .HostConfig.CapAdd}},"capDrop":{{json .HostConfig.CapDrop}},'
@@ -3835,6 +3838,82 @@ def cloud_timestamp_ns(value):
     return delta.days * 86400 * 10**9 + delta.seconds * 10**9 + int((match[2] or "").ljust(9, "0"))
 
 
+def cloud_image_identity(record):
+    # The pinned OCI index binds this exact linux/amd64 manifest and its config.
+    # Moby 70efc0e31da3a115fc87574d1b786fa2b867c346 containerd.GetImage uses
+    # the index target as ImageID; the classic store uses the config digest.
+    descriptor = record.get("imageManifest")
+    image_id = record.get("imageId")
+    expected = {"digest": CLOUD_IMAGE_MANIFEST_ID, "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "size": CLOUD_IMAGE_MANIFEST_BYTES, "platform": {"architecture": "amd64", "os": "linux"}}
+    if image_id == CLOUD_IMAGE_ID:
+        require(descriptor is None, "CLOUD_FAULT_CONTAINER_IDENTITY")
+    else:
+        require(image_id == CLOUD_IMAGE.split("@", 1)[1] and type(descriptor) is dict
+                and set(descriptor) == set(expected) and type(descriptor.get("size")) is int
+                and type(descriptor.get("platform")) is dict and descriptor == expected,
+                "CLOUD_FAULT_CONTAINER_IDENTITY")
+    return {"imageId": image_id, "imageManifest": expected if descriptor is not None else None}
+
+
+def cloud_container_identity_observation(record):
+    """Describe only fixed predicates from this failed inspect; never adopt it."""
+    if type(record) is not dict:
+        return {"format": "asa-realhost-cloud-identity-v1", "status": "UNAVAILABLE"}
+
+    def state(typed, matches):
+        return "UNAVAILABLE" if not typed else "SAME" if matches else "DIFFERENT"
+
+    labels, mounts = record.get("labels"), record.get("mounts")
+    expected_labels = {"asa.owner": CLOUD_PROJECT, "com.docker.compose.project": CLOUD_PROJECT,
+        "com.docker.compose.service": "rclone", "com.docker.compose.project.working_dir": str(CLOUD_ROOT),
+        "com.docker.compose.project.config_files": str(CLOUD_ROOT / "compose.json")}
+    labels_typed = type(labels) is dict and all(type(labels.get(key)) is str for key in expected_labels)
+    labels_typed = labels_typed and type(labels.get("com.docker.compose.oneoff")) is str
+    mounts_typed = type(mounts) is list and all(type(item) is dict
+        and all(type(item.get(key)) is str for key in ("Type", "Source", "Destination"))
+        and type(item.get("RW")) is bool for item in mounts)
+    descriptor, image_id = record.get("imageManifest"), record.get("imageId")
+    descriptor_typed = type(descriptor) is dict and set(descriptor) == {"digest", "mediaType", "size", "platform"}
+    descriptor_typed = descriptor_typed and all(type(descriptor.get(key)) is str for key in ("digest", "mediaType"))
+    descriptor_typed = descriptor_typed and type(descriptor.get("size")) is int and type(descriptor.get("platform")) is dict
+    descriptor_typed = descriptor_typed and set(descriptor["platform"]) == {"architecture", "os"}
+    descriptor_typed = descriptor_typed and all(type(value) is str for value in descriptor["platform"].values())
+    image_typed = type(image_id) is str and (descriptor_typed or descriptor is None
+        and image_id != CLOUD_IMAGE.split("@", 1)[1])
+    try:
+        cloud_image_identity(record)
+        image_matches = True
+    except Failure:
+        image_matches = False
+    security_typed = type(record.get("user")) is str and all(type(record.get(key)) is bool
+        for key in ("readonly", "privileged")) and (record.get("ports") is None or type(record.get("ports")) is dict)
+    security_typed = security_typed and (record.get("capAdd") is None or type(record.get("capAdd")) is list
+        and all(type(value) is str for value in record["capAdd"])) and type(record.get("capDrop")) is list
+    security_typed = security_typed and all(type(value) is str for value in record["capDrop"])
+    state_typed = all(type(record.get(key)) is bool for key in ("paused", "restarting", "oomKilled"))
+    state_typed = state_typed and type(record.get("restarts")) is int
+    predicates = {
+        "id": state(type(record.get("id")) is str and type(record.get("name")) is str,
+                    isinstance(record.get("id"), str) and bool(HEX64.fullmatch(record["id"]))
+                    and record.get("name") == "/" + CLOUD_CONTAINER),
+        "labels": state(labels_typed, labels_typed and all(labels[key] == value for key, value in expected_labels.items())
+                        and labels["com.docker.compose.oneoff"] in ("False", "false")),
+        "mounts": state(mounts_typed, mounts_typed and len(mounts) == 2
+                        and all(item["Type"] == "bind" and item["RW"] is True for item in mounts)
+                        and {(item["Source"], item["Destination"]) for item in mounts}
+                        == {(str(CLOUD_ROOT / "config"), "/config/rclone"), (str(CLOUD_ROOT / "data"), "/data")}),
+        "imageReference": state(type(record.get("image")) is str, record.get("image") == CLOUD_IMAGE),
+        "imageIdentity": state(image_typed, image_matches),
+        "security": state(security_typed, record.get("user") == "1000:1000" and record.get("readonly") is True
+                          and record.get("ports") in ({}, None) and record.get("privileged") is False
+                          and record.get("capAdd") in (None, []) and record.get("capDrop") == ["ALL"]),
+        "state": state(state_typed, record.get("paused") is False and record.get("restarting") is False
+                       and record.get("oomKilled") is False and type(record.get("restarts")) is int and record["restarts"] == 0),
+    }
+    return {"format": "asa-realhost-cloud-identity-v1", "status": "OBSERVED", "predicates": predicates}
+
+
 def cloud_container_identity(record, earliest_ns):
     require(isinstance(record, dict) and isinstance(record.get("id"), str) and HEX64.fullmatch(record["id"]),
             "CLOUD_FAULT_CONTAINER_IDENTITY")
@@ -3851,8 +3930,9 @@ def cloud_container_identity(record, earliest_ns):
             and {(item.get("Source"), item.get("Destination")) for item in mounts}
             == {(str(CLOUD_ROOT / "config"), "/config/rclone"), (str(CLOUD_ROOT / "data"), "/data")},
             "CLOUD_FAULT_CONTAINER_IDENTITY")
+    image_identity = cloud_image_identity(record)
     require(record.get("name") == "/" + CLOUD_CONTAINER and record.get("image") == CLOUD_IMAGE
-            and record.get("imageId") == CLOUD_IMAGE_ID and record.get("user") == "1000:1000"
+            and record.get("user") == "1000:1000"
             and record.get("readonly") is True and record.get("ports") in ({}, None)
             and record.get("privileged") is False and record.get("capAdd") in (None, [])
             and record.get("capDrop") == ["ALL"]
@@ -3867,7 +3947,7 @@ def cloud_container_identity(record, earliest_ns):
             and len(set(record["execIds"])) == len(record["execIds"])),
             "CLOUD_FAULT_EXEC_IDENTITY")
     return {"id": record["id"], "created": record["created"], "started": record["started"],
-            "image": CLOUD_IMAGE, "imageId": CLOUD_IMAGE_ID, "labels": expected_labels,
+            "image": CLOUD_IMAGE, **image_identity, "labels": expected_labels,
             "mounts": sorted([item["Source"], item["Destination"]] for item in mounts),
             "user": "1000:1000", "readonly": True, "publicPorts": False}
 
@@ -4373,7 +4453,16 @@ class CloudFault:
         require(len(ids) == len(networks) == 1, "CLOUD_FAULT_INVENTORY")
         record = json.loads(self.docker("inspect", "--format", CLOUD_INSPECT, ids[0]))
         network = json.loads(self.docker("network", "inspect", "--format", CLOUD_NETWORK_INSPECT, networks[0]))
-        identity, network_identity = cloud_container_identity(record, self.earliest_ns), cloud_network_identity(network, self.earliest_ns)
+        try:
+            identity = cloud_container_identity(record, self.earliest_ns)
+        except Failure as error:
+            if error.code == "CLOUD_FAULT_CONTAINER_IDENTITY":
+                try:
+                    self.evidence["containerIdentityCheck"] = cloud_container_identity_observation(record)
+                except BaseException:
+                    self.evidence["containerIdentityCheck"] = {"format": "asa-realhost-cloud-identity-v1", "status": "UNAVAILABLE"}
+            raise
+        network_identity = cloud_network_identity(network, self.earliest_ns)
         require(identity["id"] == ids[0] and network_identity["id"] == networks[0]
                 and record.get("running") is True and record.get("state") == "running"
                 and type(record.get("pid")) is int and record["pid"] > 0
