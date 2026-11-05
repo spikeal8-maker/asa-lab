@@ -528,19 +528,17 @@ def utility_compatibility_reason(result, manifest, manifest_sha256):
     require(Path(result["manifest"]).resolve() == manifest.resolve() and
             result["manifestSha256"] == manifest_sha256,
             "Windows PowerShell did not read the exact positively verified Core manifest")
-    if result["imported"]:
-        require(Path(result["modulePath"]).resolve() == manifest.resolve() and
-                result["exportsHash"] is False,
-                "Core Utility import did not demonstrate the missing Get-FileHash export")
-        return "missing_Get-FileHash_export"
-    ids = {"Modules_InsufficientPowerShellVersion", "Modules_PSEditionNotSupported"}
-    types = {"System.BadImageFormatException", "System.IO.FileLoadException",
-             "System.TypeLoadException", "System.Reflection.ReflectionTypeLoadException",
-             "System.MissingMethodException"}
-    require(result["errorStage"] == "import" and (
-        result["errorId"].split(",")[0] in ids or types.intersection(result["exceptionTypes"])
-    ), "Core Utility failed for an unclassified reason, not a demonstrated runtime incompatibility")
-    return "native_runtime_import_error"
+    # The measured native witness imports the exact Core manifest successfully but
+    # lacks the export that its PS7 positive control provides. Import errors are
+    # fixture failures; an exception wrapper or ID is not a compatibility witness.
+    require(result["imported"] is True and result["errorStage"] is None and
+            result["errorId"] == "" and result["exceptionTypes"] == [] and
+            result["errorMessage"] is None,
+            "Core Utility import was not clean; import errors are fixture failures")
+    require(Path(result["modulePath"]).resolve() == manifest.resolve() and
+            result["exportsHash"] is False,
+            "Core Utility import did not demonstrate the missing Get-FileHash export")
+    return "missing_Get-FileHash_export"
 
 
 def check_windows_module_environment(directory, powershell, logs):
@@ -648,8 +646,8 @@ exit 0
     reason = utility_compatibility_reason(
         compatibility_result, core_manifest, core_result["manifestSha256"],
     )
-    require(compatibility.returncode == (0 if compatibility_result["imported"] else 1),
-            "Native Utility compatibility result and process exit disagree")
+    require(compatibility.returncode == 0,
+            "The clean native Utility import witness must exit successfully")
     evidence["compatibilityReason"] = reason
 
     probe = directory / "module-hash-probe.ps1"
@@ -768,25 +766,50 @@ def staging_checks(directory, manifest, binary, revision, logs):
 
 
 class IntegrityTests(unittest.TestCase):
-    def test_utility_compatibility_requires_actual_export_or_runtime_mismatch(self):
+    def test_utility_classifier_rejects_wrapped_access_missing_file_and_unrelated_errors(self):
+        manifest = Path("native-core-utility.psd1").resolve()
+        failed_import = {"version": "5.1.26100.33648", "edition": "Desktop",
+                         "is64BitProcess": True, "manifest": str(manifest),
+                         "manifestSha256": "a" * 64, "imported": False,
+                         "errorStage": "import", "errorMessage": "Unrelated fixture failure"}
+        cases = (
+            ("wrapped_access", "load_error",
+             ["System.IO.FileLoadException", "System.UnauthorizedAccessException"]),
+            ("wrapped_missing_file", "load_error",
+             ["System.Reflection.ReflectionTypeLoadException", "System.IO.FileNotFoundException"]),
+            ("unrelated_fqid", "FormatXmlUpdateException,Microsoft.PowerShell.Commands.ImportModuleCommand",
+             ["System.IO.FileLoadException"]),
+        )
+        for label, error_id, exception_types in cases:
+            result = {**failed_import, "errorId": error_id, "exceptionTypes": exception_types}
+            with self.subTest(case=label), self.assertRaises(ContractError):
+                utility_compatibility_reason(result, manifest, "a" * 64)
+
+    def test_utility_compatibility_requires_clean_missing_export_witness(self):
         manifest = Path("native-core-utility.psd1").resolve()
         native = {"version": "5.1.26100.33648", "edition": "Desktop", "is64BitProcess": True,
                   "manifest": str(manifest), "manifestSha256": "a" * 64,
-                  "imported": True, "modulePath": str(manifest), "exportsHash": False}
+                  "imported": True, "modulePath": str(manifest), "exportsHash": False,
+                  "errorStage": None, "errorId": "", "exceptionTypes": [], "errorMessage": None}
         self.assertEqual(utility_compatibility_reason(native, manifest, "a" * 64),
                          "missing_Get-FileHash_export")
         load_error = {**native, "imported": False, "errorStage": "import", "errorId": "load_error",
                       "exceptionTypes": ["System.BadImageFormatException"]}
-        self.assertEqual(utility_compatibility_reason(load_error, manifest, "a" * 64),
-                         "native_runtime_import_error")
         for invalid in (
+            load_error,
             {**native, "exportsHash": True},
             {**native, "modulePath": str(manifest.parent / "different.psd1")},
             {**native, "manifestSha256": "b" * 64},
             {**native, "is64BitProcess": False},
+            {**native, "errorStage": "module_identity"},
+            {**native, "errorMessage": "Access denied"},
+            {**native, "errorId": "FormatXmlUpdateException"},
+            {**native, "exceptionTypes": ["System.UnauthorizedAccessException"]},
             {**load_error, "exceptionTypes": ["System.UnauthorizedAccessException"]},
             {**load_error, "exceptionTypes": ["System.IO.FileNotFoundException"]},
             {**load_error, "errorStage": "manifest_read"},
+            {**load_error, "errorId": "Modules_InsufficientPowerShellVersion"},
+            {**load_error, "errorId": "Modules_PSEditionNotSupported"},
         ):
             with self.subTest(invalid=invalid), self.assertRaises(ContractError):
                 utility_compatibility_reason(invalid, manifest, "a" * 64)
