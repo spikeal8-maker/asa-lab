@@ -26,6 +26,7 @@ import {
   assertScaleEnvironment,
   assertScaleImages,
   assertScaleIngressConfig,
+  assertScaleApiIngressEnvironment,
   assertScaleDriverNetwork,
   createScaleLedger,
   evaluateScaleLevel,
@@ -296,8 +297,16 @@ async function run() {
   mkdirSync(reports, { recursive: true, mode: 0o777 });
   mkdirSync(resolve(root, 'e2e/artifacts'), { recursive: true, mode: 0o777 });
   mkdirSync(resolve(root, '.asa/diagnostics/store'), { recursive: true });
+  const composeVersion = await capture('docker', ['compose', 'version', '--short']);
   const config = JSON.parse(await composeCapture(['config', '--format', 'json']));
-  assertScaleIngressConfig(config);
+  assertScaleIngressConfig(config, (ingress) =>
+    writeJson(resolve(reports, 'preflight-ingress.json'), {
+      ...initialIdentity,
+      stage: 'resolved-compose-ingress',
+      composeVersion,
+      ingress,
+    }),
+  );
   if (
     Object.values(config.volumes || {}).some((volume) => volume.external) ||
     Object.values(config.networks || {}).some((network) => network.external)
@@ -614,6 +623,14 @@ async function run() {
       const metadata = ownMetadata(
         JSON.parse(await capture('docker', ['inspect', container.id]))[0],
       );
+      if (service === 'api')
+        assertScaleApiIngressEnvironment(metadata, (ingress) =>
+          writeJson(resolve(reports, 'runtime-api-ingress.json'), {
+            ...initialIdentity,
+            stage: 'owned-api-before-calibration',
+            ingress,
+          }),
+        );
       const image = JSON.parse(await capture('docker', ['image', 'inspect', metadata.Image]))[0];
       images.push({
         service,

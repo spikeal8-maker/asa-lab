@@ -356,25 +356,153 @@ const integer = (value) => Number.isSafeInteger(value) && value >= 0;
 
 /** Validate the resolved Compose configuration, before creating any resources.
  * The ordinary canonical loopback origin policy remains the application guard;
- * the old web:8080-only isolated-origin exception is deliberately absent. */
-export function assertScaleIngressConfig(config) {
-  const { api, web, scratch, 'test-runner': driver } = config.services || {};
-  if (
-    api?.environment?.NODE_ENV !== 'test' ||
-    String(api.environment.ASA_WEB_PORT) !== '8080' ||
-    api.environment.ASA_WEB_ORIGIN !== SCALE_ORIGIN ||
-    'ASA_ISOLATED_TEST_WEB_ORIGIN' in api.environment ||
-    api.environment.ASA_BLOCKS_RUNTIME_ORIGIN !== SCALE_ORIGIN ||
-    web?.build?.args?.ASA_BLOCKS_RUNTIME_ORIGIN !== SCALE_ORIGIN ||
-    web?.environment?.ASA_BLOCKS_RUNTIME_ORIGIN !== SCALE_ORIGIN ||
-    scratch?.build?.args?.ASA_BLOCKS_PARENT_ORIGIN !== SCALE_ORIGIN ||
-    scratch?.environment?.ASA_BLOCKS_PARENT_ORIGIN !== SCALE_ORIGIN ||
-    driver?.environment?.ASA_E2E_BASE_URL !== SCALE_ORIGIN ||
-    driver?.network_mode !== 'service:web' ||
-    (driver.networks && Object.keys(driver.networks).length) ||
-    !['application', 'scratch-runtime', 'database'].every((name) => name in (web.networks || {}))
-  )
-    throw Error('Capacity requires its exact owned Web loopback namespace and origin');
+ * the old web:8080-only isolated-origin exception must be unset. Compose model
+ * null is not runtime absence; assertScaleApiIngressEnvironment checks the latter.
+ * @param {object} config
+ * @param {(evidence: object) => void} [recordEvidence] Synchronous durable sink, before rejection.
+ */
+export function assertScaleIngressConfig(config, recordEvidence) {
+  const networkNames = ['application', 'scratch-runtime', 'database'];
+  const requirements = [
+    ['services.api.environment.NODE_ENV', 'test'],
+    ['services.api.environment.ASA_WEB_PORT', '8080'],
+    ['services.api.environment.ASA_WEB_ORIGIN', SCALE_ORIGIN],
+    ['services.api.environment.ASA_ISOLATED_TEST_WEB_ORIGIN', 'absent-or-null'],
+    ['services.api.environment.ASA_BLOCKS_RUNTIME_ORIGIN', SCALE_ORIGIN],
+    ['services.web.build.args.ASA_BLOCKS_RUNTIME_ORIGIN', SCALE_ORIGIN],
+    ['services.web.environment.ASA_BLOCKS_RUNTIME_ORIGIN', SCALE_ORIGIN],
+    ['services.scratch.build.args.ASA_BLOCKS_PARENT_ORIGIN', SCALE_ORIGIN],
+    ['services.scratch.environment.ASA_BLOCKS_PARENT_ORIGIN', SCALE_ORIGIN],
+    ['services.test-runner.environment.ASA_E2E_BASE_URL', SCALE_ORIGIN],
+    ['services.test-runner.network_mode', 'service:web'],
+    ['services.test-runner.networks', 'empty-or-absent'],
+    ['services.web.networks', 'application,scratch-runtime,database'],
+  ];
+  // Unexpected values can themselves contain credentials. Only these public
+  // constants are printable; all other values retain presence/type/match only.
+  const publicValues = new Set([
+    'test',
+    'production',
+    'development',
+    '',
+    '8080',
+    8080,
+    SCALE_ORIGIN,
+    'http://web:8080',
+    'http://127.0.0.1:4610',
+    'service:web',
+    'host',
+    'none',
+    'bridge',
+    null,
+    true,
+    false,
+  ]);
+  const fields = requirements.map(([path, expected]) => {
+    const parts = path.split('.');
+    const key = parts.pop();
+    const parent = parts.reduce((value, part) => value?.[part], config);
+    const present = parent !== null && typeof parent === 'object' && Object.hasOwn(parent, key);
+    const value = present ? parent[key] : undefined;
+    const type = !present
+      ? 'missing'
+      : value === null
+        ? 'null'
+        : Array.isArray(value)
+          ? 'array'
+          : typeof value;
+    const isNetworks = key === 'networks';
+    const names = value && typeof value === 'object' ? Object.keys(value) : [];
+    const matches =
+      expected === 'absent-or-null'
+        ? !present || value === null
+        : path === 'services.api.environment.ASA_WEB_PORT'
+          ? String(value) === expected
+          : path === 'services.test-runner.networks'
+            ? !value || Object.keys(value).length === 0
+            : path === 'services.web.networks'
+              ? networkNames.every((name) => names.includes(name))
+              : value === expected;
+    return {
+      path,
+      expected,
+      present,
+      type,
+      matches,
+      ...(isNetworks
+        ? {
+            knownNames: networkNames.filter((name) => names.includes(name)),
+            entryCount: names.length,
+            otherNameCount: names.filter((name) => !networkNames.includes(name)).length,
+          }
+        : publicValues.has(value)
+          ? { value }
+          : present
+            ? { redacted: true }
+            : {}),
+    };
+  });
+  const mismatches = fields.filter((field) => !field.matches).map((field) => field.path);
+  const failure = mismatches.join(', ');
+  const valid = mismatches.length === 0;
+  const evidence = { schemaVersion: 1, valid, mismatches, fields };
+  recordEvidence?.(evidence);
+  if (!valid)
+    throw Error('Capacity requires its exact owned Web loopback namespace and origin: ' + failure);
+  return evidence;
+}
+
+/** Call only after the controller's project/run/working-directory ownership check.
+ * A null Compose model must produce no actual container variable, even empty.
+ * @param {object} metadata
+ * @param {(evidence: object) => void} [recordEvidence]
+ */
+export function assertScaleApiIngressEnvironment(metadata, recordEvidence) {
+  const raw = metadata?.Config?.Env;
+  const validShape = Array.isArray(raw) && raw.every((entry) => typeof entry === 'string');
+  const entries = validShape ? raw : [];
+  const isolatedKey = 'ASA_ISOLATED_TEST_WEB_ORIGIN';
+  const isolatedKeyCount = entries.filter(
+    (entry) => entry === isolatedKey || entry.startsWith(isolatedKey + '='),
+  ).length;
+  const fields = [
+    ['NODE_ENV', 'test'],
+    ['ASA_WEB_PORT', '8080'],
+    ['ASA_WEB_ORIGIN', SCALE_ORIGIN],
+    ['ASA_BLOCKS_RUNTIME_ORIGIN', SCALE_ORIGIN],
+  ].map(([key, expected]) => {
+    const values = entries.filter((entry) => entry === key || entry.startsWith(key + '='));
+    return {
+      key,
+      expected,
+      count: values.length,
+      matches: values.length === 1 && values[0] === key + '=' + expected,
+    };
+  });
+  const containerId = /^[a-f0-9]{64}$/.test(metadata?.Id || '') ? metadata.Id : null;
+  const apiService = metadata?.Config?.Labels?.['com.docker.compose.service'] === 'api';
+  const mismatches = [
+    ...(!containerId ? ['Id'] : []),
+    ...(!apiService ? ['Config.Labels.com.docker.compose.service'] : []),
+    ...(!validShape ? ['Config.Env'] : []),
+    ...(isolatedKeyCount ? ['Config.Env.' + isolatedKey] : []),
+    ...fields.filter((field) => !field.matches).map((field) => 'Config.Env.' + field.key),
+  ];
+  const failure = mismatches.join(', ');
+  const valid = mismatches.length === 0;
+  const evidence = {
+    schemaVersion: 1,
+    valid,
+    containerId,
+    apiService,
+    validEnvironmentShape: validShape,
+    isolatedKeyCount,
+    mismatches,
+    fields,
+  };
+  recordEvidence?.(evidence);
+  if (!valid) throw Error('Owned API runtime ingress environment mismatch: ' + failure);
+  return evidence;
 }
 
 /** This is used only after the controller has checked both containers' project,

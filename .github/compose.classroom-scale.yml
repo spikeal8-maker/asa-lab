@@ -41,7 +41,7 @@ services:
       APP_DATABASE_URL: postgres://asalab_app:${ASA_SCALE_APP_PASSWORD}@postgres:5432/asalab_test
       ASA_WEB_PORT: '8080'
       ASA_WEB_ORIGIN: http://127.0.0.1:8080
-      ASA_ISOLATED_TEST_WEB_ORIGIN: !reset null
+      ASA_ISOLATED_TEST_WEB_ORIGIN: null
       ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:8080
       ASA_BLOCKS_RUNTIME_SIGNING_KEY: ${ASA_SCALE_SIGNING_KEY:?generated test signing key required}
       ASA_OBJECT_STORAGE_ENDPOINT: http://minio:9000

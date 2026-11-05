@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '../../apps/web/src/blocks/preview-env.d.ts';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { writeFileSync } from 'node:fs';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { act, createElement } from 'react';
@@ -27,6 +28,7 @@ import {
   assertScaleEnvironment,
   assertScaleImages,
   assertScaleIngressConfig,
+  assertScaleApiIngressEnvironment,
   assertScaleDriverNetwork,
   assertScaleSecureContext,
   validateScaleSecureContexts,
@@ -435,6 +437,201 @@ function ingressConfig() {
     },
   };
 }
+
+function changedIngressConfig(path: string, value: unknown) {
+  const config = ingressConfig();
+  const parts = path.split('.');
+  const key = parts.pop()!;
+  const parent = parts.reduce(
+    (entry, part) => entry[part] as Record<string, unknown>,
+    config as Record<string, unknown>,
+  );
+  parent[key] = value;
+  return config;
+}
+
+function apiIngressMetadata() {
+  return {
+    Id: 'a'.repeat(64),
+    Config: {
+      Labels: { 'com.docker.compose.service': 'api' },
+      Env: [
+        'NODE_ENV=test',
+        'ASA_WEB_PORT=8080',
+        'ASA_WEB_ORIGIN=' + SCALE_ORIGIN,
+        'ASA_BLOCKS_RUNTIME_ORIGIN=' + SCALE_ORIGIN,
+        'APP_DATABASE_URL=postgres://private:secret@postgres/asalab_test',
+      ],
+    },
+  };
+}
+
+describe('durable, nonsecret ingress preflight evidence', () => {
+  it.each([
+    ['services.api.environment.NODE_ENV', 'production'],
+    ['services.api.environment.ASA_WEB_PORT', '4612'],
+    ['services.api.environment.ASA_WEB_ORIGIN', 'http://web:8080'],
+    ['services.api.environment.ASA_ISOLATED_TEST_WEB_ORIGIN', 'http://web:8080'],
+    ['services.api.environment.ASA_BLOCKS_RUNTIME_ORIGIN', 'http://web:8080'],
+    ['services.web.build.args.ASA_BLOCKS_RUNTIME_ORIGIN', 'http://web:8080'],
+    ['services.web.environment.ASA_BLOCKS_RUNTIME_ORIGIN', 'http://web:8080'],
+    ['services.scratch.build.args.ASA_BLOCKS_PARENT_ORIGIN', 'http://web:8080'],
+    ['services.scratch.environment.ASA_BLOCKS_PARENT_ORIGIN', 'http://web:8080'],
+    ['services.test-runner.environment.ASA_E2E_BASE_URL', 'http://web:8080'],
+    ['services.test-runner.network_mode', 'host'],
+    ['services.test-runner.networks', { database: {} }],
+    ['services.web.networks', { application: {} }],
+  ] as const)('names the failed field %s without changing its rejection', (path, value) => {
+    const record = vi.fn();
+    expect(() => assertScaleIngressConfig(changedIngressConfig(path, value), record)).toThrow(path);
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(record.mock.calls[0]![0]).toMatchObject({ valid: false, mismatches: [path] });
+    expect(record.mock.calls[0]![0].fields).toHaveLength(13);
+  });
+
+  it('persists the exact inherited-origin mismatch before throwing, even before plan creation', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'scale-ingress-evidence-'));
+    const report = join(directory, 'preflight-ingress.json');
+    const field = 'services.api.environment.ASA_ISOLATED_TEST_WEB_ORIGIN';
+    try {
+      expect(() =>
+        assertScaleIngressConfig(changedIngressConfig(field, 'http://web:8080'), (evidence) =>
+          writeFileSync(
+            report,
+            JSON.stringify({ stage: 'resolved-compose-ingress', ingress: evidence }),
+          ),
+        ),
+      ).toThrow(field);
+      const saved = JSON.parse(await readFile(report, 'utf8'));
+      expect(saved.ingress).toMatchObject({ valid: false, mismatches: [field] });
+      expect(saved.ingress.fields).toContainEqual({
+        path: field,
+        expected: 'absent-or-null',
+        present: true,
+        type: 'string',
+        matches: false,
+        value: 'http://web:8080',
+      });
+      expect(() =>
+        assertScaleIngressConfig(changedIngressConfig(field, 'http://web:8080'), (evidence) =>
+          Object.assign(evidence, { valid: true, mismatches: [] }),
+        ),
+      ).toThrow(field);
+      expect(() =>
+        assertScaleIngressConfig(ingressConfig(), () => {
+          throw Error('sink unavailable');
+        }),
+      ).toThrow('sink unavailable');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('redacts arbitrary field values and network names while preserving type and mismatch', () => {
+    const record = vi.fn();
+    const config = changedIngressConfig(
+      'services.api.environment.ASA_WEB_ORIGIN',
+      'http://private:secret@host/',
+    );
+    Object.assign(config.services.web.networks, { 'private-network-secret': {} });
+    Object.assign(config.services.api.environment, {
+      APP_DATABASE_URL: 'postgres://private:secret@host/',
+    });
+    expect(() => assertScaleIngressConfig(config, record)).toThrow(
+      'services.api.environment.ASA_WEB_ORIGIN',
+    );
+    const evidence = record.mock.calls[0]![0];
+    expect(JSON.stringify(evidence)).not.toMatch(/private|secret|postgres:/);
+    expect(evidence.fields).toContainEqual({
+      path: 'services.api.environment.ASA_WEB_ORIGIN',
+      expected: SCALE_ORIGIN,
+      present: true,
+      type: 'string',
+      matches: false,
+      redacted: true,
+    });
+    expect(evidence.fields).toContainEqual(
+      expect.objectContaining({
+        path: 'services.web.networks',
+        knownNames: ['application', 'scratch-runtime', 'database'],
+        entryCount: 4,
+        otherNameCount: 1,
+      }),
+    );
+  });
+
+  it('accepts only absent or exact null in the model, never a present undefined or any string', () => {
+    const field = 'services.api.environment.ASA_ISOLATED_TEST_WEB_ORIGIN';
+    expect(assertScaleIngressConfig(ingressConfig()).valid).toBe(true);
+    expect(assertScaleIngressConfig(changedIngressConfig(field, null)).valid).toBe(true);
+    for (const value of [undefined, '', ' ', '\t', 'http://web:8080', SCALE_ORIGIN])
+      expect(() => assertScaleIngressConfig(changedIngressConfig(field, value))).toThrow(field);
+    // The unchanged product resolver disables the exception only for actual
+    // runtime absence. Compose null is deliberately not passed to this API.
+    expect(
+      resolveIsolatedTestWebOrigin(undefined, 'test', environment().TEST_DATABASE_URL),
+    ).toBeNull();
+    for (const value of ['', ' ', '\t'])
+      expect(() =>
+        resolveIsolatedTestWebOrigin(value, 'test', environment().TEST_DATABASE_URL),
+      ).toThrow();
+  });
+});
+
+describe('actual owned API ingress environment before calibration', () => {
+  it('requires runtime absence and exact canonical fields without recording other environment values', () => {
+    const evidence = assertScaleApiIngressEnvironment(apiIngressMetadata());
+    expect(evidence).toMatchObject({
+      valid: true,
+      isolatedKeyCount: 0,
+      containerId: 'a'.repeat(64),
+    });
+    expect(JSON.stringify(evidence)).not.toMatch(/APP_DATABASE_URL|private|secret|postgres:/);
+    for (const entry of [
+      'ASA_ISOLATED_TEST_WEB_ORIGIN',
+      'ASA_ISOLATED_TEST_WEB_ORIGIN=',
+      'ASA_ISOLATED_TEST_WEB_ORIGIN=null',
+      'ASA_ISOLATED_TEST_WEB_ORIGIN= ',
+      'ASA_ISOLATED_TEST_WEB_ORIGIN=http://web:8080',
+    ]) {
+      const metadata = apiIngressMetadata();
+      metadata.Config.Env.push(entry);
+      const record = vi.fn();
+      expect(() => assertScaleApiIngressEnvironment(metadata, record)).toThrow(
+        'Config.Env.ASA_ISOLATED_TEST_WEB_ORIGIN',
+      );
+      expect(record.mock.calls[0]![0]).toMatchObject({ valid: false, isolatedKeyCount: 1 });
+      expect(() =>
+        assertScaleApiIngressEnvironment(metadata, (evidence) =>
+          Object.assign(evidence, { valid: true, mismatches: [] }),
+        ),
+      ).toThrow('Config.Env.ASA_ISOLATED_TEST_WEB_ORIGIN');
+    }
+  });
+
+  it('fails closed on absent, duplicate or wrong canonical values and missing API identity/environment', () => {
+    for (const key of ['NODE_ENV', 'ASA_WEB_PORT', 'ASA_WEB_ORIGIN', 'ASA_BLOCKS_RUNTIME_ORIGIN']) {
+      for (const replacement of [[], [key + '=wrong'], [key + '=wrong', key + '=wrong']]) {
+        const metadata = apiIngressMetadata();
+        metadata.Config.Env = metadata.Config.Env.filter(
+          (entry) => !entry.startsWith(key + '='),
+        ).concat(replacement);
+        expect(() => assertScaleApiIngressEnvironment(metadata)).toThrow('Config.Env.' + key);
+      }
+    }
+    for (const metadata of [
+      {},
+      { ...apiIngressMetadata(), Id: 'not-an-id' },
+      { ...apiIngressMetadata(), Config: { ...apiIngressMetadata().Config, Env: null } },
+      { ...apiIngressMetadata(), Config: { ...apiIngressMetadata().Config, Env: [null] } },
+      {
+        ...apiIngressMetadata(),
+        Config: { ...apiIngressMetadata().Config, Labels: { 'com.docker.compose.service': 'web' } },
+      },
+    ])
+      expect(() => assertScaleApiIngressEnvironment(metadata)).toThrow();
+  });
+});
 
 describe('real loopback browser prerequisites', () => {
   it('changes only the invalid ingress origin in the frozen workload profile', () => {
