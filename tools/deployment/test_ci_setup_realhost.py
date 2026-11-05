@@ -246,18 +246,20 @@ class CLIReadWiringTests(unittest.TestCase):
         child.__enter__ = Mock(return_value=child)
         child.__exit__ = Mock(return_value=False)
         child.wait.return_value = (0, json.dumps(result).encode())
-        deadline = time.monotonic() + 60
-        with patch.object(harness, "OwnedFaultProcess", return_value=child) as created:
-            self.assertEqual(harness.cli_control_snapshot(self.owner, "before", deadline), proof)
-        args, options = created.call_args
-        self.assertEqual(options["owner"], self.owner)
-        self.assertEqual(options["deadline"], deadline - 12)
-        self.assertEqual(float(args[0][-1]), deadline - 16)
-        self.assertLessEqual(child.wait.call_args.args[0], 48)
-        for malformed in ({**proof, "secret": "PRIVATE_TOKEN_SENTINEL"}, {**proof, "databaseRows": True}):
-            child.wait.return_value = (0, json.dumps({**result, "control": malformed}).encode())
-            with patch.object(harness, "OwnedFaultProcess", return_value=child), self.assertRaisesRegex(harness.Failure, "CLI_CONTROL_CALLBACK"):
-                harness.cli_control_snapshot(self.owner, "after", time.monotonic() + 60)
+        # One exactly representable clock keeps this contract independent of tick rounding.
+        with patch.object(harness.time, "monotonic", return_value=1000.0):
+            deadline = time.monotonic() + 60
+            with patch.object(harness, "OwnedFaultProcess", return_value=child) as created:
+                self.assertEqual(harness.cli_control_snapshot(self.owner, "before", deadline), proof)
+            args, options = created.call_args
+            self.assertEqual(options["owner"], self.owner)
+            self.assertEqual(options["deadline"], deadline - 12)
+            self.assertEqual(float(args[0][-1]), deadline - 16)
+            self.assertLessEqual(child.wait.call_args.args[0], 48)
+            for malformed in ({**proof, "secret": "PRIVATE_TOKEN_SENTINEL"}, {**proof, "databaseRows": True}):
+                child.wait.return_value = (0, json.dumps({**result, "control": malformed}).encode())
+                with patch.object(harness, "OwnedFaultProcess", return_value=child), self.assertRaisesRegex(harness.Failure, "CLI_CONTROL_CALLBACK"):
+                    harness.cli_control_snapshot(self.owner, "after", time.monotonic() + 60)
 
     def test_callback_refuses_exhausted_budget_without_starting_a_process(self):
         with patch.object(harness, "OwnedFaultProcess") as created, self.assertRaisesRegex(harness.Failure, "CLI_CONTROL_DEADLINE"):
