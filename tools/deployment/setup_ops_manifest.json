@@ -1,0 +1,26 @@
+{
+  "format": "asa-setup-ops-v1",
+  "repository": "spikeal8-maker/Server-setings",
+  "revision": "88f3f76144d8b499fe70a3c9beccba16c80e0856",
+  "browserRuntime": {
+    "distribution": "playwright",
+    "version": "1.56.0"
+  },
+  "files": [
+    {
+      "path": "scripts/asa_ops/browser_acceptance.py",
+      "packagedPath": "tools/deployment/ops/asa_ops/browser_acceptance.py",
+      "sha256": "7e28aa8254011eb082331c2800909f1ce7f07b4da73473ed3942aacdb1691adc"
+    },
+    {
+      "path": "scripts/asa_ops/acceptance_fixture.py",
+      "packagedPath": "tools/deployment/ops/asa_ops/acceptance_fixture.py",
+      "sha256": "64de2bc8478d5aaa60f60fa1b0035448d8c467cf0ffcc92a0aa0be22d3b4786f"
+    },
+    {
+      "path": "scripts/cloud_storage.py",
+      "packagedPath": "tools/deployment/ops/cloud_storage.py",
+      "sha256": "72e35bbb3043acefb423cfe706f82b089eaba974deb04f16df8f335093c59d0c"
+    }
+  ]
+}
