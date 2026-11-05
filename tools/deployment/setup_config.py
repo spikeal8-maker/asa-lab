@@ -12,9 +12,10 @@ import uuid
 
 from .backup_workflow import TRANSPORT_SHA256, validate_policy
 from .backup_schedule import validate_schedule
-from .contracts import Blocked, attest_editor_env, require, validate_release
+from .contracts import Blocked, attest_editor_env, read_env, require, validate_release
 from .paths import atomic_bytes, plain_paths
 from .setup_acceptance import BROWSER_SHA256
+from .system import PUBLIC_ORIGINS_FILE, PUBLIC_ORIGINS_MARKER, PUBLIC_ORIGINS_MODE, public_origins_snapshot
 
 
 FORMAT = "asa-setup-config-v1"
@@ -101,9 +102,12 @@ def replace_legacy_manager_state(root, name, value):
             files = record.get("files")
             require(isinstance(record.get("revision"), str) and re.fullmatch(r"[a-f0-9]{40}", record["revision"])
                     and isinstance(files, dict) and "compose.yaml" in files
-                    and set(files) <= {"compose.yaml", "compose.dev.yaml", "compose.production.yaml", "compose.staging.yaml", "compose.frp.yaml", ".asa/docker-networks.yaml"}
+                    and set(files) <= {"compose.yaml", "compose.dev.yaml", "compose.production.yaml", "compose.staging.yaml", "compose.frp.yaml", ".asa/docker-networks.yaml", PUBLIC_ORIGINS_FILE}
                     and all(isinstance(content, str) for content in files.values()),
                     "LEGACY_STATE_FORMAT", "Сохранённая конфигурация runtime не прошла проверку.")
+            environment = read_env(Path(root) / ".env") if (Path(root) / ".env").exists() else {}
+            public_origins_snapshot(files, required=environment.get(PUBLIC_ORIGINS_MARKER) == PUBLIC_ORIGINS_MODE
+                                    or os.path.lexists(Path(root) / PUBLIC_ORIGINS_FILE))
             if record.get("installedRelease") is not None:
                 validate_release(record["installedRelease"])
     validate(value)

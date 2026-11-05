@@ -114,6 +114,94 @@ class BrowserEvidenceTests(unittest.TestCase):
         self.assertEqual(result["error"], {"stage": "blocks_save", "code": "RuntimeError"})
         self.assertNotIn("never-publish", json.dumps(result))
 
+    def test_closed_save_reopen_markers_preserve_failed_outcome_and_completed_checks(self):
+        for code, stage in (("SAVE_NOT_OBSERVED", "blocks_save"),
+                            ("REOPEN_VALUE_MISMATCH", "blocks_save"),
+                            ("REOPEN_DRAFT_MISMATCH", "electronics_save")):
+            with self.subTest(code=code):
+                changed = copy.deepcopy(self.payload)
+                changed["returncode"] = 2
+                completed = acceptance.REQUIRED_CHECKS[:3] if stage == "blocks_save" else acceptance.REQUIRED_CHECKS[:-1]
+                changed["report"]["checks"] = {key: key in completed for key in acceptance.REQUIRED_CHECKS}
+                changed["report"]["error"] = {"stage": stage, "code": code,
+                    "message": "PRIVATE_MESSAGE", "SQLSTATE": "PRIVATE_SQL", "details": {"token": "PRIVATE_TOKEN"}}
+                changed["report"]["unknown"] = {"secret": "PRIVATE_REPORT"}
+                result = acceptance.validate_browser_report(changed, self.binding, 2)
+                self.assertEqual(result["status"], "failed")
+                self.assertEqual(result["reasonCode"], "BROWSER_USER_FLOW_FAILED")
+                self.assertEqual(result["error"], {"stage": stage, "code": code})
+                self.assertEqual(result["checks"], {key: "passed" if key in completed else "failed"
+                                                   for key in acceptance.REQUIRED_CHECKS})
+                self.assertEqual(set(result), {"status", "checks", "reasonCode", "error"})
+                self.assertNotIn("PRIVATE_", json.dumps(result))
+
+    def test_raw_browser_error_values_and_unknown_fields_are_not_projected(self):
+        # The pinned producer owns closed marker/fallback classification;
+        # this envelope boundary must not copy raw text or extra report fields.
+        for value in ("SAVE_NOT_OBSERVED private-token", "REOPEN_VALUE_MISMATCH\nprivate-token",
+                      "API_STATUS_403\n", {"token": "private-token"}):
+            with self.subTest(value_type=type(value).__name__):
+                changed = copy.deepcopy(self.payload)
+                changed["returncode"] = 2
+                changed["report"]["checks"]["scratch_save_reopen"] = False
+                changed["report"]["error"] = {"stage": "blocks_save", "code": value,
+                                               "UNKNOWN_FIELD": "private-token"}
+                result = acceptance.validate_browser_report(changed, self.binding, 2)
+                self.assertEqual(result["status"], "failed")
+                self.assertEqual(result["error"], {"stage": "blocks_save"})
+                self.assertNotIn("private-token", json.dumps(result))
+
+    def test_identity_marker_keeps_failed_checks_and_excludes_private_fields(self):
+        marker = "SYNTHETIC_LOGIN_IDENTITY_MISMATCH"
+        changed = copy.deepcopy(self.payload)
+        changed["returncode"] = 2
+        changed["report"]["checks"] = {key: False for key in acceptance.REQUIRED_CHECKS}
+        changed["report"]["error"] = {"stage": "teacher_login_submit", "code": marker,
+            "message": "PRIVATE_IDENTITY_CANARY", "email": "PRIVATE_IDENTITY_CANARY",
+            "response": {"cookie": "PRIVATE_IDENTITY_CANARY"}}
+        changed["report"]["private"] = "PRIVATE_IDENTITY_CANARY"
+        result = acceptance.validate_browser_report(changed, self.binding, 2)
+        self.assertEqual(result, {"status": "failed", "reasonCode": "BROWSER_USER_FLOW_FAILED",
+            "checks": {key: "failed" for key in acceptance.REQUIRED_CHECKS},
+            "error": {"stage": "teacher_login_submit", "code": marker}})
+        self.assertNotIn("PRIVATE_IDENTITY_CANARY", json.dumps(result))
+
+    def test_identity_marker_does_not_bypass_any_invocation_or_target_binding(self):
+        failed = copy.deepcopy(self.payload)
+        failed["returncode"] = 2
+        failed["report"]["checks"] = {key: False for key in acceptance.REQUIRED_CHECKS}
+        failed["report"]["error"] = {"stage": "teacher_login_submit", "code": "SYNTHETIC_LOGIN_IDENTITY_MISMATCH"}
+        for key in self.binding:
+            with self.subTest(envelope=key):
+                changed = copy.deepcopy(failed)
+                changed[key] = "foreign"
+                with self.assertRaises(Blocked) as caught:
+                    acceptance.validate_browser_report(changed, self.binding, 2)
+                self.assertEqual(caught.exception.code, "BROWSER_REPORT_BINDING")
+        for key in ("revision", "entry_origin"):
+            with self.subTest(report=key):
+                changed = copy.deepcopy(failed)
+                changed["report"][key] = "foreign"
+                with self.assertRaises(Blocked) as caught:
+                    acceptance.validate_browser_report(changed, self.binding, 2)
+                self.assertEqual(caught.exception.code, "BROWSER_REPORT_BINDING")
+
+    def test_identity_unicode_types_and_private_text_do_not_cross_existing_safe_code_filter(self):
+        marker = "SYNTHETIC_LOGIN_IDENTITY_MISMATCH"
+        for value in (marker + "\n", marker + " PRIVATE_IDENTITY_CANARY", marker + "\u200b",
+                      "ＳYNTHETIC_LOGIN_IDENTITY_MISMATCH", None, True, 2, [marker], {"code": marker}):
+            with self.subTest(value_type=type(value).__name__):
+                changed = copy.deepcopy(self.payload)
+                changed["returncode"] = 2
+                changed["report"]["checks"] = {key: False for key in acceptance.REQUIRED_CHECKS}
+                changed["report"]["error"] = {"stage": "teacher_login_submit", "code": value,
+                                               "private": "PRIVATE_IDENTITY_CANARY"}
+                result = acceptance.validate_browser_report(changed, self.binding, 2)
+                self.assertEqual(result["status"], "failed")
+                self.assertEqual(result["reasonCode"], "BROWSER_USER_FLOW_FAILED")
+                self.assertEqual(result["error"], {"stage": "teacher_login_submit"})
+                self.assertNotIn("PRIVATE_IDENTITY_CANARY", json.dumps(result))
+
     def test_environment_failure_is_distinct_from_failed_user_flow(self):
         value = {"format": "asa-browser-invocation-v1", **self.binding, "status": "environment_failed",
                  "reasonCode": "BROWSER_RUNTIME_UNAVAILABLE"}
@@ -184,12 +272,65 @@ class TechnicalAcceptanceTests(unittest.TestCase):
 
 class PinnedComponentTests(unittest.TestCase):
     def test_manifest_pins_the_runtime_components_and_exact_source_commit(self):
+        from deployment import setup_bundle
+
         manifest = json.loads((Path(__file__).parent / "setup_ops_manifest.json").read_text())
         self.assertEqual(manifest["revision"], acceptance.OPS_REVISION)
+        self.assertEqual(setup_bundle.OPS_REVISION, acceptance.OPS_REVISION)
         self.assertEqual(manifest["browserRuntime"]["version"], acceptance.PLAYWRIGHT_VERSION)
         entries = {item["path"]: item for item in manifest["files"]}
         self.assertEqual(entries["scripts/asa_ops/browser_acceptance.py"]["sha256"], acceptance.BROWSER_SHA256)
         self.assertEqual(entries["scripts/asa_ops/acceptance_fixture.py"]["sha256"], acceptance.FIXTURE_SHA256)
+        realhost = json.loads((Path(__file__).parent / "fixtures/setup-realhost-pins.json").read_text())
+        self.assertEqual(realhost["browser"], {"opsRevision": acceptance.OPS_REVISION,
+            "componentSha256": acceptance.BROWSER_SHA256, "fixtureSha256": acceptance.FIXTURE_SHA256,
+            "playwright": acceptance.PLAYWRIGHT_VERSION})
+
+    def test_reviewed_browser_source_and_runtime_pins_are_exact(self):
+        self.assertEqual(acceptance.OPS_REVISION, "a328523a20b1a63775206aa3096a7052930a03e8")
+        self.assertEqual(acceptance.BROWSER_SHA256, "c445903be3327a64b869117171960cd531fa82426fcd5702da7bebfdcd7c6fab")
+        self.assertEqual(acceptance.FIXTURE_SHA256, "64de2bc8478d5aaa60f60fa1b0035448d8c467cf0ffcc92a0aa0be22d3b4786f")
+        self.assertEqual(acceptance.PLAYWRIGHT_VERSION, "1.56.0")
+
+    def assert_reviewed_cloud_pins(self, manifest):
+        from deployment import backup_workflow, ci_setup_realhost
+        import asa_setup_launcher
+
+        entries = {item["path"]: item for item in manifest["files"]}
+        observed = {
+            "manifest": entries["scripts/cloud_storage.py"]["sha256"],
+            "backup": backup_workflow.TRANSPORT_SHA256,
+            "launcher": asa_setup_launcher.CLOUD_SOURCE_SHA256,
+            "harness": ci_setup_realhost.CLOUD_SOURCE_SHA256,
+        }
+        expected = "e494038f3d1ad7e6ae7bc72f0cc0ff8bb3ab3a18d8a96a42d0302f46764ae760"
+        self.assertEqual(observed, {name: expected for name in ("manifest", "backup", "launcher", "harness")})
+
+    def test_cloud_manifest_and_three_runtime_guards_match_reviewed_source_bytes(self):
+        manifest = json.loads((Path(__file__).parent / "setup_ops_manifest.json").read_text())
+        self.assert_reviewed_cloud_pins(manifest)
+
+    def test_each_cloud_pin_drift_is_rejected_and_restores_actual_constants(self):
+        from deployment import backup_workflow, ci_setup_realhost
+        import asa_setup_launcher
+
+        manifest = json.loads((Path(__file__).parent / "setup_ops_manifest.json").read_text())
+        self.assert_reviewed_cloud_pins(manifest)
+        changed = copy.deepcopy(manifest)
+        next(row for row in changed["files"] if row["path"] == "scripts/cloud_storage.py")["sha256"] = "0" * 64
+        with self.subTest(side="manifest"), self.assertRaises(AssertionError):
+            self.assert_reviewed_cloud_pins(changed)
+        for module, attribute in ((backup_workflow, "TRANSPORT_SHA256"),
+                                  (asa_setup_launcher, "CLOUD_SOURCE_SHA256"),
+                                  (ci_setup_realhost, "CLOUD_SOURCE_SHA256")):
+            with self.subTest(side=module.__name__), patch.object(module, attribute, "0" * 64), self.assertRaises(AssertionError):
+                self.assert_reviewed_cloud_pins(manifest)
+        # Agreement alone is insufficient: all four must identify the reviewed bytes.
+        with patch.object(backup_workflow, "TRANSPORT_SHA256", "0" * 64), \
+                patch.object(asa_setup_launcher, "CLOUD_SOURCE_SHA256", "0" * 64), \
+                patch.object(ci_setup_realhost, "CLOUD_SOURCE_SHA256", "0" * 64), self.assertRaises(AssertionError):
+            self.assert_reviewed_cloud_pins(changed)
+        self.assert_reviewed_cloud_pins(manifest)
 
     def test_tampered_source_never_executes_even_with_its_hash_in_config(self):
         with tempfile.TemporaryDirectory() as temporary:

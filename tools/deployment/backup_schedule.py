@@ -46,6 +46,27 @@ def _quoted(value, *, environment=True):
     return '"' + (escaped.replace("$", "$$") if environment else escaped) + '"'
 
 
+def _working_directory(value):
+    """WorkingDirectory is a literal path scalar, not an ExecStart argument."""
+    require(isinstance(value, str) and value.startswith("/") and not any(ord(char) < 32 for char in value),
+            "BACKUP_SCHEDULE_PATH", "Рабочий каталог должен быть абсолютным путём без управляющих символов.")
+    # Preserve a terminal space through strstrip and a terminal backslash through
+    # logical-line continuation. systemd simplifies only the same-directory /.
+    suffix = "/." if value.endswith((" ", "\\")) else ""
+    return value.replace("%", "%%") + suffix
+
+
+def _same_working_directory(text, root):
+    # Match systemd's syntax whitespace, not Unicode/literal path whitespace.
+    # Previously written quoted values remain recognized for duplicate safety.
+    values = {_quoted(str(root), environment=False), _working_directory(str(root))}
+    for line in text.split("\n"):
+        key, separator, value = line.partition("=")
+        if separator and key.strip(" \t\n\r") == "WorkingDirectory" and value.strip(" \t\n\r") in values:
+            return True
+    return False
+
+
 def render_units(root, installation_id, operator, settings, entrypoint):
     """Return systemd contents; does not install units or enable the schedule."""
     settings = validate_schedule(settings)
@@ -69,7 +90,7 @@ StartLimitBurst=3
 [Service]
 Type=oneshot
 User={operator}
-WorkingDirectory={_quoted(str(root), environment=False)}
+WorkingDirectory={_working_directory(str(root))}
 ExecCondition={condition}
 ExecStart={command}
 UMask=0077
@@ -136,7 +157,7 @@ def install_schedule(root, installation_id, operator, settings, entrypoint, *, u
     for existing in directory.glob("asa-backup-*.service"):
         plain_paths(directory, (existing.name,))
         text = existing.read_text(encoding="utf-8")
-        if marker in text or "WorkingDirectory=" + _quoted(str(root), environment=False) in text:
+        if marker in text or _same_working_directory(text, root):
             require(existing.name in units and text.startswith(marker + "\n"),
                     "BACKUP_SCHEDULE_DUPLICATE", "Для этой установки уже существует другое задание backup.",
                     "Разберите существующее задание до включения нового; оно не удаляется автоматически.")
@@ -160,9 +181,18 @@ def install_schedule(root, installation_id, operator, settings, entrypoint, *, u
     _systemctl("daemon-reload")
     timer = unit_name(installation_id) + ".timer"
     _systemctl("enable" if settings["enabled"] else "disable", "--now", timer)
-    result = schedule_status(root, installation_id, settings)
-    require(not settings["enabled"] or result.get("running") is True,
-            "BACKUP_SCHEDULE_INACTIVE", "Настройка сохранена, но timer не запущен.")
+    observation = {}
+    result = schedule_status(root, installation_id, settings, _observation=observation)
+    try:
+        require(not settings["enabled"] or result.get("running") is True,
+                "BACKUP_SCHEDULE_INACTIVE", "Настройка сохранена, но timer не запущен.")
+    except Blocked as error:
+        # Preserve the very same failure and the already-read state; do not retry.
+        try:
+            error.schedule_observation = schedule_observation(observation)
+        except BaseException:
+            error.schedule_observation = {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"}
+        raise
     # Keep this root-owned administrative receipt outside operator-owned .asa.
     return result
 
@@ -239,22 +269,74 @@ def scheduled_attempt(root, installation_id, settings, *, consume=True, instant=
                   "Проверьте status и причину сбоя; для явного продолжения выполните resume. Timer повторит попытку в следующем суточном слоте.")
 
 
-def schedule_status(root, installation_id, settings):
+SCHEDULE_STATE_VALUES = {
+    "loadState": {"stub", "loaded", "not-found", "bad-setting", "error", "merged", "masked"},
+    "activeState": {"active", "reloading", "inactive", "failed", "activating", "deactivating", "maintenance"},
+    "unitFileState": {"enabled", "enabled-runtime", "linked", "linked-runtime", "alias", "masked", "masked-runtime",
+                      "static", "disabled", "indirect", "generated", "transient", "bad"},
+}
+
+
+def schedule_observation(value):
+    """Validate and copy only finite state captured at the existing failure guard."""
+    unavailable = {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"}
+    keys = {"format", "status", "installed", "running", "timerQuery", "loadState", "activeState", "unitFileState", "queryError"}
+    if type(value) is not dict or set(value) != keys or type(value["format"]) is not str or type(value["status"]) is not str:
+        return unavailable
+    if value["format"] != unavailable["format"] or value["status"] != "OBSERVED":
+        return unavailable
+    if type(value["installed"]) is not bool or type(value["running"]) is not bool or type(value["timerQuery"]) is not str:
+        return unavailable
+    for key, allowed in SCHEDULE_STATE_VALUES.items():
+        if type(value[key]) is not str or value[key] not in allowed | {"MISSING", "UNRECOGNIZED", "UNAVAILABLE"}:
+            return unavailable
+    error = value["queryError"]
+    if type(error) is not dict or set(error) != {"source", "code"} or type(error["source"]) is not str:
+        return unavailable
+    if error["source"] == "NONE":
+        if error["code"] is not None:
+            return unavailable
+    elif error["source"] in {"TIMER", "SERVICE"}:
+        if type(error["code"]) is not str or error["code"] not in {"BACKUP_SYSTEMD", "BACKUP_SYSTEMD_UNAVAILABLE"}:
+            return unavailable
+    else:
+        return unavailable
+    if value["timerQuery"] == "UNAVAILABLE":
+        if any(value[key] != "UNAVAILABLE" for key in SCHEDULE_STATE_VALUES) or value["installed"] or value["running"] or error["source"] != "TIMER":
+            return unavailable
+    elif value["timerQuery"] == "OBSERVED":
+        if any(value[key] == "UNAVAILABLE" for key in SCHEDULE_STATE_VALUES) or error["source"] not in {"NONE", "SERVICE"}:
+            return unavailable
+        if value["installed"] != (value["loadState"] == "loaded") or value["running"] != (value["activeState"] == "active" and value["unitFileState"] == "enabled"):
+            return unavailable
+    else:
+        return unavailable
+    return {"format": unavailable["format"], "status": "OBSERVED", "installed": value["installed"], "running": value["running"],
+            "timerQuery": value["timerQuery"], "loadState": value["loadState"], "activeState": value["activeState"],
+            "unitFileState": value["unitFileState"], "queryError": {"source": error["source"], "code": error["code"]}}
+
+
+def schedule_status(root, installation_id, settings, *, _observation=None):
     settings = validate_schedule(settings)
     name = unit_name(installation_id)
     result = {"format": "asa-backup-schedule-v1", "installationId": installation_id,
               "configuration": settings, "installed": False, "running": False, "observedAt": now(),
               "nextRun": None, "lastRun": None, "lastLocalSuccess": None, "lastCloudSuccess": None}
+    timer, query_source, query_code = None, "TIMER", None
     try:
         text = _systemctl("show", name + ".timer", "--property=LoadState,ActiveState,UnitFileState,NextElapseUSecRealtime,LastTriggerUSec")
         value = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+        timer = value
         result.update(installed=value.get("LoadState") == "loaded",
                       running=value.get("ActiveState") == "active" and value.get("UnitFileState") == "enabled",
                       nextRun=value.get("NextElapseUSecRealtime") or None, lastRun=value.get("LastTriggerUSec") or None)
+        query_source = "SERVICE"
         service = _systemctl("show", name + ".service", "--property=Result,ExecMainStatus,ExecMainExitTimestamp,NRestarts")
         result["lastServiceResult"] = dict(line.split("=", 1) for line in service.splitlines() if "=" in line)
+        query_source = "NONE"
     except Blocked as exc:
         result["error"] = exc.code
+        query_code = exc.code
     for key, filename in (("lastLocalSuccess", "last-local-success.json"), ("lastCloudSuccess", "last-cloud-success.json")):
         path = Path(root) / ".asa" / "setup-backups" / filename
         if path.exists():
@@ -262,4 +344,18 @@ def schedule_status(root, installation_id, settings):
             timestamp = dt.datetime.fromisoformat(pointer["at"])
             hours = max(0, (dt.datetime.now(dt.timezone.utc) - timestamp).total_seconds() / 3600)
             result[key] = {**pointer, "ageHours": round(hours, 2), "tooOld": hours > settings["maxAgeHours"]}
+    if type(_observation) is dict:
+        try:
+            fields = {}
+            for key, prop in (("loadState", "LoadState"), ("activeState", "ActiveState"), ("unitFileState", "UnitFileState")):
+                fields[key] = ("UNAVAILABLE" if timer is None else "MISSING" if prop not in timer else
+                               timer[prop] if type(timer[prop]) is str and timer[prop] in SCHEDULE_STATE_VALUES[key] else "UNRECOGNIZED")
+            captured = schedule_observation({"format": "asa-backup-schedule-observation-v1", "status": "OBSERVED",
+                "installed": result["installed"], "running": result["running"], "timerQuery": "UNAVAILABLE" if timer is None else "OBSERVED",
+                "loadState": fields["loadState"], "activeState": fields["activeState"], "unitFileState": fields["unitFileState"],
+                "queryError": {"source": query_source, "code": query_code}})
+        except Exception:
+            captured = {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"}
+        _observation.clear()
+        _observation.update(captured)
     return result

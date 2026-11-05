@@ -31,7 +31,7 @@ MAX_BYTES = 32 * 1024 * 1024
 # not a downloaded or operator-writable Python file passed to sudo. Snapshotting
 # reads stdin, so root never opens an operator-selected download source path.
 ROOT_COMMON = r'''
-import hashlib, io, json, os, re, stat, sys, tarfile, tempfile
+import hashlib, io, json, os, re, stat, subprocess, sys, tarfile, tempfile
 from pathlib import Path
 BASE = Path('/opt/asa-setup')
 MAX_BYTES = 32 * 1024 * 1024
@@ -110,12 +110,26 @@ def stage(archive_name, revision, expected_digest):
     exec(compile(payload, str(archive) + ':setup_bundle.py', 'exec'), namespace)
     destination = BASE / revision
     namespace['stage_archive'](archive, destination, revision=revision, sha256=expected_digest)
+    prepare(destination)
     return {'destination': str(destination), 'revision': revision, 'provenanceVerified': True}
+
+def prepare(destination):
+    # stage_archive has checked every byte/path. The registrar repeats bundle
+    # verification and accepts no operator-writable path or installed receipt.
+    trusted_directory(destination)
+    require(destination.parent == BASE and re.fullmatch(r'[a-f0-9]{40}', destination.name), 'ACQUIRE_DESTINATION')
+    result = subprocess.run([sys.executable, '-I', '-B', str(destination / 'tools/asa_cli.py'),
+        'prepare', '--bundle', str(destination), '--json'], capture_output=True, timeout=60,
+        env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'HOME': '/root', 'LANG': 'C.UTF-8', 'PYTHONDONTWRITEBYTECODE': '1'})
+    require(result.returncode == 0 and len(result.stdout) <= 65536, 'ACQUIRE_CLI_REGISTRATION')
+    proof = json.loads(result.stdout)
+    require(proof.get('command') == 'prepare' and proof.get('status') == 'OK'
+            and proof.get('executable') == '/usr/local/bin/asa', 'ACQUIRE_CLI_REGISTRATION')
 '''
 ROOT_RESULT = r'''
 try:
     print(json.dumps(OPERATION))
-except (ValueError, OSError, KeyError, tarfile.TarError) as error:
+except (ValueError, OSError, KeyError, tarfile.TarError, subprocess.SubprocessError) as error:
     code = str(error) if isinstance(error, ValueError) else 'ACQUIRE_PROTECTED_STAGE_FAILED'
     print(json.dumps({'code': code}), file=sys.stderr)
     raise SystemExit(2)
@@ -144,7 +158,7 @@ def trusted_program(name):
         require(stat.S_ISDIR(metadata.st_mode) and metadata.st_uid == 0
                 and metadata.st_mode & 0o022 == 0, "ACQUIRE_UNTRUSTED_PROGRAM")
     metadata = path.lstat()
-    require(stat.S_ISREG(metadata.st_mode) and metadata.st_uid == 0
+    require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1 and metadata.st_uid == 0
             and metadata.st_mode & 0o022 == 0, "ACQUIRE_UNTRUSTED_PROGRAM")
     return str(path)
 
@@ -206,7 +220,7 @@ def acquire(revision):
             raise AcquisitionError("ACQUIRE_PUBLISHED_RELEASE_REQUIRED") from error
         data = read_download(download)
         # No downloaded program has run; sudo only stores a bounded byte string.
-        snapshot = root_step([sudo, python, "-I", "-c", ROOT_SNAPSHOT, revision], data=data)
+        snapshot = root_step([sudo, python, "-I", "-B", "-c", ROOT_SNAPSHOT, revision], data=data)
         archive = Path(snapshot["archive"])
         digest = hashlib.sha256(data).hexdigest()
         require(snapshot["sha256"] == digest and archive.parent.parent == BASE
@@ -217,7 +231,7 @@ def acquire(revision):
         except subprocess.CalledProcessError as error:
             raise AcquisitionError("ACQUIRE_ATTESTATION_REJECTED") from error
         # This is the first operation allowed to execute code from the archive.
-        result = root_step([sudo, python, "-I", "-c", ROOT_STAGE, str(archive), revision, digest])
+        result = root_step([sudo, python, "-I", "-B", "-c", ROOT_STAGE, str(archive), revision, digest])
         require(result == {"destination": str(BASE / revision), "revision": revision,
                            "provenanceVerified": True}, "ACQUIRE_STAGE_RESPONSE")
         return result
@@ -235,9 +249,10 @@ def main(argv=None):
                           "action": "Check the published release/attestation, trusted gh/Python/sudo, protected /opt/asa-setup parents and existing target. Existing packages were not overwritten; no installer was started."}),
               file=sys.stderr)
         return 2
-    print("Verified setup package: " + result["destination"])
-    print("cd " + result["destination"])
-    print("sudo bash ./asa-setup.sh")
+    print("Проверенный setup пакет: " + result["destination"])
+    print("Команда asa подготовлена до установки и доступна из любого каталога.")
+    print("asa help")
+    print("sudo asa install")
     return 0
 
 

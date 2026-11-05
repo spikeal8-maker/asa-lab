@@ -1,0 +1,117 @@
+name: ASA Real Host Acceptance
+run-name: Real host ${{ github.event.pull_request.head.sha || github.sha }}
+
+'on':
+  pull_request:
+    paths:
+      - 'asa-setup.sh'
+      - 'tools/asa_cli.py'
+      - 'tools/asa_setup*.py'
+      - 'tools/deployment/**'
+      - '.github/workflows/setup-realhost.yml'
+      - 'docs/deployment/SETUP_REALHOST_ACCEPTANCE.md'
+  workflow_dispatch:
+    inputs:
+      acquisition_mode:
+        description: 'candidate uses the PR-style source oracle; published requires the approved attested main release'
+        type: choice
+        options: [candidate, published]
+        default: candidate
+      approved_setup_revision:
+        description: 'Published mode only: approved full 40-character main SHA, equal to this workflow event SHA'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+  attestations: read
+
+concurrency:
+  group: asa-realhost-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  realhost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      SETUP_ACQUISITION_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.acquisition_mode || 'candidate' }}
+      APPROVED_SETUP_REVISION: ${{ github.event_name == 'workflow_dispatch' && inputs.approved_setup_revision || '' }}
+      PYTHONDONTWRITEBYTECODE: '1'
+      NX_SKIP_NX_CACHE: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind acquisition mode to the actual event before privileged preparation
+        run: python3 -B tools/deployment/ci_setup_realhost.py --revision "$SOURCE_REVISION" --acquisition-mode "$SETUP_ACQUISITION_MODE" --approved-setup-revision "$APPROVED_SETUP_REVISION" --check-acquisition-mode
+      - name: Verify the bounded runner cleanup contracts before privileged cleanup
+        run: python3 -B -m unittest discover -s tools/deployment -p 'test_ci_prepare_realhost_runner.py' -v
+      # Only the two fixed preinstalled SDK roots; no cleanup when 24 GiB is already free.
+      # The existing 24 GiB preflight and 3 GiB runtime reserve remain authoritative.
+      - name: Prepare bounded free space in this standard disposable runner
+        timeout-minutes: 3
+        env:
+          ASA_REALHOST_RUNNER_CLEANUP: '1'
+          ASA_REALHOST_RUNNER_LABEL: ubuntu-24.04
+          ASA_REALHOST_PUBLIC_REPOSITORY: ${{ github.event.repository.private == false }}
+        run: |
+          mkdir -p test-results/setup-realhost
+          sudo -n --preserve-env=CI,GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_ARCH,ImageOS,GITHUB_REPOSITORY,GITHUB_WORKFLOW,GITHUB_JOB,GITHUB_EVENT_NAME,GITHUB_WORKFLOW_REF,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_WORKSPACE,RUNNER_TEMP,SOURCE_REVISION,ASA_REALHOST_RUNNER_CLEANUP,ASA_REALHOST_RUNNER_LABEL,ASA_REALHOST_PUBLIC_REPOSITORY /usr/bin/python3 -I -B tools/deployment/ci_prepare_realhost_runner.py > test-results/setup-realhost/runner-preparation.json
+      - name: Measure the disposable runner before installing anything
+        run: python3 tools/deployment/ci_setup_realhost.py --revision "$SOURCE_REVISION" --acquisition-mode "$SETUP_ACQUISITION_MODE" --approved-setup-revision "$APPROVED_SETUP_REVISION" --preflight-only
+      - name: Install VM tools only in this standard disposable runner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils cloud-image-utils ubuntu-keyring gpgv age acl
+      - name: Real Ubuntu and 1Panel with public ASA commands and guest reboot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/deployment/ci_setup_realhost.py --revision "$SOURCE_REVISION" --acquisition-mode "$SETUP_ACQUISITION_MODE" --approved-setup-revision "$APPROVED_SETUP_REVISION"
+      - name: Preserve only the allowlisted evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: asa-realhost-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            test-results/setup-realhost/evidence.json
+            test-results/setup-realhost/runner-preparation.json
+          if-no-files-found: error
+          retention-days: 30
+
+  # Read-only diagnostic export. This job never changes the native job's result.
+  evidence_report:
+    name: Closed native evidence report
+    needs: realhost
+    if: always()
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    env:
+      SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      NATIVE_RESULT: ${{ needs.realhost.result }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Read the exact candidate reporter
+        id: source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Read only this run's revision-bound artifact
+        id: evidence
+        timeout-minutes: 2
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: asa-realhost-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/asa-realhost-report
+      - name: Print closed source-run-attempt-bound evidence
+        if: always() && steps.source.outcome == 'success'
+        run: python3 -I -B tools/deployment/ci_realhost_evidence_report.py

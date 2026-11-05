@@ -24,13 +24,14 @@ import uuid
 REPOSITORY = "spikeal8-maker/asa-lab"
 WORKFLOW = ".github/workflows/setup-release.yml"
 OPS_REPOSITORY = "spikeal8-maker/Server-setings"
-OPS_REVISION = "88f3f76144d8b499fe70a3c9beccba16c80e0856"
+OPS_REVISION = "a328523a20b1a63775206aa3096a7052930a03e8"
 FORMAT = "asa-setup-bundle-v1"
 MANIFEST = "setup-bundle.json"
 MAX_FILE_BYTES = 4 * 1024 * 1024
 MAX_PACKAGE_BYTES = 32 * 1024 * 1024
-REQUIRED = {"asa-setup.sh", "tools/asa_setup.py", "tools/asa_setup_launcher.py", "tools/asa_setup_acquire.py",
-            "tools/asa_manager.py", "tools/deployment/__init__.py"}
+REQUIRED = {"asa-setup.sh", "tools/asa_cli.py", "tools/asa_setup.py", "tools/asa_setup_launcher.py", "tools/asa_setup_acquire.py",
+            "tools/asa_manager.py", "tools/deployment/__init__.py", "tools/deployment/cli_observe.py",
+            "tools/deployment/release_readonly.py"}
 
 
 def ensure(condition, code):

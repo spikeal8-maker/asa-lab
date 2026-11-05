@@ -1,0 +1,618 @@
+"""Public entrypoint regressions, using isolated filesystem/process fixtures.
+
+Root-only trust tests use the real effective UID. Observation subprocesses
+model an ordinary user when the sandbox cannot drop UID; they do not claim
+1Panel, sudo, Windows or real-host acceptance.
+"""
+from __future__ import annotations
+
+import contextlib
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import shlex
+import subprocess
+import sys
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import asa_cli
+from deployment.test_release_readonly import RELEASE
+
+SOURCE = Path(asa_cli.__file__).resolve()
+TOOLS = SOURCE.parent
+SELECTION = {"release": RELEASE, "deploymentDigest": "sha256:" + "c" * 64,
+             "manifestDigest": "sha256:" + "d" * 64, "checkedAt": "2026-11-04T00:00:00+00:00", "ci": "VERIFIED"}
+OBSERVATION_DRIVER = r'''
+import json, os, runpy, sys
+source, selection = sys.argv[1:3]
+sys.path.insert(0, str(__import__("pathlib").Path(source).parent))
+# Some CI sandboxes are UID 0 with no CAP_SETUID/SETGID. This models only the
+# ordinary user's process lookup boundary, not permission-denial evidence.
+if hasattr(os, "geteuid") and os.geteuid() == 0:
+    os.geteuid = lambda: 12345
+from deployment import release_readonly
+release_readonly.resolve_release = lambda digest=None: json.loads(selection)
+sys.argv = [source, *sys.argv[3:]]
+runpy.run_path(source, run_name="__main__")
+'''
+LEGACY_CODEPAGE_DRIVER = r'''
+import runpy, sys
+source = sys.argv[1]
+sys.argv = sys.argv[1:]
+# Reproduce redirected Windows streams even when the test runner is UTF-8.
+# -I deliberately ignores PYTHONIOENCODING/PYTHONUTF8 environment settings.
+for stream in (sys.stdout, sys.stderr):
+    stream.reconfigure(encoding="cp1252", errors="strict")
+    assert stream.encoding == "cp1252"
+try:
+    runpy.run_path(source, run_name="__main__")
+except SystemExit:
+    sys.stderr.write("Проверка stderr: UTF-8\n")
+    raise
+'''
+DOCTOR_DRIVER = r'''
+import json, os, runpy, sys
+source, readings = sys.argv[1:3]
+readings = json.loads(readings)
+sys.path.insert(0, str(__import__("pathlib").Path(source).parent))
+if hasattr(os, "geteuid") and os.geteuid() == 0:
+    os.geteuid = lambda: 12345
+from deployment.cli_observe import Observer
+Observer.services = lambda self: {"status": "OK"}
+Observer.database = lambda self: {"status": "OK", "schema": readings["schema"]}
+Observer.site = lambda self: {"status": "OK", "revision": readings["revision"], "reportedSchema": readings["schema"]}
+Observer.host = lambda self: {"status": "OK"}
+Observer.disk = lambda self: {"status": "OK"}
+Observer.disk_health = lambda self: {"status": readings["diskHealth"]}
+Observer.cloud = lambda self: {"status": "UNAVAILABLE", "transport": {"status": readings["cloudTransport"]},
+    "remote": {"status": "UNAVAILABLE", "reasonCode": "NO_READ_ONLY_PROVIDER_PROBE"},
+    "lastDelivery": {"status": "RECORDED", "cloud": {"status": "FAILED"}}}
+sys.argv = [source, *sys.argv[3:]]
+runpy.run_path(source, run_name="__main__")
+'''
+
+
+class PublicCLIProcessTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux private log location")
+    def test_private_cli_log_is_not_under_syslog_group_writable_parent(self):
+        self.assertEqual(asa_cli.log_directory(), Path("/var/lib/asa-lab-operator"))
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.root = self.base / "installation"
+        state = self.root / ".asa"
+        state.mkdir(parents=True)
+        self.bin = self.base / "bin"
+        self.bin.mkdir()
+        self.cwd = self.base / "elsewhere"
+        self.cwd.mkdir()
+        (state / "installed-release.json").write_text(json.dumps(RELEASE))
+        (state / "installation.json").write_text(json.dumps({"project": "asa-fixture", "profile": "production", "automaticUpdates": False}))
+        (state / "setup.json").write_text(json.dumps({
+            "format": "asa-setup-config-v1", "root": str(self.root), "project": "asa-fixture", "profile": "production",
+            "installationId": "d" * 32, "backup": {"policy": "best-effort", "cloud": {"enabled": False},
+            "schedule": {"enabled": False, "timezone": "Etc/UTC"}}, "password": "SECRET_SENTINEL", "token": "SECRET_SENTINEL"}))
+        (self.root / ".env").write_text("SECRET=SECRET_SENTINEL\n")
+        self.registry = self.base / "registry.json"
+        self.registry.write_text(json.dumps({"format": asa_cli.FORMAT, "installations": [
+            {"root": str(self.root), "project": "asa-fixture", "profile": "production", "bundle": "/opt/asa-setup/" + "a" * 40}]}))
+        rows = [{"id": format(index, "064x"), "service": service, "project": "asa-fixture", "workingDir": str(self.root),
+                 "image": RELEASE["images"].get(service, "postgres:16"), "running": True, "health": "healthy", "mounts": []}
+                for index, service in enumerate(("api", "web", "postgres", "minio", "scratch", "search"), 1)]
+        fake = "#!" + sys.executable + "\nimport json,sys\nfrom pathlib import Path\n"
+        fake += "rows = " + repr(rows) + "\nargs=sys.argv[1:]\n"
+        fake += (
+            "if args[:1]==['ps']: print('\\n'.join(x['id'] for x in rows))\n"
+            "elif args[:1]==['inspect']: print('\\n'.join(json.dumps(x) for x in rows))\n"
+            "elif args[:1]==['exec'] and 'psql' in args[-1]: print('SET\\n0304|1024')\n"
+            "elif args[:1]==['exec'] and 'du' in args: print('16 /data')\n"
+            "elif args[:1]==['exec'] and 'find /data' in args[-1]: print('5')\n"
+            "elif args[:1]==['version']: print('27.0.0')\n"
+            "elif args[:2]==['compose','version']: print('2.39.0')\n"
+            "elif args[:1]==['info']: print(" + repr(str(self.base)) + ")\n"
+            "else:\n Path(" + repr(str(self.base / "FORBIDDEN_DOCKER_MUTATION")) + ").write_text('forbidden')\n raise SystemExit(90)\n"
+        )
+        (self.bin / "docker").write_text(fake)
+        (self.bin / "docker").chmod(0o755)
+
+    def invoke(self, *args, observation=False, driver=None, driver_args=(), timeout=20):
+        command = [sys.executable, "-I", "-B"]
+        if driver:
+            command += ["-c", driver, str(SOURCE), *driver_args]
+        else:
+            command += ["-c", OBSERVATION_DRIVER, str(SOURCE), json.dumps(SELECTION)] if observation else [str(SOURCE)]
+        command += list(args)
+        env = dict(os.environ, PATH=str(self.bin), NO_COLOR="1", PYTHONPATH=str(self.cwd),
+                   PYTHONHOME="ignored-by-isolated-python", HOME=str(self.cwd))
+        return subprocess.run(command, cwd=self.cwd, env=env, stdin=subprocess.DEVNULL,
+                              capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+
+    def tree(self):
+        return {str(p.relative_to(self.base)): (p.stat().st_size, p.stat().st_mtime_ns,
+                hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None) for p in self.base.rglob("*")}
+
+    def assert_cli_envelope(self, process, command):
+        value = json.loads(process.stdout)
+        self.assertIsInstance(value, dict)
+        self.assertEqual(value["format"], "asa-cli-result-v1")
+        self.assertEqual(value["command"], command)
+        self.assertIs(type(value["exitCode"]), int)
+        self.assertEqual(value["exitCode"], process.returncode)
+        return value
+
+    @unittest.skipUnless(os.name == "posix", "POSIX isolated executable fixture")
+    def test_bare_update_public_process_returns_read_plan_and_preserves_check_alias(self):
+        before = self.tree()
+        cases = ((["update"], "update"),
+                 (["update", "--deployment-digest", SELECTION["deploymentDigest"]], "update"),
+                 (["check"], "update check"))
+        for arguments, command in cases:
+            with self.subTest(arguments=arguments):
+                process = self.invoke(*arguments, "--root", str(self.root), "--registry", str(self.registry),
+                                      "--json", "--no-color", observation=True)
+                value = self.assert_cli_envelope(process, command)
+                self.assertIn(value.get("status"), ("PLANNED", "BLOCKED"))
+                self.assertEqual(value.get("target", {}).get("deploymentDigest"), SELECTION["deploymentDigest"])
+                self.assertEqual(value.get("target", {}).get("ci"), "VERIFIED")
+                self.assertIs(value.get("applyRechecksUnderLock"), True)
+                self.assertEqual(value.get("apply"), "sudo asa update apply --root " + shlex.quote(str(self.root))
+                                 + " --deployment-digest " + SELECTION["deploymentDigest"])
+                self.assertEqual(process.returncode, 0 if value["status"] == "PLANNED" else 2)
+                self.assertTrue({"managerExitCode", "operation", "logPath", "automaticRetry"}.isdisjoint(value))
+                self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+                self.assertEqual(process.stderr, "")
+        self.assertEqual(self.tree(), before)
+
+    def test_all_required_offline_help_forms_in_real_public_process(self):
+        for arguments in (("help",), ("--help",), ("help", "update"), ("update", "--help"), ("backup", "--help")):
+            with self.subTest(arguments=arguments):
+                process = self.invoke(*arguments)
+                self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+                for text in ("Синтаксис", "Параметры", "Права", "Данные", "Примеры", "Коды результата"):
+                    self.assertIn(text, process.stdout)
+                self.assertNotIn("\x1b", process.stdout)
+                self.assertEqual(process.stderr, "")
+                process = self.invoke(*arguments, "--json", "--no-color")
+                value = json.loads(process.stdout)
+                self.assertEqual(value["command"], "help")
+                self.assertEqual(process.returncode, value["exitCode"])
+        self.assertFalse((self.base / "FORBIDDEN_DOCKER_MUTATION").exists())
+
+    def test_legacy_codepage_pipes_emit_utf8_help_errors_and_stderr_under_isolation(self):
+        before = self.tree()
+        cases = [(arguments, 0) for arguments in (("help",), ("--help",), ("help", "update"),
+                                                  ("update", "--help"), ("backup", "--help"))]
+        cases += [(("not-a-command-SECRET_SENTINEL",), 2), (("status", "--token", "SECRET_SENTINEL"), 2)]
+        for arguments, code in cases:
+            for as_json in (False, True):
+                with self.subTest(arguments=arguments, json=as_json):
+                    process = self.invoke(*arguments, *(["--json"] if as_json else []), driver=LEGACY_CODEPAGE_DRIVER)
+                    self.assertEqual(process.returncode, code, process.stdout + process.stderr)
+                    self.assertEqual(process.stderr, "Проверка stderr: UTF-8\n")
+                    self.assertIn("Синтаксис" if code == 0 and not as_json else "Справка" if code == 0 else "Выполните asa help.", process.stdout)
+                    self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+                    self.assertNotIn("Traceback", process.stdout + process.stderr)
+                    self.assertNotIn("\x1b", process.stdout)
+                    if as_json:
+                        value = json.loads(process.stdout)
+                        self.assertEqual(value["exitCode"], code)
+                        self.assertEqual(value["status"], "OK" if code == 0 else "BLOCKED")
+        self.assertEqual(self.tree(), before)
+
+    def test_doctor_public_exit_reports_current_extended_findings(self):
+        before = self.tree()
+        cases = (("FAILED", "OK", "FAILED", 1), ("WARNING", "OK", "WARNING", 1),
+                 ("OK", "FAILED", "FAILED", 1), ("OK", "WARNING", "WARNING", 1),
+                 ("UNAVAILABLE", "UNAVAILABLE", "OK", 0), ("OK", "OK", "OK", 0))
+        for disk, transport, expected, code in cases:
+            with self.subTest(disk=disk, transport=transport):
+                readings = {"schema": RELEASE["schema"], "revision": RELEASE["revision"],
+                            "diskHealth": disk, "cloudTransport": transport}
+                process = self.invoke("doctor", "--json", "--root", str(self.root), "--registry", str(self.registry),
+                                      driver=DOCTOR_DRIVER, driver_args=(json.dumps(readings),))
+                self.assertEqual(process.returncode, code, process.stdout + process.stderr)
+                self.assertEqual(process.stderr, "")
+                value = json.loads(process.stdout)
+                self.assertEqual(value["status"], expected)
+                self.assertEqual(value["exitCode"], code)
+                self.assertTrue(all(value[key]["status"] == "OK" for key in ("services", "database", "site")))
+                self.assertEqual(value["diskHealth"]["status"], disk)
+                self.assertEqual(value["cloud"]["transport"]["status"], transport)
+                self.assertIn("cloud.remote", value["optionalUnavailableChecks"])
+                self.assertEqual("diskHealth" in value["optionalUnavailableChecks"], disk == "UNAVAILABLE")
+                self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+        self.assertEqual(self.tree(), before)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX isolated executable fixture")
+    def test_every_required_read_command_uses_public_entry_and_no_files_change(self):
+        commands = [
+            ("version",), ("status",), ("doctor",), ("disk",), ("disk", "usage"), ("disk", "health"),
+            ("services",), ("services", "status"), ("update",), ("update", "check"), ("update", "plan"),
+            ("backup", "status"), ("backup", "list"), ("backup", "verify"), ("backup", "schedule"),
+            ("cloud", "status"), ("restore", "plan"), ("history",), ("update", "history"),
+            ("logs",), ("logs", "update"), ("logs", "backup"), ("config", "show"), (),
+        ]
+        before = self.tree()
+        for arguments in commands:
+            with self.subTest(command=arguments):
+                process = self.invoke(*arguments, "--root", str(self.root), "--registry", str(self.registry),
+                                      "--json", "--no-color", observation=True)
+                value = self.assert_cli_envelope(process, " ".join(arguments) if arguments else "status")
+                self.assertIn(process.returncode, (0, 1, 2))
+                self.assertNotEqual(value.get("reasonCode"), "USAGE")
+                self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+                self.assertNotIn("\x1b", process.stdout)
+                self.assertEqual(process.stderr, "")
+        self.assertEqual(self.tree(), before)
+        self.assertFalse((self.root / ".asa/operation.lock").exists())
+        self.assertFalse((self.root / "backups").exists())
+        self.assertFalse((self.root / ".asa/setup-backups").exists())
+
+    def test_config_show_preserves_envelope_flat_projection_and_source_config(self):
+        path = self.root / ".asa/setup.json"
+        configured = json.loads(path.read_text())
+        configured["ports"] = {"web": 4610, "api": 4611, "blocks": 4613}
+        path.write_text(json.dumps(configured))
+        before = self.tree()
+        process = self.invoke("config", "show", "--root", str(self.root), "--registry", str(self.registry),
+                              "--json", "--no-color", observation=True)
+        self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+        value = self.assert_cli_envelope(process, "config show")
+        self.assertEqual(set(value), {"format", "command", "exitCode", "configFormat", "status", "root", "project", "profile",
+                                      "ports", "backupPolicy", "cloudEnabled", "automaticUpdates", "schedule", "secrets"})
+        self.assertEqual(value["configFormat"], "asa-setup-config-v1")
+        self.assertEqual(value["status"], "OK")
+        self.assertEqual(value["root"], str(self.root))
+        self.assertEqual(value["project"], "asa-fixture")
+        self.assertEqual(value["profile"], "production")
+        self.assertEqual(value["ports"], configured["ports"])
+        self.assertEqual(value["backupPolicy"], "best-effort")
+        self.assertIs(value["cloudEnabled"], False)
+        self.assertIs(value["automaticUpdates"], False)
+        self.assertEqual(value["secrets"], "OMITTED")
+        self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+        self.assertEqual(process.stderr, "")
+        self.assertNotIn("\x1b", process.stdout)
+        self.assertEqual(self.tree(), before)
+        self.assertEqual(json.loads(path.read_text()), configured)
+
+    def test_config_show_without_configuration_remains_unavailable_and_read_only(self):
+        (self.root / ".asa/setup.json").unlink()
+        before = self.tree()
+        process = self.invoke("config", "show", "--root", str(self.root), "--registry", str(self.registry),
+                              "--json", "--no-color", observation=True)
+        self.assertEqual(process.returncode, 1, process.stdout + process.stderr)
+        value = self.assert_cli_envelope(process, "config show")
+        self.assertEqual(value, {"format": "asa-cli-result-v1", "command": "config show", "exitCode": 1,
+                                 "status": "UNAVAILABLE", "reasonCode": "SETUP_CONFIGURATION"})
+        self.assertEqual(process.stderr, "")
+        self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+        self.assertEqual(self.tree(), before)
+
+    def test_errors_never_echo_supplied_secret_or_raw_exception(self):
+        for arguments in (("not-a-command-SECRET_SENTINEL",), ("status", "--token", "SECRET_SENTINEL"),
+                          ("update", "apply", "--deployment-digest", "SECRET_SENTINEL"),
+                          ("restore", "apply")):
+            process = self.invoke(*arguments, "--json")
+            self.assertEqual(process.returncode, 2)
+            self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+            self.assertNotIn("Traceback", process.stdout + process.stderr)
+            self.assertEqual(json.loads(process.stdout)["status"], "BLOCKED")
+
+    @unittest.skipUnless(os.name == "posix", "POSIX observation fixture")
+    def test_bare_no_tty_is_compact_and_does_not_wait_for_input(self):
+        process = self.invoke("--root", str(self.root), "--registry", str(self.registry), observation=True)
+        self.assertIn("PostgreSQL сейчас: 304", process.stdout)
+        self.assertIn("Справка: asa help", process.stdout)
+        self.assertLessEqual(len(process.stdout.splitlines()), 10)
+        self.assertNotIn("Выбор:", process.stdout)
+        self.assertNotIn("SECRET_SENTINEL", process.stdout + process.stderr)
+
+    @unittest.skipUnless(os.name == "posix", "real pseudo-terminal")
+    def test_bare_tty_menu_and_sigint_use_real_public_process(self):
+        import pty
+        import select
+        import signal
+        import time
+        for interrupt in (False, True):
+            try:
+                master, slave = pty.openpty()
+            except OSError:
+                self.skipTest("This runner has no pseudo-terminal")
+            process = None
+            try:
+                command = [sys.executable, "-I", "-B", "-c", OBSERVATION_DRIVER, str(SOURCE), json.dumps(SELECTION),
+                           "--root", str(self.root), "--registry", str(self.registry), "--no-color"]
+                process = subprocess.Popen(command, cwd=self.cwd, env=dict(os.environ, PATH=str(self.bin), NO_COLOR="1"),
+                                           stdin=slave, stdout=slave, stderr=slave)
+                os.close(slave)
+                slave = None
+                output = bytearray()
+                deadline = time.monotonic() + 10
+                while "Выбор:".encode() not in output and time.monotonic() < deadline:
+                    if select.select([master], [], [], .2)[0]:
+                        output.extend(os.read(master, 8192))
+                self.assertIn("Меню:".encode(), output)
+                self.assertLessEqual(len(output.splitlines()), 12)
+                if interrupt:
+                    process.send_signal(signal.SIGINT)
+                else:
+                    os.write(master, b"\n")
+                self.assertEqual(process.wait(timeout=5), 130 if interrupt else 1)
+                self.assertNotIn(b"\x1b", output)
+            finally:
+                if process is not None and process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=3)
+                os.close(master)
+                if slave is not None:
+                    os.close(slave)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX privileged entry")
+    def test_custom_registry_cannot_dispatch_root_mutation(self):
+        for arguments in (("update", "apply"), ("install",), ("backup", "create"),
+                          ("backup", "schedule", "enable"), ("cloud", "sync")):
+            process = self.invoke(*arguments, "--registry", str(self.registry), "--json")
+            self.assertEqual(process.returncode, 2)
+            self.assertIn("--registry", json.loads(process.stdout)["message"])
+        self.assertFalse((self.base / "FORBIDDEN_DOCKER_MUTATION").exists())
+
+    @unittest.skipUnless(os.name == "posix" and os.geteuid() == 0, "real root boundary")
+    def test_untrusted_source_does_not_import_hostile_cwd_or_pythonpath(self):
+        marker = self.base / "HOSTILE_EXECUTED"
+        payload = "from pathlib import Path\nPath(" + repr(str(marker)) + ").write_text('unsafe')\n"
+        (self.cwd / "asa_setup_launcher.py").write_text(payload)
+        (self.cwd / "sitecustomize.py").write_text(payload)
+        (self.cwd / "deployment").mkdir()
+        (self.cwd / "deployment/__init__.py").write_text(payload)
+        process = self.invoke("status", "--root", str(self.root), "--registry", str(self.registry), "--json")
+        self.assertEqual(process.returncode, 2)
+        self.assertFalse(marker.exists())
+
+    def test_register_does_not_accept_nested_shell_path(self):
+        for path in ("/opt/asa-setup/$(touch SECRET_SENTINEL)/" + "a" * 40,
+                     "/opt/asa-setup/nested/" + "a" * 40, str(self.base / ("a" * 40))):
+            with self.assertRaises(asa_cli.CLIError):
+                asa_cli.verified_bundle(Path(path))
+
+
+class OutputEnvelopeTests(unittest.TestCase):
+    def test_human_status_and_check_are_brief_without_json_soup(self):
+        status = {"status": "OK", "root": "/srv/asa-lab",
+                  "installed": {"revision": "a" * 40, "schema": 304},
+                  "database": {"schema": 304},
+                  "services": {"status": "OK", "containers": [{"running": True, "health": "healthy"}]},
+                  "backup": {"lastLocalSuccess": {"status": "OK", "snapshotAt": "2026-11-04T09:00:00Z"}}}
+        check = {"status": "PLANNED", "current": {"revision": "a" * 40},
+                 "target": {"revision": "b" * 40, "schema": 304},
+                 "available": True, "blockers": []}
+        for action, report, required in (("status", status, "PostgreSQL сейчас"),
+                                         ("update check", check, "Для установки: asa update apply (в 1Panel) или sudo asa update apply")):
+            with self.subTest(action=action), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(asa_cli.emit(action, report, code=0), 0)
+                human = output.getvalue()
+            self.assertIn(required, human)
+            self.assertLessEqual(len(human.splitlines()), 9)
+            self.assertNotIn("{", human)
+            self.assertNotIn("RESOURCE_BUDGET", human)
+
+
+    def test_payload_cannot_override_reserved_cli_envelope_fields(self):
+        payload = {"format": "FORGED_FORMAT", "command": "FORGED_COMMAND", "exitCode": 99,
+                   "status": "UNAVAILABLE", "configFormat": "asa-setup-config-v1"}
+        before = dict(payload)
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            code = asa_cli.emit("config show", payload, as_json=True, code=1)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(output.getvalue()), {"format": "asa-cli-result-v1", "command": "config show",
+                         "exitCode": 1, "status": "UNAVAILABLE", "configFormat": "asa-setup-config-v1"})
+        self.assertEqual(payload, before)
+
+
+class DelegationContracts(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.options = asa_cli.command_parser().parse_args([])
+        self.record = {"root": str(self.root), "project": "asa-fixture", "profile": "production", "bundle": "/opt/asa-setup/" + "a" * 40}
+
+    def test_update_read_dispatch_uses_resolver_even_as_root_and_never_calls_write_adapters(self):
+        from deployment import cli_observe, release_readonly
+        document = {"format": asa_cli.FORMAT, "installations": [self.record]}
+        plan = {"status": "PLANNED", "target": {"deploymentDigest": SELECTION["deploymentDigest"]}}
+        cases = ((["update"], "update"), (["update", "check"], "update check"),
+                 (["update", "plan"], "update plan"), (["check"], "update check"))
+        for words, command in cases:
+            with self.subTest(command=words), patch.object(asa_cli.os, "geteuid", return_value=0, create=True), \
+                    patch.object(asa_cli, "read_registry", return_value=document), patch.object(asa_cli, "own_modules"), \
+                    patch.object(release_readonly, "resolve_release", return_value=SELECTION) as resolver, \
+                    patch.object(cli_observe.Observer, "update_plan", return_value=plan) as observe_plan, \
+                    patch.object(asa_cli, "run_linux", return_value=71) as linux_write, \
+                    patch.object(asa_cli, "run_windows", return_value=72) as windows_write, \
+                    contextlib.redirect_stdout(io.StringIO()) as output:
+                code = asa_cli.main([*words, "--json", "--deployment-digest", SELECTION["deploymentDigest"]])
+                self.assertEqual(code, 0)
+                value = json.loads(output.getvalue())
+                self.assertEqual((value["format"], value["command"], value["status"]),
+                                 ("asa-cli-result-v1", command, "PLANNED"))
+                resolver.assert_called_once_with(SELECTION["deploymentDigest"])
+                observe_plan.assert_called_once_with(SELECTION)
+                linux_write.assert_not_called()
+                windows_write.assert_not_called()
+        self.assertEqual(list(self.root.iterdir()), [])
+
+    @unittest.skipUnless(os.name == "posix", "Linux explicit apply dispatch")
+    def test_explicit_apply_dispatch_keeps_new_pin_and_existing_operation_resume(self):
+        from deployment import cli_observe, release_readonly
+        document = {"format": asa_cli.FORMAT, "installations": [self.record]}
+        plan = {"status": "PLANNED", "target": {"deploymentDigest": SELECTION["deploymentDigest"]}}
+        for operation_id in (None, "c" * 32):
+            arguments = ["update", "apply", "--root", str(self.root), "--json"]
+            if operation_id:
+                arguments += ["--operation-id", operation_id]
+            with self.subTest(operation_id=operation_id), patch.object(asa_cli.os, "geteuid", return_value=0), \
+                    patch.object(asa_cli, "read_registry", return_value=document), patch.object(asa_cli, "own_modules"), \
+                    patch.object(release_readonly, "resolve_release", return_value=SELECTION) as resolver, \
+                    patch.object(cli_observe.Observer, "update_plan", return_value=plan) as observe_plan, \
+                    patch.object(asa_cli, "run_linux", return_value=0) as linux_write, \
+                    patch.object(asa_cli, "run_windows") as windows_write:
+                self.assertEqual(asa_cli.main(arguments), 0)
+                linux_write.assert_called_once()
+                self.assertEqual(linux_write.call_args.args[:2], ("update apply", self.record))
+                options = linux_write.call_args.args[2]
+                self.assertEqual(options.operation_id, operation_id)
+                self.assertEqual(options.deployment_digest, None if operation_id else SELECTION["deploymentDigest"])
+                if operation_id:
+                    resolver.assert_not_called()
+                    observe_plan.assert_not_called()
+                else:
+                    resolver.assert_called_once_with(None)
+                    observe_plan.assert_called_once_with(SELECTION)
+                windows_write.assert_not_called()
+        self.assertEqual(list(self.root.iterdir()), [])
+
+    @unittest.skipUnless(os.name == "posix", "Linux explicit write adapter")
+    def test_bare_update_is_rejected_by_write_adapter_before_any_manager_process(self):
+        with patch.object(asa_cli.os, "geteuid", return_value=0), \
+                patch.object(asa_cli, "verified_bundle", return_value={}), \
+                patch.object(asa_cli, "installation_record", return_value=self.record), \
+                patch.object(asa_cli, "run_reduced", return_value=0) as run:
+            with self.assertRaises(asa_cli.CLIError):
+                asa_cli.run_linux("update", self.record, self.options)
+            run.assert_not_called()
+
+    @unittest.skipUnless(os.name == "posix", "Linux setup adapter")
+    def test_explicit_writes_delegate_exact_intent_digest_and_existing_operations(self):
+        cases = {"install": ("auto", "install"), "update apply": ("auto", "update"),
+                 "backup create": ("backup", None), "cloud sync": ("retry-cloud", None),
+                 "backup schedule enable": ("schedule", None), "backup schedule disable": ("schedule", None)}
+        self.options.deployment_digest = "sha256:" + "b" * 64
+        self.options.snapshot_id = "20261104T010101Z-12345678"
+        with patch.object(asa_cli.os, "geteuid", return_value=0), \
+             patch.object(asa_cli, "verified_bundle", return_value={}), \
+             patch.object(asa_cli, "installation_record", return_value=self.record), \
+             patch.object(asa_cli, "run_reduced", return_value=0) as run:
+            for action, (command, intent) in cases.items():
+                asa_cli.run_linux(action, self.record, self.options)
+                args = run.call_args.args[0]
+                self.assertEqual(args[:3], ["/usr/bin/python3", "-I", "-B"])
+                self.assertEqual(args[4], command)
+                if intent:
+                    self.assertEqual(args[args.index("--intent") + 1], intent)
+                    self.assertEqual(args[args.index("--deployment-digest") + 1], self.options.deployment_digest)
+                else:
+                    self.assertNotIn("--intent", args)
+                if action.startswith("backup schedule"):
+                    self.assertEqual(args[args.index("--schedule-enabled") + 1], "true" if action.endswith("enable") else "false")
+                if action == "cloud sync":
+                    self.assertNotIn("backup", args)
+                    self.assertEqual(args[args.index("--snapshot-id") + 1], self.options.snapshot_id)
+
+    def test_installed_identity_and_registry_selection_are_preserved(self):
+        state = self.root / ".asa"
+        state.mkdir()
+        (state / "installed-release.json").write_text(json.dumps(RELEASE))
+        (state / "installation.json").write_text(json.dumps({"project": "asa-fixture", "profile": "production"}))
+        record = asa_cli.installation_record(self.root)
+        self.assertEqual(record["project"], "asa-fixture")
+        doc = {"format": asa_cli.FORMAT, "installations": [record], "preparedBundle": self.record["bundle"]}
+        self.assertEqual(asa_cli.upsert_registry(doc, record), doc)
+        with self.assertRaises(asa_cli.CLIError):
+            asa_cli.upsert_registry(doc, {**record, "project": "foreign"})
+        other = {**record, "root": str(self.root / "other")}
+        with self.assertRaises(asa_cli.CLIError):
+            asa_cli.choose_root({**doc, "installations": [record, other]}, None)
+
+    @unittest.skipUnless(os.name == "posix", "Linux preparation")
+    def test_prepare_registers_before_install_and_keeps_existing_instance_identity(self):
+        registry = self.root / "commands.json"
+        executable = self.root / "asa"
+        old = {**self.record, "bundle": "/opt/asa-setup/" + "1" * 40}
+        registry.write_text(json.dumps({"format": asa_cli.FORMAT, "installations": [old]}))
+        bundle = Path("/opt/asa-setup/" + "2" * 40)
+        with patch.object(asa_cli.os, "geteuid", return_value=0), \
+             patch.object(asa_cli, "verified_bundle", return_value={}), \
+             patch.object(asa_cli, "protected_path", side_effect=lambda path, **kwargs: path), \
+             patch.object(asa_cli, "installation_record", side_effect=AssertionError("No installation yet")):
+            self.assertEqual(asa_cli.register_linux(None, bundle, registry=registry, executable=executable), str(executable))
+        value = json.loads(registry.read_text())
+        self.assertEqual(value["installations"], [old])
+        self.assertEqual(value["preparedBundle"], str(bundle))
+        self.assertIn("-I -B", executable.read_text())
+        self.assertEqual(asa_cli.registry_entry(value, self.options, install=True)["bundle"], str(bundle))
+        self.assertEqual(asa_cli.registry_entry(value, self.options)["bundle"], str(bundle))
+        self.assertFalse((self.root / ".asa").exists())
+
+    def test_manager_failure_is_bounded_sanitized_and_not_retried(self):
+        process = SimpleNamespace(stdout=io.StringIO("BLOCKED COMMAND: SOURCE_CHANGED\npassword=SECRET_SENTINEL\n"),
+                                  wait=lambda: 77)
+        output = io.StringIO()
+        with patch.object(asa_cli.subprocess, "Popen", return_value=process) as run, \
+             patch.object(asa_cli, "log_directory", return_value=self.root / "logs"), \
+             patch.object(asa_cli, "require_secure_log_directory", return_value=None), \
+             contextlib.redirect_stdout(output):
+            code = asa_cli.run_reduced(["manager"], "update apply", as_json=True)
+        value = json.loads(output.getvalue())
+        self.assertEqual(code, 1)
+        self.assertEqual(value["managerExitCode"], 77)
+        self.assertEqual(value["reasonCodes"], ["SOURCE_CHANGED"])
+        self.assertNotIn("SECRET_SENTINEL", output.getvalue())
+        self.assertIn("SECRET_SENTINEL", next((self.root / "logs").glob("*.log")).read_text())
+        self.assertEqual(run.call_count, 1)
+
+    def test_json_child_result_and_optional_ci_token_have_separate_boundaries(self):
+        result = {"format": "asa-setup-result-v1", "reasonCode": "OWNER_INPUT_REQUIRED", "outcome": "BLOCKED",
+                  "operationId": "a" * 32, "password": "SECRET_SENTINEL", "nextAction": "SECRET_SENTINEL",
+                  "version": {"selected": "b" * 40, "secret": "SECRET_SENTINEL"}}
+        process = SimpleNamespace(stdout=io.StringIO(json.dumps(result) + "\n"), wait=lambda: 2)
+        with patch.object(asa_cli.subprocess, "Popen", return_value=process) as run, \
+             patch.object(asa_cli, "log_directory", return_value=self.root / "logs"), \
+             patch.object(asa_cli, "require_secure_log_directory", return_value=None), \
+             patch.dict(os.environ, {"GH_TOKEN": "PRIVATE_API_TOKEN", "LD_PRELOAD": "UNTRUSTED_PRELOAD"}), \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(asa_cli.run_reduced(["manager"], "install", as_json=True), 2)
+        value = json.loads(output.getvalue())
+        self.assertEqual(value["reasonCode"], "OWNER_INPUT_REQUIRED")
+        self.assertEqual(value["operation"]["version"], {"selected": "b" * 40})
+        self.assertNotIn("SECRET_SENTINEL", output.getvalue())
+        self.assertNotIn("PRIVATE_API_TOKEN", output.getvalue())
+        if os.name == "posix":
+            self.assertEqual(run.call_args.kwargs["env"]["GH_TOKEN"], "PRIVATE_API_TOKEN")
+            self.assertNotIn("LD_PRELOAD", run.call_args.kwargs["env"])
+
+    @unittest.skipUnless(os.name == "posix", "Linux trust model")
+    def test_executable_hardlink_and_writable_file_are_rejected(self):
+        path = self.root / "asa"
+        path.write_text("trusted marker")
+        path.chmod(0o777)
+        with self.assertRaises(asa_cli.CLIError):
+            asa_cli.protected_path(path)
+        path.chmod(0o755)
+        os.link(path, self.root / "alias")
+        with self.assertRaises(asa_cli.CLIError):
+            asa_cli.protected_path(path)
+
+
+class DeliveryIntegrationContracts(unittest.TestCase):
+    def test_bundle_requires_both_readers(self):
+        from deployment.setup_bundle import REQUIRED
+        self.assertTrue({"tools/asa_cli.py", "tools/deployment/cli_observe.py", "tools/deployment/release_readonly.py"} <= REQUIRED)
+
+    def test_existing_windows_registration_contract_remains(self):
+        root = TOOLS.parent
+        self.assertIn("'asa_cli.py'", (root / "tools/asa-bootstrap.ps1").read_text())
+        self.assertIn("register --root $TargetRoot", (root / "tools/asa-setup.ps1").read_text())
+        self.assertIn("if(-not $Apply)", (root / "tools/asa-setup.ps1").read_text())
+
+
+if __name__ == "__main__":
+    unittest.main()

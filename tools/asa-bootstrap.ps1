@@ -89,7 +89,7 @@ function Write-JsonFile([string]$Path, [object]$Value) {
   [IO.File]::WriteAllText($Path, $json + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
 }
 function Package-Paths([string]$SourceTools) {
-  $required = @('asa-setup.ps1', 'asa_manager.py')
+  $required = @('asa-setup.ps1', 'asa_manager.py', 'asa_cli.py')
   foreach ($relative in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $SourceTools $relative) -PathType Leaf)) {
       Block 'SOURCE_INCOMPLETE' ('Missing installer component: ' + $relative)
@@ -128,7 +128,7 @@ function Verify-Package([string]$PackageDir, [string]$ManifestSha, [string]$Comm
   $entries = @($manifest.files.PSObject.Properties)
   if ($entries.Count -lt 3) { Block 'MANIFEST_EMPTY' 'Required installer files are missing.' }
   $names = @($entries | ForEach-Object { $_.Name })
-  foreach ($required in @('asa-setup.ps1','asa_manager.py','deployment/__init__.py')) {
+  foreach ($required in @('asa-setup.ps1','asa_manager.py','asa_cli.py','deployment/__init__.py')) {
     if ($required -cnotin $names) { Block 'MANIFEST_INCOMPLETE' ('Missing ' + $required) }
   }
   # Require the actual package tree to be exactly the declared file set,
@@ -154,7 +154,7 @@ function Verify-Package([string]$PackageDir, [string]$ManifestSha, [string]$Comm
   }
   foreach ($entry in $entries) {
     $name = [string]$entry.Name
-    if ($name -notmatch '^(?:asa-setup\.ps1|asa_manager\.py|deployment/[a-zA-Z0-9_./-]+\.py)$' -or
+    if ($name -notmatch '^(?:asa-setup\.ps1|asa_manager\.py|asa_cli\.py|deployment/[a-zA-Z0-9_./-]+\.py)$' -or
         $name -match '(^|/)\.\.?(/|$)') {
       Block 'MANIFEST_PATH' 'The package manifest contains an unsafe file path.'
     }
