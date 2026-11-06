@@ -129,10 +129,14 @@ class ActualDatabaseProgressTests(unittest.TestCase):
                 '-v', 'ON_ERROR_STOP=1', '-U', 'obs_ci', '-d', 'observability_identity_test'],
                 input=statement.encode(), capture_output=True, check=True).stdout
         self.assertEqual(sql('SELECT current_database();').strip(), b'observability_identity_test')
+        # OBS017 exercises historical sources; operational AI ledgers have their
+        # own closed-projection fixture in test_operational_database.py.
+        historical_sources = {table: rule for table, rule in DATABASE_DIAGNOSTICS['sources'].items()
+                              if not rule.get('operational')}
         recent = datetime.now(timezone.utc)-timedelta(minutes=1)
         historical = recent-timedelta(days=2)
         expected = set()
-        for table, rule in DATABASE_DIAGNOSTICS['sources'].items():
+        for table, rule in historical_sources.items():
             key = 'event_hash' if table == 'max_webhook_events' else 'id'
             column = rule['timeColumn']; kind = 'bigint' if column.endswith('_ms') else 'timestamptz'
             pk_kind = 'uuid' if table == 'classroom_activity_events' else 'text' if key == 'event_hash' else 'bigint'
@@ -190,7 +194,7 @@ class ActualDatabaseProgressTests(unittest.TestCase):
             original_command = c.command; c.command = execute
             for _ in range(8): c.set_state('database:last', 0); c.database(); c.publish()
             # Compare actual saved identities against every source row independently.
-            for table in DATABASE_DIAGNOSTICS['sources']:
+            for table in historical_sources:
                 values = json.loads(sql(f'SELECT json_agg(t) FROM public."{table}" t;'))
                 for value in values:
                     raw = json.dumps(value, ensure_ascii=False, sort_keys=True)
@@ -199,7 +203,7 @@ class ActualDatabaseProgressTests(unittest.TestCase):
                     expected.add(bytes.fromhex(event['id']))
             actual = {r[0] for r in c.db.execute('SELECT id FROM events')}
             self.assertEqual(actual, expected); self.assertEqual(len(actual), 81)
-            for table in DATABASE_DIAGNOSTICS['sources']:
+            for table in historical_sources:
                 self.assertIsNotNone(c.state('db:history:'+table+':completed'))
             # Same timestamp mutable observation must appear during a later recent cycle.
             sql('UPDATE public.classroom_activity_events SET occurrence_count=2 WHERE id=\'00000000-0000-0000-0000-000000000002\';')
