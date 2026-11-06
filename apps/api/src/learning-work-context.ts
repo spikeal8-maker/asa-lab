@@ -151,7 +151,14 @@ export async function learningWorkContextForProject(
   const origin =
     prefetchedOrigin === undefined
       ? await pool.query<{ context: WorkRow; evidence: EvidenceRow }>(
-          'SELECT context,evidence FROM learning_origin_work_context_for_project($1, $2)',
+          `WITH eligible AS MATERIALIZED (
+             SELECT $1::uuid AS principal_id,$2::uuid AS project_id
+             WHERE learning_immutable_project_origin_exists($1,$2)
+           )
+           SELECT work.context,work.evidence FROM eligible
+           CROSS JOIN LATERAL learning_origin_work_context_for_project(
+             eligible.principal_id,eligible.project_id
+           ) AS work`,
           [viewerPrincipalId, projectId],
         )
       : { rows: prefetchedOrigin };
