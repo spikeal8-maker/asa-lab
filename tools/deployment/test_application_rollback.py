@@ -456,6 +456,94 @@ class ReturnTests(unittest.TestCase):
         self.assertEqual(self.fixture.head, ar.PRODUCT)
 
 
+class WindowsOwnerRightsTests(unittest.TestCase):
+    def setUp(self):
+        self.current = "S-1-5-21-10-20-30-1001"
+        self.foreign = "S-1-5-21-10-20-30-1002"
+        self.paths = [Path("canonical"), Path("canonical/private state"), Path("canonical/private state/journal.json")]
+        # Same root/directory/journal ACL shapes observed on native Windows;
+        # only the fixture paths and user SID are synthetic.
+        trustees = (("S-1-5-18", "S-1-5-32-544", self.current),
+                    ("S-1-3-4", "S-1-5-18", "S-1-5-32-544"),
+                    ("S-1-5-18", "S-1-5-32-544", "S-1-3-4"))
+        self.payload = {"current": self.current, "rows": [
+            {"path": str(path), "owner": self.current, "rules": [self.allow(sid) for sid in sids]}
+            for path, sids in zip(self.paths, trustees)
+        ]}
+
+    @staticmethod
+    def allow(sid, rights=2032127, inherit_only=False):
+        return {"sid": sid, "kind": "Allow", "rights": rights, "inheritOnly": inherit_only}
+
+    def journal_payload(self):
+        return {"current": self.current, "rows": [copy.deepcopy(self.payload["rows"][2])]}
+
+    def assert_denied(self, payload, paths):
+        before = copy.deepcopy(payload)
+        with self.assertRaises(Blocked) as denied:
+            ar.validate_windows_acls(payload, paths)
+        self.assertEqual(denied.exception.code, "ROLLBACK_STATE_ACL")
+        self.assertEqual(payload, before)
+
+    def test_observed_private_atomic_acl_shapes_accept_each_attested_owner(self):
+        for owner in (self.current, "S-1-5-18", "S-1-5-32-544"):
+            with self.subTest(owner=owner):
+                payload = copy.deepcopy(self.payload)
+                for row in payload["rows"]:
+                    row["owner"] = owner
+                before = copy.deepcopy(payload)
+                ar.validate_windows_acls(payload, [(path, True) for path in self.paths])
+                self.assertEqual(payload, before)
+
+    def test_owner_rights_does_not_expand_the_allowed_object_owners(self):
+        for owner in (self.foreign, "S-1-1-0", "S-1-3-4", "S-1-3-0", "S-1-3-40"):
+            for private in (False, True):
+                with self.subTest(owner=owner, private=private):
+                    payload = self.journal_payload()
+                    payload["rows"][0]["owner"] = owner
+                    self.assert_denied(payload, [(self.paths[2], private)])
+
+    def test_each_child_owner_is_attested_independently_of_the_parent(self):
+        for child in (1, 2):
+            with self.subTest(child=child):
+                payload = copy.deepcopy(self.payload)
+                payload["rows"][child]["owner"] = self.foreign
+                self.assert_denied(payload, [(path, True) for path in self.paths])
+
+    def test_owner_rights_does_not_hide_other_foreign_grants(self):
+        for sid, rights in (("S-1-1-0", 1245631), (self.foreign, 2), (self.foreign, 0x40000)):
+            for private in (False, True):
+                with self.subTest(sid=sid, rights=rights, private=private):
+                    payload = self.journal_payload()
+                    payload["rows"][0]["rules"].append(self.allow(sid, rights))
+                    self.assert_denied(payload, [(self.paths[2], private)])
+        payload = self.journal_payload()
+        payload["rows"][0]["rules"].append(self.allow(self.foreign, 1179817))
+        self.assert_denied(payload, [(self.paths[2], True)])
+        ar.validate_windows_acls(payload, [(self.paths[2], False)])
+
+    def test_only_exact_owner_rights_sid_uses_the_attested_owner(self):
+        for sid in ("S-1-3-40", "s-1-3-4", "S-1-3-4 ", " S-1-3-4", "S-1-3-0"):
+            for private in (False, True):
+                with self.subTest(sid=sid, private=private):
+                    payload = self.journal_payload()
+                    payload["rows"][0]["rules"] = [self.allow(sid)]
+                    self.assert_denied(payload, [(self.paths[2], private)])
+        payload = self.journal_payload()
+        payload["rows"][0]["rules"].append(self.allow("S-1-3-0", inherit_only=True))
+        ar.validate_windows_acls(payload, [(self.paths[2], True)])
+
+    def test_owner_rights_does_not_skip_rule_shape_validation(self):
+        malformed = (("rights", True), ("rights", "2032127"), ("rights", None),
+                     ("inheritOnly", 1), ("sid", None), ("kind", "Allowed"))
+        for field, value in malformed:
+            with self.subTest(field=field, value=value):
+                payload = self.journal_payload()
+                rule = next(rule for rule in payload["rows"][0]["rules"] if rule["sid"] == "S-1-3-4")
+                rule[field] = value
+                self.assert_denied(payload, [(self.paths[2], True)])
+
+
 class NativeBoundaryTests(unittest.TestCase):
     def test_tooling_rejects_nested_git_discovery_and_untracked_or_hidden_bytes(self):
         def git(root, *args):

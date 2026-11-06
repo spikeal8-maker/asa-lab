@@ -118,7 +118,10 @@ def validate_windows_acls(payload, paths):
                     and isinstance(rule.get("sid"), str) and type(rule.get("rights")) is int
                     and type(rule.get("inheritOnly")) is bool,
                     "ROLLBACK_STATE_ACL", "Unknown Windows access rule; refusing the operation.")
-            if rule["kind"] == "Deny" or rule["sid"] in trusted or (rule["sid"] == "S-1-3-0" and rule["inheritOnly"]):
+            # OWNER_RIGHTS names this object's already attested owner. It is
+            # not an additional identity allowed to own source or private state.
+            principal = record["owner"] if rule["sid"] == "S-1-3-4" else rule["sid"]
+            if rule["kind"] == "Deny" or principal in trusted or (rule["sid"] == "S-1-3-0" and rule["inheritOnly"]):
                 continue
             rights = rule["rights"] & 0xFFFFFFFF
             require(not (rights & (0xFFEFFFFF if private else WRITE_RIGHTS)), "ROLLBACK_STATE_ACL",
