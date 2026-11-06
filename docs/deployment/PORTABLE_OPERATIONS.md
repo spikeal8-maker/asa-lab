@@ -209,6 +209,21 @@ manager только если он уже поддерживает selector. Е�
 Это source-supported bootstrap, не подтверждение реальной установки/обновления
 старой School VM или произвольной совместимости любого будущего tooling.
 
+**Заранее подготовленный возврат P0.** Для объявленной совместимой пары
+`98d7fbb4 → d0bf7cbe` внешний qualified manager поддерживает
+`check/update --require-application-rollback`, затем `rollback-plan` и явный
+`rollback --root` только к предыдущему release последней связанной операции.
+Обычный forward ancestry guard остаётся. Capsule создаётся после нового
+проверенного backup до service switch и фиксирует exact images, фактические
+MinIO/mc bytes, private configuration, PostgreSQL/volumes, source/tooling/CI.
+Возврат сохраняет записи, созданные после update: live DB/object restore,
+migration apply и пересоздание PostgreSQL не выполняются. `automaticUpdates`
+должен оставаться `false`. API запускается и проверяется раньше Web.
+Production требует завершённую exact-tools/selected-digest native qualification;
+Linux CI, Windows unit/path proof и actual Windows Docker proof различаются.
+Условия, durable recovery phases и команды:
+[APPLICATION_ROLLBACK.md](APPLICATION_ROLLBACK.md).
+
 После перехода на готовые образы старые `asa-lab up` и `docker-update` блокируют
 пересборку этой установки. Не запускайте прямой `docker compose up`: он не
 читает закреплённый манифест из `.asa/installed-release.json`.
