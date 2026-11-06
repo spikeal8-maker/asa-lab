@@ -392,6 +392,12 @@ class ReturnTests(unittest.TestCase):
 
     def test_previous_policy_capsule_is_not_reinterpreted_by_new_tools(self):
         previous_policy = "asa-p0-98d7-d0bf-application-return-v1"
+        self.assert_previous_policy_refused(previous_policy)
+
+    def test_v2_policy_capsule_is_not_reinterpreted_by_v3_tools(self):
+        self.assert_previous_policy_refused("asa-p0-98d7-d0bf-application-return-v2")
+
+    def assert_previous_policy_refused(self, previous_policy):
         self.candidate["policy"] = previous_policy
         with patch.object(ar, "POLICY", previous_policy):
             self.arm()
@@ -605,6 +611,8 @@ class SourceHistory:
                    "infra/minio/Dockerfile": "FROM scratch\n",
                    self.product_path: 'export const preservedProduct = "keep this source";\n'}
         initial.update({path: f"before collector: {path}\n" for path in ar.COLLECTOR_BLOBS})
+        self.lazy_original_contents = {path: f"before lazy work context: {path}\n" for path in ar.LAZY_CONTEXT_BLOBS}
+        initial.update(self.lazy_original_contents)
         for path, content in initial.items():
             self.write(path, content)
         self.previous = self.commit("previous product")
@@ -619,6 +627,13 @@ class SourceHistory:
         self.collector = self.commit("independently accepted collector")
         self.collector_blobs = {path: self.git("rev-parse", f"{self.collector}:{path}")
                                 for path in self.collector_contents}
+        self.git("switch", "--quiet", "-c", "accepted-lazy-context", self.baseline)
+        self.lazy_contents = {path: f"accepted lazy work context: {path}\n" for path in ar.LAZY_CONTEXT_BLOBS}
+        for path, content in self.lazy_contents.items():
+            self.write(path, content)
+        self.lazy_context = self.commit("independently accepted lazy work context")
+        self.lazy_blobs = {path: self.git("rev-parse", f"{self.lazy_context}:{path}")
+                           for path in self.lazy_contents}
         self.git("switch", "--quiet", "main")
         self.write(self.delivery_path, "# reviewed return tooling\n")
         self.delivery_only = self.commit("reviewed return tooling")
@@ -645,6 +660,10 @@ class SourceHistory:
         self.git("update-ref", "refs/remotes/origin/main", target)
         return ar.validate_pair(self, release(self.previous, ar.PREVIOUS_IMAGES), release(target, ar.PRODUCT_IMAGES))
 
+    def merge_lazy_context(self):
+        self.git("merge", "--quiet", "--no-ff", "--no-edit", self.lazy_context)
+        return self.git("rev-parse", "HEAD")
+
 
 class SourceBoundaryTests(unittest.TestCase):
     @contextlib.contextmanager
@@ -652,7 +671,8 @@ class SourceBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="asa source boundary ") as temporary:
             fixture = SourceHistory(Path(temporary))
             with patch.multiple(ar, PREVIOUS=fixture.previous, PRODUCT=fixture.product, BASELINE=fixture.baseline,
-                                COLLECTOR_REVISION=fixture.collector, COLLECTOR_BLOBS=fixture.collector_blobs):
+                                COLLECTOR_REVISION=fixture.collector, COLLECTOR_BLOBS=fixture.collector_blobs,
+                                LAZY_CONTEXT_REVISION=fixture.lazy_context, LAZY_CONTEXT_BLOBS=fixture.lazy_blobs):
                 yield fixture
 
     def assert_refused(self, fixture, target=None):
@@ -738,6 +758,90 @@ class SourceBoundaryTests(unittest.TestCase):
     def test_delivery_only_descendant_is_not_a_combined_release(self):
         with self.history() as fixture:
             self.assert_refused(fixture, fixture.delivery_only)
+
+    def test_complete_lazy_merge_and_unchanged_descendant_preserve_data_boundary(self):
+        with self.history() as fixture:
+            expected = fixture.validate(fixture.combined)
+            self.assertEqual(fixture.validate(fixture.merge_lazy_context()), expected)
+            self.assertEqual(fixture.validate(fixture.commit("unchanged lazy descendant")), expected)
+
+    def test_exact_lazy_bytes_without_accepted_history_are_refused(self):
+        with self.history() as fixture:
+            for path, content in fixture.lazy_contents.items():
+                fixture.write(path, content)
+            target = fixture.commit("copy exact lazy bytes without accepted lineage")
+            for path, blob in fixture.lazy_blobs.items():
+                self.assertEqual(fixture.git("rev-parse", f"{target}:{path}"), blob)
+            self.assert_refused(fixture, target)
+
+    def test_lazy_history_without_accepted_collector_remains_refused(self):
+        with self.history() as fixture:
+            self.assert_refused(fixture, fixture.lazy_context)
+
+    def test_every_lazy_input_edit_and_partial_revert_are_refused(self):
+        for path in ar.LAZY_CONTEXT_BLOBS:
+            for change in ("edit", "revert"):
+                with self.subTest(path=path, change=change), self.history() as fixture:
+                    fixture.merge_lazy_context()
+                    content = fixture.lazy_original_contents[path] if change == "revert" else "unaccepted lazy change\n"
+                    fixture.write(path, content)
+                    self.assert_refused(fixture, fixture.commit("partial lazy drift after acceptance"))
+
+    def test_every_lazy_missing_executable_symlink_and_gitlink_entry_is_refused(self):
+        for path in ar.LAZY_CONTEXT_BLOBS:
+            for change in ("delete", "executable", "symlink", "gitlink"):
+                with self.subTest(path=path, change=change), self.history() as fixture:
+                    fixture.merge_lazy_context()
+                    if change == "delete":
+                        fixture.git("rm", "--", path)
+                    elif change == "executable":
+                        fixture.git("update-index", "--chmod=+x", "--", path)
+                    else:
+                        mode, obj = ("120000", fixture.lazy_blobs[path]) if change == "symlink" else ("160000", fixture.lazy_context)
+                        fixture.git("config", "diff.ignoreSubmodules", "all")
+                        fixture.git("update-index", "--cacheinfo", f"{mode},{obj},{path}")
+                    self.assert_refused(fixture, fixture.commit("lazy entry type or mode changed", stage=False))
+
+    def test_complete_lazy_revert_preserves_the_previously_supported_collector_only_tree(self):
+        with self.history() as fixture:
+            expected = fixture.validate(fixture.combined)
+            fixture.merge_lazy_context()
+            for path, content in fixture.lazy_original_contents.items():
+                fixture.write(path, content)
+            target = fixture.commit("all four lazy files returned to exact product baseline")
+            fixture.git("merge-base", "--is-ancestor", fixture.lazy_context, target)
+            self.assertFalse(ar._changed_paths(fixture, fixture.product, target) & ar.LAZY_CONTEXT_BLOBS.keys())
+            self.assertEqual(fixture.validate(target), expected)
+
+    def test_foreign_product_rename_into_pinned_lazy_path_remains_refused(self):
+        with self.history() as fixture:
+            fixture.merge_lazy_context()
+            destination = "apps/api/src/learning-work-context.controller.ts"
+            fixture.git("rm", "--", destination)
+            fixture.git("mv", fixture.product_path, destination)
+            target = fixture.commit("rename forbidden product into qualified lazy path")
+            changed = ar._changed_paths(fixture, fixture.product, target)
+            self.assertIn(fixture.product_path, changed)
+            self.assertIn(destination, changed)
+            self.assert_refused(fixture, target)
+
+    def test_collector_pins_and_shared_inputs_remain_closed_with_lazy_context(self):
+        for path in (*ar.COLLECTOR_BLOBS, "migrations/0304.sql", "compose.yaml", "pnpm-lock.yaml"):
+            with self.subTest(path=path), self.history() as fixture:
+                fixture.merge_lazy_context()
+                fixture.write(path, "unreviewed shared or collector change\n")
+                self.assert_refused(fixture, fixture.commit("source outside accepted lazy boundary"))
+
+    def test_lazy_source_identity_does_not_waive_schema_identity(self):
+        with self.history() as fixture:
+            target = fixture.merge_lazy_context()
+            fixture.git("update-ref", "refs/remotes/origin/main", target)
+            previous = release(fixture.previous, ar.PREVIOUS_IMAGES)
+            selected = release(target, ar.PRODUCT_IMAGES)
+            selected["schema"] = 305
+            with self.assertRaises(Blocked) as denied:
+                ar.validate_pair(fixture, previous, selected)
+            self.assertEqual(denied.exception.code, "ROLLBACK_PAIR")
 
     def test_native_qualification_cannot_reuse_old_tools_or_another_deployment_digest(self):
         tool = {"revision": "c" * 40}

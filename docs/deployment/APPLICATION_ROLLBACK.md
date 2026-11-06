@@ -12,7 +12,7 @@
 `selected_source` сохраняют проверку направления ancestry; попытка обычного
 обновления `d0bf7cbe → 98d7fbb4` продолжает отклоняться.
 
-В версии v2 декларация совместимости ограничена следующей парой:
+В версии v3 декларация совместимости ограничена следующей парой:
 
 | Свойство                            | Допустимое значение                        |
 | ----------------------------------- | ------------------------------------------ |
@@ -21,15 +21,16 @@
 | Исходная база delivery-расширения   | `76d0610285831a99b7801478e03418ff5800bf73` |
 | Схема обеих версий                  | `304`                                      |
 | OCI platform                        | `linux/amd64`                              |
-| Идентификатор декларации            | `asa-p0-98d7-d0bf-application-return-v2`   |
+| Идентификатор декларации            | `asa-p0-98d7-d0bf-application-return-v3`   |
 
 Для точных `98d7` и `d0bf` в коде закреплены все пять официальных digest images.
 Каждый другой допустимый target обязан быть официальным потомком базы `76d0610`
 **и** принятого collector commit
 `a8c8ff139340032f4d69cb577847b6ae47667011`. Его полный diff от продуктовой базы
 может содержать только семь перечисленных в `QUALIFIED_CHANGES` delivery-файлов,
-три **неизменённых относительно `76d0610`** документа базы и следующие три
-collector-файла с точными Git identities:
+три **неизменённых относительно `76d0610`** документа базы, следующие три
+collector-файла с точными Git identities и необязательный полный принятый набор
+lazy work-context, описанный ниже:
 
 | Путь | Git mode/type | Принятый Git blob |
 | --- | --- | --- |
@@ -41,15 +42,40 @@ collector-файла с точными Git identities:
 blob, обычный неизменённый mode/type и accepted commit в ancestry. Копирование
 тех же байтов без принятой истории, частичный перенос, удаление, executable-bit,
 symlink или дальнейшая правка любого из трёх файлов отклоняются. Delivery-only
-потомок без этого collector также не является combined target v2. Точный
+потомок без этого collector также не является combined target v3. Точный
 закреплённый `d0bf` сохраняет отдельный исходный путь проверки.
+
+Если final diff от `d0bf` затрагивает любой из четырёх lazy work-context путей,
+target дополнительно обязан содержать принятый commit
+`7329144f71ede36182bf8da965c3c6090637a17f` в ancestry и все четыре точных файла:
+
+| Путь | Git mode/type | Принятый Git blob |
+| --- | --- | --- |
+| `apps/api/src/learning-work-context.controller.ts` | `100644 blob` | `5c23acd238b58dc4fc282fe0d1632bc33dd8bf31` |
+| `apps/api/src/learning-work-context.ts` | `100644 blob` | `88cd4f62c96ea161fbbce61e6e606ef87d42423e` |
+| `apps/api/src/learning-work-context.controller.spec.ts` | `100644 blob` | `2975a4ed53f399d1b016e4eeea1866b995b468ac` |
+| `apps/api/src/learning-work-context.spec.ts` | `100644 blob` | `6ffe21f328342286ee372a33a2ac228de6ae3954` |
+
+Копирование полного набора без принятой lazy ancestry, частичный перенос,
+частичный возврат к прежним bytes, удаление, смена mode/type или последующая
+правка любого из четырёх файлов отклоняются. Принятая lazy ancestry не заменяет
+обязательные collector ancestry и pins. Наличие только schema `304` также
+не разрешает такой target.
+
+Если **все четыре** API-файла полностью возвращены к исходным bytes `d0bf`
+(они совпадают с `76d0610`), lazy diff отсутствует. Даже при сохранённой
+lazy ancestry это остаётся прежним допустимым collector-only final tree;
+требования к collector, baseline documents, остальным product paths и native
+квалификации сохраняются. Такая версия не содержит lazy исправление, и её
+нельзя выдавать за его применение или capacity evidence. Один возвращённый
+файл при остальных трёх новых попадает под проверку полного набора и запрещён.
 
 Список изменённых путей читается с отключённым rename/copy detection и NUL
 разделением. Перенос product source в разрешённый delivery-путь не может скрыть
 удалённый исходный путь. Копирование в чужой product path, изменение типа,
 режима и удаление также остаются видимыми. Изменение любого другого файла,
 включая продукт, lockfile, Dockerfile, миграцию или Compose, отклоняется.
-Это закрытая декларация; будущие product или collector changes требуют
+Это закрытая декларация; будущие product, lazy-context или collector changes требуют
 отдельного review и новой квалификации.
 
 Принятый collector исправляет проверку отсутствующего descriptor и запрещает
@@ -59,10 +85,23 @@ symlink или дальнейшая правка любого из трёх фа
 снимок, native Windows evidence и полный успешный audit остаются отдельными
 операционными условиями.
 
+Принятый lazy work-context меняет только момент необязательного чтения полной
+canonical projection. Для personal/not-learning и immutable origin общий
+supplier не вызывается; no-origin modern и historical Course/Direct сохраняют
+одно обязательное canonical чтение после viewer-scoped provenance proof.
+Все десять SQL literals двух runtime-файлов, `submit`, типы ответа и работа с
+сохранёнными проектами остаются прежними. Новых data writes, migrations или
+persisted formats этот diff не вводит; canonical resolver и его SQL не меняются.
+Default action clock после обязательного lazy чтения обновляется, explicit
+`asOf` и подготовленная Map сохраняют свою семантику. Это узкая read-path
+совместимость, подтверждённая source review, а не доказательство отсутствия
+перегрузки pool: native old-reader/new-data proof и повторный N30 остаются
+отдельными проверками.
+
 Квалификация привязана к **точному tools SHA и точному selected deployment
 digest**. Результат прежних tools или прогона закреплённого `d0bf` не
-квалифицирует новый combined release. Capsule с policy v1 не переопределяется
-как v2 и отклоняется до переключения; для уже начатой операции сохраняется
+квалифицирует новый combined release. Capsule с policy v1 или v2 не переопределяется
+как v3 и отклоняется до переключения; для уже начатой операции сохраняется
 именно тот утверждённый внешний tools checkout, который её подготовил.
 
 При сравнении исходных `98d7 → d0bf` API-изменения затрагивают дополнительные

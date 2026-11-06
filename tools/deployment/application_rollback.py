@@ -32,7 +32,14 @@ COLLECTOR_BLOBS = {
     "tools/test_collect_logs.py": "1445bd987fc6d43dd51c5f87e5364a521e50481f",
     "docs/deployment/ADMIN_LOGS.md": "836bae5a70a21eafa5cbc15d7846f36b8e991dc9",
 }
-POLICY = "asa-p0-98d7-d0bf-application-return-v2"
+LAZY_CONTEXT_REVISION = "7329144f71ede36182bf8da965c3c6090637a17f"
+LAZY_CONTEXT_BLOBS = {
+    "apps/api/src/learning-work-context.controller.ts": "5c23acd238b58dc4fc282fe0d1632bc33dd8bf31",
+    "apps/api/src/learning-work-context.ts": "88cd4f62c96ea161fbbce61e6e606ef87d42423e",
+    "apps/api/src/learning-work-context.controller.spec.ts": "2975a4ed53f399d1b016e4eeea1866b995b468ac",
+    "apps/api/src/learning-work-context.spec.ts": "6ffe21f328342286ee372a33a2ac228de6ae3954",
+}
+POLICY = "asa-p0-98d7-d0bf-application-return-v3"
 SCHEMA = 304
 JOURNAL = "application-rollback.json"
 FORMAT = "asa-application-rollback-v1"
@@ -234,7 +241,8 @@ def validate_pair(install, previous, selected):
     else:
         install.git("merge-base", "--is-ancestor", BASELINE, target)
         changed = _changed_paths(install, PRODUCT, target)
-        require(changed <= QUALIFIED_CHANGES | BASELINE_DOCS | COLLECTOR_BLOBS.keys(), "ROLLBACK_PRODUCT",
+        require(changed <= QUALIFIED_CHANGES | BASELINE_DOCS | COLLECTOR_BLOBS.keys() | LAZY_CONTEXT_BLOBS.keys(),
+                "ROLLBACK_PRODUCT",
                 "The release changes product, dependencies or unqualified delivery inputs.")
         require(not _changed_paths(install, BASELINE, target, *sorted(BASELINE_DOCS)),
                 "ROLLBACK_PRODUCT", "The qualified documentation baseline changed.")
@@ -247,6 +255,16 @@ def validate_pair(install, previous, selected):
             entry = install.git("ls-tree", "--full-tree", "-z", target, "--", path)
             require(entry == f"100644 blob {blob}\t{path}\0", "ROLLBACK_PRODUCT",
                     "The selected collector files, types or modes differ from their accepted immutable identities.")
+        if changed & LAZY_CONTEXT_BLOBS.keys():
+            try:
+                install.git("merge-base", "--is-ancestor", LAZY_CONTEXT_REVISION, target)
+            except Blocked:
+                raise Blocked("ROLLBACK_PRODUCT", "The selected release lacks the accepted lazy work-context history.",
+                              "Use the reviewed combined release; matching copied files alone are insufficient.") from None
+            for path, blob in LAZY_CONTEXT_BLOBS.items():
+                entry = install.git("ls-tree", "--full-tree", "-z", target, "--", path)
+                require(entry == f"100644 blob {blob}\t{path}\0", "ROLLBACK_PRODUCT",
+                        "The selected lazy work-context files, types or modes differ from their accepted immutable identities.")
     install.git("merge-base", "--is-ancestor", PREVIOUS, target)
     install.git("merge-base", "--is-ancestor", target, "origin/main")
     sources = {}
