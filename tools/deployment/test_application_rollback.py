@@ -390,6 +390,19 @@ class ReturnTests(unittest.TestCase):
         with self.assertRaises(Blocked) as denied: ar.validate_pair(self.fixture, self.fixture.previous, selected)
         self.assertEqual(denied.exception.code, "ROLLBACK_PRODUCT")
 
+    def test_previous_policy_capsule_is_not_reinterpreted_by_new_tools(self):
+        previous_policy = "asa-p0-98d7-d0bf-application-return-v1"
+        self.candidate["policy"] = previous_policy
+        with patch.object(ar, "POLICY", previous_policy):
+            self.arm()
+        original = (self.fixture.state / ar.JOURNAL).read_bytes()
+        self.fixture.calls.clear()
+        with self.assertRaises(Blocked) as denied:
+            ar.rollback(self.fixture)
+        self.assertEqual(denied.exception.code, "ROLLBACK_JOURNAL")
+        self.assertEqual((self.fixture.state / ar.JOURNAL).read_bytes(), original)
+        self.assertFalse(self.fixture.calls)
+
     def test_journal_tamper_and_unlinked_capsule_refused(self):
         journal = self.arm()
         journal["events"][0]["phase"] = "forward_accepted"
@@ -572,6 +585,180 @@ class NativeBoundaryTests(unittest.TestCase):
             self.assertEqual(manager.main(["rollback"]), 2)
             self.assertEqual(manager.main(["backup", "--require-application-rollback"]), 2)
             self.assertEqual(manager.main(["update", "--scheduled", "--require-application-rollback"]), 2)
+
+
+class SourceHistory:
+    """Actual commits/merges in a fresh synthetic Git repository; no Docker."""
+    product_path = "apps/api/src/preserved-product.ts"
+    delivery_path = "tools/deployment/application_rollback.py"
+    files = ("compose.yaml",)
+
+    def __init__(self, root):
+        self.root = root
+        self.git("init", "--quiet", "--initial-branch=main", "--object-format=sha1")
+        for key, value in (("user.name", "Source boundary test"), ("user.email", "source-test@example.invalid"),
+                           ("commit.gpgsign", "false"), ("core.autocrlf", "false"),
+                           ("core.filemode", "true"), ("diff.renames", "true")):
+            self.git("config", key, value)
+        initial = {"compose.yaml": "services: {}\n", "migrations/0304.sql": "select 1;\n",
+                   "tools/migrate.mjs": "// unchanged migration runner\n",
+                   "infra/minio/Dockerfile": "FROM scratch\n",
+                   self.product_path: 'export const preservedProduct = "keep this source";\n'}
+        initial.update({path: f"before collector: {path}\n" for path in ar.COLLECTOR_BLOBS})
+        for path, content in initial.items():
+            self.write(path, content)
+        self.previous = self.commit("previous product")
+        self.product = self.commit("accepted P0 product")
+        for path in ar.BASELINE_DOCS:
+            self.write(path, f"accepted baseline: {path}\n")
+        self.baseline = self.commit("accepted documentation baseline")
+        self.git("switch", "--quiet", "-c", "accepted-collector")
+        self.collector_contents = {path: f"accepted collector: {path}\n" for path in ar.COLLECTOR_BLOBS}
+        for path, content in self.collector_contents.items():
+            self.write(path, content)
+        self.collector = self.commit("independently accepted collector")
+        self.collector_blobs = {path: self.git("rev-parse", f"{self.collector}:{path}")
+                                for path in self.collector_contents}
+        self.git("switch", "--quiet", "main")
+        self.write(self.delivery_path, "# reviewed return tooling\n")
+        self.delivery_only = self.commit("reviewed return tooling")
+        self.git("merge", "--no-ff", "--no-edit", "-m", "combined accepted inputs", self.collector)
+        self.combined = self.git("rev-parse", "HEAD")
+
+    def git(self, *args):
+        return ar._git(self.root, *args)
+
+    def write(self, name, content):
+        path = self.root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content.encode("utf-8"))
+
+    def commit(self, message, *, stage=True):
+        # This index belongs only to this newly created temporary fixture.
+        if stage:
+            self.git("add", "--all")
+        self.git("commit", "--quiet", "--allow-empty", "-m", message)
+        return self.git("rev-parse", "HEAD")
+
+    def validate(self, target=None):
+        target = target or self.git("rev-parse", "HEAD")
+        self.git("update-ref", "refs/remotes/origin/main", target)
+        return ar.validate_pair(self, release(self.previous, ar.PREVIOUS_IMAGES), release(target, ar.PRODUCT_IMAGES))
+
+
+class SourceBoundaryTests(unittest.TestCase):
+    @contextlib.contextmanager
+    def history(self):
+        with tempfile.TemporaryDirectory(prefix="asa source boundary ") as temporary:
+            fixture = SourceHistory(Path(temporary))
+            with patch.multiple(ar, PREVIOUS=fixture.previous, PRODUCT=fixture.product, BASELINE=fixture.baseline,
+                                COLLECTOR_REVISION=fixture.collector, COLLECTOR_BLOBS=fixture.collector_blobs):
+                yield fixture
+
+    def assert_refused(self, fixture, target=None):
+        with self.assertRaises(Blocked) as denied:
+            fixture.validate(target)
+        self.assertEqual(denied.exception.code, "ROLLBACK_PRODUCT")
+
+    def test_exact_product_and_complete_collector_merge_remain_supported(self):
+        with self.history() as fixture:
+            expected = fixture.validate(fixture.product)
+            self.assertEqual(fixture.validate(fixture.combined), expected)
+            later = fixture.commit("no further source changes")
+            self.assertEqual(fixture.validate(later), expected)
+
+    def test_real_rename_cannot_hide_removed_product_source_in_delivery_path(self):
+        with self.history() as fixture:
+            destination = "docs/deployment/APPLICATION_ROLLBACK.md"
+            fixture.git("mv", fixture.product_path, destination)
+            target = fixture.commit("move product source into an allowed delivery path")
+            vulnerable = fixture.git("diff", "--name-only", fixture.product, target).splitlines()
+            self.assertIn(destination, vulnerable)
+            self.assertNotIn(fixture.product_path, vulnerable)
+            self.assertFalse((fixture.root / fixture.product_path).exists())
+            self.assert_refused(fixture, target)
+
+    def test_foreign_source_edit_delete_copy_mode_and_gitlink_are_refused(self):
+        for change in ("edit", "delete", "copy", "mode", "gitlink"):
+            with self.subTest(change=change), self.history() as fixture:
+                stage = True
+                if change == "edit":
+                    fixture.write(fixture.product_path, "export const changed = true;\n")
+                elif change == "delete":
+                    fixture.git("rm", "--", fixture.product_path)
+                elif change == "copy":
+                    fixture.git("config", "diff.renames", "copies")
+                    fixture.write("apps/api/src/unqualified-copy.ts", (fixture.root / fixture.delivery_path).read_text())
+                elif change == "mode":
+                    fixture.git("update-index", "--chmod=+x", "--", fixture.product_path)
+                    stage = False
+                else:
+                    fixture.git("config", "diff.ignoreSubmodules", "all")
+                    fixture.git("update-index", "--cacheinfo", f"160000,{fixture.collector},{fixture.product_path}")
+                    stage = False
+                target = fixture.commit("unqualified product change", stage=stage)
+                self.assert_refused(fixture, target)
+
+    def test_baseline_document_rename_into_delivery_path_remains_refused(self):
+        with self.history() as fixture:
+            original = sorted(ar.BASELINE_DOCS)[0]
+            fixture.git("mv", original, "docs/deployment/APPLICATION_ROLLBACK.md")
+            self.assert_refused(fixture, fixture.commit("rename a frozen baseline document"))
+
+    def test_every_collector_blob_is_pinned_after_accepted_ancestry(self):
+        for path in ar.COLLECTOR_BLOBS:
+            with self.subTest(path=path), self.history() as fixture:
+                fixture.write(path, "unreviewed follow-up with the same accepted ancestry\n")
+                self.assert_refused(fixture, fixture.commit("collector bytes changed after acceptance"))
+
+    def test_missing_executable_and_symlink_collector_entries_are_refused(self):
+        for change in ("delete", "executable", "symlink"):
+            with self.subTest(change=change), self.history() as fixture:
+                path = "tools/collect_logs.py"
+                if change == "delete":
+                    fixture.git("rm", "--", path)
+                elif change == "executable":
+                    fixture.git("update-index", "--chmod=+x", "--", path)
+                else:
+                    # Construct the Git tree type without Windows symlink privilege.
+                    fixture.git("update-index", "--cacheinfo", f"120000,{fixture.collector_blobs[path]},{path}")
+                target = fixture.commit("collector entry changed", stage=False)
+                self.assert_refused(fixture, target)
+
+    def test_copied_exact_collector_blobs_without_accepted_history_are_refused(self):
+        with self.history() as fixture:
+            fixture.git("switch", "--quiet", "-c", "copied-without-acceptance", fixture.delivery_only)
+            for path, content in fixture.collector_contents.items():
+                fixture.write(path, content)
+            target = fixture.commit("copy accepted bytes without accepted lineage")
+            for path, blob in fixture.collector_blobs.items():
+                self.assertEqual(fixture.git("rev-parse", f"{target}:{path}"), blob)
+            self.assert_refused(fixture, target)
+
+    def test_delivery_only_descendant_is_not_a_combined_release(self):
+        with self.history() as fixture:
+            self.assert_refused(fixture, fixture.delivery_only)
+
+    def test_native_qualification_cannot_reuse_old_tools_or_another_deployment_digest(self):
+        tool = {"revision": "c" * 40}
+        selected_digest = "sha256:" + "e" * 64
+        valid = {"path": ".github/workflows/application-rollback.yml", "head_sha": tool["revision"],
+                 "head_branch": "main", "event": "workflow_dispatch", "display_title": f"P0 return {selected_digest}",
+                 "run_number": 2, "id": 456, "run_attempt": 1}
+        with patch.object(ar.releases, "assert_general_ci"), \
+             patch.object(ar.releases, "_latest_general", return_value={"id": 123, "run_attempt": 1}), \
+             patch.object(ar.releases, "_successful_jobs") as jobs:
+            for case, change in (("old tools", {"head_sha": "b" * 40}),
+                                 ("original product digest", {"display_title": f"P0 return {DIGEST}"})):
+                with self.subTest(case=case), patch.object(ar.releases, "_ci_pages", return_value=[{**valid, **change}]):
+                    with self.assertRaises(Blocked) as denied:
+                        ar._tool_ci(tool, True, selected_digest)
+                    self.assertEqual(denied.exception.code, "ROLLBACK_QUALIFICATION")
+                    jobs.assert_not_called()
+            with patch.object(ar.releases, "_ci_pages", return_value=[valid]):
+                result = ar._tool_ci(tool, True, selected_digest)
+            self.assertEqual(result["nativeQualification"]["runId"], 456)
+            jobs.assert_called_once_with(valid, ("contracts (ubuntu-latest)", "contracts (windows-latest)", "native official images"))
 
 
 if __name__ == "__main__":

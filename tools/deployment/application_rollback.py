@@ -26,7 +26,13 @@ from .system import Installation, run
 PREVIOUS = "98d7fbb42ae9e53113cb45ada4b4301334de9c27"
 PRODUCT = "d0bf7cbeb129ff991272f006fc379ee004cb00f8"
 BASELINE = "76d0610285831a99b7801478e03418ff5800bf73"
-POLICY = "asa-p0-98d7-d0bf-application-return-v1"
+COLLECTOR_REVISION = "a8c8ff139340032f4d69cb577847b6ae47667011"
+COLLECTOR_BLOBS = {
+    "tools/collect_logs.py": "59746e5e8d889ab819535a1ac04f40d61e1c0bb6",
+    "tools/test_collect_logs.py": "1445bd987fc6d43dd51c5f87e5364a521e50481f",
+    "docs/deployment/ADMIN_LOGS.md": "836bae5a70a21eafa5cbc15d7846f36b8e991dc9",
+}
+POLICY = "asa-p0-98d7-d0bf-application-return-v2"
 SCHEMA = 304
 JOURNAL = "application-rollback.json"
 FORMAT = "asa-application-rollback-v1"
@@ -206,6 +212,14 @@ def _pinned_images(release, expected):
             "ROLLBACK_PAIR", "The declared release has different immutable images.")
 
 
+def _changed_paths(install, previous, selected, *paths):
+    # A rename must expose its removed source as well as its destination. NUL
+    # separation also preserves exact Git paths independently of quoting rules.
+    value = install.git("diff", "--no-renames", "--no-ext-diff", "--ignore-submodules=none",
+                        "--name-only", "-z", previous, selected, "--", *paths)
+    return set(filter(None, value.split("\0")))
+
+
 def validate_pair(install, previous, selected):
     """The declaration is a reviewed release pair, never an arbitrary older SHA."""
     validate_release(previous)
@@ -219,11 +233,20 @@ def validate_pair(install, previous, selected):
         _pinned_images(selected, PRODUCT_IMAGES)
     else:
         install.git("merge-base", "--is-ancestor", BASELINE, target)
-        changed = set(install.git("diff", "--name-only", PRODUCT, target).splitlines())
-        require(changed <= QUALIFIED_CHANGES | BASELINE_DOCS, "ROLLBACK_PRODUCT",
+        changed = _changed_paths(install, PRODUCT, target)
+        require(changed <= QUALIFIED_CHANGES | BASELINE_DOCS | COLLECTOR_BLOBS.keys(), "ROLLBACK_PRODUCT",
                 "The release changes product, dependencies or unqualified delivery inputs.")
-        require(not install.git("diff", "--name-only", BASELINE, target, "--", *sorted(BASELINE_DOCS)),
+        require(not _changed_paths(install, BASELINE, target, *sorted(BASELINE_DOCS)),
                 "ROLLBACK_PRODUCT", "The qualified documentation baseline changed.")
+        try:
+            install.git("merge-base", "--is-ancestor", COLLECTOR_REVISION, target)
+        except Blocked:
+            raise Blocked("ROLLBACK_PRODUCT", "The selected release lacks the accepted collector history.",
+                          "Use the reviewed combined release; matching copied files alone are insufficient.") from None
+        for path, blob in COLLECTOR_BLOBS.items():
+            entry = install.git("ls-tree", "--full-tree", "-z", target, "--", path)
+            require(entry == f"100644 blob {blob}\t{path}\0", "ROLLBACK_PRODUCT",
+                    "The selected collector files, types or modes differ from their accepted immutable identities.")
     install.git("merge-base", "--is-ancestor", PREVIOUS, target)
     install.git("merge-base", "--is-ancestor", target, "origin/main")
     sources = {}
