@@ -220,11 +220,20 @@ def _pinned_images(release, expected):
 
 
 def _changed_paths(install, previous, selected, *paths):
-    # A rename must expose its removed source as well as its destination. NUL
-    # separation also preserves exact Git paths independently of quoting rules.
+    # A rename must expose both paths. Put a non-whitespace status before the
+    # first name so the command runner's strip() cannot trim that Git path.
+    # A final NUL likewise protects trailing path whitespace.
     value = install.git("diff", "--no-renames", "--no-ext-diff", "--ignore-submodules=none",
-                        "--name-only", "-z", previous, selected, "--", *paths)
-    return set(filter(None, value.split("\0")))
+                        "--name-status", "-z", previous, selected, "--", *paths)
+    if value == "":
+        return set()
+    fields = value.split("\0")
+    require(fields[-1] == "" and len(fields) % 2 == 1, "ROLLBACK_PRODUCT",
+            "Git source changes have incomplete status/path framing.")
+    pairs = list(zip(fields[:-1:2], fields[1:-1:2]))
+    require(all(status in ("A", "D", "M", "T") and path for status, path in pairs),
+            "ROLLBACK_PRODUCT", "Git source changes have unknown status or empty path.")
+    return {path for status, path in pairs}
 
 
 def validate_pair(install, previous, selected):

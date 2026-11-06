@@ -92,7 +92,7 @@ class Fixture:
         if args[0] == "ls-files":
             return args[-1]
         if args[0] == "diff":
-            return "\n".join(self.source_changes)
+            return "".join(f"M\0{name}\0" for name in self.source_changes)
         if args[0] == "switch":
             self.head = args[-1]
             return ""
@@ -593,6 +593,28 @@ class NativeBoundaryTests(unittest.TestCase):
             self.assertEqual(manager.main(["update", "--scheduled", "--require-application-rollback"]), 2)
 
 
+class GitDiffFramingTests(unittest.TestCase):
+    def test_empty_diff_and_status_framing_preserve_path_whitespace(self):
+        fixture = SimpleNamespace(git=Mock(return_value=""))
+        self.assertEqual(ar._changed_paths(fixture, "before", "after"), set())
+        paths = (" leading", "\tleading", "\nleading", "trailing \t\n")
+        fixture.git.return_value = "".join(f"{status}\0{path}\0" for status, path in zip("ADMT", paths))
+        self.assertEqual(ar._changed_paths(fixture, "before", "after"), set(paths))
+
+    def test_malformed_or_unexpected_diff_records_are_refused(self):
+        malformed = (" ", "\n", "\0", "A\0", "A\0path", "A\0\0", "A\0path\0M\0",
+                     "A\0path\0\0", "A\0path\0M\0other", "R100\0old\0new\0",
+                     "C100\0old\0new\0", "R\0path\0", "C\0path\0", "X\0path\0",
+                     "U\0path\0", "B\0path\0", "M100\0path\0", "AD\0path\0",
+                     "A\0valid\0X\0other\0", "M \0path\0")
+        for value in malformed:
+            with self.subTest(value=value):
+                fixture = SimpleNamespace(git=Mock(return_value=value))
+                with self.assertRaises(Blocked) as denied:
+                    ar._changed_paths(fixture, "before", "after")
+                self.assertEqual(denied.exception.code, "ROLLBACK_PRODUCT")
+
+
 class SourceHistory:
     """Actual commits/merges in a fresh synthetic Git repository; no Docker."""
     product_path = "apps/api/src/preserved-product.ts"
@@ -664,6 +686,30 @@ class SourceHistory:
         self.git("merge", "--quiet", "--no-ff", "--no-edit", self.lazy_context)
         return self.git("rev-parse", "HEAD")
 
+    def commit_extra_blob(self, path, blob):
+        # Build only Git objects: these names need not be representable in a
+        # Windows worktree. The existing fixture's files/index are untouched.
+        def add_entry(tree, parts):
+            raw = subprocess.check_output(["git", "ls-tree", "-z", tree], cwd=self.root) if tree else b""
+            entries = {row.split(b"\t", 1)[1]: row for row in raw.split(b"\0") if row}
+            name = parts[0].encode("utf-8")
+            if len(parts) > 1:
+                existing = entries.get(name)
+                child = existing.split(b"\t", 1)[0].split()[2].decode("ascii") if existing else None
+                obj = add_entry(child, parts[1:])
+                metadata = b"040000 tree " + obj.encode("ascii")
+            else:
+                assert name not in entries
+                metadata = b"100644 blob " + blob.encode("ascii")
+            entries[name] = metadata + b"\t" + name
+            result = subprocess.run(["git", "mktree", "-z"], cwd=self.root,
+                                    input=b"\0".join(entries.values()) + b"\0",
+                                    capture_output=True, check=True)
+            return result.stdout.decode("ascii").strip()
+
+        tree = add_entry(self.git("rev-parse", "HEAD^{tree}"), path.split("/"))
+        return self.git("commit-tree", tree, "-p", "HEAD", "-m", "unqualified extra path")
+
 
 class SourceBoundaryTests(unittest.TestCase):
     @contextlib.contextmanager
@@ -696,7 +742,26 @@ class SourceBoundaryTests(unittest.TestCase):
             self.assertIn(destination, vulnerable)
             self.assertNotIn(fixture.product_path, vulnerable)
             self.assertFalse((fixture.root / fixture.product_path).exists())
+            changed = ar._changed_paths(fixture, fixture.product, target)
+            self.assertIn(fixture.product_path, changed)
+            self.assertIn(destination, changed)
             self.assert_refused(fixture, target)
+
+    def test_whitespace_in_unqualified_git_paths_is_preserved_and_refused(self):
+        names = tuple(prefix + SourceHistory.delivery_path for prefix in (" ", "\t", "\n", "\v", "\f", "\u00a0"))
+        names += tuple(SourceHistory.delivery_path + suffix for suffix in (" ", "\t", "\n", " \t\n"))
+        for name in names:
+            with self.subTest(path=name), self.history() as fixture:
+                fixture.merge_lazy_context()
+                blob = fixture.git("rev-parse", f"HEAD:{fixture.delivery_path}")
+                target = fixture.commit_extra_blob(name, blob)
+                raw = subprocess.check_output(["git", "diff", "--no-renames", "--no-ext-diff",
+                                               "--ignore-submodules=none", "--name-only", "-z",
+                                               fixture.product, target, "--"], cwd=fixture.root)
+                exact = {path.decode("utf-8") for path in raw.split(b"\0") if path}
+                self.assertIn(name, exact)
+                self.assertEqual(ar._changed_paths(fixture, fixture.product, target), exact)
+                self.assert_refused(fixture, target)
 
     def test_foreign_source_edit_delete_copy_mode_and_gitlink_are_refused(self):
         for change in ("edit", "delete", "copy", "mode", "gitlink"):
