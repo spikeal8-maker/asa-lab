@@ -1,3 +1,18 @@
+---
+task_id: TASK-ELECTRONICS-ROBOTICS-FIELD-002
+kind: implementation
+risk: high
+semantic_change: 'yes'
+roadmap_slice: null
+prerequisites:
+  - docs/execution/current.yaml
+  - docs/product/robotics/FIELD_V2_PLAN.md
+  - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
+  - docs/product/electronics/contracts/HOST_PACING_PAUSE_ADAPTER_V1.md
+acceptance_boundary: milestone
+review: independent
+---
+
 # TASK-ELECTRONICS-ROBOTICS-FIELD-002 — поле и динамика предметов
 
 ## Goal / user-visible result
