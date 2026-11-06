@@ -289,6 +289,122 @@ class CollectorTests(unittest.TestCase):
                         self.assertEqual(self.history_bytes(c), before)
                     self.assertEqual((c.private/'segment-verification.key').read_bytes(), key)
 
+    def test_cold_gap_receipt_cannot_be_replaced_by_unverified_content(self):
+        for reader in (1, 2):
+            for fault in ('none', 'same_id_content', 'receipt', 'key_loss'):
+                with self.subTest(reader=reader, fault=fault), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                    root = Path(temp)
+                    c, name, _, originals, key, rows = self.interrupted_publication_fixture(root, reader, cleanup)
+                    path_open = Path.open
+                    def unavailable(path, *args, **kwargs):
+                        if path.name == name and args and args[0] == 'rb': raise OSError('synthetic temporary gap read failure')
+                        return path_open(path, *args, **kwargs)
+                    with patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 1), patch.object(Path, 'open', unavailable):
+                        with self.assertRaisesRegex(RuntimeError, 'synthetic temporary gap read failure'): c.publish()
+                    with self.assertRaisesRegex(RuntimeError, 'previously failed'): c.publish()
+                    failed_audit = c.state('history:audit')
+                    self.assertEqual(failed_audit['state'], 'error')
+                    if fault == 'receipt':
+                        c.db.execute('UPDATE segment_verification SET proof=? WHERE name=?', ('0'*64, name))
+                        c.db.commit()
+                    receipt = c.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone()
+                    self.assertIsNotNone(receipt)
+                    c.db.close()
+                    if fault == 'same_id_content':
+                        raw = gzip.decompress(originals[name]) if reader == 2 else originals[name]
+                        corrupt = raw.replace(b'publication pending', b'publication changed')
+                        self.assertNotEqual(corrupt, raw)
+                        self.assertEqual(len(corrupt), len(raw))
+                        self.assertEqual([json.loads(line)['id'] for line in corrupt.splitlines()],
+                                         [json.loads(line)['id'] for line in raw.splitlines()])
+                        (c.store/name).write_bytes(gzip.compress(corrupt, mtime=0) if reader == 2 else corrupt)
+                    elif fault == 'key_loss':
+                        (c.private/'segment-verification.key').unlink()
+                    before = self.history_bytes(c)
+                    if fault == 'none':
+                        recovered = Collector(root, {})
+                        cleanup.callback(recovered.db.close)
+                        recovered.reader_format = reader
+                        self.assertEqual(recovered.state('history:audit')['state'], 'complete')
+                        self.assertEqual(recovered.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone(), receipt)
+                        with patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 1):
+                            for _ in range(3): recovered.publish()
+                        self.assertEqual(recovered.state('history:audit')['state'], 'complete')
+                        self.assertEqual(recovered.state('segments')[name]['sha256'], json.loads(receipt[1])['sha256'])
+                        self.assertEqual(recovered.db.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall(), rows)
+                        self.assertEqual({p.name: p.read_bytes() for p in recovered.store.glob('seg-*')}, originals)
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, 'receipt cannot authenticate missing metadata'):
+                            unexpected = Collector(root, {})
+                            cleanup.callback(unexpected.db.close)
+                        observed = sqlite3.connect((c.private/'index.sqlite').as_uri()+'?mode=ro', uri=True)
+                        cleanup.callback(observed.close)
+                        self.assertEqual(json.loads(observed.execute("SELECT value FROM state WHERE key='history:audit'").fetchone()[0]), failed_audit)
+                        self.assertEqual(observed.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone(), receipt)
+                        self.assertEqual(observed.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall(), rows)
+                        self.assertEqual(self.history_bytes(c), before)
+                    if fault != 'key_loss':
+                        self.assertEqual((c.private/'segment-verification.key').read_bytes(), key)
+
+    def test_retained_descriptor_preserves_cold_cache_and_key_loss_fallback(self):
+        for reader in (1, 2):
+            for fault in ('receipt', 'key_loss'):
+                for corrupt_content in (False, True):
+                    with self.subTest(reader=reader, fault=fault, corrupt_content=corrupt_content), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                        root = Path(temp)
+                        c, name, _, originals, key, rows = self.interrupted_publication_fixture(root, reader, cleanup)
+                        c.publish()
+                        retained = c.state('segments')[name]
+                        if fault == 'receipt':
+                            c.db.execute('UPDATE segment_verification SET proof=? WHERE name=?', ('0'*64, name))
+                            c.db.commit()
+                        c.db.close()
+                        if fault == 'key_loss': (c.private/'segment-verification.key').unlink()
+                        if corrupt_content:
+                            raw = gzip.decompress(originals[name]) if reader == 2 else originals[name]
+                            corrupt = raw.replace(b'publication pending', b'publication changed')
+                            self.assertNotEqual(corrupt, raw)
+                            self.assertEqual(len(corrupt), len(raw))
+                            (c.store/name).write_bytes(gzip.compress(corrupt, mtime=0) if reader == 2 else corrupt)
+                        before = self.history_bytes(c)
+                        if corrupt_content:
+                            with self.assertRaisesRegex(RuntimeError, 'checksum differs'):
+                                unexpected = Collector(root, {})
+                                cleanup.callback(unexpected.db.close)
+                            self.assertEqual(self.history_bytes(c), before)
+                        else:
+                            recovered = Collector(root, {})
+                            cleanup.callback(recovered.db.close)
+                            self.assertEqual(recovered.state('history:audit')['state'], 'complete')
+                            self.assertEqual(recovered.verified_metadata[name]['sha256'], retained['sha256'])
+                            self.assertEqual(recovered.db.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall(), rows)
+                            proof, metadata = recovered.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone()
+                            self.assertNotEqual(proof, '0'*64)
+                            self.assertEqual(json.loads(metadata)['sha256'], retained['sha256'])
+                            self.assertEqual(self.history_bytes(recovered), before)
+                        if fault == 'key_loss':
+                            replacement_key = (c.private/'segment-verification.key').read_bytes()
+                            self.assertEqual(len(replacement_key), 32)
+                            self.assertNotEqual(replacement_key, key)
+                        else:
+                            self.assertEqual((c.private/'segment-verification.key').read_bytes(), key)
+
+    def test_warm_gap_verified_checksum_allows_full_receipt_fallback(self):
+        for reader in (1, 2):
+            with self.subTest(reader=reader), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                c, name, _, originals, key, rows = self.interrupted_publication_fixture(Path(temp), reader, cleanup)
+                checksum = c.verified_metadata[name]['sha256']
+                c.db.execute('UPDATE segment_verification SET proof=? WHERE name=?', ('0'*64, name))
+                c.db.commit()
+                with patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 1): c.publish()
+                self.assertEqual(c.state('segments')[name]['sha256'], checksum)
+                proof, metadata = c.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone()
+                self.assertNotEqual(proof, '0'*64)
+                self.assertEqual(json.loads(metadata)['sha256'], checksum)
+                self.assertEqual(c.db.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall(), rows)
+                self.assertEqual({p.name: p.read_bytes() for p in c.store.glob('seg-*')}, originals)
+                self.assertEqual((c.private/'segment-verification.key').read_bytes(), key)
+
     def test_incremental_audit_same_size_corruption_is_terminal(self):
         with tempfile.TemporaryDirectory() as temp, patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 2):
             c = self.audit_fixture(Path(temp))

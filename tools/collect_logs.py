@@ -564,6 +564,11 @@ class Collector:
                             pending_ids.extend(bytes.fromhex(json.loads(line)['id']) for line in content.splitlines())
                     if ids != pending_ids: raise ValueError('pending compaction output identities differ from originals')
                     continue
+                # A failed existing receipt cannot become a fresh reference from
+                # the same unverified bytes after a cold start. A retained or
+                # process-verified checksum still permits full cache fallback.
+                if cached and name not in metadata and not expected.get('sha256'):
+                    raise ValueError(f'immutable segment receipt cannot authenticate missing metadata: {name}')
                 if indexed != ids or rows[0][0] != first or rows[-1][0] != last:
                     raise ValueError(f'immutable segment identities differ from private index: {name}')
                 classified = [classify_event(e) for e in entries]
