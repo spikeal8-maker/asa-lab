@@ -318,41 +318,165 @@ test('3D keyboard works in Russian layout and nudges selected models with Shift'
 test('portrait snapshots cannot stretch existing project cards on desktop or phone', async ({
   page,
 }) => {
-  // Render the real shared card styles against saved portrait/landscape images;
-  // no deleting a project or regenerating its snapshot is needed for the fix.
-  const css =
-    readFileSync('apps/web/src/modules/project-card.css', 'utf8') +
-    readFileSync('apps/web/src/modules/project-preview.css', 'utf8');
-  await page.setContent(
-    `<style>${css}</style><ul class="project-card-grid">${[0, 1].map(() => '<li class="project-card"><div class="project-card-frame"><div class="project-card-surface"><img class="project-preview-snapshot"></div></div><div class="project-card-body">Проект</div></li>').join('')}</ul>`,
-  );
-  await page.evaluate(async () => {
-    const images = [...document.querySelectorAll<HTMLImageElement>('img')];
-    images.forEach((image, index) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = index ? 390 : 960;
-      canvas.height = index ? 844 : 640;
-      const context = canvas.getContext('2d')!;
-      context.fillStyle = index ? '#b82430' : '#238bb0';
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      image.src = canvas.toDataURL();
-    });
-    await Promise.all(images.map((image) => image.decode()));
-  });
-  for (const width of [1100, 390]) {
-    await page.setViewportSize({ width, height: 900 });
-    const frames = await page.locator('.project-card-frame').evaluateAll((elements) =>
+  // Use the layout-bearing ProjectCard / ProjectPreview markup and its real CSS.
+  // Personal grid cards are square; learning cards and list frames remain 4:3.
+  // Neither layout may grow when a saved portrait snapshot finishes loading.
+  const css = [
+    'apps/web/src/modules/project-card.css',
+    'apps/web/src/modules/project-preview.css',
+    'apps/web/src/three-d/three-d-presentation.css',
+  ]
+    .map((path) => readFileSync(path, 'utf8'))
+    .join('\n');
+  const layouts = [
+    { id: 'personal', title: 'Личные проекты' },
+    { id: 'learning', title: 'Учебные проекты' },
+    { id: 'list', title: 'Список проектов' },
+  ] as const;
+  const card = (learning: boolean) => `
+    <li class="project-card${learning ? ' is-learning' : ''}" data-testid="project-card">
+      <div class="project-card-frame">
+        <div class="project-card-surface">
+          <div class="three-d-hover-preview" data-testid="three-d-hover-preview">
+            <img class="project-preview-snapshot" alt="Корпус датчика: 3D-моделирование"
+              decoding="async" draggable="false" data-testid="project-preview-snapshot">
+          </div>
+        </div>
+        <div class="project-card-hover"></div>
+      </div>
+      <div class="project-card-body">
+        <h2 class="project-card-title">Корпус датчика</h2>
+        <p class="project-card-time">Изменён 5 ноября 2026 г.</p>
+        ${learning ? '<div class="project-card-learning"><p class="project-card-learning-badge">Учебная работа</p></div>' : ''}
+        <p class="project-card-footer${learning ? '' : ' is-redundant'}">
+          <span>${learning ? 'Задание учителя' : 'Личный проект'}</span>
+        </p>
+      </div>
+    </li>`;
+  const measure = () =>
+    page.locator('[data-card-layout] .project-card').evaluateAll((elements) =>
       elements.map((element) => {
-        const bounds = element.getBoundingClientRect();
-        return { width: bounds.width, height: bounds.height };
+        const bounds = (target: Element) => {
+          const { left, top, right, bottom, width, height } = target.getBoundingClientRect();
+          return { left, top, right, bottom, width, height };
+        };
+        const frame = element.querySelector('.project-card-frame');
+        const surface = element.querySelector('.project-card-surface');
+        const preview = element.querySelector('.three-d-hover-preview');
+        const image = element.querySelector<HTMLImageElement>('.project-preview-snapshot');
+        const layout = element.closest('[data-card-layout]')?.getAttribute('data-card-layout');
+        if (!frame || !surface || !preview || !image || !layout)
+          throw new Error('Project card snapshot fixture is incomplete');
+        return {
+          layout,
+          card: bounds(element),
+          frame: bounds(frame),
+          surface: bounds(surface),
+          preview: bounds(preview),
+          image: bounds(image),
+          objectFit: getComputedStyle(image).objectFit,
+          naturalWidth: image.naturalWidth,
+          naturalHeight: image.naturalHeight,
+        };
       }),
     );
-    for (const frame of frames)
-      expect(Math.abs(frame.height - (frame.width * 3) / 4)).toBeLessThan(2);
-    expect(Math.abs(frames[0]!.height - frames[1]!.height)).toBeLessThan(2);
+
+  for (const width of [1100, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.setContent(
+      `<style>${css}</style><main>${layouts
+        .map(
+          ({ id, title }) =>
+            `<section data-card-layout="${id}"><h1>${title}</h1><ul class="project-card-grid${id === 'list' ? ' list' : ''}">${[0, 1].map(() => card(id === 'learning')).join('')}</ul></section>`,
+        )
+        .join('')}</main>`,
+    );
+    const before = await measure();
+    expect(before).toHaveLength(6);
+    expect(before.every((snapshot) => snapshot.naturalWidth === 0)).toBe(true);
+    await page.evaluate(async () => {
+      const images = [...document.querySelectorAll<HTMLImageElement>('.project-preview-snapshot')];
+      images.forEach((image, index) => {
+        const portrait = index % 2 === 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = portrait ? 390 : 960;
+        canvas.height = portrait ? 844 : 640;
+        const context = canvas.getContext('2d')!;
+        context.fillStyle = portrait ? '#b82430' : '#238bb0';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        // A circle also makes any distorted image immediately visible in evidence.
+        context.beginPath();
+        context.arc(
+          canvas.width / 2,
+          canvas.height / 2,
+          Math.min(canvas.width, canvas.height) / 4,
+          0,
+          Math.PI * 2,
+        );
+        context.strokeStyle = '#ffffff';
+        context.lineWidth = 12;
+        context.stroke();
+        image.src = canvas.toDataURL();
+      });
+      await Promise.all(images.map((image) => image.decode()));
+    });
+    const after = await measure();
+    await test.info().attach(`project-card-geometry-${width}`, {
+      body: JSON.stringify({ viewportWidth: width, before, after }, null, 2),
+      contentType: 'application/json',
+    });
+    expect(after).toHaveLength(before.length);
+    for (const [index, snapshot] of after.entries()) {
+      expect([snapshot.naturalWidth, snapshot.naturalHeight]).toEqual(
+        index % 2 ? [390, 844] : [960, 640],
+      );
+      expect(snapshot.frame.width).toBeGreaterThan(0);
+      expect(snapshot.frame.height).toBeGreaterThan(0);
+      expect(snapshot.objectFit).toBe('contain');
+      expect(
+        Math.max(
+          snapshot.card.left - snapshot.frame.left,
+          snapshot.card.top - snapshot.frame.top,
+          snapshot.frame.right - snapshot.card.right,
+          snapshot.frame.bottom - snapshot.card.bottom,
+        ),
+      ).toBeLessThan(2);
+      if (snapshot.layout === 'personal') {
+        expect(Math.abs(snapshot.card.height - snapshot.card.width)).toBeLessThan(2);
+      } else {
+        expect(Math.abs(snapshot.frame.height - (snapshot.frame.width * 3) / 4)).toBeLessThan(2);
+      }
+      for (const part of ['card', 'frame', 'surface', 'preview', 'image'] as const) {
+        for (const dimension of ['left', 'top', 'width', 'height'] as const) {
+          expect(
+            Math.abs(snapshot[part][dimension] - before[index]![part][dimension]),
+          ).toBeLessThan(2);
+        }
+      }
+      for (const [outer, inner] of [
+        [snapshot.frame, snapshot.surface],
+        [snapshot.surface, snapshot.preview],
+        [snapshot.preview, snapshot.image],
+      ]) {
+        for (const edge of ['left', 'top', 'right', 'bottom'] as const) {
+          expect(Math.abs(inner![edge] - outer![edge])).toBeLessThan(2);
+        }
+      }
+    }
+    for (const { id } of layouts) {
+      const pair = after.filter((snapshot) => snapshot.layout === id);
+      expect(pair).toHaveLength(2);
+      expect(Math.abs(pair[0]!.card.height - pair[1]!.card.height)).toBeLessThan(2);
+      expect(Math.abs(pair[0]!.frame.height - pair[1]!.frame.height)).toBeLessThan(2);
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       width,
     );
+    mkdirSync('e2e/artifacts/three-d', { recursive: true });
+    await page.screenshot({
+      path: `e2e/artifacts/three-d/project-card-portrait-${width}.png`,
+      fullPage: true,
+    });
   }
 });
 
