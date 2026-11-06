@@ -256,6 +256,36 @@ class ReturnTests(unittest.TestCase):
         self.assertEqual(receipt["selected"]["revision"], ar.PREVIOUS)
         self.assertEqual(ar.load_journal(self.fixture)["phase"], "rolled_back")
 
+    def test_actual_operational_reader_survives_interrupted_forward_and_return(self):
+        from deployment import operational
+        from deployment.system import Installation as RealInstallation
+        RealInstallation.receipt(self.fixture, {"status": "success", "trigger": "manual", "phase": "verify_entry",
+                                               "selected": self.fixture.previous, "previous": {"revision": "a" * 40}})
+        operational.append_operation(self.fixture.root, {"version": 1, "operation": "backup", "producer": "manager",
+            "status": "succeeded", "trigger": "manual", "at": operational.stamp(), "revision": ar.PREVIOUS, "schema": 304})
+        prior_bytes = (self.fixture.state / "last-operation.json").read_bytes()
+        states, statuses = {}, {}
+        collector = SimpleNamespace(root=self.fixture.root, state=lambda key, default=None: states.get(key, default),
+            set_state=lambda key, value: states.__setitem__(key, value),
+            status=lambda source, state, detail: statuses.__setitem__(source, state), add=lambda value: None)
+        def read_real_sources():
+            operational.operational_events(collector, lambda *arguments: arguments, {})
+            self.assertEqual(statuses["operations:updates"], "ok")
+            self.assertEqual(statuses["operations:backup"], "ok")
+        journal = self.arm()
+        self.fixture.crash_phase = "forward_api"
+        with self.assertRaises(Crash): ar.switch_forward(self.fixture, journal)
+        self.assertEqual((self.fixture.state / "last-operation.json").read_bytes(), prior_bytes)
+        read_real_sources()
+        self.fixture.crash_phase = "rollback_api"
+        with self.assertRaises(Crash): ar.rollback(self.fixture)
+        self.assertEqual((self.fixture.state / "last-operation.json").read_bytes(), prior_bytes)
+        read_real_sources()
+        with patch.object(self.fixture, "receipt", side_effect=lambda value: RealInstallation.receipt(self.fixture, value)):
+            ar.rollback(self.fixture)
+        read_real_sources()
+        self.assertEqual(ar.load_journal(self.fixture)["phase"], "rolled_back")
+
     def test_every_service_stage_before_and_after_action_is_restartable(self):
         for phase in ("forward_support", "forward_api", "forward_web", "rollback_support", "rollback_api", "rollback_web"):
             for after in (False, True):

@@ -579,12 +579,9 @@ def _start_services(install, journal, release, direction):
 
 
 def switch_forward(install, journal):
-    # The existing operational publisher accepts completed success/failure
-    # receipts only. Pending intent is a private linked state record, never a
-    # fabricated successful operational event.
-    _write(install.state / "last-operation.json", {"at": stamp(), "status": "switching", "phase": "switch",
-        "selected": journal["eligibility"]["selected"], "previous": journal["eligibility"]["previous"],
-        "applicationRollback": _link(journal)})
+    # Preserve the last completed receipt: both its publisher and the actual
+    # operational reader accept only success/failed_switch. Pending intent is
+    # bound by the durable capsule + its own maintenance marker instead.
     _advance(install, journal, "forward_stop")
     install.compose("stop", "web", "api", "scratch", "search")
     _start_services(install, journal, journal["eligibility"]["selected"], "forward")
@@ -620,9 +617,9 @@ def _linked_records(install, journal):
     require(all(value is None or value.get("applicationRollback") == link for value in markers.values()),
             "ROLLBACK_OPERATION", "An unrelated or backup operation owns a recovery marker.")
     linked = isinstance(receipt, dict) and receipt.get("applicationRollback") == link
-    interrupted_arm = (any(markers.values()) and digest(receipt) == journal["eligibility"]["previousReceiptSha256"]
-                       and journal["phase"] == "prepared")
-    require(linked or interrupted_arm, "ROLLBACK_OPERATION",
+    interrupted_operation = (any(markers.values()) and journal["phase"] not in TERMINAL
+                             and digest(receipt) == journal["eligibility"]["previousReceiptSha256"])
+    require(linked or interrupted_operation, "ROLLBACK_OPERATION",
             "The capsule is not linked to the installation's last update operation.")
     return markers
 

@@ -176,6 +176,10 @@ Linux/macOS используют тот же Python entry point и те же а�
 связывают capsule с `maintenance.json`, `failed-switch.json` и последней
 operation receipt. Capsule содержит обе exact releases, data/config/tooling/CI
 identities и backup reference. Последовательность durable phases имеет hash chain.
+Пока новый outcome не завершён, прежняя корректная operation receipt сохраняется
+побайтно: её штатный operational reader не получает неизвестный pending status.
+Прерванный switch связывается через собственный maintenance marker, capsule и
+точный `previousReceiptSha256`; чужая или более новая receipt не принимается.
 Записи публикуются через private temporary file, file fsync и atomic replace;
 POSIX дополнительно синхронизирует каталог.
 
