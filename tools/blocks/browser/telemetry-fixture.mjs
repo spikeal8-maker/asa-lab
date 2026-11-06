@@ -146,6 +146,50 @@ function validQuality(body, diagnostics) {
   );
 }
 
+function validDiagnosticException(value, code) {
+  return (
+    record(value) &&
+    Object.keys(value).length === 4 &&
+    keys(value, ['kind', 'capture', 'handling', 'frames']) &&
+    [
+      'Error',
+      'TypeError',
+      'ReferenceError',
+      'RangeError',
+      'SyntaxError',
+      'URIError',
+      'EvalError',
+      'AggregateError',
+      'AbortError',
+      'SecurityError',
+      'QuotaExceededError',
+      'InvalidStateError',
+      'NetworkError',
+      'unknown',
+    ].includes(value.kind) &&
+    ['window', 'rejection', 'app_boundary', 'editor_boundary'].includes(value.capture) &&
+    value.handling === (value.capture.endsWith('_boundary') ? 'boundary_fallback' : 'unhandled') &&
+    (value.capture === 'window'
+      ? code === 'window_error'
+      : value.capture === 'rejection'
+        ? code === 'unhandled_rejection'
+        : code === 'render_failed') &&
+    Array.isArray(value.frames) &&
+    value.frames.length <= 5 &&
+    value.frames.every(
+      (frame) =>
+        record(frame) &&
+        Object.keys(frame).length === 3 &&
+        keys(frame, ['script', 'line', 'column']) &&
+        typeof frame.script === 'string' &&
+        /^\/assets\/[A-Za-z0-9_.-]{1,140}-[A-Za-z0-9_-]{8,16}\.js$/.test(frame.script) &&
+        ['line', 'column'].every(
+          (key) => Number.isInteger(frame[key]) && frame[key] > 0 && frame[key] <= 10_000_000,
+        ),
+    )
+  );
+}
+
 function validDiagnostic(body) {
   return (
     record(body) &&
@@ -165,6 +209,14 @@ function validDiagnostic(body) {
       'script',
       'line',
       'column',
+      'exception',
+      'operation',
+      'method',
+      'failureKind',
+      'clientAttemptId',
+      'repetitionCount',
+      'firstOccurredAt',
+      'lastOccurredAt',
     ]) &&
     uuid(body.eventId) &&
     Number.isSafeInteger(body.occurredAt) &&
@@ -172,6 +224,18 @@ function validDiagnostic(body) {
     // minute-save cases and must not be compared with this Node server clock.
     body.occurredAt >= 0 &&
     body.occurredAt <= 8_640_000_000_000_000 &&
+    (['repetitionCount', 'firstOccurredAt', 'lastOccurredAt'].every(
+      (key) => body[key] === undefined,
+    ) ||
+      (Number.isSafeInteger(body.repetitionCount) &&
+        body.repetitionCount >= 1 &&
+        body.repetitionCount <= 1_000_000 &&
+        Number.isSafeInteger(body.firstOccurredAt) &&
+        body.firstOccurredAt === body.occurredAt &&
+        Number.isSafeInteger(body.lastOccurredAt) &&
+        body.lastOccurredAt >= body.firstOccurredAt &&
+        body.lastOccurredAt <= 8_640_000_000_000_000 &&
+        body.lastOccurredAt - body.firstOccurredAt <= 15 * 60_000)) &&
     [
       'render_failed',
       'window_error',
@@ -183,6 +247,7 @@ function validDiagnostic(body) {
       'autosave_failed',
       'session_refresh_failed',
       'request_failed',
+      'request_cancelled',
       'request_slow',
       'editor_ready',
       'editor_heartbeat',
@@ -192,7 +257,31 @@ function validDiagnostic(body) {
     ['portal', 'scratch', 'electronics', 'auth'].includes(body.module) &&
     typeof body.revision === 'string' &&
     /^(?:[a-f0-9]{7,64}|unknown|development)$/.test(body.revision) &&
-    ['instanceId', 'relatedRequestId'].every((key) => body[key] === undefined || uuid(body[key])) &&
+    ['instanceId', 'relatedRequestId', 'clientAttemptId'].every(
+      (key) => body[key] === undefined || uuid(body[key]),
+    ) &&
+    (body.operation === undefined ||
+      [
+        'auth_me',
+        'auth_refresh',
+        'auth_other',
+        'project_read',
+        'project_save',
+        'electronics_draft_read',
+        'electronics_draft_write',
+        'blocks_runtime_session',
+        'other_api',
+      ].includes(body.operation)) &&
+    (body.method === undefined ||
+      ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'OTHER'].includes(
+        body.method,
+      )) &&
+    (body.failureKind === undefined ||
+      ['http', 'timeout', 'cancelled', 'network', 'unknown'].includes(body.failureKind)) &&
+    (body.code !== 'request_cancelled' ||
+      (body.failureKind === 'cancelled' &&
+        ['GET', 'HEAD'].includes(body.method) &&
+        body.phase === 'request')) &&
     (body.httpStatus === undefined ||
       (Number.isInteger(body.httpStatus) && body.httpStatus >= 100 && body.httpStatus <= 599)) &&
     (body.durationMs === undefined ||
@@ -205,6 +294,9 @@ function validDiagnostic(body) {
       )) &&
     (body.failureCode === undefined ||
       [
+        'scratch-save-asset',
+        'scratch-save-draft',
+        'scratch-save-prepare',
         'worker-start',
         'worker-runtime',
         'worker-message',
@@ -221,9 +313,14 @@ function validDiagnostic(body) {
         'arduino_execution_failed',
         'timed_advance_failed',
       ].includes(body.failureCode)) &&
+    (!['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
+      body.failureCode,
+    ) ||
+      (body.code === 'autosave_failed' && body.module === 'scratch' && body.phase === 'save')) &&
+    (body.exception === undefined || validDiagnosticException(body.exception, body.code)) &&
     (body.script === undefined ||
       (typeof body.script === 'string' &&
-        /^\/assets\/[A-Za-z0-9_-]{1,160}\.js$/.test(body.script))) &&
+        /^\/assets\/[A-Za-z0-9_.-]{1,160}\.js$/.test(body.script))) &&
     ['line', 'column'].every(
       (key) =>
         body[key] === undefined ||
