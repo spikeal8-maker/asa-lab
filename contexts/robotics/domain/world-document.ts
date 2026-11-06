@@ -26,29 +26,84 @@ export interface RoboticsBall extends RoboticsPoint {
   /** Coulomb resistance against the floor, not tangential contact friction. */
   readonly frictionCoefficient: number;
   readonly restitution: number;
+  /** V3: floor rolling resistance and tangential object contact are separate. */
+  readonly rollingResistanceCoefficient?: number;
+  readonly contactFrictionCoefficient?: number;
 }
 
-export type RoboticsFloorMark =
-  | {
-      readonly id: string;
-      readonly label?: string;
-      readonly kind: 'line';
-      readonly start: RoboticsPoint;
-      readonly end: RoboticsPoint;
-      readonly widthMeters: number;
-      readonly color: string;
-    }
-  | (RoboticsPoint & {
-      readonly id: string;
-      readonly label?: string;
-      readonly kind: 'area';
-      readonly widthMeters: number;
-      readonly heightMeters: number;
-      readonly color: string;
-    });
+export type RoboticsPhysicsMode = 'educational' | 'dynamic';
+export type RoboticsPhysicsAccuracy = 'balanced' | 'precise';
+export type RoboticsFieldSurface = 'smooth' | 'wood' | 'carpet';
+export interface RoboticsPhysicsParameters {
+  readonly accuracy: RoboticsPhysicsAccuracy;
+  readonly robotMassKg: number;
+  /** Mechanical force limit per wheel; not a second motor/electrical model. */
+  readonly maxWheelForceNewton: number;
+  readonly tireFrictionCoefficient: number;
+}
+export interface RoboticsBodyBase extends RoboticsPose {
+  readonly id: string;
+  readonly label?: string;
+  readonly massKg: number;
+  /** Physical size metadata; planar dynamics does not model tipping. */
+  readonly heightMeters: number;
+  readonly slidingFrictionCoefficient: number;
+  readonly contactFrictionCoefficient: number;
+  readonly restitution: number;
+}
+export type RoboticsBody = RoboticsBodyBase &
+  (
+    | { readonly kind: 'can'; readonly radiusMeters: number }
+    | { readonly kind: 'box'; readonly widthMeters: number; readonly depthMeters: number }
+  );
+export interface RoboticsMarkGroup {
+  readonly groupId?: string;
+  readonly groupPivot?: RoboticsPoint;
+}
+
+export type RoboticsFloorMark = RoboticsMarkGroup &
+  (
+    | {
+        readonly id: string;
+        readonly label?: string;
+        readonly kind: 'line';
+        readonly start: RoboticsPoint;
+        readonly end: RoboticsPoint;
+        readonly widthMeters: number;
+        readonly color: string;
+      }
+    | (RoboticsPoint & {
+        readonly id: string;
+        readonly label?: string;
+        readonly kind: 'area';
+        readonly widthMeters: number;
+        readonly heightMeters: number;
+        readonly color: string;
+      })
+    | {
+        readonly id: string;
+        readonly label?: string;
+        readonly kind: 'curve';
+        readonly start: RoboticsPoint;
+        readonly control: RoboticsPoint;
+        readonly end: RoboticsPoint;
+        readonly widthMeters: number;
+        readonly color: string;
+      }
+  );
+export type RoboticsCurveMark = Extract<RoboticsFloorMark, { readonly kind: 'curve' }>;
+export type RoboticsObjectKey =
+  | 'robot'
+  | `wall:${string}`
+  | `ball:${string}`
+  | `body:${string}`
+  | `mark:${string}`
+  | `mark-group:${string}`;
 
 export interface RoboticsWorldDocument {
-  readonly physicsProfile: 'kinematic-rover-discs-v1';
+  readonly physicsProfile:
+    'kinematic-rover-discs-v1' | 'kinematic-rover-bodies-v2' | 'rigid-body-2d-v1';
+  readonly physics?: RoboticsPhysicsParameters;
   readonly field: {
     readonly widthMeters: number;
     readonly heightMeters: number;
@@ -56,6 +111,9 @@ export interface RoboticsWorldDocument {
     readonly obstacles: readonly RoboticsRectObstacle[];
     readonly balls: readonly RoboticsBall[];
     readonly floorMarks: readonly RoboticsFloorMark[];
+    readonly bodies?: readonly RoboticsBody[];
+    readonly surface?: RoboticsFieldSurface;
+    readonly tiles?: { readonly enabled: boolean; readonly sizeMeters: number };
   };
   readonly robot: {
     readonly bodyLengthMeters: number;
@@ -76,9 +134,25 @@ export interface RoboticsWorldDocument {
   };
 }
 
+export interface RoboticsWorldV3Document extends RoboticsWorldDocument {
+  readonly physicsProfile: 'kinematic-rover-bodies-v2' | 'rigid-body-2d-v1';
+  readonly physics: RoboticsPhysicsParameters;
+  readonly field: RoboticsWorldDocument['field'] & {
+    readonly bodies: readonly RoboticsBody[];
+    readonly surface: RoboticsFieldSurface;
+    readonly tiles: { readonly enabled: boolean; readonly sizeMeters: number };
+  };
+}
+export function isRoboticsWorldV3(world: RoboticsWorldDocument): world is RoboticsWorldV3Document {
+  return (
+    world.physicsProfile === 'kinematic-rover-bodies-v2' ||
+    world.physicsProfile === 'rigid-body-2d-v1'
+  );
+}
+
 export const ROBOTICS_FIELD_LIMITS = {
-  widthMeters: { min: 0.8, max: 2.4 },
-  heightMeters: { min: 0.8, max: 2.4 },
+  widthMeters: { min: 0.8, max: 6 },
+  heightMeters: { min: 0.8, max: 6 },
   gridMeters: { min: 0.02, max: 0.5 },
 } as const;
 
@@ -87,9 +161,53 @@ export const ROBOTICS_BALL_LIMITS = {
   massKg: { min: 0.01, max: 5 },
   frictionCoefficient: { min: 0, max: 1 },
   restitution: { min: 0, max: 1 },
+  rollingResistanceCoefficient: { min: 0, max: 1 },
+  contactFrictionCoefficient: { min: 0, max: 1 },
 } as const;
 
-export const ROBOTICS_SCENE_LIMITS = { walls: 24, balls: 12, floorMarks: 48 } as const;
+export const ROBOTICS_BODY_LIMITS = {
+  radiusMeters: { min: 0.02, max: 0.25 },
+  widthMeters: { min: 0.04, max: 0.6 },
+  depthMeters: { min: 0.04, max: 0.6 },
+  heightMeters: { min: 0.01, max: 1 },
+  massKg: { min: 0.01, max: 5 },
+  slidingFrictionCoefficient: { min: 0, max: 1 },
+  contactFrictionCoefficient: { min: 0, max: 1 },
+  restitution: { min: 0, max: 1 },
+} as const;
+export const ROBOTICS_PHYSICS_PARAMETER_LIMITS = {
+  robotMassKg: { min: 0.1, max: 5 },
+  maxWheelForceNewton: { min: 0.01, max: 10 },
+  tireFrictionCoefficient: { min: 0, max: 1 },
+} as const;
+export const ROBOTICS_TILE_LIMITS = {
+  sizeMeters: { min: 0.1, max: 1 },
+  columns: { min: 1, max: 60 },
+  rows: { min: 1, max: 60 },
+} as const;
+export const ROBOTICS_FIELD_SURFACES = [
+  { id: 'smooth', label: 'Гладкое покрытие', resistanceMultiplier: 0.6, gripMultiplier: 0.65 },
+  { id: 'wood', label: 'Деревянное покрытие', resistanceMultiplier: 1, gripMultiplier: 1 },
+  { id: 'carpet', label: 'Ковровое покрытие', resistanceMultiplier: 2, gripMultiplier: 1.1 },
+] as const;
+export const ROBOTICS_ACCURACY_PRESETS = [
+  { id: 'balanced', label: 'Обычная', substeps: 2, velocityIterations: 10, positionIterations: 6 },
+  {
+    id: 'precise',
+    label: 'Повышенная',
+    substeps: 4,
+    velocityIterations: 14,
+    positionIterations: 8,
+  },
+] as const;
+
+export const ROBOTICS_SCENE_LIMITS = {
+  walls: 24,
+  balls: 12,
+  bodies: 12,
+  dynamicBodies: 12,
+  floorMarks: 48,
+} as const;
 
 export const ROBOTICS_FIELD_PRESETS = [
   { id: 'compact', label: 'Компактное · 1,2 × 1,2 м', widthMeters: 1.2, heightMeters: 1.2 },
@@ -156,8 +274,14 @@ export function nextRoboticsObjectId(world: RoboticsWorldDocument, prefix: strin
   identifier(prefix, 'тип предмета');
   if (prefix.length > 48) throw new Error('Слишком длинный префикс идентификатора предмета.');
   const occupied = new Set(
-    [...world.field.obstacles, ...world.field.balls, ...world.field.floorMarks].map(({ id }) => id),
+    [
+      ...world.field.obstacles,
+      ...world.field.balls,
+      ...(world.field.bodies ?? []),
+      ...world.field.floorMarks,
+    ].map(({ id }) => id),
   );
+  for (const mark of world.field.floorMarks) if (mark.groupId) occupied.add(mark.groupId);
   for (let index = 1; index <= occupied.size + 1; index += 1) {
     const id = `${prefix}-${index}`;
     if (!occupied.has(id)) return id;
@@ -209,6 +333,102 @@ export function createRoboticsWorldDocument(
   };
 }
 
+export function getRoboticsPhysicsMode(world: RoboticsWorldDocument): RoboticsPhysicsMode {
+  return world.physicsProfile === 'rigid-body-2d-v1' ? 'dynamic' : 'educational';
+}
+
+export function extendRoboticsWorld(
+  world: RoboticsWorldDocument,
+  mode: RoboticsPhysicsMode = 'educational',
+): RoboticsWorldV3Document {
+  return {
+    ...world,
+    physicsProfile: mode === 'dynamic' ? 'rigid-body-2d-v1' : 'kinematic-rover-bodies-v2',
+    physics: world.physics ?? {
+      accuracy: 'balanced',
+      robotMassKg: 0.5,
+      maxWheelForceNewton: 0.6,
+      tireFrictionCoefficient: 0.55,
+    },
+    field: {
+      ...world.field,
+      bodies: world.field.bodies ?? [],
+      surface: world.field.surface ?? 'wood',
+      tiles: world.field.tiles ?? { enabled: true, sizeMeters: 0.3 },
+      balls: world.field.balls.map((ball) => ({
+        ...ball,
+        rollingResistanceCoefficient: ball.rollingResistanceCoefficient ?? 0.02,
+        contactFrictionCoefficient: ball.contactFrictionCoefficient ?? 0.3,
+      })),
+    },
+  };
+}
+
+export function createRoboticsWorldV3Document(
+  presetId: RoboticsFieldPresetId = 'practice',
+  mode: RoboticsPhysicsMode = 'dynamic',
+): RoboticsWorldV3Document {
+  return extendRoboticsWorld(createRoboticsWorldDocument(presetId), mode);
+}
+
+export function setRoboticsPhysicsMode(
+  world: RoboticsWorldDocument,
+  mode: RoboticsPhysicsMode,
+): RoboticsWorldV3Document {
+  if (!isRoboticsWorldV3(world)) throw new Error('Сначала включите расширенное поле.');
+  if (mode !== 'educational' && mode !== 'dynamic') throw new Error('Неизвестный режим физики.');
+  return extendRoboticsWorld(world, mode);
+}
+
+export function createRoboticsBody(
+  kind: RoboticsBody['kind'],
+  id: string,
+  position: RoboticsPoint,
+): RoboticsBody {
+  const common = {
+    id,
+    ...position,
+    headingRadians: 0,
+    contactFrictionCoefficient: 0.35,
+    restitution: 0.1,
+  };
+  if (kind === 'can')
+    return {
+      ...common,
+      kind,
+      label: 'Металлическая банка',
+      radiusMeters: 0.033,
+      heightMeters: 0.115,
+      massKg: 0.04,
+      slidingFrictionCoefficient: 0.35,
+    };
+  if (kind === 'box')
+    return {
+      ...common,
+      kind,
+      label: 'Деревянный брусок',
+      widthMeters: 0.12,
+      depthMeters: 0.08,
+      heightMeters: 0.04,
+      massKg: 0.15,
+      slidingFrictionCoefficient: 0.3,
+    };
+  throw new Error('Неизвестный предмет.');
+}
+
+export function createRoboticsCurve(id: string, position: RoboticsPoint): RoboticsCurveMark {
+  return {
+    id,
+    label: 'Плавный поворот',
+    kind: 'curve',
+    start: { ...position },
+    control: { xMeters: position.xMeters + 0.3, yMeters: position.yMeters },
+    end: { xMeters: position.xMeters + 0.3, yMeters: position.yMeters + 0.3 },
+    widthMeters: 0.02,
+    color: '#1e293b',
+  };
+}
+
 function record(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value))
     throw new Error(`Некорректные данные: ${label}.`);
@@ -256,18 +476,25 @@ function collection(value: unknown, maximum: number, name: string): unknown[] {
 /** Structural decoding is separate from the geometric acceptance in the public world facade. */
 export function decodeRoboticsWorldDocument(value: unknown): RoboticsWorldDocument {
   const source = record(value, 'поле и робот');
-  if (source.physicsProfile !== undefined && source.physicsProfile !== 'kinematic-rover-discs-v1')
+  if (
+    source.physicsProfile !== undefined &&
+    !['kinematic-rover-discs-v1', 'kinematic-rover-bodies-v2', 'rigid-body-2d-v1'].includes(
+      String(source.physicsProfile),
+    )
+  )
     throw new Error('Неизвестный физический профиль поля.');
+  const extended =
+    source.physicsProfile === 'kinematic-rover-bodies-v2' ||
+    source.physicsProfile === 'rigid-body-2d-v1';
   const field = record(source.field, 'поле');
   const robot = record(source.robot, 'размеры робота');
   const pose = record(source.initialPose, 'стартовая позиция');
   const bindings = record(source.bindings, 'привязки компонентов');
-  const widthMeters = limited(field.widthMeters, 'ширина поля', ROBOTICS_FIELD_LIMITS.widthMeters);
-  const heightMeters = limited(
-    field.heightMeters,
-    'высота поля',
-    ROBOTICS_FIELD_LIMITS.heightMeters,
-  );
+  const widthMeters = bounded(field.widthMeters, 'ширина поля', 0.8, extended ? 6 : 2.4);
+  const heightMeters = limited(field.heightMeters, 'высота поля', {
+    min: 0.8,
+    max: extended ? 6 : 2.4,
+  });
   const diagonal = Math.hypot(widthMeters, heightMeters);
   const ids = new Set<string>();
   const objectId = (value: unknown): string => {
@@ -320,6 +547,20 @@ export function decodeRoboticsWorldDocument(value: unknown): RoboticsWorldDocume
         ROBOTICS_BALL_LIMITS.frictionCoefficient,
       ),
       restitution: limited(ball.restitution, 'упругость мяча', ROBOTICS_BALL_LIMITS.restitution),
+      ...(extended
+        ? {
+            rollingResistanceCoefficient: limited(
+              ball.rollingResistanceCoefficient ?? 0.02,
+              'сопротивление качению',
+              ROBOTICS_BALL_LIMITS.rollingResistanceCoefficient,
+            ),
+            contactFrictionCoefficient: limited(
+              ball.contactFrictionCoefficient ?? 0.3,
+              'контактное трение',
+              ROBOTICS_BALL_LIMITS.contactFrictionCoefficient,
+            ),
+          }
+        : {}),
     };
   });
   const floorMarks = collection(
@@ -330,7 +571,16 @@ export function decodeRoboticsWorldDocument(value: unknown): RoboticsWorldDocume
     const mark = record(value, 'разметка');
     if (typeof mark.color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(mark.color))
       throw new Error('Цвет разметки должен иметь формат #RRGGBB.');
-    const common = { id: objectId(mark.id), ...label(mark.label), color: mark.color };
+    let group: RoboticsMarkGroup = {};
+    if (extended && (mark.groupId !== undefined || mark.groupPivot !== undefined)) {
+      if (mark.kind !== 'line' && mark.kind !== 'curve')
+        throw new Error('Штамп состоит из линий и кривых.');
+      group = {
+        groupId: identifier(mark.groupId, 'штамп'),
+        groupPivot: point(mark.groupPivot, 'центр штампа'),
+      };
+    }
+    const common = { id: objectId(mark.id), ...label(mark.label), color: mark.color, ...group };
     if (mark.kind === 'line') {
       const start = point(mark.start, 'начало линии');
       const end = point(mark.end, 'конец линии');
@@ -344,6 +594,21 @@ export function decodeRoboticsWorldDocument(value: unknown): RoboticsWorldDocume
         widthMeters: bounded(mark.widthMeters, 'толщина линии', 0.005, 0.2),
       };
     }
+    if (extended && mark.kind === 'curve') {
+      const start = point(mark.start, 'начало кривой');
+      const control = point(mark.control, 'точка поворота');
+      const end = point(mark.end, 'конец кривой');
+      if (Math.hypot(start.xMeters - end.xMeters, start.yMeters - end.yMeters) < 0.02)
+        throw new Error('Концы кривой должны быть разделены минимум на 2 см.');
+      return {
+        ...common,
+        kind: 'curve',
+        start,
+        control,
+        end,
+        widthMeters: bounded(mark.widthMeters, 'толщина кривой', 0.005, 0.2),
+      };
+    }
     if (mark.kind !== 'area') throw new Error('Неизвестный тип напольной разметки.');
     return {
       ...common,
@@ -353,8 +618,117 @@ export function decodeRoboticsWorldDocument(value: unknown): RoboticsWorldDocume
       heightMeters: bounded(mark.heightMeters, 'высота зоны', 0.02, heightMeters),
     };
   });
+  const bodies: RoboticsBody[] = extended
+    ? collection(field.bodies, ROBOTICS_SCENE_LIMITS.bodies, 'предметы').map((value) => {
+        const body = record(value, 'предмет');
+        const common: RoboticsBodyBase = {
+          id: objectId(body.id),
+          ...label(body.label),
+          ...point(body, 'предмет'),
+          headingRadians: bounded(body.headingRadians, 'угол предмета', -Math.PI, Math.PI),
+          heightMeters: limited(
+            body.heightMeters,
+            'высота предмета',
+            ROBOTICS_BODY_LIMITS.heightMeters,
+          ),
+          massKg: limited(body.massKg, 'масса предмета', ROBOTICS_BODY_LIMITS.massKg),
+          slidingFrictionCoefficient: limited(
+            body.slidingFrictionCoefficient,
+            'трение скольжения',
+            ROBOTICS_BODY_LIMITS.slidingFrictionCoefficient,
+          ),
+          contactFrictionCoefficient: limited(
+            body.contactFrictionCoefficient,
+            'контактное трение',
+            ROBOTICS_BODY_LIMITS.contactFrictionCoefficient,
+          ),
+          restitution: limited(body.restitution, 'упругость', ROBOTICS_BODY_LIMITS.restitution),
+        };
+        if (body.kind === 'can')
+          return {
+            ...common,
+            kind: 'can',
+            radiusMeters: limited(
+              body.radiusMeters,
+              'радиус банки',
+              ROBOTICS_BODY_LIMITS.radiusMeters,
+            ),
+          };
+        if (body.kind === 'box')
+          return {
+            ...common,
+            kind: 'box',
+            widthMeters: limited(
+              body.widthMeters,
+              'ширина бруска',
+              ROBOTICS_BODY_LIMITS.widthMeters,
+            ),
+            depthMeters: limited(
+              body.depthMeters,
+              'глубина бруска',
+              ROBOTICS_BODY_LIMITS.depthMeters,
+            ),
+          };
+        throw new Error('Неизвестный тип предмета.');
+      })
+    : [];
+  if (extended && balls.length + bodies.length > ROBOTICS_SCENE_LIMITS.dynamicBodies)
+    throw new Error('На поле допускается не более 12 подвижных предметов.');
+  const groups = new Map<string, RoboticsPoint>();
+  for (const mark of floorMarks)
+    if (mark.groupId && mark.groupPivot) {
+      if (ids.has(mark.groupId)) throw new Error('Идентификатор штампа совпадает с предметом.');
+      const previous = groups.get(mark.groupId);
+      if (
+        previous &&
+        (previous.xMeters !== mark.groupPivot.xMeters ||
+          previous.yMeters !== mark.groupPivot.yMeters)
+      )
+        throw new Error('Части штампа должны иметь общий центр.');
+      groups.set(mark.groupId, mark.groupPivot);
+    }
+  let physics: RoboticsPhysicsParameters | undefined;
+  let extraField: Partial<RoboticsWorldV3Document['field']> = {};
+  if (extended) {
+    const parameters = record(source.physics, 'параметры физики');
+    if (parameters.accuracy !== 'balanced' && parameters.accuracy !== 'precise')
+      throw new Error('Неизвестная точность физики.');
+    physics = {
+      accuracy: parameters.accuracy,
+      robotMassKg: limited(
+        parameters.robotMassKg,
+        'масса робота',
+        ROBOTICS_PHYSICS_PARAMETER_LIMITS.robotMassKg,
+      ),
+      maxWheelForceNewton: limited(
+        parameters.maxWheelForceNewton,
+        'тяга колеса',
+        ROBOTICS_PHYSICS_PARAMETER_LIMITS.maxWheelForceNewton,
+      ),
+      tireFrictionCoefficient: limited(
+        parameters.tireFrictionCoefficient,
+        'сцепление колёс',
+        ROBOTICS_PHYSICS_PARAMETER_LIMITS.tireFrictionCoefficient,
+      ),
+    };
+    if (!ROBOTICS_FIELD_SURFACES.some((surface) => surface.id === field.surface))
+      throw new Error('Неизвестное покрытие поля.');
+    const tiles = record(field.tiles, 'плитки');
+    if (typeof tiles.enabled !== 'boolean') throw new Error('Некорректная видимость плиток.');
+    extraField = {
+      bodies,
+      surface: field.surface as RoboticsFieldSurface,
+      tiles: {
+        enabled: tiles.enabled,
+        sizeMeters: limited(tiles.sizeMeters, 'сторона плитки', ROBOTICS_TILE_LIMITS.sizeMeters),
+      },
+    };
+  }
   const world: RoboticsWorldDocument = {
-    physicsProfile: 'kinematic-rover-discs-v1',
+    physicsProfile: extended
+      ? (source.physicsProfile as RoboticsWorldV3Document['physicsProfile'])
+      : 'kinematic-rover-discs-v1',
+    ...(physics ? { physics } : {}),
     field: {
       widthMeters,
       heightMeters,
@@ -362,6 +736,7 @@ export function decodeRoboticsWorldDocument(value: unknown): RoboticsWorldDocume
       obstacles,
       balls,
       floorMarks,
+      ...extraField,
     },
     robot: {
       bodyLengthMeters: bounded(robot.bodyLengthMeters, 'длина шасси', 0.05, 0.5),

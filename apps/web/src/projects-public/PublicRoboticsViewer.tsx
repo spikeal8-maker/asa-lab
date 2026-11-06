@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { PublicRoboticsArtifact } from '@asa-lab/contracts';
+import type { PublicRoboticsArtifact, PublicRoboticsArtifactV6 } from '@asa-lab/contracts';
 import { RobotField } from '../robotics/RobotField';
 import './public-robotics.css';
 
@@ -8,7 +8,7 @@ const ZOOM_LEVELS = [1, 1.25, 1.5, 2, 3] as const;
 export function PublicRoboticsViewer({
   artifact,
 }: {
-  readonly artifact: PublicRoboticsArtifact;
+  readonly artifact: PublicRoboticsArtifact | PublicRoboticsArtifactV6;
 }): JSX.Element {
   const [view, setView] = useState<'field' | 'robot'>('field');
   const [zoomIndex, setZoomIndex] = useState(0);

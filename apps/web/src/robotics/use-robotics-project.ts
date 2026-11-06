@@ -24,6 +24,7 @@ import {
   parseRoboticsProject,
   validateRoboticsBindings,
   withRoboticsWorld,
+  upgradeRoboticsProjectToV3,
   type RoboticsProject,
 } from './robotics-project';
 import type { RoboticsWorldDocument } from './world';
@@ -138,6 +139,26 @@ export function useRoboticsSource(
     },
     [publish],
   );
+  const enableExtendedField = useCallback((): boolean => {
+    if (runningRef.current) {
+      setNotice('Остановите моделирование, чтобы обновить поле.');
+      return false;
+    }
+    if (sourceRef.current.schemaVersion === 3) return true;
+    flushProgram();
+    try {
+      const history = historyRef.current;
+      const entries = history.entries.map(upgradeRoboticsProjectToV3);
+      const next = upgradeRoboticsProjectToV3(sourceRef.current);
+      historyRef.current = { entries, cursor: history.cursor };
+      publish(next, false);
+      setNotice('Расширенное поле включено. Выбран учебный режим; динамика доступна в настройках.');
+      return true;
+    } catch (reason) {
+      setNotice(messageOf(reason));
+      return false;
+    }
+  }, [flushProgram, publish]);
   const moveHistory = useCallback(
     (
       direction: -1 | 1,
@@ -234,6 +255,7 @@ export function useRoboticsSource(
     getCurrentProject,
     getCurrentDocument,
     setWorld,
+    enableExtendedField,
     publish,
     replaceDocument,
     registerProgramFlush,
@@ -267,6 +289,7 @@ export interface RoboticsProjectController {
   readonly getCurrentProject: () => RoboticsProject;
   readonly hasUnsavedChanges: () => boolean;
   readonly setWorld: (world: RoboticsWorldDocument) => boolean;
+  readonly enableExtendedField: () => boolean;
   readonly hasSavedProject: boolean;
   readonly openSavedProject: () => boolean;
   readonly openRevision: number;

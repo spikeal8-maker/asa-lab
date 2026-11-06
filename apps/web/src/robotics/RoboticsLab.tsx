@@ -22,12 +22,12 @@ import {
   type RoboticsProject,
 } from './robotics-project';
 import {
-  advanceRoboticsWorld,
   createRoboticsWorldState,
   measureRoboticsDistance,
   ROBOTICS_RUN_LIMIT_MICROSECONDS,
   ROBOTICS_SENSOR_INTERVAL_MICROSECONDS,
 } from './world';
+import { createRoboticsRuntime, type RoboticsRuntime } from '@asa-lab/robotics/runtime';
 import { useLocalRoboticsProject } from './use-local-robotics-project';
 import type { RoboticsProjectController } from './use-robotics-project';
 import { RobotField } from './RobotField';
@@ -129,6 +129,8 @@ export function RoboticsWorkspace({
   const sourceWorld = local.robotProject.world;
   const [worldState, setWorldState] = useState(() => createRoboticsWorldState(sourceWorld));
   const worldRef = useRef(worldState);
+  const runtimeRef = useRef<RoboticsRuntime | null>(null);
+  if (!runtimeRef.current) runtimeRef.current = createRoboticsRuntime(sourceWorld);
   const processedObservation = useRef<typeof observation>(null);
   const lastSensorAt = useRef(0);
   const [haltReason, setHaltReason] = useState<string | null>(null);
@@ -168,7 +170,8 @@ export function RoboticsWorkspace({
   const previousWorld = useRef(sourceWorld);
 
   const resetWorld = useCallback(() => {
-    const next = createRoboticsWorldState(local.getCurrentProject().world);
+    runtimeRef.current = createRoboticsRuntime(local.getCurrentProject().world);
+    const next = runtimeRef.current.read();
     worldRef.current = next;
     processedObservation.current = null;
     lastSensorAt.current = 0;
@@ -250,7 +253,7 @@ export function RoboticsWorkspace({
       halt('Нет достоверных оборотов одного из двигателей. Проверьте схему и привязки робота.');
       return;
     }
-    const next = advanceRoboticsWorld(sourceWorld, worldRef.current, {
+    const next = runtimeRef.current!.advance({
       atMicroseconds: time,
       leftRpm,
       rightRpm,
@@ -274,12 +277,22 @@ export function RoboticsWorkspace({
       time - lastSensorAt.current < ROBOTICS_SENSOR_INTERVAL_MICROSECONDS
     )
       return;
-    const measured = measureRoboticsDistance(sourceWorld, next.pose, next.balls);
-    if (measured.status !== 'ok') {
+    const measured = measureRoboticsDistance(sourceWorld, next.pose, next.balls, next.bodies);
+    if (measured.status !== 'ok' && measured.status !== 'no-echo') {
       halt(measured.message);
       return;
     }
-    if (!current.setRuntimeSensorDistance(bindings.distanceSensorId, measured.distanceMeters)) {
+    const accepted =
+      local.robotProject.schemaVersion === 3
+        ? current.setRuntimeHcSr04EnvironmentSample(
+            bindings.distanceSensorId,
+            measured.status === 'ok'
+              ? { kind: 'echo', distanceMeters: measured.distanceMeters }
+              : { kind: 'no-echo' },
+          )
+        : measured.status === 'ok' &&
+          current.setRuntimeSensorDistance(bindings.distanceSensorId, measured.distanceMeters);
+    if (!accepted) {
       halt('Не удалось передать расстояние датчику. Проверьте схему и сбросьте запуск.');
       return;
     }
@@ -292,6 +305,7 @@ export function RoboticsWorkspace({
     pace.phase,
     halt,
     resetWorld,
+    local.robotProject.schemaVersion,
   ]);
 
   const budget = controller.runtimeInputBudget;
@@ -307,8 +321,9 @@ export function RoboticsWorkspace({
   }, [budget?.exhausted, controller.simulationRunning, controller.simulationStatus, halt]);
 
   const distance = useMemo(
-    () => measureRoboticsDistance(sourceWorld, worldState.pose, worldState.balls),
-    [sourceWorld, worldState.pose, worldState.balls],
+    () =>
+      measureRoboticsDistance(sourceWorld, worldState.pose, worldState.balls, worldState.bodies),
+    [sourceWorld, worldState.pose, worldState.balls, worldState.bodies],
   );
   const bindingError = validateRoboticsBindings(local.robotProject);
   const running = controller.simulationRunning;
@@ -624,6 +639,8 @@ export function RoboticsWorkspace({
           hidden={section !== 'field'}
         >
           <RobotFieldEditor
+            sourceSchemaVersion={local.robotProject.schemaVersion}
+            onUpgradeField={local.enableExtendedField}
             world={sourceWorld}
             state={worldState}
             distance={distance}

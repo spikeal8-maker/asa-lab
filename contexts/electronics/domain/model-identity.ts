@@ -88,7 +88,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'pir-sensor': identity('pir-motion-sensor', 'pir-digital-motion-v1'),
   'temperature-sensor': identity('analog-temperature-sensor', 'tmp36-to92-dc'),
   'ultrasonic-sensor': identity('ping-ultrasonic-distance-sensor', 'ping-3pin-canonical-echo-v1'),
-  'ultrasonic-hc-sr04': identity('hc-sr04-distance-sensor', 'hc-sr04-canonical-echo-v1'),
+  'ultrasonic-hc-sr04': identity('hc-sr04-distance-sensor', 'hc-sr04-canonical-echo-v1', 2),
   'servo-motor': identity('servo-motor-signal', 'servo-pulse-angle-v1'),
   'arduino-uno': identity('arduino-uno', 'arduino-uno-r3'),
   'resistor-axial': identity('resistor', 'axial-resistor'),
@@ -221,6 +221,16 @@ export function electricalModelIdentityForComponent(
       component.electricalModelId === 'unsupported' &&
       component.electricalModelVersion === 1 &&
       component.modelProfileId === `unsupported-${component.componentTypeId}` &&
+      component.modelProfileVersion === 1
+    )
+      return resolveElectricalModelIdentity(component);
+    // The former always-reflecting profile is the default of the new optional
+    // echoAvailable input. Only its exact installed identity is compatible.
+    if (
+      component.componentTypeId === 'ultrasonic-hc-sr04' &&
+      component.electricalModelId === 'hc-sr04-distance-sensor' &&
+      component.electricalModelVersion === 1 &&
+      component.modelProfileId === 'hc-sr04-canonical-echo-v1' &&
       component.modelProfileVersion === 1
     )
       return resolveElectricalModelIdentity(component);

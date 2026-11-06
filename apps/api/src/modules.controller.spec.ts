@@ -61,7 +61,7 @@ describe('ModulesController', () => {
       displayName: 'Виртуальная робототехника',
       defaultProjectTitlePrefix: 'Проект робототехники',
       projectType: 'robot-world',
-      schemaVersion: 2,
+      schemaVersion: 3,
       availability: 'active',
       creatable: true,
       editorRoute: '/projects/:projectId/robotics',

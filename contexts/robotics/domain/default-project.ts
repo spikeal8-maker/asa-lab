@@ -1,4 +1,5 @@
 import type { RoboticsProject } from './document.js';
+import { extendRoboticsWorld } from './world-document.js';
 
 /**
  * Versioned M1 starter data, produced by the existing Electronics catalog and
@@ -488,5 +489,22 @@ const INITIAL_PROJECT: RoboticsProject = {
 
 /** A fresh source document for Project Core, with no browser or account state. */
 export function createInitialRoboticsProject(): RoboticsProject {
-  return structuredClone(INITIAL_PROJECT);
+  const project = structuredClone(INITIAL_PROJECT);
+  return {
+    ...project,
+    schemaVersion: 3,
+    world: extendRoboticsWorld(project.world, 'dynamic'),
+    circuit: {
+      ...project.circuit,
+      components: project.circuit.components.map((component) =>
+        component.id === project.world.bindings.distanceSensorId
+          ? {
+              ...component,
+              modelProfileVersion: 2,
+              stateProperties: { ...component.stateProperties, echoAvailable: true },
+            }
+          : component,
+      ),
+    },
+  };
 }

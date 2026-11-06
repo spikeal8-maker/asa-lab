@@ -191,11 +191,12 @@ export function createPublicArtifactAdapters(
         if (!entry?.provider) return null;
         const parsed = validationMessage(entry, document);
         if (!parsed.ok) return null;
-        const { world } = parsed.document as RoboticsProject;
+        const source = parsed.document as RoboticsProject;
+        const { world } = source;
         // The canonical provider validates the whole saved project. Only source geometry
         // crosses this boundary, never its circuit, programs, bindings or physical state.
         const result = validatePublicProjectDisplayArtifact({
-          schemaVersion: 5,
+          schemaVersion: source.schemaVersion === 3 ? 6 : 5,
           status: 'display',
           viewerFamily: 'robotics',
           provenance,
@@ -203,6 +204,26 @@ export function createPublicArtifactAdapters(
           world: {
             field: {
               ...pick(world.field, ['widthMeters', 'heightMeters', 'gridMeters']),
+              ...(source.schemaVersion === 3
+                ? {
+                    surface: world.field.surface,
+                    tiles: pick(world.field.tiles!, ['enabled', 'sizeMeters']),
+                    bodies: world.field.bodies!.map((body) =>
+                      pick(body, [
+                        'id',
+                        'label',
+                        'kind',
+                        'xMeters',
+                        'yMeters',
+                        'headingRadians',
+                        'heightMeters',
+                        ...(body.kind === 'can'
+                          ? ['radiusMeters']
+                          : ['widthMeters', 'depthMeters']),
+                      ]),
+                    ),
+                  }
+                : {}),
               obstacles: world.field.obstacles.map((wall) =>
                 pick(wall, [
                   'id',
@@ -219,10 +240,13 @@ export function createPublicArtifactAdapters(
               ),
               floorMarks: world.field.floorMarks.map((mark) => ({
                 ...pick(mark, ['id', 'label', 'kind', 'color', 'widthMeters']),
-                ...(mark.kind === 'line'
+                ...(mark.kind === 'line' || mark.kind === 'curve'
                   ? {
                       start: pick(mark.start, ['xMeters', 'yMeters']),
                       end: pick(mark.end, ['xMeters', 'yMeters']),
+                      ...(mark.kind === 'curve'
+                        ? { control: pick(mark.control, ['xMeters', 'yMeters']) }
+                        : {}),
                     }
                   : pick(mark, ['xMeters', 'yMeters', 'heightMeters'])),
               })),

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SchematicDocument } from '../../api';
 import { configureProductionLibrary } from '../../electronics/production-manifest-adapter';
 import { createDefaultRoboticsProject } from '../robotics-project';
-import { createRoboticsWorldDocument } from '../world';
+import { createRoboticsWorldV3Document, createRoboticsWorldDocument } from '../world';
 import { ROBOTICS_LOCAL_PROJECT_KEY, useLocalRoboticsProject } from '../use-local-robotics-project';
 
 (
@@ -82,6 +82,33 @@ afterEach(() => {
 });
 
 describe('robotics local project host', () => {
+  it('opens historical v2 unchanged and upgrades only explicitly without Undo restoring v2', async () => {
+    const legacy = {
+      ...createDefaultRoboticsProject(),
+      schemaVersion: 2 as const,
+      world: createRoboticsWorldDocument(),
+    };
+    localStorage.setItem(ROBOTICS_LOCAL_PROJECT_KEY, JSON.stringify(legacy));
+    mount();
+    expect(local.getCurrentProject()).toEqual(legacy);
+    act(() => local.publish({ ...local.getCurrentProject(), title: 'Изменённое имя' }));
+    act(() => expect(local.enableExtendedField()).toBe(true));
+    expect(local.getCurrentProject()).toMatchObject({
+      schemaVersion: 3,
+      world: { physicsProfile: 'kinematic-rover-bodies-v2' },
+    });
+    act(() => expect(local.host.undo()).toBe(true));
+    expect(local.getCurrentProject()).toMatchObject({
+      schemaVersion: 3,
+      title: legacy.title,
+      world: { physicsProfile: 'kinematic-rover-bodies-v2' },
+    });
+    expect(local.getCurrentProject().circuit).toEqual(legacy.circuit);
+    await act(async () => local.host.saveNow());
+    expect(JSON.parse(localStorage.getItem(ROBOTICS_LOCAL_PROJECT_KEY)!).schemaVersion).toBe(3);
+    act(() => expect(local.host.redo()).toBe(true));
+    expect(local.getCurrentProject()).toMatchObject({ schemaVersion: 3, title: 'Изменённое имя' });
+  });
   it('opens a local source without an account, server project or automatic write', () => {
     mount();
     expect(local.host.project).toBeNull();
@@ -155,7 +182,7 @@ describe('robotics local project host', () => {
       local.host.commitDocument(
         editProgram(currentDocument(), 'void setup(){broken syntax} void loop(){}', workspace),
       );
-      local.setWorld(createRoboticsWorldDocument('wide'));
+      local.setWorld(createRoboticsWorldV3Document('wide'));
       local.host.setProjectTitle('Мой робот на большом поле');
       await local.host.saveNow();
     });
@@ -226,11 +253,11 @@ describe('robotics local project host', () => {
   it('restores source edits with Undo/Redo while preventing world replacement during a run', async () => {
     mount();
     const original = local.getCurrentProject();
-    act(() => local.setWorld(createRoboticsWorldDocument('compact')));
+    act(() => local.setWorld(createRoboticsWorldV3Document('compact')));
     const changed = local.getCurrentProject();
     await act(async () => local.host.toggleSimulation());
     act(() => {
-      expect(local.setWorld(createRoboticsWorldDocument('wide'))).toBe(false);
+      expect(local.setWorld(createRoboticsWorldV3Document('wide'))).toBe(false);
       expect(local.host.undo(() => true)).toBe(false);
     });
     expect(local.getCurrentProject()).toEqual(changed);
@@ -309,7 +336,7 @@ describe('robotics local project host', () => {
       ),
     );
     expect(local.programRevision).toBe(1);
-    act(() => local.setWorld(createRoboticsWorldDocument('compact')));
+    act(() => local.setWorld(createRoboticsWorldV3Document('compact')));
     act(() => expect(local.host.undo()).toBe(true));
     act(() => expect(local.host.redo()).toBe(true));
     expect(local.programRevision).toBe(1);

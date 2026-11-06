@@ -5,7 +5,11 @@ import {
   parseRoboticsProject,
   type RoboticsProject,
 } from '../domain/document.js';
-import { createRoboticsBall, createRoboticsFloorMark } from '../domain/world.js';
+import {
+  createRoboticsBall,
+  createRoboticsFloorMark,
+  createRoboticsWorldDocument,
+} from '../domain/world.js';
 
 function authoredProject(): RoboticsProject {
   const project = createInitialRoboticsProject();
@@ -30,7 +34,13 @@ function authoredProject(): RoboticsProject {
       field: {
         ...project.world.field,
         gridMeters: 0.05,
-        balls: [createRoboticsBall('ball-1', { xMeters: 0.8, yMeters: 0.4 })],
+        balls: [
+          {
+            ...createRoboticsBall('ball-1', { xMeters: 0.8, yMeters: 0.4 }),
+            rollingResistanceCoefficient: 0.02,
+            contactFrictionCoefficient: 0.3,
+          },
+        ],
         floorMarks: [createRoboticsFloorMark('area', 'area-1', { xMeters: 0.4, yMeters: 1.3 })],
       },
       robot: { ...project.world.robot, sensorLateralMeters: 0.01 },
@@ -94,7 +104,11 @@ describe('shared Robotics authored document', () => {
   });
 
   it('migrates a local v1 world without changing the Arduino source or wiring', () => {
-    const initial = createInitialRoboticsProject();
+    const initial: RoboticsProject = {
+      ...createInitialRoboticsProject(),
+      schemaVersion: 2,
+      world: createRoboticsWorldDocument(),
+    };
     const legacy = {
       ...initial,
       schemaVersion: 1,
@@ -108,16 +122,16 @@ describe('shared Robotics authored document', () => {
   });
 
   it.each([
-    ['future schema', (source: RoboticsProject) => ({ ...source, schemaVersion: 3 })],
+    ['future schema', (source: RoboticsProject) => ({ ...source, schemaVersion: 4 })],
     [
-      'missing v2 physics',
+      'missing required physics',
       (source: RoboticsProject) => ({
         ...source,
         world: { ...source.world, physicsProfile: undefined },
       }),
     ],
     [
-      'missing v2 objects',
+      'missing required objects',
       (source: RoboticsProject) => ({
         ...source,
         world: { ...source.world, field: { ...source.world.field, balls: undefined } },

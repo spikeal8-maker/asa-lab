@@ -1,190 +1,128 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import {
   createRoboticsBall,
+  createRoboticsBody,
+  createRoboticsCurve,
   createRoboticsFloorMark,
   createRoboticsWall,
-  createRoboticsWorldDocument,
+  getRoboticsPhysicsMode,
+  isRoboticsWorldV3,
+  nextRoboticsObjectId,
+  ROBOTICS_SCENE_LIMITS,
+  type RoboticsObjectKey,
+  type RoboticsPoint,
+  type RoboticsWorldDocument,
+} from '@asa-lab/robotics/world-document';
+import {
+  canonicalRoboticsObjectKey,
+  createRoboticsTileStamp,
+  duplicateRoboticsObject,
+  removeRoboticsObject,
+  rotateRoboticsObject,
+  translateRoboticsObject,
+  type RoboticsTileStampKind,
+} from '@asa-lab/robotics/world-authoring';
+import {
   createRoboticsWorldState,
   measureRoboticsDistance,
-  nextRoboticsObjectId,
   parseRoboticsWorldDocument,
-  ROBOTICS_BALL_LIMITS,
-  ROBOTICS_FIELD_LIMITS,
-  ROBOTICS_FIELD_PRESETS,
-  ROBOTICS_SCENE_LIMITS,
-  type RoboticsBall,
   type RoboticsDistanceMeasurement,
-  type RoboticsFloorMark,
-  type RoboticsPoint,
-  type RoboticsRectObstacle,
-  type RoboticsWorldDocument,
   type RoboticsWorldState,
 } from './world';
-import { RobotField, type RoboticsObjectKey } from './RobotField';
+import { RobotField } from './RobotField';
+import { RobotFieldSettings } from './RobotFieldSettings';
+import { RobotObjectInspector } from './RobotObjectInspector';
+
+// Existing construction controls use this entry point too.
+export { RoboticsNumberField } from './RoboticsNumberField';
 
 const TOOLS = [
-  { id: 'select', label: 'Выбор', symbol: '↖' },
-  { id: 'wall', label: 'Стена', symbol: '▰' },
-  { id: 'ball', label: 'Мяч', symbol: '●' },
-  { id: 'line', label: 'Линия', symbol: '╱' },
-  { id: 'area', label: 'Зона', symbol: '▧' },
+  { id: 'select', label: 'Выбор', symbol: '↖', extended: false },
+  { id: 'wall', label: 'Стена', symbol: '▰', extended: false },
+  { id: 'ball', label: 'Мяч', symbol: '●', extended: false },
+  { id: 'can', label: 'Банка', symbol: '◉', extended: true },
+  { id: 'box', label: 'Брусок', symbol: '▱', extended: true },
+  { id: 'line', label: 'Линия', symbol: '╱', extended: false },
+  { id: 'curve', label: 'Кривая', symbol: '╰', extended: true },
+  { id: 'area', label: 'Зона', symbol: '▧', extended: false },
+  { id: 'stamp', label: 'Трасса', symbol: '⊞', extended: true },
 ] as const;
 type Tool = (typeof TOOLS)[number]['id'];
-const degrees = (radians: number) => (radians * 180) / Math.PI;
-const radians = (degrees: number) => (degrees * Math.PI) / 180;
+const STAMPS: readonly { id: RoboticsTileStampKind; label: string }[] = [
+  { id: 'straight', label: 'Прямая' },
+  { id: 'turn', label: 'Поворот' },
+  { id: 't-junction', label: 'Т-развилка' },
+  { id: 'cross', label: 'Перекрёсток' },
+];
+const ZOOM_LEVELS = [1, 1.25, 1.5, 2, 3] as const;
 const rounded = (value: number) => Math.round(value * 10000) / 10000;
-
-/** A draft may be incomplete while typing; only a complete valid number reaches history. */
-export function RoboticsNumberField({
-  label,
-  value,
-  min,
-  max,
-  step = 0.01,
-  unit,
-  disabled,
-  onCommit,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  unit?: string;
-  disabled?: boolean;
-  onCommit: (value: number) => boolean;
-}) {
-  const [draft, setDraft] = useState(String(rounded(value)));
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    setDraft(String(rounded(value)));
-    setError(null);
-  }, [value]);
-  function commit() {
-    if (disabled) return;
-    const parsed = draft.trim() === '' ? NaN : Number(draft);
-    if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
-      setError(`Допустимо от ${rounded(min)} до ${rounded(max)}${unit ? ` ${unit}` : ''}.`);
-      return;
-    }
-    if (Math.abs(parsed - value) < 1e-9) {
-      setError(null);
-      return;
-    }
-    if (!onCommit(parsed)) {
-      setError('Изменение не принято. Проверьте положение и размеры.');
-      return;
-    }
-    setError(null);
-  }
-  return (
-    <label className="robotics-number-field">
-      <span>
-        {label}
-        {unit ? <small>{unit}</small> : null}
-      </span>
-      <input
-        type="number"
-        aria-label={label}
-        aria-invalid={Boolean(error)}
-        value={draft}
-        min={min}
-        max={max}
-        step={step}
-        disabled={disabled}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          setError(null);
-        }}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            event.currentTarget.blur();
-          }
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            setDraft(String(rounded(value)));
-            setError(null);
-          }
-        }}
-      />
-      {error ? (
-        <small className="robotics-field-error" role="alert">
-          {error}
-        </small>
-      ) : null}
-    </label>
-  );
-}
 
 function sceneAt(
   world: RoboticsWorldDocument,
   tool: Exclude<Tool, 'select'>,
   position: RoboticsPoint,
-) {
+  stamp: RoboticsTileStampKind,
+  turns: number,
+): { key: RoboticsObjectKey; world: RoboticsWorldDocument } {
+  if (tool === 'stamp') {
+    const size = world.field.tiles?.sizeMeters ?? 0.3;
+    const next = createRoboticsTileStamp(
+      stamp,
+      world,
+      {
+        xMeters: rounded(Math.floor((position.xMeters + 1e-8) / size) * size),
+        yMeters: rounded(Math.floor((position.yMeters + 1e-8) / size) * size),
+      },
+      turns,
+    );
+    return { world: next.world, key: next.keys[0]! };
+  }
   const id = nextRoboticsObjectId(world, tool);
   const field = world.field;
   if (tool === 'wall')
     return {
-      key: `wall:${id}` as RoboticsObjectKey,
+      key: `wall:${id}`,
       world: {
         ...world,
         field: { ...field, obstacles: [...field.obstacles, createRoboticsWall(id, position)] },
       },
     };
-  if (tool === 'ball')
+  if (tool === 'ball') {
+    const ball = createRoboticsBall(id, position);
     return {
-      key: `ball:${id}` as RoboticsObjectKey,
+      key: `ball:${id}`,
+      world: { ...world, field: { ...field, balls: [...field.balls, ball] } },
+    };
+  }
+  if (tool === 'can' || tool === 'box')
+    return {
+      key: `body:${id}`,
       world: {
         ...world,
-        field: { ...field, balls: [...field.balls, createRoboticsBall(id, position)] },
+        field: {
+          ...field,
+          bodies: [...(field.bodies ?? []), createRoboticsBody(tool, id, position)],
+        },
       },
     };
   return {
-    key: `mark:${id}` as RoboticsObjectKey,
+    key: `mark:${id}`,
     world: {
       ...world,
       field: {
         ...field,
-        floorMarks: [...field.floorMarks, createRoboticsFloorMark(tool, id, position)],
+        floorMarks: [
+          ...field.floorMarks,
+          tool === 'curve'
+            ? createRoboticsCurve(id, position)
+            : createRoboticsFloorMark(tool, id, position),
+        ],
       },
     },
   };
 }
 
-function translated(
-  world: RoboticsWorldDocument,
-  key: RoboticsObjectKey,
-  dx: number,
-  dy: number,
-): RoboticsWorldDocument {
-  const move = <T extends RoboticsPoint>(point: T): T => ({
-    ...point,
-    xMeters: rounded(point.xMeters + dx),
-    yMeters: rounded(point.yMeters + dy),
-  });
-  if (key === 'robot') return { ...world, initialPose: move(world.initialPose) };
-  return {
-    ...world,
-    field: {
-      ...world.field,
-      obstacles: world.field.obstacles.map((item) =>
-        key === `wall:${item.id}` ? move(item) : item,
-      ),
-      balls: world.field.balls.map((item) => (key === `ball:${item.id}` ? move(item) : item)),
-      floorMarks: world.field.floorMarks.map((item) =>
-        key !== `mark:${item.id}`
-          ? item
-          : item.kind === 'line'
-            ? { ...item, start: move(item.start), end: move(item.end) }
-            : move(item),
-      ),
-    },
-  };
-}
-
-/** Uses the actual SVG transform, including viewBox margins and letterboxing. */
+/** SVG's own transform handles zoom, scrolling, margins and letterboxing. */
 function pointerPosition(
   event: PointerEvent<SVGSVGElement>,
   world: RoboticsWorldDocument,
@@ -209,6 +147,8 @@ export function RobotFieldEditor({
   showGrid,
   onShowGridChange,
   onCommit,
+  sourceSchemaVersion,
+  onUpgradeField,
 }: {
   world: RoboticsWorldDocument;
   state: RoboticsWorldState;
@@ -217,12 +157,22 @@ export function RobotFieldEditor({
   showGrid: boolean;
   onShowGridChange: (show: boolean) => void;
   onCommit: (world: RoboticsWorldDocument) => boolean;
+  sourceSchemaVersion: 2 | 3;
+  onUpgradeField: () => boolean;
 }) {
   const [tool, setTool] = useState<Tool>('select');
+  const [stamp, setStamp] = useState<RoboticsTileStampKind>('straight');
+  const [turns, setTurns] = useState(0);
   const [selection, setSelection] = useState<RoboticsObjectKey | null>(null);
   const [draft, setDraft] = useState<RoboticsWorldDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [snap, setSnap] = useState(false);
+  const [pan, setPan] = useState(false);
+  const [zoomIndex, setZoomIndex] = useState(0);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const propertiesButton = useRef<HTMLButtonElement>(null);
+  const inspectorObject = useRef<HTMLDivElement>(null);
   const drag = useRef<{
     pointerId: number;
     svg: SVGSVGElement;
@@ -231,6 +181,9 @@ export function RobotFieldEditor({
     key: RoboticsObjectKey;
     next: RoboticsWorldDocument;
   } | null>(null);
+  const extended = isRoboticsWorldV3(world);
+  const zoom = ZOOM_LEVELS[zoomIndex]!;
+  const selectedTool = TOOLS.find((item) => item.id === tool)!;
 
   function releaseDrag() {
     const current = drag.current;
@@ -251,7 +204,9 @@ export function RobotFieldEditor({
     },
     [],
   );
-
+  function fail(error: unknown) {
+    setError(error instanceof Error ? error.message : 'Не удалось изменить предмет.');
+  }
   function commit(next: RoboticsWorldDocument): boolean {
     if (running) return false;
     const parsed = parseRoboticsWorldDocument(next);
@@ -266,47 +221,110 @@ export function RobotFieldEditor({
     setError(null);
     return true;
   }
+  function select(key: RoboticsObjectKey) {
+    setSelection(canonicalRoboticsObjectKey(world, key));
+    setPropertiesOpen(true);
+    setTool('select');
+    setPan(false);
+    setError(null);
+  }
+  function selectAdded(key: RoboticsObjectKey) {
+    setSelection(key);
+    setPropertiesOpen(true);
+    setTool('select');
+    setPan(false);
+    requestAnimationFrame(() => inspectorObject.current?.scrollIntoView({ block: 'nearest' }));
+  }
+  const dynamicCount = world.field.balls.length + (world.field.bodies?.length ?? 0);
+  const maxed =
+    tool === 'wall'
+      ? world.field.obstacles.length >= ROBOTICS_SCENE_LIMITS.walls
+      : tool === 'ball' || tool === 'can' || tool === 'box'
+        ? dynamicCount >= ROBOTICS_SCENE_LIMITS.dynamicBodies
+        : tool !== 'select'
+          ? world.field.floorMarks.length +
+              (tool === 'stamp' && (stamp === 'cross' || stamp === 't-junction') ? 2 : 1) >
+            ROBOTICS_SCENE_LIMITS.floorMarks
+          : false;
   function add(position?: RoboticsPoint) {
-    if (tool === 'select' || running) return;
+    if (tool === 'select' || running || maxed || (selectedTool.extended && !extended)) return;
     if (position) {
-      const next = sceneAt(world, tool, position);
-      if (commit(next.world)) {
-        setSelection(next.key);
-        setTool('select');
-        setPropertiesOpen(true);
+      try {
+        const point =
+          snap && tool !== 'stamp'
+            ? {
+                xMeters: rounded(
+                  Math.round(position.xMeters / world.field.gridMeters) * world.field.gridMeters,
+                ),
+                yMeters: rounded(
+                  Math.round(position.yMeters / world.field.gridMeters) * world.field.gridMeters,
+                ),
+              }
+            : position;
+        const next = sceneAt(world, tool, point, stamp, turns);
+        if (commit(next.world)) selectAdded(next.key);
+      } catch (error) {
+        fail(error);
       }
       return;
     }
-    // Finite, deterministic placement. Every candidate goes through the same parser.
-    const candidates: RoboticsPoint[] = [
-      { xMeters: world.field.widthMeters / 2, yMeters: world.field.heightMeters / 2 },
-    ];
-    for (let y = 0.1; y < world.field.heightMeters; y += 0.1)
-      for (let x = 0.1; x < world.field.widthMeters; x += 0.1)
+    const step = tool === 'stamp' ? (world.field.tiles?.sizeMeters ?? 0.3) : 0.1;
+    const candidates: RoboticsPoint[] =
+      tool === 'stamp'
+        ? []
+        : [{ xMeters: world.field.widthMeters / 2, yMeters: world.field.heightMeters / 2 }];
+    for (let y = tool === 'stamp' ? 0 : step; y < world.field.heightMeters; y += step)
+      for (let x = tool === 'stamp' ? 0 : step; x < world.field.widthMeters; x += step)
         candidates.push({ xMeters: rounded(x), yMeters: rounded(y) });
     for (const point of candidates) {
-      const next = sceneAt(world, tool, point);
-      const parsed = parseRoboticsWorldDocument(next.world);
-      if (!parsed.ok) continue;
-      if (commit(parsed.world)) {
-        setSelection(next.key);
-        setTool('select');
-        setPropertiesOpen(true);
+      try {
+        const next = sceneAt(world, tool, point, stamp, turns);
+        if (!parseRoboticsWorldDocument(next.world).ok) continue;
+        if (commit(next.world)) selectAdded(next.key);
+        return;
+      } catch {
+        /* Try the next bounded, deterministic location. */
       }
-      return;
     }
     setError(
       'Нет свободного места или достигнут лимит предметов. Удалите предмет либо увеличьте поле.',
     );
   }
-  function select(key: RoboticsObjectKey) {
-    setSelection(key);
-    setPropertiesOpen(true);
-    setTool('select');
-    setError(null);
+  function moved(current: NonNullable<typeof drag.current>, point: RoboticsPoint) {
+    const dx = point.xMeters - current.start.xMeters,
+      dy = point.yMeters - current.start.yMeters;
+    const field = current.world.field;
+    const mark = field.floorMarks.find(
+      (item) =>
+        current.key === `mark:${item.id}` ||
+        (item.groupId && current.key === `mark-group:${item.groupId}`),
+    );
+    const step = mark?.groupPivot ? (field.tiles?.sizeMeters ?? 0.3) : field.gridMeters;
+    const anchor =
+      current.key === 'robot'
+        ? current.world.initialPose
+        : (field.obstacles.find((item) => current.key === `wall:${item.id}`) ??
+          field.balls.find((item) => current.key === `ball:${item.id}`) ??
+          field.bodies?.find((item) => current.key === `body:${item.id}`) ??
+          (mark?.groupPivot
+            ? {
+                xMeters: mark.groupPivot.xMeters - step / 2,
+                yMeters: mark.groupPivot.yMeters - step / 2,
+              }
+            : mark
+              ? mark.kind === 'area'
+                ? mark
+                : mark.start
+              : current.start));
+    return translateRoboticsObject(
+      current.world,
+      current.key,
+      rounded(snap ? Math.round((anchor.xMeters + dx) / step) * step - anchor.xMeters : dx),
+      rounded(snap ? Math.round((anchor.yMeters + dy) / step) * step - anchor.yMeters : dy),
+    );
   }
   function pointerDown(event: PointerEvent<SVGSVGElement>) {
-    if (running || event.button !== 0 || !event.isPrimary) return;
+    if (running || pan || event.button !== 0 || !event.isPrimary) return;
     const point = pointerPosition(event, world);
     if (!point) return;
     if (tool !== 'select') {
@@ -315,14 +333,14 @@ export function RobotFieldEditor({
       return;
     }
     const target = (event.target as Element).closest('[data-scene-key]');
-    const key = target?.getAttribute('data-scene-key') as RoboticsObjectKey | null;
-    if (!key) {
+    const inputKey = target?.getAttribute('data-scene-key') as RoboticsObjectKey | null;
+    if (!inputKey) {
       setSelection(null);
       return;
     }
+    const key = canonicalRoboticsObjectKey(world, inputKey);
     event.preventDefault();
     setSelection(key);
-    setTool('select');
     setError(null);
     setPropertiesOpen(false);
     drag.current = {
@@ -340,100 +358,99 @@ export function RobotFieldEditor({
     if (!current || current.pointerId !== event.pointerId || running) return;
     const point = pointerPosition(event, current.world);
     if (!point) return;
-    current.next = translated(
-      current.world,
-      current.key,
-      point.xMeters - current.start.xMeters,
-      point.yMeters - current.start.yMeters,
-    );
-    setDraft(current.next);
+    try {
+      current.next = moved(current, point);
+      setDraft(current.next);
+      setError(null);
+    } catch (error) {
+      fail(error);
+    }
   }
   function pointerUp(event: PointerEvent<SVGSVGElement>) {
     const current = drag.current;
     if (!current || current.pointerId !== event.pointerId) return;
     const point = pointerPosition(event, current.world);
-    const next = point
-      ? translated(
-          current.world,
-          current.key,
-          point.xMeters - current.start.xMeters,
-          point.yMeters - current.start.yMeters,
-        )
-      : current.next;
     releaseDrag();
+    if (current.world !== world || running) return;
     if (
       point &&
       Math.hypot(point.xMeters - current.start.xMeters, point.yMeters - current.start.yMeters) <
         0.003
-    )
-      setPropertiesOpen(true);
-    if (current.world === world && next !== current.world) commit(next);
-  }
-  function remove() {
-    if (running || !selection || selection === 'robot') return;
-    if (
-      commit({
-        ...world,
-        field: {
-          ...world.field,
-          obstacles: world.field.obstacles.filter((item) => selection !== `wall:${item.id}`),
-          balls: world.field.balls.filter((item) => selection !== `ball:${item.id}`),
-          floorMarks: world.field.floorMarks.filter((item) => selection !== `mark:${item.id}`),
-        },
-      })
     ) {
-      setSelection(null);
-      setPropertiesOpen(false);
+      setPropertiesOpen(true);
+      return;
+    }
+    try {
+      commit(point ? moved(current, point) : current.next);
+    } catch (error) {
+      fail(error);
     }
   }
-  const wall = world.field.obstacles.find((item) => selection === `wall:${item.id}`);
-  const ball = world.field.balls.find((item) => selection === `ball:${item.id}`);
-  const mark = world.field.floorMarks.find((item) => selection === `mark:${item.id}`);
-  const selected = wall ?? ball ?? mark;
-  const patchWall = (patch: Partial<RoboticsRectObstacle>) =>
-    commit({
-      ...world,
-      field: {
-        ...world.field,
-        obstacles: world.field.obstacles.map((item) =>
-          item === wall ? { ...item, ...patch } : item,
-        ),
-      },
-    });
-  const patchBall = (patch: Partial<RoboticsBall>) =>
-    commit({
-      ...world,
-      field: {
-        ...world.field,
-        balls: world.field.balls.map((item) => (item === ball ? { ...item, ...patch } : item)),
-      },
-    });
-  const patchMark = (next: RoboticsFloorMark) =>
-    commit({
-      ...world,
-      field: {
-        ...world.field,
-        floorMarks: world.field.floorMarks.map((item) => (item === mark ? next : item)),
-      },
-    });
+  function remove() {
+    if (!selection || selection === 'robot' || running) return;
+    try {
+      if (commit(removeRoboticsObject(world, selection))) {
+        setSelection(null);
+        setPropertiesOpen(false);
+        if (propertiesButton.current?.getClientRects().length)
+          requestAnimationFrame(() => propertiesButton.current?.focus());
+      }
+    } catch (error) {
+      fail(error);
+    }
+  }
+  function rotate(angle: number) {
+    if (!selection || running) return;
+    try {
+      commit(rotateRoboticsObject(world, selection, angle));
+    } catch (error) {
+      fail(error);
+    }
+  }
+  function duplicate() {
+    if (!selection || selection === 'robot' || running) return;
+    const step = selection.startsWith('mark-group:') ? (world.field.tiles?.sizeMeters ?? 0.3) : 0.1;
+    let lastError: unknown;
+    for (const [dx, dy] of [
+      [1, 1],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+      [0, -1],
+      [-1, -1],
+      [2, 0],
+      [0, 2],
+    ]) {
+      try {
+        const next = duplicateRoboticsObject(world, selection, {
+          xMeters: step * dx!,
+          yMeters: step * dy!,
+        });
+        if (commit(next.world)) selectAdded(next.key);
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    fail(lastError);
+  }
+  function fit() {
+    setZoomIndex(0);
+    if (canvasRef.current) {
+      canvasRef.current.scrollTop = 0;
+      canvasRef.current.scrollLeft = 0;
+    }
+  }
+  function closeProperties() {
+    setPropertiesOpen(false);
+    requestAnimationFrame(() => propertiesButton.current?.focus());
+  }
   const scene = draft ?? world;
   const previewState = draft ? createRoboticsWorldState(draft) : state;
   const previewDistance = draft
-    ? measureRoboticsDistance(draft, draft.initialPose, previewState.balls)
+    ? measureRoboticsDistance(draft, draft.initialPose, previewState.balls, previewState.bodies)
     : distance;
-  const preset = ROBOTICS_FIELD_PRESETS.find(
-    (item) =>
-      item.widthMeters === world.field.widthMeters &&
-      item.heightMeters === world.field.heightMeters,
-  );
-  const maxed =
-    tool === 'wall'
-      ? world.field.obstacles.length >= ROBOTICS_SCENE_LIMITS.walls
-      : tool === 'ball'
-        ? world.field.balls.length >= ROBOTICS_SCENE_LIMITS.balls
-        : tool === 'line' || tool === 'area'
-          ? world.field.floorMarks.length >= ROBOTICS_SCENE_LIMITS.floorMarks
-          : false;
+  const seenGroups = new Set<string>();
   const objects: { key: RoboticsObjectKey; label: string }[] = [
     { key: 'robot', label: 'Старт робота' },
     ...world.field.obstacles.map((item) => ({
@@ -444,46 +461,38 @@ export function RobotFieldEditor({
       key: `ball:${item.id}` as const,
       label: `${item.label ?? 'Мяч'} · ${item.id}`,
     })),
-    ...world.field.floorMarks.map((item) => ({
-      key: `mark:${item.id}` as const,
-      label: `${item.label ?? (item.kind === 'line' ? 'Линия' : 'Зона')} · ${item.id}`,
+    ...(world.field.bodies ?? []).map((item) => ({
+      key: `body:${item.id}` as const,
+      label: `${item.label ?? (item.kind === 'can' ? 'Банка' : 'Брусок')} · ${item.id}`,
     })),
+    ...world.field.floorMarks.flatMap((item) => {
+      if (item.groupId) {
+        if (seenGroups.has(item.groupId)) return [];
+        seenGroups.add(item.groupId);
+      }
+      return [
+        {
+          key: item.groupId
+            ? (`mark-group:${item.groupId}` as const)
+            : (`mark:${item.id}` as const),
+          label: `${item.label ?? (item.kind === 'area' ? 'Зона' : 'Линия')} · ${item.groupId ?? item.id}`,
+        },
+      ];
+    }),
   ];
-  const numeric = (
-    label: string,
-    value: number,
-    min: number,
-    max: number,
-    update: (value: number) => boolean,
-    step = 0.01,
-    unit = 'м',
-  ) => (
-    <RoboticsNumberField
-      key={`${selection}:${label}`}
-      label={label}
-      value={value}
-      min={min}
-      max={max}
-      step={step}
-      unit={unit}
-      disabled={running}
-      onCommit={update}
-    />
-  );
-
   return (
     <>
-      <div className="robotics-panel-toolbar">
+      <div className="robotics-panel-toolbar robotics-field-heading">
         <h2>Поле</h2>
-        <label className="robotics-grid-toggle">
-          <input
-            type="checkbox"
-            checked={showGrid}
-            onChange={(event) => onShowGridChange(event.target.checked)}
-          />
-          Сетка
-        </label>
+        <span className="robotics-physics-badge" data-testid="robotics-physics-mode">
+          {!extended
+            ? 'Прежняя модель'
+            : getRoboticsPhysicsMode(world) === 'dynamic'
+              ? 'Динамика 2D'
+              : 'Учебный'}
+        </span>
         <button
+          ref={propertiesButton}
           type="button"
           className="robotics-button robotics-properties-toggle"
           aria-expanded={propertiesOpen}
@@ -497,10 +506,16 @@ export function RobotFieldEditor({
           <button
             type="button"
             key={item.id}
-            aria-pressed={tool === item.id}
-            disabled={running}
+            aria-pressed={tool === item.id && !pan}
+            disabled={running || (item.extended && !extended)}
+            title={
+              item.extended && !extended
+                ? 'Сначала включите расширенное поле в свойствах'
+                : undefined
+            }
             onClick={() => {
               setTool(item.id);
+              setPan(false);
               setError(null);
             }}
           >
@@ -509,17 +524,109 @@ export function RobotFieldEditor({
           </button>
         ))}
       </div>
+      <div className="robotics-field-view-tools" aria-label="Вид и привязка поля">
+        <label className="robotics-grid-toggle">
+          <input
+            type="checkbox"
+            checked={showGrid}
+            onChange={(event) => onShowGridChange(event.target.checked)}
+          />
+          Сетка
+        </label>
+        <label
+          className="robotics-grid-toggle"
+          title="Предметы — к сетке; штампы трассы — к плиткам"
+        >
+          <input
+            type="checkbox"
+            checked={snap}
+            disabled={running}
+            onChange={(event) => setSnap(event.target.checked)}
+          />
+          Привязка
+        </label>
+        <button
+          type="button"
+          aria-label="Перемещать вид поля"
+          aria-pressed={pan}
+          onClick={() => {
+            releaseDrag();
+            setPan((value) => !value);
+            setTool('select');
+          }}
+        >
+          Рука
+        </button>
+        <div className="robotics-field-zoom">
+          <button
+            type="button"
+            aria-label="Отдалить поле"
+            disabled={zoomIndex === 0}
+            onClick={() => setZoomIndex((value) => Math.max(0, value - 1))}
+          >
+            −
+          </button>
+          <output aria-label="Масштаб поля">{Math.round(zoom * 100)}%</output>
+          <button
+            type="button"
+            aria-label="Приблизить поле"
+            disabled={zoomIndex === ZOOM_LEVELS.length - 1}
+            onClick={() => setZoomIndex((value) => Math.min(ZOOM_LEVELS.length - 1, value + 1))}
+          >
+            +
+          </button>
+          <button type="button" aria-label="Показать поле целиком" onClick={fit}>
+            Всё
+          </button>
+        </div>
+      </div>
+      {!running && tool === 'stamp' ? (
+        <div className="robotics-stamp-tools">
+          <label>
+            Плитка трассы
+            <select
+              aria-label="Штамп трассы"
+              value={stamp}
+              onChange={(event) => {
+                const next = STAMPS.find((item) => item.id === event.target.value);
+                if (next) setStamp(next.id);
+              }}
+            >
+              {STAMPS.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => setTurns((value) => (value + 1) % 4)}
+            aria-label="Повернуть шаблон на 90 градусов"
+          >
+            ↻ {turns * 90}°
+          </button>
+        </div>
+      ) : null}
       {running ? (
         <p className="robotics-edit-hint">Остановите моделирование, чтобы изменить поле.</p>
       ) : tool !== 'select' ? (
         <div className="robotics-placement-hint">
           <span>
-            {maxed ? 'Достигнут лимит предметов этого типа.' : 'Нажмите на поле для размещения.'}
+            {maxed
+              ? 'Достигнут лимит предметов этого типа.'
+              : tool === 'stamp'
+                ? 'Нажмите на плитку. Весь штамп — один предмет.'
+                : 'Нажмите на поле для размещения.'}
           </span>
           <button type="button" disabled={maxed} onClick={() => add()}>
             Добавить в свободное место
           </button>
         </div>
+      ) : pan ? (
+        <p className="robotics-edit-hint">
+          Перемещайте увеличенное поле прокруткой. «Всё» вернёт полный вид.
+        </p>
       ) : null}
       {error ? (
         <p className="robotics-field-error robotics-scene-error" role="alert">
@@ -528,87 +635,84 @@ export function RobotFieldEditor({
       ) : null}
       <div className="robotics-field-editor-body" data-properties-open={propertiesOpen}>
         <div
-          className="robotics-field-canvas"
+          ref={canvasRef}
+          className="robotics-field-canvas robotics-field-scroll"
           tabIndex={0}
           role="group"
           aria-label="Полотно поля"
+          data-pan={pan}
           onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return;
             if (event.key === 'Escape') {
               releaseDrag();
               setTool('select');
+              setPan(false);
             }
-            if (
-              (event.key === 'Delete' || event.key === 'Backspace') &&
-              event.target === event.currentTarget
-            ) {
+            if (event.key === 'Home') {
+              event.preventDefault();
+              fit();
+            }
+            if (event.key === '+' || event.key === '=') {
+              event.preventDefault();
+              setZoomIndex((value) => Math.min(ZOOM_LEVELS.length - 1, value + 1));
+            }
+            if (event.key === '-') {
+              event.preventDefault();
+              setZoomIndex((value) => Math.max(0, value - 1));
+            }
+            if (event.key === 'Delete' || event.key === 'Backspace') {
               event.preventDefault();
               remove();
             }
           }}
         >
-          <RobotField
-            world={scene}
-            state={previewState}
-            distance={previewDistance}
-            showGrid={showGrid}
-            selection={selection}
-            editable={!running}
-            onPointerDown={pointerDown}
-            onPointerMove={pointerMove}
-            onPointerUp={pointerUp}
-            onPointerCancel={releaseDrag}
-            onLostPointerCapture={releaseDrag}
-          />
+          <div
+            className="robotics-field-zoom-surface"
+            style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }}
+          >
+            <RobotField
+              world={scene}
+              state={previewState}
+              distance={previewDistance}
+              showGrid={showGrid}
+              selection={selection}
+              editable={!running && !pan}
+              onPointerDown={pointerDown}
+              onPointerMove={pointerMove}
+              onPointerUp={pointerUp}
+              onPointerCancel={releaseDrag}
+              onLostPointerCapture={releaseDrag}
+            />
+          </div>
         </div>
-        <aside className="robotics-scene-inspector" aria-label="Свойства поля и предмета">
-          <details className="robotics-settings-group" open>
-            <summary>Размеры и учебная сцена</summary>
-            <label className="robotics-select-field">
-              Учебная сцена
-              <select
-                aria-label="Учебная сцена"
-                value={preset?.id ?? ''}
-                disabled={running}
-                onChange={(event) => {
-                  const selectedPreset = ROBOTICS_FIELD_PRESETS.find(
-                    (item) => item.id === event.target.value,
-                  );
-                  if (
-                    !selectedPreset ||
-                    !window.confirm(
-                      'Заменить предметы и старт робота учебной сценой? Схема, программа и назначение компонентов сохранятся.',
-                    )
-                  )
-                    return;
-                  const next = createRoboticsWorldDocument(selectedPreset.id);
-                  if (commit({ ...world, field: next.field, initialPose: next.initialPose }))
-                    setSelection(null);
-                }}
-              >
-                {!preset ? <option value="">Свой размер</option> : null}
-                {ROBOTICS_FIELD_PRESETS.map((item) => (
-                  <option value={item.id} key={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="robotics-form-grid">
-              {(['widthMeters', 'heightMeters', 'gridMeters'] as const).map((property, index) => (
-                <RoboticsNumberField
-                  key={property}
-                  label={['Ширина поля', 'Высота поля', 'Шаг сетки'][index]!}
-                  unit="м"
-                  value={world.field[property]}
-                  {...ROBOTICS_FIELD_LIMITS[property]}
-                  disabled={running}
-                  onCommit={(value) =>
-                    commit({ ...world, field: { ...world.field, [property]: value } })
-                  }
-                />
-              ))}
-            </div>
-          </details>
+        <aside
+          className="robotics-scene-inspector"
+          aria-label="Свойства поля и предмета"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && propertiesButton.current?.getClientRects().length) {
+              event.stopPropagation();
+              closeProperties();
+            }
+          }}
+        >
+          <div className="robotics-inspector-heading">
+            <strong>Свойства поля</strong>
+            <button type="button" className="robotics-button" onClick={closeProperties}>
+              Закрыть свойства
+            </button>
+          </div>
+          <RobotFieldSettings
+            world={world}
+            running={running}
+            sourceSchemaVersion={sourceSchemaVersion}
+            onUpgradeField={onUpgradeField}
+            onCommit={commit}
+            onError={setError}
+            onPresetApplied={() => setSelection(null)}
+          />
+          <h3 className="robotics-object-list-heading">
+            Предметы <span>{objects.length - 1}</span>
+          </h3>
           <div className="robotics-object-list" aria-label="Объекты поля">
             {objects.map((item) => (
               <button
@@ -621,261 +725,18 @@ export function RobotFieldEditor({
               </button>
             ))}
           </div>
-          {selection === 'robot' ? (
-            <section className="robotics-settings-group">
-              <h3>Старт робота</h3>
-              <div className="robotics-form-grid">
-                {numeric(
-                  'Старт X',
-                  world.initialPose.xMeters,
-                  0,
-                  world.field.widthMeters,
-                  (value) =>
-                    commit({ ...world, initialPose: { ...world.initialPose, xMeters: value } }),
-                )}
-                {numeric(
-                  'Старт Y',
-                  world.initialPose.yMeters,
-                  0,
-                  world.field.heightMeters,
-                  (value) =>
-                    commit({ ...world, initialPose: { ...world.initialPose, yMeters: value } }),
-                )}
-                {numeric(
-                  'Направление робота',
-                  degrees(world.initialPose.headingRadians),
-                  -180,
-                  180,
-                  (value) =>
-                    commit({
-                      ...world,
-                      initialPose: { ...world.initialPose, headingRadians: radians(value) },
-                    }),
-                  1,
-                  '°',
-                )}
-              </div>
-            </section>
-          ) : null}
-          {selected ? (
-            <section className="robotics-settings-group" key={selection}>
-              <h3>{selected.label ?? selected.id}</h3>
-              <label className="robotics-select-field">
-                Название
-                <input
-                  key={`${selected.id}:${selected.label ?? selected.id}`}
-                  aria-label="Название предмета"
-                  type="text"
-                  maxLength={80}
-                  disabled={running}
-                  defaultValue={selected.label ?? selected.id}
-                  onBlur={(event) => {
-                    const label = event.target.value.trim();
-                    const accepted = wall
-                      ? patchWall({ label })
-                      : ball
-                        ? patchBall({ label })
-                        : mark
-                          ? patchMark({ ...mark, label })
-                          : false;
-                    if (!accepted) event.target.value = selected.label ?? selected.id;
-                  }}
-                />
-              </label>
-              <div className="robotics-form-grid">
-                {wall ? (
-                  <>
-                    {numeric(
-                      'X стены',
-                      wall.xMeters,
-                      -Math.hypot(world.field.widthMeters, world.field.heightMeters),
-                      world.field.widthMeters,
-                      (value) => patchWall({ xMeters: value }),
-                    )}
-                    {numeric(
-                      'Y стены',
-                      wall.yMeters,
-                      -Math.hypot(world.field.widthMeters, world.field.heightMeters),
-                      world.field.heightMeters,
-                      (value) => patchWall({ yMeters: value }),
-                    )}
-                    {numeric(
-                      'Длина стены',
-                      wall.widthMeters,
-                      0.02,
-                      Math.hypot(world.field.widthMeters, world.field.heightMeters),
-                      (value) => patchWall({ widthMeters: value }),
-                    )}
-                    {numeric(
-                      'Толщина стены',
-                      wall.heightMeters,
-                      0.02,
-                      Math.hypot(world.field.widthMeters, world.field.heightMeters),
-                      (value) => patchWall({ heightMeters: value }),
-                    )}
-                    {numeric(
-                      'Угол стены',
-                      degrees(wall.headingRadians ?? 0),
-                      -180,
-                      180,
-                      (value) => patchWall({ headingRadians: radians(value) }),
-                      1,
-                      '°',
-                    )}
-                  </>
-                ) : null}
-                {ball ? (
-                  <>
-                    {numeric('X мяча', ball.xMeters, 0, world.field.widthMeters, (value) =>
-                      patchBall({ xMeters: value }),
-                    )}
-                    {numeric('Y мяча', ball.yMeters, 0, world.field.heightMeters, (value) =>
-                      patchBall({ yMeters: value }),
-                    )}
-                    {numeric(
-                      'Диаметр мяча',
-                      ball.radiusMeters * 2,
-                      ROBOTICS_BALL_LIMITS.radiusMeters.min * 2,
-                      ROBOTICS_BALL_LIMITS.radiusMeters.max * 2,
-                      (value) => patchBall({ radiusMeters: value / 2 }),
-                    )}
-                  </>
-                ) : null}
-                {mark?.kind === 'line' ? (
-                  <>
-                    {numeric(
-                      'Начало линии X',
-                      mark.start.xMeters,
-                      0,
-                      world.field.widthMeters,
-                      (value) => patchMark({ ...mark, start: { ...mark.start, xMeters: value } }),
-                    )}
-                    {numeric(
-                      'Начало линии Y',
-                      mark.start.yMeters,
-                      0,
-                      world.field.heightMeters,
-                      (value) => patchMark({ ...mark, start: { ...mark.start, yMeters: value } }),
-                    )}
-                    {numeric(
-                      'Конец линии X',
-                      mark.end.xMeters,
-                      0,
-                      world.field.widthMeters,
-                      (value) => patchMark({ ...mark, end: { ...mark.end, xMeters: value } }),
-                    )}
-                    {numeric(
-                      'Конец линии Y',
-                      mark.end.yMeters,
-                      0,
-                      world.field.heightMeters,
-                      (value) => patchMark({ ...mark, end: { ...mark.end, yMeters: value } }),
-                    )}
-                    {numeric(
-                      'Толщина линии',
-                      mark.widthMeters,
-                      0.005,
-                      0.2,
-                      (value) => patchMark({ ...mark, widthMeters: value }),
-                      0.005,
-                    )}
-                  </>
-                ) : null}
-                {mark?.kind === 'area' ? (
-                  <>
-                    {numeric('X зоны', mark.xMeters, 0, world.field.widthMeters, (value) =>
-                      patchMark({ ...mark, xMeters: value }),
-                    )}
-                    {numeric('Y зоны', mark.yMeters, 0, world.field.heightMeters, (value) =>
-                      patchMark({ ...mark, yMeters: value }),
-                    )}
-                    {numeric(
-                      'Ширина зоны',
-                      mark.widthMeters,
-                      0.02,
-                      world.field.widthMeters,
-                      (value) => patchMark({ ...mark, widthMeters: value }),
-                    )}
-                    {numeric(
-                      'Высота зоны',
-                      mark.heightMeters,
-                      0.02,
-                      world.field.heightMeters,
-                      (value) => patchMark({ ...mark, heightMeters: value }),
-                    )}
-                  </>
-                ) : null}
-                {mark ? (
-                  <label className="robotics-number-field">
-                    <span>Цвет разметки</span>
-                    <input
-                      aria-label="Цвет разметки"
-                      type="color"
-                      value={mark.color}
-                      disabled={running}
-                      onChange={(event) => patchMark({ ...mark, color: event.target.value })}
-                    />
-                  </label>
-                ) : null}
-              </div>
-              {ball ? (
-                <details className="robotics-settings-group">
-                  <summary>Физика мяча</summary>
-                  <div className="robotics-form-grid">
-                    {numeric(
-                      'Масса мяча',
-                      ball.massKg,
-                      ROBOTICS_BALL_LIMITS.massKg.min,
-                      ROBOTICS_BALL_LIMITS.massKg.max,
-                      (value) => patchBall({ massKg: value }),
-                      0.01,
-                      'кг',
-                    )}
-                    {numeric(
-                      'Трение скольжения по полу',
-                      ball.frictionCoefficient,
-                      0,
-                      1,
-                      (value) => patchBall({ frictionCoefficient: value }),
-                      0.01,
-                      '',
-                    )}
-                    {numeric(
-                      'Упругость мяча',
-                      ball.restitution,
-                      0,
-                      1,
-                      (value) => patchBall({ restitution: value }),
-                      0.05,
-                      '',
-                    )}
-                  </div>
-                  <p className="robotics-help">
-                    Масса влияет на столкновения мячей друг с другом. Движение робота задано
-                    моторами; обратная нагрузка на них пока не рассчитывается. Мяч скользит по
-                    плоскости, без расчёта вращения.
-                  </p>
-                </details>
-              ) : null}
-              {mark ? (
-                <p className="robotics-help">
-                  Разметка пола: без столкновений и сигнала датчика цвета.
-                </p>
-              ) : null}
-              <button
-                type="button"
-                className="robotics-button danger"
-                disabled={running}
-                onClick={remove}
-              >
-                Удалить предмет
-              </button>
-            </section>
-          ) : (
-            <p className="robotics-help robotics-selection-hint">
-              Выберите предмет на поле или в списке. Перетаскивание — один шаг истории.
-            </p>
-          )}
+          <div ref={inspectorObject}>
+            <RobotObjectInspector
+              world={world}
+              selection={selection}
+              running={running}
+              onCommit={commit}
+              onError={setError}
+              onRotate={rotate}
+              onDuplicate={duplicate}
+              onRemove={remove}
+            />
+          </div>
         </aside>
       </div>
     </>

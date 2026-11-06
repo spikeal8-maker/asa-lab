@@ -1,6 +1,7 @@
 export {
   createInitialRoboticsProject,
   parseRoboticsProject,
+  upgradeRoboticsProjectToV3,
   type RoboticsProject,
   type RoboticsProjectParseResult,
 } from './domain/document.js';

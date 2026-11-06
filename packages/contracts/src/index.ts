@@ -77,6 +77,17 @@ export {
   PUBLIC_ROBOTICS_ROBOT_FIELDS,
   PUBLIC_ROBOTICS_LIMITS,
 } from './public-robotics-artifact.js';
+export {
+  validatePublicRoboticsArtifactV6,
+  PUBLIC_ROBOTICS_V6_LIMITS,
+} from './public-robotics-artifact-v6.js';
+export type {
+  PublicRoboticsArtifactV6,
+  PublicRoboticsWorldV6,
+  PublicRoboticsFieldV6,
+  PublicRoboticsBodyV6,
+  PublicRoboticsFloorMarkV6,
+} from './public-robotics-artifact-v6.js';
 export type {
   PublicRoboticsArtifact,
   PublicRoboticsWorld,
