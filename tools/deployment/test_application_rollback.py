@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import asa_manager as manager
 from deployment import application_rollback as ar
 from deployment.contracts import Blocked, inventory_files
+from deployment.system import run as native_run
 
 DIGEST = "sha256:87acd65905c3cb64c1052ea046926932b1a5e9f42dc52d8b36c05db9f449da68"
 
@@ -118,6 +119,10 @@ class Fixture:
         ar._write(self.state / "last-operation.json", value)
 
     def docker(self, args, **kwargs):
+        # Keep ACL attestation native even while ar.run simulates Docker.
+        # The imported runner stays independent of nested fixture patches.
+        if args and args[0] == "powershell.exe":
+            return native_run(args, **kwargs)
         self.calls.append(tuple(args))
         if args[:3] == ["docker", "volume", "inspect"]:
             return json.dumps([next(value for value in self.volumes.values() if value["Name"] == args[-1])])
@@ -547,6 +552,96 @@ class WindowsOwnerRightsTests(unittest.TestCase):
                 self.assert_denied(payload, [(self.paths[2], True)])
 
 
+class WindowsAclTransportTests(unittest.TestCase):
+    def test_windows_acl_child_environment_preserves_inputs_without_inheriting_ps7_modules(self):
+        with tempfile.TemporaryDirectory(prefix="asa acl environment ") as temporary:
+            path = Path(temporary) / "private '[literal]' $value путь.json"
+            path.write_text("{}", encoding="utf-8")
+            missing = path.with_name("missing.json")
+            current = "S-1-5-21-10-20-30-1001"
+            payload = {"current": current, "rows": [{"path": str(path), "owner": current,
+                "rules": [{"sid": current, "kind": "Allow", "rights": 2032127, "inheritOnly": False}]}]}
+            environment = {"PSModulePath": "PS7 modules", "PSMODULEPATH": "upper modules",
+                           "pSmOdUlEpAtH": "mixed modules", "WinPSModulePath": "keep this value",
+                           "PATH": "unchanged path", "EMPTY": "", "ASA_RETURN_ACL_PATHS": "parent value"}
+            before = dict(environment)
+            with patch.object(ar, "os", SimpleNamespace(name="nt", environ=environment)), \
+                    patch.object(ar, "run", return_value=json.dumps(payload)) as execute:
+                ar.attest_access([(path, True), (missing, False)])
+            execute.assert_called_once()
+            self.assertEqual(execute.call_args.args[0], ["powershell.exe", "-NoLogo", "-NoProfile",
+                             "-NonInteractive", "-Command", ar.WINDOWS_ACL_QUERY])
+            child = execute.call_args.kwargs["env"]
+            self.assertEqual(child, {"WinPSModulePath": "keep this value", "PATH": "unchanged path",
+                                    "EMPTY": "", "ASA_RETURN_ACL_PATHS": json.dumps([str(path)])})
+            self.assertTrue(execute.call_args.kwargs["capture"])
+            self.assertEqual(environment, before)
+
+    def test_windows_acl_command_failure_and_malformed_results_remain_denied(self):
+        with tempfile.TemporaryDirectory(prefix="asa acl failure ") as temporary:
+            path = Path(temporary)
+            with patch.object(ar, "os", SimpleNamespace(name="nt", environ={})), \
+                    patch.object(ar, "run", native_run), patch.object(subprocess, "run", return_value=
+                        subprocess.CompletedProcess([], 17, "{}", "synthetic native failure")):
+                with self.assertRaises(Blocked) as denied:
+                    ar.attest_access([(path, True)])
+                self.assertEqual(denied.exception.code, "COMMAND")
+            for output, exception in (("not JSON", json.JSONDecodeError), ("{}", Blocked),
+                                      ('{"current":"S-1-5-18","rows":[]}', Blocked)):
+                with self.subTest(output=output), \
+                        patch.object(ar, "os", SimpleNamespace(name="nt", environ={})), \
+                        patch.object(ar, "run", return_value=output), self.assertRaises(exception):
+                    ar.attest_access([(path, True)])
+
+    def test_fixture_dispatches_only_powershell_to_the_saved_native_transport(self):
+        fixture = Fixture.__new__(Fixture)
+        fixture.calls, fixture.volumes = [], {"owned": {"Name": "synthetic-owned"}}
+        command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", ar.WINDOWS_ACL_QUERY]
+        arguments = {"capture": True, "env": {"ASA_RETURN_ACL_PATHS": "[]"}}
+        with patch.object(sys.modules[__name__], "native_run", return_value="native result") as execute, \
+                patch.object(ar, "run", fixture.docker):
+            self.assertEqual(ar.run(command, **arguments), "native result")
+            execute.assert_called_once_with(command, **arguments)
+            self.assertEqual(json.loads(ar.run(["docker", "volume", "inspect", "synthetic-owned"])),
+                             [{"Name": "synthetic-owned"}])
+            for unknown in (["pwsh.exe", "-Command", "unexpected"], ["git", "status"], []):
+                with self.subTest(command=unknown), self.assertRaises(AssertionError):
+                    ar.run(unknown)
+            execute.assert_called_once()
+
+    @unittest.skipUnless(os.name == "nt", "Requires native Windows PowerShell and DACLs")
+    def test_native_windows_acl_transport_and_fixture_backup(self):
+        execute = subprocess.run
+        queries = []
+        command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", ar.WINDOWS_ACL_QUERY]
+
+        def observed_run(args, **kwargs):
+            result = execute(args, **kwargs)
+            if args == command:
+                queries.append({"exitCode": result.returncode, "stderr": (result.stderr or "")[:2048],
+                                "inheritedModulePath": any(key.casefold() == "psmodulepath" for key in kwargs["env"])})
+            return result
+
+        with tempfile.TemporaryDirectory(prefix="asa native ACL transport ") as temporary:
+            with patch.object(subprocess, "run", observed_run):
+                try:
+                    fixture = Fixture(Path(temporary) / "canonical app")
+                    with patch.object(ar, "run", fixture.docker):
+                        backup = fixture.backup()
+                        ar.attest_access([(fixture.root, True), (fixture.state, True), (backup, True)])
+                except Exception as exc:
+                    self.fail(f"Native ACL transport: {type(exc).__name__}: {exc}; queries=" + json.dumps(queries))
+            self.assertGreaterEqual(len(queries), 3)
+            self.assertTrue(all(row["exitCode"] == 0 and not row["inheritedModulePath"] for row in queries))
+            # A read-only diagnostic of the original CI launch environment.
+            # Its result does not authorize the operation; real guards above do.
+            inherited = execute(command, env={**os.environ, "ASA_RETURN_ACL_PATHS": json.dumps([str(fixture.root)])},
+                                capture_output=True, text=True, encoding="utf-8", errors="replace")
+            print("WINDOWS_ACL_INHERITED_ENV_DIAGNOSTIC " + json.dumps({"exitCode": inherited.returncode,
+                  "modulePathPresent": any(key.casefold() == "psmodulepath" for key in os.environ),
+                  "stderr": inherited.stderr[:2048] if inherited.returncode else ""}))
+
+
 class NativeBoundaryTests(unittest.TestCase):
     def test_tooling_rejects_nested_git_discovery_and_untracked_or_hidden_bytes(self):
         def git(root, *args):
@@ -572,7 +667,7 @@ class NativeBoundaryTests(unittest.TestCase):
             # ACL enforcement has its own native/policy tests; this test proves
             # Git origin/root/blob attestation on both Windows and Linux.
             with patch.object(ar, "__file__", str(root / "tools/deployment/application_rollback.py")), patch.object(ar, "attest_access"):
-                self.assertEqual(ar.tool_identity(installation)["root"], str(root))
+                self.assertEqual(ar.tool_identity(installation)["root"], str(root.resolve()))
                 git(root, "update-index", "--assume-unchanged", "tools/asa_manager.py")
                 (root / "tools/asa_manager.py").write_bytes(b"# hidden modified bytes\n")
                 self.assertEqual(git(root, "status", "--porcelain"), "")

@@ -139,8 +139,12 @@ def attest_access(paths):
         plain_paths(path.parent, (path.name,))
     paths = [(path, private) for path, private in paths if path.exists()]
     if os.name == "nt":
+        # Python launched by PowerShell 7 inherits its incompatible module paths.
+        # Let only the child Windows PowerShell rebuild its native module path.
+        environment = {key: value for key, value in os.environ.items() if key.casefold() != "psmodulepath"}
+        environment["ASA_RETURN_ACL_PATHS"] = json.dumps([str(path) for path, private in paths])
         payload = json.loads(run(["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", WINDOWS_ACL_QUERY],
-                                 env={**os.environ, "ASA_RETURN_ACL_PATHS": json.dumps([str(path) for path, private in paths])}, capture=True))
+                                 env=environment, capture=True))
         validate_windows_acls(payload, paths)
         return
     trusted = {os.getuid(), 0}
