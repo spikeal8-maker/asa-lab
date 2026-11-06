@@ -397,6 +397,9 @@ class ReturnTests(unittest.TestCase):
     def test_v2_policy_capsule_is_not_reinterpreted_by_v3_tools(self):
         self.assert_previous_policy_refused("asa-p0-98d7-d0bf-application-return-v2")
 
+    def test_v3_policy_capsule_is_not_reinterpreted_by_v4_tools(self):
+        self.assert_previous_policy_refused("asa-p0-98d7-d0bf-application-return-v3")
+
     def assert_previous_policy_refused(self, previous_policy):
         self.candidate["policy"] = previous_policy
         with patch.object(ar, "POLICY", previous_policy):
@@ -707,6 +710,7 @@ class SourceHistory:
     """Actual commits/merges in a fresh synthetic Git repository; no Docker."""
     product_path = "apps/api/src/preserved-product.ts"
     delivery_path = "tools/deployment/application_rollback.py"
+    database_progress_path = "tools/test_database_progress.py"
     files = ("compose.yaml",)
 
     def __init__(self, root):
@@ -719,6 +723,7 @@ class SourceHistory:
         initial = {"compose.yaml": "services: {}\n", "migrations/0304.sql": "select 1;\n",
                    "tools/migrate.mjs": "// unchanged migration runner\n",
                    "infra/minio/Dockerfile": "FROM scratch\n",
+                   self.database_progress_path: "# original historical SQL fixture\n",
                    self.product_path: 'export const preservedProduct = "keep this source";\n'}
         initial.update({path: f"before collector: {path}\n" for path in ar.COLLECTOR_BLOBS})
         self.lazy_original_contents = {path: f"before lazy work context: {path}\n" for path in ar.LAZY_CONTEXT_BLOBS}
@@ -774,6 +779,18 @@ class SourceHistory:
         self.git("merge", "--quiet", "--no-ff", "--no-edit", self.lazy_context)
         return self.git("rev-parse", "HEAD")
 
+    def add_database_progress_history(self):
+        self.git("switch", "--quiet", "-c", "accepted-database-progress", self.baseline)
+        self.database_progress_content = "# accepted historical SQL fixture\n"
+        self.write(self.database_progress_path, self.database_progress_content)
+        self.database_progress = self.commit("independently accepted historical SQL fixture")
+        self.database_progress_blob = self.git("rev-parse", f"{self.database_progress}:{self.database_progress_path}")
+        self.git("switch", "--quiet", "main")
+
+    def merge_database_progress(self):
+        self.git("merge", "--quiet", "--no-ff", "--no-edit", self.database_progress)
+        return self.git("rev-parse", "HEAD")
+
     def commit_extra_blob(self, path, blob):
         # Build only Git objects: these names need not be representable in a
         # Windows worktree. The existing fixture's files/index are untouched.
@@ -807,6 +824,14 @@ class SourceBoundaryTests(unittest.TestCase):
             with patch.multiple(ar, PREVIOUS=fixture.previous, PRODUCT=fixture.product, BASELINE=fixture.baseline,
                                 COLLECTOR_REVISION=fixture.collector, COLLECTOR_BLOBS=fixture.collector_blobs,
                                 LAZY_CONTEXT_REVISION=fixture.lazy_context, LAZY_CONTEXT_BLOBS=fixture.lazy_blobs):
+                yield fixture
+
+    @contextlib.contextmanager
+    def database_progress_history(self):
+        with self.history() as fixture:
+            fixture.add_database_progress_history()
+            with patch.multiple(ar, DATABASE_PROGRESS_REVISION=fixture.database_progress,
+                                DATABASE_PROGRESS_BLOBS={fixture.database_progress_path: fixture.database_progress_blob}):
                 yield fixture
 
     def assert_refused(self, fixture, target=None):
@@ -995,6 +1020,102 @@ class SourceBoundaryTests(unittest.TestCase):
             with self.assertRaises(Blocked) as denied:
                 ar.validate_pair(fixture, previous, selected)
             self.assertEqual(denied.exception.code, "ROLLBACK_PAIR")
+
+    def test_accepted_database_progress_with_and_without_lazy_context_preserves_data_boundary(self):
+        for lazy in (False, True):
+            with self.subTest(lazy=lazy), self.database_progress_history() as fixture:
+                expected = fixture.validate(fixture.combined)
+                if lazy:
+                    fixture.merge_lazy_context()
+                self.assertEqual(fixture.validate(fixture.merge_database_progress()), expected)
+                self.assertEqual(fixture.validate(fixture.commit("unchanged historical SQL fixture descendant")), expected)
+
+    def test_database_progress_pin_keeps_the_full_lazy_revert_supported(self):
+        with self.database_progress_history() as fixture:
+            expected = fixture.validate(fixture.combined)
+            fixture.merge_lazy_context()
+            fixture.merge_database_progress()
+            for path, content in fixture.lazy_original_contents.items():
+                fixture.write(path, content)
+            target = fixture.commit("full lazy revert with accepted historical SQL fixture")
+            fixture.git("merge-base", "--is-ancestor", fixture.database_progress, target)
+            self.assertFalse(ar._changed_paths(fixture, fixture.product, target) & ar.LAZY_CONTEXT_BLOBS.keys())
+            self.assertEqual(fixture.validate(target), expected)
+
+    def test_database_progress_edit_delete_mode_type_and_directory_are_refused(self):
+        for change in ("edit", "delete", "executable", "symlink", "gitlink", "directory"):
+            with self.subTest(change=change), self.database_progress_history() as fixture:
+                fixture.merge_lazy_context()
+                fixture.merge_database_progress()
+                path = fixture.database_progress_path
+                stage = True
+                if change == "edit":
+                    fixture.write(path, "unreviewed historical SQL fixture\n")
+                elif change == "delete":
+                    fixture.git("rm", "--", path)
+                elif change == "directory":
+                    fixture.git("rm", "--", path)
+                    fixture.write(path + "/unreviewed.py", "# redirected historical SQL fixture\n")
+                elif change == "executable":
+                    fixture.git("update-index", "--chmod=+x", "--", path)
+                    stage = False
+                else:
+                    mode, obj = (("120000", fixture.database_progress_blob) if change == "symlink"
+                                 else ("160000", fixture.database_progress))
+                    fixture.git("config", "diff.ignoreSubmodules", "all")
+                    fixture.git("update-index", "--cacheinfo", f"{mode},{obj},{path}")
+                    stage = False
+                self.assert_refused(fixture, fixture.commit("historical SQL fixture drift after acceptance", stage=stage))
+
+    def test_exact_database_progress_blob_without_accepted_history_is_refused(self):
+        with self.database_progress_history() as fixture:
+            fixture.merge_lazy_context()
+            fixture.write(fixture.database_progress_path, fixture.database_progress_content)
+            target = fixture.commit("copy exact historical SQL fixture without accepted ancestry")
+            self.assertEqual(fixture.git("rev-parse", f"{target}:{fixture.database_progress_path}"),
+                             fixture.database_progress_blob)
+            self.assert_refused(fixture, target)
+
+    def test_database_progress_history_does_not_waive_collector_or_other_source_pins(self):
+        with self.database_progress_history() as fixture:
+            self.assert_refused(fixture, fixture.database_progress)
+        for path in (*ar.COLLECTOR_BLOBS, *ar.LAZY_CONTEXT_BLOBS, "migrations/0304.sql", "compose.yaml",
+                     "pnpm-lock.yaml", "tools/test_database_identity.py"):
+            with self.subTest(path=path), self.database_progress_history() as fixture:
+                fixture.merge_lazy_context()
+                fixture.merge_database_progress()
+                fixture.write(path, "unreviewed change outside the single historical SQL fixture\n")
+                self.assert_refused(fixture, fixture.commit("foreign drift with accepted historical SQL fixture"))
+
+    def test_database_progress_renames_cannot_hide_either_original_path(self):
+        for original_is_fixture in (False, True):
+            with self.subTest(original_is_fixture=original_is_fixture), self.database_progress_history() as fixture:
+                fixture.merge_lazy_context()
+                fixture.merge_database_progress()
+                if original_is_fixture:
+                    original, destination = fixture.database_progress_path, fixture.delivery_path
+                else:
+                    original, destination = fixture.product_path, fixture.database_progress_path
+                fixture.git("rm", "--", destination)
+                (fixture.root / destination).parent.mkdir(parents=True, exist_ok=True)
+                fixture.git("mv", original, destination)
+                target = fixture.commit("rename through the single pinned historical SQL fixture")
+                changed = ar._changed_paths(fixture, fixture.product, target)
+                self.assertIn(original, changed)
+                self.assertIn(destination, changed)
+                self.assert_refused(fixture, target)
+
+    def test_database_progress_does_not_accept_whitespace_aliases(self):
+        for name in (" " + SourceHistory.database_progress_path,
+                     "\t" + SourceHistory.database_progress_path,
+                     "\n" + SourceHistory.database_progress_path,
+                     SourceHistory.database_progress_path + " "):
+            with self.subTest(path=name), self.database_progress_history() as fixture:
+                fixture.merge_lazy_context()
+                fixture.merge_database_progress()
+                target = fixture.commit_extra_blob(name, fixture.database_progress_blob)
+                self.assertIn(name, ar._changed_paths(fixture, fixture.product, target))
+                self.assert_refused(fixture, target)
 
     def test_native_qualification_cannot_reuse_old_tools_or_another_deployment_digest(self):
         tool = {"revision": "c" * 40}

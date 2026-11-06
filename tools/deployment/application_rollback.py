@@ -39,7 +39,11 @@ LAZY_CONTEXT_BLOBS = {
     "apps/api/src/learning-work-context.controller.spec.ts": "2975a4ed53f399d1b016e4eeea1866b995b468ac",
     "apps/api/src/learning-work-context.spec.ts": "6ffe21f328342286ee372a33a2ac228de6ae3954",
 }
-POLICY = "asa-p0-98d7-d0bf-application-return-v3"
+DATABASE_PROGRESS_REVISION = "356cde9b68d409f8c16f7b00ff1f820057e3455b"
+DATABASE_PROGRESS_BLOBS = {
+    "tools/test_database_progress.py": "ee706f5b1ea361d12b0f2aadc081070da34a0f53",
+}
+POLICY = "asa-p0-98d7-d0bf-application-return-v4"
 SCHEMA = 304
 JOURNAL = "application-rollback.json"
 FORMAT = "asa-application-rollback-v1"
@@ -253,7 +257,8 @@ def validate_pair(install, previous, selected):
     else:
         install.git("merge-base", "--is-ancestor", BASELINE, target)
         changed = _changed_paths(install, PRODUCT, target)
-        require(changed <= QUALIFIED_CHANGES | BASELINE_DOCS | COLLECTOR_BLOBS.keys() | LAZY_CONTEXT_BLOBS.keys(),
+        require(changed <= QUALIFIED_CHANGES | BASELINE_DOCS | COLLECTOR_BLOBS.keys()
+                | LAZY_CONTEXT_BLOBS.keys() | DATABASE_PROGRESS_BLOBS.keys(),
                 "ROLLBACK_PRODUCT",
                 "The release changes product, dependencies or unqualified delivery inputs.")
         require(not _changed_paths(install, BASELINE, target, *sorted(BASELINE_DOCS)),
@@ -277,6 +282,16 @@ def validate_pair(install, previous, selected):
                 entry = install.git("ls-tree", "--full-tree", "-z", target, "--", path)
                 require(entry == f"100644 blob {blob}\t{path}\0", "ROLLBACK_PRODUCT",
                         "The selected lazy work-context files, types or modes differ from their accepted immutable identities.")
+        if changed & DATABASE_PROGRESS_BLOBS.keys():
+            try:
+                install.git("merge-base", "--is-ancestor", DATABASE_PROGRESS_REVISION, target)
+            except Blocked:
+                raise Blocked("ROLLBACK_PRODUCT", "The selected release lacks the accepted historical SQL fixture history.",
+                              "Use the reviewed combined release; matching copied files alone are insufficient.") from None
+            for path, blob in DATABASE_PROGRESS_BLOBS.items():
+                entry = install.git("ls-tree", "--full-tree", "-z", target, "--", path)
+                require(entry == f"100644 blob {blob}\t{path}\0", "ROLLBACK_PRODUCT",
+                        "The selected historical SQL fixture, type or mode differs from its accepted immutable identity.")
     install.git("merge-base", "--is-ancestor", PREVIOUS, target)
     install.git("merge-base", "--is-ancestor", target, "origin/main")
     sources = {}
