@@ -146,6 +146,24 @@ function validQuality(body, diagnostics) {
   );
 }
 
+function validDiagnosticAggregate(body) {
+  if (
+    ['repetitionCount', 'firstOccurredAt', 'lastOccurredAt'].every((key) => body[key] === undefined)
+  )
+    return true;
+  return (
+    Number.isSafeInteger(body.repetitionCount) &&
+    body.repetitionCount >= 1 &&
+    body.repetitionCount <= 1_000_000 &&
+    Number.isSafeInteger(body.firstOccurredAt) &&
+    body.firstOccurredAt === body.occurredAt &&
+    Number.isSafeInteger(body.lastOccurredAt) &&
+    body.lastOccurredAt >= body.firstOccurredAt &&
+    body.lastOccurredAt <= 8_640_000_000_000_000 &&
+    body.lastOccurredAt - body.firstOccurredAt <= 15 * 60_000
+  );
+}
+
 function validDiagnostic(body) {
   return (
     record(body) &&
@@ -165,6 +183,9 @@ function validDiagnostic(body) {
       'script',
       'line',
       'column',
+      'repetitionCount',
+      'firstOccurredAt',
+      'lastOccurredAt',
     ]) &&
     uuid(body.eventId) &&
     Number.isSafeInteger(body.occurredAt) &&
@@ -172,6 +193,7 @@ function validDiagnostic(body) {
     // minute-save cases and must not be compared with this Node server clock.
     body.occurredAt >= 0 &&
     body.occurredAt <= 8_640_000_000_000_000 &&
+    validDiagnosticAggregate(body) &&
     [
       'render_failed',
       'window_error',
