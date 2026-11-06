@@ -16963,7 +16963,7 @@ parallel_lanes:
 
   - id: robotics
     parent_lane: electronics
-    worktree_id: robotics-m1-workspace-20261105
+    worktree_id: robotics-field-v2-20261106
     owned_paths:
     - apps/web/robotics-dev.html
     - apps/web/src/robotics/**
@@ -16973,69 +16973,68 @@ parallel_lanes:
     - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
     - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
     - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
-      id: TASK-ELECTRONICS-ROBOTICS-PORTAL-001
-      issue: 994
-      branch: codex/robotics-m1-workspace-20261105
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-002
+      issue: 1001
+      branch: codex/robotics-field-v2-20261106
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: owner_selected_full_robotics_portal_integration
+      checkpoint: owner_selected_editable_field_and_planar_dynamics
       owner_acceptance: pending
       source_pr: 991
-      source_head_sha: e99ee2f4798631dc5526d1b3fba7c31236ed66a2
-      owner_authorization: >-
-        Owner explicitly instructs all five proposed steps: real account project with circuit/program/world,
-        main editor and Create navigation, Home/My Projects with preview and reopening, publication and
-        another user's read-only view, and full normal-site browser journey across independent sessions.
-        This authorizes the necessary canonical registration and coordinated bounded implementation on
-        the existing Robotics candidate. Root continues the selected programme through all five steps.
-        Product main merge, deployment, working database operations and owner acceptance are not granted
-        by registration; inherited M0/M1 integration failures are not waived.
-      scope: >-
-        Connect Robotics to the existing Module SDK and Project Core with a browser/server-safe document
-        and provider, forward migrations, canonical server project host, portal editor and navigation,
-        source snapshots, strict immutable public artifact and normal publication catalogue/viewer.
-        Reuse the existing electronics/Arduino/Blockly/catalog and preserve M1 source/history boundaries.
+      source_head_sha: 9b14fb92e85c83636e9146da68597020d0885f55
+      owner_authorization: 'Owner explicitly requests continued Robotics field development: freely editable
+        field and strips, real-life ball, metal can and other elements, 30 cm modular tiles, more realistic
+        robot contacts and selectable physics levels. Prior explicit instruction to send completed Robotics
+        work into main persists. This authorizes canonical registration and bounded implementation/review/normal
+        protected source integration, not deployment, working database changes or owner acceptance. Portal
+        source integration PR991 and its post-merge General/Publications succeeded; unrelated acceptance
+        risks remain open.'
+      scope: 'Deliver one coherent Field v2 result in the existing Robotics portal: metric modular field,
+        editable lines/curves and tile stamps, ball/can/box catalogue, legacy-compatible educational mode
+        and finite-mass planar dynamics, independent numerical accuracy, authored save/reopen and immutable
+        public geometry.'
       constraints:
-      - Shared robotics package may move existing pure world code without behavioural change; no copied
-        electrical solver, motor equations, Arduino interpreter, generator, editor or catalog.
-      - Existing Project Core identity, Account/StudentSeat, ACL/RLS, revisions, CAS and idempotency remain
-        authoritative. No global role, tenant redesign or UI-only permission check.
-      - Save the whole authored circuit/program/world and accept unfinished editable circuits. Run remains
-        fail-closed on invalid bindings or unsupported topology. Preserve replacement/downgrade protection.
-      - Pending Arduino changes flush before Save/Run/navigation/publication. Restored program revisions
-        reject stale editor callbacks; field-only history retains the workspace.
-      - Runtime pose/ball motion and source documents stay separate. Confirmed server revision controls
-        source snapshots; local recovery is scoped to project and principal, never global cross-user state.
-      - Public artifact exposes allowlisted scene/robot geometry and immutable provenance only, without
-        private Arduino source, Blockly, bindings, draft or rights. Copy/download and learning flags remain
-        unchanged. Public viewer does not invent runtime outputs.
-      - Forward migrations and necessary workspace metadata are allowed; released migrations and owner
-        assets remain unchanged. External dependencies and a separate backend/service are not required.
-      - Preserve fresh main request-coalescing/cancellation and telemetry contracts. Only add the robotics
-        module to necessary existing lists; no unrelated refactor or CI weakening.
-      - Main-site evidence uses built Web/API and real isolated PostgreSQL with restricted runtime role;
-        no mock or dev-only browser pass substitutes for two-account create/save/reopen/publish/view.
-      - Source e99ee2f has General SUCCESS and independent UI/domain PASS; Electronics/3D and external
-        MinIO-related Checkers/AI failures remain inherited acceptance risks until classified and resolved.
-      - No working database, host/Docker update, deployment, new hardware/3D milestone or automatic product
-        merge. Functional mobile/desktop layout is required; visual owner acceptance remains pending.
+      - Reuse the existing electronics solver, Arduino/Blockly, catalog and committed motor/source-time
+        contracts; no copied motor equations, electrical load/stall claims or fake sensors.
+      - Preserve legacy world behaviour and source schema during server validation. New scene schemas have
+        explicit editor upgrade and reject downgrade/replacement data loss; old immutable publication schemas
+        stay readable.
+      - Finite-mass dynamic robot and objects react mutually to contacts. Mechanical traction limit and
+        floor resistance are explicit parameters; rolling and sliding are distinct. No vertical/tipping/deformation
+        claims.
+      - Field extent, tile size, grid/snap and screen zoom are distinct. Marks are authored geometry, not
+        walls or a fabricated color sensor. Invalid resize/placement preserves the valid source.
+      - Runtime pose/velocity stays outside authored saves, history and public artifacts. Pause/Reset and
+        deterministic committed-clock stepping remain authoritative.
+      - Public artifacts allowlist geometry only and exclude code/circuit/bindings/runtime/physics-private
+        fields. Account/StudentSeat, ACL/RLS, CAS/idempotency and publication immutability remain unchanged.
+      - One bounded mature 2D physics dependency is allowed if necessary, with exact pin, license and lockfile/build/bundle
+        validation. No new backend/service or runtime installation.
+      - Controller coordinates canonically registered work; domain and UI authors own explicitly disjoint
+        paths in one checkout. Independent final-SHA review covers mechanics/clock/rollout/layout.
+      - Built Web/API, real isolated PostgreSQL and main-site browser evidence cover 1440/1024/390/320.
+        Focused tests do not replace applicable General or owner acceptance.
+      - No deployment, working database, owner asset changes, 3D, line/color sensor runtime, noise model
+        or unrelated module repair. Inherited FAIL/UNKNOWN is retained until separately resolved.
+      - The necessary existing HC-SR04 no-echo timed-input seam is allowed as a separate bounded dependency for larger fields. Preserve legacy defaults, accepted Trig/Echo and pulseIn timeout; no range clamp, stale echo, alternate sensor or clock rewrite.
       context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
+      - docs/product/robotics/FIELD_V2_PLAN.md
+      - docs/product/robotics/README.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
-      - docs/product/robotics/PORTAL_INTEGRATION_PLAN.md
-      - docs/agent/contracts/identity.yaml
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
-      gate_boundary: >-
-        Registration uses governance only. The product candidate must pass targeted robotics/provider/host/
-        artifact checks, real PostgreSQL migration/project/publication checks, normal-site browser journey,
-        types/build/budgets and independent final-SHA review. Required CI and owner acceptance are separate.
+      gate_boundary: Registration uses governance only. Product uses test:robotics, projects-publication
+        code/PG and built-browser gates, types/build/bundle, required General and independent final-SHA
+        review. Local ephemeral formatting/unit checks are allowed; real browser/PostgreSQL evidence uses
+        isolated CI.
       deployment: not_authorized
       database_actions: isolated_tests_only
     revisions:
-      convergence_baseline_sha: d0bf7cbeb129ff991272f006fc379ee004cb00f8
-      head_sha: e99ee2f4798631dc5526d1b3fba7c31236ed66a2
+      convergence_baseline_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
+      head_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
