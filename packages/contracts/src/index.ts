@@ -72,6 +72,22 @@ export {
   PUBLIC_THREE_D_PRIMITIVES,
 } from './public-three-d-artifact.js';
 export type { PublicThreeDArtifact, PublicThreeDNode } from './public-three-d-artifact.js';
+export {
+  validatePublicRoboticsArtifact,
+  PUBLIC_ROBOTICS_ROBOT_FIELDS,
+  PUBLIC_ROBOTICS_LIMITS,
+} from './public-robotics-artifact.js';
+export type {
+  PublicRoboticsArtifact,
+  PublicRoboticsWorld,
+  PublicRoboticsField,
+  PublicRoboticsRobot,
+  PublicRoboticsPoint,
+  PublicRoboticsPose,
+  PublicRoboticsWall,
+  PublicRoboticsBall,
+  PublicRoboticsFloorMark,
+} from './public-robotics-artifact.js';
 
 export type {
   AiOllamaCloudModel,

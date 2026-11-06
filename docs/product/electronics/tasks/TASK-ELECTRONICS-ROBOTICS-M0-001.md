@@ -24,7 +24,8 @@ review: independent
 ## Component IDs и ownership
 
 - Основная существующая граница: `electronics.ui.workbench` — общий hook, схема и управление исполнением.
-- Вторая существующая граница: `electronics.engine.public-api` — потребление общего документного/timed контракта без изменения solver, моторных уравнений или Arduino runtime.
+- Вторая существующая граница: `electronics.worker.live-controller` — общий host и ограниченный учёт входных событий; существующее поведение без robotics options сохраняется.
+- `electronics.engine.public-api` используется как неизменяемая зависимость общего документного/timed контракта, без изменения solver, моторных уравнений или Arduino runtime.
 - `electronics.ui.arduino-editor` и `electronics.ui.catalog` — неизменяемые зависимости повторного использования, а не отдельные реализации в robotics.
 
 Новый world и локальный host принадлежат robotics. Их описание не меняет ownership существующих Electronics symbols и не создаёт новую master-спецификацию электроники. Пока sources не перемещаются и новые shared test/source entry не возникают, существующих component routes достаточно. При реальном изменении source/test ownership обновляется точная subsystem entry тем же продуктовым срезом после уточнения preflight, без общего переписывания Component Map.
@@ -43,7 +44,11 @@ review: independent
 
 Registration-поставка ограничивается `docs/execution/current.yaml`, этой карточкой и двумя robotics документами. Ни одно изменение production source не входит в registration.
 
-Предварительные продуктовые места: `apps/web/robotics-dev.html`, новые файлы внутри `apps/web/src/robotics` и `modules/robotics`, плюс минимальная host/sensor seam в существующем `apps/web/src/electronics/use-electronics-workbench.ts` и необходимая точная граница project host. Точный полный список исходных и тестовых файлов формируется до продуктовой записи и проверяется preflight. Каталоги здесь не являются разрешением произвольного расширения diff.
+Продуктовый preflight ограничивает реализацию десятью production files: `apps/web/robotics-dev.html`; `apps/web/src/robotics/main.tsx`, `RoboticsLab.tsx`, `use-local-robotics-project.ts`, `RobotField.tsx`, `robotics.css`, `world.ts`, `robotics-project.ts`; существующие `apps/web/src/electronics/use-electronics-workbench.ts` и `live-simulation-worker-controller.ts`.
+
+Чистый `world.ts` на первом этапе остаётся внутри Web, без React/DOM и электрических уравнений. Это сохраняет действующие Nx module boundaries без нового пакета и исключений линтера. Будущий перенос в `modules/robotics` потребуется при появлении второго потребителя; отдельная папка UI и чистый domain уже отделяют механику от редактора.
+
+Поддерживающие изменения: существующие `use-electronics-workbench-clock.spec.ts` и `live-simulation-worker-controller.spec.ts`; новые `robotics-local-host.spec.ts`, `robotics-lab.spec.ts`, `robotics-world.spec.ts`, `robotics-project.spec.ts` и `robotics.browser.mjs` в `apps/web/src/robotics/testing`; команды запуска/проверки в `package.json` и три документа этого среза. Ни новых зависимостей, ни изменения общего CI pipeline для M0 не требуется. Новые `.spec.ts` входят в существующий общий Vitest discovery.
 
 Нормальный бюджет — один результат, две существующие основные component boundaries и не более десяти production files. Если чистое разделение world, host, entry и тестируемой связи требует большего, до записи фиксируется конкретная зависимость каждого дополнительного файла. Нет разрешения выносить всё UI ядро или создавать отдельный пакет-копию ради формального бюджета.
 

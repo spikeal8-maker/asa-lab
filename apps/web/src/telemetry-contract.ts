@@ -1,7 +1,17 @@
 export type TelemetryActor =
   | { kind: 'account'; accountId: string; workspaceId: string }
   | { kind: 'student'; seatId: string; classId: string };
-export type TelemetryModule = 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
+export const TELEMETRY_MODULES = [
+  'electronics',
+  'three-d',
+  'chess',
+  'checkers',
+  'blocks',
+  'robotics',
+] as const;
+export type TelemetryModule = (typeof TELEMETRY_MODULES)[number];
+export const isTelemetryModule = (value: unknown): value is TelemetryModule =>
+  typeof value === 'string' && TELEMETRY_MODULES.some((module) => module === value);
 export const COUNTERS = [
   'attempted',
   'enqueued',
@@ -29,6 +39,7 @@ export const ROUTES = [
   'editor.chess',
   'editor.checkers',
   'editor.blocks',
+  'editor.robotics',
   'games',
   'classes',
   'learning',
@@ -125,7 +136,7 @@ export function validEnvelope(value: unknown): value is AnalyticsEnvelope {
   return (
     keys(value, [...common, 'operation', 'sessionId', 'projectId', 'moduleKey']) &&
     uuid(value.projectId) &&
-    ['electronics', 'three-d', 'chess', 'checkers', 'blocks'].includes(value.moduleKey as string)
+    isTelemetryModule(value.moduleKey)
   );
 }
 /** PostgreSQL receipts retain up to six fractional digits; Date.parse alone loses microseconds. */

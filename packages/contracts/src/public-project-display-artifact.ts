@@ -3,6 +3,10 @@ import {
   validatePublicThreeDArtifact,
   type PublicThreeDArtifact,
 } from './public-three-d-artifact.js';
+import {
+  validatePublicRoboticsArtifact,
+  type PublicRoboticsArtifact,
+} from './public-robotics-artifact.js';
 import type { PublicArtifact, PublicArtifactProvenance } from './public-artifact.js';
 import { validatePublicArtifact } from './public-artifact.js';
 export type PublicDisplayComponentKind =
@@ -93,7 +97,8 @@ export type PublicProjectDisplayArtifact =
   | PublicArtifact
   | ElectronicsDisplayArtifact
   | ElectronicsSimulationArtifact
-  | PublicThreeDArtifact;
+  | PublicThreeDArtifact
+  | PublicRoboticsArtifact;
 /** Only canonical physical configuration and inert native presentation inputs. */
 export const PUBLIC_ELECTRONICS_PROPERTIES = Object.freeze([
   'mirrorX',
@@ -222,6 +227,12 @@ export function validatePublicProjectDisplayArtifact(
 ):
   | { readonly ok: true; readonly artifact: PublicProjectDisplayArtifact }
   | { readonly ok: false; readonly reason: 'invalid-public-artifact' } {
+  if (
+    input &&
+    typeof input === 'object' &&
+    Object.getOwnPropertyDescriptor(input, 'schemaVersion')?.value === 5
+  )
+    return validatePublicRoboticsArtifact(input);
   if (
     input &&
     typeof input === 'object' &&

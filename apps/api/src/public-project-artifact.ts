@@ -1,13 +1,16 @@
 import type pg from 'pg';
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
+import type { RoboticsProject } from '@asa-lab/robotics/document';
 import {
   validatePublicProjectDisplayArtifact,
   publicArduinoBlocks,
   PUBLIC_ELECTRONICS_PROPERTIES,
   PUBLIC_ELECTRONICS_EDITOR_PROPERTIES,
   PUBLIC_THREE_D_NODE_FIELDS,
+  PUBLIC_ROBOTICS_ROBOT_FIELDS,
   type PublicProjectDisplayArtifact,
   type PublicArtifactProvenance,
+  type PublicArtifactViewerFamily,
 } from '@asa-lab/contracts';
 import { publicationError } from './public-projects.errors.js';
 import { validationMessage } from './validation.js';
@@ -35,9 +38,10 @@ const COMPONENT_KEYS = [
   'pinIds',
   'state',
 ] as const;
-function pick(source: Record<string, unknown>, keys: readonly string[]) {
+function pick(source: object, keys: readonly string[]) {
   const result: Record<string, unknown> = {};
-  for (const key of keys) if (Object.hasOwn(source, key)) result[key] = source[key];
+  for (const key of keys)
+    if (Object.hasOwn(source, key)) result[key] = (source as Record<string, unknown>)[key];
   return result;
 }
 function rawWithinBounds(value: unknown): boolean {
@@ -179,10 +183,61 @@ export function createPublicArtifactAdapters(
         return result.ok ? result.artifact : null;
       },
     ],
+    [
+      'robotics',
+      (document, provenance) => {
+        if (!rawWithinBounds(document)) return null;
+        const entry = registry.get('robotics');
+        if (!entry?.provider) return null;
+        const parsed = validationMessage(entry, document);
+        if (!parsed.ok) return null;
+        const { world } = parsed.document as RoboticsProject;
+        // The canonical provider validates the whole saved project. Only source geometry
+        // crosses this boundary, never its circuit, programs, bindings or physical state.
+        const result = validatePublicProjectDisplayArtifact({
+          schemaVersion: 5,
+          status: 'display',
+          viewerFamily: 'robotics',
+          provenance,
+          capabilities: { readOnly: true, interactive: true, download: false },
+          world: {
+            field: {
+              ...pick(world.field, ['widthMeters', 'heightMeters', 'gridMeters']),
+              obstacles: world.field.obstacles.map((wall) =>
+                pick(wall, [
+                  'id',
+                  'label',
+                  'xMeters',
+                  'yMeters',
+                  'widthMeters',
+                  'heightMeters',
+                  'headingRadians',
+                ]),
+              ),
+              balls: world.field.balls.map((ball) =>
+                pick(ball, ['id', 'label', 'xMeters', 'yMeters', 'radiusMeters']),
+              ),
+              floorMarks: world.field.floorMarks.map((mark) => ({
+                ...pick(mark, ['id', 'label', 'kind', 'color', 'widthMeters']),
+                ...(mark.kind === 'line'
+                  ? {
+                      start: pick(mark.start, ['xMeters', 'yMeters']),
+                      end: pick(mark.end, ['xMeters', 'yMeters']),
+                    }
+                  : pick(mark, ['xMeters', 'yMeters', 'heightMeters'])),
+              })),
+            },
+            robot: pick(world.robot, PUBLIC_ROBOTICS_ROBOT_FIELDS),
+            initialPose: pick(world.initialPose, ['xMeters', 'yMeters', 'headingRadians']),
+          },
+        });
+        return result.ok ? result.artifact : null;
+      },
+    ],
   ]);
 }
 function fallback(source: Source): PublicProjectDisplayArtifact {
-  const family = ['electronics', 'three-d', 'blocks'].includes(source.module_key)
+  const family = ['electronics', 'three-d', 'blocks', 'robotics'].includes(source.module_key)
     ? source.module_key
     : null;
   return {
@@ -195,7 +250,7 @@ function fallback(source: Source): PublicProjectDisplayArtifact {
     ...(family
       ? {
           status: 'static-only',
-          viewerFamily: family as 'electronics' | 'three-d' | 'blocks',
+          viewerFamily: family as PublicArtifactViewerFamily,
           reason: 'viewer-not-available',
         }
       : { status: 'unsupported', viewerFamily: null, reason: 'unsupported-module' }),

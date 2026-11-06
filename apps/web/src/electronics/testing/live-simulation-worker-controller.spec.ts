@@ -10,6 +10,7 @@ import type { SchematicDocument, SolveResult } from '../../api';
 import {
   ElectronicsLiveSimulationWorkerController,
   type ElectronicsSimulationWorkerExecutor,
+  type LiveSimulationInputBudget,
 } from '../live-simulation-worker-controller';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
@@ -216,6 +217,291 @@ const flush = async (): Promise<void> => {
   await Promise.resolve();
   await Promise.resolve();
 };
+
+describe('opt-in runtime input history budget', () => {
+  const fixture: SchematicDocument = {
+    ...serialCircuit,
+    components: [
+      ...serialCircuit.components,
+      ultrasonicCircuit.components.find((component) => component.id === 'sonar')!,
+    ],
+  };
+  function environment(state: boolean, distanceMeters: number): SchematicDocument {
+    return {
+      ...fixture,
+      components: fixture.components.map((component) =>
+        component.id === 'button'
+          ? { ...component, state }
+          : component.id === 'sonar'
+            ? { ...component, stateProperties: { ...component.stateProperties, distanceMeters } }
+            : component,
+      ),
+    };
+  }
+
+  it('counts document and Serial inputs together and rejects an oversized batch atomically', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onFailure = vi.fn();
+    const onInputBudget = vi.fn();
+    controller.start('bounded', fixture, {
+      inputEventLimit: 4,
+      onInputBudget,
+      onResult: vi.fn(),
+      onFailure,
+    });
+    await completeCanonicalStart(executor, 1);
+    const changed = environment(true, 0.25);
+    controller.update(changed, 100);
+    controller.sendSerialRx('uno', 'F', 100);
+    expect(controller.inputBudget).toEqual({
+      limit: 4,
+      admitted: 3,
+      accepted: 0,
+      pending: 1,
+      inFlight: 2,
+      exhausted: false,
+    });
+    controller.update(changed, 100);
+    expect(controller.inputBudget?.admitted).toBe(3);
+    expect(executor.advances[1]!.inputEvents.map((event) => event.operation)).toEqual([
+      'state',
+      'distanceMeters',
+    ]);
+    controller.update(environment(false, 0.75), 100);
+    expect(onFailure).toHaveBeenCalledOnce();
+    expect(onFailure.mock.calls[0]![0]).toMatchObject({
+      category: 'runtime',
+      code: 'input-event-limit',
+    });
+    expect(onInputBudget.mock.calls.at(-1)![0]).toEqual({
+      limit: 4,
+      admitted: 3,
+      accepted: 0,
+      pending: 1,
+      inFlight: 2,
+      exhausted: true,
+    });
+    expect(executor.advances).toHaveLength(2);
+    expect(executor.cancelCount).toBe(1);
+    expect(controller.inputBudget).toBeNull();
+    controller.dispose();
+  });
+
+  it('keeps a paused yielded batch in flight and accepts it exactly once on resume', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onFailure = vi.fn();
+    controller.start('paused-budget', fixture, {
+      inputEventLimit: 10,
+      onResult: vi.fn(),
+      onFailure,
+    });
+    await completeCanonicalStart(executor, 1);
+    controller.update(environment(true, 0.5), 100);
+    const first = executor.advances[1]!;
+    expect(first.inputEvents).toHaveLength(1);
+    controller.setPaused(true);
+    first.deferred.resolve(timedAdvance('yielded', first.requestedHorizonMicroseconds, 50));
+    await flush();
+    expect(controller.committedHorizonMicroseconds).toBe(0);
+    expect(controller.inputBudget).toMatchObject({ accepted: 0, inFlight: 1, pending: 0 });
+    controller.sendSerialRx('uno', 'R', 100);
+    expect(controller.inputBudget).toMatchObject({
+      admitted: 2,
+      accepted: 0,
+      inFlight: 1,
+      pending: 1,
+    });
+    controller.setPaused(false);
+    expect(controller.committedHorizonMicroseconds).toBe(50);
+    const second = executor.advances[2]!;
+    expect(second.inputEvents).toEqual([
+      { atMicroseconds: 51, targetId: 'uno', operation: 'serialRx', payload: 'R' },
+    ]);
+    expect(controller.inputBudget).toMatchObject({
+      admitted: 2,
+      accepted: 1,
+      inFlight: 1,
+      pending: 0,
+    });
+    second.deferred.resolve(
+      timedAdvance(
+        'ready',
+        second.requestedHorizonMicroseconds,
+        second.requestedHorizonMicroseconds,
+      ),
+    );
+    await flush();
+    controller.setPaused(false);
+    expect(controller.inputBudget).toMatchObject({
+      admitted: 2,
+      accepted: 2,
+      inFlight: 0,
+      pending: 0,
+    });
+    expect(onFailure).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it('preserves the accepted count across source edits and discards late old-generation input', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('source-budget', fixture, {
+      inputEventLimit: 5,
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+    });
+    await completeCanonicalStart(executor, 1);
+    controller.sendSerialRx('uno', 'F', 1);
+    const first = executor.advances[1]!;
+    first.deferred.resolve(
+      timedAdvance('ready', first.requestedHorizonMicroseconds, first.requestedHorizonMicroseconds),
+    );
+    await flush();
+    expect(controller.inputBudget?.accepted).toBe(1);
+    const edited: SchematicDocument = {
+      ...fixture,
+      components: fixture.components.map((component) =>
+        component.id === 'uno'
+          ? {
+              ...component,
+              stateProperties: {
+                ...component.stateProperties,
+                arduinoSource: 'void setup(){Serial.begin(9600);}void loop(){delay(200);}',
+              },
+            }
+          : component,
+      ),
+    };
+    controller.update(edited, 1);
+    expect(executor.generation).toBe(1);
+    expect(controller.inputBudget?.accepted).toBe(1);
+    const source = executor.advances.at(-1)!;
+    expect(source.inputEvents).toEqual([]);
+    source.deferred.resolve(
+      timedAdvance(
+        'ready',
+        source.requestedHorizonMicroseconds,
+        source.requestedHorizonMicroseconds,
+      ),
+    );
+    await flush();
+    controller.sendSerialRx('uno', 'L', 2);
+    const late = executor.advances.at(-1)!;
+    expect(late.inputEvents).toHaveLength(1);
+    controller.restart(edited);
+    expect(executor.generation).toBe(2);
+    expect(controller.inputBudget).toMatchObject({
+      admitted: 0,
+      accepted: 0,
+      inFlight: 0,
+      pending: 0,
+    });
+    late.deferred.resolve(
+      timedAdvance('ready', late.requestedHorizonMicroseconds, late.requestedHorizonMicroseconds),
+    );
+    await flush();
+    expect(controller.inputBudget).toMatchObject({
+      admitted: 0,
+      accepted: 0,
+      inFlight: 0,
+      pending: 0,
+    });
+    await completeCanonicalStart(executor, 2);
+    expect(controller.inputBudget?.admitted).toBe(0);
+    controller.dispose();
+  });
+
+  it('admits exactly the 1000-event demo ceiling and never submits the next input', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onFailure = vi.fn();
+    const onInputBudget = vi.fn();
+    controller.start('demo-budget', fixture, {
+      inputEventLimit: 1000,
+      onInputBudget,
+      onResult: vi.fn(),
+      onFailure,
+    });
+    await completeCanonicalStart(executor, 1);
+    controller.setPaused(true);
+    for (let index = 0; index < 1000; index += 1) controller.sendSerialRx('uno', 'F', 0);
+    expect(controller.inputBudget).toEqual({
+      limit: 1000,
+      admitted: 1000,
+      accepted: 0,
+      inFlight: 0,
+      pending: 1000,
+      exhausted: true,
+    });
+    expect(onFailure).not.toHaveBeenCalled();
+    controller.sendSerialRx('uno', 'F', 0);
+    expect(onFailure.mock.calls[0]![0].code).toBe('input-event-limit');
+    expect(onInputBudget.mock.calls.at(-1)![0].admitted).toBe(1000);
+    expect(executor.advances).toHaveLength(1);
+    controller.dispose();
+  });
+
+  it('never counts a faulted batch as accepted', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const budgets: LiveSimulationInputBudget[] = [];
+    const onFailure = vi.fn();
+    controller.start('fault-budget', fixture, {
+      inputEventLimit: 5,
+      onInputBudget: (budget) => budgets.push(budget),
+      onResult: vi.fn(),
+      onFailure,
+    });
+    await completeCanonicalStart(executor, 1);
+    controller.sendSerialRx('uno', 'F', 1);
+    const advance = executor.advances[1]!;
+    advance.deferred.resolve(timedAdvance('fault', advance.requestedHorizonMicroseconds, 0));
+    await flush();
+    expect(onFailure.mock.calls[0]![0].code).toBe('fixture-fault');
+    expect(budgets.every((budget) => budget.accepted === 0)).toBe(true);
+    expect(controller.inputBudget).toBeNull();
+    controller.dispose();
+  });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects invalid configured limit %s before preflight',
+    (inputEventLimit) => {
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      const onFailure = vi.fn();
+      controller.start('invalid-budget', fixture, {
+        inputEventLimit,
+        onResult: vi.fn(),
+        onFailure,
+      });
+      expect(onFailure.mock.calls[0]![0].code).toBe('input-event-limit-invalid');
+      expect(executor.preflights).toHaveLength(0);
+      expect(controller.inputBudget).toBeNull();
+      controller.dispose();
+    },
+  );
+
+  it('leaves the default controller route unbounded by the optional host ceiling', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onInputBudget = vi.fn();
+    controller.start('default-budget', fixture, {
+      onInputBudget,
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+    });
+    await completeCanonicalStart(executor, 1);
+    controller.sendSerialRx('uno', 'F', 1);
+    expect(controller.inputBudget).toBeNull();
+    expect(onInputBudget).not.toHaveBeenCalled();
+    expect(executor.advances[1]!.inputEvents).toEqual([
+      { atMicroseconds: 1, targetId: 'uno', operation: 'serialRx', payload: 'F' },
+    ]);
+    controller.dispose();
+  });
+});
 
 async function completeCanonicalStart(
   executor: FakeExecutor,
