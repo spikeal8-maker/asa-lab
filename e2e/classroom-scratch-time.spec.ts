@@ -220,6 +220,83 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
     expect(closes[1]?.body['eventId']).not.toBe(firstClose.body['eventId']);
     expect(fixture.pageErrors).toEqual([]);
   } catch (error) {
+    // Persist every error without copying messages, credentials or URL parameters.
+    // These templates cover telemetry, persistence and proxied runtime responses.
+    const urlKeys = new Map<string, number>();
+    const runtimeProjectPath = `/api/blocks/runtime/projects/${projectId}`;
+    const errors = fixture.pageErrorEvidence.map(
+      (detail: { index: number; kind: string; type?: string; text: string; url?: string }) => {
+        let originKind: 'fixture' | 'other-http' | 'unparseable' = 'unparseable';
+        let path: string | null = null;
+        if (detail.url) {
+          if (!urlKeys.has(detail.url)) urlKeys.set(detail.url, urlKeys.size + 1);
+          try {
+            const parsed = new URL(detail.url, parentOrigin);
+            if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+              originKind = parsed.origin === parentOrigin ? 'fixture' : 'other-http';
+              const pathname = parsed.pathname;
+              if (
+                /^\/api\/(?:analytics\/v2\/(?:events|module-session|quality)|diagnostics\/(?:client|quality))$/.test(
+                  pathname,
+                )
+              )
+                path = pathname;
+              else if (pathname === `/api/projects/${projectId}/snapshot`)
+                path = '/api/projects/:projectId/snapshot';
+              else if (pathname === `${runtimeProjectPath}/draft`)
+                path = '/api/blocks/runtime/projects/:projectId/draft';
+              else if (pathname.startsWith(`${runtimeProjectPath}/assets/`))
+                path = '/api/blocks/runtime/projects/:projectId/assets/:asset';
+              else if (pathname.startsWith('/internal/blocks/'))
+                path = '/internal/blocks/:resource';
+              else if (pathname === '/') path = '/';
+            }
+          } catch {
+            // Retain the error and its correlation key, never the unparseable URL.
+          }
+        }
+        const sameUrlRequests = fixture.allRequests.filter(
+          (request: { method: string; url: string }) =>
+            Boolean(detail.url) && request.url === detail.url,
+        );
+        const status =
+          /^Failed to load resource: the server responded with a status of ([1-5]\d{2})\b/.exec(
+            detail.text,
+          );
+        return {
+          index: detail.index,
+          kind: detail.kind,
+          consoleType: detail.type === 'error' ? 'error' : null,
+          consoleHttpStatus: status ? Number(status[1]) : null,
+          originKind,
+          path,
+          urlKey: detail.url ? (urlKeys.get(detail.url) ?? null) : null,
+          sameUrlMethods: [
+            ...new Set(
+              sameUrlRequests.map(({ method }: { method: string }) =>
+                /^(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS|CONNECT|TRACE)$/.test(method)
+                  ? method
+                  : 'OTHER',
+              ),
+            ),
+          ].sort(),
+          sameUrlRequestCount: sameUrlRequests.length,
+        };
+      },
+    );
+    await test.info().attach('scratch-activity-http-errors', {
+      contentType: 'application/json',
+      body: JSON.stringify(
+        {
+          schemaVersion: 1,
+          pageErrorCount: fixture.pageErrors.length,
+          evidenceCount: fixture.pageErrorEvidence.length,
+          errors,
+        },
+        null,
+        2,
+      ),
+    });
     await test.info().attach('raw-module-session-identities', {
       contentType: 'application/json',
       body: JSON.stringify(

@@ -1,6 +1,13 @@
 import { HttpException } from '@nestjs/common';
 
-export const ANALYTICS_MODULES = ['electronics', 'three-d', 'chess', 'checkers', 'blocks'] as const;
+export const ANALYTICS_MODULES = [
+  'electronics',
+  'three-d',
+  'chess',
+  'checkers',
+  'blocks',
+  'robotics',
+] as const;
 export const QUALITY_COUNTERS = [
   'attempted',
   'enqueued',
@@ -24,6 +31,7 @@ const ROUTES = [
   'editor.chess',
   'editor.checkers',
   'editor.blocks',
+  'editor.robotics',
   'games',
   'classes',
   'learning',

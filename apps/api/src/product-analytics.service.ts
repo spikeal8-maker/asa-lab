@@ -24,7 +24,8 @@ export type AnalyticsEventType =
   | 'module.opened';
 export type AnalyticsOutcome = 'succeeded' | 'failed' | 'blocked';
 export type AnalyticsAuthMethod = 'password' | 'organization' | 'max' | 'telegram' | 'class_code';
-export type AnalyticsModuleKey = 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
+export type AnalyticsModuleKey =
+  'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks' | 'robotics';
 export type AnalyticsActor =
   | { readonly kind: 'anonymous' }
   | { readonly kind: 'account'; readonly context: ActiveContext }

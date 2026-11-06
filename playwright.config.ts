@@ -9,7 +9,10 @@ export default defineConfig({
   outputDir: 'reports/playwright',
   fullyParallel: false,
   retries: 0,
-  reporter: [['list']],
+  reporter:
+    process.env['ASA_ELECTRONICS_FAILURE_REPORT'] === 'true'
+      ? [['list'], ['./tools/electronics-failure-reporter.mjs']]
+      : [['list']],
   use: {
     baseURL,
     trace: 'retain-on-failure',

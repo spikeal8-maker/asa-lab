@@ -27,6 +27,9 @@ on:
       - 'tools/run-electronics-classroom-browser.mjs'
       - 'tools/run-electronics-benchmark.mjs'
       - 'tools/run-electronics-browser-benchmark.mjs'
+      - 'tools/electronics-benchmark-assets*.mjs'
+      - 'tools/electronics-failure-reporter.mjs'
+      - 'playwright.config.ts'
       - 'tools/run-electronics-load-benchmark.mjs'
       - 'tools/run-electronics-memory-benchmark.mjs'
       - 'tools/update-electronics-benchmark-golden.mjs'
@@ -155,6 +158,7 @@ jobs:
       CI: 'true'
       ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_ELECTRONICS_FAILURE_REPORT: 'true'
       ASA_ELECTRONICS_QUALIFICATION_PROFILE: ${{ inputs.qualification_profile || 'strict-real-time' }}
       ASA_ELECTRONICS_BROWSER_GATE: ${{ inputs.qualification_profile == 'classroom-d13-v3' && 'gate:electronics-classroom-d13-v3:browser' || inputs.qualification_profile == 'classroom-d13-v2' && 'gate:electronics-classroom-d13:browser' || 'gate:electronics-m1:browser' }}
       ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -211,12 +215,23 @@ jobs:
       - name: Selected Electronics browser qualification
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
-          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner
+          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
           pnpm "$ASA_ELECTRONICS_BROWSER_GATE"
 
       - name: Show isolated stack state
         if: always()
         run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test ps -a
+
+      # The journal is flushed after each test, including before a job cancellation.
+      # Keep it separately readable when retained traces make the full archive large.
+      - name: Upload incremental browser failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-r4-m1-failures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/electronics-failures.ndjson
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload browser evidence
         if: always()

@@ -2,6 +2,7 @@ import { newClientId } from './client-id';
 import {
   actorKey,
   confirmedAnalytics,
+  isTelemetryModule,
   keys,
   record,
   sendTelemetry,
@@ -157,9 +158,7 @@ export class AnalyticsDelivery {
           !uuid(value.projectId) ||
           !uuid(value.visitId) ||
           sessionIds.has(value.id) ||
-          !['electronics', 'three-d', 'chess', 'checkers', 'blocks'].includes(
-            value.moduleKey as string,
-          ) ||
+          !isTelemetryModule(value.moduleKey) ||
           typeof value.confirmed !== 'boolean' ||
           typeof value.abandoned !== 'boolean'
         ) {

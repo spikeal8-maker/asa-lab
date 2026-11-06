@@ -20,8 +20,10 @@ vi.mock('../../session-fetch', () => ({
 
 import {
   captureProjectSnapshot,
+  isProjectSnapshotConfirmed,
   registerProjectSnapshotSource,
   sendProjectSnapshot,
+  setProjectSnapshotWriteAllowed,
 } from '../project-snapshot';
 
 const canvas = () => ({ width: 640, height: 360 }) as HTMLCanvasElement;
@@ -78,13 +80,92 @@ describe('project snapshot delivery', () => {
         () => 4,
       );
 
+      expect(isProjectSnapshotConfirmed('retry-project', 4)).toBe(false);
       await expect(sendProjectSnapshot('retry-project')).resolves.toBe(false);
+      expect(isProjectSnapshotConfirmed('retry-project', 4)).toBe(false);
       await expect(sendProjectSnapshot('retry-project')).resolves.toBe(true);
+      expect(isProjectSnapshotConfirmed('retry-project', 4)).toBe(true);
       await expect(sendProjectSnapshot('retry-project')).resolves.toBe(false);
+      expect(isProjectSnapshotConfirmed('retry-project', 4)).toBe(true);
       expect(mocks.saveProjectSnapshot).toHaveBeenCalledTimes(2);
       release();
+      expect(isProjectSnapshotConfirmed('retry-project', 4)).toBe(false);
     },
   );
+
+  it('requires a fresh guarded capture before a new registration can reuse confirmed bytes', async () => {
+    const releaseOld = registerProjectSnapshotSource('remounted', canvas, () => 4);
+    expect(await sendProjectSnapshot('remounted')).toBe(true);
+    expect(isProjectSnapshotConfirmed('remounted', 4)).toBe(true);
+    const releaseNew = registerProjectSnapshotSource('remounted', canvas, () => 4);
+    expect(isProjectSnapshotConfirmed('remounted', 4)).toBe(false);
+
+    expect(await sendProjectSnapshot('remounted')).toBe(false);
+    expect(isProjectSnapshotConfirmed('remounted', 4)).toBe(true);
+    releaseOld();
+    expect(isProjectSnapshotConfirmed('remounted', 4)).toBe(true);
+    expect(mocks.saveProjectSnapshot).toHaveBeenCalledTimes(1);
+    releaseNew();
+    expect(isProjectSnapshotConfirmed('remounted', 4)).toBe(false);
+  });
+
+  it('does not treat a failed fresh capture as the previous confirmed picture', async () => {
+    let ready = true;
+    registerProjectSnapshotSource(
+      'unreadable',
+      () => (ready ? canvas() : null),
+      () => 4,
+    );
+    expect(await sendProjectSnapshot('unreadable')).toBe(true);
+    ready = false;
+    expect(await sendProjectSnapshot('unreadable')).toBe(false);
+    expect(isProjectSnapshotConfirmed('unreadable', 4)).toBe(false);
+    ready = true;
+    expect(await sendProjectSnapshot('unreadable')).toBe(false);
+    expect(isProjectSnapshotConfirmed('unreadable', 4)).toBe(true);
+    expect(mocks.saveProjectSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears confirmation when write access is denied and requires a fresh capture on return', async () => {
+    registerProjectSnapshotSource('permission', canvas, () => 4);
+    expect(await sendProjectSnapshot('permission')).toBe(true);
+    setProjectSnapshotWriteAllowed('permission', false);
+    expect(isProjectSnapshotConfirmed('permission', 4)).toBe(false);
+    expect(await sendProjectSnapshot('permission')).toBe(false);
+    setProjectSnapshotWriteAllowed('permission', true);
+    expect(isProjectSnapshotConfirmed('permission', 4)).toBe(false);
+    expect(await sendProjectSnapshot('permission')).toBe(false);
+    expect(isProjectSnapshotConfirmed('permission', 4)).toBe(true);
+    expect(mocks.saveProjectSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('never confirms a replacement registration from the previous source late acknowledgement', async () => {
+    const response = deferred<{ ok: boolean }>();
+    registerProjectSnapshotSource('replaced-ack', canvas, () => 4);
+    mocks.saveProjectSnapshot.mockReturnValueOnce(response.promise);
+    const attempt = sendProjectSnapshot('replaced-ack');
+    await Promise.resolve();
+    registerProjectSnapshotSource('replaced-ack', canvas, () => 4);
+    response.resolve({ ok: true });
+    expect(await attempt).toBe(false);
+    expect(isProjectSnapshotConfirmed('replaced-ack', 4)).toBe(false);
+    expect(await sendProjectSnapshot('replaced-ack')).toBe(true);
+    expect(isProjectSnapshotConfirmed('replaced-ack', 4)).toBe(true);
+    expect(mocks.saveProjectSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears a confirmed image on logout even if the next identity opens the same revision', async () => {
+    registerProjectSnapshotSource('new-identity', canvas, () => 4);
+    expect(await sendProjectSnapshot('new-identity')).toBe(true);
+    expect(isProjectSnapshotConfirmed('new-identity', 4)).toBe(true);
+    mocks.loggedOut?.();
+    expect(isProjectSnapshotConfirmed('new-identity', 4)).toBe(false);
+    registerProjectSnapshotSource('new-identity', canvas, () => 4);
+    expect(isProjectSnapshotConfirmed('new-identity', 4)).toBe(false);
+    expect(await sendProjectSnapshot('new-identity')).toBe(true);
+    expect(isProjectSnapshotConfirmed('new-identity', 4)).toBe(true);
+    expect(mocks.saveProjectSnapshot).toHaveBeenCalledTimes(2);
+  });
 
   it('does not capture a canvas while no confirmed revision is available', async () => {
     const capture = vi.fn(() => ({ width: 640, height: 360 }) as HTMLCanvasElement);
@@ -157,8 +238,12 @@ describe('project snapshot delivery', () => {
     registerProjectSnapshotSource('new-revision', canvas, () => revision);
     mocks.saveProjectSnapshot.mockResolvedValue({ ok: true });
     expect(await sendProjectSnapshot('new-revision')).toBe(true);
+    expect(isProjectSnapshotConfirmed('new-revision', 4)).toBe(true);
     revision = 5; // A nonvisual edit still changes the immutable card URL.
+    expect(isProjectSnapshotConfirmed('new-revision', 4)).toBe(false);
+    expect(isProjectSnapshotConfirmed('new-revision', 5)).toBe(false);
     expect(await sendProjectSnapshot('new-revision')).toBe(true);
+    expect(isProjectSnapshotConfirmed('new-revision', 5)).toBe(true);
     expect(await sendProjectSnapshot('new-revision')).toBe(false);
     expect(mocks.saveProjectSnapshot.mock.calls.map((call) => call[2])).toEqual([4, 5]);
   });

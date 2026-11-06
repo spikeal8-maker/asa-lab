@@ -23,6 +23,7 @@ const CONTEXT_RULES = {
   chess: [],
   'chess-live': ['chess'],
   'three-d': [],
+  robotics: ['electronics'],
 };
 const CONTEXTS = Object.keys(CONTEXT_RULES);
 const CONTEXT_ROOT = join(ROOT, 'contexts');
@@ -188,6 +189,14 @@ try {
   if (chessDependencies.some((dependency) => dependency?.target === 'chess-live')) {
     errors.push('chess rules context must never depend on chess-live');
   }
+  const roboticsDependencies = graph?.graph?.dependencies?.robotics ?? [];
+  if (!roboticsDependencies.some((dependency) => dependency?.target === 'electronics')) {
+    errors.push('nx-project-graph.json is stale: robotics must use the public electronics core');
+  }
+  const electronicsDependencies = graph?.graph?.dependencies?.electronics ?? [];
+  if (electronicsDependencies.some((dependency) => dependency?.target === 'robotics')) {
+    errors.push('electronics core must never depend on robotics');
+  }
 } catch (error) {
   errors.push(
     `cannot validate nx-project-graph.json: ${error instanceof Error ? error.message : String(error)}`,
@@ -201,6 +210,7 @@ const report = {
   dependencyPolicy: {
     chess: [],
     'chess-live': ['chess'],
+    robotics: ['electronics'],
   },
   errors,
 };

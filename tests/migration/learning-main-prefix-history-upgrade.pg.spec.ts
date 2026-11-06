@@ -399,6 +399,21 @@ const upgradeArtifacts = [
     '0304_games_checkers_network.sql',
     'ecb1283c5adea892895b540f2e04d75a74ab51c54660110bf5a8269f56b3279d',
   ],
+  [
+    '0305',
+    '0305_robotics_projects.sql',
+    'd706c3eaa79a7b3ce24824c507fa27ff524d9fcd9a0bb49eea1d6ee7410750bb',
+  ],
+  [
+    '0306',
+    '0306_robotics_publications.sql',
+    '7c88a610329dc61030dc2155ffc33cf573062f18425044173026e67723737f11',
+  ],
+  [
+    '0307',
+    '0307_robotics_telemetry_v2.sql',
+    '3ea56361e766b572a5e83b4bce8d68ac90e3b82b92c79eabe6750619b8e71779',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

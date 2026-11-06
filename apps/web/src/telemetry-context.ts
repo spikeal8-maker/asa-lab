@@ -1,5 +1,6 @@
 import {
   actorKey,
+  isTelemetryModule,
   record,
   validActor,
   type EntryRoute,
@@ -37,9 +38,7 @@ export function telemetryRoute(
 ): EntryRoute {
   if (admin) return 'admin';
   if (view.kind === 'editor')
-    return ['electronics', 'three-d', 'chess', 'checkers', 'blocks'].includes(view.moduleKey ?? '')
-      ? (`editor.${view.moduleKey}` as EntryRoute)
-      : 'unknown';
+    return isTelemetryModule(view.moduleKey) ? `editor.${view.moduleKey}` : 'unknown';
   if (view.kind === 'my-projects') return 'projects';
   if (['classrooms', 'classroom', 'classroom-projects', 'teacher-invite'].includes(view.kind))
     return 'classes';

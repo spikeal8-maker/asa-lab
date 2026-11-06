@@ -68,6 +68,29 @@ it('exposes real module chips and retains the committed search when switching ca
   });
   expect(publicProjectsApi.list).toHaveBeenCalledWith({ search: 'лампа', module: 'electronics' });
 });
+it('loads real Robotics publications and opens their ordinary public project route', async () => {
+  const robotics = { ...work, moduleKey: 'robotics', title: 'Маршрут робота' };
+  vi.mocked(publicProjectsApi.list).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { items: [robotics], nextOffset: null },
+  });
+  await render({ kind: 'public-projects', module: 'robotics', search: 'Маршрут', sort: 'oldest' });
+  expect(publicProjectsApi.list).toHaveBeenLastCalledWith({
+    module: 'robotics',
+    search: 'Маршрут',
+    sort: 'oldest',
+  });
+  expect(category('Робототехника').getAttribute('aria-pressed')).toBe('true');
+  expect(
+    host.querySelectorAll('[aria-label="Среда проекта"] [data-module="robotics"]'),
+  ).toHaveLength(1);
+  const card = host.querySelector<HTMLAnchorElement>('.public-project-card-link')!;
+  expect(card.getAttribute('href')).toBe('/#/public-projects/published');
+  expect(card.textContent).toContain('Маршрут робота');
+  await act(async () => card.click());
+  expect(onOpen).toHaveBeenCalledWith('published');
+});
 it('shows an unknown URL category honestly and allows returning to all without dropping search', async () => {
   await render({ kind: 'public-projects', search: 'схема', module: 'future-module' });
   expect(category('future-module').getAttribute('aria-pressed')).toBe('true');

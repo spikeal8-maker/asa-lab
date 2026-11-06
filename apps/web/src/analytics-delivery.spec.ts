@@ -81,6 +81,25 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('immutable actor-scoped browser delivery', () => {
+  it('restores and acknowledges a pending robotics start with its original module and event identity', async () => {
+    const f = fixture();
+    deferNext(f.transport);
+    void f.worker.open(id(10), id(11), 'robotics', id(12));
+    await pump();
+    const raw = f.storage.getItem('asa:analytics:v2')!;
+    const saved = JSON.parse(raw);
+    const original = saved.sessions[0].start;
+    f.worker.retire();
+    const recovered = disk();
+    recovered.setItem('asa:analytics:v2', raw);
+    const replay = fixture(undefined, recovered);
+    replay.worker.retryNow();
+    await pump();
+    const sent = replay.transport.mock.calls.map(([, init]) => JSON.parse(init!.body as string));
+    expect(sent).toContainEqual(original);
+    expect(original.moduleKey).toBe('robotics');
+    expect(replay.quality.read().counters.invalidStored).toBe(0);
+  });
   it('preserves Retry-After across repeated ready/online notifications and a real pause/resume', async () => {
     const f = fixture();
     // This unit owns event delivery; the runtime suite exercises the independent quality stream.
