@@ -416,6 +416,48 @@ resource-stop reasons and cleanup status even after failure. Cleanup is
 restricted to the run-labelled Compose project and its own BuildKit builder;
 it never prunes Docker or deletes another database/volume.
 
+### Failure-only backend evidence
+
+After a failed calibration or capacity level, the controller writes that phase's
+`server-diagnostics.json` before owned cleanup. It reads existing API stdout and
+stderr only after the workload and resource samples have ended. This adds no
+request, polling or logging instrumentation to the measured workload and does
+not change its verdict, the 14N operation plan, SLOs, pool settings or limits.
+The workflow's existing recursive artifact upload includes the new receipt.
+
+The API container ID, image, start time and restart count are frozen from the
+existing sample before the phase. Both inspections around log collection must
+match that identity, exact source revision, Compose project, service, working
+directory and run token. A replacement or restarted API cannot supply evidence
+for the original process. A stopped original process can still supply its logs.
+An unavailable container or collector failure produces a separate error receipt;
+collection failure cannot skip the owned cleanup attempt.
+
+Only an allowlisted projection of existing `server_error`, matching HTTP request
+events and `database_pool_error` JSON records is retained. It preserves request
+IDs, safe error classifications and source locations, session database acquire
+and query timings/failure phase, and API pool total/idle/waiting counts. Existing
+HTTP event-loop values are explicitly cumulative since API startup, not phase
+quantiles. Request URLs, headers, cookies, bodies, SQL/parameters, environment,
+arbitrary exception text and raw Docker/PostgreSQL output are never exported.
+Known fixture secrets cause the entire containing record to be excluded.
+
+Collection allows at most 20 seconds overall and 5 seconds per Docker operation,
+64 KiB per inspection, 4 MiB for each log stream, 20000 lines and 16 KiB per line.
+The projected artifact keeps at most 512 server errors, 1536 matching request
+events and 16 pool errors. Counts expose omitted, malformed, foreign-source,
+redacted, duplicate, missing and truncated evidence. `CAPTURED`, `INCOMPLETE`
+and `UNAVAILABLE` describe collection, never capacity acceptance. Unknown
+expected error counts and partial transport are explicitly incomplete.
+
+Join retained request IDs independently against the existing Playwright trace's
+`x-request-id` values; equal error counts alone do not prove correspondence.
+These records can identify the proximate backend failure, including acquisition
+versus query failures and safe SQLSTATEs. A pool timeout together with high host
+CPU does not establish why connections stayed busy or prove that the shared
+runner caused the HTTP 500. The failed level remains failed; higher levels and
+the latency experiment stay gated by the unchanged ladder rules.
+
 ### Narrow login/save latency diagnosis
 
 The previous lightweight comparisons observed higher candidate login/save p95

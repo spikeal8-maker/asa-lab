@@ -38,6 +38,9 @@ import {
   evaluateScaleCalibration,
   scaleLadderSummary,
   summarizeLatencyTimings,
+  SCALE_FAILURE_DIAGNOSTIC_LIMITS,
+  captureScaleFailureDiagnostics,
+  scaleFailureDiagnosticError,
 } from './classroom-scale-contracts.mjs';
 import {
   STORM_BASELINE,
@@ -380,6 +383,61 @@ async function run() {
   let currentAbortFile;
   let activeCommand;
   let observationsPaused = false;
+  let phaseStartedAtMs = Date.now();
+  let failureDiagnostics;
+  let diagnosticApiImage;
+  let latestApiIdentity;
+  let phaseApiIdentity;
+  const diagnosticIo = {
+    inspect: async (id, timeoutMs) =>
+      JSON.parse(
+        await capture('docker', ['inspect', id], {
+          timeout: timeoutMs,
+          killSignal: 'SIGKILL',
+          maxBuffer: SCALE_FAILURE_DIAGNOSTIC_LIMITS.inspectBytes,
+        }),
+      )[0],
+    logs: async (id, window, timeoutMs) => {
+      try {
+        const result = await execute(
+          'docker',
+          [
+            'logs',
+            '--timestamps',
+            '--since',
+            new Date(window.startedAtMs).toISOString(),
+            '--until',
+            new Date(window.endedAtMs).toISOString(),
+            '--tail',
+            String(SCALE_FAILURE_DIAGNOSTIC_LIMITS.lines),
+            id,
+          ],
+          {
+            cwd: root,
+            timeout: timeoutMs,
+            killSignal: 'SIGKILL',
+            maxBuffer: SCALE_FAILURE_DIAGNOSTIC_LIMITS.streamBytes,
+            encoding: 'utf8',
+          },
+        );
+        return { stdout: result.stdout, stderr: result.stderr, transport: 'completed' };
+      } catch (error) {
+        // Partial buffers can contain useful JSON, but arbitrary CLI messages
+        // and raw logs must never enter an artifact or the workflow console.
+        return {
+          stdout: typeof error?.stdout === 'string' ? error.stdout : '',
+          stderr: typeof error?.stderr === 'string' ? error.stderr : '',
+          transport:
+            error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'
+              ? 'truncated'
+              : error?.killed
+                ? 'timeout'
+                : 'failed',
+          error: scaleFailureDiagnosticError(error),
+        };
+      }
+    },
+  };
   const ownMetadata = (metadata) => {
     if (
       metadata.Config?.Labels?.['com.docker.compose.project'] !== project ||
@@ -409,6 +467,13 @@ async function run() {
     const containers = await Promise.all(
       containerIds.map(async ({ id, service }) => {
         const metadata = ownMetadata(await dockerApi('/containers/' + id + '/json'));
+        if (service === 'api')
+          latestApiIdentity = {
+            id: metadata.Id,
+            image: metadata.Image,
+            startedAt: metadata.State.StartedAt,
+            restartCount: metadata.RestartCount,
+          };
         if (!metadata.State.Running)
           return {
             service,
@@ -687,6 +752,7 @@ async function run() {
       });
     }
     const imageManifestHash = assertScaleImages(images, head);
+    diagnosticApiImage = images.find((image) => image.service === 'api').id;
     env.ASA_SCALE_IMAGE_MANIFEST_HASH = imageManifestHash;
     identity = { ...initialIdentity, environmentHash, imageManifestHash };
     const assets = [];
@@ -749,11 +815,13 @@ async function run() {
     let latencyCompleted = false;
     const runBrowserLevel = async (users, mode = 'capacity') => {
       currentPhase = mode === 'calibration' ? 'calibration' : 'level-' + users;
+      phaseStartedAtMs = Date.now();
       const directory = resolve(reports, currentPhase);
       mkdirSync(directory, { recursive: true, mode: 0o777 });
       currentAbortFile = resolve(directory, 'abort.json');
       const sampleIndex = allResources.length;
       await sample();
+      phaseApiIdentity = latestApiIdentity;
       if (!stoppedByResource) {
         driverName = project + '-browser-' + mode + '-' + users;
         const running = start(
@@ -848,6 +916,25 @@ async function run() {
           status: mode === 'calibration' ? 'INVALID_FIXTURE' : 'INVALID',
           reasons: ['nonzero_browser_exit_despite_pass_report'],
         };
+      if (!successful())
+        failureDiagnostics = {
+          phase: currentPhase,
+          api: phaseApiIdentity,
+          startedAtMs: phaseStartedAtMs,
+          endedAtMs: Date.now(),
+          expectedApi5xx:
+            Array.isArray(raw.requests) && Array.isArray(raw.observerRequests)
+              ? [...raw.requests, ...raw.observerRequests].filter(
+                  (item) =>
+                    typeof item?.route === 'string' &&
+                    item.route.startsWith('/api/') &&
+                    Number.isInteger(item.status) &&
+                    item.status >= 500 &&
+                    item.status <= 599 &&
+                    item.injected === false,
+                ).length
+              : null,
+        };
       if (driverName) {
         const metadata = ownMetadata(
           JSON.parse(await capture('docker', ['inspect', driverName]))[0],
@@ -941,6 +1028,14 @@ async function run() {
     if (summary.levels.some((level) => level.status !== 'PASS')) process.exitCode = 2;
   } catch (error) {
     process.exitCode = 2;
+    if (!failureDiagnostics && /^(?:calibration|level-(?:30|60|100|150|200))$/.test(currentPhase))
+      failureDiagnostics = {
+        phase: currentPhase,
+        api: phaseApiIdentity,
+        startedAtMs: phaseStartedAtMs,
+        endedAtMs: Date.now(),
+        expectedApi5xx: null,
+      };
     writeJson(resolve(reports, 'controller-failure.json'), {
       ...(identity || initialIdentity),
       phase: currentPhase,
@@ -970,6 +1065,52 @@ async function run() {
       observationErrors,
     });
     if (stackStarted) {
+      if (failureDiagnostics) {
+        // The workload and its resource samples are already sealed. Capture
+        // our phase's exact API before refreshing the cleanup inventory. A
+        // missing/replaced container still gets a bounded error receipt.
+        try {
+          const api = failureDiagnostics.api;
+          const diagnostic =
+            api && identity && diagnosticApiImage
+              ? await captureScaleFailureDiagnostics(
+                  {
+                    ...failureDiagnostics,
+                    container: {
+                      id: api.id,
+                      image: diagnosticApiImage,
+                      startedAt: failureDiagnostics.api.startedAt,
+                      restartCount: failureDiagnostics.api.restartCount,
+                      sourceSha: head,
+                      project,
+                      root,
+                      runToken: env.ASA_SCALE_RUN_TOKEN,
+                    },
+                  },
+                  diagnosticIo,
+                  [...redactions],
+                )
+              : {
+                  schemaVersion: 1,
+                  collector: 'owned-api-failure-only-v1',
+                  status: 'UNAVAILABLE',
+                  reason: api ? 'image_identity_not_verified' : 'owned_api_not_available',
+                  serverErrors: [],
+                  requestEvents: [],
+                  poolErrors: [],
+                };
+          writeJson(resolve(reports, failureDiagnostics.phase, 'server-diagnostics.json'), {
+            ...initialIdentity,
+            ...diagnostic,
+          });
+        } catch (error) {
+          process.exitCode = 2;
+          console.error(
+            '[classroom-scale] failure diagnostics could not be persisted: ' +
+              scaleFailureDiagnosticError(error).code,
+          );
+        }
+      }
       try {
         await refreshContainers();
         writeJson(resolve(reports, 'owned-containers.json'), containerIds);

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 import { readFile, readdir } from 'node:fs/promises';
 import { endianness } from 'node:os';
 import { join } from 'node:path';
@@ -13,6 +14,506 @@ export const SCALE_CRYPTO_CHALLENGE = 'asa-classroom-scale-secure-context-v1';
 // journey must click the native personal-project link instead.
 export const SCALE_PROJECTS_LINK_SELECTOR =
   'nav[aria-label="Личные и рабочие разделы"] a[aria-label="Мои проекты"][href="/#/projects"]';
+
+// Collection happens after the failed workload, never in its measured request
+// path. These bounds do not change SCALE_PROFILE or any acceptance threshold.
+export const SCALE_FAILURE_DIAGNOSTIC_LIMITS = Object.freeze({
+  ioTimeoutMs: 5000,
+  totalTimeoutMs: 20000,
+  inspectBytes: 65536,
+  streamBytes: 4 * 1024 ** 2,
+  lines: 20000,
+  lineBytes: 16384,
+  serverErrors: 512,
+  requestEvents: 1536,
+  poolErrors: 16,
+});
+const diagnosticKinds = new Set([
+  'server_error',
+  'http_request_started',
+  'http_response',
+  'http_request_ended',
+  'database_pool_error',
+]);
+const diagnosticCodes = new Set([
+  'database_query_timeout',
+  'database_connection_timeout',
+  'upstream_connection_failed',
+  'internal_error',
+  'pool_acquire_timeout',
+  'client_query_timeout',
+  'database_error',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EPIPE',
+]);
+const diagnosticClasses = new Set([
+  'Error',
+  'TypeError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'URIError',
+  'EvalError',
+  'AggregateError',
+  'AbortError',
+  'TimeoutError',
+  'DatabaseError',
+  'QueryError',
+  'ConnectionError',
+  'HttpException',
+  'InternalServerErrorException',
+  'ServiceUnavailableException',
+  'GatewayTimeoutException',
+]);
+const diagnosticUuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
+const diagnosticTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{1,9}Z$/;
+const diagnosticNumber = (value, integer = false) => {
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    value > Number.MAX_SAFE_INTEGER ||
+    (integer && !Number.isSafeInteger(value))
+  )
+    throw Error('invalid_diagnostic_record');
+  return value;
+};
+const diagnosticCode = (value) =>
+  typeof value === 'string' &&
+  (diagnosticCodes.has(value) ||
+    /^(?:08|22|23|25|28|40|42|53|54|55|57|58|XX)[A-Z0-9]{3}$/.test(value))
+    ? value
+    : 'unclassified_error';
+
+/** Never return an exception message, command, stdout/stderr, or arbitrary code. */
+export function scaleFailureDiagnosticError(error) {
+  const code = [
+    'ENOENT',
+    'EACCES',
+    'EPERM',
+    'ETIMEDOUT',
+    'EPIPE',
+    'ERR_CHILD_PROCESS_STDIO_MAXBUFFER',
+  ].includes(error?.code)
+    ? error.code
+    : [
+          'diagnostic_deadline',
+          'diagnostic_identity_mismatch',
+          'diagnostic_identity_changed',
+          'invalid_diagnostic_context',
+        ].includes(error?.message)
+      ? error.message
+      : 'diagnostic_transport_failed';
+  return {
+    code,
+    exitCode:
+      Number.isInteger(error?.code) && error.code >= 0 && error.code <= 255
+        ? error.code
+        : Number.isInteger(error?.exitCode) && error.exitCode >= 0 && error.exitCode <= 255
+          ? error.exitCode
+          : null,
+    signal: ['SIGTERM', 'SIGKILL'].includes(error?.signal) ? error.signal : null,
+  };
+}
+
+/** Inspect output stays private. Only this projection can enter an artifact. */
+export function assertScaleFailureContainer(metadata, expected) {
+  const labels = metadata?.Config?.Labels || {};
+  if (
+    !/^[a-f0-9]{64}$/.test(expected?.id || '') ||
+    !/^sha256:[a-f0-9]{64}$/.test(expected?.image || '') ||
+    !/^[a-f0-9]{40}$/.test(expected?.sourceSha || '') ||
+    !/^asa-scale-\d+-\d+$/.test(expected?.project || '') ||
+    !/^[a-f0-9]{32}$/.test(expected?.runToken || '') ||
+    !diagnosticTime.test(expected?.startedAt || '') ||
+    !Number.isSafeInteger(expected?.restartCount) ||
+    expected.restartCount < 0 ||
+    typeof expected?.root !== 'string' ||
+    !expected.root.startsWith('/') ||
+    metadata?.Id !== expected.id ||
+    metadata.Image !== expected.image ||
+    metadata.State?.StartedAt !== expected.startedAt ||
+    metadata.RestartCount !== expected.restartCount ||
+    labels['com.docker.compose.project'] !== expected.project ||
+    labels['com.docker.compose.service'] !== 'api' ||
+    labels['com.docker.compose.project.working_dir'] !== expected.root ||
+    labels['io.asalab.scale.run'] !== expected.runToken ||
+    labels['org.opencontainers.image.revision'] !== expected.sourceSha ||
+    !diagnosticTime.test(metadata.State?.StartedAt || '') ||
+    !Number.isFinite(Date.parse(metadata.State.StartedAt)) ||
+    !Number.isSafeInteger(metadata.RestartCount) ||
+    metadata.RestartCount < 0 ||
+    typeof metadata.State.Running !== 'boolean' ||
+    typeof metadata.State.OOMKilled !== 'boolean'
+  )
+    throw Error('diagnostic_identity_mismatch');
+  return {
+    id: metadata.Id,
+    image: metadata.Image,
+    sourceSha: expected.sourceSha,
+    startedAt: metadata.State.StartedAt,
+    restartCount: metadata.RestartCount,
+    running: metadata.State.Running,
+    oomKilled: metadata.State.OOMKilled,
+  };
+}
+
+function diagnosticSessionDatabase(value) {
+  if (value === undefined) return undefined;
+  if (!value || value.operation !== 'identity.session.resolve')
+    throw Error('invalid_diagnostic_record');
+  const projected = {
+    operation: 'identity.session.resolve',
+    calls: diagnosticNumber(value.calls, true),
+    failures: diagnosticNumber(value.failures, true),
+    poolAcquireMs: diagnosticNumber(value.poolAcquireMs),
+    queryRoundTripMs: diagnosticNumber(value.queryRoundTripMs),
+  };
+  if (projected.failures > projected.calls) throw Error('invalid_diagnostic_record');
+  if (projected.failures) {
+    if (!['acquire', 'query'].includes(value.lastFailurePhase))
+      throw Error('invalid_diagnostic_record');
+    return {
+      ...projected,
+      lastFailurePhase: value.lastFailurePhase,
+      lastErrorCode: diagnosticCode(value.lastErrorCode),
+    };
+  }
+  return projected;
+}
+
+function diagnosticRecord(value, sourceSha) {
+  if (!value || !diagnosticKinds.has(value.kind)) return null;
+  if (!diagnosticTime.test(value.time || '') || !Number.isFinite(Date.parse(value.time)))
+    throw Error('invalid_diagnostic_record');
+  if (value.kind === 'database_pool_error') {
+    if (!['main', 'analytics', 'acquisition'].includes(value.role))
+      throw Error('invalid_diagnostic_record');
+    return {
+      kind: value.kind,
+      time: value.time,
+      role: value.role,
+      count: diagnosticNumber(value.count, true),
+      errorCode: diagnosticCode(value.errorCode),
+      errorClass: diagnosticClasses.has(value.errorClass) ? value.errorClass : 'unknown',
+    };
+  }
+  if (value.revision !== sourceSha) throw Error('diagnostic_foreign_revision');
+  if (
+    !diagnosticUuid.test(value.requestId || '') ||
+    !['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(value.method)
+  )
+    throw Error('invalid_diagnostic_record');
+  const common = {
+    kind: value.kind,
+    time: value.time,
+    requestId: value.requestId,
+    revision: sourceSha,
+    method: value.method,
+    ...(value.sessionDatabase === undefined
+      ? {}
+      : { sessionDatabase: diagnosticSessionDatabase(value.sessionDatabase) }),
+  };
+  if (value.kind === 'http_request_started') return common;
+  if (value.kind === 'http_request_ended' || value.kind === 'http_response') {
+    if (
+      value.kind === 'http_response' &&
+      (!Number.isInteger(value.status) || value.status < 100 || value.status > 599)
+    )
+      throw Error('invalid_diagnostic_record');
+    const loop = value.eventLoopDelaySinceStartMs;
+    return {
+      ...common,
+      ...(value.kind === 'http_response' ? { status: value.status } : {}),
+      durationMs: diagnosticNumber(value.durationMs),
+      ...(value.errorCode === undefined ? {} : { errorCode: diagnosticCode(value.errorCode) }),
+      ...(loop === undefined
+        ? {}
+        : {
+            eventLoopDelaySinceStartMs: {
+              p50: diagnosticNumber(loop?.p50),
+              p99: diagnosticNumber(loop?.p99),
+              max: diagnosticNumber(loop?.max),
+            },
+          }),
+    };
+  }
+  if (
+    !Number.isInteger(value.status) ||
+    value.status < 500 ||
+    value.status > 599 ||
+    !Array.isArray(value.frames) ||
+    value.frames.length > 10
+  )
+    throw Error('invalid_diagnostic_record');
+  // Keep source locations, not arbitrary function names or exception messages.
+  const frames = value.frames.map((line) => {
+    const match =
+      typeof line === 'string' &&
+      line.length <= 240 &&
+      !/[?="'\r\n]/.test(line) &&
+      line.match(
+        /((?:\/app\/(?:dist|node_modules)\/[A-Za-z0-9_@./+-]+\.(?:[cm]?js|ts)|node:[A-Za-z0-9_./-]+):\d+:\d+)\)?$/,
+      );
+    if (!match) throw Error('invalid_diagnostic_record');
+    return match[1];
+  });
+  const runtime = value.runtime;
+  const pool = runtime?.pool;
+  if (pool !== null && (!pool || pool.idle > pool.total)) throw Error('invalid_diagnostic_record');
+  return {
+    ...common,
+    status: value.status,
+    errorCode: diagnosticCode(value.errorCode),
+    errorClass: diagnosticClasses.has(value.errorClass) ? value.errorClass : 'unknown',
+    frames,
+    runtime: {
+      rssBytes: diagnosticNumber(runtime?.rssBytes, true),
+      heapUsedBytes: diagnosticNumber(runtime?.heapUsedBytes, true),
+      cpuMicros: {
+        user: diagnosticNumber(runtime?.cpuMicros?.user, true),
+        system: diagnosticNumber(runtime?.cpuMicros?.system, true),
+      },
+      pool:
+        pool === null
+          ? null
+          : {
+              total: diagnosticNumber(pool.total, true),
+              idle: diagnosticNumber(pool.idle, true),
+              waiting: diagnosticNumber(pool.waiting, true),
+            },
+    },
+  };
+}
+
+/** Raw Docker output is bounded in memory and is never written or returned. */
+export function projectScaleFailureLogs(streams, context, secrets = []) {
+  const limits = SCALE_FAILURE_DIAGNOSTIC_LIMITS;
+  if (
+    !/^[a-f0-9]{40}$/.test(context?.sourceSha || '') ||
+    !Number.isSafeInteger(context?.startedAtMs) ||
+    !Number.isSafeInteger(context?.endedAtMs) ||
+    context.startedAtMs > context.endedAtMs
+  )
+    throw Error('invalid_diagnostic_context');
+  const counts = {
+    stdoutBytes: 0,
+    stderrBytes: 0,
+    lines: 0,
+    ignoredLines: 0,
+    invalidStreams: 0,
+    outsideWindow: 0,
+    invalidRecords: 0,
+    foreignRevision: 0,
+    redactedRecords: 0,
+    truncatedStreams: 0,
+    unterminatedLines: 0,
+    lineLimitHit: false,
+    serverErrors: 0,
+    requestEvents: 0,
+    poolErrors: 0,
+    duplicateServerErrorIds: 0,
+    droppedRecords: 0,
+  };
+  const serverErrors = [];
+  const requestCandidates = [];
+  const poolErrors = [];
+  const errorIds = new Set();
+  for (const stream of ['stdout', 'stderr']) {
+    if (typeof streams?.[stream] !== 'string') counts.invalidStreams++;
+    const input = typeof streams?.[stream] === 'string' ? streams[stream] : '';
+    const bytes = Buffer.from(input, 'utf8');
+    counts[stream + 'Bytes'] = bytes.length;
+    if (bytes.length > limits.streamBytes) counts.truncatedStreams++;
+    const lines = bytes.subarray(0, limits.streamBytes).toString('utf8').split('\n');
+    if (lines.at(-1)) counts.unterminatedLines++;
+    else lines.pop();
+    for (const line of lines) {
+      if (counts.lines >= limits.lines) {
+        counts.lineLimitHit = true;
+        break;
+      }
+      counts.lines++;
+      if (Buffer.byteLength(line, 'utf8') > limits.lineBytes) {
+        counts.invalidRecords++;
+        continue;
+      }
+      if (
+        secrets.some(
+          (secret) => typeof secret === 'string' && secret.length >= 8 && line.includes(secret),
+        )
+      ) {
+        counts.redactedRecords++;
+        continue;
+      }
+      const stamped = line.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{1,9}Z) (.+)$/);
+      if (!stamped) {
+        counts.ignoredLines++;
+        continue;
+      }
+      try {
+        const value = JSON.parse(stamped[2]);
+        const record = diagnosticRecord(value, context.sourceSha);
+        if (!record) {
+          counts.ignoredLines++;
+          continue;
+        }
+        if (
+          !Number.isFinite(Date.parse(stamped[1])) ||
+          Date.parse(stamped[1]) < context.startedAtMs ||
+          Date.parse(stamped[1]) > context.endedAtMs ||
+          Date.parse(record.time) < context.startedAtMs ||
+          Date.parse(record.time) > context.endedAtMs
+        ) {
+          counts.outsideWindow++;
+          continue;
+        }
+        const projected = { ...record, stream, dockerTime: stamped[1] };
+        if (record.kind === 'server_error') {
+          counts.serverErrors++;
+          if (errorIds.has(record.requestId)) counts.duplicateServerErrorIds++;
+          errorIds.add(record.requestId);
+          if (serverErrors.length < limits.serverErrors) serverErrors.push(projected);
+          else counts.droppedRecords++;
+        } else if (record.kind === 'database_pool_error') {
+          counts.poolErrors++;
+          if (poolErrors.length < limits.poolErrors) poolErrors.push(projected);
+          else counts.droppedRecords++;
+        } else requestCandidates.push(projected);
+      } catch (error) {
+        if (error?.message === 'diagnostic_foreign_revision') counts.foreignRevision++;
+        else counts.invalidRecords++;
+      }
+    }
+  }
+  const matching = requestCandidates.filter((record) => errorIds.has(record.requestId));
+  counts.requestEvents = matching.length;
+  const requestEvents = matching.slice(0, limits.requestEvents);
+  counts.droppedRecords += matching.length - requestEvents.length;
+  const expected = context.expectedApi5xx;
+  const expectedKnown =
+    Number.isSafeInteger(expected) &&
+    expected >= 0 &&
+    expected <= SCALE_PROFILE.maximumHttpObservations + SCALE_PROFILE.maximumControlObservations;
+  const missingByCount = expectedKnown ? Math.max(0, expected - errorIds.size) : null;
+  const transport = ['completed', 'failed', 'timeout', 'truncated'].includes(streams?.transport)
+    ? streams.transport
+    : 'failed';
+  const incomplete =
+    transport !== 'completed' ||
+    counts.invalidStreams > 0 ||
+    counts.truncatedStreams > 0 ||
+    counts.unterminatedLines > 0 ||
+    counts.lineLimitHit ||
+    counts.lines >= limits.lines ||
+    counts.invalidRecords > 0 ||
+    counts.foreignRevision > 0 ||
+    counts.redactedRecords > 0 ||
+    counts.duplicateServerErrorIds > 0 ||
+    counts.droppedRecords > 0 ||
+    !expectedKnown ||
+    missingByCount > 0;
+  return {
+    status: incomplete ? 'INCOMPLETE' : 'CAPTURED',
+    transport,
+    ...(transport === 'completed'
+      ? {}
+      : { transportError: scaleFailureDiagnosticError(streams?.error) }),
+    counts,
+    expectedApi5xx: expectedKnown ? expected : null,
+    missingByCount,
+    correlation:
+      'Request IDs still require an independent join with the existing browser trace; matching counts alone do not prove complete correlation.',
+    serverErrors,
+    requestEvents,
+    poolErrors,
+  };
+}
+
+/** Fixed owned-container IO; a collection failure is separate from load verdict. */
+export async function captureScaleFailureDiagnostics(context, io, secrets = []) {
+  const limits = SCALE_FAILURE_DIAGNOSTIC_LIMITS;
+  const clock = io.now || Date.now;
+  const startedAtMs = clock();
+  const deadline = startedAtMs + limits.totalTimeoutMs;
+  let stage = 'context';
+  let before;
+  const remaining = () => {
+    const time = Math.min(limits.ioTimeoutMs, deadline - clock());
+    if (time <= 0) throw Error('diagnostic_deadline');
+    return time;
+  };
+  try {
+    if (
+      !/^(?:calibration|level-(?:30|60|100|150|200))$/.test(context?.phase || '') ||
+      !Number.isSafeInteger(context.startedAtMs) ||
+      !Number.isSafeInteger(context.endedAtMs) ||
+      context.startedAtMs < 0 ||
+      context.startedAtMs > context.endedAtMs ||
+      context.endedAtMs > startedAtMs ||
+      context.endedAtMs - context.startedAtMs > SCALE_PROFILE.levelTimeoutMs + 30000 ||
+      !/^[a-f0-9]{64}$/.test(context?.container?.id || '')
+    )
+      throw Error('invalid_diagnostic_context');
+    stage = 'pre-inspect';
+    before = assertScaleFailureContainer(
+      await io.inspect(context.container.id, remaining()),
+      context.container,
+    );
+    stage = 'logs';
+    const streams = await io.logs(before.id, context, remaining());
+    stage = 'post-inspect';
+    const after = assertScaleFailureContainer(
+      await io.inspect(before.id, remaining()),
+      context.container,
+    );
+    if (
+      before.id !== after.id ||
+      before.image !== after.image ||
+      before.startedAt !== after.startedAt ||
+      before.restartCount !== after.restartCount
+    )
+      throw Error('diagnostic_identity_changed');
+    stage = 'projection';
+    remaining();
+    const projected = projectScaleFailureLogs(
+      streams,
+      {
+        sourceSha: context.container.sourceSha,
+        startedAtMs: context.startedAtMs,
+        endedAtMs: context.endedAtMs,
+        expectedApi5xx: context.expectedApi5xx,
+      },
+      secrets,
+    );
+    remaining();
+    return {
+      schemaVersion: 1,
+      collector: 'owned-api-failure-only-v1',
+      sourceSha: context.container.sourceSha,
+      phase: context.phase,
+      window: { startedAtMs: context.startedAtMs, endedAtMs: context.endedAtMs },
+      collection: { startedAtMs, endedAtMs: clock(), limits },
+      container: { before, after },
+      ...projected,
+    };
+  } catch (error) {
+    return {
+      schemaVersion: 1,
+      collector: 'owned-api-failure-only-v1',
+      status: 'UNAVAILABLE',
+      stage,
+      error: scaleFailureDiagnosticError(error),
+      collection: { startedAtMs, endedAtMs: clock(), limits },
+      ...(before ? { container: { before } } : {}),
+      serverErrors: [],
+      requestEvents: [],
+      poolErrors: [],
+    };
+  }
+}
 
 /** Preserve machine-readable causes without persisting URLs, SQL, credentials,
  * request bodies or arbitrary exception messages. The count remains unbounded

@@ -4,6 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import process from 'node:process';
 import { runInNewContext } from 'node:vm';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -13,6 +14,11 @@ import {
   resolveCanonicalWebOrigin,
   resolveIsolatedTestWebOrigin,
 } from '../../apps/api/src/origin-policy';
+import { recordServerFailure } from '../../apps/api/src/server-diagnostics';
+import {
+  runSessionContextQuery,
+  runSessionDatabaseScope,
+} from '../../apps/api/src/session-database-diagnostics';
 import { PortalHeader } from '../../apps/web/src/components/PortalHeader';
 import { studentSessionPayload } from '../../apps/web/src/creator-portal/student-session';
 import {
@@ -21,6 +27,7 @@ import {
   SCALE_CRYPTO_CHALLENGE,
   SCALE_PROFILE,
   SCALE_PROFILE_HASH,
+  SCALE_FAILURE_DIAGNOSTIC_LIMITS,
   SCALE_PROJECTS_LINK_SELECTOR,
   assertLatencySample,
   assertLatencyScenario,
@@ -28,6 +35,10 @@ import {
   assertScaleDockerContext,
   assertScaleEnvironment,
   assertScaleImages,
+  assertScaleFailureContainer,
+  captureScaleFailureDiagnostics,
+  projectScaleFailureLogs,
+  scaleFailureDiagnosticError,
   assertScaleIngressConfig,
   assertScaleApiIngressEnvironment,
   summarizeScaleApiEnvironment,
@@ -1955,5 +1966,514 @@ describe('counterbalanced diagnostic timing boundaries', () => {
     const dropped = observed();
     dropped.clients[0]!.dropped = 1;
     expect(() => summarizeLatencyTimings(dropped.clients, dropped.records, 1)).toThrow();
+  });
+});
+
+describe('bounded failure-only API diagnostic retention', () => {
+  const sourceSha = 'c'.repeat(40);
+  const start = Date.parse('2026-11-06T10:00:00.000Z');
+  const time = new Date(start + 1000).toISOString();
+  const requestId = (index = 1) =>
+    '00000000-0000-4000-8000-' + index.toString(16).padStart(12, '0');
+  const window = { sourceSha, startedAtMs: start, endedAtMs: start + 5000, expectedApi5xx: 1 };
+  const secret = 'private-cookie-and-sql-value';
+  const container = {
+    id: 'a'.repeat(64),
+    image: 'sha256:' + 'b'.repeat(64),
+    sourceSha,
+    project: 'asa-scale-42-1',
+    runToken: 'd'.repeat(32),
+    root: '/tmp/owned-scale',
+    startedAt: new Date(start - 10000).toISOString(),
+    restartCount: 0,
+  };
+  const context = { ...window, phase: 'level-30', container };
+  const sessionDatabase = {
+    operation: 'identity.session.resolve',
+    calls: 1,
+    failures: 1,
+    poolAcquireMs: 5000.4,
+    queryRoundTripMs: 0,
+    lastFailurePhase: 'acquire',
+    lastErrorCode: 'pool_acquire_timeout',
+  };
+  function failure(overrides: Record<string, unknown> = {}) {
+    return {
+      kind: 'server_error',
+      time,
+      revision: sourceSha,
+      requestId: requestId(),
+      method: 'GET',
+      status: 500,
+      errorCode: 'database_connection_timeout',
+      errorClass: 'Error',
+      frames: ['at acquire (/app/node_modules/pg-pool/index.js:45:11)'],
+      sessionDatabase,
+      runtime: {
+        rssBytes: 1000000,
+        heapUsedBytes: 500000,
+        cpuMicros: { user: 300000, system: 100000 },
+        pool: { total: 10, idle: 0, waiting: 30 },
+      },
+      ...overrides,
+    };
+  }
+  const line = (record: Record<string, unknown>, stamp = time) =>
+    stamp + ' ' + JSON.stringify(record) + '\n';
+  const streams = (stdout = line(failure()), stderr = '') => ({
+    stdout,
+    stderr,
+    transport: 'completed',
+  });
+  function metadata() {
+    return {
+      Id: container.id,
+      Image: container.image,
+      RestartCount: 0,
+      State: { StartedAt: container.startedAt, Running: true, OOMKilled: false },
+      Config: {
+        Env: ['DATABASE_URL=postgresql://private:password@private/database'],
+        Labels: {
+          'com.docker.compose.project': container.project,
+          'com.docker.compose.service': 'api',
+          'com.docker.compose.project.working_dir': container.root,
+          'io.asalab.scale.run': container.runToken,
+          'org.opencontainers.image.revision': sourceSha,
+        },
+      },
+    };
+  }
+  const io = () => ({
+    now: () => start + 8000,
+    inspect: vi.fn(async () => metadata()),
+    logs: vi.fn(async () => streams()),
+  });
+
+  it('retains the actual API producer and session acquire failure without exception text or parameters', async () => {
+    const exception = new Error('timeout exceeded when trying to connect; password=' + secret);
+    exception.stack =
+      exception.message +
+      '\n    at acquire (/app/node_modules/.pnpm/pg-pool@3.10.1/node_modules/pg-pool/index.js:45:11)' +
+      '\n    at processTicksAndRejections (node:internal/process/task_queues:95:5)';
+    const request = {
+      id: requestId(),
+      method: 'GET',
+      raw: { url: '/api/projects/' + requestId() },
+      headers: { cookie: secret, authorization: 'Bearer ' + secret },
+    } as Parameters<typeof recordServerFailure>[1];
+    const pool = {
+      connect: (callback: (error: Error) => void) => callback(exception),
+      totalCount: 10,
+      idleCount: 0,
+      waitingCount: 30,
+    } as unknown as Parameters<typeof runSessionContextQuery>[0];
+    let query: ReturnType<typeof runSessionContextQuery> | undefined;
+    runSessionDatabaseScope(request, () => {
+      query = runSessionContextQuery(pool, 'SELECT $1::text AS private_value', [secret]);
+    });
+    await expect(query).rejects.toBe(exception);
+    const output: string[] = [];
+    const writer = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      output.push(String(chunk));
+      return true;
+    });
+    try {
+      recordServerFailure(exception, request, 500, sourceSha, pool);
+      recordServerFailure(exception, request, 500, sourceSha, pool);
+    } finally {
+      writer.mockRestore();
+    }
+    expect(output).toHaveLength(1);
+    const produced = JSON.parse(output[0]!);
+    const at = Date.parse(produced.time);
+    const receipt = projectScaleFailureLogs(
+      streams(line(produced, produced.time)),
+      {
+        sourceSha,
+        startedAtMs: at - 1,
+        endedAtMs: at + 1,
+        expectedApi5xx: 1,
+      },
+      [secret],
+    );
+    expect(receipt.status).toBe('CAPTURED');
+    expect(receipt.serverErrors[0]).toMatchObject({
+      errorCode: 'database_connection_timeout',
+      sessionDatabase: {
+        calls: 1,
+        failures: 1,
+        lastFailurePhase: 'acquire',
+        lastErrorCode: 'pool_acquire_timeout',
+      },
+      runtime: { pool: { total: 10, idle: 0, waiting: 30 } },
+      frames: [
+        '/app/node_modules/.pnpm/pg-pool@3.10.1/node_modules/pg-pool/index.js:45:11',
+        'node:internal/process/task_queues:95:5',
+      ],
+    });
+    expect(JSON.stringify(receipt)).not.toMatch(
+      /private-cookie|private_value|authorization|password|cookie/,
+    );
+  });
+
+  it('joins only failed request IDs from both streams, with explicit lifetime event-loop and pool context', () => {
+    const common = { time, revision: sourceSha, requestId: requestId(), method: 'GET' };
+    const receipt = projectScaleFailureLogs(
+      streams(
+        line({ ...common, kind: 'http_request_started', headers: { cookie: secret } }) +
+          line({
+            ...common,
+            kind: 'http_response',
+            status: 500,
+            durationMs: 5002,
+            sessionDatabase,
+            eventLoopDelaySinceStartMs: { p50: 10, p99: 23, max: 49 },
+          }) +
+          line(
+            failure({ path: '/api/private/' + secret, message: secret, sql: secret, env: secret }),
+          ) +
+          line({ ...common, kind: 'http_request_ended', requestId: requestId(2), durationMs: 14 }),
+        line({
+          kind: 'database_pool_error',
+          time,
+          role: 'main',
+          count: 3,
+          errorCode: '53300',
+          errorClass: 'Error',
+          connection: secret,
+        }),
+      ),
+      window,
+    );
+    expect(receipt.status).toBe('CAPTURED');
+    expect(receipt.serverErrors).toHaveLength(1);
+    expect(receipt.requestEvents).toHaveLength(2);
+    expect(receipt.requestEvents[1]).toMatchObject({
+      eventLoopDelaySinceStartMs: { p50: 10, p99: 23, max: 49 },
+    });
+    expect(receipt.poolErrors[0]).toMatchObject({ stream: 'stderr', errorCode: '53300', count: 3 });
+    expect(receipt.correlation).toContain('independent join');
+    expect(JSON.stringify(receipt)).not.toContain(secret);
+    expect(JSON.stringify(receipt)).not.toMatch(
+      /"headers"|"connection"|"sql"|"message"|"path"|"env"/,
+    );
+  });
+
+  it('reports missing evidence, invalid streams and unknown expected counts separately from zero errors', () => {
+    const missing = projectScaleFailureLogs(streams(''), window);
+    expect(missing).toMatchObject({ status: 'INCOMPLETE', missingByCount: 1 });
+    const unknown = projectScaleFailureLogs(streams(), { ...window, expectedApi5xx: null });
+    expect(unknown).toMatchObject({
+      status: 'INCOMPLETE',
+      expectedApi5xx: null,
+      missingByCount: null,
+    });
+    const invalid = projectScaleFailureLogs({ ...streams(), stderr: undefined }, window);
+    expect(invalid).toMatchObject({ status: 'INCOMPLETE', counts: { invalidStreams: 1 } });
+    expect(projectScaleFailureLogs(streams(''), { ...window, expectedApi5xx: 0 })).toMatchObject({
+      status: 'CAPTURED',
+      expectedApi5xx: 0,
+      missingByCount: 0,
+    });
+  });
+
+  it('rejects foreign source, out-of-window records and sensitive or malformed records without persisting them', () => {
+    const receipt = projectScaleFailureLogs(
+      streams(
+        line(failure({ revision: 'e'.repeat(40) })) +
+          line(failure({ time: new Date(start - 1).toISOString() })) +
+          line(failure(), new Date(start - 1).toISOString()) +
+          line(failure({ message: secret })) +
+          line(failure({ frames: ['at secret (/app/dist/main.js?token=' + secret + ':1:1)'] })) +
+          time +
+          ' {not-json}\n',
+      ),
+      window,
+      [secret],
+    );
+    expect(receipt).toMatchObject({
+      status: 'INCOMPLETE',
+      missingByCount: 1,
+      counts: { foreignRevision: 1, outsideWindow: 2, redactedRecords: 2, invalidRecords: 1 },
+    });
+    expect(receipt.serverErrors).toEqual([]);
+    expect(JSON.stringify(receipt)).not.toMatch(/not-json|token|private-cookie/);
+    const malformed = projectScaleFailureLogs(
+      streams(
+        line(
+          failure({
+            frames: ['at handler (/app/dist/main.js?private=unretained:1:1)'],
+          }),
+        ),
+      ),
+      window,
+    );
+    expect(malformed).toMatchObject({ status: 'INCOMPLETE', counts: { invalidRecords: 1 } });
+  });
+
+  it('projects closed classifications, preserves unknown pool state and rejects impossible counters', () => {
+    const receipt = projectScaleFailureLogs(
+      streams(
+        line(
+          failure({
+            errorCode: secret,
+            errorClass: secret,
+            runtime: { ...failure().runtime, pool: null },
+          }),
+        ),
+      ),
+      window,
+    );
+    expect(receipt.serverErrors[0]).toMatchObject({
+      errorCode: 'unclassified_error',
+      errorClass: 'unknown',
+      runtime: { pool: null },
+    });
+    expect(JSON.stringify(receipt)).not.toContain(secret);
+    for (const invalid of [
+      { runtime: { ...failure().runtime, pool: { total: 10, idle: 11, waiting: 0 } } },
+      { runtime: { ...failure().runtime, rssBytes: -1 } },
+      { sessionDatabase: { ...sessionDatabase, failures: 2 } },
+      { sessionDatabase: { ...sessionDatabase, lastFailurePhase: secret } },
+    ])
+      expect(projectScaleFailureLogs(streams(line(failure(invalid))), window)).toMatchObject({
+        status: 'INCOMPLETE',
+        counts: { invalidRecords: 1 },
+        serverErrors: [],
+      });
+  });
+
+  it('makes byte, line, record and incomplete-tail bounds observable', () => {
+    const limits = SCALE_FAILURE_DIAGNOSTIC_LIMITS;
+    expect(
+      projectScaleFailureLogs(streams('x'.repeat(limits.streamBytes + 1)), window),
+    ).toMatchObject({
+      status: 'INCOMPLETE',
+      counts: { truncatedStreams: 1, unterminatedLines: 1 },
+    });
+    expect(projectScaleFailureLogs(streams('x\n'.repeat(limits.lines + 1)), window)).toMatchObject({
+      status: 'INCOMPLETE',
+      counts: { lines: limits.lines, lineLimitHit: true },
+    });
+    expect(
+      projectScaleFailureLogs(streams('x'.repeat(limits.lineBytes + 1) + '\n'), window),
+    ).toMatchObject({
+      status: 'INCOMPLETE',
+      counts: { invalidRecords: 1 },
+    });
+    expect(projectScaleFailureLogs(streams(line(failure()).trimEnd()), window)).toMatchObject({
+      status: 'INCOMPLETE',
+      counts: { unterminatedLines: 1 },
+    });
+    const capped = projectScaleFailureLogs(
+      streams(
+        Array.from({ length: limits.serverErrors + 1 }, (_, i) =>
+          line(failure({ requestId: requestId(i + 1) })),
+        ).join(''),
+      ),
+      window,
+    );
+    expect(capped.serverErrors).toHaveLength(limits.serverErrors);
+    expect(capped).toMatchObject({
+      status: 'INCOMPLETE',
+      counts: { droppedRecords: 1, serverErrors: limits.serverErrors + 1 },
+    });
+    expect(
+      projectScaleFailureLogs(streams(line(failure()) + line(failure())), window),
+    ).toMatchObject({
+      status: 'INCOMPLETE',
+      counts: { duplicateServerErrorIds: 1 },
+    });
+  });
+
+  it.each(['failed', 'timeout', 'truncated'])(
+    'retains safe partial output while %s transport cannot claim complete capture',
+    (transport) => {
+      const receipt = projectScaleFailureLogs(
+        {
+          ...streams(),
+          transport,
+          error: { code: 1, signal: 'SIGKILL', message: secret, stderr: secret, command: secret },
+        },
+        window,
+      );
+      expect(receipt).toMatchObject({
+        status: 'INCOMPLETE',
+        transport,
+        transportError: { code: 'diagnostic_transport_failed', exitCode: 1, signal: 'SIGKILL' },
+      });
+      expect(receipt.serverErrors).toHaveLength(1);
+      expect(JSON.stringify(receipt)).not.toContain(secret);
+    },
+  );
+
+  it('requires exact phase container identity before logs and verifies it again afterward', async () => {
+    const transport = io();
+    const receipt = await captureScaleFailureDiagnostics(context, transport, [secret]);
+    expect(receipt).toMatchObject({
+      status: 'CAPTURED',
+      phase: 'level-30',
+      sourceSha,
+      container: {
+        before: { id: container.id, restartCount: 0 },
+        after: { id: container.id, restartCount: 0 },
+      },
+    });
+    expect(transport.inspect).toHaveBeenCalledTimes(2);
+    expect(transport.inspect).toHaveBeenNthCalledWith(1, container.id, 5000);
+    expect(transport.logs).toHaveBeenCalledWith(container.id, context, 5000);
+    expect(transport.inspect.mock.invocationCallOrder[0]).toBeLessThan(
+      transport.logs.mock.invocationCallOrder[0]!,
+    );
+    expect(transport.inspect.mock.invocationCallOrder[1]).toBeGreaterThan(
+      transport.logs.mock.invocationCallOrder[0]!,
+    );
+    expect(JSON.stringify(receipt)).not.toMatch(
+      /DATABASE_URL|postgresql|private:password|"Config"|"Labels"/,
+    );
+  });
+
+  const ownershipChanges: Array<[string, (value: ReturnType<typeof metadata>) => void]> = [
+    [
+      'container',
+      (value) => {
+        value.Id = 'e'.repeat(64);
+      },
+    ],
+    [
+      'image',
+      (value) => {
+        value.Image = 'sha256:' + 'e'.repeat(64);
+      },
+    ],
+    [
+      'source',
+      (value) => {
+        value.Config.Labels['org.opencontainers.image.revision'] = 'e'.repeat(40);
+      },
+    ],
+    [
+      'project',
+      (value) => {
+        value.Config.Labels['com.docker.compose.project'] = 'asa-scale-43-1';
+      },
+    ],
+    [
+      'service',
+      (value) => {
+        value.Config.Labels['com.docker.compose.service'] = 'web';
+      },
+    ],
+    [
+      'root',
+      (value) => {
+        value.Config.Labels['com.docker.compose.project.working_dir'] = '/tmp/foreign';
+      },
+    ],
+    [
+      'run',
+      (value) => {
+        value.Config.Labels['io.asalab.scale.run'] = 'e'.repeat(32);
+      },
+    ],
+    [
+      'start',
+      (value) => {
+        value.State.StartedAt = time;
+      },
+    ],
+    [
+      'restart',
+      (value) => {
+        value.RestartCount = 1;
+      },
+    ],
+  ];
+  it.each(ownershipChanges)(
+    'refuses changed %s identity before reading any logs',
+    async (_name, change) => {
+      const changed = metadata();
+      change(changed);
+      expect(() => assertScaleFailureContainer(changed, container)).toThrow(
+        'diagnostic_identity_mismatch',
+      );
+      const transport = io();
+      transport.inspect.mockResolvedValue(changed);
+      expect(await captureScaleFailureDiagnostics(context, transport)).toMatchObject({
+        status: 'UNAVAILABLE',
+        stage: 'pre-inspect',
+        error: { code: 'diagnostic_identity_mismatch' },
+        serverErrors: [],
+      });
+      expect(transport.logs).not.toHaveBeenCalled();
+    },
+  );
+
+  it('discards buffered evidence after a restart during collection, but retains a crashed original process', async () => {
+    const changed = metadata();
+    changed.RestartCount = 1;
+    const transport = io();
+    transport.inspect.mockResolvedValueOnce(metadata()).mockResolvedValueOnce(changed);
+    expect(await captureScaleFailureDiagnostics(context, transport)).toMatchObject({
+      status: 'UNAVAILABLE',
+      stage: 'post-inspect',
+      serverErrors: [],
+    });
+    const crashed = metadata();
+    crashed.State.Running = false;
+    crashed.State.OOMKilled = true;
+    const crashTransport = io();
+    crashTransport.inspect.mockResolvedValueOnce(metadata()).mockResolvedValueOnce(crashed);
+    expect(await captureScaleFailureDiagnostics(context, crashTransport)).toMatchObject({
+      status: 'CAPTURED',
+      container: { after: { running: false, oomKilled: true } },
+    });
+  });
+
+  it('bounds total collection time and records missing-container errors without arbitrary messages', async () => {
+    const transport = io();
+    let now = start + 8000;
+    transport.now = () => now;
+    transport.inspect.mockImplementation(async () => {
+      now += SCALE_FAILURE_DIAGNOSTIC_LIMITS.totalTimeoutMs + 1;
+      return metadata();
+    });
+    expect(await captureScaleFailureDiagnostics(context, transport)).toMatchObject({
+      status: 'UNAVAILABLE',
+      stage: 'logs',
+      error: { code: 'diagnostic_deadline' },
+    });
+    expect(transport.logs).not.toHaveBeenCalled();
+    const missing = io();
+    missing.inspect.mockRejectedValue({ code: 1, message: secret, stderr: secret, stdout: secret });
+    const receipt = await captureScaleFailureDiagnostics(context, missing);
+    expect(receipt).toMatchObject({
+      status: 'UNAVAILABLE',
+      stage: 'pre-inspect',
+      error: { code: 'diagnostic_transport_failed', exitCode: 1 },
+    });
+    expect(JSON.stringify(receipt)).not.toContain(secret);
+    expect(scaleFailureDiagnosticError({ code: secret, signal: secret, message: secret })).toEqual({
+      code: 'diagnostic_transport_failed',
+      exitCode: null,
+      signal: null,
+    });
+  });
+
+  it('rejects unexpected phases and unbounded time windows before any Docker IO', async () => {
+    for (const invalid of [
+      { ...context, phase: '../foreign' },
+      { ...context, startedAtMs: start - SCALE_PROFILE.levelTimeoutMs - 30000 },
+      { ...context, endedAtMs: start + 9000 },
+    ]) {
+      const transport = io();
+      expect(await captureScaleFailureDiagnostics(invalid, transport)).toMatchObject({
+        status: 'UNAVAILABLE',
+        stage: 'context',
+        error: { code: 'invalid_diagnostic_context' },
+      });
+      expect(transport.inspect).not.toHaveBeenCalled();
+      expect(transport.logs).not.toHaveBeenCalled();
+    }
   });
 });
