@@ -2,9 +2,13 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import {
   existsSync,
+  linkSync,
   mkdtempSync,
   mkdirSync,
+  openSync,
   readFileSync,
+  readSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -15,13 +19,29 @@ import { dirname, join, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ElectronicsFailureReporter, {
+  FAILURE_REPORT_CONTEXT_MAX_BYTES,
   FAILURE_REPORT_MAX_BYTES,
   FAILURE_REPORT_PATH,
 } from '../../tools/electronics-failure-reporter.mjs';
 
+vi.mock('node:fs', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('node:fs')>();
+  return { ...fs, openSync: vi.fn(fs.openSync), readSync: vi.fn(fs.readSync) };
+});
+
 type JournalEntry = {
   event: string;
   errors?: { message: string; stack: string | null; value: string | null }[];
+  attachments?: {
+    errorContext?: {
+      status: string;
+      text?: string;
+      readBytes?: number;
+      textBytes?: number;
+      sourceBytes?: number;
+      reason?: string;
+    };
+  }[];
   truncated?: string[];
   sequence: number;
   [key: string]: unknown;
@@ -59,10 +79,18 @@ function entries(root: string): JournalEntry[] {
     .split('\n')
     .map((line) => JSON.parse(line));
 }
+function contextFile(root: string, text: string | Buffer, name = 'case-one') {
+  const path = join(root, 'reports/playwright', name, 'error-context.md');
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, text);
+  return { name: 'error-context', contentType: 'text/markdown', path };
+}
 afterEach(() => {
   reporters.splice(0).forEach((instance) => instance.onExit());
   directories.splice(0).forEach((path) => rmSync(path, { recursive: true, force: true }));
   vi.restoreAllMocks();
+  vi.mocked(readSync).mockClear();
+  vi.mocked(openSync).mockClear();
   vi.unstubAllEnvs();
 });
 
@@ -266,6 +294,226 @@ describe('incremental Electronics failure evidence', () => {
     expect(() => new ElectronicsFailureReporter({ outputFile: '../escape.ndjson' })).toThrow();
   });
 
+  describe.skipIf(process.platform !== 'linux')('confined generated error context', () => {
+    it('persists only the allowed existing file before final completion', () => {
+      const { root, instance } = reporter();
+      const text = '# Page snapshot\n- menu:\n  - menuitem "Удалить 6 блоки"\n';
+      const attachment = contextFile(root, text);
+      Object.defineProperty(attachment, 'body', {
+        get: () => {
+          throw new Error('Inline attachment bodies must never be read');
+        },
+      });
+      instance.onTestEnd(testCase(root), { ...failedResult(), attachments: [attachment] });
+      const saved = entries(root);
+      expect(saved[0]).toMatchObject({ limits: { errorContextBytes: 32768 } });
+      expect(saved[1]).toMatchObject({
+        status: 'failed',
+        errors: failedResult().errors,
+        attachments: [
+          {
+            errorContext: {
+              status: 'captured',
+              text,
+              sourceBytes: Buffer.byteLength(text),
+              readBytes: Buffer.byteLength(text),
+              textBytes: Buffer.byteLength(text),
+            },
+          },
+        ],
+        truncated: [],
+      });
+      expect(saved.some((entry) => entry.event === 'end')).toBe(false);
+      expect(vi.mocked(readSync)).toHaveBeenCalledTimes(1);
+    });
+
+    it('caps allocation/read bytes and marks a multibyte UTF-8 boundary explicitly', () => {
+      const { root, instance } = reporter();
+      const prefix = 'Ж'.repeat(FAILURE_REPORT_CONTEXT_MAX_BYTES / 2 - 1);
+      const text = prefix + '🤖' + '尾'.repeat(100_000);
+      instance.onTestEnd(testCase(root), {
+        ...failedResult(),
+        attachments: [contextFile(root, text)],
+      });
+      const saved = entries(root).at(-1)!;
+      expect(saved.attachments![0].errorContext).toEqual({
+        status: 'truncated',
+        sourceBytes: Buffer.byteLength(text),
+        readBytes: FAILURE_REPORT_CONTEXT_MAX_BYTES,
+        textBytes: Buffer.byteLength(prefix),
+        text: prefix,
+      });
+      expect(saved.truncated).toContain('attachments[0].errorContext.text');
+      expect(saved.attachments![0].errorContext!.text).not.toContain('\ufffd');
+      for (const call of vi.mocked(readSync).mock.calls) {
+        expect((call[1] as Buffer).byteLength).toBeLessThanOrEqual(32768);
+        expect(call[3]).toBeLessThanOrEqual(32768);
+      }
+    });
+
+    it.each(['missing', 'read-error', 'invalid-utf8'])(
+      'records %s without losing the original failure or subsequent events',
+      (kind) => {
+        const { root, instance } = reporter();
+        const attachment = contextFile(
+          root,
+          kind === 'invalid-utf8' ? Buffer.from([255]) : 'context',
+        );
+        if (kind === 'missing') rmSync(attachment.path);
+        if (kind === 'read-error')
+          vi.mocked(readSync).mockImplementationOnce(() => {
+            throw Object.assign(new Error('simulated disk refusal'), { code: 'EIO' });
+          });
+        instance.onTestEnd(testCase(root, 'first'), {
+          ...failedResult(),
+          attachments: [attachment],
+        });
+        instance.onTestEnd(testCase(root, 'second'), failedResult());
+        expect(instance.onEnd({ status: 'failed', duration: 5 })).toBeUndefined();
+        const saved = entries(root);
+        expect(saved.map((entry) => entry.event)).toEqual(['started', 'testEnd', 'testEnd', 'end']);
+        expect(saved.map((entry) => entry.sequence)).toEqual([1, 2, 3, 4]);
+        expect(saved[1]).toMatchObject({
+          status: 'failed',
+          errors: failedResult().errors,
+          attachments: [{ errorContext: { status: 'unavailable' } }],
+        });
+        expect(saved[1].attachments![0].errorContext).not.toHaveProperty('text');
+        expect(saved[2]).toMatchObject({ testId: 'second', status: 'failed' });
+        expect(saved.at(-1)).toMatchObject({
+          observedAttemptCounts: { failed: 2 },
+          evidenceLimited: false,
+        });
+      },
+    );
+
+    it.each([
+      'traversal',
+      'outside',
+      'sibling-prefix',
+      'wrong-name',
+      'file-symlink',
+      'parent-symlink',
+      'root-symlink',
+      'hardlink',
+      'directory',
+      'fifo',
+    ])('refuses %s before reading file content', (kind) => {
+      const { root, instance } = reporter();
+      const outside = directory();
+      const secret = join(outside, 'error-context.md');
+      writeFileSync(secret, 'outside bytes must not be read');
+      const attachment = contextFile(root, 'inside bytes');
+      if (kind === 'traversal')
+        attachment.path = join(dirname(attachment.path), 'nested') + '/../error-context.md';
+      else if (kind === 'outside') attachment.path = secret;
+      else if (kind === 'sibling-prefix')
+        attachment.path = join(root, 'reports/playwright-other/error-context.md');
+      else if (kind === 'wrong-name') attachment.path = join(dirname(attachment.path), 'trace.zip');
+      else if (kind === 'parent-symlink' || kind === 'root-symlink') {
+        const target =
+          kind === 'parent-symlink' ? dirname(attachment.path) : join(root, 'reports/playwright');
+        rmSync(target, { recursive: true });
+        symlinkSync(outside, target, 'dir');
+      } else {
+        rmSync(attachment.path);
+        if (kind === 'file-symlink') symlinkSync(secret, attachment.path);
+        else if (kind === 'hardlink') linkSync(secret, attachment.path);
+        else if (kind === 'directory') mkdirSync(attachment.path);
+        else if (kind === 'fifo') expect(spawnSync('mkfifo', [attachment.path]).status).toBe(0);
+      }
+      instance.onTestEnd(testCase(root), { ...failedResult(), attachments: [attachment] });
+      expect(entries(root).at(-1)).toMatchObject({
+        status: 'failed',
+        errors: failedResult().errors,
+        attachments: [{ errorContext: { status: 'rejected' } }],
+      });
+      expect(vi.mocked(readSync)).not.toHaveBeenCalled();
+      expect(JSON.stringify(entries(root))).not.toContain('outside bytes must not be read');
+    });
+
+    it('never reads matching contexts of passed/expected failures or nonmatching attachments', () => {
+      const { root, instance } = reporter();
+      const attachment = contextFile(root, 'private marker');
+      for (const [actual, expected] of [
+        ['passed', 'passed'],
+        ['passed', 'failed'],
+        ['failed', 'failed'],
+        ['skipped', 'passed'],
+      ]) {
+        instance.onTestEnd(
+          { ...testCase(root), expectedStatus: expected },
+          {
+            ...failedResult(),
+            status: actual,
+            attachments: [attachment],
+          },
+        );
+      }
+      instance.onTestEnd(testCase(root), {
+        ...failedResult(),
+        attachments: [
+          { ...attachment, name: 'error context' },
+          { ...attachment, contentType: 'text/plain' },
+        ],
+      });
+      expect(vi.mocked(readSync)).not.toHaveBeenCalled();
+      expect(JSON.stringify(entries(root))).not.toContain('private marker');
+      expect(JSON.stringify(entries(root))).not.toContain('"errorContext":');
+    });
+
+    it('rejects an ancestor moved outside and replaced by a symlink between validation and open', async () => {
+      const { root, instance } = reporter();
+      const attachment = contextFile(root, 'context moved outside must not be read');
+      const outside = directory();
+      instance.onBegin({}, { allTests: () => [1] });
+      const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
+      vi.mocked(openSync).mockImplementationOnce((path, flags, mode) => {
+        expect(path).toBe(attachment.path);
+        const moved = join(outside, 'moved-case');
+        renameSync(dirname(attachment.path), moved);
+        symlinkSync(moved, dirname(attachment.path), 'dir');
+        return actual.openSync(path, flags, mode);
+      });
+      instance.onTestEnd(testCase(root), { ...failedResult(), attachments: [attachment] });
+      expect(entries(root).at(-1)).toMatchObject({
+        status: 'failed',
+        errors: failedResult().errors,
+        attachments: [{ errorContext: { status: 'rejected', reason: 'changedFile' } }],
+      });
+      expect(vi.mocked(readSync)).not.toHaveBeenCalled();
+      expect(JSON.stringify(entries(root))).not.toContain('context moved outside must not be read');
+      instance.onTestEnd(testCase(root, 'later'), failedResult());
+      instance.onEnd({ status: 'failed', duration: 5 });
+      expect(entries(root).at(-1)).toMatchObject({
+        event: 'end',
+        observedAttemptCounts: { failed: 2 },
+      });
+    });
+
+    it('keeps the total cap/footer and stops context reads after saturation', () => {
+      const { root, instance } = reporter(directory(), 8192);
+      const attachment = contextFile(root, '\u0000'.repeat(32768));
+      for (let i = 0; i < 10; i++) {
+        instance.onTestEnd(testCase(root, `large-${i}`), {
+          ...failedResult(),
+          attachments: [attachment],
+        });
+        expect(statSync(join(root, FAILURE_REPORT_PATH)).size).toBeLessThanOrEqual(8192);
+      }
+      expect(vi.mocked(readSync)).toHaveBeenCalledTimes(1);
+      instance.onEnd({ status: 'failed', duration: 10 });
+      expect(entries(root).filter((entry) => entry.event === 'capacityReached')).toHaveLength(1);
+      expect(entries(root).at(-1)).toMatchObject({
+        event: 'end',
+        evidenceLimited: true,
+        dataEventsOmitted: 10,
+        observedAttemptCounts: { failed: 10 },
+      });
+      expect(statSync(join(root, FAILURE_REPORT_PATH)).size).toBeLessThanOrEqual(8192);
+    });
+  });
+
   it('runs as a real Playwright reporter for passing and failing pure Node tests without a browser', () => {
     const root = directory();
     const require = createRequire(import.meta.url);
@@ -276,7 +524,7 @@ describe('incremental Electronics failure evidence', () => {
       `module.exports = ${JSON.stringify({
         testDir: root,
         testMatch: '*.spec.cjs',
-        outputDir: join(root, 'test-results'),
+        outputDir: join(root, 'reports/playwright'),
         workers: 1,
         retries: 0,
         reporter: [['list'], [reporterPath, { rootDir: root }]],
@@ -285,8 +533,14 @@ describe('incremental Electronics failure evidence', () => {
     writeFileSync(
       join(root, 'reporter.spec.cjs'),
       `const { test, expect } = require(${JSON.stringify(require.resolve('@playwright/test'))});\n` +
+        `const fs = require('node:fs');\nconst path = require('node:path');\n` +
         `test('pure Node pass', () => expect(4).toBe(4));\n` +
-        `test('pure Node failure', () => expect('actual electronics value').toBe('expected electronics value'));\n`,
+        `test('pure Node failure', ({}, info) => {\n` +
+        `  const context = info.outputPath('error-context.md');\n` +
+        `  fs.mkdirSync(path.dirname(context), { recursive: true });\n` +
+        `  fs.writeFileSync(context, '# Page snapshot\\n- menuitem "Удалить 6 блоки"\\n');\n` +
+        `  info.attachments.push({ name: 'error-context', contentType: 'text/markdown', path: context });\n` +
+        `  expect('actual electronics value').toBe('expected electronics value');\n});\n`,
     );
     const child = spawnSync(
       process.execPath,
@@ -315,6 +569,11 @@ describe('incremental Electronics failure evidence', () => {
     const message = stripVTControlCharacters(outcomes[1].errors![0].message);
     expect(message).toContain('actual electronics value');
     expect(message).toContain('expected electronics value');
+    expect(outcomes[1].attachments![0].errorContext).toMatchObject(
+      process.platform === 'linux'
+        ? { status: 'captured', text: '# Page snapshot\n- menuitem "Удалить 6 блоки"\n' }
+        : { status: 'unavailable', reason: 'secureReadUnsupported' },
+    );
     expect(stripVTControlCharacters(child.stdout)).toContain('1 failed');
     expect(stripVTControlCharacters(child.stdout)).toContain('1 passed');
     expect(saved.at(-1)).toMatchObject({

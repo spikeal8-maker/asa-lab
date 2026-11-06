@@ -2,18 +2,22 @@ import { Buffer } from 'node:buffer';
 import {
   closeSync,
   constants,
+  fstatSync,
   fsyncSync,
   lstatSync,
   mkdirSync,
   openSync,
+  readSync,
   realpathSync,
   writeSync,
 } from 'node:fs';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
+import { TextDecoder } from 'node:util';
 
 export const FAILURE_REPORT_PATH = 'reports/electronics-failures.ndjson';
 export const FAILURE_REPORT_MAX_BYTES = 8 * 1024 * 1024;
+export const FAILURE_REPORT_CONTEXT_MAX_BYTES = 32 * 1024;
 const FOOTER_RESERVE_BYTES = 4096;
 const MAX_EVENTS = 4096;
 const MAX_ERRORS = 4;
@@ -38,7 +42,8 @@ const status = (value) => (statuses.includes(value) ? value : 'unknown');
 
 /**
  * An opt-in diagnostic journal, not a replacement for Playwright's list reporter.
- * No stdout/stderr stream, attachment body, browser state or request data is read.
+ * Only generated, confined error-context.md files from unexpected failures may be read.
+ * No stdout/stderr stream, arbitrary attachment body, page or request API is read.
  * An absent end event means that final completion was not observed.
  */
 export default class ElectronicsFailureReporter {
@@ -125,6 +130,7 @@ export default class ElectronicsFailureReporter {
         errorsPerEvent: MAX_ERRORS,
         attachmentsPerEvent: MAX_ATTACHMENTS,
         errorTextBytes: 8192,
+        errorContextBytes: FAILURE_REPORT_CONTEXT_MAX_BYTES,
       },
       truncated,
     });
@@ -216,6 +222,84 @@ export default class ElectronicsFailureReporter {
     };
   }
 
+  #errorContext(value, label, truncated) {
+    if (
+      typeof value !== 'string' ||
+      value.length > 4096 ||
+      value.includes('\0') ||
+      value.split(/[\\/]+/).includes('..')
+    )
+      return { status: 'rejected', reason: 'invalidPath' };
+    const path = resolve(this.#root, value);
+    if (basename(path) !== 'error-context.md')
+      return { status: 'rejected', reason: 'unexpectedFileName' };
+    const inside = relative(join(this.#root, 'reports', 'playwright'), path);
+    if (!inside || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside))
+      return { status: 'rejected', reason: 'outsideContextDirectory' };
+    // The Linux CI reader checks the opened descriptor's real destination too.
+    // If this guard is unavailable, omit context instead of following a pathname race.
+    if (process.platform !== 'linux' || !constants.O_NOFOLLOW || !constants.O_NONBLOCK)
+      return { status: 'unavailable', reason: 'secureReadUnsupported' };
+    try {
+      let directory = this.#root;
+      for (const segment of ['', ...relative(this.#root, dirname(path)).split(sep)]) {
+        directory = join(directory, segment);
+        if (!lstatSync(directory).isDirectory() || realpathSync(directory) !== directory)
+          return { status: 'rejected', reason: 'unsafeDirectory' };
+      }
+      const before = lstatSync(path);
+      if (!before.isFile() || before.nlink !== 1 || !Number.isSafeInteger(before.size))
+        return { status: 'rejected', reason: 'unsafeFile' };
+      const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+      try {
+        const opened = fstatSync(fd);
+        const descriptorPath = `/proc/self/fd/${fd}`;
+        if (
+          !opened.isFile() ||
+          opened.nlink !== 1 ||
+          opened.dev !== before.dev ||
+          opened.ino !== before.ino ||
+          realpathSync(descriptorPath) !== path
+        )
+          return { status: 'rejected', reason: 'changedFile' };
+        const bytes = Buffer.alloc(Math.min(opened.size, FAILURE_REPORT_CONTEXT_MAX_BYTES));
+        let readBytes = 0;
+        while (readBytes < bytes.length) {
+          const count = readSync(fd, bytes, readBytes, bytes.length - readBytes, readBytes);
+          if (!count) break;
+          readBytes += count;
+        }
+        const after = fstatSync(fd);
+        if (
+          after.nlink !== 1 ||
+          after.size !== opened.size ||
+          after.mtimeMs !== opened.mtimeMs ||
+          realpathSync(descriptorPath) !== path ||
+          readBytes !== bytes.length
+        )
+          return { status: 'unavailable', reason: 'changedDuringRead' };
+        const limited = opened.size > readBytes;
+        const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes, { stream: limited });
+        if (limited) truncated.push(label);
+        return {
+          status: limited ? 'truncated' : 'captured',
+          sourceBytes: opened.size,
+          readBytes,
+          textBytes: Buffer.byteLength(text),
+          text,
+        };
+      } finally {
+        closeSync(fd);
+      }
+    } catch (error) {
+      return {
+        status: 'unavailable',
+        reason: error.code === 'ENOENT' ? 'notFound' : 'readError',
+        errorCode: typeof error.code === 'string' ? error.code.slice(0, 64) : null,
+      };
+    }
+  }
+
   onBegin(_config, suite) {
     this.#guard(() => {
       this.#open();
@@ -231,6 +315,9 @@ export default class ElectronicsFailureReporter {
       const titles = test.titlePath();
       const errors = result.errors ?? [];
       const attachments = result.attachments ?? [];
+      const unexpectedFailure =
+        ['failed', 'timedOut', 'interrupted'].includes(result.status) &&
+        result.status !== test.expectedStatus;
       this.#write(
         {
           event: 'testEnd',
@@ -261,6 +348,18 @@ export default class ElectronicsFailureReporter {
               truncated,
             ),
             path: this.#path(attachment.path, `attachments[${index}].path`, truncated),
+            ...(unexpectedFailure &&
+            !this.#saturated &&
+            attachment.name === 'error-context' &&
+            attachment.contentType === 'text/markdown'
+              ? {
+                  errorContext: this.#errorContext(
+                    attachment.path,
+                    `attachments[${index}].errorContext.text`,
+                    truncated,
+                  ),
+                }
+              : {}),
           })),
           attachmentsOmitted: Math.max(0, attachments.length - MAX_ATTACHMENTS),
           truncated,
