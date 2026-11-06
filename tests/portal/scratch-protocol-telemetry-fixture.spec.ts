@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { FastifyRequest } from 'fastify';
+import { ClientDiagnosticsController } from '../../apps/api/src/client-diagnostics.controller';
 import {
   isExpectedTelemetryRejection,
   isTelemetryRequest,
@@ -233,6 +235,175 @@ describe('Scratch protocol fixture receipts are consumed by shipping CLIENT', ()
       status: 202,
       json: { accepted: true },
     });
+  });
+});
+
+describe('Scratch diagnostic aggregates match shipping HTTP intake', () => {
+  const reportRequest = () =>
+    ({
+      ip: '172.21.0.4',
+      id: id(100),
+      raw: { socket: { remoteAddress: '172.21.0.4' } },
+      headers: { 'x-forwarded-for': '203.0.113.1' },
+    }) as unknown as FastifyRequest;
+  const aggregate = () => ({
+    ...diagnostic(),
+    occurredAt: 1_000_000,
+    repetitionCount: 4,
+    firstOccurredAt: 1_000_000,
+    lastOccurredAt: 1_045_000,
+  });
+  beforeEach(() => {
+    vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('ASA_APPLICATION_LOG_STORE', '');
+    vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    { name: 'legacy envelope without aggregate fields', fields: {} },
+    {
+      name: 'single occurrence at the absolute lower timestamp bound',
+      fields: { occurredAt: 0, repetitionCount: 1, firstOccurredAt: 0, lastOccurredAt: 0 },
+    },
+    {
+      name: 'maximum count and complete fifteen-minute interval',
+      fields: {
+        occurredAt: 1_000_000,
+        repetitionCount: 1_000_000,
+        firstOccurredAt: 1_000_000,
+        lastOccurredAt: 1_900_000,
+      },
+    },
+    {
+      name: 'absolute upper timestamp bound independent of the Node clock',
+      fields: {
+        occurredAt: 8_639_999_999_100_000,
+        repetitionCount: 2,
+        firstOccurredAt: 8_639_999_999_100_000,
+        lastOccurredAt: 8_640_000_000_000_000,
+      },
+    },
+  ])('accepts $name without discarding the occurrence data', ({ fields }) => {
+    const body = { ...diagnostic(), ...fields };
+    expect(telemetryReceipt(request('/api/diagnostics/client'), body, origin)).toEqual({
+      status: 202,
+      json: { accepted: true },
+    });
+    expect(new ClientDiagnosticsController().report(reportRequest(), body)).toEqual({
+      accepted: true,
+    });
+    expect(process.stdout.write).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(vi.mocked(process.stdout.write).mock.calls[0]![0]))).toMatchObject(
+      body,
+    );
+  });
+
+  it.each([
+    ['missing count', { repetitionCount: undefined }],
+    ['missing first timestamp', { firstOccurredAt: undefined }],
+    ['missing last timestamp', { lastOccurredAt: undefined }],
+    ['count alone', { firstOccurredAt: undefined, lastOccurredAt: undefined }],
+    ['first timestamp alone', { repetitionCount: undefined, lastOccurredAt: undefined }],
+    ['last timestamp alone', { repetitionCount: undefined, firstOccurredAt: undefined }],
+    ['zero count', { repetitionCount: 0 }],
+    ['negative count', { repetitionCount: -1 }],
+    ['fractional count', { repetitionCount: 1.5 }],
+    ['string count', { repetitionCount: '4' }],
+    ['null count', { repetitionCount: null }],
+    ['count above limit', { repetitionCount: 1_000_001 }],
+    ['NaN count', { repetitionCount: NaN }],
+    ['infinite count', { repetitionCount: Infinity }],
+    ['unsafe integer count', { repetitionCount: Number.MAX_SAFE_INTEGER + 1 }],
+    ['mismatched first timestamp', { firstOccurredAt: 999_999 }],
+    ['fractional first timestamp', { firstOccurredAt: 1_000_000.5 }],
+    ['string first timestamp', { firstOccurredAt: '1000000' }],
+    ['null first timestamp', { firstOccurredAt: null }],
+    ['last timestamp before first', { lastOccurredAt: 999_999 }],
+    ['fractional last timestamp', { lastOccurredAt: 1_045_000.5 }],
+    ['string last timestamp', { lastOccurredAt: '1045000' }],
+    ['null last timestamp', { lastOccurredAt: null }],
+    ['NaN last timestamp', { lastOccurredAt: NaN }],
+    ['infinite last timestamp', { lastOccurredAt: Infinity }],
+    ['timestamp above absolute limit', { lastOccurredAt: 8_640_000_000_000_001 }],
+    ['interval above fifteen minutes', { lastOccurredAt: 1_900_001 }],
+    ['missing delivery ID', { eventId: undefined }],
+    ['missing occurrence timestamp', { occurredAt: undefined }],
+    ['unknown private field', { token: 'PRIVATE' }],
+  ] as const)('rejects %s in both fixture and shipping intake', (_name, fields) => {
+    const body = { ...aggregate(), ...fields };
+    expect(telemetryReceipt(request('/api/diagnostics/client'), body, origin)).toBeNull();
+    expect(() => new ClientDiagnosticsController().report(reportRequest(), body)).toThrowError(
+      expect.objectContaining({ status: 400, response: { error: { code: 'validation_error' } } }),
+    );
+    expect(process.stdout.write).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges all real Scratch heartbeats coalesced across four virtual minutes', async () => {
+    vi.resetModules();
+    const startedAt = Date.now();
+    vi.stubGlobal('window', { sessionStorage: disk() });
+    let sequence = 200;
+    vi.stubGlobal('crypto', { randomUUID: () => id(sequence++) });
+    const sent: Array<{ at: number; status: number; body: Record<string, unknown> }> = [];
+    const transport = vi.fn<typeof fetch>(async (path, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      const receipt = telemetryReceipt(
+        { method: init?.method, url: `${origin}${String(path)}` },
+        body,
+        origin,
+      );
+      if (path === '/api/diagnostics/client')
+        sent.push({ at: Date.now() - startedAt, status: receipt?.status ?? 400, body });
+      return Response.json(receipt?.json ?? { error: { code: 'invalid_fixture_telemetry' } }, {
+        status: receipt?.status ?? 400,
+      });
+    });
+    vi.stubGlobal('fetch', transport);
+    const { beginDiagnosticContext, reportClientDiagnostic } =
+      await import('../../apps/web/src/client-diagnostics');
+    const { diagnosticQuality } = await import('../../apps/web/src/telemetry-quality');
+    const ledger = diagnosticQuality();
+    ledgers.push(ledger);
+    const endContext = beginDiagnosticContext('scratch', id(500));
+    reportClientDiagnostic('editor_ready', 'scratch', { phase: 'startup' });
+    const heartbeat = setInterval(() => {
+      reportClientDiagnostic('editor_heartbeat', 'scratch', { phase: 'runtime' });
+    }, 15_000);
+    try {
+      await vi.advanceTimersByTimeAsync(260_000);
+      expect(sent.map(({ at }) => at)).toEqual([0, 15_000, 75_000, 135_000, 195_000, 255_000]);
+      expect(sent.map(({ status }) => status)).toEqual([202, 202, 202, 202, 202, 202]);
+      expect(sent.map(({ body }) => body.repetitionCount ?? 1)).toEqual([1, 1, 4, 4, 4, 4]);
+      expect(sent[0]!.body).toMatchObject({ code: 'editor_ready', phase: 'startup' });
+      expect(sent[1]!.body).toMatchObject({ code: 'editor_heartbeat', phase: 'runtime' });
+      for (const [index, { body }] of sent.slice(2).entries())
+        expect(body).toMatchObject({
+          code: 'editor_heartbeat',
+          module: 'scratch',
+          phase: 'runtime',
+          occurredAt: startedAt + 30_000 + index * 60_000,
+          repetitionCount: 4,
+          firstOccurredAt: startedAt + 30_000 + index * 60_000,
+          lastOccurredAt: startedAt + 75_000 + index * 60_000,
+        });
+      const controller = new ClientDiagnosticsController();
+      for (const { body } of sent)
+        expect(controller.report(reportRequest(), body)).toEqual({ accepted: true });
+      expect(ledger.read().counters).toMatchObject({
+        attempted: 18,
+        enqueued: 6,
+        acknowledged: 18,
+        permanentRejected: 0,
+        retried: 0,
+      });
+    } finally {
+      clearInterval(heartbeat);
+      endContext();
+    }
   });
 });
 
