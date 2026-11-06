@@ -505,7 +505,9 @@ class Collector:
                 due = continuous and audit['cursor'] < name <= audit['boundary']
                 budget = audited_count < HISTORY_AUDIT_SEGMENTS and audited_bytes < HISTORY_AUDIT_BYTES and time.monotonic()-started < HISTORY_AUDIT_SECONDS
                 pos = bisect.bisect_left(changed, first)
-                mandatory = name not in trusted or pos < len(changed) and changed[pos] <= last
+                # Publication can commit a payload/index before its catalog/state
+                # metadata. Recheck that gap even outside the rolling audit budget.
+                mandatory = name not in trusted or name not in metadata or pos < len(changed) and changed[pos] <= last
                 verify = not continuous or mandatory or due and budget
                 if not verify:
                     expected = metadata.get(name, {})
@@ -528,7 +530,9 @@ class Collector:
                 digest = hashlib.sha256()
                 with file.open('rb') as stream:
                     while chunk := stream.read(1024 * 1024): digest.update(chunk)
-                expected = metadata.get(name, {})
+                # A prior full check supplies the checksum only for absent
+                # metadata; a conflicting retained descriptor must still fail.
+                expected = metadata.get(name, trusted.get(name, {}))
                 identity_proof = name + ':' + digest.hexdigest() + ':' + mapping.hexdigest() + ':'
                 cached = self.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone()
                 proof = hmac.new(self.verification_key, (identity_proof + cached[1]).encode('utf-8'), hashlib.sha256).hexdigest() if cached else None
