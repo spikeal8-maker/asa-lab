@@ -5,13 +5,17 @@ import type {
   EvidenceRow,
 } from './learning-canonical-projection.service.js';
 import { canonicalProjectionKey } from './learning-canonical-projection.service.js';
-import { learningWorkContextForProject } from './learning-work-context.js';
+import { learningWorkContextForProject, type WorkRow } from './learning-work-context.js';
 
 const projectId = '10000000-0000-4000-8000-000000000001';
 const seatId = '20000000-0000-4000-8000-000000000001';
 const assignmentId = '30000000-0000-4000-8000-000000000001';
 const runId = '40000000-0000-4000-8000-000000000001';
 const versionId = '50000000-0000-4000-8000-000000000001';
+
+const gatedOriginQuery = expect.stringMatching(
+  /WITH eligible AS MATERIALIZED \(\s*SELECT \$1::uuid AS principal_id,\$2::uuid AS project_id\s*WHERE learning_immutable_project_origin_exists\(\$1,\$2\)\s*\)\s*SELECT work.context,work.evidence FROM eligible\s*CROSS JOIN LATERAL learning_origin_work_context_for_project\(\s*eligible.principal_id,eligible.project_id\s*\) AS work/,
+);
 
 const row = {
   projectId,
@@ -178,10 +182,7 @@ describe('A1 project-scoped Learning Work Context', () => {
       workflow: { attemptId: exactAttempt, canonicalState: { workflowState: 'in_progress' } },
     });
     expect(loadProjections).not.toHaveBeenCalled();
-    expect(pool.query).toHaveBeenCalledWith(
-      'SELECT context,evidence FROM learning_origin_work_context_for_project($1, $2)',
-      ['viewer', projectId],
-    );
+    expect(pool.query).toHaveBeenCalledWith(gatedOriginQuery, ['viewer', projectId]);
   });
 
   it.each([
@@ -248,6 +249,90 @@ describe('A1 project-scoped Learning Work Context', () => {
       learningWorkContextForProject(pool, 'viewer', projectId, 'electronics', loadProjections),
     ).resolves.toEqual({ state: 'denied', projectId });
     expect((pool.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
+    expect(loadProjections).not.toHaveBeenCalled();
+  });
+
+  it.each(['direct', 'course'] as const)(
+    'uses prefetched %s origin evidence without executing the SQL gate',
+    async (sourceKind) => {
+      const context = {
+        ...row,
+        sourceKind,
+        courseRunId: sourceKind === 'course' ? row.courseRunId : null,
+        courseLessonId: sourceKind === 'course' ? row.courseLessonId : null,
+        courseBlockId: sourceKind === 'course' ? row.courseBlockId : null,
+        attemptId: originEvidence.attempt!.id,
+        attemptNumber: 1,
+      } as WorkRow;
+      const evidence: EvidenceRow = {
+        ...originEvidence,
+        kind: sourceKind === 'course' ? 'course_project' : 'direct_project',
+        courseProgressPresent: sourceKind === 'course',
+      };
+      const query = vi.fn(async (sql: string) => {
+        if (sql === 'SELECT learning_project_archive_bucket($1,$2) AS bucket')
+          return { rows: [{ bucket: 'active' }] };
+        throw new Error('prefetched origin attempted another read');
+      });
+      const loadProjections = vi.fn(async () => projections);
+      const result = await learningWorkContextForProject(
+        { query } as unknown as pg.Pool,
+        'viewer',
+        projectId,
+        'electronics',
+        loadProjections,
+        '2026-09-27T00:00:00.000Z',
+        [{ context, evidence }],
+        false,
+      );
+      expect(result).toMatchObject({
+        state: 'ready',
+        origin: { immutable: true, sourceKind },
+        workflow: { attemptId: originEvidence.attempt!.id },
+      });
+      expect(query).toHaveBeenCalledExactlyOnceWith(
+        'SELECT learning_project_archive_bucket($1,$2) AS bucket',
+        ['viewer', projectId],
+      );
+      expect(loadProjections).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rechecks immutable provenance after an empty prefetched origin', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ linked: true }] });
+    const loadProjections = vi.fn(async () => projections);
+    await expect(
+      learningWorkContextForProject(
+        { query } as unknown as pg.Pool,
+        'viewer',
+        projectId,
+        'electronics',
+        loadProjections,
+        undefined,
+        [],
+      ),
+    ).resolves.toEqual({ state: 'denied', projectId });
+    expect(query).toHaveBeenCalledExactlyOnceWith(
+      'SELECT learning_immutable_project_origin_exists($1, $2) AS linked',
+      ['viewer', projectId],
+    );
+    expect(loadProjections).not.toHaveBeenCalled();
+  });
+
+  it('propagates a failed gated read without classifying the project as personal', async () => {
+    const failure = new Error('origin read failed');
+    const query = vi.fn().mockRejectedValue(failure);
+    const loadProjections = vi.fn(async () => projections);
+    await expect(
+      learningWorkContextForProject(
+        { query } as unknown as pg.Pool,
+        'viewer',
+        projectId,
+        'electronics',
+        loadProjections,
+      ),
+    ).rejects.toBe(failure);
+    expect(query).toHaveBeenCalledExactlyOnceWith(gatedOriginQuery, ['viewer', projectId]);
     expect(loadProjections).not.toHaveBeenCalled();
   });
 
@@ -438,10 +523,12 @@ describe('A1 project-scoped Learning Work Context', () => {
     await expect(
       learningWorkContextForProject(pool, 'viewer', projectId, 'electronics', loadProjections),
     ).resolves.toEqual({ state: 'not_learning', projectId });
-    expect(pool.query).toHaveBeenLastCalledWith(
-      'SELECT learning_work_project_origin_exists($1, $2) AS linked',
-      ['viewer', projectId],
-    );
+    expect(vi.mocked(pool.query).mock.calls).toEqual([
+      [gatedOriginQuery, ['viewer', projectId]],
+      ['SELECT learning_immutable_project_origin_exists($1, $2) AS linked', ['viewer', projectId]],
+      ['SELECT context FROM learning_work_context_for_project($1, $2)', ['viewer', projectId]],
+      ['SELECT learning_work_project_origin_exists($1, $2) AS linked', ['viewer', projectId]],
+    ]);
     expect(loadProjections).not.toHaveBeenCalled();
   });
 
@@ -523,10 +610,7 @@ describe('A1 project-scoped Learning Work Context', () => {
           loadProjections,
         ),
       ).resolves.toEqual({ state: 'unavailable', projectId });
-      expect(query).toHaveBeenCalledWith(
-        'SELECT context,evidence FROM learning_origin_work_context_for_project($1, $2)',
-        ['viewer', projectId],
-      );
+      expect(query).toHaveBeenCalledWith(gatedOriginQuery, ['viewer', projectId]);
       expect(query).toHaveBeenCalledTimes(queryCount);
       expect(loadProjections).not.toHaveBeenCalled();
     },
