@@ -116,6 +116,66 @@ async function numberField(page: Page, label: string, value: number): Promise<vo
   await expect(field).toHaveAttribute('aria-invalid', 'false');
 }
 
+/** Inspect native focus scrolling as-is: scrolling here would hide header-overlap regressions. */
+async function fieldErrorLeavesFocusUncovered(invalidField: Locator, nextField: Locator) {
+  await expect(nextField).toBeFocused();
+  await expect
+    .poll(() =>
+      nextField.evaluate((input) => {
+        const bounds = input.getBoundingClientRect();
+        const inset = Math.min(4, bounds.width / 4, bounds.height / 4);
+        const xs = [bounds.left + inset, bounds.left + bounds.width / 2, bounds.right - inset];
+        const ys = [bounds.top + inset, bounds.top + bounds.height / 2, bounds.bottom - inset];
+        return {
+          focused: document.activeElement === input,
+          inViewport:
+            bounds.width > 0 &&
+            bounds.height > 0 &&
+            bounds.left >= 0 &&
+            bounds.top >= 0 &&
+            bounds.right <= innerWidth &&
+            bounds.bottom <= innerHeight,
+          uncovered: xs.every((x) =>
+            ys.every((y) => {
+              const hit = document.elementFromPoint(x, y);
+              return hit === input || (hit !== null && input.contains(hit));
+            }),
+          ),
+        };
+      }),
+    )
+    .toEqual({ focused: true, inViewport: true, uncovered: true });
+  await expect
+    .poll(() =>
+      invalidField.evaluate((input) => {
+        const error = input.closest('label')?.querySelector('[role="alert"]');
+        const text = error?.firstChild;
+        if (!error || !text || text.nodeType !== Node.TEXT_NODE || !text.textContent?.length)
+          return { inViewport: false, uncovered: false };
+        // The first glyph catches an obscured beginning even when later wrapped lines are visible.
+        const range = document.createRange();
+        range.setStart(text, 0);
+        range.setEnd(text, 1);
+        const bounds = range.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          bounds.left + bounds.width / 2,
+          bounds.top + bounds.height / 2,
+        );
+        return {
+          inViewport:
+            bounds.width > 0 &&
+            bounds.height > 0 &&
+            bounds.left >= 0 &&
+            bounds.top >= 0 &&
+            bounds.right <= innerWidth &&
+            bounds.bottom <= innerHeight,
+          uncovered: hit === error || (hit !== null && error.contains(hit)),
+        };
+      }),
+    )
+    .toEqual({ inViewport: true, uncovered: true });
+}
+
 async function noOverflow(page: Page): Promise<void> {
   const size = await page.evaluate(() => ({
     viewport: innerWidth,
@@ -958,6 +1018,10 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
     await widthInput.press('Tab');
     await expect(widthInput).toHaveAttribute('aria-invalid', 'true');
     await expect(page.getByRole('alert').first()).toBeVisible();
+    await fieldErrorLeavesFocusUncovered(
+      widthInput,
+      page.getByRole('spinbutton', { name: 'Высота поля', exact: true }),
+    );
     await noOverflow(page);
     await page.screenshot({
       path: `${EVIDENCE}/field-v3-invalid-shrink-${width}.png`,

@@ -1534,9 +1534,6 @@
     align-items: center;
     justify-content: space-between;
     gap: 7px;
-    position: sticky;
-    top: -10px;
-    z-index: 1;
     margin: -10px -10px 12px;
     padding: 7px 10px;
     background: #f4f9fc;
