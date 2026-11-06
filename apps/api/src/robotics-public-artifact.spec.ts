@@ -3,6 +3,7 @@ import type pg from 'pg';
 import { ModuleRegistry } from '@asa-lab/module-sdk';
 import { ROBOTICS_MODULE } from '@asa-lab/robotics';
 import { createInitialRoboticsProject } from '@asa-lab/robotics/document';
+import { createRoboticsWorldDocument, createRoboticsBody } from '@asa-lab/robotics/world-document';
 import { PublicArtifactService, createPublicArtifactAdapters } from './public-project-artifact';
 
 const publicationId = '123e4567-e89b-42d3-a456-426614174001';
@@ -52,7 +53,7 @@ describe('canonical Robotics public projection', () => {
     const { service, pool } = setup();
     const artifact = await service.read(pool, publicationId, revisionId);
     expect(artifact).toMatchObject({
-      schemaVersion: 5,
+      schemaVersion: 6,
       viewerFamily: 'robotics',
       status: 'display',
       provenance: { publicationId, revisionNumber: 2 },
@@ -61,6 +62,35 @@ describe('canonical Robotics public projection', () => {
     });
     expect(JSON.stringify(artifact)).not.toMatch(
       /PRIVATE|circuit|components|arduino|bindings|physicsProfile|massKg|friction|restitution|velocity|runtime|simulation/,
+    );
+  });
+
+  it('keeps an explicit saved v2 source on strict frozen v5 while new bodies publish geometry only', async () => {
+    const legacy = { ...project(), schemaVersion: 2, world: createRoboticsWorldDocument() };
+    const old = setup(legacy);
+    expect(await old.service.read(old.pool, publicationId, revisionId)).toMatchObject({
+      schemaVersion: 5,
+      world: { field: { widthMeters: 1.8 } },
+    });
+    const initial = project();
+    const source = {
+      ...initial,
+      world: {
+        ...initial.world,
+        field: {
+          ...initial.world.field,
+          bodies: [createRoboticsBody('box', 'box', { xMeters: 0.8, yMeters: 0.4 })],
+        },
+      },
+    };
+    const fresh = setup(source);
+    const view = await fresh.service.read(fresh.pool, publicationId, revisionId);
+    expect(view).toMatchObject({
+      schemaVersion: 6,
+      world: { field: { bodies: [{ id: 'box', kind: 'box', widthMeters: 0.12 }] } },
+    });
+    expect(JSON.stringify(view)).not.toMatch(
+      /massKg|Friction|restitution|physics|groupId|groupPivot|PRIVATE|bindings/,
     );
   });
 

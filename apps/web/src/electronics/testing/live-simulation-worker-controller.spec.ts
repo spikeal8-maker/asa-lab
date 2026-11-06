@@ -77,6 +77,27 @@ const ultrasonicCircuit: SchematicDocument = {
   ],
 };
 
+function hcSr04Environment(distanceMeters = 0.5, echoAvailable?: boolean): SchematicDocument {
+  return {
+    ...ultrasonicCircuit,
+    components: ultrasonicCircuit.components.map((component) =>
+      component.id === 'sonar'
+        ? {
+            ...component,
+            componentTypeId: 'ultrasonic-hc-sr04',
+            variantId: 'ultrasonic-hc-sr04',
+            pinIds: ['vcc', 'trigger', 'echo', 'gnd'],
+            stateProperties: {
+              distanceMeters,
+              ...(echoAvailable === undefined ? {} : { echoAvailable }),
+            },
+          }
+        : component,
+    ),
+  };
+}
+const hcSr04Circuit = hcSr04Environment();
+
 const serialCircuit: SchematicDocument = {
   ...circuit,
   components: [
@@ -1368,6 +1389,140 @@ describe('Electronics canonical Worker controller', () => {
     expect(executor.advances[1]!.inputEvents).toEqual([
       { atMicroseconds: 1, targetId: 'sonar', operation: 'distanceMeters', payload: 1 },
     ]);
+  });
+
+  it('routes HC no-echo and atomic recovery without restarting or replaying default/duplicate inputs', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onFailure = vi.fn();
+    controller.start('hc-environment', hcSr04Circuit, {
+      inputEventLimit: 10,
+      onResult: vi.fn(),
+      onFailure,
+    });
+    await completeCanonicalStart(executor, 1);
+    controller.update(hcSr04Environment(0.5, true), 0);
+    expect(executor.advances).toHaveLength(1);
+    expect(controller.inputBudget?.admitted).toBe(0);
+    controller.update(hcSr04Environment(1, true), 0);
+    expect(executor.advances[1]!.inputEvents).toEqual([
+      { atMicroseconds: 1, targetId: 'sonar', operation: 'distanceMeters', payload: 1 },
+    ]);
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 1, 1));
+    await flush();
+    controller.update(hcSr04Environment(1, false), 0);
+    expect(executor.advances[2]!.inputEvents).toEqual([
+      { atMicroseconds: 2, targetId: 'sonar', operation: 'echoAvailable', payload: false },
+    ]);
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 2, 2));
+    await flush();
+    controller.update(hcSr04Environment(2, true), 0);
+    expect(executor.advances[3]!.inputEvents).toEqual([
+      { atMicroseconds: 3, targetId: 'sonar', operation: 'distanceMeters', payload: 2 },
+      { atMicroseconds: 3, targetId: 'sonar', operation: 'echoAvailable', payload: true },
+    ]);
+    controller.update(hcSr04Environment(2, true), 0);
+    expect(controller.inputBudget?.admitted).toBe(4);
+    expect(executor.advances).toHaveLength(4);
+    expect(executor.generation).toBe(1);
+    expect(onFailure).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it('rejects both HC recovery inputs when only one budget entry remains', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onFailure = vi.fn();
+    const onInputBudget = vi.fn();
+    controller.start('hc-budget', hcSr04Circuit, {
+      inputEventLimit: 2,
+      onInputBudget,
+      onResult: vi.fn(),
+      onFailure,
+    });
+    await completeCanonicalStart(executor, 1);
+    controller.update(hcSr04Environment(0.5, false), 0);
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 1, 1));
+    await flush();
+    expect(controller.inputBudget).toMatchObject({ admitted: 1, accepted: 1 });
+    controller.update(hcSr04Environment(1, true), 0);
+    expect(onFailure).toHaveBeenCalledOnce();
+    expect(onFailure.mock.calls[0]![0]).toMatchObject({ code: 'input-event-limit' });
+    expect(onInputBudget.mock.calls.at(-1)![0]).toEqual({
+      limit: 2,
+      admitted: 1,
+      accepted: 1,
+      pending: 0,
+      inFlight: 0,
+      exhausted: true,
+    });
+    expect(executor.advances).toHaveLength(2);
+    expect(executor.advances[1]!.inputEvents).toEqual([
+      { atMicroseconds: 1, targetId: 'sonar', operation: 'echoAvailable', payload: false },
+    ]);
+    controller.dispose();
+  });
+
+  it('restores the legacy default through a timed event when an explicit false flag is removed', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('hc-default', hcSr04Environment(0.5, false), {
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+    });
+    await completeCanonicalStart(executor, 1);
+    controller.update(hcSr04Circuit, 0);
+    expect(executor.generation).toBe(1);
+    expect(executor.advances[1]!.inputEvents).toEqual([
+      { atMicroseconds: 1, targetId: 'sonar', operation: 'echoAvailable', payload: true },
+    ]);
+    controller.dispose();
+  });
+
+  it('discards an old HC recovery response after Stop without publishing it', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onResult = vi.fn();
+    controller.start('hc-old', hcSr04Environment(0.5, false), { onResult, onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    controller.update(hcSr04Environment(1, true), 0);
+    const pending = executor.advances[1]!;
+    expect(pending.inputEvents).toHaveLength(2);
+    controller.stop();
+    const published = onResult.mock.calls.length;
+    pending.deferred.resolve(timedAdvance('ready', 1, 1));
+    await flush();
+    expect(onResult).toHaveBeenCalledTimes(published);
+    expect(controller.inputBudget).toBeNull();
+    expect(controller.committedHorizonMicroseconds).toBe(0);
+    controller.dispose();
+  });
+
+  it('treats echoAvailable as a timed control only on an actual HC-SR04 component', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('ping-structure', ultrasonicCircuit, {
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+    });
+    await completeCanonicalStart(executor, 1);
+    controller.update(
+      {
+        ...ultrasonicCircuit,
+        components: ultrasonicCircuit.components.map((component) =>
+          component.id === 'sonar'
+            ? {
+                ...component,
+                stateProperties: { ...component.stateProperties, echoAvailable: false },
+              }
+            : component,
+        ),
+      },
+      0,
+    );
+    expect(executor.generation).toBe(2);
+    expect(executor.advances).toHaveLength(1);
+    controller.dispose();
   });
 
   it('keeps a progressed generation when the running supply changes canonical controls', async () => {

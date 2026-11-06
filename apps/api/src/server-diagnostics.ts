@@ -56,6 +56,7 @@ const VALIDATION_REASONS = new Set<string>([
   'electronics_wire_color',
   'electronics_wire_position',
   'electronics_wire_vertices',
+  'robotics_document_version',
   'draft_body_invalid',
   'draft_base_revision_invalid',
   'draft_mutation_id_invalid',

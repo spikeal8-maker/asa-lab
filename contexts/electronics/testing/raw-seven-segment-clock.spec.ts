@@ -21,6 +21,7 @@ import {
   rawDisplayCircuit,
   rawDisplaySource,
 } from './fixtures/raw-seven-segment.js';
+import { serializePreHcSr04V2Golden } from './fixtures/model-set-golden-compatibility.js';
 
 function through(
   document: ReturnType<typeof rawDisplayCircuit>,
@@ -63,8 +64,14 @@ describe('raw ten-pin seven-segment electrical and clock reference', () => {
         do {
           result = session.step();
         } while (!result);
-        expect(result, `${entry.options.commonAnode}:${entry.horizon}`).toEqual(entry.result);
-        expect(JSON.stringify(result)).toBe(JSON.stringify(entry.result));
+        // Retain the original deep-value oracle as well as byte comparison:
+        // serializing must not conceal NaN, signed zero or a non-JSON value.
+        expect(JSON.parse(JSON.stringify(result))).toEqual(result);
+        const serialized = serializePreHcSr04V2Golden(result);
+        expect(JSON.parse(serialized), `${entry.options.commonAnode}:${entry.horizon}`).toEqual(
+          entry.result,
+        );
+        expect(serialized).toBe(JSON.stringify(entry.result));
       } finally {
         session.dispose();
       }

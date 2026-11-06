@@ -34,6 +34,18 @@ const sharedAliases = [
     replacement: fileURLToPath(new URL('./contexts/three-d/domain/document.ts', import.meta.url)),
   },
   {
+    find: '@asa-lab/robotics/runtime',
+    replacement: fileURLToPath(
+      new URL('./contexts/robotics/domain/world-runtime.ts', import.meta.url),
+    ),
+  },
+  {
+    find: '@asa-lab/robotics/world-authoring',
+    replacement: fileURLToPath(
+      new URL('./contexts/robotics/domain/world-authoring.ts', import.meta.url),
+    ),
+  },
+  {
     find: '@asa-lab/robotics/document',
     replacement: fileURLToPath(new URL('./contexts/robotics/domain/document.ts', import.meta.url)),
   },

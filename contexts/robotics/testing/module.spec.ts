@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { ModuleRegistry, MODULE_PREVIEW_SHAPE_LIMIT, previewDigest } from '@asa-lab/module-sdk';
 import { ROBOTICS_MODULE } from '../module.js';
 import { createInitialRoboticsProject, type RoboticsProject } from '../domain/document.js';
-import { createRoboticsBall, createRoboticsFloorMark } from '../domain/world.js';
+import {
+  createRoboticsBall,
+  createRoboticsFloorMark,
+  createRoboticsWorldDocument,
+} from '../domain/world.js';
 
 const provider = ROBOTICS_MODULE.provider!;
 
@@ -13,7 +17,7 @@ describe('Robotics Project Core provider', () => {
       expect.objectContaining({
         moduleKey: 'robotics',
         projectType: 'robot-world',
-        schemaVersion: 2,
+        schemaVersion: 3,
         availability: 'active',
         creatable: true,
         learningCapabilities: {
@@ -48,7 +52,7 @@ describe('Robotics Project Core provider', () => {
     });
   });
 
-  it.each([null, {}, [], { schemaVersion: 0 }, { schemaVersion: 3 }, { schemaVersion: '2' }])(
+  it.each([null, {}, [], { schemaVersion: 0 }, { schemaVersion: 4 }, { schemaVersion: '2' }])(
     'protects a previous unknown or future Robotics document: %j',
     (previous) => {
       expect(provider.validateReplacement!(previous, createInitialRoboticsProject())).toMatchObject(
@@ -94,6 +98,22 @@ describe('Robotics Project Core provider', () => {
         annotated,
       ).ok,
     ).toBe(false);
+  });
+  it('preserves validated v2 identity and rejects old-client replacement of a v3 field', () => {
+    const current = createInitialRoboticsProject();
+    const legacy: RoboticsProject = {
+      ...current,
+      schemaVersion: 2,
+      world: createRoboticsWorldDocument(),
+    };
+    const validated = provider.validate(legacy);
+    expect(validated).toEqual({ ok: true, payload: legacy, diagnostics: [] });
+    if (!validated.ok) throw new Error('Legacy source must remain valid');
+    expect(provider.validateReplacement!(current, validated.payload)).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: 'robotics_document_version' }],
+    });
+    expect(provider.validateReplacement!(legacy, current)).toEqual({ ok: true });
   });
 
   it('previews authored field geometry in consistent units without programs or private labels', () => {

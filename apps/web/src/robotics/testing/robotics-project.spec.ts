@@ -30,10 +30,12 @@ import {
 import {
   advanceRoboticsWorld,
   createRoboticsWorldDocument,
+  createRoboticsWorldV3Document,
   createRoboticsWorldState,
   findRoboticsCollision,
   measureRoboticsDistance,
 } from '../world';
+import { createRoboticsRuntime } from '@asa-lab/robotics/runtime';
 
 beforeAll(() => {
   configureProductionLibrary(
@@ -101,6 +103,60 @@ function readyAdvance(
 }
 
 describe('Robotics project built from the real Electronics catalogue', () => {
+  it('feeds canonical motor observations into v3 dynamics and returns actual HC samples without source edits', () => {
+    const project = createDefaultRoboticsProject();
+    const source = JSON.stringify(project);
+    const document = engineDocument(project);
+    const runtime = createRoboticsRuntime(project.world);
+    let timed = resetElectronicsTimedState();
+    let state = runtime.read();
+    for (let horizon = 50_000; horizon <= 500_000; horizon += 50_000) {
+      const measured = measureRoboticsDistance(
+        project.world,
+        state.pose,
+        state.balls,
+        state.bodies,
+      );
+      if (measured.status !== 'ok') throw new Error('This bounded fixture has an in-range wall.');
+      const result = readyAdvance(document, {
+        state: timed,
+        requestedHorizonMicroseconds: horizon,
+        inputEvents:
+          horizon === 50_000
+            ? []
+            : [
+                {
+                  atMicroseconds: state.atMicroseconds + 1,
+                  targetId: 'sonar',
+                  operation: 'distanceMeters',
+                  payload: measured.distanceMeters,
+                },
+                {
+                  atMicroseconds: state.atMicroseconds + 1,
+                  targetId: 'sonar',
+                  operation: 'echoAvailable',
+                  payload: true,
+                },
+              ],
+      });
+      timed = result.state;
+      state = runtime.advance({
+        atMicroseconds: result.committedHorizonMicroseconds,
+        leftRpm: result.observation.components.find((item) => item.componentId === 'left-motor')!
+          .outputRpm!,
+        rightRpm: result.observation.components.find((item) => item.componentId === 'right-motor')!
+          .outputRpm!,
+      });
+      expect(state.haltReason).toBeNull();
+    }
+    expect(state.atMicroseconds).toBe(500_000);
+    expect(state.pose.xMeters).toBeGreaterThan(project.world.initialPose.xMeters + 0.05);
+    expect(state.robotVelocity!.velocityXMetersPerSecond).toBeGreaterThan(0);
+    expect(
+      projectElectronicsArduinoSerial(timed).flatMap((board) => board.tx).length,
+    ).toBeGreaterThan(0);
+    expect(JSON.stringify(project)).toBe(source);
+  }, 15000);
   it('retains canonical model metadata, physical pins and all 17 actual connections', () => {
     const project = createDefaultRoboticsProject();
     expect(validateRoboticsBindings(project)).toBeNull();
@@ -226,7 +282,7 @@ describe('Robotics project built from the real Electronics catalogue', () => {
   it('updates only the initial environment during an explicit stopped field change', () => {
     const original = createDefaultRoboticsProject();
     const originalJson = JSON.stringify(original);
-    const next = withRoboticsWorld(original, createRoboticsWorldDocument('compact'));
+    const next = withRoboticsWorld(original, createRoboticsWorldV3Document('compact'));
     expect(JSON.stringify(original)).toBe(originalJson);
     expect(next.circuit.connections).toBe(original.circuit.connections);
     expect(next.circuit.components.find((item) => item.id === 'uno')).toBe(
@@ -235,7 +291,7 @@ describe('Robotics project built from the real Electronics catalogue', () => {
     expect(
       next.circuit.components.find((item) => item.id === 'sonar')?.stateProperties?.distanceMeters,
     ).toBeCloseTo(0.645, 12);
-    const expectedWorld = createRoboticsWorldDocument('compact');
+    const expectedWorld = createRoboticsWorldV3Document('compact');
     expect(next.world).toEqual(expectedWorld);
   });
 
@@ -277,9 +333,16 @@ describe('Robotics project built from the real Electronics catalogue', () => {
   });
 });
 
+/** Preserve the original integration/kinematic oracles for historical source explicitly. */
+function createLegacyRoboticsProject(): RoboticsProject {
+  const initial = createDefaultRoboticsProject();
+  const world = createRoboticsWorldDocument();
+  return withRoboticsWorld({ ...initial, schemaVersion: 2, world }, world);
+}
+
 describe('Robotics fixture running the unchanged canonical Arduino and electric motor engine', () => {
   it('produces the same full electrical result through the bounded Worker-facing session and the canonical direct API', () => {
-    const document = engineDocument(createDefaultRoboticsProject());
+    const document = engineDocument(createLegacyRoboticsProject());
     const request = { requestedHorizonMicroseconds: 100_000, maxEvents: 128 };
     const workerPath = readyAdvance(document, request);
     let direct = advanceElectronicsToHorizon(document, request);
@@ -301,7 +364,7 @@ describe('Robotics fixture running the unchanged canonical Arduino and electric 
   });
 
   it('changes the actual GPIO and motor observations through Serial L/R/S, never direct robot speed commands', () => {
-    const document = engineDocument(createDefaultRoboticsProject());
+    const document = engineDocument(createLegacyRoboticsProject());
     let result = readyAdvance(document, { requestedHorizonMicroseconds: 100_000 });
     for (const [index, command, leftHigh, rightHigh] of [
       [0, 'L', false, true],
@@ -350,7 +413,7 @@ describe('Robotics fixture running the unchanged canonical Arduino and electric 
   });
 
   it('blocks forward near an obstacle but accepts real Serial turns to move away without resetting', () => {
-    const initial = createDefaultRoboticsProject();
+    const initial = createLegacyRoboticsProject();
     const project = withRoboticsWorld(initial, {
       ...initial.world,
       field: {
@@ -426,7 +489,7 @@ describe('Robotics fixture running the unchanged canonical Arduino and electric 
   });
 
   it('closes the world → HC-SR04 → pulseIn → GPIO → motor loop and preserves a real coasting margin', () => {
-    const initial = createDefaultRoboticsProject();
+    const initial = createLegacyRoboticsProject();
     const project = withRoboticsWorld(initial, createRoboticsWorldDocument('compact'));
     const document = engineDocument(project);
     const sourceBytes = JSON.stringify(project);
@@ -489,7 +552,7 @@ describe('Robotics fixture running the unchanged canonical Arduino and electric 
   }, 15_000);
 
   it('does not power a motor after its real positive wire is removed', () => {
-    const project = createDefaultRoboticsProject();
+    const project = createLegacyRoboticsProject();
     const disconnected: RoboticsProject = {
       ...project,
       circuit: {

@@ -33,7 +33,7 @@ const TIME_EPSILON = 1e-12;
 const GRAVITY = 9.81;
 const CONTACT_PASSES = 16;
 
-interface Rectangle {
+export interface Rectangle {
   readonly x: number;
   readonly y: number;
   readonly halfX: number;
@@ -60,7 +60,7 @@ function byId<T extends { readonly id: string }>(a: T, b: T): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
-function wallRectangle(wall: RoboticsRectObstacle): Rectangle {
+export function wallRectangle(wall: RoboticsRectObstacle): Rectangle {
   return {
     x: wall.xMeters + wall.widthMeters / 2,
     y: wall.yMeters + wall.heightMeters / 2,
@@ -70,7 +70,7 @@ function wallRectangle(wall: RoboticsRectObstacle): Rectangle {
   };
 }
 
-function robotRectangle(world: RoboticsWorldDocument, pose: RoboticsPose): Rectangle {
+export function robotRectangle(world: RoboticsWorldDocument, pose: RoboticsPose): Rectangle {
   return {
     x: pose.xMeters,
     y: pose.yMeters,
@@ -101,7 +101,7 @@ function projectionRadius(rectangle: Rectangle, x: number, y: number): number {
 }
 
 /** A positive separating-axis gap is a conservative lower bound on Euclidean separation. */
-function rectangleGap(first: Rectangle, second: Rectangle): number {
+export function rectangleGap(first: Rectangle, second: Rectangle): number {
   let gap = Number.NEGATIVE_INFINITY;
   for (const [x, y] of [...axes(first), ...axes(second)])
     gap = Math.max(
@@ -113,7 +113,7 @@ function rectangleGap(first: Rectangle, second: Rectangle): number {
   return gap;
 }
 
-function rectangleBoundaryGap(world: RoboticsWorldDocument, rectangle: Rectangle): number {
+export function rectangleBoundaryGap(world: RoboticsWorldDocument, rectangle: Rectangle): number {
   const ex = projectionRadius(rectangle, 1, 0);
   const ey = projectionRadius(rectangle, 0, 1);
   return Math.min(
@@ -124,7 +124,11 @@ function rectangleBoundaryGap(world: RoboticsWorldDocument, rectangle: Rectangle
   );
 }
 
-function circleRectangle(point: RoboticsPoint, radius: number, rectangle: Rectangle): Contact {
+export function circleRectangle(
+  point: RoboticsPoint,
+  radius: number,
+  rectangle: Rectangle,
+): Contact {
   const c = Math.cos(rectangle.angle);
   const s = Math.sin(rectangle.angle);
   const dx = point.xMeters - rectangle.x;
@@ -216,7 +220,7 @@ export function validateRoboticsWorldGeometry(world: RoboticsWorldDocument): str
   }
   for (const mark of world.field.floorMarks) {
     const outside =
-      mark.kind === 'line'
+      mark.kind === 'line' || mark.kind === 'curve'
         ? [mark.start, mark.end].some(
             (point) => ballBoundaryGap(world, point, mark.widthMeters / 2) < -CONTACT_EPSILON,
           )

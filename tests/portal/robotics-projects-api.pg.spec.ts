@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import { createInitialRoboticsProject, type RoboticsProject } from '@asa-lab/robotics/document';
-import { createRoboticsBall, createRoboticsFloorMark } from '@asa-lab/robotics/world';
+import {
+  createRoboticsBall,
+  createRoboticsBody,
+  createRoboticsFloorMark,
+} from '@asa-lab/robotics/world';
+import { createRoboticsTileStamp } from '@asa-lab/robotics/world-authoring';
 import { buildTestApp, inject, type NestApp } from './app';
 import { testAdminPool, testAppPool } from './helpers';
 
@@ -84,6 +89,12 @@ async function accountExpectation(token: string) {
 
 function editedProject(): RoboticsProject {
   const initial = createInitialRoboticsProject();
+  const stamped = createRoboticsTileStamp(
+    't-junction',
+    initial.world,
+    { xMeters: 0.6, yMeters: 0.9 },
+    1,
+  ).world;
   return {
     ...initial,
     circuit: {
@@ -114,13 +125,27 @@ function editedProject(): RoboticsProject {
       connections: initial.circuit.connections.slice(0, -1),
     },
     world: {
-      ...initial.world,
+      ...stamped,
       robot: { ...initial.world.robot, bodyLengthMeters: 0.22, sensorLateralMeters: 0.01 },
       field: {
-        ...initial.world.field,
+        ...stamped.field,
         gridMeters: 0.05,
-        balls: [createRoboticsBall('saved-ball', { xMeters: 0.8, yMeters: 0.4 })],
-        floorMarks: [createRoboticsFloorMark('area', 'saved-area', { xMeters: 0.4, yMeters: 1.3 })],
+        surface: 'carpet',
+        balls: [
+          {
+            ...createRoboticsBall('saved-ball', { xMeters: 0.8, yMeters: 0.4 }),
+            rollingResistanceCoefficient: 0.03,
+            contactFrictionCoefficient: 0.4,
+          },
+        ],
+        bodies: [
+          createRoboticsBody('can', 'saved-can', { xMeters: 1.1, yMeters: 1.3 }),
+          createRoboticsBody('box', 'saved-box', { xMeters: 1.2, yMeters: 0.4 }),
+        ],
+        floorMarks: [
+          ...stamped.field.floorMarks,
+          createRoboticsFloorMark('area', 'saved-area', { xMeters: 0.4, yMeters: 1.3 }),
+        ],
       },
     },
   };

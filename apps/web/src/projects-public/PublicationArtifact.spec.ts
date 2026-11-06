@@ -4,7 +4,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PublicationArtifact } from './PublicationArtifact';
 import { publicProjectsApi, type PublicProject } from './api';
-import type { PublicProjectDisplayArtifact, PublicThreeDArtifact } from '@asa-lab/contracts';
+import type {
+  PublicProjectDisplayArtifact,
+  PublicThreeDArtifact,
+  PublicRoboticsArtifactV6,
+} from '@asa-lab/contracts';
 import { createRoboticsWorldDocument } from '@asa-lab/robotics/world-document';
 vi.mock('./PublicThreeDViewer', () => ({
   PublicThreeDViewer: () => createElement('div', { 'data-testid': 'live-three-d' }),
@@ -94,7 +98,7 @@ function roboticsArtifact(): PublicProjectDisplayArtifact {
     viewerFamily: 'robotics',
     provenance: artifact.provenance,
     capabilities: artifact.capabilities,
-    world: { field, robot, initialPose },
+    world: { field: { ...field, floorMarks: [] }, robot, initialPose },
   };
 }
 it('admits the Robotics viewer only for the requested frozen revision and family', async () => {
@@ -124,4 +128,44 @@ it('keeps a cover fallback when a different module family arrives for Robotics',
   expect(
     host.querySelector('[data-testid="published-robotics"], [data-testid="live-three-d"]'),
   ).toBeNull();
+});
+
+function roboticsV6Artifact(): PublicRoboticsArtifactV6 {
+  const { field, robot, initialPose } = createRoboticsWorldDocument();
+  return {
+    schemaVersion: 6,
+    status: 'display',
+    viewerFamily: 'robotics',
+    provenance: artifact.provenance,
+    capabilities: artifact.capabilities,
+    world: {
+      field: { ...field, bodies: [], tiles: { enabled: true, sizeMeters: 0.3 }, surface: 'wood' },
+      robot,
+      initialPose,
+    },
+  };
+}
+it('admits a v6 Robotics publication without substituting the historical v5 contract', async () => {
+  expect(roboticsArtifact().schemaVersion).toBe(5);
+  const v6 = roboticsV6Artifact();
+  expect(v6.schemaVersion).toBe(6);
+  await render(v6, 'robotics');
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(host.querySelector('[data-testid="published-robotics"]')).not.toBeNull();
+  expect(onUnavailable).not.toHaveBeenCalled();
+});
+it.each([
+  { publicationId: '123e4567-e89b-42d3-a456-426614174099', revisionNumber: 1 },
+  { publicationId: publication.publicationId, revisionNumber: 2 },
+])('rejects v6 publication provenance before mounting any field geometry', async (provenance) => {
+  await render({ ...roboticsV6Artifact(), provenance }, 'robotics');
+  expect(onUnavailable).toHaveBeenCalledOnce();
+  expect(host.querySelector('[data-testid="published-robotics"]')).toBeNull();
+});
+it('does not mount v6 Robotics in another module family', async () => {
+  await render(roboticsV6Artifact(), 'three-d');
+  expect(host.querySelector('[data-testid="public-artifact-fallback"]')).not.toBeNull();
+  expect(host.querySelector('[data-testid="published-robotics"]')).toBeNull();
 });

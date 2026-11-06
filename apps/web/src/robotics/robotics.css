@@ -1306,3 +1306,248 @@
     font-size: 11px;
   }
 }
+
+/* The field view is presentation-only; dimensions and physics stay in the document. */
+.robotics-field-heading {
+  flex-wrap: wrap;
+}
+.robotics-physics-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 7px;
+  border: 1px solid #c8e0e7;
+  border-radius: 5px;
+  background: #eef8f8;
+  color: #276273;
+  font-size: 10px;
+  line-height: 1.3;
+}
+.robotics-field-heading .robotics-properties-toggle {
+  margin-left: auto;
+}
+.robotics-field-view-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 8px;
+  padding: 3px 10px;
+  border-bottom: 1px solid #e3ebf0;
+  color: #426277;
+  font-size: 11px;
+}
+.robotics-field-view-tools .robotics-grid-toggle {
+  min-height: 36px;
+  margin: 0;
+  white-space: nowrap;
+}
+.robotics-field-view-tools button,
+.robotics-stamp-tools button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 4px 7px;
+  border: 1px solid #ccdce5;
+  border-radius: 5px;
+  background: #fff;
+  color: #31576e;
+  font-size: 11px;
+}
+.robotics-field-view-tools button[aria-pressed='true'] {
+  background: #e5f3f7;
+  border-color: #4ba6bb;
+}
+.robotics-field-zoom {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+}
+.robotics-field-zoom output {
+  min-width: 38px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.robotics-field-scroll {
+  display: block;
+  overflow: auto;
+  padding: 0;
+  overscroll-behavior: contain;
+  background: #f3f6f8;
+}
+.robotics-field-zoom-surface {
+  min-width: 100%;
+  min-height: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+}
+.robotics-field-zoom-surface .robotics-field {
+  display: block;
+}
+.robotics-field-scroll[data-pan='true'] .robotics-field {
+  touch-action: pan-x pan-y;
+  cursor: grab;
+}
+.robotics-stamp-tools {
+  display: flex;
+  gap: 6px;
+  align-items: end;
+  padding: 5px 10px;
+  background: #f8fbfd;
+  border-bottom: 1px solid #e3ebf0;
+}
+.robotics-stamp-tools label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #426277;
+  font-size: 11px;
+}
+.robotics-stamp-tools select {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px;
+  border: 1px solid #c8d9e3;
+  border-radius: 5px;
+  background: white;
+  color: #254b64;
+}
+.robotics-setting-checkbox {
+  display: flex;
+  min-height: 38px;
+  margin-bottom: 7px;
+}
+.robotics-field-upgrade {
+  border: 1px solid #c9dce6;
+  border-radius: 7px;
+  padding: 10px;
+  background: #f0f8fb;
+}
+.robotics-inspector-heading {
+  display: none;
+}
+.robotics-object-list-heading {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #32546b;
+}
+.robotics-object-list-heading span {
+  color: #6b8392;
+}
+.robotics-object-inspector h3,
+.robotics-object-dimensions {
+  overflow-wrap: anywhere;
+}
+.robotics-object-dimensions {
+  margin: -4px 0 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #526e80;
+}
+.robotics-object-physics {
+  margin-top: 13px;
+  padding-top: 10px;
+  border-top: 1px solid #dfe8ee;
+}
+.robotics-object-actions {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+.robotics-object-actions .robotics-button {
+  justify-content: center;
+  white-space: normal;
+  min-height: 36px;
+  font-size: 11px;
+}
+.robotics-scene-inspector summary {
+  min-height: 24px;
+}
+.robotics-scene-error {
+  max-height: 66px;
+  overflow: auto;
+  flex-shrink: 0;
+}
+.robotics-field-editor-body :is(button, input, select, summary):focus-visible,
+.robotics-field-tools button:focus-visible,
+.robotics-field-view-tools :is(button, input):focus-visible,
+.robotics-field-canvas:focus-visible {
+  outline: 2px solid #087d9b;
+  outline-offset: 2px;
+}
+@media (max-width: 760px) {
+  .robotics-field-tools {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .robotics-field-tools button {
+    justify-content: center;
+    min-height: 44px;
+  }
+  .robotics-field-tools button span {
+    display: none;
+  }
+  .robotics-field-view-tools {
+    gap: 2px 7px;
+    padding: 3px 6px;
+  }
+  .robotics-field-view-tools .robotics-grid-toggle,
+  .robotics-field-view-tools button {
+    min-height: 40px;
+  }
+  .robotics-field-view-tools .robotics-grid-toggle input {
+    width: 17px;
+    height: 17px;
+  }
+  .robotics-field-zoom {
+    gap: 2px;
+  }
+  .robotics-field-zoom button {
+    min-width: 34px;
+  }
+  .robotics-field-zoom output {
+    min-width: 34px;
+  }
+  .robotics-stamp-tools {
+    padding: 5px 6px;
+  }
+  .robotics-stamp-tools label {
+    display: grid;
+    gap: 3px;
+  }
+  .robotics-stamp-tools select {
+    min-height: 38px;
+    font-size: 16px;
+  }
+  .robotics-stamp-tools button {
+    min-height: 38px;
+  }
+  .robotics-scene-inspector {
+    inset: 0;
+    max-height: none;
+  }
+  .robotics-inspector-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 7px;
+    margin: -10px -10px 12px;
+    padding: 7px 10px;
+    background: #f4f9fc;
+    border-bottom: 1px solid #dce7ed;
+    color: #32546b;
+    font-size: 12px;
+  }
+  .robotics-inspector-heading button {
+    min-height: 38px;
+    font-size: 11px;
+  }
+  .robotics-scene-inspector summary,
+  .robotics-object-list button,
+  .robotics-object-actions .robotics-button {
+    min-height: 38px;
+  }
+}

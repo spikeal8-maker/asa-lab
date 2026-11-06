@@ -68,6 +68,7 @@ const TIMED_STATE_PROPERTIES = [
   'distanceMeters',
 ] as const;
 const TIMED_CONTROL_PROPERTIES: Readonly<Record<string, readonly string[]>> = {
+  'ultrasonic-hc-sr04': ['echoAvailable'],
   'regulated-power-supply': ['voltageSetpointVolt', 'currentLimitAmp', 'outputEnabled'],
   'signal-generator': ['waveform', 'frequencyHz', 'amplitudeVpp', 'dcOffsetVolt', 'outputEnabled'],
   oscilloscope: ['voltsPerDivision', 'timePerDivisionMs', 'triggerLevelVolt', 'displayEnabled'],
@@ -226,9 +227,17 @@ function timedRuntimeEvents(
       }
     }
     for (const property of TIMED_CONTROL_PROPERTIES[component.componentTypeId ?? ''] ?? []) {
-      const value = component.stateProperties?.[property];
+      const currentValue = component.stateProperties?.[property];
+      // Legacy HC-SR04 documents already mean echoAvailable=true. Materializing
+      // that default must not consume a second input or change their trace.
+      const value =
+        property === 'echoAvailable' && currentValue === undefined ? true : currentValue;
+      const previousValue =
+        property === 'echoAvailable' && before.stateProperties?.[property] === undefined
+          ? true
+          : before.stateProperties?.[property];
       if (
-        value !== before.stateProperties?.[property] &&
+        value !== previousValue &&
         (typeof value === 'boolean' ||
           typeof value === 'string' ||
           (typeof value === 'number' && Number.isFinite(value)))

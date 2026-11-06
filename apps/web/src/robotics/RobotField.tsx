@@ -4,16 +4,27 @@ import type {
   RoboticsWorldDocument,
   RoboticsWorldState,
 } from './world';
+import type { RoboticsBody, RoboticsObjectKey } from '@asa-lab/robotics/world-document';
 
-export type RoboticsObjectKey = 'robot' | `wall:${string}` | `ball:${string}` | `mark:${string}`;
+export type { RoboticsObjectKey } from '@asa-lab/robotics/world-document';
+
+type RoboticsBodyGeometry = Pick<
+  RoboticsBody,
+  'id' | 'label' | 'xMeters' | 'yMeters' | 'headingRadians' | 'heightMeters'
+> &
+  (
+    | { readonly kind: 'can'; readonly radiusMeters: number }
+    | { readonly kind: 'box'; readonly widthMeters: number; readonly depthMeters: number }
+  );
 
 /** The same drawing accepts source-only published geometry and a full editable world. */
-type RoboticsFieldGeometry = Pick<RoboticsWorldDocument, 'robot' | 'initialPose'> & {
-  readonly field: Omit<RoboticsWorldDocument['field'], 'balls'> & {
+export type RoboticsFieldGeometry = Pick<RoboticsWorldDocument, 'robot' | 'initialPose'> & {
+  readonly field: Omit<RoboticsWorldDocument['field'], 'balls' | 'bodies'> & {
     readonly balls: readonly Pick<
       RoboticsWorldDocument['field']['balls'][number],
       'id' | 'label' | 'xMeters' | 'yMeters' | 'radiusMeters'
     >[];
+    readonly bodies?: readonly RoboticsBodyGeometry[];
   };
 };
 
@@ -97,14 +108,37 @@ export function RobotField({
       <desc id={`robotics-field-description-${id}`}>
         {view === 'robot'
           ? `Корпус ${length} на ${bodyWidth} миллиметров. Колёса L и R и положение HC-SR04. Бирюзовая стрелка показывает направление датчика относительно корпуса.`
-          : `Поле ${width} на ${height} миллиметров. Робот: X ${Math.round(pose.xMeters * 1000)}, Y ${Math.round(pose.yMeters * 1000)} миллиметров. ${state ? 'Бирюзовый луч показывает измерение датчика, оранжевая линия — пройденный путь.' : 'Сохранённая сцена и начальное положение робота.'}`}
+          : `Поле ${Math.round(width * 100) / 100} на ${Math.round(height * 100) / 100} миллиметров. Робот: X ${Math.round(pose.xMeters * 1000)}, Y ${Math.round(pose.yMeters * 1000)} миллиметров. ${state ? 'Бирюзовый луч показывает измерение датчика, оранжевая линия — пройденный путь.' : 'Сохранённая сцена и начальное положение робота.'}`}
       </desc>
       <defs>
+        <clipPath id={`robotics-floor-clip-${id}`}>
+          <rect width={width} height={height} />
+        </clipPath>
+        <linearGradient id={`robotics-metal-${id}`} x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stopColor="#f3f7fa" />
+          <stop offset=".45" stopColor="#c4d1da" />
+          <stop offset="1" stopColor="#8299aa" />
+        </linearGradient>
+        <pattern
+          id={`robotics-tiles-${id}`}
+          width={(world.field.tiles?.sizeMeters ?? 0.3) * 1000}
+          height={(world.field.tiles?.sizeMeters ?? 0.3) * 1000}
+          patternUnits="userSpaceOnUse"
+          patternTransform={`translate(0 ${height})`}
+        >
+          <path
+            d={`M ${(world.field.tiles?.sizeMeters ?? 0.3) * 1000} 0 H 0 V ${(world.field.tiles?.sizeMeters ?? 0.3) * 1000}`}
+            fill="none"
+            stroke="#bdcbd4"
+            strokeWidth="3"
+          />
+        </pattern>
         <pattern
           id={`robotics-grid-${id}`}
           width={world.field.gridMeters * 1000}
           height={world.field.gridMeters * 1000}
           patternUnits="userSpaceOnUse"
+          patternTransform={`translate(0 ${height})`}
         >
           <path
             d={`M ${world.field.gridMeters * 1000} 0 H 0 V ${world.field.gridMeters * 1000}`}
@@ -126,9 +160,30 @@ export function RobotField({
       </defs>
       {view === 'field' ? (
         <>
-          <rect width={width} height={height} rx="12" fill="#fbfdff" />
+          <rect
+            width={width}
+            height={height}
+            rx="12"
+            fill={
+              world.field.surface === 'carpet'
+                ? '#e7ede7'
+                : world.field.surface === 'wood'
+                  ? '#faf7ef'
+                  : '#fbfdff'
+            }
+          />
           {showGrid ? (
             <rect width={width} height={height} rx="12" fill={`url(#robotics-grid-${id})`} />
+          ) : null}
+          {world.field.tiles?.enabled ? (
+            <rect
+              data-testid={`${testIdPrefix}-tiles`}
+              width={width}
+              height={height}
+              rx="12"
+              fill={`url(#robotics-tiles-${id})`}
+              pointerEvents="none"
+            />
           ) : null}
           <rect
             width={width}
@@ -139,52 +194,57 @@ export function RobotField({
             strokeWidth="5"
           />
           <text x={width / 2} y="-22" textAnchor="middle" className="robotics-field-dimension">
-            {width} мм
+            {Math.round(width * 100) / 100} мм
           </text>
           <text
             transform={`translate(-24 ${height / 2}) rotate(-90)`}
             textAnchor="middle"
             className="robotics-field-dimension"
           >
-            {height} мм
+            {Math.round(height * 100) / 100} мм
           </text>
-          {world.field.floorMarks.map((mark) =>
-            mark.kind === 'line' ? (
-              <line
-                key={mark.id}
-                data-scene-key={`mark:${mark.id}`}
-                data-object-kind="line"
-                data-floor-mark-id={mark.id}
-                x1={mark.start.xMeters * 1000}
-                y1={height - mark.start.yMeters * 1000}
-                x2={mark.end.xMeters * 1000}
-                y2={height - mark.end.yMeters * 1000}
-                stroke={mark.color}
-                strokeWidth={mark.widthMeters * 1000}
-                strokeLinecap="round"
-                className={selection === `mark:${mark.id}` ? 'selected' : ''}
-              >
-                <title>{mark.label ?? 'Линия'}</title>
-              </line>
-            ) : (
-              <rect
-                key={mark.id}
-                data-scene-key={`mark:${mark.id}`}
-                data-object-kind="area"
-                data-floor-mark-id={mark.id}
-                x={mark.xMeters * 1000}
-                y={height - (mark.yMeters + mark.heightMeters) * 1000}
-                width={mark.widthMeters * 1000}
-                height={mark.heightMeters * 1000}
-                fill={mark.color}
-                fillOpacity=".42"
-                stroke={selection === `mark:${mark.id}` ? '#087d9b' : mark.color}
-                strokeWidth={selection === `mark:${mark.id}` ? 9 : 2}
-              >
-                <title>{mark.label ?? 'Цветная зона'}</title>
-              </rect>
-            ),
-          )}
+          <g clipPath={`url(#robotics-floor-clip-${id})`}>
+            {world.field.floorMarks.map((mark) => {
+              const key: RoboticsObjectKey = mark.groupId
+                ? `mark-group:${mark.groupId}`
+                : `mark:${mark.id}`;
+              return mark.kind !== 'area' ? (
+                <path
+                  key={mark.id}
+                  data-scene-key={key}
+                  data-object-kind={mark.kind}
+                  data-floor-mark-id={mark.id}
+                  d={`M${mark.start.xMeters * 1000} ${height - mark.start.yMeters * 1000} ${mark.kind === 'curve' ? `Q${mark.control.xMeters * 1000} ${height - mark.control.yMeters * 1000}` : 'L'} ${mark.end.xMeters * 1000} ${height - mark.end.yMeters * 1000}`}
+                  fill="none"
+                  stroke={mark.color}
+                  strokeWidth={mark.widthMeters * 1000}
+                  strokeLinecap="round"
+                  className={selection === key ? 'selected' : ''}
+                >
+                  <title>
+                    {mark.label ?? (mark.kind === 'curve' ? 'Плавный поворот' : 'Линия')}
+                  </title>
+                </path>
+              ) : (
+                <rect
+                  key={mark.id}
+                  data-scene-key={key}
+                  data-object-kind="area"
+                  data-floor-mark-id={mark.id}
+                  x={mark.xMeters * 1000}
+                  y={height - (mark.yMeters + mark.heightMeters) * 1000}
+                  width={mark.widthMeters * 1000}
+                  height={mark.heightMeters * 1000}
+                  fill={mark.color}
+                  fillOpacity=".42"
+                  stroke={selection === key ? '#087d9b' : mark.color}
+                  strokeWidth={selection === key ? 9 : 2}
+                >
+                  <title>{mark.label ?? 'Цветная зона'}</title>
+                </rect>
+              );
+            })}
+          </g>
           <g aria-hidden="true" className="robotics-start-marker">
             <circle
               cx={world.initialPose.xMeters * 1000}
@@ -254,6 +314,102 @@ export function RobotField({
                   strokeLinecap="round"
                   pointerEvents="none"
                 />
+              </g>
+            );
+          })}
+          {(world.field.bodies ?? []).map((body) => {
+            const current = state?.bodies?.find((entry) => entry.id === body.id) ?? body;
+            const selected = selection === `body:${body.id}`;
+            return (
+              <g
+                key={body.id}
+                data-body-id={body.id}
+                data-scene-key={`body:${body.id}`}
+                data-object-kind={body.kind}
+                data-x-meters={current.xMeters}
+                data-y-meters={current.yMeters}
+                data-heading-radians={current.headingRadians}
+                data-velocity-x={
+                  state
+                    ? 'velocityXMetersPerSecond' in current
+                      ? current.velocityXMetersPerSecond
+                      : 0
+                    : undefined
+                }
+                data-velocity-y={
+                  state
+                    ? 'velocityYMetersPerSecond' in current
+                      ? current.velocityYMetersPerSecond
+                      : 0
+                    : undefined
+                }
+                transform={`translate(${current.xMeters * 1000} ${height - current.yMeters * 1000}) rotate(${(-current.headingRadians * 180) / Math.PI})`}
+              >
+                <title>
+                  {body.label ??
+                    (body.kind === 'can' ? 'Металлическая банка' : 'Деревянный брусок')}
+                </title>
+                {body.kind === 'can' ? (
+                  <>
+                    <circle
+                      r={body.radiusMeters * 1000}
+                      fill={`url(#robotics-metal-${id})`}
+                      stroke={selected ? '#087d9b' : '#617b8e'}
+                      strokeWidth={selected ? 7 : 3}
+                    />
+                    <circle
+                      r={body.radiusMeters * 810}
+                      fill="none"
+                      stroke="#f1f5f8"
+                      strokeWidth="2"
+                      pointerEvents="none"
+                    />
+                    <ellipse
+                      cx={body.radiusMeters * 220}
+                      cy="0"
+                      rx={body.radiusMeters * 340}
+                      ry={body.radiusMeters * 210}
+                      fill="#899fad"
+                      stroke="#e8eff4"
+                      strokeWidth="2"
+                      pointerEvents="none"
+                    />
+                    <rect
+                      x={-body.radiusMeters * 300}
+                      y={-body.radiusMeters * 180}
+                      width={body.radiusMeters * 470}
+                      height={body.radiusMeters * 360}
+                      rx={body.radiusMeters * 150}
+                      fill="none"
+                      stroke="#f3f7fa"
+                      strokeWidth="4"
+                      pointerEvents="none"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <rect
+                      x={-body.widthMeters * 500}
+                      y={-body.depthMeters * 500}
+                      width={body.widthMeters * 1000}
+                      height={body.depthMeters * 1000}
+                      rx="4"
+                      fill="#d9b27b"
+                      stroke={selected ? '#087d9b' : '#9c703e'}
+                      strokeWidth={selected ? 7 : 3}
+                    />
+                    {[-0.22, 0.08, 0.3].map((stripe) => (
+                      <path
+                        key={stripe}
+                        d={`M${-body.widthMeters * 430} ${body.depthMeters * stripe * 1000}q${body.widthMeters * 220} -6 ${body.widthMeters * 430} 0t${body.widthMeters * 430} 0`}
+                        fill="none"
+                        stroke="#bd9058"
+                        strokeWidth="2"
+                        pointerEvents="none"
+                      />
+                    ))}
+                  </>
+                )}
               </g>
             );
           })}

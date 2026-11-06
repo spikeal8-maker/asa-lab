@@ -537,7 +537,7 @@ try {
     window.roboticsMountedStage = document.querySelector('.workbench-canvas');
   });
   const initialProject = await save();
-  assert.equal(initialProject.schemaVersion, 2);
+  assert.equal(initialProject.schemaVersion, 3);
   assert.equal(
     initialProject.circuit.components.find((part) => part.id === 'uno').stateProperties
       .arduinoCodeMode,

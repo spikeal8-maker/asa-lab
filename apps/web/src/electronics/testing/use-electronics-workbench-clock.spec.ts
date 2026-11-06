@@ -15,6 +15,7 @@ import { flushSync } from 'react-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   resetElectronicsTimedState,
+  type ElectronicsHcSr04EnvironmentSample,
   type ElectronicsLedTemporalObservation,
 } from '@asa-lab/electronics/engine';
 import { api, type Project, type SchematicDocument, type SolveResult } from '../../api';
@@ -555,10 +556,28 @@ describe('shared workbench with a local project host', () => {
     await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
     worker().update.mockClear();
     await act(async () => {
-      for (const value of [-1, 0, 0.019, 4.001, Number.NaN, Number.POSITIVE_INFINITY])
+      for (const value of [-1, 0, 0.019, 4.001, Number.NaN, Number.POSITIVE_INFINITY]) {
         expect(workbench.setRuntimeSensorDistance('sonar', value)).toBe(false);
+        expect(
+          workbench.setRuntimeHcSr04EnvironmentSample('sonar', {
+            kind: 'echo',
+            distanceMeters: value,
+          }),
+        ).toBe(false);
+      }
+      for (const sample of [null, { kind: 'unknown' }, { kind: 'echo', distanceMeters: '1' }])
+        expect(
+          workbench.setRuntimeHcSr04EnvironmentSample(
+            'sonar',
+            sample as unknown as ElectronicsHcSr04EnvironmentSample,
+          ),
+        ).toBe(false);
       expect(workbench.setRuntimeSensorDistance('missing', 0.5)).toBe(false);
       expect(workbench.setRuntimeSensorDistance('uno', 0.5)).toBe(false);
+      expect(workbench.setRuntimeHcSr04EnvironmentSample('missing', { kind: 'no-echo' })).toBe(
+        false,
+      );
+      expect(workbench.setRuntimeHcSr04EnvironmentSample('uno', { kind: 'no-echo' })).toBe(false);
     });
     expect(worker().update).not.toHaveBeenCalled();
     const callbacks = worker().callbacks!;
@@ -573,6 +592,7 @@ describe('shared workbench with a local project host', () => {
     await act(async () => callbacks.onInputBudget?.(exhausted));
     expect(workbench.runtimeInputBudget).toEqual(exhausted);
     expect(workbench.setRuntimeSensorDistance('sonar', 0.25)).toBe(false);
+    expect(workbench.setRuntimeHcSr04EnvironmentSample('sonar', { kind: 'no-echo' })).toBe(false);
     await act(async () =>
       root.render(
         createElement(LocalHostProbe, {
@@ -581,6 +601,7 @@ describe('shared workbench with a local project host', () => {
       ),
     );
     expect(workbench.setRuntimeSensorDistance('sonar', 0.25)).toBe(false);
+    expect(workbench.setRuntimeHcSr04EnvironmentSample('sonar', { kind: 'no-echo' })).toBe(false);
     await act(async () =>
       callbacks.onInputBudget?.({
         ...exhausted,
@@ -596,6 +617,67 @@ describe('shared workbench with a local project host', () => {
     expect(workbench.runtimeInputBudget).toBeNull();
     expect(projectState.commitDocument).not.toHaveBeenCalled();
     expect(api.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('applies HC environment samples atomically only to runtime and lets the numeric setter restore reflection', async () => {
+    const projectState = localProjectHost();
+    const original = JSON.stringify(projectState.document);
+    await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+    const setter = workbench.setRuntimeHcSr04EnvironmentSample;
+    worker().update.mockClear();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'echo', distanceMeters: 0.5 })).toBe(true);
+    });
+    expect(worker().update).not.toHaveBeenCalled();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'no-echo' })).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    const sonarProperties = () =>
+      worker()
+        .update.mock.calls.at(-1)![0]
+        .components.find((component: { id: string }) => component.id === 'sonar').stateProperties;
+    expect(sonarProperties()).toMatchObject({ distanceMeters: 0.5, echoAvailable: false });
+    worker().update.mockClear();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'no-echo' })).toBe(true);
+    });
+    expect(worker().update).not.toHaveBeenCalled();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'echo', distanceMeters: 0.75 })).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    expect(sonarProperties()).toMatchObject({ distanceMeters: 0.75, echoAvailable: true });
+    await act(async () => {
+      expect(setter('sonar', { kind: 'no-echo' })).toBe(true);
+    });
+    worker().update.mockClear();
+    await act(async () => {
+      expect(workbench.setRuntimeSensorDistance('sonar', 0.75)).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    expect(sonarProperties()).toMatchObject({ distanceMeters: 0.75, echoAvailable: true });
+    expect(workbench.setRuntimeHcSr04EnvironmentSample).toBe(setter);
+    worker().update.mockClear();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'no-echo' })).toBe(true);
+      expect(setter('sonar', { kind: 'echo', distanceMeters: 0.75 })).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    expect(sonarProperties()).toMatchObject({ distanceMeters: 0.75, echoAvailable: true });
+    expect(JSON.stringify(projectState.document)).toBe(original);
+    expect(projectState.getCurrentDocument()).toBe(projectState.document);
+    expect(projectState.commitDocument).not.toHaveBeenCalled();
+    expect(workbench.documentMutationEpoch()).toBe(0);
+    expect(api.saveDraft).not.toHaveBeenCalled();
+    await act(async () =>
+      root.render(
+        createElement(LocalHostProbe, {
+          projectState: { ...projectState, simulationRunning: false, simulationStatus: 'stopped' },
+        }),
+      ),
+    );
+    expect(setter('sonar', { kind: 'no-echo' })).toBe(false);
   });
 });
 

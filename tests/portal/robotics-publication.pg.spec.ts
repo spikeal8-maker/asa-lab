@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
-import { createInitialRoboticsProject, type RoboticsProject } from '@asa-lab/robotics/document';
+import {
+  createInitialRoboticsProject,
+  upgradeRoboticsProjectToV3,
+  type RoboticsProject,
+} from '@asa-lab/robotics/document';
+import { createRoboticsWorldDocument, createRoboticsBody } from '@asa-lab/robotics/world-document';
+import { createRoboticsTileStamp } from '@asa-lab/robotics/world-authoring';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import type { OwnerPublicationStatus } from '../../apps/api/src/public-projects.controller';
 import { buildTestApp, inject, type NestApp } from './app';
@@ -48,8 +54,21 @@ afterAll(async () => {
 
 function source(): RoboticsProject {
   const initial = createInitialRoboticsProject();
+  const stamped = createRoboticsTileStamp(
+    'turn',
+    initial.world,
+    { xMeters: 0.3, yMeters: 0.3 },
+    0,
+  ).world;
   return {
     ...initial,
+    world: {
+      ...stamped,
+      field: {
+        ...stamped.field,
+        bodies: [createRoboticsBody('can', 'can', { xMeters: 0.8, yMeters: 0.4 })],
+      },
+    },
     circuit: {
       ...initial.circuit,
       components: initial.circuit.components.map((component) =>
@@ -91,9 +110,9 @@ async function account() {
 async function createProject(
   tenantId: string,
   actor: { principalId: string; userId: string | null },
+  document: RoboticsProject = source(),
 ) {
   const title = `robot-${randomUUID()}`;
-  const document = source();
   const created = await repo.createWithDraft({
     tenantId,
     actor,
@@ -163,6 +182,50 @@ async function catalog(title: string) {
 }
 
 describe('Robotics immutable publication on real HTTP and restricted PostgreSQL', () => {
+  it('keeps a historical v2/v5 publication frozen across an explicit v3 upgrade and rejects downgrade', async () => {
+    const owner = await account();
+    const legacy: RoboticsProject = {
+      ...source(),
+      schemaVersion: 2,
+      world: createRoboticsWorldDocument(),
+    };
+    // Existing isolated repository fixture models a previously stored source, not a production migration.
+    const f = await createProject(owner.teacher.tenantId, owner.actor, legacy);
+    const opened = await inject(app, {
+      method: 'GET',
+      url: `/api/projects/${f.projectId}`,
+      cookies: owner.cookies,
+    });
+    expect(opened.json().draft.document).toEqual(legacy);
+    const publication = await publish(f.projectId, owner.cookies, f.title);
+    const before = await read(publication);
+    expect(before.status, before.body).toBe(200);
+    expect(before.json().artifact.schemaVersion).toBe(5);
+    const upgraded = upgradeRoboticsProjectToV3(legacy);
+    const saved = await inject(app, {
+      method: 'PUT',
+      url: `/api/projects/${f.projectId}/draft`,
+      cookies: owner.cookies,
+      payload: { document: upgraded, baseRevision: 1, mutationId: randomUUID() },
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    expect(saved.json().draft.document).toEqual(upgraded);
+    const downgrade = await inject(app, {
+      method: 'PUT',
+      url: `/api/projects/${f.projectId}/draft`,
+      cookies: owner.cookies,
+      payload: {
+        document: legacy,
+        baseRevision: saved.json().draft.revision,
+        mutationId: randomUUID(),
+      },
+    });
+    expect(downgrade.statusCode, downgrade.body).toBe(400);
+    expect(downgrade.json().error.reasonCode).toBe('robotics_document_version');
+    const after = await read(publication);
+    expect(after.status, after.body).toBe(200);
+    expect(after.json()).toEqual(before.json());
+  });
   it('lists the exact revision, serves its frozen preview to another account, hides private source and denies copy', async () => {
     const f = await fixture();
     const reader = await account();
@@ -195,7 +258,7 @@ describe('Robotics immutable publication on real HTTP and restricted PostgreSQL'
     expect(other.headers.get('cache-control')).toBe('no-store');
     expect(other.json()).toEqual(guest.json());
     expect(other.json().artifact).toMatchObject({
-      schemaVersion: 5,
+      schemaVersion: 6,
       viewerFamily: 'robotics',
       provenance: {
         publicationId: publication.publicationId,
@@ -205,7 +268,7 @@ describe('Robotics immutable publication on real HTTP and restricted PostgreSQL'
       world: { field: { widthMeters: f.document.world.field.widthMeters } },
     });
     expect(other.body).not.toMatch(
-      /PRIVATE|arduino|circuit|bindings|physicsProfile|massKg|friction|restitution|runtime|tenant|principal|ownerId/,
+      /PRIVATE|arduino|circuit|bindings|physicsProfile|massKg|friction|Friction|restitution|runtime|tenant|principal|ownerId|groupId|groupPivot/,
     );
     expect(other.body).not.toContain(f.projectId);
     expect(
@@ -318,7 +381,7 @@ describe('Robotics immutable publication on real HTTP and restricted PostgreSQL'
     const publication = await publish(f.projectId, cookies, f.title);
     const frozen = await read(publication);
     expect(frozen.status, frozen.body).toBe(200);
-    expect(frozen.json().artifact.schemaVersion).toBe(5);
+    expect(frozen.json().artifact.schemaVersion).toBe(6);
     const detail = await inject(app, {
       method: 'GET',
       url: `/api/public-projects/${publication.publicationId}`,

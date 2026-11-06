@@ -1,6 +1,7 @@
 /** Public robotics facade. Electrical motors, Arduino and committed time belong to Electronics. */
 import {
   decodeRoboticsWorldDocument,
+  isRoboticsWorldV3,
   type RoboticsPoint,
   type RoboticsPose,
   type RoboticsWorldDocument,
@@ -16,25 +17,9 @@ import {
   validateRoboticsWorldGeometry,
   type RoboticsBallState,
 } from './world-physics.js';
+import { validateRoboticsWorldV3Geometry } from './world-geometry-v3.js';
 
-export {
-  createRoboticsBall,
-  createRoboticsFloorMark,
-  createRoboticsWall,
-  createRoboticsWorldDocument,
-  nextRoboticsObjectId,
-  ROBOTICS_BALL_LIMITS,
-  ROBOTICS_FIELD_LIMITS,
-  ROBOTICS_FIELD_PRESETS,
-  ROBOTICS_SCENE_LIMITS,
-  type RoboticsBall,
-  type RoboticsFieldPresetId,
-  type RoboticsFloorMark,
-  type RoboticsPoint,
-  type RoboticsPose,
-  type RoboticsRectObstacle,
-  type RoboticsWorldDocument,
-} from './world-document.js';
+export * from './world-document.js';
 export {
   findRoboticsCollision,
   ROBOTICS_PHYSICS_LIMITS,
@@ -54,6 +39,18 @@ export interface RoboticsWorldState {
   readonly rightRpm: number;
   readonly trail: readonly RoboticsPose[];
   readonly haltReason: string | null;
+  readonly bodies?: readonly RoboticsRigidBodyState[];
+  readonly robotVelocity?: {
+    readonly velocityXMetersPerSecond: number;
+    readonly velocityYMetersPerSecond: number;
+    readonly angularVelocityRadiansPerSecond: number;
+  };
+}
+export interface RoboticsRigidBodyState extends RoboticsPose {
+  readonly id: string;
+  readonly velocityXMetersPerSecond: number;
+  readonly velocityYMetersPerSecond: number;
+  readonly angularVelocityRadiansPerSecond: number;
 }
 
 export interface RoboticsDriveFrame {
@@ -71,7 +68,7 @@ export type RoboticsDistanceMeasurement =
       readonly hit: RoboticsPoint;
     }
   | {
-      readonly status: 'out-of-range' | 'invalid';
+      readonly status: 'out-of-range' | 'no-echo' | 'invalid';
       readonly message: string;
       readonly origin: RoboticsPoint | null;
       readonly hit: RoboticsPoint | null;
@@ -89,10 +86,13 @@ export function parseRoboticsWorldDocument(
   | { readonly ok: false; readonly message: string } {
   try {
     const world = decodeRoboticsWorldDocument(value);
-    const geometry = validateRoboticsWorldGeometry(world);
+    const geometry = isRoboticsWorldV3(world)
+      ? validateRoboticsWorldV3Geometry(world)
+      : validateRoboticsWorldGeometry(world);
     if (geometry) throw new Error(geometry);
     const measurement = measureRoboticsDistance(world, world.initialPose);
-    if (measurement.status !== 'ok') throw new Error(measurement.message);
+    if (measurement.status !== 'ok' && measurement.status !== 'no-echo')
+      throw new Error(measurement.message);
     return { ok: true, world };
   } catch (error) {
     return {
@@ -115,6 +115,24 @@ export function createRoboticsWorldState(world: RoboticsWorldDocument): Robotics
     rightRpm: 0,
     trail: [pose],
     haltReason: null,
+    ...(isRoboticsWorldV3(world)
+      ? {
+          bodies: world.field.bodies.map((body) => ({
+            id: body.id,
+            xMeters: body.xMeters,
+            yMeters: body.yMeters,
+            headingRadians: body.headingRadians,
+            velocityXMetersPerSecond: 0,
+            velocityYMetersPerSecond: 0,
+            angularVelocityRadiansPerSecond: 0,
+          })),
+          robotVelocity: {
+            velocityXMetersPerSecond: 0,
+            velocityYMetersPerSecond: 0,
+            angularVelocityRadiansPerSecond: 0,
+          },
+        }
+      : {}),
   };
 }
 
@@ -168,6 +186,11 @@ export function advanceRoboticsWorld(
   frame: RoboticsDriveFrame,
 ): RoboticsWorldState {
   if (state.haltReason) return state;
+  if (isRoboticsWorldV3(world))
+    return {
+      ...state,
+      haltReason: 'Расширенное поле запускается через постоянный runtime. Нажмите «Сбросить».',
+    };
   const parsed = parseRoboticsWorldDocument(world);
   if (!parsed.ok) return { ...state, haltReason: parsed.message };
   const invalid = validateRuntime(world, state);
@@ -270,6 +293,7 @@ export function measureRoboticsDistance(
   world: RoboticsWorldDocument,
   pose: RoboticsPose,
   runtimeBalls?: readonly RoboticsBallState[],
+  runtimeBodies?: readonly RoboticsRigidBodyState[],
 ): RoboticsDistanceMeasurement {
   const invalid = (message: string): RoboticsDistanceMeasurement => ({
     status: 'invalid',
@@ -341,6 +365,34 @@ export function measureRoboticsDistance(
     const distance = roboticsRayBall(origin, dx, dy, position, ball.radiusMeters);
     if (distance !== null) candidates.push(distance);
   }
+  const bodyDefinitions = world.field.bodies ?? [];
+  const bodyPositions = runtimeBodies ?? bodyDefinitions;
+  if (!Array.isArray(bodyPositions) || bodyPositions.length !== bodyDefinitions.length)
+    return invalid('Набор предметов датчика не соответствует сцене.');
+  const bodyById = new Map(bodyDefinitions.map((body) => [body.id, body]));
+  const seenBodies = new Set<string>();
+  for (const position of bodyPositions) {
+    const body = bodyById.get(position?.id);
+    if (
+      !body ||
+      seenBodies.has(position.id) ||
+      ![position.xMeters, position.yMeters, position.headingRadians].every(Number.isFinite)
+    )
+      return invalid('Некорректное положение предмета для датчика.');
+    seenBodies.add(position.id);
+    const distance =
+      body.kind === 'can'
+        ? roboticsRayBall(origin, dx, dy, position, body.radiusMeters)
+        : roboticsRayWall(origin, dx, dy, {
+            id: body.id,
+            xMeters: position.xMeters - body.widthMeters / 2,
+            yMeters: position.yMeters - body.depthMeters / 2,
+            widthMeters: body.widthMeters,
+            heightMeters: body.depthMeters,
+            headingRadians: position.headingRadians,
+          });
+    if (distance !== null) candidates.push(distance);
+  }
   const distanceMeters = Math.min(...candidates);
   if (!Number.isFinite(distanceMeters))
     return {
@@ -355,8 +407,10 @@ export function measureRoboticsDistance(
   };
   if (distanceMeters < 0.02 || distanceMeters > 4)
     return {
-      status: 'out-of-range',
-      message: 'Расстояние вне диапазона HC-SR04: 0,02–4,00 м. Опыт приостановлен.',
+      status: isRoboticsWorldV3(world) ? 'no-echo' : 'out-of-range',
+      message: isRoboticsWorldV3(world)
+        ? 'HC-SR04 не получает эхо: отражатель вне диапазона 0,02–4,00 м.'
+        : 'Расстояние вне диапазона HC-SR04: 0,02–4,00 м. Опыт приостановлен.',
       origin,
       hit,
       distanceMeters,

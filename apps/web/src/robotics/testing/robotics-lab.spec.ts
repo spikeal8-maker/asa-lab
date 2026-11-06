@@ -20,7 +20,7 @@ import { SimulationPacing } from '../../electronics/simulation-pacing';
 import { configureProductionLibrary } from '../../electronics/production-manifest-adapter';
 import { isProjectSnapshotConfirmed } from '../../modules/project-snapshot';
 import { publicProjectsApi } from '../../projects-public/api';
-import { createDefaultRoboticsProject } from '../robotics-project';
+import { createDefaultRoboticsProject, withRoboticsWorld } from '../robotics-project';
 import { RoboticsEditor } from '../RoboticsEditor';
 import { RoboticsLab, RoboticsWorkspace } from '../RoboticsLab';
 import { useRoboticsProject } from '../use-robotics-project';
@@ -47,6 +47,7 @@ const port = vi.hoisted(() => ({
   setRate: vi.fn<(rate: number) => void>(),
   serial: vi.fn<(boardId: string, text: string) => void>(),
   sensor: vi.fn<(componentId: string, distanceMeters: number) => boolean>(),
+  environment: vi.fn<ElectronicsWorkbenchController['setRuntimeHcSr04EnvironmentSample']>(),
   fit: vi.fn<() => void>(),
   remove: vi.fn<() => void>(),
   stageMounts: 0,
@@ -77,6 +78,7 @@ vi.mock('../../electronics/use-electronics-workbench', () => ({
       setSimulationRate: port.setRate,
       sendArduinoSerialRx: port.serial,
       setRuntimeSensorDistance: port.sensor,
+      setRuntimeHcSr04EnvironmentSample: port.environment,
       fitScene: port.fit,
       selection: null,
       removeSelection: port.remove,
@@ -369,6 +371,7 @@ beforeEach(() => {
     if (rate === 0) port.pacing!.settlePause();
   });
   port.sensor.mockReturnValue(true);
+  port.environment.mockReturnValue(true);
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
     callback(0);
     return 1;
@@ -675,20 +678,25 @@ describe('robotics UI integration with the common workbench port', () => {
     const next = electricalObservation(100_000);
     act(() => port.presentation!.setObservation(next, true));
     expect(metric('robotics-time').dataset.microseconds).toBe('0');
-    expect(port.sensor).not.toHaveBeenCalled();
+    expect(port.environment).not.toHaveBeenCalled();
     act(() => port.presentation!.commit(next));
     expect(metric('robotics-time').dataset.microseconds).toBe('100000');
     expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(0.25);
-    expect(port.sensor).toHaveBeenCalledOnce();
-    expect(port.sensor.mock.calls[0]?.[0]).toBe('sonar');
-    expect(port.sensor.mock.calls[0]?.[1]).toBeGreaterThan(0.02);
+    expect(port.environment).toHaveBeenCalledOnce();
+    expect(port.environment.mock.calls[0]?.[0]).toBe('sonar');
+    expect(port.environment.mock.calls[0]?.[1]).toMatchObject({
+      kind: 'echo',
+      distanceMeters: expect.any(Number),
+    });
+    const sample = port.environment.mock.calls[0]![1];
+    expect(sample.kind === 'echo' && sample.distanceMeters > 0.02).toBe(true);
     expect(port.host!.getCurrentDocument()).toBe(source);
     expect(port.host!.saveStatus).toBe('saved');
     await click('Пауза');
     act(() => port.presentation!.setObservation(electricalObservation(150_000)));
     // The last committed presentation may settle during pause; no input follows it.
     expect(metric('robotics-time').dataset.microseconds).toBe('150000');
-    expect(port.sensor).toHaveBeenCalledOnce();
+    expect(port.environment).toHaveBeenCalledOnce();
   });
 
   it('resets the world when the shared Arduino reset commits a new time-zero generation', async () => {
@@ -698,6 +706,24 @@ describe('robotics UI integration with the common workbench port', () => {
     act(() => port.presentation!.setObservation(electricalObservation(0, 0, 0)));
     expect(metric('robotics-time').dataset.microseconds).toBe('0');
     expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('0.25');
+  });
+  it('reports a six-metre field as typed no-echo without halting or changing saved source', async () => {
+    act(() => root.unmount());
+    root = createRoot(container);
+    const initial = createDefaultRoboticsProject();
+    const source = withRoboticsWorld(initial, {
+      ...initial.world,
+      field: { ...initial.world.field, widthMeters: 6, obstacles: [] },
+    });
+    act(() => root.render(createElement(RoboticsLab, { initialProject: source })));
+    const circuit = port.host!.getCurrentDocument();
+    await click('Запустить');
+    act(() => port.presentation!.setObservation(electricalObservation(100_000)));
+    expect(port.environment).toHaveBeenCalledExactlyOnceWith('sonar', { kind: 'no-echo' });
+    expect(port.sensor).not.toHaveBeenCalled();
+    expect(port.pacing!.read().phase).toBe('running');
+    expect(port.host!.getCurrentDocument()).toBe(circuit);
+    expect(metric('robotics-time').dataset.microseconds).toBe('100000');
   });
 
   it('halts on an exhausted input budget and requires reset rather than silent continuation', async () => {

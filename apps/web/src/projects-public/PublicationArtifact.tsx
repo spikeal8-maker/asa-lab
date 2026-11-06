@@ -4,6 +4,7 @@ import type {
   ElectronicsSimulationArtifact,
   PublicThreeDArtifact,
   PublicRoboticsArtifact,
+  PublicRoboticsArtifactV6,
 } from '@asa-lab/contracts';
 import { publicProjectsApi, type PublicProject } from './api';
 import { PublicationPreview } from './PublicationPreview';
@@ -46,6 +47,7 @@ export function PublicationArtifact({
     | ElectronicsSimulationArtifact
     | PublicThreeDArtifact
     | PublicRoboticsArtifact
+    | PublicRoboticsArtifactV6
     | null
   >(null);
   const [state, setState] = useState<'loading' | 'fallback' | 'error'>('loading');
@@ -80,7 +82,7 @@ export function PublicationArtifact({
           return;
         }
         if (
-          value.schemaVersion === 5 &&
+          (value.schemaVersion === 5 || value.schemaVersion === 6) &&
           value.viewerFamily === 'robotics' &&
           publication.moduleKey === 'robotics'
         ) {
@@ -151,7 +153,7 @@ export function PublicationArtifact({
         </Suspense>
       </SceneBoundary>
     );
-  if (artifact?.schemaVersion === 5)
+  if (artifact?.schemaVersion === 5 || artifact?.schemaVersion === 6)
     return (
       <SceneBoundary fallback={fallback}>
         <Suspense fallback={fallback}>

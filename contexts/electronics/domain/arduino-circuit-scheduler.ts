@@ -83,6 +83,7 @@ import {
 import {
   advanceHcSr04Due,
   hcSr04DistanceMeters,
+  hcSr04EchoAvailable,
   hcSr04InputLevels,
   hcSr04NextDueMicroseconds,
   initialHcSr04RuntimeState,
@@ -188,6 +189,7 @@ export interface ArduinoCircuitInputEvent {
     | 'moisturePercent'
     | 'motionDetected'
     | 'distanceMeters'
+    | 'echoAvailable'
     | 'serialRx'
     | 'voltageSetpointVolt'
     | 'currentLimitAmp'
@@ -382,6 +384,9 @@ function validInputs(
             Number.isFinite(event.value) &&
             event.value >= 0.02 &&
             event.value <= (component.componentTypeId === 'ultrasonic-hc-sr04' ? 4 : 3)) ||
+          (event.property === 'echoAvailable' &&
+            component.componentTypeId === 'ultrasonic-hc-sr04' &&
+            typeof event.value === 'boolean') ||
           (event.property === 'serialRx' &&
             isArduinoUno(component) &&
             typeof event.value === 'string' &&
@@ -855,6 +860,14 @@ export function advanceArduinoCircuitClock(
       'invalid_hc_sr04_distance',
       `${invalidHcSr04.id}: distanceMeters должен быть 0.02…4.00 м.`,
     );
+  const invalidHcSr04Echo = hcSr04Components.find(
+    (component) => hcSr04EchoAvailable(component) === null,
+  );
+  if (invalidHcSr04Echo)
+    return fault(
+      'invalid_hc_sr04_echo_available',
+      `${invalidHcSr04Echo.id}: echoAvailable должен быть логическим значением.`,
+    );
   const invalidPingUltrasonic = pingUltrasonicComponents.find(
     (component) => pingUltrasonicDistanceMeters(component) === null,
   );
@@ -1322,6 +1335,7 @@ export function advanceArduinoCircuitClock(
         levels.powered,
         levels.triggerHigh,
         hcSr04DistanceMeters(activeComponent)!,
+        hcSr04EchoAvailable(activeComponent)!,
       );
       hcSr04States.set(component.id, step.state);
       echoChanged ||= step.echoChanged;

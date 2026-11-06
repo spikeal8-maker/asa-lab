@@ -11,7 +11,10 @@ import {
   type WheelEvent,
 } from 'react';
 import { flushSync } from 'react-dom';
-import type { ElectronicsArduinoSerialProjection } from '@asa-lab/electronics/engine';
+import type {
+  ElectronicsArduinoSerialProjection,
+  ElectronicsHcSr04EnvironmentSample,
+} from '@asa-lab/electronics/engine';
 import { reportClientDiagnostic } from '../client-diagnostics';
 import { useCanvasAnnotations } from './use-canvas-annotations';
 import { SimulationPacing } from './simulation-pacing';
@@ -530,6 +533,66 @@ export function useElectronicsWorkbenchHost(
   >(null);
   const runtimeDocumentRef = useRef(runtimeDocument);
   const resetSimulationRef = useRef(resetSimulation);
+  const setRuntimeHcSr04EnvironmentSample = useCallback(
+    (componentId: string, sample: ElectronicsHcSr04EnvironmentSample): boolean => {
+      const session = committedHostSessionRef.current;
+      if (
+        !simulationRunning ||
+        !session?.active ||
+        session.projectId !== projectId ||
+        runtimeInputBudgetRef.current?.exhausted ||
+        !sample ||
+        (sample.kind !== 'echo' && sample.kind !== 'no-echo') ||
+        (sample.kind === 'echo' &&
+          (!Number.isFinite(sample.distanceMeters) ||
+            sample.distanceMeters < 0.02 ||
+            sample.distanceMeters > 4))
+      )
+        return false;
+      const component = runtimeDocumentRef.current?.components.find(
+        (item) => item.id === componentId,
+      );
+      const entry = component ? catalogEntry(component) : null;
+      if (
+        component?.componentTypeId !== 'ultrasonic-hc-sr04' ||
+        !entry?.enabled ||
+        !entry.simulationSupported ||
+        entry.key !== component.componentTypeId
+      )
+        return false;
+      const properties: Readonly<Record<string, ProductionStateValue>> =
+        sample.kind === 'echo'
+          ? { distanceMeters: sample.distanceMeters, echoAvailable: true }
+          : { echoAvailable: false };
+      setRuntimeOverrides((current) => {
+        const previous = current[componentId];
+        const echoAvailable =
+          previous?.stateProperties?.echoAvailable ??
+          component.stateProperties?.echoAvailable ??
+          true;
+        const distanceMeters =
+          previous?.stateProperties?.distanceMeters ?? component.stateProperties?.distanceMeters;
+        if (
+          echoAvailable === (sample.kind === 'echo') &&
+          (sample.kind === 'no-echo' || distanceMeters === sample.distanceMeters)
+        )
+          return current;
+        // One override produces one same-time canonical input batch. The
+        // scheduler observes its distance and availability together at Trig.
+        // Compare with queued overrides, so multiple samples in one React batch
+        // retain their call order instead of deduplicating against a stale render.
+        return {
+          ...current,
+          [componentId]: {
+            ...previous,
+            stateProperties: { ...previous?.stateProperties, ...properties },
+          },
+        };
+      });
+      return true;
+    },
+    [projectId, simulationRunning],
+  );
   const setRuntimeSensorDistance = useCallback(
     (componentId: string, distanceMeters: number): boolean => {
       const session = committedHostSessionRef.current;
@@ -556,11 +619,13 @@ export function useElectronicsWorkbenchHost(
         entry.key !== component.componentTypeId
       )
         return false;
+      if (component.componentTypeId === 'ultrasonic-hc-sr04')
+        return setRuntimeHcSr04EnvironmentSample(componentId, { kind: 'echo', distanceMeters });
       if (component.stateProperties?.distanceMeters === distanceMeters) return true;
       setRuntimeComponentOverride(componentId, { stateProperties: { distanceMeters } });
       return true;
     },
-    [projectId, setRuntimeComponentOverride, simulationRunning],
+    [projectId, setRuntimeComponentOverride, setRuntimeHcSr04EnvironmentSample, simulationRunning],
   );
   const nativePreparationSourceIdentity = useMemo(
     () =>
@@ -3758,6 +3823,7 @@ export function useElectronicsWorkbenchHost(
     simulationRunning,
     runtimeInputBudget,
     setRuntimeSensorDistance,
+    setRuntimeHcSr04EnvironmentSample,
     arduinoSerialByBoard,
     sendArduinoSerialRx,
     get simulationTimeMs() {

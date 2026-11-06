@@ -3,7 +3,11 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createRoboticsWorldDocument } from '@asa-lab/robotics/world-document';
-import { validatePublicRoboticsArtifact, type PublicRoboticsArtifact } from '@asa-lab/contracts';
+import {
+  validatePublicRoboticsArtifact,
+  validatePublicRoboticsArtifactV6,
+  type PublicRoboticsArtifact,
+} from '@asa-lab/contracts';
 import { PublicRoboticsViewer } from './PublicRoboticsViewer';
 
 let host: HTMLDivElement;
@@ -119,4 +123,85 @@ it('supports keyboard zoom and Home, with bounded controls', async () => {
     stage.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true })),
   );
   expect(host.querySelector('output')?.textContent).toBe('100%');
+});
+
+it('renders frozen v6 tiles, curves, can and block with geometry only, while retaining the v5 path', async () => {
+  expect(artifact.schemaVersion).toBe(5);
+  const result = validatePublicRoboticsArtifactV6({
+    ...artifact,
+    schemaVersion: 6,
+    world: {
+      ...artifact.world,
+      field: {
+        ...artifact.world.field,
+        widthMeters: 6 * 0.3,
+        tiles: { enabled: true, sizeMeters: 0.3 },
+        surface: 'wood',
+        bodies: [
+          {
+            id: 'can-public',
+            label: 'Металлическая банка',
+            kind: 'can',
+            xMeters: 0.8,
+            yMeters: 1.2,
+            headingRadians: 0.3,
+            radiusMeters: 0.033,
+            heightMeters: 0.115,
+          },
+          {
+            id: 'box-public',
+            label: 'Деревянный брусок',
+            kind: 'box',
+            xMeters: 1.2,
+            yMeters: 1.2,
+            headingRadians: 0.5,
+            widthMeters: 0.12,
+            depthMeters: 0.08,
+            heightMeters: 0.04,
+          },
+        ],
+        floorMarks: [
+          {
+            id: 'curve-public',
+            kind: 'curve',
+            start: { xMeters: 0, yMeters: 0.15 },
+            control: { xMeters: 0.15, yMeters: 0.15 },
+            end: { xMeters: 0.15, yMeters: 0.3 },
+            widthMeters: 0.02,
+            color: '#1e293b',
+          },
+        ],
+      },
+    },
+  });
+  if (!result.ok) throw Error('v6 geometry fixture rejected');
+  const frozen = JSON.stringify(result.artifact);
+  await act(async () =>
+    root.render(createElement(PublicRoboticsViewer, { artifact: result.artifact })),
+  );
+  expect(host.querySelector('[data-testid="public-robotics-tiles"]')).not.toBeNull();
+  expect(host.querySelectorAll('[data-body-id]')).toHaveLength(2);
+  expect(
+    host.querySelector('[data-body-id="can-public"]')?.getAttribute('data-heading-radians'),
+  ).toBe('0.3');
+  expect(host.querySelector('[data-body-id="box-public"]')?.getAttribute('transform')).toContain(
+    'rotate(',
+  );
+  expect(host.querySelector('[data-floor-mark-id="curve-public"]')?.getAttribute('d')).toContain(
+    'Q',
+  );
+  expect(host.querySelector('g[clip-path]')).not.toBeNull();
+  expect(host.querySelector('[data-velocity-x], [data-velocity-y], polyline')).toBeNull();
+  expect(host.textContent).toContain('1800 мм');
+  expect(host.textContent).not.toContain('1799.999');
+  expect(host.textContent).not.toMatch(/Масса|Тяга|Сохранить|Изменить|Программа/);
+  await act(async () => button('Конструкция').click());
+  expect(
+    host.querySelector(
+      '[data-body-id], [data-floor-mark-id], [data-testid="public-robotics-tiles"]',
+    ),
+  ).toBeNull();
+  await act(async () => button('Поле').click());
+  expect(host.querySelectorAll('[data-body-id]')).toHaveLength(2);
+  expect(JSON.stringify(result.artifact)).toBe(frozen);
 });

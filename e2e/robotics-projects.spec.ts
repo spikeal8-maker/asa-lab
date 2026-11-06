@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import type { PublicRoboticsArtifact } from '../packages/contracts/src/public-robotics-artifact';
+import type { PublicRoboticsArtifactV6 } from '../packages/contracts/src/public-robotics-artifact-v6';
 import type { Project, ProjectDraft } from '../contexts/projects/domain/project';
 import type { RoboticsProject } from '../contexts/robotics/domain/document';
 import { collectBrowserFailures } from './browser-failures';
@@ -114,6 +114,66 @@ async function numberField(page: Page, label: string, value: number): Promise<vo
   await field.fill(String(value));
   await field.press('Tab');
   await expect(field).toHaveAttribute('aria-invalid', 'false');
+}
+
+/** Inspect native focus scrolling as-is: scrolling here would hide header-overlap regressions. */
+async function fieldErrorLeavesFocusUncovered(invalidField: Locator, nextField: Locator) {
+  await expect(nextField).toBeFocused();
+  await expect
+    .poll(() =>
+      nextField.evaluate((input) => {
+        const bounds = input.getBoundingClientRect();
+        const inset = Math.min(4, bounds.width / 4, bounds.height / 4);
+        const xs = [bounds.left + inset, bounds.left + bounds.width / 2, bounds.right - inset];
+        const ys = [bounds.top + inset, bounds.top + bounds.height / 2, bounds.bottom - inset];
+        return {
+          focused: document.activeElement === input,
+          inViewport:
+            bounds.width > 0 &&
+            bounds.height > 0 &&
+            bounds.left >= 0 &&
+            bounds.top >= 0 &&
+            bounds.right <= innerWidth &&
+            bounds.bottom <= innerHeight,
+          uncovered: xs.every((x) =>
+            ys.every((y) => {
+              const hit = document.elementFromPoint(x, y);
+              return hit === input || (hit !== null && input.contains(hit));
+            }),
+          ),
+        };
+      }),
+    )
+    .toEqual({ focused: true, inViewport: true, uncovered: true });
+  await expect
+    .poll(() =>
+      invalidField.evaluate((input) => {
+        const error = input.closest('label')?.querySelector('[role="alert"]');
+        const text = error?.firstChild;
+        if (!error || !text || text.nodeType !== Node.TEXT_NODE || !text.textContent?.length)
+          return { inViewport: false, uncovered: false };
+        // The first glyph catches an obscured beginning even when later wrapped lines are visible.
+        const range = document.createRange();
+        range.setStart(text, 0);
+        range.setEnd(text, 1);
+        const bounds = range.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          bounds.left + bounds.width / 2,
+          bounds.top + bounds.height / 2,
+        );
+        return {
+          inViewport:
+            bounds.width > 0 &&
+            bounds.height > 0 &&
+            bounds.left >= 0 &&
+            bounds.top >= 0 &&
+            bounds.right <= innerWidth &&
+            bounds.bottom <= innerHeight,
+          uncovered: hit === error || (hit !== null && error.contains(hit)),
+        };
+      }),
+    )
+    .toEqual({ inViewport: true, uncovered: true });
 }
 
 async function noOverflow(page: Page): Promise<void> {
@@ -297,7 +357,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
   await page.getByRole('textbox', { name: 'Название проекта', exact: true }).press('Tab');
   const initial = await readProject(page, projectId);
   expect(initial.project.moduleKey).toBe('robotics');
-  expect(initial.draft.document.schemaVersion).toBe(2);
+  expect(initial.draft.document.schemaVersion).toBe(3);
   const initialUno = initial.draft.document.circuit.components.find((part) => part.id === 'uno')!;
   expect(initialUno.stateProperties?.['arduinoCodeMode']).toBe('blocks');
   expect(String(initialUno.stateProperties?.['arduinoWorkspace'])).toContain('blocks');
@@ -520,9 +580,9 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     const artifactPath = `/api/public-projects/${publication.publicationId}/artifact?revisionId=${publication.revisionId}`;
     const artifactResponse = await viewer.request.get(artifactPath);
     expect(artifactResponse.status()).toBe(200);
-    const artifact = (await artifactResponse.json()).artifact as PublicRoboticsArtifact;
+    const artifact = (await artifactResponse.json()).artifact as PublicRoboticsArtifactV6;
     expect(artifact).toMatchObject({
-      schemaVersion: 5,
+      schemaVersion: 6,
       viewerFamily: 'robotics',
       capabilities: { readOnly: true, download: false },
       world: {
@@ -613,6 +673,548 @@ test('Robotics uses account projects, the main portal and an immutable publicati
           secondAccountPrivateAccess: 404,
           viewportWidths: WIDTHS,
           serverWrites,
+        },
+        null,
+        2,
+      ),
+    );
+  } finally {
+    for (const context of contexts) await context.close();
+  }
+});
+
+test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and publishes frozen v6 geometry', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(300_000);
+  mkdirSync(EVIDENCE, { recursive: true });
+  const failures = [
+    collectBrowserFailures(page, { allowAnonymousSessionProbe: true, allowAdminAccessProbe: true }),
+  ];
+  const contexts: BrowserContext[] = [];
+  page.on('dialog', (dialog) => {
+    void dialog.accept();
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const credentials = await register(page, 'Автор исследования физики поля');
+  const title = `Плитки 30 см, банка, мяч и брусок — ${randomUUID().slice(0, 8)}`;
+  await page.locator('.portal-header .portal-quick-create > summary').click();
+  const createdResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/projects' &&
+      response.request().method() === 'POST',
+  );
+  await page
+    .locator('.portal-header .portal-create-options')
+    .getByRole('button', { name: /^Робототехника/ })
+    .click();
+  const created = await createdResponse;
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json()).project.id as string;
+  await expect(page.getByTestId('robotics-account-editor')).toBeVisible();
+  await page.getByRole('textbox', { name: 'Название проекта', exact: true }).fill(title);
+  await page.getByRole('textbox', { name: 'Название проекта', exact: true }).press('Tab');
+  const initial = await readProject(page, projectId);
+  expect(initial.draft.document.schemaVersion).toBe(3);
+  expect(initial.draft.document.world.physicsProfile).toBe('rigid-body-2d-v1');
+  await expect(page.getByRole('combobox', { name: 'Режим физики', exact: true })).toHaveValue(
+    'dynamic',
+  );
+  await page.getByRole('button', { name: 'Стена · barrier', exact: true }).click();
+  await page.getByRole('button', { name: 'Удалить предмет', exact: true }).click();
+  await page
+    .locator('summary')
+    .filter({ hasText: /^Плитки и размер поля$/ })
+    .click();
+  const columnsInput = page.getByRole('spinbutton', { name: 'Плиток по ширине', exact: true });
+  await columnsInput.fill('4.5');
+  await columnsInput.press('Tab');
+  await expect(columnsInput).toHaveAttribute('aria-invalid', 'true');
+  await expect(
+    page.getByRole('button', { name: 'Применить размер по плиткам', exact: true }),
+  ).toBeDisabled();
+  await columnsInput.focus();
+  await columnsInput.press('Escape');
+  await numberField(page, 'Плиток по ширине', 4);
+  await numberField(page, 'Плиток по высоте', 6);
+  await page.getByRole('button', { name: 'Применить размер по плиткам', exact: true }).click();
+  await numberField(page, 'Шаг сетки', 0.1);
+  await page
+    .getByRole('combobox', { name: 'Точность расчёта', exact: true })
+    .selectOption('precise');
+  await page.getByRole('combobox', { name: 'Покрытие поля', exact: true }).selectOption('carpet');
+  const tiled = await saved(page, projectId);
+  expect(tiled.draft.document.world.field).toMatchObject({
+    widthMeters: 1.2,
+    heightMeters: 1.8,
+    gridMeters: 0.1,
+    tiles: { enabled: true, sizeMeters: 0.3 },
+    surface: 'carpet',
+  });
+  expect(tiled.draft.document.world.physics?.accuracy).toBe('precise');
+  await page.getByRole('combobox', { name: 'Покрытие поля', exact: true }).selectOption('wood');
+
+  const add = async (label: string) => {
+    await page
+      .getByRole('toolbar', { name: 'Инструменты поля' })
+      .getByRole('button', { name: label, exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Добавить в свободное место', exact: true }).click();
+  };
+  const nameObject = async (label: string) => {
+    await page.getByRole('textbox', { name: 'Название предмета', exact: true }).fill(label);
+    await page.getByRole('textbox', { name: 'Название предмета', exact: true }).press('Tab');
+  };
+  await add('Мяч');
+  await numberField(page, 'X мяча', 0.45);
+  await numberField(page, 'Y мяча', 0.9);
+  await add('Банка');
+  await numberField(page, 'X банки', 0.55);
+  await numberField(page, 'Y банки', 0.9);
+  await numberField(page, 'Масса банки', 0.06);
+  const longLabel = 'Металлическая банка для опыта со столкновением и сопротивлением покрытия поля';
+  await nameObject(longLabel);
+  await add('Брусок');
+  await numberField(page, 'X бруска', 0.9);
+  await numberField(page, 'Y бруска', 1.3);
+  await numberField(page, 'Угол предмета', 30);
+  await add('Линия');
+  await numberField(page, 'Начало линии X', 0.15);
+  await numberField(page, 'Начало линии Y', 0.3);
+  await numberField(page, 'Конец линии X', 1.05);
+  await numberField(page, 'Конец линии Y', 0.3);
+  await add('Кривая');
+  await numberField(page, 'Начало линии Y', 1.2);
+  await numberField(page, 'Конец линии Y', 1.5);
+  await numberField(page, 'Изгиб Y', 1.2);
+
+  for (const [kind, x, y] of [
+    ['straight', 0.15, 0.15],
+    ['turn', 0.45, 0.15],
+    ['t-junction', 0.75, 0.15],
+  ] as const) {
+    await page
+      .getByRole('toolbar', { name: 'Инструменты поля' })
+      .getByRole('button', { name: 'Трасса', exact: true })
+      .click();
+    await page.getByRole('combobox', { name: 'Штамп трассы', exact: true }).selectOption(kind);
+    await page.getByRole('button', { name: 'Добавить в свободное место', exact: true }).click();
+    await numberField(page, 'Центр штампа X', x);
+    await numberField(page, 'Центр штампа Y', y);
+  }
+  const beforeCross = await saved(page, projectId);
+  await page
+    .getByRole('toolbar', { name: 'Инструменты поля' })
+    .getByRole('button', { name: 'Трасса', exact: true })
+    .click();
+  await page.getByRole('combobox', { name: 'Штамп трассы', exact: true }).selectOption('cross');
+  await page.getByRole('button', { name: 'Добавить в свободное место', exact: true }).click();
+  const withCross = await saved(page, projectId);
+  expect(withCross.draft.document.world.field.floorMarks).toHaveLength(
+    beforeCross.draft.document.world.field.floorMarks.length + 2,
+  );
+  await page.getByRole('button', { name: 'Отменить', exact: true }).click();
+  expect((await saved(page, projectId)).draft.document.world).toEqual(
+    beforeCross.draft.document.world,
+  );
+  await page.getByRole('button', { name: 'Повторить', exact: true }).click();
+  expect((await saved(page, projectId)).draft.document.world).toEqual(
+    withCross.draft.document.world,
+  );
+  await numberField(page, 'Центр штампа X', 0.75);
+  await numberField(page, 'Центр штампа Y', 0.45);
+  await nameObject('Перекрёсток 30 см');
+  const beforeRotation = await saved(page, projectId);
+  const cross = beforeRotation.draft.document.world.field.floorMarks.find(
+    (mark) => mark.label === 'Перекрёсток 30 см',
+  )!;
+  expect(cross.groupId).toBeTruthy();
+  const crossMembers = (source: RoboticsProject) =>
+    source.world.field.floorMarks.filter((mark) => mark.groupId === cross.groupId);
+  await page.getByRole('button', { name: 'Повернуть на 90°', exact: true }).click();
+  const rotated = await saved(page, projectId);
+  expect(crossMembers(rotated.draft.document)).toHaveLength(2);
+  expect(crossMembers(rotated.draft.document)).not.toEqual(
+    crossMembers(beforeRotation.draft.document),
+  );
+  for (const mark of crossMembers(rotated.draft.document))
+    expect(mark.groupPivot).toEqual(cross.groupPivot);
+  await page.getByRole('button', { name: 'Дублировать предмет', exact: true }).click();
+  const duplicated = await saved(page, projectId);
+  expect(duplicated.draft.document.world.field.floorMarks).toHaveLength(
+    rotated.draft.document.world.field.floorMarks.length + 2,
+  );
+  await page.getByRole('button', { name: 'Удалить предмет', exact: true }).click();
+  expect((await saved(page, projectId)).draft.document.world).toEqual(rotated.draft.document.world);
+  await page.getByRole('button', { name: 'Отменить', exact: true }).click();
+  expect((await saved(page, projectId)).draft.document.world).toEqual(
+    duplicated.draft.document.world,
+  );
+
+  // Dragging a grouped stamp moves all members and commits one history entry.
+  await page
+    .locator('.robotics-object-list')
+    .getByRole('button', { name: `Перекрёсток 30 см · ${cross.groupId}`, exact: true })
+    .click();
+  const beforeDrag = await saved(page, projectId);
+  await page.getByRole('checkbox', { name: 'Привязка', exact: true }).check();
+  const stampShape = page
+    .locator(`#robotics-panel-field [data-scene-key="mark-group:${cross.groupId}"]`)
+    .first();
+  const box = await stampShape.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width / 2 - 64, box!.y + box!.height / 2 - 12, { steps: 4 });
+  await page.mouse.up();
+  const afterDrag = await saved(page, projectId);
+  const beforeMembers = crossMembers(beforeDrag.draft.document);
+  const afterMembers = crossMembers(afterDrag.draft.document);
+  expect(afterMembers).not.toEqual(beforeMembers);
+  expect(afterMembers).toHaveLength(2);
+  const dx = afterMembers[0]!.groupPivot!.xMeters - beforeMembers[0]!.groupPivot!.xMeters;
+  const dy = afterMembers[0]!.groupPivot!.yMeters - beforeMembers[0]!.groupPivot!.yMeters;
+  expect(dx / 0.1).toBeCloseTo(Math.round(dx / 0.1), 9);
+  expect(dy / 0.1).toBeCloseTo(Math.round(dy / 0.1), 9);
+  for (let index = 0; index < afterMembers.length; index++) {
+    const before = beforeMembers[index]!,
+      after = afterMembers[index]!;
+    expect(after.groupPivot!.xMeters - before.groupPivot!.xMeters).toBeCloseTo(dx, 9);
+    expect(after.groupPivot!.yMeters - before.groupPivot!.yMeters).toBeCloseTo(dy, 9);
+    if (before.kind === 'line' && after.kind === 'line') {
+      expect(after.start.xMeters - before.start.xMeters).toBeCloseTo(dx, 9);
+      expect(after.end.yMeters - before.end.yMeters).toBeCloseTo(dy, 9);
+    }
+  }
+  await page.getByRole('button', { name: 'Отменить', exact: true }).click();
+  expect((await saved(page, projectId)).draft.document.world).toEqual(
+    beforeDrag.draft.document.world,
+  );
+  await page.getByRole('checkbox', { name: 'Привязка', exact: true }).uncheck();
+
+  await page.getByRole('tab', { name: 'Робот', exact: true }).click();
+  await numberField(page, 'Датчик: вперёд от центра', 0);
+  await numberField(page, 'Датчик: влево от центра', 100);
+  await numberField(page, 'Направление датчика', 90);
+  await page.getByRole('tab', { name: 'Программа', exact: true }).click();
+  await expect(page.getByTestId('arduino-block-workspace')).toBeVisible();
+  await page
+    .getByRole('combobox', { name: 'Пример программы', exact: true })
+    .selectOption('push-one-shot');
+  await page.getByRole('tab', { name: 'Поле', exact: true }).click();
+  const authored = await saved(page, projectId);
+  const source = authored.draft.document;
+  expect(source.schemaVersion).toBe(3);
+  expect(source.world.physicsProfile).toBe('rigid-body-2d-v1');
+  expect(source.world.field.bodies).toHaveLength(2);
+  const uno = source.circuit.components.find((part) => part.id === 'uno')!;
+  expect(uno.stateProperties?.['arduinoCodeMode']).toBe('blocks');
+  expect(String(uno.stateProperties?.['arduinoSource'])).toMatch(/delay\(800\)/);
+  expect(String(uno.stateProperties?.['arduinoWorkspace'])).toContain('blocks');
+  const ballId = source.world.field.balls[0]!.id;
+  const canId = source.world.field.bodies!.find((body) => body.kind === 'can')!.id;
+  const observePhysics = async () => {
+    const attr = async (locator: Locator, name: string) => Number(await locator.getAttribute(name));
+    const ball = page.locator(`#robotics-panel-field [data-ball-id="${ballId}"]`);
+    const can = page.locator(`#robotics-panel-field [data-body-id="${canId}"]`);
+    return {
+      time: await attr(page.getByTestId('robotics-time'), 'data-microseconds'),
+      leftRpm: await attr(page.getByTestId('robotics-left-rpm'), 'data-rpm'),
+      rightRpm: await attr(page.getByTestId('robotics-right-rpm'), 'data-rpm'),
+      robotX: await attr(page.getByTestId('robotics-robot'), 'data-x-meters'),
+      ballX: await attr(ball, 'data-x-meters'),
+      ballY: await attr(ball, 'data-y-meters'),
+      ballVx: await attr(ball, 'data-velocity-x'),
+      canX: await attr(can, 'data-x-meters'),
+      canY: await attr(can, 'data-y-meters'),
+      canVx: await attr(can, 'data-velocity-x'),
+    };
+  };
+  const beforeRun = await observePhysics();
+  await page.screenshot({ path: `${EVIDENCE}/field-v3-before-run-1440.png`, fullPage: true });
+  await page.getByRole('button', { name: 'Запустить', exact: true }).click();
+  await expect
+    .poll(
+      async () => {
+        const observed = await observePhysics();
+        return observed.leftRpm > 0 && observed.rightRpm > 0;
+      },
+      { timeout: 60_000, intervals: [25, 50, 100] },
+    )
+    .toBe(true);
+  const driving = await observePhysics();
+  await expect
+    .poll(
+      async () => {
+        const observed = await observePhysics();
+        return observed.time > 200_000 && observed.ballX > 0.465 && observed.canX > 0.555;
+      },
+      { timeout: 60_000 },
+    )
+    .toBe(true);
+  const atContact = await observePhysics();
+  await page.getByRole('button', { name: 'Пауза', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Продолжить', exact: true })).toBeEnabled();
+  const paused = await observePhysics();
+  await page.screenshot({ path: `${EVIDENCE}/field-v3-after-contact-1440.png`, fullPage: true });
+  // Sampling after real UI work verifies an acknowledged pause, with no synthetic clock advance.
+  expect((await saved(page, projectId)).draft.document).toEqual(source);
+  expect(await observePhysics()).toEqual(paused);
+  await expect(
+    page
+      .getByRole('toolbar', { name: 'Инструменты поля' })
+      .getByRole('button', { name: 'Банка', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: 'Сбросить', exact: true }).click();
+  await expect.poll(async () => (await observePhysics()).time).toBe(0);
+  const reset = await observePhysics();
+  expect(reset.robotX).toBe(source.world.initialPose.xMeters);
+  expect(reset.ballX).toBe(0.45);
+  expect(reset.canX).toBe(0.55);
+  expect(reset.ballVx).toBe(0);
+  expect(reset.canVx).toBe(0);
+  await page
+    .getByRole('combobox', { name: 'Режим физики', exact: true })
+    .selectOption('educational');
+  expect((await saved(page, projectId)).draft.document.world.physicsProfile).toBe(
+    'kinematic-rover-bodies-v2',
+  );
+  await expect(page.getByTestId('robotics-physics-mode')).toHaveText('Учебный');
+  await page.getByRole('combobox', { name: 'Режим физики', exact: true }).selectOption('dynamic');
+  expect((await saved(page, projectId)).draft.document).toEqual(source);
+
+  for (const width of WIDTHS) {
+    await page.setViewportSize({ width, height: 900 });
+    const properties = page.getByRole('button', { name: 'Свойства', exact: true });
+    if (await properties.isVisible()) {
+      if ((await properties.getAttribute('aria-expanded')) === 'true') await properties.click();
+    }
+    await noOverflow(page);
+    for (const label of ['Мяч', 'Банка', 'Брусок', 'Кривая', 'Трасса'])
+      await visibleControl(
+        page,
+        page
+          .getByRole('toolbar', { name: 'Инструменты поля' })
+          .getByRole('button', { name: label, exact: true }),
+      );
+    await page.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
+    await expect(page.getByLabel('Масштаб поля', { exact: true })).toHaveText('125%');
+    await page.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Привязка', exact: true }).check();
+    await page.screenshot({ path: `${EVIDENCE}/field-v3-tools-${width}.png`, fullPage: true });
+    if (await properties.isVisible()) await properties.click();
+    await page
+      .locator('.robotics-object-list')
+      .getByRole('button', { name: `${longLabel} · ${canId}`, exact: true })
+      .click();
+    const name = page.getByRole('textbox', { name: 'Название предмета', exact: true });
+    await name.scrollIntoViewIfNeeded();
+    await expect(name).toHaveValue(longLabel);
+    await noOverflow(page);
+    await page.screenshot({ path: `${EVIDENCE}/field-v3-inspector-${width}.png`, fullPage: true });
+    const widthInput = page.getByRole('spinbutton', { name: 'Ширина поля', exact: true });
+    await widthInput.fill('0.8');
+    await widthInput.press('Tab');
+    await expect(widthInput).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByRole('alert').first()).toBeVisible();
+    await fieldErrorLeavesFocusUncovered(
+      widthInput,
+      page.getByRole('spinbutton', { name: 'Высота поля', exact: true }),
+    );
+    await noOverflow(page);
+    await page.screenshot({
+      path: `${EVIDENCE}/field-v3-invalid-shrink-${width}.png`,
+      fullPage: true,
+    });
+    await widthInput.focus();
+    await widthInput.press('Escape');
+    if (await properties.isVisible()) {
+      await expect(properties).toBeFocused();
+      await expect(properties).toHaveAttribute('aria-expanded', 'false');
+    }
+    await page
+      .getByRole('toolbar', { name: 'Инструменты поля' })
+      .getByRole('button', { name: 'Выбор', exact: true })
+      .click();
+    expect(await page.evaluate(() => !!document.activeElement?.closest('[hidden], [inert]'))).toBe(
+      false,
+    );
+  }
+  expect((await saved(page, projectId)).draft.document).toEqual(source);
+
+  try {
+    const secondDevice = await browser.newContext({
+      baseURL: origin(page),
+      viewport: { width: 1440, height: 900 },
+    });
+    contexts.push(secondDevice);
+    expect((await secondDevice.storageState()).origins).toEqual([]);
+    const restored = await secondDevice.newPage();
+    failures.push(
+      collectBrowserFailures(restored, {
+        allowAnonymousSessionProbe: true,
+        allowAdminAccessProbe: true,
+      }),
+    );
+    restored.on('dialog', (dialog) => {
+      void dialog.accept();
+    });
+    await login(restored, credentials);
+    await openPortalSection(restored, 'Проекты');
+    await (
+      await cardPreview(restored, title)
+    )
+      .getByRole('link', { name: title, exact: true })
+      .click();
+    await expect(restored.getByTestId('robotics-account-editor')).toBeVisible();
+    expect((await readProject(restored, projectId)).draft.document).toEqual(source);
+    await expect(restored.getByRole('combobox', { name: 'Режим физики', exact: true })).toHaveValue(
+      'dynamic',
+    );
+    await expect(
+      restored.getByRole('combobox', { name: 'Точность расчёта', exact: true }),
+    ).toHaveValue('precise');
+    await restored
+      .locator('.robotics-object-list')
+      .getByRole('button', { name: `Перекрёсток 30 см · ${cross.groupId}`, exact: true })
+      .click();
+    await expect(
+      restored.locator(
+        `#robotics-panel-field [data-scene-key="mark-group:${cross.groupId}"].selected`,
+      ),
+    ).toHaveCount(2);
+    await restored.getByRole('button', { name: 'Повернуть на 90°', exact: true }).click();
+    const rotatedReopened = await saved(restored, projectId);
+    expect(crossMembers(rotatedReopened.draft.document)).not.toEqual(crossMembers(source));
+    for (const member of crossMembers(rotatedReopened.draft.document))
+      expect(member.groupPivot).toEqual(cross.groupPivot);
+    await restored.getByRole('button', { name: 'Отменить', exact: true }).click();
+    expect((await saved(restored, projectId)).draft.document).toEqual(source);
+    await restored.getByRole('button', { name: 'Дублировать предмет', exact: true }).click();
+    const copiedReopened = await saved(restored, projectId);
+    expect(copiedReopened.draft.document.world.field.floorMarks).toHaveLength(
+      source.world.field.floorMarks.length + 2,
+    );
+    await restored.getByRole('button', { name: 'Отменить', exact: true }).click();
+    expect((await saved(restored, projectId)).draft.document).toEqual(source);
+    await restored.getByRole('button', { name: 'Публикация', exact: true }).click();
+    const dialog = restored.getByRole('dialog', { name: 'Публикация проекта', exact: true });
+    await dialog
+      .getByLabel('Описание проекта', { exact: true })
+      .fill(
+        'Поле из плиток 30 см, цельная трасса и столкновение мяча с металлической банкой от программы Arduino.',
+      );
+    await dialog.getByTestId('publication-publish').click();
+    await expect(dialog.getByTestId('publication-status')).toContainText('Опубликовано');
+    const status = await restored.request.get(`/api/projects/${projectId}/publication`);
+    expect(status.status()).toBe(200);
+    const publication = record(record(await status.json()).publication);
+    const publicationId = responseString(publication.publicationId),
+      revisionId = responseString(publication.revisionId);
+    await dialog
+      .locator('.project-properties-head')
+      .getByRole('button', { name: 'Закрыть', exact: true })
+      .click();
+    const otherAccount = await browser.newContext({
+      baseURL: origin(restored),
+      viewport: { width: 1440, height: 900 },
+    });
+    contexts.push(otherAccount);
+    const viewer = await otherAccount.newPage();
+    failures.push(
+      collectBrowserFailures(viewer, {
+        allowAnonymousSessionProbe: true,
+        allowAdminAccessProbe: true,
+      }),
+    );
+    await register(viewer, 'Читатель физики поля');
+    await portalTopBar(viewer).getByRole('link', { name: 'Проекты', exact: true }).click();
+    await viewer
+      .getByRole('group', { name: 'Среда проекта' })
+      .getByRole('button', { name: 'Робототехника', exact: true })
+      .click();
+    await viewer.getByRole('searchbox', { name: 'Поиск по названию и описанию' }).fill(title);
+    await viewer.getByRole('button', { name: 'Найти', exact: true }).click();
+    await viewer
+      .getByTestId('public-project-card')
+      .filter({ hasText: title })
+      .getByRole('link', { name: `Открыть проект «${title}»`, exact: true })
+      .click();
+    await expect(viewer.getByTestId('public-robotics-viewer')).toBeVisible();
+    const artifactPath = `/api/public-projects/${publicationId}/artifact?revisionId=${revisionId}`;
+    const publicResponse = await viewer.request.get(artifactPath);
+    expect(publicResponse.status()).toBe(200);
+    const artifact = (await publicResponse.json()).artifact as PublicRoboticsArtifactV6;
+    expect(artifact.schemaVersion).toBe(6);
+    expect(artifact.world.field).toMatchObject({
+      widthMeters: 1.2,
+      heightMeters: 1.8,
+      gridMeters: 0.1,
+      tiles: { enabled: true, sizeMeters: 0.3 },
+      surface: 'wood',
+    });
+    expect(artifact.world.field.bodies).toHaveLength(2);
+    expect(artifact.world.field.floorMarks).toEqual(
+      source.world.field.floorMarks.map((mark) => {
+        const geometry = { ...mark };
+        delete geometry.groupId;
+        delete geometry.groupPivot;
+        return geometry;
+      }),
+    );
+    expect(artifact.world.field.bodies.find((body) => body.id === canId)?.xMeters).toBe(0.55);
+    expect(JSON.stringify(artifact)).not.toMatch(
+      /physics|massKg|Coefficient|restitution|groupId|groupPivot|arduino|bindings|circuit|atMicroseconds|robotVelocity/,
+    );
+    expect((await viewer.request.get(`/api/projects/${projectId}`)).status()).toBe(404);
+    for (const width of WIDTHS) {
+      await viewer.setViewportSize({ width, height: 900 });
+      await noOverflow(viewer);
+      await expect(viewer.getByTestId('public-robotics-tiles')).toBeVisible();
+      await expect(
+        viewer.locator('[data-testid="public-robotics-field"] [data-body-id]'),
+      ).toHaveCount(2);
+      await expect(
+        viewer.locator('[data-testid="public-robotics-field"] [data-object-kind="curve"]'),
+      ).toHaveCount(2);
+      await expect(viewer.getByTestId('public-robotics-field')).toHaveAttribute(
+        'data-editable',
+        'false',
+      );
+      await expect(
+        viewer.locator('[data-testid="public-robotics-field"] [data-velocity-x]'),
+      ).toHaveCount(0);
+      await viewer.screenshot({ path: `${EVIDENCE}/field-v6-public-${width}.png`, fullPage: true });
+    }
+    await numberField(restored, 'Шаг сетки', 0.05);
+    const privateEdit = await saved(restored, projectId);
+    expect(privateEdit.draft.document.world.field.gridMeters).toBe(0.05);
+    await viewer.reload();
+    await expect(viewer.getByTestId('public-robotics-viewer')).toBeVisible();
+    expect((await (await viewer.request.get(artifactPath)).json()).artifact).toEqual(artifact);
+    for (const failure of failures) failure.assertEmpty();
+    writeFileSync(
+      `${EVIDENCE}/field-v3-lifecycle.json`,
+      JSON.stringify(
+        {
+          projectId,
+          sourceSchema: 3,
+          publicSchema: 6,
+          publicationId,
+          revisionId,
+          sourceDigest: digest(source),
+          artifactDigest: digest(artifact),
+          beforeRun,
+          driving,
+          atContact,
+          paused,
+          reset,
+          persistedGroupId: cross.groupId,
+          wholeGroupAfterReopen: true,
+          freshBrowserContextRestored: true,
+          secondAccountPrivateAccess: 404,
+          viewportWidths: WIDTHS,
         },
         null,
         2,

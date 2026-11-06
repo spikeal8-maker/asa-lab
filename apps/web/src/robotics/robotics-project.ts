@@ -1,6 +1,7 @@
 import { parseElectronicsEngineDocument } from '@asa-lab/electronics/engine';
 import {
   parseRoboticsProject as parseSharedRoboticsProject,
+  upgradeRoboticsProjectToV3 as upgradeSharedProject,
   type RoboticsProject as SharedRoboticsProject,
 } from '@asa-lab/robotics/document';
 import type { SchematicDocument } from '../api';
@@ -8,7 +9,8 @@ import { productionCatalogEntry } from '../electronics/production-manifest-adapt
 import { addComponentToDocument } from '../electronics/workbench-document';
 import type { RoboticsPresetProgram } from './robotics-program-presets';
 import {
-  createRoboticsWorldDocument,
+  createRoboticsWorldV3Document,
+  isRoboticsWorldV3,
   measureRoboticsDistance,
   parseRoboticsWorldDocument,
   type RoboticsWorldDocument,
@@ -144,9 +146,9 @@ export function createDefaultRoboticsProject(program?: RoboticsPresetProgram): R
       to: { componentId: toId, terminal: toTerminal },
     })),
   };
-  const world = createRoboticsWorldDocument();
+  const world = createRoboticsWorldV3Document();
   const project = withRoboticsWorld(
-    { schemaVersion: 2, title: 'Первый робот ASA Lab', circuit, world },
+    { schemaVersion: 3, title: 'Первый робот ASA Lab', circuit, world },
     world,
   );
   const parsed = parseElectronicsEngineDocument(project.circuit);
@@ -185,13 +187,16 @@ export function withRoboticsWorld(
   const parsed = parseRoboticsWorldDocument(nextWorld);
   if (!parsed.ok) throw new Error(parsed.message);
   const world = parsed.world;
+  if ((project.schemaVersion === 3) !== isRoboticsWorldV3(world))
+    throw new Error('Сначала включите расширенное поле; версия сохраняется для всей работы.');
   const sonar = project.circuit.components.find(
     (component) => component.id === world.bindings.distanceSensorId,
   );
   if (sonar?.componentTypeId !== 'ultrasonic-hc-sr04')
     throw new Error('Для поля нужен связанный датчик HC-SR04 на схеме.');
   const measurement = measureRoboticsDistance(world, world.initialPose);
-  if (measurement.status !== 'ok') throw new Error(measurement.message);
+  if (measurement.status !== 'ok' && measurement.status !== 'no-echo')
+    throw new Error(measurement.message);
   return {
     ...project,
     world,
@@ -203,13 +208,22 @@ export function withRoboticsWorld(
               ...component,
               stateProperties: {
                 ...component.stateProperties,
-                distanceMeters: measurement.distanceMeters,
+                ...(measurement.status === 'ok'
+                  ? {
+                      distanceMeters: measurement.distanceMeters,
+                      ...(project.schemaVersion === 3 ? { echoAvailable: true } : {}),
+                    }
+                  : { echoAvailable: false }),
               },
             }
           : component,
       ),
     },
   };
+}
+
+export function upgradeRoboticsProjectToV3(project: RoboticsProject): RoboticsProject {
+  return toRoboticsWebProject(upgradeSharedProject(project));
 }
 
 export function parseRoboticsProject(

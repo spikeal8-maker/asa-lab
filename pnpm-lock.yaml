@@ -415,6 +415,12 @@ importers:
       '@asa-lab/module-sdk':
         specifier: workspace:*
         version: link:../../packages/module-sdk
+      planck:
+        specifier: 1.4.2
+        version: 1.4.2(stage-js@1.0.1)
+      stage-js:
+        specifier: 1.0.1
+        version: 1.0.1
 
   contexts/three-d:
     dependencies:
@@ -3563,6 +3569,12 @@ packages:
     resolution: {integrity: sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==}
     hasBin: true
 
+  planck@1.4.2:
+    resolution: {integrity: sha512-mNbhnV3g8X2rwGxzcesjmN8BDA6qfXgQxXVMkWau9MCRlQY0RLNEkyHlVp6yFy/X6qrzAXyNONCnZ1cGDLrNew==}
+    engines: {node: '>=14.0'}
+    peerDependencies:
+      stage-js: ^1.0.0-alpha.12
+
   playwright-core@1.55.1:
     resolution: {integrity: sha512-Z6Mh9mkwX+zxSlHqdr5AOcJnfp+xUWLCt9uKV18fhzA8eyxUd8NUWzAjxUh55RZKSYwDGX0cfaySdhZJGMoJ+w==}
     engines: {node: '>=18'}
@@ -3898,6 +3910,10 @@ packages:
 
   stackback@0.0.2:
     resolution: {integrity: sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw==}
+
+  stage-js@1.0.1:
+    resolution: {integrity: sha512-cz14aPp/wY0s3bkb/B93BPP5ZAEhgBbRmAT3CCDqert8eCAqIpQ0RB2zpK8Ksxf+Pisl5oTzvPHtL4CVzzeHcw==}
+    engines: {node: '>=18.0'}
 
   statuses@2.0.2:
     resolution: {integrity: sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==}
@@ -8207,6 +8223,10 @@ snapshots:
       sonic-boom: 4.2.1
       thread-stream: 4.2.0
 
+  planck@1.4.2(stage-js@1.0.1):
+    dependencies:
+      stage-js: 1.0.1
+
   playwright-core@1.55.1: {}
 
   playwright@1.55.1:
@@ -8576,6 +8596,8 @@ snapshots:
   split2@4.2.0: {}
 
   stackback@0.0.2: {}
+
+  stage-js@1.0.1: {}
 
   statuses@2.0.2: {}
 

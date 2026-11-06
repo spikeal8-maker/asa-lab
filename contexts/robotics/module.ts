@@ -55,6 +55,32 @@ function roboticsPreviewFigure(payload: RoboticsProject): ModulePreviewFigure {
     });
 
   for (const mark of field.floorMarks) {
+    if (mark.kind === 'curve') {
+      const point = (t: number) => ({
+        x:
+          (1 - t) ** 2 * mark.start.xMeters +
+          2 * (1 - t) * t * mark.control.xMeters +
+          t ** 2 * mark.end.xMeters,
+        y:
+          (1 - t) ** 2 * mark.start.yMeters +
+          2 * (1 - t) * t * mark.control.yMeters +
+          t ** 2 * mark.end.yMeters,
+      });
+      for (let index = 0; index < 8; index++) {
+        const from = point(index / 8),
+          to = point((index + 1) / 8);
+        shapes.push({
+          shape: 'line',
+          x1: x(from.x),
+          y1: y(from.y),
+          x2: x(to.x),
+          y2: y(to.y),
+          stroke: mark.color,
+          width: x(mark.widthMeters),
+        });
+      }
+      continue;
+    }
     shapes.push(
       mark.kind === 'line'
         ? {
@@ -131,6 +157,29 @@ function roboticsPreviewFigure(payload: RoboticsProject): ModulePreviewFigure {
       fill: '#f59e0b',
       stroke: '#b45309',
     });
+  for (const body of field.bodies ?? []) {
+    if (body.kind === 'can')
+      shapes.push({
+        shape: 'circle',
+        cx: x(body.xMeters),
+        cy: y(body.yMeters),
+        r: x(body.radiusMeters),
+        fill: '#cbd5e1',
+        stroke: '#475569',
+      });
+    else
+      shapes.push(
+        ...outline(
+          body.xMeters,
+          body.yMeters,
+          body.widthMeters,
+          body.depthMeters,
+          body.headingRadians,
+          '#a16207',
+          1.4,
+        ),
+      );
+  }
 
   const robotShapes = outline(
     pose.xMeters,
@@ -196,12 +245,12 @@ if (!validateCircuitReplacement)
 export const ROBOTICS_MODULE = defineModule<RoboticsProject>(
   {
     moduleKey: 'robotics',
-    moduleVersion: '0.2.0',
+    moduleVersion: '0.3.0',
     displayName: 'Виртуальная робототехника',
     shortDescription: 'Роботы, поля, датчики и программы на основе общего ядра электроники.',
     defaultProjectTitlePrefix: 'Проект робототехники',
     projectType: 'robot-world',
-    schemaVersion: 2,
+    schemaVersion: 3,
     editorRoute: '/projects/:projectId/robotics',
     viewerRoute: '/view/projects/:versionId/robotics',
     safeModeSupported: true,
@@ -229,7 +278,11 @@ export const ROBOTICS_MODULE = defineModule<RoboticsProject>(
         previous !== null && typeof previous === 'object' && !Array.isArray(previous)
           ? (previous as Record<string, unknown>)
           : null;
-      if (!source || (source.schemaVersion !== 1 && source.schemaVersion !== 2))
+      if (
+        !source ||
+        ![1, 2, 3].includes(source.schemaVersion as number) ||
+        (source.schemaVersion === 3 && payload.schemaVersion !== 3)
+      )
         return {
           ok: false,
           diagnostics: invalidDocument(
