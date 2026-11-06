@@ -12,7 +12,7 @@
 `selected_source` сохраняют проверку направления ancestry; попытка обычного
 обновления `d0bf7cbe → 98d7fbb4` продолжает отклоняться.
 
-В версии v4 декларация совместимости ограничена следующей парой:
+В версии v5 декларация совместимости ограничена следующей парой:
 
 | Свойство                            | Допустимое значение                        |
 | ----------------------------------- | ------------------------------------------ |
@@ -21,7 +21,7 @@
 | Исходная база delivery-расширения   | `76d0610285831a99b7801478e03418ff5800bf73` |
 | Схема обеих версий                  | `304`                                      |
 | OCI platform                        | `linux/amd64`                              |
-| Идентификатор декларации            | `asa-p0-98d7-d0bf-application-return-v4`   |
+| Идентификатор декларации            | `asa-p0-98d7-d0bf-application-return-v5`   |
 
 Для точных `98d7` и `d0bf` в коде закреплены все пять официальных digest images.
 Каждый другой допустимый target обязан быть официальным потомком базы `76d0610`
@@ -29,8 +29,8 @@
 `a8c8ff139340032f4d69cb577847b6ae47667011`. Его полный diff от продуктовой базы
 может содержать только семь перечисленных в `QUALIFIED_CHANGES` delivery-файлов,
 три **неизменённых относительно `76d0610`** документа базы, следующие три
-collector-файла с точными Git identities, необязательный полный принятый набор
-lazy work-context и одну отдельно закреплённую historical SQL fixture, описанные ниже:
+collector-файла с точными Git identities и описанные ниже необязательные принятые
+наборы: lazy work-context, historical SQL fixture, HTTP alerts и CI contract budget.
 
 | Путь | Git mode/type | Принятый Git blob |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ lazy work-context и одну отдельно закреплённую historic
 blob, обычный неизменённый mode/type и accepted commit в ancestry. Копирование
 тех же байтов без принятой истории, частичный перенос, удаление, executable-bit,
 symlink или дальнейшая правка любого из трёх файлов отклоняются. Delivery-only
-потомок без этого collector также не является combined target v4. Точный
+потомок без этого collector также не является combined target v5. Точный
 закреплённый `d0bf` сохраняет отдельный исходный путь проверки.
 
 Если final diff от `d0bf` затрагивает любой из четырёх lazy work-context путей,
@@ -95,6 +95,54 @@ symlink, gitlink, замена каталогом или дальнейшая п
 database contract и CI workflow этот fixture diff не меняет. Source review
 не заменяет actual SQL AFTER в существующем изолированном CI итогового SHA.
 
+Если final diff от `d0bf` затрагивает любой из пяти HTTP alerts путей, target
+дополнительно обязан содержать принятый commit
+`5836109e95d1d48f0950ab0c7b027a6ec493a214` в ancestry и все пять точных записей:
+
+| Путь | Git mode/type | Принятый Git blob |
+| --- | --- | --- |
+| `apps/api/src/app.factory.spec.ts` | `100644 blob` | `16cc0bf18ade39b2e3367151076f7703c8e35529` |
+| `apps/api/src/app.factory.ts` | `100644 blob` | `4239f8490c537e3a6404e2ae0b8fd4bc0931d74a` |
+| `docs/deployment/HTTP_RUNTIME_ALERTS.md` | `100644 blob` | `7dca192cb142c58fe360c020d377d6d235493aef` |
+| `packages/observability/src/runtime-metrics.spec.ts` | `100644 blob` | `16722814877d083ef199a992be7534bf01d8effb` |
+| `packages/observability/src/runtime-metrics.ts` | `100644 blob` | `84d8db19f4554d992d6a42c9be563ccfd43fba11` |
+
+Эти пять путей не входят в свободный `QUALIFIED_CHANGES`. Копирование точных
+bytes без принятой ancestry, частичный перенос или revert, удаление, правка,
+rename, executable-bit, symlink, gitlink и замена каталогом отклоняются.
+Обязательные collector pins, условные lazy и SQL fixture pins, schema `304`,
+неизменность Compose, migrations и зависимостей проверяются независимо.
+
+Полный возврат **всех пяти** путей к исходному tree `d0bf`, включая отсутствие
+добавленных файлов, убирает HTTP alerts diff и сохраняет прежнюю совместимость
+без HTTP alerts. Это не принятие функции: итоговый release с HTTP alerts должен
+отдельно подтверждать все пять точных blobs и ancestry `5836109`. Частичный
+revert при сохранённом diff любого из пяти путей запрещён.
+
+Проверка старого reader `98d7` на синтетических событиях не доказывает native
+Docker update/return или восстановление мониторинга действующей установки.
+Для итоговой пары по-прежнему нужны точные tools SHA, selected deployment
+digest и все штатные CI/native gates; source pins их не заменяют.
+
+Если final diff от `d0bf` затрагивает любой из двух CI contract budget путей,
+target дополнительно обязан содержать commit
+`0d27486879f4fcd767a239613005e5afc47ff2fc` в ancestry и обе точные записи:
+
+| Путь | Git mode/type | Принятый Git blob |
+| --- | --- | --- |
+| `.github/workflows/portable-delivery.yml` | `100644 blob` | `fe21af3e7f8e21cf1b93fb1fd1aa2dbb4d9dedbc` |
+| `.github/workflows/portable-restore.yml` | `100644 blob` | `fb8582c2789f334fe58797e2a98ef02d81408f9a` |
+
+Этот отдельный пакет меняет только `contracts.timeout-minutes` с 10 на 15
+в обоих workflows. Команда, полная матрица и все assertions сохраняются;
+Job `postgres` в Portable Restore остаётся с прежним лимитом 10 минут. Разрешение условное:
+оба файла вместе с принятой ancestry, без копирования, частичного переноса,
+частичного revert, последующего drift или изменения mode/type/path. Они также
+не добавлены в `QUALIFIED_CHANGES`; разрешения на другие workflow changes нет.
+Полный возврат обоих файлов к `d0bf` сохраняет исходную совместимость без
+увеличенного бюджета. Это не свидетельство успешного CI: timeout, cancellation,
+skip и pending не заменяются на PASS, а source pin не отменяет обязательные jobs.
+
 Список изменённых путей читается с отключённым rename/copy detection через
 `--name-status -z`: перед каждым именем стоит непустой status, после имени — NUL.
 Это сохраняет начальные и конечные пробельные символы имени при служебной
@@ -105,8 +153,9 @@ rename/copy record или повреждённое NUL-разделение бл
 delivery-путь не может скрыть удалённый исходный путь. Копирование в чужой product path, изменение типа,
 режима и удаление также остаются видимыми. Изменение любого другого файла,
 включая продукт, lockfile, Dockerfile, миграцию или Compose, отклоняется.
-Это закрытая декларация; будущие product, lazy-context, collector или historical
-SQL fixture changes требуют отдельного review и новой квалификации.
+Это закрытая декларация; будущие product, lazy-context, collector, historical
+SQL fixture, HTTP alerts или CI contract budget changes требуют отдельного review
+и новой квалификации.
 
 Принятый collector исправляет проверку отсутствующего descriptor и запрещает
 создавать новую доверенную квитанцию из неподтверждённого cold-gap содержимого.
@@ -130,8 +179,8 @@ Default action clock после обязательного lazy чтения о�
 
 Квалификация привязана к **точному tools SHA и точному selected deployment
 digest**. Результат прежних tools или прогона закреплённого `d0bf` не
-квалифицирует новый combined release. Capsule с policy v1, v2 или v3 не переопределяется
-как v4 и отклоняется до переключения; для уже начатой операции сохраняется
+квалифицирует новый combined release. Capsule с policy v1, v2, v3 или v4 не переопределяется
+как v5 и отклоняется до переключения; для уже начатой операции сохраняется
 именно тот утверждённый внешний tools checkout, который её подготовил.
 
 При сравнении исходных `98d7 → d0bf` API-изменения затрагивают дополнительные

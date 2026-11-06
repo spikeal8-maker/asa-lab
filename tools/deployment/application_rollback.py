@@ -43,7 +43,20 @@ DATABASE_PROGRESS_REVISION = "356cde9b68d409f8c16f7b00ff1f820057e3455b"
 DATABASE_PROGRESS_BLOBS = {
     "tools/test_database_progress.py": "ee706f5b1ea361d12b0f2aadc081070da34a0f53",
 }
-POLICY = "asa-p0-98d7-d0bf-application-return-v4"
+HTTP_ALERTS_REVISION = "5836109e95d1d48f0950ab0c7b027a6ec493a214"
+HTTP_ALERTS_BLOBS = {
+    "apps/api/src/app.factory.spec.ts": "16cc0bf18ade39b2e3367151076f7703c8e35529",
+    "apps/api/src/app.factory.ts": "4239f8490c537e3a6404e2ae0b8fd4bc0931d74a",
+    "docs/deployment/HTTP_RUNTIME_ALERTS.md": "7dca192cb142c58fe360c020d377d6d235493aef",
+    "packages/observability/src/runtime-metrics.spec.ts": "16722814877d083ef199a992be7534bf01d8effb",
+    "packages/observability/src/runtime-metrics.ts": "84d8db19f4554d992d6a42c9be563ccfd43fba11",
+}
+CI_BUDGET_REVISION = "0d27486879f4fcd767a239613005e5afc47ff2fc"
+CI_BUDGET_BLOBS = {
+    ".github/workflows/portable-delivery.yml": "fe21af3e7f8e21cf1b93fb1fd1aa2dbb4d9dedbc",
+    ".github/workflows/portable-restore.yml": "fb8582c2789f334fe58797e2a98ef02d81408f9a",
+}
+POLICY = "asa-p0-98d7-d0bf-application-return-v5"
 SCHEMA = 304
 JOURNAL = "application-rollback.json"
 FORMAT = "asa-application-rollback-v1"
@@ -262,7 +275,8 @@ def validate_pair(install, previous, selected):
         install.git("merge-base", "--is-ancestor", BASELINE, target)
         changed = _changed_paths(install, PRODUCT, target)
         require(changed <= QUALIFIED_CHANGES | BASELINE_DOCS | COLLECTOR_BLOBS.keys()
-                | LAZY_CONTEXT_BLOBS.keys() | DATABASE_PROGRESS_BLOBS.keys(),
+                | LAZY_CONTEXT_BLOBS.keys() | DATABASE_PROGRESS_BLOBS.keys() | HTTP_ALERTS_BLOBS.keys()
+                | CI_BUDGET_BLOBS.keys(),
                 "ROLLBACK_PRODUCT",
                 "The release changes product, dependencies or unqualified delivery inputs.")
         require(not _changed_paths(install, BASELINE, target, *sorted(BASELINE_DOCS)),
@@ -296,6 +310,26 @@ def validate_pair(install, previous, selected):
                 entry = install.git("ls-tree", "--full-tree", "-z", target, "--", path)
                 require(entry == f"100644 blob {blob}\t{path}\0", "ROLLBACK_PRODUCT",
                         "The selected historical SQL fixture, type or mode differs from its accepted immutable identity.")
+        if changed & HTTP_ALERTS_BLOBS.keys():
+            try:
+                install.git("merge-base", "--is-ancestor", HTTP_ALERTS_REVISION, target)
+            except Blocked:
+                raise Blocked("ROLLBACK_PRODUCT", "The selected release lacks the accepted HTTP alerts history.",
+                              "Use the reviewed combined release; matching copied files alone are insufficient.") from None
+            for path, blob in HTTP_ALERTS_BLOBS.items():
+                entry = install.git("ls-tree", "--full-tree", "-z", target, "--", path)
+                require(entry == f"100644 blob {blob}\t{path}\0", "ROLLBACK_PRODUCT",
+                        "The selected HTTP alerts files, types or modes differ from their accepted immutable identities.")
+        if changed & CI_BUDGET_BLOBS.keys():
+            try:
+                install.git("merge-base", "--is-ancestor", CI_BUDGET_REVISION, target)
+            except Blocked:
+                raise Blocked("ROLLBACK_PRODUCT", "The selected release lacks the accepted CI contract budget history.",
+                              "Use the reviewed combined release; matching copied files alone are insufficient.") from None
+            for path, blob in CI_BUDGET_BLOBS.items():
+                entry = install.git("ls-tree", "--full-tree", "-z", target, "--", path)
+                require(entry == f"100644 blob {blob}\t{path}\0", "ROLLBACK_PRODUCT",
+                        "The selected CI contract budget files, types or modes differ from their accepted immutable identities.")
     install.git("merge-base", "--is-ancestor", PREVIOUS, target)
     install.git("merge-base", "--is-ancestor", target, "origin/main")
     sources = {}

@@ -405,6 +405,9 @@ class ReturnTests(unittest.TestCase):
     def test_v3_policy_capsule_is_not_reinterpreted_by_v4_tools(self):
         self.assert_previous_policy_refused("asa-p0-98d7-d0bf-application-return-v3")
 
+    def test_v4_policy_capsule_is_not_reinterpreted_by_v5_tools(self):
+        self.assert_previous_policy_refused("asa-p0-98d7-d0bf-application-return-v4")
+
     def assert_previous_policy_refused(self, previous_policy):
         self.candidate["policy"] = previous_policy
         with patch.object(ar, "POLICY", previous_policy):
@@ -1232,6 +1235,277 @@ class SourceBoundaryTests(unittest.TestCase):
                 result = ar._tool_ci(tool, True, selected_digest)
             self.assertEqual(result["nativeQualification"]["runId"], 456)
             jobs.assert_called_once_with(valid, ("contracts (ubuntu-latest)", "contracts (windows-latest)", "native official images"))
+
+
+class HttpAlertsSourceBoundaryTests(unittest.TestCase):
+    @staticmethod
+    def commit_entries(fixture, base, entries):
+        # Reuse only this disposable fixture's index. Each mutant starts from
+        # the same accepted tree; no native symlink/worktree mutation is needed.
+        fixture.git("read-tree", base)
+        for path, entry in entries.items():
+            if entry is None:
+                fixture.git("update-index", "--force-remove", "--", path)
+            else:
+                mode, obj = entry
+                fixture.git("update-index", "--add", "--cacheinfo", f"{mode},{obj},{path}")
+        return fixture.git("commit-tree", fixture.git("write-tree"), "-p", base, "-m", "isolated source mutation")
+
+    @staticmethod
+    def altered_blob(fixture):
+        path = "source-boundary-untracked-input"
+        fixture.write(path, "unreviewed source input\n")
+        return fixture.git("hash-object", "-w", "--", path)
+
+    @contextlib.contextmanager
+    def history(self, *, lazy=False, database_progress=False, alerts=False):
+        # Offline contract fixtures use synthetic pins, as the existing source
+        # tests do. Published SHA ancestry needs a separate unpatched Git proof.
+        with SourceBoundaryTests().database_progress_history() as fixture:
+            fixture.git("switch", "--quiet", "-c", "accepted-http-alerts", fixture.baseline)
+            fixture.http_alert_contents = {path: f"accepted HTTP alerts: {path}\n" for path in ar.HTTP_ALERTS_BLOBS}
+            for path, content in fixture.http_alert_contents.items():
+                fixture.write(path, content)
+            fixture.http_alerts = fixture.commit("independently accepted HTTP alerts")
+            fixture.http_alert_blobs = {path: fixture.git("rev-parse", f"{fixture.http_alerts}:{path}")
+                                        for path in fixture.http_alert_contents}
+            fixture.git("switch", "--quiet", "main")
+            if lazy:
+                fixture.merge_lazy_context()
+            if database_progress:
+                fixture.merge_database_progress()
+            if alerts:
+                fixture.git("merge", "--quiet", "--no-ff", "--no-edit", fixture.http_alerts)
+            with patch.multiple(ar, HTTP_ALERTS_REVISION=fixture.http_alerts,
+                                HTTP_ALERTS_BLOBS=fixture.http_alert_blobs):
+                yield fixture
+
+    def assert_refused(self, fixture, target=None):
+        with self.assertRaises(Blocked) as denied:
+            fixture.validate(target)
+        self.assertEqual(denied.exception.code, "ROLLBACK_PRODUCT")
+
+    def test_optional_http_alerts_with_all_lazy_and_sql_fixture_combinations(self):
+        for lazy in (False, True):
+            for database_progress in (False, True):
+                with self.subTest(lazy=lazy, database_progress=database_progress), \
+                     self.history(lazy=lazy, database_progress=database_progress) as fixture:
+                    expected = fixture.validate()
+                    fixture.git("merge", "--quiet", "--no-ff", "--no-edit", fixture.http_alerts)
+                    self.assertEqual(fixture.validate(), expected)
+                    self.assertEqual(fixture.validate(fixture.commit("unchanged HTTP alerts descendant")), expected)
+
+    def test_exact_http_alert_blobs_without_accepted_history_are_refused(self):
+        with self.history(lazy=True, database_progress=True) as fixture:
+            for path, content in fixture.http_alert_contents.items():
+                fixture.write(path, content)
+            target = fixture.commit("copied complete HTTP alerts without accepted ancestry")
+            for path, blob in fixture.http_alert_blobs.items():
+                self.assertEqual(fixture.git("ls-tree", "--full-tree", "-z", target, "--", path),
+                                 f"100644 blob {blob}\t{path}\0")
+            self.assert_refused(fixture, target)
+
+    def test_partial_http_alert_transfer_and_revert_are_refused(self):
+        with self.history(alerts=True) as fixture:
+            base = fixture.git("rev-parse", "HEAD")
+            for path in ar.HTTP_ALERTS_BLOBS:
+                for transfer in (False, True):
+                    with self.subTest(path=path, transfer=transfer):
+                        removed = [name for name in ar.HTTP_ALERTS_BLOBS if name != path] if transfer else [path]
+                        target = self.commit_entries(fixture, base, dict.fromkeys(removed))
+                        self.assert_refused(fixture, target)
+
+    def test_http_alert_edit_delete_mode_type_and_directory_are_refused(self):
+        with self.history(alerts=True) as fixture:
+            base, altered = fixture.git("rev-parse", "HEAD"), self.altered_blob(fixture)
+            fixture.git("config", "diff.ignoreSubmodules", "all")
+            for path, blob in fixture.http_alert_blobs.items():
+                for change, entries in (
+                    ("edit", {path: ("100644", altered)}),
+                    ("delete", {path: None}),
+                    ("executable", {path: ("100755", blob)}),
+                    ("symlink", {path: ("120000", blob)}),
+                    ("gitlink", {path: ("160000", fixture.http_alerts)}),
+                    ("directory", {path: None, path + "/unreviewed.ts": ("100644", altered)}),
+                ):
+                    with self.subTest(path=path, change=change):
+                        self.assert_refused(fixture, self.commit_entries(fixture, base, entries))
+
+    def test_full_http_alert_revert_is_only_no_alerts_compatibility(self):
+        with self.history(lazy=True, database_progress=True) as fixture:
+            expected = fixture.validate()
+            fixture.git("merge", "--quiet", "--no-ff", "--no-edit", fixture.http_alerts)
+            fixture.git("rm", "--", *ar.HTTP_ALERTS_BLOBS)
+            target = fixture.commit("complete five-path revert to original no-alerts tree")
+            fixture.git("merge-base", "--is-ancestor", fixture.http_alerts, target)
+            self.assertFalse(ar._changed_paths(fixture, fixture.product, target) & ar.HTTP_ALERTS_BLOBS.keys())
+            self.assertEqual(fixture.validate(target), expected)
+            for path in ar.HTTP_ALERTS_BLOBS:
+                self.assertEqual(fixture.git("ls-tree", "--full-tree", "-z", target, "--", path), "")
+
+    def test_http_alert_history_does_not_waive_collector_or_other_source_pins(self):
+        with self.history() as fixture:
+            self.assert_refused(fixture, fixture.http_alerts)
+        with self.history(lazy=True, database_progress=True, alerts=True) as fixture:
+            base, altered = fixture.git("rev-parse", "HEAD"), self.altered_blob(fixture)
+            for path in (*ar.COLLECTOR_BLOBS, *ar.LAZY_CONTEXT_BLOBS, *ar.DATABASE_PROGRESS_BLOBS,
+                         *ar.BASELINE_DOCS, SourceHistory.product_path, "migrations/0304.sql",
+                         "compose.yaml", "pnpm-lock.yaml"):
+                with self.subTest(path=path):
+                    self.assert_refused(fixture, self.commit_entries(fixture, base, {path: ("100644", altered)}))
+
+    def test_http_alert_renames_cannot_hide_either_original_path(self):
+        for original_is_alert in (False, True):
+            with self.subTest(original_is_alert=original_is_alert), self.history(alerts=True) as fixture:
+                alert = "apps/api/src/app.factory.ts"
+                before = fixture.git("rev-parse", "HEAD")
+                original, destination = ((alert, fixture.delivery_path) if original_is_alert
+                                         else (fixture.product_path, alert))
+                fixture.git("rm", "--", destination)
+                (fixture.root / destination).parent.mkdir(parents=True, exist_ok=True)
+                fixture.git("mv", original, destination)
+                target = fixture.commit("rename through a pinned HTTP alerts path")
+                changed = ar._changed_paths(fixture, before, target)
+                self.assertIn(original, changed)
+                self.assertIn(destination, changed)
+                self.assert_refused(fixture, target)
+
+    def test_http_alerts_do_not_accept_whitespace_aliases(self):
+        path = "apps/api/src/app.factory.ts"
+        for name in (" " + path, "\t" + path, "\n" + path, path + " "):
+            with self.subTest(path=name), self.history(alerts=True) as fixture:
+                target = fixture.commit_extra_blob(name, fixture.http_alert_blobs[path])
+                self.assertIn(name, ar._changed_paths(fixture, fixture.product, target))
+                self.assert_refused(fixture, target)
+
+    def test_http_alert_source_identity_does_not_waive_schema_identity(self):
+        with self.history(alerts=True) as fixture:
+            target = fixture.git("rev-parse", "HEAD")
+            fixture.git("update-ref", "refs/remotes/origin/main", target)
+            selected = release(target, ar.PRODUCT_IMAGES)
+            selected["schema"] = 305
+            with self.assertRaises(Blocked) as denied:
+                ar.validate_pair(fixture, release(fixture.previous, ar.PREVIOUS_IMAGES), selected)
+            self.assertEqual(denied.exception.code, "ROLLBACK_PAIR")
+
+
+class CiBudgetSourceBoundaryTests(unittest.TestCase):
+    @contextlib.contextmanager
+    def history(self, *, lazy=False, database_progress=False, alerts=False, budget=False):
+        with HttpAlertsSourceBoundaryTests().history(lazy=lazy, database_progress=database_progress,
+                                                    alerts=alerts) as fixture:
+            fixture.git("switch", "--quiet", "-c", "accepted-ci-budget", fixture.baseline)
+            fixture.ci_budget_contents = {path: f"accepted CI contract budget: {path}\n" for path in ar.CI_BUDGET_BLOBS}
+            for path, content in fixture.ci_budget_contents.items():
+                fixture.write(path, content)
+            fixture.ci_budget = fixture.commit("independently accepted CI contract budget")
+            fixture.ci_budget_blobs = {path: fixture.git("rev-parse", f"{fixture.ci_budget}:{path}")
+                                      for path in fixture.ci_budget_contents}
+            fixture.git("switch", "--quiet", "main")
+            if budget:
+                fixture.git("merge", "--quiet", "--no-ff", "--no-edit", fixture.ci_budget)
+            with patch.multiple(ar, CI_BUDGET_REVISION=fixture.ci_budget, CI_BUDGET_BLOBS=fixture.ci_budget_blobs):
+                yield fixture
+
+    def assert_refused(self, fixture, target=None):
+        with self.assertRaises(Blocked) as denied:
+            fixture.validate(target)
+        self.assertEqual(denied.exception.code, "ROLLBACK_PRODUCT")
+
+    def test_optional_ci_budget_with_all_other_source_combinations(self):
+        for lazy in (False, True):
+            for database_progress in (False, True):
+                for alerts in (False, True):
+                    with self.subTest(lazy=lazy, database_progress=database_progress, alerts=alerts), \
+                         self.history(lazy=lazy, database_progress=database_progress, alerts=alerts) as fixture:
+                        expected = fixture.validate()
+                        fixture.git("merge", "--quiet", "--no-ff", "--no-edit", fixture.ci_budget)
+                        self.assertEqual(fixture.validate(), expected)
+                        self.assertEqual(fixture.validate(fixture.commit("unchanged CI budget descendant")), expected)
+
+    def test_exact_ci_budget_without_accepted_history_is_refused(self):
+        with self.history(lazy=True, database_progress=True, alerts=True) as fixture:
+            for path, content in fixture.ci_budget_contents.items():
+                fixture.write(path, content)
+            target = fixture.commit("copied exact CI budget without accepted ancestry")
+            for path, blob in fixture.ci_budget_blobs.items():
+                self.assertEqual(fixture.git("ls-tree", "--full-tree", "-z", target, "--", path),
+                                 f"100644 blob {blob}\t{path}\0")
+            self.assert_refused(fixture, target)
+
+    def test_partial_ci_budget_and_changed_content_mode_type_or_directory_are_refused(self):
+        with self.history(alerts=True, budget=True) as fixture:
+            base = fixture.git("rev-parse", "HEAD")
+            altered = HttpAlertsSourceBoundaryTests.altered_blob(fixture)
+            fixture.git("config", "diff.ignoreSubmodules", "all")
+            for path, blob in fixture.ci_budget_blobs.items():
+                for change, entries in (
+                    ("edit", {path: ("100644", altered)}),
+                    ("partial transfer or revert", {path: None}),
+                    ("executable", {path: ("100755", blob)}),
+                    ("symlink", {path: ("120000", blob)}),
+                    ("gitlink", {path: ("160000", fixture.ci_budget)}),
+                    ("directory", {path: None, path + "/unreviewed.yml": ("100644", altered)}),
+                ):
+                    with self.subTest(path=path, change=change):
+                        target = HttpAlertsSourceBoundaryTests.commit_entries(fixture, base, entries)
+                        self.assert_refused(fixture, target)
+
+    def test_full_ci_budget_revert_preserves_only_original_workflow_compatibility(self):
+        with self.history(lazy=True, database_progress=True, alerts=True) as fixture:
+            expected = fixture.validate()
+            fixture.git("merge", "--quiet", "--no-ff", "--no-edit", fixture.ci_budget)
+            base = fixture.git("rev-parse", "HEAD")
+            target = HttpAlertsSourceBoundaryTests.commit_entries(fixture, base, dict.fromkeys(ar.CI_BUDGET_BLOBS))
+            fixture.git("merge-base", "--is-ancestor", fixture.ci_budget, target)
+            self.assertFalse(ar._changed_paths(fixture, fixture.product, target) & ar.CI_BUDGET_BLOBS.keys())
+            self.assertEqual(fixture.validate(target), expected)
+
+    def test_ci_budget_does_not_waive_any_other_source_boundary(self):
+        with self.history() as fixture:
+            self.assert_refused(fixture, fixture.ci_budget)
+        with self.history(lazy=True, database_progress=True, alerts=True, budget=True) as fixture:
+            base = fixture.git("rev-parse", "HEAD")
+            altered = HttpAlertsSourceBoundaryTests.altered_blob(fixture)
+            for path in (*ar.HTTP_ALERTS_BLOBS, *ar.COLLECTOR_BLOBS, *ar.LAZY_CONTEXT_BLOBS,
+                         *ar.DATABASE_PROGRESS_BLOBS, *ar.BASELINE_DOCS, SourceHistory.product_path,
+                         "migrations/0304.sql", "compose.yaml", "pnpm-lock.yaml", ".github/workflows/unqualified.yml"):
+                with self.subTest(path=path):
+                    target = HttpAlertsSourceBoundaryTests.commit_entries(fixture, base, {path: ("100644", altered)})
+                    self.assert_refused(fixture, target)
+
+    def test_ci_budget_renames_cannot_hide_either_original_path(self):
+        with self.history(alerts=True, budget=True) as fixture:
+            base = fixture.git("rev-parse", "HEAD")
+            path = ".github/workflows/portable-delivery.yml"
+            for original, destination in ((fixture.product_path, path), (path, fixture.delivery_path)):
+                with self.subTest(original=original):
+                    blob = fixture.git("rev-parse", f"{base}:{original}")
+                    target = HttpAlertsSourceBoundaryTests.commit_entries(
+                        fixture, base, {original: None, destination: ("100644", blob)})
+                    changed = ar._changed_paths(fixture, base, target)
+                    self.assertIn(original, changed)
+                    self.assertIn(destination, changed)
+                    self.assert_refused(fixture, target)
+
+    def test_ci_budget_does_not_accept_whitespace_aliases(self):
+        with self.history(alerts=True, budget=True) as fixture:
+            path = ".github/workflows/portable-delivery.yml"
+            for name in (" " + path, "\t" + path, "\n" + path, path + " "):
+                with self.subTest(path=name):
+                    target = fixture.commit_extra_blob(name, fixture.ci_budget_blobs[path])
+                    self.assertIn(name, ar._changed_paths(fixture, fixture.product, target))
+                    self.assert_refused(fixture, target)
+
+    def test_ci_budget_does_not_waive_schema_identity(self):
+        with self.history(alerts=True, budget=True) as fixture:
+            target = fixture.git("rev-parse", "HEAD")
+            fixture.git("update-ref", "refs/remotes/origin/main", target)
+            selected = release(target, ar.PRODUCT_IMAGES)
+            selected["schema"] = 305
+            with self.assertRaises(Blocked) as denied:
+                ar.validate_pair(fixture, release(fixture.previous, ar.PREVIOUS_IMAGES), selected)
+            self.assertEqual(denied.exception.code, "ROLLBACK_PAIR")
 
 
 if __name__ == "__main__":
