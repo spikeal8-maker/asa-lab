@@ -49,7 +49,6 @@ def protect_new_fixture_root(root):
 $ErrorActionPreference = 'Stop'
 $current = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
 $acl = New-Object System.Security.AccessControl.DirectorySecurity
-$acl.SetOwner($current)
 $acl.SetAccessRuleProtection($true, $false)
 $inherit = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
 foreach ($sid in @($current.Value, 'S-1-5-18', 'S-1-5-32-544')) {
@@ -57,7 +56,10 @@ foreach ($sid in @($current.Value, 'S-1-5-18', 'S-1-5-32-544')) {
   $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity, 'FullControl', $inherit, 'None', 'Allow')
   $acl.AddAccessRule($rule)
 }
-Set-Acl -LiteralPath $env:ASA_RETURN_FIXTURE_PATH -AclObject $acl
+# Persist only the modified DACL. Set-Acl can request SACL privileges even
+# for this new fixture; the existing owner, group and audit state must remain.
+$directory = New-Object System.IO.DirectoryInfo($env:ASA_RETURN_FIXTURE_PATH)
+$directory.SetAccessControl($acl)
 """
     run(["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script],
         env={**os.environ, "ASA_RETURN_FIXTURE_PATH": str(root)}, capture=True)
