@@ -620,7 +620,10 @@ export function validateActivityProgress(value, startedAtMs, now, previous) {
 }
 
 const exec = promisify(execFile);
+// libpq treats even an empty PGSERVICE as a service name. Remove inherited
+// values in the child before psql rather than replacing them with an empty value.
 const processScript = `set -eu
+unset PGSERVICE
 nonce="$1"
 ticks=$(awk '{print $22}' /proc/$$/stat)
 printf '{"kind":"process","nonce":"%s","pid":%s,"startTicks":"%s"}\\n' "$nonce" "$$" "$ticks"
@@ -727,8 +730,6 @@ export function nativePgActivityIo() {
           'PGPASSWORD=',
           '--env',
           'PGPASSFILE=/dev/null',
-          '--env',
-          'PGSERVICE=',
           '--env',
           'PGSERVICEFILE=/dev/null',
           '--env',

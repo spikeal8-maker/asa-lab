@@ -403,6 +403,91 @@ afterEach(() => {
 });
 
 describe('PostgreSQL 17 protocol and privacy boundary', () => {
+  it.each([undefined, '', 'must-not-load-inherited-service'])(
+    'starts psql with PGSERVICE absent when its initial value is %j',
+    (service) => {
+      const directory = mkdtempSync(join(tmpdir(), 'asa-pg-startup-'));
+      directories.push(directory);
+      // Execute the real startup script with fixtures for the stat read and client.
+      // This checks the child environment, not native /proc or PostgreSQL proof.
+      // Even an empty PGSERVICE selects a service in libpq; it must be absent.
+      writeFileSync(
+        join(directory, 'awk'),
+        `#!/bin/sh
+set -eu
+[ "$#" -eq 2 ] && [ "$1" = '{print $22}' ]
+case "$2" in /proc/[0-9]*/stat) ;; *) exit 79 ;; esac
+printf '12345\\n'
+`,
+        { mode: 0o700 },
+      );
+      writeFileSync(
+        join(directory, 'psql'),
+        `#!/bin/sh
+set -eu
+if [ "\${PGSERVICE+x}" = x ]; then exit 78; fi
+printf '%s\\n' PGSERVICE_UNSET "$PGAPPNAME" "$PGCONNECT_TIMEOUT" "$PGOPTIONS" "$PGPASSWORD" "$PGPASSFILE" "$PGSERVICEFILE" "$PGCLIENTENCODING"
+printf '%s\\n' "$@"
+`,
+        { mode: 0o700 },
+      );
+      const env: Record<string, string> = {
+        PATH: directory + ':/usr/bin:/bin',
+        PGAPPNAME: 'asa-pg-activity-' + nonce,
+        PGCONNECT_TIMEOUT: '2',
+        PGOPTIONS: '',
+        PGPASSWORD: '',
+        PGPASSFILE: '/dev/null',
+        PGSERVICEFILE: '/dev/null',
+        PGCLIENTENCODING: 'UTF8',
+      };
+      if (service !== undefined) env.PGSERVICE = service;
+      const output = execFileSync(
+        'sh',
+        ['-c', PG_ACTIVITY_NATIVE_SCRIPTS.start, 'asa-pg-activity', nonce],
+        {
+          env,
+          encoding: 'utf8',
+          timeout: 2000,
+          maxBuffer: 4096,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        },
+      );
+      const [processFrame, ...clientOutput] = output.trimEnd().split('\n');
+      expect(JSON.parse(processFrame!)).toMatchObject({
+        kind: 'process',
+        nonce,
+        pid: expect.any(Number),
+        startTicks: '12345',
+      });
+      expect(clientOutput).toEqual([
+        'PGSERVICE_UNSET',
+        'asa-pg-activity-' + nonce,
+        '2',
+        '',
+        '',
+        '/dev/null',
+        '/dev/null',
+        'UTF8',
+        '-X',
+        '-qAt',
+        '-w',
+        '-h',
+        '/var/run/postgresql',
+        '-U',
+        'postgres',
+        '-d',
+        'asalab_test',
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-v',
+        'ECHO=none',
+        '-v',
+        'VERBOSITY=terse',
+      ]);
+    },
+  );
+
   it('binds only the next single SELECT, surrounds it with read-only/rollback, and never interpolates the address into SQL', () => {
     const command = activityCommand('sample', nonce, 4, apiAddress);
     expect(command).toBe(
