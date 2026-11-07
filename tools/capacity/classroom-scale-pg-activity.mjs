@@ -100,6 +100,7 @@ export async function activityDeadline(
   monotonic = () => performance.now(),
 ) {
   let expired = false;
+  let settled = false;
   let timer;
   const end = monotonic() + timeoutMs;
   const expire = () => {
@@ -116,14 +117,22 @@ export async function activityDeadline(
     requireValue(!expired, code);
   };
   const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => {
+    const wake = () => {
+      if (settled) return;
+      const remaining = end - monotonic();
+      if (Number.isFinite(remaining) && remaining > 0) {
+        timer = setTimeout(wake, remaining);
+        return;
+      }
       expire();
       reject(new PgActivityError(code));
-    }, timeoutMs);
+    };
+    timer = setTimeout(wake, timeoutMs);
   });
   try {
     return await Promise.race([Promise.resolve().then(() => action(check)), timeout]);
   } finally {
+    settled = true;
     clearTimeout(timer);
   }
 }
@@ -890,9 +899,11 @@ export class PgActivityChannel {
     }
   }
 
-  async next(timeoutMs) {
+  async next(deadline, monotonic = () => performance.now()) {
     if (this.error) throw this.error;
-    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    const remaining = () => deadline - monotonic();
+    const budget = remaining();
+    if (!Number.isFinite(deadline) || !Number.isFinite(budget) || budget <= 0) {
       this.abandon('REQUEST_DEADLINE');
       throw this.error;
     }
@@ -900,17 +911,28 @@ export class PgActivityChannel {
     if (this.queue.length) return this.queue.shift();
     requireValue(!this.closed, 'SESSION_EXITED');
     return new Promise((done, reject) => {
-      const timer = setTimeout(() => this.abandon('REQUEST_DEADLINE'), timeoutMs);
+      let timer;
+      let settled = false;
+      const wake = () => {
+        if (settled) return;
+        const budget = remaining();
+        // Early timer delivery cannot shorten or restart the original deadline.
+        if (Number.isFinite(budget) && budget > 0) timer = setTimeout(wake, budget);
+        else this.abandon('REQUEST_DEADLINE');
+      };
       this.waiter = {
         resolve: (value) => {
+          settled = true;
           clearTimeout(timer);
           done(value);
         },
         reject: (error) => {
+          settled = true;
           clearTimeout(timer);
           reject(error);
         },
       };
+      wake();
     });
   }
 }
@@ -959,8 +981,9 @@ export class PgActivitySession {
     this.busy = true;
     this.lastRollback = false;
     const sequence = this.sequence++;
-    const deadline = this.io.monotonic() + PG_ACTIVITY_POLICY.queryDeadlineMs;
-    const remaining = () => deadline - this.io.monotonic();
+    const monotonic = this.io.monotonic;
+    const deadline = monotonic() + PG_ACTIVITY_POLICY.queryDeadlineMs;
+    const remaining = () => deadline - monotonic();
     let value;
     try {
       requireValue(this.channel.stderrBytes === 0, 'PSQL_STDERR');
@@ -969,7 +992,7 @@ export class PgActivitySession {
       this.channel.allowPublicErrorStderr = kind === 'error';
       this.checkActive();
       this.channel.child.stdin.write(activityCommand(kind, this.nonce, sequence, address));
-      value = await this.channel.next(remaining());
+      value = await this.channel.next(deadline, monotonic);
       this.checkActive();
       requireValue(
         value?.kind === kind &&
@@ -978,7 +1001,7 @@ export class PgActivitySession {
           value.readOnly === true,
         'FRAME_IDENTITY',
       );
-      const ack = await this.channel.next(remaining());
+      const ack = await this.channel.next(deadline, monotonic);
       this.checkActive();
       exactKeys(ack, ['kind', 'nonce', 'sequence', 'sqlstate']);
       requireValue(
@@ -1004,7 +1027,10 @@ export class PgActivitySession {
 
   async open() {
     this.checkActive();
-    const process = await this.channel.next(PG_ACTIVITY_POLICY.queryDeadlineMs);
+    const process = await this.channel.next(
+      this.io.monotonic() + PG_ACTIVITY_POLICY.queryDeadlineMs,
+      this.io.monotonic,
+    );
     this.checkActive();
     exactKeys(process, ['kind', 'nonce', 'pid', 'startTicks']);
     requireValue(

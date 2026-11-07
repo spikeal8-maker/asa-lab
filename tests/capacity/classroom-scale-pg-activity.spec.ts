@@ -29,6 +29,7 @@ import {
   PgActivityError,
   PgActivitySession,
   activityCommand,
+  activityDeadline,
   assertActivityHello,
   captureActivityIdentity,
   nativePgActivityIo,
@@ -698,12 +699,12 @@ command test "$@"
   });
 
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
-    'rejects an already queued frame with invalid remaining budget %s',
-    async (remaining) => {
+    'rejects an already queued frame with an expired or invalid deadline %s',
+    async (deadline) => {
       const child = new FakePsql(nonce);
       const channel = new PgActivityChannel(child);
       child.stdout.write('{"kind":"already-delivered"}\n');
-      await expect(channel.next(remaining)).rejects.toThrow('REQUEST_DEADLINE');
+      await expect(channel.next(deadline)).rejects.toThrow('REQUEST_DEADLINE');
       expect(channel.inputClosed).toBe(true);
     },
   );
@@ -718,6 +719,283 @@ command test "$@"
     await expect(channel.next(100)).rejects.toThrow('FRAME_TRUNCATED');
     expect(channel.error?.message).toBe('PG_ACTIVITY_FRAME_TRUNCATED');
   });
+});
+
+describe('absolute monotonic request deadlines', () => {
+  function controlledTimers() {
+    type Timer = { callback: () => void; delay: number; fired: boolean; cancelled: boolean };
+    const timers: Timer[] = [];
+    // A deterministic timer boundary can deliver a callback before its requested
+    // time, or deliver an already queued callback after cancellation. The actual
+    // channel/request and deadline wrapper remain unchanged in this fixture.
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation((callback, milliseconds) => {
+      const timer = {
+        callback: () => callback(),
+        delay: milliseconds ?? 0,
+        fired: false,
+        cancelled: false,
+      };
+      timers.push(timer);
+      return timer as unknown as ReturnType<typeof setTimeout>;
+    });
+    vi.spyOn(globalThis, 'clearTimeout').mockImplementation((handle) => {
+      const timer = timers.find((entry) => entry === (handle as unknown));
+      if (timer) timer.cancelled = true;
+    });
+    return {
+      timers,
+      pending: () => timers.filter((timer) => !timer.fired && !timer.cancelled),
+      fire: (timer: Timer) => {
+        timer.fired = true;
+        timer.callback();
+      },
+    };
+  }
+
+  async function requestFixture() {
+    const f = fixture();
+    const clock = { value: 1000.25 };
+    const child = Object.assign(new EventEmitter(), {
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      stdin: new Writable({ write: (_chunk, _encoding, done) => done() }),
+    });
+    const io = {
+      ...f.io,
+      monotonic: () => clock.value,
+      open: () => child,
+    } as unknown as ReturnType<typeof nativePgActivityIo>;
+    const identity = await captureActivityIdentity(f.options, io);
+    const timers = controlledTimers();
+    const failure = vi.fn();
+    const session = new PgActivitySession(f.options, io, identity, failure);
+    return {
+      clock,
+      monotonic: io.monotonic,
+      timers,
+      session,
+      failure,
+      resourceStop: f.resourceStop,
+      payload: (sequence = 0) =>
+        child.stdout.write(
+          JSON.stringify({ kind: 'smoke', nonce: session.nonce, sequence, readOnly: true }) + '\n',
+        ),
+      ack: (sequence = 0) =>
+        child.stdout.write(
+          'ASA_PG_ACTIVITY_ROLLBACK ' + session.nonce + ' ' + sequence + ' 00000\n',
+        ),
+    };
+  }
+
+  async function promiseJobs() {
+    // Flush only the bounded promise chain; no timer or monotonic time advances.
+    for (let turn = 0; turn < 8; turn++) await Promise.resolve();
+  }
+
+  it('keeps the original request deadline across early callbacks and both frame waits', async () => {
+    const f = await requestFixture();
+    const deadline = f.clock.value + PG_ACTIVITY_POLICY.queryDeadlineMs;
+    const reads = vi.spyOn(f.session.channel, 'next');
+    const completion = f.session.request('smoke').then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error }),
+    );
+    f.clock.value = deadline - 0.75;
+    f.timers.fire(f.timers.pending()[0]!);
+    expect(f.session.channel.error).toBeNull();
+    expect(f.failure).not.toHaveBeenCalled();
+    expect(f.session.channel.inputClosed).toBe(false);
+    expect(f.timers.pending()).toHaveLength(1);
+    expect(f.timers.pending()[0]!.delay).toBe(0.75);
+    f.clock.value = deadline - 0.25;
+    f.timers.fire(f.timers.pending()[0]!);
+    expect(f.session.channel.error).toBeNull();
+    expect(f.timers.pending()[0]!.delay).toBe(0.25);
+    f.clock.value = deadline - 0.125;
+    f.payload();
+    await promiseJobs();
+    expect(reads.mock.calls.map(([end]) => end)).toEqual([deadline, deadline]);
+    expect(reads.mock.calls.map(([, clock]) => clock)).toEqual([f.monotonic, f.monotonic]);
+    expect(f.timers.pending()).toHaveLength(1);
+    expect(f.timers.pending()[0]!.delay).toBe(0.125);
+    f.clock.value = deadline;
+    f.timers.fire(f.timers.pending()[0]!);
+    expect(await completion).toMatchObject({ error: { code: 'REQUEST_DEADLINE' } });
+    expect(f.session.lastRollback).toBe(false);
+    expect(f.session.channel.inputClosed).toBe(true);
+    expect(f.timers.pending()).toHaveLength(0);
+  });
+
+  it.each([0, 0.5])(
+    'rejects a pending request callback at its original deadline plus %s ms',
+    async (offset) => {
+      const f = await requestFixture();
+      const deadline = f.clock.value + PG_ACTIVITY_POLICY.queryDeadlineMs;
+      const completion = f.session.request('smoke').catch((error: unknown) => error);
+      f.clock.value = deadline + offset;
+      f.timers.fire(f.timers.pending()[0]!);
+      expect(await completion).toMatchObject({ code: 'REQUEST_DEADLINE' });
+      expect(f.failure).toHaveBeenCalledOnce();
+      expect(f.session.channel.inputClosed).toBe(true);
+      expect(f.session.lastRollback).toBe(false);
+      expect(f.timers.pending()).toHaveLength(0);
+    },
+  );
+
+  it.each([0, 0.5])(
+    'rejects an ACK at its original deadline plus %s ms even before the timer callback',
+    async (offset) => {
+      const f = await requestFixture();
+      const deadline = f.clock.value + PG_ACTIVITY_POLICY.queryDeadlineMs;
+      const completion = f.session.request('smoke').catch((error: unknown) => error);
+      f.clock.value = deadline - 1;
+      f.payload();
+      await promiseJobs();
+      expect(f.timers.pending()).toHaveLength(1);
+      f.clock.value = deadline + offset;
+      f.ack();
+      expect(await completion).toMatchObject({ code: 'REQUEST_DEADLINE' });
+      expect(f.session.channel.inputClosed).toBe(true);
+      expect(f.session.lastRollback).toBe(false);
+      expect(f.timers.pending()).toHaveLength(0);
+    },
+  );
+
+  it('clears the rearmed ACK timer and makes its queued callback harmless to the next request', async () => {
+    const f = await requestFixture();
+    const deadline = f.clock.value + PG_ACTIVITY_POLICY.queryDeadlineMs;
+    const first = f.session.request('smoke');
+    f.clock.value = deadline - 0.75;
+    f.timers.fire(f.timers.pending()[0]!);
+    f.clock.value = deadline - 0.5;
+    f.payload();
+    await promiseJobs();
+    f.clock.value = deadline - 0.25;
+    f.timers.fire(f.timers.pending()[0]!);
+    const oldTimer = f.timers.pending()[0]!;
+    f.clock.value = deadline - 0.125;
+    f.ack();
+    expect(await first).toMatchObject({ rollbackConfirmed: true });
+    expect(oldTimer.cancelled).toBe(true);
+    expect(f.timers.pending()).toHaveLength(0);
+    const count = f.timers.timers.length;
+    f.timers.fire(oldTimer);
+    expect(f.timers.timers).toHaveLength(count);
+    expect(f.timers.pending()).toHaveLength(0);
+
+    f.clock.value = deadline + 0.5;
+    const second = f.session.request('smoke');
+    const newTimer = f.timers.pending()[0]!;
+    f.timers.fire(oldTimer);
+    expect(f.session.channel.error).toBeNull();
+    expect(f.timers.pending()).toEqual([newTimer]);
+    f.payload(1);
+    f.ack(1);
+    expect(await second).toMatchObject({ rollbackConfirmed: true });
+    expect(f.failure).not.toHaveBeenCalled();
+    expect(f.session.channel.inputClosed).toBe(false);
+    expect(f.timers.pending()).toHaveLength(0);
+  });
+
+  it('clears the rearmed timer on resource cancellation and keeps that first error sticky', async () => {
+    const f = await requestFixture();
+    const deadline = f.clock.value + PG_ACTIVITY_POLICY.queryDeadlineMs;
+    const completion = f.session.request('smoke').catch((error: unknown) => error);
+    f.clock.value = deadline - 0.75;
+    f.timers.fire(f.timers.pending()[0]!);
+    const oldTimer = f.timers.pending()[0]!;
+    f.resourceStop.abort();
+    expect(await completion).toMatchObject({ code: 'RESOURCE_STOP' });
+    // This timer fixture does not claim native process/backend closure proof.
+    await f.session.close();
+    expect(oldTimer.cancelled).toBe(true);
+    expect(f.session.channel.inputClosed).toBe(true);
+    expect(f.timers.pending()).toHaveLength(0);
+    const count = f.timers.timers.length;
+    for (const time of [deadline - 0.25, deadline + 1]) {
+      f.clock.value = time;
+      f.timers.fire(oldTimer);
+      expect(f.timers.timers).toHaveLength(count);
+      expect(f.timers.pending()).toHaveLength(0);
+      expect(f.session.channel.error?.code).toBe('RESOURCE_STOP');
+    }
+    expect(f.failure).toHaveBeenCalledOnce();
+  });
+
+  it.each([0, 0.5])(
+    'keeps activityDeadline pending across early callbacks until its original end plus %s ms',
+    async (offset) => {
+      const clock = { value: 1000.25 };
+      const timers = controlledTimers();
+      const onTimeout = vi.fn();
+      const deadline = clock.value + PG_ACTIVITY_POLICY.queryDeadlineMs;
+      const completion = activityDeadline(
+        () => new Promise(() => {}),
+        PG_ACTIVITY_POLICY.queryDeadlineMs,
+        'REQUEST_DEADLINE',
+        onTimeout,
+        () => clock.value,
+      ).catch((error: unknown) => error);
+      for (const remaining of [0.5, 0.125]) {
+        clock.value = deadline - remaining;
+        timers.fire(timers.pending()[0]!);
+        expect(onTimeout).not.toHaveBeenCalled();
+        expect(timers.pending()).toHaveLength(1);
+        expect(timers.pending()[0]!.delay).toBe(remaining);
+      }
+      clock.value = deadline + offset;
+      const lastTimer = timers.pending()[0]!;
+      timers.fire(lastTimer);
+      expect(await completion).toMatchObject({ code: 'REQUEST_DEADLINE' });
+      timers.fire(lastTimer);
+      expect(onTimeout).toHaveBeenCalledOnce();
+      expect(timers.pending()).toHaveLength(0);
+    },
+  );
+
+  it.each(['resolve', 'reject'])(
+    'clears the rearmed activityDeadline timer after action %s',
+    async (result) => {
+      const clock = { value: 1000.25 };
+      const timers = controlledTimers();
+      const onTimeout = vi.fn();
+      const deadline = clock.value + PG_ACTIVITY_POLICY.queryDeadlineMs;
+      let resolveAction!: (value: string) => void;
+      let rejectAction!: (error: Error) => void;
+      const action = new Promise<string>((resolve, reject) => {
+        resolveAction = resolve;
+        rejectAction = reject;
+      });
+      const completion = activityDeadline(
+        () => action,
+        PG_ACTIVITY_POLICY.queryDeadlineMs,
+        'REQUEST_DEADLINE',
+        onTimeout,
+        () => clock.value,
+      ).then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error }),
+      );
+      await promiseJobs();
+      clock.value = deadline - 0.5;
+      timers.fire(timers.pending()[0]!);
+      const oldTimer = timers.pending()[0]!;
+      const error = new Error('bounded action failure');
+      if (result === 'resolve') resolveAction('complete');
+      else rejectAction(error);
+      expect(await completion).toEqual(result === 'resolve' ? { value: 'complete' } : { error });
+      expect(oldTimer.cancelled).toBe(true);
+      expect(timers.pending()).toHaveLength(0);
+      const count = timers.timers.length;
+      for (const time of [deadline - 0.25, deadline + 1]) {
+        clock.value = time;
+        timers.fire(oldTimer);
+        expect(timers.timers).toHaveLength(count);
+        expect(timers.pending()).toHaveLength(0);
+        expect(onTimeout).not.toHaveBeenCalled();
+      }
+    },
+  );
 });
 
 describe('owned identities and confirmation of transaction/connection closure', () => {
@@ -858,7 +1136,10 @@ describe('owned identities and confirmation of transaction/connection closure', 
       // Both frames were available while each read still had budget. The final
       // monotonic check must also reject time lost after obtaining the ACK.
       expect(waits.mock.calls).toHaveLength(2);
-      expect(waits.mock.calls.every(([budget]) => budget > 0)).toBe(true);
+      expect(waits.mock.calls.map(([deadline]) => deadline)).toEqual([
+        PG_ACTIVITY_POLICY.queryDeadlineMs,
+        PG_ACTIVITY_POLICY.queryDeadlineMs,
+      ]);
       expect(session.lastRollback).toBe(false);
     },
   );
