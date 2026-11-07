@@ -428,20 +428,23 @@ set -eu
 case "$2" in /proc/[0-9]*/stat) ;; *) exit 79 ;; esac
 printf '12345\\n'
 `,
-      { mode: 0o700 },
+      { mode: 0o600 },
     );
     writeFileSync(
       join(directory, 'psql'),
       `#!/bin/sh
 set -eu
 if [ "\${PGSERVICE+x}" = x ]; then exit 78; fi
+printf '%s\\n' "$$"
 printf '%s\\n' PGSERVICE_UNSET "$PGAPPNAME" "$PGCONNECT_TIMEOUT" "$PGOPTIONS" "$PGPASSWORD" "$PGPASSFILE" "$PGSERVICEFILE" "$PGCLIENTENCODING"
 printf '%s\\n' "$@"
 `,
-      { mode: 0o700 },
+      { mode: 0o600 },
     );
+    for (const name of ['awk', 'psql'])
+      expect(statSync(join(directory, name)).mode & 0o111).toBe(0);
     const env: Record<string, string> = {
-      PATH: directory + ':/usr/bin:/bin',
+      PATH: directory,
       PGAPPNAME: 'asa-pg-activity-' + nonce,
       PGCONNECT_TIMEOUT: '2',
       PGOPTIONS: '',
@@ -451,6 +454,18 @@ printf '%s\\n' "$@"
     };
     if (service !== undefined) env.PGSERVICE = service;
     if (passfile !== undefined) env.PGPASSFILE = passfile;
+    // Read fixtures through the trusted interpreter so no temporary executable
+    // is needed. The exec adapter validates the target and really replaces the
+    // startup process; the child still receives only exported environment values.
+    const commandFixture = `asa_fixture_directory="$2"
+awk() { /bin/sh "$asa_fixture_directory/awk" "$@"; }
+asa_fixture_exec() {
+if [ "$1" != psql ]; then return 80; fi
+shift
+command exec /bin/sh "$asa_fixture_directory/psql" "$@"
+}
+alias exec=asa_fixture_exec
+`;
     // Simulate a failed device check at the shell test boundary without
     // changing the host's /dev/null. The exported startup body is unchanged.
     const guardFixture = rejectedCheck
@@ -461,8 +476,14 @@ command test "$@"
 `
       : '';
     const result = spawnSync(
-      'sh',
-      ['-c', guardFixture + PG_ACTIVITY_NATIVE_SCRIPTS.start, 'asa-pg-activity', nonce],
+      '/bin/sh',
+      [
+        '-c',
+        commandFixture + guardFixture + PG_ACTIVITY_NATIVE_SCRIPTS.start,
+        'asa-pg-activity',
+        nonce,
+        directory,
+      ],
       {
         env,
         encoding: 'utf8',
@@ -481,13 +502,15 @@ command test "$@"
     }
     expect(result.status).toBe(0);
     expect(result.stderr).toBe('');
-    const [processFrame, ...clientOutput] = result.stdout.trimEnd().split('\n');
-    expect(JSON.parse(processFrame!)).toMatchObject({
+    const [processFrame, clientPid, ...clientOutput] = result.stdout.trimEnd().split('\n');
+    const processIdentity = JSON.parse(processFrame!);
+    expect(processIdentity).toMatchObject({
       kind: 'process',
       nonce,
       pid: expect.any(Number),
       startTicks: '12345',
     });
+    expect(clientPid).toBe(String(processIdentity.pid));
     expect(clientOutput).toEqual([
       'PGSERVICE_UNSET',
       'asa-pg-activity-' + nonce,
