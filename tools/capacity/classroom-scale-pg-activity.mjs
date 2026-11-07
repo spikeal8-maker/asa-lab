@@ -1252,6 +1252,7 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
   let sampleTimer;
   let watcher;
   let lastSampleMonotonic = -Infinity;
+  let phaseDeadlineMonotonic;
   let closure;
   let finished;
   let errorCode;
@@ -1292,11 +1293,17 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
       requireValue(!lastSignal, 'PROGRESS_DISAPPEARED');
       return;
     }
-    lastSignal = validateActivityProgress(value, options.startedAtMs, io.now(), lastSignal);
+    const observedAtMs = io.now();
+    lastSignal = validateActivityProgress(value, options.startedAtMs, observedAtMs, lastSignal);
     if (lastSignal.phase === PG_ACTIVITY_POLICY.phase && !report.phase) {
+      // Anchor the remaining window once. Wall timestamps still validate and
+      // describe the phase, but a later wall-clock step cannot extend capture.
+      const elapsedMs = Math.max(0, observedAtMs - lastSignal.atMs);
+      phaseDeadlineMonotonic =
+        io.monotonic() + Math.max(0, PG_ACTIVITY_POLICY.windowMs - elapsedMs);
       report.phase = {
         startedAtMs: lastSignal.atMs,
-        firstObservedAtMs: io.now(),
+        firstObservedAtMs: observedAtMs,
         firstSampleLagMs: null,
         endedAtMs: null,
       };
@@ -1305,7 +1312,11 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
       report.phase.endedAtMs = lastSignal.atMs;
       phaseEnded = true;
     }
-    if (report.phase && io.now() - report.phase.startedAtMs >= PG_ACTIVITY_POLICY.windowMs) {
+    if (
+      report.phase &&
+      (observedAtMs - report.phase.startedAtMs >= PG_ACTIVITY_POLICY.windowMs ||
+        io.monotonic() >= phaseDeadlineMonotonic)
+    ) {
       report.windowLimitReached = true;
       phaseEnded = true;
     }
@@ -1313,12 +1324,22 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
   const sample = () =>
     activityDeadline(
       async (check) => {
+        const checkActive = () => {
+          if (errorCode) fail(errorCode);
+          if (session.channel.error) fail(pgActivityError(session.channel.error));
+          check();
+        };
         const requestedAtMs = io.now();
         lastSampleMonotonic = io.monotonic();
-        await captureActivityIdentity(options, io, identity, check);
-        check();
+        await captureActivityIdentity(options, io, identity, checkActive);
+        checkActive();
+        // Identity transport may consume the last part of the phase window.
+        // Do not issue another SQL statement after that window has ended.
+        readSignal();
+        checkActive();
+        if (phaseEnded) return;
         const result = await session.request('sample', identity.network.apiAddress);
-        check();
+        checkActive();
         const receivedAtMs = io.now();
         const projected = projectActivitySample(result.value, {
           nonce: session.nonce,
@@ -1326,8 +1347,8 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
           releaseSha: options.releaseSha,
           trackQueryBytes: session.hello.trackQueryBytes,
         });
-        await captureActivityIdentity(options, io, identity, check);
-        check();
+        await captureActivityIdentity(options, io, identity, checkActive);
+        checkActive();
         readSignal();
         const previous = report.samples.at(-1);
         const item = {
@@ -1349,7 +1370,7 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
           Buffer.byteLength(JSON.stringify(candidate)) <= PG_ACTIVITY_POLICY.totalBytes - 4096,
           'REPORT_BOUND',
         );
-        check();
+        checkActive();
         report.samples.push(item);
         report.phase.firstSampleLagMs ??= requestedAtMs - report.phase.startedAtMs;
         report.status = 'CAPTURED';
@@ -1386,8 +1407,10 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
       .catch(recordFailure)
       .finally(() => {
         pending = undefined;
-        if (closed || phaseEnded || errorCode) beginClosure();
-        else {
+        if (closed || phaseEnded || errorCode) {
+          stopWatching();
+          beginClosure();
+        } else {
           clearTimeout(sampleTimer);
           sampleTimer = setTimeout(
             tick,

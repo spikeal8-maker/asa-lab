@@ -946,6 +946,84 @@ describe('fresh atomic phase signal and bounded observation lifecycle', () => {
     expect(missing.notCapturedReason).toBe('phase_missed_or_window_expired');
   });
 
+  it('keeps the sixty-second monotonic window when wall time moves backwards during slow valid samples', async () => {
+    const f = fixture();
+    let wallOffsetMs = 0;
+    f.controls.now = () => Date.now() + wallOffsetMs;
+    f.state.customize = (child) => {
+      child.sampleDelayMs = 1600;
+    };
+    const failure = vi.fn();
+    const observer = await settle(startPgActivityObserver(f.options, failure, f.io));
+    const phaseStartedAtMs = f.controls.now();
+    const phaseStartedMonotonic = performance.now();
+    f.state.progress = { phase: 'electronics-open', atMs: phaseStartedAtMs };
+    f.state.change();
+    await vi.advanceTimersByTimeAsync(30000);
+    const beforeClockStep = performance.now();
+    wallOffsetMs = -30000;
+    expect(performance.now()).toBe(beforeClockStep);
+    await vi.advanceTimersByTimeAsync(35000);
+    const child = f.processes[0]!;
+    const starts = child.commands.filter((item) => item.kind === 'sample').map((item) => item.atMs);
+    expect(starts.length).toBeGreaterThan(2);
+    expect(starts.length).toBeLessThan(PG_ACTIVITY_POLICY.samples);
+    expect(starts.every((at) => at - phaseStartedMonotonic < PG_ACTIVITY_POLICY.windowMs)).toBe(
+      true,
+    );
+    for (let index = 1; index < starts.length; index++)
+      expect(starts[index]! - starts[index - 1]!).toBeGreaterThanOrEqual(1600);
+    expect(child.closed).toBe(true);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(child.commands.filter((item) => item.kind === 'sample')).toHaveLength(starts.length);
+    const report = await settle(observer.finish());
+    expect(failure).not.toHaveBeenCalled();
+    expect(report).toMatchObject({
+      status: 'CAPTURED',
+      windowLimitReached: true,
+      phase: { startedAtMs: phaseStartedAtMs },
+      closure: { status: 'PASS' },
+    });
+    expect(report.samples).toHaveLength(starts.length);
+    // Preserve the actual wall timestamps/gaps instead of rewriting evidence
+    // to hide the clock step. Only the safety deadline uses monotonic time.
+    expect(
+      report.samples.some(
+        (item: { gapFromPreviousStartMs: number | null }) =>
+          item.gapFromPreviousStartMs !== null && item.gapFromPreviousStartMs < 0,
+      ),
+    ).toBe(true);
+  });
+
+  it('does not start SQL when pre-query identity checks exhaust the remaining phase window', async () => {
+    const f = fixture();
+    f.options.startedAtMs -= 59000;
+    const failure = vi.fn();
+    const observer = await settle(startPgActivityObserver(f.options, failure, f.io));
+    const inspect = f.controls.inspect;
+    let delayed = false;
+    f.controls.inspect = async (id) => {
+      if (id === apiId && !delayed) {
+        delayed = true;
+        await f.controls.wait(1500);
+      }
+      return inspect(id);
+    };
+    f.state.progress = { phase: 'electronics-open', atMs: Date.now() - 59000 };
+    f.state.change();
+    await vi.advanceTimersByTimeAsync(2500);
+    const report = await settle(observer.finish());
+    expect(failure).not.toHaveBeenCalled();
+    expect(f.processes[0]!.commands.some((item) => item.kind === 'sample')).toBe(false);
+    expect(report).toMatchObject({
+      status: 'NOT_CAPTURED',
+      samples: [],
+      windowLimitReached: true,
+      notCapturedReason: 'phase_missed_or_window_expired',
+      closure: { status: 'PASS' },
+    });
+  });
+
   it('signals failure at the 2 s sample deadline before the separate bounded closure, rejecting late ACKs', async () => {
     const f = fixture();
     f.state.customize = (child) => {
@@ -1068,4 +1146,62 @@ describe('fresh atomic phase signal and bounded observation lifecycle', () => {
       expect(report).not.toHaveProperty('httpErrors');
     }
   });
+
+  it.each([
+    { cause: 'stderr', code: 'PSQL_STDERR' },
+    { cause: 'exit', code: 'CLIENT_EXIT' },
+    { cause: 'combined', code: 'PSQL_STDERR' },
+  ])(
+    'keeps failure sticky when $cause arrives during the second post-ACK identity await',
+    async ({ cause, code }) => {
+      const f = fixture();
+      const failure = vi.fn();
+      const observer = await settle(startPgActivityObserver(f.options, failure, f.io));
+      const child = f.processes[0]!;
+      const inspect = f.controls.inspect;
+      let secondAckSent = false;
+      let inspectionPaused = false;
+      let releaseInspection: (() => void) | undefined;
+      const inspectionGate = new Promise<void>((done) => {
+        releaseInspection = done;
+      });
+      child.afterOutput = (kind) => {
+        if (
+          kind === 'sample' &&
+          child.commands.filter((item) => item.kind === 'sample').length === 2
+        )
+          secondAckSent = true;
+      };
+      f.controls.inspect = async (id) => {
+        if (id === apiId && secondAckSent && !inspectionPaused) {
+          inspectionPaused = true;
+          await inspectionGate;
+        }
+        return inspect(id);
+      };
+      const phaseStartedAtMs = Date.now();
+      f.state.progress = { phase: 'electronics-open', atMs: phaseStartedAtMs };
+      f.state.change();
+      await vi.advanceTimersByTimeAsync(1010);
+      expect(inspectionPaused).toBe(true);
+      expect(child.commands.filter((item) => item.kind === 'sample')).toHaveLength(2);
+      if (cause !== 'exit') child.stderr.write(privateText);
+      if (cause !== 'stderr') child.close(7);
+      expect(failure).toHaveBeenCalledExactlyOnceWith(code);
+      expect(observer.error).toBe(code);
+      releaseInspection!();
+      await vi.advanceTimersByTimeAsync(4000);
+      const report = await settle(observer.finish());
+      expect(report).toMatchObject({ status: 'FAILED', code, closure: { status: 'PASS' } });
+      expect(report.samples).toHaveLength(1);
+      expect(report.samples[0]).toMatchObject({
+        requestedAtMs: phaseStartedAtMs,
+        rollbackConfirmed: true,
+      });
+      expect(child.commands.filter((item) => item.kind === 'sample')).toHaveLength(2);
+      expect(failure).toHaveBeenCalledExactlyOnceWith(code);
+      expect(f.reports[0]!.value).toMatchObject({ status: 'FAILED', code });
+      expect(f.reports[0]!.text).not.toContain(privateText);
+    },
+  );
 });
