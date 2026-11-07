@@ -1,0 +1,164 @@
+name: Learning origin list prefix diagnostic
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/learning-origin-prefix-diagnostic.yml'
+      - 'tools/testing/learning-origin-list-diagnostic.mjs'
+      - 'tools/testing/learning-origin-list-diagnostic.test.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: origin-list-prefix-diagnostic-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  NX_SKIP_NX_CACHE: 'true'
+  NX_DAEMON: 'false'
+
+jobs:
+  origin-list-prefix-diagnostic:
+    name: Origin list diagnostic only (full E1 NOT RUN)
+    if: github.event_name == 'pull_request' && github.head_ref == 'diagnostic/p0-origin-prefix-20261107'
+    # Locked Playwright supports Ubuntu 24.04; ubuntu-latest now selects 26.04.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: asa_learning_e1_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: learning-e1-ci-isolated-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_learning_e1_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:learning-e1-ci-isolated-test@127.0.0.1:5432/asa_learning_e1_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:learning-e1-ci-isolated-test@127.0.0.1:5432/asa_learning_e1_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:learning-e1-ci-isolated-test@127.0.0.1:5432/asa_learning_e1_test
+      MIGRATION_EXPECT_DATABASE: asa_learning_e1_test
+      MIGRATION_CONFIRM: APPLY:asa_learning_e1_test
+      NODE_ENV: test
+      ASA_SEED_DEMO: 'false'
+      ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4613
+      ASA_BLOCKS_RUNTIME_SIGNING_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      VITE_ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4613
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm build
+      - name: Fresh schema and restricted runtime
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'learning-e1-ci-isolated-test'"
+      - name: Existing E1 and populated upgrade regressions
+        id: code-data
+        run: pnpm test:learning-e1
+      - name: Build pinned Scratch standalone host image
+        run: >-
+          docker build -f infra/scratch-editor/Dockerfile
+          --build-arg ASA_BUILD_REVISION=${{ github.event.pull_request.head.sha || github.sha }}
+          --build-arg ASA_BLOCKS_PARENT_ORIGIN=http://127.0.0.1:4612
+          -t asa-lab-scratch-editor:learning-e1 .
+      - name: Start isolated Scratch host
+        run: >-
+          docker run -d --name asa-lab-scratch-editor-learning-e1
+          --user 101:101 --read-only
+          --tmpfs /var/cache/nginx:uid=101,gid=101,mode=0700,size=64m
+          --tmpfs /var/run:uid=101,gid=101,mode=0700,size=8m
+          --cap-drop ALL --security-opt no-new-privileges:true
+          -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:learning-e1
+      - name: Verify isolated Scratch host
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:4613/healthz; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent --show-error http://127.0.0.1:4613/healthz
+      - name: Discover the unchanged first browser invocation
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: reports/playwright/origin-prefix/discovery.json
+        run: |
+          test ! -e reports/playwright/origin-prefix
+          mkdir -p reports/playwright/origin-prefix
+          pnpm exec playwright test e2e/courses-sharing.spec.ts --workers=1 --list --reporter=json --output reports/playwright/origin-prefix/results
+      - name: Original courses-sharing invocation (both cases; diagnostic only)
+        id: browser
+        env:
+          LEARNING_E1_BATCH: first
+          ASA_WEB_PORT: '4612'
+          ASA_WEB_ORIGIN: http://127.0.0.1:4612
+          ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4612
+          ASA_BLOCKS_UPSTREAM_ORIGIN: http://127.0.0.1:4613
+          PLAYWRIGHT_JSON_OUTPUT_FILE: reports/playwright/origin-prefix/execution.json
+        shell: bash
+        run: pnpm exec playwright test e2e/courses-sharing.spec.ts --workers=1 --reporter=list,json --output reports/playwright/origin-prefix/results
+      - name: Preserve the original outcome (full E1 NOT RUN)
+        if: always()
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+          CODE_DATA_OUTCOME: ${{ steps.code-data.outcome }}
+          PREFIX_OUTCOME: ${{ steps.browser.outcome }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, subprocess
+          from pathlib import Path
+          head = os.environ['SOURCE_SHA']
+          if subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip() != head:
+              raise SystemExit('Diagnostic checkout differs from the event source')
+          target = Path('reports/playwright/origin-prefix')
+          target.mkdir(parents=True, exist_ok=True)
+          record = dict(scope='origin_list_prefix_diagnostic_only', full_e1='NOT_RUN',
+              source_sha=head, run_id=os.environ['GITHUB_RUN_ID'], run_attempt=os.environ['GITHUB_RUN_ATTEMPT'],
+              code_data_outcome=os.environ['CODE_DATA_OUTCOME'], original_browser_outcome=os.environ['PREFIX_OUTCOME'])
+          with (target / 'original-outcome.json').open('x') as output:
+              output.write(json.dumps(record, indent=2) + '\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('## Diagnostic prefix only — full E1 NOT RUN\n\n```json\n' + json.dumps(record, indent=2) + '\n```\n')
+          PYTHON
+      - name: Capture original SQL plans after a completed prefix outcome
+        if: always() && !cancelled() && (steps.browser.outcome == 'success' || steps.browser.outcome == 'failure')
+        env:
+          ASA_DIAGNOSTIC_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+          ASA_DIAGNOSTIC_BROWSER_OUTCOME: ${{ steps.browser.outcome }}
+          ASA_DIAGNOSTIC_BATCH: first
+        run: |
+          git fetch --no-tags --depth=2 origin "$ASA_DIAGNOSTIC_SOURCE_SHA"
+          node --test tools/testing/learning-origin-list-diagnostic.test.mjs
+          node tools/testing/learning-origin-list-diagnostic.mjs
+      - name: Show isolated Scratch host logs
+        if: always()
+        run: docker logs asa-lab-scratch-editor-learning-e1 || true
+      - name: Remove isolated Scratch host
+        if: always()
+        run: docker rm -f asa-lab-scratch-editor-learning-e1 || true
+      - name: Preserve prefix diagnostic evidence (not full E1 acceptance)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: origin-list-prefix-diagnostic-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            reports/diagnostics
+            reports/playwright/origin-prefix
+            e2e/artifacts/courses
+          if-no-files-found: error
+          retention-days: 14
