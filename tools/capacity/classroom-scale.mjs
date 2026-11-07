@@ -53,6 +53,12 @@ import {
   captureScaleFailureDiagnostics,
   scaleFailureDiagnosticError,
 } from './classroom-scale-contracts.mjs';
+import {
+  PG_ACTIVITY_POLICY,
+  pgActivityError,
+  qualifyPgActivityNative,
+  startPgActivityObserver,
+} from './classroom-scale-pg-activity.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const reportsRoot = resolve(root, 'reports/classroom-official-n30');
 const execute = promisify(execFile);
@@ -70,6 +76,8 @@ const plannedFiles = [
   '.github/workflows/classroom-official-n30.yml',
   '.github/compose.classroom-scale.yml',
   'tools/capacity/classroom-scale-release.py',
+  'tools/capacity/classroom-scale-pg-activity.mjs',
+  'tests/capacity/classroom-scale-pg-activity.spec.ts',
 ];
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
@@ -136,6 +144,7 @@ async function check() {
     'run',
     'tests/capacity/classroom-scale.spec.ts',
     'tests/capacity/request-storm.spec.ts',
+    'tests/capacity/classroom-scale-pg-activity.spec.ts',
     '--maxWorkers=1',
   ]);
   // Resolve the existing workspace aliases without generating a shared tsconfig
@@ -158,6 +167,7 @@ async function check() {
         'apps/web/src/build-metadata.d.ts',
         'e2e/classroom-scale.spec.ts',
         'tests/capacity/classroom-scale.spec.ts',
+        'tests/capacity/classroom-scale-pg-activity.spec.ts',
       ],
       include: [],
     },
@@ -348,7 +358,9 @@ async function run() {
   const conditionsMatched =
     baseline.summary.environmentHash === after.summary.environmentHash &&
     baseline.runnerImageId === after.runnerImageId &&
-    baseline.summary.profileHash === after.summary.profileHash;
+    baseline.summary.profileHash === after.summary.profileHash &&
+    baseline.summary.pgActivity?.policyHash === scaleHash(PG_ACTIVITY_POLICY) &&
+    after.summary.pgActivity?.policyHash === scaleHash(PG_ACTIVITY_POLICY);
   const comparable =
     conditionsMatched &&
     after.summary.calibration.status === 'VALID_FIXTURE' &&
@@ -358,6 +370,7 @@ async function run() {
   writeJson(resolve(output, 'comparison.json'), {
     ...harness,
     scenario: OFFICIAL_SCALE_SCENARIO,
+    pgActivityPolicy: PG_ACTIVITY_POLICY,
     releaseProofHash: scaleHash(proof),
     conditionsMatched,
     comparable,
@@ -539,6 +552,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
   let currentPhase = 'build';
   let driverName;
   let stoppedByResource;
+  const pgResourceStop = new globalThis.AbortController();
   let observationErrors = 0;
   const allResources = [];
   const builder = project + '-builder';
@@ -553,6 +567,8 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
   let monitorTimer;
   let currentAbortFile;
   let activeCommand;
+  let activePgObserver;
+  const pgObservationReceipts = [];
   let observationsPaused = false;
   let phaseStartedAtMs = Date.now();
   let failureDiagnostics;
@@ -738,6 +754,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
     const violation = scaleResourceViolation(value);
     if (violation && !stoppedByResource) {
       stoppedByResource = { reason: violation, atMs: value.atMs, phase: currentPhase };
+      pgResourceStop.abort();
       writeJson(resolve(reports, 'resource-stop.json'), stoppedByResource);
       if (currentAbortFile) writeJson(currentAbortFile, stoppedByResource);
       activeCommand?.kill();
@@ -1083,7 +1100,34 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
     await attestOwnedResources(true);
     await requireResources();
 
+    const pgObserverOptions = (directory, startedAtMs) => {
+      const api = containerIds.find((container) => container.service === 'api');
+      const postgres = containerIds.find((container) => container.service === 'postgres');
+      if (!api || !postgres) throw Error('PG_ACTIVITY_OWNED_SERVICES_MISSING');
+      return {
+        directory,
+        startedAtMs,
+        releaseSha: head,
+        apiId: api.id,
+        postgresId: postgres.id,
+        resourceSignal: pgResourceStop.signal,
+        expected: {
+          project,
+          root,
+          runToken: env.ASA_SCALE_RUN_TOKEN,
+          configFiles: composeFiles.map((path) => resolve(root, path)).join(','),
+          images: fixtureImages,
+        },
+      };
+    };
+    const pgSmoke = await qualifyPgActivityNative(pgObserverOptions(reports, Date.now()));
+    if (pgSmoke.status !== 'PASS') {
+      if (!stoppedByResource || pgSmoke.code !== 'RESOURCE_STOP') observationErrors++;
+      throw Error('PG_ACTIVITY_NATIVE_SMOKE_' + pgSmoke.code);
+    }
+
     const runBrowserLevel = async (users, mode = 'capacity') => {
+      if (observationErrors) throw Error('PG_ACTIVITY_PRIOR_OBSERVATION_FAILURE');
       const invocation = officialScaleBrowserInvocation(config, { reports, users, mode });
       currentPhase = invocation.phase;
       phaseStartedAtMs = Date.now();
@@ -1099,7 +1143,31 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
       const sampleIndex = allResources.length;
       await sample();
       phaseApiIdentity = latestApiIdentity;
+      let pgActivityFailure;
       if (!stoppedByResource) {
+        // The phase watcher and its single local PostgreSQL connection are
+        // ready before the browser workload writes its first progress signal.
+        await attestRuntime();
+        await attestOwnedResources(true);
+        if (stoppedByResource) throw Error('BLOCKED_BY_RUNNER: ' + stoppedByResource.reason);
+        activePgObserver = await startPgActivityObserver(
+          pgObserverOptions(directory, phaseStartedAtMs),
+          (code) => {
+            if (pgActivityFailure) return;
+            pgActivityFailure = code;
+            if (stoppedByResource && code === 'RESOURCE_STOP') return;
+            observationErrors++;
+            writeJson(currentAbortFile, {
+              reason: 'pg_activity_observer_failure',
+              code,
+              atMs: Date.now(),
+              classification: 'observation_error',
+            });
+          },
+        );
+        await attestOwnedResources(true);
+        if (pgActivityFailure) throw Error('PG_ACTIVITY_' + pgActivityFailure);
+        await requireResources();
         driverName = project + '-browser-' + mode + '-' + users;
         const running = start(
           'docker',
@@ -1132,6 +1200,15 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
         const deadline = Date.now() + SCALE_PROFILE.levelTimeoutMs;
         while (!done && Date.now() < deadline) {
           await delay(1000);
+          if (pgActivityFailure) {
+            const metadata = ownMetadata(
+              JSON.parse(await capture('docker', ['inspect', driverName]))[0],
+            );
+            if (metadata.State.Running)
+              await checked('docker', ['stop', '--time', '15', metadata.Id]);
+            await completion;
+            break;
+          }
           if (!done) await refreshContainers();
         }
         if (!done) {
@@ -1146,6 +1223,17 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
         writeJson(resolve(directory, 'process.json'), result);
         await refreshContainers();
         await sample();
+      }
+      if (activePgObserver) {
+        const activity = await activePgObserver.finish();
+        pgObservationReceipts.push({
+          phase: currentPhase,
+          status: activity.status,
+          samples: activity.samples.length,
+          code: activity.code || null,
+          closure: activity.closure.status,
+        });
+        activePgObserver = undefined;
       }
       const rawPath = resolve(directory, 'raw.json');
       let raw;
@@ -1185,7 +1273,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
         receipt = {
           ...receipt,
           status: mode === 'calibration' ? 'INVALID_FIXTURE' : 'INVALID',
-          reasons: ['resource_observer_errors'],
+          reasons: [pgActivityFailure ? 'pg_activity_observer_errors' : 'resource_observer_errors'],
         };
       const processResult = existsSync(resolve(directory, 'process.json'))
         ? readJson(resolve(directory, 'process.json'))
@@ -1260,6 +1348,12 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
     });
     summary.host = host;
     summary.observationErrors = observationErrors;
+    summary.pgActivity = {
+      policyHash: scaleHash(PG_ACTIVITY_POLICY),
+      nativeSmoke: pgSmoke.status,
+      levels: pgObservationReceipts,
+      extraConnectionRetainedInRawAggregates: true,
+    };
     summary.harnessImageId = runnerImageId;
     summary.postRunRuntime = await attestRuntime();
     await attestOwnedResources();
@@ -1293,6 +1387,16 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
       });
     throw error;
   } finally {
+    if (activePgObserver) {
+      try {
+        await activePgObserver.finish();
+      } catch (error) {
+        observationErrors++;
+        process.exitCode = 2;
+        console.error('[classroom-scale] PG_ACTIVITY_' + pgActivityError(error));
+      }
+      activePgObserver = undefined;
+    }
     if (monitorTimer) clearInterval(monitorTimer);
     await monitorPending?.catch(() => undefined);
     writeJson(resolve(reports, 'resource-observations.json'), {
