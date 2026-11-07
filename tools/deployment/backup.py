@@ -11,7 +11,7 @@ import stat
 import uuid
 import time
 
-from .contracts import atomic_json, inventory_files, require, verify_backup
+from .contracts import atomic_json, backup_path, inventory_files, require, verify_backup
 from .restore_toc import plan_restore_toc
 from .system import run
 
@@ -173,7 +173,7 @@ def _export_backup(install, destination=None):
     runtime = install.readiness()
     recovery = recovery_configuration(install, runtime)
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
-    parent = Path(destination or install.settings.get("backupDirectory") or install.root / "backups").resolve()
+    parent = backup_path(destination or install.settings.get("backupDirectory") or install.root / "backups")
     parent.mkdir(parents=True, mode=0o700, exist_ok=True)
     partial = parent / (stamp + ".incomplete")
     final = parent / stamp
@@ -249,7 +249,7 @@ def restore_check(install, backup, database):
     remote = f"/tmp/asa-restore-{uuid.uuid4().hex}.dump"
     remote_toc = remote + ".list"
     try:
-        upload_dump(install, Path(backup).resolve() / "database.dump", remote)
+        upload_dump(install, backup_path(backup) / "database.dump", remote)
         toc = install.compose("exec", "-T", "postgres", "pg_restore", "--list", remote, capture=True)
         plan = plan_restore_toc(toc)
         # Both files are private, seekable PostgreSQL-owned files. Never stream
