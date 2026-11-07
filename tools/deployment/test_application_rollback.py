@@ -726,6 +726,7 @@ class ObserverHarness(contextlib.ExitStack):
         self.process = SimpleNamespace(returncode=None, pid=12345)
         self.process.poll = lambda: self.process.returncode
         self.observations, self.after_observation, self.after_stop = [], lambda: None, lambda: None
+        self.topologies, self.observer_commands = None, []
         self.stop_attempts, self.stop_calls = 0, 0
         self.log = Path(temporary) / "manager.log"
         # Keep native Windows ACL subprocesses and their clock unpatched.
@@ -746,7 +747,7 @@ class ObserverHarness(contextlib.ExitStack):
 
     def spawn(self, command, **kwargs):
         assert command[2] == self.action and kwargs.get("stdout") is not None
-        if os.name == "nt":
+        if native_driver.os.name == "nt":
             assert kwargs.get("creationflags") == subprocess.CREATE_NEW_PROCESS_GROUP
         else:
             assert kwargs.get("start_new_session") is True
@@ -770,13 +771,21 @@ class ObserverHarness(contextlib.ExitStack):
                            "project": self.fixture.project, "service": "api", **changes})
 
     def observe(self, command, **kwargs):
-        assert command[:4] == ["docker", "ps", "--all", "--no-trunc"]
-        assert command[4:8] == ["--filter", "label=com.docker.compose.project=" + self.fixture.project,
-                                "--filter", "label=com.docker.compose.service=api"]
-        assert command[8] == "--format" and kwargs == {"capture": True}
-        assert ".Config.Env" not in command[9]
+        assert command[:2] == ["docker", "ps"] and "--no-trunc" in command
+        filters = [command[index + 1] for index, value in enumerate(command) if value == "--filter"]
+        labels = {"label=com.docker.compose.project=" + self.fixture.project, "label=com.docker.compose.service=api"}
+        assert labels <= set(filters) <= labels | {"status=running"}
+        assert command[-2] == "--format" and kwargs == {"capture": True}
+        assert ".Config.Env" not in command[-1]
+        self.observer_commands.append(command)
         self.fixture.events.append("ps")
-        result = self.observations.pop(0) if self.observations else self.observation()
+        if self.topologies is not None:
+            records = self.topologies.pop(0)
+            if "--all" not in command or "status=running" in filters:
+                records = [record for record in records if record["state"] == "running"]
+            result = "\n".join(json.dumps(record) for record in records)
+        else:
+            result = self.observations.pop(0) if self.observations else self.observation()
         if isinstance(result, Exception):
             raise result
         self.after_observation()
@@ -814,6 +823,58 @@ class ObserverHarness(contextlib.ExitStack):
 
 
 class NativeObserverTests(unittest.TestCase):
+    def test_normal_recreate_polls_until_expected_api_runs_without_false_duplicate(self):
+        for action in ("update", "rollback"):
+            with self.subTest(action=action), ObserverHarness(action) as trial:
+                other = trial.fixture.selected if action == "rollback" else trial.fixture.previous
+                old = json.loads(trial.observation(id="b" * 64, image=other["images"]["api"]))
+                created = json.loads(trial.observation(state="created"))
+                # Compose creates the replacement before removing the old container.
+                trial.topologies = [[old, created], [{**old, "state": "exited"}, created],
+                                    [created], [json.loads(trial.observation())]]
+                evidence = trial.run()
+                self.assertEqual(trial.topologies, [])
+                self.assertEqual(trial.fixture.events[:7], ["ps", "ps", "ps", "ps", "stop", "installation", "inspect"])
+                self.assertEqual(evidence["apiContainer"], "a" * 64)
+                self.assertEqual(trial.stop_attempts, 1)
+                self.assertTrue(all("--all" not in command and "status=running" in command for command in trial.observer_commands))
+
+    def test_two_distinct_running_apis_still_fail_and_cleanup_only_owned_child(self):
+        with ObserverHarness() as trial:
+            trial.topologies = [[json.loads(trial.observation()), json.loads(trial.observation(id="b" * 64))]]
+            with self.assertRaises(Blocked) as denied: trial.run()
+            self.assertEqual(denied.exception.code, "FIXTURE_OBSERVATION")
+            self.assertEqual(trial.fixture.events, ["ps", "stop"])
+            self.assertEqual((trial.stop_attempts, trial.popen.call_count), (1, 1))
+
+    def test_posix_exit_between_poll_and_successful_signal_never_reaches_canonical_checks(self):
+        real_stop = native_driver.terminate_owned_process
+        for exit_code in (7, -15):
+            with self.subTest(exit_code=exit_code), ObserverHarness() as trial:
+                events = trial.fixture.events
+                def poll():
+                    events.append("poll-alive" if trial.process.returncode is None else "poll-exited")
+                    return trial.process.returncode
+                def wait(*, timeout):
+                    self.assertEqual(timeout, 30)
+                    events.append("wait")
+                    trial.process.returncode = exit_code
+                    return exit_code
+                trial.process.poll = poll
+                trial.process.wait = Mock(side_effect=wait)
+                killpg = Mock(side_effect=lambda pid, sig: events.append("killpg"))
+                # Model POSIX signal semantics on either CI host without patching
+                # the real os/signal modules used by Windows ACL validation.
+                with patch.object(native_driver, "os", SimpleNamespace(name="posix", killpg=killpg)), \
+                        patch.object(native_driver, "signal", SimpleNamespace(SIGKILL=9)), \
+                        patch.object(native_driver, "terminate_owned_process", real_stop):
+                    with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, "FIXTURE_INTERRUPTION")
+                killpg.assert_called_once_with(trial.process.pid, 9)
+                trial.process.wait.assert_called_once_with(timeout=30)
+                self.assertEqual(events, ["poll-alive", "ps", "poll-alive", "killpg", "wait", "poll-exited"])
+                self.assertFalse(any(event in events for event in ("installation", "inspect", "identity", "private-env")))
+
     def test_missing_old_or_starting_api_is_polled_before_stop_and_all_canonical_guards(self):
         for action in ("update", "rollback"):
             with self.subTest(action=action), ObserverHarness(action) as trial:

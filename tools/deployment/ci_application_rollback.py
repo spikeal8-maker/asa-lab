@@ -209,10 +209,10 @@ def observe_api(project):
     template = ('{"id":{{json .ID}},"image":{{json .Image}},"state":{{json .State}},'
                 '"project":{{json (.Label "com.docker.compose.project")}},'
                 '"service":{{json (.Label "com.docker.compose.service")}}}')
-    output = run(["docker", "ps", "--all", "--no-trunc", "--filter", "label=com.docker.compose.project=" + project,
+    output = run(["docker", "ps", "--no-trunc", "--filter", "status=running", "--filter", "label=com.docker.compose.project=" + project,
                   "--filter", "label=com.docker.compose.service=api", "--format", template], capture=True)
     lines = output.splitlines()
-    require(len(lines) <= 1, "FIXTURE_OBSERVATION", "Multiple API containers matched the interruption observer.")
+    require(len(lines) <= 1, "FIXTURE_OBSERVATION", "Multiple running API containers matched the interruption observer.")
     if not lines:
         return None
     try:
@@ -252,8 +252,9 @@ def cli(tool_root, root, action, log, *, selected_digest=None, interruption=None
                                 require(ar._read(root / ".asa" / ar.JOURNAL) == journal, "FIXTURE_INTERRUPTION",
                                         "The observed operation, phase or eligibility changed before interruption.")
                                 attempted = terminate_owned_process(process)
-                                require(attempted and process.returncode is not None and process.returncode != 0,
-                                        "FIXTURE_INTERRUPTION", "The manager exited before an actual interruption could be proved.")
+                                require(attempted and process.returncode is not None and process.returncode != 0
+                                        and (os.name == "nt" or process.returncode == -signal.SIGKILL),
+                                        "FIXTURE_INTERRUPTION", "The owned manager's required termination was not observed.")
                                 # The owned manager tree has stopped. Reuse all canonical
                                 # guards, including private database-target attestation, on fresh state.
                                 install = Installation(root, "dev")
