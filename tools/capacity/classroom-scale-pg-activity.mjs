@@ -27,8 +27,10 @@ import { assertOfficialScaleOwnedContainer } from './classroom-scale-contracts.m
  * Public, fixed probe SQL may appear in the owned server's log during its
  * deliberate error smoke; that is not permission to retain arbitrary stderr,
  * observed SQL or bind values. Core/preload logging compatibility is checked
- * before the first address bind. No SET, backend termination or process signal
- * is used. A sample deadline is not a claim of server-side cancellation.
+ * before the first address bind. No SET, backend termination or signal to the
+ * psql/PostgreSQL processes is used. A sample deadline is not a claim of
+ * server-side cancellation. A timed-out read-only process-proof transport may
+ * terminate its own Docker CLI; that never proves psql/backend closure.
  */
 export const PG_ACTIVITY_POLICY = Object.freeze({
   version: 1,
@@ -78,17 +80,29 @@ const exactKeys = (value, keys) => {
   );
 };
 const date = (value) =>
-  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
+  typeof value === 'string' &&
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+  Number.isFinite(Date.parse(value));
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
-export async function activityDeadline(action, timeoutMs, code, onTimeout = () => {}, monotonic = () => performance.now()) {
+export async function activityDeadline(
+  action,
+  timeoutMs,
+  code,
+  onTimeout = () => {},
+  monotonic = () => performance.now(),
+) {
   let expired = false;
   let timer;
   const end = monotonic() + timeoutMs;
   const expire = () => {
     if (expired) return;
     expired = true;
-    try { onTimeout(); } catch { /* A callback cannot turn a timeout into success. */ }
+    try {
+      onTimeout();
+    } catch {
+      /* A callback cannot turn a timeout into success. */
+    }
   };
   const check = () => {
     if (monotonic() >= end) expire();
@@ -100,8 +114,11 @@ export async function activityDeadline(action, timeoutMs, code, onTimeout = () =
       reject(new PgActivityError(code));
     }, timeoutMs);
   });
-  try { return await Promise.race([Promise.resolve().then(() => action(check)), timeout]); }
-  finally { clearTimeout(timer); }
+  try {
+    return await Promise.race([Promise.resolve().then(() => action(check)), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Exact StringLiteral/NoSubstitutionTemplateLiteral values from the two release
@@ -113,17 +130,55 @@ export const PG_ACTIVITY_QUERY_SOURCE = Object.freeze({
   ]),
   path: 'apps/api/src/learning-work-context.ts',
   sha256: '09cb927baa28fb5399d9193c30f348cbd3572fa8480841f01d9fca8916b19c70',
-  queries: Object.freeze([
-    ['1b68fe86fcede96c6d21abd44e0d7923fc7d5b275a0e0eea5df0f4439aa5c1f0', 77, 'learning_origin_work_context_for_project'],
-    ['0f10d3e2b660f98e4c5665833843df657caef6846f5f97db98695f3d7c831b00', 65, 'learning_immutable_project_origin_exists'],
-    ['3d63a8c0b922df898e85a7e4a13bfb6013265ebe4f053572828d88e8d35ccf11', 61, 'learning_work_context_for_project'],
-    ['2360cd0fec5a7a8ad11dd29ca7e9dbc4bd6391aa59a4fcbdfe65a74d0c27684b', 62, 'learning_course_modern_provenance'],
-    ['76b915b096123581ca8c2157404519bb4d478ec0ff21884dccb02b088e8bd1bf', 74, 'learning_direct_modern_project_readable'],
-    ['c33528e730a4aa6f0b152894d52ed2979fcc95c38acf9814852c220e5cd708f4', 62, 'learning_legacy_direct_provenance'],
-    ['77fca91a409ab2a4b4c01e84ce0f63e54684cac823348002c6a1d8ef4ab64616', 60, 'learning_work_project_origin_exists'],
-    ['8a7c286d8efcf0965770d41b0190ae035ed6a11f5debcf859a64d2ae34b04ea9', 83, 'learning_course_activity_sample_url_for_viewer'],
-    ['2db6e4e6713284394cf087c5e4810a08a9e27d50bb08f82ff7b28ad0a0f685e8', 55, 'learning_project_archive_bucket'],
-  ].map(Object.freeze)),
+  queries: Object.freeze(
+    [
+      [
+        '1b68fe86fcede96c6d21abd44e0d7923fc7d5b275a0e0eea5df0f4439aa5c1f0',
+        77,
+        'learning_origin_work_context_for_project',
+      ],
+      [
+        '0f10d3e2b660f98e4c5665833843df657caef6846f5f97db98695f3d7c831b00',
+        65,
+        'learning_immutable_project_origin_exists',
+      ],
+      [
+        '3d63a8c0b922df898e85a7e4a13bfb6013265ebe4f053572828d88e8d35ccf11',
+        61,
+        'learning_work_context_for_project',
+      ],
+      [
+        '2360cd0fec5a7a8ad11dd29ca7e9dbc4bd6391aa59a4fcbdfe65a74d0c27684b',
+        62,
+        'learning_course_modern_provenance',
+      ],
+      [
+        '76b915b096123581ca8c2157404519bb4d478ec0ff21884dccb02b088e8bd1bf',
+        74,
+        'learning_direct_modern_project_readable',
+      ],
+      [
+        'c33528e730a4aa6f0b152894d52ed2979fcc95c38acf9814852c220e5cd708f4',
+        62,
+        'learning_legacy_direct_provenance',
+      ],
+      [
+        '77fca91a409ab2a4b4c01e84ce0f63e54684cac823348002c6a1d8ef4ab64616',
+        60,
+        'learning_work_project_origin_exists',
+      ],
+      [
+        '8a7c286d8efcf0965770d41b0190ae035ed6a11f5debcf859a64d2ae34b04ea9',
+        83,
+        'learning_course_activity_sample_url_for_viewer',
+      ],
+      [
+        '2db6e4e6713284394cf087c5e4810a08a9e27d50bb08f82ff7b28ad0a0f685e8',
+        55,
+        'learning_project_archive_bucket',
+      ],
+    ].map((query) => Object.freeze(query)),
+  ),
 });
 
 const settingNames = [
@@ -196,40 +251,90 @@ export const PG_ACTIVITY_SQL = Object.freeze({
 /** Only a strict alphabet of already typed, non-arbitrary bind values is accepted. */
 export function activityCommand(kind, nonce, sequence, address) {
   requireValue(Object.hasOwn(PG_ACTIVITY_SQL, kind), 'QUERY_KIND');
-  requireValue(hex(nonce, 32) && integer(sequence) && sequence >= 0 && sequence <= 200, 'QUERY_IDENTITY');
+  requireValue(
+    hex(nonce, 32) && integer(sequence) && sequence >= 0 && sequence <= 200,
+    'QUERY_IDENTITY',
+  );
   if (kind === 'error') return 'BEGIN READ ONLY;\nSELECT 1 / 0;\n';
   const parameters = [nonce, String(sequence)];
   if (kind === 'sample' || kind === 'binding') {
     requireValue(isIP(address) === 4, 'ADDRESS_IDENTITY');
     parameters.push(address);
   } else requireValue(address === undefined, 'UNEXPECTED_ADDRESS');
-  requireValue(parameters.every((value) => /^[a-zA-Z0-9_.:-]+$/.test(value)), 'BIND_ALPHABET');
+  requireValue(
+    parameters.every((value) => /^[a-zA-Z0-9_.:-]+$/.test(value)),
+    'BIND_ALPHABET',
+  );
   return (
     'BEGIN READ ONLY;\n' +
     PG_ACTIVITY_SQL[kind] +
     '\n\\bind ' +
     parameters.map((value) => "'" + value + "'").join(' ') +
     '\n\\g\nROLLBACK;\n\\echo ASA_PG_ACTIVITY_ROLLBACK ' +
-    nonce + ' ' + sequence + ' :SQLSTATE\n'
+    nonce +
+    ' ' +
+    sequence +
+    ' :SQLSTATE\n'
   );
 }
 
 export function assertActivityHello(value, nonce, sequence) {
-  exactKeys(value, ['kind','nonce','sequence','readOnly','version','database','role','local','backendPid','backendStart','trackActivities','trackQueryBytes','logging']);
-  requireValue(value.kind === 'hello' && value.nonce === nonce && value.sequence === sequence, 'FRAME_IDENTITY');
-  requireValue(value.readOnly === true && value.version === 170007 && value.database === 'asalab_test' && value.role === 'postgres' && value.local === true, 'DATABASE_IDENTITY');
-  requireValue(integer(value.backendPid) && value.backendPid > 1 && date(value.backendStart), 'BACKEND_IDENTITY');
-  requireValue(value.trackActivities === 'on' && integer(value.trackQueryBytes) && value.trackQueryBytes >= 128 && value.trackQueryBytes <= 1024 * 1024, 'ACTIVITY_SETTINGS');
+  exactKeys(value, [
+    'kind',
+    'nonce',
+    'sequence',
+    'readOnly',
+    'version',
+    'database',
+    'role',
+    'local',
+    'backendPid',
+    'backendStart',
+    'trackActivities',
+    'trackQueryBytes',
+    'logging',
+  ]);
+  requireValue(
+    value.kind === 'hello' && value.nonce === nonce && value.sequence === sequence,
+    'FRAME_IDENTITY',
+  );
+  requireValue(
+    value.readOnly === true &&
+      value.version === 170007 &&
+      value.database === 'asalab_test' &&
+      value.role === 'postgres' &&
+      value.local === true,
+    'DATABASE_IDENTITY',
+  );
+  requireValue(
+    integer(value.backendPid) && value.backendPid > 1 && date(value.backendStart),
+    'BACKEND_IDENTITY',
+  );
+  requireValue(
+    value.trackActivities === 'on' &&
+      integer(value.trackQueryBytes) &&
+      value.trackQueryBytes >= 128 &&
+      value.trackQueryBytes <= 1024 * 1024,
+    'ACTIVITY_SETTINGS',
+  );
   exactKeys(value.logging, settingNames);
   const settings = value.logging;
-  requireValue(settingNames.every((name) => typeof settings[name] === 'string' && settings[name].length <= 1024), 'LOGGING_SETTINGS');
-  for (const name of settingNames.filter((name) => name.startsWith('debug_') || name.endsWith('_stats')))
+  requireValue(
+    settingNames.every(
+      (name) => typeof settings[name] === 'string' && settings[name].length <= 1024,
+    ),
+    'LOGGING_SETTINGS',
+  );
+  for (const name of settingNames.filter(
+    (name) => name.startsWith('debug_') || name.endsWith('_stats'),
+  ))
     requireValue(settings[name] === 'off', 'UNSAFE_LOGGING');
   for (const name of settingNames.filter((name) => name.endsWith('_preload_libraries')))
     requireValue(settings[name] === '', 'UNKNOWN_LOGGING_EXTENSION');
   requireValue(settings.log_parameter_max_length_on_error === '0', 'UNSAFE_ERROR_BIND_LOGGING');
   const ordinaryLogsOff =
-    settings.log_statement === 'none' && settings.log_duration === 'off' &&
+    settings.log_statement === 'none' &&
+    settings.log_duration === 'off' &&
     settings.log_min_duration_statement === '-1' &&
     (settings.log_min_duration_sample === '-1' || settings.log_statement_sample_rate === '0') &&
     settings.log_transaction_sample_rate === '0';
@@ -237,42 +342,118 @@ export function assertActivityHello(value, nonce, sequence) {
   return value;
 }
 
-const states = new Set(['active','idle','idle in transaction','idle in transaction (aborted)','fastpath function call','disabled']);
-const waits = new Set(['Activity','BufferPin','Client','Extension','IO','IPC','Lock','LWLock','Timeout']);
+const states = new Set([
+  'active',
+  'idle',
+  'idle in transaction',
+  'idle in transaction (aborted)',
+  'fastpath function call',
+  'disabled',
+]);
+const waits = new Set([
+  'Activity',
+  'BufferPin',
+  'Client',
+  'Extension',
+  'IO',
+  'IPC',
+  'Lock',
+  'LWLock',
+  'Timeout',
+]);
 
 export function projectActivitySample(value, { nonce, sequence, releaseSha, trackQueryBytes }) {
-  exactKeys(value, ['kind','nonce','sequence','readOnly','serverAt','observedAtLeast','rowsTruncated','trackQueryBytes','rows']);
-  requireValue(value.kind === 'sample' && value.nonce === nonce && value.sequence === sequence && value.readOnly === true, 'FRAME_IDENTITY');
-  requireValue(date(value.serverAt) && value.trackQueryBytes === trackQueryBytes, 'SAMPLE_SETTINGS');
-  requireValue(integer(value.observedAtLeast) && value.observedAtLeast >= 0 && value.observedAtLeast <= 65 && value.rowsTruncated === (value.observedAtLeast > 64), 'ROW_BOUND');
-  requireValue(Array.isArray(value.rows) && value.rows.length === Math.min(value.observedAtLeast, 64), 'ROW_BOUND');
+  exactKeys(value, [
+    'kind',
+    'nonce',
+    'sequence',
+    'readOnly',
+    'serverAt',
+    'observedAtLeast',
+    'rowsTruncated',
+    'trackQueryBytes',
+    'rows',
+  ]);
+  requireValue(
+    value.kind === 'sample' &&
+      value.nonce === nonce &&
+      value.sequence === sequence &&
+      value.readOnly === true,
+    'FRAME_IDENTITY',
+  );
+  requireValue(
+    date(value.serverAt) && value.trackQueryBytes === trackQueryBytes,
+    'SAMPLE_SETTINGS',
+  );
+  requireValue(
+    integer(value.observedAtLeast) &&
+      value.observedAtLeast >= 0 &&
+      value.observedAtLeast <= 65 &&
+      value.rowsTruncated === value.observedAtLeast > 64,
+    'ROW_BOUND',
+  );
+  requireValue(
+    Array.isArray(value.rows) && value.rows.length === Math.min(value.observedAtLeast, 64),
+    'ROW_BOUND',
+  );
   const knownRelease = PG_ACTIVITY_QUERY_SOURCE.revisions.includes(releaseSha);
   const backends = new Set();
   const rows = value.rows.map((row) => {
-    exactKeys(row, ['backend','state','queryAgeMs','transactionAgeMs','waitType','waitEvent','queryHash','queryBytes']);
+    exactKeys(row, [
+      'backend',
+      'state',
+      'queryAgeMs',
+      'transactionAgeMs',
+      'waitType',
+      'waitEvent',
+      'queryHash',
+      'queryBytes',
+    ]);
     requireValue(hex(row.backend, 64) && !backends.has(row.backend), 'BACKEND_ROW');
     backends.add(row.backend);
     requireValue(states.has(row.state), 'BACKEND_STATE');
     for (const age of [row.queryAgeMs, row.transactionAgeMs])
-      requireValue(age === null || (typeof age === 'number' && Number.isFinite(age) && Math.abs(age) <= Number.MAX_SAFE_INTEGER), 'BACKEND_AGE');
+      requireValue(
+        age === null ||
+          (typeof age === 'number' &&
+            Number.isFinite(age) &&
+            Math.abs(age) <= Number.MAX_SAFE_INTEGER),
+        'BACKEND_AGE',
+      );
     requireValue(row.waitType === null || waits.has(row.waitType), 'WAIT_EVENT');
-    requireValue(row.waitEvent === null || (typeof row.waitEvent === 'string' && /^[a-zA-Z][a-zA-Z0-9_]{0,79}$/.test(row.waitEvent)), 'WAIT_EVENT');
+    requireValue(
+      row.waitEvent === null ||
+        (typeof row.waitEvent === 'string' && /^[a-zA-Z][a-zA-Z0-9_]{0,79}$/.test(row.waitEvent)),
+      'WAIT_EVENT',
+    );
     requireValue((row.waitType === null) === (row.waitEvent === null), 'WAIT_EVENT');
-    requireValue(integer(row.queryBytes) && row.queryBytes >= 0 && row.queryBytes < trackQueryBytes, 'QUERY_BYTES');
-    requireValue(row.queryHash === null ? row.queryBytes === 0 : hex(row.queryHash, 64) && row.queryBytes > 0, 'QUERY_HASH');
+    requireValue(
+      integer(row.queryBytes) && row.queryBytes >= 0 && row.queryBytes < trackQueryBytes,
+      'QUERY_BYTES',
+    );
+    requireValue(
+      row.queryHash === null ? row.queryBytes === 0 : hex(row.queryHash, 64) && row.queryBytes > 0,
+      'QUERY_HASH',
+    );
     // A UTF-8 character can be cut at the byte boundary. Conservatively treat
     // the final four bytes as potentially truncated, never as an exact match.
     const possiblyTruncated = row.queryBytes >= trackQueryBytes - 4;
-    const known = knownRelease && !possiblyTruncated
-      ? PG_ACTIVITY_QUERY_SOURCE.queries.find(([digest, bytes]) => digest === row.queryHash && bytes === row.queryBytes)
-      : undefined;
+    const known =
+      knownRelease && !possiblyTruncated
+        ? PG_ACTIVITY_QUERY_SOURCE.queries.find(
+            ([digest, bytes]) => digest === row.queryHash && bytes === row.queryBytes,
+          )
+        : undefined;
     return {
       backend: row.backend,
       state: row.state,
-      queryMeaning: row.state === 'active' ? 'current' : row.state === 'disabled' ? 'unavailable' : 'last',
+      queryMeaning:
+        row.state === 'active' ? 'current' : row.state === 'disabled' ? 'unavailable' : 'last',
       queryAgeMs: row.queryAgeMs,
       transactionAgeMs: row.transactionAgeMs,
-      clockOrderValid: [row.queryAgeMs, row.transactionAgeMs].every((age) => age === null || age >= 0),
+      clockOrderValid: [row.queryAgeMs, row.transactionAgeMs].every(
+        (age) => age === null || age >= 0,
+      ),
       waitType: row.waitType,
       waitEvent: row.waitEvent,
       queryHash: row.queryHash,
@@ -287,41 +468,101 @@ export function projectActivitySample(value, { nonce, sequence, releaseSha, trac
     rowsTruncated: value.rowsTruncated,
     trackQueryBytes,
     rows,
-    attribution: 'API backends; pool membership and individual HTTP request association are not established',
+    attribution:
+      'API backends; pool membership and individual HTTP request association are not established',
   };
 }
 
 const runningIdentity = (metadata, service, options) => {
-  try { assertOfficialScaleOwnedContainer(metadata, options.expected); }
-  catch { fail('CONTAINER_OWNERSHIP'); }
-  requireValue(metadata.Config.Labels['com.docker.compose.service'] === service, 'CONTAINER_SERVICE');
-  requireValue(metadata.Id === options[service === 'api' ? 'apiId' : 'postgresId'], 'CONTAINER_REPLACED');
+  try {
+    assertOfficialScaleOwnedContainer(metadata, options.expected);
+  } catch {
+    fail('CONTAINER_OWNERSHIP');
+  }
+  requireValue(
+    metadata.Config.Labels['com.docker.compose.service'] === service,
+    'CONTAINER_SERVICE',
+  );
+  requireValue(
+    metadata.Id === options[service === 'api' ? 'apiId' : 'postgresId'],
+    'CONTAINER_REPLACED',
+  );
   requireValue(/^sha256:[a-f0-9]{64}$/.test(metadata.Image || ''), 'IMAGE_IDENTITY');
-  requireValue(metadata.State?.Running === true && metadata.State.Health?.Status === 'healthy' && date(metadata.State.StartedAt) && integer(metadata.RestartCount) && metadata.RestartCount >= 0, 'CONTAINER_STATE');
-  return { id: metadata.Id, image: metadata.Image, startedAt: metadata.State.StartedAt, restartCount: metadata.RestartCount };
+  requireValue(
+    metadata.State?.Running === true &&
+      metadata.State.Health?.Status === 'healthy' &&
+      date(metadata.State.StartedAt) &&
+      integer(metadata.RestartCount) &&
+      metadata.RestartCount >= 0,
+    'CONTAINER_STATE',
+  );
+  return {
+    id: metadata.Id,
+    image: metadata.Image,
+    startedAt: metadata.State.StartedAt,
+    restartCount: metadata.RestartCount,
+  };
 };
 
 /** Raw addresses and Docker metadata remain inside this non-serializable control path. */
 export async function captureActivityIdentity(options, io, previous, check = () => {}) {
   check();
   requireValue(hex(options.apiId, 64) && hex(options.postgresId, 64), 'CONTAINER_ID');
-  const [api, postgres] = await Promise.all([io.inspect(options.apiId), io.inspect(options.postgresId)]);
+  const [api, postgres] = await Promise.all([
+    io.inspect(options.apiId),
+    io.inspect(options.postgresId),
+  ]);
   check();
-  const identity = { api: runningIdentity(api, 'api', options), postgres: runningIdentity(postgres, 'postgres', options) };
+  const identity = {
+    api: runningIdentity(api, 'api', options),
+    postgres: runningIdentity(postgres, 'postgres', options),
+  };
   const name = options.expected.project + '_database';
   const apiEndpoint = api.NetworkSettings?.Networks?.[name];
   const pgEndpoint = postgres.NetworkSettings?.Networks?.[name];
-  requireValue(apiEndpoint && pgEndpoint && hex(apiEndpoint.NetworkID, 64) && apiEndpoint.NetworkID === pgEndpoint.NetworkID, 'DATABASE_NETWORK');
+  requireValue(
+    apiEndpoint &&
+      pgEndpoint &&
+      hex(apiEndpoint.NetworkID, 64) &&
+      apiEndpoint.NetworkID === pgEndpoint.NetworkID,
+    'DATABASE_NETWORK',
+  );
   const network = await io.network(apiEndpoint.NetworkID);
   check();
-  requireValue(network.Id === apiEndpoint.NetworkID && network.Name === name && network.Driver === 'bridge' && network.Internal === true && network.EnableIPv6 === false && network.Labels?.['com.docker.compose.project'] === options.expected.project && network.Labels?.['com.docker.compose.network'] === 'database' && network.Labels?.['io.asalab.scale.run'] === options.expected.runToken, 'DATABASE_NETWORK');
-  for (const [metadata, endpoint] of [[api, apiEndpoint], [postgres, pgEndpoint]]) {
+  requireValue(
+    network.Id === apiEndpoint.NetworkID &&
+      network.Name === name &&
+      network.Driver === 'bridge' &&
+      network.Internal === true &&
+      network.EnableIPv6 === false &&
+      network.Labels?.['com.docker.compose.project'] === options.expected.project &&
+      network.Labels?.['com.docker.compose.network'] === 'database' &&
+      network.Labels?.['io.asalab.scale.run'] === options.expected.runToken,
+    'DATABASE_NETWORK',
+  );
+  for (const [metadata, endpoint] of [
+    [api, apiEndpoint],
+    [postgres, pgEndpoint],
+  ]) {
     const member = network.Containers?.[metadata.Id];
-    requireValue(isIP(endpoint.IPAddress) === 4 && member?.EndpointID === endpoint.EndpointID && member.IPv4Address?.split('/')[0] === endpoint.IPAddress && hex(endpoint.EndpointID, 64), 'NETWORK_ADDRESS');
+    requireValue(
+      isIP(endpoint.IPAddress) === 4 &&
+        member?.EndpointID === endpoint.EndpointID &&
+        member.IPv4Address?.split('/')[0] === endpoint.IPAddress &&
+        hex(endpoint.EndpointID, 64),
+      'NETWORK_ADDRESS',
+    );
   }
   requireValue(apiEndpoint.IPAddress !== pgEndpoint.IPAddress, 'NETWORK_ADDRESS');
-  identity.network = { id: network.Id, apiEndpoint: apiEndpoint.EndpointID, postgresEndpoint: pgEndpoint.EndpointID, apiAddress: apiEndpoint.IPAddress, postgresAddress: pgEndpoint.IPAddress };
-  if (previous) requireValue(JSON.stringify(identity) === JSON.stringify(previous), 'IDENTITY_DRIFT');
+  identity.network = {
+    id: network.Id,
+    apiEndpoint: apiEndpoint.EndpointID,
+    postgresEndpoint: pgEndpoint.EndpointID,
+    apiAddress: apiEndpoint.IPAddress,
+    postgresAddress: pgEndpoint.IPAddress,
+  };
+  if (previous)
+    requireValue(JSON.stringify(identity) === JSON.stringify(previous), 'IDENTITY_DRIFT');
   return identity;
 }
 
@@ -332,22 +573,42 @@ export function readActivityProgress(directory) {
     requireValue(realpathSync(directory) === directory, 'PROGRESS_DIRECTORY');
     fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
     const metadata = fstatSync(fd);
-    requireValue(metadata.isFile() && metadata.size > 0 && metadata.size <= PG_ACTIVITY_POLICY.progressBytes, 'PROGRESS_FILE');
+    requireValue(
+      metadata.isFile() && metadata.size > 0 && metadata.size <= PG_ACTIVITY_POLICY.progressBytes,
+      'PROGRESS_FILE',
+    );
     const bytes = Buffer.alloc(PG_ACTIVITY_POLICY.progressBytes + 1);
     const read = readSync(fd, bytes, 0, bytes.length, 0);
-    requireValue(read === metadata.size && read <= PG_ACTIVITY_POLICY.progressBytes, 'PROGRESS_FILE');
+    requireValue(
+      read === metadata.size && read <= PG_ACTIVITY_POLICY.progressBytes,
+      'PROGRESS_FILE',
+    );
     return JSON.parse(bytes.subarray(0, read).toString('utf8'));
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
     if (error instanceof PgActivityError) throw error;
     fail('PROGRESS_FILE');
-  } finally { if (fd !== undefined) closeSync(fd); }
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
 }
 
 export function validateActivityProgress(value, startedAtMs, now, previous) {
-  exactKeys(value, ['phase','atMs']);
-  requireValue(typeof value.phase === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(value.phase) && integer(value.atMs) && value.atMs >= startedAtMs && value.atMs <= now + 1000, 'PROGRESS_STALE_OR_INVALID');
-  if (previous) requireValue(value.atMs >= previous.atMs && (value.atMs !== previous.atMs || value.phase === previous.phase), 'PROGRESS_REWIND');
+  exactKeys(value, ['phase', 'atMs']);
+  requireValue(
+    typeof value.phase === 'string' &&
+      /^[a-z][a-z0-9-]{0,63}$/.test(value.phase) &&
+      integer(value.atMs) &&
+      value.atMs >= startedAtMs &&
+      value.atMs <= now + 1000,
+    'PROGRESS_STALE_OR_INVALID',
+  );
+  if (previous)
+    requireValue(
+      value.atMs >= previous.atMs &&
+        (value.atMs !== previous.atMs || value.phase === previous.phase),
+      'PROGRESS_REWIND',
+    );
   return { phase: value.phase, atMs: value.atMs };
 }
 
@@ -394,27 +655,38 @@ fi
 printf '{"client":"%s","backend":"%s","backendStartTicks":"%s"}\\n' "$state" "$server" "$server_ticks"
 `;
 
-export const PG_ACTIVITY_NATIVE_SCRIPTS = Object.freeze({ start: processScript, proof: processProofScript });
+export const PG_ACTIVITY_NATIVE_SCRIPTS = Object.freeze({
+  start: processScript,
+  proof: processProofScript,
+});
 
 function dockerJson(path) {
   return new Promise((done, reject) => {
     const failTransport = () => reject(new PgActivityError('DOCKER_TRANSPORT'));
-    const outgoing = request({ socketPath: '/var/run/docker.sock', path, timeout: PG_ACTIVITY_POLICY.queryDeadlineMs }, (response) => {
-      const chunks = [];
-      let bytes = 0;
-      response.on('data', (chunk) => {
-        bytes += chunk.length;
-        if (bytes > 2 * 1024 * 1024) outgoing.destroy();
-        else chunks.push(chunk);
-      });
-      response.on('error', failTransport);
-      response.on('end', () => {
-        try {
-          requireValue(response.statusCode === 200 && bytes <= 2 * 1024 * 1024, 'DOCKER_TRANSPORT');
-          done(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-        } catch { failTransport(); }
-      });
-    });
+    const outgoing = request(
+      { socketPath: '/var/run/docker.sock', path, timeout: PG_ACTIVITY_POLICY.queryDeadlineMs },
+      (response) => {
+        const chunks = [];
+        let bytes = 0;
+        response.on('data', (chunk) => {
+          bytes += chunk.length;
+          if (bytes > 2 * 1024 * 1024) outgoing.destroy();
+          else chunks.push(chunk);
+        });
+        response.on('error', failTransport);
+        response.on('end', () => {
+          try {
+            requireValue(
+              response.statusCode === 200 && bytes <= 2 * 1024 * 1024,
+              'DOCKER_TRANSPORT',
+            );
+            done(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+          } catch {
+            failTransport();
+          }
+        });
+      },
+    );
     outgoing.on('error', failTransport);
     outgoing.on('timeout', () => outgoing.destroy());
     outgoing.end();
@@ -430,25 +702,65 @@ export function nativePgActivityIo() {
     network: (id) => dockerJson('/networks/' + id),
     readProgress: readActivityProgress,
     watch: (directory, changed) => watch(directory, changed),
-    open: (pgId, nonce) => spawn('docker', [
-      'exec', '-i', '--user', 'postgres',
-      '--env', 'PGAPPNAME=asa-pg-activity-' + nonce,
-      '--env', 'PGCONNECT_TIMEOUT=2', '--env', 'PGOPTIONS=',
-      '--env', 'PGPASSWORD=', '--env', 'PGPASSFILE=/dev/null',
-      '--env', 'PGSERVICE=', '--env', 'PGSERVICEFILE=/dev/null',
-      '--env', 'PGCLIENTENCODING=UTF8',
-      pgId, 'sh', '-c', processScript, 'asa-pg-activity', nonce,
-    ], { stdio: ['pipe','pipe','pipe'] }),
+    open: (pgId, nonce) =>
+      spawn(
+        'docker',
+        [
+          'exec',
+          '-i',
+          '--user',
+          'postgres',
+          '--env',
+          'PGAPPNAME=asa-pg-activity-' + nonce,
+          '--env',
+          'PGCONNECT_TIMEOUT=2',
+          '--env',
+          'PGOPTIONS=',
+          '--env',
+          'PGPASSWORD=',
+          '--env',
+          'PGPASSFILE=/dev/null',
+          '--env',
+          'PGSERVICE=',
+          '--env',
+          'PGSERVICEFILE=/dev/null',
+          '--env',
+          'PGCLIENTENCODING=UTF8',
+          pgId,
+          'sh',
+          '-c',
+          processScript,
+          'asa-pg-activity',
+          nonce,
+        ],
+        { stdio: ['pipe', 'pipe', 'pipe'] },
+      ),
     processProof: async (pgId, process, backend, timeoutMs) => {
       try {
-        const result = await exec('docker', [
-          'exec', '--user', 'postgres', pgId, 'sh', '-c', processProofScript,
-          'asa-pg-activity-proof', String(process.pid), process.startTicks, process.nonce,
-          String(backend.pid), backend.startTicks || '0',
-        ], { timeout: timeoutMs, maxBuffer: 4096, encoding: 'utf8', killSignal: 'SIGKILL' });
+        const result = await exec(
+          'docker',
+          [
+            'exec',
+            '--user',
+            'postgres',
+            pgId,
+            'sh',
+            '-c',
+            processProofScript,
+            'asa-pg-activity-proof',
+            String(process.pid),
+            process.startTicks,
+            process.nonce,
+            String(backend.pid),
+            backend.startTicks || '0',
+          ],
+          { timeout: timeoutMs, maxBuffer: 4096, encoding: 'utf8', killSignal: 'SIGKILL' },
+        );
         requireValue(!result.stderr, 'PROCESS_PROOF_TRANSPORT');
         return JSON.parse(result.stdout);
-      } catch { fail('PROCESS_PROOF_TRANSPORT'); }
+      } catch {
+        fail('PROCESS_PROOF_TRANSPORT');
+      }
     },
     writeReport: (path, value, nonce) => {
       requireValue(!existsSync(path), 'EVIDENCE_EXISTS');
@@ -463,7 +775,7 @@ export function nativePgActivityIo() {
 
 /** Bounded protocol channel. No raw line, stderr, child error or cause is exported. */
 export class PgActivityChannel {
-  constructor(child) {
+  constructor(child, onFailure = () => {}) {
     this.child = child;
     this.queue = [];
     this.waiter = null;
@@ -474,43 +786,68 @@ export class PgActivityChannel {
     this.inputClosed = false;
     this.error = null;
     this.exitCode = null;
+    this.onFailure = onFailure;
+    this.allowPublicErrorStderr = false;
     const decoder = new StringDecoder('utf8');
     this.done = new Promise((done) => {
-      child.once('error', () => { this.abandon('TRANSPORT_START'); });
+      child.once('error', () => {
+        this.abandon('TRANSPORT_START');
+      });
       child.once('close', (code) => {
         this.closed = true;
         this.exitCode = integer(code) ? code : null;
+        this.buffer += decoder.end();
         if (this.buffer) this.abandon('FRAME_TRUNCATED');
+        if (code !== 0 && !(this.allowPublicErrorStderr && code === 3)) this.abandon('CLIENT_EXIT');
         if (this.waiter) this.waiter.reject(new PgActivityError('SESSION_EXITED'));
         this.waiter = null;
         done();
       });
     });
-    child.stdin.on('error', () => { if (!this.inputClosed) this.abandon('TRANSPORT_INPUT'); });
+    child.stdin.on('error', () => {
+      if (!this.inputClosed) this.abandon('TRANSPORT_INPUT');
+    });
     child.stdout.on('error', () => this.abandon('TRANSPORT_OUTPUT'));
     child.stderr.on('error', () => this.abandon('TRANSPORT_OUTPUT'));
     child.stderr.on('data', (chunk) => {
       this.stderrBytes += chunk.length;
       if (this.stderrBytes > PG_ACTIVITY_POLICY.stderrBytes) this.abandon('STDERR_BOUND');
+      else if (chunk.length && !this.allowPublicErrorStderr) this.abandon('PSQL_STDERR');
     });
     child.stdout.on('data', (chunk) => {
       this.bytes += chunk.length;
       if (this.bytes > PG_ACTIVITY_POLICY.totalBytes) return this.abandon('OUTPUT_BOUND');
       if (this.error) return;
       this.buffer += decoder.write(chunk);
-      if (Buffer.byteLength(this.buffer) > PG_ACTIVITY_POLICY.frameBytes && !this.buffer.includes('\n'))
+      if (
+        Buffer.byteLength(this.buffer) > PG_ACTIVITY_POLICY.frameBytes &&
+        !this.buffer.includes('\n')
+      )
         return this.abandon('FRAME_BOUND');
       let at;
       while ((at = this.buffer.indexOf('\n')) >= 0 && !this.error) {
         const line = this.buffer.slice(0, at).replace(/\r$/, '');
         this.buffer = this.buffer.slice(at + 1);
-        if (!line || Buffer.byteLength(line) > PG_ACTIVITY_POLICY.frameBytes) return this.abandon('FRAME_BOUND');
+        if (!line || Buffer.byteLength(line) > PG_ACTIVITY_POLICY.frameBytes)
+          return this.abandon('FRAME_BOUND');
         try {
-          const ack = line.match(/^ASA_PG_ACTIVITY_ROLLBACK ([a-f0-9]{32}) (\d{1,3}) ([A-Z0-9]{5})$/);
-          const frame = ack ? { kind: 'rollback', nonce: ack[1], sequence: Number(ack[2]), sqlstate: ack[3] } : JSON.parse(line);
-          if (this.waiter) { const waiter = this.waiter; this.waiter = null; waiter.resolve(frame); }
-          else { this.queue.push(frame); if (this.queue.length > 4) this.abandon('FRAME_ORDER'); }
-        } catch { this.abandon('FRAME_PARSE'); }
+          const ack = line.match(
+            /^ASA_PG_ACTIVITY_ROLLBACK ([a-f0-9]{32}) (\d{1,3}) ([A-Z0-9]{5})$/,
+          );
+          const frame = ack
+            ? { kind: 'rollback', nonce: ack[1], sequence: Number(ack[2]), sqlstate: ack[3] }
+            : JSON.parse(line);
+          if (this.waiter) {
+            const waiter = this.waiter;
+            this.waiter = null;
+            waiter.resolve(frame);
+          } else {
+            this.queue.push(frame);
+            if (this.queue.length > 4) this.abandon('FRAME_ORDER');
+          }
+        } catch {
+          this.abandon('FRAME_PARSE');
+        }
       }
     });
   }
@@ -518,42 +855,69 @@ export class PgActivityChannel {
   endInput() {
     if (this.inputClosed) return;
     this.inputClosed = true;
-    try { this.child.stdin.end(); } catch { this.abandon('TRANSPORT_INPUT'); }
+    try {
+      this.child.stdin.end();
+    } catch {
+      this.abandon('TRANSPORT_INPUT');
+    }
   }
 
   abandon(code) {
+    const firstFailure = !this.error;
     this.error ||= new PgActivityError(code);
     this.buffer = '';
     this.queue = [];
     if (this.waiter) this.waiter.reject(this.error);
     this.waiter = null;
     this.endInput();
+    if (firstFailure) {
+      try {
+        this.onFailure(this.error);
+      } catch {
+        /* Transport failure remains sticky. */
+      }
+    }
   }
 
   async next(timeoutMs) {
     if (this.error) throw this.error;
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      this.abandon('REQUEST_DEADLINE');
+      throw this.error;
+    }
+    requireValue(!this.waiter, 'FRAME_ORDER');
     if (this.queue.length) return this.queue.shift();
     requireValue(!this.closed, 'SESSION_EXITED');
-    requireValue(!this.waiter && timeoutMs > 0, 'REQUEST_DEADLINE');
     return new Promise((done, reject) => {
       const timer = setTimeout(() => this.abandon('REQUEST_DEADLINE'), timeoutMs);
       this.waiter = {
-        resolve: (value) => { clearTimeout(timer); done(value); },
-        reject: (error) => { clearTimeout(timer); reject(error); },
+        resolve: (value) => {
+          clearTimeout(timer);
+          done(value);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
       };
     });
   }
 }
 
 const assertProcessProof = (value) => {
-  exactKeys(value, ['client','backend','backendStartTicks']);
-  requireValue(['matching','changing','absent','retired'].includes(value.client) && ['matching','changing','absent','retired'].includes(value.backend) && /^\d{1,20}$/.test(value.backendStartTicks), 'PROCESS_PROOF');
+  exactKeys(value, ['client', 'backend', 'backendStartTicks']);
+  requireValue(
+    ['matching', 'changing', 'absent', 'retired'].includes(value.client) &&
+      ['matching', 'changing', 'absent', 'retired'].includes(value.backend) &&
+      /^\d{1,20}$/.test(value.backendStartTicks),
+    'PROCESS_PROOF',
+  );
   return value;
 };
 const retired = (status) => status === 'absent' || status === 'retired';
 
 export class PgActivitySession {
-  constructor(options, io, identity) {
+  constructor(options, io, identity, onFailure = () => {}) {
     this.options = options;
     this.io = io;
     this.identity = identity;
@@ -561,48 +925,99 @@ export class PgActivitySession {
     this.sequence = 0;
     this.busy = false;
     this.lastRollback = false;
-    this.channel = new PgActivityChannel(io.open(options.postgresId, this.nonce));
+    this.channel = new PgActivityChannel(io.open(options.postgresId, this.nonce), onFailure);
   }
 
   async request(kind, address) {
+    if (this.channel.error) throw this.channel.error;
     requireValue(!this.busy && !this.channel.closed && !this.channel.inputClosed, 'SESSION_STATE');
     this.busy = true;
     this.lastRollback = false;
     const sequence = this.sequence++;
-    const started = this.io.monotonic();
-    const stderrAtStart = this.channel.stderrBytes;
+    const deadline = this.io.monotonic() + PG_ACTIVITY_POLICY.queryDeadlineMs;
+    const remaining = () => deadline - this.io.monotonic();
     let value;
     try {
+      requireValue(this.channel.stderrBytes === 0, 'PSQL_STDERR');
+      // Only this fixed public division-by-zero smoke permits error stderr.
+      // The bytes are discarded and cannot carry forward into another request.
+      this.channel.allowPublicErrorStderr = kind === 'error';
       this.channel.child.stdin.write(activityCommand(kind, this.nonce, sequence, address));
-      value = await this.channel.next(PG_ACTIVITY_POLICY.queryDeadlineMs - (this.io.monotonic() - started));
-      requireValue(value?.kind === kind && value.nonce === this.nonce && value.sequence === sequence && value.readOnly === true, 'FRAME_IDENTITY');
-      const ack = await this.channel.next(PG_ACTIVITY_POLICY.queryDeadlineMs - (this.io.monotonic() - started));
-      exactKeys(ack, ['kind','nonce','sequence','sqlstate']);
-      requireValue(ack.kind === 'rollback' && ack.nonce === this.nonce && ack.sequence === sequence && ack.sqlstate === '00000', 'ROLLBACK_UNCONFIRMED');
-      requireValue(this.channel.stderrBytes === stderrAtStart, 'PSQL_STDERR');
+      value = await this.channel.next(remaining());
+      requireValue(
+        value?.kind === kind &&
+          value.nonce === this.nonce &&
+          value.sequence === sequence &&
+          value.readOnly === true,
+        'FRAME_IDENTITY',
+      );
+      const ack = await this.channel.next(remaining());
+      exactKeys(ack, ['kind', 'nonce', 'sequence', 'sqlstate']);
+      requireValue(
+        ack.kind === 'rollback' &&
+          ack.nonce === this.nonce &&
+          ack.sequence === sequence &&
+          ack.sqlstate === '00000',
+        'ROLLBACK_UNCONFIRMED',
+      );
+      requireValue(this.channel.stderrBytes === 0, 'PSQL_STDERR');
+      requireValue(remaining() > 0, 'REQUEST_DEADLINE');
+      if (this.channel.error) throw this.channel.error;
       this.lastRollback = true;
       return { value, sequence, rollbackConfirmed: true };
     } catch (error) {
       this.channel.abandon(pgActivityError(error));
       throw new PgActivityError(pgActivityError(error));
-    } finally { this.busy = false; }
+    } finally {
+      this.busy = false;
+      this.channel.allowPublicErrorStderr = false;
+    }
   }
 
   async open() {
     const process = await this.channel.next(PG_ACTIVITY_POLICY.queryDeadlineMs);
-    exactKeys(process, ['kind','nonce','pid','startTicks']);
-    requireValue(process.kind === 'process' && process.nonce === this.nonce && integer(process.pid) && process.pid > 1 && /^[1-9]\d{0,19}$/.test(process.startTicks), 'PROCESS_IDENTITY');
+    exactKeys(process, ['kind', 'nonce', 'pid', 'startTicks']);
+    requireValue(
+      process.kind === 'process' &&
+        process.nonce === this.nonce &&
+        integer(process.pid) &&
+        process.pid > 1 &&
+        /^[1-9]\d{0,19}$/.test(process.startTicks),
+      'PROCESS_IDENTITY',
+    );
     this.process = process;
     const first = await this.request('hello');
     this.hello = assertActivityHello(first.value, this.nonce, first.sequence);
-    this.backend = { pid: this.hello.backendPid, startedAt: this.hello.backendStart, startTicks: '0' };
+    this.backend = {
+      pid: this.hello.backendPid,
+      startedAt: this.hello.backendStart,
+      startTicks: '0',
+    };
     await captureActivityIdentity(this.options, this.io, this.identity);
-    const proof = assertProcessProof(await this.io.processProof(this.options.postgresId, this.process, this.backend, PG_ACTIVITY_POLICY.queryDeadlineMs));
-    requireValue(proof.client === 'matching' && proof.backend === 'matching' && /^[1-9]\d{0,19}$/.test(proof.backendStartTicks), 'PROCESS_BINDING');
+    const proof = assertProcessProof(
+      await this.io.processProof(
+        this.options.postgresId,
+        this.process,
+        this.backend,
+        PG_ACTIVITY_POLICY.queryDeadlineMs,
+      ),
+    );
+    requireValue(
+      proof.client === 'matching' &&
+        proof.backend === 'matching' &&
+        /^[1-9]\d{0,19}$/.test(proof.backendStartTicks),
+      'PROCESS_BINDING',
+    );
     this.backend.startTicks = proof.backendStartTicks;
     const second = await this.request('hello');
     const confirmed = assertActivityHello(second.value, this.nonce, second.sequence);
-    requireValue(confirmed.backendPid === this.backend.pid && confirmed.backendStart === this.backend.startedAt && confirmed.trackQueryBytes === this.hello.trackQueryBytes && JSON.stringify(confirmed.logging) === JSON.stringify(this.hello.logging), 'BACKEND_BINDING');
+    requireValue(
+      confirmed.backendPid === this.backend.pid &&
+        confirmed.backendStart === this.backend.startedAt &&
+        confirmed.trackQueryBytes === this.hello.trackQueryBytes &&
+        JSON.stringify(confirmed.logging) === JSON.stringify(this.hello.logging),
+      'BACKEND_BINDING',
+    );
     await captureActivityIdentity(this.options, this.io, this.identity);
     return this;
   }
@@ -611,44 +1026,90 @@ export class PgActivitySession {
     // The hello/logging checks necessarily precede the first address bind.
     requireValue(this.hello && this.backend?.startTicks !== '0', 'BINDING_NOT_READY');
     const result = await this.request('binding', this.identity.network.apiAddress);
-    exactKeys(result.value, ['kind','nonce','sequence','readOnly','matchingBackends']);
-    requireValue(integer(result.value.matchingBackends) && result.value.matchingBackends > 0, 'API_BACKEND_NOT_OBSERVED');
+    exactKeys(result.value, ['kind', 'nonce', 'sequence', 'readOnly', 'matchingBackends']);
+    requireValue(
+      integer(result.value.matchingBackends) && result.value.matchingBackends > 0,
+      'API_BACKEND_NOT_OBSERVED',
+    );
     return { observed: true, attribution: 'API backends, not a specific Node.js pool' };
   }
 
   async close() {
     if (this.closure) return this.closure;
-    this.closure = activityDeadline(async (check) => {
-      this.channel.endInput();
-      const deadline = this.io.monotonic() + PG_ACTIVITY_POLICY.closureDeadlineMs;
-      if (!this.process || !this.backend || this.backend.startTicks === '0')
-        return { status: 'FAIL', code: 'CLOSURE_IDENTITY_UNCONFIRMED', psqlClosed: false, backendClosed: false, explicitRollbackConfirmed: this.lastRollback };
-      try {
-        let proof;
-        while (this.io.monotonic() < deadline) {
-          check();
-          if (!this.channel.closed) {
-            await this.io.wait(Math.min(100, Math.max(0, deadline - this.io.monotonic())));
-            continue;
-          }
-          await captureActivityIdentity(this.options, this.io, this.identity, check);
-          const remaining = deadline - this.io.monotonic();
-          requireValue(remaining > 0, 'CLOSURE_DEADLINE');
-          proof = assertProcessProof(await this.io.processProof(this.options.postgresId, this.process, this.backend, Math.min(remaining, PG_ACTIVITY_POLICY.queryDeadlineMs)));
-          check();
-          if (retired(proof.client) && retired(proof.backend) && this.channel.closed) {
-            await captureActivityIdentity(this.options, this.io, this.identity, check);
+    this.closure = activityDeadline(
+      async (check) => {
+        this.channel.endInput();
+        const deadline = this.io.monotonic() + PG_ACTIVITY_POLICY.closureDeadlineMs;
+        if (!this.process || !this.backend || this.backend.startTicks === '0')
+          return {
+            status: 'FAIL',
+            code: 'CLOSURE_IDENTITY_UNCONFIRMED',
+            psqlClosed: false,
+            backendClosed: false,
+            explicitRollbackConfirmed: this.lastRollback,
+          };
+        try {
+          let proof;
+          while (this.io.monotonic() < deadline) {
             check();
-            return { status: 'PASS', psqlClosed: true, backendClosed: true, explicitRollbackConfirmed: this.lastRollback, transactionEnd: this.lastRollback ? 'acknowledged-rollback-then-disconnect' : 'connection-closed-without-rollback-ack', exitCode: this.channel.exitCode };
+            if (!this.channel.closed) {
+              await this.io.wait(Math.min(100, Math.max(0, deadline - this.io.monotonic())));
+              continue;
+            }
+            await captureActivityIdentity(this.options, this.io, this.identity, check);
+            const remaining = deadline - this.io.monotonic();
+            requireValue(remaining > 0, 'CLOSURE_DEADLINE');
+            proof = assertProcessProof(
+              await this.io.processProof(
+                this.options.postgresId,
+                this.process,
+                this.backend,
+                Math.min(remaining, PG_ACTIVITY_POLICY.queryDeadlineMs),
+              ),
+            );
+            check();
+            if (retired(proof.client) && retired(proof.backend) && this.channel.closed) {
+              await captureActivityIdentity(this.options, this.io, this.identity, check);
+              check();
+              return {
+                status: 'PASS',
+                psqlClosed: true,
+                backendClosed: true,
+                explicitRollbackConfirmed: this.lastRollback,
+                transactionEnd: this.lastRollback
+                  ? 'acknowledged-rollback-then-disconnect'
+                  : 'connection-closed-without-rollback-ack',
+                exitCode: this.channel.exitCode,
+              };
+            }
+            await this.io.wait(Math.min(100, Math.max(0, deadline - this.io.monotonic())));
           }
-          await this.io.wait(Math.min(100, Math.max(0, deadline - this.io.monotonic())));
+          return {
+            status: 'FAIL',
+            code: 'CLOSURE_DEADLINE',
+            psqlClosed: retired(proof?.client) && this.channel.closed,
+            backendClosed: retired(proof?.backend),
+            explicitRollbackConfirmed: this.lastRollback,
+          };
+        } catch (error) {
+          return {
+            status: 'FAIL',
+            code: pgActivityError(error),
+            psqlClosed: false,
+            backendClosed: false,
+            explicitRollbackConfirmed: this.lastRollback,
+          };
         }
-        return { status: 'FAIL', code: 'CLOSURE_DEADLINE', psqlClosed: retired(proof?.client) && this.channel.closed, backendClosed: retired(proof?.backend), explicitRollbackConfirmed: this.lastRollback };
-      } catch (error) {
-        return { status: 'FAIL', code: pgActivityError(error), psqlClosed: false, backendClosed: false, explicitRollbackConfirmed: this.lastRollback };
-      }
-    }, PG_ACTIVITY_POLICY.closureDeadlineMs, 'CLOSURE_DEADLINE', () => {}, this.io.monotonic).catch((error) => ({
-      status: 'FAIL', code: pgActivityError(error), psqlClosed: false, backendClosed: false,
+      },
+      PG_ACTIVITY_POLICY.closureDeadlineMs,
+      'CLOSURE_DEADLINE',
+      () => {},
+      this.io.monotonic,
+    ).catch((error) => ({
+      status: 'FAIL',
+      code: pgActivityError(error),
+      psqlClosed: false,
+      backendClosed: false,
       explicitRollbackConfirmed: this.lastRollback,
     }));
     return this.closure;
@@ -660,7 +1121,13 @@ function validateOptions(options) {
     requireValue(hex(options.releaseSha, 40) && integer(options.startedAtMs), 'OPTIONS');
     const root = options.expected?.root;
     requireValue(typeof root === 'string' && realpathSync(root) === root, 'EVIDENCE_DIRECTORY');
-    requireValue(typeof options.directory === 'string' && resolve(options.directory) === options.directory && realpathSync(options.directory) === options.directory && options.directory.startsWith(resolve(root, 'reports/classroom-official-n30') + sep), 'EVIDENCE_DIRECTORY');
+    requireValue(
+      typeof options.directory === 'string' &&
+        resolve(options.directory) === options.directory &&
+        realpathSync(options.directory) === options.directory &&
+        options.directory.startsWith(resolve(root, 'reports/classroom-official-n30') + sep),
+      'EVIDENCE_DIRECTORY',
+    );
   } catch (error) {
     if (error instanceof PgActivityError) throw error;
     fail('EVIDENCE_DIRECTORY');
@@ -682,32 +1149,64 @@ export async function qualifyPgActivityNative(options, io = nativePgActivityIo()
   const nonce = randomBytes(16).toString('hex');
   const path = resolve(options.directory, 'pg-activity-smoke.json');
   requireValue(!existsSync(path), 'EVIDENCE_EXISTS');
-  const receipt = { version: 1, status: 'FAIL', policy: PG_ACTIVITY_POLICY, startedAtMs: io.now(), cases: [] };
+  const receipt = {
+    version: 1,
+    status: 'FAIL',
+    policy: PG_ACTIVITY_POLICY,
+    startedAtMs: io.now(),
+    cases: [],
+  };
   let session;
   try {
     const identity = await captureActivityIdentity(options, io);
     receipt.identity = publicIdentity(options, identity);
-    for (const kind of ['smoke','error','sleep']) {
+    for (const kind of ['smoke', 'error', 'sleep']) {
       session = new PgActivitySession(options, io, identity);
       await session.open();
       if (kind === 'smoke') await session.binding();
       let result;
       let errorCode;
       const started = io.monotonic();
-      try { result = await session.request(kind); }
-      catch (error) { errorCode = pgActivityError(error); }
+      try {
+        result = await session.request(kind);
+      } catch (error) {
+        errorCode = pgActivityError(error);
+      }
       const durationMs = io.monotonic() - started;
       const closure = await session.close();
       const code = session.channel.exitCode;
-      receipt.cases.push({ kind, durationMs, rollbackConfirmed: result?.rollbackConfirmed === true, errorCode: errorCode || null, closure });
+      receipt.cases.push({
+        kind,
+        durationMs,
+        rollbackConfirmed: result?.rollbackConfirmed === true,
+        errorCode: errorCode || null,
+        closure,
+      });
       requireValue(closure.status === 'PASS', closure.code || 'CLOSURE_UNCONFIRMED');
       if (kind === 'smoke') {
-        exactKeys(result?.value, ['kind','nonce','sequence','readOnly','hash']);
-        requireValue(!errorCode && result.rollbackConfirmed && result.value.hash === hash('asa_pg_activity_smoke'), 'SMOKE_FRAME');
+        requireValue(
+          code === 0 && !session.channel.error && session.channel.stderrBytes === 0,
+          'SMOKE_CLIENT_EXIT',
+        );
+        exactKeys(result?.value, ['kind', 'nonce', 'sequence', 'readOnly', 'hash']);
+        requireValue(
+          !errorCode &&
+            result.rollbackConfirmed &&
+            result.value.hash === hash('asa_pg_activity_smoke'),
+          'SMOKE_FRAME',
+        );
       } else if (kind === 'error') {
-        requireValue(errorCode === 'SESSION_EXITED' && code === 3 && !closure.explicitRollbackConfirmed, 'SMOKE_ERROR_EXIT');
+        requireValue(
+          errorCode === 'SESSION_EXITED' && code === 3 && !closure.explicitRollbackConfirmed,
+          'SMOKE_ERROR_EXIT',
+        );
       } else {
-        requireValue(errorCode === 'REQUEST_DEADLINE' && durationMs >= PG_ACTIVITY_POLICY.queryDeadlineMs && !closure.explicitRollbackConfirmed, 'SMOKE_TIMEOUT');
+        requireValue(
+          errorCode === 'REQUEST_DEADLINE' &&
+            durationMs >= PG_ACTIVITY_POLICY.queryDeadlineMs &&
+            !closure.explicitRollbackConfirmed,
+          'SMOKE_TIMEOUT',
+        );
       }
       session = undefined;
     }
@@ -728,7 +1227,21 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
   const nonce = randomBytes(16).toString('hex');
   const path = resolve(options.directory, 'pg-activity.json');
   requireValue(!existsSync(path), 'EVIDENCE_EXISTS');
-  const report = { version: 1, status: 'NOT_CAPTURED', policy: PG_ACTIVITY_POLICY, startedAtMs: io.now(), samples: [], phase: null, queryCatalog: { knownRelease: PG_ACTIVITY_QUERY_SOURCE.revisions.includes(options.releaseSha), source: PG_ACTIVITY_QUERY_SOURCE.path, sha256: PG_ACTIVITY_QUERY_SOURCE.revisions.includes(options.releaseSha) ? PG_ACTIVITY_QUERY_SOURCE.sha256 : null } };
+  const report = {
+    version: 1,
+    status: 'NOT_CAPTURED',
+    policy: PG_ACTIVITY_POLICY,
+    startedAtMs: io.now(),
+    samples: [],
+    phase: null,
+    queryCatalog: {
+      knownRelease: PG_ACTIVITY_QUERY_SOURCE.revisions.includes(options.releaseSha),
+      source: PG_ACTIVITY_QUERY_SOURCE.path,
+      sha256: PG_ACTIVITY_QUERY_SOURCE.revisions.includes(options.releaseSha)
+        ? PG_ACTIVITY_QUERY_SOURCE.sha256
+        : null,
+    },
+  };
   let session;
   let identity;
   let lastSignal;
@@ -748,8 +1261,13 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
   const stopWatching = () => {
     clearInterval(interval);
     clearTimeout(sampleTimer);
-    try { watcher?.close(); return true; }
-    catch { report.watcherCloseFailed = true; return false; }
+    try {
+      watcher?.close();
+      return true;
+    } catch {
+      report.watcherCloseFailed = true;
+      return false;
+    }
   };
   const recordFailure = (error) => {
     if (errorCode) return;
@@ -760,7 +1278,11 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
     stopWatching();
     // Notify immediately at the request deadline, before up to five seconds of
     // closure verification. The caller aborts only its own browser/next level.
-    try { onFailure(errorCode); } catch { report.callbackFailed = true; }
+    try {
+      onFailure(errorCode);
+    } catch {
+      report.callbackFailed = true;
+    }
     session?.channel.abandon(errorCode);
     beginClosure();
   };
@@ -772,7 +1294,12 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
     }
     lastSignal = validateActivityProgress(value, options.startedAtMs, io.now(), lastSignal);
     if (lastSignal.phase === PG_ACTIVITY_POLICY.phase && !report.phase) {
-      report.phase = { startedAtMs: lastSignal.atMs, firstObservedAtMs: io.now(), firstSampleLagMs: null, endedAtMs: null };
+      report.phase = {
+        startedAtMs: lastSignal.atMs,
+        firstObservedAtMs: io.now(),
+        firstSampleLagMs: null,
+        endedAtMs: null,
+      };
     }
     if (report.phase && lastSignal.phase !== PG_ACTIVITY_POLICY.phase) {
       report.phase.endedAtMs = lastSignal.atMs;
@@ -783,31 +1310,63 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
       phaseEnded = true;
     }
   };
-  const sample = () => activityDeadline(async (check) => {
-    const requestedAtMs = io.now();
-    lastSampleMonotonic = io.monotonic();
-    await captureActivityIdentity(options, io, identity, check);
-    check();
-    const result = await session.request('sample', identity.network.apiAddress);
-    check();
-    const receivedAtMs = io.now();
-    const projected = projectActivitySample(result.value, { nonce: session.nonce, sequence: result.sequence, releaseSha: options.releaseSha, trackQueryBytes: session.hello.trackQueryBytes });
-    await captureActivityIdentity(options, io, identity, check);
-    check();
-    readSignal();
-    const previous = report.samples.at(-1);
-    const item = { requestedAtMs, receivedAtMs, verifiedAtMs: io.now(), gapFromPreviousStartMs: previous ? requestedAtMs - previous.requestedAtMs : null, rollbackConfirmed: result.rollbackConfirmed, phaseEndedDuringSample: report.phase.endedAtMs !== null && receivedAtMs >= report.phase.endedAtMs, ...projected };
-    requireValue(Buffer.byteLength(JSON.stringify(item)) <= PG_ACTIVITY_POLICY.frameBytes, 'SAMPLE_BOUND');
-    const candidate = { ...report, samples: [...report.samples, item] };
-    requireValue(Buffer.byteLength(JSON.stringify(candidate)) <= PG_ACTIVITY_POLICY.totalBytes - 4096, 'REPORT_BOUND');
-    check();
-    report.samples.push(item);
-    report.phase.firstSampleLagMs ??= requestedAtMs - report.phase.startedAtMs;
-    report.status = 'CAPTURED';
-  }, PG_ACTIVITY_POLICY.queryDeadlineMs, 'REQUEST_DEADLINE', () => recordFailure(new PgActivityError('REQUEST_DEADLINE')), io.monotonic);
+  const sample = () =>
+    activityDeadline(
+      async (check) => {
+        const requestedAtMs = io.now();
+        lastSampleMonotonic = io.monotonic();
+        await captureActivityIdentity(options, io, identity, check);
+        check();
+        const result = await session.request('sample', identity.network.apiAddress);
+        check();
+        const receivedAtMs = io.now();
+        const projected = projectActivitySample(result.value, {
+          nonce: session.nonce,
+          sequence: result.sequence,
+          releaseSha: options.releaseSha,
+          trackQueryBytes: session.hello.trackQueryBytes,
+        });
+        await captureActivityIdentity(options, io, identity, check);
+        check();
+        readSignal();
+        const previous = report.samples.at(-1);
+        const item = {
+          requestedAtMs,
+          receivedAtMs,
+          verifiedAtMs: io.now(),
+          gapFromPreviousStartMs: previous ? requestedAtMs - previous.requestedAtMs : null,
+          rollbackConfirmed: result.rollbackConfirmed,
+          phaseEndedDuringSample:
+            report.phase.endedAtMs !== null && receivedAtMs >= report.phase.endedAtMs,
+          ...projected,
+        };
+        requireValue(
+          Buffer.byteLength(JSON.stringify(item)) <= PG_ACTIVITY_POLICY.frameBytes,
+          'SAMPLE_BOUND',
+        );
+        const candidate = { ...report, samples: [...report.samples, item] };
+        requireValue(
+          Buffer.byteLength(JSON.stringify(candidate)) <= PG_ACTIVITY_POLICY.totalBytes - 4096,
+          'REPORT_BOUND',
+        );
+        check();
+        report.samples.push(item);
+        report.phase.firstSampleLagMs ??= requestedAtMs - report.phase.startedAtMs;
+        report.status = 'CAPTURED';
+      },
+      PG_ACTIVITY_POLICY.queryDeadlineMs,
+      'REQUEST_DEADLINE',
+      () => recordFailure(new PgActivityError('REQUEST_DEADLINE')),
+      io.monotonic,
+    );
   const tick = () => {
     if (closed || errorCode || phaseEnded) return;
-    try { readSignal(); } catch (error) { recordFailure(error); return; }
+    try {
+      readSignal();
+    } catch (error) {
+      recordFailure(error);
+      return;
+    }
     if (!report.phase) return;
     if (phaseEnded || report.samples.length >= PG_ACTIVITY_POLICY.samples) {
       phaseEnded = true;
@@ -823,16 +1382,24 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
       sampleTimer = setTimeout(tick, remaining);
       return;
     }
-    pending = sample().catch(recordFailure).finally(() => {
-      pending = undefined;
-      if (closed || phaseEnded || errorCode) beginClosure();
-      else { clearTimeout(sampleTimer); sampleTimer = setTimeout(tick, Math.max(0, PG_ACTIVITY_POLICY.intervalMs - (io.monotonic() - lastSampleMonotonic))); }
-    });
+    pending = sample()
+      .catch(recordFailure)
+      .finally(() => {
+        pending = undefined;
+        if (closed || phaseEnded || errorCode) beginClosure();
+        else {
+          clearTimeout(sampleTimer);
+          sampleTimer = setTimeout(
+            tick,
+            Math.max(0, PG_ACTIVITY_POLICY.intervalMs - (io.monotonic() - lastSampleMonotonic)),
+          );
+        }
+      });
   };
   try {
     identity = await captureActivityIdentity(options, io);
     report.identity = publicIdentity(options, identity);
-    session = new PgActivitySession(options, io, identity);
+    session = new PgActivitySession(options, io, identity, recordFailure);
     await session.open();
     report.backendBinding = await session.binding();
     await captureActivityIdentity(options, io, identity);
@@ -849,7 +1416,9 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
     throw new PgActivityError(errorCode);
   }
   return {
-    get error() { return errorCode; },
+    get error() {
+      return errorCode;
+    },
     async finish() {
       if (finished) return finished;
       finished = (async () => {
@@ -858,10 +1427,12 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
         await pending;
         beginClosure();
         report.closure = await closure;
-        if (report.closure.status !== 'PASS') recordFailure(new PgActivityError(report.closure.code || 'CLOSURE_UNCONFIRMED'));
+        if (report.closure.status !== 'PASS')
+          recordFailure(new PgActivityError(report.closure.code || 'CLOSURE_UNCONFIRMED'));
         report.finishedAtMs = io.now();
         if (!report.phase) report.notCapturedReason = 'phase_not_observed';
-        else if (!report.samples.length) report.notCapturedReason = 'phase_missed_or_window_expired';
+        else if (!report.samples.length)
+          report.notCapturedReason = 'phase_missed_or_window_expired';
         io.writeReport(path, report, nonce);
         return report;
       })();
