@@ -653,7 +653,7 @@ class ObserverFixture(Fixture):
     secret = "SYNTHETIC-OBSERVER-SECRET-MUST-NOT-BE-EVIDENCE"
 
     def __init__(self, root):
-        super().__init__(root)
+        super().__init__(Path(root).resolve())
         self.events, self.extra_records, self.manager = [], [], None
         self.records["api"]["id"] = "a" * 64
         for service, record in self.records.items():
@@ -708,6 +708,13 @@ class ObserverHarness(contextlib.ExitStack):
     """Real eligibility/journal and canonical data guards, simulated transport."""
     def __init__(self, action="rollback"):
         super().__init__()
+        try:
+            self._prepare(action)
+        except BaseException:
+            self.close()
+            raise
+
+    def _prepare(self, action):
         temporary = self.enter_context(tempfile.TemporaryDirectory(prefix="asa observer "))
         self.fixture = ObserverFixture(Path(temporary) / "app")
         self.action, self.phase = action, "rollback_api" if action == "rollback" else "forward_api"
@@ -820,6 +827,87 @@ class ObserverHarness(contextlib.ExitStack):
             if key == "id": journal["id"] = "f" * 32
             if key == "eligibility": journal["eligibility"]["binding"]["project"] += "-changed"
             ar._write(self.fixture.state / ar.JOURNAL, journal)
+
+
+class NativeObserverFixtureTests(unittest.TestCase):
+    def test_equivalent_noncanonical_root_preserves_windows_identity_contract(self):
+        with tempfile.TemporaryDirectory(prefix="asa observer root ") as temporary:
+            parent = Path(temporary)
+            (parent / "existing directory").mkdir()
+            supplied = parent / "existing directory" / ".." / "app"
+            expected = (parent / "app").resolve()
+            # Force normalization even when this Windows user has no 8.3 alias.
+            self.assertNotEqual(str(supplied), str(expected))
+            fixture = ObserverFixture(supplied)
+            self.assertEqual(fixture.root, expected)
+            self.assertEqual(fixture.state, expected / ".asa")
+            records = fixture.identity()
+            for record in records.values():
+                self.assertEqual(record["labels"]["com.docker.compose.project.working_dir"], str(expected))
+                self.assertEqual(record["labels"]["com.docker.compose.project.config_files"],
+                                 ",".join(str(expected / name) for name in fixture.files))
+            fixture.records["api"]["labels"]["com.docker.compose.project.working_dir"] = str(parent / "foreign")
+            with self.assertRaises(Blocked) as denied: fixture.identity()
+            self.assertEqual(denied.exception.code, "IDENTITY_ROOT")
+
+    def test_constructor_exception_restores_globals_stdout_temp_and_following_fixture(self):
+        targets = [(ar, name) for name in ("_clean", "tool_identity", "_images", "_ci_identity", "_tool_ci", "run", "inspect", "prepare_candidate")]
+        targets += [(ar.releases, "validate_resolved_images"), (system, "run")]
+        targets += [(native_driver, name) for name in ("subprocess", "run", "terminate_owned_process", "Installation", "time")]
+        real_temporary, real_enter = tempfile.TemporaryDirectory, contextlib.ExitStack.enter_context
+        for stage in ("candidate", "registered_globals"):
+            with self.subTest(stage=stage):
+                self.assertIs(ar.run, native_run)
+                before = [(module, name, getattr(module, name)) for module, name in targets]
+                before_stdout = sys.stdout
+                instances, temporaries = [], []
+                failure = Blocked("IDENTITY_ROOT", "Synthetic candidate rejection", "Test cleanup") if stage == "candidate" else RuntimeError("Synthetic final setup rejection")
+
+                class CapturedHarness(ObserverHarness):
+                    def __new__(cls, *args, **kwargs):
+                        instance = super().__new__(cls)
+                        instances.append(instance)
+                        return instance
+
+                def temporary_directory(*args, **kwargs):
+                    temporary = real_temporary(*args, **kwargs)
+                    temporaries.append(temporary)
+                    return temporary
+
+                original_inspect = ar.inspect
+                def enter_then_fail(stack, context):
+                    result = real_enter(stack, context)
+                    if isinstance(stack, CapturedHarness) and ar.inspect is not original_inspect:
+                        raise failure
+                    return result
+
+                def restored_state():
+                    restored = {module.__name__ + "." + name: getattr(module, name) is value for module, name, value in before}
+                    restored["sys.stdout"] = sys.stdout is before_stdout
+                    restored["temporary_removed"] = all(not Path(temporary.name).exists() for temporary in temporaries)
+                    return restored
+
+                fault = (patch.object(ar, "prepare_candidate", side_effect=failure) if stage == "candidate" else
+                         patch.object(contextlib.ExitStack, "enter_context", enter_then_fail))
+                try:
+                    with patch.object(tempfile, "TemporaryDirectory", temporary_directory), fault:
+                        with self.assertRaises(type(failure)) as denied: CapturedHarness()
+                    self.assertIs(denied.exception, failure)
+                    self.assertTrue(temporaries)
+                    restored = restored_state()
+                    self.assertEqual(restored, dict.fromkeys(restored, True))
+                    # This is the same real transport used by subsequent source-history
+                    # fixtures; leaked fake Docker dispatch must not receive Git commands.
+                    self.assertTrue(ar._git(Path.cwd(), "--version").startswith("git version "))
+                    with ObserverHarness() as following:
+                        self.assertEqual(following.run()["phase"], "rollback_api")
+                    restored = restored_state()
+                    self.assertEqual(restored, dict.fromkeys(restored, True))
+                finally:
+                    # A red regression must not itself poison the rest of the suite.
+                    # These calls run only after the restoration assertions above.
+                    for instance in reversed(instances): instance.close()
+                    for temporary in reversed(temporaries): temporary.cleanup()
 
 
 class NativeObserverTests(unittest.TestCase):
