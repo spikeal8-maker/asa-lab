@@ -1489,7 +1489,9 @@ describe('resource-stop cancellation across driver, qualification and observatio
         'smoke',
       ]);
       if (point === 'pending smoke ACK')
-        expect(receipt.failedSessionClosure?.explicitRollbackConfirmed).toBe(false);
+        expect(receipt).toMatchObject({
+          failedSessionClosure: { explicitRollbackConfirmed: false },
+        });
       expect(f.reports[0]!.text).not.toContain(privateText);
     },
   );
