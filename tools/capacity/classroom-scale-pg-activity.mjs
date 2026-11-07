@@ -31,6 +31,9 @@ import { assertOfficialScaleOwnedContainer } from './classroom-scale-contracts.m
  * psql/PostgreSQL processes is used. A sample deadline is not a claim of
  * server-side cancellation. A timed-out read-only process-proof transport may
  * terminate its own Docker CLI; that never proves psql/backend closure.
+ * The driver's shared resource signal forbids new clients/SQL after a stop.
+ * Cancellation sends EOF immediately; physical closure is still verified with
+ * its own bounded read-only checks, without treating cancellation as success.
  */
 export const PG_ACTIVITY_POLICY = Object.freeze({
   version: 1,
@@ -67,6 +70,10 @@ const fail = (code) => {
 };
 const requireValue = (condition, code) => {
   if (!condition) fail(code);
+};
+const assertResourceActive = (options) => {
+  requireValue(options.resourceSignal instanceof globalThis.AbortSignal, 'RESOURCE_SIGNAL');
+  requireValue(!options.resourceSignal.aborted, 'RESOURCE_STOP');
 };
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const integer = (value) => Number.isSafeInteger(value);
@@ -918,6 +925,7 @@ const retired = (status) => status === 'absent' || status === 'retired';
 
 export class PgActivitySession {
   constructor(options, io, identity, onFailure = () => {}) {
+    assertResourceActive(options);
     this.options = options;
     this.io = io;
     this.identity = identity;
@@ -926,10 +934,23 @@ export class PgActivitySession {
     this.busy = false;
     this.lastRollback = false;
     this.channel = new PgActivityChannel(io.open(options.postgresId, this.nonce), onFailure);
+    this.resourceStopped = () => {
+      // EOF is immediate even while identity transport or a query is pending.
+      // Closure proof remains independent of cancellation and may still fail.
+      this.channel.abandon('RESOURCE_STOP');
+      void this.close();
+    };
+    options.resourceSignal.addEventListener('abort', this.resourceStopped, { once: true });
+    if (options.resourceSignal.aborted) this.resourceStopped();
+  }
+
+  checkActive() {
+    if (this.channel.error) throw this.channel.error;
+    assertResourceActive(this.options);
   }
 
   async request(kind, address) {
-    if (this.channel.error) throw this.channel.error;
+    this.checkActive();
     requireValue(!this.busy && !this.channel.closed && !this.channel.inputClosed, 'SESSION_STATE');
     this.busy = true;
     this.lastRollback = false;
@@ -942,8 +963,10 @@ export class PgActivitySession {
       // Only this fixed public division-by-zero smoke permits error stderr.
       // The bytes are discarded and cannot carry forward into another request.
       this.channel.allowPublicErrorStderr = kind === 'error';
+      this.checkActive();
       this.channel.child.stdin.write(activityCommand(kind, this.nonce, sequence, address));
       value = await this.channel.next(remaining());
+      this.checkActive();
       requireValue(
         value?.kind === kind &&
           value.nonce === this.nonce &&
@@ -952,6 +975,7 @@ export class PgActivitySession {
         'FRAME_IDENTITY',
       );
       const ack = await this.channel.next(remaining());
+      this.checkActive();
       exactKeys(ack, ['kind', 'nonce', 'sequence', 'sqlstate']);
       requireValue(
         ack.kind === 'rollback' &&
@@ -962,7 +986,7 @@ export class PgActivitySession {
       );
       requireValue(this.channel.stderrBytes === 0, 'PSQL_STDERR');
       requireValue(remaining() > 0, 'REQUEST_DEADLINE');
-      if (this.channel.error) throw this.channel.error;
+      this.checkActive();
       this.lastRollback = true;
       return { value, sequence, rollbackConfirmed: true };
     } catch (error) {
@@ -975,7 +999,9 @@ export class PgActivitySession {
   }
 
   async open() {
+    this.checkActive();
     const process = await this.channel.next(PG_ACTIVITY_POLICY.queryDeadlineMs);
+    this.checkActive();
     exactKeys(process, ['kind', 'nonce', 'pid', 'startTicks']);
     requireValue(
       process.kind === 'process' &&
@@ -993,7 +1019,7 @@ export class PgActivitySession {
       startedAt: this.hello.backendStart,
       startTicks: '0',
     };
-    await captureActivityIdentity(this.options, this.io, this.identity);
+    await captureActivityIdentity(this.options, this.io, this.identity, () => this.checkActive());
     const proof = assertProcessProof(
       await this.io.processProof(
         this.options.postgresId,
@@ -1002,6 +1028,7 @@ export class PgActivitySession {
         PG_ACTIVITY_POLICY.queryDeadlineMs,
       ),
     );
+    this.checkActive();
     requireValue(
       proof.client === 'matching' &&
         proof.backend === 'matching' &&
@@ -1018,12 +1045,14 @@ export class PgActivitySession {
         JSON.stringify(confirmed.logging) === JSON.stringify(this.hello.logging),
       'BACKEND_BINDING',
     );
-    await captureActivityIdentity(this.options, this.io, this.identity);
+    await captureActivityIdentity(this.options, this.io, this.identity, () => this.checkActive());
+    this.checkActive();
     return this;
   }
 
   async binding() {
     // The hello/logging checks necessarily precede the first address bind.
+    this.checkActive();
     requireValue(this.hello && this.backend?.startTicks !== '0', 'BINDING_NOT_READY');
     const result = await this.request('binding', this.identity.network.apiAddress);
     exactKeys(result.value, ['kind', 'nonce', 'sequence', 'readOnly', 'matchingBackends']);
@@ -1105,13 +1134,17 @@ export class PgActivitySession {
       'CLOSURE_DEADLINE',
       () => {},
       this.io.monotonic,
-    ).catch((error) => ({
-      status: 'FAIL',
-      code: pgActivityError(error),
-      psqlClosed: false,
-      backendClosed: false,
-      explicitRollbackConfirmed: this.lastRollback,
-    }));
+    )
+      .catch((error) => ({
+        status: 'FAIL',
+        code: pgActivityError(error),
+        psqlClosed: false,
+        backendClosed: false,
+        explicitRollbackConfirmed: this.lastRollback,
+      }))
+      .finally(() =>
+        this.options.resourceSignal.removeEventListener('abort', this.resourceStopped),
+      );
     return this.closure;
   }
 }
@@ -1119,6 +1152,7 @@ export class PgActivitySession {
 function validateOptions(options) {
   try {
     requireValue(hex(options.releaseSha, 40) && integer(options.startedAtMs), 'OPTIONS');
+    requireValue(options.resourceSignal instanceof globalThis.AbortSignal, 'RESOURCE_SIGNAL');
     const root = options.expected?.root;
     requireValue(typeof root === 'string' && realpathSync(root) === root, 'EVIDENCE_DIRECTORY');
     requireValue(
@@ -1158,12 +1192,16 @@ export async function qualifyPgActivityNative(options, io = nativePgActivityIo()
   };
   let session;
   try {
-    const identity = await captureActivityIdentity(options, io);
+    const checkActive = () => assertResourceActive(options);
+    const identity = await captureActivityIdentity(options, io, undefined, checkActive);
     receipt.identity = publicIdentity(options, identity);
     for (const kind of ['smoke', 'error', 'sleep']) {
+      checkActive();
       session = new PgActivitySession(options, io, identity);
       await session.open();
+      checkActive();
       if (kind === 'smoke') await session.binding();
+      checkActive();
       let result;
       let errorCode;
       const started = io.monotonic();
@@ -1183,6 +1221,7 @@ export async function qualifyPgActivityNative(options, io = nativePgActivityIo()
         closure,
       });
       requireValue(closure.status === 'PASS', closure.code || 'CLOSURE_UNCONFIRMED');
+      checkActive();
       if (kind === 'smoke') {
         requireValue(
           code === 0 && !session.channel.error && session.channel.stderrBytes === 0,
@@ -1210,9 +1249,14 @@ export async function qualifyPgActivityNative(options, io = nativePgActivityIo()
       }
       session = undefined;
     }
+    checkActive();
     receipt.status = 'PASS';
   } catch (error) {
     receipt.code = pgActivityError(error);
+    if (receipt.code === 'RESOURCE_STOP') {
+      receipt.status = 'BLOCKED_BY_RUNNER';
+      receipt.classification = 'resource_stop';
+    }
     if (session) receipt.failedSessionClosure = await session.close();
   } finally {
     receipt.finishedAtMs = io.now();
@@ -1273,7 +1317,8 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
   const recordFailure = (error) => {
     if (errorCode) return;
     errorCode = pgActivityError(error);
-    report.status = 'FAILED';
+    report.status = errorCode === 'RESOURCE_STOP' ? 'BLOCKED_BY_RUNNER' : 'FAILED';
+    if (errorCode === 'RESOURCE_STOP') report.classification = 'resource_stop';
     report.code = errorCode;
     report.failedAtMs = io.now();
     stopWatching();
@@ -1287,6 +1332,12 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
     session?.channel.abandon(errorCode);
     beginClosure();
   };
+  const checkActive = () => {
+    if (errorCode) fail(errorCode);
+    assertResourceActive(options);
+    if (session) session.checkActive();
+  };
+  const resourceStopped = () => recordFailure(new PgActivityError('RESOURCE_STOP'));
   const readSignal = () => {
     const value = io.readProgress(options.directory);
     if (value === null) {
@@ -1324,22 +1375,21 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
   const sample = () =>
     activityDeadline(
       async (check) => {
-        const checkActive = () => {
-          if (errorCode) fail(errorCode);
-          if (session.channel.error) fail(pgActivityError(session.channel.error));
+        const checkSample = () => {
+          checkActive();
           check();
         };
         const requestedAtMs = io.now();
         lastSampleMonotonic = io.monotonic();
-        await captureActivityIdentity(options, io, identity, checkActive);
-        checkActive();
+        await captureActivityIdentity(options, io, identity, checkSample);
+        checkSample();
         // Identity transport may consume the last part of the phase window.
         // Do not issue another SQL statement after that window has ended.
         readSignal();
-        checkActive();
+        checkSample();
         if (phaseEnded) return;
         const result = await session.request('sample', identity.network.apiAddress);
-        checkActive();
+        checkSample();
         const receivedAtMs = io.now();
         const projected = projectActivitySample(result.value, {
           nonce: session.nonce,
@@ -1347,8 +1397,8 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
           releaseSha: options.releaseSha,
           trackQueryBytes: session.hello.trackQueryBytes,
         });
-        await captureActivityIdentity(options, io, identity, checkActive);
-        checkActive();
+        await captureActivityIdentity(options, io, identity, checkSample);
+        checkSample();
         readSignal();
         const previous = report.samples.at(-1);
         const item = {
@@ -1370,7 +1420,7 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
           Buffer.byteLength(JSON.stringify(candidate)) <= PG_ACTIVITY_POLICY.totalBytes - 4096,
           'REPORT_BOUND',
         );
-        checkActive();
+        checkSample();
         report.samples.push(item);
         report.phase.firstSampleLagMs ??= requestedAtMs - report.phase.startedAtMs;
         report.status = 'CAPTURED';
@@ -1420,12 +1470,17 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
       });
   };
   try {
-    identity = await captureActivityIdentity(options, io);
+    options.resourceSignal.addEventListener('abort', resourceStopped, { once: true });
+    if (options.resourceSignal.aborted) resourceStopped();
+    identity = await captureActivityIdentity(options, io, undefined, checkActive);
     report.identity = publicIdentity(options, identity);
+    checkActive();
     session = new PgActivitySession(options, io, identity, recordFailure);
     await session.open();
+    checkActive();
     report.backendBinding = await session.binding();
-    await captureActivityIdentity(options, io, identity);
+    await captureActivityIdentity(options, io, identity, checkActive);
+    checkActive();
     watcher = io.watch(options.directory, tick);
     watcher.on('error', () => recordFailure(new PgActivityError('PROGRESS_WATCH')));
     interval = setInterval(tick, PG_ACTIVITY_POLICY.intervalMs);
@@ -1434,6 +1489,7 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
   } catch (error) {
     recordFailure(error);
     report.closure = session ? await session.close() : { status: 'NOT_OPENED' };
+    options.resourceSignal.removeEventListener('abort', resourceStopped);
     report.finishedAtMs = io.now();
     io.writeReport(path, report, nonce);
     throw new PgActivityError(errorCode);
@@ -1452,6 +1508,7 @@ export async function startPgActivityObserver(options, onFailure, io = nativePgA
         report.closure = await closure;
         if (report.closure.status !== 'PASS')
           recordFailure(new PgActivityError(report.closure.code || 'CLOSURE_UNCONFIRMED'));
+        options.resourceSignal.removeEventListener('abort', resourceStopped);
         report.finishedAtMs = io.now();
         if (!report.phase) report.notCapturedReason = 'phase_not_observed';
         else if (!report.samples.length)

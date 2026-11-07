@@ -13,9 +13,11 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { PassThrough, Writable } from 'node:stream';
+import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   PG_ACTIVITY_NATIVE_SCRIPTS,
@@ -236,6 +238,7 @@ function fixture(variant = 'baseline') {
     postgres: { reference: 'postgres@sha256:' + '9'.repeat(64), id: 'sha256:' + 'b'.repeat(64) },
   };
   const expected = { root, project, configFiles, runToken: nonce, images };
+  const resourceStop = new AbortController();
   const metadata = (service: 'api' | 'postgres') => ({
     Id: service === 'api' ? apiId : postgresId,
     Image: images[service].id,
@@ -324,7 +327,16 @@ function fixture(variant = 'baseline') {
     },
   };
   return {
-    options: { directory, startedAtMs: Date.now(), releaseSha, apiId, postgresId, expected },
+    options: {
+      directory,
+      startedAtMs: Date.now(),
+      releaseSha,
+      apiId,
+      postgresId,
+      expected,
+      resourceSignal: resourceStop.signal,
+    },
+    resourceStop,
     io: io as unknown as ReturnType<typeof nativePgActivityIo>,
     controls: io,
     state,
@@ -352,6 +364,27 @@ async function settle<T>(promise: Promise<T>, limitMs = 10000): Promise<T> {
   if (!outcome) throw Error('Test promise exceeded its explicit mock-clock bound');
   if (!outcome.ok) throw outcome.error;
   return outcome.value;
+}
+
+function driverArrow(name: string, context: Record<string, unknown>) {
+  const path = 'tools/capacity/classroom-scale.mjs';
+  const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest);
+  let initializer: ts.ArrowFunction | undefined;
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      node.name.getText(source) === name &&
+      node.initializer &&
+      ts.isArrowFunction(node.initializer)
+    )
+      initializer = node.initializer;
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  if (!initializer) throw Error('Missing actual driver arrow: ' + name);
+  return runInNewContext('(' + initializer.getText(source) + ')', context) as (
+    ...args: unknown[]
+  ) => Promise<unknown>;
 }
 
 beforeEach(() => {
@@ -1201,6 +1234,326 @@ describe('fresh atomic phase signal and bounded observation lifecycle', () => {
       expect(child.commands.filter((item) => item.kind === 'sample')).toHaveLength(2);
       expect(failure).toHaveBeenCalledExactlyOnceWith(code);
       expect(f.reports[0]!.value).toMatchObject({ status: 'FAILED', code });
+      expect(f.reports[0]!.text).not.toContain(privateText);
+    },
+  );
+});
+
+describe('resource-stop cancellation across driver, qualification and observation', () => {
+  it.each(['runtime', 'owned resources', 'observer preparation'])(
+    'opens no psql when the actual driver declares a stop during its %s attestation await',
+    async (point) => {
+      const f = fixture();
+      const writes: { path: string; value: Frame }[] = [];
+      const writeJson = (path: string, value: Frame) => writes.push({ path, value });
+      let paused = false;
+      let release: (() => void) | undefined;
+      const gate = new Promise<void>((done) => {
+        release = done;
+      });
+      const attest = async (actual: string) => {
+        if (point === actual && !paused) {
+          paused = true;
+          await gate;
+        }
+      };
+      const inspect = f.controls.inspect;
+      f.controls.inspect = async (id) => {
+        if (id === apiId) await attest('observer preparation');
+        return inspect(id);
+      };
+      const browserStart = vi.fn(() => {
+        throw Error('Browser must not start after a resource stop');
+      });
+      const context: Record<string, unknown> = {
+        Date,
+        resolve,
+        mkdirSync,
+        writeJson,
+        reports: dirname(f.options.directory),
+        config: {},
+        identity: {},
+        allResources: [],
+        observationErrors: 0,
+        stoppedByResource: undefined,
+        pgResourceStop: f.resourceStop,
+        containerIds: [
+          { service: 'api', id: apiId },
+          { service: 'postgres', id: postgresId },
+        ],
+        head: releaseSha,
+        root: f.options.expected.root,
+        project: f.options.expected.project,
+        env: { ASA_SCALE_RUN_TOKEN: nonce },
+        composeFiles: f.options.expected.configFiles.split(','),
+        fixtureImages: f.options.expected.images,
+        latestApiIdentity: undefined,
+        officialScaleBrowserInvocation: () => ({ phase: 'level-30', command: [] }),
+        sample: async () => {},
+        attestRuntime: () => attest('runtime'),
+        attestOwnedResources: () => attest('owned resources'),
+        startPgActivityObserver: (options: typeof f.options, onFailure: (code: string) => void) =>
+          startPgActivityObserver(options, onFailure, f.io),
+        requireResources: async () => {
+          throw Error('BLOCKED_BY_RUNNER: memory_floor');
+        },
+        start: browserStart,
+      };
+      context.pgObserverOptions = driverArrow('pgObserverOptions', context);
+      const runLevel = driverArrow('runBrowserLevel', context);
+      // Exercise the real resource declaration too; only host/container reads
+      // and the already-established violation are substitutes in this replay.
+      const resourceContext: Record<string, unknown> = {
+        Date,
+        resolve,
+        reports: context.reports,
+        root: f.options.expected.root,
+        pgResourceStop: f.resourceStop,
+        previousCpu: { total: 0, idle: 0 },
+        cpuTicks: () => ({ total: 100, idle: 0 }),
+        readFileSync: () => '',
+        readScaleMemInfo: () => ({ memoryAvailableBytes: 1 }),
+        statfsSync: () => ({ bavail: 1, bsize: 1 }),
+        allResources: [],
+        containerIds: [],
+        currentPhase: 'level-30',
+        currentAbortFile: join(f.options.directory, 'abort.json'),
+        activeCommand: undefined,
+        driverName: undefined,
+        builderCreated: false,
+        scaleResourceViolation: () => 'memory_floor',
+        writeJson,
+      };
+      Object.defineProperty(resourceContext, 'stoppedByResource', {
+        get: () => context.stoppedByResource,
+        set: (value: unknown) => {
+          context.stoppedByResource = value;
+        },
+      });
+      const sampleResources = driverArrow('sampleOnce', resourceContext);
+      const running = runLevel(30).catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(paused).toBe(true);
+      await sampleResources();
+      release!();
+      const result = await settle(running);
+      const observer = context.activePgObserver as
+        Awaited<ReturnType<typeof startPgActivityObserver>> | undefined;
+      if (observer) await settle(observer.finish());
+      expect(f.processes).toHaveLength(0);
+      expect(f.resourceStop.signal.aborted).toBe(true);
+      expect(String(result)).toMatch(/BLOCKED_BY_RUNNER|RESOURCE_STOP/);
+      expect(browserStart).not.toHaveBeenCalled();
+      expect(context.observationErrors).toBe(0);
+      expect(writes.filter((item) => item.path.endsWith('/abort.json'))).toMatchObject([
+        { value: { reason: 'memory_floor', phase: 'level-30' } },
+      ]);
+    },
+  );
+
+  it.each(['qualification', 'observer'])(
+    'opens no psql when resource stop arrives during the initial %s identity await',
+    async (entry) => {
+      const f = fixture();
+      const inspect = f.controls.inspect;
+      let paused = false;
+      let release: (() => void) | undefined;
+      const gate = new Promise<void>((done) => {
+        release = done;
+      });
+      f.controls.inspect = async (id) => {
+        if (id === apiId && !paused) {
+          paused = true;
+          await gate;
+        }
+        return inspect(id);
+      };
+      const failure = vi.fn();
+      let observer: Awaited<ReturnType<typeof startPgActivityObserver>> | undefined;
+      const running =
+        entry === 'qualification'
+          ? qualifyPgActivityNative(f.options, f.io)
+          : startPgActivityObserver(f.options, failure, f.io).then(
+              (value) => {
+                observer = value;
+                return value;
+              },
+              (error: unknown) => error,
+            );
+      expect(paused).toBe(true);
+      f.resourceStop.abort();
+      release!();
+      await settle(running);
+      if (observer) await settle(observer.finish());
+      expect(f.processes).toHaveLength(0);
+      expect(f.reports[0]!.value).toMatchObject({
+        status: 'BLOCKED_BY_RUNNER',
+        code: 'RESOURCE_STOP',
+        classification: 'resource_stop',
+      });
+      if (entry === 'observer') expect(failure).toHaveBeenCalledExactlyOnceWith('RESOURCE_STOP');
+    },
+  );
+
+  it.each(['qualification', 'observer'])(
+    'sends no binding or later SQL when resource stop interrupts %s preparation after the second hello ACK',
+    async (entry) => {
+      const f = fixture();
+      const inspect = f.controls.inspect;
+      let secondHelloAck = false;
+      let paused = false;
+      let release: (() => void) | undefined;
+      const gate = new Promise<void>((done) => {
+        release = done;
+      });
+      f.state.customize = (child) => {
+        child.afterOutput = (kind) => {
+          if (kind === 'hello' && child.commands.length === 2) secondHelloAck = true;
+        };
+      };
+      f.controls.inspect = async (id) => {
+        if (id === apiId && secondHelloAck && !paused) {
+          paused = true;
+          await gate;
+        }
+        return inspect(id);
+      };
+      const failure = vi.fn();
+      let observer: Awaited<ReturnType<typeof startPgActivityObserver>> | undefined;
+      const running =
+        entry === 'qualification'
+          ? qualifyPgActivityNative(f.options, f.io)
+          : startPgActivityObserver(f.options, failure, f.io).then(
+              (value) => {
+                observer = value;
+                return value;
+              },
+              (error: unknown) => error,
+            );
+      await vi.advanceTimersByTimeAsync(10);
+      expect(paused).toBe(true);
+      f.resourceStop.abort();
+      await vi.advanceTimersByTimeAsync(0);
+      const endedAtStop = f.processes[0]!.ended;
+      release!();
+      await settle(running);
+      if (observer) await settle(observer.finish());
+      expect(endedAtStop).toBe(true);
+      expect(f.processes).toHaveLength(1);
+      expect(f.processes[0]!.commands.map((item) => item.kind)).toEqual(['hello', 'hello']);
+      const report = f.reports[0]!.value;
+      expect(report).toMatchObject({
+        status: 'BLOCKED_BY_RUNNER',
+        code: 'RESOURCE_STOP',
+        classification: 'resource_stop',
+      });
+      expect(
+        entry === 'qualification' ? report.failedSessionClosure : report.closure,
+      ).toMatchObject({
+        status: 'PASS',
+        psqlClosed: true,
+        backendClosed: true,
+      });
+    },
+  );
+
+  it.each(['pending smoke ACK', 'between qualification cases'])(
+    'stops qualification at %s without opening another client or accepting cancellation as native PASS',
+    async (point) => {
+      const f = fixture();
+      f.state.customize = (child) => {
+        child.transform = (kind, frame) => {
+          if (kind === 'smoke' && point === 'pending smoke ACK') {
+            child.ackDelayMs = 1000;
+            setTimeout(() => f.resourceStop.abort(), 100);
+          }
+          return frame;
+        };
+        child.afterOutput = (kind) => {
+          if (kind === 'smoke' && point === 'between qualification cases')
+            setTimeout(() => f.resourceStop.abort(), 50);
+        };
+      };
+      const receipt = await settle(qualifyPgActivityNative(f.options, f.io));
+      expect(receipt).toMatchObject({
+        status: 'BLOCKED_BY_RUNNER',
+        code: 'RESOURCE_STOP',
+        classification: 'resource_stop',
+        failedSessionClosure: { status: 'PASS', psqlClosed: true, backendClosed: true },
+      });
+      expect(f.processes).toHaveLength(1);
+      expect(f.processes[0]!.commands.map((item) => item.kind)).toEqual([
+        'hello',
+        'hello',
+        'binding',
+        'smoke',
+      ]);
+      if (point === 'pending smoke ACK')
+        expect(receipt.failedSessionClosure?.explicitRollbackConfirmed).toBe(false);
+      expect(f.reports[0]!.text).not.toContain(privateText);
+    },
+  );
+
+  it.each(['before query identity', 'post-ACK identity', 'pending query'])(
+    'preserves the first valid sample and closes immediately when resource stop arrives during the second %s',
+    async (point) => {
+      const f = fixture();
+      const failure = vi.fn();
+      const observer = await settle(startPgActivityObserver(f.options, failure, f.io));
+      const child = f.processes[0]!;
+      f.state.progress = { phase: 'electronics-open', atMs: Date.now() };
+      f.state.change();
+      await vi.advanceTimersByTimeAsync(10);
+      const inspect = f.controls.inspect;
+      let secondAck = false;
+      let paused = false;
+      let release: (() => void) | undefined;
+      const gate = new Promise<void>((done) => {
+        release = done;
+      });
+      child.afterOutput = (kind) => {
+        if (
+          kind === 'sample' &&
+          child.commands.filter((item) => item.kind === 'sample').length === 2
+        )
+          secondAck = true;
+      };
+      child.sampleDelayMs = point === 'pending query' ? 1500 : 1;
+      f.controls.inspect = async (id) => {
+        if (
+          id === apiId &&
+          !paused &&
+          (point === 'before query identity' || (point === 'post-ACK identity' && secondAck))
+        ) {
+          paused = true;
+          await gate;
+        }
+        return inspect(id);
+      };
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(paused).toBe(point !== 'pending query');
+      f.resourceStop.abort();
+      await vi.advanceTimersByTimeAsync(0);
+      const immediateFailure = failure.mock.calls.map(([code]) => code);
+      const endedAtStop = child.ended;
+      release!();
+      await vi.advanceTimersByTimeAsync(4000);
+      const report = await settle(observer.finish());
+      expect(immediateFailure).toEqual(['RESOURCE_STOP']);
+      expect(endedAtStop).toBe(true);
+      expect(report).toMatchObject({
+        status: 'BLOCKED_BY_RUNNER',
+        code: 'RESOURCE_STOP',
+        classification: 'resource_stop',
+        closure: { status: 'PASS', psqlClosed: true, backendClosed: true },
+      });
+      expect(report.samples).toHaveLength(1);
+      expect(report.samples[0]!.rollbackConfirmed).toBe(true);
+      expect(child.commands.filter((item) => item.kind === 'sample')).toHaveLength(
+        point === 'before query identity' ? 1 : 2,
+      );
+      expect(failure).toHaveBeenCalledExactlyOnceWith('RESOURCE_STOP');
+      expect(report).not.toHaveProperty('httpErrors');
       expect(f.reports[0]!.text).not.toContain(privateText);
     },
   );

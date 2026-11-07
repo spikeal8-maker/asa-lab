@@ -552,6 +552,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
   let currentPhase = 'build';
   let driverName;
   let stoppedByResource;
+  const pgResourceStop = new AbortController();
   let observationErrors = 0;
   const allResources = [];
   const builder = project + '-builder';
@@ -753,6 +754,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
     const violation = scaleResourceViolation(value);
     if (violation && !stoppedByResource) {
       stoppedByResource = { reason: violation, atMs: value.atMs, phase: currentPhase };
+      pgResourceStop.abort();
       writeJson(resolve(reports, 'resource-stop.json'), stoppedByResource);
       if (currentAbortFile) writeJson(currentAbortFile, stoppedByResource);
       activeCommand?.kill();
@@ -1108,6 +1110,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
         releaseSha: head,
         apiId: api.id,
         postgresId: postgres.id,
+        resourceSignal: pgResourceStop.signal,
         expected: {
           project,
           root,
@@ -1119,7 +1122,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
     };
     const pgSmoke = await qualifyPgActivityNative(pgObserverOptions(reports, Date.now()));
     if (pgSmoke.status !== 'PASS') {
-      observationErrors++;
+      if (!stoppedByResource || pgSmoke.code !== 'RESOURCE_STOP') observationErrors++;
       throw Error('PG_ACTIVITY_NATIVE_SMOKE_' + pgSmoke.code);
     }
 
@@ -1146,11 +1149,13 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
         // ready before the browser workload writes its first progress signal.
         await attestRuntime();
         await attestOwnedResources(true);
+        if (stoppedByResource) throw Error('BLOCKED_BY_RUNNER: ' + stoppedByResource.reason);
         activePgObserver = await startPgActivityObserver(
           pgObserverOptions(directory, phaseStartedAtMs),
           (code) => {
             if (pgActivityFailure) return;
             pgActivityFailure = code;
+            if (stoppedByResource && code === 'RESOURCE_STOP') return;
             observationErrors++;
             writeJson(currentAbortFile, {
               reason: 'pg_activity_observer_failure',
