@@ -188,6 +188,31 @@ def file_timestamp(raw: str, fallback: str) -> tuple[str, str]:
                 value = next((payload[k] for k in ("time", "timestamp", "ts") if k in payload), None)
         except ValueError:
             pass
+    if value is None:
+        # The date is trusted only in a complete standard combined access record,
+        # never when a bracketed date merely occurs inside an arbitrary message.
+        quoted = r'"(?:[^"\\\x00-\x1f\x7f]|\\x[0-9A-Fa-f]{2})*"'
+        access = re.fullmatch(
+            r'(?P<address>[0-9A-Fa-f:.]{1,45}) - (?:[^\x00-\x20\x7f\[\]"\\]|\\x[0-9A-Fa-f]{2})+ '
+            r'\[(?P<day>[0-9]{2})/(?P<month>[A-Z][a-z]{2})/(?P<year>[0-9]{4}):'
+            r'(?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2}) '
+            r'(?P<sign>[+-])(?P<zone_hour>[0-9]{2})(?P<zone_minute>[0-9]{2})\] '
+            + quoted + r' [1-5][0-9]{2} [0-9]+ ' + quoted + ' ' + quoted, raw.rstrip('\r\n'))
+        if access:
+            try:
+                import ipaddress
+                ipaddress.ip_address(access['address'])  # Validate context; retain no address/user identity.
+                months = {name: i + 1 for i, name in enumerate(
+                    ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'))}
+                zone_hour, zone_minute = int(access['zone_hour']), int(access['zone_minute'])
+                if zone_hour > 23 or zone_minute > 59: raise ValueError('Invalid access-log offset')
+                offset = timedelta(hours=zone_hour, minutes=zone_minute)
+                if access['sign'] == '-': offset = -offset
+                value = datetime(int(access['year']), months[access['month']], int(access['day']),
+                    int(access['hour']), int(access['minute']), int(access['second']),
+                    tzinfo=timezone(offset)).astimezone(UTC).isoformat()
+            except (ValueError, KeyError, OverflowError):
+                pass
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         try:
             # Unix seconds and milliseconds are explicit, bounded formats.
