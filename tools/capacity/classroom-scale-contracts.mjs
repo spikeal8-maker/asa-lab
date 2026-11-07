@@ -219,6 +219,165 @@ export function assertOfficialScaleCompose(config, release, context) {
   return expectedImages;
 }
 
+/** Playwright clears its output directory; keep it below this phase's owned bind mount. */
+export function officialScaleBrowserInvocation(config, { reports, users, mode }) {
+  const phase =
+    mode === 'calibration' && users === 2
+      ? 'calibration'
+      : mode === 'capacity' && users === 30
+        ? 'level-30'
+        : undefined;
+  const definition = config.services?.['test-runner'];
+  const command = definition?.command;
+  const expected = [
+    'corepack',
+    'pnpm',
+    'exec',
+    'playwright',
+    'test',
+    'e2e/classroom-scale.spec.ts',
+    '--workers=1',
+    '--reporter=line',
+  ];
+  const target = '/workspace/reports/classroom-scale';
+  const mounts = Array.isArray(definition?.volumes)
+    ? definition.volumes.filter((mount) => mount.target === target)
+    : [];
+  if (
+    !phase ||
+    definition?.read_only !== true ||
+    !Array.isArray(command) ||
+    command.length !== expected.length ||
+    command.some((argument, index) => argument !== expected[index]) ||
+    typeof reports !== 'string' ||
+    !reports.startsWith('/') ||
+    mounts.length !== 1 ||
+    mounts[0].type !== 'bind' ||
+    mounts[0].source !== reports ||
+    (mounts[0].read_only !== undefined && mounts[0].read_only !== false)
+  )
+    throw Error(
+      'Official N30 browser output requires the fixed command and owned writable report mount',
+    );
+  const outputDir = target + '/' + phase + '/playwright';
+  return { phase, outputDir, command: [...command, '--output=' + outputDir] };
+}
+
+function officialScaleResourceDefinitions(kind, context) {
+  if (
+    !['volume', 'network'].includes(kind) ||
+    !/^asa-scale-\d+-\d+-(?:baseline|after)$/.test(context?.project || '') ||
+    !/^[a-f0-9]{32}$/.test(context?.runToken || '') ||
+    context.config?.name !== context.project
+  )
+    throw Error('Invalid official fixture resource context');
+  const definitions = context.config[kind === 'volume' ? 'volumes' : 'networks'];
+  if (!definitions || typeof definitions !== 'object' || Array.isArray(definitions))
+    throw Error('Missing official fixture resource configuration');
+  return definitions;
+}
+
+export function officialScaleResourceListArgs(kind, project) {
+  if (
+    !['volume', 'network'].includes(kind) ||
+    !/^asa-scale-\d+-\d+-(?:baseline|after)$/.test(project || '')
+  )
+    throw Error('Invalid official fixture resource query');
+  // Docker volume ls -q emits names; network ls -q emits IDs, normally truncated.
+  return [
+    kind,
+    'ls',
+    '-q',
+    ...(kind === 'network' ? ['--no-trunc'] : []),
+    '--filter',
+    'label=com.docker.compose.project=' + project,
+  ];
+}
+
+export function assertOfficialScaleOwnedResource(kind, reference, records, context) {
+  const definitions = officialScaleResourceDefinitions(kind, context);
+  if (!Array.isArray(records) || records.length !== 1)
+    throw Error('Refusing fixture ' + kind + ': inspect_count');
+  const value = records[0];
+  const key = value?.Labels?.['com.docker.compose.' + kind];
+  if (typeof key !== 'string' || !Object.hasOwn(definitions, key))
+    throw Error('Refusing fixture ' + kind + ': unknown_config_key');
+  const definition = definitions[key];
+  if (
+    !definition ||
+    definition.external ||
+    definition.name !== context.project + '_' + key ||
+    definition.labels?.['io.asalab.scale.run'] !== context.runToken
+  )
+    throw Error('Refusing fixture ' + kind + ': unowned_config');
+  if (value.Name !== definition.name) throw Error('Refusing fixture ' + kind + ': name_mismatch');
+  if (value.Labels['com.docker.compose.project'] !== context.project)
+    throw Error('Refusing fixture ' + kind + ': project_mismatch');
+  if (value.Labels['io.asalab.scale.run'] !== context.runToken)
+    throw Error('Refusing fixture ' + kind + ': run_token_mismatch');
+  if (kind === 'network') {
+    if (!/^[a-f0-9]{64}$/.test(reference || '') || value.Id !== reference)
+      throw Error('Refusing fixture network: full_id_mismatch');
+    return Object.freeze({ kind, key, name: value.Name, id: value.Id });
+  }
+  if (value.Name !== reference) throw Error('Refusing fixture volume: listed_name_mismatch');
+  return Object.freeze({ kind, key, name: value.Name });
+}
+
+/** A partial-startup receipt permits cleanup only; a complete snapshot precedes all browsers. */
+export function assertOfficialScaleResourceInventory(resources, previous, context) {
+  const { project, runToken, config, completeNetworks = false } = context;
+  const networks = officialScaleResourceDefinitions('network', context);
+  officialScaleResourceDefinitions('volume', context);
+  if (!Array.isArray(resources) || typeof completeNetworks !== 'boolean')
+    throw Error('Invalid official fixture inventory');
+  const keys = new Set();
+  const ids = new Set();
+  for (const resource of resources) {
+    const definitions = officialScaleResourceDefinitions(resource?.kind, context);
+    const identity = resource.kind + ':' + resource.key;
+    if (
+      typeof resource.key !== 'string' ||
+      !Object.hasOwn(definitions, resource.key) ||
+      definitions[resource.key].name !== resource.name ||
+      keys.has(identity) ||
+      (resource.kind === 'network' &&
+        (!/^[a-f0-9]{64}$/.test(resource.id || '') || ids.has(resource.id))) ||
+      (resource.kind === 'volume' && resource.id !== undefined)
+    )
+      throw Error('Invalid or duplicate official fixture inventory entry');
+    keys.add(identity);
+    if (resource.kind === 'network') ids.add(resource.id);
+  }
+  if (completeNetworks && Object.keys(networks).some((key) => !keys.has('network:' + key)))
+    throw Error('Incomplete official fixture networks before browser execution');
+  const configurationHash = scaleHash({ networks: config.networks, volumes: config.volumes });
+  if (previous) {
+    if (
+      previous.schemaVersion !== 1 ||
+      previous.project !== project ||
+      previous.runToken !== runToken ||
+      previous.configurationHash !== configurationHash ||
+      previous.completeNetworks !== completeNetworks ||
+      !Array.isArray(previous.resources) ||
+      previous.resources.length !== resources.length ||
+      previous.resources.some((saved) => {
+        const live = resources.find((item) => item.kind === saved.kind && item.key === saved.key);
+        return !live || live.name !== saved.name || live.id !== saved.id;
+      })
+    )
+      throw Error('Refusing changed, missing or replaced fixture resource inventory');
+  }
+  return Object.freeze({
+    schemaVersion: 1,
+    project,
+    runToken,
+    configurationHash,
+    completeNetworks,
+    resources: Object.freeze(resources.map((resource) => Object.freeze({ ...resource }))),
+  });
+}
+
 export function assertOfficialScaleOwnedContainer(metadata, expected) {
   const labels = metadata?.Config?.Labels || {};
   const service = labels['com.docker.compose.service'];

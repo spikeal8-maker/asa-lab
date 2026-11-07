@@ -401,10 +401,39 @@ ports. Fresh fixture bootstrap переиспользует существующ
 7. Повторный внешний CLI, чтение всех новых записей, тот же PostgreSQL container, unchanged env и `automaticUpdates=false`.
 
 В продукте нет fault hook или переменной окружения, обходящей проверку. Driver
-наблюдает реальную durable phase и actual container identity; пропущенное окно
-interruption означает failed proof. При observer failure или timeout он сначала
-останавливает только своё process tree, чтобы не оставить manager одновременно
-с cleanup. При запуске без `--keep-fixture` Docker cleanup касается только
+наблюдает реальную durable phase. Пока manager работает, observer выполняет
+один `docker ps --no-trunc` с `status=running` и точными фильтрами project/API
+service. Он читает только полный container ID, image, state и эти две метки.
+В предварительном наблюдении участвуют только running API: штатное окно
+пересоздания с прежним exited и новым created контейнером продолжает polling,
+пока не появится ожидаемый running API. Прежний running image также продолжает
+прежний polling в пределах 30 минут. Два running API, malformed records и
+неизвестные Docker errors завершают proof ошибкой; общий `COMMAND` не превращается
+в retry. Inspect контейнеров и чтение их private environment в этой фазе не
+выполняются.
+
+При появлении ожидаемого API driver повторно сравнивает operation ID, phase и
+eligibility с наблюдавшимся журналом, затем завершает только собственный
+`Popen` process tree. Уже завершившийся manager, нулевой exit или пропущенное
+окно interruption означают failed proof. На POSIX дополнительно требуется
+именно `returncode == -signal.SIGKILL`: успешная отправка сигнала при последующем
+обычном exit или другом signal exit не доказывает прерывание. В Windows
+сохраняются успешный `taskkill /PID /T /F`, ожидание процесса и ненулевой exit;
+actual Windows native proof остаётся отдельной проверкой. После остановки создаётся свежий
+`Installation`: полный штатный `application_rollback.inspect()` заново проверяет
+journal/source/tooling, immutable images, PostgreSQL/schema, volumes, private
+environment и backup binding; затем выполняется канонический `identity()`.
+Полный API ID обязан совпасть с наблюдённым до остановки, image — с pinned
+release, API должен работать, а PostgreSQL container — совпасть с original ID
+из eligibility binding. Source должен совпасть с ожидаемым release SHA, журнал
+не должен измениться. Исчезновение или замена API после остановки и любой drift
+отклоняются без retry. Только после этих проверок сохраняются interruption
+evidence, полный API ID и ненулевой manager exit code; private environment
+остаётся внутри существующего валидатора и в evidence не попадает.
+
+При observer failure или timeout `finally` останавливает только своё process
+tree, чтобы не оставить manager одновременно с cleanup. При запуске без
+`--keep-fixture` Docker cleanup касается только
 созданного этим прогоном synthetic project и проверяет точный формат его имени,
 owner nonce/root/project/env перед `down --volumes`. Имена production и прежний
 несовместимый prefix `asa-p0-return-` не проходят проверку владения для cleanup.
@@ -432,6 +461,35 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ('asa-p0-return-' + [guid]::
 $evidenceRoot = Join-Path ([IO.Path]::GetTempPath()) ('asa-p0-return-evidence-' + [guid]::NewGuid().ToString('N'))
 py -3.11 tools/deployment/ci_application_rollback.py --work-directory $fixtureRoot --output $evidenceRoot --selected-deployment-digest sha256:87acd65905c3cb64c1052ea046926932b1a5e9f42dc52d8b36c05db9f449da68 --keep-fixture
 if ($LASTEXITCODE -ne 0) { throw 'Windows Docker return qualification failed; production remains unchanged' }
+Get-Content (Join-Path $evidenceRoot 'qualification.json')
+```
+
+Если Windows Docker Desktop отказывает с `all predefined address pools have
+been fully subnetted`, новый fixture может явно передать
+`--install-network-cidrs`. Значение содержит ровно три CIDR через запятую в
+порядке **database, application, scratch-runtime**. Без флага driver сохраняет
+прежний путь с автоматическим выбором Docker subnets.
+
+Driver вызывает штатный `provision_private_network_overlay` после успешного
+`assert_clean_install_destination` и до `first_environment`. Helper проверяет
+канонические private `10.x` IPv4 CIDR `/24`–`/28`, их взаимные пересечения,
+текущие Docker subnets и Windows routes непосредственно в этой операции.
+При отказе `.env` не создаётся и `compose up` не вызывается. Принятый overlay
+`.asa/docker-networks.yaml` входит в обычную identity `Installation`.
+
+Перед запуском заново проверь Docker networks и маршруты Windows, WSL и VPN.
+Тройка ниже — наблюдавшийся свободный кандидат D2-R2 на 2026-11-07, а не
+резервирование или универсальный default; повторная проверка helper обязательна.
+Используй новый **отсутствующий абсолютный** каталог, сохрани прежний failed
+fixture и передай `--keep-fixture`. Изменение Docker daemon/address pools,
+Windows/VPN routes или удаление существующих сетей для этого не требуется.
+
+```powershell
+$fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ('asa-p0-return-' + [guid]::NewGuid().ToString('N'))
+$evidenceRoot = Join-Path ([IO.Path]::GetTempPath()) ('asa-p0-return-evidence-' + [guid]::NewGuid().ToString('N'))
+$fixtureCidrs = '10.252.7.0/27,10.252.7.32/27,10.252.7.64/27'
+py -3.11 tools/deployment/ci_application_rollback.py --work-directory $fixtureRoot --output $evidenceRoot --selected-deployment-digest sha256:87acd65905c3cb64c1052ea046926932b1a5e9f42dc52d8b36c05db9f449da68 --install-network-cidrs $fixtureCidrs --keep-fixture
+if ($LASTEXITCODE -ne 0) { throw 'Windows Docker return qualification failed; retain both fixtures for inspection' }
 Get-Content (Join-Path $evidenceRoot 'qualification.json')
 ```
 

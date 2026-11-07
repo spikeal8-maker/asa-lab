@@ -26,7 +26,8 @@ import asa_manager as manager
 from deployment import application_rollback as ar
 from deployment.collector import prepare as prepare_collector
 from deployment.contracts import Blocked, require
-from deployment.fresh_install import fresh_options, assert_clean_install_destination
+from deployment.fresh_install import (fresh_options, assert_clean_install_destination,
+                                      provision_private_network_overlay)
 from deployment.paths import plain_paths
 from deployment.releases import (apply_release_environment, assert_ci, assert_general_ci,
                                  discover_release, fetch_images, validate_deployment_digest,
@@ -191,15 +192,41 @@ def object_io(install, key, value=None):
 
 def terminate_owned_process(process):
     if process.poll() is not None:
-        return
+        return False
     if os.name == "nt":
         run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture=True)
     else:
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
-            pass
+            process.wait(timeout=30)
+            return False
     process.wait(timeout=30)
+    return True
+
+
+def observe_api(project):
+    """One daemon snapshot while Compose may replace API; never inspect its env."""
+    template = ('{"id":{{json .ID}},"image":{{json .Image}},"state":{{json .State}},'
+                '"project":{{json (.Label "com.docker.compose.project")}},'
+                '"service":{{json (.Label "com.docker.compose.service")}}}')
+    output = run(["docker", "ps", "--no-trunc", "--filter", "status=running", "--filter", "label=com.docker.compose.project=" + project,
+                  "--filter", "label=com.docker.compose.service=api", "--format", template], capture=True)
+    lines = output.splitlines()
+    require(len(lines) <= 1, "FIXTURE_OBSERVATION", "Multiple running API containers matched the interruption observer.")
+    if not lines:
+        return None
+    try:
+        record = json.loads(lines[0])
+    except json.JSONDecodeError as failure:
+        raise Blocked("FIXTURE_OBSERVATION", "Malformed API observation.", "Retain the fixture for inspection.") from failure
+    require(isinstance(record, dict) and set(record) == {"id", "image", "state", "project", "service"}
+            and isinstance(record["id"], str) and re.fullmatch(r"[a-f0-9]{64}", record["id"])
+            and isinstance(record["image"], str) and bool(record["image"])
+            and record["state"] in ("created", "running", "paused", "restarting", "removing", "exited", "dead")
+            and record["project"] == project and record["service"] == "api",
+            "FIXTURE_OBSERVATION", "Malformed or foreign API observation.")
+    return record
 
 
 def cli(tool_root, root, action, log, *, selected_digest=None, interruption=None, expected_revision=None):
@@ -213,26 +240,41 @@ def cli(tool_root, root, action, log, *, selected_digest=None, interruption=None
             options = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt" else {"start_new_session": True}
             process = subprocess.Popen(command, cwd=tool_root, stdout=output, stderr=subprocess.STDOUT, **options)
             deadline = time.monotonic() + 1800
-            evidence = None
             try:
                 while process.poll() is None:
                     require(time.monotonic() < deadline, "FIXTURE_TIMEOUT", "Native manager command exceeded thirty minutes.")
                     if interruption:
                         journal = ar._read(root / ".asa" / ar.JOURNAL, optional=True)
                         if journal and journal["phase"] == interruption and (action == "rollback" or journal["id"] != original_id):
-                            install = Installation(root, "dev")
-                            records = install.identity()
                             expected = journal["eligibility"]["previous" if action == "rollback" else "selected"]
-                            if records.get("api", {}).get("image") == expected["images"]["api"] and records.get("api", {}).get("running"):
-                                evidence = {"phase": interruption, "operationId": journal["id"], "source": install.git("rev-parse", "HEAD"),
-                                            "apiImage": records["api"]["image"], "postgresContainer": records["postgres"]["id"]}
-                                require(evidence["source"] == expected_revision, "FIXTURE_INTERRUPTION", "Source transition was not observed before interruption.")
-                                if ar.load_journal(install)["phase"] != interruption:
-                                    continue
-                                terminate_owned_process(process)
-                                require(process.returncode != 0 and ar.load_journal(install)["phase"] == interruption,
+                            observed = observe_api(journal["eligibility"]["binding"]["project"])
+                            if observed and observed["image"] == expected["images"]["api"] and observed["state"] == "running":
+                                require(time.monotonic() < deadline, "FIXTURE_TIMEOUT", "Native manager command exceeded thirty minutes.")
+                                require(ar._read(root / ".asa" / ar.JOURNAL) == journal, "FIXTURE_INTERRUPTION",
+                                        "The observed operation, phase or eligibility changed before interruption.")
+                                attempted = terminate_owned_process(process)
+                                require(attempted and process.returncode is not None and process.returncode != 0
+                                        and (os.name == "nt" or process.returncode == -signal.SIGKILL),
+                                        "FIXTURE_INTERRUPTION", "The owned manager's required termination was not observed.")
+                                # The owned manager tree has stopped. Reuse all canonical
+                                # guards, including private database-target attestation, on fresh state.
+                                install = Installation(root, "dev")
+                                require(ar.inspect(install) == journal, "FIXTURE_INTERRUPTION",
+                                        "The observed operation, phase or eligibility changed after interruption.")
+                                records = install.identity()
+                                source = install.git("rev-parse", "HEAD")
+                                require(source == expected_revision == expected["revision"], "FIXTURE_INTERRUPTION",
+                                        "Source transition was not retained at interruption.")
+                                api = records.get("api", {})
+                                require(api.get("id") == observed["id"] and api.get("image") == expected["images"]["api"]
+                                        and api.get("running") is True
+                                        and records["postgres"]["id"] == journal["eligibility"]["binding"]["postgres"]["containerId"],
+                                        "FIXTURE_INTERRUPTION", "The observed API or original PostgreSQL changed after interruption.")
+                                require(ar.load_journal(install) == journal,
                                         "FIXTURE_INTERRUPTION", "The manager did not stop at the observed durable partial switch.")
-                                return evidence
+                                return {"phase": interruption, "operationId": journal["id"], "source": source,
+                                        "apiImage": api["image"], "apiContainer": api["id"],
+                                        "postgresContainer": records["postgres"]["id"], "managerExitCode": process.returncode}
                     time.sleep(0.05)
             finally:
                 # Timeout/observer failure must not leave a live manager racing
@@ -285,6 +327,8 @@ def qualify(arguments):
         web, blocks = ports()
         spec = fresh_options(project, web, blocks)
         assert_clean_install_destination(root, spec)
+        if arguments.install_network_cidrs:
+            provision_private_network_overlay(root, arguments.install_network_cidrs)
         manager.first_environment(root, "dev", project=project, web_port=web, blocks_port=blocks)
         install = Installation(root, "dev")
         prepare_collector(install)
@@ -381,6 +425,7 @@ def main(argv=None):
     parser.add_argument("--path-proof", action="store_true", help="Native file/argument proof only; no Docker, Git or network")
     parser.add_argument("--work-directory", type=Path, help="Absolute absent disposable installation directory")
     parser.add_argument("--output", type=Path, help="Absolute evidence directory outside both checkouts")
+    parser.add_argument("--install-network-cidrs", help="Opt-in private Docker-only database, application, scratch network CIDRs")
     parser.add_argument("--selected-deployment-digest", default=PRODUCT_DEPLOYMENT)
     parser.add_argument("--keep-fixture", action="store_true", help="Retain this newly allocated synthetic stack for operator inspection")
     arguments = parser.parse_args(argv)

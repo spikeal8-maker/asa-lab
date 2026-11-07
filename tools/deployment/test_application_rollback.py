@@ -18,6 +18,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import asa_manager as manager
 from deployment import application_rollback as ar
 from deployment import ci_application_rollback as native_driver
+from deployment import fresh_install
+from deployment import system
 from deployment.contracts import Blocked, inventory_files
 from deployment.fresh_install import fresh_options
 from deployment.system import run as native_run
@@ -647,6 +649,462 @@ class WindowsAclTransportTests(unittest.TestCase):
                   "stderr": inherited.stderr[:2048] if inherited.returncode else ""}))
 
 
+class ObserverFixture(Fixture):
+    """Exercise the canonical container/volume/private-env guards after stopping."""
+    secret = "SYNTHETIC-OBSERVER-SECRET-MUST-NOT-BE-EVIDENCE"
+
+    def __init__(self, root):
+        super().__init__(Path(root).resolve())
+        self.events, self.extra_records, self.manager = [], [], None
+        self.records["api"]["id"] = "a" * 64
+        for service, record in self.records.items():
+            record["labels"] = {"com.docker.compose.project": self.project, "com.docker.compose.service": service,
+                                "com.docker.compose.project.working_dir": str(self.root),
+                                "com.docker.compose.project.config_files": ",".join(str(self.root / name) for name in self.files)}
+            record["mounts"] = []
+        for service, destination in (("postgres", "/var/lib/postgresql/data"), ("minio", "/data")):
+            self.records[service]["mounts"] = [{"Type": "volume", "Destination": destination,
+                                               "Name": self.volumes[service + "-data"]["Name"]}]
+        self.database_url = "postgres://synthetic:" + self.secret + "@postgres:5432/asalab"
+        self.private_env = {"postgres": {"POSTGRES_DB": "asalab", "POSTGRES_PASSWORD": self.secret},
+                            "api": {"APP_DATABASE_URL": self.database_url}}
+
+    def config(self):
+        config = super().config()
+        config["services"]["postgres"]["environment"] = {"POSTGRES_DB": "asalab"}
+        config["services"]["api"]["environment"]["APP_DATABASE_URL"] = self.database_url
+        config["services"]["migration"]["environment"].update(
+            MIGRATION_DATABASE_URL=self.database_url,
+            MIGRATION_EXPECT_DATABASE="asalab", MIGRATION_CONFIRM="APPLY:asalab")
+        for service, destination in (("postgres", "/var/lib/postgresql/data"), ("minio", "/data")):
+            config["services"][service]["volumes"] = [{"type": "volume", "source": service + "-data", "target": destination}]
+        return config
+
+    def stopped(self, event):
+        if self.manager is not None and self.manager.poll() is None:
+            raise AssertionError("Full installation access while the manager is alive: " + event)
+        self.events.append(event)
+
+    def identity(self, existing=True):
+        self.stopped("identity")
+        return system.Installation.identity(self, existing)
+
+    def containers(self):
+        return copy.deepcopy([*self.records.values(), *self.extra_records])
+
+    data_identity = system.Installation.data_identity
+
+    def container_environment(self, record):
+        def private_run(command, **kwargs):
+            self.stopped("private-env")
+            assert command == ["docker", "inspect", "--format", "{{json .Config.Env}}", record["id"]]
+            assert kwargs == {"capture": True}
+            service = next(name for name, item in self.records.items() if item["id"] == record["id"])
+            return json.dumps([key + "=" + value for key, value in self.private_env[service].items()])
+        with patch.object(system, "run", private_run):
+            return system.Installation.container_environment(self, record)
+
+
+class ObserverHarness(contextlib.ExitStack):
+    """Real eligibility/journal and canonical data guards, simulated transport."""
+    def __init__(self, action="rollback"):
+        super().__init__()
+        try:
+            self._prepare(action)
+        except BaseException:
+            self.close()
+            raise
+
+    def _prepare(self, action):
+        temporary = self.enter_context(tempfile.TemporaryDirectory(prefix="asa observer "))
+        self.fixture = ObserverFixture(Path(temporary) / "app")
+        self.action, self.phase = action, "rollback_api" if action == "rollback" else "forward_api"
+        self.output = io.StringIO()
+        self.enter_context(contextlib.redirect_stdout(self.output))
+        for target, replacement in (("_clean", lambda root: None), ("tool_identity", lambda install: self.fixture.tool),
+                                    ("_images", lambda previous, selected: self.fixture.images),
+                                    ("_ci_identity", lambda release_value: {"revision": release_value["revision"]}),
+                                    ("_tool_ci", lambda *args: {"revision": self.fixture.tool["revision"]}),
+                                    ("run", self.fixture.docker)):
+            self.enter_context(patch.object(ar, target, replacement))
+        self.enter_context(patch.object(ar.releases, "validate_resolved_images", lambda install, release_value: install.config()))
+        self.backup = self.fixture.backup()
+        self.candidate = ar.prepare_candidate(self.fixture, self.fixture.selected, DIGEST)
+        self.expected = self.fixture.previous if action == "rollback" else self.fixture.selected
+        self.process = SimpleNamespace(returncode=None, pid=12345)
+        self.process.poll = lambda: self.process.returncode
+        self.observations, self.after_observation, self.after_stop = [], lambda: None, lambda: None
+        self.topologies, self.observer_commands = None, []
+        self.stop_attempts, self.stop_calls = 0, 0
+        self.log = Path(temporary) / "manager.log"
+        # Keep native Windows ACL subprocesses and their clock unpatched.
+        self.popen = Mock(side_effect=self.spawn)
+        child_transport = SimpleNamespace(Popen=self.popen, STDOUT=subprocess.STDOUT,
+                                          CREATE_NEW_PROCESS_GROUP=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+        self.enter_context(patch.object(native_driver, "subprocess", child_transport))
+        self.enter_context(patch.object(native_driver, "run", self.observe))
+        self.enter_context(patch.object(native_driver, "terminate_owned_process", self.stop))
+        self.enter_context(patch.object(native_driver, "Installation", self.installation))
+        self.clock = SimpleNamespace(monotonic=native_driver.time.monotonic, sleep=lambda seconds: None)
+        self.enter_context(patch.object(native_driver, "time", self.clock))
+        inspect = ar.inspect
+        def guarded_inspect(install):
+            self.fixture.stopped("inspect")
+            return inspect(install)
+        self.enter_context(patch.object(ar, "inspect", guarded_inspect))
+
+    def spawn(self, command, **kwargs):
+        assert command[2] == self.action and kwargs.get("stdout") is not None
+        if native_driver.os.name == "nt":
+            assert kwargs.get("creationflags") == subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            assert kwargs.get("start_new_session") is True
+        fixture = self.fixture
+        fixture.head = ar.PRODUCT
+        ar.releases.apply_release_environment(fixture, fixture.selected)
+        operation = {"phase": "switch", "previous": {"revision": ar.PREVIOUS, "schema": 304},
+                     "selected": fixture.selected, "backup": str(self.backup), "deploymentDigest": DIGEST}
+        journal = ar.begin(fixture, self.candidate, self.backup, operation)
+        ar._write(fixture.state / "maintenance.json", operation)
+        ar._advance(fixture, journal, self.phase)
+        fixture.head = self.expected["revision"]
+        ar.releases.apply_release_environment(fixture, self.expected)
+        fixture.records["api"]["image"] = self.expected["images"]["api"]
+        fixture.events.clear()
+        fixture.manager = self.process
+        return self.process
+
+    def observation(self, **changes):
+        return json.dumps({"id": "a" * 64, "image": self.expected["images"]["api"], "state": "running",
+                           "project": self.fixture.project, "service": "api", **changes})
+
+    def observe(self, command, **kwargs):
+        assert command[:2] == ["docker", "ps"] and "--no-trunc" in command
+        filters = [command[index + 1] for index, value in enumerate(command) if value == "--filter"]
+        labels = {"label=com.docker.compose.project=" + self.fixture.project, "label=com.docker.compose.service=api"}
+        assert labels <= set(filters) <= labels | {"status=running"}
+        assert command[-2] == "--format" and kwargs == {"capture": True}
+        assert ".Config.Env" not in command[-1]
+        self.observer_commands.append(command)
+        self.fixture.events.append("ps")
+        if self.topologies is not None:
+            records = self.topologies.pop(0)
+            if "--all" not in command or "status=running" in filters:
+                records = [record for record in records if record["state"] == "running"]
+            result = "\n".join(json.dumps(record) for record in records)
+        else:
+            result = self.observations.pop(0) if self.observations else self.observation()
+        if isinstance(result, Exception):
+            raise result
+        self.after_observation()
+        return result
+
+    def stop(self, process):
+        assert process is self.process
+        self.stop_calls += 1
+        if process.poll() is not None:
+            return False
+        self.stop_attempts += 1
+        self.fixture.events.append("stop")
+        process.returncode = -9
+        self.after_stop()
+        return True
+
+    def installation(self, root, profile):
+        assert root == self.fixture.root and profile == "dev"
+        self.fixture.stopped("installation")
+        return self.fixture
+
+    def run(self, **kwargs):
+        return native_driver.cli(self.fixture.root.parent / "tools", self.fixture.root, self.action, self.log,
+                                 selected_digest=DIGEST, interruption=self.phase,
+                                 expected_revision=kwargs.get("expected_revision", self.expected["revision"]))
+
+    def change_journal(self, key):
+        journal = ar.load_journal(self.fixture)
+        if key == "phase":
+            ar._advance(self.fixture, journal, "rollback_web" if self.action == "rollback" else "forward_web")
+        else:
+            if key == "id": journal["id"] = "f" * 32
+            if key == "eligibility": journal["eligibility"]["binding"]["project"] += "-changed"
+            ar._write(self.fixture.state / ar.JOURNAL, journal)
+
+
+class NativeObserverFixtureTests(unittest.TestCase):
+    def test_equivalent_noncanonical_root_preserves_windows_identity_contract(self):
+        with tempfile.TemporaryDirectory(prefix="asa observer root ") as temporary:
+            parent = Path(temporary)
+            (parent / "existing directory").mkdir()
+            supplied = parent / "existing directory" / ".." / "app"
+            expected = (parent / "app").resolve()
+            # Force normalization even when this Windows user has no 8.3 alias.
+            self.assertNotEqual(str(supplied), str(expected))
+            fixture = ObserverFixture(supplied)
+            self.assertEqual(fixture.root, expected)
+            self.assertEqual(fixture.state, expected / ".asa")
+            records = fixture.identity()
+            for record in records.values():
+                self.assertEqual(record["labels"]["com.docker.compose.project.working_dir"], str(expected))
+                self.assertEqual(record["labels"]["com.docker.compose.project.config_files"],
+                                 ",".join(str(expected / name) for name in fixture.files))
+            fixture.records["api"]["labels"]["com.docker.compose.project.working_dir"] = str(parent / "foreign")
+            with self.assertRaises(Blocked) as denied: fixture.identity()
+            self.assertEqual(denied.exception.code, "IDENTITY_ROOT")
+
+    def test_constructor_exception_restores_globals_stdout_temp_and_following_fixture(self):
+        targets = [(ar, name) for name in ("_clean", "tool_identity", "_images", "_ci_identity", "_tool_ci", "run", "inspect", "prepare_candidate")]
+        targets += [(ar.releases, "validate_resolved_images"), (system, "run")]
+        targets += [(native_driver, name) for name in ("subprocess", "run", "terminate_owned_process", "Installation", "time")]
+        real_temporary, real_enter = tempfile.TemporaryDirectory, contextlib.ExitStack.enter_context
+        for stage in ("candidate", "registered_globals"):
+            with self.subTest(stage=stage):
+                self.assertIs(ar.run, native_run)
+                before = [(module, name, getattr(module, name)) for module, name in targets]
+                before_stdout = sys.stdout
+                instances, temporaries = [], []
+                failure = Blocked("IDENTITY_ROOT", "Synthetic candidate rejection", "Test cleanup") if stage == "candidate" else RuntimeError("Synthetic final setup rejection")
+
+                class CapturedHarness(ObserverHarness):
+                    def __new__(cls, *args, **kwargs):
+                        instance = super().__new__(cls)
+                        instances.append(instance)
+                        return instance
+
+                def temporary_directory(*args, **kwargs):
+                    temporary = real_temporary(*args, **kwargs)
+                    temporaries.append(temporary)
+                    return temporary
+
+                original_inspect = ar.inspect
+                def enter_then_fail(stack, context):
+                    result = real_enter(stack, context)
+                    if isinstance(stack, CapturedHarness) and ar.inspect is not original_inspect:
+                        raise failure
+                    return result
+
+                def restored_state():
+                    restored = {module.__name__ + "." + name: getattr(module, name) is value for module, name, value in before}
+                    restored["sys.stdout"] = sys.stdout is before_stdout
+                    restored["temporary_removed"] = all(not Path(temporary.name).exists() for temporary in temporaries)
+                    return restored
+
+                fault = (patch.object(ar, "prepare_candidate", side_effect=failure) if stage == "candidate" else
+                         patch.object(contextlib.ExitStack, "enter_context", enter_then_fail))
+                try:
+                    with patch.object(tempfile, "TemporaryDirectory", temporary_directory), fault:
+                        with self.assertRaises(type(failure)) as denied: CapturedHarness()
+                    self.assertIs(denied.exception, failure)
+                    self.assertTrue(temporaries)
+                    restored = restored_state()
+                    self.assertEqual(restored, dict.fromkeys(restored, True))
+                    # This is the same real transport used by subsequent source-history
+                    # fixtures; leaked fake Docker dispatch must not receive Git commands.
+                    self.assertTrue(ar._git(Path.cwd(), "--version").startswith("git version "))
+                    with ObserverHarness() as following:
+                        self.assertEqual(following.run()["phase"], "rollback_api")
+                    restored = restored_state()
+                    self.assertEqual(restored, dict.fromkeys(restored, True))
+                finally:
+                    # A red regression must not itself poison the rest of the suite.
+                    # These calls run only after the restoration assertions above.
+                    for instance in reversed(instances): instance.close()
+                    for temporary in reversed(temporaries): temporary.cleanup()
+
+
+class NativeObserverTests(unittest.TestCase):
+    def test_normal_recreate_polls_until_expected_api_runs_without_false_duplicate(self):
+        for action in ("update", "rollback"):
+            with self.subTest(action=action), ObserverHarness(action) as trial:
+                other = trial.fixture.selected if action == "rollback" else trial.fixture.previous
+                old = json.loads(trial.observation(id="b" * 64, image=other["images"]["api"]))
+                created = json.loads(trial.observation(state="created"))
+                # Compose creates the replacement before removing the old container.
+                trial.topologies = [[old, created], [{**old, "state": "exited"}, created],
+                                    [created], [json.loads(trial.observation())]]
+                evidence = trial.run()
+                self.assertEqual(trial.topologies, [])
+                self.assertEqual(trial.fixture.events[:7], ["ps", "ps", "ps", "ps", "stop", "installation", "inspect"])
+                self.assertEqual(evidence["apiContainer"], "a" * 64)
+                self.assertEqual(trial.stop_attempts, 1)
+                self.assertTrue(all("--all" not in command and "status=running" in command for command in trial.observer_commands))
+
+    def test_two_distinct_running_apis_still_fail_and_cleanup_only_owned_child(self):
+        with ObserverHarness() as trial:
+            trial.topologies = [[json.loads(trial.observation()), json.loads(trial.observation(id="b" * 64))]]
+            with self.assertRaises(Blocked) as denied: trial.run()
+            self.assertEqual(denied.exception.code, "FIXTURE_OBSERVATION")
+            self.assertEqual(trial.fixture.events, ["ps", "stop"])
+            self.assertEqual((trial.stop_attempts, trial.popen.call_count), (1, 1))
+
+    def test_posix_exit_between_poll_and_successful_signal_never_reaches_canonical_checks(self):
+        real_stop = native_driver.terminate_owned_process
+        for exit_code in (7, -15):
+            with self.subTest(exit_code=exit_code), ObserverHarness() as trial:
+                events = trial.fixture.events
+                def poll():
+                    events.append("poll-alive" if trial.process.returncode is None else "poll-exited")
+                    return trial.process.returncode
+                def wait(*, timeout):
+                    self.assertEqual(timeout, 30)
+                    events.append("wait")
+                    trial.process.returncode = exit_code
+                    return exit_code
+                trial.process.poll = poll
+                trial.process.wait = Mock(side_effect=wait)
+                killpg = Mock(side_effect=lambda pid, sig: events.append("killpg"))
+                # Model POSIX signal semantics on either CI host without patching
+                # the real os/signal modules used by Windows ACL validation.
+                with patch.object(native_driver, "os", SimpleNamespace(name="posix", killpg=killpg)), \
+                        patch.object(native_driver, "signal", SimpleNamespace(SIGKILL=9)), \
+                        patch.object(native_driver, "terminate_owned_process", real_stop):
+                    with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, "FIXTURE_INTERRUPTION")
+                killpg.assert_called_once_with(trial.process.pid, 9)
+                trial.process.wait.assert_called_once_with(timeout=30)
+                self.assertEqual(events, ["poll-alive", "ps", "poll-alive", "killpg", "wait", "poll-exited"])
+                self.assertFalse(any(event in events for event in ("installation", "inspect", "identity", "private-env")))
+
+    def test_missing_old_or_starting_api_is_polled_before_stop_and_all_canonical_guards(self):
+        for action in ("update", "rollback"):
+            with self.subTest(action=action), ObserverHarness(action) as trial:
+                other = trial.fixture.selected if action == "rollback" else trial.fixture.previous
+                trial.observations = ["", trial.observation(image=other["images"]["api"]), trial.observation(state="created")]
+                evidence = trial.run()
+                events = trial.fixture.events
+                self.assertEqual(events[:7], ["ps", "ps", "ps", "ps", "stop", "installation", "inspect"])
+                self.assertEqual(events.count("identity"), 2)
+                self.assertEqual(events.count("private-env"), 4)
+                self.assertEqual((trial.stop_attempts, trial.stop_calls, trial.popen.call_count), (1, 2, 1))
+                self.assertEqual(evidence, {"phase": trial.phase, "operationId": ar.load_journal(trial.fixture)["id"],
+                                           "source": trial.expected["revision"], "apiImage": trial.expected["images"]["api"],
+                                           "apiContainer": "a" * 64, "postgresContainer": "original-postgres", "managerExitCode": -9})
+                self.assertNotIn(trial.fixture.secret, json.dumps(evidence) + trial.log.read_text() + trial.output.getvalue()
+                                 + json.dumps(trial.fixture.records))
+
+    def test_malformed_duplicate_or_foreign_observation_fails_and_stops_only_owned_child(self):
+        for case in ("json", "duplicate", "shape", "id", "state", "project", "service"):
+            with self.subTest(case=case), ObserverHarness() as trial:
+                outputs = {"json": "{", "duplicate": trial.observation() + "\n" + trial.observation(), "shape": "[]",
+                           "id": trial.observation(id="a" * 12), "state": trial.observation(state="unknown"),
+                           "project": trial.observation(project="asa-lab-foreign"), "service": trial.observation(service="web")}
+                trial.observations = [outputs[case]]
+                with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, "FIXTURE_OBSERVATION")
+                self.assertEqual(trial.fixture.events, ["ps", "stop"])
+                self.assertEqual((trial.stop_attempts, trial.popen.call_count), (1, 1))
+
+    def test_unknown_docker_command_error_is_fatal_even_with_a_prior_retry_marker(self):
+        for moment in ("observation", "private-env"):
+            with self.subTest(moment=moment), ObserverHarness() as trial:
+                trial.log.write_text("BLOCKED RETRY_NEW_MANAGER: older synthetic command\n", encoding="utf-8")
+                failure = Blocked("COMMAND", "Unknown Docker failure", "Retain fixture")
+                if moment == "observation": trial.observations = [failure]
+                if moment == "private-env":
+                    trial.after_stop = lambda: trial.enter_context(patch.object(trial.fixture, "container_environment", side_effect=failure))
+                with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, "COMMAND")
+                self.assertEqual((trial.stop_attempts, trial.popen.call_count), (1, 1))
+                if moment == "observation": self.assertEqual(trial.fixture.events, ["ps", "stop"])
+
+    def test_api_replaced_removed_or_stopped_after_observation_never_becomes_evidence(self):
+        for case in ("replaced", "removed", "stopped", "image"):
+            with self.subTest(case=case), ObserverHarness() as trial:
+                def change():
+                    api = trial.fixture.records["api"]
+                    if case == "replaced": api["id"] = "b" * 64
+                    if case == "removed": del trial.fixture.records["api"]
+                    if case == "stopped": api["running"] = False
+                    if case == "image": api["image"] = trial.fixture.selected["images"]["api"]
+                trial.after_stop = change
+                with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, "FIXTURE_INTERRUPTION")
+                self.assertEqual((trial.stop_attempts, trial.popen.call_count), (1, 1))
+
+    def test_full_canonical_guards_reject_data_source_root_config_and_foreign_drift(self):
+        expected_codes = {"postgres": "ROLLBACK_DRIFT", "volume": "ROLLBACK_DRIFT", "mount": "IDENTITY_VOLUME",
+                          "env": "ROLLBACK_DRIFT", "database": "DATABASE_TARGET", "source": "ROLLBACK_SOURCE",
+                          "root": "IDENTITY_ROOT", "files": "IDENTITY_FILES", "foreign": "IDENTITY_PROJECT",
+                          "duplicate": "IDENTITY_DUPLICATE", "config": "ROLLBACK_DRIFT", "backup": "BACKUP_HASH",
+                          "schema": "ROLLBACK_DRIFT", "tool": "ROLLBACK_TOOLING", "image": "ROLLBACK_IMAGE"}
+        for case, code in expected_codes.items():
+            with self.subTest(case=case), ObserverHarness() as trial:
+                fixture = trial.fixture
+                def drift():
+                    if case == "postgres": fixture.records["postgres"]["id"] = "replacement-postgres"
+                    if case == "volume": fixture.volumes["minio-data"]["CreatedAt"] = "recreated"
+                    if case == "mount": fixture.records["minio"]["mounts"][0]["Name"] = "foreign-volume"
+                    if case == "env": (fixture.root / ".env").write_bytes(b"changed\n")
+                    if case == "database": fixture.private_env["api"]["APP_DATABASE_URL"] = "postgres://synthetic@postgres:5432/other"
+                    if case == "source": fixture.head = "f" * 40
+                    if case == "root": fixture.records["api"]["labels"]["com.docker.compose.project.working_dir"] = str(fixture.root.parent)
+                    if case == "files": fixture.records["api"]["labels"]["com.docker.compose.project.config_files"] = str(fixture.root / "compose.yaml")
+                    if case == "foreign": fixture.records["api"]["labels"]["com.docker.compose.project"] = "asa-lab-foreign"
+                    if case == "duplicate": fixture.extra_records.append(copy.deepcopy(fixture.records["api"]))
+                    if case == "config": fixture.config_drift = True
+                    if case == "backup": (trial.backup / "database.dump").write_bytes(b"changed")
+                    if case == "schema": fixture.history[0]["checksum"] = "f" * 64
+                    if case == "tool": fixture.tool = {**fixture.tool, "revision": "f" * 40}
+                    if case == "image": fixture.images["ids"]["previous"]["api"] = "sha256:" + "f" * 64
+                trial.after_stop = drift
+                with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, code)
+                self.assertIn("inspect", fixture.events)
+                self.assertEqual((trial.stop_attempts, trial.popen.call_count), (1, 1))
+
+    def test_operation_phase_or_eligibility_change_before_or_after_stop_is_fatal(self):
+        for moment in ("after_observation", "after_stop"):
+            for key in ("id", "phase", "eligibility"):
+                with self.subTest(moment=moment, key=key), ObserverHarness() as trial:
+                    setattr(trial, moment, lambda: trial.change_journal(key))
+                    with self.assertRaises(Blocked): trial.run()
+                    self.assertEqual((trial.stop_attempts, trial.popen.call_count), (1, 1))
+                    if moment == "after_observation": self.assertNotIn("installation", trial.fixture.events)
+
+    def test_journal_changed_during_final_identity_is_not_accepted(self):
+        with ObserverHarness() as trial:
+            identity = trial.fixture.identity
+            def changed_identity():
+                result = identity()
+                if trial.fixture.manager is not None and trial.fixture.events.count("identity") == 2:
+                    trial.change_journal("phase")
+                return result
+            with patch.object(trial.fixture, "identity", changed_identity):
+                with self.assertRaises(Blocked) as denied: trial.run()
+            self.assertEqual(denied.exception.code, "FIXTURE_INTERRUPTION")
+
+    def test_self_exit_zero_exit_or_missed_window_is_not_an_interruption(self):
+        for case in ("self-zero", "self-nonzero", "stop-zero", "missed"):
+            with self.subTest(case=case), ObserverHarness() as trial:
+                if case.startswith("self"):
+                    trial.after_observation = lambda: setattr(trial.process, "returncode", 0 if case == "self-zero" else 7)
+                if case == "stop-zero": trial.after_stop = lambda: setattr(trial.process, "returncode", 0)
+                if case == "missed":
+                    trial.observations = [""]
+                    trial.after_observation = lambda: setattr(trial.process, "returncode", 0)
+                with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, "FIXTURE_INTERRUPTION")
+                self.assertNotIn("installation", trial.fixture.events)
+                self.assertEqual(trial.stop_attempts, 1 if case == "stop-zero" else 0)
+
+    def test_deadline_before_or_during_observation_stops_child_without_full_inspection(self):
+        for times in ([0, 1800], [0, 1, 1800]):
+            with self.subTest(times=times), ObserverHarness() as trial:
+                with patch.object(trial.clock, "monotonic", side_effect=times):
+                    with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, "FIXTURE_TIMEOUT")
+                self.assertNotIn("installation", trial.fixture.events)
+                self.assertEqual(trial.stop_attempts, 1)
+
+    def test_caller_revision_must_match_the_exact_journal_release(self):
+        for case in ("caller", "source"):
+            with self.subTest(case=case), ObserverHarness() as trial:
+                if case == "source": trial.after_stop = lambda: setattr(trial.fixture, "head", ar.PRODUCT)
+                with self.assertRaises(Blocked) as denied:
+                    trial.run(expected_revision=ar.PRODUCT if case == "caller" else ar.PREVIOUS)
+                self.assertEqual(denied.exception.code, "FIXTURE_INTERRUPTION")
+                self.assertEqual(trial.stop_attempts, 1)
+
+
 class NativeBoundaryTests(unittest.TestCase):
     def test_tooling_rejects_nested_git_discovery_and_untracked_or_hidden_bytes(self):
         def git(root, *args):
@@ -756,13 +1214,22 @@ class NativeBoundaryTests(unittest.TestCase):
                                    stdout=subprocess.PIPE, text=True, **options)
         try:
             self.assertEqual(process.stdout.readline().strip(), "ready")
-            terminate_owned_process(process)
+            self.assertTrue(terminate_owned_process(process))
             self.assertIsNotNone(process.returncode)
             self.assertNotEqual(process.returncode, 0)
-            terminate_owned_process(process)
+            self.assertFalse(terminate_owned_process(process))
         finally:
             if process.poll() is None: terminate_owned_process(process)
             process.stdout.close()
+
+    @unittest.skipIf(os.name == "nt", "POSIX process-group disappearance; Windows uses taskkill")
+    def test_owned_process_disappearing_before_signal_is_not_an_interruption(self):
+        process = Mock(pid=12345)
+        process.poll.return_value = None
+        with patch.object(native_driver.os, "killpg", side_effect=ProcessLookupError) as signal_group:
+            self.assertFalse(native_driver.terminate_owned_process(process))
+        signal_group.assert_called_once_with(process.pid, native_driver.signal.SIGKILL)
+        process.wait.assert_called_once_with(timeout=30)
 
     def test_symlink_record_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -782,6 +1249,135 @@ class NativeBoundaryTests(unittest.TestCase):
             self.assertEqual(manager.main(["rollback"]), 2)
             self.assertEqual(manager.main(["backup", "--require-application-rollback"]), 2)
             self.assertEqual(manager.main(["update", "--scheduled", "--require-application-rollback"]), 2)
+
+
+class NativeFixtureNetworkTests(unittest.TestCase):
+    CIDRS = "10.252.7.0/27,10.252.7.32/27,10.252.7.64/27"
+
+    def setUp(self):
+        temporary = self.enterContext(tempfile.TemporaryDirectory())
+        self.root, self.output = Path(temporary) / "fixture", Path(temporary) / "evidence"
+        self.arguments = SimpleNamespace(work_directory=self.root, output=self.output,
+                                         selected_deployment_digest=DIGEST, keep_fixture=True,
+                                         install_network_cidrs=None)
+        self.existing_env, self.occupied_subnet = None, None
+        self.routes = "192.168.1.0/24;172.19.176.0/20"
+        self.enterContext(patch.object(native_driver, "run", side_effect=self.git_command))
+        self.enterContext(patch.object(fresh_install, "run", side_effect=self.inspect_only))
+        self.enterContext(patch.object(fresh_install, "check_reserved_port"))
+        self.enterContext(patch.object(native_driver, "protect_new_fixture_root"))
+        self.enterContext(patch.object(ar, "_clean"))
+        self.enterContext(patch.object(ar, "validate_pair"))
+        previous = release(ar.PREVIOUS, ar.PREVIOUS_IMAGES)
+        self.enterContext(patch.object(native_driver, "previous_manifest", return_value=(previous, DIGEST)))
+        self.enterContext(patch.object(native_driver, "discover_release",
+                                      return_value=release(ar.PRODUCT, ar.PRODUCT_IMAGES)))
+        for name in ("assert_general_ci", "assert_ci", "fetch_images", "prepare_collector",
+                     "apply_release_environment", "validate_resolved_images"):
+            self.enterContext(patch.object(native_driver, name))
+        self.enterContext(patch.object(manager, "save_settings"))
+        self.preflight = self.enterContext(patch.object(native_driver, "assert_clean_install_destination",
+                                                        wraps=fresh_install.assert_clean_install_destination))
+        self.network = self.enterContext(patch.object(native_driver, "provision_private_network_overlay",
+                                                      wraps=fresh_install.provision_private_network_overlay))
+        self.first_environment = self.enterContext(patch.object(manager, "first_environment",
+                                                                wraps=manager.first_environment))
+        self.compose = self.enterContext(patch.object(native_driver.Installation, "compose", side_effect=Crash))
+        self.order = Mock()
+        for name in ("preflight", "network", "first_environment", "compose"):
+            self.order.attach_mock(getattr(self, name), name)
+
+    def git_command(self, command, **kwargs):
+        if command[:2] == ["git", "clone"]:
+            self.root.mkdir()
+            (self.root / ".git").mkdir()
+            if self.existing_env is not None:
+                (self.root / ".env").write_bytes(self.existing_env)
+            return ""
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return "c" * 40
+        if command[:2] in (["git", "merge-base"], ["git", "remote"], ["git", "fetch"], ["git", "switch"]):
+            return ""
+        raise AssertionError("Unexpected qualification transport " + str(command))
+
+    def inspect_only(self, command, **kwargs):
+        if command == ["docker", "network", "ls", "-q"]:
+            return "existing-network" if self.occupied_subnet else ""
+        if command == ["docker", "network", "inspect", "existing-network"]:
+            return json.dumps([{"IPAM": {"Config": [{"Subnet": self.occupied_subnet}]}}])
+        if command[:4] == ["docker", "ps", "-aq", "--filter"] or command[:4] in (
+                ["docker", "volume", "ls", "-q"], ["docker", "network", "ls", "-q"]):
+            return ""
+        if command[:3] == ["powershell", "-NoProfile", "-Command"]:
+            return self.routes
+        raise AssertionError("Unexpected fresh-install transport " + str(command))
+
+    def assert_refused_before_private_environment(self, code):
+        with self.assertRaises(Blocked) as denied:
+            native_driver.qualify(self.arguments)
+        self.assertEqual(denied.exception.code, code)
+        self.first_environment.assert_not_called()
+        self.compose.assert_not_called()
+        self.assertFalse((self.root / ".asa" / "docker-networks.yaml").exists())
+        report = json.loads((self.output / "qualification.json").read_text())
+        self.assertEqual(report["failureCode"], code)
+        self.assertEqual(report["readbacks"], [])
+
+    def test_cli_preserves_opt_in_literal_and_default(self):
+        command = ["--work-directory", str(self.root), "--output", str(self.output),
+                   "--selected-deployment-digest", DIGEST, "--keep-fixture"]
+        for literal in (None, " " + self.CIDRS + " "):
+            with self.subTest(literal=literal), patch.object(native_driver, "qualify") as qualify:
+                extra = [] if literal is None else ["--install-network-cidrs", literal]
+                self.assertEqual(native_driver.main(command + extra), 0)
+                qualify.assert_called_once()
+                self.assertEqual(qualify.call_args.args[0].install_network_cidrs, literal)
+                self.assertEqual(qualify.call_args.args[0].work_directory, self.root)
+                self.assertTrue(qualify.call_args.args[0].keep_fixture)
+
+    def test_default_bootstrap_does_not_provision_private_networks(self):
+        with self.assertRaises(Crash):
+            native_driver.qualify(self.arguments)
+        self.network.assert_not_called()
+        self.assertEqual([call[0] for call in self.order.mock_calls], ["preflight", "first_environment", "compose"])
+        self.compose.assert_called_once_with("up", "-d", "--no-build")
+        self.assertTrue((self.root / ".env").is_file())
+        self.assertFalse((self.root / ".asa" / "docker-networks.yaml").exists())
+
+    def test_opt_in_uses_canonical_overlay_between_preflight_and_first_environment(self):
+        self.arguments.install_network_cidrs = self.CIDRS
+        with self.assertRaises(Crash):
+            native_driver.qualify(self.arguments)
+        self.network.assert_called_once_with(self.root, self.CIDRS)
+        self.assertEqual([call[0] for call in self.order.mock_calls],
+                         ["preflight", "network", "first_environment", "compose"])
+        self.assertTrue((self.root / ".env").is_file())
+        self.assertIn(".asa/docker-networks.yaml", native_driver.Installation(self.root, "dev").files)
+
+    def test_existing_configuration_refuses_network_provisioning(self):
+        self.arguments.install_network_cidrs = self.CIDRS
+        self.existing_env = b"SYNTHETIC=preserve-existing-private-configuration\n"
+        self.assert_refused_before_private_environment("FRESH_ENV")
+        self.network.assert_not_called()
+        self.assertEqual((self.root / ".env").read_bytes(), self.existing_env)
+
+    def test_invalid_cidr_refuses_first_environment_and_compose(self):
+        self.arguments.install_network_cidrs = self.CIDRS.replace("10.252.7.0/27", "10.252.7.1/27")
+        self.assert_refused_before_private_environment("FRESH_NETWORK")
+        self.assertFalse((self.root / ".env").exists())
+
+    def test_docker_overlap_refuses_first_environment_and_compose(self):
+        self.arguments.install_network_cidrs = self.CIDRS
+        self.occupied_subnet = "10.252.7.0/24"
+        self.assert_refused_before_private_environment("FRESH_NETWORK_COLLISION")
+        self.assertFalse((self.root / ".env").exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows routes only")
+    def test_windows_route_overlap_refuses_first_environment_and_compose(self):
+        self.arguments.install_network_cidrs = self.CIDRS
+        self.routes = "10.252.7.0/24"
+        self.assert_refused_before_private_environment("FRESH_NETWORK_ROUTE")
+        self.assertFalse((self.root / ".env").exists())
 
 
 class NativeFixtureProjectTests(unittest.TestCase):

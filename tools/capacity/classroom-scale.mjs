@@ -28,6 +28,10 @@ import {
   assertOfficialScaleImage,
   assertOfficialScaleRunner,
   assertOfficialScaleCompose,
+  officialScaleBrowserInvocation,
+  officialScaleResourceListArgs,
+  assertOfficialScaleOwnedResource,
+  assertOfficialScaleResourceInventory,
   assertOfficialScaleOwnedContainer,
   assertOfficialScaleRuntime,
   runOfficialScaleN30,
@@ -556,6 +560,8 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
   let identity;
   let summary;
   let cleanupFailure;
+  let resourceInventory;
+  let ownershipChecks = 0;
   let monitorPending;
   let monitorTimer;
   let currentAbortFile;
@@ -643,34 +649,39 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
       service: value.Config.Labels['com.docker.compose.service'],
     }));
   };
-  const attestOwnedResources = async () => {
-    await refreshContainers();
-    for (const kind of ['volume', 'network']) {
-      const names = (
-        await capture('docker', [
-          kind,
-          'ls',
-          '-q',
-          '--filter',
-          'label=com.docker.compose.project=' + project,
-        ])
-      )
-        .split(/\s+/)
-        .filter(Boolean);
-      for (const name of names) {
-        const records = JSON.parse(await capture('docker', [kind, 'inspect', name]));
-        const value = records[0];
-        const key = value?.Labels?.['com.docker.compose.' + kind];
-        if (
-          records.length !== 1 ||
-          value?.Name !== name ||
-          value.Labels?.['com.docker.compose.project'] !== project ||
-          value.Labels?.['io.asalab.scale.run'] !== env.ASA_SCALE_RUN_TOKEN ||
-          !config[kind === 'volume' ? 'volumes' : 'networks']?.[key] ||
-          name !== project + '_' + key
-        )
-          throw Error('Refusing a foreign or replaced fixture ' + kind);
+  const attestOwnedResources = async (
+    completeNetworks = Boolean(resourceInventory?.completeNetworks),
+  ) => {
+    const path = resolve(
+      reports,
+      'ownership',
+      String(++ownershipChecks).padStart(2, '0') + '.json',
+    );
+    try {
+      await refreshContainers();
+      const context = { project, runToken: env.ASA_SCALE_RUN_TOKEN, config, completeNetworks };
+      const resources = [];
+      for (const kind of ['volume', 'network']) {
+        const references = (await capture('docker', officialScaleResourceListArgs(kind, project)))
+          .split(/\s+/)
+          .filter(Boolean);
+        for (const reference of references) {
+          const records = JSON.parse(await capture('docker', [kind, 'inspect', reference]));
+          resources.push(assertOfficialScaleOwnedResource(kind, reference, records, context));
+        }
       }
+      const inventory = assertOfficialScaleResourceInventory(resources, resourceInventory, context);
+      resourceInventory ||= inventory;
+      writeJson(path, { ...initialIdentity, phase: currentPhase, status: 'PASS', inventory });
+    } catch (error) {
+      writeJson(path, {
+        ...initialIdentity,
+        phase: currentPhase,
+        status: 'FAIL',
+        reason: safeError(error),
+        previousInventory: resourceInventory || null,
+      });
+      throw error;
     }
   };
   const sampleOnce = async () => {
@@ -1084,6 +1095,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
     }
     if (!assets.length || assets.length > 2000) throw Error('Unbounded or missing image assets');
     writeJson(resolve(reports, 'image-manifest.json'), { ...identity, images, assets });
+    await attestOwnedResources(true);
     await requireResources();
 
     const pgObserverOptions = (directory, startedAtMs) => {
@@ -1113,10 +1125,17 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
 
     const runBrowserLevel = async (users, mode = 'capacity') => {
       if (observationErrors) throw Error('PG_ACTIVITY_PRIOR_OBSERVATION_FAILURE');
-      currentPhase = mode === 'calibration' ? 'calibration' : 'level-' + users;
+      const invocation = officialScaleBrowserInvocation(config, { reports, users, mode });
+      currentPhase = invocation.phase;
       phaseStartedAtMs = Date.now();
       const directory = resolve(reports, currentPhase);
       mkdirSync(directory, { recursive: true, mode: 0o777 });
+      writeJson(resolve(directory, 'browser-command.json'), {
+        ...identity,
+        users,
+        mode,
+        ...invocation,
+      });
       currentAbortFile = resolve(directory, 'abort.json');
       const sampleIndex = allResources.length;
       await sample();
@@ -1126,6 +1145,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
         // The phase watcher and its single local PostgreSQL connection are
         // ready before the browser workload writes its first progress signal.
         await attestRuntime();
+        await attestOwnedResources(true);
         activePgObserver = await startPgActivityObserver(
           pgObserverOptions(directory, phaseStartedAtMs),
           (code) => {
@@ -1140,6 +1160,9 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
             });
           },
         );
+        await attestOwnedResources(true);
+        if (pgActivityFailure) throw Error('PG_ACTIVITY_' + pgActivityFailure);
+        await requireResources();
         driverName = project + '-browser-' + mode + '-' + users;
         const running = start(
           'docker',
@@ -1160,6 +1183,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
             '-e',
             'ASA_SCALE_ENVIRONMENT_HASH=' + environmentHash,
             'test-runner',
+            ...invocation.command,
           ],
           { env },
         );
@@ -1314,6 +1338,8 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
         receipt.status,
         receipt.reasons.join(', '),
       );
+      // Preserve the actual phase result even when its subsequent ownership check fails.
+      await attestOwnedResources();
     });
     summary.host = host;
     summary.observationErrors = observationErrors;
@@ -1431,8 +1457,12 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
         }
         await compose(['down']); // Retain fixture data: no volume deletion or prune.
         await refreshContainers();
-        if (containerIds.length) {
-          cleanupFailure = Error('Owned containers remain after cleanup');
+        const remainingNetworks = await capture(
+          'docker',
+          officialScaleResourceListArgs('network', project),
+        );
+        if (containerIds.length || remainingNetworks) {
+          cleanupFailure = Error('Owned containers or networks remain after cleanup');
           process.exitCode = 2;
           writeJson(resolve(reports, 'cleanup-failure.json'), { reason: cleanupFailure.message });
         } else
