@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import asa_manager as manager
 from deployment import application_rollback as ar
 from deployment import ci_application_rollback as native_driver
+from deployment import system
 from deployment.contracts import Blocked, inventory_files
 from deployment.fresh_install import fresh_options
 from deployment.system import run as native_run
@@ -647,6 +648,313 @@ class WindowsAclTransportTests(unittest.TestCase):
                   "stderr": inherited.stderr[:2048] if inherited.returncode else ""}))
 
 
+class ObserverFixture(Fixture):
+    """Exercise the canonical container/volume/private-env guards after stopping."""
+    secret = "SYNTHETIC-OBSERVER-SECRET-MUST-NOT-BE-EVIDENCE"
+
+    def __init__(self, root):
+        super().__init__(root)
+        self.events, self.extra_records, self.manager = [], [], None
+        self.records["api"]["id"] = "a" * 64
+        for service, record in self.records.items():
+            record["labels"] = {"com.docker.compose.project": self.project, "com.docker.compose.service": service,
+                                "com.docker.compose.project.working_dir": str(self.root),
+                                "com.docker.compose.project.config_files": ",".join(str(self.root / name) for name in self.files)}
+            record["mounts"] = []
+        for service, destination in (("postgres", "/var/lib/postgresql/data"), ("minio", "/data")):
+            self.records[service]["mounts"] = [{"Type": "volume", "Destination": destination,
+                                               "Name": self.volumes[service + "-data"]["Name"]}]
+        self.database_url = "postgres://synthetic:" + self.secret + "@postgres:5432/asalab"
+        self.private_env = {"postgres": {"POSTGRES_DB": "asalab", "POSTGRES_PASSWORD": self.secret},
+                            "api": {"APP_DATABASE_URL": self.database_url}}
+
+    def config(self):
+        config = super().config()
+        config["services"]["postgres"]["environment"] = {"POSTGRES_DB": "asalab"}
+        config["services"]["api"]["environment"]["APP_DATABASE_URL"] = self.database_url
+        config["services"]["migration"]["environment"].update(
+            MIGRATION_DATABASE_URL=self.database_url,
+            MIGRATION_EXPECT_DATABASE="asalab", MIGRATION_CONFIRM="APPLY:asalab")
+        for service, destination in (("postgres", "/var/lib/postgresql/data"), ("minio", "/data")):
+            config["services"][service]["volumes"] = [{"type": "volume", "source": service + "-data", "target": destination}]
+        return config
+
+    def stopped(self, event):
+        if self.manager is not None and self.manager.poll() is None:
+            raise AssertionError("Full installation access while the manager is alive: " + event)
+        self.events.append(event)
+
+    def identity(self, existing=True):
+        self.stopped("identity")
+        return system.Installation.identity(self, existing)
+
+    def containers(self):
+        return copy.deepcopy([*self.records.values(), *self.extra_records])
+
+    data_identity = system.Installation.data_identity
+
+    def container_environment(self, record):
+        def private_run(command, **kwargs):
+            self.stopped("private-env")
+            assert command == ["docker", "inspect", "--format", "{{json .Config.Env}}", record["id"]]
+            assert kwargs == {"capture": True}
+            service = next(name for name, item in self.records.items() if item["id"] == record["id"])
+            return json.dumps([key + "=" + value for key, value in self.private_env[service].items()])
+        with patch.object(system, "run", private_run):
+            return system.Installation.container_environment(self, record)
+
+
+class ObserverHarness(contextlib.ExitStack):
+    """Real eligibility/journal and canonical data guards, simulated transport."""
+    def __init__(self, action="rollback"):
+        super().__init__()
+        temporary = self.enter_context(tempfile.TemporaryDirectory(prefix="asa observer "))
+        self.fixture = ObserverFixture(Path(temporary) / "app")
+        self.action, self.phase = action, "rollback_api" if action == "rollback" else "forward_api"
+        self.output = io.StringIO()
+        self.enter_context(contextlib.redirect_stdout(self.output))
+        for target, replacement in (("_clean", lambda root: None), ("tool_identity", lambda install: self.fixture.tool),
+                                    ("_images", lambda previous, selected: self.fixture.images),
+                                    ("_ci_identity", lambda release_value: {"revision": release_value["revision"]}),
+                                    ("_tool_ci", lambda *args: {"revision": self.fixture.tool["revision"]}),
+                                    ("run", self.fixture.docker)):
+            self.enter_context(patch.object(ar, target, replacement))
+        self.enter_context(patch.object(ar.releases, "validate_resolved_images", lambda install, release_value: install.config()))
+        self.backup = self.fixture.backup()
+        self.candidate = ar.prepare_candidate(self.fixture, self.fixture.selected, DIGEST)
+        self.expected = self.fixture.previous if action == "rollback" else self.fixture.selected
+        self.process = SimpleNamespace(returncode=None, pid=12345)
+        self.process.poll = lambda: self.process.returncode
+        self.observations, self.after_observation, self.after_stop = [], lambda: None, lambda: None
+        self.stop_attempts, self.stop_calls = 0, 0
+        self.log = Path(temporary) / "manager.log"
+        # Keep native Windows ACL subprocesses and their clock unpatched.
+        self.popen = Mock(side_effect=self.spawn)
+        child_transport = SimpleNamespace(Popen=self.popen, STDOUT=subprocess.STDOUT,
+                                          CREATE_NEW_PROCESS_GROUP=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+        self.enter_context(patch.object(native_driver, "subprocess", child_transport))
+        self.enter_context(patch.object(native_driver, "run", self.observe))
+        self.enter_context(patch.object(native_driver, "terminate_owned_process", self.stop))
+        self.enter_context(patch.object(native_driver, "Installation", self.installation))
+        self.clock = SimpleNamespace(monotonic=native_driver.time.monotonic, sleep=lambda seconds: None)
+        self.enter_context(patch.object(native_driver, "time", self.clock))
+        inspect = ar.inspect
+        def guarded_inspect(install):
+            self.fixture.stopped("inspect")
+            return inspect(install)
+        self.enter_context(patch.object(ar, "inspect", guarded_inspect))
+
+    def spawn(self, command, **kwargs):
+        assert command[2] == self.action and kwargs.get("stdout") is not None
+        if os.name == "nt":
+            assert kwargs.get("creationflags") == subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            assert kwargs.get("start_new_session") is True
+        fixture = self.fixture
+        fixture.head = ar.PRODUCT
+        ar.releases.apply_release_environment(fixture, fixture.selected)
+        operation = {"phase": "switch", "previous": {"revision": ar.PREVIOUS, "schema": 304},
+                     "selected": fixture.selected, "backup": str(self.backup), "deploymentDigest": DIGEST}
+        journal = ar.begin(fixture, self.candidate, self.backup, operation)
+        ar._write(fixture.state / "maintenance.json", operation)
+        ar._advance(fixture, journal, self.phase)
+        fixture.head = self.expected["revision"]
+        ar.releases.apply_release_environment(fixture, self.expected)
+        fixture.records["api"]["image"] = self.expected["images"]["api"]
+        fixture.events.clear()
+        fixture.manager = self.process
+        return self.process
+
+    def observation(self, **changes):
+        return json.dumps({"id": "a" * 64, "image": self.expected["images"]["api"], "state": "running",
+                           "project": self.fixture.project, "service": "api", **changes})
+
+    def observe(self, command, **kwargs):
+        assert command[:4] == ["docker", "ps", "--all", "--no-trunc"]
+        assert command[4:8] == ["--filter", "label=com.docker.compose.project=" + self.fixture.project,
+                                "--filter", "label=com.docker.compose.service=api"]
+        assert command[8] == "--format" and kwargs == {"capture": True}
+        assert ".Config.Env" not in command[9]
+        self.fixture.events.append("ps")
+        result = self.observations.pop(0) if self.observations else self.observation()
+        if isinstance(result, Exception):
+            raise result
+        self.after_observation()
+        return result
+
+    def stop(self, process):
+        assert process is self.process
+        self.stop_calls += 1
+        if process.poll() is not None:
+            return False
+        self.stop_attempts += 1
+        self.fixture.events.append("stop")
+        process.returncode = -9
+        self.after_stop()
+        return True
+
+    def installation(self, root, profile):
+        assert root == self.fixture.root and profile == "dev"
+        self.fixture.stopped("installation")
+        return self.fixture
+
+    def run(self, **kwargs):
+        return native_driver.cli(self.fixture.root.parent / "tools", self.fixture.root, self.action, self.log,
+                                 selected_digest=DIGEST, interruption=self.phase,
+                                 expected_revision=kwargs.get("expected_revision", self.expected["revision"]))
+
+    def change_journal(self, key):
+        journal = ar.load_journal(self.fixture)
+        if key == "phase":
+            ar._advance(self.fixture, journal, "rollback_web" if self.action == "rollback" else "forward_web")
+        else:
+            if key == "id": journal["id"] = "f" * 32
+            if key == "eligibility": journal["eligibility"]["binding"]["project"] += "-changed"
+            ar._write(self.fixture.state / ar.JOURNAL, journal)
+
+
+class NativeObserverTests(unittest.TestCase):
+    def test_missing_old_or_starting_api_is_polled_before_stop_and_all_canonical_guards(self):
+        for action in ("update", "rollback"):
+            with self.subTest(action=action), ObserverHarness(action) as trial:
+                other = trial.fixture.selected if action == "rollback" else trial.fixture.previous
+                trial.observations = ["", trial.observation(image=other["images"]["api"]), trial.observation(state="created")]
+                evidence = trial.run()
+                events = trial.fixture.events
+                self.assertEqual(events[:7], ["ps", "ps", "ps", "ps", "stop", "installation", "inspect"])
+                self.assertEqual(events.count("identity"), 2)
+                self.assertEqual(events.count("private-env"), 4)
+                self.assertEqual((trial.stop_attempts, trial.stop_calls, trial.popen.call_count), (1, 2, 1))
+                self.assertEqual(evidence, {"phase": trial.phase, "operationId": ar.load_journal(trial.fixture)["id"],
+                                           "source": trial.expected["revision"], "apiImage": trial.expected["images"]["api"],
+                                           "apiContainer": "a" * 64, "postgresContainer": "original-postgres", "managerExitCode": -9})
+                self.assertNotIn(trial.fixture.secret, json.dumps(evidence) + trial.log.read_text() + trial.output.getvalue()
+                                 + json.dumps(trial.fixture.records))
+
+    def test_malformed_duplicate_or_foreign_observation_fails_and_stops_only_owned_child(self):
+        for case in ("json", "duplicate", "shape", "id", "state", "project", "service"):
+            with self.subTest(case=case), ObserverHarness() as trial:
+                outputs = {"json": "{", "duplicate": trial.observation() + "\n" + trial.observation(), "shape": "[]",
+                           "id": trial.observation(id="a" * 12), "state": trial.observation(state="unknown"),
+                           "project": trial.observation(project="asa-lab-foreign"), "service": trial.observation(service="web")}
+                trial.observations = [outputs[case]]
+                with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, "FIXTURE_OBSERVATION")
+                self.assertEqual(trial.fixture.events, ["ps", "stop"])
+                self.assertEqual((trial.stop_attempts, trial.popen.call_count), (1, 1))
+
+    def test_unknown_docker_command_error_is_fatal_even_with_a_prior_retry_marker(self):
+        for moment in ("observation", "private-env"):
+            with self.subTest(moment=moment), ObserverHarness() as trial:
+                trial.log.write_text("BLOCKED RETRY_NEW_MANAGER: older synthetic command\n", encoding="utf-8")
+                failure = Blocked("COMMAND", "Unknown Docker failure", "Retain fixture")
+                if moment == "observation": trial.observations = [failure]
+                if moment == "private-env":
+                    trial.after_stop = lambda: trial.enter_context(patch.object(trial.fixture, "container_environment", side_effect=failure))
+                with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, "COMMAND")
+                self.assertEqual((trial.stop_attempts, trial.popen.call_count), (1, 1))
+                if moment == "observation": self.assertEqual(trial.fixture.events, ["ps", "stop"])
+
+    def test_api_replaced_removed_or_stopped_after_observation_never_becomes_evidence(self):
+        for case in ("replaced", "removed", "stopped", "image"):
+            with self.subTest(case=case), ObserverHarness() as trial:
+                def change():
+                    api = trial.fixture.records["api"]
+                    if case == "replaced": api["id"] = "b" * 64
+                    if case == "removed": del trial.fixture.records["api"]
+                    if case == "stopped": api["running"] = False
+                    if case == "image": api["image"] = trial.fixture.selected["images"]["api"]
+                trial.after_stop = change
+                with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, "FIXTURE_INTERRUPTION")
+                self.assertEqual((trial.stop_attempts, trial.popen.call_count), (1, 1))
+
+    def test_full_canonical_guards_reject_data_source_root_config_and_foreign_drift(self):
+        expected_codes = {"postgres": "ROLLBACK_DRIFT", "volume": "ROLLBACK_DRIFT", "mount": "IDENTITY_VOLUME",
+                          "env": "ROLLBACK_DRIFT", "database": "DATABASE_TARGET", "source": "ROLLBACK_SOURCE",
+                          "root": "IDENTITY_ROOT", "files": "IDENTITY_FILES", "foreign": "IDENTITY_PROJECT",
+                          "duplicate": "IDENTITY_DUPLICATE", "config": "ROLLBACK_DRIFT", "backup": "BACKUP_HASH",
+                          "schema": "ROLLBACK_DRIFT", "tool": "ROLLBACK_TOOLING", "image": "ROLLBACK_IMAGE"}
+        for case, code in expected_codes.items():
+            with self.subTest(case=case), ObserverHarness() as trial:
+                fixture = trial.fixture
+                def drift():
+                    if case == "postgres": fixture.records["postgres"]["id"] = "replacement-postgres"
+                    if case == "volume": fixture.volumes["minio-data"]["CreatedAt"] = "recreated"
+                    if case == "mount": fixture.records["minio"]["mounts"][0]["Name"] = "foreign-volume"
+                    if case == "env": (fixture.root / ".env").write_bytes(b"changed\n")
+                    if case == "database": fixture.private_env["api"]["APP_DATABASE_URL"] = "postgres://synthetic@postgres:5432/other"
+                    if case == "source": fixture.head = "f" * 40
+                    if case == "root": fixture.records["api"]["labels"]["com.docker.compose.project.working_dir"] = str(fixture.root.parent)
+                    if case == "files": fixture.records["api"]["labels"]["com.docker.compose.project.config_files"] = str(fixture.root / "compose.yaml")
+                    if case == "foreign": fixture.records["api"]["labels"]["com.docker.compose.project"] = "asa-lab-foreign"
+                    if case == "duplicate": fixture.extra_records.append(copy.deepcopy(fixture.records["api"]))
+                    if case == "config": fixture.config_drift = True
+                    if case == "backup": (trial.backup / "database.dump").write_bytes(b"changed")
+                    if case == "schema": fixture.history[0]["checksum"] = "f" * 64
+                    if case == "tool": fixture.tool = {**fixture.tool, "revision": "f" * 40}
+                    if case == "image": fixture.images["ids"]["previous"]["api"] = "sha256:" + "f" * 64
+                trial.after_stop = drift
+                with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, code)
+                self.assertIn("inspect", fixture.events)
+                self.assertEqual((trial.stop_attempts, trial.popen.call_count), (1, 1))
+
+    def test_operation_phase_or_eligibility_change_before_or_after_stop_is_fatal(self):
+        for moment in ("after_observation", "after_stop"):
+            for key in ("id", "phase", "eligibility"):
+                with self.subTest(moment=moment, key=key), ObserverHarness() as trial:
+                    setattr(trial, moment, lambda: trial.change_journal(key))
+                    with self.assertRaises(Blocked): trial.run()
+                    self.assertEqual((trial.stop_attempts, trial.popen.call_count), (1, 1))
+                    if moment == "after_observation": self.assertNotIn("installation", trial.fixture.events)
+
+    def test_journal_changed_during_final_identity_is_not_accepted(self):
+        with ObserverHarness() as trial:
+            identity = trial.fixture.identity
+            def changed_identity():
+                result = identity()
+                if trial.fixture.manager is not None and trial.fixture.events.count("identity") == 2:
+                    trial.change_journal("phase")
+                return result
+            with patch.object(trial.fixture, "identity", changed_identity):
+                with self.assertRaises(Blocked) as denied: trial.run()
+            self.assertEqual(denied.exception.code, "FIXTURE_INTERRUPTION")
+
+    def test_self_exit_zero_exit_or_missed_window_is_not_an_interruption(self):
+        for case in ("self-zero", "self-nonzero", "stop-zero", "missed"):
+            with self.subTest(case=case), ObserverHarness() as trial:
+                if case.startswith("self"):
+                    trial.after_observation = lambda: setattr(trial.process, "returncode", 0 if case == "self-zero" else 7)
+                if case == "stop-zero": trial.after_stop = lambda: setattr(trial.process, "returncode", 0)
+                if case == "missed":
+                    trial.observations = [""]
+                    trial.after_observation = lambda: setattr(trial.process, "returncode", 0)
+                with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, "FIXTURE_INTERRUPTION")
+                self.assertNotIn("installation", trial.fixture.events)
+                self.assertEqual(trial.stop_attempts, 1 if case == "stop-zero" else 0)
+
+    def test_deadline_before_or_during_observation_stops_child_without_full_inspection(self):
+        for times in ([0, 1800], [0, 1, 1800]):
+            with self.subTest(times=times), ObserverHarness() as trial:
+                with patch.object(trial.clock, "monotonic", side_effect=times):
+                    with self.assertRaises(Blocked) as denied: trial.run()
+                self.assertEqual(denied.exception.code, "FIXTURE_TIMEOUT")
+                self.assertNotIn("installation", trial.fixture.events)
+                self.assertEqual(trial.stop_attempts, 1)
+
+    def test_caller_revision_must_match_the_exact_journal_release(self):
+        for case in ("caller", "source"):
+            with self.subTest(case=case), ObserverHarness() as trial:
+                if case == "source": trial.after_stop = lambda: setattr(trial.fixture, "head", ar.PRODUCT)
+                with self.assertRaises(Blocked) as denied:
+                    trial.run(expected_revision=ar.PRODUCT if case == "caller" else ar.PREVIOUS)
+                self.assertEqual(denied.exception.code, "FIXTURE_INTERRUPTION")
+                self.assertEqual(trial.stop_attempts, 1)
+
+
 class NativeBoundaryTests(unittest.TestCase):
     def test_tooling_rejects_nested_git_discovery_and_untracked_or_hidden_bytes(self):
         def git(root, *args):
@@ -756,13 +1064,22 @@ class NativeBoundaryTests(unittest.TestCase):
                                    stdout=subprocess.PIPE, text=True, **options)
         try:
             self.assertEqual(process.stdout.readline().strip(), "ready")
-            terminate_owned_process(process)
+            self.assertTrue(terminate_owned_process(process))
             self.assertIsNotNone(process.returncode)
             self.assertNotEqual(process.returncode, 0)
-            terminate_owned_process(process)
+            self.assertFalse(terminate_owned_process(process))
         finally:
             if process.poll() is None: terminate_owned_process(process)
             process.stdout.close()
+
+    @unittest.skipIf(os.name == "nt", "POSIX process-group disappearance; Windows uses taskkill")
+    def test_owned_process_disappearing_before_signal_is_not_an_interruption(self):
+        process = Mock(pid=12345)
+        process.poll.return_value = None
+        with patch.object(native_driver.os, "killpg", side_effect=ProcessLookupError) as signal_group:
+            self.assertFalse(native_driver.terminate_owned_process(process))
+        signal_group.assert_called_once_with(process.pid, native_driver.signal.SIGKILL)
+        process.wait.assert_called_once_with(timeout=30)
 
     def test_symlink_record_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
