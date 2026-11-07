@@ -552,7 +552,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
   let currentPhase = 'build';
   let driverName;
   let stoppedByResource;
-  const pgResourceStop = new AbortController();
+  const pgResourceStop = new globalThis.AbortController();
   let observationErrors = 0;
   const allResources = [];
   const builder = project + '-builder';
