@@ -23,10 +23,12 @@ import {
   OFFICIAL_SCALE_SCENARIO,
   OFFICIAL_SCALE_POSTGRES,
   assertOfficialScaleDispatch,
+  officialScaleExecutionMode,
   officialScaleAfterSelector,
   assertOfficialScaleReleaseProof,
   assertOfficialScaleImage,
   assertOfficialScaleRunner,
+  officialScaleRunnerPolicy,
   assertOfficialScaleCompose,
   officialScaleBrowserInvocation,
   officialScaleResourceListArgs,
@@ -278,6 +280,7 @@ async function run() {
     ASA_SCALE_RUN_TOKEN: randomBytes(16).toString('hex'),
   };
   const harness = assertOfficialScaleDispatch(env);
+  const executionMode = officialScaleExecutionMode(env);
   officialScaleAfterSelector(env);
   if (platform() !== 'linux' || /DESKTOP-R0HSMSA|D2-R2/i.test(hostname()))
     throw Error('Only isolated hosted Linux CI is allowed');
@@ -336,6 +339,40 @@ async function run() {
   const runtimeEnv = { ...env };
   delete runtimeEnv.GH_TOKEN;
   delete runtimeEnv.GITHUB_TOKEN;
+  if (executionMode === 'selected-only') {
+    const comparison = {
+      ...harness,
+      executionMode,
+      reason: 'independent_selected_release_measurement',
+      scenario: OFFICIAL_SCALE_SCENARIO,
+      pgActivityPolicy: PG_ACTIVITY_POLICY,
+      releaseProofHash: scaleHash(proof),
+      baseline: { status: 'NOT_RUN', reason: 'explicit_selected_only_mode' },
+      conditionsMatched: false,
+      comparable: false,
+      absoluteCapacityEstablished: false,
+      interpretation:
+        'One independent calibration2 and full N30 on the selected official release. No baseline measurement, before/after comparison, N60 or absolute capacity claim.',
+    };
+    try {
+      const after = await runVariant(runtimeEnv, 'after', proof.after, proof);
+      writeJson(resolve(output, 'comparison.json'), { ...comparison, after: after.summary });
+      if (
+        after.summary.calibration.status !== 'VALID_FIXTURE' ||
+        after.summary.levels[0].status !== 'PASS' ||
+        after.summary.observationErrors
+      )
+        process.exitCode = 2;
+    } catch (error) {
+      process.exitCode = 2;
+      writeJson(resolve(output, 'comparison.json'), {
+        ...comparison,
+        after: { status: 'INVALID', reason: 'selected_variant_unconfirmed' },
+      });
+      throw error;
+    }
+    return;
+  }
   const baseline = await runVariant(runtimeEnv, 'baseline', proof.baseline, proof);
   const baselineLevel = baseline.summary.levels[0];
   if (
@@ -345,6 +382,7 @@ async function run() {
   ) {
     writeJson(resolve(output, 'comparison.json'), {
       ...harness,
+      executionMode,
       baseline: baseline.summary,
       after: { status: 'NOT_RUN', reason: 'baseline_fixture_or_observation_unconfirmed' },
       comparable: false,
@@ -369,6 +407,7 @@ async function run() {
     Boolean(baselineLevel.http && afterLevel.http);
   writeJson(resolve(output, 'comparison.json'), {
     ...harness,
+    executionMode,
     scenario: OFFICIAL_SCALE_SCENARIO,
     pgActivityPolicy: PG_ACTIVITY_POLICY,
     releaseProofHash: scaleHash(proof),
@@ -384,6 +423,8 @@ async function run() {
 }
 
 async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
+  const executionMode = officialScaleExecutionMode(baseEnv);
+  const runnerPolicy = officialScaleRunnerPolicy(executionMode, variant, runnerImageId);
   const env = {
     ...baseEnv,
     ASA_SCALE_OFFICIAL: 'true',
@@ -534,6 +575,8 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
   env.ASA_SCALE_ENVIRONMENT_HASH = environmentHash;
   writeJson(resolve(reports, 'plan.json'), {
     ...initialIdentity,
+    executionMode,
+    measurementRunner: { policy: runnerPolicy, previousImageId: runnerImageId ?? null },
     environmentHash,
     host,
     profile: SCALE_PROFILE,
@@ -545,7 +588,9 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
     releaseProofHash: scaleHash(proof),
     scenario: OFFICIAL_SCALE_SCENARIO,
     hypothesis:
-      'Compare the unchanged full N30 workload on two independently qualified official releases.',
+      executionMode === 'selected-only'
+        ? 'Measure the selected official release independently with calibration2 and the unchanged full N30 workload; no baseline comparison.'
+        : 'Compare the unchanged full N30 workload on two independently qualified official releases.',
   });
   let previousCpu = cpuTicks();
   let containerIds = [];
@@ -803,7 +848,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
   try {
     await requireResources();
     monitorTimer = setInterval(tick, 1000);
-    if (variant === 'baseline') {
+    if (runnerPolicy === 'build') {
       writeFileSync(resolve(reports, 'buildkit.toml'), '[worker.oci]\n  max-parallelism = 1\n');
       await checked('docker', [
         'buildx',
@@ -848,7 +893,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
       runnerImage,
       runnerReference,
       env.ASA_SCALE_HARNESS_SHA,
-      runnerImageId,
+      { executionMode, variant, previousId: runnerImageId },
     );
     fixtureImages['test-runner'] = { id: runnerImageId, reference: runnerReference };
     const postgresImage = JSON.parse(
@@ -868,6 +913,9 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
       );
     writeJson(resolve(reports, 'harness-image.json'), {
       harnessSha: env.ASA_SCALE_HARNESS_SHA,
+      executionMode,
+      variant,
+      runnerPolicy,
       id: runnerImageId,
       reference: runnerReference,
       scenario: OFFICIAL_SCALE_SCENARIO,
@@ -1347,6 +1395,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
       await attestOwnedResources();
     });
     summary.host = host;
+    summary.executionMode = executionMode;
     summary.observationErrors = observationErrors;
     summary.pgActivity = {
       policyHash: scaleHash(PG_ACTIVITY_POLICY),
@@ -1371,6 +1420,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
       };
     writeJson(resolve(reports, 'controller-failure.json'), {
       ...(identity || initialIdentity),
+      executionMode,
       phase: currentPhase,
       status: stoppedByResource ? 'BLOCKED_BY_RUNNER' : 'INVALID',
       reason: stoppedByResource?.reason || safeError(error),
@@ -1379,6 +1429,7 @@ async function runVariant(baseEnv, variant, release, proof, runnerImageId) {
     if (identity && !summary)
       writeJson(resolve(reports, 'summary.json'), {
         ...identity,
+        executionMode,
         host,
         levels: [{ users: 30, status: 'NOT_RUN' }],
         absoluteCapacityEstablished: false,

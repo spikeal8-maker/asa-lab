@@ -29,6 +29,13 @@ export const OFFICIAL_SCALE_POSTGRES =
 const officialServices = ['api', 'web', 'scratch', 'minio', 'search'];
 const officialDigest = (value) => /^sha256:[a-f0-9]{64}$/.test(value || '');
 
+export function officialScaleExecutionMode(env) {
+  const mode = env.ASA_SCALE_EXECUTION_MODE === undefined ? 'pair' : env.ASA_SCALE_EXECUTION_MODE;
+  if (!['pair', 'selected-only'].includes(mode))
+    throw Error('Official N30 execution mode must be pair or selected-only');
+  return mode;
+}
+
 /** Native work is an explicit canonical main dispatch, never a PR or local fallback. */
 export function assertOfficialScaleDispatch(env) {
   if (
@@ -49,6 +56,7 @@ export function assertOfficialScaleDispatch(env) {
     env.DOCKER_CONTEXT
   )
     throw Error('Official N30 requires the exact canonical main dispatch on hosted Linux');
+  officialScaleExecutionMode(env);
   return {
     harnessSha: env.ASA_SCALE_HARNESS_SHA,
     runId: env.GITHUB_RUN_ID,
@@ -57,6 +65,7 @@ export function assertOfficialScaleDispatch(env) {
 }
 
 export function officialScaleAfterSelector(env) {
+  const executionMode = officialScaleExecutionMode(env);
   const value = {
     deploymentDigest: env.ASA_SCALE_AFTER_DEPLOYMENT_DIGEST,
     revision: env.ASA_SCALE_AFTER_REVISION,
@@ -75,6 +84,11 @@ export function officialScaleAfterSelector(env) {
       Object.keys(OFFICIAL_SCALE_AFTER).some((key) => value[key] !== OFFICIAL_SCALE_AFTER[key]))
   )
     throw Error('After release requires an explicit distinct official digest, SHA and schema');
+  if (
+    executionMode === 'selected-only' &&
+    Object.keys(OFFICIAL_SCALE_AFTER).some((key) => value[key] !== OFFICIAL_SCALE_AFTER[key])
+  )
+    throw Error('Selected-only N30 requires the pinned official 8358997d schema 304 release');
   return value;
 }
 
@@ -145,7 +159,29 @@ export function assertOfficialScaleImage(image, expected) {
     throw Error('Local image differs from its official immutable attestation');
 }
 
-export function assertOfficialScaleRunner(image, reference, harnessSha, previousId) {
+export function officialScaleRunnerPolicy(executionMode, variant, previousId) {
+  if (
+    !['pair', 'selected-only'].includes(executionMode) ||
+    !['baseline', 'after'].includes(variant) ||
+    (executionMode === 'selected-only' && variant !== 'after')
+  )
+    throw Error('Invalid official measurement runner mode or variant');
+  if (variant === 'baseline' || executionMode === 'selected-only') {
+    if (previousId !== undefined)
+      throw Error('A fresh measurement build cannot accept a previous image');
+    return 'build';
+  }
+  if (typeof previousId !== 'string' || !officialDigest(previousId))
+    throw Error('Pair after requires the exact previous measurement image ID');
+  return 'reuse';
+}
+
+export function assertOfficialScaleRunner(image, reference, harnessSha, context) {
+  const policy = officialScaleRunnerPolicy(
+    context?.executionMode,
+    context?.variant,
+    context?.previousId,
+  );
   if (
     !officialDigest(image?.Id) ||
     image.Os !== 'linux' ||
@@ -153,7 +189,7 @@ export function assertOfficialScaleRunner(image, reference, harnessSha, previous
     !image.RepoTags?.includes(reference) ||
     image.Config?.Labels?.['io.asalab.scale.harness'] !== harnessSha ||
     image.Config?.Labels?.['io.asalab.scale.scenario'] !== OFFICIAL_SCALE_SCENARIO.e2eSha256 ||
-    (previousId && image.Id !== previousId)
+    (policy === 'reuse' && image.Id !== context.previousId)
   )
     throw Error('The measurement image must be the same exact harness in both variants');
   return image.Id;

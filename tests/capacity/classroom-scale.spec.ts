@@ -4,13 +4,15 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import process from 'node:process';
 import { runInNewContext } from 'node:vm';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 import { isSeq, parse as parseYaml, parseDocument } from 'yaml';
+import ts from 'typescript';
+import { PG_ACTIVITY_POLICY } from '../../tools/capacity/classroom-scale-pg-activity.mjs';
 import {
   isAllowedMutationOrigin,
   resolveCanonicalWebOrigin,
@@ -29,10 +31,12 @@ import {
   OFFICIAL_SCALE_AFTER,
   OFFICIAL_SCALE_POSTGRES,
   assertOfficialScaleDispatch,
+  officialScaleExecutionMode,
   officialScaleAfterSelector,
   assertOfficialScaleReleaseProof,
   assertOfficialScaleImage,
   assertOfficialScaleRunner,
+  officialScaleRunnerPolicy,
   assertOfficialScaleCompose,
   officialScaleBrowserInvocation,
   officialScaleResourceListArgs,
@@ -2566,6 +2570,129 @@ const officialProof = () => ({
   after: officialRecord(OFFICIAL_SCALE_AFTER),
 });
 
+async function officialDriverFunction(name: string, context: Record<string, unknown>) {
+  const path = 'tools/capacity/classroom-scale.mjs';
+  const source = ts.createSourceFile(path, await readFile(path, 'utf8'), ts.ScriptTarget.Latest);
+  const declaration = source.statements.find(
+    (node) => ts.isFunctionDeclaration(node) && node.name?.text === name,
+  );
+  if (!declaration) throw Error('Missing actual official controller function: ' + name);
+  return runInNewContext('(' + declaration.getText(source) + ')', context) as (
+    ...args: unknown[]
+  ) => Promise<unknown>;
+}
+
+async function officialRunnerBuildFixture(
+  executionMode: string,
+  variant: string,
+  previousId: string | undefined,
+) {
+  const path = 'tools/capacity/classroom-scale.mjs';
+  const source = ts.createSourceFile(path, await readFile(path, 'utf8'), ts.ScriptTarget.Latest);
+  let build: ts.IfStatement | undefined;
+  const visit = (node: ts.Node) => {
+    if (ts.isIfStatement(node) && node.expression.getText(source) === "runnerPolicy === 'build'")
+      build = node;
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  if (!build) throw Error('Missing actual guarded measurement build');
+  const checked = vi.fn(async (...args: unknown[]) => {
+    if (args[0] !== 'docker') throw Error('Unexpected build boundary');
+  });
+  const monitored = vi.fn(async (...args: unknown[]) => {
+    if (args[0] !== 'docker') throw Error('Unexpected monitored build boundary');
+  });
+  const context = {
+    runnerPolicy: officialScaleRunnerPolicy(executionMode, variant, previousId),
+    reports: '/owned/reports',
+    builder: 'asa-scale-123-1-' + variant + '-builder',
+    builderCreated: false,
+    composePrefix: ['compose'],
+    resolve,
+    writeFileSync: vi.fn(),
+    checked,
+    monitored,
+  };
+  const run = runInNewContext(
+    '(async () => { ' + build.getText(source) + '; return builderCreated; })',
+    context,
+  ) as () => Promise<boolean>;
+  return { run, checked, monitored, context };
+}
+
+const officialVariantResult = (status = 'PASS') => ({
+  runnerImageId: 'sha256:' + 'c'.repeat(64),
+  summary: {
+    calibration: { status: 'VALID_FIXTURE' },
+    levels: [{ users: 30, status, http: { attempted: 420, failed: 0 } }],
+    environmentHash: 'd'.repeat(64),
+    profileHash: SCALE_PROFILE_HASH,
+    pgActivity: { policyHash: scaleHash(PG_ACTIVITY_POLICY) },
+    observationErrors: 0,
+    absoluteCapacityEstablished: false,
+  },
+});
+
+async function officialControllerFixture(overrides: Record<string, string | undefined> = {}) {
+  const scenario = await readFile('e2e/classroom-scale.spec.ts', 'utf8');
+  const written = new Map<string, unknown>();
+  const processFixture = {
+    env: officialEnvironment(overrides),
+    exitCode: undefined as number | undefined,
+  };
+  const runVariant = vi.fn(async (...args: unknown[]) => {
+    if (!['baseline', 'after'].includes(String(args[1]))) throw Error('Unexpected variant');
+    return officialVariantResult();
+  });
+  const capture = vi.fn(async (command: string, args: string[]) => {
+    if (command === 'git' && args[0] === 'rev-parse') return officialHarnessSha;
+    if (command === 'git' && args[0] === 'status') return '';
+    if (command === 'docker' && args.join(' ') === 'context inspect default')
+      return JSON.stringify([
+        { Name: 'default', Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } },
+      ]);
+    throw Error('Unexpected controller IO boundary');
+  });
+  const start = vi.fn(() => ({ done: Promise.resolve({ code: 0 }), kill: vi.fn() }));
+  const existsSync = vi.fn(() => false);
+  // Execute the actual orchestration, replacing only host/IO and native variant
+  // boundaries. This neither starts Docker nor qualifies a native measurement.
+  const run = await officialDriverFunction('run', {
+    process: processFixture,
+    randomBytes: () => ({ toString: () => officialRunToken }),
+    platform: () => 'linux',
+    hostname: () => 'hosted-fixture',
+    root: '/workspace/asa',
+    reportsRoot: '/workspace/asa/reports/classroom-official-n30',
+    resolve,
+    capture,
+    readFileSync: (path: string) =>
+      path.endsWith('/e2e/classroom-scale.spec.ts') ? scenario : 'synthetic meminfo',
+    statfsSync: () => ({ bavail: 10000000, bsize: 4096 }),
+    readScaleMemInfo: () => ({ memAvailableBytes: 16 * 1024 ** 3 }),
+    scaleResourceViolation: () => null,
+    existsSync,
+    mkdirSync: vi.fn(),
+    setInterval: () => 1,
+    clearInterval: vi.fn(),
+    start,
+    readJson: () => officialProof(),
+    writeJson: (path: string, value: unknown) => written.set(basename(path), value),
+    assertOfficialScaleDispatch,
+    officialScaleExecutionMode,
+    officialScaleAfterSelector,
+    assertOfficialScaleReleaseProof,
+    assertScaleDockerContext,
+    scaleHash,
+    OFFICIAL_SCALE_SCENARIO,
+    SCALE_PROFILE_HASH,
+    PG_ACTIVITY_POLICY,
+    runVariant,
+  });
+  return { run, runVariant, capture, start, existsSync, process: processFixture, written };
+}
+
 const officialBrowserFixture = async () => {
   const document = parseDocument(await readFile('.github/compose.classroom-scale.yml', 'utf8'));
   expect(document.errors).toEqual([]);
@@ -2637,6 +2764,247 @@ const verifiedOfficialResources = (fixture: ReturnType<typeof officialResourceFi
 ];
 
 describe('official full N30 adapter boundary and provenance', () => {
+  it('defaults to pair and accepts selected-only only as an explicit exact mode', () => {
+    expect(officialScaleExecutionMode(officialEnvironment())).toBe('pair');
+    expect(
+      officialScaleExecutionMode(officialEnvironment({ ASA_SCALE_EXECUTION_MODE: 'pair' })),
+    ).toBe('pair');
+    expect(
+      officialScaleExecutionMode(
+        officialEnvironment({ ASA_SCALE_EXECUTION_MODE: 'selected-only' }),
+      ),
+    ).toBe('selected-only');
+  });
+
+  it.each(['', 'after', 'selected', 'selected-only ', 'PAIR', null, 0, false, {}])(
+    'rejects ambiguous official execution mode %j',
+    (value) => {
+      const env = { ...officialEnvironment(), ASA_SCALE_EXECUTION_MODE: value };
+      expect(() => officialScaleExecutionMode(env)).toThrow(/execution mode/);
+      expect(() => assertOfficialScaleDispatch(env)).toThrow(/execution mode/);
+    },
+  );
+
+  it('pins selected-only to835 while retaining the existing explicit official pair selector', () => {
+    const selected = officialEnvironment({ ASA_SCALE_EXECUTION_MODE: 'selected-only' });
+    expect(officialScaleAfterSelector(selected)).toEqual(OFFICIAL_SCALE_AFTER);
+    const otherOfficial = {
+      ASA_SCALE_AFTER_DEPLOYMENT_DIGEST: 'sha256:' + 'f'.repeat(64),
+      ASA_SCALE_AFTER_REVISION: 'e'.repeat(40),
+      ASA_SCALE_AFTER_SCHEMA: '307',
+    };
+    expect(() => officialScaleAfterSelector({ ...selected, ...otherOfficial })).toThrow(
+      /pinned official 8358997d/,
+    );
+    expect(officialScaleAfterSelector(officialEnvironment(otherOfficial))).toEqual({
+      deploymentDigest: otherOfficial.ASA_SCALE_AFTER_DEPLOYMENT_DIGEST,
+      revision: otherOfficial.ASA_SCALE_AFTER_REVISION,
+      schema: 307,
+    });
+    const proof = officialProof();
+    proof.baseline.ci = 'FAIL';
+    expect(() => assertOfficialScaleReleaseProof(proof, selected)).toThrow(/baseline/);
+  });
+
+  it.each([
+    { ASA_SCALE_EXECUTION_MODE: 'after' },
+    {
+      ASA_SCALE_EXECUTION_MODE: 'selected-only',
+      ASA_SCALE_AFTER_DEPLOYMENT_DIGEST: 'sha256:' + 'f'.repeat(64),
+      ASA_SCALE_AFTER_REVISION: 'e'.repeat(40),
+      ASA_SCALE_AFTER_SCHEMA: '307',
+    },
+    { ASA_SCALE_EXECUTION_MODE: 'selected-only', GITHUB_ACTIONS: 'false' },
+    { ASA_SCALE_EXECUTION_MODE: 'selected-only', DOCKER_CONTEXT: 'production' },
+  ])('rejects selected controller authority or mode before IO %j', async (overrides) => {
+    const fixture = await officialControllerFixture(overrides);
+    await expect(fixture.run()).rejects.toThrow();
+    expect(fixture.capture).not.toHaveBeenCalled();
+    expect(fixture.start).not.toHaveBeenCalled();
+    expect(fixture.runVariant).not.toHaveBeenCalled();
+  });
+
+  it('keeps default pair sequencing and reuses the exact baseline measurement image', async () => {
+    const fixture = await officialControllerFixture();
+    await fixture.run();
+    expect(fixture.runVariant.mock.calls.map((args) => args[1])).toEqual(['baseline', 'after']);
+    expect(fixture.runVariant.mock.calls[0]![4]).toBeUndefined();
+    expect(fixture.runVariant.mock.calls[1]![4]).toBe(officialVariantResult().runnerImageId);
+    expect(fixture.written.get('comparison.json')).toMatchObject({
+      executionMode: 'pair',
+      comparable: true,
+      absoluteCapacityEstablished: false,
+    });
+  });
+
+  it('never resumes an existing run as selected-only', async () => {
+    const fixture = await officialControllerFixture({ ASA_SCALE_EXECUTION_MODE: 'selected-only' });
+    fixture.existsSync.mockReturnValueOnce(true);
+    await expect(fixture.run()).rejects.toThrow(/Run evidence already exists; no reuse/);
+    expect(fixture.start).not.toHaveBeenCalled();
+    expect(fixture.runVariant).not.toHaveBeenCalled();
+    expect(fixture.written.has('comparison.json')).toBe(false);
+  });
+
+  it.each([
+    ['INVALID_FIXTURE', 'NOT_RUN', 0],
+    ['VALID_FIXTURE', 'INVALID', 0],
+    ['VALID_FIXTURE', 'BLOCKED_BY_RUNNER', 0],
+    ['VALID_FIXTURE', 'PASS', 1],
+  ])(
+    'keeps pair stopped after unconfirmed baseline %s/%s/%s',
+    async (calibration, level, errors) => {
+      const fixture = await officialControllerFixture();
+      const result = officialVariantResult(String(level));
+      result.summary.calibration.status = String(calibration);
+      result.summary.observationErrors = Number(errors);
+      fixture.runVariant.mockResolvedValueOnce(result);
+      await fixture.run();
+      expect(fixture.runVariant.mock.calls.map((args) => args[1])).toEqual(['baseline']);
+      expect(fixture.written.get('comparison.json')).toMatchObject({
+        executionMode: 'pair',
+        baseline: result.summary,
+        after: { status: 'NOT_RUN', reason: 'baseline_fixture_or_observation_unconfirmed' },
+        comparable: false,
+        absoluteCapacityEstablished: false,
+      });
+      expect(fixture.process.exitCode).toBe(2);
+    },
+  );
+
+  it('retains a complete failing baseline in pair mode without clearing the failure exit', async () => {
+    const fixture = await officialControllerFixture();
+    const baseline = officialVariantResult('FAIL');
+    baseline.summary.levels[0]!.http.failed = 43;
+    fixture.runVariant.mockResolvedValueOnce(baseline);
+    fixture.process.exitCode = 2;
+    await fixture.run();
+    expect(fixture.runVariant.mock.calls.map((args) => args[1])).toEqual(['baseline', 'after']);
+    expect(fixture.written.get('comparison.json')).toMatchObject({
+      baseline: baseline.summary,
+      comparable: true,
+      absoluteCapacityEstablished: false,
+    });
+    expect(fixture.process.exitCode).toBe(2);
+  });
+
+  it('selected-only controller executes only the selected official variant with no comparison claim', async () => {
+    const fixture = await officialControllerFixture({ ASA_SCALE_EXECUTION_MODE: 'selected-only' });
+    await fixture.run();
+    expect(fixture.runVariant.mock.calls.map((args) => args[1])).toEqual(['after']);
+    expect(fixture.runVariant.mock.calls[0]![2]).toEqual(officialProof().after);
+    expect(fixture.runVariant.mock.calls[0]![4]).toBeUndefined();
+    expect(fixture.written.get('comparison.json')).toMatchObject({
+      executionMode: 'selected-only',
+      reason: 'independent_selected_release_measurement',
+      baseline: { status: 'NOT_RUN', reason: 'explicit_selected_only_mode' },
+      comparable: false,
+      conditionsMatched: false,
+      absoluteCapacityEstablished: false,
+    });
+    expect(fixture.process.exitCode).toBeUndefined();
+  });
+
+  it.each(['native smoke', 'calibration', 'resources'])(
+    'selected-only controller preserves a %s refusal and never falls back to baseline',
+    async (phase) => {
+      const fixture = await officialControllerFixture({
+        ASA_SCALE_EXECUTION_MODE: 'selected-only',
+      });
+      const failure = Error('Synthetic ' + phase + ' refusal');
+      fixture.runVariant.mockRejectedValueOnce(failure);
+      await expect(fixture.run()).rejects.toBe(failure);
+      expect(fixture.runVariant.mock.calls.map((args) => args[1])).toEqual(['after']);
+      expect(fixture.written.get('comparison.json')).toMatchObject({
+        executionMode: 'selected-only',
+        baseline: { status: 'NOT_RUN', reason: 'explicit_selected_only_mode' },
+        after: { status: 'INVALID', reason: 'selected_variant_unconfirmed' },
+        comparable: false,
+        absoluteCapacityEstablished: false,
+      });
+      expect(fixture.process.exitCode).toBe(2);
+    },
+  );
+
+  it.each([
+    ['VALID_FIXTURE', 'FAIL', 0],
+    ['INVALID_FIXTURE', 'NOT_RUN', 0],
+    ['VALID_FIXTURE', 'BLOCKED_BY_RUNNER', 0],
+    ['VALID_FIXTURE', 'PASS', 1],
+  ])('retains selected-only failure receipts %s/%s/%s', async (calibration, level, errors) => {
+    const fixture = await officialControllerFixture({ ASA_SCALE_EXECUTION_MODE: 'selected-only' });
+    const result = officialVariantResult(String(level));
+    result.summary.calibration.status = String(calibration);
+    result.summary.observationErrors = Number(errors);
+    result.summary.levels[0]!.http.failed = 43;
+    fixture.runVariant.mockResolvedValueOnce(result);
+    await fixture.run();
+    expect(fixture.runVariant.mock.calls.map((args) => args[1])).toEqual(['after']);
+    expect(fixture.written.get('comparison.json')).toMatchObject({
+      executionMode: 'selected-only',
+      baseline: { status: 'NOT_RUN', reason: 'explicit_selected_only_mode' },
+      after: result.summary,
+      comparable: false,
+      absoluteCapacityEstablished: false,
+    });
+    expect(fixture.process.exitCode).toBe(2);
+  });
+
+  it.each([
+    ['pair', 'baseline', undefined, 'build'],
+    ['pair', 'after', 'sha256:' + 'c'.repeat(64), 'reuse'],
+    ['selected-only', 'after', undefined, 'build'],
+  ])(
+    'runs the actual measurement build block only for %s/%s',
+    async (mode, variant, previous, policy) => {
+      const fixture = await officialRunnerBuildFixture(mode!, variant!, previous);
+      expect(fixture.context.runnerPolicy).toBe(policy);
+      expect(await fixture.run()).toBe(policy === 'build');
+      if (policy === 'build') {
+        expect(fixture.monitored).toHaveBeenCalledTimes(1);
+        const args = fixture.monitored.mock.calls[0]![1] as string[];
+        expect(args.at(-1)).toBe('test-runner');
+        expect(args.filter((arg) => ['api', 'web', 'scratch'].includes(arg))).toEqual([]);
+        expect(fixture.monitored.mock.calls[0]![2]).toEqual({ timeoutMs: 30 * 60000 });
+        expect(fixture.checked).toHaveBeenCalledTimes(2);
+      } else {
+        expect(fixture.monitored).not.toHaveBeenCalled();
+        expect(fixture.checked).not.toHaveBeenCalled();
+        expect(fixture.context.writeFileSync).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it.each([
+    ['pair', 'after', undefined],
+    ['pair', 'after', null],
+    ['pair', 'after', ''],
+    ['pair', 'after', 'asa-lab-test:latest'],
+    ['pair', 'baseline', 'sha256:' + 'c'.repeat(64)],
+    ['selected-only', 'after', 'sha256:' + 'c'.repeat(64)],
+    ['selected-only', 'baseline', undefined],
+    ['pair', 'production', undefined],
+    ['unknown', 'after', undefined],
+  ])(
+    'rejects an unsafe runner mode/variant/previous identity %s/%s/%s before variant IO',
+    async (mode, variant, previous) => {
+      expect(() => officialScaleRunnerPolicy(mode, variant, previous)).toThrow();
+      const run = await officialDriverFunction('runVariant', {
+        officialScaleExecutionMode,
+        officialScaleRunnerPolicy,
+      });
+      await expect(
+        run(
+          officialEnvironment({ ASA_SCALE_EXECUTION_MODE: mode! }),
+          variant,
+          officialRecord(OFFICIAL_SCALE_AFTER),
+          officialProof(),
+          previous,
+        ),
+      ).rejects.toThrow(/measurement|runner mode|execution mode/);
+    },
+  );
+
   it('pins the byte-identical original UI scenario and all 420 operations/SLO settings', async () => {
     expect(scaleHash(await readFile('e2e/classroom-scale.spec.ts', 'utf8'))).toBe(
       OFFICIAL_SCALE_SCENARIO.e2eSha256,
@@ -2666,9 +3034,12 @@ describe('official full N30 adapter boundary and provenance', () => {
     { DOCKER_CONTEXT: 'production' },
     { GITHUB_RUN_ATTEMPT: '0' },
   ])('rejects unauthorized native context %j before any Docker operation', (override) => {
-    expect(() => assertOfficialScaleDispatch(officialEnvironment(override))).toThrow(
-      /canonical main dispatch/,
-    );
+    for (const mode of ['pair', 'selected-only'])
+      expect(() =>
+        assertOfficialScaleDispatch(
+          officialEnvironment({ ...override, ASA_SCALE_EXECUTION_MODE: mode }),
+        ),
+      ).toThrow(/canonical main dispatch/);
   });
 
   it('keeps real GitHub/harness SHA separate from the old browser release expectation', () => {
@@ -2783,12 +3154,41 @@ describe('official full N30 adapter boundary and provenance', () => {
         },
       },
     };
-    expect(assertOfficialScaleRunner(runner, reference, officialHarnessSha)).toBe(image.Id);
+    const baselineContext = { executionMode: 'pair', variant: 'baseline' };
+    expect(assertOfficialScaleRunner(runner, reference, officialHarnessSha, baselineContext)).toBe(
+      image.Id,
+    );
+    expect(
+      assertOfficialScaleRunner(runner, reference, officialHarnessSha, {
+        executionMode: 'pair',
+        variant: 'after',
+        previousId: image.Id,
+      }),
+    ).toBe(image.Id);
+    expect(
+      assertOfficialScaleRunner(runner, reference, officialHarnessSha, {
+        executionMode: 'selected-only',
+        variant: 'after',
+      }),
+    ).toBe(image.Id);
     expect(() =>
-      assertOfficialScaleRunner(runner, reference, officialHarnessSha, 'sha256:' + 'e'.repeat(64)),
+      assertOfficialScaleRunner(runner, reference, officialHarnessSha, {
+        executionMode: 'pair',
+        variant: 'after',
+      }),
+    ).toThrow(/previous measurement image/);
+    expect(() =>
+      assertOfficialScaleRunner(runner, reference, officialHarnessSha, undefined),
+    ).toThrow(/runner mode/);
+    expect(() =>
+      assertOfficialScaleRunner(runner, reference, officialHarnessSha, {
+        executionMode: 'pair',
+        variant: 'after',
+        previousId: 'sha256:' + 'e'.repeat(64),
+      }),
     ).toThrow();
     expect(() =>
-      assertOfficialScaleRunner(runner, reference, OFFICIAL_SCALE_AFTER.revision),
+      assertOfficialScaleRunner(runner, reference, OFFICIAL_SCALE_AFTER.revision, baselineContext),
     ).toThrow();
   });
 
@@ -2911,6 +3311,13 @@ describe('official full N30 adapter boundary and provenance', () => {
     expect(Object.keys(workflow.on).sort()).toEqual(['pull_request', 'push', 'workflow_dispatch']);
     expect(workflow.on.pull_request.paths).toHaveLength(7);
     expect(workflow.on.push.paths).toEqual(workflow.on.pull_request.paths);
+    expect(workflow.on.workflow_dispatch.inputs.execution_mode).toMatchObject({
+      type: 'choice',
+      required: true,
+      default: 'pair',
+      options: ['pair', 'selected-only'],
+    });
+    expect(workflow.jobs.native.env.ASA_SCALE_EXECUTION_MODE).toBe('${{ inputs.execution_mode }}');
     expect(workflow.jobs.native['runs-on']).toBe('ubuntu-latest');
     expect(workflow.jobs.native.if).toBe(
       "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'spikeal8-maker/asa-lab'",
@@ -2932,7 +3339,7 @@ describe('official full N30 adapter boundary and provenance', () => {
     );
     expect(controller).not.toMatch(/(?:env\.)?GITHUB_SHA\s*[:=]/);
     expect(controller).toContain("await compose(['down'])");
-    expect(controller).toContain("variant === 'baseline'");
+    expect(controller).toContain("if (runnerPolicy === 'build')");
   });
 
   it('strictly binds migration/API and init/MinIO and isolates reports, volumes and namespaces', () => {
