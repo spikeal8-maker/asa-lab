@@ -51,7 +51,9 @@ async function signInStudentSeat(
   });
   const navigation = page.getByRole('complementary', { name: 'Основная навигация' });
   await expect(navigation.getByText(pupil.name, { exact: true })).toBeVisible();
-  await expect(navigation.getByText(classroom.title, { exact: true })).toBeVisible();
+  await expect(navigation.locator('.portal-sidebar-profile-copy small')).toHaveText(
+    classroom.title,
+  );
 }
 async function setGrade(page: Page, name: string, value: string, reason?: string) {
   await page
