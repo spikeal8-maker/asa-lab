@@ -1,0 +1,112 @@
+name: ASA Official Image Full N30
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Official N30 98 to {0}', inputs.after_revision) || 'Official N30 contracts only' }}
+
+'on':
+  pull_request:
+    paths:
+      - 'tools/capacity/classroom-scale.mjs'
+      - 'tools/capacity/classroom-scale-contracts.mjs'
+      - 'tools/capacity/classroom-scale-release.py'
+      - 'tests/capacity/classroom-scale.spec.ts'
+      - 'e2e/classroom-scale.spec.ts'
+      - '.github/compose.classroom-scale.yml'
+      - '.github/workflows/classroom-official-n30.yml'
+  push:
+    branches: ['main']
+    paths:
+      - 'tools/capacity/classroom-scale.mjs'
+      - 'tools/capacity/classroom-scale-contracts.mjs'
+      - 'tools/capacity/classroom-scale-release.py'
+      - 'tests/capacity/classroom-scale.spec.ts'
+      - 'e2e/classroom-scale.spec.ts'
+      - '.github/compose.classroom-scale.yml'
+      - '.github/workflows/classroom-official-n30.yml'
+  workflow_dispatch:
+    inputs:
+      after_deployment_digest:
+        description: 'Exact official deployment digest after the fixed schema304 release98 baseline'
+        required: true
+        type: string
+        default: 'sha256:6cfed43761aff188c8d73b553fcbc48b3da9e2a5c78c33d0e6d1af16df26940a'
+      after_revision:
+        description: 'Full release SHA contained in that official deployment manifest'
+        required: true
+        type: string
+        default: '8358997da3919f431e1f41456f7eabcbef685e0b'
+      after_schema:
+        description: 'Exact schema declared by the after manifest; migrated only in its fresh owned test database'
+        required: true
+        type: string
+        default: '304'
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+concurrency:
+  group: official-n30-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  NX_SKIP_NX_CACHE: 'true'
+  NX_DAEMON: 'false'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  contracts:
+    name: full N30 contracts without native workload
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: corepack pnpm install --frozen-lockfile
+      - name: Same focused command locally and in CI; no Docker or load
+        run: node tools/capacity/classroom-scale.mjs check
+
+  native:
+    name: explicit official image N30 pair
+    needs: contracts
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'spikeal8-maker/asa-lab'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ASA_SCALE_HARNESS_SHA: ${{ github.sha }}
+      ASA_SCALE_AFTER_DEPLOYMENT_DIGEST: ${{ inputs.after_deployment_digest }}
+      ASA_SCALE_AFTER_REVISION: ${{ inputs.after_revision }}
+      ASA_SCALE_AFTER_SCHEMA: ${{ inputs.after_schema }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify harness General and both official releases, then calibration2 and full N30
+        run: node tools/capacity/classroom-scale.mjs run
+      - name: Preserve synthetic measurements and failed denominators
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-full-n30-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/classroom-official-n30/
+          if-no-files-found: warn
+          retention-days: 14
