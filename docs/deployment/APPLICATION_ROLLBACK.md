@@ -464,6 +464,35 @@ if ($LASTEXITCODE -ne 0) { throw 'Windows Docker return qualification failed; pr
 Get-Content (Join-Path $evidenceRoot 'qualification.json')
 ```
 
+Если Windows Docker Desktop отказывает с `all predefined address pools have
+been fully subnetted`, новый fixture может явно передать
+`--install-network-cidrs`. Значение содержит ровно три CIDR через запятую в
+порядке **database, application, scratch-runtime**. Без флага driver сохраняет
+прежний путь с автоматическим выбором Docker subnets.
+
+Driver вызывает штатный `provision_private_network_overlay` после успешного
+`assert_clean_install_destination` и до `first_environment`. Helper проверяет
+канонические private `10.x` IPv4 CIDR `/24`–`/28`, их взаимные пересечения,
+текущие Docker subnets и Windows routes непосредственно в этой операции.
+При отказе `.env` не создаётся и `compose up` не вызывается. Принятый overlay
+`.asa/docker-networks.yaml` входит в обычную identity `Installation`.
+
+Перед запуском заново проверь Docker networks и маршруты Windows, WSL и VPN.
+Тройка ниже — наблюдавшийся свободный кандидат D2-R2 на 2026-11-07, а не
+резервирование или универсальный default; повторная проверка helper обязательна.
+Используй новый **отсутствующий абсолютный** каталог, сохрани прежний failed
+fixture и передай `--keep-fixture`. Изменение Docker daemon/address pools,
+Windows/VPN routes или удаление существующих сетей для этого не требуется.
+
+```powershell
+$fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ('asa-p0-return-' + [guid]::NewGuid().ToString('N'))
+$evidenceRoot = Join-Path ([IO.Path]::GetTempPath()) ('asa-p0-return-evidence-' + [guid]::NewGuid().ToString('N'))
+$fixtureCidrs = '10.252.7.0/27,10.252.7.32/27,10.252.7.64/27'
+py -3.11 tools/deployment/ci_application_rollback.py --work-directory $fixtureRoot --output $evidenceRoot --selected-deployment-digest sha256:87acd65905c3cb64c1052ea046926932b1a5e9f42dc52d8b36c05db9f449da68 --install-network-cidrs $fixtureCidrs --keep-fixture
+if ($LASTEXITCODE -ne 0) { throw 'Windows Docker return qualification failed; retain both fixtures for inspection' }
+Get-Content (Join-Path $evidenceRoot 'qualification.json')
+```
+
 Linux native job вызывается только вручную на принятом main после successful
 General CI. PR/push jobs проверяют unit contracts на Linux и Windows, но не
 объявляют Docker proof. Windows hosted unit runner не заменяет Windows Docker

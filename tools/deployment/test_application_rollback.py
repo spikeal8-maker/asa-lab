@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import asa_manager as manager
 from deployment import application_rollback as ar
 from deployment import ci_application_rollback as native_driver
+from deployment import fresh_install
 from deployment import system
 from deployment.contracts import Blocked, inventory_files
 from deployment.fresh_install import fresh_options
@@ -1248,6 +1249,135 @@ class NativeBoundaryTests(unittest.TestCase):
             self.assertEqual(manager.main(["rollback"]), 2)
             self.assertEqual(manager.main(["backup", "--require-application-rollback"]), 2)
             self.assertEqual(manager.main(["update", "--scheduled", "--require-application-rollback"]), 2)
+
+
+class NativeFixtureNetworkTests(unittest.TestCase):
+    CIDRS = "10.252.7.0/27,10.252.7.32/27,10.252.7.64/27"
+
+    def setUp(self):
+        temporary = self.enterContext(tempfile.TemporaryDirectory())
+        self.root, self.output = Path(temporary) / "fixture", Path(temporary) / "evidence"
+        self.arguments = SimpleNamespace(work_directory=self.root, output=self.output,
+                                         selected_deployment_digest=DIGEST, keep_fixture=True,
+                                         install_network_cidrs=None)
+        self.existing_env, self.occupied_subnet = None, None
+        self.routes = "192.168.1.0/24;172.19.176.0/20"
+        self.enterContext(patch.object(native_driver, "run", side_effect=self.git_command))
+        self.enterContext(patch.object(fresh_install, "run", side_effect=self.inspect_only))
+        self.enterContext(patch.object(fresh_install, "check_reserved_port"))
+        self.enterContext(patch.object(native_driver, "protect_new_fixture_root"))
+        self.enterContext(patch.object(ar, "_clean"))
+        self.enterContext(patch.object(ar, "validate_pair"))
+        previous = release(ar.PREVIOUS, ar.PREVIOUS_IMAGES)
+        self.enterContext(patch.object(native_driver, "previous_manifest", return_value=(previous, DIGEST)))
+        self.enterContext(patch.object(native_driver, "discover_release",
+                                      return_value=release(ar.PRODUCT, ar.PRODUCT_IMAGES)))
+        for name in ("assert_general_ci", "assert_ci", "fetch_images", "prepare_collector",
+                     "apply_release_environment", "validate_resolved_images"):
+            self.enterContext(patch.object(native_driver, name))
+        self.enterContext(patch.object(manager, "save_settings"))
+        self.preflight = self.enterContext(patch.object(native_driver, "assert_clean_install_destination",
+                                                        wraps=fresh_install.assert_clean_install_destination))
+        self.network = self.enterContext(patch.object(native_driver, "provision_private_network_overlay",
+                                                      wraps=fresh_install.provision_private_network_overlay))
+        self.first_environment = self.enterContext(patch.object(manager, "first_environment",
+                                                                wraps=manager.first_environment))
+        self.compose = self.enterContext(patch.object(native_driver.Installation, "compose", side_effect=Crash))
+        self.order = Mock()
+        for name in ("preflight", "network", "first_environment", "compose"):
+            self.order.attach_mock(getattr(self, name), name)
+
+    def git_command(self, command, **kwargs):
+        if command[:2] == ["git", "clone"]:
+            self.root.mkdir()
+            (self.root / ".git").mkdir()
+            if self.existing_env is not None:
+                (self.root / ".env").write_bytes(self.existing_env)
+            return ""
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return "c" * 40
+        if command[:2] in (["git", "merge-base"], ["git", "remote"], ["git", "fetch"], ["git", "switch"]):
+            return ""
+        raise AssertionError("Unexpected qualification transport " + str(command))
+
+    def inspect_only(self, command, **kwargs):
+        if command == ["docker", "network", "ls", "-q"]:
+            return "existing-network" if self.occupied_subnet else ""
+        if command == ["docker", "network", "inspect", "existing-network"]:
+            return json.dumps([{"IPAM": {"Config": [{"Subnet": self.occupied_subnet}]}}])
+        if command[:4] == ["docker", "ps", "-aq", "--filter"] or command[:4] in (
+                ["docker", "volume", "ls", "-q"], ["docker", "network", "ls", "-q"]):
+            return ""
+        if command[:3] == ["powershell", "-NoProfile", "-Command"]:
+            return self.routes
+        raise AssertionError("Unexpected fresh-install transport " + str(command))
+
+    def assert_refused_before_private_environment(self, code):
+        with self.assertRaises(Blocked) as denied:
+            native_driver.qualify(self.arguments)
+        self.assertEqual(denied.exception.code, code)
+        self.first_environment.assert_not_called()
+        self.compose.assert_not_called()
+        self.assertFalse((self.root / ".asa" / "docker-networks.yaml").exists())
+        report = json.loads((self.output / "qualification.json").read_text())
+        self.assertEqual(report["failureCode"], code)
+        self.assertEqual(report["readbacks"], [])
+
+    def test_cli_preserves_opt_in_literal_and_default(self):
+        command = ["--work-directory", str(self.root), "--output", str(self.output),
+                   "--selected-deployment-digest", DIGEST, "--keep-fixture"]
+        for literal in (None, " " + self.CIDRS + " "):
+            with self.subTest(literal=literal), patch.object(native_driver, "qualify") as qualify:
+                extra = [] if literal is None else ["--install-network-cidrs", literal]
+                self.assertEqual(native_driver.main(command + extra), 0)
+                qualify.assert_called_once()
+                self.assertEqual(qualify.call_args.args[0].install_network_cidrs, literal)
+                self.assertEqual(qualify.call_args.args[0].work_directory, self.root)
+                self.assertTrue(qualify.call_args.args[0].keep_fixture)
+
+    def test_default_bootstrap_does_not_provision_private_networks(self):
+        with self.assertRaises(Crash):
+            native_driver.qualify(self.arguments)
+        self.network.assert_not_called()
+        self.assertEqual([call[0] for call in self.order.mock_calls], ["preflight", "first_environment", "compose"])
+        self.compose.assert_called_once_with("up", "-d", "--no-build")
+        self.assertTrue((self.root / ".env").is_file())
+        self.assertFalse((self.root / ".asa" / "docker-networks.yaml").exists())
+
+    def test_opt_in_uses_canonical_overlay_between_preflight_and_first_environment(self):
+        self.arguments.install_network_cidrs = self.CIDRS
+        with self.assertRaises(Crash):
+            native_driver.qualify(self.arguments)
+        self.network.assert_called_once_with(self.root, self.CIDRS)
+        self.assertEqual([call[0] for call in self.order.mock_calls],
+                         ["preflight", "network", "first_environment", "compose"])
+        self.assertTrue((self.root / ".env").is_file())
+        self.assertIn(".asa/docker-networks.yaml", native_driver.Installation(self.root, "dev").files)
+
+    def test_existing_configuration_refuses_network_provisioning(self):
+        self.arguments.install_network_cidrs = self.CIDRS
+        self.existing_env = b"SYNTHETIC=preserve-existing-private-configuration\n"
+        self.assert_refused_before_private_environment("FRESH_ENV")
+        self.network.assert_not_called()
+        self.assertEqual((self.root / ".env").read_bytes(), self.existing_env)
+
+    def test_invalid_cidr_refuses_first_environment_and_compose(self):
+        self.arguments.install_network_cidrs = self.CIDRS.replace("10.252.7.0/27", "10.252.7.1/27")
+        self.assert_refused_before_private_environment("FRESH_NETWORK")
+        self.assertFalse((self.root / ".env").exists())
+
+    def test_docker_overlap_refuses_first_environment_and_compose(self):
+        self.arguments.install_network_cidrs = self.CIDRS
+        self.occupied_subnet = "10.252.7.0/24"
+        self.assert_refused_before_private_environment("FRESH_NETWORK_COLLISION")
+        self.assertFalse((self.root / ".env").exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows routes only")
+    def test_windows_route_overlap_refuses_first_environment_and_compose(self):
+        self.arguments.install_network_cidrs = self.CIDRS
+        self.routes = "10.252.7.0/24"
+        self.assert_refused_before_private_environment("FRESH_NETWORK_ROUTE")
+        self.assertFalse((self.root / ".env").exists())
 
 
 class NativeFixtureProjectTests(unittest.TestCase):

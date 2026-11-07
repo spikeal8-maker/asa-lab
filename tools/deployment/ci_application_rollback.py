@@ -26,7 +26,8 @@ import asa_manager as manager
 from deployment import application_rollback as ar
 from deployment.collector import prepare as prepare_collector
 from deployment.contracts import Blocked, require
-from deployment.fresh_install import fresh_options, assert_clean_install_destination
+from deployment.fresh_install import (fresh_options, assert_clean_install_destination,
+                                      provision_private_network_overlay)
 from deployment.paths import plain_paths
 from deployment.releases import (apply_release_environment, assert_ci, assert_general_ci,
                                  discover_release, fetch_images, validate_deployment_digest,
@@ -326,6 +327,8 @@ def qualify(arguments):
         web, blocks = ports()
         spec = fresh_options(project, web, blocks)
         assert_clean_install_destination(root, spec)
+        if arguments.install_network_cidrs:
+            provision_private_network_overlay(root, arguments.install_network_cidrs)
         manager.first_environment(root, "dev", project=project, web_port=web, blocks_port=blocks)
         install = Installation(root, "dev")
         prepare_collector(install)
@@ -422,6 +425,7 @@ def main(argv=None):
     parser.add_argument("--path-proof", action="store_true", help="Native file/argument proof only; no Docker, Git or network")
     parser.add_argument("--work-directory", type=Path, help="Absolute absent disposable installation directory")
     parser.add_argument("--output", type=Path, help="Absolute evidence directory outside both checkouts")
+    parser.add_argument("--install-network-cidrs", help="Opt-in private Docker-only database, application, scratch network CIDRs")
     parser.add_argument("--selected-deployment-digest", default=PRODUCT_DEPLOYMENT)
     parser.add_argument("--keep-fixture", action="store_true", help="Retain this newly allocated synthetic stack for operator inspection")
     arguments = parser.parse_args(argv)
