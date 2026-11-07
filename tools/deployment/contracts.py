@@ -4,6 +4,7 @@ import datetime as dt
 import hashlib
 import ipaddress
 import json
+import ntpath
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -259,9 +260,29 @@ def safe_member(root, relative):
     return target
 
 
+def _extended_windows_path(value):
+    """Use an absolute Win32 extended path without changing host policy."""
+    value = ntpath.normpath(value)
+    if value.startswith("\\\\?\\"):
+        return value
+    if value.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + value[2:]
+    return "\\\\?\\" + value
+
+
+def backup_path(value):
+    # A short backup root can contain MinIO descendants beyond MAX_PATH.
+    # Add the prefix before resolve/traversal, including for a long root itself.
+    # All descendants retain it; manifest member names remain relative POSIX paths.
+    if os.name == "nt":
+        value = _extended_windows_path(os.path.abspath(value))
+    return Path(value).resolve()
+
+
 def inventory_files(root):
+    root = backup_path(root)
     result = {}
-    for path in sorted(Path(root).rglob("*")):
+    for path in sorted(root.rglob("*")):
         relative = path.relative_to(root).as_posix()
         require(not path.is_symlink(), "BACKUP_PATH", "Backup contains a symlink.")
         if path.is_file() and relative != "manifest.json":
@@ -270,7 +291,7 @@ def inventory_files(root):
 
 
 def verify_backup(root):
-    root = Path(root).resolve()
+    root = backup_path(root)
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     require(manifest.get("format") == "asa-backup-v1" and manifest.get("complete") is True,
             "BACKUP", "Backup is incomplete or has an unsupported format.")
