@@ -383,7 +383,8 @@ probes. Сам `rollback` использует штатный exclusive `operati
 ## Native-квалификация Linux и Windows
 
 `ci_application_rollback.py` принимает только **отсутствующий абсолютный** каталог
-fixture. Он создаёт уникальный project `asa-p0-return-*`, использует текущий
+fixture. Он создаёт уникальный project `asa-lab-p0-return-<12 hex>`, соответствующий
+контракту fresh install `asa-lab-*`, использует текущий
 проверенный Python manager, прежние официальные images и отдельные loopback
 ports. Fresh fixture bootstrap переиспользует существующие helpers
 `first_environment`, `save_settings` и канонический Compose. Только создание
@@ -404,7 +405,9 @@ ports. Fresh fixture bootstrap переиспользует существующ
 interruption означает failed proof. При observer failure или timeout он сначала
 останавливает только своё process tree, чтобы не оставить manager одновременно
 с cleanup. Docker cleanup касается только созданного этим прогоном synthetic
-project и проверяет owner nonce/root/project/env перед `down --volumes`.
+project и проверяет точный формат его имени, owner nonce/root/project/env перед
+`down --volumes`. Имена production и прежний несовместимый prefix `asa-p0-return-`
+не проходят проверку владения для cleanup.
 
 Windows file/argument proof без Docker:
 

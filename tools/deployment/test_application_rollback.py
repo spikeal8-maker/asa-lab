@@ -17,7 +17,9 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import asa_manager as manager
 from deployment import application_rollback as ar
+from deployment import ci_application_rollback as native_driver
 from deployment.contracts import Blocked, inventory_files
+from deployment.fresh_install import fresh_options
 from deployment.system import run as native_run
 
 DIGEST = "sha256:87acd65905c3cb64c1052ea046926932b1a5e9f42dc52d8b36c05db9f449da68"
@@ -44,7 +46,7 @@ class Fixture:
         self.state.mkdir(mode=0o700)
         self.previous, self.selected = release(ar.PREVIOUS, ar.PREVIOUS_IMAGES), release(ar.PRODUCT, ar.PRODUCT_IMAGES)
         self.head = ar.PREVIOUS
-        self.profile, self.project = "dev", "asa-p0-return-unit"
+        self.profile, self.project = "dev", "asa-lab-p0-return-unit"
         self.env = {"ASA_OBJECT_STORAGE_ENDPOINT": "http://minio:9000", "ASA_SEARCH_SECRET": "synthetic",
                     "ASA_UPDATE_ENTRY_ORIGIN": "http://127.0.0.1:4610"}
         self.settings = {"automaticUpdates": False, "instanceId": "synthetic-instance", "profile": "dev", "project": self.project}
@@ -780,6 +782,95 @@ class NativeBoundaryTests(unittest.TestCase):
             self.assertEqual(manager.main(["rollback"]), 2)
             self.assertEqual(manager.main(["backup", "--require-application-rollback"]), 2)
             self.assertEqual(manager.main(["update", "--scheduled", "--require-application-rollback"]), 2)
+
+
+class NativeFixtureProjectTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.project = native_driver.new_fixture_project()
+        self.nonce = "1" * 32
+        (self.root / ".env").write_bytes(b"SYNTHETIC=fixture-only\n")
+        self.env_hash = ar.file_digest(self.root / ".env")
+        self.current = SimpleNamespace(project=self.project, state=self.root / ".asa",
+                                       identity=Mock(), compose=Mock())
+        self.marker = {"nonce": self.nonce, "root": str(self.root), "project": self.project}
+        ar._write(self.current.state / "qualification-fixture.json", self.marker)
+        self.installation = self.enterContext(patch.object(native_driver, "Installation", return_value=self.current))
+        self.clean = self.enterContext(patch.object(ar, "_clean"))
+
+    def cleanup_fixture(self):
+        native_driver.cleanup_fixture(self.root, self.project, self.nonce, self.env_hash)
+
+    def assert_no_cleanup(self):
+        self.clean.assert_not_called()
+        self.current.identity.assert_not_called()
+        self.current.compose.assert_not_called()
+
+    def test_generated_project_is_accepted_by_real_fresh_install_contract(self):
+        spec = fresh_options(self.project, 18610, 18613)
+        self.assertEqual(spec["project"], self.project)
+        self.assertEqual(spec["origin"], "http://127.0.0.1:18610")
+        self.assertNotEqual(self.project, native_driver.new_fixture_project())
+        with self.assertRaises(Blocked) as failure:
+            fresh_options("asa-p0-return-800f041d4671", 18610, 18613)
+        self.assertEqual(failure.exception.code, "FRESH_PROJECT")
+
+    def test_cleanup_accepts_only_its_matching_synthetic_fixture(self):
+        self.cleanup_fixture()
+        self.installation.assert_called_once_with(self.root, "dev")
+        self.clean.assert_called_once_with(self.root)
+        self.current.identity.assert_called_once_with(existing=False)
+        self.current.compose.assert_called_once_with("down", "--volumes", "--remove-orphans")
+
+    def test_cleanup_rejects_production_legacy_and_malformed_projects(self):
+        for project in ("asa-lab-dev", "asa-p0-return-800f041d4671", "asa-lab-p0-return-",
+                        "asa-lab-p0-return-g00f041d4671", "asa-lab-p0-return-800f041d4671-extra"):
+            with self.subTest(project=project):
+                self.project = self.current.project = project
+                ar._write(self.current.state / "qualification-fixture.json", {**self.marker, "project": project})
+                with self.assertRaises(Blocked) as failure:
+                    self.cleanup_fixture()
+                self.assertEqual(failure.exception.code, "FIXTURE_CLEANUP")
+                self.assert_no_cleanup()
+
+    def test_cleanup_rejects_each_foreign_ownership_field(self):
+        for field, value in (("nonce", "2" * 32), ("root", str(self.root / "other")),
+                             ("project", native_driver.new_fixture_project())):
+            with self.subTest(field=field):
+                ar._write(self.current.state / "qualification-fixture.json", {**self.marker, field: value})
+                with self.assertRaises(Blocked) as failure:
+                    self.cleanup_fixture()
+                self.assertEqual(failure.exception.code, "FIXTURE_CLEANUP")
+                self.assert_no_cleanup()
+
+    def test_cleanup_rejects_runtime_project_drift(self):
+        self.current.project = "asa-lab-dev"
+        with self.assertRaises(Blocked) as failure:
+            self.cleanup_fixture()
+        self.assertEqual(failure.exception.code, "FIXTURE_CLEANUP")
+        self.assert_no_cleanup()
+
+    def test_cleanup_rejects_private_configuration_drift(self):
+        (self.root / ".env").write_bytes(b"SYNTHETIC=changed\n")
+        with self.assertRaises(Blocked) as failure:
+            self.cleanup_fixture()
+        self.assertEqual(failure.exception.code, "FIXTURE_CLEANUP")
+        self.assert_no_cleanup()
+
+    def test_cleanup_preserves_dirty_fixture_before_docker_inspection(self):
+        self.clean.side_effect = Blocked("ROLLBACK_DIRTY", "Fixture changed.", "Preserve it.")
+        with self.assertRaises(Blocked):
+            self.cleanup_fixture()
+        self.current.identity.assert_not_called()
+        self.current.compose.assert_not_called()
+
+    def test_cleanup_preserves_fixture_when_container_identity_is_unknown(self):
+        self.current.identity.side_effect = Blocked("IDENTITY_PROJECT", "Foreign container.", "Preserve it.")
+        with self.assertRaises(Blocked):
+            self.cleanup_fixture()
+        self.current.compose.assert_not_called()
 
 
 class GitDiffFramingTests(unittest.TestCase):
