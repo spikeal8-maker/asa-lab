@@ -1,5 +1,5 @@
 name: ASA Official Image Full N30
-run-name: ${{ github.event_name == 'workflow_dispatch' && format('Official N30 98 to {0}', inputs.after_revision) || 'Official N30 contracts only' }}
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Official N30 {0} {1}', inputs.execution_mode, inputs.after_revision) || 'Official N30 contracts only' }}
 
 'on':
   pull_request:
@@ -23,8 +23,16 @@ run-name: ${{ github.event_name == 'workflow_dispatch' && format('Official N30 9
       - '.github/workflows/classroom-official-n30.yml'
   workflow_dispatch:
     inputs:
+      execution_mode:
+        description: 'Compare both releases or independently measure 8358997d without a baseline comparison'
+        required: true
+        type: choice
+        default: pair
+        options:
+          - pair
+          - selected-only
       after_deployment_digest:
-        description: 'Exact official deployment digest after the fixed schema304 release98 baseline'
+        description: 'Exact official deployment digest of the selected after release'
         required: true
         type: string
         default: 'sha256:6cfed43761aff188c8d73b553fcbc48b3da9e2a5c78c33d0e6d1af16df26940a'
@@ -78,7 +86,7 @@ jobs:
         run: node tools/capacity/classroom-scale.mjs check
 
   native:
-    name: explicit official image N30 pair
+    name: explicit official image N30 ${{ inputs.execution_mode }}
     needs: contracts
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'spikeal8-maker/asa-lab'
     runs-on: ubuntu-latest
@@ -86,6 +94,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       ASA_SCALE_HARNESS_SHA: ${{ github.sha }}
+      ASA_SCALE_EXECUTION_MODE: ${{ inputs.execution_mode }}
       ASA_SCALE_AFTER_DEPLOYMENT_DIGEST: ${{ inputs.after_deployment_digest }}
       ASA_SCALE_AFTER_REVISION: ${{ inputs.after_revision }}
       ASA_SCALE_AFTER_SCHEMA: ${{ inputs.after_schema }}
@@ -100,7 +109,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Verify harness General and both official releases, then calibration2 and full N30
+      - name: Verify harness General and both official releases, then run the selected N30 mode
         run: node tools/capacity/classroom-scale.mjs run
       - name: Preserve synthetic measurements and failed denominators
         if: always()
