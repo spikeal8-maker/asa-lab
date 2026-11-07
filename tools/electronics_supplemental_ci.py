@@ -15,7 +15,7 @@ REPOSITORY = 'spikeal8-maker/asa-lab'
 WORKFLOW = '.github/workflows/electronics-supplemental-native.yml'
 RUNNER = 'tools/run-electronics-supplemental-native.mjs'
 ENVELOPE = 'tools/electronics-supplemental-envelope.mjs'
-WORKFLOW_SHA256 = '68dded04b6666f9b60eb58c3e1b414530ea2cac8bafee89f94e9523874ddfa4b'
+WORKFLOW_SHA256 = '28584c53142a1ec732c945fc5328d019b7daa940d97caf1c1c04313a709ca784'
 RUNNER_SHA256 = 'aef4c8ccab5e15f26c606677d59a1143ab6aadec2fec97e5aab92d6f4702529e'
 ENVELOPE_SHA256 = '33dd46dc4d75ecbc78918b4bca382c35882f322f2b24596e0226e0b1f1a17ba4'
 OUTPUT = 'reports/electronics-supplemental-native'
@@ -25,7 +25,17 @@ COMPATIBILITY = ['compose.yaml','compose.test.yaml','.github/compose.registry-ci
     'tools/web-symbols-public.pem','docs/product/electronics/evidence/ci-image-transport-545-receipt.json',
     'docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json',
     'docs/product/projects/evidence/ci-node-transport-429-receipt.json']
-MODE_REPORTS = {'reports/docker-backup-restore.json','reports/docker-health.json','reports/docker-persistence.json'}
+PHASES = frozenset({'authorize','prepare','models','images','postgres'})
+PUBLIC_CODES = frozenset({
+    'NONCANONICAL_REMOTE','WRONG_WORKFLOW_CONTEXT','FULL_IMMUTABLE_SHA_REQUIRED',
+    'WORKFLOW_CHECKOUT_NOT_CLEAN_EXACT','CONTROLLER_EXECUTABLE_CHANGED','CANDIDATE_NOT_COMMIT',
+    'CANDIDATE_CHECKOUT_MISMATCH','STAGED_CANDIDATE_CHANGE','CANDIDATE_SOURCE_DIRTY',
+    'FOREIGN_UNTRACKED_CANDIDATE_FILE','INCOMPATIBLE_CANDIDATE_TRANSPORT','MISSING_ORIGINAL_NATIVE_FILE',
+    'INVALID_SCHEMA','INVALID_RUNNER_TEMP','INVALID_GITHUB_ENV','DOCKER_PROOF_LIMIT',
+    'POSTGRES_IMAGE_CHANGED','COMPOSE_CHANGED_BEYOND_POSTGRES_IMAGE','EXACT_THREE_BUILT_IMAGES_REQUIRED',
+    'BUILT_BASE_IDENTITY_CHANGED','BUILT_REVISION_CHANGED','SOURCE_RECEIPT_CHANGED',
+    'SOURCE_IMAGE_RECEIPT_CHANGED','OVERLAY_CHANGED','UNKNOWN_FIXED_PHASE','ONLY_FIXED_PHASE_SUPPORTED',
+})
 
 def need(value, code):
     if not value: raise ValueError(code)
@@ -34,7 +44,10 @@ def sha(data):return hashlib.sha256(data).hexdigest()
 def normalized(path):return path.read_bytes().replace(b'\r\n',b'\n')
 def git(root,*args):return subprocess.check_output(['git','-C',str(root),*args],stderr=subprocess.PIPE)
 def write(path,value):
-    with path.open('x',encoding='utf-8') as f:json.dump(value,f,indent=2);f.write('\n')
+    with path.open('x',encoding='utf-8') as f:
+        json.dump(value,f,indent=2);f.write('\n')
+        # Only fresh, closed source/image proofs: the distinct container UID must read them.
+        if os.name=='posix':os.fchmod(f.fileno(),0o644)
 def remote(root):
     need(git(root,'remote','get-url','origin').decode().strip() in
          ('https://github.com/'+REPOSITORY,'https://github.com/'+REPOSITORY+'.git'), 'NONCANONICAL_REMOTE')
@@ -62,9 +75,7 @@ def candidate_source(control,candidate,env=os.environ,prepared=False):
     need(git(candidate,'rev-parse','HEAD').decode().strip()==authority['candidateRevision'], 'CANDIDATE_CHECKOUT_MISMATCH')
     need(not git(candidate,'diff','--cached','--name-only').strip(),'STAGED_CANDIDATE_CHANGE')
     changed=git(candidate,'diff','--name-only','HEAD').decode().splitlines()
-    need(not changed or prepared and set(changed)<=MODE_REPORTS,'CANDIDATE_SOURCE_DIRTY')
-    for name in changed:
-        need(not (candidate/name).is_symlink() and (candidate/name).read_bytes()==git(candidate,'show','HEAD:'+name),'CANDIDATE_REPORT_CONTENT_CHANGED')
+    need(not changed,'CANDIDATE_SOURCE_DIRTY')
     untracked=git(candidate,'ls-files','--others','--exclude-standard').decode().splitlines()
     need(all(prepared and (p.startswith(OUTPUT+'/') or p.startswith('e2e/artifacts/')) for p in untracked),'FOREIGN_UNTRACKED_CANDIDATE_FILE')
     for path in COMPATIBILITY:
@@ -105,8 +116,13 @@ def docker(candidate,args):
     need(len(result.stdout)<=32*1024*1024,'DOCKER_PROOF_LIMIT')
     return json.loads(result.stdout)
 
-def validate_models(original,transported,reference):
-    need(original['services']['postgres']['image']=='postgres:17.7-bookworm'
+def model_arguments(overlay):
+    base=['compose','-f','compose.yaml','-f','compose.test.yaml','-f',approved.OVERLAY]
+    tail=['--profile','test','config','--format','json']
+    return [*base,*tail],[*base,'-f',str(overlay),*tail]
+
+def validate_models(original,transported,baseline_reference,reference):
+    need(original['services']['postgres']['image']==baseline_reference
          and transported['services']['postgres']['image']==reference,'POSTGRES_IMAGE_CHANGED')
     transported['services']['postgres']['image']=original['services']['postgres']['image']
     need(original==transported,'COMPOSE_CHANGED_BEYOND_POSTGRES_IMAGE')
@@ -130,9 +146,11 @@ def runtime_phase(mode,control=ROOT,env=os.environ):
     overlay=Path(env['RUNNER_TEMP'])/'asa-electronics-postgres.yaml'
     need(overlay.read_text()=='services:\n  postgres:\n    image: '+effective['images']['postgres']['reference']+'\n','OVERLAY_CHANGED')
     if mode=='models':
-        base=['compose','-f','compose.yaml','-f','compose.test.yaml']
-        validate_models(docker(candidate,[*base,'--profile','test','config','--format','json']),
-            docker(candidate,[*base,'-f','.github/compose.registry-ci.yaml','-f',str(overlay),'--profile','test','config','--format','json']),
+        baseline=json.loads(approved.RECEIPT.read_text())
+        approved.check_identities(baseline)
+        original_args,transported_args=model_arguments(overlay)
+        validate_models(docker(candidate,original_args),docker(candidate,transported_args),
+            baseline['images']['postgres']['reference'],
             effective['images']['postgres']['reference'])
     elif mode=='images':
         images=[approved.inspect_image('asa-lab-'+name+':'+source['candidateRevision']) for name in ['api','web','test']]
@@ -144,15 +162,27 @@ def runtime_phase(mode,control=ROOT,env=os.environ):
     else:raise ValueError('UNKNOWN_FIXED_PHASE')
 
 def main():
-    need(len(sys.argv)==2 and sys.argv[1] in ['authorize','prepare','models','images','postgres'],'ONLY_FIXED_PHASE_SUPPORTED')
+    need(len(sys.argv)==2 and sys.argv[1] in PHASES,'ONLY_FIXED_PHASE_SUPPORTED')
     mode=sys.argv[1]
     if mode=='authorize':authorize()
     elif mode=='prepare':prepare(ROOT,ROOT.parent/'candidate')
     else:runtime_phase(mode)
     print('Supplemental transport '+mode+' PASS; no full Electronics acceptance.')
 
+def blocked_message(mode,error):
+    # Never stringify exceptions: Docker/JSON/OSError details can contain private paths or bodies.
+    phase=mode if mode in PHASES else 'unknown'
+    code='INTERNAL_FAILURE'
+    if isinstance(error,ValueError) and len(error.args)==1 and type(error.args[0]) is str and error.args[0] in PUBLIC_CODES:
+        code=error.args[0]
+    elif isinstance(error,subprocess.CalledProcessError):code='COMMAND_FAILED'
+    elif isinstance(error,json.JSONDecodeError):code='PROOF_JSON_INVALID'
+    elif isinstance(error,KeyError):code='PROOF_STRUCTURE_INVALID'
+    elif isinstance(error,OSError):code='IO_FAILED'
+    return 'Supplemental transport BLOCKED phase='+phase+' code='+code+'; no candidate or evidence acceptance.'
+
 if __name__=='__main__':
     try:main()
-    except Exception:
-        print('Supplemental transport BLOCKED; no candidate or evidence acceptance.',file=sys.stderr)
+    except Exception as error:
+        print(blocked_message(sys.argv[1] if len(sys.argv)>1 else '',error),file=sys.stderr)
         raise SystemExit(1)
