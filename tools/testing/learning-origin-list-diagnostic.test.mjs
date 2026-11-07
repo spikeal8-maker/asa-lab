@@ -25,6 +25,8 @@ import {
   validateLinkedRead,
   validateStableMeasurements,
   validateLinkedTrace,
+  validateLinkedBodyPlan,
+  captureLinkedBodyPair,
 } from './learning-origin-list-diagnostic.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -156,21 +158,53 @@ test('reviewed SQL, runtime settings, role checks, locks and rollbacks are uncha
   );
 });
 
-test('linked diagnostic changes only the depth needed to retain the pinned ancestor', () => {
+test('linked body pair changes only the depth needed to retain the pinned ancestor', () => {
   const previous = execFileSync(
     'git',
-    ['show', '1fd0cc2c0ac3aead713cf51231419990ae8927cb:' + workflow],
+    ['show', 'cff52b75b055953240628c670ad5f514c97cf1d1:' + workflow],
     { cwd: root, encoding: 'utf8' },
   );
-  const fetch = 'git fetch --no-tags --depth=2 origin "$ASA_DIAGNOSTIC_SOURCE_SHA"';
+  const fetch = 'git fetch --no-tags --depth=3 origin "$ASA_DIAGNOSTIC_SOURCE_SHA"';
   assert.equal(previous.split(fetch).length, 2);
   assert.equal(
     fs.readFileSync(path.join(root, workflow), 'utf8'),
-    previous.replace(fetch, fetch.replace('--depth=2', '--depth=3')),
+    previous.replace(fetch, fetch.replace('--depth=3', '--depth=4')),
   );
 });
 
 const syntheticId = (n) => '10000000-0000-4000-8000-' + n.toString(16).padStart(12, '0');
+
+test('preserves the complete prior probe and linked path bytes except the new main call', () => {
+  const source = fs.readFileSync(
+    path.join(root, 'tools/testing/learning-origin-list-diagnostic.mjs'),
+    'utf8',
+  );
+  const start = source.indexOf('// Standalone SQL-body timing only:');
+  const end = source.indexOf('async function main() {', start);
+  const call = `    record.linkedBodyPair = await captureLinkedBodyPair({
+      client,
+      urls,
+      targets,
+      witness: record.linkedAccess,
+      database: record.database,
+      event,
+    });
+`;
+  assert.ok(start > source.indexOf('export function selectLinkedTarget(') && end > start);
+  assert.equal(source.split(call).length, 2);
+  const previous = source.slice(0, start) + source.slice(end).replace(call, '');
+  assert.equal(
+    createHash('sha256').update(previous).digest('hex'),
+    'ae63523f23989d12e7a3d5963e00cc3edac85f0eec8682829bd850f8ee01ed1b',
+  );
+  assert.equal(
+    createHash('sha256')
+      .update(source.slice(source.indexOf('export function selectLinkedTarget('), start))
+      .digest('hex'),
+    'de67e3f4adc8f0e6f87dc8b67843bbf56c6cc48caca5a150f8dab54dfa534ac4',
+  );
+});
+
 function linkedFixture() {
   const target = {
     seat_id: syntheticId(1),
@@ -711,4 +745,325 @@ test('artifact sanitizer removes only synthetic UUID values, preserving plan met
   assert.equal(result.Plan['Actual Loops'], 121);
   assert.equal(result.Plan['Total Cost'], 5000);
   assert.equal(result.Plan.Filter, "(id = 'synthetic-uuid'::uuid)");
+});
+
+function bodyPlan(mode) {
+  return [
+    {
+      'QUERY PLAN': [
+        {
+          'Planning Time': 23.188,
+          'Execution Time': 0.251,
+          Plan: {
+            'Node Type': 'Result',
+            'Actual Rows': 1,
+            'Actual Loops': 1,
+            Plans: [
+              {
+                'Node Type': 'LockRows',
+                'Actual Rows': mode === 'seat_viewer' ? 1 : 0,
+                'Actual Loops': 1,
+                'Actual Startup Time': 0.11,
+                'Actual Total Time': 0.11,
+              },
+            ],
+          },
+        },
+      ],
+    },
+  ];
+}
+
+test('owner LockRows executes once with zero rows; Seat executes once with one row', () => {
+  assert.deepEqual(validateLinkedBodyPlan(bodyPlan('account_owner'), 'account_owner').lockRows, [
+    { rows: 0, loops: 1, totalMs: 0.11 },
+  ]);
+  assert.deepEqual(validateLinkedBodyPlan(bodyPlan('seat_viewer'), 'seat_viewer').lockRows, [
+    { rows: 1, loops: 1, totalMs: 0.11 },
+  ]);
+  assert.throws(() => validateLinkedBodyPlan(bodyPlan('account_owner'), 'seat_viewer'));
+  assert.throws(() => validateLinkedBodyPlan(bodyPlan('seat_viewer'), 'account_owner'));
+});
+
+for (const [label, mutate] of [
+  [
+    'estimate only',
+    (p) => {
+      delete p['Planning Time'];
+    },
+  ],
+  [
+    'missing execution time',
+    (p) => {
+      delete p['Execution Time'];
+    },
+  ],
+  [
+    'invalid timing',
+    (p) => {
+      p['Planning Time'] = -1;
+    },
+  ],
+  [
+    'wrong result count',
+    (p) => {
+      p.Plan['Actual Rows'] = 0;
+    },
+  ],
+  [
+    'missing LockRows',
+    (p) => {
+      p.Plan.Plans = [];
+    },
+  ],
+  [
+    'never-executed LockRows',
+    (p) => {
+      p.Plan.Plans[0]['Actual Loops'] = 0;
+    },
+  ],
+  [
+    'repeated LockRows',
+    (p) => {
+      p.Plan.Plans[0]['Actual Loops'] = 2;
+    },
+  ],
+  [
+    'duplicate LockRows',
+    (p) => {
+      p.Plan.Plans.push({ ...p.Plan.Plans[0] });
+    },
+  ],
+]) {
+  test('refuses ambiguous standalone body evidence: ' + label, () => {
+    for (const mode of ['account_owner', 'seat_viewer']) {
+      const rows = bodyPlan(mode);
+      mutate(rows[0]['QUERY PLAN'][0]);
+      assert.throws(() => validateLinkedBodyPlan(rows, mode));
+    }
+  });
+}
+
+function bodyPairFixture(options = {}) {
+  const { target, other } = linkedFixture();
+  const calls = [],
+    closed = [],
+    events = [];
+  const urls = validateEnvironment(valid());
+  const names = definitions.find(([name]) => name === 'learning_linked_project_access')[2];
+  const database = {
+    statement_timeout: '15s',
+    jit: 'on',
+    jit_above_cost: '100000',
+    join_collapse_limit: '8',
+    geqo_threshold: '12',
+  };
+  let connections = 0;
+  const args = {
+    urls,
+    targets: [other, target],
+    database,
+    witness: {
+      stage: 'linked_access_witness',
+      status: 'confirmed',
+      label: 'library_1_account_as_seat',
+      linkedBodySha256: createHash('sha256').update(linkedBody).digest('hex'),
+      ownerModeStable: true,
+      seatModeStable: true,
+      linkedCalls: 2,
+      lineageSha256: 'a'.repeat(64),
+    },
+    event: (value) => events.push(value),
+    client: async (url) => {
+      assert.equal(url, urls.admin);
+      const index = connections++;
+      assert.ok(index < 2);
+      return {
+        query: async (sql, values) => {
+          calls.push({ index, sql, values });
+          if (sql === 'BEGIN; SET LOCAL search_path=pg_catalog,pg_temp') {
+            if (options.beginFailure === index)
+              throw Object.assign(new Error(), { code: 'BEGIN_ERROR' });
+            return [];
+          }
+          if (sql === 'ROLLBACK') {
+            if (options.rollbackFailure === index)
+              throw Object.assign(new Error(), { code: 'ROLLBACK_ERROR' });
+            return { command: options.wrongRollback === index ? 'COMMIT' : 'ROLLBACK' };
+          }
+          if (sql.startsWith('SELECT current_database() AS name,')) {
+            assert.deepEqual(values, ['public.learning_linked_project_access(uuid,uuid)']);
+            const identity = {
+              ...database,
+              name: 'asa_learning_e1_test',
+              role: 'postgres',
+              session_role: 'postgres',
+              owner: 'postgres',
+              search_path: 'pg_catalog, pg_temp',
+              prosrc: linkedBody,
+              prosecdef: true,
+              provolatile: 'v',
+              lanname: 'sql',
+              proargnames: names,
+              proconfig: ['search_path=pg_catalog, pg_temp'],
+            };
+            options.identity?.(identity, index);
+            return { rows: [identity] };
+          }
+          assert.equal(
+            sql,
+            'EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS, FORMAT JSON) ' +
+              bindBody(linkedBody, names),
+          );
+          assert.deepEqual(values, [
+            index === 0 ? target.account_principal_id : target.seat_principal_id,
+            target.projects[0],
+          ]);
+          if (options.explainFailure === index) throw Object.assign(new Error(), { code: '57014' });
+          const rows = bodyPlan(index === 0 ? 'account_owner' : 'seat_viewer');
+          options.plan?.(rows[0]['QUERY PLAN'][0], index);
+          return { rows };
+        },
+        end: async () => {
+          closed.push(index);
+          if (options.closeFailure === index)
+            throw Object.assign(new Error(), { code: 'CLOSE_ERROR' });
+        },
+      };
+    },
+  };
+  return { args, calls, closed, events };
+}
+
+test('captures only two unchanged body plans on one project, after owner-context checks and rollback', async () => {
+  const fixture = bodyPairFixture();
+  const result = await captureLinkedBodyPair(fixture.args);
+  assert.equal(result.status, 'confirmed');
+  assert.equal(result.timingKind, 'standalone_sql_body');
+  assert.equal(result.nPerMode, 1);
+  assert.match(result.interpretation, /not application, nested-function or HTTP latency/);
+  assert.deepEqual(fixture.closed, [0, 1]);
+  assert.equal(fixture.calls.length, 8);
+  for (const index of [0, 1]) {
+    const calls = fixture.calls.filter((call) => call.index === index);
+    assert.equal(calls[0].sql, 'BEGIN; SET LOCAL search_path=pg_catalog,pg_temp');
+    assert.ok(calls[1].sql.startsWith('SELECT current_database() AS name,'));
+    assert.ok(calls[2].sql.startsWith('EXPLAIN (ANALYZE,'));
+    assert.match(calls[2].sql, /FOR SHARE OF learner, seat, account, seat_link, account_link/);
+    assert.equal(calls[3].sql, 'ROLLBACK');
+  }
+  const measurements = fixture.events.filter((event) => event.stage === 'linked_body_measurement');
+  assert.equal(measurements.length, 2);
+  assert.ok(
+    measurements.every(
+      (event) => event.status === 'completed' && event.rollback === 'confirmed' && event.n === 1,
+    ),
+  );
+  assert.equal(measurements[0].projectSha256, measurements[1].projectSha256);
+  assert.notEqual(measurements[0].actorPrincipalSha256, measurements[1].actorPrincipalSha256);
+  assert.equal(measurements[0].sourceSha256, measurements[1].sourceSha256);
+  assert.equal(measurements[0].boundBodySha256, measurements[1].boundBodySha256);
+});
+
+for (const [key, value] of [
+  ['status', 'failed'],
+  ['label', 'library_0_account_as_seat'],
+  ['linkedBodySha256', 'f'.repeat(64)],
+  ['linkedCalls', 0],
+  ['seatModeStable', false],
+]) {
+  test('requires the preceding same-target linked witness: ' + key, async () => {
+    const fixture = bodyPairFixture();
+    fixture.args.witness[key] = value;
+    await assert.rejects(captureLinkedBodyPair(fixture.args));
+    assert.equal(fixture.calls.length, 0);
+    assert.equal(fixture.events.at(-1).status, 'failed');
+  });
+}
+
+for (const [key, value] of [
+  ['name', 'production'],
+  ['role', 'asalab_app'],
+  ['session_role', 'asalab_app'],
+  ['owner', 'another_owner'],
+  ['prosrc', 'SELECT true;'],
+  ['prosecdef', false],
+  ['provolatile', 's'],
+  ['lanname', 'plpgsql'],
+  ['proargnames', ['wrong', 'arguments']],
+  ['proconfig', ['search_path=public']],
+  ['search_path', 'pg_catalog,public,pg_temp'],
+  ['statement_timeout', '0'],
+  ['jit', 'off'],
+]) {
+  test('fails closed on standalone owner/body/settings drift: ' + key, async () => {
+    const fixture = bodyPairFixture({
+      identity: (identity) => {
+        identity[key] = value;
+      },
+    });
+    await assert.rejects(captureLinkedBodyPair(fixture.args));
+    assert.ok(fixture.calls.every((call) => !call.sql.startsWith('EXPLAIN')));
+    assert.equal(fixture.calls.at(-1).sql, 'ROLLBACK');
+    assert.deepEqual(fixture.closed, [0]);
+    assert.equal(fixture.events.at(-1).status, 'failed');
+  });
+}
+
+for (const [option, index] of [
+  ['beginFailure', 0],
+  ['explainFailure', 1],
+  ['rollbackFailure', 0],
+  ['rollbackFailure', 1],
+  ['wrongRollback', 1],
+  ['closeFailure', 1],
+]) {
+  test('never confirms a partial pair after ' + option + ' at connection ' + index, async () => {
+    const fixture = bodyPairFixture({ [option]: index });
+    await assert.rejects(captureLinkedBodyPair(fixture.args));
+    assert.equal(fixture.calls.filter((call) => call.sql === 'ROLLBACK').length, index + 1);
+    assert.equal(fixture.closed.length, index + 1);
+    assert.equal(fixture.events.at(-1).stage, 'linked_body_pair');
+    assert.equal(fixture.events.at(-1).status, 'failed');
+    assert.ok(
+      !fixture.events.some(
+        (event) => event.stage === 'linked_body_pair' && event.status === 'confirmed',
+      ),
+    );
+    const failed = fixture.events.find(
+      (event) => event.stage === 'linked_body_measurement' && event.status === 'failed',
+    );
+    assert.ok(failed);
+    if (option === 'rollbackFailure' || option === 'wrongRollback') {
+      assert.equal(failed.rollback, 'failed');
+      assert.ok(failed.errors.rollback);
+      assert.ok(failed.plan, 'retains the obtained plan even when rollback fails');
+    }
+  });
+}
+
+test('preserves both query and rollback errors without a success fallback', async () => {
+  const fixture = bodyPairFixture({ explainFailure: 1, rollbackFailure: 1 });
+  await assert.rejects(captureLinkedBodyPair(fixture.args));
+  const failed = fixture.events.find(
+    (event) => event.stage === 'linked_body_measurement' && event.status === 'failed',
+  );
+  assert.equal(failed.errors.query.code, '57014');
+  assert.equal(failed.errors.rollback.code, 'ROLLBACK_ERROR');
+  assert.equal(fixture.events.at(-1).status, 'failed');
+});
+
+test('a nonpositive Seat plan remains in failed evidence and is rolled back', async () => {
+  const fixture = bodyPairFixture({
+    plan: (plan, index) => {
+      if (index === 1) plan.Plan.Plans[0]['Actual Rows'] = 0;
+    },
+  });
+  await assert.rejects(captureLinkedBodyPair(fixture.args));
+  const failed = fixture.events.find(
+    (event) => event.stage === 'linked_body_measurement' && event.status === 'failed',
+  );
+  assert.equal(failed.rollback, 'confirmed');
+  assert.equal(failed.plan[0]['QUERY PLAN'][0].Plan.Plans[0]['Actual Rows'], 0);
+  assert.equal(fixture.events.at(-1).status, 'failed');
 });

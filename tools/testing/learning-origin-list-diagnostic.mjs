@@ -776,6 +776,216 @@ async function captureLinkedAccess({ admin, client, urls, targets, events, event
   return result;
 }
 
+// Standalone SQL-body timing only: one owner and one linked Seat observation.
+// This supplements the unchanged application/nested trace, never HTTP latency.
+export function validateLinkedBodyPlan(rows, mode) {
+  requireCondition(['account_owner', 'seat_viewer'].includes(mode), 'DIAGNOSTIC_LINKED_BODY_MODE');
+  const plans = rows?.[0]?.['QUERY PLAN'];
+  const plan = plans?.[0];
+  requireCondition(
+    Array.isArray(rows) &&
+      rows.length === 1 &&
+      Array.isArray(plans) &&
+      plans.length === 1 &&
+      ['Planning Time', 'Execution Time'].every(
+        (key) => Number.isFinite(plan?.[key]) && plan[key] >= 0,
+      ) &&
+      plan.Plan?.['Node Type'] === 'Result' &&
+      plan.Plan['Actual Rows'] === 1 &&
+      plan.Plan['Actual Loops'] === 1,
+    'DIAGNOSTIC_LINKED_BODY_ACTUAL_PLAN',
+  );
+  const nodes = (node) => {
+    requireCondition(
+      node && typeof node === 'object' && (node.Plans === undefined || Array.isArray(node.Plans)),
+      'DIAGNOSTIC_LINKED_BODY_PLAN_TREE',
+    );
+    return [node, ...(node.Plans ?? []).flatMap(nodes)];
+  };
+  const locks = nodes(plan.Plan).filter((node) => node['Node Type'] === 'LockRows');
+  requireCondition(
+    locks.length === 1 &&
+      Number.isFinite(locks[0]['Actual Total Time']) &&
+      Number.isFinite(locks[0]['Actual Startup Time']) &&
+      locks[0]['Actual Rows'] === (mode === 'seat_viewer' ? 1 : 0) &&
+      // The owner node executes once too, but returns no qualifying row.
+      locks[0]['Actual Loops'] === 1,
+    'DIAGNOSTIC_LINKED_BODY_LOCK_WITNESS',
+  );
+  return {
+    planningMs: plan['Planning Time'],
+    executionMs: plan['Execution Time'],
+    lockRows: locks.map((node) => ({
+      rows: node['Actual Rows'],
+      loops: node['Actual Loops'],
+      totalMs: node['Actual Total Time'],
+    })),
+  };
+}
+
+export async function captureLinkedBodyPair({ client, urls, targets, witness, database, event }) {
+  const label = 'learning_linked_project_access_standalone_body_pair';
+  try {
+    const target = selectLinkedTarget(targets);
+    const [name, file, names] = definitions.find(
+      ([value]) => value === 'learning_linked_project_access',
+    );
+    const expected = sourceBody(fs.readFileSync(path.join(root, 'migrations', file), 'utf8'), name);
+    const sourceSha256 = sha256(expected);
+    const body = bindBody(expected, names);
+    requireCondition(
+      witness?.stage === 'linked_access_witness' &&
+        witness.status === 'confirmed' &&
+        witness.label === 'library_' + target.index + '_account_as_seat' &&
+        witness.linkedBodySha256 === sourceSha256 &&
+        witness.ownerModeStable === true &&
+        witness.seatModeStable === true &&
+        Number.isInteger(witness.linkedCalls) &&
+        witness.linkedCalls > 0 &&
+        /^[a-f0-9]{64}$/.test(witness.lineageSha256 ?? ''),
+      'DIAGNOSTIC_LINKED_BODY_PRECONDITIONS',
+    );
+    const measurements = [];
+    for (const [mode, actor] of [
+      ['account_owner', target.account_principal_id],
+      ['seat_viewer', target.seat_principal_id],
+    ]) {
+      const measurementLabel = label + '_' + mode;
+      const connection = await client(urls.admin);
+      let measurement, queryError, rollbackError, closeError;
+      try {
+        await connection.query('BEGIN; SET LOCAL search_path=pg_catalog,pg_temp');
+        const identity = (
+          await connection.query(
+            `SELECT current_database() AS name,
+          current_user AS role, session_user AS session_role,
+          current_setting('search_path') AS search_path,
+          current_setting('statement_timeout') AS statement_timeout,
+          current_setting('jit') AS jit, current_setting('jit_above_cost') AS jit_above_cost,
+          current_setting('join_collapse_limit') AS join_collapse_limit,
+          current_setting('geqo_threshold') AS geqo_threshold,
+          p.prosrc, p.prosecdef, p.provolatile, p.proargnames, p.proconfig,
+          l.lanname, pg_get_userbyid(p.proowner) AS owner
+          FROM pg_proc p JOIN pg_language l ON l.oid=p.prolang
+          WHERE p.oid=to_regprocedure($1)`,
+            ['public.' + name + '(uuid,uuid)'],
+          )
+        ).rows[0];
+        requireCondition(
+          identity?.name === 'asa_learning_e1_test' &&
+            identity.role === 'postgres' &&
+            identity.session_role === 'postgres' &&
+            identity.owner === identity.role &&
+            identity.prosrc === expected &&
+            identity.prosecdef === true &&
+            identity.provolatile === 'v' &&
+            identity.lanname === 'sql' &&
+            JSON.stringify(identity.proargnames) === JSON.stringify(names) &&
+            JSON.stringify(identity.proconfig) ===
+              JSON.stringify(['search_path=pg_catalog, pg_temp']) &&
+            JSON.stringify(identity.search_path?.split(',').map((part) => part.trim())) ===
+              JSON.stringify(['pg_catalog', 'pg_temp']) &&
+            identity.statement_timeout === '15s' &&
+            [
+              'statement_timeout',
+              'jit',
+              'jit_above_cost',
+              'join_collapse_limit',
+              'geqo_threshold',
+            ].every((key) => identity[key] === database[key]),
+          'DIAGNOSTIC_LINKED_BODY_IDENTITY',
+        );
+        event({
+          stage: 'linked_body_identity',
+          label: measurementLabel,
+          status: 'matched',
+          role: identity.role,
+          sessionRole: identity.session_role,
+          owner: identity.owner,
+          searchPath: identity.search_path,
+          functionSearchPath: identity.proconfig,
+          statementTimeout: identity.statement_timeout,
+          sourceSha256,
+        });
+        const start = performance.now();
+        const result = await connection.query(
+          'EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS, FORMAT JSON) ' + body,
+          [actor, target.projects[0]],
+        );
+        const elapsedMs = Math.round((performance.now() - start) * 100) / 100;
+        measurement = {
+          stage: 'linked_body_measurement',
+          label: measurementLabel,
+          mode,
+          timingKind: 'standalone_sql_body',
+          n: 1,
+          connection: 'fresh',
+          cache: 'not_reset',
+          sourceSha256,
+          boundBodySha256: sha256(body),
+          projectSha256: sha256(target.projects[0]),
+          actorPrincipalSha256: sha256(actor),
+          lineageSha256: witness.lineageSha256,
+          elapsedMs,
+          plan: result.rows,
+        };
+        Object.assign(measurement, validateLinkedBodyPlan(result.rows, mode));
+      } catch (error) {
+        queryError = error;
+      } finally {
+        try {
+          const rollback = await connection.query('ROLLBACK');
+          requireCondition(rollback.command === 'ROLLBACK', 'DIAGNOSTIC_LINKED_BODY_ROLLBACK');
+        } catch (error) {
+          rollbackError = error;
+        } finally {
+          try {
+            await connection.end();
+          } catch (error) {
+            closeError = error;
+          }
+        }
+      }
+      if (queryError || rollbackError || closeError) {
+        event({
+          ...measurement,
+          stage: 'linked_body_measurement',
+          label: measurementLabel,
+          mode,
+          status: 'failed',
+          rollback: rollbackError ? 'failed' : 'confirmed',
+          errors: {
+            query: queryError ? failure(queryError) : null,
+            rollback: rollbackError ? failure(rollbackError) : null,
+            close: closeError ? failure(closeError) : null,
+          },
+        });
+        throw rollbackError ?? closeError ?? queryError;
+      }
+      measurement.status = 'completed';
+      measurement.rollback = 'confirmed';
+      event(measurement);
+      measurements.push(measurement.label);
+    }
+    const result = {
+      stage: 'linked_body_pair',
+      label,
+      status: 'confirmed',
+      timingKind: 'standalone_sql_body',
+      nPerMode: 1,
+      sourceSha256,
+      interpretation:
+        'Fresh connections, unchanged cache/settings. Body Planning/Execution Time is not application, nested-function or HTTP latency.',
+      measurements,
+    };
+    event(result);
+    return result;
+  } catch (error) {
+    event({ stage: 'linked_body_pair', label, status: 'failed', error: failure(error) });
+    throw error;
+  }
+}
+
 async function main() {
   const urls = validateEnvironment(process.env);
   const revision = verifySource();
@@ -1095,6 +1305,14 @@ async function main() {
       urls,
       targets,
       events: record.events,
+      event,
+    });
+    record.linkedBodyPair = await captureLinkedBodyPair({
+      client,
+      urls,
+      targets,
+      witness: record.linkedAccess,
+      database: record.database,
       event,
     });
     record.status = 'diagnostic_complete_original_prefix_' + outcome;
