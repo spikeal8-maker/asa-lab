@@ -1,0 +1,77 @@
+name: Classroom Full Editor Scale
+
+on:
+  pull_request:
+    paths:
+      - 'tools/capacity/classroom-scale*'
+      - 'tests/capacity/classroom-scale*'
+      - 'tests/capacity/request-storm-client.tsx'
+      - 'tests/capacity/request-storm.pg.spec.ts'
+      - 'e2e/classroom-scale.spec.ts'
+      - '.github/workflows/classroom-scale.yml'
+      - '.github/compose.classroom-scale.yml'
+      - 'docs/testing/CLASSROOM_REQUEST_STORM.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One owned stack and one browser workload at a time for this PR. A later commit
+# queues; it cannot cancel a partly measured level and replace its receipt.
+concurrency:
+  group: classroom-full-editor-scale-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sequential-capacity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+      ASA_SCALE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 6a876a942985780297cf346a9a85077be7479d0b
+          path: baseline
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: candidate/pnpm-lock.yaml
+      - name: Install the exact lockfile and prepare declarations for the focused gate
+        timeout-minutes: 8
+        working-directory: candidate
+        run: |
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm exec nx build api --skip-nx-cache --parallel=1
+      - name: Contracts, types, lint and formatting
+        timeout-minutes: 5
+        working-directory: candidate
+        run: node tools/capacity/classroom-scale.mjs check
+      - name: Calibrate real editors, then qualify 30 to 200 sequentially
+        timeout-minutes: 105
+        working-directory: candidate
+        run: node tools/capacity/classroom-scale.mjs run
+      - name: Preserve complete and partial receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-full-editor-scale-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: |
+            candidate/reports/classroom-scale/
+            candidate/reports/playwright/
+            candidate/e2e/artifacts/
+          retention-days: 30
+          if-no-files-found: error

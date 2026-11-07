@@ -14,13 +14,109 @@ import {
 const params = new URLSearchParams(location.search);
 const client = Number(params.get('client'));
 const nativeFetch = window.fetch.bind(window);
+const observeLatency = params.get('scenario') === 'latency';
+const clock = () => performance.timeOrigin + performance.now();
+type FetchTiming = {
+  id: string;
+  operationId: string | null;
+  method: string;
+  route: string;
+  nativeFetchAtMs: number;
+  headersAtMs: number | null;
+  jsonStartedAtMs: number | null;
+  jsonCompletedAtMs: number | null;
+  failedAtMs: number | null;
+  status: number | null;
+};
+type OperationTiming = {
+  id: string;
+  client: number;
+  name: string;
+  startedAtMs: number;
+  apiCompletedAtMs: number | null;
+  completedAtMs: number | null;
+  status: 'STARTED' | 'VERIFIED' | 'FAILED';
+};
+const fetchTimings: FetchTiming[] = [];
+const operationTimings: OperationTiming[] = [];
+let requestSequence = 0;
+let operationSequence = 0;
+let activeOperation: OperationTiming | undefined;
+let droppedTimings = 0;
+
+function beginOperation(name: string) {
+  if (!observeLatency) return undefined;
+  if (activeOperation) throw Error('Overlapping measured operation in one client');
+  const operation: OperationTiming = {
+    id: `${client}:${++operationSequence}`,
+    client,
+    name,
+    startedAtMs: clock(),
+    apiCompletedAtMs: null,
+    completedAtMs: null,
+    status: 'STARTED',
+  };
+  if (operationTimings.length >= 20) throw Error('Latency operation bound exceeded');
+  operationTimings.push(operation);
+  activeOperation = operation;
+  return operation;
+}
+
+function finishOperation(operation: OperationTiming | undefined, success: boolean) {
+  if (!operation) return;
+  operation.completedAtMs = clock();
+  operation.status = success ? 'VERIFIED' : 'FAILED';
+  activeOperation = undefined;
+}
+
 // Observation only: one synthetic integer. Cookies and user identifiers are never logged.
 window.fetch = (input, init) => {
   const headers = new Headers(
     init?.headers ?? (input instanceof Request ? input.headers : undefined),
   );
   headers.set('x-asa-storm-client', String(client));
-  return nativeFetch(input, { ...init, headers });
+  if (!observeLatency) return nativeFetch(input, { ...init, headers });
+  const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+  const method = init?.method || (input instanceof Request ? input.method : 'GET');
+  const target =
+    url.pathname === '/api/class-join/studentseat' ||
+    /^\/api\/projects\/[^/]+(?:\/draft)?$/.test(url.pathname);
+  const timing: FetchTiming = {
+    id: `${client}:${++requestSequence}`,
+    operationId: target ? activeOperation?.id || null : null,
+    method,
+    route: url.pathname.replace(/\/projects\/[^/]+/, '/projects/:id'),
+    nativeFetchAtMs: clock(),
+    headersAtMs: null,
+    jsonStartedAtMs: null,
+    jsonCompletedAtMs: null,
+    failedAtMs: null,
+    status: null,
+  };
+  headers.set('x-asa-storm-request', timing.id);
+  if (timing.operationId) headers.set('x-asa-storm-operation', timing.operationId);
+  if (fetchTimings.length < 2000) fetchTimings.push(timing);
+  else droppedTimings++;
+  return nativeFetch(input, { ...init, headers }).then(
+    (response) => {
+      timing.headersAtMs = clock();
+      timing.status = response.status;
+      const json = response.json.bind(response);
+      response.json = async () => {
+        timing.jsonStartedAtMs = clock();
+        try {
+          return await json();
+        } finally {
+          timing.jsonCompletedAtMs = clock();
+        }
+      };
+      return response;
+    },
+    (error: unknown) => {
+      timing.failedAtMs = clock();
+      throw error;
+    },
+  );
 };
 installClientDiagnostics();
 observeAnalytics();
@@ -67,8 +163,17 @@ export const storm = {
   ready: true,
   login: async (code: string, studentCode: string) => {
     const started = performance.now();
-    bind(unwrap(await api.signInClassroomSeat(code, studentCode)));
-    return { durationMs: performance.now() - started, seatId: seat!.student.seatId };
+    const operation = beginOperation('login');
+    try {
+      const result = unwrap(await api.signInClassroomSeat(code, studentCode));
+      if (operation) operation.apiCompletedAtMs = clock();
+      bind(result);
+      finishOperation(operation, true);
+      return { durationMs: performance.now() - started, seatId: seat!.student.seatId };
+    } catch (error) {
+      finishOperation(operation, false);
+      throw error;
+    }
   },
   resume: async () => {
     const result = unwrap(await api.classroomStudentMe());
@@ -122,13 +227,26 @@ export const storm = {
     void activity.start(activityId, project.id);
     return { document: reopened.draft.document, revision: currentRevision };
   },
-  saveAgain: async (document: Record<string, unknown>) => {
-    const saved = unwrap(await api.saveDraft(currentProject, document, currentRevision));
-    currentRevision = saved.draft.revision;
-    sessionStorage.setItem('asa:storm:revision', String(currentRevision));
-    const reopened = unwrap(await api.openProject(currentProject));
-    return { document: reopened.draft.document, revision: reopened.draft.revision };
+  saveAgain: async (document: Record<string, unknown>, name = 'save') => {
+    const operation = beginOperation(name);
+    try {
+      const saved = unwrap(await api.saveDraft(currentProject, document, currentRevision));
+      if (operation) operation.apiCompletedAtMs = clock();
+      currentRevision = saved.draft.revision;
+      sessionStorage.setItem('asa:storm:revision', String(currentRevision));
+      const reopened = unwrap(await api.openProject(currentProject));
+      finishOperation(operation, true);
+      return { document: reopened.draft.document, revision: reopened.draft.revision };
+    } catch (error) {
+      finishOperation(operation, false);
+      throw error;
+    }
   },
+  latencyTimings: () => ({
+    operations: operationTimings,
+    fetches: fetchTimings,
+    dropped: droppedTimings,
+  }),
   verifySaved: async () => unwrap(await api.openProject(currentProject)).draft,
   projectId: () => currentProject,
   foreignRead: async (id: string) => (await api.openProject(id)).status,

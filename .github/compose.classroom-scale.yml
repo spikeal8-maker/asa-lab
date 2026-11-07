@@ -1,0 +1,144 @@
+# GitHub-only, run-owned test override. There is no production target option.
+x-scale-labels: &scale-labels
+  io.asalab.scale.run: ${ASA_SCALE_RUN_TOKEN:?explicit capacity run required}
+
+services:
+  postgres:
+    labels: *scale-labels
+    restart: 'no'
+    mem_limit: 1g
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: asalab_test
+      POSTGRES_PASSWORD: ${ASA_SCALE_ADMIN_PASSWORD:?generated test password required}
+    ports: !override
+      - '127.0.0.1:5432:5432'
+    volumes: !override
+      - scale-postgres-data:/var/lib/postgresql/data
+
+  migration:
+    labels: *scale-labels
+    mem_limit: 1g
+    environment:
+      MIGRATION_DATABASE_URL: postgres://postgres:${ASA_SCALE_ADMIN_PASSWORD}@postgres:5432/asalab_test
+      MIGRATION_EXPECT_DATABASE: asalab_test
+      MIGRATION_CONFIRM: APPLY:asalab_test
+      ASA_APP_DB_PASSWORD: ${ASA_SCALE_APP_PASSWORD:?generated test password required}
+      ASA_SEED_DEV: 'false'
+
+  api:
+    labels: *scale-labels
+    restart: 'no'
+    mem_limit: 1g
+    environment:
+      NODE_ENV: test
+      UV_THREADPOOL_SIZE: '8'
+      ASA_DB_POOL_MAX: '10'
+      ASA_DB_CONNECTION_TIMEOUT_MS: '5000'
+      ASA_DB_IDLE_TIMEOUT_MS: '30000'
+      ASA_DB_STATEMENT_TIMEOUT_MS: '15000'
+      ASA_DB_QUERY_TIMEOUT_MS: '15000'
+      APP_DATABASE_URL: postgres://asalab_app:${ASA_SCALE_APP_PASSWORD}@postgres:5432/asalab_test
+      ASA_WEB_PORT: '8080'
+      ASA_WEB_ORIGIN: http://127.0.0.1:8080
+      ASA_ISOLATED_TEST_WEB_ORIGIN: null
+      ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:8080
+      ASA_BLOCKS_RUNTIME_SIGNING_KEY: ${ASA_SCALE_SIGNING_KEY:?generated test signing key required}
+      ASA_OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      ASA_OBJECT_STORAGE_REGION: us-east-1
+      ASA_OBJECT_STORAGE_BUCKET: classroom-scale
+      ASA_OBJECT_STORAGE_ACCESS_KEY: ${ASA_SCALE_STORAGE_KEY:?generated test storage key required}
+      ASA_OBJECT_STORAGE_SECRET_KEY: ${ASA_SCALE_STORAGE_SECRET:?generated test storage secret required}
+      ASA_OBJECT_STORAGE_FORCE_PATH_STYLE: 'true'
+
+  web:
+    labels: *scale-labels
+    restart: 'no'
+    mem_limit: 256m
+    build:
+      args:
+        ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:8080
+    environment:
+      ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:8080
+    # The test runner shares this namespace. Preserve its independent PostgreSQL
+    # observer through the owned private network; no database port is added.
+    networks:
+      - database
+    ports: !override
+      - '127.0.0.1:4612:8080'
+
+  scratch:
+    labels: *scale-labels
+    restart: 'no'
+    mem_limit: 512m
+    build:
+      args:
+        ASA_BLOCKS_PARENT_ORIGIN: http://127.0.0.1:8080
+    environment:
+      ASA_BLOCKS_PARENT_ORIGIN: http://127.0.0.1:8080
+    ports: !reset []
+
+  minio:
+    labels: *scale-labels
+    restart: 'no'
+    mem_limit: 512m
+    environment:
+      MINIO_ROOT_USER: ${ASA_SCALE_STORAGE_KEY}
+      MINIO_ROOT_PASSWORD: ${ASA_SCALE_STORAGE_SECRET}
+    volumes: !override
+      - scale-object-data:/data
+
+  minio-init:
+    labels: *scale-labels
+    mem_limit: 128m
+    environment:
+      ASA_OBJECT_STORAGE_ACCESS_KEY: ${ASA_SCALE_STORAGE_KEY}
+      ASA_OBJECT_STORAGE_SECRET_KEY: ${ASA_SCALE_STORAGE_SECRET}
+      ASA_OBJECT_STORAGE_BUCKET: classroom-scale
+
+  test-runner:
+    labels: *scale-labels
+    restart: 'no'
+    mem_limit: 8g
+    shm_size: 1gb
+    # A real loopback origin is browser-trustworthy without insecure flags or
+    # weakening Web Crypto. The namespace belongs to this project's Web only.
+    network_mode: service:web
+    networks: !reset []
+    environment:
+      CI: 'true'
+      GITHUB_ACTIONS: ${GITHUB_ACTIONS}
+      GITHUB_REPOSITORY: ${GITHUB_REPOSITORY}
+      GITHUB_RUN_ID: ${GITHUB_RUN_ID}
+      GITHUB_RUN_ATTEMPT: ${GITHUB_RUN_ATTEMPT}
+      RUNNER_ENVIRONMENT: ${RUNNER_ENVIRONMENT}
+      ASA_SCALE_SHA: ${ASA_SCALE_SHA}
+      ASA_SCALE_RUN_TOKEN: ${ASA_SCALE_RUN_TOKEN}
+      ASA_SCALE_PROFILE_HASH: ${ASA_SCALE_PROFILE_HASH}
+      ASA_SCALE_USERS: ${ASA_SCALE_USERS:-30}
+      ASA_SCALE_MODE: ${ASA_SCALE_MODE:-capacity}
+      ASA_SCALE_IMAGE_MANIFEST_HASH: ${ASA_SCALE_IMAGE_MANIFEST_HASH:-pending}
+      ASA_SCALE_ENVIRONMENT_HASH: ${ASA_SCALE_ENVIRONMENT_HASH:-pending}
+      TEST_DATABASE_URL: postgres://postgres:${ASA_SCALE_ADMIN_PASSWORD}@postgres:5432/asalab_test
+      APP_TEST_DATABASE_URL: postgres://asalab_app:${ASA_SCALE_APP_PASSWORD}@postgres:5432/asalab_test
+      ASA_E2E_EXTERNAL: 'true'
+      ASA_E2E_BASE_URL: http://127.0.0.1:8080
+    command:
+      [
+        'corepack',
+        'pnpm',
+        'exec',
+        'playwright',
+        'test',
+        'e2e/classroom-scale.spec.ts',
+        '--workers=1',
+        '--reporter=line',
+      ]
+
+volumes:
+  scale-postgres-data:
+    labels: *scale-labels
+  scale-object-data:
+    labels: *scale-labels
+  application-logs:
+    labels: *scale-labels
