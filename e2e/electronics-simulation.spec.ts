@@ -4283,6 +4283,21 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
             }
           }
           const frequency = page.getByLabel('Частота генератора', { exact: true });
+          if (width < 500) {
+            const disclosure = page.getByRole('button', {
+              name: 'Открыть параметры компонента',
+              exact: true,
+            });
+            await expect(disclosure).toBeVisible();
+            await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+            await disclosure.tap();
+            await expect(
+              page.getByRole('button', {
+                name: 'Свернуть параметры компонента',
+                exact: true,
+              }),
+            ).toHaveAttribute('aria-expanded', 'true');
+          }
           acknowledge('final-input-visibility', {
             beforeEnter,
             visible: await frequency.isVisible(),
