@@ -72,7 +72,7 @@ jobs:
           python -c "import os,sys; sys.path.insert(0,'tools'); from deployment.releases import assert_general_ci; assert_general_ci(os.environ['GITHUB_SHA'])"
       - name: Official images, new writes, old-reader return and process interruption
         run: |
-          python tools/deployment/ci_application_rollback.py --work-directory "$RUNNER_TEMP/asa-p0-return-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --output "$RUNNER_TEMP/asa-p0-return-evidence" --selected-deployment-digest "$SELECTED_DEPLOYMENT_DIGEST"
+          python tools/deployment/ci_application_rollback.py --work-directory "$RUNNER_TEMP/asa-p0-return-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --output "$RUNNER_TEMP/asa-p0-return-evidence" --selected-deployment-digest "$SELECTED_DEPLOYMENT_DIGEST" --keep-fixture
       - name: Upload synthetic evidence only
         if: always()
         uses: actions/upload-artifact@v4

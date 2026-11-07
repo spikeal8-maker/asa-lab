@@ -34,6 +34,23 @@ from deployment.releases import (apply_release_environment, assert_ci, assert_ge
 from deployment.system import Installation, run
 
 PRODUCT_DEPLOYMENT = "sha256:87acd65905c3cb64c1052ea046926932b1a5e9f42dc52d8b36c05db9f449da68"
+FIXTURE_PROJECT_PREFIX = "asa-lab-p0-return-"
+
+
+def new_fixture_project():
+    return FIXTURE_PROJECT_PREFIX + uuid.uuid4().hex[:12]
+
+
+def cleanup_fixture(root, project, nonce, own_env_hash):
+    """Remove only this run's fresh synthetic stack after every ownership check."""
+    current = Installation(root, "dev")
+    require(current.project == project and
+            re.fullmatch(re.escape(FIXTURE_PROJECT_PREFIX) + r"[a-f0-9]{12}", project) and
+            ar._read(current.state / "qualification-fixture.json") == {"nonce": nonce, "root": str(root), "project": project}
+            and own_env_hash == ar.file_digest(root / ".env"), "FIXTURE_CLEANUP", "Disposable ownership drift; fixture retained.")
+    ar._clean(root)
+    current.identity(existing=False)
+    current.compose("down", "--volumes", "--remove-orphans")
 
 
 def protect_new_fixture_root(root):
@@ -253,7 +270,7 @@ def qualify(arguments):
     assert_ci(selected)
     fetch_images(previous)
     fetch_images(selected)
-    project, nonce = "asa-p0-return-" + uuid.uuid4().hex[:12], uuid.uuid4().hex
+    project, nonce = new_fixture_project(), uuid.uuid4().hex
     report = {"format": "asa-application-return-qualification-v1", "startedAt": ar.stamp(), "host": sys.platform,
               "python": sys.version.split()[0], "toolingRevision": tool_revision, "profile": "dev", "project": project,
               "previousDeploymentDigest": previous_digest, "selectedDeploymentDigest": arguments.selected_deployment_digest,
@@ -352,13 +369,7 @@ def qualify(arguments):
         if install is not None and not arguments.keep_fixture:
             # Delete only this newly allocated synthetic project's containers
             # and volumes. All ownership checks run before the scoped teardown.
-            current = Installation(root, "dev")
-            require(current.project == project and project.startswith("asa-p0-return-") and
-                    ar._read(current.state / "qualification-fixture.json") == {"nonce": nonce, "root": str(root), "project": project}
-                    and own_env_hash == ar.file_digest(root / ".env"), "FIXTURE_CLEANUP", "Disposable ownership drift; fixture retained.")
-            ar._clean(root)
-            current.identity(existing=False)
-            current.compose("down", "--volumes", "--remove-orphans")
+            cleanup_fixture(root, project, nonce, own_env_hash)
             report["cleanup"] = "owned_synthetic_project_only"
             ar._write(output / "qualification.json", report)
     print("APPLICATION_RETURN_NATIVE_PASS " + json.dumps({"host": sys.platform, "toolingRevision": tool_revision,

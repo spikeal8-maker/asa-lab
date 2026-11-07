@@ -383,7 +383,8 @@ probes. Сам `rollback` использует штатный exclusive `operati
 ## Native-квалификация Linux и Windows
 
 `ci_application_rollback.py` принимает только **отсутствующий абсолютный** каталог
-fixture. Он создаёт уникальный project `asa-p0-return-*`, использует текущий
+fixture. Он создаёт уникальный project `asa-lab-p0-return-<12 hex>`, соответствующий
+контракту fresh install `asa-lab-*`, использует текущий
 проверенный Python manager, прежние официальные images и отдельные loopback
 ports. Fresh fixture bootstrap переиспользует существующие helpers
 `first_environment`, `save_settings` и канонический Compose. Только создание
@@ -403,8 +404,17 @@ ports. Fresh fixture bootstrap переиспользует существующ
 наблюдает реальную durable phase и actual container identity; пропущенное окно
 interruption означает failed proof. При observer failure или timeout он сначала
 останавливает только своё process tree, чтобы не оставить manager одновременно
-с cleanup. Docker cleanup касается только созданного этим прогоном synthetic
-project и проверяет owner nonce/root/project/env перед `down --volumes`.
+с cleanup. При запуске без `--keep-fixture` Docker cleanup касается только
+созданного этим прогоном synthetic project и проверяет точный формат его имени,
+owner nonce/root/project/env перед `down --volumes`. Имена production и прежний
+несовместимый prefix `asa-p0-return-` не проходят проверку владения для cleanup.
+
+Штатный Linux native workflow и приведённая ниже Windows-команда используют
+`--keep-fixture`: driver сохраняет созданный stack и его volumes для проверки
+и не вызывает `down --volumes`. Проверки владения и cleanup остаются покрыты
+контрактными тестами. На GitHub-hosted runner сохранённый fixture доступен лишь
+до завершения жизненного цикла runner; после job доступен только загруженный
+artifact с synthetic evidence в пределах срока хранения workflow.
 
 Windows file/argument proof без Docker:
 
@@ -420,7 +430,7 @@ Actual Windows Docker Desktop proof после review и проверки рес
 ```powershell
 $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ('asa-p0-return-' + [guid]::NewGuid().ToString('N'))
 $evidenceRoot = Join-Path ([IO.Path]::GetTempPath()) ('asa-p0-return-evidence-' + [guid]::NewGuid().ToString('N'))
-py -3.11 tools/deployment/ci_application_rollback.py --work-directory $fixtureRoot --output $evidenceRoot --selected-deployment-digest sha256:87acd65905c3cb64c1052ea046926932b1a5e9f42dc52d8b36c05db9f449da68
+py -3.11 tools/deployment/ci_application_rollback.py --work-directory $fixtureRoot --output $evidenceRoot --selected-deployment-digest sha256:87acd65905c3cb64c1052ea046926932b1a5e9f42dc52d8b36c05db9f449da68 --keep-fixture
 if ($LASTEXITCODE -ne 0) { throw 'Windows Docker return qualification failed; production remains unchanged' }
 Get-Content (Join-Path $evidenceRoot 'qualification.json')
 ```
