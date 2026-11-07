@@ -85,7 +85,6 @@ jobs:
     timeout-minutes: 150
     env:
       GH_TOKEN: ${{ github.token }}
-      RUNNER_ENVIRONMENT: ${{ runner.environment }}
       ASA_SCALE_HARNESS_SHA: ${{ github.sha }}
       ASA_SCALE_AFTER_DEPLOYMENT_DIGEST: ${{ inputs.after_deployment_digest }}
       ASA_SCALE_AFTER_REVISION: ${{ inputs.after_revision }}

@@ -2813,6 +2813,23 @@ describe('official full N30 adapter boundary and provenance', () => {
     ).rejects.toThrow(/unexpected/);
   });
 
+  it('inherits the real runner environment without overrides and rejects missing or self-hosted identity', async () => {
+    const workflow = parseYaml(
+      await readFile('.github/workflows/classroom-official-n30.yml', 'utf8'),
+    );
+    const overrides = [
+      workflow.env,
+      workflow.jobs.native.env,
+      ...workflow.jobs.native.steps.map((step: { env?: Record<string, string> }) => step.env),
+    ];
+    for (const env of overrides) expect(env ?? {}).not.toHaveProperty('RUNNER_ENVIRONMENT');
+    for (const value of [undefined, '', 'self-hosted']) {
+      expect(() =>
+        assertOfficialScaleDispatch(officialEnvironment({ RUNNER_ENVIRONMENT: value })),
+      ).toThrow(/canonical main dispatch/);
+    }
+  });
+
   it('keeps the new workflow contracts-only for PR/push and native only on canonical explicit main dispatch', async () => {
     const workflow = parseYaml(
       await readFile('.github/workflows/classroom-official-n30.yml', 'utf8'),
