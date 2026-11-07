@@ -19,6 +19,12 @@ import {
   prefixTitles,
   validatePrefixReports,
   verifyGeneratedChanges,
+  selectLinkedTarget,
+  linkedTargetSql,
+  validateLinkedTarget,
+  validateLinkedRead,
+  validateStableMeasurements,
+  validateLinkedTrace,
 } from './learning-origin-list-diagnostic.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -142,13 +148,319 @@ test('reviewed SQL, runtime settings, role checks, locks and rollbacks are uncha
     'utf8',
   );
   const start = source.indexOf("    const { default: pg } = await import('pg');");
-  const end = source.indexOf("    record.status = 'diagnostic_complete_original_prefix_'", start);
+  const end = source.indexOf('    record.linkedAccess = await captureLinkedAccess(', start);
   assert.ok(start >= 0 && end > start);
   assert.equal(
     createHash('sha256').update(source.slice(start, end)).digest('hex'),
     '10933cab7c3a98147c09ccd09f8bb16e8745ad90f78725c92bb18e333a15990f',
   );
 });
+
+test('linked diagnostic changes only the depth needed to retain the pinned ancestor', () => {
+  const previous = execFileSync(
+    'git',
+    ['show', '1fd0cc2c0ac3aead713cf51231419990ae8927cb:' + workflow],
+    { cwd: root, encoding: 'utf8' },
+  );
+  const fetch = 'git fetch --no-tags --depth=2 origin "$ASA_DIAGNOSTIC_SOURCE_SHA"';
+  assert.equal(previous.split(fetch).length, 2);
+  assert.equal(
+    fs.readFileSync(path.join(root, workflow), 'utf8'),
+    previous.replace(fetch, fetch.replace('--depth=2', '--depth=3')),
+  );
+});
+
+const syntheticId = (n) => '10000000-0000-4000-8000-' + n.toString(16).padStart(12, '0');
+function linkedFixture() {
+  const target = {
+    seat_id: syntheticId(1),
+    account_id: syntheticId(2),
+    seat_principal_id: syntheticId(3),
+    account_principal_id: syntheticId(4),
+    projects: [syntheticId(5)],
+  };
+  const other = {
+    seat_id: syntheticId(21),
+    account_id: null,
+    seat_principal_id: syntheticId(23),
+    account_principal_id: null,
+    projects: [syntheticId(25)],
+  };
+  const origin = {
+    ...target,
+    project_id: target.projects[0],
+    owner_principal_id: target.account_principal_id,
+    project_tenant_id: syntheticId(6),
+    school_tenant_id: syntheticId(7),
+    school_id: syntheticId(8),
+    learner_identity_id: syntheticId(9),
+    participation_id: syntheticId(10),
+    activity_run_id: syntheticId(11),
+    learning_activity_version_id: syntheticId(12),
+    assignment_id: syntheticId(13),
+    classroom_id: syntheticId(14),
+    source_course_run_id: syntheticId(15),
+    source_course_lesson_id: syntheticId(16),
+    source_course_block_id: 'library-activity-fixture',
+    source_kind: 'course',
+    module_key: 'three-d',
+    owner_kind: 'account',
+    viewer_kind: 'student_seat',
+    seat_status: 'active',
+    account_status: 'active',
+    learner_state: 'active',
+    seat_link_status: 'active',
+    account_link_status: 'active',
+    seat_principal_count: 1,
+    account_principal_count: 1,
+    seat_link_count: 1,
+    account_link_count: 1,
+  };
+  const rows = [
+    {
+      context: {
+        projectId: origin.project_id,
+        seatId: origin.seat_id,
+        classroomAssignmentId: origin.assignment_id,
+        activityRunId: origin.activity_run_id,
+        participationId: origin.participation_id,
+        learningActivityVersionId: origin.learning_activity_version_id,
+        courseRunId: origin.source_course_run_id,
+        courseLessonId: origin.source_course_lesson_id,
+        courseBlockId: origin.source_course_block_id,
+        sourceKind: 'course',
+        moduleKey: 'three-d',
+      },
+      evidence: {
+        tenantId: origin.school_tenant_id,
+        schoolId: origin.school_id,
+        classroomId: origin.classroom_id,
+        classroomAssignmentId: origin.assignment_id,
+        activityRunId: origin.activity_run_id,
+        seatId: origin.seat_id,
+        accountId: origin.account_id,
+        principalId: origin.seat_principal_id,
+        learnerId: origin.learner_identity_id,
+        identityResolution: 'learner_identity',
+        kind: 'course_project',
+      },
+    },
+  ];
+  return { target, other, origin, rows };
+}
+
+test('selects the existing Account work independently of UUID ordering', () => {
+  const { target, other } = linkedFixture();
+  assert.deepEqual(selectLinkedTarget([other, target]), { ...target, index: 1 });
+  assert.deepEqual(selectLinkedTarget([target, other]), { ...target, index: 0 });
+});
+
+test('refuses absent, duplicate, same-owner or multi-origin linked candidates', () => {
+  const { target, other } = linkedFixture();
+  for (const targets of [
+    [],
+    [target],
+    [other, other],
+    [target, target],
+    [other, { ...target, seat_principal_id: target.account_principal_id }],
+    [other, { ...target, projects: [] }],
+    [other, { ...target, projects: [syntheticId(5), syntheticId(6)] }],
+  ]) {
+    assert.throws(() => selectLinkedTarget(targets));
+  }
+});
+
+test('requires exactly one confirmed active cross-viewer origin', () => {
+  const { target, origin } = linkedFixture();
+  assert.equal(validateLinkedTarget([origin], target), origin);
+  assert.throws(() => validateLinkedTarget([], target));
+  assert.throws(() => validateLinkedTarget([origin, origin], target));
+});
+
+for (const [key, value] of [
+  ['seat_id', syntheticId(90)],
+  ['account_id', syntheticId(90)],
+  ['seat_principal_id', syntheticId(90)],
+  ['account_principal_id', syntheticId(90)],
+  ['project_id', syntheticId(90)],
+  ['owner_principal_id', syntheticId(3)],
+  ['owner_kind', 'student_seat'],
+  ['viewer_kind', 'account'],
+  ['seat_status', 'ended'],
+  ['account_status', 'disabled'],
+  ['learner_state', 'inactive'],
+  ['seat_link_status', 'revoked'],
+  ['account_link_status', 'revoked'],
+  ['seat_principal_count', 2],
+  ['account_principal_count', 2],
+  ['seat_link_count', 0],
+  ['account_link_count', 2],
+  ['source_kind', 'direct'],
+  ['module_key', 'electronics'],
+  ['school_id', null],
+]) {
+  test('refuses unconfirmed linked target: ' + key, () => {
+    const { target, origin } = linkedFixture();
+    assert.throws(() => validateLinkedTarget([{ ...origin, [key]: value }], target));
+  });
+}
+
+test('precondition SQL inspects existing lineage without executing a product helper', () => {
+  assert.match(linkedTargetSql, /^SELECT /);
+  assert.doesNotMatch(
+    linkedTargetSql,
+    /\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|EXPLAIN|SET)\b/i,
+  );
+  assert.doesNotMatch(
+    linkedTargetSql,
+    /learning_linked_project_access|learning_origin_learner_list/,
+  );
+  assert.ok(linkedTargetSql.includes('owner.id<>viewer.id'));
+  assert.ok(linkedTargetSql.includes('origin.project_id=$5'));
+});
+
+test('compares exact lineage but permits viewer-specific JSON outside that contract', () => {
+  const { origin, rows } = linkedFixture();
+  const account = structuredClone(rows),
+    seat = structuredClone(rows);
+  account[0].context.viewerAnnotation = 'account';
+  seat[0].context.viewerAnnotation = 'seat';
+  assert.deepEqual(validateLinkedRead(account, origin), validateLinkedRead(seat, origin));
+  const hash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  const m = (value) => ({ status: 'completed', rowCount: 1, resultSha256: hash(value) });
+  assert.notEqual(m(account).resultSha256, m(seat).resultSha256);
+  validateStableMeasurements([m(account), m(account)]);
+  validateStableMeasurements([m(seat), m(seat)]);
+});
+
+for (const [part, key] of [
+  ['context', 'projectId'],
+  ['context', 'seatId'],
+  ['context', 'participationId'],
+  ['context', 'activityRunId'],
+  ['context', 'courseBlockId'],
+  ['evidence', 'tenantId'],
+  ['evidence', 'schoolId'],
+  ['evidence', 'learnerId'],
+  ['evidence', 'principalId'],
+  ['evidence', 'accountId'],
+]) {
+  test('refuses a returned foreign lineage: ' + part + '.' + key, () => {
+    const { origin, rows } = linkedFixture();
+    rows[0][part][key] = syntheticId(99);
+    assert.throws(() => validateLinkedRead(rows, origin));
+  });
+}
+
+test('failed, incomplete or unstable calls cannot satisfy linked measurements', () => {
+  const ok = { status: 'completed', rowCount: 1, resultSha256: 'a'.repeat(64) };
+  for (const values of [
+    [],
+    [ok],
+    [ok, { ...ok, status: 'failed' }],
+    [ok, { ...ok, rowCount: 0 }],
+    [ok, { ...ok, resultSha256: 'b'.repeat(64) }],
+  ]) {
+    assert.throws(() => validateStableMeasurements(values));
+  }
+});
+
+const linkedBody = sourceBody(
+  fs.readFileSync(
+    path.join(root, 'migrations/0190_learning_origin_list_authorization_plan.sql'),
+    'utf8',
+  ),
+  'learning_linked_project_access',
+);
+function traceFixture() {
+  const actual = {
+    'Actual Startup Time': 0.1,
+    'Actual Total Time': 0.2,
+    'Actual Loops': 1,
+    'Actual Rows': 1,
+  };
+  return [
+    {
+      'Query Text': linkedBody,
+      Plan: { 'Node Type': 'Result', ...actual, Plans: [{ 'Node Type': 'LockRows', ...actual }] },
+    },
+    {
+      'Query Text': 'SELECT context,evidence FROM learning_origin_learner_list($1,$2)',
+      Plan: {
+        'Node Type': 'Function Scan',
+        'Function Name': 'learning_origin_learner_list',
+        ...actual,
+      },
+    },
+  ];
+}
+const notices = (plans) => plans.map((plan) => 'duration: 0.2 ms  plan:\n' + JSON.stringify(plan));
+
+test('requires actual nested linked-access execution inside the captured list call', () => {
+  const result = validateLinkedTrace(notices(traceFixture()), linkedBody);
+  assert.equal(result.linkedCalls, 1);
+  assert.equal(result.linkedPlans[0].lockRows[0].rows, 1);
+});
+
+for (const [label, mutate] of [
+  ['no helper notice', (plans) => plans.shift()],
+  [
+    'owner-only link flag',
+    (plans) => {
+      plans.shift();
+      plans[0].linked = true;
+    },
+  ],
+  ['no caller', (plans) => plans.pop()],
+  [
+    'standalone EXPLAIN',
+    (plans) => {
+      plans[1]['Query Text'] = 'EXPLAIN ANALYZE SELECT true';
+    },
+  ],
+  [
+    'different function body',
+    (plans) => {
+      plans[0]['Query Text'] = 'SELECT true';
+    },
+  ],
+  [
+    'estimated helper',
+    (plans) => {
+      delete plans[0].Plan['Actual Total Time'];
+    },
+  ],
+  [
+    'unexecuted helper',
+    (plans) => {
+      plans[0].Plan['Actual Loops'] = 0;
+    },
+  ],
+  [
+    'no admitted lock row',
+    (plans) => {
+      plans[0].Plan.Plans[0]['Actual Rows'] = 0;
+    },
+  ],
+  [
+    'unexecuted lock',
+    (plans) => {
+      plans[0].Plan.Plans[0]['Actual Loops'] = 0;
+    },
+  ],
+  [
+    'duplicate outer calls',
+    (plans) => {
+      plans.push(structuredClone(plans[1]));
+    },
+  ],
+]) {
+  test('rejects an insufficient linked-access witness: ' + label, () => {
+    const plans = traceFixture();
+    mutate(plans);
+    assert.throws(() => validateLinkedTrace(notices(plans), linkedBody));
+  });
+}
 
 function prefixFixture() {
   const discovery = {

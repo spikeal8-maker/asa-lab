@@ -371,6 +371,411 @@ export function verifySource() {
   return revision;
 }
 
+const listSql = 'SELECT context,evidence FROM learning_origin_learner_list($1,$2)';
+const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+
+export function selectLinkedTarget(targets) {
+  requireCondition(Array.isArray(targets) && targets.length === 2, 'DIAGNOSTIC_LINKED_TARGETS');
+  const candidates = targets.flatMap((target, index) =>
+    target.account_principal_id ? [{ ...target, index }] : [],
+  );
+  requireCondition(candidates.length === 1, 'DIAGNOSTIC_LINKED_TARGET_UNIQUE');
+  const target = candidates[0];
+  requireCondition(
+    ['seat_id', 'account_id', 'seat_principal_id', 'account_principal_id'].every((key) =>
+      uuid.test(target[key] ?? ''),
+    ) &&
+      target.seat_principal_id !== target.account_principal_id &&
+      Array.isArray(target.projects) &&
+      target.projects.length === 1 &&
+      uuid.test(target.projects[0]),
+    'DIAGNOSTIC_LINKED_TARGET_IDENTITY',
+  );
+  return target;
+}
+
+// Inspect only the already-created Account work and its existing Seat path.
+// No fixture insert, link repair, helper call, EXPLAIN or planner setting is used.
+export const linkedTargetSql = `SELECT seat.id AS seat_id, account.id AS account_id,
+  viewer.id AS seat_principal_id, owner.id AS account_principal_id,
+  owner.kind AS owner_kind, viewer.kind AS viewer_kind,
+  seat.status AS seat_status, account.status AS account_status, learner.state AS learner_state,
+  seat_link.status AS seat_link_status, account_link.status AS account_link_status,
+  origin.project_id, origin.project_tenant_id, origin.owner_principal_id,
+  origin.school_tenant_id, origin.school_id, origin.learner_identity_id,
+  origin.participation_id, origin.activity_run_id, origin.learning_activity_version_id,
+  origin.source_kind, origin.source_course_run_id, origin.source_course_lesson_id,
+  origin.source_course_block_id, run.source_classroom_assignment_id AS assignment_id,
+  run.classroom_id, project.module_key,
+  (SELECT count(*)::integer FROM public.principals p
+    WHERE p.kind='student_seat' AND p.seat_id=seat.id) AS seat_principal_count,
+  (SELECT count(*)::integer FROM public.principals p
+    WHERE p.kind='account' AND p.account_id=account.id) AS account_principal_count,
+  (SELECT count(*)::integer FROM public.learner_identity_links l
+    WHERE l.tenant_id=origin.school_tenant_id AND l.school_id=origin.school_id
+      AND l.link_kind='student_seat' AND l.seat_id=seat.id AND l.status='active') AS seat_link_count,
+  (SELECT count(*)::integer FROM public.learner_identity_links l
+    WHERE l.tenant_id=origin.school_tenant_id AND l.school_id=origin.school_id
+      AND l.link_kind='account' AND l.account_id=account.id AND l.status='active') AS account_link_count
+  FROM public.learning_project_origins origin
+  JOIN public.projects project ON project.id=origin.project_id
+    AND project.tenant_id=origin.project_tenant_id
+    AND project.owner_principal_id=origin.owner_principal_id AND project.project_scope='personal'
+  JOIN public.principals owner ON owner.id=origin.owner_principal_id AND owner.kind='account'
+  JOIN public.accounts account ON account.id=owner.account_id AND account.status='active'
+  JOIN public.activity_participations participation ON participation.id=origin.participation_id
+    AND participation.tenant_id=origin.school_tenant_id AND participation.school_id=origin.school_id
+    AND participation.learner_identity_id=origin.learner_identity_id
+    AND participation.activity_run_id=origin.activity_run_id
+  JOIN public.activity_runs run ON run.id=origin.activity_run_id
+    AND run.tenant_id=origin.school_tenant_id AND run.school_id=origin.school_id
+    AND run.learning_activity_version_id=origin.learning_activity_version_id
+    AND run.source_kind=origin.source_kind
+    AND run.source_course_run_id IS NOT DISTINCT FROM origin.source_course_run_id
+    AND run.source_course_lesson_id IS NOT DISTINCT FROM origin.source_course_lesson_id
+    AND run.source_course_block_id IS NOT DISTINCT FROM origin.source_course_block_id
+  JOIN public.classroom_student_seats seat ON seat.classroom_id=run.classroom_id
+    AND seat.tenant_id=origin.school_tenant_id AND seat.account_id=account.id AND seat.status='active'
+  JOIN public.principals viewer ON viewer.kind='student_seat' AND viewer.seat_id=seat.id
+  JOIN public.classrooms classroom ON classroom.id=seat.classroom_id
+    AND classroom.tenant_id=origin.school_tenant_id AND classroom.school_id=origin.school_id
+  JOIN public.tenants tenant ON tenant.id=classroom.tenant_id
+  JOIN public.learner_identities learner ON learner.id=origin.learner_identity_id
+    AND learner.tenant_id=origin.school_tenant_id AND learner.school_id=origin.school_id
+    AND learner.state='active'
+  JOIN public.learner_identity_links seat_link ON seat_link.tenant_id=origin.school_tenant_id
+    AND seat_link.school_id=origin.school_id AND seat_link.learner_identity_id=origin.learner_identity_id
+    AND seat_link.link_kind='student_seat' AND seat_link.seat_id=seat.id AND seat_link.status='active'
+  JOIN public.learner_identity_links account_link ON account_link.tenant_id=origin.school_tenant_id
+    AND account_link.school_id=origin.school_id AND account_link.learner_identity_id=origin.learner_identity_id
+    AND account_link.link_kind='account' AND account_link.account_id=account.id AND account_link.status='active'
+  WHERE seat.id=$1 AND account.id=$2 AND viewer.id=$3 AND owner.id=$4 AND origin.project_id=$5
+    AND owner.id<>viewer.id AND origin.source_kind='course' AND project.module_key='three-d'
+    AND classroom.title LIKE 'Library class %' AND tenant.workspace_slug LIKE 'ws-course-mate-%'`;
+
+export function validateLinkedTarget(rows, target) {
+  requireCondition(Array.isArray(rows) && rows.length === 1, 'DIAGNOSTIC_LINKED_LINEAGE_UNIQUE');
+  const row = rows[0];
+  requireCondition(
+    row.seat_id === target.seat_id &&
+      row.account_id === target.account_id &&
+      row.seat_principal_id === target.seat_principal_id &&
+      row.account_principal_id === target.account_principal_id &&
+      row.owner_principal_id === target.account_principal_id &&
+      row.owner_principal_id !== row.seat_principal_id &&
+      row.project_id === target.projects[0] &&
+      row.owner_kind === 'account' &&
+      row.viewer_kind === 'student_seat' &&
+      row.source_kind === 'course' &&
+      row.module_key === 'three-d',
+    'DIAGNOSTIC_LINKED_LINEAGE_IDENTITY',
+  );
+  requireCondition(
+    [
+      'seat_status',
+      'account_status',
+      'learner_state',
+      'seat_link_status',
+      'account_link_status',
+    ].every((key) => row[key] === 'active') &&
+      [
+        'seat_principal_count',
+        'account_principal_count',
+        'seat_link_count',
+        'account_link_count',
+      ].every((key) => row[key] === 1),
+    'DIAGNOSTIC_LINKED_ACTIVE_UNIQUE',
+  );
+  requireCondition(
+    [
+      'project_tenant_id',
+      'school_tenant_id',
+      'school_id',
+      'learner_identity_id',
+      'participation_id',
+      'activity_run_id',
+      'learning_activity_version_id',
+      'assignment_id',
+      'classroom_id',
+      'source_course_run_id',
+      'source_course_lesson_id',
+    ].every((key) => uuid.test(row[key] ?? '')) &&
+      typeof row.source_course_block_id === 'string' &&
+      row.source_course_block_id.length > 0,
+    'DIAGNOSTIC_LINKED_EXACT_ORIGIN',
+  );
+  return row;
+}
+
+export function validateLinkedRead(rows, origin) {
+  requireCondition(Array.isArray(rows) && rows.length === 1, 'DIAGNOSTIC_LINKED_RESULT_COUNT');
+  const { context, evidence } = rows[0];
+  requireCondition(context && evidence, 'DIAGNOSTIC_LINKED_RESULT_SHAPE');
+  const expectedContext = {
+    projectId: origin.project_id,
+    seatId: origin.seat_id,
+    classroomAssignmentId: origin.assignment_id,
+    activityRunId: origin.activity_run_id,
+    participationId: origin.participation_id,
+    learningActivityVersionId: origin.learning_activity_version_id,
+    courseRunId: origin.source_course_run_id,
+    courseLessonId: origin.source_course_lesson_id,
+    courseBlockId: origin.source_course_block_id,
+    sourceKind: 'course',
+    moduleKey: 'three-d',
+  };
+  const expectedEvidence = {
+    tenantId: origin.school_tenant_id,
+    schoolId: origin.school_id,
+    classroomId: origin.classroom_id,
+    classroomAssignmentId: origin.assignment_id,
+    activityRunId: origin.activity_run_id,
+    seatId: origin.seat_id,
+    accountId: origin.account_id,
+    principalId: origin.seat_principal_id,
+    learnerId: origin.learner_identity_id,
+    identityResolution: 'learner_identity',
+    kind: 'course_project',
+  };
+  requireCondition(
+    Object.entries(expectedContext).every(([key, value]) => context[key] === value) &&
+      Object.entries(expectedEvidence).every(([key, value]) => evidence[key] === value),
+    'DIAGNOSTIC_LINKED_RESULT_LINEAGE',
+  );
+  return { context: expectedContext, evidence: expectedEvidence };
+}
+
+export function validateStableMeasurements(measurements) {
+  requireCondition(
+    measurements.length >= 2 &&
+      measurements.every(
+        (item) =>
+          item?.status === 'completed' &&
+          item.rowCount === 1 &&
+          /^[a-f0-9]{64}$/.test(item.resultSha256 ?? ''),
+      ),
+    'DIAGNOSTIC_LINKED_MEASUREMENTS_COMPLETE',
+  );
+  requireCondition(
+    measurements.every((item) => item.resultSha256 === measurements[0].resultSha256),
+    'DIAGNOSTIC_LINKED_MODE_UNSTABLE',
+  );
+}
+
+export function validateLinkedTrace(messages, linkedBody) {
+  const plans = messages.map((message) => {
+    const start = message.indexOf('{');
+    requireCondition(
+      /^duration: [0-9.]+ ms\s+plan:/.test(message) && start > 0,
+      'DIAGNOSTIC_LINKED_TRACE_FORMAT',
+    );
+    return JSON.parse(message.slice(start));
+  });
+  const actual = (plan) =>
+    plan &&
+    Number.isFinite(plan['Actual Total Time']) &&
+    Number.isFinite(plan['Actual Startup Time']) &&
+    Number.isInteger(plan['Actual Loops']) &&
+    plan['Actual Loops'] > 0 &&
+    plan['Actual Rows'] === 1;
+  const outer = plans.filter((plan) => plan['Query Text'] === listSql);
+  requireCondition(
+    outer.length === 1 &&
+      actual(outer[0].Plan) &&
+      outer[0].Plan['Node Type'] === 'Function Scan' &&
+      outer[0].Plan['Function Name'] === 'learning_origin_learner_list',
+    'DIAGNOSTIC_LINKED_TRACE_CALLER',
+  );
+  const linked = plans.filter((plan) => plan['Query Text'] === linkedBody);
+  const nodes = (plan) => [plan, ...(plan.Plans ?? []).flatMap(nodes)];
+  requireCondition(
+    linked.length > 0 &&
+      linked.every(
+        (plan) =>
+          actual(plan.Plan) &&
+          nodes(plan.Plan).some((node) => node['Node Type'] === 'LockRows' && actual(node)),
+      ),
+    'DIAGNOSTIC_LINKED_NESTED_WITNESS',
+  );
+  return {
+    querySha256: sha256(listSql),
+    linkedBodySha256: sha256(linkedBody),
+    linkedCalls: linked.length,
+    linkedPlans: linked.map((plan) => ({
+      startupMs: plan.Plan['Actual Startup Time'],
+      totalMs: plan.Plan['Actual Total Time'],
+      rows: plan.Plan['Actual Rows'],
+      loops: plan.Plan['Actual Loops'],
+      lockRows: nodes(plan.Plan)
+        .filter((node) => node['Node Type'] === 'LockRows')
+        .map((node) => ({
+          rows: node['Actual Rows'],
+          loops: node['Actual Loops'],
+          totalMs: node['Actual Total Time'],
+        })),
+    })),
+  };
+}
+
+async function captureLinkedAccess({ admin, client, urls, targets, events, event }) {
+  const target = selectLinkedTarget(targets);
+  const origin = validateLinkedTarget(
+    (
+      await admin.query(linkedTargetSql, [
+        target.seat_id,
+        target.account_id,
+        target.seat_principal_id,
+        target.account_principal_id,
+        target.projects[0],
+      ])
+    ).rows,
+    target,
+  );
+  const ownerLabel = 'library_' + target.index + '_account';
+  const label = ownerLabel + '_as_seat';
+  event({
+    stage: 'linked_preconditions',
+    label,
+    status: 'confirmed',
+    origin,
+    ownerDiffersFromViewer: true,
+    originalOwnerLabel: ownerLabel,
+  });
+
+  const read = async (connection, name, values) => {
+    const start = performance.now();
+    let result;
+    try {
+      result = await connection.query(listSql, values);
+    } catch (error) {
+      const item = {
+        stage: 'linked_measurement',
+        label: name,
+        status: 'failed',
+        elapsedMs: Math.round((performance.now() - start) * 100) / 100,
+        error: failure(error),
+      };
+      event(item);
+      return item;
+    }
+    const elapsedMs = Math.round((performance.now() - start) * 100) / 100;
+    const lineage = validateLinkedRead(result.rows, origin);
+    const item = {
+      stage: 'linked_measurement',
+      label: name,
+      status: 'completed',
+      elapsedMs,
+      rowCount: result.rowCount,
+      resultSha256: sha256(JSON.stringify(result.rows)),
+      lineageSha256: sha256(JSON.stringify(lineage)),
+    };
+    event(item);
+    return item;
+  };
+  const runtimeIdentity = async (connection, name) => {
+    const identity = (
+      await connection.query(`SELECT current_user AS role,
+      pg_backend_pid() AS pid, current_setting('statement_timeout') AS statement_timeout`)
+    ).rows[0];
+    requireCondition(identity.role === 'asalab_app', 'DIAGNOSTIC_LINKED_RUNTIME_ROLE');
+    event({ stage: 'linked_runtime_identity', label: name, ...identity });
+  };
+
+  // The prior owner first/repeated measurements remain byte-for-byte unchanged.
+  // One extra owner read exposes its exact lineage; full hashes are compared only
+  // within one viewer mode, never between Account and Seat.
+  let ownerReference;
+  const owner = await client(urls.app);
+  try {
+    await runtimeIdentity(owner, ownerLabel);
+    ownerReference = await read(owner, ownerLabel + '_lineage_reference', [
+      null,
+      target.account_id,
+    ]);
+  } finally {
+    await owner.end();
+  }
+  const seat = await client(urls.app);
+  let first, repeated;
+  try {
+    await runtimeIdentity(seat, label);
+    first = await read(seat, label + '_first_new_connection', [target.seat_id, null]);
+    repeated = await read(seat, label + '_same_connection', [target.seat_id, null]);
+  } finally {
+    await seat.end();
+  }
+
+  const notices = [];
+  let traced;
+  const instrumented = await client(urls.admin);
+  try {
+    await instrumented.query("LOAD 'auto_explain'");
+    await instrumented.query(`SET auto_explain.log_min_duration=0;
+      SET auto_explain.log_analyze=on; SET auto_explain.log_buffers=on;
+      SET auto_explain.log_timing=on; SET auto_explain.log_nested_statements=on;
+      SET auto_explain.log_format='json'; SET auto_explain.log_level='notice';
+      SET auto_explain.log_parameter_max_length=0; SET ROLE asalab_app`);
+    const identity = (
+      await instrumented.query(`SELECT current_user AS role,
+      session_user AS session_role, current_setting('statement_timeout') AS statement_timeout`)
+    ).rows[0];
+    requireCondition(
+      identity.role === 'asalab_app' && identity.session_role === 'postgres',
+      'DIAGNOSTIC_LINKED_INSTRUMENTED_ROLE',
+    );
+    event({
+      stage: 'linked_instrumented_identity',
+      label,
+      ...identity,
+      interpretation: 'One Seat list call; instrumentation overhead is not baseline latency.',
+    });
+    instrumented.on('notice', (notice) => {
+      if (notice.message?.startsWith('duration:')) {
+        notices.push(notice.message);
+        event({ stage: 'linked_instrumented_plan', label, message: notice.message });
+      }
+    });
+    // This is the only statement after registering the listener. Standalone
+    // EXPLAIN or the earlier owner traces cannot satisfy this case's witness.
+    traced = await read(instrumented, label + '_instrumented', [target.seat_id, null]);
+  } finally {
+    await instrumented.end();
+  }
+  const originalOwner = ['_cold', '_same_connection'].map((suffix) => {
+    const matches = events.filter(
+      (item) => item.stage === 'measurement' && item.label === ownerLabel + suffix,
+    );
+    requireCondition(matches.length === 1, 'DIAGNOSTIC_LINKED_OWNER_COMPARATOR');
+    return matches[0];
+  });
+  validateStableMeasurements([...originalOwner, ownerReference]);
+  validateStableMeasurements([first, repeated, traced]);
+  requireCondition(
+    ownerReference.lineageSha256 === first.lineageSha256 &&
+      first.lineageSha256 === repeated.lineageSha256 &&
+      first.lineageSha256 === traced.lineageSha256,
+    'DIAGNOSTIC_LINKED_SHARED_LINEAGE',
+  );
+  const definition = definitions.find(([name]) => name === 'learning_linked_project_access');
+  const linkedBody = sourceBody(
+    fs.readFileSync(path.join(root, 'migrations', definition[1]), 'utf8'),
+    definition[0],
+  );
+  const witness = validateLinkedTrace(notices, linkedBody);
+  const result = {
+    stage: 'linked_access_witness',
+    label,
+    status: 'confirmed',
+    ownerReferenceLabel: ownerReference.label,
+    lineageSha256: first.lineageSha256,
+    ownerModeStable: true,
+    seatModeStable: true,
+    ...witness,
+  };
+  event(result);
+  return result;
+}
+
 async function main() {
   const urls = validateEnvironment(process.env);
   const revision = verifySource();
@@ -684,6 +1089,14 @@ async function main() {
         }
       }
     }
+    record.linkedAccess = await captureLinkedAccess({
+      admin,
+      client,
+      urls,
+      targets,
+      events: record.events,
+      event,
+    });
     record.status = 'diagnostic_complete_original_prefix_' + outcome;
   } catch (error) {
     record.status = 'diagnostic_failed_original_prefix_' + outcome;

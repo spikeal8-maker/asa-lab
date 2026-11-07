@@ -142,7 +142,7 @@ jobs:
           ASA_DIAGNOSTIC_BROWSER_OUTCOME: ${{ steps.browser.outcome }}
           ASA_DIAGNOSTIC_BATCH: first
         run: |
-          git fetch --no-tags --depth=2 origin "$ASA_DIAGNOSTIC_SOURCE_SHA"
+          git fetch --no-tags --depth=3 origin "$ASA_DIAGNOSTIC_SOURCE_SHA"
           node --test tools/testing/learning-origin-list-diagnostic.test.mjs
           node tools/testing/learning-origin-list-diagnostic.mjs
       - name: Show isolated Scratch host logs
