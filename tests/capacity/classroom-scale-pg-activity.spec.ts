@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
@@ -9,6 +9,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -403,6 +404,141 @@ afterEach(() => {
 });
 
 describe('PostgreSQL 17 protocol and privacy boundary', () => {
+  it.each([
+    ['absent service', undefined, '/dev/null', undefined],
+    ['empty service', '', '/dev/null', undefined],
+    ['inherited service', 'must-not-load-inherited-service', '/dev/null', undefined],
+    ['absent password file', undefined, undefined, undefined],
+    ['empty password file', undefined, '', undefined],
+    ['inherited password file', undefined, '/must-not-read-inherited-pgpass', undefined],
+    ['symlinked null device', undefined, '/dev/null', '! -L /dev/null'],
+    ['non-character null device', undefined, '/dev/null', '-c /dev/null'],
+  ])('sanitizes the psql startup for %s', (_scenario, service, passfile, rejectedCheck) => {
+    const directory = mkdtempSync(join(tmpdir(), 'asa-pg-startup-'));
+    directories.push(directory);
+    // Execute the real startup script with fixtures for the stat read and client.
+    // This checks the child environment, not native /proc or PostgreSQL proof.
+    // Even an empty PGSERVICE selects a service in libpq; it must be absent.
+    // A nonempty, untraversable PGPASSFILE must suppress default-home lookup.
+    writeFileSync(
+      join(directory, 'awk'),
+      `#!/bin/sh
+set -eu
+[ "$#" -eq 2 ] && [ "$1" = '{print $22}' ]
+case "$2" in /proc/[0-9]*/stat) ;; *) exit 79 ;; esac
+printf '12345\\n'
+`,
+      { mode: 0o600 },
+    );
+    writeFileSync(
+      join(directory, 'psql'),
+      `#!/bin/sh
+set -eu
+if [ "\${PGSERVICE+x}" = x ]; then exit 78; fi
+printf '%s\\n' "$$"
+printf '%s\\n' PGSERVICE_UNSET "$PGAPPNAME" "$PGCONNECT_TIMEOUT" "$PGOPTIONS" "$PGPASSWORD" "$PGPASSFILE" "$PGSERVICEFILE" "$PGCLIENTENCODING"
+printf '%s\\n' "$@"
+`,
+      { mode: 0o600 },
+    );
+    for (const name of ['awk', 'psql'])
+      expect(statSync(join(directory, name)).mode & 0o111).toBe(0);
+    const env: Record<string, string> = {
+      PATH: directory,
+      PGAPPNAME: 'asa-pg-activity-' + nonce,
+      PGCONNECT_TIMEOUT: '2',
+      PGOPTIONS: '',
+      PGPASSWORD: '',
+      PGSERVICEFILE: '/dev/null',
+      PGCLIENTENCODING: 'UTF8',
+    };
+    if (service !== undefined) env.PGSERVICE = service;
+    if (passfile !== undefined) env.PGPASSFILE = passfile;
+    // Read fixtures through the trusted interpreter so no temporary executable
+    // is needed. The exec adapter validates the target and really replaces the
+    // startup process; the child still receives only exported environment values.
+    const commandFixture = `asa_fixture_directory="$2"
+awk() { /bin/sh "$asa_fixture_directory/awk" "$@"; }
+asa_fixture_exec() {
+if [ "$1" != psql ]; then return 80; fi
+shift
+command exec /bin/sh "$asa_fixture_directory/psql" "$@"
+}
+alias exec=asa_fixture_exec
+`;
+    // Simulate a failed device check at the shell test boundary without
+    // changing the host's /dev/null. The exported startup body is unchanged.
+    const guardFixture = rejectedCheck
+      ? `test() {
+if [ "$*" = '${rejectedCheck}' ]; then return 1; fi
+command test "$@"
+}
+`
+      : '';
+    const result = spawnSync(
+      '/bin/sh',
+      [
+        '-c',
+        commandFixture + guardFixture + PG_ACTIVITY_NATIVE_SCRIPTS.start,
+        'asa-pg-activity',
+        nonce,
+        directory,
+      ],
+      {
+        env,
+        encoding: 'utf8',
+        timeout: 2000,
+        maxBuffer: 4096,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.signal).toBeNull();
+    if (rejectedCheck) {
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('');
+      return;
+    }
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe('');
+    const [processFrame, clientPid, ...clientOutput] = result.stdout.trimEnd().split('\n');
+    const processIdentity = JSON.parse(processFrame!);
+    expect(processIdentity).toMatchObject({
+      kind: 'process',
+      nonce,
+      pid: expect.any(Number),
+      startTicks: '12345',
+    });
+    expect(clientPid).toBe(String(processIdentity.pid));
+    expect(clientOutput).toEqual([
+      'PGSERVICE_UNSET',
+      'asa-pg-activity-' + nonce,
+      '2',
+      '',
+      '',
+      '/dev/null/asa-pg-activity-no-pass',
+      '/dev/null',
+      'UTF8',
+      '-X',
+      '-qAt',
+      '-w',
+      '-h',
+      '/var/run/postgresql',
+      '-U',
+      'postgres',
+      '-d',
+      'asalab_test',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-v',
+      'ECHO=none',
+      '-v',
+      'VERBOSITY=terse',
+    ]);
+    expect(() => statSync(clientOutput[5]!)).toThrow('ENOTDIR');
+  });
+
   it('binds only the next single SELECT, surrounds it with read-only/rollback, and never interpolates the address into SQL', () => {
     const command = activityCommand('sample', nonce, 4, apiAddress);
     expect(command).toBe(

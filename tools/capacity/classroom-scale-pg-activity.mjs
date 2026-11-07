@@ -620,7 +620,15 @@ export function validateActivityProgress(value, startedAtMs, now, previous) {
 }
 
 const exec = promisify(execFile);
+// libpq treats even an empty PGSERVICE as a service name. Remove inherited
+// values in the child before psql rather than replacing them with an empty value.
+// An explicit path below a checked character device cannot be opened and avoids
+// both libpq's non-regular-file warning and its default password-file lookup.
 const processScript = `set -eu
+unset PGSERVICE
+test ! -L /dev/null
+test -c /dev/null
+export PGPASSFILE=/dev/null/asa-pg-activity-no-pass
 nonce="$1"
 ticks=$(awk '{print $22}' /proc/$$/stat)
 printf '{"kind":"process","nonce":"%s","pid":%s,"startTicks":"%s"}\\n' "$nonce" "$$" "$ticks"
@@ -725,10 +733,6 @@ export function nativePgActivityIo() {
           'PGOPTIONS=',
           '--env',
           'PGPASSWORD=',
-          '--env',
-          'PGPASSFILE=/dev/null',
-          '--env',
-          'PGSERVICE=',
           '--env',
           'PGSERVICEFILE=/dev/null',
           '--env',
