@@ -10,7 +10,7 @@ import { runInNewContext } from 'node:vm';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import { parse as parseYaml } from 'yaml';
+import { isSeq, parse as parseYaml, parseDocument } from 'yaml';
 import {
   isAllowedMutationOrigin,
   resolveCanonicalWebOrigin,
@@ -34,6 +34,10 @@ import {
   assertOfficialScaleImage,
   assertOfficialScaleRunner,
   assertOfficialScaleCompose,
+  officialScaleBrowserInvocation,
+  officialScaleResourceListArgs,
+  assertOfficialScaleOwnedResource,
+  assertOfficialScaleResourceInventory,
   assertOfficialScaleOwnedContainer,
   assertOfficialScaleRuntime,
   runOfficialScaleN30,
@@ -2562,6 +2566,76 @@ const officialProof = () => ({
   after: officialRecord(OFFICIAL_SCALE_AFTER),
 });
 
+const officialBrowserFixture = async () => {
+  const document = parseDocument(await readFile('.github/compose.classroom-scale.yml', 'utf8'));
+  expect(document.errors).toEqual([]);
+  // Read the actual command node only; this does not emulate Compose's merge tags.
+  const command = document.getIn(['services', 'test-runner', 'command'], true);
+  if (!isSeq(command)) throw Error('Missing actual test-runner command');
+  const reports = '/workspace/asa/reports/classroom-official-n30/123-1/baseline';
+  return {
+    reports,
+    config: {
+      services: {
+        'test-runner': {
+          command: command.toJSON(),
+          read_only: true,
+          volumes: [
+            { type: 'bind', source: reports, target: '/workspace/reports/classroom-scale' },
+          ],
+        },
+      },
+    },
+  };
+};
+
+const officialResourceFixture = () => {
+  const project = 'asa-scale-123-1-baseline';
+  const definitions = (keys: string[]) =>
+    Object.fromEntries(
+      keys.map((key) => [
+        key,
+        {
+          name: project + '_' + key,
+          labels: { 'io.asalab.scale.run': officialRunToken },
+          external: false,
+        },
+      ]),
+    );
+  const config = {
+    name: project,
+    networks: definitions(['application', 'database', 'scratch-runtime']),
+    volumes: definitions(['scale-postgres-data', 'scale-object-data', 'application-logs']),
+  };
+  const labels = (kind: string, key: string) => ({
+    'com.docker.compose.project': project,
+    ['com.docker.compose.' + kind]: key,
+    'io.asalab.scale.run': officialRunToken,
+  });
+  return {
+    context: { project, runToken: officialRunToken, config, completeNetworks: true },
+    networks: Object.entries(config.networks).map(([key, definition], index) => ({
+      Id: String(index + 1).repeat(64),
+      Name: definition.name,
+      Labels: labels('network', key),
+      Options: { arbitraryPrivateMetadata: 'never-export-this-field' },
+    })),
+    volumes: Object.entries(config.volumes).map(([key, definition]) => ({
+      Name: definition.name,
+      Labels: labels('volume', key),
+      Mountpoint: '/var/lib/docker/volumes/' + definition.name + '/_data',
+    })),
+  };
+};
+const verifiedOfficialResources = (fixture: ReturnType<typeof officialResourceFixture>) => [
+  ...fixture.networks.map((record) =>
+    assertOfficialScaleOwnedResource('network', record.Id, [record], fixture.context),
+  ),
+  ...fixture.volumes.map((record) =>
+    assertOfficialScaleOwnedResource('volume', record.Name, [record], fixture.context),
+  ),
+];
+
 describe('official full N30 adapter boundary and provenance', () => {
   it('pins the byte-identical original UI scenario and all 420 operations/SLO settings', async () => {
     expect(scaleHash(await readFile('e2e/classroom-scale.spec.ts', 'utf8'))).toBe(
@@ -2950,6 +3024,257 @@ describe('official full N30 adapter boundary and provenance', () => {
     const foreignNonce = configuration();
     foreignNonce.networks.application.labels['io.asalab.scale.run'] = 'c'.repeat(32);
     expect(() => assertOfficialScaleCompose(foreignNonce, release, context)).toThrow();
+  });
+
+  it('puts each Playwright worker output below its phase bind mount without changing the real browser command', async () => {
+    const { config, reports } = await officialBrowserFixture();
+    const original = [...config.services['test-runner'].command];
+    const calibration = officialScaleBrowserInvocation(config, {
+      reports,
+      users: 2,
+      mode: 'calibration',
+    });
+    const level = officialScaleBrowserInvocation(config, { reports, users: 30, mode: 'capacity' });
+    expect(calibration.phase).toBe('calibration');
+    expect(calibration.outputDir).toBe('/workspace/reports/classroom-scale/calibration/playwright');
+    expect(level.phase).toBe('level-30');
+    expect(level.outputDir).toBe('/workspace/reports/classroom-scale/level-30/playwright');
+    for (const invocation of [calibration, level]) {
+      expect(invocation.command.slice(0, -1)).toEqual(original);
+      expect(invocation.command.at(-1)).toBe('--output=' + invocation.outputDir);
+      expect(invocation.outputDir).not.toBe('/workspace/reports/playwright');
+      expect(invocation.outputDir).not.toBe(
+        '/workspace/reports/classroom-scale/' + invocation.phase,
+      );
+    }
+    expect(calibration.outputDir).not.toBe(level.outputDir);
+    expect(config.services['test-runner'].command).toEqual(original);
+    expect(config.services['test-runner'].read_only).toBe(true);
+  });
+
+  it.each([
+    { users: 30, mode: 'calibration' },
+    { users: 2, mode: 'capacity' },
+    { users: 60, mode: 'capacity' },
+    { users: 200, mode: 'capacity' },
+    { users: 2, mode: '../calibration' },
+  ])('refuses a browser output for an unauthorized phase %j', async (phase) => {
+    const { config, reports } = await officialBrowserFixture();
+    expect(() => officialScaleBrowserInvocation(config, { reports, ...phase })).toThrow();
+  });
+
+  it('refuses a changed browser command, broad writable root or foreign/read-only report mount', async () => {
+    const { config, reports } = await officialBrowserFixture();
+    const options = { reports, users: 2, mode: 'calibration' };
+    const runner = config.services['test-runner'];
+    runner.command.push('--output=/workspace/reports');
+    expect(() => officialScaleBrowserInvocation(config, options)).toThrow();
+    runner.command.pop();
+    runner.read_only = false;
+    expect(() => officialScaleBrowserInvocation(config, options)).toThrow();
+    runner.read_only = true;
+    runner.volumes[0]!.source = reports.replace('/baseline', '/after');
+    expect(() => officialScaleBrowserInvocation(config, options)).toThrow();
+    runner.volumes[0]!.source = reports;
+    runner.volumes[0]!.target = '/workspace/reports';
+    expect(() => officialScaleBrowserInvocation(config, options)).toThrow();
+    runner.volumes[0]!.target = '/workspace/reports/classroom-scale';
+    Object.assign(runner.volumes[0]!, { read_only: true });
+    expect(() => officialScaleBrowserInvocation(config, options)).toThrow();
+  });
+
+  it('requests full network IDs while preserving Docker volume-name semantics', () => {
+    const { context } = officialResourceFixture();
+    expect(officialScaleResourceListArgs('network', context.project)).toEqual([
+      'network',
+      'ls',
+      '-q',
+      '--no-trunc',
+      '--filter',
+      'label=com.docker.compose.project=' + context.project,
+    ]);
+    expect(officialScaleResourceListArgs('volume', context.project)).toEqual([
+      'volume',
+      'ls',
+      '-q',
+      '--filter',
+      'label=com.docker.compose.project=' + context.project,
+    ]);
+    expect(() => officialScaleResourceListArgs('container', context.project)).toThrow();
+    expect(() => officialScaleResourceListArgs('network', 'asa-lab-dev')).toThrow();
+  });
+
+  it('captures all three network IDs and separate volumes with a frozen, bounded configuration proof', () => {
+    const fixture = officialResourceFixture();
+    const resources = verifiedOfficialResources(fixture);
+    const inventory = assertOfficialScaleResourceInventory(resources, undefined, fixture.context);
+    expect(inventory.completeNetworks).toBe(true);
+    expect(
+      inventory.resources
+        .filter((resource) => resource.kind === 'network')
+        .map((resource) => resource.key),
+    ).toEqual(['application', 'database', 'scratch-runtime']);
+    expect(inventory.resources.filter((resource) => resource.kind === 'volume')).toHaveLength(3);
+    expect(inventory.resources[0]).toEqual({
+      kind: 'network',
+      key: 'application',
+      name: fixture.networks[0]!.Name,
+      id: fixture.networks[0]!.Id,
+    });
+    expect(Object.isFrozen(inventory)).toBe(true);
+    expect(Object.isFrozen(inventory.resources)).toBe(true);
+    expect(Object.isFrozen(inventory.resources[0])).toBe(true);
+    expect(JSON.stringify(inventory)).not.toMatch(
+      /arbitraryPrivateMetadata|never-export|Mountpoint/,
+    );
+    expect(
+      assertOfficialScaleResourceInventory([...resources].reverse(), inventory, fixture.context)
+        .configurationHash,
+    ).toBe(inventory.configurationHash);
+  });
+
+  it('rejects truncated network IDs, network names used as IDs and changed native inspect IDs', () => {
+    const fixture = officialResourceFixture();
+    const record = fixture.networks[0]!;
+    for (const reference of [record.Id.slice(0, 12), record.Name, 'f'.repeat(64)]) {
+      expect(() =>
+        assertOfficialScaleOwnedResource('network', reference, [record], fixture.context),
+      ).toThrow(/full_id_mismatch/);
+    }
+    for (const records of [[], [record, record]]) {
+      expect(() =>
+        assertOfficialScaleOwnedResource('network', record.Id, records, fixture.context),
+      ).toThrow(/inspect_count/);
+    }
+    const volume = fixture.volumes[0]!;
+    expect(
+      assertOfficialScaleOwnedResource('volume', volume.Name, [volume], fixture.context),
+    ).toEqual({ kind: 'volume', key: 'scale-postgres-data', name: volume.Name });
+    expect(() =>
+      assertOfficialScaleOwnedResource('volume', record.Id, [volume], fixture.context),
+    ).toThrow(/listed_name_mismatch/);
+  });
+
+  it('requires the native network name, project, nonce and key to agree with the captured owned configuration', () => {
+    const fixture = officialResourceFixture();
+    const record = fixture.networks[0]!;
+    expect(() =>
+      assertOfficialScaleOwnedResource(
+        'network',
+        record.Id,
+        [{ ...record, Name: record.Id }],
+        fixture.context,
+      ),
+    ).toThrow(/name_mismatch/);
+    for (const [key, value] of [
+      ['com.docker.compose.project', 'asa-lab-dev'],
+      ['com.docker.compose.network', 'unknown'],
+      ['io.asalab.scale.run', 'c'.repeat(32)],
+    ]) {
+      expect(() =>
+        assertOfficialScaleOwnedResource(
+          'network',
+          record.Id,
+          [{ ...record, Labels: { ...record.Labels, [key!]: value } }],
+          fixture.context,
+        ),
+      ).toThrow();
+    }
+    for (const mutate of [
+      (definition: typeof fixture.context.config.networks.application) => {
+        definition!.external = true;
+      },
+      (definition: typeof fixture.context.config.networks.application) => {
+        definition!.name = 'asa-lab-dev_application';
+      },
+      (definition: typeof fixture.context.config.networks.application) => {
+        definition!.labels['io.asalab.scale.run'] = 'c'.repeat(32);
+      },
+    ]) {
+      const changed = officialResourceFixture();
+      mutate(changed.context.config.networks.application);
+      expect(() =>
+        assertOfficialScaleOwnedResource('network', record.Id, [record], changed.context),
+      ).toThrow(/unowned_config/);
+    }
+  });
+
+  it('rejects same-name network replacement and missing or changed inventory after the pre-browser capture', () => {
+    const fixture = officialResourceFixture();
+    const resources = verifiedOfficialResources(fixture);
+    const inventory = assertOfficialScaleResourceInventory(resources, undefined, fixture.context);
+    fixture.networks[0]!.Id = 'f'.repeat(64);
+    const replaced = verifiedOfficialResources(fixture);
+    expect(() =>
+      assertOfficialScaleResourceInventory(replaced, inventory, fixture.context),
+    ).toThrow(/replaced fixture resource inventory/);
+    expect(() =>
+      assertOfficialScaleResourceInventory(resources.slice(1), inventory, fixture.context),
+    ).toThrow(/Incomplete official fixture networks/);
+    expect(() =>
+      assertOfficialScaleResourceInventory(resources.slice(0, -1), inventory, fixture.context),
+    ).toThrow(/replaced fixture resource inventory/);
+    expect(() =>
+      assertOfficialScaleResourceInventory(
+        [...resources, resources[0]!],
+        inventory,
+        fixture.context,
+      ),
+    ).toThrow(/duplicate official fixture inventory/);
+    fixture.context.config.networks.database!.labels['io.asalab.scale.run'] = 'c'.repeat(32);
+    expect(() =>
+      assertOfficialScaleResourceInventory(resources, inventory, fixture.context),
+    ).toThrow(/replaced fixture resource inventory/);
+  });
+
+  it('allows an independently owned partial-startup cleanup receipt but never a partial pre-browser inventory', () => {
+    const fixture = officialResourceFixture();
+    const resources = verifiedOfficialResources(fixture).filter(
+      (resource) => resource.kind === 'volume' || resource.key === 'database',
+    );
+    const context = { ...fixture.context, completeNetworks: false };
+    const partial = assertOfficialScaleResourceInventory(resources, undefined, context);
+    expect(partial.completeNetworks).toBe(false);
+    expect(() =>
+      assertOfficialScaleResourceInventory(resources, undefined, fixture.context),
+    ).toThrow(/Incomplete official fixture networks/);
+    expect(() =>
+      assertOfficialScaleResourceInventory(
+        verifiedOfficialResources(fixture),
+        partial,
+        fixture.context,
+      ),
+    ).toThrow(/replaced fixture resource inventory/);
+  });
+
+  it('keeps the completed calibration receipt and never starts N30 after an ownership change', async () => {
+    const fixture = officialResourceFixture();
+    const inventory = assertOfficialScaleResourceInventory(
+      verifiedOfficialResources(fixture),
+      undefined,
+      fixture.context,
+    );
+    const identity = { harnessSha: officialHarnessSha, runId: '123', attempt: 1 };
+    const run = vi.fn(async (users: number) => ({
+      ...identity,
+      users,
+      status: users === 2 ? 'VALID_FIXTURE' : 'PASS',
+    }));
+    const receipts: Array<{ users: number; status: string }> = [];
+    await expect(
+      runOfficialScaleN30(identity, run, async (receipt: { users: number; status: string }) => {
+        receipts.push(receipt);
+        fixture.networks[0]!.Id = 'f'.repeat(64);
+        assertOfficialScaleResourceInventory(
+          verifiedOfficialResources(fixture),
+          inventory,
+          fixture.context,
+        );
+      }),
+    ).rejects.toThrow(/replaced fixture resource inventory/);
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0]).toMatchObject({ users: 2, status: 'VALID_FIXTURE' });
+    expect(run.mock.calls.map((args) => args[0])).toEqual([2]);
   });
 
   it('preserves ownership and lifetime guards before observing or cleaning a container', () => {
