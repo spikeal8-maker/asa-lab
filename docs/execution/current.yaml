@@ -12625,13 +12625,11 @@ parallel_lanes:
       main:
         branch: main
         sha: 3e8713476cafedda3e24a39665458e833efd7c22
-      observation_note: Dated GitHub main snapshot for owner-selected school logging repair. Previous OBS015-017 evidence remains historical. Local candidates are not published, deployed, or owner accepted; fetch fresh main and exact CI before integration.
+      observation_note: Dated GitHub main snapshot for owner-selected school logging repair. Previous OBS015-017 evidence remains historical. Local candidates are not published, deployed, or owner accepted; Fetch main again before any write, then recheck its exact SHA and applicable CI before integration.
     owned_paths:
       - docs/deployment/ADMIN_LOGS.md
       - tools/collect_logs.py
       - tools/test_database_progress.py
-      - tools/deployment/collector.py
-      - tools/deployment/test_panel_collector.py
       - docs/deployment/ONEPANEL_COLLECTOR.md
     task:
       id: TASK-OBSERVABILITY-001
@@ -12687,6 +12685,12 @@ parallel_lanes:
         parts:
           LOG-FIX-01: bounded_fair_fresh_database_page_drain_and_regressions
           PANEL-LOG-01: native_1Panel_collector_manager_adapter_tests_and_minimal_runbook
+        controller_scope_assignment: >-
+          Keep tools/deployment/** under deployment-legacy-809's existing advisory path classification.
+          The current owner-selected school repair authorizes only the two named 1Panel adapter paths
+          in planned_paths; it does not reopen issue809 or change its task, legacy transition, or blockers.
+          Check all five planned paths and real worktree overlaps in canonical preflight; no fabricated
+          shared_path_coordination or duplicate owned_paths classification is introduced.
         planned_paths:
           - tools/collect_logs.py
           - tools/test_database_progress.py
