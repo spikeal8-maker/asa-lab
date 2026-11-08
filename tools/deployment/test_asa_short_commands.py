@@ -61,6 +61,20 @@ class PortableASACommandTests(unittest.TestCase):
             "--deployment-digest", digest,
         ])
 
+    def test_production_update_requires_immutable_release(self):
+        blocked = self.call("update")
+        self.assertEqual(blocked.returncode, 64)
+        self.assertIn("--deployment-digest", blocked.stderr)
+        digest = "sha256:" + "b" * 64
+        guarded = self.call("update", "--deployment-digest", digest)
+        self.assertEqual(guarded.returncode, 0, guarded.stderr)
+        arguments = json.loads(guarded.stdout)
+        self.assertIn("--require-application-rollback", arguments)
+        self.assertEqual(arguments.count("--require-application-rollback"), 1)
+        explicit = self.call("update", "--deployment-digest", digest, "--require-application-rollback")
+        self.assertEqual(explicit.returncode, 0, explicit.stderr)
+        self.assertEqual(json.loads(explicit.stdout).count("--require-application-rollback"), 1)
+
     def test_without_profile_does_not_update_unknown_installation(self):
         (self.state / "installation.json").unlink()
         result = self.call("update")
