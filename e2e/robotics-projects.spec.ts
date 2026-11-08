@@ -476,8 +476,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     for (const label of ['Поле', 'Робот', 'Электроника', 'Программа'])
       await visibleControl(page, page.getByRole('tab', { name: label, exact: true }));
     await visibleControl(page, page.getByRole('button', { name: 'Сохранить', exact: true }));
-    for (const label of ['Публикация', 'Аккаунт'] as const)
-      await roboticsHeaderAction(page, label);
+    for (const label of ['Публикация', 'Аккаунт'] as const) await roboticsHeaderAction(page, label);
     await page.screenshot({ path: `${EVIDENCE}/editor-field-${width}.png`, fullPage: true });
     await page.getByRole('tab', { name: 'Программа', exact: true }).click();
     await expect(code).toBeVisible();
