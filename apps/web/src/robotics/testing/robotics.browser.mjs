@@ -407,17 +407,60 @@ async function viewport(width, height, section) {
     const active = document
       .querySelector('[role="tabpanel"]:not([hidden])')
       ?.getBoundingClientRect();
+    const header = document.querySelector('.robotics-unified-header');
+    const headerBounds = header?.getBoundingClientRect();
+    const tabs = [...(header?.querySelectorAll('[role="tab"]') ?? [])];
+    const save = header?.querySelector('.robotics-header-save');
+    const saveBounds = save?.getBoundingClientRect();
+    const tabBounds = tabs.map((tab) => tab.getBoundingClientRect());
     return {
       width: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
       stage: bounds?.toJSON(),
       active: active?.toJSON(),
+      header: {
+        count: document.querySelectorAll('.robotics-lab > header').length,
+        top: headerBounds?.top,
+        height: headerBounds?.height,
+        background: header ? getComputedStyle(header).backgroundColor : null,
+        tabCount: tabs.length,
+        allIconTabs: tabs.every((tab) => tab.querySelector('svg') !== null),
+        sameRow: tabBounds.every(
+          (box) => box.top >= headerBounds.top && box.bottom <= headerBounds.bottom,
+        ),
+        tabSeparatedFromSave: tabBounds.every((box) => box.right <= saveBounds.left + 1),
+        saveLast: save === header?.querySelector('.robotics-header-controls')?.lastElementChild,
+        saveVisible: Boolean(
+          saveBounds &&
+          saveBounds.width > 0 &&
+          saveBounds.left >= 0 &&
+          saveBounds.right <= window.innerWidth + 1,
+        ),
+        saveLabel: save?.getAttribute('aria-label'),
+        saveTop: saveBounds?.top,
+        saveBottom: saveBounds?.bottom,
+      },
       oneStage: document.querySelectorAll('.workbench-canvas').length === 1,
       sameStage: window.roboticsMountedStage === document.querySelector('.workbench-canvas'),
       hiddenFocus: Boolean(document.activeElement?.closest('[hidden], [inert]')),
     };
   });
   assert.ok(layout.scrollWidth <= width + 1, `${section} horizontal overflow at ${width}`);
+  assert.equal(layout.header.count, 1, 'one top-level header');
+  assert.ok(
+    layout.header.top >= -1 && layout.header.top <= 1,
+    'header touches the application top',
+  );
+  assert.equal(layout.header.height, 48, 'same 48px as Electronics');
+  assert.equal(layout.header.background, 'rgb(255, 255, 255)', 'Electronics white surface');
+  assert.equal(layout.header.tabCount, 4, 'all four tabs inside the only header');
+  assert.equal(layout.header.allIconTabs, true, 'every tab has an icon');
+  assert.equal(layout.header.sameRow, true, 'four tabs remain in the header row');
+  assert.equal(layout.header.tabSeparatedFromSave, true, 'Save cannot overlap any tab');
+  assert.equal(layout.header.saveLast, true, 'Save is the final header action');
+  assert.equal(layout.header.saveVisible, true, 'Save remains visible at every width');
+  assert.equal(layout.header.saveLabel, 'Сохранить');
+  assert.ok(layout.header.saveTop >= -1 && layout.header.saveBottom <= 49);
   assert.ok(layout.oneStage && layout.sameStage, 'one mounted stage through all sections');
   assert.ok(layout.stage.width > 90 && layout.stage.height > 65, 'real stage has a visible size');
   assert.ok(layout.active.width > 250);
