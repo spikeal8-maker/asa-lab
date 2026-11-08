@@ -9,7 +9,7 @@ import types
 from pathlib import Path
 import tempfile
 import unittest
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -55,9 +55,9 @@ def fixture_pages(rows, calls):
 class DatabaseProgressUnitTests(unittest.TestCase):
     def test_fresh_burst_completes_before_repeated_overlap_becomes_stale(self):
         table = 'audit_events'
-        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock:
+        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock, ExitStack() as resources:
             c = Collector(Path(temp), {}); c.postgres = 'synthetic'
-            self.addCleanup(c.db.close)
+            resources.callback(c.db.close)
             stamp = (clock.at - timedelta(minutes=1)).isoformat()
             rows = {table: [{'id': f'{n:06}', 'created_at': stamp, 'action': 'account.registered'} for n in range(257)]}
             calls = []; c.database_batch = fixture_pages(rows, calls)
@@ -77,8 +77,8 @@ class DatabaseProgressUnitTests(unittest.TestCase):
 
     def test_fresh_page_budget_is_shared_and_unfinished_ties_never_advance_through(self):
         tables = ('audit_events', 'classroom_activity_events')
-        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock:
-            c = Collector(Path(temp), {}); c.postgres = 'synthetic'; self.addCleanup(c.db.close)
+        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock, ExitStack() as resources:
+            c = Collector(Path(temp), {}); c.postgres = 'synthetic'; resources.callback(c.db.close)
             stamp = (clock.at - timedelta(minutes=1)).isoformat()
             rows = {table: [{'id': f'{n:06}', DATABASE_DIAGNOSTICS['sources'][table]['timeColumn']: stamp}
                             for n in range(257)] for table in tables}
@@ -99,8 +99,8 @@ class DatabaseProgressUnitTests(unittest.TestCase):
 
     def test_fresh_deadline_yields_to_other_table_on_next_call(self):
         tables = ('audit_events', 'classroom_activity_events')
-        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock:
-            c = Collector(Path(temp), {}); c.postgres = 'synthetic'; self.addCleanup(c.db.close)
+        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock, ExitStack() as resources:
+            c = Collector(Path(temp), {}); c.postgres = 'synthetic'; resources.callback(c.db.close)
             stamp = (clock.at - timedelta(minutes=1)).isoformat()
             rows = {tables[0]: [{'id': f'{n:06}', 'created_at': stamp} for n in range(257)], tables[1]: []}
             calls = []; batch = fixture_pages(rows, calls)
@@ -123,8 +123,8 @@ class DatabaseProgressUnitTests(unittest.TestCase):
 
     def test_fresh_page_failure_preserves_committed_prefix_and_exact_restart_window(self):
         table = 'audit_events'
-        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock:
-            root = Path(temp); c = Collector(root, {}); c.postgres = 'synthetic'
+        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock, ExitStack() as resources:
+            root = Path(temp); c = Collector(root, {}); c.postgres = 'synthetic'; resources.callback(c.db.close)
             stamp = (clock.at - timedelta(minutes=1)).isoformat()
             rows = {table: [{'id': f'{n:06}', 'created_at': stamp} for n in range(260)]}
             calls = []; c.database_batch = fixture_pages(rows, calls); add = c.add_database_row
@@ -142,7 +142,7 @@ class DatabaseProgressUnitTests(unittest.TestCase):
                 segments = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
                 c.db.close()
                 clock.at += timedelta(seconds=20); clock.elapsed += 20
-                c = Collector(root, {}); c.postgres = 'synthetic'; self.addCleanup(c.db.close)
+                c = Collector(root, {}); c.postgres = 'synthetic'; resources.callback(c.db.close)
                 self.assertEqual(c.state('db:live:' + table + ':window'), window)
                 c.database_batch = fixture_pages(rows, calls)
                 c.database(history=False); c.publish()
@@ -155,8 +155,8 @@ class DatabaseProgressUnitTests(unittest.TestCase):
 
     def test_fresh_reconciliation_keeps_late_rows_and_mutations_behind_cursor(self):
         table = 'audit_events'
-        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock:
-            c = Collector(Path(temp), {}); c.postgres = 'synthetic'; self.addCleanup(c.db.close)
+        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock, ExitStack() as resources:
+            c = Collector(Path(temp), {}); c.postgres = 'synthetic'; resources.callback(c.db.close)
             stamp = (clock.at - timedelta(minutes=5)).isoformat()
             rows = {table: [{'id': f'{n:06}', 'created_at': stamp, 'action': 'account.registered'} for n in range(1, 261)]}
             calls = []; c.database_batch = fixture_pages(rows, calls)
@@ -178,8 +178,8 @@ class DatabaseProgressUnitTests(unittest.TestCase):
 
     def test_fresh_completed_old_window_is_pending_until_new_window_actually_finishes(self):
         table = 'audit_events'
-        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock:
-            c = Collector(Path(temp), {}); c.postgres = 'synthetic'; self.addCleanup(c.db.close)
+        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock, ExitStack() as resources:
+            c = Collector(Path(temp), {}); c.postgres = 'synthetic'; resources.callback(c.db.close)
             old_end = clock.at - timedelta(minutes=2)
             window = dict(start=(old_end - timedelta(minutes=5)).isoformat(), end=old_end.isoformat(),
                           recentStart=(old_end - timedelta(minutes=30)).isoformat(), recentEnd=old_end.isoformat(), after=None)
