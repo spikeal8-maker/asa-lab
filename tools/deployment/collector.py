@@ -24,6 +24,8 @@ from .paths import plain_paths, atomic_bytes, atomic_json
 
 NS = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
 WINDOWS = os.name == 'nt'
+PANEL_MANAGER = '1panel-supervisor'
+PANEL_BRIDGE = Path('/usr/local/sbin/asa-1panel-collector')
 
 
 def command(args, *, allow_missing=False):
@@ -88,6 +90,10 @@ def validate_config(install):
             'COLLECTOR_RUNNER_MODE', 'Unknown persisted collector mode.')
     require(install.settings.get('collectorMode') != 'system-root' or not WINDOWS,
             'COLLECTOR_RUNNER_MODE', 'System-root collection is supported only on Linux.')
+    manager = install.settings.get('collectorManager')
+    require(manager in (None, PANEL_MANAGER), 'COLLECTOR_MANAGER', 'Unknown collector manager.')
+    require(manager is None or not WINDOWS and install.settings.get('collectorMode') == 'system-root',
+            'COLLECTOR_MANAGER', 'The 1Panel supervisor manager requires explicit Linux system-root collection.')
     config = read_json(install.state / "log-collector.json", {})
     require(type(config.get('version', 1)) is int and config.get("version", 1) == 1, "COLLECTOR_CONFIG", "Unsupported collector configuration version.")
     require(config.get("project", install.project) == install.project, "COLLECTOR_PROJECT", "Collector project differs from the canonical installation.")
@@ -97,7 +103,7 @@ def validate_config(install):
     require(isinstance(config.get("fileSources", []), list), "COLLECTOR_CONFIG", "fileSources must be a list.")
     for item in config.get("fileSources", []):
         require(isinstance(item, dict) and isinstance(item.get("source"), str) and
-                re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", item["source"]) and
+                (item["source"] == 'linux:1panel-supervisor' or re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", item["source"])) and
                 isinstance(item.get("path"), str) and Path(item["path"]).is_absolute(),
                 "COLLECTOR_CONFIG", "File sources require a bounded name and an absolute path.")
     from .operational import configuration
@@ -353,6 +359,11 @@ def runner_identity(install):
     persisted = read_json(install.state / "collector-runner.json", {})
     require(not persisted or persisted.get("root") == str(install.root) and persisted.get("project") == install.project,
             "COLLECTOR_RUNNER_IDENTITY", "Runner registration belongs to another installation.")
+    manager = install.settings.get('collectorManager')
+    require(manager in (None, PANEL_MANAGER) and (not persisted or persisted.get('manager') == manager),
+            'COLLECTOR_MANAGER', 'Collector manager selection and registration differ; no native runner is substituted.')
+    require(manager is None or not WINDOWS and install.settings.get('collectorMode') == 'system-root',
+            'COLLECTOR_MANAGER', '1Panel manager selection requires Linux system-root collection.')
     if WINDOWS:
         owner = command(["whoami"])[0]
         sid = command(['powershell.exe', '-NoProfile', '-Command', '[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value'])[0]
@@ -379,6 +390,7 @@ def runner_identity(install):
             "COLLECTOR_RUNNER_OWNER", "Runner operator differs from its registered owner.")
     result = dict(version=1, root=str(install.root), project=install.project, owner=owner, mode=mode,
                   name=name, scriptDigest=digest(install.root), revision=source_revision(install.root))
+    if manager is not None: result['manager'] = manager
     if WINDOWS: result['ownerSid'] = sid
     return result
 
@@ -600,7 +612,50 @@ def verify_systemd_state(identity, path, python, *, owned_unloaded=False):
     return effective
 
 
+def reconcile_panel_runner(install, identity, restart):
+    """Delegate to the installed 1Panel API bridge; never fall back to systemd.
+
+    The root-owned bridge is installed from Server-setings, uses the local
+    official 1Panel API, verifies the exact registered supervisor process and
+    refuses activation while the old service is still enabled or running.
+    A missing bridge is an explicit degraded state, not permission to create
+    a second writer. This function neither writes registration nor history.
+    """
+    require(not WINDOWS and os.geteuid() == 0 and identity.get('mode') == 'system-root'
+            and identity.get('owner') == 'root' and identity.get('manager') == PANEL_MANAGER,
+            'COLLECTOR_MANAGER', 'The 1Panel collector bridge requires its registered root operator.')
+    try:
+        for path in (PANEL_BRIDGE, *PANEL_BRIDGE.parents):
+            info = path.lstat()
+            require(info.st_uid == 0 and not stat.S_ISLNK(info.st_mode) and not info.st_mode & 0o022,
+                    'COLLECTOR_MANAGER_BRIDGE', 'The 1Panel bridge path is not root controlled.')
+        info = PANEL_BRIDGE.lstat()
+        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size <= 256 * 1024
+                and info.st_mode & 0o111, 'COLLECTOR_MANAGER_BRIDGE', 'The 1Panel bridge is not a bounded executable file.')
+        args = [str(PANEL_BRIDGE), 'reconcile', '--apply', '--root', str(install.root), '--project', install.project]
+        if restart: args.append('--restart')
+        value = subprocess.run(args, capture_output=True, text=True, encoding='utf-8', errors='strict', timeout=45,
+                               env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
+                                    'PYTHONDONTWRITEBYTECODE': '1'}, stdin=subprocess.DEVNULL)
+        require(value.returncode == 0 and len(value.stdout) <= 16384,
+                'COLLECTOR_MANAGER_BRIDGE', 'The 1Panel bridge did not confirm reconciliation; systemd fallback is disabled.')
+        receipt = json.loads(value.stdout)
+        require(isinstance(receipt, dict) and receipt.get('format') == 'asa-1panel-collector-result-v1'
+                and receipt.get('manager') == PANEL_MANAGER and receipt.get('root') == str(install.root)
+                and receipt.get('project') == install.project and receipt.get('state') == 'running'
+                and type(receipt.get('processCount')) is int and receipt.get('processCount') == 1
+                and receipt.get('restartRequested') is restart,
+                'COLLECTOR_MANAGER_BRIDGE', 'The 1Panel bridge receipt does not match this collector.')
+    except (OSError, ValueError, UnicodeError, subprocess.SubprocessError) as exc:
+        raise Blocked('COLLECTOR_MANAGER_BRIDGE', 'The registered 1Panel bridge is unavailable or returned invalid metadata.',
+                      'Repair the Git-published 1Panel integration; do not start a parallel systemd collector.') from exc
+    return '1Panel Toolbox / Supervisor; registered process lifecycle through the official local API'
+
+
 def reconcile_runner(install, identity, restart):
+    if identity.get('manager') == PANEL_MANAGER:
+        return reconcile_panel_runner(install, identity, restart)
+    require(identity.get('manager') is None, 'COLLECTOR_MANAGER', 'Unknown collector manager; native fallback is disabled.')
     if identity["mode"] == "windows-task":
         existing = json.loads(ps_scheduler(install, "query", identity))
         if existing.get("xml"): verify_windows_task(existing["xml"], identity, existing.get('principalSid'))
@@ -667,7 +722,9 @@ def status(install):
         process = read_json(install.state / "diagnostics" / "store" / "collector-process.json", {})
         health = read_json(install.state / "diagnostics" / "store" / "collector-health.json", {})
         require(not identity or identity.get('root') == str(install.root) and identity.get('project') == install.project
-                and identity.get('mode') in ('user', 'system', 'system-root', 'windows-task'),
+                and identity.get('mode') in ('user', 'system', 'system-root', 'windows-task')
+                and identity.get('manager') in (None, PANEL_MANAGER)
+                and identity.get('manager') == install.settings.get('collectorManager'),
                 'COLLECTOR_STATUS_IDENTITY', 'Collector registration differs from the canonical installation.')
     except (Blocked, OSError, ValueError, TypeError):
         return unavailable('COLLECTOR_STATUS_CONFIG', 'invalid_unreadable_or_unsafe_metadata')
@@ -692,6 +749,7 @@ def status(install):
     except (KeyError, ValueError, TypeError): pass
     return {"state": "running" if fresh and process.get("scriptDigest") == expected else "unavailable" if not identity else "stale",
             "process": process, "cycle": health, "mode": identity.get("mode"), "scriptDigest": expected,
+            "manager": identity.get('manager'),
             "detail": "Process identity is separate from cycle success and individual source coverage"}
 
 
@@ -813,3 +871,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
