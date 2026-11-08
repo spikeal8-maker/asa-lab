@@ -35,6 +35,15 @@ case "$action" in
 esac
 shift
 
+# Never let a later argparse option silently retarget the canonical installation.
+for argument in "$@"; do
+  case "$argument" in
+    --root|--root=*|--profile|--profile=*)
+      fail 'Путь и профиль выбираются только через ASA_INSTALL_ROOT/ASA_PROFILE'
+      ;;
+  esac
+done
+
 if [ -n "${ASA_INSTALL_ROOT:-}" ]; then
   root=$(CDPATH= cd -- "$ASA_INSTALL_ROOT" && pwd -P) || fail 'Каталог ASA_INSTALL_ROOT недоступен'
 else
@@ -68,9 +77,7 @@ case "$action" in
     ;;
 esac
 
-profile=${ASA_PROFILE:-}
-if [ -z "$profile" ]; then
-  profile=$("$python" -B - "$root/.asa/installation.json" <<'PY'
+installed_profile=$("$python" -B - "$root/.asa/installation.json" <<'PY'
 import json
 import pathlib
 import sys
@@ -80,7 +87,10 @@ try:
 except (FileNotFoundError, ValueError, OSError):
     pass
 PY
-  )
+)
+profile=${ASA_PROFILE:-$installed_profile}
+if [ -n "$installed_profile" ] && [ "$profile" != "$installed_profile" ]; then
+  fail 'ASA_PROFILE не совпадает с фактическим профилем установки'
 fi
 case "$profile" in
   dev|production|staging|base) ;;
