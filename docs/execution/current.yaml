@@ -12619,15 +12619,18 @@ parallel_lanes:
     execution_lease: {}
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 3e09f7b45957c0c69c7c80e3ad7418cced6a7313
+      convergence_baseline_sha: 3e8713476cafedda3e24a39665458e833efd7c22
       head_sha: null
-      observed_at: '2026-10-11T16:17:00Z'
+      observed_at: '2026-11-08T11:28:27Z'
       main:
         branch: main
-        sha: 3e09f7b45957c0c69c7c80e3ad7418cced6a7313
-      observation_note: Dated SERVER acceptance after exact aab integrated CI and independently reviewed source-equivalent 3e09 main integration; select CLIENT only. Full CI belongs to aab, not 3e09. Fetch main and exact CI before writes.
+        sha: 3e8713476cafedda3e24a39665458e833efd7c22
+      observation_note: Dated GitHub main snapshot for owner-selected school logging repair. Previous OBS015-017 evidence remains historical. Local candidates are not published, deployed, or owner accepted; Fetch main again before any write, then recheck its exact SHA and applicable CI before integration.
     owned_paths:
       - docs/deployment/ADMIN_LOGS.md
+      - tools/collect_logs.py
+      - tools/test_database_progress.py
+      - docs/deployment/ONEPANEL_COLLECTOR.md
     task:
       id: TASK-OBSERVABILITY-001
       issue: 551
@@ -12636,8 +12639,17 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS015_OBS016_OBS017_verified_reported_STOP_no_site_update
+      checkpoint: SCHOOL_LOGGING_REPAIR_20261108_selected_source_review_CI_and_runtime_pending
       owner_acceptance: pending
+      owner_authorization: explicit_owner_school_logging_repair_via_GitHub_Linux_1Panel_20261108
+      parallel_change_review:
+        pr: 982
+        observed_head: 339bf66f7b44d7158cc2ebf789f5ec871b7e7764
+        path: tools/collect_logs.py
+        peer_scope: file_timestamp_Nginx_combined_time
+        selected_scope: database_fresh_page_scheduler
+        decision: distinct_hunks_preserve_peer_branch_and_recheck_fresh_head_before_integration
+        physical_worktree_coordination: not_claimed_remote_PR_is_not_a_local_worktree
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
@@ -12654,9 +12666,50 @@ parallel_lanes:
         - document: RELEASE-WINDOWS-JUNCTION-FIXTURE-SPEC
           revision: '1.0'
     programme:
-      owner_authorization: sequential_log_and_user_observability_repair_20261011
+      owner_authorization: explicit_owner_school_logging_repair_via_GitHub_Linux_1Panel_20261108
       status: in_progress
-      selected_slice: OBS3B-CLIENT
+      selected_slice: SCHOOL-LOGGING-REPAIR-20261108
+      school_logging_repair:
+        status: selected_source_candidates_under_review
+        owner_instruction: Make school logging operational through reproducible GitHub source and native Linux 1Panel management; prepare and test the school system without application cutover.
+        source_baseline_sha: 3e8713476cafedda3e24a39665458e833efd7c22
+        runtime_authorization:
+          status: already_owner_authorized
+          target: asa-school-vm100
+          permitted: school_host_logging_setup_and_reproducible_native_1Panel_management
+          prerequisites: controller_exact_source_review_CI_backup_pin_review_and_operation_GO
+          additional_owner_permission_required: false
+          application_cutover_authorized: false
+          H04_changes_authorized: false
+          relation_to_programme_deployment_authorized: bounded_school_host_authorization_does_not_enable_full_observability_or_application_cutover
+        parts:
+          LOG-FIX-01: bounded_fair_fresh_database_page_drain_and_regressions
+          PANEL-LOG-01: native_1Panel_collector_manager_adapter_tests_and_minimal_runbook
+        controller_scope_assignment: >-
+          Keep tools/deployment/** under deployment-legacy-809's existing advisory path classification.
+          The current owner-selected school repair authorizes only the two named 1Panel adapter paths
+          in planned_paths; it does not reopen issue809 or change its task, legacy transition, or blockers.
+          Check all five planned paths and real worktree overlaps in canonical preflight; no fabricated
+          shared_path_coordination or duplicate owned_paths classification is introduced.
+        planned_paths:
+          - tools/collect_logs.py
+          - tools/test_database_progress.py
+          - tools/deployment/collector.py
+          - tools/deployment/test_panel_collector.py
+          - docs/deployment/ONEPANEL_COLLECTOR.md
+        boundaries:
+          history: preserve_immutable_events_cursor_windows_late_events_and_Docker_gap_flags
+          freshness: unchanged_thresholds_and_truthful_pending_on_budget_exhaustion
+          application: keep_runtime_images_at_3e_schema307_databaseOid117178_no_domain_cutover
+          source_release: reviewed_clean_canonical_source_only_fast_forward_separate_from_runtime_revision
+          secrets_and_roles: no_authentication_bypass_foreign_role_change_or_secret_publication
+          deployment: separate_reviewed_operation_only_after_exact_source_CI_and_backup_pin_review
+        gates_pending:
+          - canonical_preflight_on_real_full_checkout_after_main_selection
+          - exact_combined_source_review_and_applicable_GitHub_CI
+          - bounded_owned_runtime_burst_validation_and_cleanup
+        historical_causality: unproven_1053_pending_observation_1144_sources_already_fresh_without_our_changes
+        prior_batch: OBS015_OBS016_OBS017_completed_STOP_preserved_OBS018_045_not_selected
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
         selected_item: OBS-017
@@ -13256,18 +13309,20 @@ parallel_lanes:
           runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
           production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        OBS001-016 accepted within each report's declared scope. OBS016 real PostgreSQL baseline reproduced
-        schema-only duplicates, exact focused repaired CI succeeded, independent review PASS. Only OBS017
-        selected for new bounded author. Controller STOP after OBS017; OBS018 needs new owner instruction.
+        Preserve all previous OBS001-017 reports and the completed owner batch STOP. The owner now selects
+        only SCHOOL-LOGGING-REPAIR-20261108: fresh database scheduling and native 1Panel management.
+        This does not select OBS018-045, accept the full programme, or authorize application cutover.
       deployment_authorized: false
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
       scope_note: >-
-        Authorized batch OBS015-017: all editor classifications, schema-compatible identity verification,
-        bounded progress under recent DB load. No website update or live database/logs, local Docker or
-        schedule operations. Isolated synthetic database evidence may run in GitHub CI; no production data.
-        Preserve accepted history, other lanes and blockers. OBS018-045 remain unselected; no full programme
-        or live Linux acceptance is inferred from focused evidence.
+        The previous OBS015-017 owner batch and its no-site-update STOP remain historical completed work.
+        The new owner-selected repair is limited to the five school_logging_repair planned paths and
+        separately reviewed Server-setings integration. Preserve source history, existing application images,
+        database data and Docker legacy gap provenance. School host logging setup is already owner authorized;
+        exact operation release waits for controller review and CI, not a new owner permission. Local unit
+        success is not CI, runtime burst evidence, full log coverage, or owner acceptance. Apply main selection before product
+        branches inherit it; do not use a product branch to authorize itself. Other lanes and blockers remain.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
