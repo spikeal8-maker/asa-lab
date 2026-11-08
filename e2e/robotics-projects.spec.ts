@@ -195,6 +195,40 @@ async function visibleControl(page: Page, control: Locator): Promise<void> {
   expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
 }
 
+/**
+ * Navigation and publication stay available when the single-row Robotics
+ * header moves secondary actions into its compact menu.
+ * Inspect the actual visible action instead of assuming desktop-only buttons.
+ */
+async function roboticsHeaderAction(
+  page: Page,
+  label: 'Главная' | 'Аккаунт' | 'Публикация',
+  activate = false,
+): Promise<void> {
+  const header = page.locator('.robotics-unified-header');
+  const inline =
+    label === 'Публикация'
+      ? header.locator('.robotics-header-publish')
+      : header.locator('.robotics-header-navigation').getByRole('button', {
+          name: label,
+          exact: true,
+        });
+  if (await inline.isVisible()) {
+    await visibleControl(page, inline);
+    if (activate) await inline.click();
+    return;
+  }
+  const summary = header.locator('.robotics-header-menu > summary');
+  await visibleControl(page, summary);
+  await summary.click();
+  const action = header
+    .locator('.robotics-header-menu-panel')
+    .getByRole('button', { name: label, exact: true });
+  await visibleControl(page, action);
+  if (activate) await action.click();
+  else await summary.click();
+}
+
 async function gridControlGeometry(control: Locator): Promise<void> {
   await expect(control).toBeVisible();
   const geometry = await control.evaluate((element) => {
@@ -441,8 +475,9 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     await noOverflow(page);
     for (const label of ['Поле', 'Робот', 'Электроника', 'Программа'])
       await visibleControl(page, page.getByRole('tab', { name: label, exact: true }));
-    for (const label of ['Сохранить', 'Публикация', 'Аккаунт'])
-      await visibleControl(page, page.getByRole('button', { name: label, exact: true }));
+    await visibleControl(page, page.getByRole('button', { name: 'Сохранить', exact: true }));
+    for (const label of ['Публикация', 'Аккаунт'] as const)
+      await roboticsHeaderAction(page, label);
     await page.screenshot({ path: `${EVIDENCE}/editor-field-${width}.png`, fullPage: true });
     await page.getByRole('tab', { name: 'Программа', exact: true }).click();
     await expect(code).toBeVisible();
@@ -451,7 +486,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     await page.screenshot({ path: `${EVIDENCE}/editor-program-${width}.png`, fullPage: true });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.getByRole('button', { name: 'Главная', exact: true }).click();
+  await roboticsHeaderAction(page, 'Главная', true);
   await expect(page).toHaveURL(/#\/home$/);
   await expect(page.getByRole('heading', { name: 'Робототехника', exact: true })).toBeVisible();
   for (const width of WIDTHS) {
@@ -508,7 +543,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     await expect(
       restored.getByRole('spinbutton', { name: 'Высота поля', exact: true }),
     ).toHaveValue('2.4');
-    await restored.getByRole('button', { name: 'Публикация', exact: true }).click();
+    await roboticsHeaderAction(restored, 'Публикация', true);
     const publicationDialog = restored.getByRole('dialog', {
       name: 'Публикация проекта',
       exact: true,
@@ -1098,7 +1133,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
     );
     await restored.getByRole('button', { name: 'Отменить', exact: true }).click();
     expect((await saved(restored, projectId)).draft.document).toEqual(source);
-    await restored.getByRole('button', { name: 'Публикация', exact: true }).click();
+    await roboticsHeaderAction(restored, 'Публикация', true);
     const dialog = restored.getByRole('dialog', { name: 'Публикация проекта', exact: true });
     await dialog
       .getByLabel('Описание проекта', { exact: true })
