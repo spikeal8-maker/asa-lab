@@ -18,6 +18,7 @@ import sys
 import tempfile
 
 from deployment.contracts import verify_backup
+from deployment.system import operation_lock
 
 
 def require(condition: bool, message: str) -> None:
@@ -104,6 +105,14 @@ def sha256_remote(command: list[str]) -> str:
 def send(root: Path, backup: Path, recipients: Path, destination: str,
          container: str | None, config: str | None) -> dict:
     require(root.is_absolute() and (root / ".asa").is_dir(), "Укажите корень действующей установки")
+    with operation_lock(root):
+        require(not (root / ".asa" / "maintenance.json").exists(),
+                "Незавершённая операция обслуживания: отправка заблокирована")
+        return _send_locked(root, backup, recipients, destination, container, config)
+
+
+def _send_locked(root: Path, backup: Path, recipients: Path, destination: str,
+                 container: str | None, config: str | None) -> dict:
     base = remote_base(destination)
     manifest = verify_current_backup(root, backup, recipients)
     require(shutil.which("tar") is not None and shutil.which("age") is not None,
