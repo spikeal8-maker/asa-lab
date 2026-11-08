@@ -203,7 +203,7 @@ class ContinuationTests(unittest.TestCase):
         with patch.object(manager,'doctor'),patch.object(manager,'clean_checkout'),patch.object(manager,'backup_directory'), \
              patch.object(manager,'attest_editor_env'),patch.object(releases,'run',side_effect=Transport()), \
              patch.object(manager,'assert_ci'),patch.object(manager,'verify_embedded_entry_http'), \
-             patch.object(manager,'collector_status',return_value={'state':'running'}), \
+             patch.object(manager,'collector_status',return_value={'state':'stale'}), \
              patch.object(manager,'prepare_collector',return_value={'readerGroupChanged':False}), \
              patch.object(manager,'Installation',return_value=self.install), \
              patch.object(manager,'reconcile_collector',side_effect=reconcile), \
@@ -224,7 +224,7 @@ class ContinuationTests(unittest.TestCase):
              patch.object(manager,'collector_status',return_value={'state':'running'}), \
              patch.object(manager,'assert_ci',side_effect=Blocked('CI_UNAVAILABLE','rate limit','retry after quota reset')) as ci, \
              patch.object(manager,'verify_embedded_entry_http') as verify_entry, \
-             patch.object(manager,'prepare_collector',return_value={'readerGroupChanged':False}), \
+             patch.object(manager,'prepare_collector') as prepare, \
              patch.object(manager,'Installation',return_value=self.install), \
              patch.object(manager,'reconcile_collector') as reconcile, \
              patch.object(manager,'fetch_images') as images, \
@@ -234,7 +234,8 @@ class ContinuationTests(unittest.TestCase):
         ci.assert_not_called()
         images.assert_not_called()
         verify_entry.assert_called_once_with('https://example.test','a'*40)
-        reconcile.assert_called_once()
+        reconcile.assert_not_called()
+        prepare.assert_not_called()
         receipt.assert_called_once()
         self.assertIn('NO_CHANGE',output.getvalue())
 
