@@ -84,6 +84,24 @@ case "$profile" in
   *) fail 'Укажите ASA_PROFILE (dev/production/staging/base), если установка ещё не создана' ;;
 esac
 
+# The operator shorthand must not silently perform a production release switch.
+# Only an explicit immutable OCI selection with the manager's qualified return
+# preflight is permitted. Unsupported rollback pairs fail closed in the manager.
+if [ "$action" = update ] && [ "$profile" = production ]; then
+  selected=0
+  guarded=0
+  for arg in "$@"; do
+    case "$arg" in
+      --deployment-digest|--deployment-digest=*) selected=1 ;;
+      --require-application-rollback) guarded=1 ;;
+    esac
+  done
+  [ "$selected" -eq 1 ] || fail 'Production update требует точный --deployment-digest sha256:...'
+  if [ "$guarded" -eq 0 ]; then
+    set -- "$@" --require-application-rollback
+  fi
+fi
+
 case "$action" in
   install|doctor|check|update|backup|verify-backup|restore-check|repair-plan|rollback-plan|rollback|acknowledge)
     exec "$python" -B "$root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" "$@"
