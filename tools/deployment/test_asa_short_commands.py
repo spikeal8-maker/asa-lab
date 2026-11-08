@@ -81,6 +81,17 @@ class PortableASACommandTests(unittest.TestCase):
         self.assertEqual(result.returncode, 64)
         self.assertIn("ASA_PROFILE", result.stderr)
 
+    def test_profile_and_root_cannot_be_overridden_as_late_arguments(self):
+        for extra in (("--profile", "dev"), ("--profile=dev",), ("--root", "/tmp"),
+                      ("--root=/tmp",)):
+            with self.subTest(extra=extra):
+                blocked = self.call("check", *extra)
+                self.assertEqual(blocked.returncode, 64)
+        unsafe_env = {**self.env, "ASA_PROFILE": "dev"}
+        blocked = self.call("update", env=unsafe_env)
+        self.assertEqual(blocked.returncode, 64)
+        self.assertIn("не совпадает", blocked.stderr)
+
     def test_unknown_command_fails_closed(self):
         result = self.call("up-force")
         self.assertEqual(result.returncode, 64)
