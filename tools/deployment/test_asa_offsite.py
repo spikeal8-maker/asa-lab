@@ -42,6 +42,9 @@ class OffsiteBackupPreflightTests(unittest.TestCase):
             (root / ".asa" / "installed-release.json").write_text(
                 json.dumps({"revision": "a" * 40, "schema": 307}), encoding="utf-8"
             )
+            (root / ".asa" / "installation.json").write_text(
+                json.dumps({"project": "asa-lab-school", "profile": "production"}), encoding="utf-8"
+            )
             backup = root / "backups" / "20261108T214015Z-404d8510"
             backup.mkdir(parents=True)
             recipient = root / "recipient.pub"
