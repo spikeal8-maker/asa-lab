@@ -45,6 +45,10 @@ DATABASE_NATIVE_KEYS.update({table: ('owner_principal_id', 'request_id') for tab
 DATABASE_IDENTITY_LIMIT = 256
 DATABASE_BATCH_ROWS = 128
 DATABASE_BATCH_BYTES = 4 * 1024 * 1024
+# Fresh sources share a bounded round-robin drain. The deadline stops starting
+# pages; an in-flight page retains its existing 15s SQL / 25s command timeout.
+DATABASE_FRESH_PAGES = 64
+DATABASE_FRESH_SECONDS = 5
 DATABASE_METRICS_SQL = """BEGIN READ ONLY; SET LOCAL statement_timeout='5s';
 COPY (SELECT json_build_object(
  'connections',(SELECT numbackends FROM pg_stat_database WHERE datname=current_database()),
@@ -932,60 +936,78 @@ class Collector:
             turn = self.state('database:history:turn', 0) % len(tables)
             self.set_state('database:history:turn', turn + 1)
             tables = dict([list(tables.items())[turn]])
-        failures, pending = 0, 0
-        for table, column in tables.items():
+        order = list(tables)
+        if history is False:
+            turn = self.state('database:fresh:turn', 0) % len(order)
+            order = order[turn:] + order[:turn]
+        queued = [(table, tables[table], historical) for table in order
+                  for historical in ((False, True) if history is None else (history,))]
+        outcomes, pages = {}, 0
+        deadline = time.monotonic() + DATABASE_FRESH_SECONDS
+        while queued:
+            if history is False and (pages >= DATABASE_FRESH_PAGES or time.monotonic() >= deadline): break
+            table, column, historical = queued.pop(0)
             key = ('db:live:' if history is False else 'db:') + table
             cutoff = datetime.now(UTC) - timedelta(days=self.config.get("retentionDays", 30))
-            for historical in ((False, True) if history is None else (history,)):
-                lane_key = 'db:history:' + table if historical else key
-                source = ('database-history:' if historical else 'database-events:') + table
-                if historical and time.time() - self.state(lane_key + ':completed', 0) < 6 * 3600:
-                    continue
-                span = self.state(lane_key + ':span', self.config.get('retentionDays', 30)*86400 if historical else 6*3600)
-                window = self.state(lane_key + ':window')
-                if window is None:
-                    default_start = max(cutoff, datetime.now(UTC)-timedelta(minutes=5)) if history is False else cutoff
-                    start = max(cutoff, datetime.fromisoformat(self.state(lane_key, default_start.isoformat()).replace('Z', '+00:00')))
-                    end = min(datetime.now(UTC), start + timedelta(seconds=span))
-                    recent_end = datetime.now(UTC)
-                    window = dict(start=start.isoformat(), end=end.isoformat(), recentEnd=recent_end.isoformat(),
-                                  recentStart=(recent_end-timedelta(minutes=30)).isoformat(), after=None)
-                def between(start, end):
-                    if column.endswith('_ms'):
-                        return f'"{column}" BETWEEN {int(datetime.fromisoformat(start).timestamp()*1000)} AND {int(datetime.fromisoformat(end).timestamp()*1000)}'
-                    return f'"{column}" BETWEEN TIMESTAMPTZ \'{start}\' AND TIMESTAMPTZ \'{end}\''
-                condition = between(window['start'], window['end'])
-                if not historical: condition += ' OR ' + between(window['recentStart'], window['recentEnd'])
-                # Keep the attempted window on errors too: an uncommitted page
-                # must be retried against the same upper bound, even after restart.
-                self.set_state(lane_key + ':window', window)
-                self.db.execute('SAVEPOINT database_page')
-                try:
-                    rows, more, after = self.database_batch(table, condition, window['after'])
-                    for value, defaults in rows:
-                        stamp = datetime.fromtimestamp(value[column]/1000, UTC).isoformat() if column.endswith('_ms') else value[column]
-                        self.add_database_row(table, value, defaults, timestamp(stamp, window['end']))
-                    if more:
-                        self.set_state(lane_key + ':window', {**window, 'after': after})
-                    else:
-                        self.set_state(lane_key + ':window', None)
-                        complete = historical and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
-                        self.set_state(lane_key, cutoff.isoformat() if complete else window['end'])
-                        if complete: self.set_state(lane_key + ':completed', time.time())
-                    # A keyset time at a tie is not complete coverage through that
-                    # timestamp. Only completed windows advance collectedThrough.
-                    caught_up = not more and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
-                    if not caught_up: pending += 1
-                    detail = 'Database backlog; bounded page continuation queued' if more else 'Historical reconciliation complete' if historical and caught_up else 'Fresh database events' if caught_up else 'Database backlog; next time window queued'
-                    self.status(source, 'ok' if caught_up else 'pending', detail,
-                                window['end'] if not more else None)
-                    self.db.execute('RELEASE database_page')
-                except Exception as exc:
-                    self.db.execute('ROLLBACK TO database_page'); self.db.execute('RELEASE database_page')
-                    failures += 1
-                    self.set_state(lane_key + ':span', max(1, span // 2))
-                    self.status(source, 'error', str(exc))
-                self.checkpoint()
+            lane_key = 'db:history:' + table if historical else key
+            source = ('database-history:' if historical else 'database-events:') + table
+            if historical and time.time() - self.state(lane_key + ':completed', 0) < 6 * 3600:
+                continue
+            span = self.state(lane_key + ':span', self.config.get('retentionDays', 30)*86400 if historical else 6*3600)
+            window = self.state(lane_key + ':window')
+            if window is None:
+                default_start = max(cutoff, datetime.now(UTC)-timedelta(minutes=5)) if history is False else cutoff
+                start = max(cutoff, datetime.fromisoformat(self.state(lane_key, default_start.isoformat()).replace('Z', '+00:00')))
+                end = min(datetime.now(UTC), start + timedelta(seconds=span))
+                recent_end = datetime.now(UTC)
+                window = dict(start=start.isoformat(), end=end.isoformat(), recentEnd=recent_end.isoformat(),
+                              recentStart=(recent_end-timedelta(minutes=30)).isoformat(), after=None)
+            def between(start, end):
+                if column.endswith('_ms'):
+                    return f'"{column}" BETWEEN {int(datetime.fromisoformat(start).timestamp()*1000)} AND {int(datetime.fromisoformat(end).timestamp()*1000)}'
+                return f'"{column}" BETWEEN TIMESTAMPTZ \'{start}\' AND TIMESTAMPTZ \'{end}\''
+            condition = between(window['start'], window['end'])
+            if not historical: condition += ' OR ' + between(window['recentStart'], window['recentEnd'])
+            # Keep the attempted window on errors too: an uncommitted page
+            # must be retried against the same upper bound, even after restart.
+            self.set_state(lane_key + ':window', window)
+            self.db.execute('SAVEPOINT database_page')
+            try:
+                rows, more, after = self.database_batch(table, condition, window['after'])
+                for value, defaults in rows:
+                    stamp = datetime.fromtimestamp(value[column]/1000, UTC).isoformat() if column.endswith('_ms') else value[column]
+                    self.add_database_row(table, value, defaults, timestamp(stamp, window['end']))
+                if more:
+                    self.set_state(lane_key + ':window', {**window, 'after': after})
+                else:
+                    self.set_state(lane_key + ':window', None)
+                    complete = historical and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
+                    self.set_state(lane_key, cutoff.isoformat() if complete else window['end'])
+                    if complete: self.set_state(lane_key + ':completed', time.time())
+                # A keyset time at a tie is not complete coverage through that
+                # timestamp. Only completed windows advance collectedThrough.
+                caught_up = not more and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
+                outcomes[source] = 'ok' if caught_up else 'pending'
+                detail = 'Database backlog; bounded page continuation queued' if more else 'Historical reconciliation complete' if historical and caught_up else 'Fresh database events' if caught_up else 'Database backlog; next time window queued'
+                self.status(source, outcomes[source], detail, window['end'] if not more else None)
+                self.db.execute('RELEASE database_page')
+                if history is False and not caught_up:
+                    queued.append((table, column, historical))
+            except Exception as exc:
+                self.db.execute('ROLLBACK TO database_page'); self.db.execute('RELEASE database_page')
+                outcomes[source] = 'error'
+                self.set_state(lane_key + ':span', max(1, span // 2))
+                self.status(source, 'error', str(exc))
+            pages += 1
+            if history is False:
+                # A slow table cannot monopolize the next call after a deadline.
+                self.set_state('database:fresh:turn', (list(tables).index(table) + 1) % len(tables))
+            self.checkpoint()
+        failures = sum(state == 'error' for state in outcomes.values())
+        # A completed continuation replaces its earlier pending outcome. Tables
+        # not reached within this call's budget remain pending, never inferred ok.
+        pending = len({source for source, state in outcomes.items() if state == 'pending'} |
+                      {('database-history:' if historical else 'database-events:') + table for table, _, historical in queued})
         self.set_state(last_key, time.time())
         self.status('database-history' if history is True else "database-events", 'error' if failures else 'pending' if pending else 'ok',
                     f'{failures} table sources require attention' if failures else f'{pending} database sources have queued backlog' if pending else '')

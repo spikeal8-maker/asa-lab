@@ -9,6 +9,7 @@ import types
 from pathlib import Path
 import tempfile
 import unittest
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -24,7 +25,180 @@ def response(rows, more=False):
     return stream.getvalue().encode()
 
 
+@contextmanager
+def fresh_clock():
+    """No sleeps or host/database access: advance both clocks explicitly."""
+    clock = types.SimpleNamespace(at=datetime.now(timezone.utc), elapsed=0.0)
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return clock.at.astimezone(tz) if tz is not None else clock.at.replace(tzinfo=None)
+    with patch('collect_logs.datetime', FrozenDatetime), \
+         patch('collect_logs.time.time', side_effect=lambda: clock.at.timestamp()), \
+         patch('collect_logs.time.monotonic', side_effect=lambda: clock.elapsed):
+        yield clock
+
+
+def fixture_pages(rows, calls):
+    """Simulated DB keyset pages; all fixture rows remain inside the recent range."""
+    def batch(table, condition, after=None):
+        calls.append((table, condition, after))
+        column = DATABASE_DIAGNOSTICS['sources'][table]['timeColumn']
+        ordered = sorted(rows[table], key=lambda r: (r[column], r['id']))
+        remaining = [r for r in ordered if after is None or (r[column], r['id']) > tuple(after)]
+        page = remaining[:collect_logs.DATABASE_BATCH_ROWS]
+        return [(r, {}) for r in page], len(remaining) > len(page), \
+            [page[-1][column], page[-1]['id']] if page else after
+    return batch
+
+
 class DatabaseProgressUnitTests(unittest.TestCase):
+    def test_fresh_burst_completes_before_repeated_overlap_becomes_stale(self):
+        table = 'audit_events'
+        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock:
+            c = Collector(Path(temp), {}); c.postgres = 'synthetic'
+            self.addCleanup(c.db.close)
+            stamp = (clock.at - timedelta(minutes=1)).isoformat()
+            rows = {table: [{'id': f'{n:06}', 'created_at': stamp, 'action': 'account.registered'} for n in range(257)]}
+            calls = []; c.database_batch = fixture_pages(rows, calls)
+            with patch.dict(collect_logs.DATABASE_DIAGNOSTICS, sources={table: DATABASE_DIAGNOSTICS['sources'][table]}):
+                states = []
+                for _ in range(5):
+                    c.database(history=False)
+                    source = json.loads(c.db.execute('SELECT payload FROM sources WHERE name=?', ('database-events:' + table,)).fetchone()[0])
+                    states.append(source['state'])
+                    if source['state'] == 'ok':
+                        self.assertEqual(datetime.fromisoformat(source['collectedThrough']), clock.at)
+                        self.assertIsNone(c.state('db:live:' + table + ':window'))
+                    clock.at += timedelta(seconds=20); clock.elapsed += 20
+            self.assertEqual(states, ['ok'] * 5, 'Three 128-row pages must not each wait for the next 20-second call')
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 257)
+            self.assertEqual(len(calls), 15)
+
+    def test_fresh_page_budget_is_shared_and_unfinished_ties_never_advance_through(self):
+        tables = ('audit_events', 'classroom_activity_events')
+        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock:
+            c = Collector(Path(temp), {}); c.postgres = 'synthetic'; self.addCleanup(c.db.close)
+            stamp = (clock.at - timedelta(minutes=1)).isoformat()
+            rows = {table: [{'id': f'{n:06}', DATABASE_DIAGNOSTICS['sources'][table]['timeColumn']: stamp}
+                            for n in range(257)] for table in tables}
+            calls = []; c.database_batch = fixture_pages(rows, calls)
+            rules = {table: DATABASE_DIAGNOSTICS['sources'][table] for table in tables}
+            with patch.dict(collect_logs.DATABASE_DIAGNOSTICS, sources=rules), patch('collect_logs.DATABASE_FRESH_PAGES', 3):
+                c.database(history=False)
+            self.assertEqual([call[0] for call in calls], [tables[0], tables[1], tables[0]])
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 384)
+            for table in tables:
+                source = json.loads(c.db.execute('SELECT payload FROM sources WHERE name=?', ('database-events:' + table,)).fetchone()[0])
+                self.assertEqual(source['state'], 'pending')
+                self.assertIsNone(source['collectedThrough'])
+                self.assertIsNone(source['lastCollectedAt'])
+                self.assertIsNone(c.state('db:live:' + table))
+            self.assertEqual(c.state('database:fresh:turn'), 1)
+            self.assertEqual(json.loads(c.db.execute('SELECT payload FROM sources WHERE name="database-events"').fetchone()[0])['state'], 'pending')
+
+    def test_fresh_deadline_yields_to_other_table_on_next_call(self):
+        tables = ('audit_events', 'classroom_activity_events')
+        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock:
+            c = Collector(Path(temp), {}); c.postgres = 'synthetic'; self.addCleanup(c.db.close)
+            stamp = (clock.at - timedelta(minutes=1)).isoformat()
+            rows = {tables[0]: [{'id': f'{n:06}', 'created_at': stamp} for n in range(257)], tables[1]: []}
+            calls = []; batch = fixture_pages(rows, calls)
+            def slow_batch(*args):
+                page = batch(*args)
+                clock.at += timedelta(seconds=6); clock.elapsed += 6
+                return page
+            c.database_batch = slow_batch
+            rules = {table: DATABASE_DIAGNOSTICS['sources'][table] for table in tables}
+            with patch.dict(collect_logs.DATABASE_DIAGNOSTICS, sources=rules):
+                c.database(history=False)
+                self.assertEqual([call[0] for call in calls], [tables[0]])
+                self.assertIsNone(c.db.execute('SELECT payload FROM sources WHERE name=?', ('database-events:' + tables[1],)).fetchone())
+                clock.at += timedelta(seconds=20); clock.elapsed += 20
+                c.database(history=False)
+            self.assertEqual([call[0] for call in calls], list(tables))
+            other = json.loads(c.db.execute('SELECT payload FROM sources WHERE name=?', ('database-events:' + tables[1],)).fetchone()[0])
+            self.assertEqual(other['state'], 'ok')
+            self.assertEqual(json.loads(c.db.execute('SELECT payload FROM sources WHERE name="database-events"').fetchone()[0])['state'], 'pending')
+
+    def test_fresh_page_failure_preserves_committed_prefix_and_exact_restart_window(self):
+        table = 'audit_events'
+        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock:
+            root = Path(temp); c = Collector(root, {}); c.postgres = 'synthetic'
+            stamp = (clock.at - timedelta(minutes=1)).isoformat()
+            rows = {table: [{'id': f'{n:06}', 'created_at': stamp} for n in range(260)]}
+            calls = []; c.database_batch = fixture_pages(rows, calls); add = c.add_database_row
+            def interrupted(table, value, defaults, at):
+                add(table, value, defaults, at)
+                if value['id'] == '000130': raise OSError('synthetic write interruption')
+            c.add_database_row = interrupted
+            with patch.dict(collect_logs.DATABASE_DIAGNOSTICS, sources={table: DATABASE_DIAGNOSTICS['sources'][table]}):
+                c.database(history=False); c.publish()
+                window = c.state('db:live:' + table + ':window')
+                self.assertEqual(window['after'], [stamp, '000127'])
+                self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 128)
+                self.assertEqual(c.db.execute('SELECT count(*) FROM database_observations').fetchone()[0], 128)
+                self.assertEqual(json.loads(c.db.execute('SELECT payload FROM sources WHERE name="database-events"').fetchone()[0])['state'], 'error')
+                segments = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+                c.db.close()
+                clock.at += timedelta(seconds=20); clock.elapsed += 20
+                c = Collector(root, {}); c.postgres = 'synthetic'; self.addCleanup(c.db.close)
+                self.assertEqual(c.state('db:live:' + table + ':window'), window)
+                c.database_batch = fixture_pages(rows, calls)
+                c.database(history=False); c.publish()
+                self.assertEqual(calls[1], calls[2], 'Retry must use the failed page cursor and frozen predicate')
+                self.assertIsNone(c.state('db:live:' + table + ':window'))
+                self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 260)
+                self.assertEqual(c.db.execute('SELECT count(*) FROM database_observations').fetchone()[0], 260)
+                self.assertEqual(json.loads(c.db.execute('SELECT payload FROM sources WHERE name="database-events"').fetchone()[0])['state'], 'ok')
+                for name, content in segments.items(): self.assertEqual((c.store / name).read_bytes(), content)
+
+    def test_fresh_reconciliation_keeps_late_rows_and_mutations_behind_cursor(self):
+        table = 'audit_events'
+        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock:
+            c = Collector(Path(temp), {}); c.postgres = 'synthetic'; self.addCleanup(c.db.close)
+            stamp = (clock.at - timedelta(minutes=5)).isoformat()
+            rows = {table: [{'id': f'{n:06}', 'created_at': stamp, 'action': 'account.registered'} for n in range(1, 261)]}
+            calls = []; c.database_batch = fixture_pages(rows, calls)
+            with patch.dict(collect_logs.DATABASE_DIAGNOSTICS, sources={table: DATABASE_DIAGNOSTICS['sources'][table]}):
+                with patch('collect_logs.DATABASE_FRESH_PAGES', 1): c.database(history=False)
+                c.publish(); segments = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+                rows[table][0] = {**rows[table][0], 'action': 'workspace.switched'}
+                rows[table].append({'id': '000000', 'created_at': stamp, 'action': 'account.registered'})
+                clock.at += timedelta(seconds=20); clock.elapsed += 20
+                c.database(history=False)
+                self.assertIsNone(c.state('db:live:' + table + ':window'))
+                self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 260)
+                clock.at += timedelta(seconds=20); clock.elapsed += 20
+                c.database(history=False); c.publish()
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 262)
+            self.assertEqual(c.db.execute('SELECT count(*) FROM database_observations').fetchone()[0], 262)
+            for name, content in segments.items(): self.assertEqual((c.store / name).read_bytes(), content)
+            self.assertEqual(json.loads(c.db.execute('SELECT payload FROM sources WHERE name="database-events"').fetchone()[0])['state'], 'ok')
+
+    def test_fresh_completed_old_window_is_pending_until_new_window_actually_finishes(self):
+        table = 'audit_events'
+        with tempfile.TemporaryDirectory() as temp, fresh_clock() as clock:
+            c = Collector(Path(temp), {}); c.postgres = 'synthetic'; self.addCleanup(c.db.close)
+            old_end = clock.at - timedelta(minutes=2)
+            window = dict(start=(old_end - timedelta(minutes=5)).isoformat(), end=old_end.isoformat(),
+                          recentStart=(old_end - timedelta(minutes=30)).isoformat(), recentEnd=old_end.isoformat(), after=None)
+            c.set_state('db:live:' + table + ':window', window)
+            rows = {table: [{'id': '000001', 'created_at': (old_end - timedelta(minutes=1)).isoformat()}]}
+            calls = []; c.database_batch = fixture_pages(rows, calls)
+            with patch.dict(collect_logs.DATABASE_DIAGNOSTICS, sources={table: DATABASE_DIAGNOSTICS['sources'][table]}):
+                with patch('collect_logs.DATABASE_FRESH_PAGES', 1): c.database(history=False)
+                source = json.loads(c.db.execute('SELECT payload FROM sources WHERE name=?', ('database-events:' + table,)).fetchone()[0])
+                self.assertEqual(source['state'], 'pending')
+                self.assertEqual(source['collectedThrough'], old_end.isoformat())
+                self.assertIsNone(source['lastCollectedAt'])
+                clock.at += timedelta(seconds=20); clock.elapsed += 20
+                c.database(history=False)
+            source = json.loads(c.db.execute('SELECT payload FROM sources WHERE name=?', ('database-events:' + table,)).fetchone()[0])
+            self.assertEqual(source['state'], 'ok')
+            self.assertEqual(datetime.fromisoformat(source['collectedThrough']), clock.at)
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
+
     def test_recent_overflow_is_bounded_before_command(self):
         with tempfile.TemporaryDirectory() as temp:
             c = Collector(Path(temp), {}); c.postgres = 'synthetic'
