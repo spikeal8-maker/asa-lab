@@ -17,7 +17,7 @@ import subprocess
 import sys
 import tempfile
 
-from deployment.contracts import verify_backup
+from deployment.contracts import Blocked, verify_backup
 from deployment.system import operation_lock
 
 
@@ -59,7 +59,11 @@ def verify_current_backup(root: Path, backup: Path, recipient: Path) -> dict:
     require(current.get("revision") == installed.get("revision")
             and current.get("schema") == installed.get("schema"),
             "Backup не соответствует текущему релизу и схеме, отправка блокирована")
-    require(manifest.get("profile") == "production", "Отправка допускается только для production backup")
+    config = json.loads((root / ".asa" / "installation.json").read_text(encoding="utf-8"))
+    require(manifest.get("profile") == "production"
+            and manifest.get("project") == config.get("project")
+            and config.get("profile") == "production",
+            "Backup должен совпадать с production профилем и проектом установки")
     created = dt.datetime.strptime(manifest["createdAt"][:16], "%Y%m%dT%H%M%SZ").replace(tzinfo=dt.timezone.utc)
     age = (dt.datetime.now(dt.timezone.utc) - created).total_seconds()
     require(0 <= age <= 24 * 3600, "Для offsite требуется полный backup не старше 24 часов")
@@ -167,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = send(args.root, args.backup, args.recipient_file, args.remote_base,
                       args.rclone_container, args.rclone_config)
-    except (ValueError, OSError, subprocess.SubprocessError, KeyError, json.JSONDecodeError) as error:
+    except (ValueError, OSError, subprocess.SubprocessError, KeyError, json.JSONDecodeError, Blocked) as error:
         print(f"OFFSITE_BLOCKED: {error}", file=sys.stderr)
         return 78
     print(f"OFFSITE_VERIFIED backup={result['backup']} schema={result['schema']} "
