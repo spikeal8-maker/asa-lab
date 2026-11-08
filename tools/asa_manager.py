@@ -236,17 +236,39 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
     if pending is not None:
         require(selection_record(deployment_digest, release) == pending, 'RELEASE_SELECTION_MISMATCH',
                 'The rediscovered immutable manifest differs from the pending selection.')
-    assert_ci(release)
     before = None if fresh else install.readiness()
     if before:
         require(int(release['schema']) >= int(before['schema']), 'RELEASE_DOWNGRADE',
                 'Published release schema is older than the running database; refusing downgrade.')
-        if release['revision'] != before['revision']:
-            install.git('fetch', 'origin', 'main:refs/remotes/origin/main')
-            install.git('merge-base', '--is-ancestor', before['revision'], release['revision'])
     installed_path = install.state / "installed-release.json"
     installed = json.loads(installed_path.read_text(encoding="utf-8")) if installed_path.exists() else None
     same_release = bool(before and before['revision'] == release['revision'] and installed == release)
+    # An already accepted, identical release needs no new GitHub CI query for a
+    # no-op update. The local release identity, images and entry are still checked
+    # below. All real updates, checks, rollback preparation and collector repairs
+    # continue to require fresh CI evidence.
+    verified_no_change = bool(same_release and not check and not require_application_rollback
+                              and collector_status(install)['state'] == 'running')
+    if verified_no_change:
+        # No maintenance or collector preparation on this path: it only attests
+        # the already running release and records an idempotent no-change result.
+        records = install.identity()
+        for name, expected in release['images'].items():
+            require(records.get(name, {}).get('image') == expected, 'IMAGE_DRIFT',
+                    f'Running {name} differs from the pinned release.')
+        verify_embedded_entry_http(install.env['ASA_UPDATE_ENTRY_ORIGIN'], release['revision'])
+        print("NO_CHANGE the verified release is already running; no backup or restart")
+        print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
+        from deployment.operational import append_safely, from_manager_receipt, stamp
+        append_safely(install.root, from_manager_receipt({'status':'success', 'at':stamp(),
+            'trigger':'automatic' if scheduled else 'manual', 'phase':'verify_entry',
+            'selected':release, 'previous':before}))
+        finish_selection(install, deployment_digest, release)
+        return
+    assert_ci(release)
+    if before and release['revision'] != before['revision']:
+        install.git('fetch', 'origin', 'main:refs/remotes/origin/main')
+        install.git('merge-base', '--is-ancestor', before['revision'], release['revision'])
     if same_release:
         records = install.identity()
         for name, expected in release['images'].items():
