@@ -211,6 +211,77 @@ class ContinuationTests(unittest.TestCase):
             manager.update(self.install)
         self.assertFalse(path.exists())
 
+    def test_installed_exact_no_change_does_not_consume_github_quota(self):
+        self.install.state.mkdir(exist_ok=True)
+        (self.install.state/'installed-release.json').write_text(json.dumps(manifest()),encoding='utf-8')
+        self.install.readiness.return_value=dict(revision='a'*40,schema=300)
+        self.install.identity=lambda: {name:{'image':reference} for name,reference in manifest()['images'].items()}
+        self.install.env['ASA_UPDATE_ENTRY_ORIGIN']='https://example.test'
+        with patch.object(manager,'doctor'),patch.object(manager,'clean_checkout'), \
+             patch.object(manager,'backup_directory'),patch.object(manager,'attest_editor_env'), \
+             patch.object(manager,'discover_release',return_value=manifest()), \
+             patch.object(manager,'collector_status',return_value={'state':'running'}), \
+             patch.object(manager,'assert_ci',side_effect=Blocked('CI_UNAVAILABLE','rate limit')) as ci, \
+             patch.object(manager,'verify_embedded_entry_http') as verify_entry, \
+             patch.object(manager,'prepare_collector',return_value={'readerGroupChanged':False}), \
+             patch.object(manager,'Installation',return_value=self.install), \
+             patch.object(manager,'reconcile_collector') as reconcile, \
+             patch.object(manager,'fetch_images') as images, \
+             patch('deployment.operational.append_safely') as receipt, \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            manager.update(self.install)
+        ci.assert_not_called()
+        images.assert_not_called()
+        verify_entry.assert_called_once_with('https://example.test','a'*40)
+        reconcile.assert_called_once()
+        receipt.assert_called_once()
+        self.assertIn('NO_CHANGE',output.getvalue())
+
+    def test_ci_unavailable_still_blocks_actual_changes_check_and_stale_collector(self):
+        self.install.state.mkdir(exist_ok=True)
+        (self.install.state/'installed-release.json').write_text(json.dumps(manifest()),encoding='utf-8')
+        self.install.readiness.return_value=dict(revision='a'*40,schema=300)
+        self.install.env['ASA_UPDATE_ENTRY_ORIGIN']='https://example.test'
+        for name,selected,collector,check in (
+            ('new_revision',{**manifest(),'revision':'b'*40},'running',False),
+            ('modified_manifest',{**manifest(),'publicationRunId':124},'running',False),
+            ('check_requires_fresh_ci',manifest(),'running',True),
+            ('stale_collector',manifest(),'stale',False),
+        ):
+            with self.subTest(name=name),patch.object(manager,'doctor'), \
+                 patch.object(manager,'clean_checkout'),patch.object(manager,'backup_directory'), \
+                 patch.object(manager,'attest_editor_env'), \
+                 patch.object(manager,'discover_release',return_value=selected), \
+                 patch.object(manager,'collector_status',return_value={'state':collector}), \
+                 patch.object(manager,'assert_ci',side_effect=Blocked('CI_UNAVAILABLE','rate limit')) as ci, \
+                 patch.object(manager,'prepare_collector') as prepare, \
+                 patch.object(manager,'fetch_images') as images, \
+                 contextlib.redirect_stdout(io.StringIO()),self.assertRaises(Blocked) as denied:
+                manager.update(self.install,check=check)
+            self.assertEqual(denied.exception.code,'CI_UNAVAILABLE')
+            ci.assert_called_once_with(selected)
+            prepare.assert_not_called()
+            images.assert_not_called()
+
+    def test_installed_same_source_with_image_drift_never_reports_no_change(self):
+        self.install.state.mkdir(exist_ok=True)
+        (self.install.state/'installed-release.json').write_text(json.dumps(manifest()),encoding='utf-8')
+        self.install.readiness.return_value=dict(revision='a'*40,schema=300)
+        self.install.identity=lambda: {name:{'image':'untrusted-image'} for name in manifest()['images']}
+        with patch.object(manager,'doctor'),patch.object(manager,'clean_checkout'), \
+             patch.object(manager,'backup_directory'),patch.object(manager,'attest_editor_env'), \
+             patch.object(manager,'discover_release',return_value=manifest()), \
+             patch.object(manager,'collector_status',return_value={'state':'running'}), \
+             patch.object(manager,'assert_ci') as ci, \
+             patch.object(manager,'prepare_collector') as prepare, \
+             patch.object(manager,'fetch_images') as images, \
+             contextlib.redirect_stdout(io.StringIO()),self.assertRaises(Blocked) as denied:
+            manager.update(self.install)
+        self.assertEqual(denied.exception.code,'IMAGE_DRIFT')
+        ci.assert_not_called()
+        prepare.assert_not_called()
+        images.assert_not_called()
+
     def test_cli_pending_adapter_conflict_precedes_lock_and_collector_changes(self):
         self.save_pending()
         with patch.object(manager,'Installation',return_value=self.install), \
