@@ -203,6 +203,7 @@ class ContinuationTests(unittest.TestCase):
         with patch.object(manager,'doctor'),patch.object(manager,'clean_checkout'),patch.object(manager,'backup_directory'), \
              patch.object(manager,'attest_editor_env'),patch.object(releases,'run',side_effect=Transport()), \
              patch.object(manager,'assert_ci'),patch.object(manager,'verify_embedded_entry_http'), \
+             patch.object(manager,'collector_status',return_value={'state':'running'}), \
              patch.object(manager,'prepare_collector',return_value={'readerGroupChanged':False}), \
              patch.object(manager,'Installation',return_value=self.install), \
              patch.object(manager,'reconcile_collector',side_effect=reconcile), \
@@ -221,7 +222,7 @@ class ContinuationTests(unittest.TestCase):
              patch.object(manager,'backup_directory'),patch.object(manager,'attest_editor_env'), \
              patch.object(manager,'discover_release',return_value=manifest()), \
              patch.object(manager,'collector_status',return_value={'state':'running'}), \
-             patch.object(manager,'assert_ci',side_effect=Blocked('CI_UNAVAILABLE','rate limit')) as ci, \
+             patch.object(manager,'assert_ci',side_effect=Blocked('CI_UNAVAILABLE','rate limit','retry after quota reset')) as ci, \
              patch.object(manager,'verify_embedded_entry_http') as verify_entry, \
              patch.object(manager,'prepare_collector',return_value={'readerGroupChanged':False}), \
              patch.object(manager,'Installation',return_value=self.install), \
@@ -253,7 +254,7 @@ class ContinuationTests(unittest.TestCase):
                  patch.object(manager,'attest_editor_env'), \
                  patch.object(manager,'discover_release',return_value=selected), \
                  patch.object(manager,'collector_status',return_value={'state':collector}), \
-                 patch.object(manager,'assert_ci',side_effect=Blocked('CI_UNAVAILABLE','rate limit')) as ci, \
+                 patch.object(manager,'assert_ci',side_effect=Blocked('CI_UNAVAILABLE','rate limit','retry after quota reset')) as ci, \
                  patch.object(manager,'prepare_collector') as prepare, \
                  patch.object(manager,'fetch_images') as images, \
                  contextlib.redirect_stdout(io.StringIO()),self.assertRaises(Blocked) as denied:
