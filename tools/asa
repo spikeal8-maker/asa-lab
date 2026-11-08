@@ -63,6 +63,9 @@ case "$action" in
   version|status|report|logs)
     exec "$python" -B "$root/tools/asa_status.py" "$action" --root "$root" "$@"
     ;;
+  offsite-backup)
+    exec "$python" -B "$root/tools/asa_offsite.py" --root "$root" "$@"
+    ;;
 esac
 
 profile=${ASA_PROFILE:-}
