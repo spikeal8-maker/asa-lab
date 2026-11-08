@@ -249,8 +249,23 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
     # continue to require fresh CI evidence.
     verified_no_change = bool(same_release and not check and not require_application_rollback
                               and collector_status(install)['state'] == 'running')
-    if not verified_no_change:
-        assert_ci(release)
+    if verified_no_change:
+        # No maintenance or collector preparation on this path: it only attests
+        # the already running release and records an idempotent no-change result.
+        records = install.identity()
+        for name, expected in release['images'].items():
+            require(records.get(name, {}).get('image') == expected, 'IMAGE_DRIFT',
+                    f'Running {name} differs from the pinned release.')
+        verify_embedded_entry_http(install.env['ASA_UPDATE_ENTRY_ORIGIN'], release['revision'])
+        print("NO_CHANGE the verified release is already running; no backup or restart")
+        print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
+        from deployment.operational import append_safely, from_manager_receipt, stamp
+        append_safely(install.root, from_manager_receipt({'status':'success', 'at':stamp(),
+            'trigger':'automatic' if scheduled else 'manual', 'phase':'verify_entry',
+            'selected':release, 'previous':before}))
+        finish_selection(install, deployment_digest, release)
+        return
+    assert_ci(release)
     if before and release['revision'] != before['revision']:
         install.git('fetch', 'origin', 'main:refs/remotes/origin/main')
         install.git('merge-base', '--is-ancestor', before['revision'], release['revision'])
