@@ -148,7 +148,7 @@ export function AiAdminPage({
     (dirty || (isOllamaCloud ? cloudKeysDirty : enabled)) &&
     ((isOllamaCloud ? cloudKeyReady : keyReady) || !enabled) &&
     validQuota &&
-    (!enabled || (Number(quota) > 0 && (isOllamaCloud || confirmPaid))) &&
+    (!enabled || isOllamaCloud || (Number(quota) > 0 && confirmPaid)) &&
     (config.encryptionReady || (!enabled && mustClear && !keyInput.trim())) &&
     !loading &&
     !(isOllamaCloud && cloudKeysBusy) &&
@@ -353,14 +353,15 @@ export function AiAdminPage({
                     ? 'Укажите целое число запросов в час.'
                     : enabled && !cloudKeyReady
                       ? 'Добавьте активный ключ или выключите провайдера.'
-                      : enabled && Number(quota) === 0
-                        ? 'Укажите лимит больше нуля или выключите провайдера.'
-                        : !submittedModel
-                          ? 'Обновите каталог моделей.'
-                          : dirty || cloudKeysDirty
-                            ? 'Есть несохранённые изменения'
-                            : notice || 'Нет изменений'}
+                      : !submittedModel
+                        ? 'Обновите каталог моделей.'
+                        : dirty || cloudKeysDirty
+                          ? 'Есть несохранённые изменения'
+                          : notice || 'Нет изменений'}
           </small>
+          {enabled && validQuota && Number(quota) === 0 ? (
+            <small>Платные запросы отключены при лимите 0.</small>
+          ) : null}
         </form>
       ) : null}
       {config && !isOllamaCloud && options.length > 0 ? (

@@ -572,9 +572,16 @@ test('Separate OpenAI and DeepSeek keys stay server-side and delete only selecte
   await expect(panel.getByText('Читает изображения')).toBeVisible();
   await expect(panel.getByRole('checkbox', { name: 'DeepSeek Future' })).toBeDisabled();
   await panel.getByRole('checkbox', { name: 'DeepSeek V4 Pro' }).uncheck();
+  await panel.getByLabel('Общий лимит платных ИИ-операций за час').fill('0');
+  await panel.getByRole('checkbox', { name: 'Включён', exact: true }).check();
   expect(fake.writes).toHaveLength(1);
   await panel.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(panel.getByText('Сохранено', { exact: true })).toBeVisible();
+  expect(fake.writes[1]).toMatchObject({
+    provider: 'deepseek',
+    enabled: true,
+    paidOperationsPerHour: 0,
+  });
   expect(fake.deepSeekCatalogChecks).toEqual([true, false]);
   expect(fake.policyWrites[0]?.['modelPreferences']).toContainEqual({
     id: 'deepseek-v4-pro',
@@ -614,7 +621,7 @@ test('OpenAI loads its catalogue automatically and saves model selection with th
     aiAdminFixture({
       provider: 'openai',
       model: 'gpt-6-luna',
-      enabled: true,
+      enabled: false,
       apiKeyConfigured: true,
       paidOperationsPerHour: 0,
     }),
@@ -628,20 +635,23 @@ test('OpenAI loads its catalogue automatically and saves model selection with th
   await expect(panel.getByText('Изображения: нет данных')).toBeVisible();
   await panel.getByRole('checkbox', { name: 'GPT-5 mini' }).uncheck();
   const save = panel.getByRole('button', { name: 'Сохранить', exact: true });
-  await expect(save).toBeDisabled();
-  await expect(
-    panel.getByText('Укажите лимит больше нуля или выключите провайдера.'),
-  ).toBeVisible();
-  await panel.getByLabel('Общий лимит платных ИИ-операций за час').fill('6');
+  await panel.getByRole('checkbox', { name: 'Включён', exact: true }).check();
+  await expect(save).toBeEnabled();
+  await expect(panel.getByText('Платные запросы отключены при лимите 0.')).toBeVisible();
   await expect(panel.getByRole('button', { name: /^Сохранить/ })).toHaveCount(1);
   await save.click();
   await expect(panel.getByText('Сохранено', { exact: true })).toBeVisible();
-  expect(fake.writes[0]).toMatchObject({ provider: 'openai', paidOperationsPerHour: 6 });
+  expect(fake.writes[0]).toMatchObject({
+    provider: 'openai',
+    enabled: true,
+    paidOperationsPerHour: 0,
+  });
   expect(fake.policyWrites[0]?.['modelPreferences']).toContainEqual({
     id: 'gpt-5-mini',
     eligible: false,
     order: 0,
   });
+  await selectProvider(page, 'deepseek');
   expect(fake.paidTests).toHaveLength(0);
 });
 
@@ -677,7 +687,7 @@ for (const width of [1440, 1024, 390, 320]) {
       await panel.getByRole('button', { name: 'Сведения о модели gemma4:31b' }).click();
       await expect(panel.getByText(/Контекст:.*262.*144/)).toBeVisible();
       await expect(panel.locator('.asa-cloud-catalog-list')).toHaveCSS('overflow-y', 'visible');
-      await panel.getByLabel('Общий лимит платных ИИ-операций за час').fill('5');
+      await panel.getByLabel('Общий лимит платных ИИ-операций за час').fill('0');
       await panel.getByRole('checkbox', { name: 'Включён', exact: true }).check();
       const save = panel.getByRole('button', { name: 'Сохранить', exact: true });
       await expect(panel.getByRole('button', { name: /^Сохранить/ })).toHaveCount(1);
@@ -698,6 +708,7 @@ for (const width of [1440, 1024, 390, 320]) {
         provider: 'ollama-cloud',
         enabled: true,
         configurationVersion: 2,
+        paidOperationsPerHour: 0,
       });
       expect(fake.paidTests).toHaveLength(0);
       expect(await page.locator('body').innerText()).not.toContain('test-ollama-cloud-key-only');

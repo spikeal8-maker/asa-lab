@@ -155,11 +155,9 @@ export function AdminCloudCatalogConnection({
             ? 'Шифрование ключей недоступно.'
             : !/^\d+$/.test(quota) || Number(quota) > 2147483647
               ? 'Укажите целое число запросов в час.'
-              : enabled && Number(quota) === 0
-                ? 'Укажите лимит больше нуля или выключите провайдера.'
-                : enabled && (clearKey || (!keyDraft && !slot?.apiKeyConfigured))
-                  ? 'Добавьте ключ или выключите провайдера.'
-                  : '';
+              : enabled && (clearKey || (!keyDraft && !slot?.apiKeyConfigured))
+                ? 'Добавьте ключ или выключите провайдера.'
+                : '';
   const canSave = !!policy && !!slot && dirty && !saveBlocked;
 
   async function save(event: FormEvent) {
@@ -333,6 +331,9 @@ export function AdminCloudCatalogConnection({
                     ? message.text
                     : 'Нет изменений')}
             </small>
+            {enabled && Number(quota) === 0 ? (
+              <small>Платные запросы отключены при лимите 0.</small>
+            ) : null}
           </div>
           <div className="asa-cloud-catalog-key-row">
             <label>
