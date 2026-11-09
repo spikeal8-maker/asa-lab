@@ -200,7 +200,10 @@ describe('Robotics project built from the real Electronics catalogue', () => {
       source: ROBOTICS_ARDUINO_SOURCE,
     });
     const sonar = project.circuit.components.find((item) => item.id === 'sonar')!;
-    expect(sonar.stateProperties?.distanceMeters).toBeCloseTo(1.245, 12);
+    const measured = measureRoboticsDistance(project.world, project.world.initialPose);
+    expect(measured.status).toBe('ok');
+    if (measured.status !== 'ok') throw new Error(measured.message);
+    expect(sonar.stateProperties?.distanceMeters).toBeCloseTo(measured.distanceMeters, 12);
     expect(parseElectronicsEngineDocument(project.circuit).ok).toBe(true);
   });
 
@@ -296,7 +299,7 @@ describe('Robotics project built from the real Electronics catalogue', () => {
     );
     expect(
       next.circuit.components.find((item) => item.id === 'sonar')?.stateProperties?.distanceMeters,
-    ).toBeCloseTo(0.645, 12);
+    ).toBeCloseTo(0.355, 12);
     const expectedWorld = createRoboticsWorldV3Document('compact');
     expect(next.world).toEqual(expectedWorld);
   });
@@ -342,7 +345,13 @@ describe('Robotics project built from the real Electronics catalogue', () => {
 /** Preserve the original integration/kinematic oracles for historical source explicitly. */
 function createLegacyRoboticsProject(): RoboticsProject {
   const initial = createDefaultRoboticsProject();
-  const world = createRoboticsWorldDocument();
+  // Physics integration below tests a historical rover approaching a barrier
+  // from the left. Keep that fixture explicit; production start is centered.
+  const sample = createRoboticsWorldDocument();
+  const world = {
+    ...sample,
+    initialPose: { ...sample.initialPose, xMeters: 0.25, yMeters: 0.9 },
+  };
   return withRoboticsWorld({ ...initial, schemaVersion: 2, world }, world);
 }
 
@@ -496,7 +505,12 @@ describe('Robotics fixture running the unchanged canonical Arduino and electric 
 
   it('closes the world → HC-SR04 → pulseIn → GPIO → motor loop and preserves a real coasting margin', () => {
     const initial = createLegacyRoboticsProject();
-    const project = withRoboticsWorld(initial, createRoboticsWorldDocument('compact'));
+    const sample = createRoboticsWorldDocument('compact');
+    const historicalCompact = {
+      ...sample,
+      initialPose: { ...sample.initialPose, xMeters: 0.25, yMeters: 0.6 },
+    };
+    const project = withRoboticsWorld(initial, historicalCompact);
     const document = engineDocument(project);
     const sourceBytes = JSON.stringify(project);
     let timedState: ElectronicsTimedState = resetElectronicsTimedState();
