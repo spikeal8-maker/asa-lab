@@ -1,7 +1,5 @@
-import {
-  photoresistorIllumination,
-  resetElectronicsTimedState,
-} from '@asa-lab/electronics/timed-state';
+import { photoresistorIllumination } from '@asa-lab/electronics/rendering';
+import { resetElectronicsTimedState } from '@asa-lab/electronics/timed-state';
 import type {
   ElectronicsArduinoSerialProjection,
   ElectronicsLedTemporalObservation,

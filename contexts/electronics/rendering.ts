@@ -7,3 +7,4 @@ export {
 } from './domain/switch-topology.js';
 
 export { arduinoBlockSupport } from './domain/arduino-block-support.js';
+export { photoresistorIllumination } from './domain/photoresistor-input.js';
