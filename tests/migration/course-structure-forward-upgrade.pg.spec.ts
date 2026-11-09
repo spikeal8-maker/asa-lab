@@ -178,6 +178,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0306', // Robotics in the existing immutable publication catalog.
         '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
         '0308', // Independent eight-tool controls, preserving legacy snapshots.
+        '0309', // OpenAI Responses catalog admission.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -515,6 +516,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0306', // Robotics in the existing immutable publication catalog.
           '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
           '0308', // Independent eight-tool controls, preserving legacy snapshots.
+          '0309', // OpenAI Responses catalog admission.
         ]);
         expect(
           await applyIsolatedTestPlan(

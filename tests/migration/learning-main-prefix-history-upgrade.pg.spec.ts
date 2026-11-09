@@ -419,6 +419,11 @@ const upgradeArtifacts = [
     '0308_ai_eight_tool_registry.sql',
     '85722956cf9ec5aa183e8b710f720c7f2356d761bc47466f756b87f8358bbf9a',
   ],
+  [
+    '0309',
+    '0309_ai_openai_chat_catalog.sql',
+    'e16505c4be32c1bb8996f349a946d4aa5db469746781385c8fa029ac29c4dc13',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

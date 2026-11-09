@@ -1,6 +1,25 @@
 import type { PolzaCatalog } from './ai-polza-catalog.js';
 import type { AiOllamaCloudModel, AiCatalogObservation } from '@asa-lab/contracts';
 import { AI_MAX_OUTPUT_TOKENS } from './ai-generation-limits.js';
+
+// Models documented for streaming Responses with image input and function calling.
+// https://developers.openai.com/api/docs/models/all
+const OPENAI_CHAT_MODELS = [
+  ['gpt-6-astra', 'GPT-6 Astra', 'low'],
+  ['gpt-6.1-sol', 'GPT-6.1 Sol', 'low'],
+  ['gpt-6.1-terra', 'GPT-6.1 Terra', 'none'],
+  ['gpt-6-sol', 'GPT-6 Sol', 'none'],
+  ['gpt-5.6-sol', 'GPT-5.6 Sol', 'none'],
+  ['gpt-5.6-terra', 'GPT-5.6 Terra', 'none'],
+  ['gpt-5.6-luna', 'GPT-5.6 Luna', 'none'],
+  ['gpt-5.5', 'GPT-5.5', 'none'],
+  ['gpt-5.4', 'GPT-5.4', 'none'],
+  ['gpt-5.4-mini', 'GPT-5.4 mini', 'none'],
+  ['gpt-5.2', 'GPT-5.2', 'none'],
+  ['gpt-5.4-pro', 'GPT-5.4 Pro', 'medium'],
+  ['gpt-5.2-pro', 'GPT-5.2 Pro', 'medium'],
+] as const;
+
 /** Server-owned text model catalog. The browser consumes this metadata, never an allowlist.
  * Official sources checked 2026-10-19:
  * https://developers.openai.com/api/docs/models/gpt-6-luna
@@ -8,7 +27,7 @@ import { AI_MAX_OUTPUT_TOKENS } from './ai-generation-limits.js';
  * https://developers.openai.com/api/docs/changelog (2025-08-07: minimal effort)
  * https://api-docs.deepseek.com/quick_start/pricing/
  * https://api-docs.deepseek.com/guides/thinking_mode/
- * Migration 0227 mirrors only the closed SQL boundary; a regression checks parity.
+ * Migration 0309 mirrors the closed SQL boundary; a regression checks parity.
  * Ollama Cloud names verified 2026-10-25 at https://ollama.com/api/tags.
  * https://docs.ollama.com/api/openai-compatibility; migration 0252 extends the same guards.
  */
@@ -45,6 +64,14 @@ const MODELS = [
     shutdownDate: null,
     reasoning: 'none',
   },
+  ...OPENAI_CHAT_MODELS.map(([id, label, reasoning]) => ({
+    id,
+    provider: 'openai' as const,
+    label,
+    vision: true,
+    shutdownDate: null,
+    reasoning,
+  })),
   {
     id: 'gpt-5-mini',
     provider: 'openai',
@@ -249,7 +276,7 @@ export function isKnownAdmittedModel(provider: unknown, model: unknown): boolean
 }
 export function getAiModelCatalog(now = Date.now()) {
   return {
-    revision: cloudRevision ? '2026-10-19+cloud:' + cloudRevision : '2026-10-19',
+    revision: cloudRevision ? '2026-11-10+cloud:' + cloudRevision : '2026-11-10',
     providers: PROVIDERS.filter((p) => p.id !== 'polza' || polzaReady).map((p) =>
       p.id === 'ollama-cloud'
         ? {
@@ -371,7 +398,7 @@ export function buildAiTextRequest(
           max_output_tokens: AI_MAX_OUTPUT_TOKENS,
           store: false,
           stream,
-          ...(descriptor.reasoning === 'none' || descriptor.reasoning === 'minimal'
+          ...(descriptor.reasoning && descriptor.reasoning !== 'disabled'
             ? { reasoning: { effort: descriptor.reasoning } }
             : {}),
         },
