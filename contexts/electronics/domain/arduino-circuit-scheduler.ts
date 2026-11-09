@@ -185,6 +185,7 @@ export interface ArduinoCircuitInputEvent {
   readonly property:
     | 'state'
     | 'wiperPosition'
+    | 'illumination'
     | 'temperatureCelsius'
     | 'moisturePercent'
     | 'motionDetected'
@@ -358,6 +359,12 @@ function validInputs(
           typeof event.value === 'boolean') ||
           (event.property === 'wiperPosition' &&
             component.kind === 'potentiometer' &&
+            typeof event.value === 'number' &&
+            Number.isFinite(event.value) &&
+            event.value >= 0 &&
+            event.value <= 1) ||
+          (event.property === 'illumination' &&
+            component.kind === 'photoresistor' &&
             typeof event.value === 'number' &&
             Number.isFinite(event.value) &&
             event.value >= 0 &&
