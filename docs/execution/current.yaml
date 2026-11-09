@@ -16294,7 +16294,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-WORKER-WORK-QUANTUM-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-BUTTON-LED-RESPONSE-001.md
     previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
@@ -16318,22 +16318,28 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-WORKER-WORK-QUANTUM-001
+      id: TASK-ELECTRONICS-BUTTON-LED-RESPONSE-001
       issue: 539
       branch: main
       base_branch: main
       pr: null
       status: in_progress
       kind: repair
-      risk: high
-      semantic_change: 'yes'
-      checkpoint: supported_worker_quantum_1024_experiment_selected
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: button_serial_unchanged_idle_projection_selected
       owner_acceptance: pending
-      owner_authorization: Owner explicitly resumes remaining plan and20 timing speed delay failures; one supported Worker cooperative quantum1024 experiment with complete parity and native responsiveness gates; public defaults/range and every per-step model guard remain unchanged. No unsafe trust cache. No yield replacement, clock change, cap increase, server or foreign changes.
+      owner_authorization: Owner requests one original timing failure at a time, browser proof before main, no refactor or server or foreign edits. Select button-serial and remove only identical idle Serial updates if focused proof distinguishes the rerender.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-WORKER-WORK-QUANTUM-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-BUTTON-LED-RESPONSE-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
+      rejected_quantum_experiment:
+        task_id: TASK-ELECTRONICS-WORKER-WORK-QUANTUM-001
+        candidate_sha: e754f1ffe6e65e6c7f3cfa0a8e720d6b926a836e
+        result: Rejected; mixed raw Worker cancellation delayed from 253.7ms to 1571.9ms. Default 256 preserved. Zero timing failures closed.
+        independent_review: APPROVE_negative_evidence_REJECT_activation
+        card: docs/product/electronics/tasks/TASK-ELECTRONICS-WORKER-WORK-QUANTUM-001.md
       previous_experiment:
         task_id: TASK-ELECTRONICS-INTERPRETER-HOT-LOOP-001
         status: completed_negative_no_product_activation
@@ -16380,7 +16386,7 @@ parallel_lanes:
         branch: main
         sha: eacb9fa9a1e6bfacd22d10c16ae017a5d551ef6f
       observed_at: '2026-11-01T22:29:00Z'
-      observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Read-only cause measurement selected separately; caption candidate waits for original browser and General evidence; no runtime source authorization.
+      observation_note: Fresh fetch main before edits and integration. Recorded baseline remains historical. Main 6e57e0ae6 had successful General run 42613626991 at selection. Existing timing thresholds and browser test remain intact.
 
   - id: electronics-compact-toolbar-hit
     parent_lane: electronics

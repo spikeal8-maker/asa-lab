@@ -177,10 +177,11 @@ describe('Course Builder structure forward upgrade', () => {
         '0305', // Robotics projects and authenticated module activity.
         '0306', // Robotics in the existing immutable publication catalog.
         '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
-        '0308', // Written Course responses reuse the canonical academic chain.
-        '0309', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
-        '0310', // Exact Quiz Start and answer state; historical rows remain unchanged.
-        '0311', // Complete eight-type Quiz Course vertical; immutable published history preserved.
+        '0308', // Independent eight-tool controls, preserving legacy snapshots.
+        '0309', // Written Course responses reuse the canonical academic chain.
+        '0310', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+        '0311', // Exact Quiz Start and answer state; historical rows remain unchanged.
+        '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -517,10 +518,11 @@ describe('Course Builder structure forward upgrade', () => {
           '0305', // Robotics projects and authenticated module activity.
           '0306', // Robotics in the existing immutable publication catalog.
           '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
-          '0308', // Written Course responses reuse the canonical academic chain.
-          '0309', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
-          '0310', // Exact Quiz Start and answer state; historical rows remain unchanged.
-          '0311', // Complete eight-type Quiz Course vertical; immutable published history preserved.
+          '0308', // Independent eight-tool controls, preserving legacy snapshots.
+          '0309', // Written Course responses reuse the canonical academic chain.
+          '0310', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+          '0311', // Exact Quiz Start and answer state; historical rows remain unchanged.
+          '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
         ]);
         expect(
           await applyIsolatedTestPlan(

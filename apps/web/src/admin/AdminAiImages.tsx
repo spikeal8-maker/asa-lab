@@ -7,9 +7,11 @@ import { newClientId } from '../client-id';
 export function AdminAiImages({
   onAccessDenied,
   onConfigChange,
+  onDirtyChange,
   refreshToken = 0,
 }: {
   onAccessDenied: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
   onConfigChange?: (config: AiImageGenerationAdminConfig | null) => void;
   refreshToken?: number;
 }) {
@@ -65,6 +67,9 @@ export function AdminAiImages({
       config.dailyLimit !== limit ||
       sizes.length !== config.sizes.length ||
       sizes.some((size) => !config.sizes.includes(size)));
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
   const mismatch = config?.reason?.includes('qwen_3_4b_fp4_flux2.safetensors');
   const valid = !!sizes.length && Number.isInteger(limit) && limit >= 1 && limit <= 100;
 

@@ -8,10 +8,20 @@ import { FixedWindowRateLimiter } from './rate-limit.js';
 /** Anonymous technical reports acknowledge intake only, not database persistence. */
 @Controller('api/diagnostics/quality')
 export class DiagnosticsQualityController {
+  // A school NAT aggregates many legitimate browser sessions behind one IP.
+  // An IP-wide cap alone incorrectly rejects their cumulative diagnostics
+  // (observed with 30 concurrent Chrome contexts). Preserve a strict cap
+  // per validated stream AND a bounded global cap per source address:
+  // changing/spoofing stream IDs cannot bypass the IP-wide ceiling.
   private readonly budget = new FixedWindowRateLimiter({
-    limit: 600,
+    limit: 1_800,
     windowMs: 60_000,
     maxKeys: 1024,
+  });
+  private readonly streamBudget = new FixedWindowRateLimiter({
+    limit: 60,
+    windowMs: 60_000,
+    maxKeys: 2048,
   });
   @Post()
   @HttpCode(202)
@@ -33,7 +43,14 @@ export class DiagnosticsQualityController {
     if (value['schemaVersion'] !== 2 || value['pipeline'] !== 'client-diagnostics') invalid();
     const eventId = uuid(value['eventId']);
     const snapshot = qualitySemantic(value);
-    if (!this.budget.consume(clientAddress(request)).allowed)
+    const address = clientAddress(request);
+    // Consume a stream's own quota first so a noisy tab does not exhaust the
+    // allowance shared by its classmates. Stream IDs are untrusted UUIDs,
+    // hence the independent per-IP limit remains mandatory.
+    if (
+      !this.streamBudget.consume(address + '\\0' + snapshot.streamId).allowed ||
+      !this.budget.consume(address).allowed
+    )
       throw new HttpException({ error: { code: 'too_many_requests' } }, 429);
     emitApplicationLog(
       `${JSON.stringify({

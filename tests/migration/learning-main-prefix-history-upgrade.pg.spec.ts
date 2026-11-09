@@ -416,22 +416,27 @@ const upgradeArtifacts = [
   ],
   [
     '0308',
-    '0308_learning_essay_course_runtime.sql',
-    '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
+    '0308_ai_eight_tool_registry.sql',
+    '85722956cf9ec5aa183e8b710f720c7f2356d761bc47466f756b87f8358bbf9a',
   ],
   [
     '0309',
-    '0309_learning_quiz_policy_authority.sql',
-    '85b4df00292bc47058616fe20054301a8a533a5ae3474daf8dbd3edc951fed39',
+    '0309_learning_essay_course_runtime.sql',
+    '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
   ],
   [
     '0310',
-    '0310_learning_quiz_attempt_state.sql',
-    '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
+    '0310_learning_quiz_policy_authority.sql',
+    '85b4df00292bc47058616fe20054301a8a533a5ae3474daf8dbd3edc951fed39',
   ],
   [
     '0311',
-    '0311_learning_quiz_complete_course.sql',
+    '0311_learning_quiz_attempt_state.sql',
+    '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
+  ],
+  [
+    '0312',
+    '0312_learning_quiz_complete_course.sql',
     'fb93b9453e0127d94843feb45abf8371437eee0b0421ceb34323171bc5a1825b',
   ],
 ] as const;
