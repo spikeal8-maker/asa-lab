@@ -726,18 +726,18 @@ for (const width of [1440, 390]) {
     await openAdmin(page);
     await selectProvider(page, 'ollama');
     await expect(page.getByLabel('Адрес Ollama')).toHaveValue('http://127.0.0.1:11434');
-    await expect(
-      page.getByRole('group', { name: 'Установленные модели Ollama' }).getByRole('button'),
-    ).toHaveCount(2);
+    await expect(page.locator('.asa-ai-ollama-model-option')).toHaveCount(2);
     await page.getByLabel('Адрес Ollama').fill('http://192.168.1.20:11434');
-    await expect(
-      page.getByRole('group', { name: 'Установленные модели Ollama' }).getByRole('button'),
-    ).toHaveCount(2);
+    await expect(page.locator('.asa-ai-ollama-model-option')).toHaveCount(2);
     await page
       .getByRole('group', { name: 'Установленные модели Ollama' })
       .getByRole('button', { name: /ornith:9b/ })
       .click();
     await page.getByRole('checkbox', { name: 'Выключено' }).check();
+    const selectedRow = page.locator('.asa-ai-ollama-model-card.is-selected');
+    await expect(selectedRow.getByLabel('Режим размышления Ollama')).toBeVisible();
+    await expect(selectedRow.getByLabel('Контекст, токенов')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Модели подключения' })).toHaveCount(0);
     await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
     await expect(page.getByText('Сохранено · ornith:9b', { exact: false })).toBeVisible();
     expect(fake.ollamaWrites).toHaveLength(1);
