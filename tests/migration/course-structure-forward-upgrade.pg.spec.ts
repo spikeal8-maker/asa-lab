@@ -173,7 +173,11 @@ describe('Course Builder structure forward upgrade', () => {
         '0301', // Scoped Chess presence and recipient-bound challenges.
         '0302', // Private portal invitation notifications.
         '0303', // Owner-only publication editor resolution.
-        '0304', // Independent eight-tool controls, preserving legacy snapshots.
+        '0304', // Russian-64 network matches reuse Games identity and policy.
+        '0305', // Robotics projects and authenticated module activity.
+        '0306', // Robotics in the existing immutable publication catalog.
+        '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
+        '0308', // Independent eight-tool controls, preserving legacy snapshots.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -506,7 +510,11 @@ describe('Course Builder structure forward upgrade', () => {
           '0301', // Scoped Chess presence and recipient-bound challenges.
           '0302', // Private portal invitation notifications.
           '0303', // Owner-only publication editor resolution.
-          '0304', // Independent eight-tool controls, preserving legacy snapshots.
+          '0304', // Russian-64 network matches reuse Games identity and policy.
+          '0305', // Robotics projects and authenticated module activity.
+          '0306', // Robotics in the existing immutable publication catalog.
+          '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
+          '0308', // Independent eight-tool controls, preserving legacy snapshots.
         ]);
         expect(
           await applyIsolatedTestPlan(

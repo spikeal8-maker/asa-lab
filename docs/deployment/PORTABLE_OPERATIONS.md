@@ -132,6 +132,15 @@ python tools/asa_manager.py update --profile dev
 checkout, контейнеры или БД. `update` заранее скачивает образы, проверяет историю
 миграций, создаёт полную копию, заменяет сервисы и проверяет Web/API/Scratch и
 схему. Повтор того же установленного выпуска не делает backup и перезапуск.
+Если опубликованный манифест в точности совпадает с квитанцией уже принятого
+выпуска, контейнеры и HTTPS-вход соответствуют ему, а сборщик журналов работает,
+`update` завершает проверенный `NO_CHANGE` без нового запроса GitHub Actions.
+Это не разрешает устанавливать новый выпуск без проверки CI: при отличии SHA,
+манифеста, образов, при режиме `check`, подготовке rollback или требующем
+исправления сборщике обязательная проверка CI остаётся прежней. Неавторизованный
+GitHub API ограничивает число запросов; при исчерпании лимита новое обновление
+останавливается `CI_UNAVAILABLE`, не затрагивая существующую установку.
+
 Дополнительно сверяются фактические имена томов PostgreSQL/MinIO и совпадение
 базы приложения, миграций и backup. Переназначение хранилища блокирует обновление.
 Изменение PostgreSQL image или `PGDATA` требует отдельного обновления движка БД:
@@ -208,6 +217,21 @@ manager только если он уже поддерживает selector. Е�
 не запускайте старый CLI без флага: старый код pending pin не понимает.
 Это source-supported bootstrap, не подтверждение реальной установки/обновления
 старой School VM или произвольной совместимости любого будущего tooling.
+
+**Заранее подготовленный возврат P0.** Для объявленной совместимой пары
+`98d7fbb4 → d0bf7cbe` внешний qualified manager поддерживает
+`check/update --require-application-rollback`, затем `rollback-plan` и явный
+`rollback --root` только к предыдущему release последней связанной операции.
+Обычный forward ancestry guard остаётся. Capsule создаётся после нового
+проверенного backup до service switch и фиксирует exact images, фактические
+MinIO/mc bytes, private configuration, PostgreSQL/volumes, source/tooling/CI.
+Возврат сохраняет записи, созданные после update: live DB/object restore,
+migration apply и пересоздание PostgreSQL не выполняются. `automaticUpdates`
+должен оставаться `false`. API запускается и проверяется раньше Web.
+Production требует завершённую exact-tools/selected-digest native qualification;
+Linux CI, Windows unit/path proof и actual Windows Docker proof различаются.
+Условия, durable recovery phases и команды:
+[APPLICATION_ROLLBACK.md](APPLICATION_ROLLBACK.md).
 
 После перехода на готовые образы старые `asa-lab up` и `docker-update` блокируют
 пересборку этой установки. Не запускайте прямой `docker compose up`: он не

@@ -1,5 +1,5 @@
 import { diagnosticQuality, type TelemetryQuality } from './telemetry-quality';
-import { record, sendTelemetry } from './telemetry-contract';
+import { record, sendTelemetry, telemetryRetryDelay } from './telemetry-contract';
 import { validClientException, exceptionMatchesCode } from './client-error-details';
 import { validRequestDetails } from './request-diagnostic-details';
 // Only this fixed vocabulary may cross the browser diagnostics boundary.
@@ -54,8 +54,48 @@ export const ASSET_SCRIPT = /^\/assets\/[A-Za-z0-9_.-]{1,160}\.js$/;
 const KEY = 'asa:diagnostics:v1';
 const TTL = 15 * 60_000;
 const MAX = 50;
-type Envelope = Record<string, unknown> & { eventId: string; occurredAt: number; code: string };
+const MAX_REPETITIONS = 1_000_000;
+type Envelope = Record<string, unknown> & {
+  eventId: string;
+  occurredAt: number;
+  code: string;
+  repetitionCount?: number;
+  firstOccurredAt?: number;
+  lastOccurredAt?: number;
+};
 type StoragePort = Pick<Storage, 'getItem' | 'setItem'>;
+export const criticalDiagnostic = (code: string): boolean =>
+  code === 'render_failed' || code === 'autosave_failed';
+const healthDiagnostic = (code: string): boolean =>
+  ['editor_ready', 'editor_heartbeat', 'editor_recovered', 'request_cancelled'].includes(code);
+const priority = (event: Envelope): number =>
+  criticalDiagnostic(event.code)
+    ? 0
+    : healthDiagnostic(event.code)
+      ? 3
+      : ['request_failed', 'request_slow'].includes(event.code)
+        ? 2
+        : 1;
+const repetitions = (event: Envelope): number => event.repetitionCount ?? 1;
+// Attempt/request IDs and durations describe the representative occurrence, not a new failure kind.
+const fingerprint = (event: Envelope): string =>
+  JSON.stringify([
+    event.instanceId,
+    event.module,
+    event.revision,
+    event.code,
+    event.phase,
+    event.operation,
+    event.method,
+    event.failureKind,
+    event.httpStatus,
+    event.category,
+    event.failureCode,
+    event.exception,
+    event.script,
+    event.line,
+    event.column,
+  ]);
 
 // sessionStorage is untrusted input, including after a deployment or a reload.
 function valid(value: unknown, now: number): value is Envelope {
@@ -84,12 +124,27 @@ function valid(value: unknown, now: number): value is Envelope {
         'method',
         'failureKind',
         'clientAttemptId',
+        'repetitionCount',
+        'firstOccurredAt',
+        'lastOccurredAt',
       ].includes(k),
     ) &&
     typeof v.eventId === 'string' &&
     UUID.test(v.eventId) &&
     Number.isSafeInteger(v.occurredAt) &&
+    (v.occurredAt as number) >= 0 &&
     (v.occurredAt as number) <= now + 60_000 &&
+    (['repetitionCount', 'firstOccurredAt', 'lastOccurredAt'].every(
+      (key) => v[key] === undefined,
+    ) ||
+      (Number.isSafeInteger(v.repetitionCount) &&
+        (v.repetitionCount as number) >= 1 &&
+        (v.repetitionCount as number) <= MAX_REPETITIONS &&
+        v.firstOccurredAt === v.occurredAt &&
+        Number.isSafeInteger(v.lastOccurredAt) &&
+        (v.lastOccurredAt as number) >= (v.firstOccurredAt as number) &&
+        (v.lastOccurredAt as number) <= now + 60_000 &&
+        (v.lastOccurredAt as number) - (v.firstOccurredAt as number) <= TTL)) &&
     DIAGNOSTIC_CODES.includes(v.code as (typeof DIAGNOSTIC_CODES)[number]) &&
     ['portal', 'scratch', 'electronics', 'auth'].includes(v.module as string) &&
     typeof v.revision === 'string' &&
@@ -134,6 +189,10 @@ export class DiagnosticOutbox {
   private active = false;
   private current: Envelope | undefined;
   private retry: ReturnType<typeof setTimeout> | undefined;
+  private scheduled: ReturnType<typeof setTimeout> | undefined;
+  private wakeQueued = false;
+  private readonly sealed = new WeakSet<Envelope>();
+  private readonly lastSent = new Map<string, number>();
   private failures = 0;
 
   constructor(
@@ -167,15 +226,19 @@ export class DiagnosticOutbox {
         for (const value of values) {
           if (!valid(value, Date.now()) || ids.has(value.eventId))
             this.quality.increment('invalidStored');
-          else if (value.occurredAt <= Date.now() - TTL) this.quality.increment('expired');
+          else if (value.occurredAt <= Date.now() - TTL)
+            this.quality.increment('expired', repetitions(value));
           else {
             ids.add(value.eventId);
             this.queue.push(value);
+            // A restored event may have reached intake before the browser lost its ACK.
+            this.sealed.add(value);
           }
         }
-        if (this.queue.length > MAX) {
-          this.quality.increment('evicted', this.queue.length - MAX);
-          this.queue = this.queue.slice(-MAX);
+        while (this.queue.length > MAX) {
+          const index = this.evictionIndex();
+          this.quality.increment('evicted', repetitions(this.queue[index]!));
+          this.queue.splice(index, 1);
         }
       }
     } catch {
@@ -184,45 +247,99 @@ export class DiagnosticOutbox {
     }
   }
 
-  enqueue(value: unknown, countAttempt = true): void {
+  /** Returns true only for a new envelope; coalesced occurrences do not spend another admission. */
+  enqueue(value: unknown, countAttempt = true, admitNew = true): boolean {
     if (countAttempt) this.quality.increment('attempted');
     if (!valid(value, Date.now())) {
       this.quality.increment('invalidEnvelope');
-      return;
+      return false;
     }
     if (value.occurredAt <= Date.now() - TTL) {
-      this.quality.increment('expired');
-      return;
+      this.quality.increment('expired', repetitions(value));
+      return false;
     }
     this.queue = this.queue.filter((e) => {
       if (e === this.current || e.occurredAt > Date.now() - TTL) return true;
-      this.quality.increment('expired');
+      this.quality.increment('expired', repetitions(e));
       return false;
     });
     if (this.queue.some((e) => e.eventId === value.eventId)) {
       this.quality.increment('deduplicated');
-      return;
+      return false;
+    }
+    const key = fingerprint(value);
+    const aggregate = this.queue.find(
+      (event) =>
+        !this.sealed.has(event) &&
+        fingerprint(event) === key &&
+        Math.max(
+          event.lastOccurredAt ?? event.occurredAt,
+          value.lastOccurredAt ?? value.occurredAt,
+        ) -
+          Math.min(event.occurredAt, value.occurredAt) <=
+          TTL,
+    );
+    if (aggregate) {
+      const added = Math.min(MAX_REPETITIONS - repetitions(aggregate), repetitions(value));
+      aggregate.repetitionCount = repetitions(aggregate) + added;
+      aggregate.lastOccurredAt = Math.max(
+        aggregate.lastOccurredAt ?? aggregate.occurredAt,
+        value.lastOccurredAt ?? value.occurredAt,
+      );
+      aggregate.occurredAt = Math.min(aggregate.occurredAt, value.occurredAt);
+      aggregate.firstOccurredAt = aggregate.occurredAt;
+      this.quality.increment('coalesced', added);
+      this.quality.increment('suppressed', repetitions(value) - added);
+      this.persist();
+      return false;
+    }
+    if (!admitNew) {
+      this.quality.increment('suppressed', repetitions(value));
+      return false;
     }
     if (this.queue.length >= MAX) {
-      const heartbeat = this.queue.findIndex(
-        (e) =>
-          e !== this.current &&
-          ['editor_ready', 'editor_heartbeat', 'editor_recovered'].includes(e.code),
-      );
-      const index = heartbeat >= 0 ? heartbeat : this.queue.findIndex((e) => e !== this.current);
+      const index = this.evictionIndex(priority(value));
+      if (index < 0) {
+        this.quality.increment('suppressed', repetitions(value));
+        return false;
+      }
+      this.quality.increment('evicted', repetitions(this.queue[index]!));
       this.queue.splice(index, 1);
-      this.quality.increment('evicted');
     }
-    this.queue.push(value);
+    this.queue.push(structuredClone(value));
     this.quality.increment('enqueued');
     this.persist();
-    void this.flush();
+    // Collect synchronous duplicates before freezing the representative envelope for transport.
+    if (!this.wakeQueued) {
+      this.wakeQueued = true;
+      queueMicrotask(() => {
+        this.wakeQueued = false;
+        void this.flush();
+      });
+    }
+    return true;
+  }
+
+  private evictionIndex(minPriority = 0): number {
+    let index = -1;
+    for (let n = 0; n < this.queue.length; n++) {
+      const event = this.queue[n]!;
+      if (event === this.current || priority(event) < minPriority) continue;
+      if (index < 0 || priority(event) > priority(this.queue[index]!)) index = n;
+    }
+    return index;
   }
 
   retryNow(): void {
-    if (this.retry) clearTimeout(this.retry);
-    this.retry = undefined;
     void this.flush();
+  }
+
+  private readyAt(event: Envelope): number {
+    if (this.sealed.has(event)) return 0;
+    return (
+      (this.lastSent.get(fingerprint(event)) ?? -Infinity) +
+      (healthDiagnostic(event.code) ? 60_000 : 10_000)
+    );
   }
 
   private persist(): void {
@@ -240,15 +357,37 @@ export class DiagnosticOutbox {
 
   private async flush(): Promise<void> {
     if (this.active || this.retry) return;
+    if (this.scheduled) clearTimeout(this.scheduled);
+    this.scheduled = undefined;
     this.active = true;
     try {
       while (this.queue.length) {
-        const event = this.queue[0]!;
-        if (event.occurredAt <= Date.now() - TTL) {
-          this.queue.shift();
-          this.quality.increment('expired');
-          this.persist();
-          continue;
+        const now = Date.now();
+        this.queue = this.queue.filter((event) => {
+          if (event.occurredAt > now - TTL) return true;
+          this.quality.increment('expired', repetitions(event));
+          return false;
+        });
+        if (!this.queue.length) break;
+        const event = this.queue
+          .filter((entry) => this.readyAt(entry) <= now)
+          .sort((a, b) => priority(a) - priority(b))[0];
+        if (!event) {
+          this.scheduled = setTimeout(
+            () => {
+              this.scheduled = undefined;
+              void this.flush();
+            },
+            Math.min(...this.queue.map((entry) => this.readyAt(entry))) - now,
+          );
+          return;
+        }
+        if (!this.sealed.has(event)) {
+          this.sealed.add(event);
+          for (const [key, at] of this.lastSent) if (now - at >= 60_000) this.lastSent.delete(key);
+          // Admission is bounded by the reporter, including across editor context changes.
+          if (this.lastSent.size >= 200) this.lastSent.delete(this.lastSent.keys().next().value!);
+          this.lastSent.set(fingerprint(event), now);
         }
         this.current = event;
         this.persist();
@@ -265,15 +404,16 @@ export class DiagnosticOutbox {
               this.retry = undefined;
               void this.flush();
             },
-            Math.min(30_000, 1000 * 2 ** Math.min(5, this.failures - 1)),
+            telemetryRetryDelay(this.failures, outcome.retryAfterMs),
           );
           return;
         }
         this.quality.increment(
           outcome.kind === 'acknowledged' ? 'acknowledged' : 'permanentRejected',
+          repetitions(event),
         );
         this.failures = 0;
-        // A full queue may have evicted the in-flight event. Remove by identity.
+        // Remove the acknowledged identity, leaving its next aggregate intact.
         this.queue = this.queue.filter((e) => e.eventId !== event.eventId);
         this.persist();
       }

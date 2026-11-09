@@ -8,6 +8,7 @@ import { dirname, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { chromium } from '@playwright/test';
 import { createServer as createViteServer } from 'vite';
+import { measureSchematicEditorCss } from './electronics-benchmark-assets.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const quick = process.argv.includes('--quick');
@@ -284,13 +285,13 @@ try {
     simulationCore: findAsset('electronics-simulation-core-'),
     arduinoCodePanel: findAsset('ArduinoCodePanel-'),
     schematicEditor: findAsset('SchematicEditor-', '.js'),
-    schematicEditorCss: findAsset('SchematicEditor-', '.css'),
+    schematicEditorCss: measureSchematicEditorCss(resolve(repositoryRoot, 'apps/web/dist')),
     workbenchSidebars: findAsset('WorkbenchSidebars-'),
     productionManifestAdapter: findAsset('production-manifest-adapter-'),
     componentCatalog: { fileName: 'catalog.json', ...bundleEntry(catalogPath) },
   };
   const report = {
-    receiptVersion: 1,
+    receiptVersion: 2,
     revision,
     dirtyTree,
     startedAt,
@@ -354,6 +355,12 @@ ${rows}
 | ${livePath.caseId} | ${livePath.p50Ms.toFixed(3)} | ${livePath.p95Ms.toFixed(3)} | ${livePath.p99Ms.toFixed(3)} | ${livePath.eventLoopDelayP95Ms.toFixed(3)} | ${livePath.longTaskCount} | ${livePath.longTaskMaxMs.toFixed(3)} |
 
 ## Production Electronics payload baseline
+
+Browser receipt v2 measures schematicEditorCss as the complete static CSS dependency
+closure of SchematicEditor, including shared styles and excluding dynamic destinations.
+The JSON lists every unique emitted CSS resource; bytes and gzipBytes sum the individual
+files, with each file compressed separately. This CSS total is not directly comparable
+to the single SchematicEditor CSS chunk recorded by historical v1 receipts.
 
 | Asset | File | KiB | gzip KiB |
 | --- | --- | ---: | ---: |

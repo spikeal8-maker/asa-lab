@@ -83,6 +83,58 @@ describe('A1 context access boundary', () => {
     expect(pool.query).toHaveBeenCalled();
   });
 
+  it.each(['Account', 'StudentSeat'] as const)(
+    'opens an authorized personal Project for %s without depending on unused canonical reads',
+    async (identity) => {
+      const isSeat = identity === 'StudentSeat';
+      const { instance, pool, openProject } = controller({
+        projectAllowed: true,
+        account: !isSeat,
+      });
+      pool.query.mockImplementation(async (sql: string) => {
+        if (sql.includes('learning_canonical_evidence_')) {
+          throw new Error('unused canonical read failed');
+        }
+        if (
+          sql.includes('learning_immutable_project_origin_exists') ||
+          sql.includes('learning_work_project_origin_exists')
+        )
+          return { rows: [{ linked: false }] };
+        return { rows: [] };
+      });
+      const personalRequest = isSeat
+        ? ({ cookies: { asa_student_session: 'seat-token' } } as unknown as FastifyRequest)
+        : request;
+
+      await expect(instance.context(personalRequest, projectId)).resolves.toEqual({
+        state: 'not_learning',
+        projectId,
+      });
+      expect(openProject.execute).toHaveBeenCalledWith(actor.tenantId, projectId, {
+        principalId: actor.principalId,
+        userId: isSeat ? null : actor.userId,
+      });
+      expect(pool.query.mock.calls).toEqual([
+        [
+          'SELECT context,evidence FROM learning_origin_work_context_for_project($1, $2)',
+          [actor.principalId, projectId],
+        ],
+        [
+          'SELECT learning_immutable_project_origin_exists($1, $2) AS linked',
+          [actor.principalId, projectId],
+        ],
+        [
+          'SELECT context FROM learning_work_context_for_project($1, $2)',
+          [actor.principalId, projectId],
+        ],
+        [
+          'SELECT learning_work_project_origin_exists($1, $2) AS linked',
+          [actor.principalId, projectId],
+        ],
+      ]);
+    },
+  );
+
   it('denies a remembered no-origin Course Project after the Account learner link is revoked', async () => {
     const { instance, pool } = controller({ projectAllowed: true });
     pool.query.mockImplementation(async (sql: string) => {
@@ -114,7 +166,83 @@ describe('A1 context access boundary', () => {
     expect(
       pool.query.mock.calls.some(([sql]) => sql.includes('learning_course_modern_provenance')),
     ).toBe(true);
+    expect(
+      pool.query.mock.calls.some(([sql]) => sql.includes('learning_canonical_evidence_')),
+    ).toBe(false);
   });
+
+  it.each(['Account', 'StudentSeat', 'both cookies'] as const)(
+    'loads required canonical evidence for the authenticated %s only after provenance',
+    async (identity) => {
+      const isSeat = identity !== 'Account';
+      const both = identity === 'both cookies';
+      const { instance, pool, openProject, activeContext } = controller({
+        projectAllowed: true,
+        account: identity !== 'StudentSeat',
+        both,
+      });
+      const principalId = both ? 'seat-principal' : actor.principalId;
+      const canonicalSql = isSeat
+        ? 'SELECT evidence FROM learning_canonical_evidence_for_seat($1)'
+        : 'SELECT evidence FROM learning_canonical_evidence_for_account($1)';
+      pool.query.mockImplementation(async (sql: string) => {
+        if (sql.includes('learning_origin_work_context_for_project')) return { rows: [] };
+        if (sql.includes('learning_immutable_project_origin_exists'))
+          return { rows: [{ linked: false }] };
+        if (sql.includes('learning_work_context_for_project'))
+          return {
+            rows: [
+              {
+                context: {
+                  projectId,
+                  seatId: 'seat',
+                  classroomAssignmentId: 'assignment',
+                  sourceKind: 'direct',
+                  activityRunId: 'run',
+                },
+              },
+            ],
+          };
+        if (sql.includes('learning_direct_modern_project_readable'))
+          return { rows: [{ readable: true }] };
+        if (sql === canonicalSql) return { rows: [] };
+        throw new Error('unexpected identity or context query');
+      });
+      const authenticatedRequest = {
+        cookies: {
+          ...(!isSeat || both ? { asa_session: 'account-token' } : {}),
+          ...(isSeat ? { asa_student_session: 'seat-token' } : {}),
+        },
+      } as unknown as FastifyRequest;
+
+      await expect(instance.context(authenticatedRequest, projectId)).resolves.toEqual({
+        state: 'unavailable',
+        projectId,
+      });
+      expect(openProject.execute).toHaveBeenCalledWith(
+        both ? 'seat-tenant' : actor.tenantId,
+        projectId,
+        { principalId, userId: isSeat ? null : actor.userId },
+      );
+      expect(pool.query.mock.calls).toEqual([
+        [
+          'SELECT context,evidence FROM learning_origin_work_context_for_project($1, $2)',
+          [principalId, projectId],
+        ],
+        [
+          'SELECT learning_immutable_project_origin_exists($1, $2) AS linked',
+          [principalId, projectId],
+        ],
+        ['SELECT context FROM learning_work_context_for_project($1, $2)', [principalId, projectId]],
+        [
+          'SELECT learning_direct_modern_project_readable($1,$2,$3,$4,$5) AS readable',
+          [principalId, 'seat', 'assignment', 'run', projectId],
+        ],
+        [canonicalSql, [isSeat ? 'seat' : actor.accountId]],
+      ]);
+      if (isSeat) expect(activeContext.resolve).not.toHaveBeenCalled();
+    },
+  );
 
   it('uses the same project gate for a StudentSeat session', async () => {
     const { instance, openProject } = controller({ projectAllowed: true, account: false });
@@ -131,13 +259,27 @@ describe('A1 context access boundary', () => {
   });
 
   it('does not resolve a project without a session', async () => {
-    const { instance, openProject } = controller({ projectAllowed: true });
+    const { instance, openProject, pool } = controller({ projectAllowed: true });
     await expect(
       instance.context({ cookies: {} } as FastifyRequest, projectId),
     ).rejects.toMatchObject({
       status: 401,
     });
     expect(openProject.execute).not.toHaveBeenCalled();
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid Project ID before resolving identity or reading Learning evidence', async () => {
+    const { instance, openProject, pool, activeContext, seatContext } = controller({
+      projectAllowed: true,
+    });
+    await expect(instance.context(request, 'invalid-project')).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(seatContext.resolve).not.toHaveBeenCalled();
+    expect(activeContext.resolve).not.toHaveBeenCalled();
+    expect(openProject.execute).not.toHaveBeenCalled();
+    expect(pool.query).not.toHaveBeenCalled();
   });
 });
 

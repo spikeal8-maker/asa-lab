@@ -15,9 +15,11 @@ import { flushSync } from 'react-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   resetElectronicsTimedState,
+  type ElectronicsHcSr04EnvironmentSample,
   type ElectronicsLedTemporalObservation,
 } from '@asa-lab/electronics/engine';
 import { api, type Project, type SchematicDocument, type SolveResult } from '../../api';
+import { reportClientDiagnostic } from '../../client-diagnostics';
 import type { LiveSimulationWorkerCallbacks } from '../live-simulation-worker-controller';
 import { ElectronicsLiveSimulationWorkerController } from '../live-simulation-worker-controller';
 import { loadSimulationWorkerController } from '../load-simulation-worker-controller';
@@ -25,7 +27,12 @@ import { SimulationFailure } from '../simulation-failure';
 import { catalogEntry } from '../component-catalog';
 import { configureProductionLibrary } from '../production-manifest-adapter';
 import { ProductionComponentVisual, NativeOpticalProvider } from '../NativeOpticalComponentVisual';
-import { useElectronicsWorkbench } from '../use-electronics-workbench';
+import {
+  useElectronicsWorkbench,
+  useElectronicsWorkbenchHost,
+  type ElectronicsWorkbenchProjectHost,
+} from '../use-electronics-workbench';
+import { addComponentToDocument } from '../workbench-document';
 import { SchematicView, BomView } from '../AlternateWorkbenchViews';
 import { WorkbenchHeader } from '../WorkbenchHeader';
 import { evaluateSimulationWorkerRequestBatched } from '../simulation-worker-evaluator';
@@ -241,6 +248,74 @@ function Probe({
   );
 }
 const worker = () => transport.instances.at(-1)!;
+
+function localProjectHost(): ElectronicsWorkbenchProjectHost {
+  configureProductionLibrary(
+    JSON.parse(
+      readFileSync(
+        resolve('apps/web/public/assets/electronics/component-database/catalog.json'),
+        'utf8',
+      ),
+    ),
+  );
+  const added = addComponentToDocument(initial, 'ultrasonic-hc-sr04', { x: 300, y: 300 }, 'sonar');
+  const document: SchematicDocument = {
+    ...added.document,
+    components: added.document.components.map((component) =>
+      component.id === 'sonar'
+        ? { ...component, stateProperties: { ...component.stateProperties, distanceMeters: 0.5 } }
+        : component,
+    ),
+  };
+  return {
+    project: null,
+    document,
+    serverRevision: 0,
+    getCurrentDocument: () => document,
+    result: null,
+    versions: [],
+    status: 'ready',
+    saveStatus: 'saved',
+    saveError: null,
+    saveIssue: null,
+    localCopySaved: true,
+    exportEmergencyCopy: vi.fn(),
+    saveBeforeLeave: vi.fn(async () => {}),
+    notice: null,
+    setNotice: vi.fn(),
+    simulationRunning: true,
+    simulationStatus: 'running',
+    confirmSimulationStarted: vi.fn(),
+    busy: false,
+    projectTitle: 'Local robotics',
+    setProjectTitle: vi.fn(),
+    canUndo: false,
+    canRedo: false,
+    undo: vi.fn(() => false),
+    redo: vi.fn(() => false),
+    commitDocument: vi.fn(),
+    saveNow: vi.fn(async () => {}),
+    toggleSimulation: vi.fn(async () => {}),
+    resetSimulation: vi.fn(),
+    checkpoint: vi.fn(async () => {}),
+    renameProject: vi.fn(async () => {}),
+  };
+}
+
+function LocalHostProbe({
+  projectState,
+  keyboardShortcutsEnabled,
+}: {
+  projectState: ElectronicsWorkbenchProjectHost;
+  keyboardShortcutsEnabled?: boolean;
+}) {
+  workbench = useElectronicsWorkbenchHost('local-robotics', projectState, {
+    runtimeInputEventLimit: 1000,
+    reportSimulationDiagnostics: false,
+    ...(keyboardShortcutsEnabled === undefined ? {} : { keyboardShortcutsEnabled }),
+  });
+  return null;
+}
 function deferredController() {
   let resolve!: (controller: typeof ElectronicsLiveSimulationWorkerController) => void;
   let reject!: (reason: Error) => void;
@@ -297,6 +372,7 @@ beforeEach(() => {
   localStorage.clear();
   transport.instances.length = 0;
   transport.autoReady = true;
+  vi.mocked(reportClientDiagnostic).mockClear();
   vi.mocked(loadSimulationWorkerController)
     .mockReset()
     .mockResolvedValue(ElectronicsLiveSimulationWorkerController);
@@ -341,6 +417,270 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
+
+describe('shared workbench with a local project host', () => {
+  it('scopes shortcuts to the embedded editing page and restores the legacy default exactly once', async () => {
+    const projectState = {
+      ...localProjectHost(),
+      simulationRunning: false,
+      simulationStatus: 'stopped' as const,
+    };
+    const key = (code: string, ctrlKey = false) =>
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          code,
+          key: code === 'Delete' ? 'Delete' : code,
+          ctrlKey,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    await act(async () =>
+      root.render(createElement(LocalHostProbe, { projectState, keyboardShortcutsEnabled: false })),
+    );
+    act(() => workbench.selectComponent('uno', false));
+    act(() => {
+      key('ArrowRight');
+      key('Delete');
+      key('KeyV', true);
+      key('KeyZ', true);
+      key('Enter', true);
+    });
+    expect(projectState.commitDocument).not.toHaveBeenCalled();
+    expect(projectState.undo).not.toHaveBeenCalled();
+    expect(projectState.toggleSimulation).not.toHaveBeenCalled();
+    for (let cycle = 0; cycle < 2; cycle += 1) {
+      await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+      act(() => key('ArrowRight'));
+      expect(projectState.commitDocument).toHaveBeenCalledTimes(cycle + 1);
+      await act(async () =>
+        root.render(
+          createElement(LocalHostProbe, { projectState, keyboardShortcutsEnabled: false }),
+        ),
+      );
+      act(() => key('ArrowRight'));
+      expect(projectState.commitDocument).toHaveBeenCalledTimes(cycle + 1);
+    }
+  });
+
+  it('never restarts the Worker generation when only keyboard scope changes', async () => {
+    const projectState = localProjectHost();
+    await act(async () =>
+      root.render(createElement(LocalHostProbe, { projectState, keyboardShortcutsEnabled: true })),
+    );
+    const active = worker();
+    expect(active.start).toHaveBeenCalledOnce();
+    const stopped = active.stop.mock.calls.length;
+    for (const enabled of [false, true, false, true])
+      await act(async () =>
+        root.render(
+          createElement(LocalHostProbe, { projectState, keyboardShortcutsEnabled: enabled }),
+        ),
+      );
+    expect(worker()).toBe(active);
+    expect(active.start).toHaveBeenCalledOnce();
+    expect(active.stop).toHaveBeenCalledTimes(stopped);
+    expect(active.restart).not.toHaveBeenCalled();
+  });
+
+  it('keeps a local failure visible and resets the host without scheduling backend diagnostics', async () => {
+    const projectState = localProjectHost();
+    await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+    await act(async () =>
+      worker().callbacks!.onFailure(
+        new SimulationFailure('runtime', 'arduino_execution_failed', 'Недопустимая команда'),
+      ),
+    );
+    expect(projectState.resetSimulation).toHaveBeenCalledOnce();
+    expect(workbench.simulationMessage).toMatchObject({
+      code: 'arduino_execution_failed',
+      text: 'Исполнение программы остановлено: Недопустимая команда',
+    });
+    expect(reportClientDiagnostic).not.toHaveBeenCalled();
+    expect(api.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('sends only a runtime sensor override without document, history or server persistence edits', async () => {
+    const projectState = localProjectHost();
+    const original = JSON.stringify(projectState.document);
+    await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+    expect(api.me).not.toHaveBeenCalled();
+    expect(api.openProject).not.toHaveBeenCalled();
+    expect(worker().callbacks?.inputEventLimit).toBe(1000);
+    worker().update.mockClear();
+    const distanceSetter = workbench.setRuntimeSensorDistance;
+    await act(async () => {
+      expect(workbench.setRuntimeSensorDistance('sonar', 0.25)).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    expect(
+      worker().update.mock.calls[0]![0].components.find(
+        (component: { id: string }) => component.id === 'sonar',
+      ).stateProperties.distanceMeters,
+    ).toBe(0.25);
+    expect(JSON.stringify(projectState.document)).toBe(original);
+    expect(projectState.getCurrentDocument()).toBe(projectState.document);
+    expect(projectState.commitDocument).not.toHaveBeenCalled();
+    expect(workbench.documentMutationEpoch()).toBe(0);
+    expect(api.saveDraft).not.toHaveBeenCalled();
+    expect(workbench.setRuntimeSensorDistance).toBe(distanceSetter);
+    worker().update.mockClear();
+    await act(async () => {
+      expect(workbench.setRuntimeSensorDistance('sonar', 0.25)).toBe(true);
+    });
+    expect(worker().update).not.toHaveBeenCalled();
+    const starts = worker().start.mock.calls.length;
+    await act(async () =>
+      root.render(
+        createElement(LocalHostProbe, {
+          projectState: { ...projectState, notice: 'Локальный проект' },
+        }),
+      ),
+    );
+    expect(worker().start).toHaveBeenCalledTimes(starts);
+    await act(async () =>
+      root.render(
+        createElement(LocalHostProbe, {
+          projectState: { ...projectState, simulationRunning: false, simulationStatus: 'stopped' },
+        }),
+      ),
+    );
+    await act(async () => {
+      expect(distanceSetter('sonar', 0.1)).toBe(false);
+    });
+    expect(projectState.commitDocument).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid sensors, range and exhausted budget, and ignores stale callbacks after Stop', async () => {
+    const projectState = localProjectHost();
+    await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+    worker().update.mockClear();
+    await act(async () => {
+      for (const value of [-1, 0, 0.019, 4.001, Number.NaN, Number.POSITIVE_INFINITY]) {
+        expect(workbench.setRuntimeSensorDistance('sonar', value)).toBe(false);
+        expect(
+          workbench.setRuntimeHcSr04EnvironmentSample('sonar', {
+            kind: 'echo',
+            distanceMeters: value,
+          }),
+        ).toBe(false);
+      }
+      for (const sample of [null, { kind: 'unknown' }, { kind: 'echo', distanceMeters: '1' }])
+        expect(
+          workbench.setRuntimeHcSr04EnvironmentSample(
+            'sonar',
+            sample as unknown as ElectronicsHcSr04EnvironmentSample,
+          ),
+        ).toBe(false);
+      expect(workbench.setRuntimeSensorDistance('missing', 0.5)).toBe(false);
+      expect(workbench.setRuntimeSensorDistance('uno', 0.5)).toBe(false);
+      expect(workbench.setRuntimeHcSr04EnvironmentSample('missing', { kind: 'no-echo' })).toBe(
+        false,
+      );
+      expect(workbench.setRuntimeHcSr04EnvironmentSample('uno', { kind: 'no-echo' })).toBe(false);
+    });
+    expect(worker().update).not.toHaveBeenCalled();
+    const callbacks = worker().callbacks!;
+    const exhausted = {
+      limit: 1000,
+      admitted: 1000,
+      accepted: 998,
+      pending: 1,
+      inFlight: 1,
+      exhausted: true,
+    };
+    await act(async () => callbacks.onInputBudget?.(exhausted));
+    expect(workbench.runtimeInputBudget).toEqual(exhausted);
+    expect(workbench.setRuntimeSensorDistance('sonar', 0.25)).toBe(false);
+    expect(workbench.setRuntimeHcSr04EnvironmentSample('sonar', { kind: 'no-echo' })).toBe(false);
+    await act(async () =>
+      root.render(
+        createElement(LocalHostProbe, {
+          projectState: { ...projectState, simulationRunning: false, simulationStatus: 'stopped' },
+        }),
+      ),
+    );
+    expect(workbench.setRuntimeSensorDistance('sonar', 0.25)).toBe(false);
+    expect(workbench.setRuntimeHcSr04EnvironmentSample('sonar', { kind: 'no-echo' })).toBe(false);
+    await act(async () =>
+      callbacks.onInputBudget?.({
+        ...exhausted,
+        admitted: 1,
+        accepted: 1,
+        pending: 0,
+        inFlight: 0,
+        exhausted: false,
+      }),
+    );
+    expect(workbench.runtimeInputBudget).toEqual(exhausted);
+    await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+    expect(workbench.runtimeInputBudget).toBeNull();
+    expect(projectState.commitDocument).not.toHaveBeenCalled();
+    expect(api.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('applies HC environment samples atomically only to runtime and lets the numeric setter restore reflection', async () => {
+    const projectState = localProjectHost();
+    const original = JSON.stringify(projectState.document);
+    await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+    const setter = workbench.setRuntimeHcSr04EnvironmentSample;
+    worker().update.mockClear();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'echo', distanceMeters: 0.5 })).toBe(true);
+    });
+    expect(worker().update).not.toHaveBeenCalled();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'no-echo' })).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    const sonarProperties = () =>
+      worker()
+        .update.mock.calls.at(-1)![0]
+        .components.find((component: { id: string }) => component.id === 'sonar').stateProperties;
+    expect(sonarProperties()).toMatchObject({ distanceMeters: 0.5, echoAvailable: false });
+    worker().update.mockClear();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'no-echo' })).toBe(true);
+    });
+    expect(worker().update).not.toHaveBeenCalled();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'echo', distanceMeters: 0.75 })).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    expect(sonarProperties()).toMatchObject({ distanceMeters: 0.75, echoAvailable: true });
+    await act(async () => {
+      expect(setter('sonar', { kind: 'no-echo' })).toBe(true);
+    });
+    worker().update.mockClear();
+    await act(async () => {
+      expect(workbench.setRuntimeSensorDistance('sonar', 0.75)).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    expect(sonarProperties()).toMatchObject({ distanceMeters: 0.75, echoAvailable: true });
+    expect(workbench.setRuntimeHcSr04EnvironmentSample).toBe(setter);
+    worker().update.mockClear();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'no-echo' })).toBe(true);
+      expect(setter('sonar', { kind: 'echo', distanceMeters: 0.75 })).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    expect(sonarProperties()).toMatchObject({ distanceMeters: 0.75, echoAvailable: true });
+    expect(JSON.stringify(projectState.document)).toBe(original);
+    expect(projectState.getCurrentDocument()).toBe(projectState.document);
+    expect(projectState.commitDocument).not.toHaveBeenCalled();
+    expect(workbench.documentMutationEpoch()).toBe(0);
+    expect(api.saveDraft).not.toHaveBeenCalled();
+    await act(async () =>
+      root.render(
+        createElement(LocalHostProbe, {
+          projectState: { ...projectState, simulationRunning: false, simulationStatus: 'stopped' },
+        }),
+      ),
+    );
+    expect(setter('sonar', { kind: 'no-echo' })).toBe(false);
+  });
+});
+
 describe('mounted workbench host demand clock', () => {
   it('does not backdate a paced event-history demand when accepted input work is ahead of display', async () => {
     transport.autoReady = false;
@@ -1221,6 +1561,11 @@ describe('mounted workbench host demand clock', () => {
         new SimulationFailure('technical', 'worker-runtime', 'Worker failed'),
       ),
     );
+    expect(reportClientDiagnostic).toHaveBeenCalledWith('simulation_failed', 'electronics', {
+      phase: 'simulation',
+      category: 'technical',
+      failureCode: 'worker-runtime',
+    });
     expect(workbench.simulationRunning).toBe(false);
     expect(workbench.simulationTimeMs).toBe(0);
     worker().update.mockClear();

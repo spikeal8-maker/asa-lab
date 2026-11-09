@@ -2061,7 +2061,11 @@ export const api = {
     try {
       const result = await call<{ activeWorkspace: { workspaceId: string; kind: string } }>(
         '/api/session/context',
-        { method: 'POST', body: JSON.stringify({ workspaceId }) },
+        {
+          method: 'POST',
+          retryAfterRefresh: 'idempotent',
+          body: JSON.stringify({ workspaceId }),
+        },
       );
       successful = result.ok;
       return result;
@@ -2314,7 +2318,11 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/attempts/${encodeURIComponent(attemptId)}/review`,
       { method: 'POST', body: JSON.stringify(input) },
     ),
-  awaitingReviewTotal: () => call<{ total: number }>('/api/classrooms/awaiting-review'),
+  awaitingReviewTotal: (signal?: AbortSignal) =>
+    call<{ total: number }>('/api/classrooms/awaiting-review', {
+      priority: 'low',
+      ...(signal ? { signal } : {}),
+    }),
   saveLearningAllowance: (
     classroomId: string,
     assignmentId: string,
@@ -2505,9 +2513,10 @@ export const api = {
         body: JSON.stringify({ decision, ...(reason?.trim() ? { reason: reason.trim() } : {}) }),
       },
     ),
-  attendedAssignments: () =>
+  attendedAssignments: (signal?: AbortSignal) =>
     call<{ items: Array<SeatAssignment & { classroomTitle: string }> }>(
       '/api/class-join/account/assignments',
+      { priority: 'low', ...(signal ? { signal } : {}) },
     ),
   gallery: async (
     options: { sort?: 'recent' | 'popular'; module?: string; offset?: number; limit?: 10 } = {},
@@ -3043,8 +3052,11 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ completed }) },
     ),
   mySeatAwards: () => call<{ items: SeatAward[] }>('/api/class-join/me/awards'),
-  seatAssignmentCounts: () =>
-    call<{ open: number; unfinished: number }>('/api/class-join/me/assignment-counts'),
+  seatAssignmentCounts: (signal?: AbortSignal) =>
+    call<{ open: number; unfinished: number }>('/api/class-join/me/assignment-counts', {
+      priority: 'low',
+      ...(signal ? { signal } : {}),
+    }),
   startSeatAssignment: (assignmentId: string, projectId: string, legacyOnly = false) =>
     call<{
       projectId: string;
@@ -3241,6 +3253,7 @@ export const api = {
   createProject: (options: CreateProjectOptions) =>
     call<{ project: Project; created: boolean }>('/api/projects', {
       method: 'POST',
+      retryAfterRefresh: 'idempotent',
       headers: { 'idempotency-key': options.idempotencyKey },
       body: JSON.stringify({
         scope: options.scope,
@@ -3260,6 +3273,7 @@ export const api = {
       `/api/projects/${encodeURIComponent(projectId)}/duplicate`,
       {
         method: 'POST',
+        retryAfterRefresh: 'idempotent',
         headers: { 'idempotency-key': idempotencyKey },
         body: JSON.stringify({ title }),
       },
@@ -3301,6 +3315,7 @@ export const api = {
       `/api/projects/${encodeURIComponent(projectId)}/draft`,
       {
         method: 'PUT',
+        retryAfterRefresh: 'idempotent',
         body,
         ...(keepalive ? { keepalive: true } : {}),
       },

@@ -1,8 +1,16 @@
+import type { GameKey } from './game-catalog';
 import { useEffect, useSyncExternalStore } from 'react';
 import { call } from '../api-call';
-import { startLivePoll } from '../chess/live-poll';
+import {
+  startGameNotificationCoordinator,
+  type GameNotificationActivity,
+  type GameNotificationInbox,
+  type GameNotificationSnapshot,
+} from './game-notification-coordinator';
+import { observeGameNotificationActivity } from './game-notification-tabs';
 
 interface Invitation {
+  game?: GameKey;
   id: string;
   expiresAt: number;
 }
@@ -10,8 +18,9 @@ interface Snapshot {
   actor: string;
   incoming: Invitation[];
   pulse: number;
+  pulses: Record<GameKey, number>;
 }
-const empty: Snapshot = { actor: '', incoming: [], pulse: 0 };
+const empty: Snapshot = { actor: '', incoming: [], pulse: 0, pulses: { chess: 0, checkers: 0 } };
 let snapshot = empty;
 const listeners = new Set<() => void>();
 const subscribe = (listener: () => void) => {
@@ -26,6 +35,12 @@ const publish = (value: Snapshot) => {
 };
 const memory = new Map<string, Invitation[]>();
 let audio: AudioContext | undefined;
+interface NotificationOwner {
+  actor: string;
+  subscribers: number;
+  stop(): void;
+}
+let owner: NotificationOwner | undefined;
 
 /** Only created/resumed by an actual gesture; autoplay restrictions remain intact. */
 function unlockAudio(): void {
@@ -62,8 +77,9 @@ function ping(): void {
 }
 
 /** Persist delivery, not read-state: opening a page must never hide a pending invitation. */
-export function claimNewInvitations(playerId: string, incoming: Invitation[]): boolean {
+function claimBatch(playerId: string, incoming: Invitation[]): Invitation[] {
   const key = `asa:game-alerts:v1:${playerId}`;
+  const invitationKey = (item: Invitation) => `${item.game ?? 'chess'}:${item.id}`;
   let old = memory.get(key) ?? [];
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(key) ?? '[]');
@@ -80,11 +96,11 @@ export function claimNewInvitations(playerId: string, incoming: Invitation[]): b
   }
   const active = [
     ...new Map(
-      old.filter((item) => item.expiresAt > Date.now()).map((item) => [item.id, item]),
+      old.filter((item) => item.expiresAt > Date.now()).map((item) => [invitationKey(item), item]),
     ).values(),
   ];
-  const seen = new Set(active.map((item) => item.id));
-  const fresh = incoming.filter((item) => !seen.has(item.id));
+  const seen = new Set(active.map(invitationKey));
+  const fresh = incoming.filter((item) => !seen.has(invitationKey(item)));
   const next = [...active, ...fresh].slice(-256);
   memory.set(key, next);
   try {
@@ -92,7 +108,10 @@ export function claimNewInvitations(playerId: string, incoming: Invitation[]): b
   } catch {
     /* Keep in-memory dedup. */
   }
-  return fresh.length > 0;
+  return fresh;
+}
+export function claimNewInvitations(playerId: string, incoming: Invitation[]): boolean {
+  return claimBatch(playerId, incoming).length > 0;
 }
 
 export function useGameInvitations(): Snapshot {
@@ -103,72 +122,93 @@ export function useGameInvitations(): Snapshot {
   );
 }
 
+function createOwner(actor: string): NotificationOwner {
+  const lifetime = new AbortController();
+  let activity: GameNotificationActivity = 'paused';
+  let deliveryVersion = 0;
+  const current = (): boolean => owner === entry && !lifetime.signal.aborted;
+  const deliver = ({ playerId, incoming }: GameNotificationSnapshot) => {
+    if (!current()) return;
+    const version = ++deliveryVersion;
+    // Each tab uses its own HTTP response. Only the existing sound-delivery
+    // receipts are shared, keyed by the server playerId rather than App actor.
+    publish({ ...snapshot, actor, incoming });
+    if (!playerId || !incoming.length) return;
+    const alert = () => {
+      if (!current() || version !== deliveryVersion || activity === 'paused') return;
+      const fresh = claimBatch(playerId, incoming);
+      if (!fresh.length) return;
+      publish({
+        ...snapshot,
+        pulse: snapshot.pulse + 1,
+        pulses: {
+          chess: snapshot.pulses.chess + (fresh.some((item) => item.game === 'chess') ? 1 : 0),
+          checkers:
+            snapshot.pulses.checkers + (fresh.some((item) => item.game === 'checkers') ? 1 : 0),
+        },
+      });
+      ping();
+    };
+    if (navigator.locks) {
+      void navigator.locks
+        .request(`asa-game-alerts:${playerId}`, { signal: lifetime.signal }, alert)
+        .catch(() => alert());
+    } else alert();
+  };
+  const coordinator = startGameNotificationCoordinator({
+    request: (game, signal) =>
+      call<GameNotificationInbox>(`/api/games/${game}/notifications`, {
+        method: 'GET',
+        headers: { 'x-game-presence': '1' },
+        cache: 'no-store',
+        priority: 'low',
+        signal,
+      }),
+    publish: deliver,
+  });
+  const unobserve = observeGameNotificationActivity((next) => {
+    activity = next;
+    coordinator.setActivity(next);
+  });
+  window.addEventListener('pointerdown', unlockAudio);
+  window.addEventListener('keydown', unlockAudio);
+  const entry: NotificationOwner = {
+    actor,
+    subscribers: 0,
+    stop() {
+      if (lifetime.signal.aborted) return;
+      lifetime.abort();
+      coordinator.stop();
+      unobserve();
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+      if (owner === entry) {
+        owner = undefined;
+        publish(empty);
+      }
+    },
+  };
+  return entry;
+}
+
 /** One authenticated App owner, including editors. Navigation never restarts delivery. */
 export function usePortalGameNotifications(actor: string): void {
   useEffect(() => {
-    if (snapshot.actor !== actor) publish({ ...empty, actor });
-    if (!actor) return;
-    let pending: AbortController | undefined;
-    window.addEventListener('pointerdown', unlockAudio);
-    window.addEventListener('keydown', unlockAudio);
-    const stop = startLivePoll(
-      async (isCurrent) => {
-        if (document.visibilityState === 'hidden' || navigator.onLine === false) return;
-        const controller = new AbortController();
-        pending = controller;
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        const result = await Promise.race([
-          call<{ playerId: string; incoming: Invitation[] }>('/api/games/chess/notifications', {
-            method: 'GET',
-            headers: { 'x-game-presence': '1' },
-            cache: 'no-store',
-            signal: controller.signal,
-          }),
-          new Promise<null>((resolve) => {
-            timer = setTimeout(() => {
-              controller.abort();
-              resolve(null);
-            }, 12000);
-          }),
-        ]);
-        clearTimeout(timer);
-        if (!isCurrent() || snapshot.actor !== actor) return;
-        if (!result?.ok) {
-          publish({ ...snapshot, incoming: [] });
-          return;
-        }
-        const data = result.data;
-        if (!data || typeof data.playerId !== 'string' || !Array.isArray(data.incoming)) return;
-        const incoming = data.incoming
-          .filter(
-            (item) =>
-              typeof item.id === 'string' &&
-              Number.isFinite(item.expiresAt) &&
-              item.expiresAt > Date.now(),
-          )
-          .slice(0, 8);
-        const deliver = () => {
-          if (!isCurrent() || snapshot.actor !== actor || document.visibilityState === 'hidden')
-            return;
-          const fresh = claimNewInvitations(data.playerId, incoming);
-          publish({ actor, incoming, pulse: snapshot.pulse + (fresh ? 1 : 0) });
-          if (fresh) ping();
-        };
-        if (navigator.locks)
-          await navigator.locks.request(`asa-game-alerts:${data.playerId}`, deliver);
-        else deliver();
-      },
-      5000,
-      () => {
-        if (snapshot.actor === actor) publish({ ...snapshot, incoming: [] });
-      },
-    );
+    if (!actor) {
+      owner?.stop();
+      if (snapshot.actor) publish(empty);
+      return;
+    }
+    if (owner?.actor !== actor) {
+      owner?.stop();
+      publish({ ...empty, actor });
+      owner = createOwner(actor);
+    }
+    const retained = owner;
+    retained.subscribers += 1;
     return () => {
-      stop();
-      pending?.abort();
-      window.removeEventListener('pointerdown', unlockAudio);
-      window.removeEventListener('keydown', unlockAudio);
-      if (snapshot.actor === actor) publish(empty);
+      retained.subscribers -= 1;
+      if (!retained.subscribers) retained.stop();
     };
   }, [actor]);
 }

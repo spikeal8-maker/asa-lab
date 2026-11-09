@@ -27,7 +27,7 @@ it('upgrades four rules without enabling disabled page reading or rewriting hist
     const plan = planMigrations('migrations');
     await applyPlan(
       { query },
-      plan.filter((item) => item.version < '0304'),
+      plan.filter((item) => item.version < '0308'),
     );
     await admin.query(
       "UPDATE ai_tool_policy_settings SET tools=jsonb_set(tools,'{1,enabled}','false'::jsonb)",

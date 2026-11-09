@@ -392,11 +392,31 @@ const upgradeArtifacts = [
   [
     '0303',
     '0303_publication_owner_editor.sql',
-    '6b33460fe0ac40295e4760659db0953288f473807d9f4753387591476c0fee56',
+    '92818d6ea4dff20e5201e7e4e228678067048155714c89ce9d6f3270792bf60c',
   ],
   [
     '0304',
-    '0304_ai_eight_tool_registry.sql',
+    '0304_games_checkers_network.sql',
+    'ecb1283c5adea892895b540f2e04d75a74ab51c54660110bf5a8269f56b3279d',
+  ],
+  [
+    '0305',
+    '0305_robotics_projects.sql',
+    'd706c3eaa79a7b3ce24824c507fa27ff524d9fcd9a0bb49eea1d6ee7410750bb',
+  ],
+  [
+    '0306',
+    '0306_robotics_publications.sql',
+    '7c88a610329dc61030dc2155ffc33cf573062f18425044173026e67723737f11',
+  ],
+  [
+    '0307',
+    '0307_robotics_telemetry_v2.sql',
+    '3ea56361e766b572a5e83b4bce8d68ac90e3b82b92c79eabe6750619b8e71779',
+  ],
+  [
+    '0308',
+    '0308_ai_eight_tool_registry.sql',
     '85722956cf9ec5aa183e8b710f720c7f2356d761bc47466f756b87f8358bbf9a',
   ],
 ] as const;
