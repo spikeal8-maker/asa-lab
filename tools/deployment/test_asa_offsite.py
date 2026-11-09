@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -22,6 +23,39 @@ class OffsiteBackupPreflightTests(unittest.TestCase):
     def test_normal_remote_accepted(self):
         self.assertEqual(asa_offsite.remote_base("yandex:ASA-Backups/asa-school-01"),
                          "yandex:ASA-Backups/asa-school-01")
+
+    def test_remote_auth_or_network_failure_blocks_before_upload(self):
+        with mock.patch.object(asa_offsite.subprocess, "run",
+                               return_value=SimpleNamespace(returncode=5, stdout="")) as command:
+            with self.assertRaisesRegex(ValueError, "доступ"):
+                asa_offsite.assert_remote_file_absent(["rclone"], "yandex:ASA-Backups",
+                                                      "existing.tar.age")
+            self.assertEqual(command.call_count, 1)
+            self.assertEqual(command.call_args.args[0][1:3], ["lsjson", "yandex:ASA-Backups"])
+
+    def test_remote_existing_archive_blocks_overwrite(self):
+        with mock.patch.object(asa_offsite.subprocess, "run",
+                               return_value=SimpleNamespace(returncode=0,
+                                                              stdout='[{"Name":"existing.tar.age"}]')):
+            with self.assertRaisesRegex(ValueError, "уже существует"):
+                asa_offsite.assert_remote_file_absent(["rclone"], "yandex:ASA-Backups",
+                                                      "existing.tar.age")
+
+    def test_remote_listing_malformed_blocks_upload(self):
+        for payload in ("not-json", "{}", '[{"unexpected":"missing Name"}]'):
+            with self.subTest(payload=payload):
+                with mock.patch.object(asa_offsite.subprocess, "run",
+                                       return_value=SimpleNamespace(returncode=0, stdout=payload)):
+                    with self.assertRaises(ValueError):
+                        asa_offsite.assert_remote_file_absent(["rclone"], "yandex:ASA-Backups",
+                                                              "new.tar.age")
+
+    def test_remote_listing_excludes_new_archive(self):
+        with mock.patch.object(asa_offsite.subprocess, "run",
+                               return_value=SimpleNamespace(returncode=0,
+                                                              stdout='[{"Name":"another.tar.age"}]')):
+            asa_offsite.assert_remote_file_absent(["rclone"], "yandex:ASA-Backups",
+                                                  "new.tar.age")
 
     def test_missing_public_recipient_blocks_before_any_transfer(self):
         with tempfile.TemporaryDirectory() as directory:
