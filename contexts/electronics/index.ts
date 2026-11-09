@@ -174,6 +174,8 @@ export {
   canonicalPhotoresistorProfileRegistry,
   photoresistorIllumination,
   photoresistorIlluminanceLux,
+  photoresistorLightSourceDistanceCm,
+  photoresistorLightSourceId,
   photoresistorResistanceAtIlluminanceOhm,
   photoresistorResistanceOhm,
   PHOTORESISTOR_BRIGHT_RESISTANCE_OHM,

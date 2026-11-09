@@ -8,6 +8,8 @@ import {
   ledForwardVoltageAtCurrent,
   ordinaryLedProfile,
   photoresistorIlluminanceLux,
+  photoresistorLightSourceDistanceCm,
+  photoresistorLightSourceId,
   photoresistorResistanceOhm,
   PHOTORESISTOR_PROFILE,
   resolveBrushedMotorProfileSelection,
@@ -774,10 +776,19 @@ export function WorkbenchInspector({
   const selectedPhotoresistor =
     c.selectedComponent?.kind === 'photoresistor'
       ? {
-          lux: photoresistorIlluminanceLux(c.selectedComponent),
-          resistanceOhm: photoresistorResistanceOhm(c.selectedComponent),
+          lux: measurement?.illuminanceLux ?? photoresistorIlluminanceLux(c.selectedComponent),
+          resistanceOhm:
+            measurement?.effectiveResistanceOhm ?? photoresistorResistanceOhm(c.selectedComponent),
+          lampId: photoresistorLightSourceId(c.selectedComponent),
+          distanceCm: photoresistorLightSourceDistanceCm(c.selectedComponent),
         }
       : null;
+  const photoresistorLamps = selectedPhotoresistor
+    ? (c.document?.components.filter((component) => component.kind === 'lamp') ?? [])
+    : [];
+  const photoresistorLampId = photoresistorLamps.find(
+    (lamp) => lamp.id === selectedPhotoresistor?.lampId,
+  )?.id;
   const selectedSupplyVoltageSetpoint = selectedIsAdjustableSource
     ? Number(
         c.selectedComponent?.stateProperties?.['voltageSetpointVolt'] ??
@@ -1570,6 +1581,55 @@ export function WorkbenchInspector({
                     Удерживать кнопку
                   </button>
                 </fieldset>
+              ) : null}
+              {selectedPhotoresistor ? (
+                <>
+                  <label>
+                    <span>Источник света</span>
+                    <select
+                      data-testid="photoresistor-light-source"
+                      value={photoresistorLampId ?? ''}
+                      disabled={c.simulationRunning}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ lightSourceComponentId: event.target.value })
+                      }
+                    >
+                      <option value="">Только фоновый свет</option>
+                      {photoresistorLamps.map((lamp, index) => (
+                        <option key={lamp.id} value={lamp.id}>
+                          {lamp.name ?? 'Лампа накаливания'} ({index + 1})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {photoresistorLampId ? (
+                    <label>
+                      <span>Расстояние до лампы, см</span>
+                      <input
+                        key={`${c.selectedComponent.id}:${selectedPhotoresistor.distanceCm}`}
+                        data-testid="photoresistor-light-distance"
+                        type="number"
+                        min={PHOTORESISTOR_PROFILE.optical.minimumDistanceCm}
+                        max={PHOTORESISTOR_PROFILE.optical.maximumDistanceCm}
+                        step="any"
+                        defaultValue={selectedPhotoresistor.distanceCm}
+                        disabled={c.simulationRunning}
+                        onBlur={(event) => {
+                          const input = event.currentTarget;
+                          const value = input.valueAsNumber;
+                          if (!input.validity.valid || !Number.isFinite(value)) {
+                            input.value = String(selectedPhotoresistor.distanceCm);
+                          } else if (value !== selectedPhotoresistor.distanceCm) {
+                            c.setSelectedProperties({ lightSourceDistanceCm: value });
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') event.currentTarget.blur();
+                        }}
+                      />
+                    </label>
+                  ) : null}
+                </>
               ) : null}
               {c.selectedComponent.componentTypeId === 'soil-moisture-sensor' ? (
                 <>
@@ -2423,7 +2483,11 @@ export function WorkbenchInspector({
                   </div>
                   <div>
                     <dt>Сопротивление сейчас</dt>
-                    <dd>{formatPhotoresistorResistance(selectedPhotoresistor.resistanceOhm)}</dd>
+                    <dd>
+                      {measurement?.deviceHealth === 'failed_open'
+                        ? 'Обрыв цепи'
+                        : formatPhotoresistorResistance(selectedPhotoresistor.resistanceOhm)}
+                    </dd>
                   </div>
                   <div>
                     <dt>Опорный профиль</dt>

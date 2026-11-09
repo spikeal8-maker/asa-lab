@@ -16353,7 +16353,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-PHOTORESISTOR-OVERLOAD-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-PHOTORESISTOR-OPTICAL-001.md
     previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
@@ -16377,7 +16377,7 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-PHOTORESISTOR-OVERLOAD-001
+      id: TASK-ELECTRONICS-PHOTORESISTOR-OPTICAL-001
       issue: 539
       branch: main
       base_branch: main
@@ -16386,13 +16386,17 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: photoresistor_overload_selected
+      checkpoint: photoresistor_optical_selected
       owner_acceptance: pending
-      owner_authorization: Owner requests realistic photoresistor overload failure and browser verification, without touching the server or foreign work. Select the overload slice.
+      owner_authorization: Owner requests that the photoresistor respond to lamp light and that the result be checked in a browser with Arduino and different supplies.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-PHOTORESISTOR-OVERLOAD-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-PHOTORESISTOR-OPTICAL-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
+      previous_photoresistor_overload_slice:
+        task_id: TASK-ELECTRONICS-PHOTORESISTOR-OVERLOAD-001
+        integrated_sha: c284b15612c390e22efa8624394b600c75b7e7b2
+        pr: 1041
       previous_photoresistor_light_input_slice:
         task_id: TASK-ELECTRONICS-PHOTORESISTOR-LIVE-001
         integrated_sha: e4d1a773c081d4ced3ee4e074a62df15596b8d8e
