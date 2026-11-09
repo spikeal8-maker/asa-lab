@@ -37,7 +37,7 @@ const PROVIDERS: ReadonlyArray<{ id: ProviderChoice; label: string; hint: string
   { id: 'ollama-cloud', label: 'Ollama Cloud', hint: 'ollama.com · API-ключ' },
   { id: 'deepseek', label: 'DeepSeek', hint: 'Облачный API' },
   { id: 'openai', label: 'OpenAI', hint: 'Облачный API' },
-  { id: 'polza', label: 'Polza AI', hint: 'Текст · изображения · речь · видео' },
+  { id: 'polza', label: 'Polza AI', hint: 'Текст, речь и медиа' },
 ];
 
 export function AiAdminWorkspace({

@@ -23,6 +23,22 @@ async function adminFixture(page: Page) {
   };
   let conflict = false;
   const polzaWrites: Record<string, unknown>[] = [];
+  let polzaCatalogReady = false;
+  const polzaModels = [
+    ['chat', 'Polza Text'],
+    ['image', 'Polza Image'],
+    ['stt', 'Polza Speech'],
+    ['video', 'Polza Video'],
+  ].map(([kind, label]) => ({
+    id: 'polza/fixture/' + kind,
+    upstream: 'fixture/' + kind,
+    label,
+    kind,
+    active: true,
+    selected: false,
+    vision: false,
+    tools: false,
+  }));
   let polza = {
     configurationVersion: 1,
     enabled: false,
@@ -102,13 +118,25 @@ async function adminFixture(page: Page) {
     if (path === '/api/admin/v1/ai')
       return json(
         aiAdminFixture({
-          provider: 'ollama-cloud',
-          model: 'gemma4:31b',
+          provider: 'openai',
+          model: 'gpt-6-luna',
           enabled: true,
           apiKeyConfigured: true,
           paidOperationsPerHour: 5,
         }),
       );
+    if (path === '/api/admin/v1/ai/openai/catalog')
+      return json({
+        models: [
+          {
+            id: 'gpt-6-luna',
+            name: 'GPT-6 Luna',
+            inputModalities: ['text', 'image'],
+            outputModalities: ['text'],
+            contextTokens: null,
+          },
+        ],
+      });
     if (path === '/api/admin/v1/ai/polza' && request.method() === 'GET') return json(polza);
     if (path === '/api/admin/v1/ai/polza' && request.method() === 'PUT') {
       const input = request.postDataJSON() as Record<string, unknown>;
@@ -131,6 +159,18 @@ async function adminFixture(page: Page) {
     }
     if (path === '/api/admin/v1/ai/polza/check')
       return json({ ready: true, latencyMs: 180, checkedAt: '2026-10-29T00:02:01.000Z' });
+    if (
+      path === '/api/admin/v1/ai/polza/models' ||
+      path === '/api/admin/v1/ai/polza/models/refresh'
+    ) {
+      if (request.method() === 'POST' && polza.apiKeyConfigured) polzaCatalogReady = true;
+      return json({
+        version: polzaCatalogReady ? 2 : 1,
+        checkedAt: polzaCatalogReady ? '2026-10-29T00:02:01.000Z' : null,
+        credentialCurrent: polzaCatalogReady,
+        items: polzaCatalogReady ? polzaModels : [],
+      });
+    }
     if (path === '/api/admin/v1/ai/ollama-cloud/keys' && request.method() === 'GET')
       return json({
         configurationVersion: 1,
@@ -220,6 +260,14 @@ async function adminFixture(page: Page) {
           defaultModel: body.defaultModel,
           allowedModels: body.allowedModels,
           modelPreferences: body.modelPreferences,
+          models: policy.models.map((model) => ({
+            ...model,
+            eligible:
+              body.modelPreferences?.find((entry: { id: string }) => entry.id === model.id)
+                ?.eligible ??
+              model.eligible ??
+              true,
+          })),
           providerOrder: body.providerOrder,
           configurationVersion: policy.configurationVersion + 1,
         };
@@ -335,55 +383,51 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.getByRole('tab', { name: 'Подключения', exact: true }).click();
     await page
       .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
-      .getByRole('button', { name: /^Ollama Cloud/ })
+      .getByRole('button', { name: /^OpenAI/ })
       .click();
     const cloudEligibility = page.getByRole('checkbox', {
-      name: 'Разрешить у провайдера Gemma 4 31B · Ollama Cloud',
+      name: 'GPT-6 Luna',
       exact: true,
     });
     const cloudVisibility = page.getByRole('checkbox', {
-      name: 'Показывать пользователям: Gemma 4 31B · Ollama Cloud',
+      name: 'Показывать пользователям: GPT-6 Luna',
       exact: true,
     });
     await expect(cloudEligibility).toBeChecked();
     await expect(cloudVisibility).toHaveCount(0);
     await cloudEligibility.uncheck();
-    await page.getByRole('button', { name: 'Сохранить модели подключения', exact: true }).click();
-    await expect(
-      page.getByText('Настройки сохранены. Запрос к модели не выполнялся.'),
-    ).toBeVisible();
+    await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await expect(page.getByText('Сохранено', { exact: true })).toBeVisible();
     expect(fixture.writes[1]).toMatchObject({
       configurationVersion: 4,
       defaultModel: 'deepseek-flash',
       allowedModels: ['deepseek-flash'],
-      modelPreferences: expect.arrayContaining([{ id: 'gemma4:31b', eligible: false, order: 0 }]),
+      modelPreferences: expect.arrayContaining([{ id: 'gpt-6-luna', eligible: false, order: 0 }]),
     });
     await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
     await expect(cloudVisibility).toHaveCount(0);
     await expect(
       page
         .getByRole('combobox', { name: 'Модель по умолчанию' })
-        .locator('option[value="gemma4:31b"]'),
+        .locator('option[value="gpt-6-luna"]'),
     ).toHaveCount(0);
     await page.getByRole('tab', { name: 'Подключения', exact: true }).click();
     await expect(cloudEligibility).not.toBeChecked();
     await cloudEligibility.check();
-    await page.getByRole('button', { name: 'Сохранить модели подключения', exact: true }).click();
-    await expect(
-      page.getByText('Настройки сохранены. Запрос к модели не выполнялся.'),
-    ).toBeVisible();
+    await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await expect(page.getByText('Сохранено', { exact: true })).toBeVisible();
     expect(fixture.writes[2]).toMatchObject({
       configurationVersion: 5,
       defaultModel: 'deepseek-flash',
       allowedModels: ['deepseek-flash'],
-      modelPreferences: expect.arrayContaining([{ id: 'gemma4:31b', eligible: true, order: 0 }]),
+      modelPreferences: expect.arrayContaining([{ id: 'gpt-6-luna', eligible: true, order: 0 }]),
     });
     await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
     await expect(cloudEligibility).toHaveCount(0);
     await expect(cloudVisibility).not.toBeChecked();
     await cloudVisibility.check();
     await expect(cloudEligibility).toHaveCount(0);
-    await page.getByRole('combobox', { name: 'Модель по умолчанию' }).selectOption('gemma4:31b');
+    await page.getByRole('combobox', { name: 'Модель по умолчанию' }).selectOption('gpt-6-luna');
     await page
       .getByRole('checkbox', { name: 'Показывать пользователям: DeepSeek Flash', exact: true })
       .uncheck();
@@ -395,8 +439,8 @@ for (const width of [1440, 1024, 390, 320]) {
       page.getByText('Настройки сохранены. Запрос к модели не выполнялся.'),
     ).toBeVisible();
     expect(fixture.writes[3]).toMatchObject({
-      defaultModel: 'gemma4:31b',
-      allowedModels: ['gemma4:31b'],
+      defaultModel: 'gpt-6-luna',
+      allowedModels: ['gpt-6-luna'],
       configurationVersion: 6,
       systemPrompt: expect.stringContaining('{{display_name}}'),
       requestId: expect.any(String),
@@ -521,7 +565,7 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
   await expect(key).toHaveValue('');
   expect(fixture.polzaWrites).toHaveLength(1);
   expect(fixture.polzaWrites[0]?.apiKey).toBe('pza_fixture_polza_admin_20261029');
-
+  await expect(page.getByRole('checkbox', { name: 'В настройки: Polza Text' })).toBeVisible();
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
     for (const colorScheme of ['light', 'dark'] as const) {
@@ -544,7 +588,15 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
     }
   }
 
-  await page.getByRole('tab', { name: 'Транскрибация', exact: true }).click();
+  for (const [tab, model] of [
+    ['Изображения', 'Polza Image'],
+    ['Видео', 'Polza Video'],
+    ['Транскрибация', 'Polza Speech'],
+  ]) {
+    await page.getByRole('tab', { name: tab, exact: true }).click();
+    await expect(page.getByText(model, { exact: true })).toBeVisible();
+    await expect(page.getByText('Polza Text', { exact: true })).toHaveCount(0);
+  }
   await expect(page.getByRole('heading', { name: 'Транскрибация' })).toBeVisible();
   await expect(page.getByText('GigaAM-v3', { exact: true })).toBeVisible();
   await page.getByRole('checkbox', { name: 'Голосовой ввод в чате' }).check();
