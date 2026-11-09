@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Project, PublicUser } from '../api';
 import { AppBootShell } from '../components/AppBootShell';
-import { EditorHeader } from '../components/editor-chrome/EditorHeader';
 import { useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 import { ProjectProperties } from '../components/ProjectProperties';
 import { isProjectSnapshotConfirmed, sendProjectSnapshot } from '../modules/project-snapshot';
 import { useReportProjectSaveEvidence } from '../modules/project-save-evidence';
-import { RoboticsWorkspace } from './RoboticsLab';
+import { RoboticsHeader, RoboticsWorkspace } from './RoboticsLab';
 import { RoboticsProjectPreview } from './robotics-project-preview';
 import {
   useOpenRoboticsProject,
@@ -140,78 +139,40 @@ function OpenedRoboticsEditor({
       <RoboticsWorkspace
         project={controller}
         projectId={projectId}
-        header={
-          <EditorHeader
-            moduleId="robotics"
+        header={(tabs) => (
+          <RoboticsHeader
+            tabs={tabs}
+            title={host.projectTitle}
+            onTitleChange={host.setProjectTitle}
+            onTitleCommit={host.renameProject}
+            onTitleCancel={controller.cancelTitleEdit}
+            statusKind={host.saveStatus}
+            statusLabel={saveLabel}
+            statusDetail={
+              host.saveError ?? 'Схема, программа, конструкция и поле сохраняются вместе.'
+            }
             onExit={() => {
               void finish(onBack);
             }}
-            exitLabel="Вернуться к проектам"
-            title={{
-              kind: 'editable',
-              value: host.projectTitle,
-              ariaLabel: 'Название проекта',
-              maxLength: 255,
-              onChange: host.setProjectTitle,
-              onCommit: host.renameProject,
-              onCancel: controller.cancelTitleEdit,
-            }}
-            status={{
-              kind: host.saveStatus,
-              label: saveLabel,
-              detail: host.saveError ?? 'Схема, программа, конструкция и поле сохраняются вместе.',
+            onSave={() => {
+              void finish();
             }}
             navigation={{
-              ariaLabel: 'Навигация ASALab',
-              items: [
-                {
-                  id: 'robotics-home',
-                  label: 'Главная',
-                  visibility: 'wide',
-                  disabled: busy,
-                  onActivate: () => go('/home'),
-                },
-                {
-                  id: 'robotics-projects',
-                  label: 'Мои проекты',
-                  visibility: 'wide',
-                  disabled: busy,
-                  onActivate: () => go('/projects'),
-                },
-                {
-                  id: 'robotics-account',
-                  label: 'Аккаунт',
-                  disabled: busy,
-                  onActivate: () => go('/account'),
-                },
-              ],
-            }}
-            actions={[
-              {
-                id: 'robotics-save',
-                label: 'Сохранить',
-                disabled: busy,
-                onActivate: () => {
-                  void finish();
-                },
-              },
+              disabled: busy,
+              onHome: () => go('/home'),
+              onProjects: () => go('/projects'),
+              onAccount: () => go('/account'),
               ...(canPublish
-                ? [
-                    {
-                      id: 'robotics-publish',
-                      label: 'Публикация',
-                      emphasis: 'primary' as const,
-                      disabled: busy,
-                      onActivate: () => {
-                        void finish(undefined, true);
-                      },
+                ? {
+                    onPublish: () => {
+                      void finish(undefined, true);
                     },
-                  ]
-                : []),
-            ]}
+                  }
+                : {}),
+            }}
             avatar={{ label: `Аккаунт: ${user.displayName}`, text: avatar.text }}
           />
-        }
+        )}
       />
       <RoboticsProjectPreview
         projectId={projectId}

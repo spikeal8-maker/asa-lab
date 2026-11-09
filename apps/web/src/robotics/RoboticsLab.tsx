@@ -10,6 +10,8 @@ import {
   type ReactNode,
 } from 'react';
 import { ArduinoCodePanel, type ArduinoCodePanelHandle } from '../electronics/ArduinoCodePanel';
+import { CircuitIcon, CodeIcon, SaveIcon } from '../electronics/workbench-icons';
+import { ProjectModuleIcon } from '../modules/ProjectModuleIcon';
 import { WorkbenchSidebars } from '../electronics/WorkbenchSidebars';
 import { readArduinoProgramState } from '../electronics/arduino-program-state';
 import { NativeOpticalProvider } from '../electronics/NativeOpticalComponentVisual';
@@ -53,6 +55,244 @@ const SECTIONS = [
   { id: 'program', label: 'Программа' },
 ] as const;
 type Section = (typeof SECTIONS)[number]['id'];
+
+function RoboticsSectionIcon({ section }: { readonly section: Section }): JSX.Element {
+  if (section === 'electronics') return <CircuitIcon />;
+  if (section === 'program') return <CodeIcon />;
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {section === 'field' ? (
+        <>
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
+        </>
+      ) : (
+        <>
+          <rect x="5" y="8" width="14" height="12" rx="3" />
+          <path d="M12 4v4M9 4h6M8 20v2M16 20v2M2 12v4M22 12v4" />
+          <circle cx="9" cy="13" r="1" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="13" r="1" fill="currentColor" stroke="none" />
+          <path d="M9 17h6" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+interface RoboticsHeaderNavigation {
+  readonly disabled: boolean;
+  readonly onHome: () => void;
+  readonly onProjects: () => void;
+  readonly onAccount: () => void;
+  readonly onPublish?: () => void;
+}
+
+interface RoboticsHeaderProps {
+  readonly tabs: ReactNode;
+  readonly title: string;
+  readonly onTitleChange: (value: string) => void;
+  readonly onTitleCommit: () => void | Promise<void>;
+  readonly onTitleCancel: () => void;
+  readonly statusKind: string;
+  readonly statusLabel: string;
+  readonly statusDetail?: string;
+  readonly onSave: () => void;
+  readonly onExit?: () => void;
+  readonly navigation?: RoboticsHeaderNavigation;
+  readonly avatar?: { readonly label: string; readonly text: string };
+  readonly onOpenSaved?: () => void;
+  readonly canOpenSaved?: boolean;
+}
+
+/** Reuses the real Electronics workbench header, brand, title and mode-pill CSS. */
+export function RoboticsHeader({
+  tabs,
+  title,
+  onTitleChange,
+  onTitleCommit,
+  onTitleCancel,
+  statusKind,
+  statusLabel,
+  statusDetail,
+  onSave,
+  onExit,
+  navigation,
+  avatar,
+  onOpenSaved,
+  canOpenSaved = false,
+}: RoboticsHeaderProps): JSX.Element {
+  const skipNextTitleBlur = useRef(false);
+  const brand = (
+    <>
+      <img className="workbench-brand-mark" src="/asa-lab-mark.svg" alt="" aria-hidden="true" />
+      <span className="workbench-brand-name">ASA Lab</span>
+    </>
+  );
+  const navItems = navigation
+    ? [
+        { id: 'home', label: 'Главная', activate: navigation.onHome },
+        { id: 'projects', label: 'Мои проекты', activate: navigation.onProjects },
+        { id: 'account', label: 'Аккаунт', activate: navigation.onAccount },
+      ]
+    : [];
+
+  return (
+    <header className="workbench-header robotics-unified-header" data-module-id="robotics">
+      <div className="workbench-brand-zone robotics-header-brand-zone">
+        {onExit ? (
+          <button
+            type="button"
+            className="workbench-brand"
+            aria-label="Вернуться к проектам"
+            title="Вернуться к проектам"
+            onClick={onExit}
+          >
+            {brand}
+          </button>
+        ) : (
+          <span className="workbench-brand">{brand}</span>
+        )}
+        <span className="robotics-header-module-icon" title="Робототехника">
+          <ProjectModuleIcon moduleKey="robotics" size={22} />
+        </span>
+        <input
+          className="workbench-title-input robotics-header-title-input"
+          aria-label="Название проекта"
+          value={title}
+          maxLength={255}
+          onChange={(event) => onTitleChange(event.target.value)}
+          onBlur={() => {
+            if (skipNextTitleBlur.current) {
+              skipNextTitleBlur.current = false;
+              return;
+            }
+            void onTitleCommit();
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== 'Escape') return;
+            event.preventDefault();
+            skipNextTitleBlur.current = true;
+            if (event.key === 'Enter') void onTitleCommit();
+            else onTitleCancel();
+            event.currentTarget.blur();
+          }}
+        />
+      </div>
+      <span
+        className={'robotics-header-status is-' + statusKind}
+        role="status"
+        aria-live="polite"
+        aria-label={statusDetail ? statusLabel + ': ' + statusDetail : statusLabel}
+        title={statusDetail ?? statusLabel}
+      >
+        {statusLabel}
+      </span>
+      <div className="robotics-header-controls">
+        {navigation ? (
+          <nav className="robotics-header-navigation" aria-label="Навигация ASALab">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                disabled={navigation.disabled}
+                onClick={item.activate}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        ) : null}
+        {tabs}
+        {onOpenSaved ? (
+          <button
+            type="button"
+            className="robotics-header-open"
+            disabled={!canOpenSaved}
+            onClick={onOpenSaved}
+          >
+            Открыть
+          </button>
+        ) : null}
+        {navigation?.onPublish ? (
+          <button
+            type="button"
+            className="robotics-header-publish"
+            disabled={navigation.disabled}
+            onClick={navigation.onPublish}
+          >
+            Публикация
+          </button>
+        ) : null}
+        {avatar ? (
+          <span
+            className="workbench-avatar robotics-header-avatar"
+            aria-label={avatar.label}
+            title={avatar.label}
+          >
+            {avatar.text}
+          </span>
+        ) : null}
+        {navigation || onOpenSaved ? (
+          <details className="robotics-header-menu">
+            <summary aria-label="Меню проекта" title="Меню проекта">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </summary>
+            <div className="robotics-header-menu-panel" role="group" aria-label="Действия проекта">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  disabled={navigation?.disabled}
+                  onClick={item.activate}
+                >
+                  {item.label}
+                </button>
+              ))}
+              {onOpenSaved ? (
+                <button type="button" disabled={!canOpenSaved} onClick={onOpenSaved}>
+                  Открыть
+                </button>
+              ) : null}
+              {navigation?.onPublish ? (
+                <button type="button" disabled={navigation.disabled} onClick={navigation.onPublish}>
+                  Публикация
+                </button>
+              ) : null}
+            </div>
+          </details>
+        ) : null}
+        <button
+          type="button"
+          className="robotics-header-save"
+          disabled={navigation?.disabled ?? false}
+          onClick={onSave}
+          aria-label="Сохранить"
+          title="Сохранить"
+        >
+          <SaveIcon />
+          <span>Сохранить</span>
+        </button>
+      </div>
+    </header>
+  );
+}
 
 function SmallIcon({ name }: { name: 'play' | 'pause' | 'reset' | 'code' | 'save' | 'stop' }) {
   return (
@@ -110,7 +350,7 @@ export function RoboticsWorkspace({
 }: {
   readonly project: RoboticsProjectController;
   readonly projectId?: string;
-  readonly header?: ReactNode;
+  readonly header?: (tabs: ReactNode) => ReactNode;
 }) {
   const [section, setSection] = useState<Section>('field');
   const [compactLayout, setCompactLayout] = useState(() => window.innerWidth <= 760);
@@ -490,6 +730,51 @@ export function RoboticsWorkspace({
   const programState = readArduinoProgramState(board?.stateProperties);
   const canCommand = running && !starting && pace.phase === 'running' && !haltReason;
 
+  const tabs = (
+    <nav
+      className="workbench-mode-buttons robotics-tabs"
+      role="tablist"
+      aria-label="Разделы робототехники"
+    >
+      {SECTIONS.map((item, index) => (
+        <button
+          type="button"
+          key={item.id}
+          className={section === item.id ? 'active' : ''}
+          id={`robotics-tab-${item.id}`}
+          role="tab"
+          aria-label={item.label}
+          title={item.label}
+          aria-selected={section === item.id}
+          aria-controls={`robotics-panel-${item.id}`}
+          tabIndex={section === item.id ? 0 : -1}
+          ref={(element) => {
+            tabRefs.current[item.id] = element;
+          }}
+          onClick={() => navigate(item.id)}
+          onKeyDown={(event) => {
+            const offset = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+            const next =
+              event.key === 'Home'
+                ? SECTIONS[0]
+                : event.key === 'End'
+                  ? SECTIONS[SECTIONS.length - 1]
+                  : offset
+                    ? SECTIONS[(index + offset + SECTIONS.length) % SECTIONS.length]
+                    : null;
+            if (next) {
+              event.preventDefault();
+              navigate(next.id);
+            }
+          }}
+        >
+          <RoboticsSectionIcon section={item.id} />
+          <span>{item.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+
   return (
     <main
       className="robotics-lab"
@@ -501,73 +786,30 @@ export function RoboticsWorkspace({
       data-input-inflight={budget?.inFlight ?? 0}
       data-input-exhausted={budget?.exhausted ?? false}
     >
-      {header ?? (
-        <header className="robotics-header">
-          <div className="robotics-brand">
-            <span className="robotics-brand-mark" aria-hidden="true">
-              A<span>·</span>
-            </span>
-            <h1>
-              Робототехника <span className="robotics-mode-badge">2D</span>
-            </h1>
-          </div>
-          <div className="robotics-save-area">
-            <span className={`robotics-save-status ${controller.saveStatus}`} role="status">
-              {controller.saveStatus === 'saved'
-                ? 'Сохранено на устройстве'
+      {header ? (
+        header(tabs)
+      ) : (
+        <RoboticsHeader
+          tabs={tabs}
+          title={local.host.projectTitle}
+          onTitleChange={local.host.setProjectTitle}
+          onTitleCommit={local.host.renameProject}
+          onTitleCancel={() => local.host.setProjectTitle(local.host.project?.title ?? '')}
+          statusKind={controller.saveStatus}
+          statusLabel={
+            controller.saveStatus === 'saved'
+              ? 'Сохранено на устройстве'
+              : controller.saveStatus === 'saving'
+                ? 'Сохраняем…'
                 : controller.saveStatus === 'error'
                   ? 'Не удалось сохранить'
-                  : 'Есть изменения'}
-            </span>
-            <button type="button" className="robotics-button" onClick={saveProject}>
-              <SmallIcon name="save" />
-              Сохранить
-            </button>
-            <button
-              type="button"
-              className="robotics-button subtle"
-              disabled={running || !local.hasSavedProject}
-              onClick={openSaved}
-            >
-              Открыть
-            </button>
-          </div>
-        </header>
+                  : 'Есть изменения'
+          }
+          onSave={saveProject}
+          onOpenSaved={openSaved}
+          canOpenSaved={!running && local.hasSavedProject}
+        />
       )}
-      <nav className="robotics-tabs" role="tablist" aria-label="Разделы робототехники">
-        {SECTIONS.map((item, index) => (
-          <button
-            type="button"
-            key={item.id}
-            id={`robotics-tab-${item.id}`}
-            role="tab"
-            aria-selected={section === item.id}
-            aria-controls={`robotics-panel-${item.id}`}
-            tabIndex={section === item.id ? 0 : -1}
-            ref={(element) => {
-              tabRefs.current[item.id] = element;
-            }}
-            onClick={() => navigate(item.id)}
-            onKeyDown={(event) => {
-              const offset = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
-              const next =
-                event.key === 'Home'
-                  ? SECTIONS[0]
-                  : event.key === 'End'
-                    ? SECTIONS[SECTIONS.length - 1]
-                    : offset
-                      ? SECTIONS[(index + offset + SECTIONS.length) % SECTIONS.length]
-                      : null;
-              if (next) {
-                event.preventDefault();
-                navigate(next.id);
-              }
-            }}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
       <section className="robotics-run-bar" aria-label="Управление моделированием">
         <div className="robotics-run-buttons">
           <button
