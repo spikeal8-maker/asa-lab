@@ -31,6 +31,7 @@ export function AdminPolzaConnection({
   const [error, setError] = useState('');
   const [catalogDirty, setCatalogDirty] = useState(false);
   const [reload, setReload] = useState(0);
+  const [catalogRevision, setCatalogRevision] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -70,6 +71,7 @@ export function AdminPolzaConnection({
   const canSave =
     !!config &&
     dirty &&
+    !catalogDirty &&
     !busy &&
     !loading &&
     config.encryptionReady &&
@@ -79,17 +81,19 @@ export function AdminPolzaConnection({
     paidPerHour <= 10000 &&
     (!keyInput || /^pza_[A-Za-z0-9_-]{8,2040}$/.test(keyInput));
 
-  async function check(): Promise<void> {
+  async function check(): Promise<boolean> {
     const result = await call<CheckReceipt>('/api/admin/v1/ai/polza/check', {
       method: 'POST',
       body: '{}',
     });
     if (!result.ok) {
-      if ([401, 403].includes(result.status)) onAccessDenied();
+      if ([401, 403].includes(result.status) && result.error.code !== 'ai_polza_auth_failed')
+        onAccessDenied();
       setError(result.error.message);
-      return;
+      return false;
     }
     setMessage('Подключение подтверждено · ' + (result.data.latencyMs / 1000).toFixed(1) + ' с');
+    return true;
   }
 
   async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -136,7 +140,18 @@ export function AdminPolzaConnection({
       setClearKey(false);
       setMessage('Ключ и параметры сохранены на сервере');
       onUpdated?.();
-      if (result.data.enabled) await check();
+      if ((result.data.enabled || keyInput) && (await check()) && keyInput) {
+        const catalog = await call('/api/admin/v1/ai/polza/models/refresh', {
+          method: 'POST',
+          body: '{}',
+        });
+        if (catalog.ok) {
+          setCatalogRevision((version) => version + 1);
+          onUpdated?.();
+        } else {
+          setError(catalog.error.message);
+        }
+      }
     } finally {
       setBusy(false);
     }
@@ -147,7 +162,7 @@ export function AdminPolzaConnection({
       <header className="asa-ai-integration-header">
         <div>
           <h2>Polza AI</h2>
-          <p>Единый ключ для текстовых моделей и распознавания речи.</p>
+          <p>Один API-ключ для каталога и подключённых функций Polza AI.</p>
         </div>
         <span className="asa-ai-integration-state">
           {config?.enabled
@@ -225,11 +240,17 @@ export function AdminPolzaConnection({
             <button className="asa-polza-primary" type="submit" disabled={!canSave}>
               {busy ? 'Сохраняем…' : enabled ? 'Сохранить и проверить' : 'Сохранить'}
             </button>
+            {dirty && catalogDirty ? <small>Сначала сохраните выбор моделей.</small> : null}
             <button
               type="button"
               className="asa-polza-secondary"
               disabled={busy || dirty || !config.apiKeyConfigured}
-              onClick={() => void check()}
+              onClick={() => {
+                setBusy(true);
+                setError('');
+                setMessage('');
+                void check().finally(() => setBusy(false));
+              }}
             >
               Проверить
             </button>
@@ -250,8 +271,8 @@ export function AdminPolzaConnection({
           <details className="asa-polza-advanced">
             <summary>Дополнительно</summary>
             <p>
-              Ключ хранится только на сервере (AES-256-GCM). Проверка выполняет запрос списка
-              моделей, без платной транскрибации.
+              Ключ хранится на сервере в зашифрованном виде. Проверка запрашивает статус ключа без
+              запуска платной модели.
             </p>
             {config.apiKeyConfigured ? (
               <label className="asa-polza-switch">
@@ -280,15 +301,22 @@ export function AdminPolzaConnection({
         </div>
         <div>
           <strong>Изображения</strong>
-          <span>В чате используется ComfyUI</span>
+          <a href="#/admin/ai?section=comfyui&provider=polza">Модели изображений</a>
         </div>
         <div>
           <strong>Транскрибация</strong>
-          <span>{config?.transcriptionEnabled ? 'Включена' : 'Настраивается отдельно'}</span>
+          <a href="#/admin/ai?section=transcription&provider=polza">
+            {config?.transcriptionEnabled ? 'Включена' : 'Модели и настройки'}
+          </a>
+        </div>
+        <div>
+          <strong>Видео</strong>
+          <a href="#/admin/ai?section=video&provider=polza">Видеомодели</a>
         </div>
       </div>
       {config?.apiKeyConfigured ? (
         <AdminPolzaCatalog
+          key={catalogRevision}
           onAccessDenied={onAccessDenied}
           onUpdated={onUpdated}
           onDirtyChange={setCatalogDirty}

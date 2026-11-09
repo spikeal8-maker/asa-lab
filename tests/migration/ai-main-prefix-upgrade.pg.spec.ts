@@ -88,6 +88,7 @@ const expectedPending = [
   '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
   '0308', // Independent eight-tool controls, preserving legacy snapshots.
   '0309', // OpenAI Responses catalog admission.
+  '0310', // Polza video catalog category.
 ];
 
 interface Identity {

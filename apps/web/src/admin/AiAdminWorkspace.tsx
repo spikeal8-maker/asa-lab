@@ -37,7 +37,7 @@ const PROVIDERS: ReadonlyArray<{ id: ProviderChoice; label: string; hint: string
   { id: 'ollama-cloud', label: 'Ollama Cloud', hint: 'ollama.com · API-ключ' },
   { id: 'deepseek', label: 'DeepSeek', hint: 'Облачный API' },
   { id: 'openai', label: 'OpenAI', hint: 'Облачный API' },
-  { id: 'polza', label: 'Polza AI', hint: 'Текст · изображения · речь' },
+  { id: 'polza', label: 'Polza AI', hint: 'Текст · изображения · речь · видео' },
 ];
 
 export function AiAdminWorkspace({
@@ -339,7 +339,7 @@ function AiAdminWorkspaceSession({
           aria-labelledby="ai-tab-video"
           className="asa-ai-settings"
         >
-          <AdminAiVideo />
+          <AdminAiVideo connected={!!polza?.apiKeyConfigured} onAccessDenied={onAccessDenied} />
         </div>
       ) : section === 'transcription' ? (
         <div
@@ -352,7 +352,13 @@ function AiAdminWorkspaceSession({
         </div>
       ) : (
         <div id="ai-panel-comfyui" role="tabpanel" aria-labelledby="ai-tab-comfyui">
-          <AdminComfyUiPage onAccessDenied={onAccessDenied} principalId={principalId} />
+          <AdminComfyUiPage
+            key={provider === 'polza' ? 'polza' : 'local'}
+            onAccessDenied={onAccessDenied}
+            principalId={principalId}
+            polzaConnected={!!polza?.apiKeyConfigured}
+            initialTab={provider === 'polza' ? 'api' : 'local'}
+          />
         </div>
       )}
     </div>

@@ -35,6 +35,7 @@ const schoolPendingFiles = [
   '0307_robotics_telemetry_v2.sql',
   '0308_ai_eight_tool_registry.sql',
   '0309_ai_openai_chat_catalog.sql',
+  '0310_ai_polza_video_catalog.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
@@ -176,7 +177,7 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
       try {
         // Prove a forward upgrade from the actual school schema, not only an empty DB.
         const migrations = planMigrations('migrations');
-        expect(migrations.at(-1)?.version).toBe('0309');
+        expect(migrations.at(-1)?.version).toBe('0310');
         await applyPlan(
           client,
           migrations.filter((m: { version: string }) => m.version <= '0286'),

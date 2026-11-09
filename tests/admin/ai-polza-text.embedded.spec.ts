@@ -57,6 +57,13 @@ const upstream = vi.fn<typeof fetch>(async (url, init) => {
             architecture: { input_modalities: ['audio'], output_modalities: ['text'] },
             endpoints: ['/api/v1/audio/transcriptions'],
           },
+          {
+            id: 'video/test',
+            name: 'Video',
+            type: 'video',
+            architecture: { input_modalities: ['text'], output_modalities: ['video'] },
+            endpoints: ['/api/v1/media'],
+          },
         ],
       }),
     );
@@ -120,17 +127,24 @@ beforeAll(async () => {
 afterAll(async () => db?.close());
 it('keeps credentials private, imports only fixed-endpoint metadata, and requires an explicit connection selection', async () => {
   const c = await polza.refreshCatalog(actor);
-  expect(c.items).toHaveLength(3);
+  expect(c.items).toHaveLength(4);
   expect(c.items.every((m) => !m.selected)).toBe(true);
   expect(c.items.find((m) => m.id === 'polza/qwen/test-vision@v1')).toMatchObject({
     vision: true,
     tools: true,
     maxOutputTokens: 4096,
   });
+  expect(c.items.find((m) => m.id === 'polza/video/test')).toMatchObject({
+    kind: 'video',
+    selected: false,
+  });
   await expect(polza.catalog(owner)).rejects.toMatchObject({ status: 403 });
   await expect(runtime.query('SELECT * FROM ai_polza_models')).rejects.toBeTruthy();
   await expect(
     polza.selectModels(actor, { version: c.version, ids: ['polza/stt/test'] }),
+  ).rejects.toMatchObject({ status: 400 });
+  await expect(
+    polza.selectModels(actor, { version: c.version, ids: ['polza/video/test'] }),
   ).rejects.toMatchObject({ status: 400 });
   const selected = await polza.selectModels(actor, {
     version: c.version,

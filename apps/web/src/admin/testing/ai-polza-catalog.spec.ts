@@ -80,6 +80,31 @@ it('keeps an incompatible catalogue visible as an error instead of crashing or g
   expect(host.querySelector('[role=alert]')?.textContent).toContain('Несовместимый');
   expect(host.querySelector('input[type=checkbox]')).toBeNull();
 });
+it.each(['image', 'stt', 'video'] as const)('shows only %s models in its section', async (kind) => {
+  vi.mocked(call).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      ...catalog,
+      items: [
+        item,
+        ...['image', 'stt', 'video'].map((type) => ({
+          ...item,
+          id: 'polza/test/' + type,
+          label: 'Polza fixture ' + type,
+          kind: type,
+        })),
+      ],
+    },
+  });
+  await act(async () =>
+    root.render(createElement(AdminPolzaCatalog, { kind, onAccessDenied: vi.fn() })),
+  );
+  expect(
+    [...host.querySelectorAll('.asa-polza-catalog-model strong')].map((row) => row.textContent),
+  ).toEqual(['Polza fixture ' + kind]);
+  expect(host.querySelector('input[type=checkbox]')).toBeNull();
+});
 it('sends the chosen short audio only after an explicit test click and displays the transcript', async () => {
   vi.stubGlobal(
     'FileReader',
