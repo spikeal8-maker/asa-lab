@@ -205,6 +205,24 @@ afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
+it('derives a graded Quiz maximum from questions and keeps result selection available', async () => {
+  await mount();
+  await fill('Тип задания', 'quiz');
+  await click('Настройки');
+  await fill('Результат', 'graded');
+
+  const settings = document.querySelector('[aria-labelledby="assignment-settings-title"]')!;
+  expect(settings.textContent).not.toContain('Максимум баллов');
+  expect(settings.textContent).toContain('Как выбирать результат');
+
+  await click('Закрыть настройки');
+  await fill('Тип задания', 'essay');
+  await click('Настройки');
+  await fill('Результат', 'graded');
+  expect(
+    document.querySelector('[aria-labelledby="assignment-settings-title"]')?.textContent,
+  ).toContain('Максимум баллов');
+});
 it('creates a written response without an environment and inserts its exact published version into the same lesson', async () => {
   await mount();
   await fill('Тип задания', 'essay');

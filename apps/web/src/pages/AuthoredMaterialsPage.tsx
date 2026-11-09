@@ -1655,7 +1655,7 @@ export function AuthoredMaterialsPage({
                       </select>
                     </label>
 
-                    {draft.resultMode === 'graded' ? (
+                    {draft.resultMode === 'graded' && !isQuiz ? (
                       <label className="teacher-field">
                         <span>Максимум баллов</span>
                         <input
@@ -2065,23 +2065,25 @@ export function AuthoredMaterialsPage({
           </label>
           {draft.resultMode === 'graded' ? (
             <>
-              <label>
-                Максимум баллов
-                <input
-                  required
-                  type="number"
-                  min={1}
-                  max={100000}
-                  value={draft.maxPoints ?? ''}
-                  onChange={(event) => {
-                    const maxPoints = Number(event.target.value) || null;
-                    setDraft((current) => ({
-                      ...current,
-                      maxPoints,
-                    }));
-                  }}
-                />
-              </label>
+              {!isQuiz ? (
+                <label>
+                  Максимум баллов
+                  <input
+                    required
+                    type="number"
+                    min={1}
+                    max={100000}
+                    value={draft.maxPoints ?? ''}
+                    onChange={(event) => {
+                      const maxPoints = Number(event.target.value) || null;
+                      setDraft((current) => ({
+                        ...current,
+                        maxPoints,
+                      }));
+                    }}
+                  />
+                </label>
+              ) : null}
               <label>
                 Как выбирать результат
                 <select
