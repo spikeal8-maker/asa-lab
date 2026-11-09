@@ -71,6 +71,28 @@ async function learnerAssignments(
   return { context, page };
 }
 
+async function expectQuizChoiceLayout(player: Locator) {
+  const choices = player.locator('.quiz-choice');
+  await expect(choices).toHaveCount(6);
+  for (const choice of await choices.all()) {
+    const geometry = await choice.evaluate((label) => {
+      const input = label.querySelector('input')!.getBoundingClientRect();
+      const text = document.createRange();
+      text.selectNodeContents(label.querySelector('span')!);
+      const bounds = text.getBoundingClientRect();
+      return {
+        controlWidth: input.width,
+        gap: bounds.left - input.right,
+        textLines: text.getClientRects().length,
+      };
+    });
+    expect(geometry.controlWidth).toBeCloseTo(16);
+    expect(geometry.gap).toBeGreaterThanOrEqual(4);
+    expect(geometry.gap).toBeLessThanOrEqual(12);
+    expect(geometry.textLines).toBe(1);
+  }
+}
+
 test('Complete Quiz Course: inline eight-type author, exact versions, Seat and Account saved answers, automatic and manual journal at four widths', async ({
   page,
   browser,
@@ -254,6 +276,13 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
   expect(mixedVersionId).not.toBe(automaticVersionId);
   const courseUrl = '/#/learning?courseRun=' + encodeURIComponent(run.id);
   await learner.page.goto(courseUrl);
+  const courseTasks = learner.page.getByTestId('course-activity-runtime');
+  await expect(courseTasks).toHaveCount(2);
+  for (const task of await courseTasks.all()) {
+    await expect(
+      task.getByText('Выберите ответы и объясните решение.', { exact: true }),
+    ).toHaveCount(1);
+  }
   async function answer(player: Locator, manual: boolean) {
     const learnerPage = player.page();
     const [started] = await Promise.all([
@@ -317,6 +346,7 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
   );
   for (const width of [1440, 1024, 390, 320]) {
     await learner.page.setViewportSize({ width, height: 900 });
+    await expectQuizChoiceLayout(players.nth(0));
     await players
       .nth(0)
       .getByRole('button', { name: 'Сдать тест', exact: true })
@@ -356,6 +386,7 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
   );
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
+    await expectQuizChoiceLayout(review.getByTestId('submission-quiz-answers'));
     await review.getByLabel('Баллы из 8', { exact: true }).scrollIntoViewIfNeeded();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -427,6 +458,7 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
   await expect(accountPlayers.nth(0)).toContainText('8 из 8');
   for (const width of [1440, 1024, 390, 320]) {
     await account.setViewportSize({ width, height: 900 });
+    await expectQuizChoiceLayout(accountPlayers.nth(0));
     await accountPlayers.nth(0).scrollIntoViewIfNeeded();
     expect(await account.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,

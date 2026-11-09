@@ -502,6 +502,7 @@ export function SeatCourses({
                         <QuizResponsePlayer
                           key={occurrence.activityRunId}
                           activityRunId={occurrence.activityRunId}
+                          renderedTaskBlocks={occurrence.blocks ?? null}
                           onChanged={reload}
                           onRegisterLeaveGuard={registerResponseGuard}
                         />

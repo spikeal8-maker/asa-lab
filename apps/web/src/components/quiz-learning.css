@@ -35,10 +35,21 @@
   font: inherit;
   padding: 8px;
 }
-.quiz-options label:has(input[type='radio']),
-.quiz-options label:has(input[type='checkbox']) {
-  display: flex;
-  align-items: baseline;
+.quiz-options .quiz-choice {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+}
+.quiz-choice > input:is([type='radio'], [type='checkbox']) {
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  padding: 0;
+}
+.quiz-choice > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .quiz-editor textarea,
 .quiz-player textarea {

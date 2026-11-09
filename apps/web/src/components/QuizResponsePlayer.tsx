@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { api, type LearningQuizAttempt, type QuizAnswer } from '../api';
+import { api, type LearningQuizAttempt, type QuizAnswer, type SafeTaskBlock } from '../api';
 import { subscribeTelemetry, telemetryContext } from '../telemetry-context';
 import { QuizQuestionFields } from './QuizQuestionFields';
 import './quiz-learning.css';
@@ -9,10 +9,12 @@ const recovery = new Map<string, Recovery>();
 
 export function QuizResponsePlayer({
   activityRunId,
+  renderedTaskBlocks,
   onChanged,
   onRegisterLeaveGuard,
 }: {
   readonly activityRunId: string;
+  readonly renderedTaskBlocks?: readonly SafeTaskBlock[] | null;
   readonly onChanged: () => Promise<void>;
   readonly onRegisterLeaveGuard?: (id: string, guard: (() => boolean) | null) => void;
 }): JSX.Element {
@@ -120,6 +122,10 @@ export function QuizResponsePlayer({
     return () => clearInterval(timer);
   }, []);
   const attempt = response?.attempt;
+  const instructions = response?.instructions?.trim();
+  const instructionsAlreadyShown = renderedTaskBlocks?.some(
+    (block) => block.type === 'paragraph' && block.text.trim() === instructions,
+  );
   const serverNow = clock.current.server + (now - clock.current.local);
   const expired = !!attempt?.expiresAt && serverNow >= Date.parse(attempt.expiresAt);
   const editable =
@@ -324,7 +330,7 @@ export function QuizResponsePlayer({
         </button>
       ) : (
         <>
-          {response.instructions ? <p>{response.instructions}</p> : null}
+          {instructions && !instructionsAlreadyShown ? <p>{response.instructions}</p> : null}
           {!attempt ? (
             response.canStart ? (
               <button type="button" disabled={busy} onClick={() => void perform('start')}>

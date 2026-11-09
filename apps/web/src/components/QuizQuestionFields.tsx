@@ -43,7 +43,7 @@ export function QuizQuestionFields({
     return (
       <div className="quiz-options">
         {choices.map((option) => (
-          <label key={option.id}>
+          <label key={option.id} className="quiz-choice">
             <input
               type={question.type === 'multiple_choice' ? 'checkbox' : 'radio'}
               name={`quiz-${responseGroup}`}
@@ -67,7 +67,7 @@ export function QuizQuestionFields({
                 )
               }
             />
-            {option.label}
+            <span>{option.label}</span>
           </label>
         ))}
       </div>
