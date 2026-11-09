@@ -1,5 +1,6 @@
 import type { SchematicComponent } from '../document.js';
 import type { ComponentResult } from '../solver.js';
+import { PHOTORESISTOR_PROFILE } from '../photoresistor-model.js';
 import { isElectrolyticCapacitor } from './capacitor-transient-model.js';
 import { INCANDESCENT_LAMP_THERMAL_PROFILE } from './incandescent-lamp-model.js';
 import { captureDeviceModelDefinition } from './device-model.js';
@@ -109,6 +110,8 @@ export function thermalProfileFor(component: SchematicComponent): ThermalProfile
       return PROFILES.source;
     case 'resistor':
       return PROFILES.resistor;
+    case 'photoresistor':
+      return PHOTORESISTOR_PROFILE.thermal;
     case 'led':
     case 'diode':
       return PROFILES.junction;

@@ -176,6 +176,10 @@ function isArduinoUno(component: SchematicComponent): boolean {
 
 type LiveOpticalObservation = NativeOpticalObservation;
 
+type WorkbenchSerialProjection = ElectronicsArduinoSerialProjection & {
+  readonly streamGeneration?: string;
+};
+
 interface PendingOpticalObservation {
   readonly frame: LedPresentationFrame;
   readonly result: SolveResult;
@@ -787,7 +791,7 @@ export function useElectronicsWorkbenchHost(
     let latestResultDocument: SchematicDocument | null = null;
     let latestCommittedHorizon = 0;
     let generationConfirmed = false;
-    let serialEmpty = true;
+    let previousSerial: readonly WorkbenchSerialProjection[] = [];
     let lastCircuitMessage: SimulationStatusMessage | null = null;
     let pending: PendingOpticalObservation | null = null;
     let displayed: LiveOpticalObservation | null = null;
@@ -1270,20 +1274,28 @@ export function useElectronicsWorkbenchHost(
             simulationPacing.reanchor(horizon, Math.round(window.performance.now() * 1000));
           }
         },
-        onSerialProjection: (serial) => {
-          if (!currentSession()) return;
-          if (serial.length === 0) {
-            if (!serialEmpty) {
-              serialEmpty = true;
-              setArduinoSerialByBoard({});
-            }
+        onSerialProjection: (serial: readonly WorkbenchSerialProjection[]) => {
+          if (!currentSession() || (serial.length === 0 && previousSerial.length === 0)) return;
+          const [entry] = serial;
+          const [previous] = previousSerial;
+          if (
+            serial.length === 1 &&
+            previousSerial.length === 1 &&
+            entry &&
+            previous &&
+            entry.tx.length === 0 &&
+            previous.tx.length === 0 &&
+            entry.componentId === previous.componentId &&
+            entry.streamGeneration === previous.streamGeneration &&
+            entry.begun === previous.begun &&
+            entry.baudRate === previous.baudRate &&
+            entry.rxPendingBytes === previous.rxPendingBytes
+          )
             return;
-          }
-          serialEmpty = false;
+
+          previousSerial = serial;
           setArduinoSerialByBoard(
-            Object.fromEntries(serial.map((entry) => [entry.componentId, entry])) as Readonly<
-              Record<string, ElectronicsArduinoSerialProjection>
-            >,
+            Object.fromEntries(serial.map((entry) => [entry.componentId, entry])),
           );
         },
         onFailure: fail,
@@ -3496,7 +3508,12 @@ export function useElectronicsWorkbenchHost(
             const rect = stageRef.current?.getBoundingClientRect();
             return bounds && rect
               ? fitViewportToScreen(
-                  bounds, rect, STAGE_WIDTH, STAGE_HEIGHT, MIN_ZOOM, MAX_ZOOM,
+                  bounds,
+                  rect,
+                  STAGE_WIDTH,
+                  STAGE_HEIGHT,
+                  MIN_ZOOM,
+                  MAX_ZOOM,
                   compactWorkbench() ? { left: 64, right: 28, top: 28, bottom: 28 } : 28,
                 )
               : DEFAULT_VIEWPORT;

@@ -84,11 +84,11 @@
     },
     "dc-photoresistor-dark": {
       "status": "solved",
-      "fingerprint": "c13eb0005ffec76dbb5fbb8c5904377fdbfcb32a624d459dc5ac05060504b960"
+      "fingerprint": "1d97121a695ee5842400ee90e9da2e633b7663be43944b1ccb48da50b18df926"
     },
     "dc-photoresistor-bright": {
       "status": "solved",
-      "fingerprint": "402bdbd439d146d068a09a38fd0ce13bc5dd94f03c3fe66ebdd8a3a161b87598"
+      "fingerprint": "468ad0242db9a36288d14f7e8466bac8e2d2671ac58fc6463fa66be193feecde"
     },
     "dc-tmp36-25c": {
       "status": "solved",

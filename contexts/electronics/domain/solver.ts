@@ -18,7 +18,7 @@ import {
   type ArduinoTerminalVoltages,
 } from './arduino-program-runtime.js';
 import { analyseArduinoSourceSupport } from './arduino-capabilities.js';
-import { photoresistorResistanceOhm } from './photoresistor-model.js';
+import { PHOTORESISTOR_PROFILE, photoresistorResistanceOhm } from './photoresistor-model.js';
 import { switchSelectedTerminal, switchContactClosed } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
 import { solveLinear } from './linear-system.js';
@@ -1595,6 +1595,7 @@ function applyThermalObservations(
           {
             source: 'Источник питания',
             resistor: 'Резистор',
+            photoresistor: 'Фоторезистор',
             led: 'Светодиод',
             lamp: 'Лампа накаливания',
             diode: 'Диод',
@@ -4174,8 +4175,14 @@ function solveCircuitStep(
         component.kind === 'lamp'
           ? incandescentLampBrightnessPercent(lampTemperatureCelsius as number)
           : Math.max(0, ...Object.values(branchBrightness));
+      const photoresistorPowerPercent =
+        component.kind === 'photoresistor'
+          ? (100 * power) / PHOTORESISTOR_PROFILE.maximumPowerWatt
+          : undefined;
       const powerUtilizationPercent =
-        linearDcObservation?.powerUtilizationPercent ?? transistorResult?.powerUtilizationPercent;
+        linearDcObservation?.powerUtilizationPercent ??
+        transistorResult?.powerUtilizationPercent ??
+        photoresistorPowerPercent;
       const currentUtilizationPercent =
         transistorResult?.currentUtilizationPercent ??
         (branches.length > 0
@@ -4197,9 +4204,18 @@ function solveCircuitStep(
           : undefined;
       const activePiezoObservation =
         component.kind === 'piezo' ? observeActivePiezo(component, voltageDrop) : null;
+      const photoresistorStress =
+        photoresistorPowerPercent === undefined
+          ? undefined
+          : Math.abs(voltageDrop) > PHOTORESISTOR_PROFILE.maximumVoltageVolt
+            ? 'burned'
+            : photoresistorPowerPercent > 100
+              ? 'overcurrent'
+              : 'normal';
       const stressState =
         linearDcObservation?.stressState ??
         transistorResult?.stressState ??
+        photoresistorStress ??
         (activePiezoObservation?.driveState === 'overvoltage'
           ? 'warning'
           : lampVoltageRatio !== undefined
