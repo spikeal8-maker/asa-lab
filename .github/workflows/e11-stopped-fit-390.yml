@@ -1,0 +1,108 @@
+name: E11 stopped-fit390 single native case
+run-name: E11 stopped-fit390 only ${{ github.sha }}
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/e11-stopped-fit-390.yml'
+      - 'tools/*e11*'
+      - 'tools/test_ci_image_transport.py'
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: e11-stopped-fit-390-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: node --test tools/run-e11-stopped-fit-390.test.mjs
+      - run: python -m unittest discover -s tools -p test_e11_single_case_contract.py -v
+  browser:
+    if: github.event_name == 'workflow_dispatch'
+    needs: contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      ASA_BUILD_REVISION: ${{ github.sha }}
+      ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.sha }}
+      ASA_ELECTRONICS_QUALIFICATION_PROFILE: strict-real-time
+      ASA_IMAGE_TAG: ${{ github.sha }}
+      COMPOSE_PROJECT_NAME: asa-e11-one-${{ github.run_id }}-${{ github.run_attempt }}
+      ASA_TEST_UID: '1000'
+      ASA_TEST_GID: '1000'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare source evidence and writable owned directories
+        run: |
+          python3 tools/e11_single_case_contract.py --source
+          mkdir -p e2e/artifacts/electronics-simulation reports/e11-stopped-fit-390
+          chmod -R 0777 e2e/artifacts reports
+      - name: Prepare and verify immutable PostgreSQL transport
+        run: |
+          python3 tools/test_ci_image_transport.py --prepare-electronics-postgres
+          python3 tools/test_ci_image_transport.py --electronics-compose-model-check
+      - name: Build exact isolated images
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+      - run: python3 tools/test_ci_image_transport.py --electronics-built-images > reports/e11-stopped-fit-390/built-images.jsonl
+      - name: Start owned PostgreSQL
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          up -d --wait --wait-timeout 120 postgres
+      - run: python3 tools/test_ci_image_transport.py --electronics-pulled-postgres > reports/e11-stopped-fit-390/postgres-image.json
+      - name: Apply isolated migrations
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          run --rm --no-deps migration
+      - name: Start owned API and Web
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          up -d --wait --wait-timeout 240 --no-deps api web
+      - name: Discover and execute the single fixed original native case
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          run --rm --no-deps -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner
+          node tools/run-e11-stopped-fit-390.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e11-stopped-fit-390-${{ github.sha }}-${{ github.run_id }}
+          path: reports/e11-stopped-fit-390
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove only the owned disposable stack
+        if: always()
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          down -v --remove-orphans
