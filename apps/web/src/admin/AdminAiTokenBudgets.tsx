@@ -1,3 +1,4 @@
+import { InfoHint } from '../components/InfoHint';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { AiTokenBudgetAdmin, AiTokenBudgetLimit } from '@asa-lab/contracts';
 import { call } from './admin-api';
@@ -126,8 +127,23 @@ export function AdminAiTokenBudgets({
   }
   return (
     <section className="asa-ai-budgets" aria-label="Месячные лимиты токенов">
-      <h2>Лимиты токенов в месяц</h2>
-      <p>Пусто — без лимита. 0 — новые запросы запрещены.</p>
+      <div className="asa-ai-budget-heading">
+        <h2>Лимиты токенов в месяц</h2>
+        <InfoHint label="Как работают лимиты">
+          <p>Пусто — без лимита. 0 — новые запросы запрещены.</p>
+          <p>
+            Уже начатый ответ завершается полностью. Резерв защищает от одновременных новых
+            запросов; неизвестный расход остаётся на проверке.
+          </p>
+          <p>
+            ollama-local — единый слот активной локальной модели: смена модели не обнуляет расход.
+          </p>
+          <p>
+            Эта кнопка сохраняет только бюджеты. Выбор моделей сохраняется отдельно. Проверки
+            подключения используют отдельный почасовой лимит операций.
+          </p>
+        </InfoHint>
+      </div>
       {config ? (
         <form onSubmit={(event) => void save(event)}>
           <div
@@ -205,14 +221,14 @@ export function AdminAiTokenBudgets({
                           }
                         />
                       </td>
-                      <td>
+                      <td className="asa-ai-budget-usage">
                         <span aria-label={'Подтверждено токенов всего: ' + usage.used}>
                           {usage.used}
                         </span>
-                        <details className="asa-ai-budget-info">
-                          <summary aria-label={'Подробнее о расходе ' + m.model}>
-                            {usage.pendingUnknown || usage.unresolved ? 'На проверке' : 'Подробнее'}
-                          </summary>
+                        {usage.pendingUnknown || usage.unresolved ? (
+                          <small>На проверке</small>
+                        ) : null}
+                        <InfoHint label={'Подробнее о расходе ' + m.model}>
                           <div>
                             <p>
                               Резерв: {usage.held} ·{' '}
@@ -230,7 +246,7 @@ export function AdminAiTokenBudgets({
                               </p>
                             ) : null}
                           </div>
-                        </details>
+                        </InfoHint>
                       </td>
                     </tr>
                   );
@@ -245,20 +261,7 @@ export function AdminAiTokenBudgets({
       ) : (
         <p>Загружаем бюджеты…</p>
       )}
-      <details className="asa-ai-budget-help">
-        <summary>Как работают лимиты</summary>
-        <p>
-          Уже начатый ответ завершается полностью. Резерв защищает от одновременных новых запросов;
-          неизвестный расход остаётся на проверке.
-        </p>
-        <p>
-          ollama-local — единый слот активной локальной модели: смена модели не обнуляет расход.
-        </p>
-        <p>
-          Эта кнопка сохраняет только бюджеты. Выбор моделей сохраняется отдельно. Проверки
-          подключения используют отдельный почасовой лимит операций.
-        </p>
-      </details>
+
       {notice ? <p role="status">{notice}</p> : null}
     </section>
   );

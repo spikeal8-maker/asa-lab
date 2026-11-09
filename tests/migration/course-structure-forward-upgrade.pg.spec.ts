@@ -177,6 +177,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0305', // Robotics projects and authenticated module activity.
         '0306', // Robotics in the existing immutable publication catalog.
         '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
+        '0308', // Independent eight-tool controls, preserving legacy snapshots.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -513,6 +514,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0305', // Robotics projects and authenticated module activity.
           '0306', // Robotics in the existing immutable publication catalog.
           '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
+          '0308', // Independent eight-tool controls, preserving legacy snapshots.
         ]);
         expect(
           await applyIsolatedTestPlan(

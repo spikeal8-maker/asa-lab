@@ -5,6 +5,8 @@ import { AdminComfyUiPage } from './AdminComfyUiPage';
 import { AdminPolzaConnection } from './AdminPolzaConnection';
 import { AdminAiTranscription } from './AdminAiTranscription';
 import { AdminAiVideo } from './AdminAiVideo';
+import { AdminAiTools } from './AdminAiTools';
+import { AdminAiToolPolicies } from './AdminAiToolPolicies';
 import { AdminAiWebSearch } from './AdminAiWebSearch';
 import { AdminAiGenerationPolicy } from './AdminAiGenerationPolicy';
 import { AdminAiTokenBudgets } from './AdminAiTokenBudgets';
@@ -71,6 +73,8 @@ function AiAdminWorkspaceSession({
 
   const [connectionDirty, setConnectionDirty] = useState(false);
   const [policyDirty, setPolicyDirty] = useState(false);
+  const [toolDirty, setToolDirty] = useState(false);
+  const [networkDirty, setNetworkDirty] = useState(false);
   const [budgetDirty, setBudgetDirty] = useState(false);
   const [budgetRevision, setBudgetRevision] = useState(0);
   const refreshBudgets = useCallback(() => setBudgetRevision((value) => value + 1), []);
@@ -78,7 +82,7 @@ function AiAdminWorkspaceSession({
   function navigate(value: AiAdminNavigation) {
     if (value.section === navigation.section && value.provider === navigation.provider) return;
     if (
-      (connectionDirty || policyDirty || budgetDirty) &&
+      (connectionDirty || policyDirty || budgetDirty || toolDirty || networkDirty) &&
       !window.confirm('Изменения не сохранены. Перейти и отменить их?')
     ) {
       navigateAiAdmin(navigation);
@@ -86,6 +90,8 @@ function AiAdminWorkspaceSession({
     }
     setConnectionDirty(false);
     setPolicyDirty(false);
+    setToolDirty(false);
+    setNetworkDirty(false);
     setBudgetDirty(false);
     setNavigation(value);
     rememberAiAdminNavigation(principalId, value);
@@ -107,14 +113,14 @@ function AiAdminWorkspaceSession({
   useEffect(() => rememberAiAdminNavigation(principalId, navigation), [principalId, navigation]);
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (connectionDirty || policyDirty || budgetDirty) {
+      if (connectionDirty || policyDirty || budgetDirty || toolDirty || networkDirty) {
         event.preventDefault();
         event.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [connectionDirty, policyDirty, budgetDirty]);
+  }, [connectionDirty, policyDirty, budgetDirty, toolDirty, networkDirty]);
 
   useEffect(() => {
     const nav = tabs.current;
@@ -301,6 +307,20 @@ function AiAdminWorkspaceSession({
             onEligibleModels={setEligibleModels}
           />
           {section === 'settings' ? (
+            <AdminAiToolPolicies
+              onAccessDenied={onAccessDenied}
+              presentation="switches"
+              onDirtyChange={setToolDirty}
+            />
+          ) : null}
+          {section === 'settings' ? (
+            <AdminAiWebSearch
+              onAccessDenied={onAccessDenied}
+              presentation="switches"
+              onDirtyChange={setNetworkDirty}
+            />
+          ) : null}
+          {section === 'settings' ? (
             <AdminAiTokenBudgets
               onAccessDenied={onAccessDenied}
               eligibleModels={eligibleModels}
@@ -309,9 +329,13 @@ function AiAdminWorkspaceSession({
             />
           ) : null}
         </div>
-      ) : section === 'internet' ? (
-        <div id="ai-panel-internet" role="tabpanel" aria-labelledby="ai-tab-internet">
-          <AdminAiWebSearch onAccessDenied={onAccessDenied} />
+      ) : section === 'tools' ? (
+        <div id="ai-panel-tools" role="tabpanel" aria-labelledby="ai-tab-tools">
+          <AdminAiTools
+            principalId={principalId}
+            onAccessDenied={onAccessDenied}
+            onDirtyChange={setPolicyDirty}
+          />
         </div>
       ) : section === 'video' ? (
         <div

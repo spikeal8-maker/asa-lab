@@ -41,11 +41,19 @@ it('shows actual overage, separate save semantics and UTC reset with truthful sc
   expect(host.querySelector('[aria-label="Подтверждено токенов всего: 15"]')?.textContent).toBe(
     '15',
   );
-  expect(host.textContent).toContain('Остаток: 0');
-  expect(host.textContent).toContain('начатый ответ завершается полностью');
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('[aria-label="Подробнее о расходе ollama-local"]')!
+      .click(),
+  );
+  expect(document.body.textContent).toContain('Остаток: 0');
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[aria-label="Как работают лимиты"]')!.click(),
+  );
+  expect(document.body.textContent).toContain('начатый ответ завершается полностью');
   expect(host.textContent).toContain('UTC');
-  expect(host.textContent).toContain('единый слот');
-  expect(host.querySelector('button')?.textContent).toBe('Сохранить лимиты токенов');
+  expect(document.body.textContent).toContain('единый слот');
+  expect(host.querySelector('button[type=submit]')?.textContent).toBe('Сохранить лимиты токенов');
 });
 it('preserves a draft and mutation identity across uncertain retries; CAS conflict stays visible', async () => {
   const bodies: string[] = [];
@@ -144,7 +152,12 @@ it('edits the visible model by identity while retaining a hidden first model and
   await enter('Общий лимит deepseek-flash', '9007199254740991');
   await enter('Лимит на пользователя deepseek-flash', '0');
   expect(host.textContent).toContain('На проверке');
-  expect(host.querySelector('[role=status]')?.textContent).toContain('резерв сохранён');
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('[aria-label="Подробнее о расходе deepseek-flash"]')!
+      .click(),
+  );
+  expect(document.querySelector('[role=tooltip]')?.textContent).toContain('резерв сохранён');
   await act(async () =>
     host
       .querySelector('form')!

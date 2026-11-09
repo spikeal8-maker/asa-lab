@@ -1,5 +1,7 @@
 /** Foundation surface for the contracts package. OpenAPI/JSON Schema and event contract types. */
 export const PACKAGE_NAME = '@asa-lab/contracts';
+export { AI_TOOL_IDS, AI_TOOL_LABELS, AI_TOOL_DEPENDENCIES } from './ai-tools.js';
+export type { AiToolId } from './ai-tools.js';
 export { PUBLIC_ARTIFACT_V1_LIMITS, validatePublicArtifact } from './public-artifact.js';
 export type {
   PublicArtifact,

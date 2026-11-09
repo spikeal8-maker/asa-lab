@@ -86,6 +86,7 @@ const expectedPending = [
   '0305', // Robotics projects and authenticated module activity.
   '0306', // Robotics in the existing immutable publication catalog.
   '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
+  '0308', // Independent eight-tool controls, preserving legacy snapshots.
 ];
 
 interface Identity {
