@@ -9,11 +9,7 @@ import { ProjectModuleIcon } from '../modules/ProjectModuleIcon';
 import { PUBLIC_PROJECT_MODULES, publicationHref, publicModuleName } from './presentation';
 import './public-projects.css';
 
-const CATALOG_MODULES = [
-  ...PUBLIC_PROJECT_MODULES,
-  { value: 'robotics', label: 'Робототехника' },
-  { value: 'ai', label: 'ИИ' },
-];
+const CATALOG_MODULES = [...PUBLIC_PROJECT_MODULES, { value: 'ai', label: 'ИИ' }];
 
 export function PublicProjectsPage({
   view,
@@ -45,8 +41,8 @@ export function PublicProjectsPage({
     setNextOffset(null);
     setLoadingMore(false);
     moreRequest.current = false;
-    // Catalog-only categories; publishing is not enabled yet.
-    if (moduleFilter === 'robotics' || moduleFilter === 'ai') {
+    // AI is a catalog-only category until its publication contract is admitted.
+    if (moduleFilter === 'ai') {
       setItems([]);
       return;
     }

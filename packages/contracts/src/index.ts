@@ -72,6 +72,33 @@ export {
   PUBLIC_THREE_D_PRIMITIVES,
 } from './public-three-d-artifact.js';
 export type { PublicThreeDArtifact, PublicThreeDNode } from './public-three-d-artifact.js';
+export {
+  validatePublicRoboticsArtifact,
+  PUBLIC_ROBOTICS_ROBOT_FIELDS,
+  PUBLIC_ROBOTICS_LIMITS,
+} from './public-robotics-artifact.js';
+export {
+  validatePublicRoboticsArtifactV6,
+  PUBLIC_ROBOTICS_V6_LIMITS,
+} from './public-robotics-artifact-v6.js';
+export type {
+  PublicRoboticsArtifactV6,
+  PublicRoboticsWorldV6,
+  PublicRoboticsFieldV6,
+  PublicRoboticsBodyV6,
+  PublicRoboticsFloorMarkV6,
+} from './public-robotics-artifact-v6.js';
+export type {
+  PublicRoboticsArtifact,
+  PublicRoboticsWorld,
+  PublicRoboticsField,
+  PublicRoboticsRobot,
+  PublicRoboticsPoint,
+  PublicRoboticsPose,
+  PublicRoboticsWall,
+  PublicRoboticsBall,
+  PublicRoboticsFloorMark,
+} from './public-robotics-artifact.js';
 
 export type {
   AiOllamaCloudModel,
@@ -122,3 +149,5 @@ export type {
   ChessNetworkMatch,
   ChessNetworkAction,
 } from './chess-network.js';
+
+export type { CheckersNetworkMatch, CheckersNetworkPosition } from './checkers-network.js';

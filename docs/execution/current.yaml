@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_d_waiting_guard_after_f_g_feedback_repairs
+      checkpoint: package_d_preflight_and_required_context_candidate
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -109,36 +109,64 @@ parallel_lanes:
         Owner confirms progression after C on 2026-11-02: separate LOCAL_PASS from CI_PENDING and RELEASE_NOT_READY,
         prove bounded checks on real small UI changes, repair browser runner compatibility and measure edit-to-result,
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
+        On 2026-11-03 the owner reprioritized recovery first, then protected PR integration and existing addressed CI.
+        Owner explicitly approves independent development of tools/test_ci_image_transport.py in this isolated
+        branch while the D13 physical checkout, index, HEAD and all WIP remain untouched. A matching relative path
+        alone is an integration risk, not a perpetual development veto. Initial minimal preflight/policy repair is
+        authorized after independent read-only verification of exact own paths and physical isolation. Unknown
+        status, physical overlap, filesystem aliases and unplanned scope remain blocked. This coordination is
+        usable only after acceptance on canonical main and never substitutes for merge-candidate CI, required
+        GitHub checks/review or release evidence. Production, live data, local Docker, network and secrets stay prohibited.
+        The owner subsequently authorizes minimal GitHub main protection: ordinary changes through PR,
+        strict ASA / required from GitHub Actions, admin enforcement and no bypass, force push or deletion.
+        No second account, access grant or formal GitHub approval requirement is authorized; independent
+        technical review of critical exact-SHA changes remains required. Live GitHub restrictions apply
+        even where legacy direct_main metadata describes PRs as optional.
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/.codex/worktrees/devex-engine-20261030/ASA-lab
+          branch: codex/recovery-delivery-20261103
+        peer:
+          worktree: E:/ASA-previews/electronics-classroom-d13-candidate-20261019
+          branch: codex/electronics-classroom-d2-d4-649
+          head: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+          path_sha256:
+            tools/test_ci_image_transport.py: ced65c7414d4283a546cad5aef843365d8d0efcbc5a67c350f0c0063cb5314a9
+        paths:
+          - tools/test_ci_image_transport.py
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ff90d55c4859201555c451b5c24f9689bfbd4045
+      convergence_baseline_sha: 98d7fbb42ae9e53113cb45ada4b4301334de9c27
       head_sha: null
-      observed_at: '2026-11-03T10:52:19Z'
+      observed_at: '2026-11-03T16:35:11Z'
       main:
         branch: main
-        sha: ff90d55c4859201555c451b5c24f9689bfbd4045
+        sha: 98d7fbb42ae9e53113cb45ada4b4301334de9c27
       observation_note: >-
-        Accepted F invocation snapshot PR979 source57dbfa2e passed General41615953580 all5 native jobs
-        and independent final-source review before merge237e71e7. Accepted G early stale PR980 source92669603
-        passed General41616930713 all5, Portable41616930583 all3, Operational41616930640 all4 and independent
-        L3review before mergeff90d55c. Earlier E974/F975/G978 remain accepted; no repeat audit performed.
-        F implementation2bb0cffa measured validate_all13.267s to0.150s at one SHA, preserving116contexts
-        byte-for-byte while Git/registry reads fell116to1 each. Final57db owns the same two file contents.
-        Actual fullpreflight17.509s has a different historicalsnapshot, not controlled whole-cycle savings.
-        Both final code jobs executed98fresh canonical gate tasks plus18fresh API prep tasks, cachehits0.
-        G rejects stale/unverifiable main before revisionoutput/builds; real Git stale rejection1.090s,
-        zero revisionoutput. Preserve final pre-stable check, queue max and PR969 actual publish-job proof;
-        overall workflow success with publish skipped never proves publication. Historical late-build exposure
-        is not measured savings. No manual CI reruns, net runner saving or token reduction claimed.
-        Select D conditional General, still awaiting owner-confirmed release of old D13 dirty guard
-        tools/test_ci_image_transport.py,15addedlines on16cbed5d. One authorized contact did not confirm
-        ownership/release. No foreign WIP, whole-file copy, ownership transfer, further message or guard edit.
-        Repeat exact8path preflight; only genuine SAFE_TO_START permits D writes. E deterministic General
-        caching depends on that versioned contract; no pinned uncached proof override or ineffective prewarm.
-        Actual scoped root/linked-agent token telemetry is collected as metadata, not byte estimates or billing.
-        Full Main/release/RLS/auth/migration evidence remains mandatory; postmerge Main CI is a separate check.
-        L0-L3 comparable real trials follow completed D, not a premature fast-CI claim. Fetch main before writes
-        and recover exact Git/CI. No release, owner acceptance, production, database, local Docker or network action.
+        Main98d7fbb4 passed General41668252953 all5 actual jobs and Publications41668252727.
+        Portable41673912975 passed both host contracts and source-image smoke: clean boot, verified complete
+        backup, PostgreSQL/object checksum restore into asalab_delivery_restore_test, restricted-role login,
+        ACL/RLS and origin checks. Existing real PostgreSQL supported0225-prefix upgrade reaches0304 and
+        verifies preserved ledger/checksums and zero-apply rerun; no current SQL repair or historical migration
+        rewrite selected. Prior E974/F975/G978/F979/G980 remain accepted without repeated audit or tests.
+        Owner's new explicit isolated-development consent supersedes indefinite D13 logical-path waiting;
+        foreign guard remains15addedlines on16cbed5d, with its byte fingerprint pinned above. This PR changes
+        the preflight prerequisite and records consent; it does not implement D or import foreign WIP.
+        A bounded CI admission repair separates working-push aggregate display names from the unchanged
+        PR/main ASA / required context; all four native mandatory jobs and fail-closed checks remain intact.
+        After policy/consent acceptance, repeat exact8path D preflight; genuine SAFE_TO_START is required.
+        The initial protection snapshot had no required checks/reviews or rulesets. Owner-authorized minimal
+        protection is now applied and read back: strict ASA / required app15368, mandatory PR, zero formal
+        approvals, admin enforcement; all other parameters are unchanged and before/restore payloads saved.
+        General41686002301 passed all5 exactcf262 jobs, yet cancelled duplicate push41685995018 left a second
+        same-name failed required context. This candidate fixes that confirmed admission collision without
+        changing protection or tools/ci_required.py; new final-SHA CI and positive admission remain pending.
+        Full Main/release/RLS/auth/migration evidence and exact merged-tree checks remain mandatory. No deployment,
+        forced publication, working database, local Docker or network action; owner acceptance remains pending.
+        Fetch main before writes and recover exact Git/CI; this dated snapshot grants no edit or release authority.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -12591,15 +12619,18 @@ parallel_lanes:
     execution_lease: {}
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 3e09f7b45957c0c69c7c80e3ad7418cced6a7313
+      convergence_baseline_sha: 3e8713476cafedda3e24a39665458e833efd7c22
       head_sha: null
-      observed_at: '2026-10-11T16:17:00Z'
+      observed_at: '2026-11-08T11:28:27Z'
       main:
         branch: main
-        sha: 3e09f7b45957c0c69c7c80e3ad7418cced6a7313
-      observation_note: Dated SERVER acceptance after exact aab integrated CI and independently reviewed source-equivalent 3e09 main integration; select CLIENT only. Full CI belongs to aab, not 3e09. Fetch main and exact CI before writes.
+        sha: 3e8713476cafedda3e24a39665458e833efd7c22
+      observation_note: Dated GitHub main snapshot for owner-selected school logging repair. Previous OBS015-017 evidence remains historical. Local candidates are not published, deployed, or owner accepted; Fetch main again before any write, then recheck its exact SHA and applicable CI before integration.
     owned_paths:
       - docs/deployment/ADMIN_LOGS.md
+      - tools/collect_logs.py
+      - tools/test_database_progress.py
+      - docs/deployment/ONEPANEL_COLLECTOR.md
     task:
       id: TASK-OBSERVABILITY-001
       issue: 551
@@ -12608,8 +12639,17 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS015_OBS016_OBS017_verified_reported_STOP_no_site_update
+      checkpoint: SCHOOL_LOGGING_REPAIR_20261108_selected_source_review_CI_and_runtime_pending
       owner_acceptance: pending
+      owner_authorization: explicit_owner_school_logging_repair_via_GitHub_Linux_1Panel_20261108
+      parallel_change_review:
+        pr: 982
+        observed_head: 339bf66f7b44d7158cc2ebf789f5ec871b7e7764
+        path: tools/collect_logs.py
+        peer_scope: file_timestamp_Nginx_combined_time
+        selected_scope: database_fresh_page_scheduler
+        decision: distinct_hunks_preserve_peer_branch_and_recheck_fresh_head_before_integration
+        physical_worktree_coordination: not_claimed_remote_PR_is_not_a_local_worktree
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
@@ -12626,9 +12666,50 @@ parallel_lanes:
         - document: RELEASE-WINDOWS-JUNCTION-FIXTURE-SPEC
           revision: '1.0'
     programme:
-      owner_authorization: sequential_log_and_user_observability_repair_20261011
+      owner_authorization: explicit_owner_school_logging_repair_via_GitHub_Linux_1Panel_20261108
       status: in_progress
-      selected_slice: OBS3B-CLIENT
+      selected_slice: SCHOOL-LOGGING-REPAIR-20261108
+      school_logging_repair:
+        status: selected_source_candidates_under_review
+        owner_instruction: Make school logging operational through reproducible GitHub source and native Linux 1Panel management; prepare and test the school system without application cutover.
+        source_baseline_sha: 3e8713476cafedda3e24a39665458e833efd7c22
+        runtime_authorization:
+          status: already_owner_authorized
+          target: asa-school-vm100
+          permitted: school_host_logging_setup_and_reproducible_native_1Panel_management
+          prerequisites: controller_exact_source_review_CI_backup_pin_review_and_operation_GO
+          additional_owner_permission_required: false
+          application_cutover_authorized: false
+          H04_changes_authorized: false
+          relation_to_programme_deployment_authorized: bounded_school_host_authorization_does_not_enable_full_observability_or_application_cutover
+        parts:
+          LOG-FIX-01: bounded_fair_fresh_database_page_drain_and_regressions
+          PANEL-LOG-01: native_1Panel_collector_manager_adapter_tests_and_minimal_runbook
+        controller_scope_assignment: >-
+          Keep tools/deployment/** under deployment-legacy-809's existing advisory path classification.
+          The current owner-selected school repair authorizes only the two named 1Panel adapter paths
+          in planned_paths; it does not reopen issue809 or change its task, legacy transition, or blockers.
+          Check all five planned paths and real worktree overlaps in canonical preflight; no fabricated
+          shared_path_coordination or duplicate owned_paths classification is introduced.
+        planned_paths:
+          - tools/collect_logs.py
+          - tools/test_database_progress.py
+          - tools/deployment/collector.py
+          - tools/deployment/test_panel_collector.py
+          - docs/deployment/ONEPANEL_COLLECTOR.md
+        boundaries:
+          history: preserve_immutable_events_cursor_windows_late_events_and_Docker_gap_flags
+          freshness: unchanged_thresholds_and_truthful_pending_on_budget_exhaustion
+          application: keep_runtime_images_at_3e_schema307_databaseOid117178_no_domain_cutover
+          source_release: reviewed_clean_canonical_source_only_fast_forward_separate_from_runtime_revision
+          secrets_and_roles: no_authentication_bypass_foreign_role_change_or_secret_publication
+          deployment: separate_reviewed_operation_only_after_exact_source_CI_and_backup_pin_review
+        gates_pending:
+          - canonical_preflight_on_real_full_checkout_after_main_selection
+          - exact_combined_source_review_and_applicable_GitHub_CI
+          - bounded_owned_runtime_burst_validation_and_cleanup
+        historical_causality: unproven_1053_pending_observation_1144_sources_already_fresh_without_our_changes
+        prior_batch: OBS015_OBS016_OBS017_completed_STOP_preserved_OBS018_045_not_selected
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
         selected_item: OBS-017
@@ -13228,18 +13309,20 @@ parallel_lanes:
           runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
           production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        OBS001-016 accepted within each report's declared scope. OBS016 real PostgreSQL baseline reproduced
-        schema-only duplicates, exact focused repaired CI succeeded, independent review PASS. Only OBS017
-        selected for new bounded author. Controller STOP after OBS017; OBS018 needs new owner instruction.
+        Preserve all previous OBS001-017 reports and the completed owner batch STOP. The owner now selects
+        only SCHOOL-LOGGING-REPAIR-20261108: fresh database scheduling and native 1Panel management.
+        This does not select OBS018-045, accept the full programme, or authorize application cutover.
       deployment_authorized: false
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
       scope_note: >-
-        Authorized batch OBS015-017: all editor classifications, schema-compatible identity verification,
-        bounded progress under recent DB load. No website update or live database/logs, local Docker or
-        schedule operations. Isolated synthetic database evidence may run in GitHub CI; no production data.
-        Preserve accepted history, other lanes and blockers. OBS018-045 remain unselected; no full programme
-        or live Linux acceptance is inferred from focused evidence.
+        The previous OBS015-017 owner batch and its no-site-update STOP remain historical completed work.
+        The new owner-selected repair is limited to the five school_logging_repair planned paths and
+        separately reviewed Server-setings integration. Preserve source history, existing application images,
+        database data and Docker legacy gap provenance. School host logging setup is already owner authorized;
+        exact operation release waits for controller review and CI, not a new owner permission. Local unit
+        success is not CI, runtime burst evidence, full log coverage, or owner acceptance. Apply main selection before product
+        branches inherit it; do not use a product branch to authorize itself. Other lanes and blockers remain.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -16932,6 +17015,90 @@ parallel_lanes:
         commands:
           - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-RUNTIME-RESPONSIBILITY-001
           - pnpm control-plane:check
+
+  - id: robotics
+    parent_lane: electronics
+    worktree_id: robotics-field-v2-20261106
+    owned_paths:
+    - apps/web/robotics-dev.html
+    - apps/web/src/robotics/**
+    - contexts/robotics/**
+    - modules/robotics/**
+    - docs/product/robotics/**
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
+    task:
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-002
+      issue: 1001
+      branch: codex/robotics-field-v2-20261106
+      base_branch: main
+      pr: null
+      pr_draft: true
+      status: in_progress
+      checkpoint: owner_selected_editable_field_and_planar_dynamics
+      owner_acceptance: pending
+      source_pr: 991
+      source_head_sha: 9b14fb92e85c83636e9146da68597020d0885f55
+      owner_authorization: 'Owner explicitly requests continued Robotics field development: freely editable
+        field and strips, real-life ball, metal can and other elements, 30 cm modular tiles, more realistic
+        robot contacts and selectable physics levels. Prior explicit instruction to send completed Robotics
+        work into main persists. This authorizes canonical registration and bounded implementation/review/normal
+        protected source integration, not deployment, working database changes or owner acceptance. Portal
+        source integration PR991 and its post-merge General/Publications succeeded; unrelated acceptance
+        risks remain open.'
+      scope: 'Deliver one coherent Field v2 result in the existing Robotics portal: metric modular field,
+        editable lines/curves and tile stamps, ball/can/box catalogue, legacy-compatible educational mode
+        and finite-mass planar dynamics, independent numerical accuracy, authored save/reopen and immutable
+        public geometry.'
+      constraints:
+      - Reuse the existing electronics solver, Arduino/Blockly, catalog and committed motor/source-time
+        contracts; no copied motor equations, electrical load/stall claims or fake sensors.
+      - Preserve legacy world behaviour and source schema during server validation. New scene schemas have
+        explicit editor upgrade and reject downgrade/replacement data loss; old immutable publication schemas
+        stay readable.
+      - Finite-mass dynamic robot and objects react mutually to contacts. Mechanical traction limit and
+        floor resistance are explicit parameters; rolling and sliding are distinct. No vertical/tipping/deformation
+        claims.
+      - Field extent, tile size, grid/snap and screen zoom are distinct. Marks are authored geometry, not
+        walls or a fabricated color sensor. Invalid resize/placement preserves the valid source.
+      - Runtime pose/velocity stays outside authored saves, history and public artifacts. Pause/Reset and
+        deterministic committed-clock stepping remain authoritative.
+      - Public artifacts allowlist geometry only and exclude code/circuit/bindings/runtime/physics-private
+        fields. Account/StudentSeat, ACL/RLS, CAS/idempotency and publication immutability remain unchanged.
+      - One bounded mature 2D physics dependency is allowed if necessary, with exact pin, license and lockfile/build/bundle
+        validation. No new backend/service or runtime installation.
+      - Controller coordinates canonically registered work; domain and UI authors own explicitly disjoint
+        paths in one checkout. Independent final-SHA review covers mechanics/clock/rollout/layout.
+      - Built Web/API, real isolated PostgreSQL and main-site browser evidence cover 1440/1024/390/320.
+        Focused tests do not replace applicable General or owner acceptance.
+      - No deployment, working database, owner asset changes, 3D, line/color sensor runtime, noise model
+        or unrelated module repair. Inherited FAIL/UNKNOWN is retained until separately resolved.
+      - The necessary existing HC-SR04 no-echo timed-input seam is allowed as a separate bounded dependency for larger fields. Preserve legacy defaults, accepted Trig/Echo and pulseIn timeout; no range clamp, stale echo, alternate sensor or clock rewrite.
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
+      - docs/product/robotics/FIELD_V2_PLAN.md
+      - docs/product/robotics/README.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
+      gate_boundary: Registration uses governance only. Product uses test:robotics, projects-publication
+        code/PG and built-browser gates, types/build/bundle, required General and independent final-SHA
+        review. Local ephemeral formatting/unit checks are allowed; real browser/PostgreSQL evidence uses
+        isolated CI.
+      deployment: not_authorized
+      database_actions: isolated_tests_only
+    revisions:
+      convergence_baseline_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
+      head_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
 
 integration:
   owner_lane: visual-programming

@@ -392,26 +392,46 @@ const upgradeArtifacts = [
   [
     '0303',
     '0303_publication_owner_editor.sql',
-    '6b33460fe0ac40295e4760659db0953288f473807d9f4753387591476c0fee56',
+    '92818d6ea4dff20e5201e7e4e228678067048155714c89ce9d6f3270792bf60c',
   ],
   [
     '0304',
-    '0304_learning_essay_course_runtime.sql',
-    '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
+    '0304_games_checkers_network.sql',
+    'ecb1283c5adea892895b540f2e04d75a74ab51c54660110bf5a8269f56b3279d',
   ],
   [
     '0305',
-    '0305_learning_quiz_policy_authority.sql',
-    '85b4df00292bc47058616fe20054301a8a533a5ae3474daf8dbd3edc951fed39',
+    '0305_robotics_projects.sql',
+    'd706c3eaa79a7b3ce24824c507fa27ff524d9fcd9a0bb49eea1d6ee7410750bb',
   ],
   [
     '0306',
-    '0306_learning_quiz_attempt_state.sql',
-    '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
+    '0306_robotics_publications.sql',
+    '7c88a610329dc61030dc2155ffc33cf573062f18425044173026e67723737f11',
   ],
   [
     '0307',
-    '0307_learning_quiz_complete_course.sql',
+    '0307_robotics_telemetry_v2.sql',
+    '3ea56361e766b572a5e83b4bce8d68ac90e3b82b92c79eabe6750619b8e71779',
+  ],
+  [
+    '0308',
+    '0308_learning_essay_course_runtime.sql',
+    '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
+  ],
+  [
+    '0309',
+    '0309_learning_quiz_policy_authority.sql',
+    '85b4df00292bc47058616fe20054301a8a533a5ae3474daf8dbd3edc951fed39',
+  ],
+  [
+    '0310',
+    '0310_learning_quiz_attempt_state.sql',
+    '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
+  ],
+  [
+    '0311',
+    '0311_learning_quiz_complete_course.sql',
     '759bc11e3b05380c5de7a89a57e203d473c1568ffbb7f546dc8abe362ed9ba79',
   ],
 ] as const;

@@ -79,6 +79,10 @@ export interface ElectronicsTimedInputEvent {
   readonly payload: unknown;
 }
 
+/** Environment observed by the shared HC-SR04 model at the next accepted Trig pulse. */
+export type ElectronicsHcSr04EnvironmentSample =
+  { readonly kind: 'echo'; readonly distanceMeters: number } | { readonly kind: 'no-echo' };
+
 /**
  * Stable serializable continuation envelope. The serialized state is engine-owned and opaque to
  * consumers so later scheduler convergence can preserve this public boundary.
@@ -220,6 +224,14 @@ function schedulerInputEvent(event: ElectronicsTimedInputEvent): ArduinoCircuitI
       atMicroseconds: event.atMicroseconds,
       componentId: event.targetId,
       property: 'motionDetected',
+      value: event.payload,
+    };
+  }
+  if (event.operation === 'echoAvailable' && typeof event.payload === 'boolean') {
+    return {
+      atMicroseconds: event.atMicroseconds,
+      componentId: event.targetId,
+      property: 'echoAvailable',
       value: event.payload,
     };
   }

@@ -82,10 +82,14 @@ const expectedPending = [
   '0301', // Scoped Chess presence and recipient-bound challenges.
   '0302', // Private portal invitation notifications.
   '0303', // Owner-only publication editor resolution.
-  '0304', // Written Course responses reuse the canonical academic chain.
-  '0305', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
-  '0306', // Exact Quiz Start and answer state; historical rows remain unchanged.
-  '0307', // Complete eight-type Quiz Course vertical; immutable published history preserved.
+  '0304', // Russian-64 network matches reuse Games identity and policy.
+  '0305', // Robotics projects and authenticated module activity.
+  '0306', // Robotics in the existing immutable publication catalog.
+  '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
+  '0308', // Written Course responses reuse the canonical academic chain.
+  '0309', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+  '0310', // Exact Quiz Start and answer state; historical rows remain unchanged.
+  '0311', // Complete eight-type Quiz Course vertical; immutable published history preserved.
 ];
 
 interface Identity {

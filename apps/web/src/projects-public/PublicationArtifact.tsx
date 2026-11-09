@@ -3,6 +3,8 @@ import type {
   ElectronicsDisplayArtifact,
   ElectronicsSimulationArtifact,
   PublicThreeDArtifact,
+  PublicRoboticsArtifact,
+  PublicRoboticsArtifactV6,
 } from '@asa-lab/contracts';
 import { publicProjectsApi, type PublicProject } from './api';
 import { PublicationPreview } from './PublicationPreview';
@@ -17,6 +19,9 @@ const ScratchPlayer = lazy(() =>
 );
 const ThreeDViewer = lazy(() =>
   import('./PublicThreeDViewer').then((m) => ({ default: m.PublicThreeDViewer })),
+);
+const RoboticsViewer = lazy(() =>
+  import('./PublicRoboticsViewer').then((m) => ({ default: m.PublicRoboticsViewer })),
 );
 class SceneBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
@@ -38,13 +43,18 @@ export function PublicationArtifact({
   readonly onUnavailable: () => void;
 }): JSX.Element {
   const [artifact, setArtifact] = useState<
-    ElectronicsDisplayArtifact | ElectronicsSimulationArtifact | PublicThreeDArtifact | null
+    | ElectronicsDisplayArtifact
+    | ElectronicsSimulationArtifact
+    | PublicThreeDArtifact
+    | PublicRoboticsArtifact
+    | PublicRoboticsArtifactV6
+    | null
   >(null);
   const [state, setState] = useState<'loading' | 'fallback' | 'error'>('loading');
   useEffect(() => {
     setArtifact(null);
     setState('loading');
-    if (!['electronics', 'three-d'].includes(publication.moduleKey)) {
+    if (!['electronics', 'three-d', 'robotics'].includes(publication.moduleKey)) {
       setState('fallback');
       return;
     }
@@ -72,6 +82,12 @@ export function PublicationArtifact({
           return;
         }
         if (
+          (value.schemaVersion === 5 || value.schemaVersion === 6) &&
+          value.viewerFamily === 'robotics' &&
+          publication.moduleKey === 'robotics'
+        ) {
+          setArtifact(value);
+        } else if (
           value.schemaVersion === 4 &&
           value.viewerFamily === 'three-d' &&
           publication.moduleKey === 'three-d'
@@ -137,6 +153,17 @@ export function PublicationArtifact({
         </Suspense>
       </SceneBoundary>
     );
+  if (artifact?.schemaVersion === 5 || artifact?.schemaVersion === 6)
+    return (
+      <SceneBoundary fallback={fallback}>
+        <Suspense fallback={fallback}>
+          <RoboticsViewer
+            key={`${artifact.provenance.publicationId}:${artifact.provenance.revisionNumber}`}
+            artifact={artifact}
+          />
+        </Suspense>
+      </SceneBoundary>
+    );
   if (artifact)
     return (
       <SceneBoundary fallback={fallback}>
@@ -157,7 +184,11 @@ export function PublicationArtifact({
   if (state === 'loading')
     return (
       <p className="public-artifact-state" data-testid="public-artifact-loading" role="status">
-        {publication.moduleKey === 'three-d' ? 'Загружаем модель…' : 'Загружаем схему…'}
+        {publication.moduleKey === 'three-d'
+          ? 'Загружаем модель…'
+          : publication.moduleKey === 'robotics'
+            ? 'Загружаем поле робота…'
+            : 'Загружаем схему…'}
       </p>
     );
   return (

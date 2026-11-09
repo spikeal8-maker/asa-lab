@@ -17,7 +17,12 @@ import * as arduinoRuntime from '../domain/arduino-program-runtime';
 import { ARDUINO_GROUND_TERMINALS } from '../domain/arduino-model';
 import { ARDUINO_NUMERIC_TYPES } from '../domain/arduino-values';
 import { electricalModelFor } from '../domain/model-registry';
-import { resolveElectricalModelIdentity } from '../domain/model-identity';
+import {
+  componentModelIdentityIsInstalled,
+  electricalModelIdentityForComponent,
+  resolveElectricalModelIdentity,
+} from '../domain/model-identity';
+import type { SchematicComponent } from '../domain/document';
 import { ORDINARY_LED_PROFILES } from '../domain/led-model';
 import { RESISTOR_DEVICE_MODEL, SOURCE_DEVICE_MODEL } from '../domain/models/linear-dc-models';
 import { thermalProfileFor } from '../domain/models/thermal-transient-model';
@@ -109,6 +114,41 @@ function pirCircuit(): ElectronicsEngineDocument {
 }
 
 describe('Electronics canonical timed engine facade', () => {
+  it('upgrades only the exact installed HC-SR04 v1 profile to the no-echo-capable profile', () => {
+    const legacy: SchematicComponent = {
+      id: 'sonar',
+      kind: 'visual',
+      value: 0,
+      position: { x: 0, y: 0 },
+      componentTypeId: 'ultrasonic-hc-sr04',
+      electricalModelId: 'hc-sr04-distance-sensor',
+      electricalModelVersion: 1,
+      modelProfileId: 'hc-sr04-canonical-echo-v1',
+      modelProfileVersion: 1,
+    };
+    const installed = resolveElectricalModelIdentity(legacy);
+    expect(installed).toEqual({
+      electricalModelId: 'hc-sr04-distance-sensor',
+      electricalModelVersion: 1,
+      modelProfileId: 'hc-sr04-canonical-echo-v1',
+      modelProfileVersion: 2,
+    });
+    expect(electricalModelIdentityForComponent(legacy)).toEqual(installed);
+    expect(componentModelIdentityIsInstalled(legacy)).toBe(true);
+    for (const unknown of [
+      { ...legacy, electricalModelVersion: 2 },
+      { ...legacy, modelProfileVersion: 3 },
+      { ...legacy, modelProfileId: 'hc-sr04-foreign-profile' },
+    ]) {
+      expect(componentModelIdentityIsInstalled(unknown)).toBe(false);
+      expect(electricalModelIdentityForComponent(unknown)).toMatchObject({
+        electricalModelVersion: unknown.electricalModelVersion,
+        modelProfileId: unknown.modelProfileId,
+        modelProfileVersion: unknown.modelProfileVersion,
+      });
+    }
+  });
+
   it('preserves complete timed returns with the former analysis-based registry lookup', () => {
     const supported = circuit(
       'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(1);digitalWrite(13,LOW);delay(1);}',
@@ -213,6 +253,12 @@ describe('Electronics canonical timed engine facade', () => {
         diagnostics: [{ code: 'invalid_timed_continuation' }],
       });
       expect(rejected.state.continuation!.modelSetDigest).toBe('sha256:stale-models');
+      const reset = advanceElectronicsToHorizon(document, {
+        requestedHorizonMicroseconds: 20,
+        state: resetElectronicsTimedState(),
+      });
+      expect(reset.executionStatus).toBe('ready');
+      expect(reset.state.continuation!.modelSetDigest).toBe(simulation.simulationModelSetDigest());
     } finally {
       quality.mockRestore();
       analysis.mockRestore();

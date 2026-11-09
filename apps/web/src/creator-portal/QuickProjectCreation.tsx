@@ -3,7 +3,7 @@ import { api, type ModuleSummary, type Project } from '../api';
 import { newClientId } from '../client-id';
 import { ProjectModuleIcon } from '../modules/ProjectModuleIcon';
 
-export const HOME_MODULES = ['three-d', 'electronics', 'blocks'] as const;
+export const HOME_MODULES = ['three-d', 'electronics', 'blocks', 'robotics'] as const;
 export type HomeModule = (typeof HOME_MODULES)[number];
 export const homeModuleTitle = (key: string): string =>
   key === 'three-d'
@@ -12,7 +12,9 @@ export const homeModuleTitle = (key: string): string =>
       ? 'Электроника'
       : key === 'blocks'
         ? 'Программирование · Scratch'
-        : 'Проект';
+        : key === 'robotics'
+          ? 'Робототехника'
+          : 'Проект';
 
 type Intent = { module: HomeModule; key: string };
 interface CreationContext {
@@ -246,14 +248,18 @@ export function QuickCreateMenu(): JSX.Element {
                     ? '3D модель'
                     : key === 'electronics'
                       ? 'Электрическая цепь'
-                      : 'Программа Scratch'}
+                      : key === 'robotics'
+                        ? 'Робототехника'
+                        : 'Программа Scratch'}
                 </strong>
                 <small>
                   {key === 'three-d'
                     ? 'Моделирование из объёмных фигур'
                     : key === 'electronics'
                       ? 'Сборка и проверка электронных схем'
-                      : 'Визуальное программирование Scratch 3'}
+                      : key === 'robotics'
+                        ? 'Робот, программа Arduino и своё поле'
+                        : 'Визуальное программирование Scratch 3'}
                 </small>
               </button>
             ) : null,

@@ -303,7 +303,16 @@ export async function createApiApp(
     if (!pool && acquisitionPool) throw new Error('acquisition_requires_main_database');
     assertTrustedProxyConfiguration();
     if (!pool && analyticsPool) throw new Error('analytics_requires_main_database');
-    metrics = createRuntimeMetrics();
+    const logRevision = runtimeBuildMetadata().revision;
+    const alertRevision =
+      /^[a-f0-9]{7,40}$/i.test(logRevision) || logRevision === 'development'
+        ? logRevision
+        : 'unknown';
+    metrics = createRuntimeMetrics((event) => {
+      emitApplicationLog(
+        `${JSON.stringify({ time: new Date().toISOString(), revision: alertRevision, ...event })}\n`,
+      );
+    });
     analytics = new ProductAnalyticsService(analyticsPool);
     acquisition = new ProductAnalyticsService(
       acquisitionPool,
@@ -398,7 +407,6 @@ export async function createApiApp(
 
     const runtimeMetrics = metrics;
     const logRequests = shouldLogRequests(options.logRequests);
-    const logRevision = runtimeBuildMetadata().revision;
     app.useGlobalFilters(new ServerDiagnosticsFilter(app.getHttpAdapter(), logRevision, pool));
     fastify.addHook('onError', async (request, _reply, error) => {
       if (!requestFailures.has(request))

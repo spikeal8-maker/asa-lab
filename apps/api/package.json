@@ -19,6 +19,7 @@
     "@asa-lab/observability": "workspace:*",
     "@asa-lab/organization": "workspace:*",
     "@asa-lab/projects": "workspace:*",
+    "@asa-lab/robotics": "workspace:*",
     "@asa-lab/three-d": "workspace:*",
     "@aws-sdk/client-s3": "3.1134.0",
     "@fastify/cookie": "11.0.1",

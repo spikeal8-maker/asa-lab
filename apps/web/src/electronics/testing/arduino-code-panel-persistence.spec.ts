@@ -6,7 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api, type Project, type SchematicDocument } from '../../api';
 import { readLocalProjectDraft } from '../../modules/project-local-draft';
-import { ArduinoCodePanel } from '../ArduinoCodePanel';
+import { ArduinoCodePanel, type ArduinoCodePanelHandle } from '../ArduinoCodePanel';
 import {
   configureProductionLibrary,
   type OwnerCatalogManifest,
@@ -38,6 +38,8 @@ vi.mock('scratch-blocks', async (original) => {
       workspace.newBlock = (...args) =>
         Object.assign(create(...args), {
           getSvgRoot: () => null,
+          initSvg: () => undefined,
+          render: () => undefined,
           ...(injected.savedGeometry ? {} : { getRelativeToSurfaceXY: () => ({ x: 1000, y: 0 }) }),
         });
       Object.assign(workspace, {
@@ -116,6 +118,8 @@ let host: HTMLDivElement | null = null;
 let root: Root | null = null;
 let current: ReturnType<typeof useElectronicsWorkbench> | null = null;
 let stored: Map<string, SchematicDocument>;
+let exposeProgramHandle = false;
+const programHandle: { current: ArduinoCodePanelHandle | null } = { current: null };
 
 function controller() {
   if (!current) throw new Error('Controller has not rendered');
@@ -133,6 +137,7 @@ function Probe({ projectId }: { projectId: string }) {
         mobileHeightPercent: 60,
         onMobileHeightChange: () => undefined,
         onClose: () => undefined,
+        ...(exposeProgramHandle ? { programHandleRef: programHandle } : {}),
       })
     : null;
 }
@@ -231,6 +236,8 @@ afterEach(async () => {
   injected.workspace = null;
   injected.mounts = 0;
   injected.savedGeometry = false;
+  exposeProgramHandle = false;
+  programHandle.current = null;
 });
 
 describe('latest visible Arduino text is canonical before save or departure', () => {
@@ -692,5 +699,56 @@ describe('unchanged Arduino publication preserves canonical persistence state', 
     await act(async () => controller().saveNow());
     expect(save).toHaveBeenCalledTimes(1);
     expect(stored.get('first')).toEqual(expected);
+  });
+});
+
+describe('optional enclosing-host flush and explicit legacy mode replacement', () => {
+  it('publishes a live block edit and saves in the same event at t=0 without waiting for 180ms', async () => {
+    stubSvgSurface();
+    exposeProgramHandle = true;
+    const save = await prepare(blockSettingsDocument());
+    const live = injected.workspace as S.Workspace;
+    const pin = live.getBlocksByType('asa_digital_write', false)[0]!.getInputTargetBlock('PIN');
+    expect(pin).toBeTruthy();
+    const before = controller().document!.components[0]!.stateProperties!.arduinoSource;
+    await act(async () => {
+      pin!.setFieldValue('9', 'VALUE');
+      expect(controller().document!.components[0]!.stateProperties!.arduinoSource).toBe(before);
+      programHandle.current!.flushPendingPublication();
+      expect(localDocument()!.components[0]!.stateProperties!.arduinoSource).toContain(
+        'digitalWrite(9,',
+      );
+      await controller().saveNow();
+    });
+    expect(Date.now()).toBe(0);
+    expect(save).toHaveBeenCalledOnce();
+    expect(stored.get('first')!.components[0]!.stateProperties!.arduinoSource).toContain(
+      'digitalWrite(9,',
+    );
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(controller().document!.components[0]!.stateProperties!.arduinoSource).toContain(
+      'digitalWrite(9,',
+    );
+  });
+
+  it('keeps a text-only sketch through opening and cancellation, then replaces only after confirmation', async () => {
+    stubSvgSurface();
+    const legacy = normalizeLoadedDocument(fixtureDocument);
+    const properties = legacy.components[0]!.stateProperties!;
+    delete properties['arduinoWorkspace'];
+    const original = properties['arduinoSource'];
+    await prepare(legacy);
+    expect(injected.mounts).toBe(0);
+    act(() => clickButton('Блоки'));
+    expect(host!.textContent).toContain('Текущий текстовый код будет заменён стартовым примером');
+    expect(controller().document!.components[0]!.stateProperties!.arduinoSource).toBe(original);
+    act(() => clickButton('Отмена'));
+    expect(injected.mounts).toBe(0);
+    expect(controller().document!.components[0]!.stateProperties!.arduinoSource).toBe(original);
+    act(() => clickButton('Блоки'));
+    act(() => clickButton('Продолжить'));
+    expect(injected.mounts).toBe(1);
+    expect(controller().document!.components[0]!.stateProperties!.arduinoCodeMode).toBe('blocks');
+    expect(controller().document!.components[0]!.stateProperties!.arduinoSource).not.toBe(original);
   });
 });

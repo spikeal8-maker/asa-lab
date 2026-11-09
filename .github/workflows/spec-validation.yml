@@ -337,7 +337,7 @@ jobs:
           if-no-files-found: error
 
   required:
-    name: ASA / required
+    name: ${{ github.event_name == 'push' && github.ref != 'refs/heads/main' && 'ASA / branch push (not required)' || 'ASA / required' }}
     needs: [governance, code, postgres-tests, access-a-browser]
     if: ${{ always() }}
     runs-on: ubuntu-24.04

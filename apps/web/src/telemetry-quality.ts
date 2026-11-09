@@ -6,6 +6,7 @@ import {
   record,
   sendTelemetry,
   sessionStoragePort,
+  telemetryRetryDelay,
   time,
   uuid,
   validActor,
@@ -36,6 +37,7 @@ export interface QualitySnapshot {
 }
 const emptyCounters = (): Counters =>
   Object.fromEntries(COUNTERS.map((key) => [key, 0])) as Counters;
+const SNAPSHOT_INTERVAL = 60_000;
 export function validQuality(value: unknown, actor?: TelemetryActor): value is QualitySnapshot {
   if (
     !record(value) ||
@@ -107,6 +109,8 @@ export class TelemetryQuality {
   private dirty = true;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private failures = 0;
+  private retryAt = 0;
+  private nextSnapshotAt = 0;
   private readonly key: string;
   constructor(
     private readonly actor?: TelemetryActor,
@@ -192,10 +196,16 @@ export class TelemetryQuality {
   }
   gauges(pending: number, inFlight: number): void {
     if (this.retired) return;
-    this.snapshot.gauges = {
+    const next = {
       pending: Math.min(256, Math.max(0, pending)),
       inFlight: Math.min(256, Math.max(0, inFlight)),
     };
+    if (
+      next.pending === this.snapshot.gauges.pending &&
+      next.inFlight === this.snapshot.gauges.inFlight
+    )
+      return;
+    this.snapshot.gauges = next;
     this.dirty = true;
     this.persist();
   }
@@ -243,7 +253,8 @@ export class TelemetryQuality {
   }
   start(): void {
     this.paused = false;
-    if (!this.stopped && !this.timer) this.schedule(1000);
+    if (!this.stopped && !this.timer && !this.active)
+      this.schedule(Math.max(1000, this.retryAt - this.now()));
   }
   pause(): void {
     this.paused = true;
@@ -264,6 +275,7 @@ export class TelemetryQuality {
   }
   private schedule(delay: number): void {
     if (this.stopped || this.paused) return;
+    if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.timer = undefined;
       void this.flush();
@@ -271,12 +283,24 @@ export class TelemetryQuality {
   }
   async flush(final = false): Promise<void> {
     if (this.stopped || this.paused) return;
+    const finalTransition = final && !this.snapshot.coverage.final;
     if (final) {
       this.snapshot.coverage.final = true;
       this.dirty = true;
     }
     if (this.active) {
       this.persist();
+      return;
+    }
+    // Online, BFCache and repeated context notifications must respect the same server cooldown.
+    if (this.now() < this.retryAt) {
+      this.persist();
+      this.schedule(this.retryAt - this.now());
+      return;
+    }
+    if (!this.pending && !finalTransition && this.now() < this.nextSnapshotAt) {
+      this.persist();
+      this.schedule(this.nextSnapshotAt - this.now());
       return;
     }
     if (this.timer) clearTimeout(this.timer);
@@ -297,7 +321,7 @@ export class TelemetryQuality {
       this.persist();
     }
     if (!this.pending) {
-      this.schedule(60_000);
+      this.schedule(SNAPSHOT_INTERVAL);
       return;
     }
     const sent = this.pending;
@@ -334,8 +358,10 @@ export class TelemetryQuality {
     if (outcome.kind === 'acknowledged') {
       this.pending = null;
       this.failures = 0;
+      this.retryAt = 0;
+      this.nextSnapshotAt = this.now() + SNAPSHOT_INTERVAL;
       this.persist();
-      this.schedule(this.dirty ? 1000 : 60_000);
+      this.schedule(SNAPSHOT_INTERVAL);
     } else if (outcome.kind === 'rejected') {
       // A rejected quality stream is a coverage failure, never an acknowledgement or recursively reported event.
       this.unclean();
@@ -345,7 +371,8 @@ export class TelemetryQuality {
       if (this.authenticationUnavailable) this.onAuthenticationUnavailable?.();
     } else {
       this.failures++;
-      this.schedule(Math.min(30_000, 1000 * 2 ** Math.min(5, this.failures - 1)));
+      this.retryAt = this.now() + telemetryRetryDelay(this.failures, outcome.retryAfterMs);
+      this.schedule(this.retryAt - this.now());
     }
   }
   retire(): void {

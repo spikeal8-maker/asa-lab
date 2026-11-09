@@ -1,3 +1,4 @@
+import { CheckersMoveChoice } from './CheckersMoveChoice';
 import { useEffect, useMemo, useState } from 'react';
 import type { CheckersReviewInsight } from '@asa-lab/checkers';
 import { EditorHeader } from '../components/editor-chrome/EditorHeader';
@@ -123,6 +124,8 @@ export function CheckersWorkspace({
   onChooseOpponent?: () => void;
 }): JSX.Element {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
+  const [routeChoices, setRouteChoices] = useState<CheckersWorkspaceMove[]>([]);
+  useEffect(() => setRouteChoices([]), [model.sideToMove, model.mode]);
   const [draftTitle, setDraftTitle] = useState(model.projectTitle);
   const [panel, setPanel] = useState<'task' | 'moves' | 'reactions'>('task');
   const [boardFlipped, setBoardFlipped] = useState(false);
@@ -193,7 +196,12 @@ export function CheckersWorkspace({
               : { step: '1', text: 'Выберите шашку, которой хотите сделать ход.' };
 
   const selectSquare = (square: CheckersBoardSquare): void => {
-    const selectedMove = selectedMoves.find((move) => move.path.at(-1) === square);
+    const candidates = selectedMoves.filter((move) => move.path.at(-1) === square);
+    if (candidates.length > 1) {
+      setRouteChoices(candidates);
+      return;
+    }
+    const selectedMove = candidates[0];
     if (selectedMove) {
       onMove(selectedMove);
       setSelectedPieceId(null);
@@ -364,9 +372,22 @@ export function CheckersWorkspace({
               forcedCapturePieceIds={forcedCapturePieceIds}
               lastMovePath={model.lastMovePath ?? []}
               lastMoveCapturedIds={model.lastMoveCapturedIds ?? []}
-              disabled={Boolean(model.readOnly || lessonBlocksInput)}
+              disabled={Boolean(model.readOnly || lessonBlocksInput || routeChoices.length)}
               onSquareClick={selectSquare}
             />
+
+            {routeChoices.length > 0 && (
+              <CheckersMoveChoice
+                moves={routeChoices}
+                disabled={Boolean(model.readOnly || lessonBlocksInput)}
+                onChoose={(move) => {
+                  onMove(move);
+                  setRouteChoices([]);
+                  setSelectedPieceId(null);
+                }}
+                onCancel={() => setRouteChoices([])}
+              />
+            )}
 
             {model.gameResult ? (
               <section className={`checkers-game-result ${model.gameResult.tone}`} role="status">

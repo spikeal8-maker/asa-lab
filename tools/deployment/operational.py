@@ -400,7 +400,19 @@ def provider_events(c, normalize, config):
             c.set_state(key, {'checked': time.time(), 'state': 'error'})
 
 
-def required_sources(config, database_sources, platform):
+def compose_service_ids(previous, observed=()):
+    """Union only service labels attested by the canonical Docker inventory, never catalog rows."""
+    for values in (previous, observed):
+        if not isinstance(values, (list, tuple)) or len(values) > 256 or any(
+                not isinstance(name, str) or not re.fullmatch(r'[a-z][a-zA-Z0-9_.-]{0,120}', name)
+                for name in values):
+            raise ValueError('Invalid attested Compose service identities')
+    result = sorted(set(previous) | set(observed))
+    if len(result) > 256: raise ValueError('Attested Compose service identity bound exceeded')
+    return result
+
+
+def required_sources(config, database_sources, platform, compose_services=()):
     rows = {}
     def add(name, through=False, applicable=True):
         rows[name] = {'source': name, 'applicable': applicable, 'maxAgeSeconds': 300, 'requireThrough': through}
@@ -413,6 +425,8 @@ def required_sources(config, database_sources, platform):
     for item in config.get('fileSources', []): add(item['source'])
     settings = configuration(config)
     for name in settings.get('providers', {}): add('provider:' + name)
+    for name in compose_service_ids(compose_services): add(name + ':recent', True)
+    if len(rows) > 256: raise ValueError('Required source declaration bound exceeded')
     return {'version': 1, 'policy': 'asa-connected-v1', 'platform': platform,
             'auditMaxAgeSeconds': 900, 'sources': [rows[k] for k in sorted(rows)]}
 

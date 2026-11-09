@@ -52,6 +52,7 @@ function response(body: Record<string, unknown>) {
 beforeEach(async () => {
   vi.resetModules();
   vi.useFakeTimers();
+  vi.spyOn(Math, 'random').mockReturnValue(0);
   vi.setSystemTime(new Date('2026-10-13T12:00:00Z'));
   sessionStorage.clear();
   (
@@ -106,6 +107,34 @@ const savedQuality = () => JSON.parse(sessionStorage.getItem('asa:quality:v2:pro
 const savedQueue = () => JSON.parse(sessionStorage.getItem('asa:analytics:v2')!);
 
 describe('workspace handoff in the actual analytics runtime', () => {
+  it('does not turn repeated context/online notifications during a telemetry 503 into retries or auth work', async () => {
+    const { fetchWithSessionRefresh } = await import('./session-fetch');
+    transport.mockImplementation(async (path) => {
+      if (path === '/api/projects/foreground') return Response.json({ saved: true });
+      return new Response('{}', { status: 503, headers: { 'retry-after': '20' } });
+    });
+    context.setTelemetryContext(actor, true, 'projects');
+    await vi.advanceTimersByTimeAsync(0);
+    const visits = () =>
+      transport.mock.calls.filter(([path]) => path === '/api/analytics/v2/events');
+    const original = visits()[0]![1]!.body;
+    for (let n = 0; n < 100; n++) {
+      context.setTelemetryContext(actor, true, n % 2 ? 'home' : 'projects');
+      window.dispatchEvent(new Event('online'));
+    }
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(visits()).toHaveLength(1);
+    expect(qualityCalls()).toHaveLength(1);
+    expect((await fetchWithSessionRefresh('/api/projects/foreground')).status).toBe(200);
+    expect(
+      transport.mock.calls.filter(([path]) => String(path).startsWith('/api/auth/')),
+    ).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(9999);
+    expect(visits()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(visits()).toHaveLength(2);
+    expect(visits()[1]![1]!.body).toBe(original);
+  });
   it.each([4001, 3000])(
     'preserves the observation deadline and separate proof budget for a 401 %s ms after release',
     async (delay) => {
@@ -399,6 +428,8 @@ describe('OBS007 mounted runtime BFCache restoration', () => {
     expect(transport).toHaveBeenCalledTimes(calls);
     show();
     await vi.advanceTimersByTimeAsync(0);
+    expect(operations().map((body) => body.operation)).toEqual(['start']);
+    await vi.advanceTimersByTimeAsync(1000); // BFCache restoration cannot shorten an outage cooldown.
     const sessions = transport.mock.calls.filter(
       ([path]) => path === '/api/analytics/v2/module-session',
     );
@@ -790,7 +821,7 @@ describe('pagehide closes mounted activity before final quality', () => {
       coverage: { final: false },
     });
     runtimePagehide.call(window, new Event('pagehide'));
-    expect(qualityCalls()[1]![1]!.body).toBe(frozenBody);
+    expect(qualityCalls()).toHaveLength(1);
     expect(savedQuality().pending).toEqual(frozen);
     await vi.advanceTimersByTimeAsync(0);
     expect(savedQuality().snapshot).toMatchObject({
@@ -799,13 +830,15 @@ describe('pagehide closes mounted activity before final quality', () => {
       gauges: { pending: 0, inFlight: 1 },
     });
     await vi.advanceTimersByTimeAsync(1000);
+    expect(qualityCalls()[1]![1]!.body).toBe(frozenBody);
+    await vi.advanceTimersByTimeAsync(60_000);
     expect(qualityBodies()[2]).toMatchObject({
       sequence: 2,
       streamId: frozen.streamId,
       counters: { attempted: 3, enqueued: 3 },
       coverage: { final: true },
-      gauges: { pending: 0, inFlight: 1 },
     });
+    expect(qualityBodies()[2].gauges.pending + qualityBodies()[2].gauges.inFlight).toBe(1);
     expect(qualityBodies()[2].eventId).not.toBe(frozen.eventId);
     expect(qualityCalls()[0]![1]!.body).toBe(frozenBody);
   });
