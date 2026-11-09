@@ -180,6 +180,16 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
   await reopened.close();
   await author.getByRole('button', { name: 'Добавить в урок', exact: true }).click();
   await expect(author).toBeHidden();
+  async function publishedQuizActivityVersion(title: string): Promise<string> {
+    const response = await page.request.get('/api/learning/activities');
+    expect(response.ok()).toBe(true);
+    const activity = (await response.json()).items.find(
+      (item: { title: string }) => item.title === title,
+    );
+    expect(activity).toMatchObject({ kind: 'quiz', currentPublishedVersionId: expect.any(String) });
+    return activity.currentPublishedVersionId;
+  }
+  const mixedVersionId = await publishedQuizActivityVersion(quizTitle);
   // A second published version removes manual work. Existing first Course pin must stay exactly V1.
   const versions = await page.context().newPage();
   await versions.goto('/#/home');
@@ -194,9 +204,18 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
   await versions.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(versions.getByText(/Опубликована версия 2/)).toBeVisible();
   await versions.close();
+  const automaticVersionId = await publishedQuizActivityVersion(autoTitle);
   await addCourseBlock(page, 'Практика');
-  await selectCoursePractice(page, autoTitle);
-  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  await selectCoursePractice(page, autoTitle, 1);
+  const pins = editor.locator('.course-pinned-practice');
+  await expect(pins).toHaveCount(2);
+  await expect(pins.nth(0)).toContainText(quizTitle);
+  await expect(pins.nth(0)).toContainText('опубликованная версия 1');
+  await expect(pins.nth(1)).toContainText(autoTitle);
+  await expect(pins.nth(1)).toContainText('опубликованная версия 2');
+  const addLesson = editor.getByRole('button', { name: 'Добавить урок', exact: true });
+  await expect(addLesson).toBeEnabled();
+  await addLesson.click();
   await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
   await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
@@ -205,7 +224,7 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
   const assign = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
   await assign.getByLabel('Класс для курса').selectOption({ label: classTitle });
   await assign.getByRole('button', { name: 'Назначить', exact: true }).click();
-  await expect(assign.getByRole('status')).toContainText('Классу назначена версия 1');
+  await expect(assign.getByRole('status')).toContainText('Сервер подтвердил версию 1');
   await assign.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
   const learner = await learnerAssignments(browser, code, 'quiz-' + suffix);
   const runs = await learner.page.request.get('/api/class-join/me/course-runs');
@@ -226,9 +245,12 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
     );
   const mixed = occurrences.find((item: { title: string }) => item.title === quizTitle),
     automatic = occurrences.find((item: { title: string }) => item.title === autoTitle);
-  expect(mixed.activityKind).toBe('quiz');
-  expect(automatic.activityKind).toBe('quiz');
-  expect(mixed.learningActivityVersionId).not.toBe(automatic.learningActivityVersionId);
+  expect(mixed).toMatchObject({ activityKind: 'quiz', learningActivityVersionId: mixedVersionId });
+  expect(automatic).toMatchObject({
+    activityKind: 'quiz',
+    learningActivityVersionId: automaticVersionId,
+  });
+  expect(mixedVersionId).not.toBe(automaticVersionId);
   const courseUrl = '/#/learning?courseRun=' + encodeURIComponent(run.id);
   await learner.page.goto(courseUrl);
   async function answer(player: Locator, manual: boolean) {
