@@ -137,6 +137,18 @@ function usesElectrothermalProfile(document: ElectronicsDocument): boolean {
     )
   )
     return true;
+  // A photoresistor without a source still accepts ambient-light inputs.
+  // Select a thermal clock only when its circuit can supply electrical power.
+  if (
+    document.components.some((component) => component.kind === 'photoresistor') &&
+    document.components.some(
+      (component) =>
+        isArduinoUno(component) ||
+        electricalModelFor(component).id === 'ideal-dc-source' ||
+        electricalModelFor(component).id === 'function-generator',
+    )
+  )
+    return true;
   // Select the physical profile from the fixed circuit, not the live meter mode.
   // A passive no-source circuit must retain the observable algebraic profile;
   // energized circuits keep the fuse history across A/V/R changes.
@@ -185,6 +197,7 @@ export interface ArduinoCircuitInputEvent {
   readonly property:
     | 'state'
     | 'wiperPosition'
+    | 'illumination'
     | 'temperatureCelsius'
     | 'moisturePercent'
     | 'motionDetected'
@@ -358,6 +371,12 @@ function validInputs(
           typeof event.value === 'boolean') ||
           (event.property === 'wiperPosition' &&
             component.kind === 'potentiometer' &&
+            typeof event.value === 'number' &&
+            Number.isFinite(event.value) &&
+            event.value >= 0 &&
+            event.value <= 1) ||
+          (event.property === 'illumination' &&
+            component.kind === 'photoresistor' &&
             typeof event.value === 'number' &&
             Number.isFinite(event.value) &&
             event.value >= 0 &&

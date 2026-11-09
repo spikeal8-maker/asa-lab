@@ -1,7 +1,23 @@
 import type { SchematicComponent } from './document.js';
+import type { ThermalProfile } from './models/thermal-transient-model.js';
 
 export const PHOTORESISTOR_DEFAULT_ILLUMINATION = 0.5;
-export const PHOTORESISTOR_PROFILE_REGISTRY_VERSION = 1;
+export const PHOTORESISTOR_PROFILE_REGISTRY_VERSION = 2;
+
+// Lumped approximation for a small epoxy-coated CdS cell. The datasheet
+// specifies the electrical limits, but does not give a burnout time.
+const PHOTORESISTOR_THERMAL_PROFILE = {
+  id: 'generic-cds-photoresistor-thermal@1',
+  ambientCelsius: 25,
+  thermalTimeConstantSeconds: 4,
+  ratedTemperatureRiseCelsius: 35,
+  temperatureLoadExponent: 1,
+  warningTemperatureCelsius: 65,
+  overheatTemperatureCelsius: 90,
+  failureTemperatureCelsius: 120,
+  destructiveLoadRatio: 4,
+  failureDelayAtDestructiveSeconds: 0.8,
+} as const satisfies ThermalProfile;
 
 /**
  * Educational CdS LDR profile based on the published GL5528 characteristic class.
@@ -19,6 +35,7 @@ export const PHOTORESISTOR_PROFILE = {
   controlCurveScaleLux: 0.1,
   maximumVoltageVolt: 150,
   maximumPowerWatt: 0.1,
+  thermal: PHOTORESISTOR_THERMAL_PROFILE,
   sourceIds: ['senba-gl5528-datasheet', 'adafruit-photocells-guide'],
 } as const;
 

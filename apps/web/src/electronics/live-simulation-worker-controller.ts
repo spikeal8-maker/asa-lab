@@ -1,3 +1,4 @@
+import { photoresistorIllumination } from '@asa-lab/electronics/simulation';
 import { resetElectronicsTimedState } from '@asa-lab/electronics/timed-state';
 import type {
   ElectronicsArduinoSerialProjection,
@@ -118,6 +119,7 @@ function stripTimedRuntimeInputs(document: SchematicDocument): unknown {
       if (clone.stateProperties) {
         const stateProperties = { ...clone.stateProperties };
         for (const property of TIMED_STATE_PROPERTIES) delete stateProperties[property];
+        if (component.kind === 'photoresistor') delete stateProperties.illumination;
         for (const property of TIMED_CONTROL_PROPERTIES[component.componentTypeId ?? ''] ?? [])
           delete stateProperties[property];
         for (const property of DISPLAY_ONLY_PROPERTIES[component.componentTypeId ?? ''] ?? [])
@@ -209,6 +211,17 @@ function timedRuntimeEvents(
         operation: 'wiperPosition',
         payload: component.wiperPosition,
       });
+    }
+    if (component.kind === 'photoresistor') {
+      const illumination = photoresistorIllumination(component);
+      if (illumination !== photoresistorIllumination(before)) {
+        events.push({
+          atMicroseconds,
+          targetId: component.id,
+          operation: 'illumination',
+          payload: illumination,
+        });
+      }
     }
     for (const property of TIMED_STATE_PROPERTIES) {
       const value = component.stateProperties?.[property];

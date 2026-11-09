@@ -2317,6 +2317,166 @@ describe('Electronics canonical Worker controller', () => {
     }
   });
 
+  it('updates a photoresistor and its LED without restarting a parallel LED branch', async () => {
+    const base: SchematicDocument = {
+      ...circuit,
+      components: [
+        {
+          ...circuit.components[0]!,
+          value: 3,
+          componentTypeId: 'battery-holder-aa-2',
+          pinIds: ['BAT-', 'BAT+'],
+          stateProperties: { cells: 2 },
+        },
+        { ...circuit.components[1]!, value: 330 },
+        {
+          id: 'ldr',
+          kind: 'photoresistor',
+          componentTypeId: 'photoresistor',
+          value: 15_000,
+          position: { x: 40, y: 0 },
+          pinIds: ['lead-1', 'lead-2'],
+        },
+        {
+          id: 'controlled',
+          kind: 'led',
+          componentTypeId: 'led-5mm',
+          value: 2,
+          position: { x: 60, y: 0 },
+          pinIds: ['anode', 'cathode'],
+        },
+        {
+          id: 'parallel',
+          kind: 'led',
+          componentTypeId: 'led-5mm',
+          value: 2,
+          position: { x: 80, y: 0 },
+          pinIds: ['anode', 'cathode'],
+        },
+      ],
+      connections: [
+        ['source', 'BAT+', 'ldr', 'lead-1'],
+        ['ldr', 'lead-2', 'controlled', 'anode'],
+        ['controlled', 'cathode', 'source', 'BAT-'],
+        ['source', 'BAT+', 'resistor', 'a'],
+        ['resistor', 'b', 'parallel', 'anode'],
+        ['parallel', 'cathode', 'source', 'BAT-'],
+      ].map(([from, a, to, b], index) => ({
+        id: `photoresistor-${index}`,
+        from: { componentId: from!, terminal: a! },
+        to: { componentId: to!, terminal: b! },
+      })),
+    };
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onFailure = vi.fn();
+    const onGenerationPending = vi.fn();
+    const complete = async () => {
+      const call = executor.advances.at(-1)!;
+      const response = evaluateSimulationWorkerRequest({
+        protocolVersion: ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
+        engineRevision: ELECTRONICS_SIMULATION_ENGINE_REVISION,
+        kind: 'advance',
+        requestId: `photoresistor-${executor.advances.length}`,
+        generationId: call.generationId,
+        projectSessionId: 'photoresistor',
+        document: call.document,
+        state: call.state,
+        requestedHorizonMicroseconds: call.requestedHorizonMicroseconds,
+        inputEvents: call.inputEvents,
+      });
+      if (!response.ok || response.kind !== 'advance' || !response.advance.result)
+        throw new Error(JSON.stringify(response));
+      expect(response.advance.executionStatus).toBe('ready');
+      expect(response.advance.result.quality?.passed).toBe(true);
+      call.deferred.resolve(response.advance);
+      await flush();
+      return response.advance;
+    };
+    try {
+      controller.start('photoresistor', base, {
+        onResult: vi.fn(),
+        onGenerationPending,
+        onFailure,
+      });
+      executor.preflights[0]!.resolve(result(0));
+      await flush();
+      await complete();
+      controller.update(base, 20_000);
+      let previous = await complete();
+      const read = (id: string) =>
+        previous.result!.components.find((component) => component.componentId === id)!;
+      const steady = read('parallel').brightness!;
+      expect(steady).toBeGreaterThan(0);
+      const current: number[] = [];
+      const brightness: number[] = [];
+      const resistance: number[] = [];
+      for (const illumination of [0, 0.85, 0.95, 1, 0.95, 0.85, 0]) {
+        controller.update(
+          {
+            ...base,
+            components: base.components.map((component) =>
+              component.id === 'ldr'
+                ? { ...component, stateProperties: { illumination } }
+                : component,
+            ),
+          },
+          previous.committedHorizonMicroseconds,
+        );
+        expect(executor.generation).toBe(1);
+        const call = executor.advances.at(-1)!;
+        expect(call.state).toBe(previous.state);
+        expect(call.inputEvents).toEqual([
+          {
+            atMicroseconds: previous.committedHorizonMicroseconds + 1,
+            targetId: 'ldr',
+            operation: 'illumination',
+            payload: illumination,
+          },
+        ]);
+        previous = await complete();
+        expect(Math.abs(read('parallel').brightness! - steady)).toBeLessThan(1);
+        const ldr = read('ldr');
+        current.push(Math.abs(ldr.current));
+        resistance.push(Math.abs(ldr.voltageDrop / ldr.current));
+        brightness.push(read('controlled').brightness!);
+      }
+      expect(current.slice(0, 4)).toEqual([...current.slice(0, 4)].sort((a, b) => a - b));
+      expect(brightness.slice(0, 4)).toEqual([...brightness.slice(0, 4)].sort((a, b) => a - b));
+      expect(current[3]).toBeGreaterThan(current[0]! * 100);
+      expect(brightness[3]).toBeGreaterThan(brightness[0]!);
+      expect(current[6]).toBeCloseTo(current[0]!, 9);
+      expect(brightness[6]).toBe(brightness[0]);
+      expect(resistance[0]).toBeCloseTo(1_000_000, 0);
+      expect(resistance[3]).toBeCloseTo(119.15, 1);
+      expect(resistance.slice(4)).toEqual([
+        expect.closeTo(resistance[2]!, 3),
+        expect.closeTo(resistance[1]!, 3),
+        expect.closeTo(resistance[0]!, 3),
+      ]);
+      for (const [targetId, payload] of [
+        ['resistor', 0.5],
+        ['ldr', -0.1],
+        ['ldr', 1.1],
+        ['ldr', Number.NaN],
+      ] as const) {
+        const nextTime = previous.committedHorizonMicroseconds + 1;
+        const rejected = advanceElectronicsToHorizon(base, {
+          state: previous.state,
+          requestedHorizonMicroseconds: nextTime,
+          inputEvents: [{ atMicroseconds: nextTime, targetId, operation: 'illumination', payload }],
+        });
+        expect(rejected.executionStatus).toBe('fault');
+        expect(rejected.committedHorizonMicroseconds).toBe(previous.committedHorizonMicroseconds);
+      }
+      expect(onGenerationPending).toHaveBeenCalledTimes(1);
+      expect(executor.preflights).toHaveLength(1);
+      expect(onFailure).not.toHaveBeenCalled();
+    } finally {
+      controller.dispose();
+    }
+  });
+
   it('retimes unsent input events beyond progress committed by an in-flight advance', async () => {
     const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
