@@ -408,6 +408,15 @@ for (const width of [1440, 1024, 390, 320]) {
       .getByRole('tablist', { name: 'Разделы ИИ' })
       .getByRole('tab', { name: 'Инструменты', exact: true })
       .click();
+    await expect(page.getByRole('textbox', { name: 'Разрешённые сайты' })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Проверить инструмент' })).toBeEnabled();
+    await noOverflow(page);
+    await normalView(page);
+    await page.screenshot({
+      path: testInfo.outputPath(`tools-compact-${width}.png`),
+      fullPage: true,
+    });
+    await page.getByText('Фильтры и ответы по источникам', { exact: true }).click();
     await page.getByRole('textbox', { name: 'Разрешённые сайты' }).fill('example.org\nнаука.рф');
     await page.getByRole('textbox', { name: 'Исключённые сайты' }).fill('ads.example.org');
     await page
@@ -434,7 +443,9 @@ for (const width of [1440, 1024, 390, 320]) {
         .getByRole('tab', { name: AI_TOOL_LABELS[id], exact: true })
         .click();
       await expect(
-        page.getByRole('article', { name: AI_TOOL_LABELS[id], exact: true }),
+        page
+          .getByRole('tabpanel', { name: AI_TOOL_LABELS[id], exact: true })
+          .getByRole('heading', { name: AI_TOOL_LABELS[id], exact: true }),
       ).toBeVisible();
       await noOverflow(page);
     }

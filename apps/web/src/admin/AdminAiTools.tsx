@@ -57,6 +57,7 @@ export function AdminAiTools({
         ref={tabs}
         role="tablist"
         aria-label="Инструменты помощника"
+        aria-orientation="vertical"
         className="asa-ai-tool-tabs"
       >
         {ORDER.map((id, index) => (
@@ -72,9 +73,9 @@ export function AdminAiTools({
             onClick={() => setSelected(id)}
             onKeyDown={(event) => {
               const next =
-                event.key === 'ArrowRight'
+                event.key === 'ArrowDown' || event.key === 'ArrowRight'
                   ? (index + 1) % ORDER.length
-                  : event.key === 'ArrowLeft'
+                  : event.key === 'ArrowUp' || event.key === 'ArrowLeft'
                     ? (index + ORDER.length - 1) % ORDER.length
                     : event.key === 'Home'
                       ? 0
