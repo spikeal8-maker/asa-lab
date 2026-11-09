@@ -2534,3 +2534,19 @@
     box-shadow: 0 -12px 30px #143d5836;
   }
 }
+
+/* Keep the native Electronics wire-colour popup usable beyond the compact toolbar. */
+@media (min-width: 761px) {
+  .robotics-lab .robotics-electronics-tools.workbench-toolbar {
+    overflow: visible;
+  }
+}
+@media (max-width: 760px) {
+  .robotics-lab .robotics-electronics-tools .workbench-wire-color-menu {
+    position: fixed;
+    z-index: 1300;
+    top: 92px;
+    left: 10px;
+    right: auto;
+  }
+}
