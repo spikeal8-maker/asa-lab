@@ -397,6 +397,48 @@ afterEach(() => {
 });
 
 describe('robotics UI integration with the common workbench port', () => {
+  it('keeps one Electronics-style header, four labelled icon tabs and Save at the far right', async () => {
+    await mountAccountEditor();
+    const header = container.querySelector<HTMLElement>('.robotics-lab > .robotics-unified-header');
+    expect(header).not.toBeNull();
+    expect(header?.classList.contains('workbench-header')).toBe(true);
+    expect(container.querySelectorAll('.robotics-lab > header')).toHaveLength(1);
+    expect(container.querySelector('.robotics-lab > .robotics-tabs')).toBeNull();
+    expect(header?.querySelector('.workbench-brand-mark')).not.toBeNull();
+    expect(header?.querySelector('.robotics-header-module-icon svg')).not.toBeNull();
+    expect(
+      header?.querySelector<HTMLInputElement>('input[aria-label="Название проекта"]')?.value,
+    ).toBe('Публикуемый робот');
+    const tabs = [...header!.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    expect(tabs.map((tab) => tab.getAttribute('aria-label'))).toEqual([
+      'Поле',
+      'Робот',
+      'Электроника',
+      'Программа',
+    ]);
+    expect(tabs.every((tab) => tab.querySelector('svg') !== null)).toBe(true);
+    const save = header!.querySelector<HTMLButtonElement>('.robotics-header-save');
+    expect(save?.getAttribute('aria-label')).toBe('Сохранить');
+    expect(save?.getAttribute('role')).not.toBe('tab');
+    expect(header!.querySelector('.robotics-header-controls')?.lastElementChild).toBe(save);
+    expect(header!.querySelector('.robotics-header-menu-panel')?.textContent).toContain(
+      'Публикация',
+    );
+    expect(header!.querySelector('.robotics-header-menu-panel')?.textContent).toContain(
+      'Мои проекты',
+    );
+    for (const [index, section] of ['field', 'robot', 'electronics', 'program'].entries()) {
+      await act(async () => tabs[index]!.click());
+      expect(tabs[index]!.getAttribute('aria-selected')).toBe('true');
+      expect(container.querySelectorAll('[role="tabpanel"]:not([hidden])')).toHaveLength(1);
+      expect(container.querySelector('#robotics-panel-' + section)?.hasAttribute('hidden')).toBe(
+        false,
+      );
+    }
+    await click('Сохранить');
+    expect(header!.querySelector('.robotics-header-save')).toBe(save);
+  });
+
   it.each(['Save', 'automatic snapshot'] as const)(
     'opens the actual publication dialog after %s already confirmed the source without another PUT',
     async (trigger) => {
@@ -514,7 +556,7 @@ describe('robotics UI integration with the common workbench port', () => {
       return createElement(RoboticsWorkspace, {
         project: account,
         projectId: project.id,
-        header: createElement('header', null, project.title),
+        header: (tabs) => createElement('header', null, project.title, tabs),
       });
     }
     act(() => root.render(createElement(AccountHarness)));
