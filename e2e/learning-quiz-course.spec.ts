@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page, type Locator } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import type { LearningQuizAttempt, QuizAnswer } from '../apps/web/src/api';
 import { e2eAdminPool, seedTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
 import { openPortalSection } from './portal-navigation';
@@ -254,7 +255,17 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
   const courseUrl = '/#/learning?courseRun=' + encodeURIComponent(run.id);
   await learner.page.goto(courseUrl);
   async function answer(player: Locator, manual: boolean) {
-    await player.getByRole('button', { name: 'Начать тест', exact: true }).click();
+    const learnerPage = player.page();
+    const [started] = await Promise.all([
+      learnerPage.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          /\/api\/learning\/activity-participations\/[^/]+\/attempts$/.test(response.url()),
+      ),
+      player.getByRole('button', { name: 'Начать тест', exact: true }).click(),
+    ]);
+    expect(started.ok(), await started.text()).toBe(true);
+    const { attempt } = (await started.json()) as { attempt: LearningQuizAttempt };
     await expect(player.locator('fieldset')).toHaveCount(manual ? 8 : 7);
     for (let index = 1; index <= (manual ? 8 : 7); index++) {
       const field = player.locator('fieldset').nth(index - 1);
@@ -274,8 +285,28 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
           .getByLabel('Развёрнутый ответ', { exact: true })
           .fill('Моё объяснение решения.');
     }
-    await player.getByRole('button', { name: 'Сохранить ответы', exact: true }).click();
-    await expect(player.getByRole('status')).toContainText('Ответы сохранены');
+    // Autosave owns this transition and may already have disabled the manual Save button.
+    await expect(player.getByRole('status')).toHaveText('Ответы сохранены');
+    const expectedAnswers: QuizAnswer[] = [
+      { value: 'o1' },
+      { values: ['o1'] },
+      { value: true },
+      { value: 42 },
+      { value: 'ответ' },
+      { values: ['l1:r1', 'l2:r2'] },
+      { values: ['o2', 'o1'] },
+    ];
+    if (manual) expectedAnswers.push({ value: 'Моё объяснение решения.' });
+    expect(attempt.questionOrder).toHaveLength(expectedAnswers.length);
+    const read = await learnerPage.request.get('/api/learning/attempts/' + attempt.attemptId);
+    expect(read.ok(), await read.text()).toBe(true);
+    const { attempt: saved } = (await read.json()) as { attempt: LearningQuizAttempt };
+    expect(saved.attemptId).toBe(attempt.attemptId);
+    expect(saved.version).toBeGreaterThan(attempt.version);
+    expect(saved.lastSavedAt).toEqual(expect.any(String));
+    expect(saved.answers).toEqual(
+      Object.fromEntries(attempt.questionOrder.map((id, index) => [id, expectedAnswers[index]])),
+    );
   }
   const players = learner.page.getByRole('region', { name: 'Прохождение теста' });
   // section has an accessible name and is therefore a region.
