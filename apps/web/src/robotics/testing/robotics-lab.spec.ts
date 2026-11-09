@@ -444,27 +444,23 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(header!.querySelector('.robotics-header-save')).toBe(save);
   });
 
-  it.each(['Save', 'automatic snapshot'] as const)(
-    'opens the actual publication dialog after %s already confirmed the source without another PUT',
-    async (trigger) => {
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
-      const { project, snapshot, publication } = await mountAccountEditor();
-      if (trigger === 'Save') await click('Сохранить');
-      else await act(async () => vi.advanceTimersByTimeAsync(4000));
-      expect(snapshot).toHaveBeenCalledTimes(1);
-      expect(snapshot.mock.calls[0]?.[2]).toBe(1);
-      expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(true);
+  it('does not upload thumbnails on idle/manual Save; publishes one confirmed thumbnail on demand', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    const { project, snapshot, publication } = await mountAccountEditor();
+    await click('Сохранить');
+    await act(async () => vi.advanceTimersByTimeAsync(125_000));
+    expect(snapshot).not.toHaveBeenCalled();
+    expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(false);
 
-      await click('Публикация');
-      expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
-        'Публикация проекта',
-      );
-      expect(container.querySelector('[data-testid="publication-publish"]')).not.toBeNull();
-      expect(publication).toHaveBeenCalledWith(project.id);
-      expect(snapshot).toHaveBeenCalledTimes(1);
-      expect(container.textContent).not.toContain('Не удалось подготовить изображение');
-    },
-  );
+    await click('Публикация');
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    expect(snapshot.mock.calls[0]?.[2]).toBe(1);
+    expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(true);
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain('Публикация проекта');
+    expect(container.querySelector('[data-testid="publication-publish"]')).not.toBeNull();
+    expect(publication).toHaveBeenCalledWith(project.id);
+    expect(container.textContent).not.toContain('Не удалось подготовить изображение');
+  });
 
   it('keeps publication closed when the current snapshot was not acknowledged', async () => {
     const { project, snapshot, publication } = await mountAccountEditor();
