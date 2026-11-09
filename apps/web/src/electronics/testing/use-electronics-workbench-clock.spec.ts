@@ -2185,7 +2185,59 @@ describe('mounted workbench LED temporal display', () => {
     assertCommitted(0, 'off');
   });
 
-  it('publishes every nonempty Serial projection and clears it immediately without RAF', async () => {
+  it('skips editor renders for identical idle single-board Serial receipts', async () => {
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    const receive = worker().callbacks!.onSerialProjection!;
+    const publish = (serial: Parameters<typeof receive>[0]) => act(async () => receive(serial));
+    const expectPublished = async (serial: Parameters<typeof receive>[0]) => {
+      const previous = workbench.arduinoSerialByBoard;
+      await publish(serial);
+      expect(workbench.arduinoSerialByBoard).not.toBe(previous);
+      expect(Object.values(workbench.arduinoSerialByBoard)).toEqual(serial);
+    };
+    const idle = {
+      componentId: 'uno',
+      streamGeneration: 'project:1:1',
+      begun: true,
+      baudRate: 9600,
+      tx: [],
+      rxPendingBytes: 0,
+    };
+
+    await expectPublished([idle]);
+    const before = renders;
+    for (let receipt = 0; receipt < 4; receipt++) {
+      await publish([{ ...idle, tx: [] }]);
+    }
+    expect(renders - before).toBe(0);
+
+    let last = idle;
+    for (const change of [
+      { streamGeneration: 'project:1:2' },
+      { begun: false },
+      { baudRate: 115200 },
+      { rxPendingBytes: 3 },
+      { componentId: 'second' },
+    ]) {
+      last = { ...last, ...change };
+      await expectPublished([last]);
+    }
+
+    const tx = { ...last, tx: [{ sequence: 0, atMicroseconds: 1000, text: 'ready' }] };
+    await expectPublished([tx]);
+    await expectPublished([{ ...tx, tx: [...tx.tx] }]);
+    await expectPublished([last]);
+
+    const twoBoards = [idle, last];
+    await expectPublished(twoBoards);
+    await expectPublished(twoBoards.map((board) => ({ ...board, tx: [] })));
+    await expectPublished([idle]);
+    await expectPublished([]);
+    await expectPublished([idle]);
+  });
+
+  it('publishes changed Serial projections and clears them immediately without RAF', async () => {
     await mount();
     await act(async () => workbench.toggleSimulation());
     const projection = {
