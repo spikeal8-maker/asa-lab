@@ -79,6 +79,8 @@ COPY --from=workspace --chown=node:node /workspace/apps/api/src/ai-attachments/d
 COPY --from=workspace --chown=node:node /workspace/migrations ./migrations
 COPY --from=workspace --chown=node:node /workspace/tools/migrate.mjs ./tools/migrate.mjs
 COPY --from=workspace --chown=node:node /workspace/tools/seed-dev.mjs ./tools/seed-dev.mjs
+COPY --from=workspace --chown=node:node /workspace/tools/polza-reconcile-core.mjs ./tools/polza-reconcile-core.mjs
+COPY --from=workspace --chown=node:node /workspace/tools/polza-reconcile.mjs ./tools/polza-reconcile.mjs
 COPY --from=workspace --chown=node:node /workspace/docker/provision-runtime-role.mjs ./docker/provision-runtime-role.mjs
 COPY --from=workspace --chown=node:node /workspace/docker/certs/russian-trusted-root-ca.pem ./certs/russian-trusted-root-ca.pem
 COPY --from=workspace --chown=node:node --chmod=0555 /workspace/docker/api-entrypoint.sh ./docker/api-entrypoint.sh
