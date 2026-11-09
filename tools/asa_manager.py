@@ -29,7 +29,7 @@ from deployment.fresh_install import fresh_options, assert_clean_install_destina
 from deployment.repair_plan import diagnose as diagnose_recovery
 from deployment.import_preflight import validate_import_archive
 from deployment.import_target_plan import plan_transfer
-from deployment import application_rollback
+from deployment import application_rollback, school_application_return
 
 
 def clean_checkout(install):
@@ -216,6 +216,12 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
            require_application_rollback=False):
     require(not require_application_rollback or not (fresh or scheduled),
             'ROLLBACK_ARGUMENT', 'Application return preparation belongs only to a manual existing P0 update.')
+    if require_application_rollback and deployment_digest == school_application_return.FORWARD_DIGEST:
+        school_application_return.require_fixture(install)
+        doctor(install)
+        backup_directory(install)
+        school_application_return.forward(install, check=check)
+        return
     application_rollback.guard_update(install)
     if scheduled:
         require(install.settings.get("automaticUpdates") is True, "SCHEDULE_DISABLED", "Automatic updates are disabled.")
@@ -238,6 +244,11 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
                 'The rediscovered immutable manifest differs from the pending selection.')
     before = None if fresh else install.readiness()
     if before:
+        require(not (before == {"revision": school_application_return.RELEASES["original"][0], "schema": 307}
+                     and release["schema"] > 307
+                     and install.profile == "production" and install.project == "asa-lab-school"),
+                "SCHOOL_RETURN_QUALIFICATION_ONLY",
+                "The school schema change is blocked until exact native return qualification is accepted.")
         require(int(release['schema']) >= int(before['schema']), 'RELEASE_DOWNGRADE',
                 'Published release schema is older than the running database; refusing downgrade.')
     installed_path = install.state / "installed-release.json"
@@ -458,6 +469,8 @@ def main(argv=None):
         with nullcontext() if args.action in ('doctor', 'check', 'repair-plan', 'rollback-plan') else operation_lock(install.root):
             if args.action in ('install', 'check', 'update'):
                 args.deployment_digest, _ = resolve_selection(install, args.deployment_digest)
+            if args.action in ('install', 'check', 'update', 'configure', 'backup', 'restore-check', 'acknowledge'):
+                school_application_return.guard(install)
             if args.action == "doctor":
                 doctor(install)
             elif args.action == "repair-plan":
@@ -465,7 +478,8 @@ def main(argv=None):
                 # command or acknowledgement of the unfinished transaction.
                 return diagnose_recovery(install)
             elif args.action in ('rollback-plan', 'rollback'):
-                application_rollback.rollback(install, check=args.action == 'rollback-plan')
+                return_policy = school_application_return if school_application_return.active(install) else application_rollback
+                return_policy.rollback(install, check=args.action == 'rollback-plan')
             elif args.action == "configure":
                 doctor(install)
                 save_settings(install, args.enable_auto_update)
