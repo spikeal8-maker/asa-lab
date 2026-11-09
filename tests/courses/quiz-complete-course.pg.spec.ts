@@ -65,6 +65,7 @@ async function fixture(
   input: {
     manual?: boolean;
     studentAccountId?: string;
+    singleQuestion?: boolean;
     attempts?: number;
     seconds?: number | null;
     runMinutes?: number;
@@ -119,7 +120,7 @@ async function fixture(
   ).rows[0];
   expect(question.result_code).toBe('ok');
   const otherQuestions: Record<string, string> = {};
-  for (const [type, schema, key] of [
+  const additionalQuestions = [
     [
       'multiple_choice',
       {
@@ -158,7 +159,8 @@ async function fixture(
       { values: ['b', 'a'] },
     ],
     ...(input.manual === false ? [] : [['long_text_manual', {}, {}] as const]),
-  ] as const) {
+  ] as const;
+  for (const [type, schema, key] of input.singleQuestion ? [] : additionalQuestions) {
     const created = (
       await admin.query(
         'SELECT * FROM question_version_create($1,$2,\'school\',$3,\'[{"type":"paragraph","text":"Frozen prompt"}]\'::jsonb,$4::jsonb,$5::jsonb,1,NULL,NULL,ARRAY[]::text[])',
@@ -609,32 +611,44 @@ describe('Complete canonical Quiz Course vertical', () => {
         ['quiz-feedback-' + randomUUID() + '@test.local'],
       )
     ).rows[0].id as string;
-    const f = await fixture({ manual: false, policy, studentAccountId: accountId });
+    const f = await fixture({ policy, studentAccountId: accountId, singleQuestion: true });
     const begun = await start(f.student.principal, f.part);
     const id = begun.attempt.attemptId;
-    await save(f.student.principal, id, 1, allAnswers(f));
+    expect(
+      (await save(f.student.principal, id, 1, { [f.question]: { value: 'b' } })).result_code,
+    ).toBe('ok');
     const done = await submit(f.student.principal, id, 2);
     expect(done.result_code).toBe('ok');
     expect(done.attempt).not.toHaveProperty('result');
-    expect(
-      (await app.query('SELECT * FROM learning_results_for_seat($1)', [f.student.id])).rows,
-    ).toEqual([]);
-    expect(
-      (
-        await app.query('SELECT * FROM learning_results_for_account($1) WHERE assignment_id=$2', [
-          accountId,
-          f.assignment,
-        ])
-      ).rows,
-    ).toEqual([]);
-    for (const [sql, param] of [
-      ['learning_canonical_evidence_for_seat', f.student.id],
-      ['learning_canonical_evidence_for_account', accountId],
-    ]) {
-      const row = (await app.query(`SELECT evidence FROM ${sql}($1)`, [param])).rows.find(
+    const seatResults = () =>
+      app.query('SELECT raw_points FROM learning_results_for_seat($1)', [f.student.id]);
+    const accountResults = () =>
+      app.query('SELECT raw_points FROM learning_results_for_account($1) WHERE assignment_id=$2', [
+        accountId,
+        f.assignment,
+      ]);
+    const seatEvidence = () =>
+      app.query('SELECT evidence FROM learning_canonical_evidence_for_seat($1)', [f.student.id]);
+    const revision = (result: pg.QueryResult) =>
+      result.rows.find(
         (entry: { evidence: { activityRunId: string } }) => entry.evidence.activityRunId === f.run,
-      );
-      expect(row.evidence.selectedRevision).toMatchObject({
+      )?.evidence.selectedRevision;
+    const [hiddenSeat, hiddenAccount, seatBefore, accountBefore, teacherBefore, unreleased] =
+      await Promise.all([
+        seatResults(),
+        accountResults(),
+        seatEvidence(),
+        app.query('SELECT evidence FROM learning_canonical_evidence_for_account($1)', [accountId]),
+        app.query('SELECT evidence FROM learning_canonical_evidence_for_teacher($1,$2)', [
+          ownerAccount,
+          f.classroom,
+        ]),
+        read(f.student.principal, id),
+      ]);
+    expect(hiddenSeat.rows).toEqual([]);
+    expect(hiddenAccount.rows).toEqual([]);
+    for (const projection of [seatBefore, accountBefore]) {
+      expect(revision(projection)).toMatchObject({
         rawPoints: null,
         maxPoints: null,
         percentageBasisPoints: null,
@@ -642,46 +656,28 @@ describe('Complete canonical Quiz Course vertical', () => {
         completionValue: null,
       });
     }
-    expect(
-      (
-        await app.query('SELECT evidence FROM learning_canonical_evidence_for_teacher($1,$2)', [
-          ownerAccount,
-          f.classroom,
-        ])
-      ).rows.find(
-        (entry: { evidence: { activityRunId: string } }) => entry.evidence.activityRunId === f.run,
-      ).evidence.selectedRevision.rawPoints,
-    ).toBe(7);
+    expect(revision(teacherBefore)?.rawPoints).toBe(1);
+    expect(unreleased).not.toHaveProperty('feedback');
+    expect(JSON.stringify(unreleased)).not.toContain('answerKey');
 
-    expect(JSON.stringify(await read(f.student.principal, id))).not.toContain('answerKey');
     await admin.query("UPDATE classroom_assignments SET status='closed' WHERE id=$1", [
       f.assignment,
     ]);
-    const released = await read(f.student.principal, id);
-    expect(released.result).toMatchObject({ points: 7, provisional: false });
-    expect(released.feedback).toHaveLength(7);
-    expect(
-      (await app.query('SELECT raw_points FROM learning_results_for_seat($1)', [f.student.id]))
-        .rows,
-    ).toEqual(expect.arrayContaining([expect.objectContaining({ raw_points: 7 })]));
-    expect(
-      (
-        await app.query(
-          'SELECT raw_points FROM learning_results_for_account($1) WHERE assignment_id=$2',
-          [accountId, f.assignment],
-        )
-      ).rows,
-    ).toEqual(expect.arrayContaining([expect.objectContaining({ raw_points: 7 })]));
-    const visible = (
-      await app.query('SELECT evidence FROM learning_canonical_evidence_for_seat($1)', [
-        f.student.id,
-      ])
-    ).rows.find(
-      (entry: { evidence: { activityRunId: string } }) => entry.evidence.activityRunId === f.run,
+    const [released, visibleSeat, visibleAccount, seatAfter] = await Promise.all([
+      read(f.student.principal, id),
+      seatResults(),
+      accountResults(),
+      seatEvidence(),
+    ]);
+    expect(released.result).toMatchObject({ points: 1, provisional: false });
+    expect(released.feedback).toEqual([expect.objectContaining({ correct: true, points: 1 })]);
+    expect(visibleSeat.rows).toEqual(
+      expect.arrayContaining([expect.objectContaining({ raw_points: 1 })]),
     );
-    expect(visible.evidence.selectedRevision.rawPoints).toBe(7);
-    expect(visible.evidence.selectedRevision.completionValue).toBe(true);
-
+    expect(visibleAccount.rows).toEqual(
+      expect.arrayContaining([expect.objectContaining({ raw_points: 1 })]),
+    );
+    expect(revision(seatAfter)).toMatchObject({ rawPoints: 1, completionValue: true });
     expect(JSON.stringify(released)).not.toContain('answerKey');
   });
   it('preserves all original five grader rules, negative decimal tolerance and wrong matching/ordering', async () => {
