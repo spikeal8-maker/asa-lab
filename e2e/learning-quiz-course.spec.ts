@@ -134,7 +134,7 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
     await author.getByLabel('Баллы за вопрос ' + index, { exact: true }).fill('1');
     const row = author
       .locator('.quiz-editor details')
-      .filter({ has: author.getByLabel('Тип вопроса ' + index, { exact: true }) });
+      .filter({ has: page.getByLabel('Тип вопроса ' + index, { exact: true }) });
     if (['single_choice', 'multiple_choice', 'ordering'].includes(type)) {
       await row.getByLabel('options ' + index + '.1', { exact: true }).fill('Вариант A');
       await row.getByLabel('options ' + index + '.2', { exact: true }).fill('Вариант B');
@@ -289,7 +289,7 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
       .getByRole('navigation', { name: 'Разделы класса' })
       .getByRole('button', { name: 'Журнал', exact: true })
       .click();
-    await page.getByRole('button', { name: 'Обновить', exact: true }).click();
+    await page.getByRole('button', { name: 'Задания', exact: true }).click();
   }
   await journal();
   const mixedCell = page.getByRole('button', { name: new RegExp('^Ученик теста · ' + quizTitle) }),
@@ -297,7 +297,7 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
   await expect(autoCell).toContainText('7/7');
   await expect(mixedCell).not.toContainText('7/8');
   await mixedCell.click();
-  const review = page.getByRole('region', { name: 'Проверка работы' });
+  const review = page.getByRole('region', { name: 'Проверка сдачи', exact: true });
   await expect(review.getByLabel('Развёрнутый ответ', { exact: true })).toHaveValue(
     'Моё объяснение решения.',
   );
@@ -334,10 +334,11 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
   await page.goto('/#/classrooms/' + classroomId);
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
-    .getByRole('button', { name: 'Обучение', exact: true })
+    .getByRole('button', { name: 'Заявки', exact: true })
     .click();
   await page.getByRole('button', { name: 'Обновить заявки', exact: true }).click();
   await page.getByRole('button', { name: 'Принять заявку', exact: true }).click();
+  await expect(page.locator('.learning-join-requests')).toContainText('Принята');
   await account.goto(courseUrl);
   const accountPlayers = account.getByRole('region', { name: 'Прохождение теста' });
   await answer(accountPlayers.nth(0), true);
