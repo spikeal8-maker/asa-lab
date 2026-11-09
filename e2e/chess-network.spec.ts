@@ -971,6 +971,26 @@ test('two pupils finish white and black checkmates with personal outcomes on des
           );
       // Replay and reload are durable views, never a second victory celebration/result insertion.
       for (const learner of [white, black]) {
+        async function reopenFromHistory(enterLobby: () => Promise<unknown>) {
+          const [lobbyResponse] = await Promise.all([
+            learner.page.waitForResponse(
+              (response) =>
+                new URL(response.url()).pathname === '/api/games/chess/lobby' &&
+                response.request().method() === 'POST',
+              { timeout: 15000 },
+            ),
+            enterLobby(),
+          ]);
+          expect(lobbyResponse.ok()).toBe(true);
+          await expect(
+            learner.page.getByRole('heading', { name: 'Мои сетевые партии', exact: true }),
+          ).toBeVisible();
+          // The first roster render can move the history row during a touch gesture.
+          const roster = learner.page.getByRole('region', { name: 'Игроки в сети', exact: true });
+          await expect(roster).toBeVisible();
+          await expect(roster.getByText('Ищем доступных игроков…', { exact: true })).toBeHidden();
+          await learner.page.locator(`button[data-match-id="${id}"]`).tap();
+        }
         const historyBefore = await (
           await learner.page.request.get('/api/games/chess/history')
         ).json();
@@ -980,17 +1000,14 @@ test('two pupils finish white and black checkmates with personal outcomes on des
         expect(
           historyBefore.matches.find((match: { id: string }) => match.id === id),
         ).toMatchObject(frozen);
-        await learner.page.getByRole('button', { name: 'К приглашениям', exact: true }).tap();
-        await learner.page.locator(`button[data-match-id="${id}"]`).tap();
+        await reopenFromHistory(() =>
+          learner.page.getByRole('button', { name: 'К приглашениям', exact: true }).tap(),
+        );
         await expect(learner.page.locator('[data-outcome]')).toContainText(
           learner.page === winner ? 'Вы победили' : 'Вы проиграли',
         );
         await expect(learner.page.locator('[data-victory-effect="active"]')).toHaveCount(0);
-        await learner.page.reload();
-        await expect(
-          learner.page.getByRole('heading', { name: 'Мои сетевые партии', exact: true }),
-        ).toBeVisible();
-        await learner.page.locator(`button[data-match-id="${id}"]`).tap();
+        await reopenFromHistory(() => learner.page.reload());
         await expect(learner.page.locator('[data-outcome]')).toContainText(
           learner.page === winner ? 'Вы победили' : 'Вы проиграли',
         );
