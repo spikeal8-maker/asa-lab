@@ -249,6 +249,18 @@ jobs:
           ASA_BLOCKS_UPSTREAM_ORIGIN: http://127.0.0.1:4613
         shell: bash
         run: node tools/testing/learning-e1-browser.mjs
+      # P0_ORIGIN_DIAGNOSTIC_BEGIN
+      - name: Diagnose the original failed first partition without replacing its result
+        if: failure() && matrix.batch == 'first' && steps.browser.outcome == 'failure'
+        env:
+          ASA_DIAGNOSTIC_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          ASA_DIAGNOSTIC_BROWSER_OUTCOME: ${{ steps.browser.outcome }}
+          ASA_DIAGNOSTIC_BATCH: ${{ matrix.batch }}
+        run: |
+          git fetch --no-tags --depth=2 origin "$ASA_DIAGNOSTIC_SOURCE_SHA"
+          node --test tools/testing/learning-origin-list-diagnostic.test.mjs
+          node tools/testing/learning-origin-list-diagnostic.mjs
+      # P0_ORIGIN_DIAGNOSTIC_END
       - name: Record the complete exact-source browser partition
         env:
           SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -288,6 +300,16 @@ jobs:
             reports/playwright
           retention-days: 14
 
+      # P0_ORIGIN_DIAGNOSTIC_BEGIN
+      - name: Preserve diagnostic plans and the unchanged failing result
+        if: always() && matrix.batch == 'first' && steps.browser.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: origin-learner-list-diagnostic-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: reports/diagnostics
+          if-no-files-found: error
+          retention-days: 14
+      # P0_ORIGIN_DIAGNOSTIC_END
   learning-e1:
     name: Learning fresh upgrade and real browser journeys
     needs: [applicability, learning-e1-batch]
