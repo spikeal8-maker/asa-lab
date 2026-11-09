@@ -36,6 +36,7 @@ import { useLocalRoboticsProject } from './use-local-robotics-project';
 import type { RoboticsProjectController } from './use-robotics-project';
 import { RobotField } from './RobotField';
 import { RobotFieldEditor } from './RobotFieldEditor';
+import { RoboticsElectronicsToolbar } from './RoboticsElectronicsToolbar';
 import { RobotAssemblyPanel } from './RobotAssemblyPanel';
 import {
   createRoboticsProgramPreset,
@@ -853,6 +854,10 @@ export function RoboticsWorkspace({
             showGrid={showGrid}
             onShowGridChange={setShowGrid}
             onCommit={local.setWorld}
+            canUndo={controller.canUndo}
+            canRedo={controller.canRedo}
+            onUndo={() => controller.undo()}
+            onRedo={() => controller.redo()}
           />
         </section>
         <section
@@ -880,30 +885,8 @@ export function RoboticsWorkspace({
           aria-owns={section === 'electronics' ? 'robotics-scheme' : undefined}
           hidden={section !== 'electronics'}
         >
-          <div className="robotics-panel-toolbar">
-            <h2>Схема робота</h2>
-            <div className="robotics-inline-actions">
-              <button type="button" className="robotics-button" onClick={controller.fitScene}>
-                Вписать
-              </button>
-              <button
-                type="button"
-                className="robotics-button"
-                onClick={() => controller.setLibraryOpen((value) => !value)}
-                aria-pressed={controller.libraryOpen}
-                disabled={running}
-              >
-                Компоненты
-              </button>
-              <button
-                type="button"
-                className="robotics-button"
-                disabled={running || !controller.selection}
-                onClick={controller.removeSelection}
-              >
-                Удалить
-              </button>
-            </div>
+          <div className="robotics-panel-toolbar robotics-electronics-toolbar">
+            <RoboticsElectronicsToolbar controller={controller} running={running} />
           </div>
           <p className="robotics-edit-hint">
             {running
@@ -1094,25 +1077,6 @@ export function RoboticsWorkspace({
           </div>
         </section>
       </div>
-      <footer className="robotics-footer">
-        <div className="robotics-history" aria-label="История проекта">
-          <button
-            type="button"
-            disabled={running || !controller.canUndo}
-            onClick={() => controller.undo()}
-          >
-            Отменить
-          </button>
-          <button
-            type="button"
-            disabled={running || !controller.canRedo}
-            onClick={() => controller.redo()}
-          >
-            Повторить
-          </button>
-        </div>
-        <span>Один опыт — до 40 с</span>
-      </footer>
     </main>
   );
 }

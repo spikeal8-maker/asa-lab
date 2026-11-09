@@ -149,6 +149,10 @@ export function RobotFieldEditor({
   onCommit,
   sourceSchemaVersion,
   onUpgradeField,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
 }: {
   world: RoboticsWorldDocument;
   state: RoboticsWorldState;
@@ -159,6 +163,10 @@ export function RobotFieldEditor({
   onCommit: (world: RoboticsWorldDocument) => boolean;
   sourceSchemaVersion: 2 | 3;
   onUpgradeField: () => boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
 }) {
   const [tool, setTool] = useState<Tool>('select');
   const [stamp, setStamp] = useState<RoboticsTileStampKind>('straight');
@@ -482,25 +490,13 @@ export function RobotFieldEditor({
   ];
   return (
     <>
-      <div className="robotics-panel-toolbar robotics-field-heading">
-        <h2>Поле</h2>
-        <span className="robotics-physics-badge" data-testid="robotics-physics-mode">
-          {!extended
-            ? 'Прежняя модель'
-            : getRoboticsPhysicsMode(world) === 'dynamic'
-              ? 'Динамика 2D'
-              : 'Учебный'}
-        </span>
-        <button
-          ref={propertiesButton}
-          type="button"
-          className="robotics-button robotics-properties-toggle"
-          aria-expanded={propertiesOpen}
-          onClick={() => setPropertiesOpen((value) => !value)}
-        >
-          Свойства
-        </button>
-      </div>
+      <span className="robotics-visually-hidden" data-testid="robotics-physics-mode">
+        {!extended
+          ? 'Прежняя модель'
+          : getRoboticsPhysicsMode(world) === 'dynamic'
+            ? 'Динамика 2D'
+            : 'Учебный'}
+      </span>
       <div className="robotics-field-tools" role="toolbar" aria-label="Инструменты поля">
         {TOOLS.map((item) => (
           <button
@@ -523,6 +519,15 @@ export function RobotFieldEditor({
             {item.label}
           </button>
         ))}
+        <button
+          ref={propertiesButton}
+          type="button"
+          className="robotics-button robotics-properties-toggle"
+          aria-expanded={propertiesOpen}
+          onClick={() => setPropertiesOpen((value) => !value)}
+        >
+          Свойства
+        </button>
       </div>
       <div className="robotics-field-view-tools" aria-label="Вид и привязка поля">
         <label className="robotics-grid-toggle">
@@ -557,6 +562,41 @@ export function RobotFieldEditor({
         >
           Рука
         </button>
+        <div className="robotics-field-history" role="group" aria-label="История изменений поля">
+          <button
+            type="button"
+            aria-label="Отменить"
+            title="Шаг назад — отменить последнее изменение"
+            disabled={running || !canUndo}
+            onClick={onUndo}
+          >
+            <span aria-hidden="true">↶</span>
+            <span>Назад</span>
+          </button>
+          <button
+            type="button"
+            aria-label="Повторить"
+            title="Шаг вперёд — вернуть отменённое изменение"
+            disabled={running || !canRedo}
+            onClick={onRedo}
+          >
+            <span aria-hidden="true">↷</span>
+            <span>Вперёд</span>
+          </button>
+        </div>
+        <output
+          className="robotics-field-elapsed"
+          aria-label="Время опыта"
+          data-microseconds={state.atMicroseconds}
+          title="Время текущего опыта (не более 40 секунд)"
+        >
+          Время:{' '}
+          {(state.atMicroseconds / 1_000_000).toLocaleString('ru-RU', {
+            maximumFractionDigits: 1,
+            minimumFractionDigits: 1,
+          })}{' '}
+          с
+        </output>
         <div className="robotics-field-zoom">
           <button
             type="button"

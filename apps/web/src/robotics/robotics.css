@@ -2113,3 +2113,242 @@
     gap: 3px;
   }
 }
+
+/* ROBOTICS-FIELD-ELECTRONICS-003 — no redundant title/footer rows.
+   Keep all tools connected to the existing field and electronics controllers. */
+.robotics-lab,
+.robotics-portal-editor .robotics-lab {
+  grid-template-rows: 48px minmax(0, 1fr);
+}
+.robotics-lab > .robotics-workspace {
+  grid-row: 2;
+}
+.robotics-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.robotics-field-tools {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  gap: 4px;
+}
+.robotics-field-tools > button {
+  min-height: 32px;
+  padding: 4px 8px;
+}
+.robotics-field-view-tools {
+  min-width: 0;
+  gap: 4px 8px;
+}
+.robotics-field-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding-left: 8px;
+  border-left: 1px solid #dce7ee;
+}
+.robotics-field-history > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  color: #355d74;
+}
+.robotics-field-history > button:disabled {
+  opacity: 0.42;
+}
+.robotics-field-history > button > span:first-child {
+  font-size: 17px;
+  line-height: 1;
+}
+.robotics-field-elapsed {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #eff5f9;
+  color: #4b687b;
+  white-space: nowrap;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.robotics-electronics-toolbar {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  padding: 4px 6px;
+  min-height: 44px;
+  border-bottom: 1px solid #dde9ee;
+  background: #f8fafc;
+}
+.robotics-electronics-tools {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scroll-padding-inline: 10px;
+}
+.robotics-electronics-tools-group {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  padding-right: 6px;
+  margin-right: 1px;
+  border-right: 1px solid #d6e3eb;
+}
+.robotics-electronics-tools-group:last-child {
+  border-right: 0;
+  margin-right: 0;
+  padding-right: 0;
+}
+.robotics-electronics-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 5px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 7px;
+  border: 1px solid #d3e0e8;
+  border-radius: 7px;
+  background: white;
+  color: #36566c;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.robotics-electronics-tool svg {
+  display: block;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+}
+.robotics-electronics-text-icon {
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 800;
+}
+.robotics-electronics-tool:hover:not(:disabled),
+.robotics-electronics-tool[aria-pressed='true'] {
+  background: #e6f5f9;
+  border-color: #80bfd2;
+  color: #066f90;
+}
+.robotics-electronics-tool:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+.robotics-electronics-wire-colors {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 3px;
+  padding: 0 2px;
+}
+.robotics-electronics-wire-swatch {
+  display: inline-block;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 2px solid #e4eaf0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.robotics-electronics-wire-swatch[aria-pressed='true'] {
+  outline: 2px solid #0a96bc;
+  outline-offset: 1px;
+}
+.robotics-electronics-wire-swatch:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.robotics-electronics-panel .robotics-edit-hint {
+  flex: 0 0 auto;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+@media (max-width: 1100px) {
+  .robotics-electronics-tool-label {
+    display: none;
+  }
+  .robotics-electronics-tool {
+    width: 34px;
+    padding: 0;
+  }
+}
+@media (max-width: 760px) {
+  .robotics-lab,
+  .robotics-portal-editor .robotics-lab {
+    grid-template-rows: 48px 36px minmax(0, 1fr);
+  }
+  .robotics-lab > .robotics-run-bar {
+    grid-row: 2;
+  }
+  .robotics-lab > .robotics-workspace {
+    grid-row: 3;
+  }
+  .robotics-field-tools {
+    padding: 4px 5px;
+  }
+  .robotics-field-view-tools {
+    padding: 3px 5px;
+    gap: 3px 5px;
+  }
+  .robotics-field-history {
+    padding-left: 4px;
+  }
+  .robotics-field-history > button {
+    padding-inline: 5px;
+  }
+  .robotics-field-elapsed {
+    padding-inline: 4px;
+  }
+  .robotics-electronics-toolbar {
+    padding: 3px 5px;
+    min-height: 40px;
+  }
+  .robotics-electronics-tool {
+    flex: 0 0 34px;
+    height: 34px;
+    min-height: 34px;
+  }
+}
+@media (max-width: 360px) {
+  .robotics-field-history > button > span:last-child {
+    display: none;
+  }
+  .robotics-field-history > button {
+    width: 30px;
+    justify-content: center;
+  }
+}
+
+/* Fit the complete electronics action set at standard desktop widths. */
+@media (max-width: 1500px) {
+  .robotics-electronics-tools-group:not(:first-child) .robotics-electronics-tool-label {
+    display: none;
+  }
+  .robotics-electronics-tools-group:not(:first-child) .robotics-electronics-tool {
+    width: 34px;
+    padding: 0;
+  }
+}

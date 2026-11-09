@@ -175,7 +175,9 @@ const originalScrollIntoView = Object.getOwnPropertyDescriptor(
 
 function control(label: string): HTMLButtonElement {
   const found = [...container.querySelectorAll('button')].find(
-    (button) => button.getAttribute('aria-label') === label || button.textContent?.includes(label),
+    (button) =>
+      button.getAttribute('aria-label') === label ||
+      (!button.hasAttribute('aria-label') && button.textContent?.includes(label)),
   );
   if (!found) throw new Error(`Missing control: ${label}`);
   return found;
