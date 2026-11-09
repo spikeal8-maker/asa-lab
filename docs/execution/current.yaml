@@ -318,6 +318,65 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
+  - id: school-308-application-return
+    worktree_id: school-308-application-return-20261109
+    owned_paths:
+      - tools/asa
+      - docs/deployment/APPLICATION_ROLLBACK.md
+    task:
+      id: TASK-SCHOOL-308-APPLICATION-RETURN-001
+      issue: 1029
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: select_schema308_guarded_recovery
+      owner_acceptance: pending
+      owner_authorization: >-
+        On 2026-11-09 the owner requested an official schema 308 fallback release,
+        a native H03 application return with data written after the update, and
+        GitHub evidence. The owner conditions school deployment on successful
+        qualification. This selection authorizes source and disposable H03 work.
+      scope: >-
+        Add a bounded application return for the school transition from the
+        official schema 307 runtime to a distinct official schema 308 target.
+        Use the already-published 406ac609474bae731bd324e8e4fac6993bb9bc8b
+        release as the schema 308 fallback candidate. Preserve the existing
+        schema 304 contract. Bind recovery to exact manifests and a durable
+        record before switching. Choose recovery from observed migration history.
+      constraints:
+        - Test with an isolated synthetic H03 project before any school switch.
+        - Preserve the PostgreSQL container, database identity, MinIO and persistent volumes.
+        - No schema downgrade, snapshot overwrite, manual marker clearing or readiness override.
+        - Prove normal return, restart after interruption and API/S3 readback of writes made after update.
+        - Require independent source review, exact CI and publication evidence. Keep the school deployment gate until native evidence passes.
+      execution_coordination: >-
+        Use direct-main coordination for the existing manager, deployment tools
+        and shared workflow paths. Check exact planned paths and do not touch
+        legacy 809 worktrees or reuse its permissions.
+      evidence: https://github.com/spikeal8-maker/asa-lab/issues/1029#issuecomment-6750120831
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 64176e85dece6a05e0ab8986fcb7fa0b1b33aa00
+      head_sha: null
+      main:
+        branch: main
+        sha: 64176e85dece6a05e0ab8986fcb7fa0b1b33aa00
+      observed_at: '2026-11-09T20:05:00Z'
+      observation_note: >-
+        Baseline observation for task selection. The schema 308 fallback
+        candidate is published. School recovery tooling and native evidence
+        are pending. Fetch main before authoring.
+    gates:
+      focused:
+        workflow: ASA P0 Application Return
+        commands:
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: classroom-access-budget
     worktree_id: classroom-access-budget-820
     owned_paths:
