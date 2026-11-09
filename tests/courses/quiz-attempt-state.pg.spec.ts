@@ -635,8 +635,7 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
   });
   it('isolates actual shared-handout course siblings with independent slots, timers and saved answers', async () => {
     const f = await fixture({ attempts: 1, seconds: 120 });
-    // Historical shared-handout shape is seeded through published schema/commands;
-    // this is not a claim that the project-only Course Builder can author Quiz yet.
+    // Seed the shared-handout Course shape without preactivating its enrollment.
     const course = (
       await admin.query(
         "INSERT INTO courses(tenant_id,owner_principal_id,title) VALUES($1,$2,'Historical Quiz course') RETURNING id",
@@ -676,17 +675,8 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
         ]),
       )
     ).rows[0];
-    expect(enrollment.result_code).toBe('ok');
-    expect(
-      (
-        await inTenant((client) =>
-          client.query('SELECT * FROM course_enrollment_activate($1,$2)', [
-            f.student.principal,
-            enrollment.enrollment_id,
-          ]),
-        )
-      ).rows[0].result_code,
-    ).toBe('ok');
+    expect(enrollment).toMatchObject({ result_code: 'ok', enrollment_status: 'assigned' });
+    const runs: string[] = [];
     const parts: string[] = [];
     for (const block of ['first-quiz', 'second-quiz']) {
       const run = (
@@ -706,6 +696,7 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
         )
       ).rows[0];
       expect(run.result_code).toBe('ok');
+      runs.push(run.activity_run_id);
       const part = (
         await inTenant((client) =>
           client.query('SELECT * FROM activity_participation_assign($1,$2,$3,$4)', [
@@ -719,11 +710,68 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
       expect(part.result_code).toBe('ok');
       parts.push(part.participation_id);
     }
-    const [first, second] = await Promise.all(
-      parts.map((part) => start(f.student.principal, part)),
-    );
+    const readRun = async (run: string) =>
+      (await app.query('SELECT learning_quiz_run_read($1,$2) AS value', [f.student.principal, run]))
+        .rows[0].value;
+    expect(await readRun(runs[0]!)).toMatchObject({
+      canStart: true,
+      title: expect.any(String),
+      attempt: null,
+    });
+    for (const [field, hours] of [
+      ['opensAt', 1],
+      ['closesAt', -1],
+    ] as const) {
+      await admin.query(
+        "UPDATE activity_participations SET operational_overrides=jsonb_build_object($2::text,now()+$3::int*interval '1 hour') WHERE id=$1",
+        [parts[0], field, hours],
+      );
+      expect(await readRun(runs[0]!)).toMatchObject({
+        canStart: false,
+        title: null,
+        attempt: null,
+      });
+      expect((await start(f.student.principal, parts[0]!)).result_code).toBe('not_available');
+    }
+    await admin.query("UPDATE activity_participations SET operational_overrides='{}' WHERE id=$1", [
+      parts[0],
+    ]);
+    expect(
+      (
+        await admin.query('SELECT status FROM course_enrollments WHERE id=$1', [
+          enrollment.enrollment_id,
+        ])
+      ).rows[0].status,
+    ).toBe('assigned');
+
+    const request = 'q2:course:' + randomUUID();
+    const [first, second] = await Promise.all([
+      start(f.student.principal, parts[0]!, request),
+      start(f.student.principal, parts[1]!),
+    ]);
     expect(first.result_code).toBe('ok');
     expect(second.result_code).toBe('ok');
+    expect(await start(f.student.principal, parts[0]!, request)).toMatchObject({
+      result_code: 'ok',
+      reused: true,
+      attempt: { attemptId: first.attempt.attemptId },
+    });
+    expect(
+      (
+        await admin.query(
+          'SELECT status,activated_by_principal_id FROM course_enrollments WHERE id=$1',
+          [enrollment.enrollment_id],
+        )
+      ).rows[0],
+    ).toEqual({ status: 'active', activated_by_principal_id: f.student.principal });
+    expect(
+      (
+        await admin.query(
+          "SELECT count(*) FROM audit_events WHERE entity_id=$1 AND action='course_enrollment.activated'",
+          [enrollment.enrollment_id],
+        )
+      ).rows[0].count,
+    ).toBe('1');
     expect(first.attempt.attemptId).not.toBe(second.attempt.attemptId);
     expect([first.attempt.attemptNumber, second.attempt.attemptNumber]).toEqual([1, 1]);
     expect(
@@ -748,5 +796,14 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
       results: '0',
       grades: '0',
     });
+    const withdrawal = await inTenant((client) =>
+      client.query('SELECT * FROM course_enrollment_withdraw($1,$2)', [
+        ownerPrincipal,
+        enrollment.enrollment_id,
+      ]),
+    );
+    expect(withdrawal.rows[0].result_code).toBe('ok');
+    expect(await readRun(runs[0]!)).toMatchObject({ canStart: false });
+    expect((await start(f.student.principal, parts[0]!)).result_code).toBe('not_available');
   });
 });

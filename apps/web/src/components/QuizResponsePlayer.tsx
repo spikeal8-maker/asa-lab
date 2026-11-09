@@ -25,7 +25,8 @@ export function QuizResponsePlayer({
   const [response, setResponse] = useState<{
     participationId: string;
     attempt: LearningQuizAttempt | null;
-    title: string;
+    title: string | null;
+    canStart: boolean;
     instructions: string | null;
   } | null>(null);
   const [answers, setAnswers] = useState<Record<string, QuizAnswer>>({});
@@ -151,7 +152,7 @@ export function QuizResponsePlayer({
     const generation = session.current;
     const isCurrent = () => live.current && session.current === generation;
     const state = current.current;
-    if (!state.response || state.conflict) return;
+    if (!state.response || state.conflict || (kind === 'start' && !state.response.canStart)) return;
     operation.current = generation;
     setBusy(true);
     setError(null);
@@ -325,9 +326,13 @@ export function QuizResponsePlayer({
         <>
           {response.instructions ? <p>{response.instructions}</p> : null}
           {!attempt ? (
-            <button type="button" disabled={busy} onClick={() => void perform('start')}>
-              Начать тест
-            </button>
+            response.canStart ? (
+              <button type="button" disabled={busy} onClick={() => void perform('start')}>
+                Начать тест
+              </button>
+            ) : (
+              <p role="status">Тест сейчас недоступен.</p>
+            )
           ) : (
             <>
               {attempt.expiresAt ? (
@@ -445,7 +450,8 @@ export function QuizResponsePlayer({
                           ? 'Тест сдан'
                           : 'Попытка завершена'}
                   </p>
-                  {!conflict &&
+                  {response.canStart &&
+                  !conflict &&
                   !['in_progress', 'submitted', 'evaluating'].includes(attempt.state) ? (
                     <button type="button" disabled={busy} onClick={() => void perform('start')}>
                       Новая попытка

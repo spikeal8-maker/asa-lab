@@ -101,7 +101,13 @@ beforeEach(() => {
     lastSavedAt: null,
   };
   vi.spyOn(api, 'readQuizLearning').mockImplementation(async () =>
-    ok({ participationId: 'part', attempt: server, title: 'Тест', instructions: null }),
+    ok({
+      participationId: 'part',
+      attempt: server,
+      title: 'Тест',
+      instructions: null,
+      canStart: true,
+    }),
   );
   vi.spyOn(api, 'saveQuizAnswers').mockImplementation(async (_id, version, answers) => {
     expect(version).toBe(server.version);
@@ -122,6 +128,39 @@ afterEach(async () => {
 });
 
 describe('Quiz mounted learner controls', () => {
+  it('respects denied Start without hiding a previously saved attempt', async () => {
+    const start = vi.spyOn(api, 'startQuizLearning');
+    vi.mocked(api.readQuizLearning).mockResolvedValueOnce(
+      ok({
+        participationId: 'part',
+        attempt: null,
+        title: null,
+        instructions: null,
+        canStart: false,
+      }),
+    );
+    await mount(
+      createElement(QuizResponsePlayer, { activityRunId: 'unavailable', onChanged: changed }),
+    );
+    expect(container.textContent).toContain('Тест сейчас недоступен.');
+    expect(container.textContent).not.toContain('Начать тест');
+    expect(start).not.toHaveBeenCalled();
+
+    await unmount();
+    vi.mocked(api.readQuizLearning).mockResolvedValueOnce(
+      ok({
+        participationId: 'part',
+        attempt: { ...server, state: 'closed' },
+        title: 'Тест',
+        instructions: null,
+        canStart: false,
+      }),
+    );
+    await mount(createElement(QuizResponsePlayer, { activityRunId: 'closed', onChanged: changed }));
+    expect(container.querySelector('textarea')?.value).toBe('official');
+    expect(container.textContent).not.toContain('Новая попытка');
+  });
+
   it.each(['in_progress', 'score_only', 'after_close_not_released'])(
     'does not fabricate per-question feedback when the server omits it: %s',
     async (mode) => {
@@ -394,6 +433,7 @@ describe('Quiz mounted learner controls', () => {
     vi.mocked(api.readQuizLearning).mockImplementation(async (id) =>
       ok({
         participationId: id,
+        canStart: true,
         title: id,
         instructions: id,
         attempt:
@@ -541,6 +581,7 @@ describe('Quiz mounted learner controls', () => {
     vi.mocked(api.readQuizLearning).mockImplementation(async (id) =>
       ok({
         participationId: id,
+        canStart: true,
         attempt: id === 'first' ? null : server,
         title: id,
         instructions: id,

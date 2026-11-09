@@ -2039,7 +2039,8 @@ export const api = {
     call<{
       participationId: string;
       attempt: LearningQuizAttempt | null;
-      title: string;
+      title: string | null;
+      canStart: boolean;
       instructions: string | null;
     }>(`/api/learning/quiz/runs/${encodeURIComponent(runId)}`),
   startQuizLearning: (participationId: string, requestId: string) =>
