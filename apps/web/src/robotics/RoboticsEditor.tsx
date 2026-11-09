@@ -170,7 +170,7 @@ function OpenedRoboticsEditor({
                   }
                 : {}),
             }}
-            avatar={{ label: `Аккаунт: ${user.displayName}`, text: avatar.text }}
+            avatar={avatar}
           />
         )}
       />

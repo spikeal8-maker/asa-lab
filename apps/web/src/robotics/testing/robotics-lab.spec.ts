@@ -397,7 +397,7 @@ afterEach(() => {
 });
 
 describe('robotics UI integration with the common workbench port', () => {
-  it('keeps one Electronics-style header, four labelled icon tabs and Save at the far right', async () => {
+  it('keeps one workbench header, equal-section tab semantics, Save near title and avatar at the right', async () => {
     await mountAccountEditor();
     const header = container.querySelector<HTMLElement>('.robotics-lab > .robotics-unified-header');
     expect(header).not.toBeNull();
@@ -420,7 +420,12 @@ describe('robotics UI integration with the common workbench port', () => {
     const save = header!.querySelector<HTMLButtonElement>('.robotics-header-save');
     expect(save?.getAttribute('aria-label')).toBe('Сохранить');
     expect(save?.getAttribute('role')).not.toBe('tab');
-    expect(header!.querySelector('.robotics-header-controls')?.lastElementChild).toBe(save);
+    expect(save?.parentElement).toBe(header);
+    expect(save?.nextElementSibling).toBe(header!.querySelector('.robotics-header-controls'));
+    expect(header!.querySelector('.robotics-header-controls')?.lastElementChild).toBe(
+      header!.querySelector('.robotics-header-profile'),
+    );
+    expect(header!.querySelector('.robotics-header-avatar img')).not.toBeNull();
     expect(header!.querySelector('.robotics-header-menu-panel')?.textContent).toContain(
       'Публикация',
     );

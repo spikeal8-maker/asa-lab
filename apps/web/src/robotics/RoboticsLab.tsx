@@ -12,6 +12,7 @@ import {
 import { ArduinoCodePanel, type ArduinoCodePanelHandle } from '../electronics/ArduinoCodePanel';
 import { CircuitIcon, CodeIcon, SaveIcon } from '../electronics/workbench-icons';
 import { ProjectModuleIcon } from '../modules/ProjectModuleIcon';
+import { EditorAvatar, type EditorAvatarModel } from '../components/editor-chrome/EditorAvatar';
 import { WorkbenchSidebars } from '../electronics/WorkbenchSidebars';
 import { readArduinoProgramState } from '../electronics/arduino-program-state';
 import { NativeOpticalProvider } from '../electronics/NativeOpticalComponentVisual';
@@ -107,12 +108,12 @@ interface RoboticsHeaderProps {
   readonly onSave: () => void;
   readonly onExit?: () => void;
   readonly navigation?: RoboticsHeaderNavigation;
-  readonly avatar?: { readonly label: string; readonly text: string };
+  readonly avatar?: EditorAvatarModel;
   readonly onOpenSaved?: () => void;
   readonly canOpenSaved?: boolean;
 }
 
-/** Reuses the real Electronics workbench header, brand, title and mode-pill CSS. */
+/** Shares the brand, project identity and avatar primitives with Electronics. */
 export function RoboticsHeader({
   tabs,
   title,
@@ -186,30 +187,22 @@ export function RoboticsHeader({
           }}
         />
       </div>
-      <span
-        className={'robotics-header-status is-' + statusKind}
-        role="status"
-        aria-live="polite"
-        aria-label={statusDetail ? statusLabel + ': ' + statusDetail : statusLabel}
-        title={statusDetail ?? statusLabel}
-      >
+      <span className={'robotics-header-status is-' + statusKind} role="status" aria-live="polite">
         {statusLabel}
       </span>
+      <button
+        type="button"
+        className={'robotics-header-save is-' + statusKind}
+        data-save-state={statusKind}
+        disabled={statusKind === 'saving' || (navigation?.disabled ?? false)}
+        onClick={onSave}
+        aria-label="Сохранить"
+        title={statusDetail ? statusLabel + ': ' + statusDetail : statusLabel}
+      >
+        <SaveIcon />
+        <span>{statusKind === 'saving' ? 'Сохраняем…' : 'Сохранить'}</span>
+      </button>
       <div className="robotics-header-controls">
-        {navigation ? (
-          <nav className="robotics-header-navigation" aria-label="Навигация ASALab">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                disabled={navigation.disabled}
-                onClick={item.activate}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
-        ) : null}
         {tabs}
         {onOpenSaved ? (
           <button
@@ -221,38 +214,10 @@ export function RoboticsHeader({
             Открыть
           </button>
         ) : null}
-        {navigation?.onPublish ? (
-          <button
-            type="button"
-            className="robotics-header-publish"
-            disabled={navigation.disabled}
-            onClick={navigation.onPublish}
-          >
-            Публикация
-          </button>
-        ) : null}
         {avatar ? (
-          <span
-            className="workbench-avatar robotics-header-avatar"
-            aria-label={avatar.label}
-            title={avatar.label}
-          >
-            {avatar.text}
-          </span>
-        ) : null}
-        {navigation || onOpenSaved ? (
-          <details className="robotics-header-menu">
-            <summary aria-label="Меню проекта" title="Меню проекта">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <path d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+          <details className="robotics-header-menu robotics-header-profile">
+            <summary aria-label="Профиль и действия" title={avatar.title}>
+              <EditorAvatar avatar={avatar} className="workbench-avatar robotics-header-avatar" />
             </summary>
             <div className="robotics-header-menu-panel" role="group" aria-label="Действия проекта">
               {navItems.map((item) => (
@@ -265,30 +230,19 @@ export function RoboticsHeader({
                   {item.label}
                 </button>
               ))}
-              {onOpenSaved ? (
-                <button type="button" disabled={!canOpenSaved} onClick={onOpenSaved}>
-                  Открыть
-                </button>
-              ) : null}
               {navigation?.onPublish ? (
-                <button type="button" disabled={navigation.disabled} onClick={navigation.onPublish}>
+                <button
+                  type="button"
+                  className="robotics-header-publish"
+                  disabled={navigation.disabled}
+                  onClick={navigation.onPublish}
+                >
                   Публикация
                 </button>
               ) : null}
             </div>
           </details>
         ) : null}
-        <button
-          type="button"
-          className="robotics-header-save"
-          disabled={navigation?.disabled ?? false}
-          onClick={onSave}
-          aria-label="Сохранить"
-          title="Сохранить"
-        >
-          <SaveIcon />
-          <span>Сохранить</span>
-        </button>
       </div>
     </header>
   );
