@@ -678,7 +678,7 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
     expect(enrollment).toMatchObject({ result_code: 'ok', enrollment_status: 'assigned' });
     const runs: string[] = [];
     const parts: string[] = [];
-    for (const block of ['first-quiz', 'second-quiz']) {
+    for (const block of ['first-quiz', 'second-quiz', 'withdrawal-quiz', 'independent-quiz']) {
       const run = (
         await inTenant((client) =>
           client.query(
@@ -703,7 +703,7 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
             ownerPrincipal,
             run.activity_run_id,
             f.student.learner,
-            enrollment.enrollment_id,
+            block === 'independent-quiz' ? null : enrollment.enrollment_id,
           ]),
         )
       ).rows[0];
@@ -796,14 +796,69 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
       results: '0',
       grades: '0',
     });
-    const withdrawal = await inTenant((client) =>
-      client.query('SELECT * FROM course_enrollment_withdraw($1,$2)', [
+    const [withdrawalRun, independentRun] = runs.slice(2);
+    const [withdrawalPart, independentPart] = parts.slice(2);
+    const withdrawer = await admin.connect();
+    const starter = await app.connect();
+    let pendingStart: Promise<pg.QueryResult> | undefined;
+    try {
+      await withdrawer.query('BEGIN');
+      await withdrawer.query("SELECT set_config('app.tenant_id',$1,true)", [owner.tenantId]);
+      await withdrawer.query("SET LOCAL statement_timeout='10s'");
+      const locked = await withdrawer.query(
+        'SELECT pg_backend_pid() AS pid FROM course_enrollments WHERE id=$1 FOR UPDATE',
+        [enrollment.enrollment_id],
+      );
+      await starter.query('BEGIN');
+      await starter.query("SET LOCAL statement_timeout='15s'");
+      const starterPid = (await starter.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      pendingStart = starter.query('SELECT * FROM learning_quiz_attempt_start($1,$2,$3)', [
+        f.student.principal,
+        withdrawalPart,
+        'q2:withdrawal-race:' + randomUUID(),
+      ]);
+      void pendingStart.catch(() => undefined);
+      await expect
+        .poll(
+          async () =>
+            (
+              await admin.query(
+                'SELECT $2::integer=ANY(pg_blocking_pids($1::integer)) AS blocked',
+                [starterPid, locked.rows[0].pid],
+              )
+            ).rows[0].blocked,
+          { timeout: 5000, interval: 20 },
+        )
+        .toBe(true);
+      const withdrawal = await withdrawer.query('SELECT * FROM course_enrollment_withdraw($1,$2)', [
         ownerPrincipal,
         enrollment.enrollment_id,
-      ]),
-    );
-    expect(withdrawal.rows[0].result_code).toBe('ok');
+      ]);
+      expect(withdrawal.rows[0].result_code).toBe('ok');
+      await withdrawer.query('COMMIT');
+      expect((await pendingStart).rows[0].result_code).toBe('not_available');
+    } finally {
+      await withdrawer.query('ROLLBACK');
+      withdrawer.release();
+      await pendingStart?.catch(() => undefined);
+      await starter.query('ROLLBACK');
+      starter.release();
+    }
+
+    expect(await readRun(withdrawalRun!)).toMatchObject({ canStart: false, attempt: null });
     expect(await readRun(runs[0]!)).toMatchObject({ canStart: false });
     expect((await start(f.student.principal, parts[0]!)).result_code).toBe('not_available');
+    expect(await readRun(independentRun!)).toMatchObject({ canStart: true, attempt: null });
+    expect(await start(f.student.principal, independentPart!)).toMatchObject({
+      result_code: 'ok',
+      reused: false,
+    });
+    expect(
+      (
+        await admin.query('SELECT status FROM course_enrollments WHERE id=$1', [
+          enrollment.enrollment_id,
+        ])
+      ).rows[0].status,
+    ).toBe('withdrawn');
   });
 });

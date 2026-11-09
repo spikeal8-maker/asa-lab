@@ -1231,17 +1231,31 @@ RETURNS TABLE(result_code varchar,attempt jsonb,reused boolean)
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE v_scope jsonb; v_attempt uuid; v_count bigint; v_limit bigint; v_number integer;
  v_now timestamptz; v_seconds bigint; v_time_source text; v_questions jsonb; v_order jsonb;
- v_options jsonb; v_effective jsonb; v_next_number bigint; v_activation record;
+ v_options jsonb; v_effective jsonb; v_next_number bigint; v_activation record; v_enrollment_id uuid;
 BEGIN
  IF p_request IS NULL OR p_request !~ '^[A-Za-z0-9._:-]{8,128}$' THEN
    RETURN QUERY SELECT 'invalid_request_id'::varchar,NULL::jsonb,false; RETURN; END IF;
  v_scope:=public.learning_quiz_scope_internal(p_actor,p_part);
  IF v_scope IS NULL THEN RETURN QUERY SELECT 'forbidden'::varchar,NULL::jsonb,false; RETURN; END IF;
+ v_enrollment_id:=(v_scope->>'sourceEnrollmentId')::uuid;
+ IF v_enrollment_id IS NOT NULL THEN
+   IF (v_scope->>'enrollmentId')::uuid IS DISTINCT FROM v_enrollment_id THEN
+     RETURN QUERY SELECT 'not_available'::varchar,NULL::jsonb,false; RETURN; END IF;
+   -- Withdrawal locks the enrollment before its trigger withdraws children.
+   PERFORM set_config('app.tenant_id',v_scope->>'tenantId',true);
+   PERFORM 1 FROM public.course_enrollments enrollment
+     WHERE enrollment.tenant_id=(v_scope->>'tenantId')::uuid
+       AND enrollment.id=v_enrollment_id FOR UPDATE;
+   IF NOT FOUND THEN RETURN QUERY SELECT 'not_available'::varchar,NULL::jsonb,false; RETURN; END IF;
+ END IF;
  PERFORM 1 FROM public.activity_participations part WHERE part.id=p_part FOR UPDATE;
- -- Re-read current admission after lock acquisition, before any writes.
+ -- Re-read exact authority after both locks, before any receipt or attempt writes.
  v_scope:=public.learning_quiz_scope_internal(p_actor,p_part);
  IF v_scope IS NULL THEN RETURN QUERY SELECT 'forbidden'::varchar,NULL::jsonb,false; RETURN; END IF;
- IF v_scope->>'sourceKind'='course' AND NOT COALESCE(v_scope->>'enrollmentStatus' IN ('assigned','active'),false) THEN
+ IF (v_scope->>'sourceEnrollmentId')::uuid IS DISTINCT FROM v_enrollment_id
+   OR (v_enrollment_id IS NOT NULL AND (
+     (v_scope->>'enrollmentId')::uuid IS DISTINCT FROM v_enrollment_id
+     OR NOT COALESCE(v_scope->>'enrollmentStatus' IN ('assigned','active'),false))) THEN
    RETURN QUERY SELECT 'not_available'::varchar,NULL::jsonb,false; RETURN; END IF;
  SELECT receipt.attempt_id INTO v_attempt FROM public.quiz_attempt_start_receipts receipt
  WHERE receipt.participation_id=p_part AND receipt.request_id=p_request;
@@ -1315,18 +1329,11 @@ BEGIN
    RETURN QUERY SELECT 'attempt_limit'::varchar,NULL::jsonb,false; RETURN; END IF;
  v_number:=v_next_number::integer;
  PERFORM set_config('app.tenant_id',v_scope->>'tenantId',true);
- IF v_scope->>'sourceKind'='course' THEN
-   -- Serialize with withdrawal and first Start in any sibling occurrence.
-   PERFORM 1 FROM public.course_enrollments enrollment
-     WHERE enrollment.tenant_id=(v_scope->>'tenantId')::uuid
-       AND enrollment.id=(v_scope->>'enrollmentId')::uuid FOR UPDATE;
-   v_scope:=public.learning_quiz_scope_internal(p_actor,p_part);
- END IF;
  v_now:=clock_timestamp();
  IF NOT public.learning_quiz_window_open_internal(v_scope,v_now) THEN
    RETURN QUERY SELECT 'not_available'::varchar,NULL::jsonb,false; RETURN; END IF;
- IF v_scope->>'sourceKind'='course' THEN
-   SELECT * INTO v_activation FROM public.course_enrollment_activate(p_actor,(v_scope->>'enrollmentId')::uuid);
+ IF v_enrollment_id IS NOT NULL THEN
+   SELECT * INTO v_activation FROM public.course_enrollment_activate(p_actor,v_enrollment_id);
    IF v_activation.result_code IS DISTINCT FROM 'ok' THEN
      RETURN QUERY SELECT 'not_available'::varchar,NULL::jsonb,false; RETURN; END IF;
  END IF;
@@ -2130,7 +2137,8 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg
    'learnerIdentityId',part.learner_identity_id,'classroomId',run.classroom_id,
    'assignmentId',run.source_classroom_assignment_id,'activityRunId',run.id,
    'activityVersionId',version.id,'quizVersionId',quiz.id,'seatId',current_seat.id,
-   'sourceKind',run.source_kind,'enrollmentId',enrollment.id,'enrollmentStatus',enrollment.status,
+   'sourceEnrollmentId',part.source_course_enrollment_id,
+   'enrollmentId',enrollment.id,'enrollmentStatus',enrollment.status,
    'policy',version.policy_snapshot,'contentDigest',quiz.content_digest,
    'shuffleQuestions',COALESCE((SELECT (l.content_flags->>'shuffleQuestions')::boolean FROM public.quiz_version_lineage l WHERE l.quiz_version_id=quiz.id),false),
    'shuffleOptions',COALESCE((SELECT (l.content_flags->>'shuffleOptions')::boolean FROM public.quiz_version_lineage l WHERE l.quiz_version_id=quiz.id),false),
@@ -2139,7 +2147,8 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg
    'effective',public.learning_effective_conditions_internal(run.id,part.id),
    'available',part.status IN ('assigned','active') AND NOT part.excused AND run.lifecycle_status='active'
      AND classroom.status='active' AND handout.status='open'
-     AND (run.source_kind<>'course' OR (course.status='open' AND enrollment.status IN ('assigned','active'))))
+     AND (run.source_kind<>'course' OR course.status='open')
+     AND (part.source_course_enrollment_id IS NULL OR enrollment.status IN ('assigned','active')))
  FROM public.activity_participations part
  JOIN public.learner_identities learner ON learner.tenant_id=part.tenant_id
    AND learner.school_id=part.school_id AND learner.id=part.learner_identity_id AND learner.state='active'
