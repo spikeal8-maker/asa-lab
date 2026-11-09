@@ -185,11 +185,33 @@ class Installation:
             require(response.status == 200, "HEALTH", "Published Scratch port is unavailable.")
         return {"revision": rev, "schema": deployment.get("schemaVersion")}
 
+    def compose_health(self):
+        """Read the actual Docker health of every required ASA service.
+
+        The HTTP readiness endpoint can pass before Docker's final healthcheck.
+        Check the same instance identity, not arbitrary container names.
+        """
+        records = self.identity()
+        required = {"postgres", "api", "web", "scratch", "minio"}
+        if self.process_env.get("ASA_SEARCH_IMAGE"):
+            required.add("search")
+        require(required <= set(records) and all(records[name]["running"] is True for name in required),
+                "HEALTH", "Required Compose service has not started.")
+        names = sorted(required)
+        template = "{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}"
+        statuses = run(["docker", "inspect", "--format", template,
+                        *(records[name]["id"] for name in names)], capture=True).splitlines()
+        require(len(statuses) == len(names) and all(status == "healthy" for status in statuses),
+                "HEALTH", "Docker healthchecks are not yet healthy for all required services.")
+        return True
+
     def wait_ready(self, revision, schema):
         deadline = time.monotonic() + 300
         while time.monotonic() < deadline:
             try:
-                return self.readiness(revision, schema)
+                ready = self.readiness(revision, schema)
+                self.compose_health()
+                return ready
             except (Blocked, OSError, ValueError):
                 time.sleep(3)
         raise Blocked("HEALTH", "New services did not become ready within five minutes.", "Inspect migration and service logs; no database rollback is automatic.")
