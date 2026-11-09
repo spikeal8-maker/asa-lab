@@ -7,6 +7,8 @@ import {
   useState,
   useSyncExternalStore,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
 import { ArduinoCodePanel, type ArduinoCodePanelHandle } from '../electronics/ArduinoCodePanel';
@@ -51,6 +53,13 @@ const WORKBENCH_OPTIONS = {
 } as const;
 const number = (value: number, digits = 1) =>
   value.toLocaleString('ru-RU', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+const ROBOTICS_SIDE_STORAGE_KEY = 'asa-lab:robotics:side-width:v1';
+const ROBOTICS_SIDE_MIN = 180;
+const ROBOTICS_SIDE_MAX = 960;
+function roboticsSideWidth(value: number, available: number): number {
+  const max = Math.max(ROBOTICS_SIDE_MIN, Math.min(ROBOTICS_SIDE_MAX, Math.floor(available / 2)));
+  return Math.max(ROBOTICS_SIDE_MIN, Math.min(max, Math.round(value)));
+}
 const SECTIONS = [
   { id: 'field', label: 'Поле' },
   { id: 'robot', label: 'Робот' },
@@ -334,6 +343,59 @@ export function RoboticsWorkspace({
   readonly header?: (tabs: ReactNode, notices: readonly string[]) => ReactNode;
 }) {
   const [section, setSection] = useState<Section>('field');
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const [sideWidth, setSideWidth] = useState(() => {
+    try {
+      const saved = Number(window.localStorage.getItem(ROBOTICS_SIDE_STORAGE_KEY));
+      return roboticsSideWidth(saved > 0 ? saved : 240, window.innerWidth);
+    } catch {
+      return roboticsSideWidth(240, window.innerWidth);
+    }
+  });
+  const sideDragRef = useRef<{ pointerId: number; clientX: number; width: number } | null>(null);
+  function updateSideWidth(value: number): void {
+    const available = workspaceRef.current?.clientWidth ?? window.innerWidth;
+    setSideWidth(roboticsSideWidth(value, available));
+  }
+  function sidePointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (event.button !== 0 || compactLayout) return;
+    sideDragRef.current = { pointerId: event.pointerId, clientX: event.clientX, width: sideWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }
+  function sidePointerMove(event: ReactPointerEvent<HTMLDivElement>): void {
+    const drag = sideDragRef.current;
+    if (drag?.pointerId !== event.pointerId) return;
+    updateSideWidth(drag.width + event.clientX - drag.clientX);
+  }
+  function sidePointerEnd(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (sideDragRef.current?.pointerId !== event.pointerId) return;
+    sideDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+  function sideKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    const step = event.shiftKey ? 40 : 16;
+    const available = workspaceRef.current?.clientWidth ?? window.innerWidth;
+    const next =
+      event.key === 'ArrowLeft' ? sideWidth - step :
+      event.key === 'ArrowRight' ? sideWidth + step :
+      event.key === 'Home' ? ROBOTICS_SIDE_MIN :
+      event.key === 'End' ? Math.min(ROBOTICS_SIDE_MAX, available / 2) : null;
+    if (next === null) return;
+    event.preventDefault();
+    updateSideWidth(next);
+  }
+  useEffect(() => {
+    try { window.localStorage.setItem(ROBOTICS_SIDE_STORAGE_KEY, String(sideWidth)); }
+    catch { /* Width remains interactive without persistent storage. */ }
+  }, [sideWidth]);
+  useEffect(() => {
+    const clampWidth = () =>
+      setSideWidth((current) => roboticsSideWidth(current, window.innerWidth));
+    window.addEventListener('resize', clampWidth);
+    return () => window.removeEventListener('resize', clampWidth);
+  }, []);
   const [compactLayout, setCompactLayout] = useState(() => window.innerWidth <= 760);
   const controller = useElectronicsWorkbenchHost(projectId, local.host, {
     ...WORKBENCH_OPTIONS,
@@ -434,9 +496,9 @@ export function RoboticsWorkspace({
   }, [compactLayout]);
 
   useEffect(() => {
-    // Presentation-only fitting. Physical component dimensions and world time
-    // stay unchanged, and the shared stage remains mounted throughout.
-    const frame = window.requestAnimationFrame(() => controllerRef.current.fitScene());
+    // Preserve source geometry; begin Electronics at 50% of the usual fitted zoom.
+    if (section !== 'electronics') return;
+    const frame = window.requestAnimationFrame(() => controllerRef.current.fitSceneScaled(0.5));
     return () => window.cancelAnimationFrame(frame);
   }, [local.openRevision, section, compactLayout]);
 
@@ -613,8 +675,8 @@ export function RoboticsWorkspace({
   function navigate(next: Section) {
     flushProgram();
     controller.cancelFamilyPlacement();
-    if (compactLayout && next === 'electronics' && section !== 'electronics')
-      controller.setLibraryOpen(false);
+    if (next === 'electronics' && section !== 'electronics')
+      controller.setLibraryOpen(!compactLayout);
     if (next === 'program') setCodeMounted(true);
     if (next !== 'electronics') setCodeDrawerOpen(false);
     setSection(next);
@@ -839,7 +901,11 @@ export function RoboticsWorkspace({
           </button>
         </div>
       </section>
-      <div className="robotics-workspace">
+      <div
+        className="robotics-workspace"
+        ref={workspaceRef}
+        style={{ '--robotics-side-width': `${sideWidth}px` } as CSSProperties}
+      >
         <section
           className="robotics-panel robotics-field-panel"
           role="tabpanel"
@@ -1086,6 +1152,22 @@ export function RoboticsWorkspace({
             </NativeOpticalProvider>
           </div>
         </section>
+        <div
+          className="robotics-side-resizer"
+          role="separator"
+          aria-label="Ширина панели наблюдения"
+          aria-orientation="vertical"
+          aria-valuemin={ROBOTICS_SIDE_MIN}
+          aria-valuemax={Math.max(ROBOTICS_SIDE_MIN, Math.min(ROBOTICS_SIDE_MAX, Math.floor((workspaceRef.current?.clientWidth ?? window.innerWidth) / 2)))}
+          aria-valuenow={sideWidth}
+          title="Перетаскивайте границу панели. Стрелки меняют ширину, Home/End — пределы."
+          tabIndex={0}
+          onPointerDown={sidePointerDown}
+          onPointerMove={sidePointerMove}
+          onPointerUp={sidePointerEnd}
+          onPointerCancel={sidePointerEnd}
+          onKeyDown={sideKeyDown}
+        />
       </div>
     </main>
   );

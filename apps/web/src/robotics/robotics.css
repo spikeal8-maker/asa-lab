@@ -2550,3 +2550,301 @@
     right: auto;
   }
 }
+
+
+/* ROBOTICS-LEFT-RAIL-005
+ * Resize the ONE observation rail, not the project, electronics solver or Arduino stage.
+ * Desktop: observation/preview left, active editor right. The run controls occupy
+ * their own 36px upper row and never cover the Electronics toolbar.
+ */
+.robotics-lab,
+.robotics-portal-editor .robotics-lab {
+  grid-template-rows: 48px 38px minmax(0, 1fr);
+  gap: 0;
+}
+.robotics-lab > .robotics-run-bar {
+  position: relative;
+  inset: auto;
+  grid-row: 2;
+  align-self: center;
+  justify-self: end;
+  z-index: 24;
+  width: max-content;
+  max-width: calc(100% - 12px);
+  height: 34px;
+  min-height: 34px;
+  margin: 0 8px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.robotics-lab > .robotics-workspace {
+  grid-row: 3;
+  min-height: 0;
+}
+.robotics-lab .robotics-workspace {
+  display: grid;
+  position: relative;
+  grid-template-columns: minmax(180px, var(--robotics-side-width, 240px)) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(120px, 24%);
+  grid-template-areas: 'observation main' 'scheme main';
+  column-gap: 0;
+  row-gap: 0;
+  min-width: 0;
+  min-height: 0;
+}
+.robotics-lab .robotics-workspace > .robotics-panel:not([hidden]) {
+  grid-area: main;
+  min-width: 0;
+  min-height: 0;
+}
+.robotics-lab .robotics-workspace > .robotics-observation {
+  grid-area: observation;
+  align-self: stretch;
+  display: block;
+  overflow: auto;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  border-left: 0;
+  border-right: 1px solid #e0e9ef;
+}
+.robotics-lab .robotics-workspace > .robotics-schematic.preview {
+  grid-area: scheme;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  border-left: 0;
+  border-right: 1px solid #e0e9ef;
+  border-top: 1px solid #e0e9ef;
+  overflow: hidden;
+}
+.robotics-lab .robotics-workspace > .robotics-schematic.editing {
+  grid-area: main;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.robotics-lab .robotics-workspace > .robotics-side-resizer {
+  position: absolute;
+  z-index: 38;
+  left: calc(var(--robotics-side-width, 240px) - 4px);
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+.robotics-side-resizer::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #c6d6e0;
+  opacity: .85;
+}
+.robotics-side-resizer:hover::before,
+.robotics-side-resizer:focus-visible::before {
+  left: 2px;
+  width: 4px;
+  background: #099cc3;
+  opacity: 1;
+}
+.robotics-side-resizer:focus-visible {
+  outline: 2px solid #0a9cc2;
+  outline-offset: -2px;
+}
+.robotics-lab[data-section='electronics'] .robotics-workspace {
+  grid-template-columns: minmax(180px, var(--robotics-side-width, 240px)) minmax(0, 1fr);
+  grid-template-rows: 38px minmax(0, 1fr);
+  grid-template-areas: 'observation toolbar' 'observation main';
+}
+.robotics-lab[data-section='electronics'] .robotics-workspace > .robotics-electronics-panel {
+  grid-area: toolbar;
+  min-width: 0;
+  max-width: 100%;
+  height: 38px;
+  align-self: stretch;
+}
+.robotics-lab[data-section='electronics'] .robotics-workspace > .robotics-observation {
+  grid-area: observation;
+  grid-row: 1 / 3;
+}
+.robotics-lab[data-section='electronics'] .robotics-workspace > .robotics-schematic.editing {
+  grid-area: main;
+  margin: 0;
+  border: 0;
+}
+.robotics-lab[data-section='program'] .robotics-workspace {
+  grid-template-columns: minmax(180px, var(--robotics-side-width, 240px)) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(120px, 24%);
+  grid-template-areas: 'observation main' 'scheme main';
+}
+.robotics-lab[data-section='program'] .robotics-workspace > .robotics-program-panel {
+  grid-area: main;
+  min-width: 0;
+  min-height: 0;
+}
+.robotics-lab[data-section='program'] .robotics-workspace > .robotics-observation {
+  display: block;
+  grid-area: observation;
+}
+.robotics-lab[data-section='program'] .robotics-workspace > .robotics-schematic.preview {
+  display: flex;
+  grid-area: scheme;
+}
+.robotics-lab .robotics-workspace > .robotics-observation .robotics-mini-field {
+  min-width: 0;
+  max-width: 100%;
+}
+.robotics-lab .robotics-workspace > .robotics-observation .robotics-mini-field .robotics-field {
+  min-width: 0;
+  max-width: 100%;
+}
+.robotics-lab .robotics-workspace > .robotics-program-panel[data-drawer-open='true'] {
+  /* The Arduino drawer occupies part of the editor, leaving the left rail readable. */
+  top: 38px;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  max-width: calc(100% - var(--robotics-side-width, 240px));
+}
+.robotics-lab .robotics-electronics-tools .workbench-wire-color > summary,
+.robotics-lab .robotics-electronics-tools .workbench-wire-style {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 0 0 43px;
+  width: 43px;
+  min-width: 43px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 3px;
+  vertical-align: middle;
+}
+.robotics-lab .robotics-electronics-tools .workbench-wire-color > summary > span {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+}
+.robotics-lab .robotics-electronics-tools .workbench-wire-color > summary > svg,
+.robotics-lab .robotics-electronics-tools .workbench-wire-style > svg:last-child {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+}
+.robotics-lab .robotics-electronics-tools .workbench-wire-style > svg:first-child {
+  flex: 0 0 17px;
+  width: 17px;
+  height: 17px;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-grid:not(.list-view) {
+  grid-auto-columns: 66px;
+  grid-template-rows: 78px;
+  gap: 5px;
+  padding: 5px;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-card,
+.robotics-lab .robotics-workbench .workbench-catalog-grid.list-view .workbench-catalog-card {
+  height: 78px;
+  min-height: 78px;
+  overflow: hidden;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-add,
+.robotics-lab .robotics-workbench .workbench-catalog-grid.list-view .workbench-catalog-add {
+  grid-template-rows: 43px minmax(28px, auto);
+  gap: 2px;
+  padding: 3px 2px;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-art {
+  display: grid;
+  place-items: center;
+  height: 42px;
+  min-height: 0;
+  overflow: hidden;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-art .workbench-component-preview,
+.robotics-lab .robotics-workbench .workbench-catalog-art .workbench-component-vector-preview {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 40px;
+  max-height: 38px;
+  object-fit: contain;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-name {
+  display: -webkit-box;
+  min-height: 0;
+  max-height: 28px;
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+@media (max-width: 760px) {
+  .robotics-lab,
+  .robotics-portal-editor .robotics-lab {
+    grid-template-rows: 48px 36px minmax(0, 1fr);
+  }
+  .robotics-lab > .robotics-run-bar {
+    grid-row: 2;
+    justify-self: end;
+    height: 32px;
+    min-height: 32px;
+  }
+  .robotics-lab > .robotics-workspace {
+    grid-row: 3;
+  }
+  .robotics-lab .robotics-workspace {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr) 132px;
+    grid-template-areas: 'main main' 'observation scheme';
+    gap: 3px;
+  }
+  .robotics-lab .robotics-workspace > .robotics-side-resizer {
+    display: none;
+  }
+  .robotics-lab[data-section='electronics'] .robotics-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 38px minmax(0, 1fr) 125px;
+    grid-template-areas: 'toolbar' 'main' 'observation';
+  }
+  .robotics-lab[data-section='electronics'] .robotics-workspace > .robotics-observation {
+    grid-area: observation;
+    grid-row: 3;
+    display: block;
+    margin: 0;
+  }
+  .robotics-lab[data-section='program'] .robotics-workspace {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr) 132px;
+    grid-template-areas: 'main main' 'observation scheme';
+  }
+  .robotics-lab[data-section='program'] .robotics-workspace > .robotics-observation {
+    grid-area: observation;
+    display: block;
+  }
+  .robotics-lab[data-section='program'] .robotics-workspace > .robotics-schematic.preview {
+    grid-area: scheme;
+    display: flex;
+  }
+  .robotics-lab .robotics-workspace > .robotics-program-panel[data-drawer-open='true'] {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: 100%;
+  }
+}

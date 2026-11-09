@@ -7,7 +7,7 @@ import { RoboticsElectronicsToolbar } from '../RoboticsElectronicsToolbar';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const handlers = {
-  setLibraryOpen: vi.fn(), fitScene: vi.fn(), copySelected: vi.fn(),
+  setLibraryOpen: vi.fn(), fitScene: vi.fn(), fitSceneScaled: vi.fn(), copySelected: vi.fn(),
   duplicateSelected: vi.fn(), pasteCopied: vi.fn(), rotateSelected: vi.fn(),
   mirrorSelected: vi.fn(), removeSelection: vi.fn(), undo: vi.fn(),
   redo: vi.fn(), toggleWireRoute: vi.fn(), setWireColor: vi.fn(), addCanvasText: vi.fn(),
@@ -58,11 +58,13 @@ describe('native Electronics toolbar in Robotics', () => {
       expect(button?.textContent).not.toContain(name);
     }
     for (const name of [
-      'Компоненты','Вписать','Открыть код','Копировать (Ctrl+C)','Дублировать',
+      'Вписать','Открыть код','Копировать (Ctrl+C)','Дублировать',
       'Вставить (Ctrl+V)','Повернуть на 45° (R)','Отразить','Удалить (Delete)',
       'Отменить (Ctrl+Z)','Повторить (Ctrl+Shift+Z)','Добавить текст на схему',
       'Автоматическая прокладка провода под 90 градусов',
     ]) press(name);
+    expect(container.querySelector('[aria-label="Компоненты"]')).toBeNull();
+    expect(handlers.fitSceneScaled).toHaveBeenCalledExactlyOnceWith(0.5);
     expect(handlers.copySelected).toHaveBeenCalledOnce();
     expect(handlers.duplicateSelected).toHaveBeenCalledOnce();
     expect(handlers.pasteCopied).toHaveBeenCalledOnce();
@@ -73,7 +75,7 @@ describe('native Electronics toolbar in Robotics', () => {
   it('locks native editing while simulation runs, leaving the code drawer available', () => {
     mount(true);
     expect(container.querySelector<HTMLElement>('.robotics-electronics-native-tools')?.inert).toBe(true);
-    expect(container.querySelector<HTMLButtonElement>('button[aria-label="Компоненты"]')?.disabled).toBe(true);
+    expect(container.querySelector('button[aria-label="Компоненты"]')).toBeNull();
     expect(container.querySelector<HTMLButtonElement>('button[aria-label="Открыть код"]')?.disabled).toBe(false);
   });
 });

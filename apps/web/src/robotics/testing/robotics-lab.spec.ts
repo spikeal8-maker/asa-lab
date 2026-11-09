@@ -80,6 +80,7 @@ vi.mock('../../electronics/use-electronics-workbench', () => ({
       setRuntimeSensorDistance: port.sensor,
       setRuntimeHcSr04EnvironmentSample: port.environment,
       fitScene: port.fit,
+      fitSceneScaled: port.fit,
       selection: null,
       removeSelection: port.remove,
       cancelFamilyPlacement: vi.fn(),
@@ -593,7 +594,7 @@ describe('robotics UI integration with the common workbench port', () => {
   it('keeps the same mounted canonical stage when opening and closing the canonical programmer', async () => {
     const stage = metric('canonical-stage');
     expect(stage.textContent).toContain('9 canonical components');
-    expect(port.fit).toHaveBeenCalledOnce();
+    expect(port.fit).not.toHaveBeenCalled();
     await click('Код');
     expect(metric('canonical-program')).toBeTruthy();
     expect(metric('canonical-stage')).toBe(stage);
