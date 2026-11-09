@@ -414,6 +414,11 @@ const upgradeArtifacts = [
     '0307_robotics_telemetry_v2.sql',
     '3ea56361e766b572a5e83b4bce8d68ac90e3b82b92c79eabe6750619b8e71779',
   ],
+  [
+    '0308',
+    '0308_ai_eight_tool_registry.sql',
+    '85722956cf9ec5aa183e8b710f720c7f2356d761bc47466f756b87f8358bbf9a',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

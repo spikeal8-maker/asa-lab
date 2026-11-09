@@ -257,3 +257,43 @@ it('keeps a valid completed image when the file history quota fills meanwhile', 
   ).toBe('complete');
   expect((await f.store.read(f.owner, f.thread, 'index.html')).version).toBe(1);
 });
+it.each(['generate_image', 'edit_working_file', 'read_working_file'])(
+  'refuses a fresh image and binding after %s is disabled following initial admission',
+  async (tool) => {
+    const f = await prepare();
+    expect(
+      (
+        await runtime.query<{ allowed: boolean }>(
+          'SELECT ai_tool_policy_permit($1,$2,$3,$4) AS allowed',
+          [f.owner, f.thread, f.parent, tool],
+        )
+      ).rows[0]?.allowed,
+    ).toBe(true);
+    const original = (
+      await admin.query<{ tools: unknown }>(
+        'SELECT tools FROM ai_tool_policy_settings WHERE singleton_key',
+      )
+    ).rows[0]!.tools;
+    try {
+      await admin.query(
+        "UPDATE ai_tool_policy_settings SET tools=(SELECT jsonb_agg(CASE WHEN x->>'id'=$1 THEN jsonb_set(x,'{enabled}','false') ELSE x END) FROM jsonb_array_elements(tools) x) WHERE singleton_key",
+        [tool],
+      );
+      await expect(f.begin()).rejects.toMatchObject({ code: '42501' });
+      expect(
+        (
+          await admin.query<{ n: number }>(
+            'SELECT count(*)::int AS n FROM ai_image_jobs WHERE owner_principal_id=$1 AND request_id=$2',
+            [f.owner, f.child],
+          )
+        ).rows[0]?.n,
+      ).toBe(0);
+      expect(await f.state()).toBeUndefined();
+      expect((await f.store.read(f.owner, f.thread, 'index.html')).version).toBe(1);
+    } finally {
+      await admin.query('UPDATE ai_tool_policy_settings SET tools=$1::jsonb WHERE singleton_key', [
+        JSON.stringify(original),
+      ]);
+    }
+  },
+);

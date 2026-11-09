@@ -1,27 +1,24 @@
 .asa-ai-tools {
-  display: grid;
-  gap: 17px;
-  margin-top: 24px;
-  padding-top: 22px;
-  border-top: 1px solid #dce5ec;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border, #dce5ec);
+  min-width: 0;
 }
 .asa-ai-tools-heading {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
 }
 .asa-ai-tools-heading h2 {
   margin: 0;
-  font-size: 18px;
-}
-.asa-ai-tools-heading p {
-  margin: 0;
-  color: #52697b;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 16px;
+  scroll-margin-top: 80px;
 }
 .asa-ai-tools-refresh {
-  justify-self: start;
-  padding: 0;
+  margin-left: auto;
+  padding: 4px 0;
   border: 0;
   background: transparent;
   color: #12699c;
@@ -32,130 +29,228 @@
 }
 .asa-ai-tools form {
   display: grid;
-  gap: 18px;
+  gap: 8px;
 }
 .asa-ai-tools-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
 }
 .asa-ai-tool-card {
   display: grid;
-  align-content: start;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 44px 100px;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
-  padding: 17px;
-  border: 1px solid #d5e2eb;
-  border-radius: 11px;
-  background: #f9fcfe;
-  overflow-wrap: anywhere;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border, #dce5ec);
+  background: transparent;
 }
 .asa-ai-tool-card-title {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 .asa-ai-tool-card-title h3 {
   margin: 0;
-  font-size: 16px;
-}
-.asa-ai-tool-status {
-  padding: 3px 8px;
-  border-radius: 20px;
-  background: #e7edf2;
-  color: #485d6e;
-  font-size: 11px;
-  font-weight: 700;
-}
-.asa-ai-tool-status.ready {
-  background: #dff4e8;
-  color: #145b37;
-}
-.asa-ai-tool-reason,
-.asa-ai-tool-future p {
-  margin: 0;
-  color: #52697b;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.asa-ai-tool-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   font-size: 13px;
-  font-weight: 650;
+}
+.asa-ai-tools .asa-ai-tool-toggle {
+  display: flex;
+  margin: 0;
 }
 .asa-ai-tool-toggle input {
   width: 17px;
   height: 17px;
   margin: 0;
 }
-.asa-ai-tool-card dl {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
+.asa-ai-tool-toggle-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
-.asa-ai-tool-card dt {
-  margin-top: 5px;
-  font-weight: 700;
+.asa-ai-tool-status {
+  padding: 2px 6px;
+  border-radius: 12px;
+  background: var(--surface, #edf3f7);
+  color: var(--muted, #52697b);
+  font-size: 11px;
+  white-space: nowrap;
 }
-.asa-ai-tool-card dd {
+.asa-ai-tool-status.ready {
+  background: #dff4e8;
+  color: #145b37;
+}
+.asa-ai-tool-reason {
+  display: flex;
+  align-items: center;
+}
+.asa-ai-tool-card > details {
   min-width: 0;
-  margin: 0;
-  color: #52697b;
 }
-.asa-ai-tool-card ul {
-  margin: 0;
-  padding-left: 18px;
+.asa-ai-tool-card summary {
+  padding: 10px 0;
+  cursor: pointer;
+  font-size: 12px;
+  color: #12699c;
+}
+.asa-ai-tool-card > details[open] {
+  grid-column: 1 / -1;
+  padding: 8px 12px 12px;
+  background: var(--surface, #f3f9fd);
+  border-radius: 8px;
 }
 .asa-ai-tool-instructions {
   display: grid;
   gap: 6px;
   font-size: 12px;
-  font-weight: 700;
 }
 .asa-ai-tool-instructions textarea {
   box-sizing: border-box;
   width: 100%;
   min-height: 84px;
   padding: 9px;
-  border: 1px solid #b9c9d6;
-  border-radius: 7px;
-  background: #fff;
-  color: #16344b;
+  border: 1px solid var(--border, #b9c9d6);
+  border-radius: 6px;
+  background: var(--surface, white);
+  color: var(--text, #16344b);
   font: inherit;
-  font-weight: 400;
-  line-height: 1.5;
   resize: vertical;
 }
 .asa-ai-tool-instructions small {
-  color: #607586;
+  color: var(--muted, #607586);
   font-size: 11px;
-  font-weight: 400;
-  line-height: 1.5;
+}
+.asa-ai-tool-future {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.asa-ai-tool-future .asa-ai-tool-card-title {
+  display: flex;
+  gap: 12px;
+}
+.asa-ai-tool-future p {
+  margin: 0;
+  color: var(--muted, #607586);
+  font-size: 11px;
 }
 .asa-ai-tools-actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
 }
-.asa-ai-tools :is(input, textarea, button):focus-visible {
+.asa-ai-tools :is(input, textarea, button, summary):focus-visible {
   outline: 2px solid #0877b3;
   outline-offset: 2px;
 }
-@media (max-width: 680px) {
-  .asa-ai-tools-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+@media (max-width: 600px) {
   .asa-ai-tool-card {
-    padding: 14px;
+    grid-template-columns: minmax(0, 1fr) 36px 76px;
+    gap: 4px;
   }
-  .asa-ai-tools-actions .asa-cloud-apply {
-    width: 100%;
+  .asa-ai-tool-card-title {
+    gap: 4px;
+  }
+  .asa-ai-tool-card-title h3 {
+    font-size: 12px;
+  }
+  .asa-ai-tool-status {
+    font-size: 10px;
+  }
+  .asa-ai-tool-future p {
+    display: none;
+  }
+  .asa-ai-tools-refresh {
+    margin-left: 0;
+  }
+}
+.asa-ai-tool-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+.asa-ai-tool-hint dt {
+  font-weight: 650;
+  margin-top: 6px;
+}
+.asa-ai-tool-hint dd {
+  margin: 2px 0;
+}
+.asa-ai-tool-hint ul {
+  padding-left: 18px;
+  margin: 2px 0;
+}
+
+.asa-ai-tools [hidden] {
+  display: none !important;
+}
+
+/* Settings owns the switches; the tool editor owns only instructions. */
+.asa-ai-tools-switches .asa-ai-tool-card,
+.asa-ai-tools-all .asa-ai-tool-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px auto auto 28px;
+  gap: 8px;
+}
+.asa-ai-tools .asa-ai-tool-card > h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.asa-ai-tools .asa-ai-tool-card > a {
+  font-size: 12px;
+  color: #12699c;
+}
+.asa-ai-tools .asa-ai-tool-card > details {
+  grid-column: 1 / -1;
+}
+.asa-ai-tools-detail .asa-ai-tool-card {
+  display: block;
+  padding: 0;
+  border: 0;
+  min-height: 0;
+}
+.asa-ai-tools-detail .asa-ai-tools-heading {
+  gap: 4px 8px;
+}
+.asa-ai-tools-detail .asa-ai-tools-heading h2 {
+  font-size: 17px;
+}
+.asa-ai-tools-detail .asa-ai-tool-instructions {
+  margin: 0;
+}
+.asa-ai-tools-detail .asa-ai-tool-instructions textarea {
+  min-height: 52px;
+  padding: 6px 8px;
+}
+.asa-ai-tools-detail .asa-ai-tools-actions {
+  justify-content: flex-end;
+}
+.asa-ai-tools-detail .asa-ai-tools-refresh {
+  margin-left: auto;
+}
+@media (max-width: 600px) {
+  .asa-ai-tools-switches .asa-ai-tool-card,
+  .asa-ai-tools-all .asa-ai-tool-card {
+    grid-template-columns: minmax(0, 1fr) 44px 28px;
+    gap: 2px 4px;
+  }
+  .asa-ai-tools-switches .asa-ai-tool-card > .asa-ai-tool-status,
+  .asa-ai-tools-all .asa-ai-tool-card > .asa-ai-tool-status {
+    grid-row: 2;
+    grid-column: 1;
+    justify-self: start;
+  }
+  .asa-ai-tools-switches .asa-ai-tool-card > a,
+  .asa-ai-tools-all .asa-ai-tool-card > a {
+    grid-row: 2;
+    grid-column: 2 / -1;
+  }
+  .asa-ai-tools .asa-ai-tool-toggle {
+    justify-self: center;
   }
 }

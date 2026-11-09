@@ -1,16 +1,13 @@
-import { aiImageSizeLabel, isAiImageSize, type AiImageRecipe } from '@asa-lab/contracts';
+import {
+  aiImageSizeLabel,
+  isAiImageSize,
+  type AiImageRecipe,
+  type AiToolId,
+} from '@asa-lab/contracts';
 import type { AiProviderUsage } from './ai-provider-usage.js';
 import { isFileTool, validateFileCall } from './ai-working-files.js';
 
-export type NativeToolName =
-  | 'generate_image'
-  | 'web_search'
-  | 'image_search'
-  | 'weather'
-  | 'read_page'
-  | 'create_working_file'
-  | 'read_working_file'
-  | 'edit_working_file';
+export type NativeToolName = AiToolId;
 export interface NativeToolCall {
   readonly name: NativeToolName;
   readonly arguments: Readonly<Record<string, unknown>>;
