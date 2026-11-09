@@ -259,9 +259,9 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
       expect(BigInt(pending.models[0].held)).toBeGreaterThan(0n);
       expect(pending.models[0].used).toBe('0');
       await page.reload();
-      await row.locator('details.asa-ai-budget-info > summary').click();
+      await row.getByRole('button', { name: /^Подробнее о расходе / }).click();
       await expect(
-        row.getByText('Резерв: ' + pending.models[0].held, { exact: false }),
+        page.getByRole('tooltip').getByText('Резерв: ' + pending.models[0].held, { exact: false }),
       ).toBeVisible();
       await capture('pending-admitted-answer', [390]);
       await checkChatAccountingHidden();

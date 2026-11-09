@@ -35,7 +35,7 @@ function fixture() {
   const query = vi.fn(async (sql: string, params: unknown[] = []) => {
     const journal = aiUsageQueryFixture(sql);
     if (journal) return journal;
-    if (sql.includes("to_regprocedure('public.ai_tool_policy_runtime()')"))
+    if (sql.includes("to_regprocedure('public.ai_tool_policy_permit(uuid,uuid,uuid,text)')"))
       return { rows: [{ ready: false }] };
     events.push(sql);
     if (sql.includes('ai_text_regeneration_replay')) {
