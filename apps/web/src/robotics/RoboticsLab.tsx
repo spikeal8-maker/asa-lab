@@ -55,7 +55,7 @@ const SECTIONS = [
   { id: 'field', label: 'Поле' },
   { id: 'robot', label: 'Робот' },
   { id: 'electronics', label: 'Электроника' },
-  { id: 'program', label: 'Программа' },
+  { id: 'program', label: 'Код' },
 ] as const;
 type Section = (typeof SECTIONS)[number]['id'];
 
@@ -359,7 +359,9 @@ export function RoboticsWorkspace({
   const [lastCommand, setLastCommand] = useState<string | null>(null);
   const selectedRateRef = useRef(1);
   const [showGrid, setShowGrid] = useState(true);
-  const codeOpen = section === 'program';
+  const [codeDrawerOpen, setCodeDrawerOpen] = useState(false);
+  const codeDrawerVisible = section === 'electronics' && codeDrawerOpen;
+  const codeOpen = section === 'program' || codeDrawerVisible;
   const [codeMounted, setCodeMounted] = useState(false);
   const [codeWidth, setCodeWidth] = useState(() =>
     Math.max(320, Math.min(1456, window.innerWidth - 74)),
@@ -614,6 +616,7 @@ export function RoboticsWorkspace({
     if (compactLayout && next === 'electronics' && section !== 'electronics')
       controller.setLibraryOpen(false);
     if (next === 'program') setCodeMounted(true);
+    if (next !== 'electronics') setCodeDrawerOpen(false);
     setSection(next);
     tabRefs.current[next]?.focus();
   }
@@ -886,24 +889,29 @@ export function RoboticsWorkspace({
           hidden={section !== 'electronics'}
         >
           <div className="robotics-panel-toolbar robotics-electronics-toolbar">
-            <RoboticsElectronicsToolbar controller={controller} running={running} />
+            <RoboticsElectronicsToolbar
+              controller={controller}
+              running={running}
+              codeOpen={codeDrawerVisible}
+              onToggleCode={() => {
+                setCodeMounted(true);
+                setCodeDrawerOpen((current) => !current);
+              }}
+            />
           </div>
-          <p className="robotics-edit-hint">
-            {running
-              ? 'Остановите моделирование для изменения схемы.'
-              : 'Выберите компонент в библиотеке, разместите его на схеме и соедините выводы.'}
-          </p>
         </section>
         <section
           className="robotics-panel robotics-program-panel"
-          role="tabpanel"
+          role={codeDrawerVisible ? 'region' : 'tabpanel'}
           id="robotics-panel-program"
           data-palette-open={paletteOpen}
-          aria-labelledby="robotics-tab-program"
+          data-drawer-open={codeDrawerVisible}
+          aria-label={codeDrawerVisible ? 'Выдвижной редактор кода Arduino' : undefined}
+          aria-labelledby={codeDrawerVisible ? undefined : 'robotics-tab-program'}
           hidden={!codeOpen}
         >
           <div className="robotics-panel-toolbar">
-            <h2>Программа</h2>
+            <h2>Код Arduino</h2>
             {programState.mode !== 'text' ? (
               <button
                 type="button"
@@ -968,7 +976,9 @@ export function RoboticsWorkspace({
                 onDrawerWidthChange={setCodeWidth}
                 mobileHeightPercent={codeHeight}
                 onMobileHeightChange={setCodeHeight}
-                onClose={() => navigate('field')}
+                onClose={() =>
+                  codeDrawerVisible ? setCodeDrawerOpen(false) : navigate('electronics')
+                }
                 programHandleRef={programHandle}
               />
             ) : null}

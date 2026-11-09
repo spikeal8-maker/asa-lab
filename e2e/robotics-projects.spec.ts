@@ -417,7 +417,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
   await expect(
     page.locator('.workbench-canvas [data-testid="schematic-component"][data-component-id="uno"]'),
   ).toBeVisible();
-  await page.getByRole('tab', { name: 'Программа', exact: true }).click();
+  await page.getByRole('tab', { name: 'Код', exact: true }).click();
   await expect(page.getByTestId('arduino-block-workspace')).toBeVisible();
   await page
     .getByRole('combobox', { name: 'Пример программы', exact: true })
@@ -473,12 +473,12 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     await page.setViewportSize({ width, height: 900 });
     await page.getByRole('tab', { name: 'Поле', exact: true }).click();
     await noOverflow(page);
-    for (const label of ['Поле', 'Робот', 'Электроника', 'Программа'])
+    for (const label of ['Поле', 'Робот', 'Электроника', 'Код'])
       await visibleControl(page, page.getByRole('tab', { name: label, exact: true }));
     await visibleControl(page, page.getByRole('button', { name: 'Сохранить', exact: true }));
     for (const label of ['Публикация', 'Аккаунт'] as const) await roboticsHeaderAction(page, label);
     await page.screenshot({ path: `${EVIDENCE}/editor-field-${width}.png`, fullPage: true });
-    await page.getByRole('tab', { name: 'Программа', exact: true }).click();
+    await page.getByRole('tab', { name: 'Код', exact: true }).click();
     await expect(code).toBeVisible();
     await expect(code).toHaveValue(source);
     await noOverflow(page);
@@ -534,7 +534,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     const reopened = await readProject(restored, projectId);
     expect(reopened.draft.document).toEqual(confirmed.draft.document);
     expect(reopened.draft.revision).toBe(confirmed.draft.revision);
-    await restored.getByRole('tab', { name: 'Программа', exact: true }).click();
+    await restored.getByRole('tab', { name: 'Код', exact: true }).click();
     await expect(
       restored.getByRole('textbox', { name: 'Код Arduino C++', exact: true }),
     ).toHaveValue(source);
@@ -931,7 +931,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
   await numberField(page, 'Датчик: вперёд от центра', 0);
   await numberField(page, 'Датчик: влево от центра', 100);
   await numberField(page, 'Направление датчика', 90);
-  await page.getByRole('tab', { name: 'Программа', exact: true }).click();
+  await page.getByRole('tab', { name: 'Код', exact: true }).click();
   await expect(page.getByTestId('arduino-block-workspace')).toBeVisible();
   await page
     .getByRole('combobox', { name: 'Пример программы', exact: true })

@@ -207,7 +207,6 @@ export function WorkbenchHeader({
   onExportView: (view: Exclude<WorkbenchView, 'breadboard'>) => void;
 }): JSX.Element {
   const hasComponentSelection = c.selection?.kind === 'component';
-  const wireColorMenuRef = useRef<HTMLDetailsElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const avatar = useEditorAvatar(user);
 
@@ -283,124 +282,7 @@ export function WorkbenchHeader({
         aria-label="Инструменты редактора"
       >
         {view === 'breadboard' ? (
-          <div className="workbench-toolbar-group workbench-breadboard-tools">
-            <ToolButton
-              label="Копировать (Ctrl+C)"
-              onClick={c.copySelected}
-              disabled={!hasComponentSelection && c.selection?.kind !== 'annotation'}
-            >
-              <DuplicateIcon />
-            </ToolButton>
-            <ToolButton
-              label="Вставить (Ctrl+V)"
-              onClick={c.pasteCopied}
-              disabled={!c.hasClipboard}
-            >
-              <PasteIcon />
-            </ToolButton>
-            <ToolButton
-              label="Удалить (Delete)"
-              onClick={c.removeSelection}
-              disabled={!c.selection}
-              danger
-            >
-              <DeleteIcon />
-            </ToolButton>
-            <span className="workbench-toolbar-divider" />
-            <ToolButton
-              label="Отменить (Ctrl+Z)"
-              touchCommand
-              onClick={c.undo}
-              disabled={!c.canUndo}
-            >
-              <UndoIcon />
-            </ToolButton>
-            <ToolButton
-              label="Повторить (Ctrl+Shift+Z)"
-              touchCommand
-              onClick={c.redo}
-              disabled={!c.canRedo}
-            >
-              <RedoIcon />
-            </ToolButton>
-            <span className="workbench-toolbar-divider" />
-            <ToolButton label="Заметки" active={notesOpen} onClick={onToggleNotes}>
-              <CommentIcon />
-            </ToolButton>
-            <ToolButton
-              label="Добавить текст на схему"
-              onClick={c.addCanvasText}
-              disabled={!c.document}
-            >
-              <span aria-hidden="true" className="workbench-text-icon">
-                T
-              </span>
-            </ToolButton>
-            <ToolButton
-              label="Показать или скрыть заметки"
-              active={notesOpen}
-              onClick={onToggleNotes}
-            >
-              <ViewIcon />
-            </ToolButton>
-            <span className="workbench-toolbar-gap small" />
-            <details className="workbench-wire-color" ref={wireColorMenuRef}>
-              <summary aria-label="Цвет провода" data-workbench-tooltip="Цвет провода">
-                <span style={{ background: c.activeWireColor }} />
-                <ChevronIcon />
-              </summary>
-              <div className="workbench-wire-color-menu" role="menu" aria-label="Цвет провода">
-                {WIRE_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={c.activeWireColor === color}
-                    className={c.activeWireColor === color ? 'active' : ''}
-                    onClick={() => {
-                      c.setWireColor(color);
-                      wireColorMenuRef.current?.removeAttribute('open');
-                    }}
-                    aria-label={`Цвет провода: ${WIRE_COLOR_NAMES[color]}`}
-                    data-workbench-tooltip={WIRE_COLOR_NAMES[color]}
-                  >
-                    <span style={{ background: color }} />
-                  </button>
-                ))}
-              </div>
-            </details>
-            <span className="workbench-toolbar-gap small" />
-            <button
-              type="button"
-              className={`workbench-wire-style${c.orthogonalWireMode ? ' active' : ''}`}
-              aria-label="Автоматическая прокладка провода под 90 градусов"
-              aria-pressed={c.orthogonalWireMode}
-              data-workbench-tooltip={
-                c.orthogonalWireMode ? 'Фиксация под 90° включена' : 'Включить фиксацию под 90°'
-              }
-              onClick={c.toggleWireRoute}
-              style={{ color: c.activeWireColor }}
-            >
-              <WireIcon />
-              <ChevronIcon />
-            </button>
-            <span className="workbench-toolbar-gap rotate" />
-            <ToolButton
-              label="Повернуть на 45° (R)"
-              onClick={c.rotateSelected}
-              disabled={!hasComponentSelection}
-            >
-              <RotateIcon />
-            </ToolButton>
-            <ToolButton
-              label="Отразить"
-              title={MIRROR_KEY_HINT}
-              onClick={() => c.mirrorSelected('horizontal')}
-              disabled={!hasComponentSelection}
-            >
-              <MirrorIcon />
-            </ToolButton>
-          </div>
+          <WorkbenchEditingTools controller={c} notesOpen={notesOpen} onToggleNotes={onToggleNotes} />
         ) : (
           <div className="workbench-toolbar-group workbench-view-tools">
             <strong>{view === 'schematic' ? 'Схема' : 'Список компонентов'}</strong>
@@ -520,5 +402,152 @@ export function WorkbenchHeader({
         </div>
       ) : null}
     </>
+  );
+}
+
+/** Native edit actions shared by Electronics and Robotics; both use the same tool definitions. */
+export function WorkbenchEditingTools({
+  controller: c,
+  notesOpen = false,
+  onToggleNotes = () => undefined,
+  showNotes = true,
+}: {
+  controller: ElectronicsWorkbenchController;
+  notesOpen?: boolean;
+  onToggleNotes?: () => void;
+  showNotes?: boolean;
+}): JSX.Element {
+  const wireColorMenuRef = useRef<HTMLDetailsElement>(null);
+  const hasComponentSelection = c.selection?.kind === 'component';
+  return (
+    <div className="workbench-toolbar-group workbench-breadboard-tools">
+                <ToolButton
+                  label="Копировать (Ctrl+C)"
+                  onClick={c.copySelected}
+                  disabled={!hasComponentSelection && c.selection?.kind !== 'annotation'}
+                >
+                  <DuplicateIcon />
+                </ToolButton>
+                <ToolButton
+                  label="Дублировать"
+                  onClick={c.duplicateSelected}
+                  disabled={!hasComponentSelection && c.selection?.kind !== 'annotation'}
+                >
+                  <DuplicateIcon />
+                </ToolButton>
+                <ToolButton
+                  label="Вставить (Ctrl+V)"
+                  onClick={c.pasteCopied}
+                  disabled={!c.hasClipboard}
+                >
+                  <PasteIcon />
+                </ToolButton>
+                <ToolButton
+                  label="Удалить (Delete)"
+                  onClick={c.removeSelection}
+                  disabled={!c.selection}
+                  danger
+                >
+                  <DeleteIcon />
+                </ToolButton>
+                <span className="workbench-toolbar-divider" />
+                <ToolButton
+                  label="Отменить (Ctrl+Z)"
+                  touchCommand
+                  onClick={c.undo}
+                  disabled={!c.canUndo}
+                >
+                  <UndoIcon />
+                </ToolButton>
+                <ToolButton
+                  label="Повторить (Ctrl+Shift+Z)"
+                  touchCommand
+                  onClick={c.redo}
+                  disabled={!c.canRedo}
+                >
+                  <RedoIcon />
+                </ToolButton>
+                <span className="workbench-toolbar-divider" />
+                {showNotes ? (
+                  <ToolButton label="Заметки" active={notesOpen} onClick={onToggleNotes}>
+                    <CommentIcon />
+                  </ToolButton>
+                ) : null}
+                <ToolButton
+                  label="Добавить текст на схему"
+                  onClick={c.addCanvasText}
+                  disabled={!c.document}
+                >
+                  <span aria-hidden="true" className="workbench-text-icon">
+                    T
+                  </span>
+                </ToolButton>
+                {showNotes ? (
+                  <ToolButton
+                    label="Показать или скрыть заметки"
+                    active={notesOpen}
+                    onClick={onToggleNotes}
+                  >
+                    <ViewIcon />
+                  </ToolButton>
+                ) : null}
+                <span className="workbench-toolbar-gap small" />
+                <details className="workbench-wire-color" ref={wireColorMenuRef}>
+                  <summary aria-label="Цвет провода" data-workbench-tooltip="Цвет провода">
+                    <span style={{ background: c.activeWireColor }} />
+                    <ChevronIcon />
+                  </summary>
+                  <div className="workbench-wire-color-menu" role="menu" aria-label="Цвет провода">
+                    {WIRE_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={c.activeWireColor === color}
+                        className={c.activeWireColor === color ? 'active' : ''}
+                        onClick={() => {
+                          c.setWireColor(color);
+                          wireColorMenuRef.current?.removeAttribute('open');
+                        }}
+                        aria-label={`Цвет провода: ${WIRE_COLOR_NAMES[color]}`}
+                        data-workbench-tooltip={WIRE_COLOR_NAMES[color]}
+                      >
+                        <span style={{ background: color }} />
+                      </button>
+                    ))}
+                  </div>
+                </details>
+                <span className="workbench-toolbar-gap small" />
+                <button
+                  type="button"
+                  className={`workbench-wire-style${c.orthogonalWireMode ? ' active' : ''}`}
+                  aria-label="Автоматическая прокладка провода под 90 градусов"
+                  aria-pressed={c.orthogonalWireMode}
+                  data-workbench-tooltip={
+                    c.orthogonalWireMode ? 'Фиксация под 90° включена' : 'Включить фиксацию под 90°'
+                  }
+                  onClick={c.toggleWireRoute}
+                  style={{ color: c.activeWireColor }}
+                >
+                  <WireIcon />
+                  <ChevronIcon />
+                </button>
+                <span className="workbench-toolbar-gap rotate" />
+                <ToolButton
+                  label="Повернуть на 45° (R)"
+                  onClick={c.rotateSelected}
+                  disabled={!hasComponentSelection}
+                >
+                  <RotateIcon />
+                </ToolButton>
+                <ToolButton
+                  label="Отразить"
+                  title={MIRROR_KEY_HINT}
+                  onClick={() => c.mirrorSelected('horizontal')}
+                  disabled={!hasComponentSelection}
+                >
+                  <MirrorIcon />
+                </ToolButton>
+              </div>
   );
 }

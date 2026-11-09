@@ -99,7 +99,7 @@ try {
   await expect(save).toHaveAttribute('data-save-state', 'saved');
   console.log('PASS profile image, save state transition saved → dirty → saved');
 
-  for (const name of ['Поле', 'Робот', 'Электроника', 'Программа']) {
+  for (const name of ['Поле', 'Робот', 'Электроника', 'Код']) {
     await page.getByRole('tab', { name, exact: true }).click();
     await expect(page.getByRole('tab', { name, exact: true })).toHaveAttribute(
       'aria-selected',

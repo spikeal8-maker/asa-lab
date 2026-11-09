@@ -416,7 +416,7 @@ describe('robotics UI integration with the common workbench port', () => {
       'Поле',
       'Робот',
       'Электроника',
-      'Программа',
+      'Код',
     ]);
     expect(tabs.every((tab) => tab.querySelector('svg') !== null)).toBe(true);
     const save = header!.querySelector<HTMLButtonElement>('.robotics-header-save');
@@ -568,7 +568,7 @@ describe('robotics UI integration with the common workbench port', () => {
       });
     }
     act(() => root.render(createElement(AccountHarness)));
-    await click('Программа');
+    await click('Код');
     const source = 'void setup(){} void loop(){delay(43);}';
     port.programFlush.mockImplementation(() =>
       port.programPublish!('uno', { arduinoSource: source }),
@@ -594,7 +594,7 @@ describe('robotics UI integration with the common workbench port', () => {
     const stage = metric('canonical-stage');
     expect(stage.textContent).toContain('9 canonical components');
     expect(port.fit).toHaveBeenCalledOnce();
-    await click('Программа');
+    await click('Код');
     expect(metric('canonical-program')).toBeTruthy();
     expect(metric('canonical-stage')).toBe(stage);
     expect(stage.closest('[hidden]')).toBeNull();
@@ -605,7 +605,8 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(port.options).toEqual({
       runtimeInputEventLimit: 1000,
       reportSimulationDiagnostics: false,
-      keyboardShortcutsEnabled: false,
+      // Closing fullscreen Code returns to Electronics.
+      keyboardShortcutsEnabled: true,
     });
   });
 
@@ -613,7 +614,7 @@ describe('robotics UI integration with the common workbench port', () => {
     const stage = metric('canonical-stage');
     for (const [name, id] of [
       ['Электроника', 'electronics'],
-      ['Программа', 'program'],
+      ['Код', 'program'],
       ['Робот', 'robot'],
       ['Поле', 'field'],
     ]) {
@@ -633,7 +634,7 @@ describe('robotics UI integration with the common workbench port', () => {
   });
 
   it('resynchronizes direct host history and rejects stale editor flush/publication in the same event', async () => {
-    await click('Программа');
+    await click('Код');
     const original = port.host!.getCurrentDocument()!;
     const publishFromOldEditor = port.programPublish!;
     const changedSource = 'void setup(){} void loop(){delay(37);}';
