@@ -2017,15 +2017,22 @@ export class AiChatService {
         useLocal ? local!.model : model,
       );
       const toolPolicy = await this.toolPolicy.snapshot(principalId, threadId, requestId);
-      const runTool = async <T>(tool: AiChatTool, run: () => Promise<T>): Promise<T> => {
+      const runTool = async <T>(
+        tool: AiChatTool,
+        run: () => Promise<T>,
+        readReceipt?: (result: T) => AiToolActivity['fileRead'],
+      ): Promise<T> => {
         combined.throwIfAborted();
         await this.toolPolicy.assertAllowed(principalId, threadId, requestId, tool);
         combined.throwIfAborted();
         onActivity?.({ tool, state: 'running' });
+        let fileRead: AiToolActivity['fileRead'];
         try {
-          return await run();
+          const result = await run();
+          fileRead = onActivity ? readReceipt?.(result) : undefined;
+          return result;
         } finally {
-          onActivity?.({ tool, state: 'complete' });
+          onActivity?.({ tool, state: 'complete', ...(fileRead ? { fileRead } : {}) });
         }
       };
       let webEvidence: AiWebSearchEvidence | null = null;
@@ -2367,16 +2374,26 @@ export class AiChatService {
             throw new AiServiceError('ai_tool_call_invalid', 503, 'Инструмент файла не разрешён.');
           let content: string;
           try {
-            content = await runTool(call.name as AiChatTool, () =>
-              this.workingFiles.execute(
-                principalId,
-                threadId,
-                requestId,
-                call,
-                round,
-                fileMessages,
-                fileReads,
-              ),
+            content = await runTool(
+              call.name as AiChatTool,
+              () =>
+                this.workingFiles.execute(
+                  principalId,
+                  threadId,
+                  requestId,
+                  call,
+                  round,
+                  fileMessages,
+                  fileReads,
+                ),
+              call.name === 'read_working_file'
+                ? (result) => {
+                    const { name, version } = JSON.parse(result) as NonNullable<
+                      AiToolActivity['fileRead']
+                    >;
+                    return { name, version };
+                  }
+                : undefined,
             );
           } catch (error) {
             if (!(error instanceof WorkingFileError)) throw error;

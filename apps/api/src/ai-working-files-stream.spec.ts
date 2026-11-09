@@ -146,6 +146,7 @@ it.each(TOOL_PROVIDERS)(
       .spyOn(service.workingFiles, 'write')
       .mockResolvedValue({ ...file, version: 2, content: '<h1>Змейка</h1>' });
     const deltas: string[] = [];
+    const activity = vi.fn();
     await service.sendStream(
       owner,
       thread,
@@ -153,7 +154,24 @@ it.each(TOOL_PROVIDERS)(
       request,
       (delta) => deltas.push(delta),
       new AbortController().signal,
+      undefined,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      activity,
     );
+    expect(activity.mock.calls.filter(([event]) => event.tool === 'read_working_file')).toEqual([
+      [{ tool: 'read_working_file', state: 'running' }],
+      [
+        {
+          tool: 'read_working_file',
+          state: 'complete',
+          fileRead: { name: 'snake.html', version: 1 },
+        },
+      ],
+    ]);
     expect(round).toBe(3);
     expect(deltas.join('')).toBe('Заголовок обновлён.');
     expect(write).toHaveBeenCalledTimes(1);

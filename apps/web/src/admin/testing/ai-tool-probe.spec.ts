@@ -203,6 +203,39 @@ it('does not claim that a file was updated from model text alone', async () => {
   expect(host.textContent).toContain('не подтверждено');
 });
 
+it.each([
+  { fileRead: undefined, confirmed: false },
+  { fileRead: { name: 'other.txt', version: 2 }, confirmed: false },
+  { fileRead: { name: 'probe.txt', version: 1 }, confirmed: false },
+  { fileRead: { name: 'probe.txt', version: 2 }, confirmed: true },
+])('requires a matching server read receipt ($fileRead)', async ({ fileRead, confirmed }) => {
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation(async (path, init) =>
+    path.includes('/working-files/')
+      ? { ok: true, status: 200, data: { name: 'probe.txt', version: 2, content: 'saved' } }
+      : original(path, init),
+  );
+  vi.mocked(streamAiRequest).mockImplementation(
+    async (_t, _p, request, _d, _s, _m, _h, _a, _w, _i, activity) => {
+      activity?.({
+        tool: 'read_working_file',
+        state: 'complete',
+        ...(fileRead ? { fileRead } : {}),
+      });
+      return {
+        messages: [{ requestId: request, role: 'assistant', content: 'Я прочитал файл' }],
+        replayed: false,
+        stopped: false,
+      } as never;
+    },
+  );
+  await render('read_working_file');
+  await submit();
+  expect(host.textContent).toContain(
+    confirmed ? 'Файл проверен: probe.txt, версия 2.' : 'не подтверждено',
+  );
+});
+
 it('rechecks the saved policy immediately before starting a real operation', async () => {
   await render();
   vi.mocked(call).mockResolvedValueOnce({

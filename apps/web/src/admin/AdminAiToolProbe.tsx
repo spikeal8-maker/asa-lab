@@ -277,7 +277,7 @@ export function AdminAiToolProbe({
         (item) => item.requestId === attempt!.request && item.role === 'assistant',
       );
       const evidence = messages.find((item) => item.webSearch)?.webSearch;
-      const file = await fileRead(attempt.thread);
+      const file = tool === 'read_working_file' ? before : await fileRead(attempt.thread);
       if (!live.current || abort.signal.aborted) return;
       const called = trace.some((item) => item.tool === tool);
       let verdict = called
@@ -297,7 +297,16 @@ export function AdminAiToolProbe({
                 : 'Данные не получены. Проверьте подключение и лимиты.';
       else if (called && isFile(tool))
         verdict =
-          file && (tool === 'read_working_file' || file.version > (before?.version ?? 0))
+          file &&
+          (tool === 'read_working_file'
+            ? trace.some(
+                (item) =>
+                  item.tool === tool &&
+                  item.state === 'complete' &&
+                  item.fileRead?.name === file.name &&
+                  item.fileRead.version === file.version,
+              )
+            : file.version > (before?.version ?? 0))
             ? 'Файл проверен: ' + file.name + ', версия ' + file.version + '.'
             : 'Вызов был, но ожидаемое сохранение или чтение файла не подтверждено.';
       if (reply.imageJob) verdict = imageVerdict(reply.imageJob);

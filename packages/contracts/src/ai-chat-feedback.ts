@@ -24,14 +24,34 @@ export type AiChatTool = AiToolId;
 export interface AiToolActivity {
   readonly tool: AiChatTool;
   readonly state: 'running' | 'complete';
+  readonly fileRead?: { readonly name: string; readonly version: number };
 }
 export function isAiToolActivity(value: unknown): value is AiToolActivity {
   if (!value || typeof value !== 'object') return false;
   const v = value as Record<string, unknown>;
+  if (
+    !AI_CHAT_TOOLS.includes(v['tool'] as AiChatTool) ||
+    (v['state'] !== 'running' && v['state'] !== 'complete')
+  )
+    return false;
+  if (!Object.hasOwn(v, 'fileRead')) return Object.keys(v).length === 2;
+  if (
+    Object.keys(v).length !== 3 ||
+    v['tool'] !== 'read_working_file' ||
+    v['state'] !== 'complete' ||
+    !v['fileRead'] ||
+    typeof v['fileRead'] !== 'object'
+  )
+    return false;
+  const { name, version } = v['fileRead'] as Record<string, unknown>;
   return (
-    Object.keys(v).length === 2 &&
-    AI_CHAT_TOOLS.includes(v['tool'] as AiChatTool) &&
-    (v['state'] === 'running' || v['state'] === 'complete')
+    Object.keys(v['fileRead']).length === 2 &&
+    typeof name === 'string' &&
+    /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,95}$/.test(name) &&
+    !name.includes('..') &&
+    typeof version === 'number' &&
+    Number.isSafeInteger(version) &&
+    version > 0
   );
 }
 export const AI_TOOL_ACTIVITY_LABELS: Readonly<Record<AiChatTool, string>> = {
