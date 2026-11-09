@@ -207,9 +207,13 @@ function schedulerInputEvent(event: ElectronicsTimedInputEvent): ArduinoCircuitI
     };
   }
   if (
-    ['wiperPosition', 'temperatureCelsius', 'moisturePercent', 'distanceMeters'].includes(
-      event.operation,
-    ) &&
+    [
+      'wiperPosition',
+      'illumination',
+      'temperatureCelsius',
+      'moisturePercent',
+      'distanceMeters',
+    ].includes(event.operation) &&
     typeof event.payload === 'number'
   ) {
     return {

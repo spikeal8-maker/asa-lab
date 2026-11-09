@@ -16353,7 +16353,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-BUTTON-LED-RESPONSE-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-PHOTORESISTOR-LIVE-001.md
     previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
@@ -16377,22 +16377,27 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-BUTTON-LED-RESPONSE-001
+      id: TASK-ELECTRONICS-PHOTORESISTOR-LIVE-001
       issue: 539
       branch: main
       base_branch: main
       pr: null
       status: in_progress
       kind: repair
-      risk: medium
-      semantic_change: 'no'
-      checkpoint: button_serial_unchanged_idle_projection_selected
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: photoresistor_light_input_selected
       owner_acceptance: pending
-      owner_authorization: Owner requests one original timing failure at a time, browser proof before main, no refactor or server or foreign edits. Select button-serial and remove only identical idle Serial updates if focused proof distinguishes the rerender.
+      owner_authorization: Owner reports the photoresistor slider flickering the entire circuit and requests realistic resistance and LED response. Select the live illumination input fix and verify without touching the server or foreign work.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-BUTTON-LED-RESPONSE-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-PHOTORESISTOR-LIVE-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
+      previous_button_serial_slice:
+        task_id: TASK-ELECTRONICS-BUTTON-LED-RESPONSE-001
+        integrated_sha: 64176e85dece6a05e0ab8986fcb7fa0b1b33aa00
+        browser_run: 42662331705
+        required_run: 42680311758
       rejected_quantum_experiment:
         task_id: TASK-ELECTRONICS-WORKER-WORK-QUANTUM-001
         candidate_sha: e754f1ffe6e65e6c7f3cfa0a8e720d6b926a836e
