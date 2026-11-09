@@ -522,12 +522,15 @@ test('real two-pupil Chess, teacher controls, reconnect/history and all opponent
     expect(avatarSaved.ok(), await avatarSaved.text()).toBe(true);
     const bPlayer = (await (await b.page.request.get('/api/games/chess/access')).json()).player;
     const peer = a.page.locator(`[data-player-id="${bPlayer.playerId}"]`);
-    const currentLobby = await (
-      await post(a.page.request, origin, 'lobby', { scope: 'classroom' })
-    ).json();
+    // Opening the network screen does not wait for its initial presence heartbeat.
+    await expect(peer.locator('img')).toBeVisible({ timeout: 15000 });
+    const lobbyResponse = await post(a.page.request, origin, 'lobby', { scope: 'classroom' });
+    expect(lobbyResponse.ok()).toBe(true);
+    const currentLobby = await lobbyResponse.json();
     const expectedAvatar = currentLobby.players.find(
       (p: { playerId: string }) => p.playerId === bPlayer.playerId,
-    ).avatarUrl;
+    )?.avatarUrl;
+    expect(expectedAvatar).toEqual(expect.any(String));
     await expect(peer.locator('img')).toHaveAttribute('src', expectedAvatar, { timeout: 15000 });
 
     await expect(
