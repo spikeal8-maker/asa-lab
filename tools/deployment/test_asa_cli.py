@@ -552,6 +552,53 @@ class DelegationContracts(unittest.TestCase):
         self.assertEqual(asa_cli.registry_entry(value, self.options)["bundle"], str(bundle))
         self.assertFalse((self.root / ".asa").exists())
 
+    @unittest.skipUnless(os.name == "posix", "Linux post-update health observation")
+    def test_post_update_health_waits_for_starting_then_healthy(self):
+        observations = iter([{"status": "FAILED"}, {"status": "OK"}])
+        with patch.object(asa_cli.time, "sleep", return_value=None):
+            result = asa_cli.wait_for_post_update_health(self.record, timeout_seconds=5,
+                interval_seconds=0.01, observe_health=lambda: next(observations))
+        self.assertEqual(result, {"status": "OK"})
+
+    @unittest.skipUnless(os.name == "posix", "Linux post-update health observation")
+    def test_post_update_health_timeout_is_not_false_success(self):
+        result = asa_cli.wait_for_post_update_health(self.record, timeout_seconds=0,
+            observe_health=lambda: {"status": "FAILED"})
+        self.assertEqual(result, {"status": "FAILED", "reasonCode": "POST_UPDATE_HEALTH_TIMEOUT"})
+
+    @unittest.skipUnless(os.name == "posix", "Linux post-update health report")
+    def test_manager_success_but_unhealthy_docker_reports_blocked_no_reupdate(self):
+        process = SimpleNamespace(stdout=io.StringIO(""), wait=lambda: 0)
+        with patch.object(asa_cli.subprocess, "Popen", return_value=process) as proc, \
+             patch.object(asa_cli, "log_directory", return_value=self.root / "logs"), \
+             patch.object(asa_cli, "require_secure_log_directory", return_value=None), \
+             patch.object(asa_cli, "wait_for_post_update_health",
+                          return_value={"status": "FAILED", "reasonCode": "POST_UPDATE_HEALTH_TIMEOUT"}) as health, \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            code = asa_cli.run_reduced(["manager"], "update apply", as_json=True,
+                                       post_update_record=self.record)
+        report = json.loads(output.getvalue())
+        self.assertEqual((code, report["status"], report["managerExitCode"]), (2, "BLOCKED", 0))
+        self.assertEqual(report["reasonCode"], "POST_UPDATE_HEALTH_TIMEOUT")
+        self.assertEqual(report["postUpdateHealth"]["status"], "FAILED")
+        self.assertIn("не повторяйте update", report["nextAction"])
+        proc.assert_called_once()
+        health.assert_called_once_with(self.record)
+
+    @unittest.skipUnless(os.name == "posix", "Linux post-update health report")
+    def test_manager_success_and_healthy_docker_reports_ok(self):
+        process = SimpleNamespace(stdout=io.StringIO(""), wait=lambda: 0)
+        with patch.object(asa_cli.subprocess, "Popen", return_value=process), \
+             patch.object(asa_cli, "log_directory", return_value=self.root / "logs"), \
+             patch.object(asa_cli, "require_secure_log_directory", return_value=None), \
+             patch.object(asa_cli, "wait_for_post_update_health", return_value={"status": "OK"}) as health, \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            code = asa_cli.run_reduced(["manager"], "update apply", as_json=True,
+                                       post_update_record=self.record)
+        report = json.loads(output.getvalue())
+        self.assertEqual((code, report["status"], report["postUpdateHealth"]["status"]), (0, "OK", "OK"))
+        health.assert_called_once_with(self.record)
+
     def test_manager_failure_is_bounded_sanitized_and_not_retried(self):
         process = SimpleNamespace(stdout=io.StringIO("BLOCKED COMMAND: SOURCE_CHANGED\npassword=SECRET_SENTINEL\n"),
                                   wait=lambda: 77)

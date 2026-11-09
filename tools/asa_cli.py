@@ -20,6 +20,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 
 sys.dont_write_bytecode = True
 
@@ -332,7 +333,8 @@ def run_linux(action: str, record: dict, options) -> int:
     if options.non_interactive or options.json or not sys.stdin.isatty():
         cmd.append("--non-interactive")
         cmd.append("--json")
-    return run_reduced(cmd, action, as_json=options.json)
+    return run_reduced(cmd, action, as_json=options.json,
+                       post_update_record=record if action == "update apply" else None)
 
 
 def run_windows(action: str, record: dict, options) -> int:
@@ -363,7 +365,28 @@ def require_secure_log_directory(folder: Path) -> None:
                 "Каталог журнала должен принадлежать root с правами 0700.")
 
 
-def run_reduced(command: list[str], action: str, *, as_json=False) -> int:
+def wait_for_post_update_health(record: dict, *, timeout_seconds: int = 120,
+                                interval_seconds: int = 3, observe_health=None) -> dict:
+    """Wait for required Docker healthchecks after successful update; never mutate."""
+    if observe_health is None:
+        own_modules()
+        from deployment.cli_observe import Observer
+        observe_health = lambda: Observer(record).containers()
+    deadline = time.monotonic() + timeout_seconds
+    last = "UNAVAILABLE"
+    while True:
+        value = observe_health()
+        state = value.get("status") if isinstance(value, dict) else None
+        if state == "OK":
+            return {"status": "OK"}
+        last = state if state in ("FAILED", "UNAVAILABLE") else "UNAVAILABLE"
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return {"status": last, "reasonCode": "POST_UPDATE_HEALTH_TIMEOUT"}
+        time.sleep(min(interval_seconds, remaining))
+
+
+def run_reduced(command: list[str], action: str, *, as_json=False, post_update_record=None) -> int:
     """Stream full diagnostics to a private log; show only bounded stage/results."""
     child_env = None if os.name == "nt" else {"PATH": SAFE_PATH, "HOME": "/root", "USER": "root", "LOGNAME": "root", "LANG": "C.UTF-8", "PYTHONDONTWRITEBYTECODE": "1"}
     if child_env is not None:
@@ -444,12 +467,26 @@ def run_reduced(command: list[str], action: str, *, as_json=False) -> int:
         if not as_json:
             print("Защищённый журнал: " + str(logfile), flush=True)
     code = 0 if exit_code == 0 else 130 if exit_code in (-2, 130) else 2 if exit_code == 2 else 1
+    post_health = None
+    if code == 0 and action == "update apply" and post_update_record is not None and os.name != "nt":
+        try:
+            post_health = wait_for_post_update_health(post_update_record)
+        except Exception:
+            # Unexpected observations must never create a false successful result.
+            post_health = {"status": "UNAVAILABLE", "reasonCode": "POST_UPDATE_HEALTH_UNAVAILABLE"}
+        if post_health.get("status") != "OK":
+            code = 2
+            blocked = [*blocked[-2:], post_health["reasonCode"]]
     if operation.get("reasonCode"):
         blocked = [*blocked[-2:], operation["reasonCode"]]
     emit(action, {"status": "OK" if code == 0 else "INTERRUPTED" if code == 130 else "BLOCKED" if code == 2 else "FAILED",
                   "exitCode": code, "managerExitCode": exit_code, "reasonCodes": blocked,
-                  "reasonCode": operation.get("reasonCode"), "operation": operation,
-                  "logPath": str(logfile), "automaticRetry": False}, as_json=as_json, code=code)
+                  "reasonCode": post_health.get("reasonCode") if post_health and code == 2 else operation.get("reasonCode"),
+                  "postUpdateHealth": post_health, "operation": operation,
+                  "logPath": str(logfile), "automaticRetry": False,
+                  "nextAction": ("Обновление применено; Docker healthcheck ещё не подтверждён. "
+                                 "Выполните asa services; не повторяйте update автоматически."
+                                 if post_health and code == 2 else None)}, as_json=as_json, code=code)
     return code
 
 
