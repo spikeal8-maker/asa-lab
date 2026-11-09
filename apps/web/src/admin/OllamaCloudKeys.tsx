@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type MutableRefObject } from 'react';
 import type {
   AiOllamaCloudInspection,
   AiOllamaCloudKey,
@@ -8,6 +8,8 @@ import type {
 import { call } from './admin-api';
 
 type Draft = AiOllamaCloudKey & { apiKey: string; clearApiKey: boolean };
+export type CloudPoolSave = (version: number) => Promise<AiOllamaCloudPool | null>;
+type KeyCheck = { tone: 'pending' | 'success' | 'error'; text: string };
 type ModelDetails = { contextTokens: number | null; modifiedAt: string | null };
 const number = new Intl.NumberFormat('ru-RU');
 const date = new Intl.DateTimeFormat('ru-RU', { timeZone: 'UTC' });
@@ -71,14 +73,20 @@ function status(k: AiOllamaCloudKey): string {
 export function OllamaCloudKeys({
   version,
   encryptionReady,
-  onSaved,
+  saveRef,
+  locked = false,
+  onBusyChange,
+  onKeyReadyChange,
   onDirtyChange,
   onModels,
   onAccessDenied,
 }: {
   version: number;
   encryptionReady: boolean;
-  onSaved: () => void;
+  saveRef: MutableRefObject<CloudPoolSave | null>;
+  locked?: boolean;
+  onBusyChange?: (busy: boolean) => void;
+  onKeyReadyChange?: (ready: boolean) => void;
   onDirtyChange?: (dirty: boolean) => void;
   onModels: (models: readonly AiOllamaCloudModel[]) => void;
   onAccessDenied: () => void;
@@ -91,11 +99,20 @@ export function OllamaCloudKeys({
   const [rows, setRows] = useState<Draft[]>([]);
   const [busy, setBusy] = useState(false),
     [dirty, setDirty] = useState(false);
+  const [checks, setChecks] = useState<Record<number, KeyCheck | undefined>>({});
   const [error, setError] = useState(''),
     [notice, setNotice] = useState('');
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
+  const keyReady = rows.some(
+    (row) =>
+      !row.clearApiKey &&
+      ((row.configured && row.enabled) || (!row.configured && Boolean(row.apiKey.trim()))),
+  );
+  useEffect(() => onBusyChange?.(busy), [busy, onBusyChange]);
+  useEffect(() => onKeyReadyChange?.(keyReady), [keyReady, onKeyReadyChange]);
+  const disabled = busy || locked;
   const flight = useRef(false),
     generation = useRef(0);
   useEffect(() => {
@@ -130,6 +147,8 @@ export function OllamaCloudKeys({
     };
   }, [version, onModels, onAccessDenied]);
   function change(slot: number, patch: Partial<Draft>) {
+    if (patch.apiKey !== undefined || patch.clearApiKey !== undefined)
+      setChecks((old) => ({ ...old, [slot]: undefined }));
     setRows((old) => old.map((k) => (k.slot === slot ? { ...k, ...patch } : k)));
     setDirty(true);
     setNotice('');
@@ -170,15 +189,43 @@ export function OllamaCloudKeys({
     if (!reply.ok && [401, 403].includes(reply.status)) onAccessDenied();
   }
 
-  async function execute(action: 'save' | 'catalog' | 'check', slot?: number) {
-    if (!pool || flight.current) return;
+  async function execute(
+    action: 'save' | 'catalog' | 'check',
+    slot?: number,
+    expectedVersion?: number,
+  ) {
+    if (!pool || flight.current) return null;
+    if (expectedVersion !== undefined && expectedVersion !== pool.configurationVersion) {
+      setError('Настройки изменились. Обновите вкладку перед сохранением.');
+      return null;
+    }
     flight.current = true;
     setBusy(true);
     setError('');
     setNotice('');
     const request = generation.current;
-    let saved = false;
-    let version = pool.configurationVersion;
+    const version = pool.configurationVersion;
+
+    function result(keySlot: number, value: KeyCheck) {
+      setChecks((old) => ({ ...old, [keySlot]: value }));
+    }
+
+    function updateObservations(keys: readonly AiOllamaCloudKey[]) {
+      const observed = new Map(keys.map((key) => [key.slot, key]));
+      setRows((old) =>
+        old.map((row) => {
+          const key = observed.get(row.slot);
+          return key
+            ? {
+                ...row,
+                account: key.account,
+                blockedUntil: key.blockedUntil,
+                unavailableModels: key.unavailableModels,
+              }
+            : row;
+        }),
+      );
+    }
 
     async function update(path: string, method: string, payload: object) {
       const reply = await call<unknown>(path, {
@@ -186,20 +233,15 @@ export function OllamaCloudKeys({
         body: JSON.stringify({ configurationVersion: version, ...payload }),
       });
       if (request !== generation.current) return null;
-      if (!reply.ok) {
-        if ([401, 403].includes(reply.status)) onAccessDenied();
-        setError(
-          (saved ? 'Ключ сохранён. ' : '') +
-            (reply.status === 409
-              ? saved
-                ? 'Настройки изменились. Повторите проверку.'
-                : 'Настройки изменились. Обновите вкладку; ваши правки не сохранены.'
-              : reply.error.message || 'Не удалось выполнить операцию.'),
-        );
-        return null;
-      }
-      if (!poolShape(reply.data)) {
-        setError('Сервер вернул несовместимые настройки.');
+      if (!reply.ok || !poolShape(reply.data)) {
+        if (!reply.ok && [401, 403].includes(reply.status)) onAccessDenied();
+        const message = reply.ok
+          ? 'Сервер вернул несовместимые настройки.'
+          : reply.status === 409
+            ? 'Настройки изменились. Обновите вкладку.'
+            : reply.error.message || 'Не удалось выполнить операцию.';
+        if (slot === undefined) setError(message);
+        else result(slot, { tone: 'error', text: message });
         return null;
       }
       setPool(reply.data);
@@ -207,88 +249,94 @@ export function OllamaCloudKeys({
       return reply.data;
     }
 
-    try {
-      const key = rows.find((row) => row.slot === slot);
-      const candidate = action === 'check' ? key?.apiKey.trim() : undefined;
-      for (const draft of action === 'save' ? editedKey : candidate && key ? [key] : []) {
-        const checked = await call<AiOllamaCloudInspection>(
-          '/api/admin/v1/ai/ollama-cloud/inspect',
-          {
-            method: 'POST',
-            body: JSON.stringify({ configurationVersion: version, apiKey: draft.apiKey.trim() }),
-          },
-        );
-        if (request !== generation.current) return;
-        if (!checked.ok) {
-          if ([401, 403].includes(checked.status)) onAccessDenied();
-          setError(checked.error.message || 'Не удалось проверить новый ключ.');
-          return;
-        }
-        if (!['ok', 'credits_required'].includes(checked.data.account?.status)) {
-          setError(
-            'Ключ ' +
-              draft.slot +
-              ' · ' +
-              status({
-                ...draft,
-                configured: true,
-                enabled: true,
-                account: checked.data.account,
-                blockedUntil: null,
-              }) +
-              '. Изменения не сохранены.',
-          );
-          return;
-        }
+    async function checkDraft(draft: Draft) {
+      result(draft.slot, { tone: 'pending', text: 'Проверяем…' });
+      const reply = await call<AiOllamaCloudInspection>('/api/admin/v1/ai/ollama-cloud/inspect', {
+        method: 'POST',
+        body: JSON.stringify({ configurationVersion: version, apiKey: draft.apiKey.trim() }),
+      });
+      if (request !== generation.current) return false;
+      if (!reply.ok) {
+        if ([401, 403].includes(reply.status)) onAccessDenied();
+        result(draft.slot, { tone: 'error', text: reply.error.message || 'Проверка недоступна' });
+        return false;
       }
-      if (action === 'save' || candidate) {
+      const account = reply.data.account;
+      const state = status({
+        ...draft,
+        configured: true,
+        enabled: true,
+        account,
+        blockedUntil: null,
+      });
+      const text = state === 'Активен' ? 'Ключ работает' : state;
+      result(draft.slot, { tone: text === 'Ключ работает' ? 'success' : 'error', text });
+      return account?.status === 'ok' || account?.status === 'credits_required';
+    }
+
+    try {
+      if (action === 'check' && slot !== undefined) {
+        const key = rows.find((row) => row.slot === slot);
+        if (!key) return null;
+        if (key.apiKey.trim()) {
+          await checkDraft(key);
+          return null;
+        }
+        result(slot, { tone: 'pending', text: 'Проверяем…' });
+        const next = await update(keysPath + '/inspect', 'POST', { slot });
+        if (!next) return null;
+        const checked = next.keys.find((row) => row.slot === slot);
+        if (checked) {
+          const text = status(checked);
+          result(slot, {
+            tone: text === 'Активен' || text === 'Проверен · выключен' ? 'success' : 'error',
+            text: text === 'Активен' ? 'Ключ работает' : text,
+          });
+          updateObservations([checked]);
+        }
+        return null;
+      }
+      if (action === 'save') {
+        for (const draft of rows.filter((row) => row.apiKey.trim())) {
+          if (!(await checkDraft(draft))) {
+            if (request === generation.current)
+              setError('Проверьте ключ ' + draft.slot + '. Изменения не сохранены.');
+            return null;
+          }
+        }
         const next = await update(keysPath, 'PUT', {
           keys: rows.map((row) => ({
             slot: row.slot,
             label: row.label,
             priority: row.priority,
             enabled: row.enabled || (!row.configured && Boolean(row.apiKey.trim())),
-            models:
-              (action === 'save' ? sharedModels : null) ??
-              (!row.configured && row.apiKey.trim() ? models : row.models),
+            models: sharedModels ?? (!row.configured && row.apiKey.trim() ? models : row.models),
             ...(row.apiKey.trim() ? { apiKey: row.apiKey.trim() } : {}),
             ...(row.clearApiKey ? { clearApiKey: true } : {}),
           })),
         });
-        if (!next) return;
-        version = next.configurationVersion;
-        saved = true;
+        if (!next) return null;
         setRows(next.keys.map((row) => ({ ...row, apiKey: '', clearApiKey: false })));
         setSharedModels(null);
         setDirty(false);
-        setNotice(action === 'save' ? 'Ключи и модели сохранены' : 'Ключ сохранён');
+        return next;
       }
-      if (action === 'save') return;
-      const next = await update(keysPath + '/inspect', 'POST', slot === undefined ? {} : { slot });
-      if (!next) return;
-      setRows(next.keys.map((row) => ({ ...row, apiKey: '', clearApiKey: false })));
-      if (action === 'catalog') {
+      const next = await update(keysPath + '/inspect', 'POST', {});
+      if (next) {
+        updateObservations(next.keys);
         setShowCatalog(true);
         setNotice('Каталог обновлён');
-      } else {
-        const checked = next.keys.find((row) => row.slot === slot);
-        setNotice(checked ? 'Ключ ' + slot + ' · ' + status(checked) : 'Проверка завершена');
       }
+      return null;
     } finally {
-      if (saved) onSaved();
       flight.current = false;
       setBusy(false);
     }
   }
-
-  const editedKey = rows.filter((row) => row.apiKey.trim());
-  const hasOtherEdits =
-    dirty &&
-    (sharedModels !== null ||
-      rows.some((row) => {
-        const old = pool?.keys.find((key) => key.slot === row.slot);
-        return row.clearApiKey || row.priority !== old?.priority || row.enabled !== old?.enabled;
-      }));
+  useImperativeHandle(
+    saveRef,
+    () => (expectedVersion) => execute('save', undefined, expectedVersion),
+  );
 
   function chooseModels(next: readonly string[]) {
     setSharedModels(next);
@@ -343,33 +391,35 @@ export function OllamaCloudKeys({
                 maxLength={2048}
                 value={key.apiKey}
                 placeholder={key.configured ? 'Введите для замены' : 'Вставьте ключ'}
-                disabled={busy || !encryptionReady || key.clearApiKey}
+                disabled={disabled || !encryptionReady || key.clearApiKey}
                 onChange={(event) => change(key.slot, { apiKey: event.target.value })}
               />
-              <button
-                type="button"
-                aria-label={'Проверить ключ ' + key.slot}
-                disabled={
-                  busy ||
-                  !encryptionReady ||
-                  key.clearApiKey ||
-                  (!key.configured && !key.apiKey.trim()) ||
-                  hasOtherEdits ||
-                  editedKey.some((row) => row.slot !== key.slot)
-                }
-                title={
-                  key.apiKey.trim() ? 'Проверить и сохранить этот ключ' : 'Проверить ключ и баланс'
-                }
-                onClick={() => void execute('check', key.slot)}
-              >
-                {key.apiKey.trim() ? 'Проверить и сохранить' : 'Проверить'}
-              </button>
+              <div className="asa-cloud-key-verification">
+                <button
+                  type="button"
+                  aria-label={'Проверить ключ ' + key.slot}
+                  disabled={
+                    disabled ||
+                    !encryptionReady ||
+                    key.clearApiKey ||
+                    (!key.configured && !key.apiKey.trim())
+                  }
+                  onClick={() => void execute('check', key.slot)}
+                >
+                  {checks[key.slot]?.tone === 'pending' ? 'Проверяем…' : 'Проверить'}
+                </button>
+                {checks[key.slot] && checks[key.slot]?.tone !== 'pending' ? (
+                  <small role="status" data-tone={checks[key.slot]?.tone}>
+                    {checks[key.slot]?.text}
+                  </small>
+                ) : null}
+              </div>
               <label className="asa-cloud-key-toggle" title="Использовать этот ключ">
                 <input
                   type="checkbox"
                   aria-label={'Использовать ключ ' + key.slot}
                   checked={key.enabled}
-                  disabled={busy || !key.configured || key.clearApiKey}
+                  disabled={disabled || !key.configured || key.clearApiKey}
                   onChange={(event) => change(key.slot, { enabled: event.target.checked })}
                 />
               </label>
@@ -377,7 +427,7 @@ export function OllamaCloudKeys({
                 <button
                   type="button"
                   aria-label={'Поднять ключ ' + key.slot}
-                  disabled={busy || index === 0}
+                  disabled={disabled || index === 0}
                   onClick={() => move(key.slot, -1)}
                 >
                   ↑
@@ -385,7 +435,7 @@ export function OllamaCloudKeys({
                 <button
                   type="button"
                   aria-label={'Опустить ключ ' + key.slot}
-                  disabled={busy || index === 4}
+                  disabled={disabled || index === 4}
                   onClick={() => move(key.slot, 1)}
                 >
                   ↓
@@ -393,7 +443,7 @@ export function OllamaCloudKeys({
                 {key.configured ? (
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={disabled}
                     aria-pressed={key.clearApiKey}
                     aria-label={
                       key.clearApiKey
@@ -416,9 +466,10 @@ export function OllamaCloudKeys({
             <strong>
               Общие модели <small>· {models.length} выбрано</small>
             </strong>
-            <button type="button" disabled={busy || dirty} onClick={() => void execute('catalog')}>
+            <button type="button" disabled={disabled} onClick={() => void execute('catalog')}>
               Обновить каталог
             </button>
+            {notice ? <small role="status">{notice}</small> : null}
             <button
               type="button"
               aria-expanded={showCatalog}
@@ -430,7 +481,7 @@ export function OllamaCloudKeys({
           {sharedModels === null && different ? (
             <div className="asa-cloud-pool-heading">
               <small>У сохранённых ключей разные списки.</small>
-              <button type="button" disabled={busy} onClick={() => chooseModels(models)}>
+              <button type="button" disabled={disabled} onClick={() => chooseModels(models)}>
                 Применить общий список
               </button>
             </div>
@@ -446,7 +497,7 @@ export function OllamaCloudKeys({
                   <label>
                     <input
                       type="checkbox"
-                      disabled={busy || (!model.active && !models.includes(model.id))}
+                      disabled={disabled || (!model.active && !models.includes(model.id))}
                       checked={models.includes(model.id)}
                       onChange={(event) =>
                         chooseModels(
@@ -496,17 +547,6 @@ export function OllamaCloudKeys({
           </ul>
         </div>
       ) : null}
-      <div className="asa-cloud-pool-heading">
-        <button
-          className="asa-cloud-apply"
-          type="button"
-          disabled={busy || !dirty || !encryptionReady}
-          onClick={() => void execute('save')}
-        >
-          Сохранить ключи и модели
-        </button>
-        <span role="status">{busy ? 'Подождите…' : notice}</span>
-      </div>
       {error ? (
         <p role="alert" className="asa-cloud-error">
           {error}

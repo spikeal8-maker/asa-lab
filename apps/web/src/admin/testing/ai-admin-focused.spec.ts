@@ -347,7 +347,7 @@ it('distinguishes the pending switch from confirmed saved state and preserves it
   expect(vi.mocked(call).mock.calls.some(([url]) => url.endsWith('/test'))).toBe(false);
 });
 
-it('preserves an unsaved provider switch when the independent Cloud key save reloads configuration', async () => {
+it('checks a replacement key without saving it or discarding an unsaved provider switch', async () => {
   const initial = aiAdminFixture({
     provider: 'ollama-cloud',
     model: 'gemma4:31b',
@@ -391,17 +391,18 @@ it('preserves an unsaved provider switch when the independent Cloud key save rel
   );
   await toggle(checkbox('Включён'));
   await enter(control<HTMLInputElement>('[aria-label="API-ключ 1"]'), 'private-key-only-test');
-  await act(async () => button('Проверить и сохранить').click());
-  expect(version).toBe(8);
+  const check = control<HTMLButtonElement>('[aria-label="Проверить ключ 1"]');
+  await act(async () => check.click());
+  expect(version).toBe(7);
   expect(checkbox('Включён').checked).toBe(false);
   expect(host.textContent).toContain('Есть несохранённые изменения');
-  expect(host.textContent).toContain('Сохранено: включён');
+  expect(host.textContent).toContain('Ключ работает');
   expect(
     vi
       .mocked(call)
       .mock.calls.filter(([, init]) => init?.method === 'PUT')
       .map(([url]) => url),
-  ).toEqual(['/api/admin/v1/ai/ollama-cloud/keys']);
+  ).toEqual([]);
   expect(vi.mocked(call).mock.calls.some(([url]) => url.endsWith('/test'))).toBe(false);
 });
 

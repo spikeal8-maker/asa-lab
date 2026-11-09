@@ -391,9 +391,7 @@
 }
 .asa-cloud-key-row {
   display: grid;
-  grid-template-columns:
-    50px minmax(100px, 175px) minmax(104px, 315px) minmax(125px, max-content)
-    26px 76px;
+  grid-template-columns: 50px minmax(100px, 175px) minmax(104px, 315px) 145px 26px 76px;
   align-items: center;
   gap: 6px;
   padding: 4px 0;
@@ -422,6 +420,20 @@
 .asa-cloud-key-status small {
   display: block;
   font-weight: 400;
+}
+.asa-cloud-key-verification {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.asa-cloud-key-verification small[data-tone='success'] {
+  color: light-dark(#087654, #7ce5b8);
+  font-weight: 600;
+}
+.asa-cloud-key-verification small[data-tone='error'] {
+  color: light-dark(#b32232, #ff9aa3);
+  font-weight: 600;
 }
 .asa-cloud-key-order {
   display: flex;
@@ -465,8 +477,6 @@
   padding-top: 6px;
 }
 .asa-cloud-catalog-list {
-  max-height: 19rem;
-  overflow: auto;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -495,7 +505,7 @@
     grid-row: 2;
     grid-column: 1 / 3;
   }
-  .asa-cloud-key-row > button {
+  .asa-cloud-key-verification {
     grid-row: 2;
     grid-column: 3 / 5;
     overflow-wrap: anywhere;

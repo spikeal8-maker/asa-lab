@@ -2,12 +2,12 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { OllamaCloudKeys } from '../OllamaCloudKeys';
+import { OllamaCloudKeys, type CloudPoolSave } from '../OllamaCloudKeys';
 import { call } from '../admin-api';
 vi.mock('../admin-api', () => ({ call: vi.fn() }));
 let host: HTMLDivElement, root: Root;
-const saved = vi.fn(),
-  models = vi.fn(),
+const saveRef = { current: null as CloudPoolSave | null };
+const models = vi.fn(),
   denied = vi.fn();
 const data = {
   configurationVersion: 7,
@@ -47,7 +47,6 @@ beforeEach(() => {
   document.body.append(host);
   root = createRoot(host);
   vi.mocked(call).mockReset();
-  saved.mockReset();
   models.mockReset();
   denied.mockReset();
 });
@@ -62,7 +61,7 @@ async function render() {
       createElement(OllamaCloudKeys, {
         version: 7,
         encryptionReady: true,
-        onSaved: saved,
+        saveRef,
         onModels: models,
         onAccessDenied: denied,
       }),
@@ -108,7 +107,9 @@ it('saves an explicit shared selection for all five slots while preserving prior
     host.querySelectorAll<HTMLInputElement>('.asa-cloud-model-row input')[1]!.click(),
   );
   await click('Поднять ключ 2');
-  await click('Сохранить ключи и модели');
+  await act(async () => {
+    await saveRef.current?.(7);
+  });
   const [path, init] = vi.mocked(call).mock.calls[1]!;
   expect(path).toBe('/api/admin/v1/ai/ollama-cloud/keys');
   expect(init?.method).toBe('PUT');
@@ -122,7 +123,6 @@ it('saves an explicit shared selection for all five slots while preserving prior
         key.models.join() === 'ollama-cloud/a,ollama-cloud/b' && !('apiKey' in key),
     ),
   ).toBe(true);
-  expect(saved).toHaveBeenCalledTimes(1);
 });
 
 it('checks only the selected saved key and refreshes the catalog explicitly', async () => {
@@ -139,7 +139,6 @@ it('checks only the selected saved key and refreshes the catalog explicitly', as
     ['/api/admin/v1/ai/ollama-cloud/keys/inspect', { configurationVersion: 7, slot: 1 }],
     ['/api/admin/v1/ai/ollama-cloud/keys/inspect', { configurationVersion: 7 }],
   ]);
-  expect(saved).not.toHaveBeenCalled();
 });
 
 it('keeps edits when another administrator changed the version', async () => {
@@ -152,10 +151,11 @@ it('keeps edits when another administrator changed the version', async () => {
     });
   await render();
   await click('Поднять ключ 2');
-  await click('Сохранить ключи и модели');
-  expect(host.textContent).toContain('ваши правки не сохранены');
+  await act(async () => {
+    await saveRef.current?.(7);
+  });
+  expect(host.textContent).toContain('Настройки изменились');
   expect(host.querySelector('.asa-cloud-key-row strong')?.textContent).toBe('Ключ 2');
-  expect(saved).not.toHaveBeenCalled();
 });
 
 it('keeps the saved key when a replacement fails verification', async () => {
@@ -172,8 +172,9 @@ it('keeps the saved key when a replacement fails verification', async () => {
     field.dispatchEvent(new Event('input', { bubbles: true }));
   });
   await click('Проверить ключ 1');
-  expect(host.textContent).toContain('Ключ не принят');
+  expect(host.querySelector('.asa-cloud-key-verification [data-tone=error]')?.textContent).toBe(
+    'Ключ не принят',
+  );
   expect(vi.mocked(call).mock.calls).toHaveLength(2);
   expect(vi.mocked(call).mock.calls[1]?.[0]).toBe('/api/admin/v1/ai/ollama-cloud/inspect');
-  expect(saved).not.toHaveBeenCalled();
 });

@@ -571,30 +571,39 @@ for (const width of [1440, 1024, 390, 320]) {
       const field = panel.getByLabel('API-ключ 1', { exact: true });
       await field.fill('test-ollama-cloud-key-only');
       await panel.getByRole('button', { name: 'Проверить ключ 1', exact: true }).click();
-      await expect(panel.getByText('Ключ 1 · Активен', { exact: true })).toBeVisible();
-      await expect(field).toHaveValue('');
-      await panel.getByRole('button', { name: 'Обновить каталог', exact: true }).click();
+      await expect(panel.locator('.asa-cloud-key-verification [data-tone=success]')).toHaveText(
+        'Ключ работает',
+      );
+      await expect(field).toHaveValue('test-ollama-cloud-key-only');
+      expect(fake.poolWrites).toHaveLength(0);
+      await panel.getByRole('button', { name: 'Выбрать модели', exact: true }).click();
       const model = panel.getByRole('checkbox', { name: 'gemma4:31b', exact: true });
       await model.check();
       await panel.getByRole('button', { name: 'Сведения о модели gemma4:31b' }).click();
       await expect(panel.getByText(/Контекст:.*262.*144/)).toBeVisible();
-      await panel.getByRole('button', { name: 'Сохранить ключи и модели', exact: true }).click();
-      await expect(panel.getByText('Ключи и модели сохранены', { exact: true })).toBeVisible();
-      expect(fake.poolWrites).toHaveLength(2);
+      await expect(panel.locator('.asa-cloud-catalog-list')).toHaveCSS('overflow-y', 'visible');
+      await panel.getByLabel('Общий лимит платных ИИ-операций за час').fill('5');
+      await panel.getByRole('checkbox', { name: 'Включён', exact: true }).check();
+      const save = panel.getByRole('button', { name: 'Сохранить', exact: true });
+      await expect(panel.getByRole('button', { name: /^Сохранить/ })).toHaveCount(1);
+      await save.click();
+      await expect(panel.getByText('Сохранено · Ollama Cloud включён')).toBeVisible();
+      await expect(field).toHaveValue('');
+      expect(fake.poolWrites).toHaveLength(1);
       expect(fake.poolWrites[0]?.keys[0]).toMatchObject({
         slot: 1,
         enabled: true,
         apiKey: 'test-ollama-cloud-key-only',
       });
-      expect(fake.poolWrites[1]?.keys.map((key) => key.models)).toEqual(
+      expect(fake.poolWrites[0]?.keys.map((key) => key.models)).toEqual(
         Array.from({ length: 5 }, () => ['gemma4:31b']),
       );
-      await panel.getByLabel('Общий лимит платных ИИ-операций за час').fill('5');
-      await panel.getByRole('checkbox', { name: 'Включён', exact: true }).check();
-      await panel.getByRole('button', { name: 'Сохранить', exact: true }).click();
-      await expect(panel.getByText('Ollama Cloud включён')).toBeVisible();
       expect(fake.writes).toHaveLength(1);
-      expect(fake.writes[0]).toMatchObject({ provider: 'ollama-cloud', enabled: true });
+      expect(fake.writes[0]).toMatchObject({
+        provider: 'ollama-cloud',
+        enabled: true,
+        configurationVersion: 2,
+      });
       expect(fake.paidTests).toHaveLength(0);
       expect(await page.locator('body').innerText()).not.toContain('test-ollama-cloud-key-only');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(

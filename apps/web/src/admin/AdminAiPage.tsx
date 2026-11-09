@@ -1,6 +1,6 @@
-import { OllamaCloudKeys } from './OllamaCloudKeys';
+import { OllamaCloudKeys, type CloudPoolSave } from './OllamaCloudKeys';
 import type { AiOllamaCloudModel } from '@asa-lab/contracts';
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import { aiDiagnosticMessage } from './ai-error-message';
 import { isAiAdminConfig, type AiAdminConfig, type AiProvider } from './ai-model-config';
@@ -53,6 +53,9 @@ export function AiAdminPage({
   const [keyInput, setKeyInput] = useState('');
   const [clearKey, setClearKey] = useState(false);
   const [cloudKeysDirty, setCloudKeysDirty] = useState(false);
+  const [cloudKeysBusy, setCloudKeysBusy] = useState(false);
+  const [cloudKeyReady, setCloudKeyReady] = useState(false);
+  const saveCloudPool = useRef<CloudPoolSave | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [quota, setQuota] = useState('0');
   const [confirmPaid, setConfirmPaid] = useState(false);
@@ -63,13 +66,6 @@ export function AiAdminPage({
   const [reload, setReload] = useState(0);
   const inFlight = useRef(false);
   const preserveDraftOnReload = useRef(false);
-  const cloudKeysSaved = useCallback(() => {
-    preserveDraftOnReload.current = true;
-    setConfirmPaid(false);
-    setReload((value) => value + 1);
-    onUpdated?.();
-  }, [onUpdated]);
-
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -87,7 +83,7 @@ export function AiAdminPage({
           return;
         }
         setConfig(reply.data);
-        setError('');
+        if (!preserveDraftOnReload.current) setError('');
       })
       .finally(() => {
         if (live) setLoading(false);
@@ -149,13 +145,13 @@ export function AiAdminPage({
   const canSubmit = Boolean(
     config &&
     submittedModel &&
-    (dirty || enabled) &&
-    (keyReady || !enabled) &&
+    (dirty || (isOllamaCloud ? cloudKeysDirty : enabled)) &&
+    ((isOllamaCloud ? cloudKeyReady : keyReady) || !enabled) &&
     validQuota &&
     (!enabled || (Number(quota) > 0 && (isOllamaCloud || confirmPaid))) &&
     (config.encryptionReady || (!enabled && mustClear && !keyInput.trim())) &&
     !loading &&
-    !(providerChoice === 'ollama-cloud' && cloudKeysDirty) &&
+    !(isOllamaCloud && cloudKeysBusy) &&
     !busy,
   );
   const keyLink =
@@ -172,7 +168,18 @@ export function AiAdminPage({
     setNotice('');
     let next = config;
     let saved = false;
+    let poolSaved = false;
     try {
+      let configurationVersion = config.configurationVersion;
+      if (isOllamaCloud && cloudKeysDirty) {
+        const pool = await saveCloudPool.current?.(configurationVersion);
+        if (!pool) {
+          setError('Не удалось сохранить ключи и модели. Проверьте сообщения в строках ключей.');
+          return;
+        }
+        poolSaved = true;
+        configurationVersion = pool.configurationVersion;
+      }
       if (dirty) {
         const response = await call<unknown>('/api/admin/v1/ai', {
           method: 'PUT',
@@ -181,7 +188,7 @@ export function AiAdminPage({
             paidOperationsPerHour: Number(quota),
             provider: providerChoice,
             model: submittedModel,
-            configurationVersion: config.configurationVersion,
+            configurationVersion,
             providerConfigurationVersion: slot?.revision,
             ...(keyInput.trim() ? { apiKey: keyInput.trim() } : {}),
             ...(mustClear ? { clearApiKey: true } : {}),
@@ -189,11 +196,17 @@ export function AiAdminPage({
         });
         if (!response.ok) {
           if (response.status === 401 || response.status === 403) onAccessDenied();
-          setError(errorMessage(response.status, response.error.code));
+          setError(
+            (poolSaved ? 'Ключи и модели сохранены. Настройки подключения не применены. ' : '') +
+              errorMessage(response.status, response.error.code),
+          );
           return;
         }
         if (!isAiAdminConfig(response.data)) {
-          setError('Сервер вернул несовместимые настройки. Обновите страницу.');
+          setError(
+            (poolSaved ? 'Ключи и модели сохранены. ' : '') +
+              'Сервер вернул несовместимые настройки. Обновите страницу.',
+          );
           return;
         }
         next = response.data;
@@ -205,12 +218,14 @@ export function AiAdminPage({
         onUpdated?.();
       }
 
-      if (!enabled) {
-        setNotice('Сохранено · облачные запросы выключены');
+      if (isOllamaCloud) {
+        setNotice(
+          enabled ? 'Сохранено · Ollama Cloud включён' : 'Сохранено · Ollama Cloud выключен',
+        );
         return;
       }
-      if (isOllamaCloud) {
-        setNotice('Ollama Cloud включён');
+      if (!enabled) {
+        setNotice('Сохранено · облачные запросы выключены');
         return;
       }
       // Explicit consent is required because a successful test may cost money
@@ -259,6 +274,11 @@ export function AiAdminPage({
     } catch {
       setError('Результат не подтверждён. Проверьте соединение перед повторным платным запросом.');
     } finally {
+      if (poolSaved && !saved) {
+        preserveDraftOnReload.current = dirty;
+        setReload((value) => value + 1);
+        onUpdated?.();
+      }
       inFlight.current = false;
       setBusy(null);
     }
@@ -319,22 +339,19 @@ export function AiAdminPage({
               disabled={!!busy}
             />
           </label>
-          <button className="asa-cloud-apply" type="submit" disabled={!dirty || !canSubmit}>
+          <button className="asa-cloud-apply" type="submit" disabled={!canSubmit}>
             Сохранить
           </button>
           <small role="status">
-            {notice ||
-              (enabled && !keyReady
+            {busy
+              ? 'Сохраняем…'
+              : enabled && !cloudKeyReady
                 ? 'Добавьте активный ключ'
                 : enabled && Number(quota) === 0
                   ? 'Укажите лимит больше нуля'
-                  : cloudKeysDirty
-                    ? 'Сначала сохраните ключи и модели'
-                    : dirty
-                      ? 'Сохранено: ' +
-                        (slot?.enabled ? 'включён' : 'выключен') +
-                        ' · Есть несохранённые изменения'
-                      : '')}
+                  : dirty || cloudKeysDirty
+                    ? 'Есть несохранённые изменения'
+                    : notice}
           </small>
         </form>
       ) : null}
@@ -509,7 +526,10 @@ export function AiAdminPage({
           encryptionReady={config.encryptionReady}
           onModels={setCloudCatalog}
           onAccessDenied={onAccessDenied}
-          onSaved={cloudKeysSaved}
+          saveRef={saveCloudPool}
+          locked={!!busy}
+          onBusyChange={setCloudKeysBusy}
+          onKeyReadyChange={setCloudKeyReady}
           onDirtyChange={setCloudKeysDirty}
         />
       ) : null}
