@@ -174,8 +174,8 @@ const originalScrollIntoView = Object.getOwnPropertyDescriptor(
 );
 
 function control(label: string): HTMLButtonElement {
-  const found = [...container.querySelectorAll('button')].find((button) =>
-    button.textContent?.includes(label),
+  const found = [...container.querySelectorAll('button')].find(
+    (button) => button.getAttribute('aria-label') === label || button.textContent?.includes(label),
   );
   if (!found) throw new Error(`Missing control: ${label}`);
   return found;
@@ -421,11 +421,16 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(save?.getAttribute('aria-label')).toBe('Сохранить');
     expect(save?.getAttribute('role')).not.toBe('tab');
     expect(save?.parentElement).toBe(header);
-    expect(save?.nextElementSibling).toBe(header!.querySelector('.robotics-header-controls'));
+    expect(save?.nextElementSibling).toBe(header!.querySelector('.robotics-header-notice'));
+    expect(header!.querySelector('.robotics-header-notice')?.nextElementSibling).toBe(
+      header!.querySelector('.robotics-header-controls'),
+    );
     expect(header!.querySelector('.robotics-header-controls')?.lastElementChild).toBe(
       header!.querySelector('.robotics-header-profile'),
     );
     expect(header!.querySelector('.robotics-header-avatar img')).not.toBeNull();
+    expect(header!.querySelector('[data-testid="robotics-notice"]')).not.toBeNull();
+    expect(container.querySelector('.robotics-lab > .robotics-notice')).toBeNull();
     expect(header!.querySelector('.robotics-header-menu-panel')?.textContent).toContain(
       'Публикация',
     );
@@ -784,6 +789,8 @@ describe('robotics UI integration with the common workbench port', () => {
     });
     expect(port.setRate).toHaveBeenLastCalledWith(0);
     expect(metric('robotics-notice').textContent).toContain('Достигнут лимит');
+    expect(metric('robotics-notice').closest('.robotics-unified-header')).not.toBeNull();
+    expect(metric('robotics-notice').hasAttribute('hidden')).toBe(false);
     expect(control('Продолжить').disabled).toBe(true);
     expect(port.reset).not.toHaveBeenCalled();
     expect(metric('robotics-lab').dataset.inputAdmitted).toBe('1000');

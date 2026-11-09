@@ -142,9 +142,10 @@ function OpenedRoboticsEditor({
       <RoboticsWorkspace
         project={controller}
         projectId={projectId}
-        header={(tabs) => (
+        header={(tabs, notices) => (
           <RoboticsHeader
             tabs={tabs}
+            notices={notices}
             title={host.projectTitle}
             onTitleChange={host.setProjectTitle}
             onTitleCommit={() => undefined}

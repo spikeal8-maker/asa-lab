@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { ArduinoCodePanel, type ArduinoCodePanelHandle } from '../electronics/ArduinoCodePanel';
 import { CircuitIcon, CodeIcon, SaveIcon } from '../electronics/workbench-icons';
+import { SimulationSpeedControl } from '../electronics/SimulationSpeedControl';
 import { ProjectModuleIcon } from '../modules/ProjectModuleIcon';
 import { EditorAvatar, type EditorAvatarModel } from '../components/editor-chrome/EditorAvatar';
 import { WorkbenchSidebars } from '../electronics/WorkbenchSidebars';
@@ -98,6 +99,7 @@ interface RoboticsHeaderNavigation {
 
 interface RoboticsHeaderProps {
   readonly tabs: ReactNode;
+  readonly notices?: readonly string[];
   readonly title: string;
   readonly onTitleChange: (value: string) => void;
   readonly onTitleCommit: () => void | Promise<void>;
@@ -116,6 +118,7 @@ interface RoboticsHeaderProps {
 /** Shares the brand, project identity and avatar primitives with Electronics. */
 export function RoboticsHeader({
   tabs,
+  notices = [],
   title,
   onTitleChange,
   onTitleCommit,
@@ -202,6 +205,29 @@ export function RoboticsHeader({
         <SaveIcon />
         <span>{statusKind === 'saving' ? 'Сохраняем…' : 'Сохранить'}</span>
       </button>
+      <div
+        className="robotics-header-notice"
+        data-testid="robotics-notice"
+        role="status"
+        aria-live="polite"
+        hidden={notices.length === 0}
+      >
+        {notices.length > 0 ? (
+          <details className="robotics-header-notice-details">
+            <summary title={notices.join(' · ')} aria-label="Уведомления робототехники">
+              <span className="robotics-header-notice-icon" aria-hidden="true">
+                !
+              </span>
+              <span className="robotics-header-notice-caption">{notices[0]}</span>
+            </summary>
+            <div className="robotics-header-notice-panel">
+              {notices.map((message) => (
+                <p key={message}>{message}</p>
+              ))}
+            </div>
+          </details>
+        ) : null}
+      </div>
       <div className="robotics-header-controls">
         {tabs}
         {onOpenSaved ? (
@@ -304,7 +330,7 @@ export function RoboticsWorkspace({
 }: {
   readonly project: RoboticsProjectController;
   readonly projectId?: string;
-  readonly header?: (tabs: ReactNode) => ReactNode;
+  readonly header?: (tabs: ReactNode, notices: readonly string[]) => ReactNode;
 }) {
   const [section, setSection] = useState<Section>('field');
   const [compactLayout, setCompactLayout] = useState(() => window.innerWidth <= 760);
@@ -330,6 +356,7 @@ export function RoboticsWorkspace({
   const [haltReason, setHaltReason] = useState<string | null>(null);
   const haltedRef = useRef<string | null>(null);
   const [lastCommand, setLastCommand] = useState<string | null>(null);
+  const selectedRateRef = useRef(1);
   const [showGrid, setShowGrid] = useState(true);
   const codeOpen = section === 'program';
   const [codeMounted, setCodeMounted] = useState(false);
@@ -390,7 +417,8 @@ export function RoboticsWorkspace({
     // Establish the requested pace after the shared passive run lifecycle has
     // installed its command receiver. A previous paused presenter keeps rate 0
     // through Reset; setting 1 before that receiver exists cannot resume it.
-    if (controller.simulationRunning) controllerRef.current.setSimulationRate(1);
+    if (controller.simulationRunning)
+      controllerRef.current.setSimulationRate(selectedRateRef.current);
   }, [controller.simulationRunning]);
 
   useEffect(() => {
@@ -524,15 +552,7 @@ export function RoboticsWorkspace({
   const starting = running && controller.simulationStatus === 'starting';
   const paused = running && pace.phase === 'paused';
   const pausing = running && pace.phase === 'pausing';
-  const primaryLabel = !running
-    ? 'Запустить'
-    : starting
-      ? 'Запускается…'
-      : paused
-        ? 'Продолжить'
-        : pausing
-          ? 'Пауза…'
-          : 'Пауза';
+  const primaryLabel = !running ? 'Запустить' : starting ? 'Запускается…' : 'Остановить';
   const messages = [
     ...new Set(
       [controller.simulationMessage?.text, haltReason, bindingError, controller.notice].filter(
@@ -549,10 +569,17 @@ export function RoboticsWorkspace({
         controller.setNotice(error);
         return;
       }
-      controller.setSimulationRate(1);
+      controller.setSimulationRate(selectedRateRef.current);
       void controller.toggleSimulation();
-    } else if (paused) controller.setSimulationRate(pace.lastNonZero);
-    else controller.setSimulationRate(0);
+    } else void controller.toggleSimulation();
+  }
+  function togglePause() {
+    if (!running || starting || pausing || haltReason) return;
+    controller.setSimulationRate(paused ? pace.lastNonZero : 0);
+  }
+  function changeRate(rate: number) {
+    if (rate > 0) selectedRateRef.current = rate;
+    controller.setSimulationRate(rate);
   }
   function reset() {
     controller.resetSimulation();
@@ -741,10 +768,11 @@ export function RoboticsWorkspace({
       data-input-exhausted={budget?.exhausted ?? false}
     >
       {header ? (
-        header(tabs)
+        header(tabs, messages)
       ) : (
         <RoboticsHeader
           tabs={tabs}
+          notices={messages}
           title={local.host.projectTitle}
           onTitleChange={local.host.setProjectTitle}
           onTitleCommit={local.host.renameProject}
@@ -765,67 +793,48 @@ export function RoboticsWorkspace({
         />
       )}
       <section className="robotics-run-bar" aria-label="Управление моделированием">
+        <div className="robotics-run-readout">
+          <SimulationSpeedControl pacing={controller.simulationPacing} onChange={changeRate}>
+            <output
+              data-testid="robotics-time"
+              data-microseconds={worldState.atMicroseconds}
+              aria-label="Время моделирования"
+            >
+              {number(worldState.atMicroseconds / 1_000_000)} с
+            </output>
+          </SimulationSpeedControl>
+        </div>
         <div className="robotics-run-buttons">
           <button
             type="button"
-            className="robotics-button primary"
+            className={'robotics-button primary' + (running ? ' is-running' : '')}
             onClick={primaryAction}
-            disabled={
-              starting || pausing || Boolean(bindingError) || (running && Boolean(haltReason))
-            }
+            disabled={starting || (!running && Boolean(bindingError))}
           >
-            <SmallIcon name={running && !paused ? 'pause' : 'play'} />
-            {primaryLabel}
+            <SmallIcon name={running ? 'stop' : 'play'} />
+            <span>{primaryLabel}</span>
           </button>
           <button
             type="button"
-            className="robotics-button"
-            disabled={!running}
-            onClick={() => void controller.toggleSimulation()}
+            className="robotics-button robotics-pause-button"
+            aria-label={paused ? 'Продолжить' : 'Пауза'}
+            title={paused ? 'Продолжить' : 'Пауза'}
+            disabled={!running || starting || pausing || Boolean(haltReason)}
+            onClick={togglePause}
           >
-            <SmallIcon name="stop" />
-            Остановить
+            <SmallIcon name={paused ? 'play' : 'pause'} />
           </button>
-          <button type="button" className="robotics-button" onClick={reset}>
+          <button
+            type="button"
+            className="robotics-button robotics-reset-button"
+            aria-label="Сбросить"
+            title="Сбросить"
+            onClick={reset}
+          >
             <SmallIcon name="reset" />
-            Сбросить
           </button>
-        </div>
-        <div className="robotics-run-readout">
-          <span className={`robotics-state-dot${running && !paused ? ' active' : ''}`} />
-          <span>
-            {haltReason
-              ? 'Нужен сброс'
-              : starting
-                ? 'Запуск…'
-                : paused
-                  ? 'На паузе'
-                  : pausing
-                    ? 'Завершаем шаг'
-                    : running
-                      ? 'Выполняется'
-                      : 'Готов к запуску'}
-          </span>
-          <output
-            data-testid="robotics-time"
-            data-microseconds={worldState.atMicroseconds}
-            aria-label="Время"
-          >
-            {number(worldState.atMicroseconds / 1_000_000)} с
-          </output>
         </div>
       </section>
-      <div
-        className="robotics-notice"
-        data-testid="robotics-notice"
-        role="status"
-        aria-live="polite"
-        hidden={messages.length === 0}
-      >
-        {messages.map((message) => (
-          <p key={message}>{message}</p>
-        ))}
-      </div>
       <div className="robotics-workspace">
         <section
           className="robotics-panel robotics-field-panel"
