@@ -64,6 +64,7 @@ afterAll(async () => {
 async function fixture(
   input: {
     manual?: boolean;
+    studentAccountId?: string;
     attempts?: number;
     seconds?: number | null;
     runMinutes?: number;
@@ -89,7 +90,13 @@ async function fixture(
     const id = (
       await admin.query(
         "INSERT INTO classroom_student_seats(tenant_id,classroom_id,account_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by) VALUES($1,$2,$3,'Learner',$4,$4,true,'active',$5) RETURNING id",
-        [owner.tenantId, classroom, learnerAccount, loginHandle, owner.teacherId],
+        [
+          owner.tenantId,
+          classroom,
+          input.studentAccountId ?? learnerAccount,
+          loginHandle,
+          owner.teacherId,
+        ],
       )
     ).rows[0].id as string;
     const principal = (
@@ -594,7 +601,15 @@ describe('Complete canonical Quiz Course vertical', () => {
   it('enforces after_close feedback on canonical reads without leaking keys before or after submission', async () => {
     const policy = policies();
     policy.feedbackReleasePolicy.mode = 'after_close';
-    const f = await fixture({ manual: false, policy });
+    // The Account readers traverse all linked participations. Use a dedicated
+    // account so earlier cases do not expand this privacy scenario's history.
+    const accountId = (
+      await admin.query(
+        "INSERT INTO accounts(email,password_hash,birth_date,country) VALUES($1,'test-only',DATE '2000-01-01','RU') RETURNING id",
+        ['quiz-feedback-' + randomUUID() + '@test.local'],
+      )
+    ).rows[0].id as string;
+    const f = await fixture({ manual: false, policy, studentAccountId: accountId });
     const begun = await start(f.student.principal, f.part);
     const id = begun.attempt.attemptId;
     await save(f.student.principal, id, 1, allAnswers(f));
@@ -607,14 +622,14 @@ describe('Complete canonical Quiz Course vertical', () => {
     expect(
       (
         await app.query('SELECT * FROM learning_results_for_account($1) WHERE assignment_id=$2', [
-          learnerAccount,
+          accountId,
           f.assignment,
         ])
       ).rows,
     ).toEqual([]);
     for (const [sql, param] of [
       ['learning_canonical_evidence_for_seat', f.student.id],
-      ['learning_canonical_evidence_for_account', learnerAccount],
+      ['learning_canonical_evidence_for_account', accountId],
     ]) {
       const row = (await app.query(`SELECT evidence FROM ${sql}($1)`, [param])).rows.find(
         (entry: { evidence: { activityRunId: string } }) => entry.evidence.activityRunId === f.run,
@@ -653,7 +668,7 @@ describe('Complete canonical Quiz Course vertical', () => {
       (
         await app.query(
           'SELECT raw_points FROM learning_results_for_account($1) WHERE assignment_id=$2',
-          [learnerAccount, f.assignment],
+          [accountId, f.assignment],
         )
       ).rows,
     ).toEqual(expect.arrayContaining([expect.objectContaining({ raw_points: 7 })]));
