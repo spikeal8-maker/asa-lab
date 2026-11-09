@@ -378,17 +378,25 @@ export function RoboticsWorkspace({
     const step = event.shiftKey ? 40 : 16;
     const available = workspaceRef.current?.clientWidth ?? window.innerWidth;
     const next =
-      event.key === 'ArrowLeft' ? sideWidth - step :
-      event.key === 'ArrowRight' ? sideWidth + step :
-      event.key === 'Home' ? ROBOTICS_SIDE_MIN :
-      event.key === 'End' ? Math.min(ROBOTICS_SIDE_MAX, available / 2) : null;
+      event.key === 'ArrowLeft'
+        ? sideWidth - step
+        : event.key === 'ArrowRight'
+          ? sideWidth + step
+          : event.key === 'Home'
+            ? ROBOTICS_SIDE_MIN
+            : event.key === 'End'
+              ? Math.min(ROBOTICS_SIDE_MAX, available / 2)
+              : null;
     if (next === null) return;
     event.preventDefault();
     updateSideWidth(next);
   }
   useEffect(() => {
-    try { window.localStorage.setItem(ROBOTICS_SIDE_STORAGE_KEY, String(sideWidth)); }
-    catch { /* Width remains interactive without persistent storage. */ }
+    try {
+      window.localStorage.setItem(ROBOTICS_SIDE_STORAGE_KEY, String(sideWidth));
+    } catch {
+      /* Width remains interactive without persistent storage. */
+    }
   }, [sideWidth]);
   useEffect(() => {
     const clampWidth = () =>
@@ -777,6 +785,107 @@ export function RoboticsWorkspace({
   const programState = readArduinoProgramState(board?.stateProperties);
   const canCommand = running && !starting && pace.phase === 'running' && !haltReason;
 
+  // Educational example replacement is optional, not a simulation parameter.
+  // Keep it behind an explicit menu in the native Arduino toolbar.
+  const codeAccessory = (
+    <details className="robotics-code-extras">
+      <summary
+        aria-label="Дополнительные инструменты кода"
+        title="Учебные примеры и навигация по блокам"
+      >
+        ⋯
+      </summary>
+      <div className="robotics-code-extras-menu">
+        <strong>Дополнительно</strong>
+        <p>
+          Учебные примеры заменяют код выбранной платы Arduino только после подтверждения. «Толкнуть
+          мяч» — демонстрационный опыт, а не параметр движения робота.
+        </p>
+        <label>
+          Учебный пример
+          <select
+            aria-label="Пример программы"
+            value={programPreset}
+            disabled={running}
+            onChange={(event) => chooseProgram(event.target.value as RoboticsProgramPresetId)}
+          >
+            <option value="" disabled>
+              Не выбран
+            </option>
+            {ROBOTICS_PROGRAM_PRESETS.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {programState.mode !== 'text' ? (
+          <>
+            <button
+              type="button"
+              aria-pressed={paletteOpen}
+              onClick={() => setPaletteOpen((value) => !value)}
+            >
+              {paletteOpen ? 'Скрыть палитру блоков' : 'Палитра блоков'}
+            </button>
+            <button type="button" onClick={() => programHandle.current?.revealProgramStart()}>
+              К началу программы
+            </button>
+          </>
+        ) : null}
+        {programPreset === 'push-one-shot' ? (
+          <p>Для опыта разместите мяч перед роботом и проверьте положение HC-SR04.</p>
+        ) : null}
+      </div>
+    </details>
+  );
+
+  const simulationControls = (
+    <section className="robotics-run-bar" aria-label="Управление моделированием">
+      <div className="robotics-run-readout">
+        <SimulationSpeedControl pacing={controller.simulationPacing} onChange={changeRate}>
+          <output
+            data-testid="robotics-time"
+            data-microseconds={worldState.atMicroseconds}
+            aria-label="Время моделирования"
+          >
+            {number(worldState.atMicroseconds / 1_000_000)} с
+          </output>
+        </SimulationSpeedControl>
+      </div>
+      <div className="robotics-run-buttons">
+        <button
+          type="button"
+          className={'robotics-button primary' + (running ? ' is-running' : '')}
+          onClick={primaryAction}
+          disabled={starting || (!running && Boolean(bindingError))}
+        >
+          <SmallIcon name={running ? 'stop' : 'play'} />
+          <span>{primaryLabel}</span>
+        </button>
+        <button
+          type="button"
+          className="robotics-button robotics-pause-button"
+          aria-label={paused ? 'Продолжить' : 'Пауза'}
+          title={paused ? 'Продолжить' : 'Пауза'}
+          disabled={!running || starting || pausing || Boolean(haltReason)}
+          onClick={togglePause}
+        >
+          <SmallIcon name={paused ? 'play' : 'pause'} />
+        </button>
+        <button
+          type="button"
+          className="robotics-button robotics-reset-button"
+          aria-label="Сбросить"
+          title="Сбросить"
+          onClick={reset}
+        >
+          <SmallIcon name="reset" />
+        </button>
+      </div>
+    </section>
+  );
+
   const tabs = (
     <nav
       className="workbench-mode-buttons robotics-tabs"
@@ -858,49 +967,6 @@ export function RoboticsWorkspace({
           canOpenSaved={!running && local.hasSavedProject}
         />
       )}
-      <section className="robotics-run-bar" aria-label="Управление моделированием">
-        <div className="robotics-run-readout">
-          <SimulationSpeedControl pacing={controller.simulationPacing} onChange={changeRate}>
-            <output
-              data-testid="robotics-time"
-              data-microseconds={worldState.atMicroseconds}
-              aria-label="Время моделирования"
-            >
-              {number(worldState.atMicroseconds / 1_000_000)} с
-            </output>
-          </SimulationSpeedControl>
-        </div>
-        <div className="robotics-run-buttons">
-          <button
-            type="button"
-            className={'robotics-button primary' + (running ? ' is-running' : '')}
-            onClick={primaryAction}
-            disabled={starting || (!running && Boolean(bindingError))}
-          >
-            <SmallIcon name={running ? 'stop' : 'play'} />
-            <span>{primaryLabel}</span>
-          </button>
-          <button
-            type="button"
-            className="robotics-button robotics-pause-button"
-            aria-label={paused ? 'Продолжить' : 'Пауза'}
-            title={paused ? 'Продолжить' : 'Пауза'}
-            disabled={!running || starting || pausing || Boolean(haltReason)}
-            onClick={togglePause}
-          >
-            <SmallIcon name={paused ? 'play' : 'pause'} />
-          </button>
-          <button
-            type="button"
-            className="robotics-button robotics-reset-button"
-            aria-label="Сбросить"
-            title="Сбросить"
-            onClick={reset}
-          >
-            <SmallIcon name="reset" />
-          </button>
-        </div>
-      </section>
       <div
         className="robotics-workspace"
         ref={workspaceRef}
@@ -927,6 +993,7 @@ export function RoboticsWorkspace({
             canRedo={controller.canRedo}
             onUndo={() => controller.undo()}
             onRedo={() => controller.redo()}
+            simulationControls={section === 'field' ? simulationControls : null}
           />
         </section>
         <section
@@ -940,6 +1007,7 @@ export function RoboticsWorkspace({
             project={local.robotProject}
             running={running}
             onCommit={local.setWorld}
+            simulationControls={section === 'robot' ? simulationControls : null}
             onOpenElectronics={() => {
               navigate('electronics');
               controller.setLibraryOpen(true);
@@ -964,6 +1032,9 @@ export function RoboticsWorkspace({
                 setCodeDrawerOpen((current) => !current);
               }}
             />
+            <div className="robotics-toolbar-run-slot">
+              {section === 'electronics' ? simulationControls : null}
+            </div>
           </div>
         </section>
         <section
@@ -976,58 +1047,6 @@ export function RoboticsWorkspace({
           aria-labelledby={codeDrawerVisible ? undefined : 'robotics-tab-program'}
           hidden={!codeOpen}
         >
-          <div className="robotics-panel-toolbar">
-            <h2>Код Arduino</h2>
-            {programState.mode !== 'text' ? (
-              <button
-                type="button"
-                className="robotics-button robotics-palette-toggle"
-                aria-pressed={paletteOpen}
-                onClick={() => setPaletteOpen((value) => !value)}
-              >
-                {paletteOpen ? 'Скрыть палитру' : 'Палитра блоков'}
-              </button>
-            ) : null}
-            {programState.mode !== 'text' ? (
-              <button
-                type="button"
-                className="robotics-button robotics-program-start"
-                onClick={() => programHandle.current?.revealProgramStart()}
-              >
-                К началу
-              </button>
-            ) : null}
-            <label className="robotics-preset-label">
-              Пример
-              <select
-                aria-label="Пример программы"
-                value={programPreset}
-                disabled={running}
-                onChange={(event) => chooseProgram(event.target.value as RoboticsProgramPresetId)}
-              >
-                <option value="" disabled>
-                  Выбрать…
-                </option>
-                {ROBOTICS_PROGRAM_PRESETS.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {programPreset === 'push-one-shot' ? (
-            <p className="robotics-edit-hint">
-              Для опыта поставьте мяч перед роботом. В «Роботе» задайте датчик: вперёд 0 мм, влево
-              100 мм, угол 90°. Ближняя граница HC-SR04 — 2 см.
-            </p>
-          ) : null}
-          {programState.mode === 'text' && !programState.workspaceJson ? (
-            <p className="robotics-edit-hint">
-              Открыт текстовый скетч. Можно редактировать C++ или явно заменить его роботным
-              примером.
-            </p>
-          ) : null}
           <div
             ref={codeHostRef}
             className="workbench-shell robotics-program-shell"
@@ -1046,6 +1065,8 @@ export function RoboticsWorkspace({
                   codeDrawerVisible ? setCodeDrawerOpen(false) : navigate('electronics')
                 }
                 programHandleRef={programHandle}
+                toolbarActions={section === 'program' ? simulationControls : undefined}
+                toolbarAccessory={section === 'program' ? codeAccessory : undefined}
               />
             ) : null}
           </div>
@@ -1158,7 +1179,13 @@ export function RoboticsWorkspace({
           aria-label="Ширина панели наблюдения"
           aria-orientation="vertical"
           aria-valuemin={ROBOTICS_SIDE_MIN}
-          aria-valuemax={Math.max(ROBOTICS_SIDE_MIN, Math.min(ROBOTICS_SIDE_MAX, Math.floor((workspaceRef.current?.clientWidth ?? window.innerWidth) / 2)))}
+          aria-valuemax={Math.max(
+            ROBOTICS_SIDE_MIN,
+            Math.min(
+              ROBOTICS_SIDE_MAX,
+              Math.floor((workspaceRef.current?.clientWidth ?? window.innerWidth) / 2),
+            ),
+          )}
           aria-valuenow={sideWidth}
           title="Перетаскивайте границу панели. Стрелки меняют ширину, Home/End — пределы."
           tabIndex={0}

@@ -419,6 +419,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
   ).toBeVisible();
   await page.getByRole('tab', { name: 'Код', exact: true }).click();
   await expect(page.getByTestId('arduino-block-workspace')).toBeVisible();
+  await page.locator('.robotics-code-extras > summary').click();
   await page
     .getByRole('combobox', { name: 'Пример программы', exact: true })
     .selectOption('turn-left');
@@ -933,6 +934,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
   await numberField(page, 'Направление датчика', 90);
   await page.getByRole('tab', { name: 'Код', exact: true }).click();
   await expect(page.getByTestId('arduino-block-workspace')).toBeVisible();
+  await page.locator('.robotics-code-extras > summary').click();
   await page
     .getByRole('combobox', { name: 'Пример программы', exact: true })
     .selectOption('push-one-shot');

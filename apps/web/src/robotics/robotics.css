@@ -2353,71 +2353,128 @@
   }
 }
 
-
 /* ROBOTICS-ELECTRONICS-NATIVE-004 — shared native toolbar, borderless panels,
  * compact component catalog, single Arduino editor in drawer or fullscreen. */
 .robotics-lab,
-.robotics-portal-editor .robotics-lab { padding: 0; gap: 0; }
-.robotics-lab .robotics-unified-header { width: 100%; margin: 0; padding: 0 10px; }
-.robotics-lab > .robotics-run-bar { right: 8px; top: 0; }
+.robotics-portal-editor .robotics-lab {
+  padding: 0;
+  gap: 0;
+}
+.robotics-lab .robotics-unified-header {
+  width: 100%;
+  margin: 0;
+  padding: 0 10px;
+}
+.robotics-lab > .robotics-run-bar {
+  right: 8px;
+  top: 0;
+}
 .robotics-lab .robotics-workspace {
-  position: relative; gap: 0; grid-template-columns: minmax(0, 1fr) 250px;
+  position: relative;
+  gap: 0;
+  grid-template-columns: minmax(0, 1fr) 250px;
 }
 .robotics-lab .robotics-panel,
 .robotics-lab .robotics-observation,
 .robotics-lab .robotics-schematic {
-  border: 0; border-radius: 0; box-shadow: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
-.robotics-lab .robotics-observation { border-left: 1px solid #e2eaf0; }
-.robotics-lab .robotics-schematic.preview { border-top: 1px solid #e2eaf0; }
+.robotics-lab .robotics-observation {
+  border-left: 1px solid #e2eaf0;
+}
+.robotics-lab .robotics-schematic.preview {
+  border-top: 1px solid #e2eaf0;
+}
 .robotics-lab .robotics-electronics-panel {
-  border: 0; border-radius: 0; background: #fff;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
 }
 .robotics-lab .robotics-electronics-toolbar {
-  height: 39px; min-height: 39px; padding: 0; border: 0; background: #fff;
+  height: 39px;
+  min-height: 39px;
+  padding: 0;
+  border: 0;
+  background: #fff;
 }
 .robotics-lab .robotics-electronics-tools.workbench-toolbar {
-  display: flex; align-items: stretch; flex: 1;
-  width: 100%; height: 38px; min-height: 38px; min-width: 0;
-  padding: 0; gap: 0; overflow-x: auto; overflow-y: hidden;
-  scrollbar-width: thin; border-bottom: 1px solid #dbe5ec;
-  border-radius: 0; background: #fff;
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  width: 100%;
+  height: 38px;
+  min-height: 38px;
+  min-width: 0;
+  padding: 0;
+  gap: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  border-bottom: 1px solid #dbe5ec;
+  border-radius: 0;
+  background: #fff;
 }
 .robotics-lab .robotics-electronics-native-tools {
-  flex: 0 0 auto; display: flex; align-items: stretch;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
 }
 .robotics-lab .robotics-electronics-native-tools .workbench-breadboard-tools {
-  flex: 0 0 auto; display: inline-flex;
+  flex: 0 0 auto;
+  display: inline-flex;
 }
 .robotics-lab .robotics-electronics-tools .workbench-tool,
 .robotics-lab .robotics-electronics-tools .workbench-wire-style,
 .robotics-lab .robotics-electronics-tools .workbench-wire-color > summary {
-  display: grid; flex: 0 0 36px; place-items: center;
-  width: 36px; min-width: 36px; height: 38px; min-height: 38px;
-  padding: 0; border: 0; border-right: 1px solid #e6edf2;
-  border-radius: 0; color: #4b6375; background: transparent;
+  display: grid;
+  flex: 0 0 36px;
+  place-items: center;
+  width: 36px;
+  min-width: 36px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid #e6edf2;
+  border-radius: 0;
+  color: #4b6375;
+  background: transparent;
 }
 .robotics-lab .robotics-electronics-tools .workbench-tool svg,
 .robotics-lab .robotics-electronics-tools .workbench-wire-style svg {
-  width: 18px; height: 18px;
+  width: 18px;
+  height: 18px;
 }
 .robotics-lab .robotics-electronics-tools .workbench-tool:hover:not(:disabled),
 .robotics-lab .robotics-electronics-tools .workbench-tool.active {
-  color: #0b82aa; background: #e8f5f9;
+  color: #0b82aa;
+  background: #e8f5f9;
 }
 .robotics-lab .robotics-electronics-tools .workbench-toolbar-divider {
-  height: 24px; align-self: center; flex: 0 0 1px;
-  width: 1px; margin: 0 2px; background: #d7e4ed;
+  height: 24px;
+  align-self: center;
+  flex: 0 0 1px;
+  width: 1px;
+  margin: 0 2px;
+  background: #d7e4ed;
 }
 .robotics-lab .robotics-electronics-tools .workbench-toolbar-gap {
-  flex: 0 0 4px; width: 4px; margin: 0;
+  flex: 0 0 4px;
+  width: 4px;
+  margin: 0;
 }
 .robotics-lab .robotics-electronics-tools .robotics-electronics-catalog,
 .robotics-lab .robotics-electronics-tools .robotics-electronics-code {
-  flex-shrink: 0; background: #fff;
+  flex-shrink: 0;
+  background: #fff;
 }
 .robotics-lab .robotics-electronics-tools .robotics-electronics-code {
-  position: relative; left: auto; right: auto; margin-left: 0;
+  position: relative;
+  left: auto;
+  right: auto;
+  margin-left: 0;
 }
 .robotics-lab[data-section='electronics'] .robotics-workspace {
   grid-template-columns: minmax(0, 1fr) 250px;
@@ -2425,7 +2482,9 @@
   grid-template-areas: 'toolbar observation' 'main observation';
 }
 .robotics-lab[data-section='electronics'] .robotics-schematic.editing {
-  margin: 0; min-height: 0; overflow: hidden;
+  margin: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 .robotics-lab .robotics-workbench.workbench-shell {
   --wb-library-width: 216px;
@@ -2438,42 +2497,62 @@
   font-size: 11px;
 }
 .robotics-lab .robotics-workbench .workbench-library-heading {
-  min-height: 39px; padding: 4px 6px;
+  min-height: 39px;
+  padding: 4px 6px;
 }
 .robotics-lab .robotics-workbench .workbench-library-heading span,
 .robotics-lab .robotics-workbench .workbench-catalog-name {
-  font-size: 10px; line-height: 1.22;
+  font-size: 10px;
+  line-height: 1.22;
 }
 .robotics-lab .robotics-workbench .workbench-library-search input {
-  min-height: 32px; font-size: 12px;
+  min-height: 32px;
+  font-size: 12px;
 }
 .robotics-lab .robotics-workbench .workbench-catalog-grid,
 .robotics-lab .robotics-workbench .workbench-catalog-grid.list-view {
-  gap: 5px; padding: 4px 5px;
-  grid-auto-columns: 66px; grid-template-rows: 79px;
+  gap: 5px;
+  padding: 4px 5px;
+  grid-auto-columns: 66px;
+  grid-template-rows: 79px;
 }
 .robotics-lab .robotics-workbench .workbench-catalog-card,
 .robotics-lab .robotics-workbench .workbench-catalog-grid.list-view .workbench-catalog-card {
-  width: 66px; height: 79px; min-height: 79px; border-radius: 5px;
+  width: 66px;
+  height: 79px;
+  min-height: 79px;
+  border-radius: 5px;
 }
 .robotics-lab .robotics-workbench .workbench-catalog-add,
 .robotics-lab .robotics-workbench .workbench-catalog-grid.list-view .workbench-catalog-add {
-  grid-template-rows: 52px 22px; gap: 2px; padding: 2px;
+  grid-template-rows: 52px 22px;
+  gap: 2px;
+  padding: 2px;
 }
-.robotics-lab .robotics-workbench .workbench-catalog-art { height: 51px; }
+.robotics-lab .robotics-workbench .workbench-catalog-art {
+  height: 51px;
+}
 .robotics-lab .robotics-workbench .workbench-component-preview {
-  max-width: 53px; max-height: 49px;
+  max-width: 53px;
+  max-height: 49px;
 }
 .robotics-lab .robotics-program-panel[data-drawer-open='true'] {
-  position: absolute; z-index: 45;
-  top: 39px; right: 0; bottom: 0;
-  width: clamp(430px, 62%, 940px); max-width: 100%;
-  height: auto; min-height: 0; background: #fff;
+  position: absolute;
+  z-index: 45;
+  top: 39px;
+  right: 0;
+  bottom: 0;
+  width: clamp(430px, 62%, 940px);
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  background: #fff;
   border-left: 1px solid #cbdde8;
   box-shadow: -10px 0 28px #163d582b;
 }
 .robotics-lab .robotics-program-panel[data-drawer-open='true'] .robotics-panel-toolbar {
-  min-height: 38px; padding: 4px 8px;
+  min-height: 38px;
+  padding: 4px 8px;
 }
 .robotics-lab .robotics-program-panel[data-drawer-open='true'] .robotics-program-shell {
   min-height: 0;
@@ -2481,21 +2560,29 @@
 .robotics-lab[data-section='program'] .robotics-workspace {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  grid-template-areas: 'main'; gap: 0;
+  grid-template-areas: 'main';
+  gap: 0;
 }
 .robotics-lab[data-section='program'] .robotics-observation,
-.robotics-lab[data-section='program'] .robotics-schematic { display: none; }
-.robotics-lab[data-section='program'] .robotics-program-panel {
-  grid-area: main; min-height: 0; border: 0;
+.robotics-lab[data-section='program'] .robotics-schematic {
+  display: none;
 }
-.robotics-lab[data-section='program'] .robotics-program-shell { border-radius: 0; }
+.robotics-lab[data-section='program'] .robotics-program-panel {
+  grid-area: main;
+  min-height: 0;
+  border: 0;
+}
+.robotics-lab[data-section='program'] .robotics-program-shell {
+  border-radius: 0;
+}
 @media (max-width: 1180px) {
   .robotics-lab .robotics-workspace,
   .robotics-lab[data-section='electronics'] .robotics-workspace {
     grid-template-columns: minmax(0, 1fr) 230px;
   }
   .robotics-lab .robotics-workbench.workbench-shell {
-    --wb-library-width: 192px; --wb-inspector-width: 200px;
+    --wb-library-width: 192px;
+    --wb-inspector-width: 200px;
   }
   .robotics-lab .robotics-schematic.editing .workbench-library:not(.collapsed) {
     width: min(192px, calc(100vw - 20px)) !important;
@@ -2507,19 +2594,23 @@
   .robotics-portal-editor .robotics-lab {
     grid-template-rows: 48px 36px minmax(0, 1fr);
   }
-  .robotics-lab .robotics-unified-header { padding: 0 5px; }
+  .robotics-lab .robotics-unified-header {
+    padding: 0 5px;
+  }
   .robotics-lab .robotics-workspace,
   .robotics-lab[data-section='electronics'] .robotics-workspace {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: minmax(0, 1fr) 132px;
-    grid-template-areas: 'main main' 'observation scheme'; gap: 3px;
+    grid-template-areas: 'main main' 'observation scheme';
+    gap: 3px;
   }
   .robotics-lab[data-section='electronics'] .robotics-workspace {
     grid-template-rows: 39px minmax(0, 1fr) 125px;
     grid-template-areas: 'toolbar toolbar' 'main main' 'observation observation';
   }
   .robotics-lab .robotics-workbench.workbench-shell {
-    --wb-library-width: 188px; --wb-inspector-width: 198px;
+    --wb-library-width: 188px;
+    --wb-inspector-width: 198px;
     --wb-library-open-height: 165px;
   }
   .robotics-lab[data-section='program'] .robotics-workspace {
@@ -2528,9 +2619,14 @@
     grid-template-areas: 'main';
   }
   .robotics-lab .robotics-program-panel[data-drawer-open='true'] {
-    top: auto; left: 0; right: 0; bottom: 0;
-    width: 100%; height: min(72%, 600px);
-    border: 1px solid #cedfe9; border-bottom: 0;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: min(72%, 600px);
+    border: 1px solid #cedfe9;
+    border-bottom: 0;
     box-shadow: 0 -12px 30px #143d5836;
   }
 }
@@ -2550,7 +2646,6 @@
     right: auto;
   }
 }
-
 
 /* ROBOTICS-LEFT-RAIL-005
  * Resize the ONE observation rail, not the project, electronics solver or Arduino stage.
@@ -2648,7 +2743,7 @@
   bottom: 0;
   width: 2px;
   background: #c6d6e0;
-  opacity: .85;
+  opacity: 0.85;
 }
 .robotics-side-resizer:hover::before,
 .robotics-side-resizer:focus-visible::before {
@@ -2846,5 +2941,413 @@
     right: 0;
     bottom: 0;
     max-width: 100%;
+  }
+}
+
+/* ROBOTICS-TOOLS-ONE-ROW-006
+ * Shared simulator controls live INSIDE each active tab toolbar. All toolbars
+ * use the same 38px line; no stand-alone simulator row above the workspace. */
+.robotics-lab,
+.robotics-portal-editor .robotics-lab {
+  grid-template-rows: 48px minmax(0, 1fr);
+}
+.robotics-lab > .robotics-workspace {
+  grid-row: 2;
+}
+.robotics-lab .robotics-run-bar {
+  display: flex;
+  position: relative;
+  inset: auto;
+  grid-row: auto;
+  z-index: 4;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  gap: 4px;
+  height: 38px;
+  min-height: 38px;
+  width: max-content;
+  max-width: 100%;
+  padding: 2px 5px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+.robotics-lab .robotics-run-buttons {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+.robotics-lab .robotics-run-readout {
+  flex: 0 0 auto;
+}
+.robotics-lab .robotics-run-bar .workbench-simulation-clock-button {
+  height: 32px;
+  min-height: 32px;
+}
+.robotics-lab .robotics-run-bar .robotics-run-buttons .robotics-button {
+  height: 32px;
+  min-height: 32px;
+}
+.robotics-lab .robotics-field-toolbar,
+.robotics-lab .robotics-robot-toolbar,
+.robotics-lab .robotics-electronics-toolbar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  flex: 0 0 38px;
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  min-width: 0;
+  width: 100%;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid #dae5ec;
+  border-radius: 0;
+  flex-wrap: nowrap;
+  overflow: visible;
+  background: #fff;
+}
+.robotics-lab .robotics-field-toolbar-scroll {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  height: 38px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #c7dce6 transparent;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  height: 37px;
+  min-height: 37px;
+  width: max-content;
+  gap: 3px;
+  padding: 2px 4px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-tools > button {
+  height: 32px;
+  min-height: 32px;
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  white-space: nowrap;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-view-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  align-self: stretch;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  width: max-content;
+  height: 37px;
+  min-height: 37px;
+  gap: 5px;
+  padding: 1px 5px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  white-space: nowrap;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-view-tools > *,
+.robotics-lab .robotics-field-toolbar .robotics-field-zoom > * {
+  flex: 0 0 auto;
+  margin-block: 0;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-view-tools > button {
+  min-height: 30px;
+  height: 30px;
+}
+.robotics-lab .robotics-field-toolbar .robotics-grid-toggle {
+  min-height: 30px;
+  height: 30px;
+}
+.robotics-lab .robotics-robot-toolbar-tools {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 37px;
+  gap: 7px;
+  padding: 0 8px;
+}
+.robotics-lab .robotics-robot-toolbar-tools .robotics-button {
+  min-height: 32px;
+  height: 32px;
+  white-space: nowrap;
+}
+.robotics-lab .robotics-robot-toolbar-tools h2 {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.robotics-lab .robotics-electronics-toolbar .robotics-electronics-tools.workbench-toolbar {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  height: 37px;
+  min-height: 37px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  align-self: center;
+}
+.robotics-lab .robotics-electronics-toolbar > .robotics-toolbar-run-slot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  height: 38px;
+  min-height: 38px;
+  background: #fff;
+}
+.robotics-lab .robotics-program-panel {
+  min-width: 0;
+}
+.arduino-code-toolbar-scroll {
+  display: contents;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar:has(> .arduino-code-toolbar-actions) {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  width: 100%;
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  padding: 0;
+  overflow: visible;
+}
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  > .arduino-code-toolbar-scroll {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 5px;
+  width: auto;
+  min-width: 0;
+  height: 38px;
+  padding: 2px 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar-scroll > * {
+  flex-shrink: 0;
+}
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  .arduino-board-select {
+  order: -1;
+  flex: 0 0 142px;
+  width: 142px;
+  min-width: 120px;
+  height: 31px;
+  font-size: 11px;
+}
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  .arduino-code-toolbar-spacer {
+  display: none;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  height: 38px;
+  min-height: 38px;
+  background: #fff;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar-accessory {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 38px;
+  background: #fff;
+}
+.robotics-code-extras {
+  position: relative;
+  z-index: 50;
+  width: 34px;
+}
+.robotics-code-extras > summary {
+  display: grid;
+  place-items: center;
+  height: 32px;
+  width: 34px;
+  border: 1px solid #d5e1e9;
+  border-radius: 6px;
+  background: #f7fafb;
+  color: #395d72;
+  font-size: 21px;
+  line-height: 1;
+  list-style: none;
+  cursor: pointer;
+}
+.robotics-code-extras > summary::-webkit-details-marker {
+  display: none;
+}
+.robotics-code-extras[open] > summary,
+.robotics-code-extras > summary:hover {
+  background: #e7f4f8;
+  border-color: #8bc5d6;
+}
+.robotics-code-extras-menu {
+  position: absolute;
+  top: calc(100% + 3px);
+  right: -25px;
+  display: grid;
+  gap: 8px;
+  width: 295px;
+  max-width: calc(100vw - 14px);
+  padding: 10px;
+  border: 1px solid #d4e1e9;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 8px 28px #0b355829;
+  color: #294b61;
+  font-size: 12px;
+  white-space: normal;
+}
+.robotics-code-extras-menu > p {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #607587;
+}
+.robotics-code-extras-menu > label {
+  display: grid;
+  gap: 3px;
+}
+.robotics-code-extras-menu select,
+.robotics-code-extras-menu button {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid #d4e1e9;
+  border-radius: 6px;
+  background: #fff;
+  color: #2d5165;
+  font-size: 12px;
+}
+@media (min-width: 1101px) {
+  .robotics-lab .robotics-electronics-toolbar .robotics-electronics-tools.workbench-toolbar {
+    overflow-x: visible;
+    overflow-y: visible;
+  }
+}
+@media (max-width: 900px) {
+  .robotics-lab .robotics-field-toolbar .robotics-field-tools > button {
+    padding-inline: 4px;
+    min-height: 30px;
+  }
+  .robotics-lab .robotics-robot-toolbar-tools h2 {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .robotics-lab,
+  .robotics-portal-editor .robotics-lab {
+    grid-template-rows: 48px minmax(0, 1fr);
+  }
+  .robotics-lab > .robotics-workspace {
+    grid-row: 2;
+  }
+  .robotics-lab .robotics-run-bar {
+    padding: 2px 2px;
+    gap: 3px;
+  }
+  .robotics-lab .robotics-field-toolbar .robotics-field-tools {
+    display: flex;
+    grid-template-columns: none;
+  }
+  .robotics-lab .robotics-field-toolbar .robotics-field-tools button span {
+    display: inline;
+  }
+  .robotics-lab .robotics-field-toolbar .robotics-field-view-tools,
+  .robotics-lab .robotics-field-toolbar .robotics-field-view-tools > button,
+  .robotics-lab .robotics-field-toolbar .robotics-field-view-tools .robotics-grid-toggle {
+    min-height: 30px;
+    height: 30px;
+  }
+  .robotics-lab .robotics-robot-toolbar-tools .robotics-button {
+    padding: 2px 6px;
+    font-size: 10px;
+    width: 36px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-indent: -9999px;
+    position: relative;
+  }
+  .robotics-lab .robotics-robot-toolbar-tools .robotics-button::before {
+    content: '+';
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    text-indent: 0;
+    font-size: 18px;
+  }
+  .robotics-lab
+    .robotics-program-shell
+    .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+    .arduino-board-select {
+    flex-basis: 115px;
+    width: 115px;
+    min-width: 110px;
+  }
+  .robotics-code-extras-menu {
+    right: -130px;
+  }
+}
+
+/* The profile menu is a global editor navigation surface. It must stack above
+   the Arduino drawer, every tool row and simulation controls in all tabs. */
+.robotics-lab .robotics-unified-header {
+  position: relative;
+  z-index: 2000;
+  overflow: visible;
+}
+
+/* Keep Arduino selection at the beginning of Code's toolbar, not pushed right
+   by the standalone Electronics editor's auto margin. */
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  .arduino-board-select {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+@media (max-width: 760px) {
+  /* Optional teaching examples open as a readable viewport popup, not clipped
+     by the scrollable one-line Arduino toolbar. */
+  .robotics-lab .robotics-code-extras-menu {
+    position: fixed;
+    top: 87px;
+    left: 8px;
+    right: auto;
+    width: calc(100vw - 16px);
+    max-width: 380px;
+    z-index: 3500;
   }
 }

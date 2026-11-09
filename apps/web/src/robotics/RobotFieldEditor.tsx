@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import {
   createRoboticsBall,
   createRoboticsBody,
@@ -153,6 +153,7 @@ export function RobotFieldEditor({
   canRedo,
   onUndo,
   onRedo,
+  simulationControls,
 }: {
   world: RoboticsWorldDocument;
   state: RoboticsWorldState;
@@ -167,6 +168,7 @@ export function RobotFieldEditor({
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  simulationControls?: ReactNode;
 }) {
   const [tool, setTool] = useState<Tool>('select');
   const [stamp, setStamp] = useState<RoboticsTileStampKind>('straight');
@@ -497,128 +499,137 @@ export function RobotFieldEditor({
             ? 'Динамика 2D'
             : 'Учебный'}
       </span>
-      <div className="robotics-field-tools" role="toolbar" aria-label="Инструменты поля">
-        {TOOLS.map((item) => (
-          <button
-            type="button"
-            key={item.id}
-            aria-pressed={tool === item.id && !pan}
-            disabled={running || (item.extended && !extended)}
-            title={
-              item.extended && !extended
-                ? 'Сначала включите расширенное поле в свойствах'
-                : undefined
-            }
-            onClick={() => {
-              setTool(item.id);
-              setPan(false);
-              setError(null);
-            }}
-          >
-            <span aria-hidden="true">{item.symbol}</span>
-            {item.label}
-          </button>
-        ))}
-        <button
-          ref={propertiesButton}
-          type="button"
-          className="robotics-button robotics-properties-toggle"
-          aria-expanded={propertiesOpen}
-          onClick={() => setPropertiesOpen((value) => !value)}
-        >
-          Свойства
-        </button>
-      </div>
-      <div className="robotics-field-view-tools" aria-label="Вид и привязка поля">
-        <label className="robotics-grid-toggle">
-          <input
-            type="checkbox"
-            checked={showGrid}
-            onChange={(event) => onShowGridChange(event.target.checked)}
-          />
-          Сетка
-        </label>
-        <label
-          className="robotics-grid-toggle"
-          title="Предметы — к сетке; штампы трассы — к плиткам"
-        >
-          <input
-            type="checkbox"
-            checked={snap}
-            disabled={running}
-            onChange={(event) => setSnap(event.target.checked)}
-          />
-          Привязка
-        </label>
-        <button
-          type="button"
-          aria-label="Перемещать вид поля"
-          aria-pressed={pan}
-          onClick={() => {
-            releaseDrag();
-            setPan((value) => !value);
-            setTool('select');
-          }}
-        >
-          Рука
-        </button>
-        <div className="robotics-field-history" role="group" aria-label="История изменений поля">
-          <button
-            type="button"
-            aria-label="Отменить"
-            title="Шаг назад — отменить последнее изменение"
-            disabled={running || !canUndo}
-            onClick={onUndo}
-          >
-            <span aria-hidden="true">↶</span>
-            <span>Назад</span>
-          </button>
-          <button
-            type="button"
-            aria-label="Повторить"
-            title="Шаг вперёд — вернуть отменённое изменение"
-            disabled={running || !canRedo}
-            onClick={onRedo}
-          >
-            <span aria-hidden="true">↷</span>
-            <span>Вперёд</span>
-          </button>
+      <div className="robotics-field-toolbar" role="toolbar" aria-label="Инструменты поля">
+        <div className="robotics-field-toolbar-scroll">
+          <div className="robotics-field-tools">
+            {TOOLS.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                aria-pressed={tool === item.id && !pan}
+                disabled={running || (item.extended && !extended)}
+                title={
+                  item.extended && !extended
+                    ? 'Сначала включите расширенное поле в свойствах'
+                    : undefined
+                }
+                onClick={() => {
+                  setTool(item.id);
+                  setPan(false);
+                  setError(null);
+                }}
+              >
+                <span aria-hidden="true">{item.symbol}</span>
+                {item.label}
+              </button>
+            ))}
+            <button
+              ref={propertiesButton}
+              type="button"
+              className="robotics-button robotics-properties-toggle"
+              aria-expanded={propertiesOpen}
+              onClick={() => setPropertiesOpen((value) => !value)}
+            >
+              Свойства
+            </button>
+          </div>
+          <div className="robotics-field-view-tools" aria-label="Вид и привязка поля">
+            <label className="robotics-grid-toggle">
+              <input
+                type="checkbox"
+                checked={showGrid}
+                onChange={(event) => onShowGridChange(event.target.checked)}
+              />
+              Сетка
+            </label>
+            <label
+              className="robotics-grid-toggle"
+              title="Предметы — к сетке; штампы трассы — к плиткам"
+            >
+              <input
+                type="checkbox"
+                checked={snap}
+                disabled={running}
+                onChange={(event) => setSnap(event.target.checked)}
+              />
+              Привязка
+            </label>
+            <button
+              type="button"
+              aria-label="Перемещать вид поля"
+              aria-pressed={pan}
+              onClick={() => {
+                releaseDrag();
+                setPan((value) => !value);
+                setTool('select');
+              }}
+            >
+              Рука
+            </button>
+            <div
+              className="robotics-field-history"
+              role="group"
+              aria-label="История изменений поля"
+            >
+              <button
+                type="button"
+                aria-label="Отменить"
+                title="Шаг назад — отменить последнее изменение"
+                disabled={running || !canUndo}
+                onClick={onUndo}
+              >
+                <span aria-hidden="true">↶</span>
+                <span>Назад</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Повторить"
+                title="Шаг вперёд — вернуть отменённое изменение"
+                disabled={running || !canRedo}
+                onClick={onRedo}
+              >
+                <span aria-hidden="true">↷</span>
+                <span>Вперёд</span>
+              </button>
+            </div>
+            <output
+              className="robotics-field-elapsed"
+              aria-label="Время опыта"
+              data-microseconds={state.atMicroseconds}
+              title="Время текущего опыта (не более 40 секунд)"
+            >
+              Время:{' '}
+              {(state.atMicroseconds / 1_000_000).toLocaleString('ru-RU', {
+                maximumFractionDigits: 1,
+                minimumFractionDigits: 1,
+              })}{' '}
+              с
+            </output>
+            <div className="robotics-field-zoom">
+              <button
+                type="button"
+                aria-label="Отдалить поле"
+                disabled={zoomIndex === 0}
+                onClick={() => setZoomIndex((value) => Math.max(0, value - 1))}
+              >
+                −
+              </button>
+              <output aria-label="Масштаб поля">{Math.round(zoom * 100)}%</output>
+              <button
+                type="button"
+                aria-label="Приблизить поле"
+                disabled={zoomIndex === ZOOM_LEVELS.length - 1}
+                onClick={() => setZoomIndex((value) => Math.min(ZOOM_LEVELS.length - 1, value + 1))}
+              >
+                +
+              </button>
+              <button type="button" aria-label="Показать поле целиком" onClick={fit}>
+                Всё
+              </button>
+            </div>
+          </div>
         </div>
-        <output
-          className="robotics-field-elapsed"
-          aria-label="Время опыта"
-          data-microseconds={state.atMicroseconds}
-          title="Время текущего опыта (не более 40 секунд)"
-        >
-          Время:{' '}
-          {(state.atMicroseconds / 1_000_000).toLocaleString('ru-RU', {
-            maximumFractionDigits: 1,
-            minimumFractionDigits: 1,
-          })}{' '}
-          с
-        </output>
-        <div className="robotics-field-zoom">
-          <button
-            type="button"
-            aria-label="Отдалить поле"
-            disabled={zoomIndex === 0}
-            onClick={() => setZoomIndex((value) => Math.max(0, value - 1))}
-          >
-            −
-          </button>
-          <output aria-label="Масштаб поля">{Math.round(zoom * 100)}%</output>
-          <button
-            type="button"
-            aria-label="Приблизить поле"
-            disabled={zoomIndex === ZOOM_LEVELS.length - 1}
-            onClick={() => setZoomIndex((value) => Math.min(ZOOM_LEVELS.length - 1, value + 1))}
-          >
-            +
-          </button>
-          <button type="button" aria-label="Показать поле целиком" onClick={fit}>
-            Всё
-          </button>
-        </div>
+        {simulationControls}
       </div>
       {!running && tool === 'stamp' ? (
         <div className="robotics-stamp-tools">
