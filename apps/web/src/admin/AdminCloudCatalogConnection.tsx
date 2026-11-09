@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import type { AiDeepSeekCatalogModel, AiGenerationPolicy } from '@asa-lab/contracts';
+import type { AiCloudCatalogModel, AiGenerationPolicy } from '@asa-lab/contracts';
 import { policyShape } from './AdminAiGenerationPolicy';
 import { call } from './admin-api';
 import { isAiAdminConfig, type AiAdminConfig } from './ai-model-config';
@@ -9,18 +9,21 @@ const adminPath = '/api/admin/v1/ai';
 const policyPath = adminPath + '/generation-policy';
 const format = new Intl.NumberFormat('ru-RU');
 
-export function AdminDeepSeekConnection({
+export function AdminCloudCatalogConnection({
+  provider,
   onAccessDenied,
   onDirtyChange,
   onUpdated,
 }: {
+  provider: 'deepseek' | 'openai';
   onAccessDenied: () => void;
   onDirtyChange: (dirty: boolean) => void;
   onUpdated: () => void;
 }) {
+  const providerLabel = provider === 'openai' ? 'OpenAI' : 'DeepSeek';
   const [config, setConfig] = useState<AiAdminConfig | null>(null);
   const [policy, setPolicy] = useState<AiGenerationPolicy | null>(null);
-  const [catalog, setCatalog] = useState<readonly AiDeepSeekCatalogModel[] | null>(null);
+  const [catalog, setCatalog] = useState<readonly AiCloudCatalogModel[] | null>(null);
   const [eligibility, setEligibility] = useState<Record<string, boolean>>({});
   const [key, setKey] = useState('');
   const [clearKey, setClearKey] = useState(false);
@@ -32,7 +35,7 @@ export function AdminDeepSeekConnection({
   const flight = useRef(false);
   const checkedDraft = useRef(false);
   const attempt = useRef<{ signature: string; id: string } | null>(null);
-  const slot = config?.providerConfigurations.find((row) => row.provider === 'deepseek');
+  const slot = config?.providerConfigurations.find((row) => row.provider === provider);
   const keyDraft = key.trim();
   const connectionDirty =
     !!slot &&
@@ -47,8 +50,8 @@ export function AdminDeepSeekConnection({
 
   const fetchCatalog = useCallback(
     async (apiKey?: string) => {
-      const reply = await call<{ models: readonly AiDeepSeekCatalogModel[] }>(
-        adminPath + '/deepseek/catalog',
+      const reply = await call<{ models: readonly AiCloudCatalogModel[] }>(
+        adminPath + '/' + provider + '/catalog',
         {
           method: 'POST',
           body: JSON.stringify(apiKey ? { apiKey } : {}),
@@ -57,7 +60,7 @@ export function AdminDeepSeekConnection({
       if (!reply.ok && [401, 403].includes(reply.status)) onAccessDenied();
       return reply;
     },
-    [onAccessDenied],
+    [onAccessDenied, provider],
   );
 
   useEffect(() => {
@@ -80,14 +83,12 @@ export function AdminDeepSeekConnection({
           !access.ok ||
           !policyShape(access.data)
         ) {
-          setMessage({ ok: false, text: 'Не удалось загрузить настройки DeepSeek.' });
+          setMessage({ ok: false, text: 'Не удалось загрузить настройки ' + providerLabel + '.' });
           return;
         }
         setConfig(settings.data);
         setPolicy(access.data);
-        const saved = settings.data.providerConfigurations.find(
-          (row) => row.provider === 'deepseek',
-        );
+        const saved = settings.data.providerConfigurations.find((row) => row.provider === provider);
         setEnabled(saved?.enabled ?? false);
         setQuota(String(settings.data.paidOperationsPerHour));
         if (saved?.apiKeyConfigured) {
@@ -101,7 +102,7 @@ export function AdminDeepSeekConnection({
     return () => {
       live = false;
     };
-  }, [fetchCatalog, onAccessDenied]);
+  }, [fetchCatalog, onAccessDenied, provider, providerLabel]);
 
   function showCatalog(reply: Awaited<ReturnType<typeof fetchCatalog>>) {
     if (!reply.ok || !Array.isArray(reply.data.models)) {
@@ -143,16 +144,23 @@ export function AdminDeepSeekConnection({
     setMessage(null);
   }
 
-  const validQuota =
-    /^\d+$/.test(quota) && Number(quota) <= 2147483647 && (!enabled || Number(quota) > 0);
-  const canSave =
-    !!config?.encryptionReady &&
-    !!policy &&
-    !!slot &&
-    !busy &&
-    dirty &&
-    validQuota &&
-    (!enabled || (!clearKey && (Boolean(keyDraft) || slot.apiKeyConfigured)));
+  const saveBlocked =
+    busy === 'save'
+      ? 'Сохраняем…'
+      : busy === 'check'
+        ? 'Дождитесь проверки ключа.'
+        : busy === 'load'
+          ? 'Загружаем каталог…'
+          : !config?.encryptionReady
+            ? 'Шифрование ключей недоступно.'
+            : !/^\d+$/.test(quota) || Number(quota) > 2147483647
+              ? 'Укажите целое число запросов в час.'
+              : enabled && Number(quota) === 0
+                ? 'Укажите лимит больше нуля или выключите провайдера.'
+                : enabled && (clearKey || (!keyDraft && !slot?.apiKeyConfigured))
+                  ? 'Добавьте ключ или выключите провайдера.'
+                  : '';
+  const canSave = !!policy && !!slot && dirty && !saveBlocked;
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -167,7 +175,7 @@ export function AdminDeepSeekConnection({
         const reply = await call<unknown>(adminPath, {
           method: 'PUT',
           body: JSON.stringify({
-            provider: 'deepseek',
+            provider,
             model: slot.model,
             enabled,
             paidOperationsPerHour: Number(quota),
@@ -254,11 +262,12 @@ export function AdminDeepSeekConnection({
     }
   }
 
-  const supported =
-    policy?.models.filter(
-      (model) => model.provider === 'deepseek' && model.adapterCompatible !== false,
-    ) ?? [];
-  const observation = policy?.observations?.find((item) => item.provider === 'deepseek');
+  const supported = new Map(
+    policy?.models
+      .filter((model) => model.provider === provider && model.adapterCompatible !== false)
+      .map((model) => [model.id, model]),
+  );
+  const observation = policy?.observations?.find((item) => item.provider === provider);
   const models =
     catalog ??
     (slot?.apiKeyConfigured
@@ -275,14 +284,14 @@ export function AdminDeepSeekConnection({
 
   return (
     <section
-      className="asa-cloud-connection asa-deepseek-connection"
-      aria-label="Настройки DeepSeek"
+      className="asa-cloud-connection asa-cloud-catalog-connection"
+      aria-label={'Настройки ' + providerLabel}
     >
       {busy === 'load' && !config ? <small role="status">Загружаем настройки…</small> : null}
       {config && slot ? (
         <form onSubmit={(event) => void save(event)}>
           <div className="asa-cloud-compact-top">
-            <h2>DeepSeek</h2>
+            <h2>{providerLabel}</h2>
             <label className="asa-cloud-enabled">
               <input
                 type="checkbox"
@@ -316,13 +325,16 @@ export function AdminDeepSeekConnection({
             <button className="asa-cloud-apply" disabled={!canSave} type="submit">
               {busy === 'save' ? 'Сохраняем…' : 'Сохранить'}
             </button>
-            {message?.ok ? (
-              <small role="status">{message.text}</small>
-            ) : dirty ? (
-              <small>Есть несохранённые изменения</small>
-            ) : null}
+            <small role="status">
+              {saveBlocked ||
+                (dirty
+                  ? 'Есть несохранённые изменения'
+                  : message?.ok
+                    ? message.text
+                    : 'Нет изменений')}
+            </small>
           </div>
-          <div className="asa-deepseek-key-row">
+          <div className="asa-cloud-catalog-key-row">
             <label>
               API-ключ
               <input
@@ -330,7 +342,7 @@ export function AdminDeepSeekConnection({
                 autoComplete="new-password"
                 spellCheck={false}
                 maxLength={2048}
-                aria-label="API-ключ DeepSeek"
+                aria-label={'API-ключ ' + providerLabel}
                 value={key}
                 placeholder={
                   slot.apiKeyConfigured ? 'Ключ сохранён · введите для замены' : 'Вставьте ключ'
@@ -359,7 +371,11 @@ export function AdminDeepSeekConnection({
               ) : null}
             </div>
             <a
-              href="https://platform.deepseek.com/api_keys"
+              href={
+                provider === 'openai'
+                  ? 'https://platform.openai.com/api-keys'
+                  : 'https://platform.deepseek.com/api_keys'
+              }
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -386,56 +402,62 @@ export function AdminDeepSeekConnection({
           {!config.encryptionReady ? (
             <p role="alert">Шифрование ключей на сервере недоступно.</p>
           ) : null}
-          <div className="asa-deepseek-catalog-heading">
-            <strong>Модели DeepSeek</strong>
+          <div className="asa-cloud-catalog-catalog-heading">
+            <strong>Модели {providerLabel}</strong>
             <small>Выберите модели, которые будут доступны в Настройках ИИ.</small>
           </div>
           {!models.length ? (
             <small>
               {catalog
-                ? 'DeepSeek не вернул доступных моделей.'
+                ? providerLabel + ' не вернул доступных моделей.'
                 : 'Добавьте и проверьте ключ, чтобы загрузить список.'}
             </small>
           ) : null}
           <ul className="asa-cloud-catalog-list">
-            {models.map((model) => {
-              const adapter = supported.find((item) => item.id === model.id);
-              const input = model.inputModalities ?? adapter?.inputModalities;
-              const isDefault = policy?.defaultModel === model.id;
-              return (
-                <li key={model.id} className="asa-deepseek-model-row">
-                  <label title={model.id}>
-                    <input
-                      type="checkbox"
-                      checked={!!adapter && (eligibility[model.id] ?? adapter.eligible ?? true)}
-                      disabled={!!busy || !adapter || isDefault || !input?.includes('text')}
-                      onChange={(event) => updateEligibility(model.id, event.target.checked)}
-                    />
-                    <span>{model.name}</span>
-                  </label>
-                  <small>
-                    {input?.includes('image')
-                      ? 'Читает изображения'
-                      : input?.includes('text')
-                        ? 'Вход: текст'
-                        : 'Вход: нет данных'}
-                  </small>
-                  <small>
-                    {model.outputModalities?.includes('image')
-                      ? 'Генерирует изображения'
-                      : model.outputModalities?.includes('text')
-                        ? 'Ответ: текст'
-                        : null}
-                  </small>
-                  <small>
-                    {model.contextTokens ? format.format(model.contextTokens) + ' токенов' : null}
-                  </small>
-                  <small>
-                    {!adapter ? 'ASA пока не поддерживает' : isDefault ? 'По умолчанию' : null}
-                  </small>
-                </li>
-              );
-            })}
+            {[...models]
+              .sort(
+                (left, right) => Number(supported.has(right.id)) - Number(supported.has(left.id)),
+              )
+              .map((model) => {
+                const adapter = supported.get(model.id);
+                const input = model.inputModalities ?? adapter?.inputModalities;
+                const isDefault = policy?.defaultModel === model.id;
+                return (
+                  <li key={model.id} className="asa-cloud-catalog-model-row">
+                    <label title={model.id}>
+                      <input
+                        type="checkbox"
+                        checked={!!adapter && (eligibility[model.id] ?? adapter.eligible ?? true)}
+                        disabled={!!busy || !adapter || isDefault || !input?.includes('text')}
+                        onChange={(event) => updateEligibility(model.id, event.target.checked)}
+                      />
+                      <span>
+                        {model.name === model.id ? (adapter?.label ?? model.name) : model.name}
+                      </span>
+                    </label>
+                    <small>
+                      {input?.includes('image')
+                        ? 'Читает изображения'
+                        : input?.includes('text')
+                          ? 'Вход: текст'
+                          : 'Изображения: нет данных'}
+                    </small>
+                    <small>
+                      {model.outputModalities?.includes('image')
+                        ? 'Генерирует изображения'
+                        : model.outputModalities?.includes('text')
+                          ? 'Ответ: текст'
+                          : null}
+                    </small>
+                    <small>
+                      {model.contextTokens ? format.format(model.contextTokens) + ' токенов' : null}
+                    </small>
+                    <small>
+                      {!adapter ? 'ASA пока не поддерживает' : isDefault ? 'По умолчанию' : null}
+                    </small>
+                  </li>
+                );
+              })}
           </ul>
         </form>
       ) : null}

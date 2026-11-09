@@ -14,7 +14,7 @@ import type { NativeToolCall, NativeToolDefinition, NativeToolResult } from './a
 import type { AiImageRecipe } from '@asa-lab/contracts';
 import {
   discoverProviderModels,
-  discoverDeepSeekCatalog,
+  discoverCloudCatalog,
   applyCatalogObservation,
 } from './ai-provider-catalog.js';
 import { AiTokenBudgetStore } from './ai-token-budgets.js';
@@ -335,37 +335,40 @@ export class AiChatService {
   generationPolicy(actor: string) {
     return this.policy.admin(actor, this.key !== null);
   }
-  async deepSeekCatalog(actor: string, candidate?: string) {
+  async cloudCatalog(actor: string, provider: 'deepseek' | 'openai', candidate?: string) {
+    const label = provider === 'openai' ? 'OpenAI' : 'DeepSeek';
     let key = candidate;
     let revision: number | undefined;
     if (key === undefined) {
       const { rows } = await this.pool.query<RuntimeRow & { revision: number }>(
         'SELECT * FROM ai_provider_catalog_credentials($1,$2)',
-        [actor, 'deepseek'],
+        [actor, provider],
       );
       const credentials = rows[0];
       key = (credentials && this.decrypt(credentials)) || undefined;
       revision = credentials ? Number(credentials.revision) : undefined;
     }
     if (!key)
-      throw new AiServiceError('ai_catalog_key_required', 409, 'Добавьте API-ключ DeepSeek.');
+      throw new AiServiceError('ai_catalog_key_required', 409, 'Добавьте API-ключ ' + label + '.');
     let models;
     try {
-      models = await discoverDeepSeekCatalog(key, this.fetchImpl);
+      models = await discoverCloudCatalog(provider, key, this.fetchImpl);
     } catch (error) {
       const rejected =
         error instanceof Error && error.message === 'AI_CATALOG_UNAVAILABLE_KEY_REJECTED';
       throw new AiServiceError(
-        rejected ? 'ai_deepseek_key_rejected' : 'ai_deepseek_catalog_unavailable',
+        rejected ? 'ai_cloud_catalog_key_rejected' : 'ai_cloud_catalog_unavailable',
         502,
-        rejected ? 'DeepSeek не принял ключ.' : 'Каталог DeepSeek недоступен. Повторите проверку.',
+        rejected
+          ? label + ' не принял ключ.'
+          : 'Каталог ' + label + ' недоступен. Повторите проверку.',
       );
     }
     if (revision !== undefined)
       await applyCatalogObservation(
         this.pool,
         actor,
-        'deepseek',
+        provider,
         revision,
         models.map((model) => model.id),
       );

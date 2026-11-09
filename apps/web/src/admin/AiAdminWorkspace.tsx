@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AiAdminPage } from './AdminAiPage';
-import { AdminDeepSeekConnection } from './AdminDeepSeekConnection';
+import { AdminCloudCatalogConnection } from './AdminCloudCatalogConnection';
 import { AdminOllamaPage } from './AdminOllamaPage';
 import { AdminComfyUiPage } from './AdminComfyUiPage';
 import { AdminPolzaConnection } from './AdminPolzaConnection';
@@ -77,8 +77,6 @@ function AiAdminWorkspaceSession({
   const [toolDirty, setToolDirty] = useState(false);
   const [networkDirty, setNetworkDirty] = useState(false);
   const [budgetDirty, setBudgetDirty] = useState(false);
-  const [budgetRevision, setBudgetRevision] = useState(0);
-  const refreshBudgets = useCallback(() => setBudgetRevision((value) => value + 1), []);
   const [eligibleModels, setEligibleModels] = useState<readonly string[]>([]);
   function navigate(value: AiAdminNavigation) {
     if (value.section === navigation.section && value.provider === navigation.provider) return;
@@ -273,8 +271,10 @@ function AiAdminWorkspaceSession({
               onUpdated={refreshStatus}
               onDirtyChange={setConnectionDirty}
             />
-          ) : provider === 'deepseek' ? (
-            <AdminDeepSeekConnection
+          ) : provider === 'deepseek' || provider === 'openai' ? (
+            <AdminCloudCatalogConnection
+              key={provider}
+              provider={provider}
               onAccessDenied={onAccessDenied}
               onUpdated={refreshStatus}
               onDirtyChange={setConnectionDirty}
@@ -288,17 +288,6 @@ function AiAdminWorkspaceSession({
               onDirtyChange={setConnectionDirty}
             />
           )}
-          {provider === 'openai' ? (
-            <AdminAiGenerationPolicy
-              key={'policy-' + provider}
-              section="connections"
-              provider={provider}
-              onAccessDenied={onAccessDenied}
-              onDirtyChange={setPolicyDirty}
-              onEligibleModels={setEligibleModels}
-              onCatalogSaved={refreshBudgets}
-            />
-          ) : null}
         </section>
       ) : section === 'prompt' || section === 'settings' ? (
         <div
@@ -332,7 +321,6 @@ function AiAdminWorkspaceSession({
               onAccessDenied={onAccessDenied}
               eligibleModels={eligibleModels}
               onDirtyChange={setBudgetDirty}
-              refreshKey={budgetRevision}
             />
           ) : null}
         </div>

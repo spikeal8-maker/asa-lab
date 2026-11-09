@@ -28,7 +28,7 @@ export interface AiCatalogObservation {
   readonly credentialChanged?: boolean;
   readonly models: readonly { id: string; active: boolean }[];
 }
-export interface AiDeepSeekCatalogModel {
+export interface AiCloudCatalogModel {
   readonly id: string;
   readonly name: string;
   readonly inputModalities: readonly ('text' | 'image')[] | null;

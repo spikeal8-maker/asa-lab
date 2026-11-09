@@ -25,7 +25,7 @@ export type {
   AiGenerationModel,
   AiModelPreference,
   AiCatalogObservation,
-  AiDeepSeekCatalogModel,
+  AiCloudCatalogModel,
   AiGenerationPolicy,
   AiGenerationPolicyUpdate,
 } from './ai-generation-policy.js';

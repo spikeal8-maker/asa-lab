@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import type { AiDeepSeekCatalogModel } from '@asa-lab/contracts';
+import type { AiCloudCatalogModel } from '@asa-lab/contracts';
 import { AiPolicyError } from './ai-generation-policy.js';
 
 /** Metadata only. Neither endpoint proves compatibility with an ASA adapter.
@@ -72,11 +72,12 @@ export async function discoverProviderModels(
   return parseObservedModels(await fetchProviderCatalog(provider, key, fetchImpl));
 }
 
-export async function discoverDeepSeekCatalog(
+export async function discoverCloudCatalog(
+  provider: keyof typeof AI_CATALOG_ENDPOINTS,
   key: string,
   fetchImpl: typeof fetch,
-): Promise<AiDeepSeekCatalogModel[]> {
-  const raw = await fetchProviderCatalog('deepseek', key, fetchImpl);
+): Promise<AiCloudCatalogModel[]> {
+  const raw = await fetchProviderCatalog(provider, key, fetchImpl);
   const ids = parseObservedModels(raw);
   const rows = (raw as { data: Record<string, unknown>[] }).data;
   const models = new Map(rows.map((row) => [row['id'], row]));

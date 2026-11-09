@@ -10,6 +10,7 @@ import {
   HttpException,
   Inject,
   Post,
+  Param,
   Put,
   Req,
 } from '@nestjs/common';
@@ -140,12 +141,18 @@ export class AiAdminController {
     return this.safe(() => this.ai.saveGenerationPolicy(actor, raw as AiGenerationPolicyUpdate));
   }
 
-  @Post('deepseek/catalog')
+  @Post(':provider/catalog')
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
-  async deepSeekCatalog(@Req() request: FastifyRequest, @Body() raw: unknown) {
+  async cloudCatalog(
+    @Req() request: FastifyRequest,
+    @Param('provider') provider: string,
+    @Body() raw: unknown,
+  ) {
     this.requireSameOrigin(request);
     const actor = await this.requirePlatformAdmin(request);
+    if (provider !== 'deepseek' && provider !== 'openai')
+      return reject('ai_catalog_invalid', 'Выберите провайдера.', 400);
     const apiKey = (raw as { apiKey?: unknown } | null)?.apiKey;
     if (
       apiKey !== undefined &&
@@ -155,7 +162,7 @@ export class AiAdminController {
         /[\p{Cc}\p{Zl}\p{Zp}]/u.test(apiKey))
     )
       return reject('ai_key_invalid', 'Проверьте формат API-ключа.', 400);
-    return this.safe(() => this.ai.deepSeekCatalog(actor, apiKey));
+    return this.safe(() => this.ai.cloudCatalog(actor, provider, apiKey));
   }
 
   @Put('web-search')

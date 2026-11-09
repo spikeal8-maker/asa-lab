@@ -345,13 +345,21 @@ export function AiAdminPage({
           <small role="status">
             {busy
               ? 'Сохраняем…'
-              : enabled && !cloudKeyReady
-                ? 'Добавьте активный ключ'
-                : enabled && Number(quota) === 0
-                  ? 'Укажите лимит больше нуля'
-                  : dirty || cloudKeysDirty
-                    ? 'Есть несохранённые изменения'
-                    : notice}
+              : loading || cloudKeysBusy
+                ? 'Дождитесь завершения загрузки или проверки.'
+                : !config.encryptionReady
+                  ? 'Шифрование ключей недоступно.'
+                  : !validQuota
+                    ? 'Укажите целое число запросов в час.'
+                    : enabled && !cloudKeyReady
+                      ? 'Добавьте активный ключ или выключите провайдера.'
+                      : enabled && Number(quota) === 0
+                        ? 'Укажите лимит больше нуля или выключите провайдера.'
+                        : !submittedModel
+                          ? 'Обновите каталог моделей.'
+                          : dirty || cloudKeysDirty
+                            ? 'Есть несохранённые изменения'
+                            : notice || 'Нет изменений'}
           </small>
         </form>
       ) : null}

@@ -497,7 +497,7 @@
   padding: 0 0 3px 23px;
 }
 
-.asa-deepseek-key-row {
+.asa-cloud-catalog-key-row {
   display: flex;
   flex-wrap: wrap;
   align-items: start;
@@ -505,12 +505,12 @@
   margin-block: 12px;
   font-size: 13px;
 }
-.asa-deepseek-key-row > label {
+.asa-cloud-catalog-key-row > label {
   display: grid;
   gap: 4px;
   width: min(100%, 360px);
 }
-.asa-deepseek-key-row input {
+.asa-cloud-catalog-key-row input {
   width: 100%;
   min-width: 0;
   min-height: 32px;
@@ -519,10 +519,10 @@
   padding: 4px 8px;
   font: inherit;
 }
-.asa-deepseek-key-row > :not(label) {
+.asa-cloud-catalog-key-row > :not(label) {
   margin-top: 1.35em;
 }
-.asa-deepseek-key-row button {
+.asa-cloud-catalog-key-row button {
   min-height: 32px;
   padding: 3px 8px;
   border: 1px solid var(--border, #c4d3df);
@@ -531,26 +531,26 @@
   color: inherit;
   font: inherit;
 }
-.asa-deepseek-catalog-heading,
-.asa-deepseek-model-row,
-.asa-deepseek-model-row label {
+.asa-cloud-catalog-catalog-heading,
+.asa-cloud-catalog-model-row,
+.asa-cloud-catalog-model-row label {
   display: flex;
   align-items: center;
   gap: 5px 12px;
 }
-.asa-deepseek-catalog-heading,
-.asa-deepseek-model-row {
+.asa-cloud-catalog-catalog-heading,
+.asa-cloud-catalog-model-row {
   flex-wrap: wrap;
   padding: 6px 0;
 }
-.asa-deepseek-model-row {
+.asa-cloud-catalog-model-row {
   border-top: 1px solid var(--border, #dce5ec);
 }
-.asa-deepseek-model-row label {
+.asa-cloud-catalog-model-row label {
   min-width: min(100%, 220px);
   overflow-wrap: anywhere;
 }
-.asa-deepseek-model-row input[type='checkbox'] {
+.asa-cloud-catalog-model-row input[type='checkbox'] {
   flex: 0 0 17px;
   width: 17px;
   height: 17px;

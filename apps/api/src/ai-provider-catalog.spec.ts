@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import {
-  discoverDeepSeekCatalog,
+  discoverCloudCatalog,
   discoverProviderModels,
   parseObservedModels,
 } from './ai-provider-catalog';
@@ -68,7 +68,7 @@ it('reads DeepSeek modalities and context without guessing missing metadata', as
       ],
     }),
   );
-  expect(await discoverDeepSeekCatalog('test-key', transport)).toEqual([
+  expect(await discoverCloudCatalog('deepseek', 'test-key', transport)).toEqual([
     {
       id: 'deepseek-flash',
       name: 'DeepSeek Flash',
