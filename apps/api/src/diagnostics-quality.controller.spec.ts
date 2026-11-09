@@ -55,8 +55,8 @@ function requestFrom(address: string, forwarded = false) {
 function makeQuality(streamNumber: number, sequence: number) {
   return {
     schemaVersion: 2,
-    eventId: '20000000-0000-4000-8000-' +
-      (streamNumber * 1000 + sequence).toString(16).padStart(12, '0'),
+    eventId:
+      '20000000-0000-4000-8000-' + (streamNumber * 1000 + sequence).toString(16).padStart(12, '0'),
     pipeline: 'client-diagnostics',
     streamId: '30000000-0000-4000-8000-' + streamNumber.toString(16).padStart(12, '0'),
     sequence,
@@ -133,8 +133,9 @@ describe('diagnostic quality fairness behind one school NAT', () => {
     const controller = new DiagnosticsQualityController();
     const address = requestFrom('203.0.113.95');
     for (let i = 0; i < 80; i += 1)
-      expect(() => controller.report(address, { ...makeQuality(1, i + 1), token: 'untrusted' }))
-        .toThrow();
+      expect(() =>
+        controller.report(address, { ...makeQuality(1, i + 1), token: 'untrusted' }),
+      ).toThrow();
     for (let sequence = 1; sequence <= 60; sequence += 1)
       expect(controller.report(address, makeQuality(1, sequence))).toMatchObject({
         accepted: true,
