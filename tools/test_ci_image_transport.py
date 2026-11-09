@@ -641,12 +641,18 @@ def require_electronics_job(browser_only=False):
     jobs = ("browser",) if browser_only else ("browser", "review-images")
     workflow_ref = os.environ.get("GITHUB_WORKFLOW_REF", "")
     repository = os.environ.get("GITHUB_REPOSITORY", "")
+    # One additive fixed-case workflow; its commands and unchanged candidate are
+    # separately pinned. Existing full R4/UI scopes keep their original guards.
+    from e11_single_case_contract import WORKFLOW as E11_WORKFLOW, require_pair
+    e11 = ("/" + E11_WORKFLOW + "@") in workflow_ref
+    if e11:
+        require_pair(ROOT)
     scoped = (os.environ.get("GITHUB_JOB") == "browser"
               and re.fullmatch(r"[^/\s@]+/[^/\s@]+", repository) is not None
               and re.fullmatch(re.escape(repository + "/" + SCOPED_UI)
                                + r"@refs/heads/[^\s@]+", workflow_ref) is not None)
     require((os.environ.get("GITHUB_JOB") in jobs and ("/" + FOCUSED + "@") in workflow_ref)
-            or scoped,
+            or scoped or e11,
             "Docker proof is restricted to exact disposable Electronics workflow/job pairs")
 
 
