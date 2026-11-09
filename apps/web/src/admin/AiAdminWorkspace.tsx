@@ -153,8 +153,7 @@ function AiAdminWorkspaceSession({
     void Promise.all([
       call<AiAdminConfig>('/api/admin/v1/ai'),
       call<LocalState>('/api/admin/v1/ai/ollama'),
-      call<unknown>('/api/admin/v1/ai/polza'),
-    ]).then(([cloudResponse, localResponse, polzaResponse]) => {
+    ]).then(([cloudResponse, localResponse]) => {
       if (!mounted) return;
       if (!cloudResponse.ok && (cloudResponse.status === 401 || cloudResponse.status === 403)) {
         onAccessDenied();
@@ -164,12 +163,26 @@ function AiAdminWorkspaceSession({
       }
       setCloud(cloudResponse.ok ? cloudResponse.data : null);
       setLocal(localResponse.ok ? localResponse.data : null);
-      setPolza(polzaResponse.ok && isPolzaConfig(polzaResponse.data) ? polzaResponse.data : null);
     });
     return () => {
       mounted = false;
     };
   }, [onAccessDenied, statusRevision, section]);
+
+  const needsPolzaStatus =
+    section === 'connections' || section === 'comfyui' || section === 'video';
+  useEffect(() => {
+    if (!needsPolzaStatus) return;
+    let mounted = true;
+    void call<unknown>('/api/admin/v1/ai/polza').then((response) => {
+      if (!mounted) return;
+      if (!response.ok && (response.status === 401 || response.status === 403)) onAccessDenied();
+      setPolza(response.ok && isPolzaConfig(response.data) ? response.data : null);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [needsPolzaStatus, onAccessDenied, statusRevision]);
 
   function providerStatus(value: ProviderChoice): string {
     if (value === 'polza')

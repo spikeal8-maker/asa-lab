@@ -596,6 +596,8 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
     await page.getByRole('tab', { name: tab, exact: true }).click();
     await expect(page.getByText(model, { exact: true })).toBeVisible();
     await expect(page.getByText('Polza Text', { exact: true })).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByText(model, { exact: true })).toBeVisible();
   }
   await expect(page.getByRole('heading', { name: 'Транскрибация' })).toBeVisible();
   await expect(page.getByText('GigaAM-v3', { exact: true })).toBeVisible();
