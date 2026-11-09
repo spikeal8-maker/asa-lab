@@ -27,8 +27,8 @@ from .releases import apply_release_environment, validate_resolved_images
 from .system import run
 
 
-OPS_REVISION = "88f3f76144d8b499fe70a3c9beccba16c80e0856"
-BROWSER_SHA256 = "7e28aa8254011eb082331c2800909f1ce7f07b4da73473ed3942aacdb1691adc"
+OPS_REVISION = "a328523a20b1a63775206aa3096a7052930a03e8"
+BROWSER_SHA256 = "c445903be3327a64b869117171960cd531fa82426fcd5702da7bebfdcd7c6fab"
 FIXTURE_SHA256 = "64de2bc8478d5aaa60f60fa1b0035448d8c467cf0ffcc92a0aa0be22d3b4786f"
 PLAYWRIGHT_VERSION = "1.56.0"
 REQUIRED_CHECKS = ("teacher_login", "student_login", "course_open", "existing_project_open",

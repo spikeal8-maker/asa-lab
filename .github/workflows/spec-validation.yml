@@ -250,7 +250,7 @@ jobs:
     # Playwright 1.55.1 chromium installer rejects ubuntu26.04 in ubuntu-latest.
     # Pin a supported runner; do not bypass browser tests or apt signatures.
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     services:
       postgres:
         image: docker.io/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166

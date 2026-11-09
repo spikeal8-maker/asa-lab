@@ -6,16 +6,21 @@ import io
 import json
 import os
 from pathlib import Path
+import socket
+import ssl
 import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
+import urllib.error
+import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import asa_setup_launcher as launcher
-from deployment.setup_host import disk_budget, check_ports
+from deployment.contracts import Blocked
+from deployment.setup_host import disk_budget, check_ports, network_preflight
 
 
 @unittest.skipUnless(os.name == "posix", "Linux privilege/owner contract")
@@ -299,6 +304,120 @@ class HostPreflightTests(unittest.TestCase):
             observed = disk_budget(temporary, snapshot_bytes=1024 * 1024, snapshot_entries=100_000)
             self.assertTrue(observed["sufficient"])
             self.assertGreater(observed["requiredInodes"], 100_000)
+
+
+class RegistryPreflightTests(unittest.TestCase):
+    origin = "https://asa.example.invalid"
+    endpoint = "https://ghcr.io/v2/"
+    address = [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("192.0.2.1", 443))]
+
+    def setUp(self):
+        dns = patch("deployment.setup_host.socket.getaddrinfo", return_value=self.address)
+        self.dns = dns.start()
+        self.addCleanup(dns.stop)
+
+    def response(self, status):
+        class UnreadBody(io.BytesIO):
+            def read(self, *args, **kwargs):
+                raise AssertionError("Registry version-check must not read a response body")
+
+            read1 = readline = readlines = readinto = read
+
+        response = UnreadBody(b"synthetic registry response")
+        response.status = status
+        self.addCleanup(response.close)
+        return response
+
+    def check_request(self, request, timeout):
+        self.assertIsInstance(request, urllib.request.Request)
+        self.assertEqual(request.full_url, self.endpoint)
+        self.assertEqual(timeout, 10)
+        self.assertIsNone(request.data)
+        self.assertFalse(request.has_header("Authorization"))
+        self.assertFalse(request.has_header("Proxy-authorization"))
+
+    def assert_dns_checked(self):
+        self.assertEqual(self.dns.call_args_list, [call("asa.example.invalid", None), call("ghcr.io", 443)])
+
+    def test_version_check_uses_get_with_head_405_and_get_401_endpoint(self):
+        methods = []
+        def registry(request, *, timeout):
+            self.check_request(request, timeout)
+            method = request.get_method()
+            methods.append(method)
+            self.assertIn(method, ("HEAD", "GET"))
+            # Distribution API version-check is GET /v2/. Keep the response
+            # dependent on the real Request so the former HEAD call fails.
+            status = 401 if method == "GET" else 405
+            raise urllib.error.HTTPError(self.endpoint, status, "synthetic response", {}, self.response(status))
+
+        with patch.dict(os.environ, {"GH_TOKEN": "synthetic-gh-token", "GITHUB_TOKEN": "synthetic-github-token"}), \
+             patch("deployment.setup_host.urllib.request.urlopen", side_effect=registry) as opened:
+            result = network_preflight(self.origin)
+        self.assertTrue(result["dns"])
+        self.assertTrue(result["registryTls"])
+        self.assertEqual(methods, ["GET"])
+        opened.assert_called_once()
+        self.assert_dns_checked()
+
+    def test_200_and_401_responses_are_accepted_without_body_reads(self):
+        for status in (200, 401):
+            with self.subTest(status=status):
+                self.dns.reset_mock()
+                def registry(request, *, timeout):
+                    self.check_request(request, timeout)
+                    self.assertEqual(request.get_method(), "GET")
+                    return self.response(status)
+
+                with patch("deployment.setup_host.urllib.request.urlopen", side_effect=registry) as opened:
+                    result = network_preflight(self.origin)
+                self.assertTrue(result["dns"])
+                self.assertTrue(result["registryTls"])
+                opened.assert_called_once()
+                self.assert_dns_checked()
+
+    def test_other_http_statuses_remain_registry_failures(self):
+        for status in (403, 404, 405, 429, 500):
+            with self.subTest(status=status):
+                def registry(request, *, timeout):
+                    self.check_request(request, timeout)
+                    self.assertEqual(request.get_method(), "GET")
+                    raise urllib.error.HTTPError(self.endpoint, status, "synthetic response", {}, self.response(status))
+
+                with patch("deployment.setup_host.urllib.request.urlopen", side_effect=registry) as opened:
+                    with self.assertRaises(Blocked) as caught:
+                        network_preflight(self.origin)
+                self.assertEqual(caught.exception.code, "REGISTRY")
+                opened.assert_called_once()
+
+    def test_entry_and_registry_dns_failures_block_before_http(self):
+        for failed_lookup in (0, 1):
+            with self.subTest(failed_lookup=failed_lookup):
+                self.dns.reset_mock()
+                self.dns.side_effect = [self.address] * failed_lookup + [socket.gaierror(socket.EAI_NONAME, "synthetic DNS failure")]
+                with patch("deployment.setup_host.urllib.request.urlopen") as opened:
+                    with self.assertRaises(Blocked) as caught:
+                        network_preflight(self.origin)
+                self.assertEqual(caught.exception.code, "NETWORK")
+                self.assertEqual(self.dns.call_count, failed_lookup + 1)
+                opened.assert_not_called()
+
+    def test_connection_timeout_and_tls_failures_remain_network_errors(self):
+        failures = (urllib.error.URLError(ConnectionRefusedError("synthetic connection refusal")),
+                    TimeoutError("synthetic timeout"),
+                    urllib.error.URLError(ssl.SSLCertVerificationError(1, "synthetic certificate failure")))
+        for failure in failures:
+            with self.subTest(failure=type(getattr(failure, "reason", failure)).__name__):
+                def registry(request, *, timeout):
+                    self.check_request(request, timeout)
+                    self.assertEqual(request.get_method(), "GET")
+                    raise failure
+
+                with patch("deployment.setup_host.urllib.request.urlopen", side_effect=registry) as opened:
+                    with self.assertRaises(Blocked) as caught:
+                        network_preflight(self.origin)
+                self.assertEqual(caught.exception.code, "NETWORK")
+                opened.assert_called_once()
 
 
 @unittest.skipUnless(os.name == "posix", "Linux private runtime")

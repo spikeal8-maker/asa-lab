@@ -22,7 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from deployment import backup_schedule, backup_workflow, collector, setup_acceptance, setup_discovery, setup_host
 from deployment.contracts import Blocked, require, validate_release
 from deployment.setup_config import load_config, prepare_config, prepare_onboarding, private_json, read_installed_release, replace_legacy_manager_state, save_private, validate_config
-from deployment.setup_operation import Engine, Runtime, Store, bootstrap_observation, bootstrap_record, inventory_key
+from deployment.setup_operation import Engine, Runtime, Store, bind_selection, bootstrap_observation, bootstrap_record, guard_intent, inventory_key, installation_discovery
+from deployment.releases import validate_deployment_digest
 from deployment.setup_result import finalize, render, result
 from deployment.system import Installation, operation_lock
 
@@ -33,11 +34,14 @@ READ_ONLY = {"status", "check", "doctor", "diagnose", "restore-plan"}
 def parser():
     value = argparse.ArgumentParser(description="ASA Lab: установка, update, backup и проверяемая приёмка")
     value.add_argument("command", nargs="?", default="auto", choices=("auto", "check", "status", "resume", "backup",
-        "retry-cloud", "cloud-retry", "configure", "cloud-configure", "schedule", "doctor", "diagnose", "repair-collector", "restore-plan", "acceptance"))
+        "retry-cloud", "cloud-retry", "configure", "cloud-configure", "schedule", "doctor", "diagnose", "repair-collector", "restore-plan", "acceptance", "intent-check"))
     value.add_argument("--root", type=Path, default=Path.cwd())
     value.add_argument("--config-file", "--config", type=Path)
     value.add_argument("--operation-id")
     value.add_argument("--snapshot-id")
+    value.add_argument("--intent", choices=("install", "update"))
+    value.add_argument("--deployment-digest")
+    value.add_argument("--schedule-enabled", choices=("true", "false"))
     value.add_argument("--non-interactive", action="store_true")
     value.add_argument("--scheduled", action="store_true")
     value.add_argument("--schedule-budget-check", action="store_true", help=argparse.SUPPRESS)
@@ -160,7 +164,7 @@ def _root_receipt(root, owner, value):
 
 
 def root_action(args):
-    from asa_setup_launcher import verify_bundle
+    from asa_setup_launcher import verify_bundle, _write_owner_json
     require(os.geteuid() == 0, "ROOT_ACTION", "Системная регистрация выполняется через asa-setup.sh.")
     verify_bundle(Path(__file__).resolve().parents[1])
     owner = setup_host.check_owner(args.root)
@@ -174,13 +178,21 @@ def root_action(args):
         # All inputs and modules are from the attested bundle. Only saved
         # settings and this installation's deterministic units are consumed.
         try:
+            config = load_config(args.root, owner["uid"], policy=False)
             discovery = setup_discovery.classify_installation(args.root, setup_discovery.docker_inventory(),
                 project=config["project"], saved_identity=config.get("dataIdentity"))
             require(discovery["state"] in ("MANAGED", "LEGACY", "STOPPED"), "ROOT_ACTION_IDENTITY",
                     "Перед системной регистрацией не подтверждены исходные ресурсы установки.")
             if args.root_action == "schedule":
+                schedule = dict(config["backup"].get("schedule", {}))
+                if args.schedule_enabled is not None:
+                    schedule["enabled"] = args.schedule_enabled == "true"
+                schedule = backup_schedule.validate_schedule(schedule)
                 value["schedule"] = backup_schedule.install_schedule(args.root, config["installationId"], owner["name"],
-                    config["backup"].get("schedule", {}), Path(__file__).resolve())
+                    schedule, Path(__file__).resolve())
+                if args.schedule_enabled is not None:
+                    config["backup"]["schedule"] = schedule
+                    _write_owner_json(args.root / ".asa/setup.json", config, owner)
             else:
                 os.environ["SUDO_USER"] = owner["name"]  # derived from ownership proof
                 install = Installation(args.root, config["profile"])
@@ -197,6 +209,12 @@ def root_action(args):
             value["status"] = "OK"
         except (Blocked, OSError, ValueError) as error:
             value["reasonCode"] = getattr(error, "code", type(error).__name__)
+            if args.root_action == "schedule" and value["reasonCode"] == "BACKUP_SCHEDULE_INACTIVE":
+                value["scheduleObservation"] = {"format": "asa-backup-schedule-observation-v1", "status": "UNAVAILABLE"}
+                try:
+                    value["scheduleObservation"] = backup_schedule.schedule_observation(getattr(error, "schedule_observation", None))
+                except BaseException:
+                    pass  # Diagnostic failure must not replace the original root-action failure.
         _root_receipt(args.root, owner, value)
     print(json.dumps(value, ensure_ascii=True))
     return 0 if value["status"] == "OK" else 2
@@ -484,6 +502,12 @@ def execute(args):
     if args.check:
         args.command = "check"
     args.command = {"cloud-retry": "retry-cloud", "diagnose": "doctor"}.get(args.command, args.command)
+    require(not args.intent or args.command in ("auto", "resume", "acceptance", "intent-check"), "OPERATION_INTENT", "Намерение разрешено только для установки/обновления.")
+    require(not args.deployment_digest or args.command in ("auto", "resume", "acceptance"), "RELEASE_SELECTOR", "Digest не относится к этой команде.")
+    if args.deployment_digest:
+        validate_deployment_digest(args.deployment_digest)
+    require(args.schedule_enabled is None or args.command == "schedule" or args.root_action == "schedule",
+            "SCHEDULE_COMMAND", "Параметр enabled относится только к расписанию.")
     if args.root_action:
         return root_action(args)
     require(os.geteuid() != 0, "BLOCKED_OWNER", "Для исполнения приложения нужен подтверждённый непривилегированный владелец.",
@@ -510,16 +534,23 @@ def execute(args):
     store = Store(args.root, config["installationId"]) if config else None
     pending = store.pending() if store else None
     _route_auxiliary_resume(args, store, pending)
-    discovery = bootstrap_observation(args.root, inventory, orphan) if orphan else setup_discovery.classify_installation(args.root, inventory,
-                project=config.get("project") if config else None, saved_identity=config.get("dataIdentity") if config else None, pending_operation=pending)
+    discovery = bootstrap_observation(args.root, inventory, orphan) if orphan else installation_discovery(args.root, inventory, config, pending)
+    if args.command == "intent-check":
+        require(args.intent, "OPERATION_INTENT", "Нужно явное намерение.")
+        guard_intent(args.intent, discovery, pending)
+        print(json.dumps({"status": "OK", "intent": args.intent, "state": discovery["state"]}))
+        return 0
     if args.command in READ_ONLY:
         output = finalize(_observe(args, config, discovery))
         render(output, as_json=args.json)
         return output["exitCode"]
+    guard_intent(args.intent, discovery, pending)
     if discovery["state"] not in ("FRESH", "MANAGED", "LEGACY", "STOPPED", "INTERRUPTED"):
         _reason(discovery)
     fresh = discovery["state"] == "FRESH" or bool(pending and pending["mode"] == "install")
-    install = Installation(args.root, config["profile"] if config else None) if (args.root / ".env").exists() else None
+    environment_stage = discovery.get("environmentStage")
+    install = (Installation(args.root, config["profile"] if config else None)
+               if (args.root / ".env").exists() and not environment_stage else None)
     if args.command in ("configure", "cloud-configure"):
         require(not pending or pending["phase"] == "configured", "OPERATION_PENDING", "Нельзя изменить политику незавершённой операции.")
     config = prepare_config(args.root, owner["uid"], previous=config, supplied=args.config_file, install=install,
@@ -544,6 +575,23 @@ def execute(args):
         # own lock file is expected; Docker inventory must remain identical.
         observed = setup_discovery.docker_inventory()
         require(inventory_key(observed) == inventory_key(inventory), "DISCOVERY_CHANGED", "Ресурсы изменились во время подготовки.", "Повторите check; новая операция не запущена.")
+        # Re-read journal and classify under the common lock before adoption,
+        # config writes or creating an operation. A prior CLI check is not a
+        # substitute for this guard (including a concurrent pending install).
+        pending = Store(args.root, config["installationId"]).pending()
+        locked_discovery = (bootstrap_observation(args.root, observed, orphan) if orphan else
+            installation_discovery(args.root, observed, config, pending))
+        require(locked_discovery.get("environmentStage") == environment_stage,
+                "PUBLIC_ORIGINS_RECOVERY", "The pending environment changed while acquiring the operation lock.")
+        guard_intent(args.intent, locked_discovery, pending)
+        if pending and args.command in ("auto", "resume", "acceptance"):
+            bind_selection(pending, intent=args.intent, deployment_digest=args.deployment_digest)
+        if args.operation_id and args.command in ("auto", "resume", "acceptance"):
+            requested_journal = Store(args.root, config["installationId"]).read(args.operation_id)
+            require(not pending or pending["operationId"] == requested_journal["operationId"],
+                    "OPERATION_PENDING", "Другой незавершённый журнал уже закреплён.")
+            bind_selection(requested_journal, intent=args.intent, deployment_digest=args.deployment_digest)
+        selection = {"intent": args.intent, "deployment_digest": args.deployment_digest}
         if discovery["state"] == "FRESH":
             validate_fresh_selection(args.root, config, observed)
         if discovery.get("dataIdentity"):
@@ -559,14 +607,15 @@ def execute(args):
                     "instanceId": config["installationId"], "profile": install.profile, "project": install.project})
         store = Store(args.root, config["installationId"])
         if fresh and not pending and args.command in ("auto", "configure", "cloud-configure"):
-            pending = store.create("install", config["project"], bootstrap={"config": config, "inventory": observed})
+            pending = store.create("install", config["project"], bootstrap={"config": config, "inventory": observed}, selection=selection)
         if orphan:
             bootstrap_observation(args.root, observed, orphan)
         save_private(args.root / ".asa/setup.json", config)
         if onboarding:
             save_private(Path(config.get("onboardingFile", args.root / ".asa/onboarding.json")), onboarding)
         store = Store(args.root, config["installationId"])
-        runtime = Runtime(args.root, config, lock_fd=lock_fd, defer_report=args.defer_report, json_output=args.json)
+        runtime = Runtime(args.root, config, lock_fd=lock_fd, defer_report=args.defer_report, json_output=args.json,
+                          intent=args.intent, deployment_digest=args.deployment_digest)
         pending = store.pending()
         _route_auxiliary_resume(args, store, pending)
         if args.command in ("configure", "cloud-configure"):
@@ -589,10 +638,12 @@ def execute(args):
                 journal = pending
             else:
                 require(args.command == "auto", "OPERATION_REQUIRED", "Нужен operation ID последней установки.", "Укажите --operation-id из отчёта.")
-                journal = store.create("install" if fresh else "update", config["project"])
+                journal = store.create("install" if fresh else "update", config["project"], selection=selection)
             require(journal["mode"] in ("install", "update"), "OPERATION_MODE", "Журнал относится к другой операции.")
+            runtime.deployment_digest = bind_selection(journal, intent=args.intent, deployment_digest=args.deployment_digest)
+            store.save(journal)
             if journal.get("state") == "TERMINAL" and args.command != "acceptance":
-                output = store.finish(journal, journal["result"])
+                output = store.replay(journal)
             else:
                 output = Engine(runtime, store).execute(journal, resume=bool(pending or args.command == "resume"), acceptance_only=args.command == "acceptance")
         else:

@@ -72,7 +72,7 @@ def network_preflight(entry_origin, *, registry="ghcr.io", timeout=10):
         socket.getaddrinfo(host, None)
         socket.getaddrinfo(registry, 443)
         result["dns"] = True
-        request = urllib.request.Request("https://" + registry + "/v2/", method="HEAD")
+        request = urllib.request.Request("https://" + registry + "/v2/", method="GET")
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 result["registryTls"] = response.status in (200, 401)

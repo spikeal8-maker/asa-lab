@@ -49,7 +49,7 @@ CHROMIUM_PACKAGES = ("python3.12-venv", "xvfb", "fonts-noto-color-emoji", "fonts
     "libxdamage1", "libxext6", "libxfixes3", "libxkbcommon0", "libxrandr2")
 PACKAGE_ALLOWLIST = frozenset(("git", "python3", "curl", "ca-certificates", "age", "rclone", "gnupg",
                               "docker-compose-v2", *DOCKER_PACKAGES, *CHROMIUM_PACKAGES))
-CLOUD_SOURCE_SHA256 = "72e35bbb3043acefb423cfe706f82b089eaba974deb04f16df8f335093c59d0c"
+CLOUD_SOURCE_SHA256 = "e494038f3d1ad7e6ae7bc72f0cc0ff8bb3ab3a18d8a96a42d0302f46764ae760"
 OPERATOR_NAME = "asa-setup"
 OPERATOR_STATE = Path("/var/lib/asa-setup")
 BOOTSTRAP_LOCK = Path("/run/asa-setup-bootstrap.lock")
@@ -182,7 +182,7 @@ def verify_bundle(bundle):
                  "Получите пакет по инструкции с GitHub attestation и установите его в /opt/asa-setup/<commit>.")
     manifest_path = checked_path(bundle / "setup-bundle.json", missing=False)
     info = manifest_path.stat()
-    _require(info.st_uid == 0 and not info.st_mode & 0o022 and info.st_size <= 1048576,
+    _require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == 0 and not info.st_mode & 0o022 and info.st_size <= 1048576,
              "BOOTSTRAP_TRUST", "Манифест пакета не защищён от замены.", "Повторно установите проверенный immutable пакет.")
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -192,6 +192,8 @@ def verify_bundle(bundle):
                  and manifest.get("origin", {}).get("workflow") == WORKFLOW
                  and isinstance(manifest.get("files"), dict) and 3 <= len(manifest["files"]) <= 2048)
         _require(valid, "BOOTSTRAP_MANIFEST", "Неизвестный формат или источник пакета setup.", "Используйте опубликованный пакет ASA Lab.")
+        if bundle.parent == Path("/opt/asa-setup"):
+            _require(bundle.name == manifest["revision"], "BOOTSTRAP_MANIFEST", "Revision каталога и manifest не совпали.", "Используйте исходный immutable пакет.")
         _require({"asa-setup.sh", "tools/asa_setup_launcher.py", "tools/asa_setup.py"} <= set(manifest["files"]),
                  "BOOTSTRAP_INCOMPLETE", "В пакете отсутствует обязательный вход setup.", "Получите полный опубликованный пакет.")
         expected_files = set(manifest["files"]) | {"setup-bundle.json"}
@@ -425,18 +427,79 @@ def prove_fresh_target(root, plan, runner=None, backup_directory=None):
     return identity
 
 
+def _migrate_operator_intent(path, intent):
+    """Replace only a verified, unused legacy marker while bootstrap_lock is held."""
+    state = checked_path(path.parent, missing=False)
+    for parent in (state, *state.parents):
+        info = parent.stat()
+        _require(info.st_uid == 0 and (not info.st_mode & 0o022 or parent != state and info.st_mode & stat.S_ISVTX),
+                 "OPERATOR_STATE", "Предок bootstrap metadata не защищён.", "Проверьте системный каталог оператора.")
+    temporary = ".asa-operator-intent-" + os.urandom(16).hex() + ".tmp"
+    migrated = {**intent, "marker": "asa-setup-" + intent["marker"][len("asa-setup:"):]}
+    payload = (json.dumps(migrated, sort_keys=True) + "\n").encode("utf-8")
+    directory = os.open(state, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    created = False
+    try:
+        directory_info = os.fstat(directory)
+        _require(directory_info.st_uid == 0 and not directory_info.st_mode & 0o022,
+                 "OPERATOR_STATE", "Каталог bootstrap metadata изменил владельца или права.", "Проверьте исходный каталог оператора.")
+
+        def read_current():
+            descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+            with os.fdopen(descriptor, "rb") as stream:
+                info = os.fstat(stream.fileno())
+                _require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == 0
+                         and not info.st_mode & 0o077 and info.st_size <= 262144,
+                         "OPERATOR_STATE", "Исходный bootstrap intent изменил владельца, тип или права.", "Проверьте исходные metadata.")
+                data = stream.read(262145)
+                _require(len(data) <= 262144, "OPERATOR_STATE", "Bootstrap intent превышает допустимый размер.", "Проверьте исходные metadata.")
+                return info, data
+
+        previous, original = read_current()
+        _require(json.loads(original) == intent and len(payload) <= 262144, "OPERATOR_STATE",
+                 "Bootstrap intent изменился до миграции.", "Повторите проверку исходных metadata.")
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
+        created = True
+        with os.fdopen(descriptor, "wb") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        current, current_data = read_current()
+        _require((current.st_dev, current.st_ino) == (previous.st_dev, previous.st_ino) and current_data == original,
+                 "OPERATOR_STATE", "Bootstrap intent изменился во время миграции.", "Повторите проверку исходных metadata.")
+        try:
+            account = pwd.getpwnam(OPERATOR_NAME)
+        except KeyError:
+            account = None
+        _require(account is None and not checked_path(state / "operator").exists()
+                 and not checked_path(state / "operator.json").exists(), "OPERATOR_CONFLICT",
+                 "Bootstrap уже имеет учётную запись, домашний каталог или receipt.",
+                 "Сохраните исходную идентичность; автоматическая миграция маркера остановлена.")
+        os.replace(temporary, path.name, src_dir_fd=directory, dst_dir_fd=directory)
+        os.fsync(directory)
+        return migrated
+    finally:
+        try:
+            if created:
+                os.unlink(temporary, dir_fd=directory)
+        except FileNotFoundError:
+            pass
+        os.close(directory)
+
+
 def prepare_default_operator(root, plan, backup_directory=None):
     """Create only our dedicated account, with a durable root-owned intent.
 
     The random account comment binds a completed useradd to its pre-existing
-    receipt after interruption. A same-name foreign account is never repaired.
+    intent after interruption. A same-name foreign account is never repaired.
     The caller holds bootstrap_lock until the owner process finishes.
     """
     identity = prove_fresh_target(root, plan, backup_directory=backup_directory)
     _require(not plan["installDocker"] and bool(plan.get("daemonId")), "DOCKER_UNKNOWN",
              "Перед созданием оператора требуется проверяемый Docker daemon.", "Завершите подготовку отсутствующих зависимостей.")
     state = checked_path(OPERATOR_STATE)
-    home = state / "operator"
+    home = checked_path(state / "operator")
     intent_path, receipt_path = state / "operator-intent.json", state / "operator.json"
     if state.exists():
         info = state.stat()
@@ -455,7 +518,7 @@ def prepare_default_operator(root, plan, backup_directory=None):
     _require(not account or bool(intent), "OPERATOR_CONFLICT", "Имя выделенного оператора уже занято чужой учётной записью.",
              "Выберите существующего владельца через --operator; чужая учётная запись не меняется.")
     if not intent:
-        _require(not receipt and not home.exists(), "OPERATOR_CONFLICT", "Домашний каталог оператора уже существует без receipt.",
+        _require(not receipt_path.exists() and not home.exists(), "OPERATOR_CONFLICT", "Домашний каталог оператора уже существует без receipt.",
                  "Проверьте прежнюю учётную запись; каталог не присваивается автоматически.")
         if not state.exists():
             parent_info = checked_path(state.parent, missing=False).stat()
@@ -463,15 +526,21 @@ def prepare_default_operator(root, plan, backup_directory=None):
                      "OPERATOR_STATE", "Родитель bootstrap metadata не защищён.", "Проверьте системный каталог оператора.")
             state.mkdir(mode=0o755)
         intent = {"format": "asa-operator-bootstrap-v1", "name": OPERATOR_NAME, "home": str(home),
-                  "root": str(root), "marker": "asa-setup:" + os.urandom(16).hex()}
+                  "root": str(root), "marker": "asa-setup-" + os.urandom(16).hex()}
         _atomic_root_file(intent_path, (json.dumps(intent, sort_keys=True) + "\n").encode(), mode=0o600)
-    _require(intent.get("format") == "asa-operator-bootstrap-v1" and intent.get("name") == OPERATOR_NAME
+    _require(set(intent) == {"format", "name", "home", "root", "marker"}
+             and intent.get("format") == "asa-operator-bootstrap-v1" and intent.get("name") == OPERATOR_NAME
              and intent.get("home") == str(home) and intent.get("root") == str(root)
-             and isinstance(intent.get("marker"), str) and re.fullmatch(r"asa-setup:[a-f0-9]{32}", intent["marker"]),
+             and isinstance(intent.get("marker"), str) and re.fullmatch(r"asa-setup[:-][a-f0-9]{32}", intent["marker"]),
              "OPERATOR_STATE", "Bootstrap receipt относится к другой установке или учётной записи.",
              "Проверьте сохранённую идентичность оператора; автоматическое присвоение запрещено.")
+    if intent["marker"].startswith("asa-setup:"):
+        _require(account is None and not receipt_path.exists() and not home.exists(), "OPERATOR_CONFLICT",
+                 "Прежний маркер нельзя заменить при существующих account, home или receipt.",
+                 "Сохраните исходную идентичность оператора; автоматическое присвоение запрещено.")
+        intent = _migrate_operator_intent(intent_path, intent)
     if account is None:
-        _require(not receipt and not home.exists(), "OPERATOR_STATE", "Учётная запись пропала после bootstrap.",
+        _require(not receipt_path.exists() and not home.exists(), "OPERATOR_STATE", "Учётная запись пропала после bootstrap.",
                  "Восстановите исходную учётную запись; новый UID не назначается поверх данных.")
         _run(["/usr/sbin/useradd", "--system", "--user-group", "--create-home", "--key", "HOME_MODE=0700", "--home-dir", str(home),
               "--shell", "/usr/sbin/nologin", "--comment", intent["marker"], "--", OPERATOR_NAME])
@@ -906,8 +975,15 @@ def prepare_cloud_for_policy(bundle, *, owner, policy, credential_file=None, rep
                 "preparedAt": dt.datetime.now(dt.timezone.utc).isoformat()}
 
 
-def _owner_call(owner, arguments, environment, *, capture=False, timeout=None):
-    options = {"cwd": owner["root"], "env": environment, "text": True, "encoding": "utf-8", "timeout": timeout,
+def _owner_call(owner, arguments, environment, *, capture=False, timeout=None, cwd=None):
+    working_directory = owner["root"]
+    if cwd is not None:
+        directory = checked_path(cwd, missing=False)
+        info = directory.stat()
+        _require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022, "OPERATOR_CWD",
+                 "Рабочий каталог ранней проверки не защищён.", "Проверьте исходный системный каталог; target не создавался.")
+        working_directory = str(directory)
+    options = {"cwd": working_directory, "env": environment, "text": True, "encoding": "utf-8", "timeout": timeout,
                "check": False, "umask": 0o077}
     if capture:
         options.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -1139,6 +1215,9 @@ def main(argv=None):
     parser.add_argument("--prepare-browser-runtime", action="store_true")
     parser.add_argument("--runtime-root")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--intent", choices=("install", "update"))
+    parser.add_argument("--deployment-digest")
+    parser.add_argument("--schedule-enabled", choices=("true", "false"))
     parsed, remainder = parser.parse_known_args(arguments)
     if "--help" in arguments or "-h" in arguments:
         print("ASA Lab — единая установка и обновление\n"
@@ -1198,6 +1277,15 @@ def main(argv=None):
         cloud_config = backup_config.get("cloud", {})
         _require(isinstance(cloud_config, dict), "CONFIG_SCHEMA", "Раздел cloud должен быть JSON-объектом.", "Исправьте формат cloud.")
         command = remainder[0] if remainder and not remainder[0].startswith("-") else "auto"
+        _require(not parsed.intent or command in ("auto", "resume", "acceptance"), "OPERATION_INTENT",
+                 "Намерение не относится к этой команде.", "Используйте asa install или asa update apply.")
+        _require(not parsed.deployment_digest or bool(re.fullmatch(r"sha256:[a-f0-9]{64}", parsed.deployment_digest)),
+                 "RELEASE_SELECTOR", "Неверный deployment digest.", "Используйте digest из asa update plan.")
+        _require(parsed.schedule_enabled is None or command == "schedule", "SCHEDULE_COMMAND",
+                 "enabled относится только к расписанию.", "Используйте asa backup schedule enable/disable.")
+        if parsed.intent == "update":
+            _require(root.is_dir() and ((root / ".env").is_file() or bool(persisted)), "OPERATION_INTENT",
+                     "Обновление требует существующей установки.", "Проверьте asa status; новая установка не начинается.")
         dry = parsed.check or command in ("check", "status", "doctor", "diagnose", "restore-plan")
         need_browser = not dry and command in ("auto", "resume", "configure", "acceptance") and not browser_config.get("pythonPath")
         needs_cloud = bool(cloud_config) and cloud_config.get("enabled") is not False
@@ -1223,6 +1311,9 @@ def main(argv=None):
                          "Передайте приватную root-конфигурацию; bootstrap не присваивает чужие файлы.")
             lock_descriptor = bootstrap_lock()
             plan = dependency_plan(cloud=cloud_enabled, browser=need_browser)
+            if parsed.intent:
+                _require(parsed.intent == "install", "OPERATION_INTENT", "Update не создаёт нового оператора.", "Проверьте исходную установку.")
+                prove_fresh_target(root, plan, backup_directory=config.get("backupDirectory"))
             if plan["installDocker"]:
                 # Genuine absence is established before either packages or
                 # useradd. Existing 1Panel Engines never enter this branch.
@@ -1236,6 +1327,16 @@ def main(argv=None):
         owner = validate_owner(root, backup_directory=config.get("backupDirectory", persisted.get("backupDirectory")), operator_uid=supplied_uid)
         _require(owner["uid"] != 0, "BLOCKED_OWNER", "Установка с владельцем root требует отдельного согласованного перехода к оператору.",
                  "Сохраните владельцев и данные; выберите non-root оператора новой установки или согласуйте переход старой отдельно.")
+        if parsed.intent:
+            # Read-only discovery as the proven operator precedes package,
+            # cloud, browser or config preparation. The child repeats the
+            # intent guard while holding the canonical operation lock.
+            # A fresh target does not exist yet; only this check uses a
+            # protected existing cwd while the actual target stays in --root.
+            intent_result = _owner_call(owner, ["/usr/bin/python3", "-I", "-B", str(bundle / "tools/asa_setup.py"),
+                "intent-check", "--intent", parsed.intent, "--root", str(root)], operator_environment(owner), capture=True, timeout=60, cwd="/")
+            _require(intent_result.returncode == 0, "OPERATION_INTENT", "Фактическое состояние не допускает запрошенное действие.",
+                     "Выполните asa status; установка и обновление не подменяют друг друга.")
         _require(elevated or owner["uid"] == os.geteuid(), "OPERATOR_PERMISSION", "Текущий пользователь не является владельцем установки.",
                  "Запустите проверенный setup через sudo; он выберет владельца автоматически.")
         config_forward = None
@@ -1339,7 +1440,8 @@ def main(argv=None):
             # Root actions are fixed kinds and receive no arbitrary forwarded
             # command or executable. The CLI revalidates the saved private config.
             action = _owner_call({**owner, "uid": 0, "gid": 0, "name": "root"},
-                                 [*entry, "--root-action", command, "--root", str(root)],
+                                 [*entry, "--root-action", command, "--root", str(root)]
+                                 + (["--schedule-enabled", parsed.schedule_enabled] if parsed.schedule_enabled is not None else []),
                                  {**environment, "HOME": "/root", "USER": "root", "LOGNAME": "root"}, capture=True)
             _require(action.returncode == 0, "ROOT_ACTION", "Настройка системного сервиса не завершена.",
                      "Проверьте защищённое свидетельство setup-root-actions и повторите diagnose.")
@@ -1380,6 +1482,10 @@ def main(argv=None):
             preparations += 1
             previous_result = hashlib.sha256(last_path.read_bytes()).hexdigest()
             resume = [*entry, "resume", "--root", str(root), "--operation-id", operation_id, "--defer-report"]
+            if parsed.intent:
+                resume += ["--intent", parsed.intent]
+            if parsed.deployment_digest:
+                resume += ["--deployment-digest", parsed.deployment_digest]
             if parsed.non_interactive:
                 resume.append("--non-interactive")
             if parsed.json:
@@ -1419,6 +1525,25 @@ def main(argv=None):
                 raise SetupBlocked("SCHEDULE", "Расписание не установлено; основная операция имеет отдельный результат.",
                                    "Проверьте status и выполните отдельную команду schedule.")
         report = _owner_call(owner, [*entry, "--render-last", "--root", str(root)] + (["--json"] if parsed.json else []), environment)
+        if report.returncode == 0 and command in ("auto", "resume") and result.get("applicationAccepted") is True:
+            # Register the portable CLI only after an attributed and accepted install/update.
+            # Application data, Docker services, SSH and Git working trees are untouched.
+            successful = read_private_json(root / ".asa/setup-last-successful.json", required=True)
+            _require(successful.get("operationId") == result.get("operationId")
+                     and successful.get("installationId") == result.get("installationId")
+                     and successful.get("applicationAccepted") is True,
+                     "ASA_CLI_ACCEPTANCE", "Нет подтверждения приёмки для регистрации команды asa.",
+                     "Проверьте квитанцию установки; команда не регистрировалась.")
+            registration = _owner_call({**owner, "uid": 0, "gid": 0, "name": "root"},
+                                       ["/usr/bin/python3", "-I", "-B", str(bundle / "tools/asa_cli.py"),
+                                        "register", "--root", str(root), "--bundle", str(bundle)],
+                                       {**environment, "HOME": "/root", "USER": "root", "LOGNAME": "root"},
+                                       capture=True, timeout=25)
+            _require(registration.returncode == 0, "ASA_CLI_REGISTRATION",
+                     "Установка успешна, но команда asa не зарегистрирована.",
+                     "Проверьте /usr/local/bin/asa и /etc/asa-lab/commands.json; данные приложения сохранены.")
+            if not parsed.json:
+                print("[OK] Команды: asa help | asa status | asa update check | sudo asa update apply")
         return report.returncode
     except SetupBlocked as exc:
         return emit_blocked(exc, as_json=parsed.json, operation_id=active_result.get("operationId"),

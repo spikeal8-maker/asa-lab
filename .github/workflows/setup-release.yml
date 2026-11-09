@@ -6,6 +6,7 @@ run-name: Setup ${{ github.event.pull_request.head.sha || github.sha }}
     paths:
       - 'asa-setup.sh'
       - 'tools/asa_setup*.py'
+      - 'tools/asa_cli.py'
       - 'tools/deployment/**'
       - 'tools/asa_manager.py'
       - 'docs/deployment/UNIFIED_SETUP.md'

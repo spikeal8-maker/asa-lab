@@ -170,6 +170,9 @@ class ProtectedSnapshotTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.namespace = {}
         exec(acquire.ROOT_COMMON, self.namespace)
+        self.real_prepare = self.namespace["prepare"]
+        self.prepared = []
+        self.namespace["prepare"] = self.prepared.append
         self.base = self.root / "setup"
         self.namespace["BASE"] = self.base
         original_lstat = Path.lstat
@@ -210,6 +213,20 @@ class ProtectedSnapshotTests(unittest.TestCase):
 
     def stage(self, snapshot):
         return self.namespace["stage"](snapshot["archive"], REVISION, snapshot["sha256"])
+
+    def test_staging_prepares_public_cli_without_an_installed_release(self):
+        result = self.stage(self.snapshot(self.bundle()))
+        destination = Path(result["destination"])
+        self.assertEqual(self.prepared, [destination])
+        self.assertFalse((destination / ".asa/installed-release.json").exists())
+        proof = json.dumps({"command": "prepare", "status": "OK", "executable": "/usr/local/bin/asa"}).encode()
+        with mock.patch.object(self.namespace["subprocess"], "run", return_value=mock.Mock(returncode=0, stdout=proof)) as launch:
+            self.real_prepare(destination)
+        argv = launch.call_args.args[0]
+        self.assertEqual(argv[1:3], ["-I", "-B"])
+        self.assertEqual(argv[3:], [str(destination / "tools/asa_cli.py"), "prepare", "--bundle", str(destination), "--json"])
+        self.assertNotIn("installed-release", " ".join(argv))
+        self.assertEqual(launch.call_args.kwargs["env"]["PATH"], "/usr/sbin:/usr/bin:/sbin:/bin")
 
     def test_snapshot_is_read_only_before_any_verification(self):
         previous_umask = os.umask(0o077)

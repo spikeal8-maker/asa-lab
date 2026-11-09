@@ -83,7 +83,7 @@ def docker_inventory(runner=None):
                 "daemon": None, "containers": [], "volumes": [], "images": []}
     try:
         daemon = json.loads(runner(["docker", "info", "--format",
-            '{"id":{{json .ID}},"os":{{json .OSType}},"architecture":{{json .Architecture}},"root":{{json .DockerRootDir}}']))
+            '{"id":{{json .ID}},"os":{{json .OSType}},"architecture":{{json .Architecture}},"root":{{json .DockerRootDir}}}']))
         if not isinstance(daemon, dict) or not all(isinstance(daemon.get(key), str) and daemon[key]
                                                   for key in ("id", "os", "architecture", "root")):
             raise ValueError("Docker daemon identity is incomplete")
@@ -119,8 +119,12 @@ def docker_inventory(runner=None):
         image_ids = sorted({item["imageId"] for item in containers})
         if any(not re.fullmatch(r"sha256:[a-f0-9]{64}", item) for item in image_ids):
             raise ValueError("Docker returned an invalid image identifier")
+        # Raw inspect JSON may omit Labels or contain null. Only nil is optional;
+        # other non-map values must still fail instead of looking like no labels.
         images = _records(runner, ["image", "inspect"], image_ids,
-            '{"id":{{json .Id}},"digests":{{json .RepoDigests}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}}}')
+            '{"id":{{json .Id}},"digests":{{json .RepoDigests}},"revision":'
+            '{{if eq (index .Config "Labels") nil}}null{{else}}'
+            '{{json (index (index .Config "Labels") "org.opencontainers.image.revision")}}{{end}}}')
         if {item.get("id") for item in images} != set(image_ids):
             raise ValueError("Docker image inventory is incomplete")
         # Detect resource creation/removal during the inventory, rather than

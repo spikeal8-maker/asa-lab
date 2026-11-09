@@ -12,6 +12,7 @@ import re
 import stat
 
 from .contracts import Blocked, read_env, require, validate_release, verify_backup
+from .system import PUBLIC_ORIGINS_FILE, public_origins_environment, public_origins_snapshot
 
 SHA40 = re.compile(r"[a-f0-9]{40}\Z")
 REQUIRED_PRIVATE = frozenset({
@@ -147,13 +148,17 @@ def validate_import_archive(location):
     if profile != "base":
         required_compose.add("compose." + profile + ".yaml")
     permitted_compose = required_compose | {
-        ".asa/docker-networks.yaml", "compose.frp.yaml",
+        ".asa/docker-networks.yaml", "compose.frp.yaml", PUBLIC_ORIGINS_FILE,
     }
     require(isinstance(recovery_files, dict)
             and required_compose <= set(recovery_files)
             and set(recovery_files) <= permitted_compose,
             "IMPORT_CONFIGURATION",
             "Archive lacks the exact original Compose/profile overlay or contains unexpected configuration paths.")
+    origin_policy = public_origins_environment(env, profile)
+    require(PUBLIC_ORIGINS_FILE not in recovery_files or origin_policy,
+            "IMPORT_CONFIGURATION", "The origin overlay is not bound to the saved private environment policy.")
+    public_origins_snapshot(recovery_files, required=origin_policy)
     for relative, content in recovery_files.items():
         require(isinstance(content, str)
                 and "configuration/" + relative in manifest["files"],

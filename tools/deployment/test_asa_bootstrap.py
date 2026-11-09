@@ -36,6 +36,10 @@ class BootstrapTests(unittest.TestCase):
             "exit 0\n", encoding="utf-8")
         (self.tools / "asa_manager.py").write_text(
             '# Synthetic manager for isolated bootstrap tests\n', encoding="utf-8")
+        # The immutable Windows installer now requires its portable CLI entry.
+        # This is a synthetic fixture, not a privileged registration action.
+        (self.tools / "asa_cli.py").write_text(
+            '# Synthetic portable CLI for isolated bootstrap tests\n', encoding="utf-8")
         (self.tools / "deployment" / "__init__.py").write_text(
             '# synthetic module\n', encoding="utf-8")
         self.git("init", "-q")

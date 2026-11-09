@@ -186,5 +186,15 @@ if($chosen -eq 'clean'){
   Invoke-Manager update @()
   Say PASS 'ASA Lab existing installation verified/updated with preserved data'
 }
+# Register the portable CLI only after a verified successful -Apply.
+# The installer does not touch global OS PATH or another user's installations.
+$cli=Join-Path $PSScriptRoot 'asa_cli.py'
+if(-not (Test-Path -LiteralPath $cli -PathType Leaf)){Fail CLI_PACKAGE_MISSING 'The verified installer package lacks asa_cli.py'}
+$pythonExe=$script:Python[0]
+$pyArgs=@()
+if($script:Python.Count -gt 1){$pyArgs+=@($script:Python[1])}
+& $pythonExe @pyArgs $cli register --root $TargetRoot --profile $Profile
+if($LASTEXITCODE -ne 0){Fail CLI_REGISTRATION 'ASA Lab data are preserved, but asa command registration failed.'}
+Say PASS 'Commands installed for future terminals: asa status / asa check / asa update'
 Say WARN 'Authenticated browser login, project save/reopen and backup must be accepted separately.'
 exit 0
