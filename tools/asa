@@ -1,0 +1,126 @@
+#!/bin/sh
+# ASA Lab portable operator CLI. Use from the checkout or install with install-asa-command.sh.
+set -eu
+
+fail() { printf 'ASA: %s\n' "$*" >&2; exit 64; }
+
+usage() {
+  cat <<'HELP'
+ASA Lab — команды школьного и других серверов
+  asa help                         список команд
+  asa version                      установленный релиз, SHA, схема
+  asa status                       шесть контейнеров и состояние данных
+  asa report                       статус, резервная копия, нагрузка
+  asa logs [api|web|postgres|minio|scratch|search] [--tail N]
+  asa doctor                       полная диагностика (без изменений)
+  asa check [--deployment-digest sha256:...]
+  asa update [--deployment-digest sha256:...]
+  asa backup
+  asa verify-backup --backup /absolute/path
+  asa restore-check --backup /absolute/path --database new_name_test
+  asa rollback-plan
+  asa rollback
+  asa repair-plan
+
+По умолчанию используется текущая установка (путь определяется по скрипту).
+ASA_INSTALL_ROOT=/absolute/path переопределяет путь; ASA_PROFILE задаёт профиль,
+если установка ещё не настроена. Команда update использует все штатные
+проверки SHA, CI, схемы и резервной копии менеджера, без обходных путей.
+HELP
+}
+
+action=${1:-help}
+case "$action" in
+  help|-h|--help) usage; exit 0 ;;
+esac
+shift
+
+# Never let a later argparse option silently retarget the canonical installation.
+for argument in "$@"; do
+  case "$argument" in
+    --root|--root=*|--profile|--profile=*)
+      fail 'Путь и профиль выбираются только через ASA_INSTALL_ROOT/ASA_PROFILE'
+      ;;
+  esac
+done
+
+if [ -n "${ASA_INSTALL_ROOT:-}" ]; then
+  root=$(CDPATH= cd -- "$ASA_INSTALL_ROOT" && pwd -P) || fail 'Каталог ASA_INSTALL_ROOT недоступен'
+else
+  script=$0
+  case "$script" in
+    */*) ;;
+    *) script=$(command -v "$script" || true); [ -n "$script" ] || fail 'Не найдена команда asa' ;;
+  esac
+  hops=0
+  while [ -L "$script" ]; do
+    hops=$((hops + 1))
+    [ "$hops" -le 16 ] || fail 'Циклическая цепочка ссылок asa'
+    link=$(readlink "$script") || fail 'Не удаётся прочитать ссылку asa'
+    case "$link" in
+      /*) script=$link ;;
+      *) script=$(dirname -- "$script")/$link ;;
+    esac
+  done
+  root=$(CDPATH= cd -- "$(dirname -- "$script")/.." && pwd -P) || fail 'Не определён каталог ASA Lab'
+fi
+[ -f "$root/tools/asa_manager.py" ] || fail "Не найдён менеджер: $root/tools/asa_manager.py"
+python=${ASA_PYTHON:-python3}
+command -v "$python" >/dev/null 2>&1 || fail 'Для ASA Lab требуется Python 3.11+'
+
+case "$action" in
+  version|status|report|logs)
+    exec "$python" -B "$root/tools/asa_status.py" "$action" --root "$root" "$@"
+    ;;
+  offsite-backup)
+    exec "$python" -B "$root/tools/asa_offsite.py" --root "$root" "$@"
+    ;;
+esac
+
+installed_profile=$("$python" -B - "$root/.asa/installation.json" <<'PY'
+import json
+import pathlib
+import sys
+try:
+    record = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+    print(record.get("profile", ""))
+except (FileNotFoundError, ValueError, OSError):
+    pass
+PY
+)
+profile=${ASA_PROFILE:-$installed_profile}
+if [ -n "$installed_profile" ] && [ "$profile" != "$installed_profile" ]; then
+  fail 'ASA_PROFILE не совпадает с фактическим профилем установки'
+fi
+case "$profile" in
+  dev|production|staging|base) ;;
+  *) fail 'Укажите ASA_PROFILE (dev/production/staging/base), если установка ещё не создана' ;;
+esac
+
+# The operator shorthand must not silently perform a production release switch.
+# Only an explicit immutable OCI selection with the manager's qualified return
+# preflight is permitted. Unsupported rollback pairs fail closed in the manager.
+if [ "$action" = update ] && [ "$profile" = production ]; then
+  selected=0
+  guarded=0
+  for arg in "$@"; do
+    case "$arg" in
+      --deployment-digest|--deployment-digest=*) selected=1 ;;
+      --require-application-rollback) guarded=1 ;;
+    esac
+  done
+  [ "$selected" -eq 1 ] || fail 'Production update требует точный --deployment-digest sha256:...'
+  if [ "$guarded" -eq 0 ]; then
+    set -- "$@" --require-application-rollback
+  fi
+fi
+
+case "$action" in
+  install|doctor|check|update|backup|verify-backup|restore-check|repair-plan|rollback-plan|rollback|acknowledge)
+    exec "$python" -B "$root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" "$@"
+    ;;
+  *)
+    usage >&2
+    fail "Неизвестная команда: $action"
+    ;;
+esac
