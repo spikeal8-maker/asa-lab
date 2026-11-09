@@ -3025,6 +3025,7 @@ export class AiChatService {
     actor: string,
     version: number,
     requestId: string,
+    slot?: number,
   ): Promise<AiOllamaCloudPool> {
     const before = await this.adminConfig(actor);
     if (before.configurationVersion !== version)
@@ -3036,10 +3037,19 @@ export class AiChatService {
         [actor],
       )
     ).rows;
-    const catalog = await this.cloudMetadataClient.catalog().catch(() => null);
+    const catalog =
+      slot === undefined
+        ? await this.cloudMetadataClient.catalog().catch(() => {
+            throw new AiServiceError(
+              'ai_cloud_catalog_unavailable',
+              503,
+              'Каталог Ollama Cloud недоступен. Сохранённый список оставлен.',
+            );
+          })
+        : null;
     const observations = await Promise.all(
       credentials
-        .filter((k) => k.api_key_ciphertext)
+        .filter((k) => k.api_key_ciphertext && (slot === undefined || slot === k.slot))
         .map(async (k) => ({
           key: k,
           account: await this.cloudMetadataClient!.account(this.requireProviderKey(k)),
@@ -3072,6 +3082,24 @@ export class AiChatService {
       );
     }
     return this.ollamaCloudPool(actor);
+  }
+  async ollamaCloudModelDetails(actor: string, id: string) {
+    const pool = await this.ollamaCloudPool(actor);
+    const model = pool.models.find((entry) => entry.id === id && entry.active);
+    if (!model)
+      throw new AiServiceError(
+        'ai_model_invalid',
+        404,
+        'Модель отсутствует в каталоге Ollama Cloud.',
+      );
+    this.cloudMetadataClient ??= new OllamaCloudMetadata(this.fetchImpl);
+    return this.cloudMetadataClient.modelDetails(model.model).catch(() => {
+      throw new AiServiceError(
+        'ai_cloud_metadata_unavailable',
+        503,
+        'Сведения о модели недоступны.',
+      );
+    });
   }
   async isDiscoveredCloudModel(model: unknown): Promise<boolean> {
     if (typeof model !== 'string' || !model.startsWith('ollama-cloud/')) return false;

@@ -281,7 +281,7 @@ function AiAdminWorkspaceSession({
               onDirtyChange={setConnectionDirty}
             />
           )}
-          {provider !== 'polza' && provider !== 'ollama' ? (
+          {provider !== 'polza' && provider !== 'ollama' && provider !== 'ollama-cloud' ? (
             <AdminAiGenerationPolicy
               key={'policy-' + provider}
               section="connections"

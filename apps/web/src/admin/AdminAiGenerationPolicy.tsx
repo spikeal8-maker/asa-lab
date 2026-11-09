@@ -280,7 +280,9 @@ export function AdminAiGenerationPolicy({
           (section === 'connections' ||
             (model.ready &&
               model.adapterCompatible !== false &&
-              (model.provider === 'ollama' || preference(model.id).eligible))),
+              (model.provider === 'ollama' ||
+                model.provider === 'ollama-cloud' ||
+                preference(model.id).eligible))),
       )
       .sort(
         (a, b) =>
@@ -705,6 +707,7 @@ export function AdminAiGenerationPolicy({
                                     busy ||
                                     ((!model.selectable ||
                                       (model.provider !== 'ollama' &&
+                                        model.provider !== 'ollama-cloud' &&
                                         !preference(model.id).eligible)) &&
                                       !allowedModels.includes(model.id))
                                   }
@@ -712,7 +715,8 @@ export function AdminAiGenerationPolicy({
                                     const checked = event.target.checked;
                                     if (
                                       checked &&
-                                      model.provider === 'ollama' &&
+                                      (model.provider === 'ollama' ||
+                                        model.provider === 'ollama-cloud') &&
                                       !preference(model.id).eligible
                                     )
                                       changePreference(model.id, { eligible: true });
