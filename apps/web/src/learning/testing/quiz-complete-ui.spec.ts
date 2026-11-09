@@ -629,6 +629,43 @@ describe('Quiz compact draft author', () => {
     ageBand: null,
     tags: [],
   };
+  it('keeps numeric tolerance when editing and saving the expected value', async () => {
+    let save: SaveQuizContent | null = null;
+    const write = vi
+      .spyOn(api, 'createQuestionDraft')
+      .mockResolvedValue(ok({ code: 'ok', id: 'numeric', draftRevision: 1 }));
+    vi.spyOn(api, 'createQuizDraft').mockResolvedValue(
+      ok({ code: 'ok', id: 'quiz', draftRevision: 1 }),
+    );
+    await mount(
+      createElement(QuizActivityEditor, {
+        quizId: null,
+        title: 'Тест',
+        instructions: null,
+        disabled: false,
+        registerSave: (value) => {
+          save = value;
+        },
+        onDirty: vi.fn(),
+      }),
+    );
+    await click('Добавить вопрос');
+    await input(
+      container.querySelector<HTMLSelectElement>('[aria-label="Тип вопроса 1"]')!,
+      'numeric',
+    );
+    const tolerance = container.querySelector<HTMLInputElement>('[aria-label="Допуск 1"]')!;
+    await input(tolerance, '0.25');
+    await input(container.querySelector<HTMLInputElement>('[aria-label="Ответ"]')!, '42');
+    expect(tolerance.value).toBe('0.25');
+    await act(async () => {
+      await save!();
+    });
+    expect(write).toHaveBeenCalledWith(
+      expect.objectContaining({ answerKey: { value: 42, tolerance: 0.25 } }),
+      expect.any(String),
+    );
+  });
   it('recovers a failed source-draft read without losing another edited question or blocking Save', async () => {
     let save: SaveQuizContent | null = null;
     let sourceReads = 0;

@@ -226,6 +226,16 @@ test('Complete Quiz Course: inline eight-type author, exact versions, Seat and A
   ).toBeVisible();
   await versions.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(versions.getByText(/Опубликована версия 2/)).toBeVisible();
+  // Keep this editor mounted after publish. Editing a question must use the new
+  // authoring heads and must never alter the already-published Course pin.
+  await versions.locator('.quiz-editor summary').filter({ hasText: 'Вопрос 4 ·' }).click();
+  await versions.getByLabel('Допуск 4', { exact: true }).fill('0.25');
+  await versions.getByLabel('Ответ', { exact: true }).fill('43');
+  await expect(versions.getByLabel('Допуск 4', { exact: true })).toHaveValue('0.25');
+  await versions.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(
+    versions.getByText('Черновик сохранён. Публикация — отдельное действие.'),
+  ).toBeVisible();
   await versions.close();
   const automaticVersionId = await publishedQuizActivityVersion(autoTitle);
   await addCourseBlock(page, 'Практика');

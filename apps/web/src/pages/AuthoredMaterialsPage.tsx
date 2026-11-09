@@ -1542,7 +1542,7 @@ export function AuthoredMaterialsPage({
 
               {isQuiz ? (
                 <QuizActivityEditor
-                  key={opened?.id ?? 'new-quiz'}
+                  key={`${opened?.id ?? 'new-quiz'}:${publishedVersionId ?? 'draft'}`}
                   quizId={draft.quizDraftId ?? null}
                   title={draft.title}
                   instructions={draft.instructions}

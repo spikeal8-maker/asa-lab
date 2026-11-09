@@ -568,7 +568,15 @@ export function QuizActivityEditor({
                       maxPoints: row.payload.maxPoints ?? 0,
                     }}
                     answer={row.payload.answerKey as QuizAnswer}
-                    onChange={(answer) => change(row.key, { ...row.payload, answerKey: answer })}
+                    onChange={(answer) =>
+                      change(row.key, {
+                        ...row.payload,
+                        answerKey:
+                          row.payload.questionType === 'numeric'
+                            ? { ...row.payload.answerKey, ...answer }
+                            : answer,
+                      })
+                    }
                   />
                 )}
                 {row.payload.questionType === 'numeric' ? (
