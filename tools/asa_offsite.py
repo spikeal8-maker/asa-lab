@@ -78,6 +78,27 @@ def rclone_prefix(container: str | None, config: str | None) -> list[str]:
     return ["rclone"] + (["--config", config] if config else [])
 
 
+def assert_remote_file_absent(prefix: list[str], base: str, archive_name: str) -> None:
+    """Read the parent directory. Any rclone/network/auth failure blocks upload.
+
+    A failed stat of the missing child is not proof of absence: the parent
+    listing must succeed and must explicitly exclude the destination name.
+    """
+    result = subprocess.run(prefix + ["lsjson", base, "--files-only"],
+                            capture_output=True, text=True, timeout=60)
+    require(result.returncode == 0, "Не удалось подтвердить доступ к каталогу в облаке; загрузка запрещена")
+    try:
+        entries = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Некорректный ответ rclone: загрузка запрещена") from exc
+    require(isinstance(entries, list) and all(isinstance(item, dict)
+                                             and isinstance(item.get("Name"), str)
+                                             for item in entries),
+            "Недостоверный список файлов на Яндекс Диске; загрузка запрещена")
+    require(not any(item["Name"] == archive_name for item in entries),
+            "Удалённый архив уже существует: запрещено перезаписывать")
+
+
 def export_encrypted(backup: Path, recipients: Path, archive: Path) -> None:
     with archive.open("wb") as encrypted:
         tar = subprocess.Popen(
@@ -121,11 +142,10 @@ def _send_locked(root: Path, backup: Path, recipients: Path, destination: str,
     manifest = verify_current_backup(root, backup, recipients)
     require(shutil.which("tar") is not None and shutil.which("age") is not None,
             "Для шифрованного архива необходимы уже установленные tar и age")
-    remote = base + "/asa-lab-" + backup.name + ".tar.age"
+    archive_name = "asa-lab-" + backup.name + ".tar.age"
+    remote = base + "/" + archive_name
     prefix = rclone_prefix(container, config)
-    previous = subprocess.run(prefix + ["lsjson", remote, "--stat"],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
-    require(previous.returncode != 0, "Удалённый архив уже существует: запрещено перезаписывать")
+    assert_remote_file_absent(prefix, base, archive_name)
     with tempfile.TemporaryDirectory(prefix="asa-offsite-", dir=root / ".asa") as temporary:
         archive = Path(temporary) / (backup.name + ".tar.age")
         export_encrypted(backup, recipients, archive)
