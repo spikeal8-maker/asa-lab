@@ -1175,6 +1175,22 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     });
   });
 
+  it('keeps a passive photoresistor observable across a light change without a source', () => {
+    const doc = circuit([
+      { ...part('ldr', 'photoresistor', 0), stateProperties: { illumination: 0 } },
+    ]);
+    const dark = through(doc, 0);
+    expect(dark.executionStatus).toBe('ready');
+    expect(dark.state?.profile).toBe('dc-inputs-v1');
+    expect(dark.result?.diagnostics.map((entry) => entry.code)).toContain('no_source');
+    const lit = through(doc, 2_000, dark.state!, [
+      { atMicroseconds: 1_000, componentId: 'ldr', property: 'illumination', value: 1 },
+    ]);
+    expect(lit.executionStatus).toBe('ready');
+    expect(lit.state).toMatchObject({ profile: 'dc-inputs-v1', reachedMicroseconds: 2_000 });
+    expect(lit.result?.diagnostics.map((entry) => entry.code)).toContain('no_source');
+  });
+
   it('samples live photoresistor light through a safe Uno divider on the same clock', () => {
     const doc = circuit(
       [

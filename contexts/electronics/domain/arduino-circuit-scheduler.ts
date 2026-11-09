@@ -126,7 +126,6 @@ const ELECTROTHERMAL_MODELS = new Set([
   'pnp-transistor',
   'n-channel-fet',
   'incandescent-lamp',
-  'photoresistor',
   'dc-motor',
   'regulated-dc-supply',
 ]);
@@ -135,6 +134,18 @@ function usesElectrothermalProfile(document: ElectronicsDocument): boolean {
   if (
     document.components.some((component) =>
       ELECTROTHERMAL_MODELS.has(electricalModelFor(component).id),
+    )
+  )
+    return true;
+  // A photoresistor without a source still accepts ambient-light inputs.
+  // Select a thermal clock only when its circuit can supply electrical power.
+  if (
+    document.components.some((component) => component.kind === 'photoresistor') &&
+    document.components.some(
+      (component) =>
+        isArduinoUno(component) ||
+        electricalModelFor(component).id === 'ideal-dc-source' ||
+        electricalModelFor(component).id === 'function-generator',
     )
   )
     return true;
