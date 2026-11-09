@@ -43,6 +43,20 @@ class SchoolApplicationReturnTests(unittest.TestCase):
             with self.subTest(rows=rows), self.assertRaisesRegex(Blocked, "neither exact"):
                 school._history_side(rows, self.binding)
 
+    def test_read_only_ledger_fence_precedes_the_ledger_query(self):
+        self.install.compose.return_value = json.dumps({"databaseOid": "123", "systemIdentifier": "456",
+                                                        "ledger": self.rows307})
+        self.assertEqual(school._database(self.install)[1], self.rows307)
+        call = self.install.compose.call_args
+        query = call.kwargs["input_data"]
+        self.assertIn("READ COMMITTED READ ONLY", query)
+        self.assertLess(query.index("pg_try_advisory_xact_lock(7761001)"), query.index("\\gset"))
+        self.assertLess(query.index("\\if :ledger_fenced"), query.index("public.schema_migrations"))
+        self.install.compose.return_value = "SCHOOL_RETURN_LEDGER_BUSY"
+        with self.assertRaises(Blocked) as error:
+            school._database(self.install)
+        self.assertEqual(error.exception.code, "SCHOOL_RETURN_MIGRATION_ACTIVE")
+
     def test_dev_fixture_is_explicit_and_production_refused_before_docker(self):
         with patch.object(school.sys, "platform", "linux"), patch.object(school.shared, "attest_private_state"), \
                 patch.object(school.shared, "attest_access"):
@@ -100,67 +114,133 @@ class SchoolApplicationReturnTests(unittest.TestCase):
         image = "sha256:" + "2" * 64
         reference = "ghcr.io/spikeal8-maker/asa-lab/api@sha256:" + "3" * 64
         network = self.install.project + "_database"
+        network_id = "4" * 64
         env = {"MIGRATION_DATABASE_URL": "postgresql://migrate@postgres/fixture",
                "MIGRATION_EXPECT_DATABASE": "fixture", "MIGRATION_CONFIRM": "APPLY:fixture"}
         config = {"services": {"migration": {"environment": env, "user": "node"}, "postgres": {"environment": {}}},
                   "networks": {"database": {"name": network}}}
         self.journal["payload"].update(manifests={"forward": {"images": {"api": reference}}},
-                                       images={"forward": {"api": image}})
+                                       images={"forward": {"api": image}}, binding={"databaseNetworkId": network_id})
         original = {"Id": cid, "Image": image, "Path": "node", "Args": school.MIGRATION_ARGV[1:],
-                    "Config": {"Image": reference, "User": "node", "Env": [f"{key}={value}" for key, value in env.items()],
+                    "Name": "/" + school._migration_name(self.install, self.journal), "State": {"Status": "created"},
+                    "Config": {"Image": reference, "User": "node", "WorkingDir": "/app",
+                               "Env": ["PATH=/usr/bin", *(f"{key}={value}" for key, value in env.items())],
                                "Labels": {school.LABEL: self.journal["id"],
-                                          "com.docker.compose.project": self.install.project,
-                                          "com.docker.compose.project.working_dir": str(self.install.root),
-                                          "com.docker.compose.service": "migration"}},
-                    "HostConfig": {"RestartPolicy": {"Name": "no"}, "ReadonlyRootfs": True, "Privileged": False},
-                    "Mounts": [], "NetworkSettings": {"Networks": {network: {}}}}
+                                          school.LABEL + ".project": self.install.project,
+                                          school.LABEL + ".root": str(self.install.root)}},
+                    "HostConfig": {"RestartPolicy": {"Name": "no"}, "ReadonlyRootfs": True, "Privileged": False,
+                                   "NetworkMode": network_id, "CapDrop": ["ALL"], "Tmpfs": {"/tmp": ""},
+                                   "SecurityOpt": ["no-new-privileges=true"]},
+                    "Mounts": [], "NetworkSettings": {"Networks": {network: {"NetworkID": ""}}}}
         with patch.object(school, "_as_release", return_value=self.install), \
                 patch.object(school, "_model", return_value=(config, "")), \
-                patch.object(school, "attest_database_targets"), patch.object(school, "run") as run:
-            run.side_effect = [cid, json.dumps([original])]
+                patch.object(school, "_database_network", return_value={"Id": network_id, "Name": network}), \
+                patch.object(school, "run") as run:
+            run.side_effect = [cid, json.dumps([original]), '["PATH=/usr/bin"]']
             self.assertEqual(school._migration_container(self.install, self.journal), original)
+            exited = copy.deepcopy(original)
+            exited["State"]["Status"] = "exited"
+            exited["NetworkSettings"]["Networks"][network]["NetworkID"] = network_id
+            run.side_effect = [cid, json.dumps([exited]), '["PATH=/usr/bin"]']
+            self.assertEqual(school._migration_container(self.install, self.journal), exited)
             for alter in (
                 lambda row: row.update(Args=["tools/migrate.mjs", "--plan"]),
                 lambda row: row.update(Image="sha256:" + "4" * 64),
                 lambda row: row["Config"]["Env"].remove("MIGRATION_CONFIRM=APPLY:fixture"),
+                lambda row: row["Config"]["Env"].append("NODE_OPTIONS=--require=/unexpected.js"),
+                lambda row: row["Config"]["Env"].append("PATH=/another-path"),
                 lambda row: row["Config"].update(User="root"),
+                lambda row: row["Config"].update(WorkingDir="/elsewhere"),
                 lambda row: row["HostConfig"].update(Privileged=True),
+                lambda row: row["HostConfig"].update(NetworkMode=network),
                 lambda row: row["HostConfig"]["RestartPolicy"].update(Name="always"),
                 lambda row: row["NetworkSettings"]["Networks"].update(foreign={}),
+                lambda row: row["NetworkSettings"]["Networks"][network].update(NetworkID="5" * 64),
+                lambda row: row["State"].update(Status="exited"),
                 lambda row: row["Mounts"].append({"Type": "volume"}),
                 lambda row: row["Config"]["Labels"].update({"com.docker.compose.project": "foreign"}),
             ):
                 record = copy.deepcopy(original)
                 alter(record)
-                run.side_effect = [cid, json.dumps([record])]
-                with self.assertRaisesRegex(Blocked, "does not match"):
+                run.side_effect = [cid, json.dumps([record]), '["PATH=/usr/bin"]']
+                with self.assertRaises(Blocked):
                     school._migration_container(self.install, self.journal)
+
+    def test_foreign_or_active_compose_migration_stops_before_any_mutation(self):
+        cid = "1" * 64
+        pg_id = "2" * 64
+        network_id = "3" * 64
+        payload = {"images": {"original": {"api": "actual-image"}},
+                   "manifests": {"original": {"images": {"api": "immutable-reference"}}},
+                   "binding": {"postgres": {"id": pg_id}, "databaseNetworkId": network_id}}
+        self.journal["payload"] = payload
+        expected = {"Id": cid, "Image": "actual-image", "Config": {"Image": "immutable-reference", "Labels": {
+            "com.docker.compose.project": self.install.project, "com.docker.compose.service": "migration",
+            "com.docker.compose.oneoff": "False", "com.docker.compose.project.working_dir": str(self.install.root),
+            "com.docker.compose.project.config_files": ",".join(str(self.install.root / name) for name in self.install.files)}},
+            "State": {"Status": "exited", "ExitCode": 0}, "HostConfig": {"RestartPolicy": {"Name": "no"}}}
+        with patch.object(school, "_database_network", return_value={"Containers": {pg_id: {}}}) as network, \
+                patch.object(school, "_assert_binding", return_value=("original", {})), patch.object(school, "run") as run:
+            run.side_effect = [cid, json.dumps([expected])]
+            school._attest_writer_scope(self.install, payload)
+            for alter in (
+                lambda row: row["State"].update(Status="running"),
+                lambda row: row["Config"]["Labels"].update({"com.docker.compose.project.working_dir": "/foreign"}),
+                lambda row: row.update(Image="different-image"),
+            ):
+                record = copy.deepcopy(expected)
+                alter(record)
+                run.reset_mock()
+                run.side_effect = [cid, json.dumps([record])]
+                with self.assertRaises(Blocked):
+                    school._migrate(self.install, self.journal)
+                self.assertEqual([call.args[0][1] for call in run.call_args_list], ["ps", "inspect"])
+                self.assertFalse((self.install.state / old.JOURNAL).exists())
+                self.install.compose.assert_not_called()
+            run.reset_mock()
+            run.side_effect = [""]
+            network.return_value = {"Containers": {pg_id: {}, "f" * 64: {}}}
+            with self.assertRaisesRegex(Blocked, "Unexpected containers"):
+                school._migrate(self.install, self.journal)
+            self.assertEqual([call.args[0][1] for call in run.call_args_list], ["ps"])
 
     def test_apply_cannot_start_before_owned_container_is_attested_and_journaled(self):
         cid = "1" * 64
         created = {"Id": cid, "State": {"Status": "created"}}
         done = {"Id": cid, "State": {"Status": "exited", "ExitCode": 0}}
-        self.journal["payload"]["manifests"] = {"forward": {}}
+        reference = "ghcr.io/spikeal8-maker/asa-lab/api@sha256:" + "3" * 64
+        self.journal["payload"].update(manifests={"forward": {"images": {"api": reference}}},
+                                       binding={"databaseNetworkId": "4" * 64})
         self.journal["payloadSha256"] = old.digest(self.journal["payload"])
         phases = []
+        private_env = dict(zip(school.MIGRATION_ENV, ("secret-connection", "fixture", "APPLY:fixture")))
+        config = {"services": {"migration": {"environment": private_env}, "postgres": {"environment": {}}}}
 
-        def command(argv, *, capture):
+        def command(argv, *, capture, env=None):
+            if argv[1] == "create":
+                self.assertEqual(old._read(self.install.state / old.JOURNAL)["phase"], "creating")
+                self.assertIn("--workdir", argv)
+                self.assertIn("--network", argv)
+                self.assertEqual(argv[-3:], [reference, "tools/migrate.mjs", "--apply"])
+                self.assertEqual([argv[index + 1] for index, value in enumerate(argv) if value == "--env"],
+                                 list(school.MIGRATION_ENV))
+                self.assertTrue(all(value not in argv for value in private_env.values()))
+                self.assertEqual({key: env[key] for key in school.MIGRATION_ENV}, private_env)
+                return cid
             self.assertEqual(argv, ["docker", "start", "-a", cid])
             saved = old._read(self.install.state / old.JOURNAL)
             phases.append(saved["phase"])
             self.assertEqual(saved["migrationId"], cid)
 
         with patch.object(school, "_as_release", return_value=self.install), \
+                patch.object(school, "_model", return_value=(config, "")), patch.object(school, "attest_database_targets"), \
+                patch.object(school, "_attest_writer_scope"), \
                 patch.object(school, "_assert_binding", side_effect=[("original", {}), ("fallback", {})]), \
                 patch.object(school, "_migration_container", side_effect=[created, done]), \
                 patch.object(school, "_seal_migration") as seal, patch.object(school, "run", side_effect=command):
             school._migrate(self.install, self.journal)
         self.assertEqual(phases, ["migrating"])
-        options = self.install.compose.call_args.args
-        self.assertEqual(options[2:], ("up", "--no-start", "--no-deps", "--no-build", "--pull", "never",
-                                       "--force-recreate", "migration"))
-        overlay = json.loads(Path(options[1]).read_text(encoding="utf-8"))
-        self.assertEqual(overlay["services"]["migration"]["entrypoint"], school.MIGRATION_ARGV)
+        self.install.compose.assert_not_called()
         seal.assert_called_once_with(self.install, self.journal)
 
     def test_return_selects_observed_ledger_only_after_seal(self):
@@ -175,6 +255,7 @@ class SchoolApplicationReturnTests(unittest.TestCase):
                 patch.object(school.shared, "tool_identity", return_value={}), \
                 patch.object(school, "_attest_images", return_value={}), \
                 patch.object(school, "_backup_binding", return_value=journal["payload"]["backup"]), \
+                patch.object(school, "_attest_writer_scope"), \
                 patch.object(school, "_seal_migration") as seal, patch.object(school, "_stop_writers") as stop, \
                 patch.object(school.shared, "_read", return_value=manifests["original"]), \
                 patch.object(school, "_assert_binding", side_effect=[("original", {}), ("fallback", {})]), \

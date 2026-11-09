@@ -2,6 +2,7 @@
 
 import copy
 import json
+import os
 import re
 import sys
 import uuid
@@ -31,6 +32,8 @@ MIGRATION = "migrations/0308_ai_eight_tool_registry.sql"
 MIGRATION_BLOB = "5369c32f1d1eb024a7a21361ce3ca61fbf267be5"
 MIGRATION_ROW = {"version": "0308", "checksum": "85722956cf9ec5aa183e8b710f720c7f2356d761bc47466f756b87f8358bbf9a"}
 MIGRATION_ARGV = ["node", "tools/migrate.mjs", "--apply"]
+MIGRATION_ENV = ("MIGRATION_DATABASE_URL", "MIGRATION_EXPECT_DATABASE", "MIGRATION_CONFIRM")
+MIGRATION_WORKDIR = "/app"
 SERVICES = ("api", "web", "scratch", "search", "minio")
 WRITERS = ("web", "api", "scratch", "search")
 LABEL = "asa.school-308-return"
@@ -102,15 +105,26 @@ def _sources(install):
 
 
 def _database(install):
-    query = """BEGIN READ ONLY;
+    # Acquire the migrator's lock before the SELECT's READ COMMITTED snapshot,
+    # so a commit concurrent with lock acquisition cannot leave a stale ledger.
+    query = r"""BEGIN ISOLATION LEVEL READ COMMITTED READ ONLY;
       SET LOCAL statement_timeout = '5s';
+      SELECT pg_try_advisory_xact_lock(7761001) AS ledger_fenced
+      \gset
+      \if :ledger_fenced
       SELECT json_build_object('databaseOid',(SELECT oid::text FROM pg_database WHERE datname=current_database()),
         'systemIdentifier',(SELECT system_identifier::text FROM pg_control_system()),
         'ledger',(SELECT json_agg(x ORDER BY x.version) FROM (SELECT version,checksum FROM public.schema_migrations) x));
+      \else
+      \echo SCHOOL_RETURN_LEDGER_BUSY
+      \endif
       ROLLBACK;"""
-    result = json.loads(install.compose(
-        "exec", "-T", "-e", "ASA_RETURN_QUERY=" + query, "postgres", "sh", "-eu", "-c",
-        'psql -XqAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$ASA_RETURN_QUERY"', capture=True))
+    output = install.compose("exec", "-T", "postgres", "sh", "-eu", "-c",
+                             'exec psql -XqAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f -',
+                             input_data=query, capture=True)
+    require(output != "SCHOOL_RETURN_LEDGER_BUSY", "SCHOOL_RETURN_MIGRATION_ACTIVE",
+            "Another PostgreSQL migrator owns the ledger lock. Inspect the exact writer before recovery.")
+    result = json.loads(output)
     rows = result["ledger"]
     require(all(isinstance(result.get(key), str) and re.fullmatch(r"[0-9]{1,32}", result[key])
                 for key in ("databaseOid", "systemIdentifier"))
@@ -156,6 +170,18 @@ def _model(install, manifests, side):
     return config, shared.digest(normalized)
 
 
+def _database_network(install, network_id=None):
+    name = install.project + "_database"
+    [network] = json.loads(run(["docker", "network", "inspect", network_id or name], capture=True))
+    labels = network.get("Labels") or {}
+    require(network["Name"] == name and network["Internal"] is True
+            and labels.get("com.docker.compose.project") == install.project
+            and labels.get("com.docker.compose.network") == "database" and HEX64.fullmatch(network["Id"])
+            and (network_id is None or network_id == network["Id"]),
+            "SCHOOL_RETURN_DATA", "The PostgreSQL network is outside the isolated fixture.")
+    return network
+
+
 def _identity(install, config, manifests, images):
     records = install.identity()
     postgres = records["postgres"]
@@ -185,11 +211,7 @@ def _identity(install, config, manifests, images):
         volumes[service] = {"name": name, "sha256": shared.digest(observed[0])}
     require(volumes["postgres"]["name"] != volumes["minio"]["name"],
             "SCHOOL_RETURN_DATA", "PostgreSQL and MinIO must keep distinct persistent volumes.")
-    [network] = json.loads(run(["docker", "network", "inspect", config["networks"]["database"]["name"]], capture=True))
-    labels = network.get("Labels") or {}
-    require(network["Internal"] is True and labels.get("com.docker.compose.project") == install.project
-            and labels.get("com.docker.compose.network") == "database" and HEX64.fullmatch(network["Id"]),
-            "SCHOOL_RETURN_DATA", "The PostgreSQL network is outside the isolated fixture.")
+    network = _database_network(install)
     database, history = _database(install)
     binding = {"root": str(install.root), "project": install.project, "profile": install.profile,
                "envSha256": shared.file_digest(install.root / ".env"),
@@ -294,6 +316,51 @@ def _assert_binding(install, journal, model_side):
     return _history_side(history, payload["binding"]), records
 
 
+def _attest_writer_scope(install, payload, *, allowed_api=None, owned_migration=None):
+    # An original, finished Compose migration is retained byte-for-byte. A
+    # second, active or unidentified migration is a competing ledger writer.
+    candidates = run(["docker", "ps", "-aq", "--no-trunc", "--filter",
+                      f"label=com.docker.compose.project={install.project}", "--filter",
+                      "label=com.docker.compose.service=migration"], capture=True).splitlines()
+    require(len(candidates) <= 1 and all(HEX64.fullmatch(value) for value in candidates),
+            "SCHOOL_RETURN_MIGRATION", "Cannot identify a single dormant canonical migration container.")
+    if candidates:
+        [record] = json.loads(run(["docker", "inspect", candidates[0]], capture=True))
+        labels = record["Config"]["Labels"]
+        require(record["Id"] == candidates[0] and record["State"]["Status"] == "exited"
+                and record["State"]["ExitCode"] == 0 and record["HostConfig"]["RestartPolicy"]["Name"] == "no"
+                and record["Image"] == payload["images"]["original"]["api"]
+                and record["Config"]["Image"] == payload["manifests"]["original"]["images"]["api"]
+                and labels.get("com.docker.compose.project") == install.project
+                and labels.get("com.docker.compose.project.working_dir") == str(install.root)
+                and labels.get("com.docker.compose.service") == "migration"
+                and labels.get("com.docker.compose.project.config_files") == ",".join(str(install.root / name) for name in install.files)
+                and labels.get("com.docker.compose.oneoff", "").lower() == "false",
+                "SCHOOL_RETURN_MIGRATION_ACTIVE", "An unowned or active Compose migration can write to the fixture.")
+    binding = payload["binding"]
+    network = _database_network(install, binding["databaseNetworkId"])
+    members = set(network.get("Containers") or {})
+    postgres_id = binding["postgres"]["id"]
+    require(postgres_id in members and members <= {postgres_id, allowed_api, owned_migration},
+            "SCHOOL_RETURN_MIGRATION_ACTIVE", "Unexpected containers are attached to the fixture PostgreSQL network.")
+
+
+def _migration_environment(config):
+    return {key: config["services"]["migration"]["environment"][key] for key in MIGRATION_ENV}
+
+
+def _env_map(entries):
+    require(isinstance(entries, list) and all(isinstance(item, str) and "=" in item for item in entries),
+            "SCHOOL_RETURN_MIGRATION", "Cannot attest the migration image environment.")
+    values = dict(item.split("=", 1) for item in entries)
+    require(len(values) == len(entries), "SCHOOL_RETURN_MIGRATION", "Duplicate migration environment keys.")
+    return values
+
+
+def _migration_name(install, journal):
+    return f"{install.project}-return-{journal['id']}"
+
+
 def _migration_container(install, journal):
     candidates = run(["docker", "ps", "-aq", "--no-trunc", "--filter", f"label={LABEL}={journal['id']}"],
                      capture=True).splitlines()
@@ -309,24 +376,31 @@ def _migration_container(install, journal):
     release = payload["manifests"]["forward"]
     model = _as_release(install, release)
     config, _ = _model(model, payload["manifests"], "forward")
-    config_env = config["services"]["migration"]["environment"]
-    actual_env = dict(value.split("=", 1) for value in record["Config"]["Env"])
-    attest_database_targets(config, config["services"]["postgres"]["environment"])
-    require(record["Id"] == container and record["Image"] == payload["images"]["forward"]["api"]
+    image = payload["images"]["forward"]["api"]
+    expected_env = _env_map(json.loads(run(["docker", "image", "inspect", "--format", "{{json .Config.Env}}",
+                                          image], capture=True))) | _migration_environment(config)
+    network = _database_network(install, payload["binding"]["databaseNetworkId"])
+    endpoint = record["NetworkSettings"]["Networks"]
+    network_id = endpoint.get(network["Name"], {}).get("NetworkID")
+    host = record["HostConfig"]
+    require(record["Id"] == container and record["Name"] == "/" + _migration_name(install, journal)
+            and record["Image"] == image
             and record["Config"]["Image"] == release["images"]["api"]
             and record["Config"]["User"] == config["services"]["migration"]["user"] == "node"
+            and record["Config"]["WorkingDir"] == MIGRATION_WORKDIR
             and [record["Path"], *record["Args"]] == MIGRATION_ARGV
-            and labels.get(LABEL) == journal["id"] and labels.get("com.docker.compose.project") == install.project
-            and labels.get("com.docker.compose.project.working_dir") == str(install.root)
-            and labels.get("com.docker.compose.service") == "migration"
-            and record["HostConfig"]["RestartPolicy"]["Name"] == "no"
-            and record["HostConfig"]["ReadonlyRootfs"] is True
-            and record["HostConfig"]["Privileged"] is False
-            and not record["HostConfig"].get("PortBindings")
+            and labels.get(LABEL) == journal["id"] and labels.get(LABEL + ".project") == install.project
+            and labels.get(LABEL + ".root") == str(install.root)
+            and not any(key.startswith("com.docker.compose.") for key in labels)
+            and host["RestartPolicy"]["Name"] == "no" and host["ReadonlyRootfs"] is True
+            and host["Privileged"] is False and host["NetworkMode"] == network["Id"]
+            and host.get("CapDrop") == ["ALL"] and not host.get("CapAdd")
+            and host.get("SecurityOpt") in (["no-new-privileges=true"], ["no-new-privileges:true"])
+            and host.get("Tmpfs") == {"/tmp": ""} and not host.get("PortBindings")
             and not [mount for mount in record["Mounts"] if mount["Type"] != "tmpfs"]
-            and set(record["NetworkSettings"]["Networks"]) == {config["networks"]["database"]["name"]}
-            and all(actual_env.get(key) == config_env[key] for key in
-                    ("MIGRATION_DATABASE_URL", "MIGRATION_EXPECT_DATABASE", "MIGRATION_CONFIRM")),
+            and set(endpoint) == {network["Name"]}
+            and (network_id == network["Id"] or (network_id == "" and record["State"]["Status"] == "created"))
+            and _env_map(record["Config"]["Env"]) == expected_env,
             "SCHOOL_RETURN_MIGRATION", "The owned migration container does not match the isolated exact apply command.")
     return record
 
@@ -340,6 +414,8 @@ def _seal_migration(install, journal, *, check=False):
             # No --force. Removal and start serialize at Docker, and a delayed
             # start request for this exact ID cannot reach a removed container.
             run(["docker", "rm", record["Id"]], capture=True)
+        return record["Id"]
+    return None
 
 
 def _stop_writers(install):
@@ -352,15 +428,26 @@ def _stop_writers(install):
 def _migrate(install, journal):
     require(_assert_binding(install, journal, "original")[0] == "original",
             "SCHOOL_RETURN_SCHEMA", "The live original ledger changed after writer shutdown.")
-    target = _as_release(install, journal["payload"]["manifests"]["forward"])
-    overlay = install.state / f"school-308-migration-{journal['id']}.json"
-    shared._write(overlay, {"services": {"migration": {"entrypoint": MIGRATION_ARGV, "command": [],
-        "container_name": f"{install.project}-return-{journal['id']}", "labels": {LABEL: journal["id"]}}}})
+    payload = journal["payload"]
+    _attest_writer_scope(install, payload)
+    release = payload["manifests"]["forward"]
+    target = _as_release(install, release)
+    config, _ = _model(target, payload["manifests"], "forward")
+    attest_database_targets(config, config["services"]["postgres"]["environment"])
+    environment = _migration_environment(config)
     _persist(install, journal, "creating")
-    target.compose("-f", str(overlay), "up", "--no-start", "--no-deps", "--no-build", "--pull", "never",
-                   "--force-recreate", "migration")
+    # Docker create fails on a name collision. This container never belongs to
+    # Compose's migration service and cannot replace or stop an existing one.
+    container = run(["docker", "create", "--name", _migration_name(install, journal), "--pull", "never",
+                     "--network", payload["binding"]["databaseNetworkId"],
+                     "--label", f"{LABEL}={journal['id']}", "--label", f"{LABEL}.project={install.project}",
+                     "--label", f"{LABEL}.root={install.root}", "--restart", "no",
+                     "--entrypoint", MIGRATION_ARGV[0], "--workdir", MIGRATION_WORKDIR, "--user", "node",
+                     "--read-only", "--tmpfs", "/tmp", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+                     *(part for key in MIGRATION_ENV for part in ("--env", key)),
+                     release["images"]["api"], *MIGRATION_ARGV[1:]], env={**os.environ, **environment}, capture=True)
     record = _migration_container(install, journal)
-    require(record is not None and record["State"]["Status"] == "created",
+    require(record is not None and record["Id"] == container and record["State"]["Status"] == "created",
             "SCHOOL_RETURN_MIGRATION", "The pinned one-shot was not created in the stopped state.")
     _persist(install, journal, "migrating", migrationId=record["Id"])
     run(["docker", "start", "-a", record["Id"]], capture=True)
@@ -368,6 +455,7 @@ def _migrate(install, journal):
     require(finished is not None and finished["State"]["Status"] == "exited" and finished["State"]["ExitCode"] == 0,
             "SCHOOL_RETURN_MIGRATION", "The pinned one-shot did not exit successfully.")
     _seal_migration(install, journal)
+    _attest_writer_scope(install, payload)
     require(_assert_binding(install, journal, "forward")[0] == "fallback",
             "SCHOOL_RETURN_SCHEMA", "The exact schema 308 transaction did not commit.")
 
@@ -441,6 +529,8 @@ def forward(install, *, check=False):
                 "SCHOOL_RETURN_CONFIG", "The effective model differs beyond exact image, revision and schema fields.")
     binding, rows, records = _identity(install, config, manifests, images)
     _exact_runtime(records, original)
+    _attest_writer_scope(install, {"binding": binding, "manifests": manifests, "images": images},
+                         allowed_api=records["api"]["id"])
     actual_versions = {row["version"] for row in rows}
     require(actual_versions == versions or (actual_versions == versions - {"0146"} and "0151" in actual_versions),
             "SCHOOL_RETURN_SCHEMA", "Original live ledger is not the complete declared 307 history.")
@@ -488,11 +578,14 @@ def rollback(install, *, check=False):
             "SCHOOL_RETURN_DRIFT", "The source, immutable images or external tools changed.")
     require(_backup_binding(install, payload, payload["backup"]["path"], at=payload["createdAt"]) == payload["backup"],
             "SCHOOL_RETURN_BACKUP", "The linked pre-update backup changed.")
-    _seal_migration(install, journal, check=True)
+    owned_migration = _seal_migration(install, journal, check=True)
     installed = shared._read(install.state / "installed-release.json")
     installed_side = next((side for side, release in payload["manifests"].items() if release == installed), None)
     require(installed_side is not None, "SCHOOL_RETURN_RELEASE", "The installed manifest is outside the operation.")
-    side, _ = _assert_binding(install, journal, installed_side)
+    side, records = _assert_binding(install, journal, installed_side)
+    api = records.get("api", {})
+    _attest_writer_scope(install, payload, allowed_api=api.get("id") if api.get("running") else None,
+                         owned_migration=owned_migration)
     require(journal["returnedSide"] in (None, side),
             "SCHOOL_RETURN_SCHEMA", "The observed database no longer matches the previously chosen return release.")
     if check or journal["phase"] == "returned":
@@ -506,6 +599,7 @@ def rollback(install, *, check=False):
     shared._write(install.state / MARKER, marker)
     _stop_writers(install)
     _seal_migration(install, journal)
+    _attest_writer_scope(install, payload)
     # A just-completed migration may win the race with the observational
     # preflight. Only this post-seal read may select the return artifact.
     side, _ = _assert_binding(install, journal, installed_side)
