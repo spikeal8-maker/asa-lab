@@ -14,7 +14,7 @@ const account = Object.fromEntries(
 );
 const origin = 'http://127.0.0.1:4630';
 if (!account.URL?.startsWith(origin + '/#/home/')) throw new Error('Local Robotics project only');
-const evidenceDir = join(process.cwd(), 'e2e/artifacts/robotics-toolbars-one-row-006');
+const evidenceDir = join(process.cwd(), 'e2e/artifacts/robotics-field-palette-007/toolbars');
 mkdirSync(evidenceDir, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
@@ -85,6 +85,22 @@ try {
           workspaceTop: w.top,
           toolbar: { x: a.x, right: a.right, top: a.top, bottom: a.bottom, height: a.height },
           controls: { x: c.x, right: c.right, top: c.top, bottom: c.bottom, height: c.height },
+          slot: (() => {
+            const node = t.querySelector('.robotics-toolbar-run-slot');
+            if (!node) return null;
+            const r = node.getBoundingClientRect();
+            return {
+              top: r.top,
+              bottom: r.bottom,
+              height: r.height,
+              align: getComputedStyle(node).alignItems,
+            };
+          })(),
+          computed: {
+            top: getComputedStyle(t.querySelector('.robotics-run-bar')).top,
+            marginTop: getComputedStyle(t.querySelector('.robotics-run-bar')).marginTop,
+            alignSelf: getComputedStyle(t.querySelector('.robotics-run-bar')).alignSelf,
+          },
           play: { x: p.x, right: p.right },
           hitPlay: !!hit?.closest('.robotics-run-buttons .robotics-button.primary'),
         };
@@ -93,8 +109,8 @@ try {
         throw Error('Horizontal page overflow ' + JSON.stringify({ section, width, m }));
       if (Math.abs(m.workspaceTop - m.headerBottom) > 2)
         throw Error('Extra simulator row ' + JSON.stringify({ section, width, m }));
-      if (Math.abs(m.toolbar.height - 38) > 2)
-        throw Error('Toolbar not 38 px ' + JSON.stringify({ section, width, m }));
+      if (Math.abs(m.toolbar.height - 46) > 2)
+        throw Error('Toolbar not 46 px ' + JSON.stringify({ section, width, m }));
       if (Math.abs(m.controls.right - m.toolbar.right) > 10)
         throw Error('Run controls not aligned right ' + JSON.stringify({ section, width, m }));
       if (m.controls.top + 1 < m.toolbar.top || m.controls.bottom > m.toolbar.bottom + 2)
@@ -108,7 +124,7 @@ try {
           section.name +
           ' ' +
           width +
-          ': one 38px toolbar, controls at right, no extra row/overlap',
+          ': one 46px toolbar, controls at right, no extra row/overlap',
       );
       measurements.push({ section: section.id, ...m });
       if (width === 1728 || width === 1440 || width === 390) {
