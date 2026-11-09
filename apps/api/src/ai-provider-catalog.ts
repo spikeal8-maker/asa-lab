@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import type { AiDeepSeekCatalogModel } from '@asa-lab/contracts';
 import { AiPolicyError } from './ai-generation-policy.js';
 
 /** Metadata only. Neither endpoint proves compatibility with an ASA adapter.
@@ -22,11 +23,11 @@ export function parseObservedModels(raw: unknown): string[] {
   if (new Set(ids).size !== ids.length) throw new Error('AI_CATALOG_INVALID');
   return ids.sort();
 }
-export async function discoverProviderModels(
+async function fetchProviderCatalog(
   provider: keyof typeof AI_CATALOG_ENDPOINTS,
   key: string,
   fetchImpl: typeof fetch,
-): Promise<string[]> {
+): Promise<unknown> {
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), 8000);
   try {
@@ -36,7 +37,14 @@ export async function discoverProviderModels(
       signal: abort.signal,
       headers: { Authorization: 'Bearer ' + key, Accept: 'application/json' },
     });
-    if (!response.ok || !response.body) throw new Error('AI_CATALOG_UNAVAILABLE');
+    if (!response.ok || !response.body) {
+      await response.body?.cancel();
+      throw new Error(
+        response.status === 401 || response.status === 403
+          ? 'AI_CATALOG_UNAVAILABLE_KEY_REJECTED'
+          : 'AI_CATALOG_UNAVAILABLE',
+      );
+    }
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
     let size = 0;
@@ -51,10 +59,52 @@ export async function discoverProviderModels(
     } finally {
       await reader.cancel().catch(() => undefined);
     }
-    return parseObservedModels(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
   } finally {
     clearTimeout(timer);
   }
+}
+export async function discoverProviderModels(
+  provider: keyof typeof AI_CATALOG_ENDPOINTS,
+  key: string,
+  fetchImpl: typeof fetch,
+): Promise<string[]> {
+  return parseObservedModels(await fetchProviderCatalog(provider, key, fetchImpl));
+}
+
+export async function discoverDeepSeekCatalog(
+  key: string,
+  fetchImpl: typeof fetch,
+): Promise<AiDeepSeekCatalogModel[]> {
+  const raw = await fetchProviderCatalog('deepseek', key, fetchImpl);
+  const ids = parseObservedModels(raw);
+  const rows = (raw as { data: Record<string, unknown>[] }).data;
+  const models = new Map(rows.map((row) => [row['id'], row]));
+  const modalities = (value: unknown) =>
+    Array.isArray(value) && value.length > 0
+      ? value.filter((kind): kind is 'text' | 'image' => kind === 'text' || kind === 'image')
+      : null;
+  return ids.map((id) => {
+    const row = models.get(id)!;
+    const name = row['name'];
+    const context = row['context_window'];
+    return {
+      id,
+      name:
+        typeof name === 'string' &&
+        name.trim() &&
+        name.length <= 100 &&
+        !/[\p{Cc}\p{Zl}\p{Zp}]/u.test(name)
+          ? name.trim()
+          : id,
+      inputModalities: modalities(row['input_modalities']),
+      outputModalities: modalities(row['output_modalities']),
+      contextTokens:
+        typeof context === 'number' && Number.isSafeInteger(context) && context > 0
+          ? context
+          : null,
+    };
+  });
 }
 export async function applyCatalogObservation(
   pool: pg.Pool,

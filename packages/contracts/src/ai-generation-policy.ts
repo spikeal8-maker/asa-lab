@@ -28,6 +28,13 @@ export interface AiCatalogObservation {
   readonly credentialChanged?: boolean;
   readonly models: readonly { id: string; active: boolean }[];
 }
+export interface AiDeepSeekCatalogModel {
+  readonly id: string;
+  readonly name: string;
+  readonly inputModalities: readonly ('text' | 'image')[] | null;
+  readonly outputModalities: readonly ('text' | 'image')[] | null;
+  readonly contextTokens: number | null;
+}
 export interface AiGenerationModel {
   readonly id: string;
   readonly provider: 'openai' | 'deepseek' | 'ollama-cloud' | 'ollama' | 'polza';

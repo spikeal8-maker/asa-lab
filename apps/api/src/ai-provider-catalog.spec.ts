@@ -1,5 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { discoverProviderModels, parseObservedModels } from './ai-provider-catalog';
+import {
+  discoverDeepSeekCatalog,
+  discoverProviderModels,
+  parseObservedModels,
+} from './ai-provider-catalog';
 import {
   getAiModelCatalog,
   installProviderObservations,
@@ -48,6 +52,38 @@ it('rejects truncated, duplicate, unbounded and malformed catalogues instead of 
   ])
     expect(() => parseObservedModels(value)).toThrow();
   expect(parseObservedModels({ data: [] })).toEqual([]);
+});
+it('reads DeepSeek modalities and context without guessing missing metadata', async () => {
+  const transport = vi.fn<typeof fetch>(async () =>
+    Response.json({
+      data: [
+        {
+          id: 'deepseek-flash',
+          name: 'DeepSeek Flash',
+          context_window: 1048576,
+          input_modalities: ['text', 'image'],
+          output_modalities: ['text'],
+        },
+        { id: 'future-model', context_window: -1 },
+      ],
+    }),
+  );
+  expect(await discoverDeepSeekCatalog('test-key', transport)).toEqual([
+    {
+      id: 'deepseek-flash',
+      name: 'DeepSeek Flash',
+      contextTokens: 1048576,
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+    },
+    {
+      id: 'future-model',
+      name: 'future-model',
+      contextTokens: null,
+      inputModalities: null,
+      outputModalities: null,
+    },
+  ]);
 });
 it('separates observed presence, adapter proof and lifecycle while preserving admitted model identity', () => {
   installProviderObservations([

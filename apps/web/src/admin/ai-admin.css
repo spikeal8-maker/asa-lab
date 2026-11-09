@@ -497,6 +497,67 @@
   padding: 0 0 3px 23px;
 }
 
+.asa-deepseek-key-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 6px 12px;
+  margin-block: 12px;
+  font-size: 13px;
+}
+.asa-deepseek-key-row > label {
+  display: grid;
+  gap: 4px;
+  width: min(100%, 360px);
+}
+.asa-deepseek-key-row input {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  border: 1px solid var(--border, #c4d3df);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: inherit;
+}
+.asa-deepseek-key-row > :not(label) {
+  margin-top: 1.35em;
+}
+.asa-deepseek-key-row button {
+  min-height: 32px;
+  padding: 3px 8px;
+  border: 1px solid var(--border, #c4d3df);
+  border-radius: 6px;
+  background: var(--panel, transparent);
+  color: inherit;
+  font: inherit;
+}
+.asa-deepseek-catalog-heading,
+.asa-deepseek-model-row,
+.asa-deepseek-model-row label {
+  display: flex;
+  align-items: center;
+  gap: 5px 12px;
+}
+.asa-deepseek-catalog-heading,
+.asa-deepseek-model-row {
+  flex-wrap: wrap;
+  padding: 6px 0;
+}
+.asa-deepseek-model-row {
+  border-top: 1px solid var(--border, #dce5ec);
+}
+.asa-deepseek-model-row label {
+  min-width: min(100%, 220px);
+  overflow-wrap: anywhere;
+}
+.asa-deepseek-model-row input[type='checkbox'] {
+  flex: 0 0 17px;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  padding: 0;
+}
+
 @media (max-width: 720px) {
   .asa-cloud-key-row {
     grid-template-columns: max-content minmax(0, 1fr) 26px 76px;

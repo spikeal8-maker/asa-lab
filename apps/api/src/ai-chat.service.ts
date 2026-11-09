@@ -12,7 +12,11 @@ import {
 } from './ai-working-files.js';
 import type { NativeToolCall, NativeToolDefinition, NativeToolResult } from './ai-native-tools.js';
 import type { AiImageRecipe } from '@asa-lab/contracts';
-import { discoverProviderModels, applyCatalogObservation } from './ai-provider-catalog.js';
+import {
+  discoverProviderModels,
+  discoverDeepSeekCatalog,
+  applyCatalogObservation,
+} from './ai-provider-catalog.js';
 import { AiTokenBudgetStore } from './ai-token-budgets.js';
 import { installProviderObservations } from './ai-model-catalog.js';
 import { OllamaCloudMetadata, reloadOllamaCloudCatalog } from './ai-ollama-cloud.js';
@@ -330,6 +334,42 @@ export class AiChatService {
   }
   generationPolicy(actor: string) {
     return this.policy.admin(actor, this.key !== null);
+  }
+  async deepSeekCatalog(actor: string, candidate?: string) {
+    let key = candidate;
+    let revision: number | undefined;
+    if (key === undefined) {
+      const { rows } = await this.pool.query<RuntimeRow & { revision: number }>(
+        'SELECT * FROM ai_provider_catalog_credentials($1,$2)',
+        [actor, 'deepseek'],
+      );
+      const credentials = rows[0];
+      key = (credentials && this.decrypt(credentials)) || undefined;
+      revision = credentials ? Number(credentials.revision) : undefined;
+    }
+    if (!key)
+      throw new AiServiceError('ai_catalog_key_required', 409, 'Добавьте API-ключ DeepSeek.');
+    let models;
+    try {
+      models = await discoverDeepSeekCatalog(key, this.fetchImpl);
+    } catch (error) {
+      const rejected =
+        error instanceof Error && error.message === 'AI_CATALOG_UNAVAILABLE_KEY_REJECTED';
+      throw new AiServiceError(
+        rejected ? 'ai_deepseek_key_rejected' : 'ai_deepseek_catalog_unavailable',
+        502,
+        rejected ? 'DeepSeek не принял ключ.' : 'Каталог DeepSeek недоступен. Повторите проверку.',
+      );
+    }
+    if (revision !== undefined)
+      await applyCatalogObservation(
+        this.pool,
+        actor,
+        'deepseek',
+        revision,
+        models.map((model) => model.id),
+      );
+    return { models };
   }
   comfyUiConfig(actor: string) {
     return this.comfySettings.config(actor);

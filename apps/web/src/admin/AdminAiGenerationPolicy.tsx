@@ -13,7 +13,7 @@ const PROVIDERS = [
   { id: 'ollama', label: 'Ollama · локально' },
 ] as const;
 
-function policyShape(value: unknown): value is AiGenerationPolicy {
+export function policyShape(value: unknown): value is AiGenerationPolicy {
   if (!value || typeof value !== 'object') return false;
   const data = value as Partial<AiGenerationPolicy>;
   return (

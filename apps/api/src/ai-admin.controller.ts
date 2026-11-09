@@ -140,6 +140,24 @@ export class AiAdminController {
     return this.safe(() => this.ai.saveGenerationPolicy(actor, raw as AiGenerationPolicyUpdate));
   }
 
+  @Post('deepseek/catalog')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async deepSeekCatalog(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    const apiKey = (raw as { apiKey?: unknown } | null)?.apiKey;
+    if (
+      apiKey !== undefined &&
+      (typeof apiKey !== 'string' ||
+        apiKey.length < 12 ||
+        apiKey.length > 2048 ||
+        /[\p{Cc}\p{Zl}\p{Zp}]/u.test(apiKey))
+    )
+      return reject('ai_key_invalid', 'Проверьте формат API-ключа.', 400);
+    return this.safe(() => this.ai.deepSeekCatalog(actor, apiKey));
+  }
+
   @Put('web-search')
   async saveWebSearch(@Req() request: FastifyRequest, @Body() raw: unknown) {
     this.requireSameOrigin(request);

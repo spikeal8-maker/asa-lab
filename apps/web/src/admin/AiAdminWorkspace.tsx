@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AiAdminPage } from './AdminAiPage';
+import { AdminDeepSeekConnection } from './AdminDeepSeekConnection';
 import { AdminOllamaPage } from './AdminOllamaPage';
 import { AdminComfyUiPage } from './AdminComfyUiPage';
 import { AdminPolzaConnection } from './AdminPolzaConnection';
@@ -272,6 +273,12 @@ function AiAdminWorkspaceSession({
               onUpdated={refreshStatus}
               onDirtyChange={setConnectionDirty}
             />
+          ) : provider === 'deepseek' ? (
+            <AdminDeepSeekConnection
+              onAccessDenied={onAccessDenied}
+              onUpdated={refreshStatus}
+              onDirtyChange={setConnectionDirty}
+            />
           ) : (
             <AiAdminPage
               key={provider}
@@ -281,7 +288,7 @@ function AiAdminWorkspaceSession({
               onDirtyChange={setConnectionDirty}
             />
           )}
-          {provider !== 'polza' && provider !== 'ollama' && provider !== 'ollama-cloud' ? (
+          {provider === 'openai' ? (
             <AdminAiGenerationPolicy
               key={'policy-' + provider}
               section="connections"
