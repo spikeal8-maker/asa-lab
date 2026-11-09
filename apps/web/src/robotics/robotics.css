@@ -3748,3 +3748,232 @@
   min-height: 46px;
   max-height: 46px;
 }
+
+/* Context editing is anchored to the selected object, never embedded in the catalog. */
+.robotics-lab .robotics-field-editor-body {
+  position: relative;
+  min-width: 0;
+}
+.robotics-field-object-flyout {
+  position: absolute;
+  z-index: 80;
+  width: min(300px, calc(100% - 16px));
+  max-height: min(70vh, 440px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 10px 12px;
+  border: 1px solid #b6d0dc;
+  border-radius: 9px;
+  box-shadow: 0 12px 36px #0c35583d;
+  background: #fff;
+  color: #29475d;
+  overscroll-behavior: contain;
+  font-size: 11px;
+}
+.robotics-field-object-flyout .robotics-object-flyout-header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 35px;
+  min-height: 35px;
+  margin: 0 -10px 8px;
+  padding: 0 9px 0 12px;
+  border-bottom: 1px solid #e0eaf0;
+  background: #f2f8fa;
+  font-size: 12px;
+}
+.robotics-field-object-flyout .robotics-object-flyout-header button {
+  display: grid;
+  flex: 0 0 25px;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 0;
+  border-radius: 5px;
+  color: #56758b;
+  background: transparent;
+  font-size: 19px;
+}
+.robotics-field-object-flyout .robotics-object-flyout-header button:hover {
+  color: #087aa2;
+  background: #dceef4;
+}
+.robotics-field-object-flyout .robotics-settings-group {
+  margin-bottom: 9px;
+}
+.robotics-field-object-flyout .robotics-settings-group > h3 {
+  display: none;
+}
+.robotics-field-object-flyout .robotics-form-grid {
+  gap: 6px;
+}
+.robotics-field-object-flyout .robotics-help {
+  font-size: 10px;
+  line-height: 1.35;
+}
+.robotics-field-object-flyout .robotics-number-field,
+.robotics-field-object-flyout .robotics-select-field {
+  font-size: 10px;
+  gap: 3px;
+}
+@media (max-width: 760px) {
+  .robotics-lab .robotics-field-object-flyout {
+    position: fixed;
+    top: 100px !important;
+    right: 8px;
+    left: auto !important;
+    width: min(300px, calc(100vw - 16px));
+    max-height: min(65vh, 480px);
+    z-index: 1400;
+  }
+  .robotics-lab .robotics-scene-inspector {
+    z-index: 9;
+  }
+}
+
+/* ROBOTICS-FIELD-VECTOR-008 — compact field graphics, imports, and vector drawing. */
+.robotics-field-palette .robotics-field-palette-section h3 {
+  font-size: 10px;
+  color: #607b90;
+}
+.robotics-field-palette-card {
+  cursor: grab;
+}
+.robotics-field-import-section {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid #e2ebf0;
+}
+.robotics-field-file-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.robotics-field-file-actions button {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  min-width: 0;
+  min-height: 45px;
+  padding: 4px 2px;
+  border: 1px solid #d6e4ec;
+  border-radius: 7px;
+  background: #f8fcfe;
+  color: #3b6177;
+  font-size: 10px;
+  cursor: pointer;
+}
+.robotics-field-file-actions button:last-child {
+  grid-column: span 2;
+  min-height: 32px;
+  grid-template-columns: 20px auto;
+  gap: 3px;
+  align-items: center;
+  justify-content: center;
+}
+.robotics-field-file-actions button > span:first-child {
+  color: #0b8cb2;
+  font-size: 17px;
+  line-height: 1.2;
+}
+.robotics-field-file-actions button:hover:not(:disabled) {
+  border-color: #7eb9cb;
+  background: #eaf6fa;
+}
+.robotics-field-file-actions button:disabled {
+  opacity: 0.44;
+  cursor: not-allowed;
+}
+.robotics-object-preset {
+  margin: 4px 0 9px;
+  padding: 7px 8px;
+  border: 1px solid #d5e4ea;
+  border-radius: 6px;
+  background: #f4f9fb;
+}
+.robotics-object-preset-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 6px;
+  margin: 4px 0 9px;
+  padding: 7px 8px;
+  border: 1px solid #d5e4ea;
+  border-radius: 6px;
+  background: #f4f9fb;
+}
+.robotics-object-preset-row select {
+  min-width: 0;
+  width: 100%;
+  font-size: 10px;
+}
+.robotics-visual-text {
+  grid-column: 1 / -1;
+}
+.robotics-draft-stroke {
+  filter: drop-shadow(0 0 9px #0ca1c54a);
+}
+.robotics-field-canvas[data-drawing='true'] .robotics-field {
+  cursor: crosshair;
+}
+.robotics-scene-inspector .robotics-field-palette-action {
+  display: grid;
+  gap: 5px;
+  font-size: 10px;
+}
+.robotics-scene-inspector .robotics-field-palette-action > span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.robotics-scene-inspector .robotics-field-palette-action > button {
+  justify-self: start;
+}
+@media (max-width: 760px) {
+  .robotics-field-file-actions button {
+    min-height: 38px;
+  }
+  .robotics-field-object-flyout {
+    max-height: min(70vh, 480px);
+  }
+}
+
+/* A compact contextual inspector leaves drag handles visible beside the selected object. */
+.robotics-field-object-flyout {
+  max-height: min(60vh, 320px);
+}
+@media (max-width: 760px) {
+  .robotics-field-object-flyout {
+    max-height: min(62vh, 410px);
+  }
+}
+
+/* Field size changes preserve the authored objects but recenter the robot start. */
+.robotics-field-center-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 8px 0 6px;
+  padding: 6px 7px;
+  border: 1px solid #d7e5ec;
+  border-radius: 6px;
+  color: #43677a;
+  background: #f3f9fb;
+  font-size: 10px;
+}
+.robotics-field-center-action > span {
+  min-width: 0;
+}
+.robotics-field-center-action .robotics-button {
+  flex: 0 0 auto;
+  min-height: 27px;
+  padding: 2px 7px;
+  font-size: 10px;
+}
+.robotics-field-center-action .robotics-button:disabled {
+  opacity: 0.5;
+}

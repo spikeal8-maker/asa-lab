@@ -678,7 +678,7 @@ describe('robotics UI integration with the common workbench port', () => {
     await click('Влево');
     expect(port.serial).toHaveBeenNthCalledWith(1, 'uno', 'F');
     expect(port.serial).toHaveBeenNthCalledWith(2, 'uno', 'L');
-    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('0.25');
+    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('2.5');
     expect(metric('robotics-time').dataset.microseconds).toBe('0');
     await click('Пауза');
     expect(port.host?.simulationRunning).toBe(true);
@@ -705,7 +705,7 @@ describe('robotics UI integration with the common workbench port', () => {
     await click('Запустить');
     expect(commands.at(-1)).toEqual({ rate: 1, running: true });
     act(() => port.presentation!.setObservation(electricalObservation(100_000)));
-    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(0.25);
+    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(2.5);
     await click('Пауза');
     const pausedCommandCount = commands.length;
     act(() => container.querySelector<HTMLButtonElement>('#robotics-tab-robot')!.click());
@@ -713,7 +713,7 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(commands).toHaveLength(pausedCommandCount);
     expect(port.pacing!.read().phase).toBe('paused');
     await click('Остановить');
-    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('0.25');
+    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('2.5');
     expect(metric('robotics-time').dataset.microseconds).toBe('0');
     await click('Запустить');
     expect(commands.at(-1)).toEqual({ rate: 1, running: true });
@@ -733,7 +733,7 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(port.environment).not.toHaveBeenCalled();
     act(() => port.presentation!.commit(next));
     expect(metric('robotics-time').dataset.microseconds).toBe('100000');
-    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(0.25);
+    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(2.5);
     expect(port.environment).toHaveBeenCalledOnce();
     expect(port.environment.mock.calls[0]?.[0]).toBe('sonar');
     expect(port.environment.mock.calls[0]?.[1]).toMatchObject({
@@ -754,10 +754,10 @@ describe('robotics UI integration with the common workbench port', () => {
   it('resets the world when the shared Arduino reset commits a new time-zero generation', async () => {
     await click('Запустить');
     act(() => port.presentation!.setObservation(electricalObservation(100_000)));
-    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(0.25);
+    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(2.5);
     act(() => port.presentation!.setObservation(electricalObservation(0, 0, 0)));
     expect(metric('robotics-time').dataset.microseconds).toBe('0');
-    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('0.25');
+    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('2.5');
   });
   it('reports a six-metre field as typed no-echo without halting or changing saved source', async () => {
     act(() => root.unmount());
@@ -766,6 +766,9 @@ describe('robotics UI integration with the common workbench port', () => {
     const source = withRoboticsWorld(initial, {
       ...initial.world,
       field: { ...initial.world.field, widthMeters: 6, obstacles: [] },
+      // Explicit no-echo fixture: move the sensor near the left edge.
+      // Normal field presets always start the robot at the exact center.
+      initialPose: { ...initial.world.initialPose, xMeters: 0.25 },
     });
     act(() => root.render(createElement(RoboticsLab, { initialProject: source })));
     const circuit = port.host!.getCurrentDocument();

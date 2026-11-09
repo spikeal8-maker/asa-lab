@@ -18,6 +18,8 @@ import {
   ROBOTICS_SCENE_LIMITS,
   type RoboticsObjectKey,
   type RoboticsPoint,
+  type RoboticsFieldDecoration,
+  type RoboticsFloorMark,
   type RoboticsWorldDocument,
 } from '@asa-lab/robotics/world-document';
 import {
@@ -38,7 +40,19 @@ import {
 } from './world';
 import { RobotField } from './RobotField';
 import { RobotFieldSettings } from './RobotFieldSettings';
+import {
+  createImageVisual,
+  exportRoboticsField,
+  importRoboticsField,
+  MAX_FIELD_JSON_BYTES,
+  optimizeFieldImage,
+} from './field-files';
 import { RobotObjectInspector } from './RobotObjectInspector';
+import {
+  resizeRoboticsFieldHandle,
+  type FieldResizeKind,
+  type FieldResizeHandle,
+} from './field-vector-resize';
 
 // Existing construction controls use this entry point too.
 export { RoboticsNumberField } from './RoboticsNumberField';
@@ -53,6 +67,9 @@ const TOOLS = [
   { id: 'curve', label: 'Кривая', symbol: '╰', extended: true },
   { id: 'area', label: 'Зона', symbol: '▧', extended: false },
   { id: 'stamp', label: 'Трасса', symbol: '⊞', extended: true },
+  { id: 'rectangle', label: 'Прямоугольник', symbol: '□', extended: false },
+  { id: 'circle', label: 'Круг', symbol: '○', extended: false },
+  { id: 'text', label: 'Текст', symbol: 'Т', extended: false },
 ] as const;
 type Tool = (typeof TOOLS)[number]['id'];
 const STAMPS: readonly { id: RoboticsTileStampKind; label: string }[] = [
@@ -71,6 +88,32 @@ function sceneAt(
   stamp: RoboticsTileStampKind,
   turns: number,
 ): { key: RoboticsObjectKey; world: RoboticsWorldDocument } {
+  if (tool === 'rectangle' || tool === 'circle' || tool === 'text') {
+    const id = nextRoboticsObjectId(world, 'visual');
+    const diameter = 0.22;
+    const w = tool === 'text' ? 0.7 : tool === 'circle' ? diameter : 0.38;
+    const h = tool === 'text' ? 0.16 : tool === 'circle' ? diameter : 0.28;
+    const visual: RoboticsFieldDecoration = {
+      id,
+      kind: tool,
+      label: tool === 'text' ? 'Надпись' : tool === 'circle' ? 'Круг' : 'Прямоугольник',
+      xMeters: Math.min(position.xMeters, world.field.widthMeters - w),
+      yMeters: Math.min(position.yMeters, world.field.heightMeters - h),
+      widthMeters: w,
+      heightMeters: h,
+      strokeColor: '#0b3558',
+      fillColor: '#e5f3fa',
+      fillEnabled: tool !== 'text',
+      ...(tool === 'text' ? { text: 'Старт' } : {}),
+    };
+    return {
+      key: `decoration:${id}`,
+      world: {
+        ...world,
+        field: { ...world.field, visuals: [...(world.field.visuals ?? []), visual] },
+      },
+    };
+  }
   if (tool === 'stamp') {
     const size = world.field.tiles?.sizeMeters ?? 0.3;
     const next = createRoboticsTileStamp(
@@ -157,7 +200,7 @@ function pointerPosition(
 
 const PALETTE_GROUPS: readonly { title: string; tools: readonly Tool[] }[] = [
   { title: 'Предметы', tools: ['wall', 'ball', 'can', 'box'] },
-  { title: 'Разметка и трасса', tools: ['line', 'curve', 'area', 'stamp'] },
+  { title: 'Рисование', tools: ['line', 'curve', 'area', 'rectangle', 'circle', 'text', 'stamp'] },
 ];
 
 function FieldToolArtwork({ kind }: { kind: Tool }) {
@@ -243,6 +286,34 @@ function FieldToolArtwork({ kind }: { kind: Tool }) {
           fill="#d5f0f5"
         />
       ) : null}
+      {kind === 'rectangle' ? (
+        <rect
+          x="8"
+          y="5"
+          width="40"
+          height="26"
+          rx="1"
+          fill="#e3f4fb"
+          stroke="#0c87ae"
+          strokeWidth="2.5"
+        />
+      ) : null}
+      {kind === 'circle' ? (
+        <circle cx="28" cy="18" r="13" fill="none" stroke="#0c87ae" strokeWidth="3" />
+      ) : null}
+      {kind === 'text' ? (
+        <text
+          x="28"
+          y="27"
+          textAnchor="middle"
+          fill="#0b789a"
+          fontSize="27"
+          fontWeight="800"
+          fontFamily="Arial"
+        >
+          T
+        </text>
+      ) : null}
       {kind === 'stamp' ? (
         <>
           <rect
@@ -304,16 +375,32 @@ export function RobotFieldEditor({
   const [stamp, setStamp] = useState<RoboticsTileStampKind>('straight');
   const [turns, setTurns] = useState(0);
   const [selection, setSelection] = useState<RoboticsObjectKey | null>(null);
+  const [objectEditorOpen, setObjectEditorOpen] = useState(false);
+  const [objectFlyout, setObjectFlyout] = useState({ x: 40, y: 12 });
+  const [tracePoints, setTracePoints] = useState<RoboticsPoint[]>([]);
+  const [traceCursor, setTraceCursor] = useState<RoboticsPoint | null>(null);
   const [draft, setDraft] = useState<RoboticsWorldDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [snap, setSnap] = useState(false);
   const [pan, setPan] = useState(false);
   const [zoomIndex, setZoomIndex] = useState(0);
+  const [fitAll, setFitAll] = useState(false);
   const [dropHover, setDropHover] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const jsonInputRef = useRef<HTMLInputElement>(null);
   const propertiesButton = useRef<HTMLButtonElement>(null);
   const inspectorObject = useRef<HTMLDivElement>(null);
+  const resizeDrag = useRef<{
+    pointerId: number;
+    svg: SVGSVGElement;
+    world: RoboticsWorldDocument;
+    kind: FieldResizeKind;
+    id: string;
+    part: FieldResizeHandle;
+    next: RoboticsWorldDocument;
+  } | null>(null);
   const drag = useRef<{
     pointerId: number;
     svg: SVGSVGElement;
@@ -323,14 +410,68 @@ export function RobotFieldEditor({
     next: RoboticsWorldDocument;
   } | null>(null);
   const extended = isRoboticsWorldV3(world);
-  const zoom = ZOOM_LEVELS[zoomIndex]!;
+  // At 5×5 m keep approximately the same visible robot size as the original 2×2 m field.
+  const baseScale = Math.max(1, world.field.widthMeters / 2.4, world.field.heightMeters / 2);
+  const zoom = ZOOM_LEVELS[zoomIndex]! * (fitAll ? 1 : baseScale);
   const selectedTool = TOOLS.find((item) => item.id === tool)!;
+
+  useEffect(() => {
+    if (!selection || !objectEditorOpen) return;
+    const root = canvasRef.current?.closest<HTMLElement>('.robotics-field-editor-body');
+    if (!root) return;
+    const position = () => {
+      const svg = canvasRef.current?.querySelector('svg.robotics-field');
+      const element = [...(svg?.querySelectorAll('[data-scene-key]') ?? [])].find(
+        (node) => node.getAttribute('data-scene-key') === selection,
+      );
+      const rootRect = root.getBoundingClientRect();
+      const objectRect = element?.getBoundingClientRect();
+      if (!objectRect) return;
+      const editorWidth =
+        (canvasRef.current?.getBoundingClientRect().right ?? rootRect.right) - rootRect.left;
+      const size = Math.min(300, editorWidth - 16);
+      const objectLeft = objectRect.left - rootRect.left;
+      const objectRight = objectRect.right - rootRect.left;
+      const rightSide = objectRight + 12;
+      const leftSide = objectLeft - size - 12;
+      // Never cover the selected object's resize handles when there is space beside it.
+      const x =
+        rightSide + size <= editorWidth - 8
+          ? rightSide
+          : leftSide >= 8
+            ? leftSide
+            : Math.max(8, Math.min(editorWidth - size - 8, objectLeft));
+      const maxPanelHeight = Math.min(320, rootRect.height * 0.6);
+      const y = Math.max(
+        8,
+        Math.min(rootRect.height - maxPanelHeight - 8, objectRect.top - rootRect.top - 20),
+      );
+      setObjectFlyout((old) =>
+        Math.abs(old.x - x) < 1 && Math.abs(old.y - y) < 1 ? old : { x, y },
+      );
+    };
+    const frame = requestAnimationFrame(position);
+    window.addEventListener('resize', position);
+    canvasRef.current?.addEventListener('scroll', position, { passive: true });
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(position);
+    observer?.observe(root);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', position);
+      canvasRef.current?.removeEventListener('scroll', position);
+      observer?.disconnect();
+    };
+  }, [selection, objectEditorOpen, world, zoom]);
 
   function releaseDrag() {
     const current = drag.current;
+    const resizing = resizeDrag.current;
     drag.current = null;
+    resizeDrag.current = null;
     if (current?.svg.hasPointerCapture?.(current.pointerId))
       current.svg.releasePointerCapture(current.pointerId);
+    if (resizing?.svg.hasPointerCapture?.(resizing.pointerId))
+      resizing.svg.releasePointerCapture(resizing.pointerId);
     setDraft(null);
   }
   useEffect(() => {
@@ -362,19 +503,12 @@ export function RobotFieldEditor({
     setError(null);
     return true;
   }
-  function select(key: RoboticsObjectKey) {
-    setSelection(canonicalRoboticsObjectKey(world, key));
-    setPropertiesOpen(true);
-    setTool('select');
-    setPan(false);
-    setError(null);
-  }
   function selectAdded(key: RoboticsObjectKey) {
     setSelection(key);
-    setPropertiesOpen(true);
+    setObjectEditorOpen(true);
     setTool('select');
     setPan(false);
-    requestAnimationFrame(() => inspectorObject.current?.scrollIntoView({ block: 'nearest' }));
+    requestAnimationFrame(() => inspectorObject.current?.scrollTo({ top: 0 }));
   }
   const dynamicCount = world.field.balls.length + (world.field.bodies?.length ?? 0);
   function isMaxed(kind: Tool): boolean {
@@ -382,6 +516,8 @@ export function RobotFieldEditor({
     if (kind === 'ball' || kind === 'can' || kind === 'box')
       return dynamicCount >= ROBOTICS_SCENE_LIMITS.dynamicBodies;
     if (kind === 'select') return false;
+    if (kind === 'rectangle' || kind === 'circle' || kind === 'text')
+      return (world.field.visuals?.length ?? 0) >= ROBOTICS_SCENE_LIMITS.visuals;
     return (
       world.field.floorMarks.length +
         (kind === 'stamp' && (stamp === 'cross' || stamp === 't-junction') ? 2 : 1) >
@@ -469,8 +605,166 @@ export function RobotFieldEditor({
     const svg = canvasRef.current?.querySelector<SVGSVGElement>('svg.robotics-field');
     if (!selected || !svg) return;
     const position = pointOnField(svg, event.clientX, event.clientY, world);
-    if (position) add(position, selected.id);
+    if (position) {
+      if (selected.id === 'line' || selected.id === 'curve') {
+        setTool(selected.id);
+        setTracePoints([position]);
+        setTraceCursor(null);
+      } else add(position, selected.id);
+    }
   }
+  const clearTrace = () => {
+    setTracePoints([]);
+    setTraceCursor(null);
+  };
+  function finishTrace() {
+    if (tool !== 'line' || tracePoints.length < 2) {
+      clearTrace();
+      return;
+    }
+    const points = tracePoints.filter(
+      (point, index) =>
+        index === 0 ||
+        Math.hypot(
+          point.xMeters - tracePoints[index - 1]!.xMeters,
+          point.yMeters - tracePoints[index - 1]!.yMeters,
+        ) >= 0.02,
+    );
+    if (points.length < 2) return clearTrace();
+    if (points.length - 1 + world.field.floorMarks.length > ROBOTICS_SCENE_LIMITS.floorMarks) {
+      setError('Достигнут лимит линий. Удалите лишние элементы разметки.');
+      return;
+    }
+    const groupId = points.length > 2 ? nextRoboticsObjectId(world, 'line-group') : undefined;
+    let next = world;
+    let firstId = '';
+    for (let i = 1; i < points.length; i += 1) {
+      const id = nextRoboticsObjectId(next, 'line');
+      if (!firstId) firstId = id;
+      const mark: RoboticsFloorMark = {
+        id,
+        kind: 'line',
+        label: 'Линия',
+        start: points[i - 1]!,
+        end: points[i]!,
+        widthMeters: 0.02,
+        color: '#1e293b',
+        ...(groupId ? { groupId, groupPivot: points[0]! } : {}),
+      };
+      next = {
+        ...next,
+        field: {
+          ...next.field,
+          floorMarks: [...next.field.floorMarks, mark],
+        },
+      };
+    }
+    if (commit(next)) {
+      setSelection((groupId ? 'mark-group:' + groupId : 'mark:' + firstId) as RoboticsObjectKey);
+      setObjectEditorOpen(true);
+      setTool('select');
+      clearTrace();
+    }
+  }
+  function handleTracePoint(point: RoboticsPoint) {
+    if (
+      point.xMeters < 0 ||
+      point.yMeters < 0 ||
+      point.xMeters > world.field.widthMeters ||
+      point.yMeters > world.field.heightMeters
+    )
+      return;
+    if (tool === 'line') {
+      if (
+        tracePoints.length &&
+        Math.hypot(
+          point.xMeters - tracePoints[tracePoints.length - 1]!.xMeters,
+          point.yMeters - tracePoints[tracePoints.length - 1]!.yMeters,
+        ) < 0.02
+      )
+        return;
+      setTracePoints((points) => [...points, point]);
+      setTraceCursor(null);
+      return;
+    }
+    if (tool === 'curve') {
+      if (tracePoints.length < 2) {
+        setTracePoints((points) => [...points, point]);
+        setTraceCursor(null);
+        return;
+      }
+      const id = nextRoboticsObjectId(world, 'curve');
+      const curve: RoboticsFloorMark = {
+        ...createRoboticsCurve(id, tracePoints[0]!),
+        start: tracePoints[0]!,
+        control: tracePoints[1]!,
+        end: point,
+      };
+      const next = {
+        ...world,
+        field: {
+          ...world.field,
+          floorMarks: [...world.field.floorMarks, curve],
+        },
+      };
+      if (commit(next)) {
+        setSelection(('mark:' + id) as RoboticsObjectKey);
+        setObjectEditorOpen(true);
+        setTool('select');
+        clearTrace();
+      }
+    }
+  }
+
+  async function addImageFile(file: File) {
+    if (running) return;
+    try {
+      const result = await optimizeFieldImage(file);
+      const visual = createImageVisual(world, result.data, result.width, result.height);
+      const next = {
+        ...world,
+        field: {
+          ...world.field,
+          visuals: [...(world.field.visuals ?? []), visual],
+        },
+      };
+      if (commit(next)) selectAdded(('decoration:' + visual.id) as RoboticsObjectKey);
+    } catch (error) {
+      fail(error);
+    }
+  }
+  async function readFieldFile(file: File) {
+    if (running) return;
+    if (file.size > MAX_FIELD_JSON_BYTES) return fail(new Error('JSON поля больше 500 КБ.'));
+    try {
+      const next = importRoboticsField(world, await file.text());
+      if (
+        !window.confirm(
+          'Заменить только размеры, рисунки и предметы поля из JSON? Электроника, код и конструкция робота останутся прежними.',
+        )
+      )
+        return;
+      if (commit(next)) {
+        setSelection(null);
+        setObjectEditorOpen(false);
+        clearTrace();
+      }
+    } catch (error) {
+      fail(error);
+    }
+  }
+  function exportFieldFile() {
+    const blob = new Blob([exportRoboticsField(world)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'asa-lab-pole.json';
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
   function moved(current: NonNullable<typeof drag.current>, point: RoboticsPoint) {
     const dx = point.xMeters - current.start.xMeters,
       dy = point.yMeters - current.start.yMeters;
@@ -487,6 +781,7 @@ export function RobotFieldEditor({
         : (field.obstacles.find((item) => current.key === `wall:${item.id}`) ??
           field.balls.find((item) => current.key === `ball:${item.id}`) ??
           field.bodies?.find((item) => current.key === `body:${item.id}`) ??
+          field.visuals?.find((item) => current.key === `decoration:${item.id}`) ??
           (mark?.groupPivot
             ? {
                 xMeters: mark.groupPivot.xMeters - step / 2,
@@ -508,9 +803,31 @@ export function RobotFieldEditor({
     if (running || pan || event.button !== 0 || !event.isPrimary) return;
     const point = pointerPosition(event, world);
     if (!point) return;
+    const handle = (event.target as Element).closest('[data-vector-handle]');
+    if (handle && tool === 'select') {
+      const kind = handle.getAttribute('data-vector-kind') as FieldResizeKind | null;
+      const part = handle.getAttribute('data-vector-handle') as FieldResizeHandle | null;
+      const id = handle.getAttribute('data-vector-id');
+      if (kind && part && id) {
+        event.preventDefault();
+        resizeDrag.current = {
+          pointerId: event.pointerId,
+          svg: event.currentTarget,
+          world,
+          kind,
+          id,
+          part,
+          next: world,
+        };
+        setObjectEditorOpen(false);
+        event.currentTarget.setPointerCapture(event.pointerId);
+        return;
+      }
+    }
     if (tool !== 'select') {
       event.preventDefault();
-      add(point);
+      if (tool === 'line' || tool === 'curve') handleTracePoint(point);
+      else add(point);
       return;
     }
     const target = (event.target as Element).closest('[data-scene-key]');
@@ -523,7 +840,7 @@ export function RobotFieldEditor({
     event.preventDefault();
     setSelection(key);
     setError(null);
-    setPropertiesOpen(false);
+    setObjectEditorOpen(false);
     drag.current = {
       pointerId: event.pointerId,
       svg: event.currentTarget,
@@ -535,6 +852,29 @@ export function RobotFieldEditor({
     event.currentTarget.setPointerCapture(event.pointerId);
   }
   function pointerMove(event: PointerEvent<SVGSVGElement>) {
+    const resizing = resizeDrag.current;
+    if (resizing && resizing.pointerId === event.pointerId && !running) {
+      const point = pointerPosition(event, resizing.world);
+      if (!point) return;
+      try {
+        resizing.next = resizeRoboticsFieldHandle(
+          resizing.world,
+          resizing.kind,
+          resizing.id,
+          resizing.part,
+          point,
+        );
+        setDraft(resizing.next);
+        setError(null);
+      } catch (error) {
+        fail(error);
+      }
+      return;
+    }
+    if (!running && (tool === 'line' || tool === 'curve') && tracePoints.length) {
+      setTraceCursor(pointerPosition(event, world));
+      return;
+    }
     const current = drag.current;
     if (!current || current.pointerId !== event.pointerId || running) return;
     const point = pointerPosition(event, current.world);
@@ -548,6 +888,25 @@ export function RobotFieldEditor({
     }
   }
   function pointerUp(event: PointerEvent<SVGSVGElement>) {
+    const resizing = resizeDrag.current;
+    if (resizing && resizing.pointerId === event.pointerId) {
+      const point = pointerPosition(event, resizing.world);
+      releaseDrag();
+      if (!point || running || resizing.world !== world) return;
+      try {
+        const next = resizeRoboticsFieldHandle(
+          resizing.world,
+          resizing.kind,
+          resizing.id,
+          resizing.part,
+          point,
+        );
+        if (commit(next)) setObjectEditorOpen(true);
+      } catch (error) {
+        fail(error);
+      }
+      return;
+    }
     const current = drag.current;
     if (!current || current.pointerId !== event.pointerId) return;
     const point = pointerPosition(event, current.world);
@@ -558,7 +917,7 @@ export function RobotFieldEditor({
       Math.hypot(point.xMeters - current.start.xMeters, point.yMeters - current.start.yMeters) <
         0.003
     ) {
-      setPropertiesOpen(true);
+      setObjectEditorOpen(true);
       return;
     }
     try {
@@ -572,7 +931,7 @@ export function RobotFieldEditor({
     try {
       if (commit(removeRoboticsObject(world, selection))) {
         setSelection(null);
-        setPropertiesOpen(false);
+        setObjectEditorOpen(false);
         if (propertiesButton.current?.getClientRects().length)
           requestAnimationFrame(() => propertiesButton.current?.focus());
       }
@@ -616,12 +975,29 @@ export function RobotFieldEditor({
     fail(lastError);
   }
   function fit() {
+    setFitAll(true);
     setZoomIndex(0);
     if (canvasRef.current) {
       canvasRef.current.scrollTop = 0;
       canvasRef.current.scrollLeft = 0;
     }
   }
+  useEffect(() => {
+    if (baseScale <= 1 || fitAll) return;
+    const handle = requestAnimationFrame(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const x = (world.initialPose.xMeters / world.field.widthMeters) * canvas.scrollWidth;
+      const y =
+        ((world.field.heightMeters - world.initialPose.yMeters) / world.field.heightMeters) *
+        canvas.scrollHeight;
+      canvas.scrollLeft = Math.max(0, x - canvas.clientWidth * 0.35);
+      canvas.scrollTop = Math.max(0, y - canvas.clientHeight * 0.5);
+    });
+    return () => cancelAnimationFrame(handle);
+    // Only initial field size / zoom changes reframe; object edits never re-scroll the user.
+  }, [world.field.widthMeters, world.field.heightMeters, baseScale, fitAll]);
+
   function closeProperties() {
     setPropertiesOpen(false);
     requestAnimationFrame(() => propertiesButton.current?.focus());
@@ -645,6 +1021,10 @@ export function RobotFieldEditor({
     ...(world.field.bodies ?? []).map((item) => ({
       key: `body:${item.id}` as const,
       label: `${item.label ?? (item.kind === 'can' ? 'Банка' : 'Брусок')} · ${item.id}`,
+    })),
+    ...(world.field.visuals ?? []).map((item) => ({
+      key: `decoration:${item.id}` as const,
+      label: `${item.label ?? item.kind} · ${item.id}`,
     })),
     ...world.field.floorMarks.flatMap((item) => {
       if (item.groupId) {
@@ -782,16 +1162,32 @@ export function RobotFieldEditor({
           role="group"
           aria-label="Полотно поля"
           data-pan={pan}
+          data-drawing={tracePoints.length > 0}
           data-drop-hover={dropHover}
+          onClick={(event) => {
+            if (running || pan || tool !== 'select') return;
+            const target = (event.target as Element).closest('[data-scene-key]');
+            const key = target?.getAttribute('data-scene-key') as RoboticsObjectKey | null;
+            if (key) {
+              setSelection(canonicalRoboticsObjectKey(world, key));
+              setObjectEditorOpen(true);
+            }
+          }}
           onDragOver={dragOverCanvas}
           onDragLeave={() => setDropHover(false)}
           onDrop={dropOnCanvas}
           onKeyDown={(event) => {
             if (event.target !== event.currentTarget) return;
             if (event.key === 'Escape') {
+              clearTrace();
               releaseDrag();
               setTool('select');
               setPan(false);
+            }
+            if (event.key === 'Enter' && tool === 'line') {
+              event.preventDefault();
+              finishTrace();
+              return;
             }
             if (event.key === 'Home') {
               event.preventDefault();
@@ -827,6 +1223,17 @@ export function RobotFieldEditor({
               onPointerUp={pointerUp}
               onPointerCancel={releaseDrag}
               onLostPointerCapture={releaseDrag}
+              onContextMenu={(event) => {
+                if (tool !== 'line' && tool !== 'curve') return;
+                event.preventDefault();
+                if (tool === 'line') finishTrace();
+                else clearTrace();
+              }}
+              draftStroke={
+                (tool === 'line' || tool === 'curve') && tracePoints.length
+                  ? { kind: tool, points: tracePoints, cursor: traceCursor }
+                  : null
+              }
             />
           </div>
         </div>
@@ -886,6 +1293,7 @@ export function RobotFieldEditor({
                         }}
                         onClick={() => {
                           releaseDrag();
+                          clearTrace();
                           setTool(kind);
                           setPan(false);
                           setError(null);
@@ -904,16 +1312,85 @@ export function RobotFieldEditor({
               </section>
             ))}
           </div>
+          <section
+            className="robotics-field-palette-section robotics-field-import-section"
+            aria-label="Файлы поля"
+          >
+            <h3>Файлы поля</h3>
+            <div className="robotics-field-file-actions">
+              <button
+                type="button"
+                title="Загрузить изображение PNG, JPEG или WebP"
+                disabled={running}
+                aria-label="Добавить изображение"
+                onClick={() => imageInputRef.current?.click()}
+              >
+                <span aria-hidden="true">▧</span>
+                <span>Картинка</span>
+              </button>
+              <button
+                type="button"
+                title="Заменить поле из локального JSON, сохранив робота, электронику и код"
+                disabled={running}
+                aria-label="Импортировать поле JSON"
+                onClick={() => jsonInputRef.current?.click()}
+              >
+                <span aria-hidden="true">{'{ }'}</span>
+                <span>Импорт JSON</span>
+              </button>
+              <button
+                type="button"
+                title="Скачать поле и предметы в JSON"
+                aria-label="Экспортировать поле JSON"
+                onClick={exportFieldFile}
+              >
+                <span aria-hidden="true">⇩</span>
+                <span>Сохранить JSON</span>
+              </button>
+            </div>
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="robotics-visually-hidden"
+              tabIndex={-1}
+              aria-label="Файл изображения поля"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (file) void addImageFile(file);
+              }}
+            />
+            <input
+              ref={jsonInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="robotics-visually-hidden"
+              tabIndex={-1}
+              aria-label="Файл JSON поля"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (file) void readFieldFile(file);
+              }}
+            />
+          </section>
           {!running && tool !== 'select' ? (
             <div className="robotics-field-palette-action">
               <span role="status">
                 {maxed
                   ? 'Лимит элементов достигнут'
-                  : 'Выбран: ' + selectedTool.label + '. Нажмите на поле.'}
+                  : tool === 'line'
+                    ? 'Щелкните точки линии, правой кнопкой мыши или Enter завершите. Esc отменит.'
+                    : tool === 'curve'
+                      ? 'Кривая: начало → точка изгиба → конец (три щелчка).'
+                      : 'Выбран: ' + selectedTool.label + '. Нажмите на поле.'}
               </span>
-              <button type="button" disabled={maxed} onClick={() => add()}>
-                Добавить
-              </button>
+              {tool !== 'line' && tool !== 'curve' ? (
+                <button type="button" disabled={maxed} onClick={() => add()}>
+                  Добавить
+                </button>
+              ) : null}
             </div>
           ) : null}
           {!running && tool === 'stamp' ? (
@@ -953,36 +1430,45 @@ export function RobotFieldEditor({
               onPresetApplied={() => setSelection(null)}
             />
           </details>
-          <h3 className="robotics-object-list-heading">
-            На поле <span>{objects.length - 1}</span>
-          </h3>
-          <div className="robotics-object-list" aria-label="Объекты поля">
-            {objects.map((item) => (
+        </aside>
+        {selection && objectEditorOpen && objects.some((item) => item.key === selection) ? (
+          <div
+            ref={inspectorObject}
+            className="robotics-field-object-flyout"
+            role="dialog"
+            aria-label="Параметры выбранного объекта"
+            style={{ left: objectFlyout.x, top: objectFlyout.y }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation();
+                setObjectEditorOpen(false);
+              }
+            }}
+          >
+            <div className="robotics-object-flyout-header">
+              <strong>
+                {objects.find((item) => item.key === selection)?.label?.split(' · ')[0] ?? 'Объект'}
+              </strong>
               <button
                 type="button"
-                key={item.key}
-                aria-pressed={selection === item.key}
-                onClick={() => select(item.key)}
+                aria-label="Закрыть параметры объекта"
+                onClick={() => setObjectEditorOpen(false)}
               >
-                {item.label}
+                ×
               </button>
-            ))}
-          </div>
-          {selection && objects.some((item) => item.key === selection) ? (
-            <div ref={inspectorObject}>
-              <RobotObjectInspector
-                world={world}
-                selection={selection}
-                running={running}
-                onCommit={commit}
-                onError={setError}
-                onRotate={rotate}
-                onDuplicate={duplicate}
-                onRemove={remove}
-              />
             </div>
-          ) : null}
-        </aside>
+            <RobotObjectInspector
+              world={world}
+              selection={selection}
+              running={running}
+              onCommit={commit}
+              onError={setError}
+              onRotate={rotate}
+              onDuplicate={duplicate}
+              onRemove={remove}
+            />
+          </div>
+        ) : null}
       </div>
     </>
   );

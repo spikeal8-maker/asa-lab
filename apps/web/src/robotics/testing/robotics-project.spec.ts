@@ -255,7 +255,13 @@ describe('Robotics project built from the real Electronics catalogue', () => {
   });
 
   it('migrates only M0 omissions and retains the exact legacy source and circuit', () => {
-    const original = createDefaultRoboticsProject();
+    // Legacy v2 fields remain within historical 2.4m bounds; only new v3 projects default to 5m.
+    const initial = createDefaultRoboticsProject();
+    const original = {
+      ...initial,
+      schemaVersion: 2 as const,
+      world: createRoboticsWorldDocument('practice'),
+    };
     const legacy = JSON.parse(JSON.stringify(original));
     legacy.schemaVersion = 1;
     delete legacy.world.physicsProfile;
