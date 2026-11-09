@@ -1132,6 +1132,87 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(failed.result!.diagnostics.map((entry) => entry.code)).toContain('component_failed');
   });
 
+  it('runs an Uno-powered photoresistor on the thermal clock and carries burnout forward', () => {
+    const ldr = { ...part('ldr', 'photoresistor', 0), stateProperties: { illumination: 1 } };
+    const doc = circuit(
+      [board('uno', 'void setup(){}void loop(){delay(100);}'), ldr],
+      [
+        ['uno', 'power-5v', 'ldr', 'a'],
+        ['ldr', 'b', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const early = through(doc, 5_000);
+    expect(early.executionStatus).toBe('ready');
+    expect(early.state?.profile).toBe('electrothermal-v1');
+    const observation = early.result!.components.find((entry) => entry.componentId === 'ldr')!;
+    expect(observation.powerUtilizationPercent).toBeGreaterThan(100);
+    expect(observation.accumulatedDamagePercent).toBeLessThan(1);
+    const physical = early.state!.physicalState!;
+    // Resume near the end of sustained overload so this test need not replay
+    // tens of thousands of 1 ms barriers for a mildly overloaded sensor.
+    const nearFailure: ArduinoCircuitClockState = {
+      ...early.state!,
+      physicalState: {
+        ...physical,
+        thermal: physical.thermal.map((entry) =>
+          entry.componentId === 'ldr' ? { ...entry, accumulatedDamage: 0.99999 } : entry,
+        ),
+      },
+    };
+    const failed = through(doc, 15_000, nearFailure);
+    expect(failed.executionStatus).toBe('ready');
+    expect(failed.result!.components.find((entry) => entry.componentId === 'ldr')).toMatchObject({
+      current: 0,
+      deviceHealth: 'failed_open',
+    });
+    const dimmed = through(doc, 20_000, failed.state!, [
+      { atMicroseconds: 16_000, componentId: 'ldr', property: 'illumination', value: 0 },
+    ]);
+    expect(dimmed.state?.reachedMicroseconds).toBe(20_000);
+    expect(dimmed.result!.components.find((entry) => entry.componentId === 'ldr')).toMatchObject({
+      current: 0,
+      deviceHealth: 'failed_open',
+    });
+  });
+
+  it('samples live photoresistor light through a safe Uno divider on the same clock', () => {
+    const doc = circuit(
+      [
+        board('uno', 'int reading;void setup(){}void loop(){reading=analogRead(A0);delay(1);}'),
+        { ...part('ldr', 'photoresistor', 0), stateProperties: { illumination: 0 } },
+        part('sense', 'resistor', 10_000),
+      ],
+      [
+        ['uno', 'power-5v', 'ldr', 'a'],
+        ['ldr', 'b', 'sense', 'a'],
+        ['ldr', 'b', 'uno', 'a0'],
+        ['sense', 'b', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const dark = through(doc, 5_000);
+    expect(dark.state?.profile).toBe('electrothermal-v1');
+    const inputs: readonly ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 6_000, componentId: 'ldr', property: 'illumination', value: 1 },
+      { atMicroseconds: 12_000, componentId: 'ldr', property: 'illumination', value: 0 },
+    ];
+    const bright = through(doc, 10_000, dark.state!, inputs.slice(0, 1));
+    const darkAgain = through(doc, 16_000, bright.state!, inputs);
+    const whole = through(doc, 16_000, undefined, inputs);
+    expect(darkAgain.state?.reachedMicroseconds).toBe(16_000);
+    expect(darkAgain.result).toStrictEqual(whole.result);
+    expect(darkAgain.state).toStrictEqual(whole.state);
+    expect(runtime(bright).variables.reading).toBeGreaterThan(900);
+    expect(runtime(dark).variables.reading).toBeLessThan(20);
+    expect(runtime(darkAgain).variables.reading).toBe(runtime(dark).variables.reading);
+    for (const sample of [dark, bright, darkAgain]) {
+      expect(sample.result?.quality.passed).toBe(true);
+      expect(sample.result!.components.find((entry) => entry.componentId === 'ldr')).toMatchObject({
+        deviceHealth: 'normal',
+        accumulatedDamagePercent: 0,
+      });
+    }
+  });
+
   it('rejects malformed continuation before any carried GPIO is used as a source', () => {
     const doc = buttonCircuit();
     const valid = through(doc, 10).state!;

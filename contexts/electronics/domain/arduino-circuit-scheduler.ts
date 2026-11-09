@@ -126,6 +126,7 @@ const ELECTROTHERMAL_MODELS = new Set([
   'pnp-transistor',
   'n-channel-fet',
   'incandescent-lamp',
+  'photoresistor',
   'dc-motor',
   'regulated-dc-supply',
 ]);
