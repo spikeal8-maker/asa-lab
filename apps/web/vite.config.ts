@@ -305,8 +305,11 @@ export default defineConfig(({ command }) => {
             if (id.includes('/contexts/electronics/domain/arduino-block-support.')) {
               return 'electronics-block-support';
             }
-            // Pure rendering topology must not be absorbed into the solver chunk.
-            if (id.includes('/contexts/electronics/domain/switch-topology.')) {
+            // Pure rendering topology and controls are also read by the public
+            // viewer, so keep them outside the solver chunk.
+            if (
+              /\/contexts\/electronics\/domain\/(?:switch-topology|photoresistor-input)\./.test(id)
+            ) {
               return 'electronics-rendering-topology';
             }
             // Shared storage and CommonJS interop are also used on Home. Keep

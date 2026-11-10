@@ -1775,6 +1775,7 @@ export interface ComponentResult {
   thermalLoadPercent?: number;
   accumulatedDamagePercent?: number;
   effectiveResistanceOhm?: number;
+  illuminanceLux?: number;
   ratedVoltageVolt?: number;
   ratedCurrentAmp?: number;
   ratedPowerWatt?: number;
