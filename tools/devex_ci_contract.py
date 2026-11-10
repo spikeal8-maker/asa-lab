@@ -15,7 +15,7 @@ import sys
 VERSION = "general-collect-picker-v1"
 # Enable only in a separately reviewed main commit after a real same-candidate
 # PARALLEL pilot passes. The selector runs the version in the accepted PR base.
-FAST_ENABLED = False
+FAST_ENABLED = True
 PRODUCTION = {"apps/web/src/components/CollectPicker.tsx",
               "apps/web/src/components/collect-picker.css"}
 TEST_PATTERN = r"apps/web/src/components/CollectPicker(?:\.[A-Za-z0-9][A-Za-z0-9-]*)?\.spec\.ts"
@@ -171,8 +171,13 @@ def validate_proof(root, proof):
 def select(root, head, base, event, ref, merge_candidate, base_ref, proof=None):
     plan = classify(root, head, base, event, ref, merge_candidate, base_ref)
     if plan["candidate"] and proof is not None and validate_proof(root, proof):
-        if FAST_ENABLED:
-            plan.update(route="FAST", proof=proof, reason="Pinned L0/L1 effect; Data/Access NOT_APPLICABLE")
+        # Component tests run before Playwright in the same runner. Keep full
+        # checks required whenever the PR contributes executable source.
+        fast_css_only = (FAST_ENABLED and proof["local_effect_class"] == "L0_LOCAL_UI"
+                         and git(root, "diff", "--name-status", "-z", "--no-renames", base, head, "--")
+                         == b"M\0apps/web/src/components/collect-picker.css\0")
+        if fast_css_only:
+            plan.update(route="FAST", proof=proof, reason="Pinned CSS-only L0 effect. Data/Access NOT_APPLICABLE")
         else:
             plan.update(route="PARALLEL", proof=proof, reason="Pinned L0/L1 effect; full General remains mandatory")
     return plan

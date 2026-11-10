@@ -70,8 +70,8 @@ class GeneralContractTests(unittest.TestCase):
                             "commit-tree", (treeish or self.head) + "^{tree}",
                             "-p", base, "-p", head, "-m", "event merge candidate")
 
-    def proof(self):
-        tests = ["apps/web/src/components/CollectPicker.spec.ts"]
+    def proof(self, added_tests=()):
+        tests = sorted(["apps/web/src/components/CollectPicker.spec.ts", *added_tests])
         paths = sorted([*contract.PRODUCTION, *tests, *contract.BROWSER_INPUTS])
         digest = hashlib.sha256()
         for name in paths:
@@ -236,6 +236,34 @@ class GeneralContractTests(unittest.TestCase):
                 needs[job]["result"] = "skipped"
                 with mock.patch.object(contract, "validate_plan"):
                     self.assertNotEqual(self.summarize(plan, needs)["status"], "PASS")
+
+    def test_fast_requires_exact_css_diff_even_with_claimed_l0_proof(self):
+        with mock.patch.object(contract, "FAST_ENABLED", True):
+            css_only = self.plan()
+            self.assertEqual(css_only["route"], "FAST")
+
+            def require_parallel(proof):
+                plan = self.plan(proof=proof)
+                self.assertEqual(plan["route"], "PARALLEL")
+                forged = {**plan, "route": "FAST", "reason": css_only["reason"]}
+                with self.assertRaisesRegex(ValueError, "forged or stale plan"):
+                    self.summarize(forged, self.needs(forged))
+
+            added = "apps/web/src/components/CollectPicker.added.spec.ts"
+            existing = self.root / "apps/web/src/components/CollectPicker.spec.ts"
+            (self.root / added).write_bytes(existing.read_bytes())
+            self.head = self.commit()
+            require_parallel(self.proof([added]))
+
+            component = self.root / "apps/web/src/components/CollectPicker.tsx"
+            source = component.read_text(encoding="utf-8")
+            l1_source = source.replace('role="dialog"', 'role="dialog" aria-busy={busy}', 1)
+            self.assertNotEqual(l1_source, source)
+            component.write_text(l1_source, encoding="utf-8")
+            self.head = self.commit()
+            for effect in ("L1_UI_BEHAVIOR", "L0_LOCAL_UI"):
+                with self.subTest(effect=effect):
+                    require_parallel({**self.proof([added]), "local_effect_class": effect})
 
     def test_missing_full_release_jobs_and_fast_evidence_never_pass(self):
         full = self.plan("push", "refs/heads/main")
