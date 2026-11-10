@@ -1267,6 +1267,11 @@ export function RobotFieldEditor({
           id="robotics-field-catalog"
           className="robotics-scene-inspector"
           aria-label="Свойства поля и предмета"
+          onFocusCapture={() => {
+            // Field controls cannot be used while a floating object inspector
+            // obscures them, especially on 320-390px screens.
+            setObjectEditorOpen(false);
+          }}
           onKeyDown={(event) => {
             if (event.key === 'Escape' && propertiesButton.current?.getClientRects().length) {
               event.stopPropagation();

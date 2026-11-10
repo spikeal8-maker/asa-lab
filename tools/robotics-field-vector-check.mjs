@@ -110,7 +110,11 @@ try {
   await page.screenshot({ path: join(out, 'rectangle-settings-1440.png'), fullPage: false });
   checks.push('context popup, vector handles');
   console.log('PASS contextual settings over field + vector resize controls');
-  await selected.getByRole('button', { name: 'Закрыть параметры объекта' }).click();
+  await page.locator('.robotics-field-settings-sheet > summary').focus();
+  await expect(selected).toHaveCount(0);
+  checks.push('field settings focus dismisses object popup');
+  console.log('PASS field setting focus dismisses overlapping object popup');
+
   await revertOne('.robotics-field-canvas [data-object-kind="rectangle"]', initialRect);
 
   const circle = page.locator('.robotics-field-canvas [data-object-kind="circle"]');
