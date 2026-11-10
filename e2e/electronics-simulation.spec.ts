@@ -10708,7 +10708,9 @@ test('GMIN power accounting keeps a high-resistance divider running through Save
         .press('Enter');
       const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
       await expect(inspector.getByLabel('Единица сопротивления')).toHaveValue('MΩ');
-      await expect(inspector.getByLabel('Сопротивление', { exact: true })).toHaveValue('1');
+      await expect(inspector.locator('.workbench-value-field input[type="number"]')).toHaveValue(
+        '1',
+      );
       await page.screenshot({ path: `${ARTIFACT_DIR}/gmin-power-reopened.png`, fullPage: true });
     }
     await page.getByRole('button', { name: 'Остановить моделирование' }).click();
@@ -10733,7 +10735,9 @@ test('GMIN power accounting keeps a high-resistance divider running through Save
         );
       });
       await inspector.getByLabel('Единица сопротивления').selectOption('MΩ');
-      await expect(inspector.getByLabel('Сопротивление', { exact: true })).toHaveValue('1');
+      await expect(inspector.locator('.workbench-value-field input[type="number"]')).toHaveValue(
+        '1',
+      );
       await saveEditorNow(page);
       expect((await savedWrite).status()).toBe(200);
       const response = await page.context().request.get(`/api/projects/${projectId}`, {
