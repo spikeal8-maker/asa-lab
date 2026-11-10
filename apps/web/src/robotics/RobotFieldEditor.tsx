@@ -388,6 +388,12 @@ export function RobotFieldEditor({
   const [fitAll, setFitAll] = useState(false);
   const [dropHover, setDropHover] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+  // Upload decoding is async; reject stale completions rather than replacing
+  // changes made on the field while the browser processes an image or JSON.
+  const latestWorldRef = useRef(world);
+  latestWorldRef.current = world;
+  const latestRunningRef = useRef(running);
+  latestRunningRef.current = running;
   const imageInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const propertiesButton = useRef<HTMLButtonElement>(null);
@@ -718,9 +724,14 @@ export function RobotFieldEditor({
 
   async function addImageFile(file: File) {
     if (running) return;
+    const sourceWorld = world;
     try {
       const result = await optimizeFieldImage(file);
-      const visual = createImageVisual(world, result.data, result.width, result.height);
+      if (latestWorldRef.current !== sourceWorld || latestRunningRef.current) {
+        setError('Поле изменилось во время загрузки картинки. Выберите файл повторно.');
+        return;
+      }
+      const visual = createImageVisual(sourceWorld, result.data, result.width, result.height);
       const next = {
         ...world,
         field: {
@@ -735,9 +746,15 @@ export function RobotFieldEditor({
   }
   async function readFieldFile(file: File) {
     if (running) return;
+    const sourceWorld = world;
     if (file.size > MAX_FIELD_JSON_BYTES) return fail(new Error('JSON поля больше 500 КБ.'));
     try {
-      const next = importRoboticsField(world, await file.text());
+      const source = await file.text();
+      if (latestWorldRef.current !== sourceWorld || latestRunningRef.current) {
+        setError('Поле изменилось во время чтения JSON. Выберите файл повторно.');
+        return;
+      }
+      const next = importRoboticsField(sourceWorld, source);
       if (
         !window.confirm(
           'Заменить только размеры, рисунки и предметы поля из JSON? Электроника, код и конструкция робота останутся прежними.',

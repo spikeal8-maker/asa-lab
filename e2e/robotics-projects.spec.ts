@@ -118,6 +118,18 @@ async function openFieldSettings(page: Page): Promise<void> {
     await settings.locator(':scope > summary').click();
 }
 
+/** Select the real scene object, not the removed right-hand object list.
+ * This exercises the new floating editor and keeps all object invariants. */
+async function selectFieldObject(page: Page, key: string): Promise<void> {
+  const closeCatalog = page.getByRole('button', { name: 'Закрыть каталог элементов' });
+  if (await closeCatalog.isVisible()) await closeCatalog.click();
+  await page.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
+  const shape = page.locator('#robotics-panel-field [data-scene-key="' + key + '"]').first();
+  await expect(shape).toBeVisible();
+  await shape.click();
+  await expect(page.getByRole('dialog', { name: 'Параметры выбранного объекта' })).toBeVisible();
+}
+
 async function numberField(page: Page, label: string, value: number): Promise<void> {
   const field = page.getByRole('spinbutton', { name: label, exact: true });
   if (!(await field.isVisible())) await openFieldSettings(page);
@@ -408,7 +420,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
 
   // The supported field's tallest aspect ratio is 0.8 × 2.4 metres. Remove the
   // starter wall through the inspector before narrowing its authored geometry.
-  await page.getByRole('button', { name: 'Стена · barrier', exact: true }).click();
+  await selectFieldObject(page, 'wall:barrier');
   await page.getByRole('button', { name: 'Удалить предмет', exact: true }).click();
   await numberField(page, 'Высота поля', 2.4);
   await numberField(page, 'Ширина поля', 0.8);
@@ -767,7 +779,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
   await expect(page.getByRole('combobox', { name: 'Режим физики', exact: true })).toHaveValue(
     'dynamic',
   );
-  await page.getByRole('button', { name: 'Стена · barrier', exact: true }).click();
+  await selectFieldObject(page, 'wall:barrier');
   await page.getByRole('button', { name: 'Удалить предмет', exact: true }).click();
   await page
     .locator('summary')
@@ -806,6 +818,42 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
       .getByTestId('robotics-field-palette')
       .getByRole('button', { name: label, exact: true })
       .click();
+    // Lines and curves are drawn directly on the SVG canvas, not inserted
+    // through the ordinary object "Добавить" button.
+    if (label === 'Линия' || label === 'Кривая') {
+      const canvas = page.locator('.robotics-field-canvas svg.robotics-field');
+      const bounds = await canvas.boundingBox();
+      expect(bounds).not.toBeNull();
+      const click = async (x: number, y: number, button: 'left' | 'right' = 'left') =>
+        page.mouse.click(bounds!.x + bounds!.width * x, bounds!.y + bounds!.height * y, {
+          button,
+        });
+      if (label === 'Линия') {
+        const before = await page
+          .locator('#robotics-panel-field [data-object-kind="line"]')
+          .count();
+        await click(0.18, 0.74);
+        await click(0.47, 0.74);
+        await click(0.47, 0.74, 'right'); // finish the authored polyline
+        await expect(page.locator('#robotics-panel-field [data-object-kind="line"]')).toHaveCount(
+          before + 1,
+        );
+      } else {
+        const before = await page
+          .locator('#robotics-panel-field [data-object-kind="curve"]')
+          .count();
+        await click(0.2, 0.48); // start
+        await click(0.35, 0.37); // Bézier control
+        await click(0.52, 0.48); // end
+        await expect(page.locator('#robotics-panel-field [data-object-kind="curve"]')).toHaveCount(
+          before + 1,
+        );
+      }
+      await expect(
+        page.getByRole('dialog', { name: 'Параметры выбранного объекта' }),
+      ).toBeVisible();
+      return;
+    }
     await page.getByRole('button', { name: 'Добавить', exact: true }).click();
   };
   const nameObject = async (label: string) => {
@@ -813,10 +861,10 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
     await page.getByRole('textbox', { name: 'Название предмета', exact: true }).press('Tab');
   };
   await add('Мяч');
-  await numberField(page, 'X мяча', 0.45);
+  await numberField(page, 'X мяча', 0.82);
   await numberField(page, 'Y мяча', 0.9);
   await add('Банка');
-  await numberField(page, 'X банки', 0.55);
+  await numberField(page, 'X банки', 0.99);
   await numberField(page, 'Y банки', 0.9);
   await numberField(page, 'Масса банки', 0.06);
   const longLabel = 'Металлическая банка для опыта со столкновением и сопротивлением покрытия поля';
@@ -899,10 +947,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
   );
 
   // Dragging a grouped stamp moves all members and commits one history entry.
-  await page
-    .locator('.robotics-object-list')
-    .getByRole('button', { name: `Перекрёсток 30 см · ${cross.groupId}`, exact: true })
-    .click();
+  await selectFieldObject(page, `mark-group:${cross.groupId}`);
   const beforeDrag = await saved(page, projectId);
   await page.getByRole('checkbox', { name: 'Привязка', exact: true }).check();
   const stampShape = page
@@ -995,7 +1040,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
     .poll(
       async () => {
         const observed = await observePhysics();
-        return observed.time > 200_000 && observed.ballX > 0.465 && observed.canX > 0.555;
+        return observed.time > 200_000 && observed.ballX > 0.835 && observed.canX > 1.005;
       },
       { timeout: 60_000 },
     )
@@ -1015,8 +1060,8 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
   await expect.poll(async () => (await observePhysics()).time).toBe(0);
   const reset = await observePhysics();
   expect(reset.robotX).toBe(source.world.initialPose.xMeters);
-  expect(reset.ballX).toBe(0.45);
-  expect(reset.canX).toBe(0.55);
+  expect(reset.ballX).toBe(0.82);
+  expect(reset.canX).toBe(0.99);
   expect(reset.ballVx).toBe(0);
   expect(reset.canVx).toBe(0);
   await openFieldSettings(page);
@@ -1049,10 +1094,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
     await page.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Привязка', exact: true }).check();
     await page.screenshot({ path: `${EVIDENCE}/field-v3-tools-${width}.png`, fullPage: true });
-    await page
-      .locator('.robotics-object-list')
-      .getByRole('button', { name: `${longLabel} · ${canId}`, exact: true })
-      .click();
+    await selectFieldObject(page, `body:${canId}`);
     const name = page.getByRole('textbox', { name: 'Название предмета', exact: true });
     await name.scrollIntoViewIfNeeded();
     await expect(name).toHaveValue(longLabel);
@@ -1121,10 +1163,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
     await expect(
       restored.getByRole('combobox', { name: 'Точность расчёта', exact: true }),
     ).toHaveValue('precise');
-    await restored
-      .locator('.robotics-object-list')
-      .getByRole('button', { name: `Перекрёсток 30 см · ${cross.groupId}`, exact: true })
-      .click();
+    await selectFieldObject(restored, `mark-group:${cross.groupId}`);
     await expect(
       restored.locator(
         `#robotics-panel-field [data-scene-key="mark-group:${cross.groupId}"].selected`,

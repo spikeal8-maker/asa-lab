@@ -1549,29 +1549,30 @@ export function ArduinoCodePanel({
         onClose={onClose}
       />
       <header className={`arduino-code-toolbar mode-${program.mode}`}>
-        <ArduinoToolbarOverflow active={Boolean(toolbarActions)}>
-          <details className="arduino-mode-menu" ref={modeMenuRef}>
-            <summary>
-              <span>{MODE_LABELS[program.mode]}</span>
-              <ChevronDown />
-            </summary>
-            <div className="arduino-mode-popover">
-              <strong>РЕЖИМ РЕДАКТИРОВАНИЯ</strong>
-              {(['blocks', 'blocks-text', 'text'] as const).map((mode) => (
-                <button
-                  type="button"
-                  key={mode}
-                  className={program.mode === mode ? 'active' : ''}
-                  onClick={() => chooseMode(mode)}
-                >
-                  {MODE_LABELS[mode]}
-                </button>
-              ))}
-              <button type="button" ref={inputSettingsButtonRef} onClick={openInputSettings}>
-                Настройки Arduino
+        {/* Keep this popover outside the scrolling tools so its menu is not clipped. */}
+        <details className="arduino-mode-menu" ref={modeMenuRef}>
+          <summary>
+            <span>{MODE_LABELS[program.mode]}</span>
+            <ChevronDown />
+          </summary>
+          <div className="arduino-mode-popover">
+            <strong>РЕЖИМ РЕДАКТИРОВАНИЯ</strong>
+            {(['blocks', 'blocks-text', 'text'] as const).map((mode) => (
+              <button
+                type="button"
+                key={mode}
+                className={program.mode === mode ? 'active' : ''}
+                onClick={() => chooseMode(mode)}
+              >
+                {MODE_LABELS[mode]}
               </button>
-            </div>
-          </details>
+            ))}
+            <button type="button" ref={inputSettingsButtonRef} onClick={openInputSettings}>
+              Настройки Arduino
+            </button>
+          </div>
+        </details>
+        <ArduinoToolbarOverflow active={Boolean(toolbarActions)}>
           {program.mode !== 'blocks' ? (
             <button
               type="button"

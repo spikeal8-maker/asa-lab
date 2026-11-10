@@ -651,6 +651,9 @@ export function RoboticsWorkspace({
     controller.setSimulationRate(paused ? pace.lastNonZero : 0);
   }
   function changeRate(rate: number) {
+    // A terminal halt freezes robot physics and Arduino execution together.
+    // Never let the speed menu resume Arduino while the robot is still halted.
+    if (haltedRef.current || haltReason) return;
     if (rate > 0) selectedRateRef.current = rate;
     controller.setSimulationRate(rate);
   }
@@ -857,6 +860,7 @@ export function RoboticsWorkspace({
         <button
           type="button"
           className={'robotics-button primary' + (running ? ' is-running' : '')}
+          aria-label={primaryLabel}
           onClick={primaryAction}
           disabled={starting || (!running && Boolean(bindingError))}
         >

@@ -3977,3 +3977,94 @@
 .robotics-field-center-action .robotics-button:disabled {
   opacity: 0.5;
 }
+
+/* Arduino mode menu lives outside the scrolling tool region. Its dropdown
+ * must remain clickable on desktop and mobile while the Uno selector stays left. */
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  > .arduino-code-toolbar-scroll {
+  order: 0;
+}
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  > .arduino-mode-menu {
+  order: 1;
+  z-index: 60;
+  align-self: center;
+}
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  > .arduino-code-toolbar-accessory {
+  order: 2;
+}
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  > .arduino-code-toolbar-actions {
+  order: 3;
+}
+@media (max-width: 760px) {
+  .robotics-lab
+    .robotics-program-shell
+    .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+    > .arduino-mode-menu {
+    flex: 0 0 76px;
+    width: 76px;
+  }
+  .robotics-lab
+    .robotics-program-shell
+    .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+    > .arduino-mode-menu
+    > summary {
+    padding-inline: 6px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 760px) {
+  .robotics-lab
+    .robotics-program-shell
+    .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+    > .arduino-code-toolbar-accessory {
+    flex: 0 0 28px;
+    width: 28px;
+  }
+  .robotics-lab .robotics-program-shell .robotics-code-extras,
+  .robotics-lab .robotics-program-shell .robotics-code-extras > summary {
+    width: 27px;
+  }
+  .robotics-lab
+    .robotics-program-shell
+    .arduino-code-toolbar
+    > .arduino-mode-menu
+    > summary
+    > span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 360px) {
+  .robotics-lab .robotics-run-bar .robotics-run-buttons .robotics-button.primary {
+    flex: 0 0 36px;
+    width: 36px;
+    min-width: 36px;
+    padding-inline: 0;
+    gap: 0;
+    justify-content: center;
+  }
+  .robotics-lab .robotics-run-bar .robotics-run-buttons .robotics-button.primary > span {
+    display: none;
+  }
+  .robotics-lab
+    .robotics-program-shell
+    .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+    > .arduino-mode-menu {
+    flex: 0 0 66px;
+    width: 66px;
+  }
+}

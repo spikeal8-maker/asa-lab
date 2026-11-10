@@ -144,6 +144,31 @@ try {
   await expect(board).toBeVisible();
   const mode = codeBar.locator('.arduino-mode-menu > summary');
   await expect(mode).toBeVisible();
+  const verifyModePopover = async (width) => {
+    await mode.click();
+    const popover = codeBar.locator('.arduino-mode-popover');
+    const settings = popover.getByRole('button', { name: 'Настройки Arduino', exact: true });
+    await expect(settings).toBeVisible();
+    const result = await settings.evaluate((button) => {
+      const rect = button.getBoundingClientRect();
+      const centerX = rect.x + rect.width / 2;
+      const centerY = rect.y + rect.height / 2;
+      const top = document.elementFromPoint(centerX, centerY);
+      return {
+        topmost: button === top || button.contains(top),
+        viewportWidth: innerWidth,
+        x: rect.x,
+        right: rect.right,
+        bottom: rect.bottom,
+        clippedByScroll: !!button.closest('.arduino-code-toolbar-scroll'),
+      };
+    });
+    if (!result.topmost || result.clippedByScroll || result.x < 0 || result.right > width + 1)
+      throw Error('Arduino mode menu is clipped or obscured: ' + JSON.stringify(result));
+    await mode.click();
+    console.log('PASS Arduino mode dropdown accessible at ' + width + 'px');
+  };
+  await verifyModePopover(1440);
   const br = await board.boundingBox(),
     mr = await mode.boundingBox();
   const codeBarRect = await codeBar.boundingBox();
@@ -166,8 +191,9 @@ try {
       'Optional Code menu spills outside mobile viewport: ' + JSON.stringify(mobileExamples),
     );
   await more.click();
+  await verifyModePopover(390);
   await page.setViewportSize({ width: 1440, height: 900 });
-  console.log('PASS Code: Arduino Uno left; examples explained and accessible on mobile');
+  console.log('PASS Code: Arduino Uno left, dropdown and examples accessible on mobile');
 
   await page.getByRole('tab', { name: 'Электроника' }).click();
   const drawerToggle = page
