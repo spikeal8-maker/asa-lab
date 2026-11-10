@@ -1607,6 +1607,28 @@ tests:
     phase_available: PHASE-12
     required_for: []
     command: python tools/test_ci_required.py
+    timeout_seconds: 180
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-CI-CONTRACT-001
+    title: Versioned General accepted-base selection and actual applicable exact-source results fail closed
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: python tools/test_devex_ci_contract.py
+    timeout_seconds: 180
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-CI-EFFECT-INTEGRATION-001
+    title: General contract reuses the installed AST helper for an actual accepted CSS effect and unsupported effect rejection
+    suite: contracts
+    level: integration
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-python.mjs tools/test_devex_ci_contract.py --helper-integration
     timeout_seconds: 60
     owner: devex-engine
     artifacts: [test-report]
