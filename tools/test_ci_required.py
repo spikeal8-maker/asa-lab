@@ -109,20 +109,29 @@ class RequiredSummaryTests(unittest.TestCase):
         workflow = yaml.safe_load((aggregate.ROOT / ".github/workflows/spec-validation.yml").read_text(encoding="utf-8"))
         job = workflow["jobs"]["required"]
         self.assertEqual(job["name"], "ASA / required")
-        self.assertEqual(job["needs"], list(aggregate.REQUIRED_JOBS))
+        self.assertEqual(job["needs"], [*aggregate.REQUIRED_JOBS, "selection", "changed-ui"])
         self.assertEqual(job["if"], "${{ always() }}")
         self.assertEqual(job["permissions"], {"contents": "read"})
         self.assertEqual(job["env"], {"ASA_REQUIRED_EXPECTED_SHA": "${{ github.event.pull_request.head.sha || github.sha }}",
-                                     "ASA_REQUIRED_NEEDS_JSON": "${{ toJSON(needs) }}"})
+                                     "ASA_REQUIRED_NEEDS_JSON": "${{ toJSON(needs) }}",
+                                     "GENERAL_PLAN": "${{ needs.selection.outputs.plan }}"})
         checkout = job["steps"][0]
         self.assertEqual(checkout["uses"], "actions/checkout@v4")
-        self.assertEqual(checkout["with"]["ref"], job["env"]["ASA_REQUIRED_EXPECTED_SHA"])
+        self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")
+        self.assertEqual(checkout["with"]["fetch-depth"], 0)
         self.assertFalse(checkout["with"]["persist-credentials"])
         commands = [step["run"] for step in job["steps"] if "run" in step]
-        self.assertEqual(commands, ["python tools/ci_required.py"])
+        self.assertEqual(commands, ['git switch --detach "$SOURCE_SHA"\npython tools/devex_ci_contract.py required\n'])
         gate = (aggregate.ROOT / "tools/gate-governance.sh").read_text(encoding="utf-8")
         self.assertIn('run "$PYTHON" tools/test_ci_required.py', gate)
 
+    def test_general_runs_on_main_push_and_unfiltered_pull_requests(self):
+        workflow = yaml.safe_load((aggregate.ROOT / ".github/workflows/spec-validation.yml").read_text(encoding="utf-8"))
+        self.assertEqual(workflow["on"], {"push": {"branches": ["main"]}, "pull_request": {}})
+
 
 if __name__ == "__main__":
-    unittest.main()
+    import test_devex_ci_contract
+    suite = unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]),
+                               unittest.defaultTestLoader.loadTestsFromModule(test_devex_ci_contract)])
+    sys.exit(0 if unittest.TextTestRunner().run(suite).wasSuccessful() else 1)

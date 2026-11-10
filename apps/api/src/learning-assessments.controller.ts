@@ -818,10 +818,32 @@ export class LearningAssessmentsController {
       [context.accountId, classroomId, attemptId],
     );
     const row = result.rows[0];
-    if (!row) throw new HttpException(error('submission_not_found', 'Сдача не найдена.'), 404);
+    if (!row) {
+      const quiz = await this.requirePool().query(
+        'SELECT learning_teacher_exact_quiz_submission($1,$2,$3) AS submission',
+        [context.accountId, classroomId, attemptId],
+      );
+      if (quiz.rows[0]?.['submission']) return quiz.rows[0]['submission'];
+      const essay = await this.requirePool().query(
+        'SELECT * FROM learning_teacher_exact_essay_submission($1,$2,$3)',
+        [context.accountId, classroomId, attemptId],
+      );
+      const response = essay.rows[0];
+      if (!response || typeof response['response_text'] !== 'string') {
+        throw new HttpException(error('submission_not_found', 'Сдача не найдена.'), 404);
+      }
+      return {
+        kind: 'essay' as const,
+        submissionId: String(response['submission_id']),
+        digest: String(response['payload_digest']),
+        text: response['response_text'],
+        sourceRevision: Number(response['draft_revision']),
+      };
+    }
     const provider = this.modules.get(String(row['module_key']))?.provider;
     const validated = provider?.validate(row['document_json']);
     return {
+      kind: 'project' as const,
       submissionId: row['submission_id'],
       projectVersionId: row['project_version_id'],
       digest: row['payload_digest'],

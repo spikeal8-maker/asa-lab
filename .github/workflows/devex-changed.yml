@@ -1,20 +1,20 @@
-name: ASA DevEx changed UI shadow
+name: ASA DevEx bounded UI checks
 
 "on":
-  pull_request: {}
-  push:
-    branches: [main]
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+    outputs:
+      evidence:
+        description: Actual complete source-bound bounded checks
+        value: ${{ jobs.collect-picker.outputs.evidence }}
 
-# The existing General workflow remains mandatory. This read-only shadow
-# provides early feedback; it never publishes an integration/release approval.
 permissions:
   contents: read
   pull-requests: read
   actions: read
-
-concurrency:
-  group: devex-ui-shadow-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 env:
   CI: "true"
@@ -22,57 +22,39 @@ env:
   NX_DAEMON: "false"
   SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
   BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+  BASE_REF: ${{ github.event.pull_request.base.ref || github.ref_name }}
+  EVENT_NAME: ${{ github.event_name }}
+  EVENT_REF: ${{ github.ref }}
+  MERGE_CANDIDATE_SHA: ${{ github.sha }}
+  GENERAL_PLAN: ${{ inputs.plan }}
 
 jobs:
   collect-picker:
-    name: Changed UI shadow — full General CI retained
+    name: Actual bounded UI checks
     runs-on: ubuntu-24.04
     timeout-minutes: 12
+    outputs:
+      evidence: ${{ steps.evidence.outputs.evidence }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      # No path filters: every PR gets an honest selection result. Unrelated
-      # changes take this cheap fallback before installing any dependencies.
-      - name: Classify exact Git changes
+      - name: Validate the pinned General plan before dependencies
         id: changes
         shell: bash
         run: |
+          git switch --detach "$SOURCE_SHA"
+          python3 tools/devex_ci_contract.py validate
           python3 - <<'PY'
-          import json, os, re, subprocess
-          from pathlib import Path
-          def git(*args):
-              return subprocess.check_output(['git', *args])
-          head, base = os.environ['SOURCE_SHA'], os.environ['BASE_SHA']
-          if not all(re.fullmatch(r'[0-9a-f]{40}', sha) and sha != '0' * 40 for sha in (head, base)):
-              raise SystemExit('Missing or invalid exact source/base SHA; no verification authorized')
-          if git('rev-parse', 'HEAD').decode().strip() != head or git('rev-parse', '--verify', base + '^{commit}').decode().strip() != base:
-              raise SystemExit('Checkout/base differs from the event source')
-          if git('status', '--porcelain', '--untracked-files=all'):
-              raise SystemExit('Checkout is dirty before classification')
-          merge_base = git('merge-base', base, head).decode().strip()
-          tokens = git('diff', '--name-status', '-z', '--no-renames', merge_base, head, '--').decode('utf-8').split('\0')
-          if tokens[-1] != '' or len(tokens[:-1]) % 2:
-              raise SystemExit('Malformed Git change set')
-          changes = list(zip(tokens[:-1:2], tokens[1:-1:2]))
-          production = {'apps/web/src/components/CollectPicker.tsx', 'apps/web/src/components/collect-picker.css'}
-          candidate = bool(changes) and all(
-              (status == 'M' and path in production) or
-              (status == 'A' and re.fullmatch(r'apps/web/src/components/CollectPicker\.[A-Za-z0-9][A-Za-z0-9-]*\.spec\.ts', path))
-              for status, path in changes)
-          directory = Path('.asa/devex')
-          directory.mkdir(parents=True, exist_ok=True)
-          selection = {'source_sha': head, 'base_sha': base, 'merge_base': merge_base,
-                       'changes': [{'status': status, 'path': path} for status, path in changes],
-                       'route': 'CANDIDATE_REQUIRES_PROOF' if candidate else 'FULL_CI_REQUIRED',
-                       'checks_executed': 0, 'full_ci': 'CI_PENDING',
-                       'integration_ready': False, 'release_ready': False}
-          (directory / 'ci-selection.json').write_text(json.dumps(selection, indent=2) + '\n')
+          import json, os
+          plan = json.loads(os.environ['GENERAL_PLAN'])
+          if plan['route'] not in ('PARALLEL', 'FAST'):
+              raise SystemExit('Bounded job requires an applicable plan')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write(f'candidate={str(candidate).lower()}\nmerge_base={merge_base}\n')
+              output.write('candidate=true\nmerge_base=' + plan['merge_base'] + '\n')
           PY
 
       - uses: pnpm/action-setup@v4
@@ -113,11 +95,9 @@ jobs:
           if eligible and (proof.get('profile_id') != 'collect-picker-presentation-v1' or proof.get('version') != 1 or
                            proof.get('ci_test_files') != ['e2e/project-collections-baseline.spec.ts']):
               raise SystemExit('Candidate has no trusted concrete browser baseline')
-          path = Path('.asa/devex/ci-selection.json')
-          selection = json.loads(path.read_text())
-          selection['route'] = 'COLLECT_PICKER_SHADOW' if eligible else 'FULL_CI_REQUIRED'
-          selection['fallback_reason'] = proof.get('fallback_reason')
-          path.write_text(json.dumps(selection, indent=2) + '\n')
+          plan = json.loads(os.environ['GENERAL_PLAN'])
+          if not eligible or proof != plan.get('proof'):
+              raise SystemExit('Executed proof differs from authorized General plan')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'eligible={str(eligible).lower()}\n')
           PY
@@ -197,43 +177,15 @@ jobs:
               raise SystemExit('Bound source changed during isolated CI')
           PY
 
-      - name: Record honest shadow outcome
-        if: always()
-        env:
-          LOCAL_RESULT: ${{ steps.receipt.outcome }}
-          BROWSER_RESULT: ${{ steps.browser.outcome }}
-          SOURCE_RESULT: ${{ steps.final-source.outcome }}
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import json, os
-          from pathlib import Path
-          path = Path('.asa/devex/ci-selection.json')
-          if not path.is_file():
-              raise SystemExit('Classification failed; no shadow verification result exists')
-          result = json.loads(path.read_text())
-          eligible = result['route'] == 'COLLECT_PICKER_SHADOW'
-          receipt = Path('.asa/devex/ci-check.json')
-          checks = json.loads(receipt.read_text()).get('checks', []) if receipt.is_file() else []
-          result['checks'] = [{key: item.get(key) for key in ('id', 'state', 'duration_s', 'exit_code')} for item in checks]
-          result['checks_executed'] = sum(item.get('exit_code') is not None or (item.get('state') == 'FAIL' and str(item.get('reason', '')).startswith('timeout after ')) for item in checks)
-          result['local_result'] = os.environ['LOCAL_RESULT']
-          result['browser_result'] = os.environ['BROWSER_RESULT']
-          result['status'] = ('FOCUSED_PASS' if eligible and all(os.environ[key] == 'success' for key in ('LOCAL_RESULT', 'BROWSER_RESULT', 'SOURCE_RESULT')) else 'FULL_CI_REQUIRED' if result['route'] == 'FULL_CI_REQUIRED' else 'BLOCKED')
-          Path('.asa/devex/ci-result.json').write_text(json.dumps(result, indent=2) + '\n')
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write(f"DevEx shadow: **{result['status']}** on `{result['source_sha']}`.\n\n")
-              summary.write('The unchanged full General CI remains mandatory. Integration/release readiness: **false**.\n')
-              if not eligible:
-                  summary.write('No narrow test success is claimed; use the full General CI result.\n')
-          PY
-      - name: Preserve source-bound shadow evidence
+      - name: Emit evidence only after every actual check and final source validation
+        id: evidence
+        run: python3 tools/devex_ci_contract.py evidence
+      - name: Preserve source-bound bounded UI evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: devex-ui-shadow-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: devex-ui-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            .asa/devex/ci-selection.json
             .asa/devex/ci-proof.json
             .asa/devex/ci-proof-after.json
             .asa/devex/ci-result.json

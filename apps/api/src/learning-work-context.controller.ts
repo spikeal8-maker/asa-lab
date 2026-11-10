@@ -75,17 +75,19 @@ export class LearningWorkContextController {
     });
     // Both an absent project and one inaccessible to this actor are identical.
     if (!opened.ok) return { state: 'denied', projectId };
-    if (!this.pool) return { state: 'unavailable', projectId };
+    const pool = this.pool;
+    if (!pool) return { state: 'unavailable', projectId };
 
-    const projections = await (account
-      ? new LearningCanonicalProjectionService(this.pool).forAccount(account.accountId)
-      : new LearningCanonicalProjectionService(this.pool).forSeat(seat!.seatId));
+    const loadProjections = () =>
+      account
+        ? new LearningCanonicalProjectionService(pool).forAccount(account.accountId)
+        : new LearningCanonicalProjectionService(pool).forSeat(seat!.seatId);
     return learningWorkContextForProject(
-      this.pool,
+      pool,
       actor.principalId,
       projectId,
       opened.value.project.moduleKey,
-      projections,
+      loadProjections,
     );
   }
 

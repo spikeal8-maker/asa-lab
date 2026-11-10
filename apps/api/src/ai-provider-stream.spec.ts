@@ -107,6 +107,62 @@ describe('provider SSE adapter', () => {
       expect(JSON.stringify(messages)).toContain('snake');
     },
   );
+  it('replays encrypted reasoning and the original call ID after Astra uses a tool', async () => {
+    const event = (data: unknown) => 'data: ' + JSON.stringify(data) + '\n\n';
+    const reasoning = {
+      type: 'reasoning',
+      id: 'rs_test',
+      summary: [],
+      encrypted_content: 'opaque-test-content',
+    };
+    const call = {
+      type: 'function_call',
+      id: 'fc_test',
+      call_id: 'call_original',
+      name: 'read_working_file',
+      arguments: '{"name":"snake.html"}',
+    };
+    const done = event({ type: 'response.completed' });
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        fakeSse(
+          event({ type: 'response.output_item.done', output_index: 0, item: reasoning }) +
+            event({ type: 'response.output_item.done', output_index: 1, item: call }) +
+            done,
+        ),
+      )
+      .mockResolvedValueOnce(
+        fakeSse(event({ type: 'response.output_text.delta', delta: 'Готово' }) + done),
+      );
+    const args = {
+      ...input,
+      model: 'gpt-6-astra',
+      tools: workingFileTools(),
+      fetchImpl,
+      signal: new AbortController().signal,
+      onDelta: vi.fn(),
+    };
+    const result = await streamProviderText(args);
+    expect(result.toolCalls).toEqual([{ name: call.name, arguments: { name: 'snake.html' } }]);
+    expect(args.onDelta).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain(reasoning.encrypted_content);
+    const firstBody = JSON.parse(String(fetchImpl.mock.calls[0]![1]?.body));
+    expect(firstBody).toMatchObject({ store: false, include: ['reasoning.encrypted_content'] });
+
+    const content = '{"content":"snake"}';
+    const answer = await streamProviderText({
+      ...args,
+      toolResults: [{ call: result.toolCalls![0]!, content }],
+    });
+    const secondBody = JSON.parse(String(fetchImpl.mock.calls[1]![1]?.body));
+    expect(secondBody.input.slice(-3)).toEqual([
+      reasoning,
+      call,
+      { type: 'function_call_output', call_id: call.call_id, output: content },
+    ]);
+    expect(answer.text).toBe('Готово');
+  });
   it('rejects malformed function arguments as a typed stream failure', async () => {
     const fetchImpl = vi.fn<typeof fetch>(async () =>
       fakeSse(

@@ -13,7 +13,68 @@ const visit = {
   entryRoute: 'editor.blocks',
   referrerOrigin: 'https://school.test/private?token=secret#x',
 };
+// Exact envelope shape from the main-site Robotics journey (synthetic account).
+const roboticsStart = {
+  schemaVersion: 2,
+  eventId: 'd420bf23-820f-44aa-ba0c-329b8cc51d02',
+  actorExpectation: {
+    kind: 'account',
+    accountId: 'c604bdf6-10ab-428c-ac7a-01bffc17a86f',
+    workspaceId: 'e806712a-8ad2-4e17-b0dd-c802f6338265',
+  },
+  visitId: '361df525-fbf1-434d-90c2-253221728601',
+  clientOccurredAt: '2026-11-05T20:30:57.783Z',
+  operation: 'start',
+  sessionId: 'f6dcae4e-7065-4491-8c8c-1921cfa0f5c3',
+  projectId: '615263d7-27a0-4d04-9459-f0d9b9b73260',
+  moduleKey: 'robotics',
+};
 describe('fixed telemetry envelopes', () => {
+  it('accepts the observed Robotics start without losing account, project or session binding', () => {
+    expect(parseAnalyticsEnvelope(roboticsStart, 'module-session')).toEqual({
+      eventId: roboticsStart.eventId,
+      actorExpectation: roboticsStart.actorExpectation,
+      operation: 'start',
+      semantic: {
+        sessionId: roboticsStart.sessionId,
+        visitId: roboticsStart.visitId,
+        clientOccurredAt: roboticsStart.clientOccurredAt,
+        projectId: roboticsStart.projectId,
+        moduleKey: 'robotics',
+      },
+    });
+  });
+  it('accepts a direct Robotics editor visit as a fixed route', () => {
+    expect(
+      parseAnalyticsEnvelope(
+        {
+          ...visit,
+          actorExpectation: roboticsStart.actorExpectation,
+          entryRoute: 'editor.robotics',
+        },
+        'events',
+      ),
+    ).toMatchObject({
+      actorExpectation: roboticsStart.actorExpectation,
+      operation: 'visit.observed',
+      semantic: { entryRoute: 'editor.robotics', referrerOrigin: 'https://school.test' },
+    });
+  });
+  it.each([
+    { moduleKey: 'robotics.invalid' },
+    { moduleKey: 'Robotics' },
+    { source: 'private Arduino program' },
+  ])('keeps Robotics session fields and module names strict: %o', (patch) => {
+    expect(() =>
+      parseAnalyticsEnvelope({ ...roboticsStart, ...patch }, 'module-session'),
+    ).toThrow();
+  });
+  it.each(['editor.robotics.invalid', '/#/editor/private-project?module=robotics'])(
+    'rejects unknown or raw Robotics entry routes: %s',
+    (entryRoute) => {
+      expect(() => parseAnalyticsEnvelope({ ...visit, entryRoute }, 'events')).toThrow();
+    },
+  );
   it('canonicalizes every accepted UUID before authority comparisons and semantic binding', () => {
     const lower = 'abcdefab-cdef-4abc-8def-abcdefabcdef';
     const envelope = {

@@ -13,6 +13,7 @@
   "dependencies": {
     "@asa-lab/chess": "workspace:*",
     "@asa-lab/contracts": "workspace:*",
-    "pg": "8.13.1"
+    "pg": "8.13.1",
+    "@asa-lab/checkers": "workspace:*"
   }
 }

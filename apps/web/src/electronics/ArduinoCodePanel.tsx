@@ -10,6 +10,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -19,6 +20,7 @@ import {
   type CSSProperties,
   type ReactNode,
   type MutableRefObject,
+  type Ref,
 } from 'react';
 import { createPortal } from 'react-dom';
 import * as ScratchBlocks from 'scratch-blocks';
@@ -436,6 +438,15 @@ type ArduinoWorkspaceHandle = {
   flushPendingPublication: () => void;
 };
 
+function resizeVisibleArduinoWorkspace(
+  workspace: ScratchBlocks.WorkspaceSvg,
+  host: HTMLElement,
+): void {
+  // A retained editor can be in a hidden tab. Resizing it to zero clamps the
+  // native scroll position and loses the learner's view on the next reveal.
+  if (host.clientWidth > 0 && host.clientHeight > 0) ScratchBlocks.svgResize(workspace);
+}
+
 export function ScratchWorkspace({
   initialWorkspace,
   inputPins,
@@ -550,7 +561,7 @@ export function ScratchWorkspace({
         toolboxForCategory(categoryRef.current, variables, paletteScaleRef.current),
       );
       workspace.getFlyout()?.reflow();
-      ScratchBlocks.svgResize(workspace);
+      resizeVisibleArduinoWorkspace(workspace, host);
     };
     refreshToolboxRef.current = refreshToolbox;
 
@@ -653,7 +664,7 @@ export function ScratchWorkspace({
 
     const assetFrame = window.requestAnimationFrame(() => {
       applyScratchMediaAssets(host);
-      ScratchBlocks.svgResize(workspace);
+      resizeVisibleArduinoWorkspace(workspace, host);
     });
 
     const originalBlockOpacity = new Map<SVGElement, string>();
@@ -704,7 +715,7 @@ export function ScratchWorkspace({
       timerRef.current = window.setTimeout(publish, 180);
     };
     workspace.addChangeListener(listener);
-    const resizeObserver = new ResizeObserver(() => ScratchBlocks.svgResize(workspace));
+    const resizeObserver = new ResizeObserver(() => resizeVisibleArduinoWorkspace(workspace, host));
     resizeObserver.observe(host);
     return () => {
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
@@ -734,9 +745,10 @@ export function ScratchWorkspace({
 
   useEffect(() => {
     const workspace = workspaceRef.current;
-    if (!workspace) return;
+    const host = hostRef.current;
+    if (!workspace || !host) return;
     workspace.getFlyout()?.reflow();
-    ScratchBlocks.svgResize(workspace);
+    resizeVisibleArduinoWorkspace(workspace, host);
   }, [flyoutWidth]);
 
   useEffect(() => {
@@ -1194,6 +1206,13 @@ function ArduinoSourceEditor({
   );
 }
 
+export interface ArduinoCodePanelHandle {
+  /** Publish the live block graph synchronously before an enclosing host action. */
+  flushPendingPublication: () => void;
+  /** Reveal the first root after an embedding viewport change; never edits the graph. */
+  revealProgramStart: () => void;
+}
+
 export function ArduinoCodePanel({
   controller: c,
   open,
@@ -1202,6 +1221,7 @@ export function ArduinoCodePanel({
   mobileHeightPercent,
   onMobileHeightChange,
   onClose,
+  programHandleRef,
 }: {
   controller: ElectronicsWorkbenchController;
   open: boolean;
@@ -1210,6 +1230,7 @@ export function ArduinoCodePanel({
   mobileHeightPercent: number;
   onMobileHeightChange: (value: number) => void;
   onClose: () => void;
+  programHandleRef?: Ref<ArduinoCodePanelHandle>;
 }): JSX.Element {
   const boards = useMemo(
     () => c.document?.components.filter(isArduino) ?? [],
@@ -1232,6 +1253,40 @@ export function ArduinoCodePanel({
   );
   const programRef = useRef(program);
   const programWorkspaceRef = useRef<ArduinoWorkspaceHandle | null>(null);
+  useImperativeHandle(
+    programHandleRef,
+    () => ({
+      flushPendingPublication: () => programWorkspaceRef.current?.flushPendingPublication(),
+      revealProgramStart: () => {
+        const workspace = programWorkspaceRef.current?.workspace as
+          ScratchBlocks.WorkspaceSvg | undefined;
+        if (!workspace?.rendered) return;
+        const host = workspace.getInjectionDiv();
+        if (host.clientWidth <= 0 || host.clientHeight <= 0) return;
+        ScratchBlocks.svgResize(workspace);
+        const first = workspace.getTopBlocks(true)[0];
+        if (!first) return;
+        const hostBounds = host.getBoundingClientRect();
+        let clipLeft = hostBounds.left;
+        let clipTop = hostBounds.top;
+        for (let ancestor = host.parentElement; ancestor; ancestor = ancestor.parentElement) {
+          const style = window.getComputedStyle(ancestor);
+          const bounds = ancestor.getBoundingClientRect();
+          if (style.overflowX !== 'visible') clipLeft = Math.max(clipLeft, bounds.left);
+          if (style.overflowY !== 'visible') clipTop = Math.max(clipTop, bounds.top);
+        }
+        const leftInset = Math.max(0, clipLeft - hostBounds.left);
+        const topInset = Math.max(0, clipTop - hostBounds.top);
+        const flyoutWidth = workspace.getFlyout()?.getWidth() ?? 0;
+        const position = first.getRelativeToSurfaceXY();
+        workspace.scroll(
+          Math.max(leftInset, flyoutWidth) + 16 - position.x * workspace.scale,
+          topInset + 18 - position.y * workspace.scale,
+        );
+      },
+    }),
+    [],
+  );
   const sourceCursorRef = useRef(program.source.length);
   const [category, setCategory] = useState<ArduinoBlockCategory>('output');
   const [fontSize, setFontSize] = useState(initialArduinoFontSize);
@@ -1805,7 +1860,9 @@ export function ArduinoCodePanel({
             <p>
               {pendingMode === 'text'
                 ? 'Закрыть редактор блоков? Все блоки останутся сохранены, а код станет доступен для ручного редактирования.'
-                : 'Вернуться к редактору блоков? Текстовый код останется сохранён, но в режиме блоков будет заменён кодом, созданным из блоков.'}
+                : program.workspaceJson
+                  ? 'Вернуться к редактору блоков? Текущий текстовый код будет заменён кодом, созданным из сохранённых блоков. Текст не преобразуется в блоки.'
+                  : 'Перейти к редактору блоков? Сохранённых блоков нет. Текущий текстовый код будет заменён стартовым примером. Текст не преобразуется в блоки.'}
             </p>
             <footer>
               <button type="button" className="primary" onClick={confirmModeChange}>

@@ -156,6 +156,30 @@ def general_node_contract(contract, original, effective):
     return contract
 
 
+def general_d0_v1_contract(contract):
+    """Overlay the exact General event policy on the immutable transport contract."""
+    contract = deepcopy(contract)
+    contract["required_triggers"] = {"push": {"branches": ["main"]}, "pull_request": {}}
+    return contract
+
+
+def general_d1_v1_contract(contract):
+    """Add applicability after D0 without changing any full-job transport step."""
+    contract = deepcopy(contract)
+    contract["workflow_controls"]["env"].update({
+        "SOURCE_SHA": "${{ github.event.pull_request.head.sha || github.sha }}",
+        "BASE_SHA": "${{ github.event.pull_request.base.sha || github.event.before }}",
+        "BASE_REF": "${{ github.event.pull_request.base.ref || github.ref_name }}",
+        "EVENT_NAME": "${{ github.event_name }}", "EVENT_REF": "${{ github.ref }}",
+        "MERGE_CANDIDATE_SHA": "${{ github.sha }}",
+    })
+    for job_id in ("code", "postgres-tests", "access-a-browser"):
+        contract["jobs"][job_id]["controls"].update(
+            needs=["governance" if job_id == "code" else "code", "selection"],
+            **{"if": "needs.selection.outputs.route == 'FULL' || needs.selection.outputs.route == 'PARALLEL'"})
+    return contract
+
+
 def electronics_receipt(receipt, general):
     """The selected classroom jobs reuse proven image identities, never new content."""
     override = json.loads(read(ELECTRONICS_TRANSPORT))
@@ -295,6 +319,52 @@ def qualification_contract(contract):
     return contract
 
 
+FAILURE_REPORT_FLAG = "ASA_ELECTRONICS_FAILURE_REPORT"
+FAILURE_REPORT_UPLOAD = {
+    "if": "always()",
+    "uses": "actions/upload-artifact@v4",
+    "with": {
+        "name": "electronics-r4-m1-failures-${{ github.run_id }}-${{ github.run_attempt }}",
+        "path": "reports/electronics-failures.ndjson",
+        "if-no-files-found": "error",
+        "retention-days": 14,
+    },
+}
+
+
+def failure_evidence_contract(contract):
+    """Add only the exact bounded journal transport to the existing browser gate."""
+    contract = deepcopy(contract)
+    paths = contract["required_triggers"]["pull_request"]["paths"]
+    for path in ["tools/electronics-failure-reporter.mjs", "playwright.config.ts"]:
+        if path not in paths:
+            paths.append(path)
+    browser = contract["jobs"]["browser"]
+    require(FAILURE_REPORT_FLAG not in browser["controls"]["env"],
+            "Failure evidence must extend the original browser environment")
+    browser["controls"]["env"][FAILURE_REPORT_FLAG] = "true"
+    old = "-e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner"
+    new = "-e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e " + FAILURE_REPORT_FLAG + " test-runner"
+    steps = []
+    counts = {"gate": 0, "upload": 0}
+    for step in browser["required_steps"]:
+        command = step.get("run", "")
+        if old in command:
+            require(command.count(old) == 1, "Duplicate qualification forwarding in browser step")
+            step["run"] = command.replace(old, new)
+            counts["gate"] += 1
+        if (step.get("uses") == "actions/upload-artifact@v4"
+                and step.get("with", {}).get("name")
+                == "electronics-r4-m1-browser-${{ github.run_id }}"):
+            steps.append(deepcopy(FAILURE_REPORT_UPLOAD))
+            counts["upload"] += 1
+        steps.append(step)
+    require(counts == {"gate": 1, "upload": 1},
+            "Failure evidence must extend one existing gate and precede its original archive")
+    browser["required_steps"] = steps
+    return contract
+
+
 def d2_classroom_budget_contract(contract):
     """D2 budget v1: extend only the complete suite's browser job to 50 minutes."""
     contract = deepcopy(contract)
@@ -392,8 +462,19 @@ def covers_required_triggers(actual, required):
 
 def check_workflow(path, contract, receipt, general_node, electronics):
     workflow = parse_yaml(read(path))
-    require(covers_required_triggers(workflow.get("on"), contract["required_triggers"]),
-            "Missing or narrowed mandatory workflow trigger: " + path)
+    require(FAILURE_REPORT_FLAG not in workflow.get("env", {}),
+            "Failure report flag must not be inherited by the entire workflow: " + path)
+    triggers = workflow.get("on")
+    if path == GENERAL:
+        from devex_ci_contract import check_wiring
+        check_wiring(workflow)
+        require(isinstance(triggers, dict)
+                and {event: {} if options is None else options for event, options in triggers.items()}
+                == contract["required_triggers"],
+                "DEVEX-D0 v1 General workflow triggers must be main push and unfiltered pull requests")
+    else:
+        require(covers_required_triggers(triggers, contract["required_triggers"]),
+                "Missing or narrowed mandatory workflow trigger: " + path)
     for key, expected in contract["workflow_controls"].items():
         require(workflow.get(key) == expected, "Workflow control drift: " + path + ":" + key)
     for job_id, expected in contract["jobs"].items():
@@ -421,11 +502,19 @@ def check_workflow(path, contract, receipt, general_node, electronics):
         effective = general_node if selected else electronics if classroom_build else receipt
         arguments = build_args(effective)
         if not classroom_browser:
+            require(FAILURE_REPORT_FLAG not in job.get("env", {}),
+                    "Failure report flag outside selected Electronics browser job: " + job_id)
+        if not classroom_browser:
             require(not any(key in job.get("env", {}) for key in
                     ["ASA_ELECTRONICS_QUALIFICATION_PROFILE", "ASA_ELECTRONICS_BROWSER_GATE"]),
                     "Qualification profile outside selected Electronics browser job: " + job_id)
         for step in job.get("steps", []):
             command = step.get("run", "")
+            require(FAILURE_REPORT_FLAG not in step.get("env", {}),
+                    "Failure report flag must use the selected job environment: " + job_id)
+            if not classroom_browser:
+                require(FAILURE_REPORT_FLAG not in command,
+                        "Failure report command outside selected Electronics browser job: " + job_id)
             if not classroom_browser:
                 require("ASA_ELECTRONICS_QUALIFICATION_PROFILE" not in command
                         and "ASA_ELECTRONICS_BROWSER_GATE" not in command
@@ -492,11 +581,15 @@ def check_offline(receipt):
     classroom = electronics_receipt(receipt, effective)
     for path, expected in contract["workflows"].items():
         if path == GENERAL:
-            expected = general_node_contract(expected, receipt, effective)
+            expected = general_d1_v1_contract(general_d0_v1_contract(
+                general_node_contract(expected, receipt, effective)))
         elif path == FOCUSED:
             expected = qualification_contract(electronics_contract(expected, receipt, classroom))
+            expected = failure_evidence_contract(expected)
             expected = d2_classroom_budget_contract(expected)
         check_workflow(path, expected, receipt, effective, classroom)
+    from devex_ci_contract import check_bounded_wiring
+    check_bounded_wiring(parse_yaml(read(".github/workflows/devex-changed.yml")))
     print("CI image transport semantic guard: PASS (5 immutable mappings; required gates/security/defaults)")
 
 
@@ -704,6 +797,7 @@ def check_challenges(receipt):
     from unittest.mock import patch
 
     source = {path: read(path) for path in [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+              ".github/workflows/devex-changed.yml",
               *receipt["semantic_contract"]["dockerfile_defaults"],
               *receipt["semantic_contract"]["workflows"]]}
     general = ".github/workflows/spec-validation.yml"
@@ -754,6 +848,7 @@ def check_challenges(receipt):
     trigger_challenge("General ignored required branch", general, "push", "branches-ignore", ["main"])
     trigger_challenge("General restricted pull request activity", general, "pull_request", "types", ["opened"])
     trigger_challenge("General new pull request path filter", general, "pull_request", "paths", ["docs/**"])
+    trigger_challenge("General restricted pull request base branch", general, "pull_request", "branches", ["main"])
     trigger_challenge("focused new pull request branch filter", focused, "pull_request", "branches", ["other"])
     trigger_challenge("focused new ignored paths", focused, "pull_request", "paths-ignore", ["apps/**"])
     trigger_challenge("focused required dispatch input", focused, "workflow_dispatch", "inputs",
@@ -761,11 +856,15 @@ def check_challenges(receipt):
     without_event = parse_yaml(source[general])
     del without_event["on"]["pull_request"]
     challenge("removed required pull request event", {general: json.dumps(without_event)}, False)
-    trigger_challenge("additive positive branch", general, "push", "branches",
-                      branches + ["feature/**"], True)
-    extra_event = parse_yaml(source[general])
-    extra_event["on"]["workflow_dispatch"] = None
-    challenge("additive independent event", {general: json.dumps(extra_event)}, True)
+    for branch in ("agent/**", "assistant/**", "codex/**"):
+        trigger_challenge("reintroduced General branch push: " + branch, general, "push", "branches",
+                          branches + [branch])
+    extra_general_event = parse_yaml(source[general])
+    extra_general_event["on"]["workflow_dispatch"] = None
+    challenge("additional General event", {general: json.dumps(extra_general_event)}, False)
+    extra_focused_event = parse_yaml(source[focused])
+    extra_focused_event["on"]["repository_dispatch"] = None
+    challenge("additive independent focused event", {focused: json.dumps(extra_focused_event)}, True)
     trigger_challenge("additive positive path", focused, "pull_request", "paths",
                       paths + ["e2e/electronics-simulation-time.spec.ts"], True)
     challenge("additive test step", {general: source[general].replace(
@@ -996,6 +1095,7 @@ def check_electronics_challenges(receipt):
     from unittest.mock import patch
 
     paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
              *receipt["semantic_contract"]["dockerfile_defaults"],
              *receipt["semantic_contract"]["workflows"]]
     source = {path: read(path) for path in paths}
@@ -1168,6 +1268,7 @@ def check_qualification_challenges(receipt):
     from unittest.mock import patch
 
     paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
              *receipt["semantic_contract"]["dockerfile_defaults"],
              *receipt["semantic_contract"]["workflows"]]
     source = {path: read(path) for path in paths}
@@ -1256,6 +1357,97 @@ def check_qualification_challenges(receipt):
     print(json.dumps({"classroom_qualification_challenges": outcomes}, indent=2))
 
 
+def check_failure_evidence_challenges(receipt):
+    """Challenge diagnostic delivery through the real guard without Docker or writes."""
+    from contextlib import redirect_stdout
+    from io import StringIO
+    from unittest.mock import patch
+
+    paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
+             *receipt["semantic_contract"]["dockerfile_defaults"],
+             *receipt["semantic_contract"]["workflows"]]
+    source = {path: read(path) for path in paths}
+    workflow = parse_yaml(source[FOCUSED])
+    outcomes = []
+
+    def challenge(name, replacements, passes=False):
+        error = None
+        with patch(__name__ + ".read", side_effect={**source, **replacements}.__getitem__):
+            try:
+                with redirect_stdout(StringIO()):
+                    check_offline(receipt)
+            except ValueError as failure:
+                error = str(failure)
+        require((error is None) == passes, "Failure evidence challenge failed: " + name + ":" + str(error))
+        outcomes.append({"challenge": name, "expected_pass": passes, "result": "PASS", "rejection": error})
+
+    challenge("exact diagnostic flag, forwarding and small archive", {}, True)
+    for name, mutate in [
+        ("missing diagnostic flag", lambda w: w["jobs"]["browser"]["env"].pop(FAILURE_REPORT_FLAG)),
+        ("disabled diagnostic flag", lambda w: w["jobs"]["browser"]["env"].update({FAILURE_REPORT_FLAG: "false"})),
+        ("flag must remain a literal string", lambda w: w["jobs"]["browser"]["env"].update({FAILURE_REPORT_FLAG: True})),
+        ("missing reporter trigger", lambda w: w["on"]["pull_request"]["paths"].remove("tools/electronics-failure-reporter.mjs")),
+        ("missing reporter configuration trigger", lambda w: w["on"]["pull_request"]["paths"].remove("playwright.config.ts")),
+        ("workflow-wide diagnostic flag", lambda w: w.setdefault("env", {}).update({FAILURE_REPORT_FLAG: "true"})),
+        ("diagnostic flag in benchmark job", lambda w: w["jobs"]["benchmark"]["env"].update({FAILURE_REPORT_FLAG: "true"})),
+        ("diagnostic flag in an additive job", lambda w: w["jobs"].update({"extra": {
+            "runs-on": "ubuntu-24.04", "env": {FAILURE_REPORT_FLAG: "true"}, "steps": [{"run": "true"}]}})),
+        ("diagnostic command outside browser", lambda w: w["jobs"]["benchmark"]["steps"].append(
+            {"run": "env " + FAILURE_REPORT_FLAG + "=true node --version"})),
+        ("diagnostic step environment outside browser", lambda w: w["jobs"]["benchmark"]["steps"].append(
+            {"run": "true", "env": {FAILURE_REPORT_FLAG: "true"}})),
+        ("diagnostic browser step override", lambda w: w["jobs"]["browser"]["steps"].append(
+            {"run": "true", "env": {FAILURE_REPORT_FLAG: "false"}})),
+    ]:
+        changed = deepcopy(workflow)
+        mutate(changed)
+        challenge(name, {FOCUSED: json.dumps(changed)})
+    forwarding = " -e " + FAILURE_REPORT_FLAG
+    require(source[FOCUSED].count(forwarding) == 1, "Expected exactly one diagnostic forwarding")
+    for name, replacement in [
+        ("missing container diagnostic forwarding", ""),
+        ("disabled container diagnostic forwarding", forwarding + "=false"),
+        ("duplicate container diagnostic forwarding", forwarding + forwarding),
+    ]:
+        challenge(name, {FOCUSED: source[FOCUSED].replace(forwarding, replacement)})
+    steps = workflow["jobs"]["browser"]["steps"]
+    uploads = [index for index, step in enumerate(steps)
+               if semantic_step(step) == FAILURE_REPORT_UPLOAD]
+    require(len(uploads) == 1, "Expected exactly one diagnostic artifact upload")
+    upload_index = uploads[0]
+    without_upload = deepcopy(workflow)
+    without_upload["jobs"]["browser"]["steps"].pop(upload_index)
+    challenge("missing diagnostic artifact upload", {FOCUSED: json.dumps(without_upload)})
+    for name, field, value in [
+        ("conditional diagnostic artifact", ["if"], "failure()"),
+        ("ignored diagnostic artifact error", ["continue-on-error"], True),
+        ("changed diagnostic artifact action", ["uses"], "actions/upload-artifact@v3"),
+        ("unbounded diagnostic artifact directory", ["with", "path"], "reports"),
+        ("missing diagnostic file ignored", ["with", "if-no-files-found"], "ignore"),
+        ("changed diagnostic retention", ["with", "retention-days"], 1),
+        ("diagnostic artifact loses attempt identity", ["with", "name"],
+            "electronics-r4-m1-failures-${{ github.run_id }}"),
+    ]:
+        changed = deepcopy(workflow)
+        target = changed["jobs"]["browser"]["steps"][upload_index]
+        for key in field[:-1]:
+            target = target[key]
+        target[field[-1]] = value
+        challenge(name, {FOCUSED: json.dumps(changed)})
+    reordered = deepcopy(workflow)
+    reordered_steps = reordered["jobs"]["browser"]["steps"]
+    small_upload = reordered_steps.pop(upload_index)
+    large_index = next(index for index, step in enumerate(reordered_steps)
+        if step.get("with", {}).get("name") == "electronics-r4-m1-browser-${{ github.run_id }}")
+    reordered_steps.insert(large_index + 1, small_upload)
+    challenge("small diagnostic artifact after large archive", {FOCUSED: json.dumps(reordered)})
+    general = parse_yaml(source[GENERAL])
+    general.setdefault("env", {})[FAILURE_REPORT_FLAG] = "true"
+    challenge("diagnostic flag in General workflow", {GENERAL: json.dumps(general)})
+    print(json.dumps({"failure_evidence_challenges": outcomes}, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--self-test", action="store_true")
@@ -1305,6 +1497,7 @@ def main():
         check_challenges(receipt)
         check_electronics_challenges(receipt)
         check_qualification_challenges(receipt)
+        check_failure_evidence_challenges(receipt)
     if options.baseline_proof:
         check_original_baseline(receipt)
     if options.compose_model_check or options.built_images or options.pulled_postgres:

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { AiWebSearchAdminConfig, AiWebSearchAdminUpdate } from '@asa-lab/contracts';
 import { call } from './admin-api';
+import { InfoHint } from '../components/InfoHint';
+import type { AiToolId } from '@asa-lab/contracts';
 import './ai-web-search-admin.css';
 
 function configShape(value: unknown): value is AiWebSearchAdminConfig {
@@ -26,8 +28,14 @@ function configShape(value: unknown): value is AiWebSearchAdminConfig {
 
 export function AdminAiWebSearch({
   onAccessDenied,
+  selectedTool,
+  onDirtyChange,
+  presentation = 'all',
 }: {
   readonly onAccessDenied: () => void;
+  readonly selectedTool?: AiToolId;
+  readonly presentation?: 'all' | 'parameters' | 'switches';
+  readonly onDirtyChange?: (dirty: boolean) => void;
 }): JSX.Element {
   const [config, setConfig] = useState<AiWebSearchAdminConfig | null>(null);
   const [enabled, setEnabled] = useState(false);
@@ -183,9 +191,28 @@ export function AdminAiWebSearch({
     (validDomains(allowedDomainList) &&
       validDomains(blockedDomainList) &&
       searchInstructions.length <= 3000);
+  const dirty =
+    config !== null &&
+    (enabled !== config.enabled ||
+      weatherEnabled !== config.weatherEnabled ||
+      limit !== String(config.operationsPerHour) ||
+      allowedDomains !== (config.allowedDomains ?? []).join('\n') ||
+      blockedDomains !== (config.blockedDomains ?? []).join('\n') ||
+      searchInstructions !== (config.searchInstructions ?? '') ||
+      resultsLimit !== String(config.resultsLimit ?? 8) ||
+      pagesLimit !== String(config.pagesLimit ?? 2) ||
+      pageCharLimit !== String(config.pageCharLimit ?? 4500));
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  const show = (...ids: AiToolId[]) => selectedTool === undefined || ids.includes(selectedTool);
+  const search = show('web_search', 'image_search');
+  const pages = show('read_page');
+
+  const AdvancedSettings = presentation === 'parameters' ? 'details' : 'div';
   return (
     <section
-      className="asa-ai-web-admin asa-cloud-connection"
+      className={'asa-ai-web-admin asa-cloud-connection asa-ai-network-' + presentation}
       aria-label="Настройки интернет-поиска"
     >
       {loading ? <p role="status">Загружаем настройки поиска…</p> : null}
@@ -203,32 +230,84 @@ export function AdminAiWebSearch({
       ) : null}
       {config ? (
         <form onSubmit={(event) => void save(event)} className="asa-cloud-form">
-          <div className="asa-cloud-top">
-            <div>
-              <h2>Интернет-поиск · SearxNG</h2>
-              <span>Поиск по вебу и изображениям на сервере ASA</span>
-            </div>
-            <label className="asa-cloud-enabled">
+          <div className="asa-ai-web-section-heading">
+            <h3>{presentation === 'switches' ? 'Сетевые сервисы' : 'Параметры сети'}</h3>
+            <InfoHint label="Общие настройки сетевых инструментов">
+              <p>
+                Поиск, чтение страниц, поиск изображений и погода используют общий сетевой доступ и
+                часовой лимит. Изменения применяются к новым запросам. Разрешение каждого
+                инструмента настраивается выше.
+              </p>
+            </InfoHint>
+          </div>
+          <div className="asa-ai-web-common">
+            <label className="asa-cloud-enabled" hidden={presentation === 'parameters'}>
               <input
                 type="checkbox"
                 checked={enabled}
                 disabled={busy}
                 onChange={(event) => setEnabled(event.target.checked)}
               />
-              {enabled ? 'Включено' : 'Выключено'}
+              Доступ в интернет
+            </label>
+            <label
+              className="asa-cloud-field asa-ai-web-admin-limit"
+              hidden={presentation === 'switches'}
+            >
+              <span>
+                Операций в час{' '}
+                <InfoHint label="Как работает часовой лимит">
+                  <p>
+                    Общий действующий лимит сетевых операций для сервиса. Ноль запрещает новые
+                    операции; сохранение не отправляет поисковый запрос.
+                  </p>
+                </InfoHint>
+              </span>
+              <input
+                aria-label="Лимит поисковых операций за час"
+                type="number"
+                min="0"
+                max="100000"
+                step="1"
+                value={limit}
+                disabled={busy}
+                onChange={(event) => setLimit(event.target.value)}
+              />
             </label>
           </div>
-          <p className="asa-ai-web-admin-description">
-            Собственный компонент поиска без платных внешних API и ключей.{' '}
-            {config.configured
-              ? 'Адрес компонента настроен на сервере.'
-              : 'Компонент поиска ещё не подключён на сервере. Обычный чат продолжает работать.'}
-          </p>
-          <fieldset className="asa-ai-web-retrieval" disabled={busy || !retrievalSupported}>
-            <legend>Выдача и чтение страниц</legend>
+          {presentation === 'parameters' && !enabled ? (
+            <p role="status">
+              Доступ в интернет выключен.{' '}
+              <a href="#/admin/ai?section=settings">Включить в Настройках →</a>
+            </p>
+          ) : null}
+          {search && !config.configured ? (
+            <p role="status">
+              Не настроен адрес SearxNG на сервере. Проверьте конфигурацию поискового сервиса.
+            </p>
+          ) : null}
+          <fieldset
+            className="asa-ai-web-retrieval"
+            disabled={busy || !retrievalSupported}
+            hidden={presentation === 'switches' || (!search && !pages)}
+          >
+            <legend>
+              Выдача и чтение{' '}
+              <InfoHint label="Выдача и чтение страниц">
+                <p>
+                  Поиск даёт список ссылок с краткими описаниями. Модель сама выбирает страницы для
+                  чтения отдельным инструментом. Эти параметры общие для поиска и чтения страниц.
+                </p>
+              </InfoHint>
+            </legend>
             <div className="asa-ai-web-retrieval-grid">
-              <label className="asa-cloud-field">
-                <span>Результатов поиска</span>
+              <label className="asa-cloud-field" hidden={!search}>
+                <span>
+                  Результатов{' '}
+                  <InfoHint label="Количество результатов">
+                    <p>От 1 до 12 ссылок или картинок в выдаче инструмента.</p>
+                  </InfoHint>
+                </span>
                 <input
                   type="number"
                   min="1"
@@ -238,10 +317,14 @@ export function AdminAiWebSearch({
                   aria-label="Результатов поиска"
                   onChange={(event) => setResultsLimit(event.target.value)}
                 />
-                <small>От 1 до 12 ссылок или картинок в ответе.</small>
               </label>
-              <label className="asa-cloud-field">
-                <span>Страниц для чтения</span>
+              <label className="asa-cloud-field" hidden={!pages}>
+                <span>
+                  Страниц{' '}
+                  <InfoHint label="Количество читаемых страниц">
+                    <p>Модель выбирает до двух страниц за запрос. Ноль отключает чтение страниц.</p>
+                  </InfoHint>
+                </span>
                 <input
                   type="number"
                   min="0"
@@ -251,10 +334,16 @@ export function AdminAiWebSearch({
                   aria-label="Страниц для чтения"
                   onChange={(event) => setPagesLimit(event.target.value)}
                 />
-                <small>Модель выбирает до двух страниц. 0 — не читать.</small>
               </label>
-              <label className="asa-cloud-field">
-                <span>Символов со страницы</span>
+              <label className="asa-cloud-field" hidden={!pages}>
+                <span>
+                  Символов со страницы{' '}
+                  <InfoHint label="Объём текста страницы">
+                    <p>
+                      От 500 до 8000 символов текста каждой выбранной страницы передаётся модели.
+                    </p>
+                  </InfoHint>
+                </span>
                 <input
                   type="number"
                   min="500"
@@ -264,101 +353,100 @@ export function AdminAiWebSearch({
                   aria-label="Символов со страницы"
                   onChange={(event) => setPageCharLimit(event.target.value)}
                 />
-                <small>От 500 до 8000 символов текста каждой страницы.</small>
               </label>
             </div>
           </fieldset>
-          {!retrievalSupported ? (
-            <p className="asa-ai-web-admin-description">
-              Новые настройки станут доступны после обновления схемы поиска.
-            </p>
-          ) : (
-            <p className="asa-ai-web-admin-description">
-              Поиск возвращает список; модель сама решает, какие страницы читать инструментом
-              read_page. Чтение доступно моделям с подключёнными инструментами. Настройки применятся
-              к новым запросам.
-            </p>
-          )}
-          <label className="asa-cloud-field asa-ai-web-admin-limit">
-            <span>Лимит поисковых операций за час</span>
-            <input
-              aria-label="Лимит поисковых операций за час"
-              type="number"
-              min="0"
-              max="100000"
-              step="1"
-              value={limit}
-              disabled={busy}
-              onChange={(event) => setLimit(event.target.value)}
-            />
-            <small>Ограничивает нагрузку на поиск. Нулевой лимит отключает новые запросы.</small>
-          </label>
-          {policySupported ? (
-            <>
-              <div className="asa-ai-web-admin-domains">
+          {!retrievalSupported && (search || pages) ? (
+            <p role="status">Для настройки выдачи и чтения требуется обновление схемы поиска.</p>
+          ) : null}
+          <AdvancedSettings
+            className={presentation === 'parameters' ? 'asa-ai-tool-disclosure' : undefined}
+            hidden={presentation === 'switches' || (!search && !pages)}
+          >
+            {presentation === 'parameters' ? (
+              <summary>Фильтры и ответы по источникам</summary>
+            ) : null}
+            {policySupported ? (
+              <>
+                <div className="asa-ai-web-admin-domains">
+                  <label className="asa-cloud-field">
+                    <span>
+                      Разрешённые сайты{' '}
+                      <InfoHint label="Правила разрешённых сайтов">
+                        <p>
+                          До 50 доменов, каждый с новой строки. Пустой список разрешает любые
+                          публичные сайты. Поддомены включаются. Фильтр общий для поиска, чтения и
+                          источников картинок.
+                        </p>
+                      </InfoHint>
+                    </span>
+                    <textarea
+                      aria-label="Разрешённые сайты"
+                      value={allowedDomains}
+                      disabled={busy}
+                      rows={3}
+                      placeholder={'example.org\nнаука.рф'}
+                      onChange={(event) => setAllowedDomains(event.target.value)}
+                    />
+                  </label>
+                  <label className="asa-cloud-field">
+                    <span>
+                      Исключённые сайты{' '}
+                      <InfoHint label="Правила исключённых сайтов">
+                        <p>
+                          Исключения важнее разрешений. До 50 доменов без https://, путей, портов и
+                          масок.
+                        </p>
+                      </InfoHint>
+                    </span>
+                    <textarea
+                      aria-label="Исключённые сайты"
+                      value={blockedDomains}
+                      disabled={busy}
+                      rows={3}
+                      placeholder="example.com"
+                      onChange={(event) => setBlockedDomains(event.target.value)}
+                    />
+                  </label>
+                </div>
                 <label className="asa-cloud-field">
-                  <span>Разрешённые сайты</span>
+                  <span>
+                    Инструкция для ответа по источникам{' '}
+                    <InfoHint label="Как применяется инструкция поиска">
+                      <p>
+                        Дополняет системный промпт при работе с найденными материалами. Общая для
+                        сетевых источников; до 3000 символов. Не меняет разрешения и проверки
+                        безопасности.
+                      </p>
+                    </InfoHint>
+                  </span>
                   <textarea
-                    aria-label="Разрешённые сайты"
-                    value={allowedDomains}
+                    aria-label="Инструкции для ответов с интернет-поиском"
+                    value={searchInstructions}
+                    maxLength={3000}
                     disabled={busy}
-                    rows={5}
-                    placeholder={'example.org\nнаука.рф'}
-                    onChange={(event) => setAllowedDomains(event.target.value)}
+                    rows={3}
+                    placeholder="Сначала первоисточники, затем краткое сравнение."
+                    onChange={(event) => setSearchInstructions(event.target.value)}
                   />
-                  <small>
-                    По одному домену на строку, до 50. Пустой список разрешает любые сайты.
-                    Поддомены включаются.
-                  </small>
                 </label>
-                <label className="asa-cloud-field">
-                  <span>Исключённые сайты</span>
-                  <textarea
-                    aria-label="Исключённые сайты"
-                    value={blockedDomains}
-                    disabled={busy}
-                    rows={5}
-                    placeholder="example.com"
-                    onChange={(event) => setBlockedDomains(event.target.value)}
-                  />
-                  <small>
-                    Исключения важнее разрешений. Указывайте домен без https://, пути и символа *.
-                  </small>
-                </label>
-              </div>
-              <label className="asa-cloud-field">
-                <span>Инструкции для ответов с интернет-поиском</span>
-                <textarea
-                  aria-label="Инструкции для ответов с интернет-поиском"
-                  value={searchInstructions}
-                  maxLength={3000}
-                  disabled={busy}
-                  rows={5}
-                  placeholder="Например: сначала используй первоисточники и кратко сравни найденные сведения."
-                  onChange={(event) => setSearchInstructions(event.target.value)}
-                />
-                <small>
-                  Дополняют системный промпт при работе с найденными материалами.{' '}
-                  {searchInstructions.length} / 3000 символов.
-                </small>
-              </label>
-              <p className="asa-ai-web-admin-description">
-                Фильтры применяются к веб-страницам и источникам найденных картинок. Прогноз погоды
-                использует фиксированные источники MET Norway и OpenStreetMap.
+                {!validPolicy ? (
+                  <p role="alert">
+                    Проверьте домены: до 50 в каждом списке, без адресов страниц, портов и масок.
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p role="status">
+                Для фильтров сайтов и инструкции требуется обновление API и схемы поиска.
               </p>
-              {!validPolicy ? (
-                <p role="alert">
-                  Проверьте домены: до 50 в каждом списке, без адресов страниц, портов и масок.
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <p className="asa-ai-web-admin-description">
-              Фильтры сайтов и инструкции появятся после обновления API и схемы ASA.
-            </p>
-          )}
-          <section className="asa-ai-web-admin-weather" aria-label="Прогноз погоды">
-            <h3>Прогноз погоды</h3>
+            )}
+          </AdvancedSettings>
+          <section
+            className="asa-ai-web-admin-weather"
+            aria-label="Прогноз погоды"
+            hidden={presentation === 'parameters' || !show('weather')}
+          >
             <label className="asa-cloud-consent">
               <input
                 type="checkbox"
@@ -367,19 +455,24 @@ export function AdminAiWebSearch({
                 onChange={(event) => setWeatherEnabled(event.target.checked)}
               />
               Включить прогноз погоды
+              <InfoHint label="Источники прогноза погоды">
+                <p>
+                  MET Norway — прогноз, OpenStreetMap — поиск города. Город берётся из запроса.
+                  Источник и время отображаются в ответе. Фильтры сайтов не меняют фиксированные
+                  источники погоды.
+                </p>
+                <a
+                  href="https://operations.osmfoundation.org/policies/nominatim/"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  Правила поиска городов
+                </a>
+              </InfoHint>
             </label>
-            <p>
-              Прогноз MET Norway и поиск городов OpenStreetMap. Геокодирование выполняется после
-              отправки вопроса, без подсказок при вводе. Источники и время прогноза отображаются в
-              ответе.
-            </p>
-            <a
-              href="https://operations.osmfoundation.org/policies/nominatim/"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              Правила использования поиска городов
-            </a>
+            {!config.weatherConfigured ? (
+              <p role="status">Не настроен источник прогноза или поиска городов на сервере.</p>
+            ) : null}
           </section>
           {enabled && Number(limit) === 0 ? <p>Для поиска задайте лимит больше нуля.</p> : null}
           <div className="asa-cloud-bottom">
@@ -388,7 +481,11 @@ export function AdminAiWebSearch({
               className="asa-cloud-apply"
               disabled={busy || loading || !validLimit || !validPolicy || !validRetrieval}
             >
-              {busy ? 'Сохраняем…' : 'Сохранить поиск'}
+              {busy
+                ? 'Сохраняем…'
+                : presentation === 'switches'
+                  ? 'Сохранить доступ в интернет'
+                  : 'Сохранить параметры сети'}
             </button>
             {notice ? (
               <span role="status" className="asa-cloud-confirmed">

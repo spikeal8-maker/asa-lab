@@ -66,6 +66,31 @@ emergency export/request equality, preserving the previous local draft.
 Historical 95 included another text-mobile case outside this scoped registration;
 this evidence does not claim that broader total.
 
+## Additional legacy mobile qualification (Task870)
+
+[Run41537679267](https://github.com/spikeal8-maker/asa-lab/actions/runs/41537679267)
+qualifies the unchanged original `text — mobile` case at main source
+`31f1b7b41f8fe62290cb9eec33e63d236d14a920`, transport
+`345e86c026a98145ecbe2d9fb8052104b81d60ff`. Only the two temporary transport files
+differ; relevant product and test bytes equal f641 above.
+
+The case passes once, retry0, with all nine original phases in source order:
+980/390/320 widths, each stopped/running/resized. Independent actual review
+approves all nine screenshots, 72 control observations, all360 native hit points,
+clipping/caption/font guards, and 32px drawer-height changes. Server document and
+revision2 remain unchanged, local snapshots stay null, and all nine editor
+sources equal the saved source.
+
+Combined with the independently reviewed87, these nine establish96 current
+compact observations: all95 historical observations plus981-native-closed. No
+original phase was removed or renamed. This case uses its original viewport
+context and establishes neither phone hardware/touch identity nor elapsed-clock
+advancement; the running screenshot proves only clock presence. Its existing
+anonymous-probe/navigation-abort collector exceptions remain unchanged.
+
+The [post-integration main31 General gate](https://github.com/spikeal8-maker/asa-lab/actions/runs/41535688893)
+also passes all five jobs, including `ASA / required`.
+
 ## Limits and operations
 
 The mobile isolation journey uses the existing native Expand→Reset route.

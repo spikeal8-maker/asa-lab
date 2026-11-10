@@ -8,7 +8,6 @@ import {
 } from '../api';
 import { AssignmentEditorDialog } from './AssignmentEditor';
 import { AssignmentView } from './AssignmentView';
-import { AssignLearningActivityDialog } from './AssignLearningActivityDialog';
 import { LearningConditions } from './LearningConditions';
 import { LearningAudience } from './LearningAudience';
 import { useSchoolTime } from './school-time';
@@ -81,7 +80,6 @@ export function ClassroomAssignments({
   const [items, setItems] = useState<ClassroomAssignment[] | null>(null);
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
   const [creating, setCreating] = useState(false);
-  const [assigning, setAssigning] = useState(false);
   /** Какое задание правим той же формой. null — пишем новое. */
   const [editing, setEditing] = useState<LibraryAssignment | null>(null);
   const [open, setOpen] = useState<ClassroomAssignment | null>(null);
@@ -302,26 +300,6 @@ export function ClassroomAssignments({
           <h2>Задания класса</h2>
           <p>Каждый ученик получает свою копию работы. Прогресс виден сразу.</p>
         </div>
-        <div className="assignment-heading-actions">
-          <button
-            type="button"
-            className="portal-create-button"
-            disabled={archived}
-            onClick={() => setAssigning(true)}
-          >
-            Назначить задание
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={archived}
-            onClick={() => {
-              window.location.hash = '#/challenges';
-            }}
-          >
-            Создать задание
-          </button>
-        </div>
       </div>
 
       {notice ? (
@@ -449,17 +427,6 @@ export function ClassroomAssignments({
       )}
 
       {editorDialog}
-      {assigning ? (
-        <AssignLearningActivityDialog
-          classroomId={classroomId}
-          onClose={() => setAssigning(false)}
-          onAssigned={(title, count) => {
-            setAssigning(false);
-            setNotice(`Задание «${title}» назначено: ${count}.`);
-            void reload();
-          }}
-        />
-      ) : null}
     </section>
   );
 }

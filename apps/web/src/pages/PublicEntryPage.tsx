@@ -424,9 +424,12 @@ export function PublicEntryPage({
               </p>
             </article>
             <article>
-              <span className="public-home-status">Развивается</span>
+              <span className="public-home-status">Доступна в проектах</span>
               <strong>Визуальная робототехника</strong>
-              <p>Движение, условия, циклы, датчики и поведение роботов через блочные программы.</p>
+              <p>
+                Соберите схему, запрограммируйте Arduino и испытайте робота на собственном поле.
+                Работа сохраняется в аккаунте и публикуется в сообществе.
+              </p>
             </article>
             <article>
               <span className="public-home-status">Развивается</span>

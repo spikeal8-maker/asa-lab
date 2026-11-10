@@ -1,10 +1,181 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+beforeEach(() => {
+  vi.spyOn(Math, 'random').mockReturnValue(0);
+});
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllTimers();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 describe('client diagnostics isolation', () => {
+  it.each([
+    ['scope', '/api/modules', 'GET', null, null],
+    ['lifecycle', '/api/classrooms/awaiting-review', 'GET', null, null],
+    ['lifecycle', '/api/auth/me', 'GET', null, null],
+    ['manual', '/api/modules', 'GET', 'request_cancelled', 'cancelled'],
+    ['manual', '/api/auth/me', 'GET', 'request_cancelled', 'cancelled'],
+    ['timeout', '/api/auth/me', 'GET', 'request_failed', 'timeout'],
+    ['timeout', '/api/modules', 'GET', 'request_failed', 'timeout'],
+    ['network', '/api/modules', 'GET', 'request_failed', 'network'],
+    ['http', '/api/modules', 'GET', 'request_failed', 'http'],
+    ['lifecycle', '/api/projects/project/draft', 'PUT', 'request_failed', 'cancelled'],
+  ] as const)(
+    'keeps %s %s %s lifecycle handling separate from request failures',
+    async (kind, path, method, code, failureKind) => {
+      vi.resetModules();
+      vi.useFakeTimers();
+      vi.setSystemTime(1_000_000);
+      let productSignal: AbortSignal | null | undefined;
+      const transport = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+        if (input !== path) return Response.json({ accepted: true }, { status: 202 });
+        productSignal = init?.signal;
+        if (kind === 'network') throw new TypeError('Fixture offline');
+        if (kind === 'http')
+          return Response.json(
+            { error: { code: 'unavailable', message: 'Later' } },
+            { status: 503 },
+          );
+        return new Promise<Response>((_resolve, reject) => {
+          init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason), {
+            once: true,
+          });
+        });
+      });
+      const browser = {
+        fetch: transport,
+        sessionStorage: { getItem: () => null, setItem() {} },
+        location: { href: 'https://asa.invalid/', origin: 'https://asa.invalid' },
+        addEventListener: vi.fn(),
+      };
+      vi.stubGlobal('window', browser);
+      vi.stubGlobal('fetch', transport);
+      const { installClientDiagnostics } = await import('./client-diagnostics');
+      installClientDiagnostics();
+      // Product calls must pass through the actual browser diagnostics wrapper.
+      vi.stubGlobal('fetch', browser.fetch);
+      const { call } = await import('./api-call');
+      const { lifecycleCancellation, AUTH_REQUEST_TIMEOUT_MS } = await import('./auth-request');
+      const { invalidatePortalSession } = await import('./portal-requests');
+      const controller = new AbortController();
+      const result = call(path, { method, signal: controller.signal });
+      expect(productSignal).toBeDefined();
+      if (kind === 'scope') invalidatePortalSession();
+      else if (kind === 'lifecycle') {
+        const reason = lifecycleCancellation();
+        controller.abort(reason);
+        await result;
+        expect(productSignal!.reason).toBe(reason);
+      } else if (kind === 'manual') controller.abort();
+      else if (kind === 'timeout')
+        await vi.advanceTimersByTimeAsync(
+          path === '/api/auth/me' ? AUTH_REQUEST_TIMEOUT_MS : 30_000,
+        );
+      const outcome = await result;
+      expect(outcome.ok).toBe(false);
+      if (kind === 'timeout' && path === '/api/auth/me')
+        expect(outcome).toMatchObject({ error: { code: 'auth_timeout' } });
+      await vi.advanceTimersByTimeAsync(0);
+      const reports = transport.mock.calls.filter(([url]) => url === '/api/diagnostics/client');
+      if (code === null) expect(reports).toHaveLength(0);
+      else {
+        expect(reports).toHaveLength(1);
+        expect(JSON.parse(reports[0]![1]!.body as string)).toMatchObject({
+          code,
+          failureKind,
+          method,
+        });
+      }
+      invalidatePortalSession();
+    },
+  );
+
+  it('aggregates a burst of distinct failing request attempts without retrying or consuming product responses', async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    const path = '/api/projects/PRIVATE?token=PRIVATE';
+    const transport = vi.fn<typeof fetch>(
+      async (input) =>
+        new Response(input === path ? 'PRIVATE product response' : '{"accepted":true}', {
+          status: input === path ? 503 : 202,
+        }),
+    );
+    const browser = {
+      fetch: transport,
+      sessionStorage: { getItem: () => null, setItem() {} },
+      location: { href: 'https://asa.invalid/', origin: 'https://asa.invalid' },
+      addEventListener: vi.fn(),
+    };
+    vi.stubGlobal('window', browser);
+    vi.stubGlobal('fetch', transport);
+    const { installClientDiagnostics } = await import('./client-diagnostics');
+    installClientDiagnostics();
+    const results = await Promise.all(Array.from({ length: 100 }, () => browser.fetch(path)));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(results.every((response) => response.status === 503 && !response.bodyUsed)).toBe(true);
+    const productCalls = transport.mock.calls.filter(([url]) => url === path);
+    expect(productCalls).toHaveLength(100);
+    expect(
+      new Set(
+        productCalls.map(([, init]) => new Headers(init?.headers).get('x-asa-client-attempt-id')),
+      ).size,
+    ).toBe(100);
+    const reports = transport.mock.calls.filter(([url]) => url === '/api/diagnostics/client');
+    expect(reports).toHaveLength(1);
+    expect(JSON.parse(reports[0]![1]!.body as string)).toMatchObject({
+      code: 'request_failed',
+      operation: 'project_read',
+      httpStatus: 503,
+      repetitionCount: 100,
+      firstOccurredAt: 1_000_000,
+      lastOccurredAt: 1_000_000,
+    });
+    expect(reports[0]![1]!.body).not.toMatch(/PRIVATE|token|response/);
+  });
+  it('reserves admission for render/autosave after distinct network failures exhaust their budget', async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    const transport = vi.fn<typeof fetch>(
+      async () => new Response('{"accepted":true}', { status: 202 }),
+    );
+    vi.stubGlobal('window', { sessionStorage: { getItem: () => null, setItem() {} } });
+    vi.stubGlobal('fetch', transport);
+    const { reportClientDiagnostic } = await import('./client-diagnostics');
+    for (let n = 0; n < 20; n++)
+      reportClientDiagnostic('request_failed', 'portal', {
+        operation: 'other_api',
+        method: 'GET',
+        httpStatus: 500 + n,
+        phase: 'request',
+      });
+    for (let n = 0; n < 100; n++)
+      reportClientDiagnostic('request_failed', 'portal', {
+        operation: 'other_api',
+        method: 'GET',
+        httpStatus: 500,
+        phase: 'request',
+      });
+    reportClientDiagnostic('render_failed', 'portal', { phase: 'runtime' });
+    reportClientDiagnostic('autosave_failed', 'electronics', { phase: 'save' });
+    await vi.advanceTimersByTimeAsync(0);
+    const reports = transport.mock.calls.map(([, init]) => JSON.parse(init!.body as string));
+    expect(reports).toHaveLength(10);
+    expect(reports.slice(0, 2).map((body) => body.code)).toEqual([
+      'render_failed',
+      'autosave_failed',
+    ]);
+    expect(reports.find((body) => body.httpStatus === 500)).toMatchObject({ repetitionCount: 101 });
+    const { diagnosticQuality } = await import('./telemetry-quality');
+    expect(diagnosticQuality().read().counters).toMatchObject({
+      attempted: 122,
+      enqueued: 10,
+      coalesced: 100,
+      acknowledged: 110,
+      suppressed: 12,
+    });
+  });
   it.each([
     [429, 5, 'request_failed', 'http'],
     [500, 5, 'request_failed', 'http'],
@@ -214,7 +385,8 @@ describe('client diagnostics isolation', () => {
       'scratch-save-draft',
     ]);
     const { diagnosticQuality } = await import('./telemetry-quality');
-    expect(diagnosticQuality().read().counters.deduplicated).toBe(2);
+    expect(bodies[0]).toMatchObject({ repetitionCount: 2 });
+    expect(diagnosticQuality().read().counters).toMatchObject({ deduplicated: 1, coalesced: 1 });
   });
   it('OBS007 resumes anonymous quality and retries original diagnostics only once per cached return', async () => {
     vi.resetModules();
@@ -273,6 +445,10 @@ describe('client diagnostics isolation', () => {
     listeners.get('pageshow')?.({ persisted: true });
     await vi.advanceTimersByTimeAsync(0);
     expect(diagnosticQuality().read()).toMatchObject({ streamId, coverage: { final: false } });
+    expect(
+      transport.mock.calls.filter(([path]) => path === '/api/diagnostics/client'),
+    ).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1000); // A cached return preserves the existing retry deadline.
     const diagnosticCalls = transport.mock.calls.filter(
       ([path]) => path === '/api/diagnostics/client',
     );
@@ -322,21 +498,27 @@ describe('client diagnostics isolation', () => {
     vi.stubGlobal('fetch', fetch);
     const { reportClientDiagnostic } = await import('./client-diagnostics');
     for (let i = 0; i < 100; i++) reportClientDiagnostic('editor_start_failed', 'scratch');
+    await vi.advanceTimersByTimeAsync(0);
     expect(fetch).toHaveBeenCalledTimes(1);
     const options = fetch.mock.calls[0]![1] as RequestInit;
     expect(Object.keys(JSON.parse(options.body as string)).sort()).toEqual([
       'code',
       'eventId',
+      'firstOccurredAt',
       'instanceId',
+      'lastOccurredAt',
       'module',
       'occurredAt',
+      'repetitionCount',
       'revision',
     ]);
-    for (let i = 0; i < 20; i++) {
+    expect(JSON.parse(options.body as string).repetitionCount).toBe(100);
+    for (let i = 0; i < 6; i++) {
       await vi.advanceTimersByTimeAsync(10000);
       reportClientDiagnostic('autosave_failed', 'electronics');
+      await vi.advanceTimersByTimeAsync(0);
     }
-    expect(fetch.mock.calls.length).toBe(21);
+    expect(fetch.mock.calls.length).toBe(6);
     await vi.advanceTimersByTimeAsync(60_001);
     const before = fetch.mock.calls.length;
     const { beginDiagnosticContext } = await import('./client-diagnostics');
@@ -345,7 +527,7 @@ describe('client diagnostics isolation', () => {
       reportClientDiagnostic('editor_start_failed', 'scratch');
       await vi.advanceTimersByTimeAsync(0);
     }
-    expect(fetch.mock.calls.length - before).toBe(12);
+    expect(fetch.mock.calls.length - before).toBe(8);
   });
   it('correlates a failed API request while preserving response, credentials and unrelated fetches', async () => {
     vi.resetModules();

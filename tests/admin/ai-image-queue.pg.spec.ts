@@ -26,6 +26,20 @@ const schoolPendingFiles = [
   '0298_ai_image_file_binding.sql',
   '0299_ai_polza_token_budget_catalog.sql',
   '0300_ai_image_durable_queue.sql',
+  '0301_games_chess_lobby.sql',
+  '0302_games_chess_notifications.sql',
+  '0303_publication_owner_editor.sql',
+  '0304_games_checkers_network.sql',
+  '0305_robotics_projects.sql',
+  '0306_robotics_publications.sql',
+  '0307_robotics_telemetry_v2.sql',
+  '0308_ai_eight_tool_registry.sql',
+  '0309_learning_essay_course_runtime.sql',
+  '0310_learning_quiz_policy_authority.sql',
+  '0311_learning_quiz_attempt_state.sql',
+  '0312_learning_quiz_complete_course.sql',
+  '0313_ai_openai_chat_catalog.sql',
+  '0314_ai_polza_video_catalog.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
@@ -42,6 +56,18 @@ const canonicalSqlDigests = {
   '0298': 'c42c970943bf6b89fcd341cd656bf1b36d1ed4114b27d72719c15ee5fe394a30',
   '0299': '12b080915d4808056f4ba5d9995631aa6c93f41d2c37c3b314621090400b1fac',
   '0300': '0ea57787d707326f9222fb906bc7d826a91d417c3efdeeb6251c6a3156b6cd26',
+  '0301': 'f64f992a4b6f0d98a9e7e33666e7c67083c4ff274a0780311159ae6ac84514f2',
+  '0302': '43fb00c4ee7cdff378ffcaa1acd803a2b312eabc9d3211181c23bd238ba05a6d',
+  '0303': '92818d6ea4dff20e5201e7e4e228678067048155714c89ce9d6f3270792bf60c',
+  '0304': 'ecb1283c5adea892895b540f2e04d75a74ab51c54660110bf5a8269f56b3279d',
+  '0305': 'd706c3eaa79a7b3ce24824c507fa27ff524d9fcd9a0bb49eea1d6ee7410750bb',
+  '0306': '7c88a610329dc61030dc2155ffc33cf573062f18425044173026e67723737f11',
+  '0307': '3ea56361e766b572a5e83b4bce8d68ac90e3b82b92c79eabe6750619b8e71779',
+  '0308': '85722956cf9ec5aa183e8b710f720c7f2356d761bc47466f756b87f8358bbf9a',
+  '0309': '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
+  '0310': '85b4df00292bc47058616fe20054301a8a533a5ae3474daf8dbd3edc951fed39',
+  '0311': '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
+  '0312': 'fb93b9453e0127d94843feb45abf8371437eee0b0421ceb34323171bc5a1825b',
 };
 const beginSql = 'SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,$6,$7,$8) AS value';
 const transport = {
@@ -160,7 +186,7 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
       try {
         // Prove a forward upgrade from the actual school schema, not only an empty DB.
         const migrations = planMigrations('migrations');
-        expect(migrations.at(-1)?.version).toBe('0300');
+        expect(migrations.at(-1)?.version).toBe('0314');
         await applyPlan(
           client,
           migrations.filter((m: { version: string }) => m.version <= '0286'),

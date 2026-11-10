@@ -13,6 +13,7 @@ export const LOG_SUBSYSTEMS = [
   'database',
   'scratch',
   'electronics',
+  'robotics',
   'chess',
   'checkers',
   'three-d',
@@ -27,6 +28,7 @@ export const LOG_SUBSYSTEMS = [
 export const LOG_EDITOR_MODULES = [
   'scratch',
   'electronics',
+  'robotics',
   'three-d',
   'chess',
   'checkers',
@@ -111,6 +113,7 @@ export function logSubsystem(
         'analytics',
         'diagnostics',
         'electronics',
+        'robotics',
         'chess',
         'checkers',
         'three-d',

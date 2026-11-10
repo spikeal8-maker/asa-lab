@@ -100,8 +100,26 @@ components:
     - browser wall-clock as pulse duration
     contracts:
     - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6--sensors-and-peripherals
-    sources: []
-    tests: []
+    - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md#4-input-trace
+    sources:
+    - contexts/electronics/domain/models/hc-sr04-runtime.ts
+    - contexts/electronics/domain/arduino-circuit-scheduler.ts
+    - contexts/electronics/engine.ts
+    - contexts/electronics/domain/model-identity.ts
+    - apps/web/src/electronics/live-simulation-worker-controller.ts
+    - apps/web/src/electronics/use-electronics-workbench.ts
+    tests:
+    - contexts/electronics/testing/hc-sr04-runtime.spec.ts
+    - contexts/electronics/testing/ultrasonic-distance-timed-input.spec.ts
+    - contexts/electronics/testing/engine-timed-api.spec.ts
+    - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
+    symbols:
+    - observeHcSr04Inputs
+    - advanceArduinoCircuitClock
+    - useElectronicsWorkbenchHost
+    - ElectronicsLiveSimulationWorkerController
+    notes: HC-SR04 latches reflection availability at an accepted Trig; no-echo uses the existing pulseIn timeout and canonical timed-input queue.
   electronics.peripheral.pir:
     ownership: asa
     risk: medium

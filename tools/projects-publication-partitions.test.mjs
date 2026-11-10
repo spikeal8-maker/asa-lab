@@ -9,7 +9,7 @@ import {
   runPublicationBrowserPartitions,
 } from './projects-publication-partitions.mjs';
 
-test('keeps every original browser suite exactly once in ten separate lifecycles', () => {
+test('keeps every original browser suite and Robotics exactly once in eleven separate lifecycles', () => {
   assert.deepEqual(publicationBrowserPartitions.flatMap((p) => p.files).sort(), [
     'e2e/gallery.spec.ts',
     'e2e/project-hub.spec.ts',
@@ -20,9 +20,10 @@ test('keeps every original browser suite exactly once in ten separate lifecycles
     'e2e/public-projects.spec.ts',
     'e2e/publication-comments.spec.ts',
     'e2e/publication-likes.spec.ts',
+    'e2e/robotics-projects.spec.ts',
     'e2e/student-project-policy.spec.ts',
   ]);
-  assert.equal(publicationBrowserPartitions.length, 10);
+  assert.equal(publicationBrowserPartitions.length, 11);
   assert.ok(publicationBrowserPartitions.every((partition) => partition.files.length === 1));
 });
 
@@ -43,9 +44,9 @@ test('waits for each child to exit, preserves distinct artifacts and never retri
     pids.push(Number(child.stdout));
     return child.status;
   }, {});
-  assert.equal(pids.length, 10);
-  assert.equal(new Set(pids).size, 10);
-  assert.equal(new Set(outputs).size, 10);
+  assert.equal(pids.length, 11);
+  assert.equal(new Set(pids).size, 11);
+  assert.equal(new Set(outputs).size, 11);
   assert.deepEqual(
     outputs,
     publicationBrowserPartitions.map(
@@ -55,7 +56,7 @@ test('waits for each child to exit, preserves distinct artifacts and never retri
 });
 
 test('a failed or unfinished child prevents the next partition', () => {
-  for (const failedIndex of [0, 4, 9]) {
+  for (const failedIndex of [0, 4, 9, 10]) {
     for (const status of [1, null, undefined]) {
       let calls = 0;
       assert.throws(() =>

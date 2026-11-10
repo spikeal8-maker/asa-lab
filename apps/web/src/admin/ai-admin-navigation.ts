@@ -9,7 +9,7 @@ export type AiSection =
   | 'video'
   | 'transcription'
   | 'prompt'
-  | 'internet';
+  | 'tools';
 export interface AiAdminNavigation {
   readonly section: AiSection;
   readonly provider: AiProviderChoice;
@@ -20,7 +20,7 @@ export const AI_ADMIN_SECTIONS: readonly { id: AiSection; label: string }[] = [
   { id: 'settings', label: 'Настройки' },
   { id: 'connections', label: 'Подключения' },
   { id: 'prompt', label: 'Системный промпт' },
-  { id: 'internet', label: 'Интернет-поиск' },
+  { id: 'tools', label: 'Инструменты' },
   { id: 'comfyui', label: 'Изображения' },
   { id: 'video', label: 'Видео' },
   { id: 'transcription', label: 'Транскрибация' },
@@ -44,7 +44,12 @@ export function readAiAdminNavigation(principalId: string): AiAdminNavigation {
     const raw: unknown = JSON.parse(localStorage.getItem(preferenceKey(principalId)) ?? 'null');
     if (raw && typeof raw === 'object' && 'section' in raw && 'provider' in raw) {
       saved = {
-        section: section(raw.section) ? raw.section : DEFAULT.section,
+        section:
+          raw.section === 'internet'
+            ? 'tools'
+            : section(raw.section)
+              ? raw.section
+              : DEFAULT.section,
         provider: provider(raw.provider) ? raw.provider : DEFAULT.provider,
       };
     }
@@ -54,7 +59,8 @@ export function readAiAdminNavigation(principalId: string): AiAdminNavigation {
   const [path, query = ''] = window.location.hash.replace(/^#/, '').split('?');
   if (path?.replace(/\/+$/, '') !== '/admin/ai') return saved;
   const params = new URLSearchParams(query);
-  const explicitSection = params.get('section');
+  const requestedSection = params.get('section');
+  const explicitSection = requestedSection === 'internet' ? 'tools' : requestedSection;
   const explicitProvider = params.get('provider');
   return {
     section: section(explicitSection) ? explicitSection : saved.section,

@@ -57,6 +57,21 @@ export interface ProviderStreamResult {
 const MAX_RESULT_CHARS = AI_MAX_ANSWER_CHARS;
 const MAX_EVENT_BUFFER = 128 * 1024;
 
+type OpenAiReasoningItem = {
+  type: 'reasoning';
+  id: string;
+  summary: [];
+  encrypted_content: string;
+};
+type OpenAiCallReplay = {
+  callId: string;
+  itemId?: string;
+  arguments: string;
+  reasoning: OpenAiReasoningItem[];
+};
+// Keep opaque provider state only for the lifetime of a validated server-side tool call.
+const openAiCallReplay = new WeakMap<NativeToolCall, OpenAiCallReplay>();
+
 function completionState(
   provider: StreamProvider,
   terminal: unknown,
@@ -195,6 +210,9 @@ export async function streamProviderText({
       'Выбранная модель не поддерживает чтение изображений. Выберите модель с Vision.',
     );
   const request = buildAiTextRequest(provider, model, context, instructions, true, images);
+  const effort = (request.body.reasoning as { effort?: string } | undefined)?.effort;
+  const replayReasoning = provider === 'openai' && (effort === 'low' || effort === 'medium');
+  if (replayReasoning && tools?.length) request.body.include = ['reasoning.encrypted_content'];
   if (tools?.length)
     request.body.tools =
       provider === 'openai'
@@ -210,15 +228,21 @@ export async function streamProviderText({
     if (provider === 'openai')
       request.body.input = [
         ...(request.body.input as unknown[]),
-        ...toolResults.flatMap((r, i) => [
-          {
-            type: 'function_call',
-            call_id: 'call_asa_' + i,
-            name: r.call.name,
-            arguments: JSON.stringify(r.call.arguments),
-          },
-          { type: 'function_call_output', call_id: 'call_asa_' + i, output: r.content },
-        ]),
+        ...toolResults.flatMap((r, i) => {
+          const replay = openAiCallReplay.get(r.call);
+          const callId = replay?.callId ?? 'call_asa_' + i;
+          return [
+            ...(replay?.reasoning ?? []),
+            {
+              type: 'function_call',
+              ...(replay?.itemId ? { id: replay.itemId } : {}),
+              call_id: callId,
+              name: r.call.name,
+              arguments: replay?.arguments ?? JSON.stringify(r.call.arguments),
+            },
+            { type: 'function_call_output', call_id: callId, output: r.content },
+          ];
+        }),
       ];
     else
       request.body.messages = [
@@ -270,7 +294,11 @@ export async function streamProviderText({
   let finished = false;
   let providerState: 'complete' | 'stopped' | null = null;
   let usage: AiProviderUsage | undefined;
-  const functionCalls = new Map<number, { name: string; arguments: string }>();
+  const functionCalls = new Map<
+    number,
+    { name: string; arguments: string; callId?: string; itemId?: string }
+  >();
+  const reasoningItems = new Map<number, OpenAiReasoningItem>();
 
   function handle(frame: string): void {
     if (finished || combined.aborted) return;
@@ -307,13 +335,48 @@ export async function streamProviderText({
       ) {
         const p = payload as {
           output_index?: number;
-          item?: { type?: string; name?: string; arguments?: string };
+          item?: {
+            type?: string;
+            name?: string;
+            arguments?: string;
+            id?: string;
+            call_id?: string;
+            encrypted_content?: string;
+          };
         };
-        if (p.item?.type === 'function_call')
-          functionCalls.set(p.output_index ?? 0, {
+        const index = p.output_index ?? 0;
+        if (p.item?.type === 'function_call') {
+          functionCalls.set(index, {
             name: p.item.name ?? '',
             arguments: p.item.arguments ?? '',
+            ...(replayReasoning && typeof p.item.call_id === 'string'
+              ? {
+                  callId: p.item.call_id,
+                  ...(typeof p.item.id === 'string' ? { itemId: p.item.id } : {}),
+                }
+              : {}),
           });
+        }
+        if (
+          replayReasoning &&
+          tools?.length &&
+          p.item?.type === 'reasoning' &&
+          typeof p.item.id === 'string' &&
+          typeof p.item.encrypted_content === 'string'
+        ) {
+          if (!reasoningItems.has(index) && reasoningItems.size >= 4)
+            throw new ProviderStreamError(
+              'ai_stream_invalid',
+              503,
+              'Превышен предел событий модели.',
+            );
+          reasoningItems.set(index, {
+            type: 'reasoning',
+            id: p.item.id,
+            summary: [],
+            encrypted_content: p.item.encrypted_content,
+          });
+        }
       }
       if (provider !== 'openai') {
         const calls = (
@@ -467,12 +530,26 @@ export async function streamProviderText({
   let toolCalls: readonly NativeToolCall[] | undefined;
   if (functionCalls.size && !signal.aborted && providerState !== 'stopped') {
     try {
+      const calls = [...functionCalls].sort(([a], [b]) => a - b);
       toolCalls = parseNativeToolBatch(
-        [...functionCalls.values()].map((c) => ({
+        calls.map(([, c]) => ({
           function: { name: c.name, arguments: JSON.parse(c.arguments) },
         })),
         tools ?? [],
       );
+      for (const [position, [index, call]] of calls.entries()) {
+        if (!call.callId) continue;
+        const previousIndex = calls[position - 1]?.[0] ?? -1;
+        openAiCallReplay.set(toolCalls[position]!, {
+          callId: call.callId,
+          ...(call.itemId ? { itemId: call.itemId } : {}),
+          arguments: call.arguments,
+          reasoning: [...reasoningItems]
+            .filter(([itemIndex]) => itemIndex > previousIndex && itemIndex < index)
+            .sort(([a], [b]) => a - b)
+            .map(([, item]) => item),
+        });
+      }
     } catch {
       throw new ProviderStreamError(
         'ai_tool_call_invalid',

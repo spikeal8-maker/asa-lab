@@ -410,13 +410,14 @@ export class AiPolzaService {
     const key = this.decrypt(await this.runtime());
     const began = Date.now();
     try {
-      // Model listing does not perform paid transcription. Never log raw responses or the key.
-      const response = await this.fetchImpl(POLZA_API_BASE + '/models', {
+      // The public model list cannot authenticate a key. The balance endpoint requires one.
+      const response = await this.fetchImpl('https://polza.ai/api/v2/balance', {
         method: 'GET',
         headers: { authorization: 'Bearer ' + key, accept: 'application/json' },
         redirect: 'error',
         signal: AbortSignal.timeout(8000),
       });
+      await response.body?.cancel().catch(() => undefined);
       if (!response.ok)
         throw new AiPolzaError(
           response.status === 401 ? 'ai_polza_auth_failed' : 'ai_polza_check_failed',

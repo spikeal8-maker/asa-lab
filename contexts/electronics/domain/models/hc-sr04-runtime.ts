@@ -63,6 +63,12 @@ export function hcSr04DistanceMeters(component: SchematicComponent): number | nu
     : null;
 }
 
+export function hcSr04EchoAvailable(component: SchematicComponent): boolean | null {
+  if (!isHcSr04(component)) return null;
+  const value = component.stateProperties?.['echoAvailable'];
+  return value === undefined ? true : typeof value === 'boolean' ? value : null;
+}
+
 export function hcSr04EchoWidthMicroseconds(distanceMeters: number): number {
   if (
     !Number.isFinite(distanceMeters) ||
@@ -174,9 +180,12 @@ export function observeHcSr04Inputs(
   powered: boolean,
   triggerHigh: boolean,
   distanceMeters: number,
+  echoAvailable = true,
 ): HcSr04RuntimeStep {
   if (!isHcSr04RuntimeState(state) || !canonicalTime(nowMicroseconds))
     throw new TypeError('Invalid HC-SR04 runtime continuation.');
+  if (typeof echoAvailable !== 'boolean')
+    throw new TypeError('HC-SR04 echoAvailable must be boolean.');
   const echoBefore = hcSr04EchoHigh(state);
   if (!powered) {
     const next: HcSr04RuntimeState = {
@@ -198,7 +207,7 @@ export function observeHcSr04Inputs(
     };
   } else if (next.phase === 'trigger-high' && !triggerHigh) {
     const highDuration = nowMicroseconds - next.triggerHighSinceMicroseconds!;
-    if (highDuration >= HC_SR04_PROFILE.minimumTriggerHighMicroseconds) {
+    if (highDuration >= HC_SR04_PROFILE.minimumTriggerHighMicroseconds && echoAvailable) {
       const echoStartMicroseconds = nowMicroseconds + HC_SR04_PROFILE.echoStartLatencyMicroseconds;
       const echoEndMicroseconds =
         echoStartMicroseconds + hcSr04EchoWidthMicroseconds(distanceMeters);

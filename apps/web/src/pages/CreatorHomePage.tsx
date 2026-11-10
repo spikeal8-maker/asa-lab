@@ -17,7 +17,7 @@ import { ProjectCard } from '../modules/ProjectCard';
 import { useHomeProjectActions } from '../modules/useHomeProjectActions';
 
 const PROJECTS_PER_MODULE = 10;
-const ORDER: readonly HomeModule[] = ['three-d', 'electronics', 'blocks'];
+const ORDER: readonly HomeModule[] = HOME_MODULES;
 
 export function CreatorHomePage({
   session,

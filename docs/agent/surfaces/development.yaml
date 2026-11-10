@@ -63,6 +63,9 @@ surfaces:
     - .github/workflows/projects-publication.yml
     - tools/ci_required.py
     - tools/test_ci_required.py
+    - tools/devex_ci_contract.py
+    - tools/test_devex_ci_contract.py
+    - tools/test_ci_image_transport.py
   invariants: &local_invariants
   - DEVEX-RISK-001
   - DEVEX-LOCAL-CHECK-001
@@ -70,6 +73,8 @@ surfaces:
   tests: &local_tests
   - TST-DEVEX-CHECK-001
   - TST-DEVEX-CI-REQUIRED-001
+  - TST-DEVEX-CI-CONTRACT-001
+  - TST-DEVEX-CI-EFFECT-INTEGRATION-001
   controls:
   - id: CTRL-DEVELOPMENT-LOCAL-CHECKS
     change_class: L3_CRITICAL

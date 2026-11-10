@@ -50,6 +50,37 @@ describe.skipIf(!enabled)(
       }
     });
     const fixture = chessNetworkStorageContract(() => ({ admin, pool }));
+    it('concurrent directed accepts admit only one live duel for the recipient', async () => {
+      const f = await fixture();
+      const a = await f.seat('Direct A');
+      const b = await f.seat('Direct B');
+      const c = await f.seat('Direct C');
+      await f.service.policy(
+        f.source,
+        f.classroomId,
+        { enabled: true, scope: 'classroom', expectedVersion: 0 },
+        randomUUID(),
+      );
+      for (const seat of [a, b, c]) await f.service.lobby(seat.source, 'classroom');
+      const bid = (await f.service.access(b.source)).player.playerId;
+      const input = {
+        scope: 'classroom' as const,
+        initialMs: 600000,
+        incrementMs: 0,
+        colorPreference: 'white' as const,
+      };
+      const first = await f.service.challenge(a.source, randomUUID(), bid, input);
+      const second = await f.service.challenge(c.source, randomUUID(), bid, input);
+      const results = await Promise.allSettled([
+        f.service.accept(b.source, randomUUID(), first.invite!.code),
+        f.service.accept(b.source, randomUUID(), second.invite!.code),
+      ]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+      expect(
+        (await f.service.history(b.source)).matches.filter((m) => m.status === 'active'),
+      ).toHaveLength(1);
+    }, 30000);
     it('concurrent invite redemption creates one match; competing moves do not overwrite', async () => {
       const f = await fixture();
       const a = await f.seat('A');

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import {
   useCommittedWorkbenchPresentation,
   type WorkbenchInspectorController,
@@ -8,6 +8,8 @@ import {
   ledForwardVoltageAtCurrent,
   ordinaryLedProfile,
   photoresistorIlluminanceLux,
+  photoresistorLightSourceDistanceCm,
+  photoresistorLightSourceId,
   photoresistorResistanceOhm,
   PHOTORESISTOR_PROFILE,
   resolveBrushedMotorProfileSelection,
@@ -726,6 +728,9 @@ export function WorkbenchInspector({
   const c = useCommittedWorkbenchPresentation(controller);
   const [helpOpen, setHelpOpen] = useState(false);
   const [stateOpen, setStateOpen] = useState(false);
+  const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
+  const propertiesId = useId();
+  const propertiesDisclosureRef = useRef<HTMLButtonElement>(null);
   const [helpSections, setHelpSections] = useState<readonly HelpSection[] | null>(null);
   const measurement = c.selectedComponent
     ? c.resultByComponent.get(c.selectedComponent.id)
@@ -771,10 +776,19 @@ export function WorkbenchInspector({
   const selectedPhotoresistor =
     c.selectedComponent?.kind === 'photoresistor'
       ? {
-          lux: photoresistorIlluminanceLux(c.selectedComponent),
-          resistanceOhm: photoresistorResistanceOhm(c.selectedComponent),
+          lux: measurement?.illuminanceLux ?? photoresistorIlluminanceLux(c.selectedComponent),
+          resistanceOhm:
+            measurement?.effectiveResistanceOhm ?? photoresistorResistanceOhm(c.selectedComponent),
+          lampId: photoresistorLightSourceId(c.selectedComponent),
+          distanceCm: photoresistorLightSourceDistanceCm(c.selectedComponent),
         }
       : null;
+  const photoresistorLamps = selectedPhotoresistor
+    ? (c.document?.components.filter((component) => component.kind === 'lamp') ?? [])
+    : [];
+  const photoresistorLampId = photoresistorLamps.find(
+    (lamp) => lamp.id === selectedPhotoresistor?.lampId,
+  )?.id;
   const selectedSupplyVoltageSetpoint = selectedIsAdjustableSource
     ? Number(
         c.selectedComponent?.stateProperties?.['voltageSetpointVolt'] ??
@@ -829,6 +843,7 @@ export function WorkbenchInspector({
     : 0;
   useEffect(() => {
     setHelpSections(null);
+    setMobilePropertiesOpen(false);
   }, [c.selectedComponent?.id]);
   useEffect(() => {
     if (!helpOpen || !c.selectedComponent || !c.selectedEntry) return;
@@ -911,10 +926,44 @@ export function WorkbenchInspector({
       {c.selection && c.selection.kind !== 'annotation' ? (
         <aside
           className={`workbench-inspector${c.selectedWire ? ' wire-selected' : ''}${
+            c.selectedComponent ? ' component-selected' : ''
+          }${
             selectedIsPotentiometer ? ' is-potentiometer' : ''
           }${c.libraryOpen ? '' : ' library-hidden'}`}
+          data-mobile-properties-open={mobilePropertiesOpen}
+          onKeyDown={(event) => {
+            const disclosure = propertiesDisclosureRef.current;
+            if (
+              event.key !== 'Escape' ||
+              !mobilePropertiesOpen ||
+              !disclosure ||
+              window.getComputedStyle(disclosure).display === 'none'
+            )
+              return;
+            event.preventDefault();
+            event.stopPropagation();
+            setMobilePropertiesOpen(false);
+            disclosure.focus();
+          }}
           aria-label={c.selectedWire ? 'Параметры выбранного провода' : 'Параметры выделения'}
         >
+          {c.selectedComponent ? (
+            <button
+              type="button"
+              ref={propertiesDisclosureRef}
+              className="workbench-properties-disclosure"
+              aria-label={
+                mobilePropertiesOpen
+                  ? 'Свернуть параметры компонента'
+                  : 'Открыть параметры компонента'
+              }
+              aria-expanded={mobilePropertiesOpen}
+              aria-controls={propertiesId}
+              onClick={() => setMobilePropertiesOpen((open) => !open)}
+            >
+              {mobilePropertiesOpen ? <CollapseIcon /> : <ExpandIcon />}
+            </button>
+          ) : null}
           {c.selectedWire ? null : (
             <div className="workbench-inspector-heading">
               <div>
@@ -982,7 +1031,11 @@ export function WorkbenchInspector({
           c.selectedEntry &&
           c.selection.kind === 'component' &&
           c.selection.ids.length === 1 ? (
-            <div className="workbench-inspector-body" data-testid="component-compact-properties">
+            <div
+              id={propertiesId}
+              className="workbench-inspector-body"
+              data-testid="component-compact-properties"
+            >
               {c.selectedFamily &&
               c.selectedFamily.variants.length > 1 &&
               (!selectedIsPotentiometer || stateOpen) ? (
@@ -1528,6 +1581,55 @@ export function WorkbenchInspector({
                     Удерживать кнопку
                   </button>
                 </fieldset>
+              ) : null}
+              {selectedPhotoresistor ? (
+                <>
+                  <label>
+                    <span>Источник света</span>
+                    <select
+                      data-testid="photoresistor-light-source"
+                      value={photoresistorLampId ?? ''}
+                      disabled={c.simulationRunning}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ lightSourceComponentId: event.target.value })
+                      }
+                    >
+                      <option value="">Только фоновый свет</option>
+                      {photoresistorLamps.map((lamp, index) => (
+                        <option key={lamp.id} value={lamp.id}>
+                          {lamp.name ?? 'Лампа накаливания'} ({index + 1})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {photoresistorLampId ? (
+                    <label>
+                      <span>Расстояние до лампы, см</span>
+                      <input
+                        key={`${c.selectedComponent.id}:${selectedPhotoresistor.distanceCm}`}
+                        data-testid="photoresistor-light-distance"
+                        type="number"
+                        min={PHOTORESISTOR_PROFILE.optical.minimumDistanceCm}
+                        max={PHOTORESISTOR_PROFILE.optical.maximumDistanceCm}
+                        step="any"
+                        defaultValue={selectedPhotoresistor.distanceCm}
+                        disabled={c.simulationRunning}
+                        onBlur={(event) => {
+                          const input = event.currentTarget;
+                          const value = input.valueAsNumber;
+                          if (!input.validity.valid || !Number.isFinite(value)) {
+                            input.value = String(selectedPhotoresistor.distanceCm);
+                          } else if (value !== selectedPhotoresistor.distanceCm) {
+                            c.setSelectedProperties({ lightSourceDistanceCm: value });
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') event.currentTarget.blur();
+                        }}
+                      />
+                    </label>
+                  ) : null}
+                </>
               ) : null}
               {c.selectedComponent.componentTypeId === 'soil-moisture-sensor' ? (
                 <>
@@ -2381,7 +2483,11 @@ export function WorkbenchInspector({
                   </div>
                   <div>
                     <dt>Сопротивление сейчас</dt>
-                    <dd>{formatPhotoresistorResistance(selectedPhotoresistor.resistanceOhm)}</dd>
+                    <dd>
+                      {measurement?.deviceHealth === 'failed_open'
+                        ? 'Обрыв цепи'
+                        : formatPhotoresistorResistance(selectedPhotoresistor.resistanceOhm)}
+                    </dd>
                   </div>
                   <div>
                     <dt>Опорный профиль</dt>

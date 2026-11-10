@@ -160,6 +160,15 @@ export async function createProjectCollectionsFixture(page: Page) {
       return reply({ accepted: true }, 202);
     }
     if (method === 'GET') {
+      // The shared portal polls its private game inbox even outside Games.
+      if (
+        (path === '/api/games/chess/notifications' ||
+          path === '/api/games/checkers/notifications') &&
+        url.search === ''
+      ) {
+        expect(request.headers()['x-game-presence']).toBe('1');
+        return reply({ playerId: 'collections-game-player', incoming: [] });
+      }
       if (path === '/api/auth/me')
         return reply({
           authenticated: true,
@@ -195,7 +204,10 @@ export async function createProjectCollectionsFixture(page: Page) {
       if (entry === 'home' && path === '/api/projects') {
         const module = url.searchParams.get('module');
         if (
-          (module === 'three-d' || module === 'electronics' || module === 'blocks') &&
+          (module === 'three-d' ||
+            module === 'electronics' ||
+            module === 'blocks' ||
+            module === 'robotics') &&
           url.search ===
             `?${new URLSearchParams({ scope: 'personal', module, limit: '10', excludeGames: 'true' })}`
         ) {
