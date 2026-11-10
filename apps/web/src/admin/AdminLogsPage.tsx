@@ -386,11 +386,21 @@ export function AdminLogsPage({
   const applicableSources = status?.sources.filter((source) => source.applicable !== false) ?? [];
   const failedSources = applicableSources.filter((source) => source.state === 'error');
   const required = status?.requiredCoverage;
-  const requiredStates =
-    required?.version === 1 && required.policy === 'asa-connected-v1'
-      ? required.sources
+  const knownCoverage =
+    required?.version === 1 &&
+    required.policy === 'asa-connected-v1' &&
+    Array.isArray(required.requiredSourceIds) &&
+    required.requiredSourceIds.length > 0
+      ? required
       : undefined;
-  const gaps = requiredStates?.filter((source) => source.state !== 'ok') ?? [];
+  const requiredStates = knownCoverage?.sources ?? [];
+  const gaps = requiredStates.filter((source) => source.state !== 'ok');
+  const coverageLabel =
+    knownCoverage?.state === 'ok'
+      ? 'сбор исправен'
+      : knownCoverage?.state === 'incomplete'
+        ? 'сбор неполон'
+        : 'покрытие пока не подтверждено';
   const pending = required?.native?.counters;
   const applied = appliedFilter.current;
   const selectionChanged = JSON.stringify(filters.current) !== JSON.stringify(applied);
@@ -409,9 +419,12 @@ export function AdminLogsPage({
       'ASA Lab · сводка диагностики',
       `Период: ${applied.from} — ${applied.to} (МСК)`,
       `Загружено записей: ${page.items.length}${page.partial || page.next ? ' (часть выборки)' : ''}`,
-      requiredStates
-        ? `Обязательные источники без замечаний: ${requiredStates.length - gaps.length}/${requiredStates.length}`
-        : 'Статус обязательных источников не определён',
+      `Обязательные источники: ${coverageLabel}.`,
+      ...(requiredStates.length
+        ? [
+            `Источники без замечаний: ${requiredStates.length - gaps.length}/${requiredStates.length}`,
+          ]
+        : []),
       ...Array.from(counts, ([key, count]) => `${key}: ${count}`),
     ].join('\n');
     try {
@@ -620,20 +633,10 @@ export function AdminLogsPage({
       {status ? (
         <div className="admin-logs-coverage">
           <p role="status">
-            <strong>Обязательные подключённые источники:</strong>{' '}
-            {status.requiredCoverage?.version === 1 &&
-            status.requiredCoverage.policy === 'asa-connected-v1' &&
-            Array.isArray(status.requiredCoverage.requiredSourceIds) &&
-            status.requiredCoverage.requiredSourceIds.length > 0
-              ? status.requiredCoverage.state === 'ok'
-                ? `сбор исправен (${status.requiredCoverage.requiredSourceIds.length}).`
-                : status.requiredCoverage.state === 'incomplete'
-                  ? 'сбор неполон, требуется проверка.'
-                  : 'покрытие пока не подтверждено.'
-              : 'покрытие пока не подтверждено.'}{' '}
-            Полнота всей истории не подтверждена.
+            <strong>Обязательные подключённые источники:</strong> {coverageLabel}. Полнота всей
+            истории не подтверждена.
           </p>
-          {requiredStates ? (
+          {requiredStates.length > 0 ? (
             <p>
               Без замечаний:{' '}
               <strong>

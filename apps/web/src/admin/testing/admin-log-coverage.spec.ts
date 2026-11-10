@@ -128,6 +128,7 @@ it('exports the applied selection and copies counts without messages or identifi
     expect(writeText).toHaveBeenCalledOnce();
     const summary = writeText.mock.calls[0][0] as string;
     expect(summary).toContain('Scratch · Ошибка: 1');
+    expect(summary).toContain('Обязательные источники: сбор неполон.');
     expect(summary).toContain('часть выборки');
     expect(summary).not.toMatch(/private-|worker-timeout/);
   } finally {
