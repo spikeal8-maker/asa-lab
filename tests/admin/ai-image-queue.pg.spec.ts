@@ -187,7 +187,7 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
       try {
         // Prove a forward upgrade from the actual school schema, not only an empty DB.
         const migrations = planMigrations('migrations');
-        expect(migrations.at(-1)?.version).toBe('0314');
+        expect(migrations.at(-1)?.version).toBe('0315');
         await applyPlan(
           client,
           migrations.filter((m: { version: string }) => m.version <= '0286'),
