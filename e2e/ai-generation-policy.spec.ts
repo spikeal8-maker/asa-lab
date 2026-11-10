@@ -38,6 +38,7 @@ async function adminFixture(page: Page) {
     selected: false,
     vision: false,
     tools: false,
+    catalogMonth: '2026-10',
   }));
   let polza = {
     configurationVersion: 1,
@@ -174,6 +175,10 @@ async function adminFixture(page: Page) {
       if (request.method() === 'POST' && polza.apiKeyConfigured) {
         polzaCatalogReady = true;
         polza = { ...polza, textConfigurationVersion: polza.textConfigurationVersion + 1 };
+      }
+      if (request.method() === 'PUT') {
+        const { ids } = request.postDataJSON() as { ids: string[] };
+        for (const model of polzaModels) model.selected = ids.includes(model.id);
       }
       return json({
         version: polzaCatalogReady ? 2 : 1,
@@ -570,7 +575,7 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
   await expect(page.getByRole('button', { name: 'Сохранить', exact: true })).toBeDisabled();
   const key = page.getByLabel('API-ключ Polza AI');
   await key.fill('pza_fixture_polza_admin_20261029');
-  await page.getByRole('checkbox', { name: 'Использовать Polza AI' }).check();
+  await page.getByRole('checkbox', { name: 'Включено' }).check();
   await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
   await expect(page.getByText('Подключение подтверждено', { exact: false })).toBeVisible();
   await expect(key).toHaveValue('');
@@ -605,6 +610,19 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
       });
     }
   }
+
+  const categories = page.getByRole('group', { name: 'Категории моделей Polza' });
+  for (const [category, label] of [
+    ['Изображения', 'Polza Image'],
+    ['Видео', 'Polza Video'],
+    ['Транскрибация', 'Polza Speech'],
+  ]) {
+    await categories.getByRole('button', { name: category, exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Выбрать: ' + label }).check();
+    await expect(page.locator('time[datetime="2026-10"]')).toBeVisible();
+  }
+  await page.getByRole('button', { name: 'Сохранить выбор моделей' }).click();
+  await expect(page.getByText('Выбор моделей сохранён.')).toBeVisible();
 
   for (const [tab, model] of [
     ['Изображения', 'Polza Image'],
