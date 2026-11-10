@@ -387,8 +387,18 @@ test('learner starts the real project editor and submits one immutable attempt',
   await author.getByRole('button', { name: 'Добавить содержимое' }).click();
   await author.getByLabel('Файл схемы или изображения', { exact: true }).setInputFiles(image);
   await author.getByRole('button', { name: 'Сохранить черновик', exact: true }).click();
-  await author.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
-  const preview = author.getByRole('dialog', { name: 'Как увидит ученик' });
+  await expect(author.getByRole('button', { name: 'Предпросмотр', exact: true })).toBeEnabled();
+  await author.getByRole('button', { name: 'Вернуться к классу', exact: true }).click();
+  await expect(author).toBeHidden();
+  await page.getByRole('button', { name: 'Выдать задание', exact: true }).click();
+  const picker = page.getByRole('dialog', { name: 'Назначить задание' });
+  await picker.getByText('Продолжить черновик', { exact: true }).click();
+  await picker.getByLabel('Черновик', { exact: true }).selectOption({ label: title });
+  await picker.getByRole('button', { name: 'Открыть черновик', exact: true }).click();
+  const resumed = page.getByRole('dialog', { name: 'Редактор задания класса' });
+  await expect(resumed.getByLabel('Название задания', { exact: true })).toHaveValue(title);
+  await resumed.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+  const preview = resumed.getByRole('dialog', { name: 'Как увидит ученик' });
   await preview.getByRole('button', { name: 'Открыть крупно:' }).click();
   await page
     .getByRole('dialog', { name: 'Изображение задания:' })
@@ -402,8 +412,21 @@ test('learner starts the real project editor and submits one immutable attempt',
     .getByRole('button', { name: 'Закрыть', exact: true })
     .click();
   await preview.getByRole('button', { name: 'Закрыть предпросмотр' }).click();
-  await author.getByRole('button', { name: 'Выдать всему классу', exact: true }).click();
-  await expect(author).toBeHidden();
+  await resumed.getByRole('button', { name: 'К выдаче', exact: true }).click();
+  await expect(resumed).toBeHidden();
+  await expect(picker.getByText(title, { exact: true })).toBeVisible();
+  await expect(picker.getByLabel('Весь класс', { exact: true })).toBeChecked();
+  await picker.getByLabel('Срок', { exact: true }).fill('2027-05-30T18:00');
+  await picker.screenshot({ path: `${evidenceDir}/teacher-confirm-assignment-mobile.png` });
+  const assignmentRequest = page.waitForRequest(
+    (request) => request.method() === 'POST' && request.url().endsWith('/learning/activity-runs'),
+  );
+  await picker.getByRole('button', { name: 'Назначить', exact: true }).click();
+  expect((await assignmentRequest).postDataJSON()).toMatchObject({
+    audienceType: 'whole_class',
+    dueAt: await page.evaluate(() => new Date('2027-05-30T18:00').toISOString()),
+  });
+  await expect(picker).toBeHidden();
   await expect(page).toHaveURL(classroomUrl);
   await expect(page.getByRole('status').filter({ hasText: 'выдано всему классу' })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 900 });
