@@ -178,6 +178,10 @@ describe('Course Builder structure forward upgrade', () => {
         '0306', // Robotics in the existing immutable publication catalog.
         '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
         '0308', // Independent eight-tool controls, preserving legacy snapshots.
+        '0309', // Written Course responses reuse the canonical academic chain.
+        '0310', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+        '0311', // Exact Quiz Start and answer state; historical rows remain unchanged.
+        '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -515,6 +519,10 @@ describe('Course Builder structure forward upgrade', () => {
           '0306', // Robotics in the existing immutable publication catalog.
           '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
           '0308', // Independent eight-tool controls, preserving legacy snapshots.
+          '0309', // Written Course responses reuse the canonical academic chain.
+          '0310', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+          '0311', // Exact Quiz Start and answer state; historical rows remain unchanged.
+          '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
         ]);
         expect(
           await applyIsolatedTestPlan(
@@ -567,7 +575,14 @@ describe('Course Builder structure forward upgrade', () => {
       expect(
         (await pool.query('SELECT * FROM learning_attempts WHERE id=$1', [legacyAttemptId]))
           .rows[0],
-      ).toEqual(legacyAttemptBefore);
+      ).toEqual({ ...legacyAttemptBefore, expires_at: null });
+      expect(
+        (
+          await pool.query(`SELECT
+        (SELECT count(*) FROM quiz_attempt_states) AS states,
+        (SELECT count(*) FROM quiz_attempt_start_receipts) AS receipts`)
+        ).rows[0],
+      ).toEqual({ states: '0', receipts: '0' });
 
       const draftAfter = (
         await pool.query(

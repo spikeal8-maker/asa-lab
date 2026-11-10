@@ -1,3 +1,4 @@
+import { QuizResponsePlayer } from './QuizResponsePlayer';
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -13,6 +14,7 @@ import { courseCompletion, lessonComplete, lessonExcused } from '../learning/cou
 import { AssignmentView } from './AssignmentView';
 import { TaskBlocks } from './TaskBlocks';
 import { AssignmentGoal } from './BriefText';
+import { EssayResponseEditor } from './EssayResponseEditor';
 import { LessonBlocks } from './LessonBlocks';
 import { useSchoolTime } from './school-time';
 import { AtomicLearningStarter } from '../learning/atomic-learning-start';
@@ -85,7 +87,7 @@ export function courseActivityAssignmentShape(
     brief: null,
     goal: occurrence.goal,
     blocks: occurrence.blocks,
-    moduleKey: occurrence.moduleKey,
+    moduleKey: occurrence.moduleKey ?? 'unknown',
     dueAt:
       occurrence.canonicalState?.effectiveDueAt === undefined
         ? run.dueAt
@@ -100,7 +102,8 @@ export function courseActivityAssignmentShape(
   };
 }
 
-function courseActivityModuleLabel(moduleKey: string): string {
+function courseActivityModuleLabel(moduleKey: string | null): string {
+  if (moduleKey === null) return 'Письменный ответ';
   if (moduleKey === 'electronics') return 'Electronics';
   if (moduleKey === 'three-d') return '3D';
   return moduleKey;
@@ -160,6 +163,15 @@ export function SeatCourses({
   readonly completedOnly?: boolean;
 }): JSX.Element | null {
   const [runs, setRuns] = useState<SeatCourseRun[] | null>(null);
+  const responseGuards = useRef(new Map<string, () => boolean>());
+  const registerResponseGuard = useCallback((id: string, guard: (() => boolean) | null) => {
+    if (guard) responseGuards.current.set(id, guard);
+    else responseGuards.current.delete(id);
+  }, []);
+  const mayLeaveResponse = useCallback(
+    () => [...responseGuards.current.values()].every((guard) => guard()),
+    [],
+  );
   const [openRunId, setOpenRunId] = useState<string | null>(null);
   const [openLessonId, setOpenLessonId] = useState<string | null>(null);
   const [pendingPractice, setPendingPractice] = useState<{
@@ -255,6 +267,7 @@ export function SeatCourses({
     occurrence: CourseActivityOccurrence,
     busyKey: string,
   ): Promise<void> {
+    if (!occurrence.moduleKey || occurrence.activityKind === 'essay') return;
     setBusy(busyKey);
     setError(null);
     const started = await starter.current.start(occurrence.activityRunId);
@@ -329,6 +342,7 @@ export function SeatCourses({
             type="button"
             className="classroom-back"
             onClick={() => {
+              if (!mayLeaveResponse()) return;
               setPendingPractice(null);
               setOpenRunId(null);
             }}
@@ -373,6 +387,7 @@ export function SeatCourses({
                         type="button"
                         className={lesson.id === openLesson.id ? 'active' : undefined}
                         onClick={() => {
+                          if (lesson.id !== openLesson.id && !mayLeaveResponse()) return;
                           setPendingPractice(null);
                           setOpenLessonId(lesson.id);
                         }}
@@ -404,6 +419,7 @@ export function SeatCourses({
                               <button
                                 type="button"
                                 onClick={() => {
+                                  if (lesson.id !== openLesson.id && !mayLeaveResponse()) return;
                                   setOpenLessonId(lesson.id);
                                   setPendingPractice({
                                     runId: openRun.id,
@@ -456,6 +472,50 @@ export function SeatCourses({
                       <strong>Практика</strong>
                       <small>Практика пока недоступна.</small>
                     </>
+                  );
+                }
+                if (occurrence.activityKind === 'essay' || occurrence.activityKind === 'quiz') {
+                  return (
+                    <div
+                      className="seat-course-activity"
+                      data-testid="course-activity-runtime"
+                      data-assignment-id={occurrence.classroomAssignmentId}
+                      ref={
+                        pendingPractice?.runId === openRun.id &&
+                        pendingPractice.lessonId === openLesson.id &&
+                        pendingPractice.blockId === block.id
+                          ? practiceTargetRef
+                          : undefined
+                      }
+                      tabIndex={-1}
+                    >
+                      <div className="seat-course-activity-main">
+                        <span className="course-eyebrow">
+                          {occurrence.activityKind === 'quiz' ? 'Тест' : 'Письменный ответ'}
+                        </span>
+                        <strong>{occurrence.title}</strong>
+                        <small>{courseActivityStatus(occurrence)}</small>
+                      </div>
+                      <AssignmentGoal goal={occurrence.goal} />
+                      {occurrence.blocks ? <TaskBlocks blocks={occurrence.blocks} /> : null}
+                      {occurrence.activityKind === 'quiz' ? (
+                        <QuizResponsePlayer
+                          key={occurrence.activityRunId}
+                          activityRunId={occurrence.activityRunId}
+                          renderedTaskBlocks={occurrence.blocks ?? null}
+                          onChanged={reload}
+                          onRegisterLeaveGuard={registerResponseGuard}
+                        />
+                      ) : (
+                        <EssayResponseEditor
+                          key={occurrence.activityRunId}
+                          activityRunId={occurrence.activityRunId}
+                          activityVersionId={occurrence.learningActivityVersionId}
+                          onChanged={reload}
+                          onRegisterLeaveGuard={registerResponseGuard}
+                        />
+                      )}
+                    </div>
                   );
                 }
                 const activityAssignment = courseActivityAssignmentShape(openRun, occurrence);
@@ -688,6 +748,7 @@ export function SeatCourses({
                 className="btn-secondary"
                 disabled={openLessonIndex <= 0}
                 onClick={() => {
+                  if (!mayLeaveResponse()) return;
                   setPendingPractice(null);
                   setOpenLessonId(lessons[openLessonIndex - 1]?.id ?? null);
                 }}
@@ -702,6 +763,7 @@ export function SeatCourses({
                 className="btn-secondary"
                 disabled={openLessonIndex < 0 || openLessonIndex >= lessons.length - 1}
                 onClick={async () => {
+                  if (!mayLeaveResponse()) return;
                   if (openLesson.kind === 'material' && !openLesson.completedAt) {
                     const saved = await markMaterial(openLesson, true);
                     if (!saved) return;
