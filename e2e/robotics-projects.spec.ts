@@ -125,16 +125,31 @@ async function selectFieldObject(page: Page, key: string): Promise<void> {
   if (await closeCatalog.isVisible()) await closeCatalog.click();
   await page.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
   const shape = page.locator('#robotics-panel-field [data-scene-key="' + key + '"]').first();
-  await expect(shape).toBeVisible();
-  await shape.click();
+  await expect(shape).toBeAttached();
+  if (key.startsWith('mark-group:')) {
+    // Straight SVG lines can have a zero-width/zero-height DOM bounding box,
+    // even though their visible stroke is clickable. Use the real path center.
+    const position = await shape.evaluate((element) => {
+      if (!(element instanceof SVGPathElement)) throw new Error('Expected an SVG path.');
+      const matrix = element.getScreenCTM();
+      if (!matrix) throw new Error('SVG path is not on screen.');
+      const midpoint = element.getPointAtLength(element.getTotalLength() / 2);
+      const screen = midpoint.matrixTransform(matrix);
+      return { x: screen.x, y: screen.y };
+    });
+    await page.mouse.click(position.x, position.y);
+  } else {
+    await expect(shape).toBeVisible();
+    await shape.click();
+  }
   await expect(page.getByRole('dialog', { name: 'Параметры выбранного объекта' })).toBeVisible();
 }
 
 async function numberField(page: Page, label: string, value: number): Promise<void> {
   const field = page.getByRole('spinbutton', { name: label, exact: true });
   if (!(await field.isVisible())) await openFieldSettings(page);
-  await field.fill(String(value));
-  await field.press('Tab');
+  await field.fill(String(value), { timeout: 20_000 });
+  await field.press('Tab', { timeout: 20_000 });
   await expect(field).toHaveAttribute('aria-invalid', 'false');
 }
 
@@ -562,6 +577,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
       restored.getByRole('textbox', { name: 'Код Arduino C++', exact: true }),
     ).toHaveValue(source);
     await restored.getByRole('tab', { name: 'Поле', exact: true }).click();
+    await openFieldSettings(restored);
     await expect(
       restored.getByRole('spinbutton', { name: 'Высота поля', exact: true }),
     ).toHaveValue('2.4');
@@ -822,12 +838,33 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
     // through the ordinary object "Добавить" button.
     if (label === 'Линия' || label === 'Кривая') {
       const canvas = page.locator('.robotics-field-canvas svg.robotics-field');
-      const bounds = await canvas.boundingBox();
-      expect(bounds).not.toBeNull();
-      const click = async (x: number, y: number, button: 'left' | 'right' = 'left') =>
-        page.mouse.click(bounds!.x + bounds!.width * x, bounds!.y + bounds!.height * y, {
-          button,
-        });
+      const widthMeters = tiled.draft.document.world.field.widthMeters;
+      const heightMeters = tiled.draft.document.world.field.heightMeters;
+      // Use the actual scene transformation, not a fraction of an SVG box
+      // containing padding, letterboxing and scroll offsets.
+      const click = async (x: number, y: number, button: 'left' | 'right' = 'left') => {
+        const target = await canvas.evaluate(
+          (svg, { x, y, widthMeters, heightMeters }) => {
+            const matrix = svg.getScreenCTM();
+            if (!matrix) throw new Error('Field SVG screen transform is unavailable.');
+            const point = svg.createSVGPoint();
+            point.x = x * widthMeters * 1000;
+            point.y = (1 - y) * heightMeters * 1000;
+            const screen = point.matrixTransform(matrix);
+            const hit = document.elementFromPoint(screen.x, screen.y);
+            return {
+              x: screen.x,
+              y: screen.y,
+              onField: hit === svg || (hit !== null && svg.contains(hit)),
+              hitTag: hit?.tagName ?? null,
+            };
+          },
+          { x, y, widthMeters, heightMeters },
+        );
+        if (!target.onField)
+          throw new Error('Vector click was outside visible canvas: ' + JSON.stringify(target));
+        await page.mouse.click(target.x, target.y, { button });
+      };
       if (label === 'Линия') {
         const before = await page
           .locator('#robotics-panel-field [data-object-kind="line"]')

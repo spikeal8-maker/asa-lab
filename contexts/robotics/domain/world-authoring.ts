@@ -318,12 +318,22 @@ export function resizeRoboticsTileField(
     )
   )
     throw new Error('Число плиток должно быть целым от 1 до 60.');
+  const widthMeters = metres(columns * world.field.tiles.sizeMeters);
+  const heightMeters = metres(rows * world.field.tiles.sizeMeters);
+  // Recenter BEFORE validating the reduced field. A 5m starting pose
+  // cannot be validated inside a 1.2m tile field and must never cause
+  // an otherwise valid resize to be silently discarded.
   return checked({
     ...world,
+    initialPose: {
+      ...world.initialPose,
+      xMeters: widthMeters / 2,
+      yMeters: heightMeters / 2,
+    },
     field: {
       ...world.field,
-      widthMeters: metres(columns * world.field.tiles.sizeMeters),
-      heightMeters: metres(rows * world.field.tiles.sizeMeters),
+      widthMeters,
+      heightMeters,
     },
   });
 }

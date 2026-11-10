@@ -388,6 +388,7 @@ export function RobotFieldEditor({
   const [fitAll, setFitAll] = useState(false);
   const [dropHover, setDropHover] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const suppressNextCanvasClick = useRef(false);
   // Upload decoding is async; reject stale completions rather than replacing
   // changes made on the field while the browser processes an image or JSON.
   const latestWorldRef = useRef(world);
@@ -843,6 +844,10 @@ export function RobotFieldEditor({
     }
     if (tool !== 'select') {
       event.preventDefault();
+      // The browser dispatches click after pointerDown/pointerUp. A completed
+      // curve can already have switched to Select by then; do not reselect an
+      // underlying robot instead of the freshly authored object.
+      suppressNextCanvasClick.current = true;
       if (tool === 'line' || tool === 'curve') handleTracePoint(point);
       else add(point);
       return;
@@ -1182,6 +1187,10 @@ export function RobotFieldEditor({
           data-drawing={tracePoints.length > 0}
           data-drop-hover={dropHover}
           onClick={(event) => {
+            if (suppressNextCanvasClick.current) {
+              suppressNextCanvasClick.current = false;
+              return;
+            }
             if (running || pan || tool !== 'select') return;
             const target = (event.target as Element).closest('[data-scene-key]');
             const key = target?.getAttribute('data-scene-key') as RoboticsObjectKey | null;
@@ -1312,6 +1321,10 @@ export function RobotFieldEditor({
                           releaseDrag();
                           clearTrace();
                           setTool(kind);
+                          setSelection(null);
+                          // A selected object's floating inspector must not cover
+                          // pointer gestures when the user starts drawing a new item.
+                          setObjectEditorOpen(false);
                           setPan(false);
                           setError(null);
                           if (window.matchMedia('(max-width: 760px)').matches)

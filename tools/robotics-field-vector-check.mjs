@@ -158,6 +158,11 @@ try {
   await clickField(0.32, 0.49);
   await clickField(0.43, 0.65);
   await expect(curve).toHaveCount(beforeCurve + 1, { timeout: 7000 });
+  await expect(
+    page
+      .getByRole('dialog', { name: 'Параметры выбранного объекта' })
+      .getByRole('spinbutton', { name: 'Начало линии Y', exact: true }),
+  ).toBeVisible();
   await revertOne('[data-object-kind="curve"]', beforeCurve);
   checks.push('Bezier 3-point curve');
   console.log('PASS 3-point curve and Undo');
