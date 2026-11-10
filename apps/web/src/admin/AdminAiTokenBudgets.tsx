@@ -166,26 +166,25 @@ export function AdminAiTokenBudgets({
     return (
       <div className="asa-ai-inline-budget">
         {(['globalLimit', 'userLimit'] as const).map((field) => (
-          <input
-            key={field}
-            form="ai-inline-budget-form"
-            inputMode="numeric"
-            aria-label={
-              (field === 'globalLimit' ? 'Общий лимит ' : 'Лимит на пользователя ') + model
-            }
-            title={
-              field === 'globalLimit' ? 'Токенов в месяц всего' : 'Токенов в месяц на пользователя'
-            }
-            placeholder={field === 'globalLimit' ? 'Общий' : 'На человека'}
-            disabled={busy}
-            value={row[field] ?? ''}
-            onChange={(event) => {
-              const value = event.target.value;
-              setDraft((old) =>
-                old.map((item) => (item.model === model ? { ...item, [field]: value } : item)),
-              );
-            }}
-          />
+          <label key={field}>
+            <span>{field === 'globalLimit' ? 'На всех' : 'На пользователя'}</span>
+            <input
+              form="ai-inline-budget-form"
+              inputMode="numeric"
+              aria-label={
+                (field === 'globalLimit' ? 'Общий лимит ' : 'Лимит на пользователя ') + model
+              }
+              placeholder="Без лимита"
+              disabled={busy}
+              value={row[field] ?? ''}
+              onChange={(event) => {
+                const value = event.target.value;
+                setDraft((old) =>
+                  old.map((item) => (item.model === model ? { ...item, [field]: value } : item)),
+                );
+              }}
+            />
+          </label>
         ))}
         <BudgetUsage usage={usage} />
       </div>
@@ -195,20 +194,30 @@ export function AdminAiTokenBudgets({
     return (
       <>
         <section className="asa-ai-inline-budgets" aria-label="Месячные лимиты токенов">
+          <div className="asa-ai-budget-explainer">
+            <strong>Лимиты текстовых моделей · токенов в месяц (UTC)</strong>
+            <InfoHint label="Как считаются токены">
+              <p>
+                Складываем входные и выходные токены из отчёта провайдера. Если отчёт неполный,
+                расход помечается как неподтверждённый.
+              </p>
+              <p>
+                «На всех» — один лимит на модель для всех пользователей. «На пользователя» —
+                отдельный лимит для каждого. Пусто — без этого ограничения. Ноль запрещает новые
+                запросы. Уже начатый ответ может завершиться.
+              </p>
+              <p>
+                Эти лимиты действуют на текстовые запросы. Изображения, видео и транскрибация в них
+                не входят.
+              </p>
+            </InfoHint>
+          </div>
           {renderModels(budgetFor)}
           <form
             id="ai-inline-budget-form"
             className="asa-ai-budget-inline-footer"
             onSubmit={(event) => void save(event)}
           >
-            <span>Общий бюджет на все модели в месяц</span>
-            <InfoHint label="Как работают лимиты">
-              <p>
-                Пустое поле — без лимита для модели. Ноль запрещает новые запросы. Общий лимит
-                действует на всех пользователей.
-              </p>
-            </InfoHint>
-            {budgetFor('*')}
             <button type="submit" disabled={!dirty || busy}>
               {busy ? 'Сохраняем…' : 'Сохранить лимиты токенов'}
             </button>

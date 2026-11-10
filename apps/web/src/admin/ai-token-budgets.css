@@ -116,10 +116,25 @@
   }
 }
 
+.asa-ai-budget-explainer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+}
 .asa-ai-inline-budget {
   display: flex;
+  align-items: center;
   gap: 4px;
   min-width: 0;
+}
+.asa-ai-inline-budget label {
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--muted);
 }
 .asa-ai-inline-budget input {
   width: clamp(5rem, 10vw, 7rem);
