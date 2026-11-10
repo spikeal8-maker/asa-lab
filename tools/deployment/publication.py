@@ -39,20 +39,6 @@ def should_promote(candidate, stable, main, ancestor=is_ancestor):
     return True
 
 
-def verify_recovery_source(revision, base, target, main):
-    require(all(re.fullmatch(r'[a-f0-9]{40}', value) for value in (revision, base, target))
-            and len({revision, base, target}) == 3, 'RECOVERY_SOURCE', 'Three distinct exact revisions are required.')
-    require(is_ancestor(base, target) and is_ancestor(target, main), 'RECOVERY_SOURCE',
-            'The original and forward revisions must belong to canonical main.')
-    require(run(['git', 'rev-list', '--parents', '-n', '1', revision], capture=True).split() == [revision, base],
-            'RECOVERY_SOURCE', 'The recovery candidate must be a single child of the original release.')
-    changes = run(['git', 'diff', '--name-status', '--no-renames', base, revision], capture=True).splitlines()
-    require(changes and all(re.fullmatch(r'A\tmigrations/\d{4}_[a-z0-9_]+\.sql', change) for change in changes),
-            'RECOVERY_SOURCE', 'The recovery candidate may only append unchanged published migrations.')
-    migrations = [run(['git', 'rev-parse', f'{ref}:migrations'], capture=True) for ref in (revision, target)]
-    require(migrations[0] == migrations[1], 'RECOVERY_SOURCE', 'Recovery and forward migration trees differ.')
-
-
 def main():
     candidate = validate_release(json.loads(Path('.asa/release/release.json').read_text(encoding='utf-8')))
     require(candidate['revision'] == os.environ['ASA_BUILD_REVISION'], 'RELEASE_SOURCE',

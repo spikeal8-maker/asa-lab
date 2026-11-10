@@ -496,7 +496,7 @@ class ReleaseTests(unittest.TestCase):
         script = self.publication_gate_script()
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "output"
-            environment = {"GITHUB_OUTPUT": str(output), "RECOVERY_REVISION": "", "RECOVERY_BASE": "", "RECOVERY_TARGET": ""}
+            environment = {"GITHUB_OUTPUT": str(output)}
             if revision is not None:
                 environment["REVISION"] = revision
             order = []
@@ -532,7 +532,7 @@ class ReleaseTests(unittest.TestCase):
         failure, output, order = self.run_publication_gate("b" * 40)
         self.assertIsNone(failure)
         self.assertEqual(order, ["main", "ancestry", "general"])
-        self.assertEqual(output, "revision=" + "a" * 40 + "\nrecovery=false\n")
+        self.assertEqual(output, "revision=" + "a" * 40 + "\n")
 
     def test_publication_gate_rejects_foreign_revision_before_general_and_output(self):
         failure, output, order = self.run_publication_gate("b" * 40, ancestor=False)
@@ -561,12 +561,10 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn("\n  publish:\n    needs: [gate, build]\n", workflow)
         promotion = ("        run: python -P -m deployment.publication\n"
                      "      - uses: docker/build-push-action@v6\n"
-                     "        if: needs.gate.outputs.recovery == 'false' && steps.promotion.outputs.promote == 'true'\n")
+                     "        if: steps.promotion.outputs.promote == 'true'\n")
         self.assertEqual(workflow.count(promotion), 1)
         self.assertEqual(workflow.count("/deployment:stable"), 1)
-        stable, recovery = workflow.split(promotion, 1)[1].split("      - name: Publish isolated recovery candidate\n", 1)
-        self.assertIn("/deployment:stable", stable)
-        self.assertIn("/deployment:recovery-${{ needs.gate.outputs.revision }}", recovery)
+        self.assertIn("/deployment:stable", workflow.split(promotion, 1)[1])
 
     def test_pinned_set(self):
         self.assertEqual(validate_release(release())["schema"], 159)
