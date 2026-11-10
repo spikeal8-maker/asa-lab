@@ -888,7 +888,7 @@ export function prepareCircuitSolve(document: ElectronicsDocument) {
 
 type CircuitSolvePreparation = ReturnType<typeof prepareCircuitSolve>;
 
-const GMIN = 1e-12;
+export const GMIN = 1e-12;
 const CLOSED_RESISTANCE = 1e-4;
 const LED_WARNING_RATIO = 0.8;
 const SHORT_CIRCUIT_CURRENT_A = 5;

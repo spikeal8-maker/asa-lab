@@ -10595,6 +10595,171 @@ async function psu543Records(page: Page): Promise<Psu543Sample[]> {
   return page.evaluate(() => (window as Window & { __psu543?: Psu543Sample[] }).__psu543 ?? []);
 }
 
+test('GMIN power accounting keeps a high-resistance divider running through Save and reopen', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await observePsuPersistenceWorker(page);
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Высокоомный делитель: баланс мощности');
+  const base = regulatedPowerSupplyDocument();
+  const supply = base.components.find((part) => part.id === 'bench-supply')!;
+  const resistor = base.components.find((part) => part.id === 'load')!;
+  const circuit: SchematicDocument = {
+    ...base,
+    components: [
+      {
+        ...supply,
+        value: 23.5,
+        state: true,
+        stateProperties: {
+          ...supply.stateProperties,
+          voltageSetpointVolt: 23.5,
+          outputEnabled: true,
+        },
+      },
+      {
+        ...resistor,
+        id: 'upper',
+        name: 'Верхний резистор',
+        value: 31622.776601683792,
+        position: { x: 650, y: 220 },
+      },
+      {
+        ...resistor,
+        id: 'lower',
+        name: 'Нижний резистор',
+        value: 1_000_000,
+        stateProperties: { ...resistor.stateProperties, resistanceUnit: 'Ω' },
+        position: { x: 650, y: 420 },
+      },
+    ],
+    connections: [
+      {
+        id: 'positive-upper',
+        from: { componentId: 'bench-supply', terminal: 'positive' },
+        to: { componentId: 'upper', terminal: 'lead-1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'upper-lower',
+        from: { componentId: 'upper', terminal: 'lead-2' },
+        to: { componentId: 'lower', terminal: 'lead-1' },
+        color: '#149447',
+        vertices: [],
+      },
+      {
+        id: 'lower-negative',
+        from: { componentId: 'lower', terminal: 'lead-2' },
+        to: { componentId: 'bench-supply', terminal: 'negative' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+  };
+  await saveDocument(page, projectId, circuit);
+  await page.goto(`/#/home/${projectId}`);
+  const observations: Psu543Sample[][] = [];
+  for (const reopened of [false, true]) {
+    await expect(page.locator('.workbench-stage')).toBeVisible();
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+    await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+      'data-simulation-status',
+      'running',
+    );
+    await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
+    await expect
+      .poll(async () =>
+        (await psu543Records(page)).some(
+          (record) =>
+            record.direction === 'response' &&
+            record.status === 'ready' &&
+            (record.committed ?? 0) > 0 &&
+            record.solved &&
+            record.quality?.finite &&
+            record.quality.passed,
+        ),
+      )
+      .toBe(true);
+    const records = await psu543Records(page);
+    const ready = records.filter(
+      (record) => record.direction === 'response' && record.status === 'ready',
+    );
+    expect(ready.length).toBeGreaterThan(0);
+    for (const record of ready) {
+      expect(record.quality).toMatchObject({ finite: true, passed: true });
+      expect(record.supplyResult?.voltageDrop).toBeCloseTo(23.499998861016, 7);
+      expect(record.supplyResult?.current).toBeCloseTo(0.000022779689, 10);
+    }
+    observations.push(records);
+    const visual = component(page, 'regulated-power-supply').getByTestId(
+      'regulated-power-supply-runtime',
+    );
+    await expect(visual).toHaveAttribute('data-regulation-mode', 'cv');
+    await expect(visual.locator('.workbench-regulated-supply-reading').nth(0)).toContainText(
+      '23.50 V',
+    );
+    if (reopened) {
+      await page
+        .locator('[data-testid="schematic-component"][data-component-id="lower"] .workbench-part')
+        .press('Enter');
+      const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+      await expect(inspector.getByLabel('Единица сопротивления')).toHaveValue('MΩ');
+      await expect(inspector.getByLabel('Сопротивление', { exact: true })).toHaveValue('1');
+      await page.screenshot({ path: `${ARTIFACT_DIR}/gmin-power-reopened.png`, fullPage: true });
+    }
+    await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+    if (!reopened) {
+      await page
+        .locator('[data-testid="schematic-component"][data-component-id="lower"] .workbench-part')
+        .press('Enter');
+      const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+      await expect(inspector.getByLabel('Единица сопротивления')).toHaveValue('Ω');
+      const savedWrite = page.waitForResponse((response) => {
+        const request = response.request();
+        if (
+          request.method() !== 'PUT' ||
+          !response.url().endsWith(`/api/projects/${projectId}/draft`)
+        )
+          return false;
+        const payload = request.postDataJSON() as { document?: SchematicDocument };
+        return (
+          payload.document?.components.find((part) => part.id === 'lower')?.stateProperties?.[
+            'resistanceUnit'
+          ] === 'MΩ'
+        );
+      });
+      await inspector.getByLabel('Единица сопротивления').selectOption('MΩ');
+      await expect(inspector.getByLabel('Сопротивление', { exact: true })).toHaveValue('1');
+      await saveEditorNow(page);
+      expect((await savedWrite).status()).toBe(200);
+      const response = await page.context().request.get(`/api/projects/${projectId}`, {
+        headers: { origin: new URL(page.url()).origin },
+      });
+      expect(response.ok()).toBe(true);
+      const saved = (await response.json()) as { draft: { document: SchematicDocument } };
+      expect(saved.draft.document.connections).toEqual(circuit.connections);
+      expect(saved.draft.document.components.find((part) => part.id === 'lower')?.value).toBe(
+        1_000_000,
+      );
+      expect(
+        saved.draft.document.components.find((part) => part.id === 'lower')?.stateProperties?.[
+          'resistanceUnit'
+        ],
+      ).toBe('MΩ');
+      expect(
+        saved.draft.document.components.find((part) => part.id === 'bench-supply')?.stateProperties,
+      ).toMatchObject({ voltageSetpointVolt: 23.5, outputEnabled: true });
+      await page.reload();
+    }
+  }
+  writeFileSync(`${ARTIFACT_DIR}/gmin-power-worker.json`, JSON.stringify(observations, null, 2));
+  failures.assertEmpty();
+});
+
 for (const width of [1440, 1024, 390, 320]) {
   test(`ELECTRONICS-E04 PSU settings survive live edits Stop Save and cookies-only reopen at ${width}px`, async ({
     page,

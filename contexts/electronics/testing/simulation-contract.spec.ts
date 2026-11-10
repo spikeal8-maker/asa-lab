@@ -943,7 +943,9 @@ describe('request-owned current quality traversal', () => {
         }
         const layouts = vi.spyOn(solver, 'arduinoQualityDictionaryKeys');
         try {
-          expect(g.compare(result).powerBalanceResidualWatt).toBe(0);
+          // Grouped physical powers still cancel exactly. The unchanged 5 V node
+          // separately contributes its actual 1 pS numerical-shunt dissipation.
+          expect(g.compare(result).powerBalanceResidualWatt).toBe(25e-12);
           expect(layouts).toHaveBeenCalled();
         } finally {
           layouts.mockRestore();

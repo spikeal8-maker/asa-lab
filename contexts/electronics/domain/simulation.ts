@@ -14,6 +14,7 @@ import { electricalModelFor } from './model-registry.js';
 import { canonicalNonlinearDcProfileRegistry } from './models/nonlinear-dc-models.js';
 import {
   solveCircuit,
+  GMIN,
   takeArduinoQualityReceipt,
   arduinoQualityDictionaryKeys,
   releaseArduinoQualityReceipt,
@@ -399,6 +400,26 @@ function allNumbers(result: SolveResult): readonly number[] {
   return numbers;
 }
 
+/** Signed MNA node-shunt dissipation; reference voltages are zero. */
+function numericalShuntPowerWatt(compiled: CompiledCircuit, result: SolveResult): number | null {
+  if (result.nodes.length !== compiled.nets.length) return null;
+  let voltageById: Map<string, number> | undefined;
+  let power = 0;
+  for (let index = 0; index < compiled.nets.length; index++) {
+    const id = compiled.nets[index]!.id;
+    const node = result.nodes[index]!;
+    // The usual owned node order needs no lookup allocation.
+    if (!voltageById && node.id !== id) {
+      voltageById = new Map(result.nodes.map((entry) => [entry.id, entry.voltage]));
+      if (voltageById.size !== compiled.nets.length) return null;
+    }
+    const voltage = voltageById ? voltageById.get(id) : node.voltage;
+    if (voltage === undefined || !Number.isFinite(voltage)) return null;
+    power += GMIN * voltage * voltage;
+  }
+  return Number.isFinite(power) ? power : null;
+}
+
 export function verifyCircuitQuality(
   document: ElectronicsDocument,
   compiled: CompiledCircuit,
@@ -639,8 +660,9 @@ export function verifyCircuitQuality(
     (total, power) => total + Math.max(0, -power),
     0,
   );
+  const shuntPowerWatt = powerBalanceApplicable ? numericalShuntPowerWatt(compiled, result) : 0;
   const powerBalanceResidualWatt = Math.abs(
-    terminalPowerByComponent.reduce((total, power) => total + power, 0),
+    terminalPowerByComponent.reduce((total, power) => total + power, 0) + (shuntPowerWatt ?? 0),
   );
   const powerBalanceToleranceWatt = Math.max(
     MIN_POWER_BALANCE_TOLERANCE_W,
@@ -650,7 +672,8 @@ export function verifyCircuitQuality(
     finite &&
     maxKclResidualAmp <= kclToleranceAmp &&
     maxSourceVoltageResidualVolt <= SOURCE_VOLTAGE_TOLERANCE_V &&
-    (!powerBalanceApplicable || powerBalanceResidualWatt <= powerBalanceToleranceWatt);
+    (!powerBalanceApplicable ||
+      (shuntPowerWatt !== null && powerBalanceResidualWatt <= powerBalanceToleranceWatt));
   return {
     finite,
     passed,
@@ -1090,7 +1113,8 @@ export function createArduinoQualityTraversal(
         suppliedPowerWatt = suppliedPowerWatt + Math.max(0, -power);
       let totalPowerWatt = 0;
       for (const power of terminalPowerByComponent) totalPowerWatt = totalPowerWatt + power;
-      const powerBalanceResidualWatt = Math.abs(totalPowerWatt);
+      const shuntPowerWatt = powerBalanceApplicable ? numericalShuntPowerWatt(compiled, result) : 0;
+      const powerBalanceResidualWatt = Math.abs(totalPowerWatt + (shuntPowerWatt ?? 0));
       const powerBalanceToleranceWatt = Math.max(
         MIN_POWER_BALANCE_TOLERANCE_W,
         suppliedPowerWatt * 1e-6,
@@ -1099,7 +1123,8 @@ export function createArduinoQualityTraversal(
         finite &&
         maxKclResidualAmp <= kclToleranceAmp &&
         maxSourceVoltageResidualVolt <= SOURCE_VOLTAGE_TOLERANCE_V &&
-        (!powerBalanceApplicable || powerBalanceResidualWatt <= powerBalanceToleranceWatt);
+        (!powerBalanceApplicable ||
+          (shuntPowerWatt !== null && powerBalanceResidualWatt <= powerBalanceToleranceWatt));
       return {
         finite,
         passed,
