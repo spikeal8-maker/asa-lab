@@ -22,19 +22,28 @@ try {
     [...document.querySelectorAll('style')].some((node) => node.textContent.includes('.robotics-')),
   );
   if (!loaded) throw new Error('Robotics CSS was not imported by Vite');
-  await page.evaluate((value) => { window.__roboticsFastHmrMarker = value; }, token);
-  writeFileSync(cssPath, Buffer.concat([
-    original,
-    Buffer.from('\n:root { --asa-robotics-hmr-probe: ' + token + '; }\n'),
-  ]));
+  await page.evaluate((value) => {
+    window.__roboticsFastHmrMarker = value;
+  }, token);
+  writeFileSync(
+    cssPath,
+    Buffer.concat([
+      original,
+      Buffer.from('\n:root { --asa-robotics-hmr-probe: ' + token + '; }\n'),
+    ]),
+  );
   touched = true;
-  await expect.poll(
-    () => page.evaluate(() =>
-      getComputedStyle(document.documentElement)
-        .getPropertyValue('--asa-robotics-hmr-probe').trim(),
-    ),
-    { timeout: 25000 },
-  ).toBe(token);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() =>
+          getComputedStyle(document.documentElement)
+            .getPropertyValue('--asa-robotics-hmr-probe')
+            .trim(),
+        ),
+      { timeout: 25000 },
+    )
+    .toBe(token);
   const marker = await page.evaluate(() => window.__roboticsFastHmrMarker);
   if (marker !== token) throw new Error('Browser reloaded rather than CSS HMR');
   console.log('HMR_CSS_APPLIED_WITHOUT_RELOAD=PASS');
@@ -48,13 +57,17 @@ try {
       try {
         const pages = browser.contexts().flatMap((ctx) => ctx.pages());
         if (pages[0]) {
-          await expect.poll(
-            () => pages[0].evaluate(() =>
-              getComputedStyle(document.documentElement)
-                .getPropertyValue('--asa-robotics-hmr-probe').trim(),
-            ),
-            { timeout: 25000 },
-          ).toBe('');
+          await expect
+            .poll(
+              () =>
+                pages[0].evaluate(() =>
+                  getComputedStyle(document.documentElement)
+                    .getPropertyValue('--asa-robotics-hmr-probe')
+                    .trim(),
+                ),
+              { timeout: 25000 },
+            )
+            .toBe('');
           console.log('HMR_TEMPORARY_CSS_REVERTED=PASS');
         }
       } catch (error) {

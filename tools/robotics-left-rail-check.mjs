@@ -29,8 +29,11 @@ const writes = [];
 page.on('pageerror', (error) => failures.push(error.message));
 page.on('request', (request) => {
   const url = new URL(request.url());
-  if (url.origin === origin && url.pathname.startsWith('/api/projects') &&
-      !['GET', 'HEAD'].includes(request.method()))
+  if (
+    url.origin === origin &&
+    url.pathname.startsWith('/api/projects') &&
+    !['GET', 'HEAD'].includes(request.method())
+  )
     writes.push(request.method() + ' ' + url.pathname);
 });
 const results = [];
@@ -38,8 +41,10 @@ const rect = async (selector) => page.locator(selector).first().boundingBox();
 
 try {
   await page.goto('/#/', { waitUntil: 'domcontentloaded' });
-  await page.locator('.public-home-header-actions')
-    .getByRole('button', { name: 'Войти', exact: true }).click();
+  await page
+    .locator('.public-home-header-actions')
+    .getByRole('button', { name: 'Войти', exact: true })
+    .click();
   await page.getByLabel('Почта или логин', { exact: true }).fill(login.EMAIL);
   await page.getByLabel('Пароль', { exact: true }).fill(login.PASSWORD);
   const bot = page.getByRole('checkbox', { name: 'Я не робот' });
@@ -50,8 +55,7 @@ try {
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
   await expect(page).toHaveURL(/#\/home$/, { timeout: 20_000 });
   await page.goto(login.URL, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByTestId('robotics-account-editor'))
-    .toBeVisible({ timeout: 35_000 });
+  await expect(page.getByTestId('robotics-account-editor')).toBeVisible({ timeout: 35_000 });
 
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: width < 761 ? 844 : 900 });
@@ -62,12 +66,12 @@ try {
       ['Код', 'program'],
     ]) {
       await page.getByRole('tab', { name: section[0], exact: true }).click();
-      await expect(page.getByTestId('robotics-lab'))
-        .toHaveAttribute('data-section', section[1]);
+      await expect(page.getByTestId('robotics-lab')).toHaveAttribute('data-section', section[1]);
       const sidebar = await rect('.robotics-observation');
-      const editor = section[1] === 'electronics'
-        ? await rect('.robotics-schematic.editing')
-        : await rect('#robotics-panel-' + section[1]);
+      const editor =
+        section[1] === 'electronics'
+          ? await rect('.robotics-schematic.editing')
+          : await rect('#robotics-panel-' + section[1]);
       const runbar = await rect('.robotics-run-bar');
       const header = await rect('.robotics-unified-header');
       const workspace = await rect('.robotics-workspace');
@@ -76,12 +80,16 @@ try {
         throw new Error('Missing workspace element: ' + section[1]);
       if (overflow > width + 1)
         throw new Error('Horizontal overflow ' + JSON.stringify({ width, section, overflow }));
-      if (runbar.y < header.y + header.height - 1 ||
-          runbar.y + runbar.height > workspace.y + 1)
-        throw new Error('Run controls overlap editor: ' + JSON.stringify({ width, section, runbar, workspace }));
+      if (runbar.y < header.y + header.height - 1 || runbar.y + runbar.height > workspace.y + 1)
+        throw new Error(
+          'Run controls overlap editor: ' + JSON.stringify({ width, section, runbar, workspace }),
+        );
       if (width > 760) {
         if (sidebar.x + sidebar.width > editor.x + 2)
-          throw new Error('Left sidebar overlaps active editor: ' + JSON.stringify({ width, section, sidebar, editor }));
+          throw new Error(
+            'Left sidebar overlaps active editor: ' +
+              JSON.stringify({ width, section, sidebar, editor }),
+          );
       } else if (sidebar.y < editor.y + editor.height - 2)
         throw new Error('Mobile observation area overlaps editor');
       if (section[1] === 'program') {
@@ -120,9 +128,7 @@ try {
   await splitter.press('Home');
   await splitter.press('ArrowRight');
   await expect(splitter).toHaveAttribute('aria-valuenow', '196');
-  const saved = await page.evaluate(() =>
-    localStorage.getItem('asa-lab:robotics:side-width:v1'),
-  );
+  const saved = await page.evaluate(() => localStorage.getItem('asa-lab:robotics:side-width:v1'));
   if (saved !== '196') throw new Error('Rail width not persisted locally');
   console.log('PASS keyboard resizing 180px to max half-screen and persisted locally');
 
@@ -138,7 +144,8 @@ try {
 
   const stage = page.locator('.robotics-schematic.editing');
   await expect(stage).toBeVisible();
-  const fit = page.getByRole('toolbar', { name: 'Инструменты электроники' })
+  const fit = page
+    .getByRole('toolbar', { name: 'Инструменты электроники' })
     .getByRole('button', { name: 'Вписать' });
   await fit.click();
   const stageReadout = stage.locator('.workbench-stage-controls [aria-label^="Масштаб"]');
@@ -159,7 +166,9 @@ try {
       artBottom: a?.bottom,
       nameTop: n?.top,
       artWidth: a?.width,
-      imageHeight: art?.querySelector('.workbench-component-preview, .workbench-component-vector-preview')?.getBoundingClientRect().height,
+      imageHeight: art
+        ?.querySelector('.workbench-component-preview, .workbench-component-vector-preview')
+        ?.getBoundingClientRect().height,
     };
   });
   if (visual.artBottom > visual.nameTop + 2 || visual.imageHeight > 42)
@@ -168,7 +177,10 @@ try {
 
   if (failures.length) throw new Error('Browser errors: ' + failures.join(' | '));
   if (writes.length) throw new Error('Layout changes wrote to server: ' + writes.join(' | '));
-  writeFileSync(join(evidence, 'measurements.json'), JSON.stringify({ results, zoomText, visual }, null, 2));
+  writeFileSync(
+    join(evidence, 'measurements.json'),
+    JSON.stringify({ results, zoomText, visual }, null, 2),
+  );
   console.log('PASS no API mutations, no JavaScript errors');
 } catch (error) {
   console.error('LEFT_RAIL_CHECK_FAILED', String(error));

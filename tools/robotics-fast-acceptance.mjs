@@ -92,7 +92,9 @@ try {
       .click();
     const created = await createdResponse;
     if (created.status() !== 201) {
-      throw new Error('Creating the demonstration Robotics project failed: HTTP ' + created.status());
+      throw new Error(
+        'Creating the demonstration Robotics project failed: HTTP ' + created.status(),
+      );
     }
     projectId = (await created.json()).project.id;
     writeFileSync(projectFile, JSON.stringify({ projectId }, null, 2));
@@ -117,7 +119,8 @@ try {
     { timeout: 30000 },
   );
   const response = await page.request.get('/api/projects/' + projectId);
-  if (response.status() !== 200) throw new Error('Project read after save: HTTP ' + response.status());
+  if (response.status() !== 200)
+    throw new Error('Project read after save: HTTP ' + response.status());
   const body = await response.json();
   if (body.project.moduleKey !== 'robotics') throw new Error('Wrong project module');
   pass('Real project save and API round-trip');
@@ -146,27 +149,43 @@ try {
   }, probe);
   let changed = false;
   try {
-    writeFileSync(css, Buffer.concat([
-      before,
-      Buffer.from('\n.robotics-portal-editor { --asa-fast-dev-hmr-probe: ' + probe + '; }\n'),
-    ]));
+    writeFileSync(
+      css,
+      Buffer.concat([
+        before,
+        Buffer.from('\n.robotics-portal-editor { --asa-fast-dev-hmr-probe: ' + probe + '; }\n'),
+      ]),
+    );
     changed = true;
     await expect
-      .poll(() => page.evaluate(() =>
-        getComputedStyle(document.querySelector('.robotics-portal-editor'))
-          .getPropertyValue('--asa-fast-dev-hmr-probe').trim(),
-      ), { timeout: 20000 })
+      .poll(
+        () =>
+          page.evaluate(() =>
+            getComputedStyle(document.querySelector('.robotics-portal-editor'))
+              .getPropertyValue('--asa-fast-dev-hmr-probe')
+              .trim(),
+          ),
+        { timeout: 20000 },
+      )
       .toBe(probe);
     const marker = await page.evaluate(() => window.__asaRoboticsHmrMark);
-    if (marker !== probe) throw new Error('Vite reloaded the entire page rather than applying CSS HMR');
+    if (marker !== probe)
+      throw new Error('Vite reloaded the entire page rather than applying CSS HMR');
     pass('Vite HMR applied CSS with no full page reload');
   } finally {
     if (changed) writeFileSync(css, before);
   }
-  await expect.poll(() => page.evaluate(() =>
-    getComputedStyle(document.querySelector('.robotics-portal-editor'))
-      .getPropertyValue('--asa-fast-dev-hmr-probe').trim(),
-  ), { timeout: 20000 }).toBe('');
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() =>
+          getComputedStyle(document.querySelector('.robotics-portal-editor'))
+            .getPropertyValue('--asa-fast-dev-hmr-probe')
+            .trim(),
+        ),
+      { timeout: 20000 },
+    )
+    .toBe('');
   pass('Temporary CSS probe reverted');
 
   result.projectId = projectId;

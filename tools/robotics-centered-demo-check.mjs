@@ -61,8 +61,13 @@ try {
   const check = await page.request.get('/api/projects/' + projectId);
   if (!check.ok()) throw new Error('Centered project API failed: ' + check.status());
   const saved = (await check.json()).draft?.document?.world;
-  if (!saved || saved.field.widthMeters !== 5 || saved.field.heightMeters !== 5 ||
-      saved.initialPose.xMeters !== 2.5 || saved.initialPose.yMeters !== 2.5)
+  if (
+    !saved ||
+    saved.field.widthMeters !== 5 ||
+    saved.field.heightMeters !== 5 ||
+    saved.initialPose.xMeters !== 2.5 ||
+    saved.initialPose.yMeters !== 2.5
+  )
     throw new Error('Project is not centered at 2.5, 2.5: ' + JSON.stringify(saved?.initialPose));
   await page.goto(projectUrl, { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('robotics-account-editor')).toBeVisible({ timeout: 30000 });

@@ -22,18 +22,33 @@ export function RoboticsElectronicsToolbar({
     if (nativeToolsRef.current) nativeToolsRef.current.inert = running || controller.busy;
   }, [running, controller.busy]);
   return (
-    <div ref={toolbarRef} className="robotics-electronics-tools workbench-toolbar breadboard"
-      role="toolbar" aria-label="Инструменты электроники">
-      <button type="button" className="workbench-tool" aria-label="Вписать"
+    <div
+      ref={toolbarRef}
+      className="robotics-electronics-tools workbench-toolbar breadboard"
+      role="toolbar"
+      aria-label="Инструменты электроники"
+    >
+      <button
+        type="button"
+        className="workbench-tool"
+        aria-label="Вписать"
         data-workbench-tooltip="Вписать электрическую схему в экран"
         onClick={() => controller.fitSceneScaled(0.5)}
-      ><ViewIcon /></button>
-      <button type="button"
+      >
+        <ViewIcon />
+      </button>
+      <button
+        type="button"
         className={'workbench-tool robotics-electronics-code' + (codeOpen ? ' active' : '')}
         aria-label={codeOpen ? 'Закрыть код' : 'Открыть код'}
-        data-workbench-tooltip={codeOpen ? 'Закрыть редактор Arduino' : 'Выдвинуть редактор кода Arduino'}
-        aria-pressed={codeOpen} onClick={onToggleCode}
-      ><CodeIcon /></button>
+        data-workbench-tooltip={
+          codeOpen ? 'Закрыть редактор Arduino' : 'Выдвинуть редактор кода Arduino'
+        }
+        aria-pressed={codeOpen}
+        onClick={onToggleCode}
+      >
+        <CodeIcon />
+      </button>
       <div className="robotics-electronics-native-tools" ref={nativeToolsRef}>
         <WorkbenchEditingTools controller={controller} showNotes={false} />
       </div>
