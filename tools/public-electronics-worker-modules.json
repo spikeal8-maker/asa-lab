@@ -49,6 +49,7 @@
     "contexts/electronics/domain/models/thermal-transient-model.ts",
     "contexts/electronics/domain/models/tmp36-dc-model.ts",
     "contexts/electronics/domain/netlist.ts",
+    "contexts/electronics/domain/numerical-shunt-power.ts",
     "contexts/electronics/domain/photoresistor-input.ts",
     "contexts/electronics/domain/photoresistor-model.ts",
     "contexts/electronics/domain/simulation-input-digest.ts",
