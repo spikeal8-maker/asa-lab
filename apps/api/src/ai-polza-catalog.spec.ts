@@ -23,6 +23,7 @@ it('uses explicit endpoint and modality metadata, never names, for Vision/tools 
         id: 'fake/vision',
         type: 'stt',
         architecture: { input_modalities: ['audio'], output_modalities: ['text'] },
+        endpoints: ['/api/v1/audio/transcriptions'],
       },
     ],
   });
@@ -54,6 +55,29 @@ it('uses explicit endpoint and modality metadata, never names, for Vision/tools 
   expect(supportsAiTools('polza', 'polza/qwen/vision')).toBe(true);
   expect(() => buildAiTextRequest('polza', 'polza/fake/vision', [], '', true)).toThrow();
 });
+it.each([
+  ['image', ['text'], ['image'], '/api/v1/media', 'image'],
+  ['video', ['text'], ['video', 'text'], '/api/v1/media', 'video'],
+  ['stt', ['audio'], ['transcription'], '/api/v1/audio/transcriptions', 'stt'],
+  ['video', ['text'], ['video'], '/api/v1/chat/completions', 'other'],
+  ['chat', ['text'], ['image'], '/api/v1/chat/completions', 'other'],
+] as const)(
+  'classifies Polza %s models by modality and endpoint',
+  (type, inputs, outputs, endpoint, kind) => {
+    expect(
+      parsePolzaModels({
+        data: [
+          {
+            ...chat,
+            type,
+            architecture: { input_modalities: inputs, output_modalities: outputs },
+            endpoints: [endpoint],
+          },
+        ],
+      })[0],
+    ).toMatchObject({ kind, vision: false, tools: false, selected: false });
+  },
+);
 it.each([
   { data: [chat, chat] },
   { data: [{ ...chat, id: 'https://evil.test/key' }] },

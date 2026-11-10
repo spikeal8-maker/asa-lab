@@ -209,6 +209,7 @@ export function AdminAiWebSearch({
   const search = show('web_search', 'image_search');
   const pages = show('read_page');
 
+  const AdvancedSettings = presentation === 'parameters' ? 'details' : 'div';
   return (
     <section
       className={'asa-ai-web-admin asa-cloud-connection asa-ai-network-' + presentation}
@@ -230,12 +231,14 @@ export function AdminAiWebSearch({
       {config ? (
         <form onSubmit={(event) => void save(event)} className="asa-cloud-form">
           <div className="asa-ai-web-section-heading">
-            <h3>{presentation === 'switches' ? 'Сетевые сервисы' : 'Параметры сети'}</h3>
+            <h3>
+              {presentation === 'switches' ? 'Доступ инструментов в интернет' : 'Параметры сети'}
+            </h3>
             <InfoHint label="Общие настройки сетевых инструментов">
               <p>
                 Поиск, чтение страниц, поиск изображений и погода используют общий сетевой доступ и
                 часовой лимит. Изменения применяются к новым запросам. Разрешение каждого
-                инструмента настраивается выше.
+                инструмента настраивается в списке инструментов.
               </p>
             </InfoHint>
           </div>
@@ -358,7 +361,13 @@ export function AdminAiWebSearch({
           {!retrievalSupported && (search || pages) ? (
             <p role="status">Для настройки выдачи и чтения требуется обновление схемы поиска.</p>
           ) : null}
-          <div hidden={presentation === 'switches' || (!search && !pages)}>
+          <AdvancedSettings
+            className={presentation === 'parameters' ? 'asa-ai-tool-disclosure' : undefined}
+            hidden={presentation === 'switches' || (!search && !pages)}
+          >
+            {presentation === 'parameters' ? (
+              <summary>Фильтры и ответы по источникам</summary>
+            ) : null}
             {policySupported ? (
               <>
                 <div className="asa-ai-web-admin-domains">
@@ -434,7 +443,7 @@ export function AdminAiWebSearch({
                 Для фильтров сайтов и инструкции требуется обновление API и схемы поиска.
               </p>
             )}
-          </div>
+          </AdvancedSettings>
           <section
             className="asa-ai-web-admin-weather"
             aria-label="Прогноз погоды"

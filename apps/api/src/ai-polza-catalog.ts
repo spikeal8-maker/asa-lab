@@ -11,6 +11,7 @@ export interface PolzaModel {
   maxOutputTokens: number;
   active: boolean;
   selected: boolean;
+  catalogMonth?: string | null;
 }
 export interface PolzaCatalog {
   version: number;
@@ -42,18 +43,32 @@ export function parsePolzaModels(raw: unknown): PolzaModel[] {
       inputs.includes('text') &&
       outputs.includes('text') &&
       endpoints.includes('/api/v1/chat/completions');
+    const transcription =
+      m.type === 'stt' &&
+      inputs.includes('audio') &&
+      (outputs.includes('text') || outputs.includes('transcription')) &&
+      endpoints.includes('/api/v1/audio/transcriptions');
+    const image =
+      m.type === 'image' &&
+      outputs.includes('image') &&
+      (endpoints.includes('/api/v1/media') || endpoints.includes('/api/v1/images/generations'));
+    const video =
+      m.type === 'video' && outputs.includes('video') && endpoints.includes('/api/v1/media');
     const maximum = top?.max_completion_tokens ?? m.max_completion_tokens;
+    const created = m.created;
+    const catalogMonth =
+      typeof created === 'number' &&
+      Number.isSafeInteger(created) &&
+      created > 0 &&
+      created <= 253402300799
+        ? new Date(created * 1000).toISOString().slice(0, 7)
+        : null;
     return {
+      ...(catalogMonth ? { catalogMonth } : {}),
       id: 'polza/' + m.id,
       upstream: m.id,
       label: typeof m.name === 'string' && m.name.trim() ? m.name.trim().slice(0, 120) : m.id,
-      kind: chat
-        ? 'chat'
-        : m.type === 'stt'
-          ? 'stt'
-          : outputs.includes('image')
-            ? 'image'
-            : 'other',
+      kind: chat ? 'chat' : transcription ? 'stt' : image ? 'image' : video ? 'video' : 'other',
       vision: chat && inputs.includes('image'),
       tools:
         chat &&

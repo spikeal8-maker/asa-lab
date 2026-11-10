@@ -12,7 +12,11 @@ import {
 } from './ai-working-files.js';
 import type { NativeToolCall, NativeToolDefinition, NativeToolResult } from './ai-native-tools.js';
 import type { AiImageRecipe } from '@asa-lab/contracts';
-import { discoverProviderModels, applyCatalogObservation } from './ai-provider-catalog.js';
+import {
+  discoverProviderModels,
+  discoverCloudCatalog,
+  applyCatalogObservation,
+} from './ai-provider-catalog.js';
 import { AiTokenBudgetStore } from './ai-token-budgets.js';
 import { installProviderObservations } from './ai-model-catalog.js';
 import { OllamaCloudMetadata, reloadOllamaCloudCatalog } from './ai-ollama-cloud.js';
@@ -330,6 +334,45 @@ export class AiChatService {
   }
   generationPolicy(actor: string) {
     return this.policy.admin(actor, this.key !== null);
+  }
+  async cloudCatalog(actor: string, provider: 'deepseek' | 'openai', candidate?: string) {
+    const label = provider === 'openai' ? 'OpenAI' : 'DeepSeek';
+    let key = candidate;
+    let revision: number | undefined;
+    if (key === undefined) {
+      const { rows } = await this.pool.query<RuntimeRow & { revision: number }>(
+        'SELECT * FROM ai_provider_catalog_credentials($1,$2)',
+        [actor, provider],
+      );
+      const credentials = rows[0];
+      key = (credentials && this.decrypt(credentials)) || undefined;
+      revision = credentials ? Number(credentials.revision) : undefined;
+    }
+    if (!key)
+      throw new AiServiceError('ai_catalog_key_required', 409, 'Добавьте API-ключ ' + label + '.');
+    let models;
+    try {
+      models = await discoverCloudCatalog(provider, key, this.fetchImpl);
+    } catch (error) {
+      const rejected =
+        error instanceof Error && error.message === 'AI_CATALOG_UNAVAILABLE_KEY_REJECTED';
+      throw new AiServiceError(
+        rejected ? 'ai_cloud_catalog_key_rejected' : 'ai_cloud_catalog_unavailable',
+        502,
+        rejected
+          ? label + ' не принял ключ.'
+          : 'Каталог ' + label + ' недоступен. Повторите проверку.',
+      );
+    }
+    if (revision !== undefined)
+      await applyCatalogObservation(
+        this.pool,
+        actor,
+        provider,
+        revision,
+        models.map((model) => model.id),
+      );
+    return { models };
   }
   comfyUiConfig(actor: string) {
     return this.comfySettings.config(actor);
@@ -3025,6 +3068,7 @@ export class AiChatService {
     actor: string,
     version: number,
     requestId: string,
+    slot?: number,
   ): Promise<AiOllamaCloudPool> {
     const before = await this.adminConfig(actor);
     if (before.configurationVersion !== version)
@@ -3036,10 +3080,19 @@ export class AiChatService {
         [actor],
       )
     ).rows;
-    const catalog = await this.cloudMetadataClient.catalog().catch(() => null);
+    const catalog =
+      slot === undefined
+        ? await this.cloudMetadataClient.catalog().catch(() => {
+            throw new AiServiceError(
+              'ai_cloud_catalog_unavailable',
+              503,
+              'Каталог Ollama Cloud недоступен. Сохранённый список оставлен.',
+            );
+          })
+        : null;
     const observations = await Promise.all(
       credentials
-        .filter((k) => k.api_key_ciphertext)
+        .filter((k) => k.api_key_ciphertext && (slot === undefined || slot === k.slot))
         .map(async (k) => ({
           key: k,
           account: await this.cloudMetadataClient!.account(this.requireProviderKey(k)),
@@ -3072,6 +3125,24 @@ export class AiChatService {
       );
     }
     return this.ollamaCloudPool(actor);
+  }
+  async ollamaCloudModelDetails(actor: string, id: string) {
+    const pool = await this.ollamaCloudPool(actor);
+    const model = pool.models.find((entry) => entry.id === id && entry.active);
+    if (!model)
+      throw new AiServiceError(
+        'ai_model_invalid',
+        404,
+        'Модель отсутствует в каталоге Ollama Cloud.',
+      );
+    this.cloudMetadataClient ??= new OllamaCloudMetadata(this.fetchImpl);
+    return this.cloudMetadataClient.modelDetails(model.model).catch(() => {
+      throw new AiServiceError(
+        'ai_cloud_metadata_unavailable',
+        503,
+        'Сведения о модели недоступны.',
+      );
+    });
   }
   async isDiscoveredCloudModel(model: unknown): Promise<boolean> {
     if (typeof model !== 'string' || !model.startsWith('ollama-cloud/')) return false;

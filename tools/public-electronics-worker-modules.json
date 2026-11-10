@@ -16,6 +16,7 @@
     "contexts/electronics/domain/arduino-random.ts",
     "contexts/electronics/domain/arduino-serial-runtime.ts",
     "contexts/electronics/domain/arduino-servo-runtime.ts",
+    "contexts/electronics/domain/arduino-stable-loop.ts",
     "contexts/electronics/domain/arduino-switch-syntax.ts",
     "contexts/electronics/domain/arduino-user-functions.ts",
     "contexts/electronics/domain/arduino-values.ts",

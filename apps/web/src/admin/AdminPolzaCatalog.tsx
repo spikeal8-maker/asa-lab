@@ -9,6 +9,7 @@ interface Model {
   tools: boolean;
   active: boolean;
   selected: boolean;
+  catalogMonth?: string | null;
 }
 interface Catalog {
   version: number;
@@ -16,6 +17,18 @@ interface Catalog {
   checkedAt: string | null;
   items: Model[];
 }
+const GROUP_TABS = {
+  chat: 'Текст',
+  image: 'Изображения',
+  stt: 'Транскрибация',
+  video: 'Видео',
+} as const;
+const MODEL_GROUPS = {
+  chat: 'Текстовые модели Polza AI',
+  image: 'Модели изображений Polza AI',
+  stt: 'Модели транскрибации Polza AI',
+  video: 'Видеомодели Polza AI',
+};
 function validCatalog(value: unknown): value is Catalog {
   const v = value as Catalog | null;
   return (
@@ -42,23 +55,36 @@ export function AdminPolzaCatalog({
   onAccessDenied,
   onUpdated,
   onDirtyChange,
+  onBusyChange,
+  kind: initialKind = 'chat',
+  connection = false,
+  connectionDirty = false,
+  connected = true,
 }: {
   onAccessDenied: () => void;
   onUpdated?: (() => void) | undefined;
   onDirtyChange?: (dirty: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
+  kind?: keyof typeof MODEL_GROUPS;
+  connected?: boolean;
+  connection?: boolean;
+  connectionDirty?: boolean;
 }) {
+  const [category, setCategory] = useState<keyof typeof GROUP_TABS>('chat');
+  const kind = connection ? category : initialKind;
+  const selectable = connection || kind === 'chat';
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState('');
-  const [kind, setKind] = useState('chat');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   function apply(value: Catalog) {
     setCatalog(value);
-    setSelected(value.items.filter((m) => m.selected).map((m) => m.id));
+    setSelected(value.items.filter((m) => m.active && m.selected).map((m) => m.id));
   }
   useEffect(() => {
+    if (!connected) return;
     let live = true;
     void call<Catalog>('/api/admin/v1/ai/polza/models').then((r) => {
       if (!live) return;
@@ -71,10 +97,11 @@ export function AdminPolzaCatalog({
     return () => {
       live = false;
     };
-  }, [onAccessDenied]);
+  }, [connected, onAccessDenied]);
   async function request(refresh: boolean) {
-    if (busy || (!refresh && !catalog)) return;
+    if (busy || connectionDirty || (!refresh && !catalog)) return;
     setBusy(true);
+    onBusyChange?.(true);
     setError('');
     setNotice('');
     try {
@@ -85,9 +112,7 @@ export function AdminPolzaCatalog({
       if (r.ok && validCatalog(r.data)) {
         apply(r.data);
         setNotice(
-          refresh
-            ? 'Каталог обновлён. Платных запросов не было.'
-            : 'Выбор сохранён. Доступ пользователям задаётся в Настройках.',
+          refresh ? 'Каталог обновлён. Платных запросов не было.' : 'Выбор моделей сохранён.',
         );
         onUpdated?.();
       } else {
@@ -96,20 +121,21 @@ export function AdminPolzaCatalog({
       }
     } finally {
       setBusy(false);
+      onBusyChange?.(false);
     }
   }
-  const shown =
-    catalog?.items.filter(
-      (m) =>
-        m.active &&
-        m.kind === kind &&
-        (m.label + ' ' + m.upstream).toLocaleLowerCase().includes(query.toLocaleLowerCase()),
-    ) ?? [];
+  const shown = (catalog?.credentialCurrent ? catalog.items : []).filter(
+    (m) =>
+      m.active &&
+      m.kind === kind &&
+      (selectable || m.selected) &&
+      (m.label + ' ' + m.upstream).toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+  );
   const dirty =
     !!catalog &&
     [...selected].sort().join() !==
       catalog.items
-        .filter((m) => m.selected)
+        .filter((m) => m.active && m.selected)
         .map((m) => m.id)
         .sort()
         .join();
@@ -118,37 +144,48 @@ export function AdminPolzaCatalog({
     return () => onDirtyChange?.(false);
   }, [dirty, onDirtyChange]);
   return (
-    <section className="asa-polza-catalog" aria-label="Каталог моделей Polza AI">
+    <section className="asa-polza-catalog" aria-label={MODEL_GROUPS[kind]}>
       <header>
         <div>
-          <h3>Модели Polza AI</h3>
-          <p>
-            Выберите текстовые модели для раздела «Настройки». Там задаются доступ пользователям,
-            порядок и лимиты.
-          </p>
+          <h3>{MODEL_GROUPS[kind]}</h3>
         </div>
-        <button type="button" disabled={busy || dirty} onClick={() => void request(true)}>
-          Обновить каталог
-        </button>
+        {connected && selectable ? (
+          <button
+            type="button"
+            disabled={busy || dirty || connectionDirty}
+            onClick={() => void request(true)}
+          >
+            Обновить каталог
+          </button>
+        ) : (
+          <a href="#/admin/ai?section=connections&provider=polza">
+            {connected ? 'Выбрать модели' : 'Подключить Polza AI'}
+          </a>
+        )}
       </header>
+      {connection ? (
+        <div className="asa-polza-category" role="group" aria-label="Категории моделей Polza">
+          {(Object.keys(GROUP_TABS) as (keyof typeof GROUP_TABS)[]).map((id) => (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={category === id}
+              onClick={() => {
+                setCategory(id);
+                setQuery('');
+              }}
+            >
+              {GROUP_TABS[id]}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {connectionDirty ? <p>Сначала сохраните подключение.</p> : null}
       {error ? <p role="alert">{error}</p> : null}
       {notice ? <p role="status">{notice}</p> : null}
-      {catalog ? (
+      {connected && catalog ? (
         <>
           <div className="asa-polza-catalog-filters">
-            <label>
-              Тип модели
-              <select
-                aria-label="Тип моделей Polza"
-                value={kind}
-                onChange={(e) => setKind(e.target.value)}
-              >
-                <option value="chat">Текст и Vision</option>
-                <option value="stt">Распознавание речи</option>
-                <option value="image">Изображения</option>
-                <option value="other">Другие</option>
-              </select>
-            </label>
             <label>
               Поиск
               <input
@@ -164,24 +201,24 @@ export function AdminPolzaCatalog({
           {!catalog.credentialCurrent ? (
             <p className="asa-ai-integration-note">Обновите каталог для сохранённого ключа.</p>
           ) : null}
-          {kind !== 'chat' ? (
-            <p className="asa-ai-integration-note">
-              {kind === 'stt'
-                ? 'Голосовой ввод настраивается во вкладке «Транскрибация». Сейчас используется GigaAM-v3.'
-                : kind === 'image'
-                  ? 'Генерация изображений в ASA настроена отдельно через ComfyUI. Эти модели показаны как возможности Polza.'
-                  : 'Эти модели не используются в текстовом чате.'}
+          {catalog.credentialCurrent && !shown.length ? (
+            <p role="status">
+              {query
+                ? 'По запросу ничего не найдено.'
+                : selectable
+                  ? 'В каталоге нет моделей этого типа.'
+                  : 'Выберите модели в подключении Polza AI.'}
             </p>
           ) : null}
           <div className="asa-polza-catalog-list">
             {shown.map((m) => (
               <label key={m.id} className="asa-polza-catalog-model">
-                {kind === 'chat' ? (
+                {selectable ? (
                   <input
                     type="checkbox"
-                    aria-label={'В настройки: ' + m.label}
+                    aria-label={(kind === 'chat' ? 'В настройки: ' : 'Выбрать: ') + m.label}
                     checked={selected.includes(m.id)}
-                    disabled={busy || !catalog.credentialCurrent}
+                    disabled={busy || connectionDirty || !catalog.credentialCurrent}
                     onChange={(e) =>
                       setSelected((p) =>
                         e.target.checked ? [...p, m.id] : p.filter((id) => id !== m.id),
@@ -194,17 +231,27 @@ export function AdminPolzaCatalog({
                   <small>{m.upstream}</small>
                 </span>
                 <span className="asa-polza-catalog-badges">
+                  {m.catalogMonth && /^\d{4}-\d{2}$/.test(m.catalogMonth) ? (
+                    <time dateTime={m.catalogMonth} title="Месяц по данным каталога Polza">
+                      {m.catalogMonth}
+                    </time>
+                  ) : (
+                    <span title="Провайдер не указал дату">Дата не указана</span>
+                  )}
                   {m.vision ? <span>Vision</span> : kind === 'chat' ? <span>Текст</span> : null}
                   {m.tools ? <span>Инструменты</span> : null}
+                  {kind === 'stt' && m.upstream === 'ai-sage/gigaam-v3' ? (
+                    <span>Модель ASA для голосового ввода</span>
+                  ) : null}
                 </span>
               </label>
             ))}
           </div>
-          {kind === 'chat' ? (
+          {selectable ? (
             <button
               type="button"
               className="asa-polza-primary"
-              disabled={busy || !dirty || !catalog.credentialCurrent}
+              disabled={busy || connectionDirty || !dirty || !catalog.credentialCurrent}
               onClick={() => void request(false)}
             >
               Сохранить выбор моделей

@@ -156,6 +156,30 @@ def general_node_contract(contract, original, effective):
     return contract
 
 
+def general_d0_v1_contract(contract):
+    """Overlay the exact General event policy on the immutable transport contract."""
+    contract = deepcopy(contract)
+    contract["required_triggers"] = {"push": {"branches": ["main"]}, "pull_request": {}}
+    return contract
+
+
+def general_d1_v1_contract(contract):
+    """Add applicability after D0 without changing any full-job transport step."""
+    contract = deepcopy(contract)
+    contract["workflow_controls"]["env"].update({
+        "SOURCE_SHA": "${{ github.event.pull_request.head.sha || github.sha }}",
+        "BASE_SHA": "${{ github.event.pull_request.base.sha || github.event.before }}",
+        "BASE_REF": "${{ github.event.pull_request.base.ref || github.ref_name }}",
+        "EVENT_NAME": "${{ github.event_name }}", "EVENT_REF": "${{ github.ref }}",
+        "MERGE_CANDIDATE_SHA": "${{ github.sha }}",
+    })
+    for job_id in ("code", "postgres-tests", "access-a-browser"):
+        contract["jobs"][job_id]["controls"].update(
+            needs=["governance" if job_id == "code" else "code", "selection"],
+            **{"if": "needs.selection.outputs.route == 'FULL' || needs.selection.outputs.route == 'PARALLEL'"})
+    return contract
+
+
 def electronics_receipt(receipt, general):
     """The selected classroom jobs reuse proven image identities, never new content."""
     override = json.loads(read(ELECTRONICS_TRANSPORT))
@@ -440,8 +464,17 @@ def check_workflow(path, contract, receipt, general_node, electronics):
     workflow = parse_yaml(read(path))
     require(FAILURE_REPORT_FLAG not in workflow.get("env", {}),
             "Failure report flag must not be inherited by the entire workflow: " + path)
-    require(covers_required_triggers(workflow.get("on"), contract["required_triggers"]),
-            "Missing or narrowed mandatory workflow trigger: " + path)
+    triggers = workflow.get("on")
+    if path == GENERAL:
+        from devex_ci_contract import check_wiring
+        check_wiring(workflow)
+        require(isinstance(triggers, dict)
+                and {event: {} if options is None else options for event, options in triggers.items()}
+                == contract["required_triggers"],
+                "DEVEX-D0 v1 General workflow triggers must be main push and unfiltered pull requests")
+    else:
+        require(covers_required_triggers(triggers, contract["required_triggers"]),
+                "Missing or narrowed mandatory workflow trigger: " + path)
     for key, expected in contract["workflow_controls"].items():
         require(workflow.get(key) == expected, "Workflow control drift: " + path + ":" + key)
     for job_id, expected in contract["jobs"].items():
@@ -548,12 +581,15 @@ def check_offline(receipt):
     classroom = electronics_receipt(receipt, effective)
     for path, expected in contract["workflows"].items():
         if path == GENERAL:
-            expected = general_node_contract(expected, receipt, effective)
+            expected = general_d1_v1_contract(general_d0_v1_contract(
+                general_node_contract(expected, receipt, effective)))
         elif path == FOCUSED:
             expected = qualification_contract(electronics_contract(expected, receipt, classroom))
             expected = failure_evidence_contract(expected)
             expected = d2_classroom_budget_contract(expected)
         check_workflow(path, expected, receipt, effective, classroom)
+    from devex_ci_contract import check_bounded_wiring
+    check_bounded_wiring(parse_yaml(read(".github/workflows/devex-changed.yml")))
     print("CI image transport semantic guard: PASS (5 immutable mappings; required gates/security/defaults)")
 
 
@@ -761,6 +797,7 @@ def check_challenges(receipt):
     from unittest.mock import patch
 
     source = {path: read(path) for path in [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+              ".github/workflows/devex-changed.yml",
               *receipt["semantic_contract"]["dockerfile_defaults"],
               *receipt["semantic_contract"]["workflows"]]}
     general = ".github/workflows/spec-validation.yml"
@@ -811,6 +848,7 @@ def check_challenges(receipt):
     trigger_challenge("General ignored required branch", general, "push", "branches-ignore", ["main"])
     trigger_challenge("General restricted pull request activity", general, "pull_request", "types", ["opened"])
     trigger_challenge("General new pull request path filter", general, "pull_request", "paths", ["docs/**"])
+    trigger_challenge("General restricted pull request base branch", general, "pull_request", "branches", ["main"])
     trigger_challenge("focused new pull request branch filter", focused, "pull_request", "branches", ["other"])
     trigger_challenge("focused new ignored paths", focused, "pull_request", "paths-ignore", ["apps/**"])
     trigger_challenge("focused required dispatch input", focused, "workflow_dispatch", "inputs",
@@ -818,11 +856,15 @@ def check_challenges(receipt):
     without_event = parse_yaml(source[general])
     del without_event["on"]["pull_request"]
     challenge("removed required pull request event", {general: json.dumps(without_event)}, False)
-    trigger_challenge("additive positive branch", general, "push", "branches",
-                      branches + ["feature/**"], True)
-    extra_event = parse_yaml(source[general])
-    extra_event["on"]["workflow_dispatch"] = None
-    challenge("additive independent event", {general: json.dumps(extra_event)}, True)
+    for branch in ("agent/**", "assistant/**", "codex/**"):
+        trigger_challenge("reintroduced General branch push: " + branch, general, "push", "branches",
+                          branches + [branch])
+    extra_general_event = parse_yaml(source[general])
+    extra_general_event["on"]["workflow_dispatch"] = None
+    challenge("additional General event", {general: json.dumps(extra_general_event)}, False)
+    extra_focused_event = parse_yaml(source[focused])
+    extra_focused_event["on"]["repository_dispatch"] = None
+    challenge("additive independent focused event", {focused: json.dumps(extra_focused_event)}, True)
     trigger_challenge("additive positive path", focused, "pull_request", "paths",
                       paths + ["e2e/electronics-simulation-time.spec.ts"], True)
     challenge("additive test step", {general: source[general].replace(
@@ -1053,6 +1095,7 @@ def check_electronics_challenges(receipt):
     from unittest.mock import patch
 
     paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
              *receipt["semantic_contract"]["dockerfile_defaults"],
              *receipt["semantic_contract"]["workflows"]]
     source = {path: read(path) for path in paths}
@@ -1225,6 +1268,7 @@ def check_qualification_challenges(receipt):
     from unittest.mock import patch
 
     paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
              *receipt["semantic_contract"]["dockerfile_defaults"],
              *receipt["semantic_contract"]["workflows"]]
     source = {path: read(path) for path in paths}
@@ -1320,6 +1364,7 @@ def check_failure_evidence_challenges(receipt):
     from unittest.mock import patch
 
     paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
              *receipt["semantic_contract"]["dockerfile_defaults"],
              *receipt["semantic_contract"]["workflows"]]
     source = {path: read(path) for path in paths}
