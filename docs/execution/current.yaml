@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_d_preflight_and_required_context_candidate
+      checkpoint: package_d_fast_verified_package_e_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -139,34 +139,28 @@ parallel_lanes:
           - tools/test_ci_image_transport.py
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 98d7fbb42ae9e53113cb45ada4b4301334de9c27
+      convergence_baseline_sha: ea8777809f0eef2d2ec2bd804da94b75433d5a9d
       head_sha: null
-      observed_at: '2026-11-03T16:35:11Z'
+      observed_at: '2026-11-10T17:50:31Z'
       main:
         branch: main
-        sha: 98d7fbb42ae9e53113cb45ada4b4301334de9c27
+        sha: 31614509dcc2e0df7bb906967d194281e69bbf81
       observation_note: >-
-        Main98d7fbb4 passed General41668252953 all5 actual jobs and Publications41668252727.
-        Portable41673912975 passed both host contracts and source-image smoke: clean boot, verified complete
-        backup, PostgreSQL/object checksum restore into asalab_delivery_restore_test, restricted-role login,
-        ACL/RLS and origin checks. Existing real PostgreSQL supported0225-prefix upgrade reaches0304 and
-        verifies preserved ledger/checksums and zero-apply rerun; no current SQL repair or historical migration
-        rewrite selected. Prior E974/F975/G978/F979/G980 remain accepted without repeated audit or tests.
-        Owner's new explicit isolated-development consent supersedes indefinite D13 logical-path waiting;
-        foreign guard remains15addedlines on16cbed5d, with its byte fingerprint pinned above. This PR changes
-        the preflight prerequisite and records consent; it does not implement D or import foreign WIP.
-        A bounded CI admission repair separates working-push aggregate display names from the unchanged
-        PR/main ASA / required context; all four native mandatory jobs and fail-closed checks remain intact.
-        After policy/consent acceptance, repeat exact8path D preflight; genuine SAFE_TO_START is required.
-        The initial protection snapshot had no required checks/reviews or rulesets. Owner-authorized minimal
-        protection is now applied and read back: strict ASA / required app15368, mandatory PR, zero formal
-        approvals, admin enforcement; all other parameters are unchanged and before/restore payloads saved.
-        General41686002301 passed all5 exactcf262 jobs, yet cancelled duplicate push41685995018 left a second
-        same-name failed required context. This candidate fixes that confirmed admission collision without
-        changing protection or tools/ci_required.py; new final-SHA CI and positive admission remain pending.
-        Full Main/release/RLS/auth/migration evidence and exact merged-tree checks remain mandatory. No deployment,
-        forced publication, working database, local Docker or network action; owner acceptance remains pending.
-        Fetch main before writes and recover exact Git/CI; this dated snapshot grants no edit or release authority.
+        Fetch main before writes and recover exact Git/CI. Main 31614509 passed General 42863216921 with
+        all four native mandatory jobs, applicability and ASA / required. Portable Delivery 42863312399
+        passed both host contracts and source-image smoke: clean boot, verified complete backup,
+        PostgreSQL and object checksum restore into asalab_delivery_restore_test, restricted-role login,
+        ACL/RLS and origin checks. General also executed the historical upgrade cases and separate RLS suite.
+        Release publication and deployment are distinct from these results.
+        D0, conditional General and the restricted FAST route have been accepted with matching PR and
+        merged trees. FAST only admits the proven CollectPicker stylesheet effect; L1 and additive
+        executable tests stay PARALLEL. Main and release remain FULL. The two UI drafts are measurement
+        evidence, not integrated product changes or a population estimate for p50/p90.
+        The next E slice evaluates only deterministic CI preparation. The final Access A build step took
+        38 seconds end to end, and the Web build uses revision and wall-clock metadata. A broad build
+        cache has no approval here. Retain fresh execution for all required and release evidence.
+        Previous E974/F975/G978/F979/G980 results remain accepted. No deployment, working database,
+        local Docker or network action is authorized. Owner acceptance remains pending.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -178,13 +172,53 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: D
-      selected_subslice: D-CONDITIONAL-GENERAL-CONTRACT-001
+      selected_slice: E
+      selected_subslice: E-DETERMINISTIC-CI-PREPARATION-CACHE-001
       verification_pending_slices: []
-      remaining_slices: [D, E, F, G]
+      remaining_slices: [E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
       partial_slices:
+        - id: D0-GENERAL-TRIGGER-DEDUPLICATION
+          pr: 1054
+          source_sha: a1fdf6dfdd87146c17a3dcad762483a03cb95248
+          integrated_sha: 78fbe32e21383ee103e12d6b0cc8d4b13fadf4d2
+          exact_source_general_run: 42805586814
+          exact_main_general_run: 42809682438
+          independent_review: approved
+        - id: D-CONDITIONAL-GENERAL-CONTRACT-001
+          pr: 1059
+          source_sha: 16f80e06e3f7b506ca54ad949cef0892eee31cf1
+          integrated_sha: 81f3cdcca46ad658eabf2aa6346161febe99d4c4
+          exact_source_general_run: 42826912364
+          exact_main_general_run: 42831734300
+          independent_review: approved
+          fixture_repair_pr: 1060
+        - id: D-COLLECT-PICKER-FAST-001
+          pr: 1065
+          source_sha: 10dec4ba45a2cbd680d6cc1a31fc564ae8b449a7
+          integrated_sha: 31614509dcc2e0df7bb906967d194281e69bbf81
+          exact_source_general_run: 42857646833
+          exact_main_general_run: 42863216921
+          exact_main_portable_delivery_run: 42863312399
+          independent_review: approved
+          real_ui_pilots:
+            - change_class: L0
+              pr: 948
+              parallel_source_sha: 6b4e123ac39b86c32d8dece9f0708020d440e80c
+              parallel_run: 42841223504
+              fast_source_sha: a932d310e4c7451e0f8a954eba5cc208de71c5da
+              fast_run: 42863727311
+              required_wall_seconds: { parallel: 1854, fast: 322 }
+              general_runner_seconds: { parallel: 2770, fast: 337 }
+              browser_cases_each: 24
+            - change_class: L1
+              pr: 956
+              parallel_source_sha: b4c2e194d8a829f94bfe5cc4dd69fd02c6afe35f
+              parallel_run: 42849226921
+              required_wall_seconds: { parallel: 1596 }
+              general_runner_seconds: { parallel: 2520 }
+              browser_cases_each: 24
         - id: D-PARALLEL-UI-CI
           source_sha: 6176394ff255e911ccb4e93788b9ea47e7c065ba
           integrated_sha: 4be7dca052e3b02cfb11bb9ab15e86c565f4d553
