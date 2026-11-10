@@ -6,6 +6,7 @@ import {
   createArduinoQualityTraversal,
   verifyCircuitQuality,
 } from '../domain/simulation';
+import { terminalKey } from '../domain/netlist';
 import * as solver from '../domain/solver';
 
 const part = (id: string, kind: SchematicComponent['kind'], value: number): SchematicComponent => ({
@@ -164,6 +165,71 @@ describe('numerical node-shunt power balance', () => {
       expect(quality.maxKclResidualAmp).toBeLessThan(quality.kclToleranceAmp);
       expect(quality.powerBalanceResidualWatt).toBeGreaterThan(quality.powerBalanceToleranceWatt);
       expect(quality.passed).toBe(false);
+    },
+  );
+
+  it.each(['forged-node', 'contradictory-terminal', 'missing-coverage'] as const)(
+    'rejects %s in both the full and owned power check',
+    (tamper) => {
+      // Delimiters in IDs must be resolved through terminalKey, never split.
+      const document = divider(23.5, 31622.776601683792, 1e6, 'board:1:');
+      const compiled = compileCircuit(document);
+      const reuse = solver.createArduinoOperatingPointReuse();
+      const layouts = solver.createArduinoQualityLayoutOwner(reuse);
+      const traversal = createArduinoQualityTraversal(document, compiled, layouts.owner);
+      const readKeys = vi.spyOn(solver, 'arduinoQualityDictionaryKeys');
+      try {
+        const frame = solver.solveCircuitWithHeldArduino(
+          document,
+          1,
+          new Map(),
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          reuse,
+        );
+        expect(verifyCircuitQuality(document, compiled, frame, {}).passed).toBe(true);
+        const source = frame.components.find((c) => c.componentId === 'board:1:s')!;
+        Reflect.set(source.terminalCurrents!, 'a', source.terminalCurrents!['a']! - 1e-9);
+        const target = frame.nodes.find((node) => node.voltage === 23.5)!;
+        if (tamper === 'forged-node') {
+          const otherShunts = frame.nodes.reduce(
+            (sum, node) => sum + (node === target ? 0 : 1e-12 * node.voltage * node.voltage),
+            0,
+          );
+          Reflect.set(
+            target,
+            'voltage',
+            Math.sqrt((-groupedTerminalPower(frame) - otherShunts) / 1e-12),
+          );
+          // This forged observation used to cancel the physical current error exactly.
+          expect(expectedPowerResidual(frame)).toBe(0);
+        } else if (tamper === 'contradictory-terminal') {
+          Reflect.set(source.terminalVoltages, 'a', 23.500001);
+        } else {
+          const targetIndex = compiled.nets.findIndex((net) => net.id === target.id);
+          for (const component of frame.components)
+            for (const terminal of Object.keys(component.terminalVoltages))
+              if (
+                compiled.netlist.nodeOf.get(terminalKey(component.componentId, terminal)) ===
+                targetIndex
+              )
+                Reflect.deleteProperty(component.terminalVoltages, terminal);
+        }
+        const quality = verifyCircuitQuality(document, compiled, frame, {});
+        expect(quality.finite).toBe(true);
+        expect(quality.passed).toBe(false);
+        expect(quality.maxKclResidualAmp).toBeLessThan(quality.kclToleranceAmp);
+        expect(Number.isFinite(quality.powerBalanceResidualWatt)).toBe(true);
+        readKeys.mockClear();
+        expect(traversal.verify(frame, {})).toStrictEqual(quality);
+        expect(readKeys).toHaveBeenCalled();
+      } finally {
+        readKeys.mockRestore();
+        traversal.dispose();
+        layouts.dispose();
+      }
     },
   );
 
