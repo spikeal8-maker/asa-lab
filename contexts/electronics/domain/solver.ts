@@ -27,6 +27,7 @@ import {
 } from './photoresistor-model.js';
 import { switchSelectedTerminal, switchContactClosed } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
+import { GMIN, emitNumericalNodes, copyNumericalNode } from './numerical-shunt-power.js';
 import { solveLinear } from './linear-system.js';
 import { planCapacitorConstraints, recoverCapacitorCurrents } from './capacitor-constraints.js';
 import {
@@ -888,7 +889,6 @@ export function prepareCircuitSolve(document: ElectronicsDocument) {
 
 type CircuitSolvePreparation = ReturnType<typeof prepareCircuitSolve>;
 
-export const GMIN = 1e-12;
 const CLOSED_RESISTANCE = 1e-4;
 const LED_WARNING_RATIO = 0.8;
 const SHORT_CIRCUIT_CURRENT_A = 5;
@@ -5035,11 +5035,12 @@ function solveCircuitStep(
     diagnostics.push(circuitOkDiagnostic(totalSourceCurrent));
   }
 
-  const nodes: NodeResult[] = Array.from({ length: netlist.nodeCount }, (_, node) => ({
-    id: `net-${node}`,
-    voltage: round(voltageFrom(solution as number[], node)),
-    terminals: netlist.terminalsByNode.get(node) ?? [],
-  }));
+  const nodes = emitNumericalNodes(
+    netlist,
+    (node) => voltageFrom(solution as number[], node),
+    referenceNodes,
+    round,
+  );
   if (
     pointSlot &&
     !reusedPoint &&
@@ -5103,10 +5104,7 @@ function solveCircuitStep(
               ),
               nodes: Object.freeze(
                 nodes.map((node) =>
-                  Object.freeze({
-                    ...node,
-                    terminals: Object.freeze([...node.terminals]),
-                  }),
+                  Object.freeze(copyNumericalNode(node, Object.freeze([...node.terminals]))),
                 ),
               ),
               sourceCurrents: Object.freeze(arduinoBranches.map(currentDeliveredByArduinoBranch)),

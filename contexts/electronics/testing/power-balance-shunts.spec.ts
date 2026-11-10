@@ -157,7 +157,7 @@ describe('numerical node-shunt power balance', () => {
     'still rejects a physical power imbalance below the KCL limit, sign %s',
     (direction) => {
       const document = divider();
-      const frame = structuredClone(solver.solveCircuit(document));
+      const frame = solver.solveCircuit(document);
       const source = frame.components.find((c) => c.componentId === 's')!;
       Reflect.set(source.terminalCurrents!, 'a', source.terminalCurrents!['a']! + direction * 1e-9);
       const quality = verifyCircuitQuality(document, compileCircuit(document), frame, {});
@@ -168,7 +168,7 @@ describe('numerical node-shunt power balance', () => {
     },
   );
 
-  it.each(['forged-node', 'contradictory-terminal', 'missing-coverage'] as const)(
+  it.each(['forged-node', 'coherent-shift', 'contradictory-terminal', 'missing-coverage'] as const)(
     'rejects %s in both the full and owned power check',
     (tamper) => {
       // Delimiters in IDs must be resolved through terminalKey, never split.
@@ -204,6 +204,30 @@ describe('numerical node-shunt power balance', () => {
             Math.sqrt((-groupedTerminalPower(frame) - otherShunts) / 1e-12),
           );
           // This forged observation used to cancel the physical current error exactly.
+          expect(expectedPowerResidual(frame)).toBe(0);
+        } else if (tamper === 'coherent-shift') {
+          Reflect.set(source.terminalCurrents!, 'b', source.terminalCurrents!['b']! + 1e-9);
+          const totalCurrent = frame.components.reduce(
+            (sum, c) =>
+              sum + Object.values(c.terminalCurrents!).reduce<number>((a, i) => a + (i ?? 0), 0),
+            0,
+          );
+          const a = 1e-12 * frame.nodes.length;
+          const b = totalCurrent + 2e-12 * frame.nodes.reduce((sum, node) => sum + node.voltage, 0);
+          const c =
+            groupedTerminalPower(frame) +
+            frame.nodes.reduce((sum, node) => sum + 1e-12 * node.voltage ** 2, 0);
+          const offset = (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
+          expect(offset).toBeGreaterThan(70);
+          for (const node of frame.nodes) Reflect.set(node, 'voltage', node.voltage + offset);
+          for (const component of frame.components)
+            for (const terminal of Object.keys(component.terminalVoltages))
+              Reflect.set(
+                component.terminalVoltages,
+                terminal,
+                component.terminalVoltages[terminal]! + offset,
+              );
+          // A coherent gauge shift used to fabricate dissipation at the un-stamped reference.
           expect(expectedPowerResidual(frame)).toBe(0);
         } else if (tamper === 'contradictory-terminal') {
           Reflect.set(source.terminalVoltages, 'a', 23.500001);
@@ -252,6 +276,28 @@ describe('numerical node-shunt power balance', () => {
       expect(Number.isFinite(quality.powerBalanceResidualWatt)).toBe(true);
       expect(Number.isFinite(quality.powerBalanceToleranceWatt)).toBe(true);
     }
+  });
+
+  it('rejects fabricated node observations and mixed solver frames without private provenance', () => {
+    const document = divider();
+    const compiled = compileCircuit(document);
+    const original = solver.solveCircuit(document);
+    const other = solver.solveCircuit(document);
+    for (const nodes of [
+      structuredClone(original.nodes),
+      original.nodes.map((node, index) => (index === 0 ? other.nodes[index]! : node)),
+    ]) {
+      expect(nodes).toEqual(original.nodes);
+      const quality = verifyCircuitQuality(document, compiled, { ...original, nodes }, {});
+      expect(quality.finite).toBe(true);
+      expect(quality.passed).toBe(false);
+    }
+    // Public serialization contains no witness. A reopened document is re-solved.
+    const restored = solver.solveCircuit(
+      JSON.parse(JSON.stringify(document)) as ElectronicsDocument,
+    );
+    expect(JSON.stringify(restored)).toBe(JSON.stringify(original));
+    expect(verifyCircuitQuality(document, compiled, restored, {}).passed).toBe(true);
   });
 
   it('keeps the full and actual owned quality paths equal without changing physical frames', () => {

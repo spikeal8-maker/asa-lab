@@ -4,7 +4,7 @@ import {
   arduinoSnapshotFromState,
   isArduinoUno,
 } from './arduino-model.js';
-import { numericalShuntPowerWatt } from './numerical-shunt-power.js';
+import { copyNumericalNode, numericalShuntPowerWatt } from './numerical-shunt-power.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
 import { canonicalElectricalModelRegistry } from './model-identity.js';
 import { canonicalPhotoresistorProfileRegistry } from './photoresistor-model.js';
@@ -140,7 +140,7 @@ function deterministicSolveResult(result: SolveResult): SolveResult {
       .map(deterministicComponentResult),
     nodes: [...result.nodes]
       .sort((left, right) => ordinalCompare(left.id, right.id))
-      .map((node) => ({ ...node, terminals: [...node.terminals].sort(ordinalCompare) })),
+      .map((node) => copyNumericalNode(node, [...node.terminals].sort(ordinalCompare))),
     diagnostics: [...result.diagnostics]
       .map((diagnostic) => ({
         ...diagnostic,
