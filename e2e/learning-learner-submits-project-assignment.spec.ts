@@ -224,7 +224,7 @@ async function assignFromUi(
   page: Page,
   input: { title: string; due: string; students?: string[] },
 ): Promise<string> {
-  await page.getByRole('button', { name: 'Назначить задание', exact: true }).click();
+  await page.getByRole('button', { name: 'Выдать задание', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Назначить задание' });
   await dialog.getByLabel('Задание').selectOption({ label: input.title });
   if (input.students) {
@@ -359,13 +359,29 @@ test('learner starts the real project editor and submits one immutable attempt',
   const teacherFailures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   const title = `Светодиод и резистор VS002 ${++sequence}`;
   const className = `7А — VS002 ${sequence}`;
-  await createPublishedProjectActivity(title);
   const joinCode = await createClassWithStudents(page, className, [
     { label: 'Анна', handle: `anna-vs002-${sequence}` },
     { label: 'Борис', handle: `boris-vs002-${sequence}` },
   ]);
-  await openAssignments(page);
-  await assignFromUi(page, { title, due: '2027-05-30' });
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Обучение', exact: true })
+    .click();
+  const classroomUrl = page.url();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Выдать задание', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать новое задание', exact: true }).click();
+  const author = page.getByRole('dialog', { name: 'Новое задание класса' });
+  expect(await author.evaluate((dialog) => dialog.scrollWidth <= dialog.clientWidth)).toBe(true);
+  await author.getByLabel('Название задания', { exact: true }).fill(title);
+  await author.getByLabel('Среда задания', { exact: true }).selectOption('electronics');
+  await author.getByRole('textbox', { name: 'Содержание' }).fill('Соберите цепь со светодиодом.');
+  await author.screenshot({ path: `${evidenceDir}/teacher-create-in-class-mobile.png` });
+  await author.getByRole('button', { name: 'Выдать всему классу', exact: true }).click();
+  await expect(author).toBeHidden();
+  await expect(page).toHaveURL(classroomUrl);
+  await expect(page.getByRole('status').filter({ hasText: 'выдано всему классу' })).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
 
   const learner = await learnerAssignments(browser, joinCode, `anna-vs002-${sequence}`);
   const learnerFailures = collectBrowserFailures(learner.page, {
