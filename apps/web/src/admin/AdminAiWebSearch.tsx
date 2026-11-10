@@ -231,12 +231,14 @@ export function AdminAiWebSearch({
       {config ? (
         <form onSubmit={(event) => void save(event)} className="asa-cloud-form">
           <div className="asa-ai-web-section-heading">
-            <h3>{presentation === 'switches' ? 'Сетевые сервисы' : 'Параметры сети'}</h3>
+            <h3>
+              {presentation === 'switches' ? 'Доступ инструментов в интернет' : 'Параметры сети'}
+            </h3>
             <InfoHint label="Общие настройки сетевых инструментов">
               <p>
                 Поиск, чтение страниц, поиск изображений и погода используют общий сетевой доступ и
                 часовой лимит. Изменения применяются к новым запросам. Разрешение каждого
-                инструмента настраивается выше.
+                инструмента настраивается в списке инструментов.
               </p>
             </InfoHint>
           </div>

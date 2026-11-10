@@ -451,7 +451,12 @@ const upgradeArtifacts = [
   ],
   [
     '0315',
-    '0315_learning_file_answers.sql',
+    '0315_ai_polza_catalog_selection.sql',
+    'd2225933b2d5bc146d82262d7073ea5fabae47bcdb20581f2ff01c788bd5d311',
+  ],
+  [
+    '0316',
+    '0316_learning_file_answers.sql',
     '4e63b37b20a09b4e0b2eba6e96140de1b2372febae7490cbf21ee505c7ec78c9',
   ],
 ] as const;

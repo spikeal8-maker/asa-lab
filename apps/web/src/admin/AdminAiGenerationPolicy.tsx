@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { InfoHint } from '../components/InfoHint';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AiPromptGuide } from './AiPromptGuide';
@@ -54,13 +55,13 @@ export function AdminAiGenerationPolicy({
   onAccessDenied,
   provider,
   onDirtyChange,
-  onEligibleModels,
   onCatalogSaved,
+  budgetFor,
 }: {
   readonly section: 'prompt' | 'settings' | 'connections';
   readonly provider?: string;
   readonly onDirtyChange?: (dirty: boolean) => void;
-  readonly onEligibleModels?: (ids: readonly string[]) => void;
+  readonly budgetFor?: (model: string) => ReactNode;
   readonly onCatalogSaved?: () => void;
   readonly onAccessDenied: () => void;
 }) {
@@ -248,22 +249,6 @@ export function AdminAiGenerationPolicy({
         config?.models.find((m) => m.id === id)?.adapterCompatible !== false,
       order: 0,
     };
-  useEffect(() => {
-    if (config)
-      onEligibleModels?.(
-        config.models
-          .filter(
-            (m) =>
-              m.connectionSelected !== false &&
-              (section !== 'settings' || (m.ready && m.adapterCompatible !== false)) &&
-              (modelPreferences.find((p) => p.id === m.id)?.eligible ??
-                m.eligible ??
-                m.adapterCompatible !== false),
-          )
-          .map((m) => m.id),
-      );
-    else onEligibleModels?.([]);
-  }, [config, modelPreferences, onEligibleModels, section]);
   const changePreference = (id: string, patch: Partial<{ eligible: boolean; order: number }>) => {
     setModelPreferences((previous) => [
       ...previous.filter((p) => p.id !== id),
@@ -761,6 +746,7 @@ export function AdminAiGenerationPolicy({
                                   </small>
                                 </div>
                               </InfoHint>
+                              {budgetFor?.(model.id)}
                             </>
                           ) : null}
                         </div>

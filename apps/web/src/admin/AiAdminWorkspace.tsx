@@ -77,7 +77,6 @@ function AiAdminWorkspaceSession({
   const [toolDirty, setToolDirty] = useState(false);
   const [networkDirty, setNetworkDirty] = useState(false);
   const [budgetDirty, setBudgetDirty] = useState(false);
-  const [eligibleModels, setEligibleModels] = useState<readonly string[]>([]);
   function navigate(value: AiAdminNavigation) {
     if (value.section === navigation.section && value.provider === navigation.provider) return;
     if (
@@ -309,32 +308,39 @@ function AiAdminWorkspaceSession({
           aria-labelledby={'ai-tab-' + section}
           className={section === 'settings' ? 'asa-ai-settings' : undefined}
         >
-          <AdminAiGenerationPolicy
-            section={section}
-            onAccessDenied={onAccessDenied}
-            onDirtyChange={setPolicyDirty}
-            onEligibleModels={setEligibleModels}
-          />
-          {section === 'settings' ? (
-            <AdminAiToolPolicies
-              onAccessDenied={onAccessDenied}
-              presentation="switches"
-              onDirtyChange={setToolDirty}
-            />
-          ) : null}
-          {section === 'settings' ? (
-            <AdminAiWebSearch
-              onAccessDenied={onAccessDenied}
-              presentation="switches"
-              onDirtyChange={setNetworkDirty}
-            />
-          ) : null}
           {section === 'settings' ? (
             <AdminAiTokenBudgets
               onAccessDenied={onAccessDenied}
-              eligibleModels={eligibleModels}
               onDirtyChange={setBudgetDirty}
+              renderModels={(budgetFor) => (
+                <AdminAiGenerationPolicy
+                  section="settings"
+                  onAccessDenied={onAccessDenied}
+                  onDirtyChange={setPolicyDirty}
+                  budgetFor={budgetFor}
+                />
+              )}
             />
+          ) : (
+            <AdminAiGenerationPolicy
+              section="prompt"
+              onAccessDenied={onAccessDenied}
+              onDirtyChange={setPolicyDirty}
+            />
+          )}
+          {section === 'settings' ? (
+            <div className="asa-ai-settings-tools">
+              <AdminAiToolPolicies
+                onAccessDenied={onAccessDenied}
+                presentation="switches"
+                onDirtyChange={setToolDirty}
+              />
+              <AdminAiWebSearch
+                onAccessDenied={onAccessDenied}
+                presentation="switches"
+                onDirtyChange={setNetworkDirty}
+              />
+            </div>
           ) : null}
         </div>
       ) : section === 'tools' ? (
