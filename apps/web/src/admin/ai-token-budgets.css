@@ -1,4 +1,5 @@
-.asa-ai-budgets {
+.asa-ai-budgets,
+.asa-ai-inline-budgets {
   margin-top: 12px;
   color: var(--text);
   background: var(--surface);
@@ -22,7 +23,8 @@
   display: grid;
   gap: 8px;
 }
-.asa-ai-budgets button {
+.asa-ai-budgets button,
+.asa-ai-budget-inline-footer > button {
   justify-self: start;
   min-height: 36px;
   border: 1px solid var(--border, #dce5ec);
@@ -111,5 +113,49 @@
   .asa-ai-budget-table input,
   .asa-ai-budgets button {
     min-height: 44px;
+  }
+}
+
+.asa-ai-inline-budget {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+.asa-ai-inline-budget input {
+  width: clamp(5rem, 10vw, 7rem);
+  min-width: 0;
+  padding: 4px 6px;
+  color: inherit;
+}
+.asa-settings-compact .asa-ai-policy-model-row:has(.asa-ai-inline-budget) {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+}
+.asa-ai-budget-inline-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-block: 8px;
+}
+@media (max-width: 620px) {
+  .asa-settings-compact .asa-ai-policy-model-row:has(.asa-ai-inline-budget) {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    padding-block: 4px;
+  }
+  .asa-ai-policy-model-row > .asa-ai-inline-budget {
+    grid-column: 1 / -1;
+    padding-left: 22px;
+  }
+}
+
+.asa-ai-settings-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 850px) {
+  .asa-ai-settings-tools {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

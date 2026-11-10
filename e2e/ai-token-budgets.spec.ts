@@ -117,7 +117,9 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
     await page.goto('/#/admin/ai?section=settings');
     const budgets = page.getByRole('region', { name: 'Месячные лимиты токенов' });
     await expect(budgets.getByRole('button', { name: 'Сохранить лимиты токенов' })).toBeVisible();
-    const row = budgets.getByRole('row', { name: /Локальная Ollama/ });
+    const row = budgets.locator('.asa-ai-policy-model-row').filter({
+      has: page.getByRole('textbox', { name: 'Общий лимит ollama-local' }),
+    });
     // Evidence is from native product CSS, never injected screenshot styles.
     async function capture(state: string, widths = [1440, 1024, 390, 320]) {
       for (const width of widths) {

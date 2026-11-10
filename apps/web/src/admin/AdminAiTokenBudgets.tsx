@@ -1,5 +1,5 @@
 import { InfoHint } from '../components/InfoHint';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { AiTokenBudgetAdmin, AiTokenBudgetLimit } from '@asa-lab/contracts';
 import { call } from './admin-api';
 import './ai-token-budgets.css';
@@ -41,11 +41,13 @@ export function AdminAiTokenBudgets({
   eligibleModels,
   onDirtyChange,
   refreshKey = 0,
+  renderModels,
 }: {
   readonly onAccessDenied: () => void;
   readonly eligibleModels?: readonly string[];
   readonly onDirtyChange?: (dirty: boolean) => void;
   readonly refreshKey?: number;
+  readonly renderModels?: (budgetFor: (model: string) => ReactNode) => ReactNode;
 }) {
   const [config, setConfig] = useState<AiTokenBudgetAdmin | null>(null);
   const [draft, setDraft] = useState<readonly AiTokenBudgetLimit[]>([]);
@@ -125,6 +127,73 @@ export function AdminAiTokenBudgets({
       setBusy(false);
     }
   }
+  function budgetFor(model: string) {
+    const row = draft.find((item) => item.model === model);
+    const usage = config?.models.find((item) => item.model === model);
+    if (!row || !usage) return null;
+    return (
+      <div className="asa-ai-inline-budget">
+        {(['globalLimit', 'userLimit'] as const).map((field) => (
+          <input
+            key={field}
+            form="ai-inline-budget-form"
+            inputMode="numeric"
+            aria-label={
+              (field === 'globalLimit' ? 'Общий лимит ' : 'Лимит на пользователя ') + model
+            }
+            title={
+              field === 'globalLimit' ? 'Токенов в месяц всего' : 'Токенов в месяц на пользователя'
+            }
+            placeholder={field === 'globalLimit' ? 'Общий' : 'На человека'}
+            disabled={busy}
+            value={row[field] ?? ''}
+            onChange={(event) => {
+              const value = event.target.value;
+              setDraft((old) =>
+                old.map((item) => (item.model === model ? { ...item, [field]: value } : item)),
+              );
+            }}
+          />
+        ))}
+        <InfoHint label={'Расход токенов ' + model}>
+          <p>
+            Использовано: {usage.used} · резерв: {usage.held}
+          </p>
+          {usage.unresolved || usage.pendingUnknown ? <p>Часть расхода на проверке.</p> : null}
+        </InfoHint>
+      </div>
+    );
+  }
+  if (renderModels)
+    return (
+      <>
+        <section className="asa-ai-inline-budgets" aria-label="Месячные лимиты токенов">
+          {renderModels(budgetFor)}
+          <form
+            id="ai-inline-budget-form"
+            className="asa-ai-budget-inline-footer"
+            onSubmit={(event) => void save(event)}
+          >
+            <span>Общий бюджет на все модели в месяц</span>
+            <InfoHint label="Как работают лимиты">
+              <p>
+                Пустое поле — без лимита для модели. Ноль запрещает новые запросы. Общий лимит
+                действует на всех пользователей.
+              </p>
+            </InfoHint>
+            {budgetFor('*')}
+            <button type="submit" disabled={!dirty || busy}>
+              {busy ? 'Сохраняем…' : 'Сохранить лимиты токенов'}
+            </button>
+            {notice ? (
+              <span role="status">{notice}</span>
+            ) : !config ? (
+              <span role="status">Загружаем лимиты…</span>
+            ) : null}
+          </form>
+        </section>
+      </>
+    );
   return (
     <section className="asa-ai-budgets" aria-label="Месячные лимиты токенов">
       <div className="asa-ai-budget-heading">

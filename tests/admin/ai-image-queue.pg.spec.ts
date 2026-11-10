@@ -40,6 +40,7 @@ const schoolPendingFiles = [
   '0312_learning_quiz_complete_course.sql',
   '0313_ai_openai_chat_catalog.sql',
   '0314_ai_polza_video_catalog.sql',
+  '0315_ai_polza_catalog_selection.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
