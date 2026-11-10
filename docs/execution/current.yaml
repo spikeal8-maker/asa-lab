@@ -16353,7 +16353,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-WAIT-CONTRACT-001.md
     previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
@@ -16377,22 +16377,26 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001
+      id: TASK-ELECTRONICS-BROWSER-WAIT-CONTRACT-001
       issue: 539
       branch: main
       base_branch: main
       pr: null
       status: in_progress
       kind: repair
-      risk: high
+      risk: medium
       semantic_change: 'no'
-      checkpoint: owned_stable_loop_stride_selected
+      checkpoint: browser_wait_contract_selected
       owner_acceptance: pending
       owner_authorization: Owner requests fixing remaining Electronics timing failures, verifying the work in the browser, and publishing the verified changes in main.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-WAIT-CONTRACT-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
+      previous_owned_stable_loops_slice:
+        task_id: TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001
+        integrated_sha: 39656d38b55bd6b3aca4c31be0da78a68f4e8699
+        pr: 1052
       previous_spdt_evidence_budget_slice:
         task_id: TASK-ELECTRONICS-SPDT-EVIDENCE-BUDGET-001
         integrated_sha: bbff6866aa9f6779031f006aa179c864c88e5d6e
@@ -16478,7 +16482,7 @@ parallel_lanes:
         branch: main
         sha: eacb9fa9a1e6bfacd22d10c16ae017a5d551ef6f
       observed_at: '2026-11-01T22:29:00Z'
-      observation_note: Fresh fetch main before edits and integration. Recorded baseline remains historical. Main 6e57e0ae6 had successful General run 42613626991 at selection. Existing timing thresholds and browser test remain intact.
+      observation_note: Fresh fetch main before edits and integration. This recorded baseline remains historical. Browser timing and electrical acceptance thresholds stay unchanged.
 
   - id: electronics-compact-toolbar-hit
     parent_lane: electronics
