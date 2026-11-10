@@ -7913,6 +7913,7 @@ test.describe('owner D3-D6 acceptance', () => {
       .locator('input, select, button')
       .evaluateAll((controls) =>
         controls.some((control) => {
+          if (control.getClientRects().length === 0) return false;
           const box = control.getBoundingClientRect();
           const panel = control.closest('.workbench-inspector')?.getBoundingClientRect();
           return Boolean(panel && (box.left < panel.left - 1 || box.right > panel.right + 1));

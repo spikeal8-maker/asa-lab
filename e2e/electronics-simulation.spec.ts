@@ -4266,6 +4266,7 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           const afterEnter = await inspectorWitness('final-enter-after');
           expect(afterEnter.selected).toEqual(['generator']);
           expect(enterCount(afterEnter.events) - enterCount(beforeEnter.events)).toBe(1);
+          const frequency = page.getByLabel('Частота генератора', { exact: true });
           if (width < 500) {
             const beforeInspector = await inspectorWitness('inspector-precondition');
             const open =
@@ -4281,8 +4282,18 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
               expect(afterClose.catalogPressed).toBe('false');
               expect(String(afterClose.shellClass)).toContain('library-collapsed');
             }
+            const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+            const disclosure = inspector.getByRole('button', {
+              name: 'Открыть параметры компонента',
+              exact: true,
+            });
+            await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+            await expect(frequency).toBeHidden();
+            await disclosure.tap();
+            await expect(
+              inspector.getByRole('button', { name: 'Свернуть параметры компонента', exact: true }),
+            ).toHaveAttribute('aria-expanded', 'true');
           }
-          const frequency = page.getByLabel('Частота генератора', { exact: true });
           acknowledge('final-input-visibility', {
             beforeEnter,
             visible: await frequency.isVisible(),
