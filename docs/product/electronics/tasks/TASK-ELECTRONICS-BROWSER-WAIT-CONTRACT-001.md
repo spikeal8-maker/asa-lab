@@ -18,7 +18,7 @@ Repair two browser waits identified in the strict run 42791042545.
   resolve. Keep the pre-app storage witness and the draft, revision,
   pointer, and editor assertions. External SDK load is independent of
   project reopen.
-- Long Arduino delays, related to #682. Poll for the first acknowledged
+- Long Arduino delays, related to #682. Wait for the first acknowledged
   ready horizon crossing and the corresponding visible final LOW
   within the existing 22-second budget. Keep the original electrical
   edge, timing, persistence, and witness assertions.
