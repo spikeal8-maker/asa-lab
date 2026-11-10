@@ -649,7 +649,11 @@ test('focused workflow selectors use one identical proof path and skip before se
     false,
   );
   assert.equal(learningJobs['learning-e1-batch'].strategy['fail-fast'], false);
-  assert.deepEqual(learningJobs['learning-e1-batch'].strategy.matrix.batch, ['first', 'second']);
+  assert.deepEqual(learningJobs['learning-e1-batch'].strategy.matrix.batch, [
+    'first',
+    'second',
+    'file',
+  ]);
 });
 
 test('focused applicability executes the real Git classifier and AST proof for L0 and L1 without claiming tests ran', (t) => {
