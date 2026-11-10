@@ -99,7 +99,7 @@ describe('Polza encrypted connection and no-paid-check', () => {
     const result = await service.check(actor);
     expect(result.ready).toBe(true);
     expect(provider).toHaveBeenCalledOnce();
-    expect(provider.mock.calls[0]?.[0]).toBe('https://polza.ai/api/v1/models');
+    expect(provider.mock.calls[0]?.[0]).toBe('https://polza.ai/api/v2/balance');
     expect(provider.mock.calls[0]?.[1]).toMatchObject({ method: 'GET', redirect: 'error' });
   });
 });

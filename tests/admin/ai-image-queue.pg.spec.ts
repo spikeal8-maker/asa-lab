@@ -38,6 +38,8 @@ const schoolPendingFiles = [
   '0310_learning_quiz_policy_authority.sql',
   '0311_learning_quiz_attempt_state.sql',
   '0312_learning_quiz_complete_course.sql',
+  '0313_ai_openai_chat_catalog.sql',
+  '0314_ai_polza_video_catalog.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
@@ -184,7 +186,7 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
       try {
         // Prove a forward upgrade from the actual school schema, not only an empty DB.
         const migrations = planMigrations('migrations');
-        expect(migrations.at(-1)?.version).toBe('0312');
+        expect(migrations.at(-1)?.version).toBe('0314');
         await applyPlan(
           client,
           migrations.filter((m: { version: string }) => m.version <= '0286'),
