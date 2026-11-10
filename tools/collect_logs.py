@@ -233,7 +233,13 @@ def host_source(source: str) -> bool:
 
 
 EDITOR_MODULES = ('scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers')
-LOG_MODULES = ('system', 'portal', 'auth', *EDITOR_MODULES)
+LOG_MODULES = ('system', 'portal', 'auth', 'ai', *EDITOR_MODULES)
+DATABASE_SUBSYSTEMS = {
+    'ai_image_jobs': 'ai', 'ai_usage_journal': 'ai',
+    'chess_live_events': 'chess', 'checkers_reaction_events': 'checkers',
+    'product_analytics_events': 'analytics', 'classroom_activity_events': 'classrooms',
+    'grade_change_events': 'learning',
+}
 
 
 def editor_module(value):
@@ -248,20 +254,23 @@ def subsystem(source: str, payload=None, origin="") -> str:
         if editor_module(module): return editor_module(module)
         if module in ('portal', 'auth'): return {'portal': 'web', 'auth': 'access'}[module]
     if source == 'web' and isinstance(payload, dict) and str(payload.get('path', '')).startswith('/internal/blocks/'): return 'scratch'
+    parts = str(payload.get('path', '')).split('?')[0].split('/') if isinstance(payload, dict) else []
+    route = parts[2] if len(parts) > 2 else ''
+    child = parts[3] if len(parts) > 3 else ''
+    if source in ('api', 'web') and len(parts) > 1 and parts[1] == 'api':
+        if route == 'games' and child in ('chess', 'checkers'): return child
+        if route == 'ai' or (route == 'admin' and parts[3:5] == ['v1', 'ai']): return 'ai'
+        if editor_module(route): return editor_module(route)
     if source == "api":
-        route = str(payload.get("path", "")).split("?")[0].split("/") if isinstance(payload, dict) else []
-        route = route[2] if len(route) > 2 else ""
         for pattern, name in ((r"^(auth|class-join|account|identity|max|student)", "access"), (r"^classroom", "classrooms"), (r"^(blocks|scratch)", "scratch"), (r"^(files|uploads|storage)", "storage"), (r"^admin", "administration")):
             if re.search(pattern, route): return name
         if route == 'assignments': return 'learning'
         if route in ('session', 'workspaces', 'capabilities', 'schools'): return 'access'
-        return route if route in ("projects", "learning", "courses", "analytics", "diagnostics", "electronics", "robotics", "chess", "checkers", "three-d") else "api"
+        return route if route in ("projects", "learning", "courses", "analytics", "diagnostics") else "api"
     if source in ("postgres", "migration"): return "database"
     if source.startswith("minio"): return "storage"
     if source == "tunnel": return "network"
-    if origin in ('ai_image_jobs', 'ai_usage_journal'): return 'diagnostics'
-    if origin in ("product_analytics_events", "classroom_activity_events", "grade_change_events"):
-        return {"product_analytics_events": "analytics", "classroom_activity_events": "classrooms", "grade_change_events": "learning"}[origin]
+    if origin in DATABASE_SUBSYSTEMS: return DATABASE_SUBSYSTEMS[origin]
     if source == "auth": return "access"
     return source if source in ("web", "scratch", "electronics", "chess", "checkers", "three-d", "audit", "updates", "backup", "metrics") else "audit"
 
@@ -281,7 +290,10 @@ def event_subsystem(event):
         if event.get('truncated') and not payload and event.get('subsystem') not in (None, 'host'):
             return event['subsystem']
         return subsystem(source, payload, event.get('origin', ''))
-    return event.get('subsystem') or subsystem(source, origin=event.get('origin', ''))
+    origin = event.get('origin', '')
+    if source in ('audit', 'auth') and origin in DATABASE_SUBSYSTEMS:
+        return subsystem(source, origin=origin)
+    return event.get('subsystem') or subsystem(source, origin=origin)
 
 
 def classify_event(event):
@@ -289,6 +301,7 @@ def classify_event(event):
     group = event_subsystem(event)
     if host_source(source): module = 'system'
     elif editor_module(source): module = editor_module(source)
+    elif group == 'ai' or (source == 'audit' and group in ('chess', 'checkers')): module = group
     elif source in ('api', 'web'):
         payload = classification_payload(event)
         module = editor_module(group) or editor_module(payload.get('module')) or editor_module(event.get('module'))
@@ -1525,14 +1538,17 @@ class Collector:
                                 not isinstance(entry.get("source"), str) or not 1 <= len(entry["source"]) <= 200 or
                                 not isinstance(entry.get("message"), str) or len(entry["message"]) > 16384 or not timestamp(entry.get("time"), "")):
                                 raise RuntimeError("Diagnostic archive contains an invalid record")
-                            editor_hint = editor_module(entry.get('subsystem')) if entry['source'] in ('api', 'web') else None
+                            hint = None
+                            if entry['source'] in ('api', 'web'):
+                                group = entry.get('subsystem')
+                                hint = 'ai' if group == 'ai' and entry.get('truncated') is True else editor_module(group)
                             entry = {k: v for k, v in entry.items() if k in ("id", "time", "source", "module", "level", "message", "requestId", "revision", "origin", "truncated", "timeBasis", "windowsRecordId", "windowsEventId", "normalizationVersion")}
                             entry["time"] = timestamp(entry["time"], "")
                             entry["message"] = clean(entry["message"])
                             entry["origin"] = clean(str(entry.get("origin", "")))[:500]
-                            # Truncated editor JSON cannot reconstruct this known classification hint.
-                            if editor_hint and entry['origin'] not in DATABASE_DIAGNOSTICS['sources']:
-                                entry['subsystem'] = editor_hint
+                            # A truncated HTTP record cannot recover a known classification from JSON.
+                            if hint and entry['origin'] not in DATABASE_DIAGNOSTICS['sources']:
+                                entry['subsystem'] = hint
                             entry["requestId"] = entry.get("requestId") if isinstance(entry.get("requestId"), str) and re.fullmatch(r"[a-fA-F0-9-]{36}", entry["requestId"]) else None
                             entry["revision"] = entry.get("revision") if isinstance(entry.get("revision"), str) and re.fullmatch(r"[a-f0-9]{7,64}", entry["revision"]) else None
                             entry["truncated"] = entry.get("truncated") is True

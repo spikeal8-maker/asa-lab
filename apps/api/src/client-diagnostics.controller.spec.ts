@@ -11,6 +11,31 @@ function reportRequest(address = '203.0.113.1'): FastifyRequest {
   } as unknown as FastifyRequest;
 }
 describe('bounded client diagnostics', () => {
+  it.each([
+    ['robotics', 'simulation_failed'],
+    ['three-d', 'export_failed'],
+    ['chess', 'editor_runtime_error'],
+    ['checkers', 'editor_runtime_error'],
+  ])('accepts a bounded %s client diagnostic', (module, code) => {
+    const controller = new ClientDiagnosticsController();
+    const write = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      expect(controller.report(reportRequest(), { module, code, revision: 'abcdef0' })).toEqual({
+        accepted: true,
+      });
+      expect(JSON.parse(String(write.mock.calls.at(-1)?.[0]))).toMatchObject({
+        kind: 'client_diagnostic',
+        module,
+        code,
+        untrustedClientReport: true,
+      });
+      expect(() =>
+        controller.report(reportRequest(), { module: module + '-fake', code, revision: 'abcdef0' }),
+      ).toThrow();
+    } finally {
+      write.mockRestore();
+    }
+  });
   it('accepts optional bounded occurrence aggregates and logs a replayed event only once', () => {
     const controller = new ClientDiagnosticsController();
     const first = Date.now() - 1000;

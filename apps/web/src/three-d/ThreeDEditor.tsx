@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { selectionBounds, type PrimitiveKind, type ShapeOperation } from '@asa-lab/three-d';
 import { api, type Project, type PublicUser } from '../api';
+import { reportClientDiagnostic } from '../client-diagnostics';
 import { ProjectProperties } from '../components/ProjectProperties';
 import { AsaLabMark } from '../brand/AsaLabBrand';
 import { EditorAvatar, useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
@@ -365,6 +366,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             downloadThreeDStl(viewportRef.current.exportStl(document), controller.title);
             setExportError(null);
           } catch (error) {
+            reportClientDiagnostic('export_failed', 'three-d', { phase: 'runtime' });
             setExportError(error instanceof Error ? error.message : 'Не удалось подготовить STL.');
           }
         }}

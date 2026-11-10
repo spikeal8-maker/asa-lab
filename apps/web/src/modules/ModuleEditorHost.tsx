@@ -11,6 +11,7 @@ import { AssignmentBrief } from '../components/AssignmentBrief';
 import { ProjectSaveEvidence } from './project-save-evidence';
 import { AppBootShell } from '../components/AppBootShell';
 import { beginDiagnosticContext } from '../client-diagnostics';
+import { isDiagnosticModule } from '../client-diagnostic-outbox';
 import { isGameModule } from '../games/game-catalog';
 import { gameAccessApi, gameAccessMessage } from '../games/game-access-api';
 import { BlocksEditor } from '../blocks/BlocksEditor';
@@ -187,8 +188,12 @@ function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
   }, [props.moduleKey, props.onModuleResolved, props.projectId, returnToDependency]);
 
   useEffect(() => {
-    if (state.kind === 'ready' && state.moduleKey === 'electronics')
-      return beginDiagnosticContext('electronics');
+    if (
+      state.kind === 'ready' &&
+      isDiagnosticModule(state.moduleKey) &&
+      Object.hasOwn(EDITORS, state.moduleKey)
+    )
+      return beginDiagnosticContext(state.moduleKey);
     return undefined;
   }, [state.kind, state.kind === 'ready' ? state.moduleKey : null, props.projectId]);
 

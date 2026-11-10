@@ -22,6 +22,7 @@ import {
   DiagnosticOutbox,
   FAILURE_CATEGORIES,
   FAILURE_CODES,
+  type DiagnosticModule,
 } from './client-diagnostic-outbox';
 
 export type DiagnosticCode =
@@ -33,6 +34,7 @@ export type DiagnosticCode =
   | 'editor_runtime_error'
   | 'simulation_failed'
   | 'autosave_failed'
+  | 'export_failed'
   | 'session_refresh_failed'
   | 'request_failed'
   | 'request_cancelled'
@@ -41,7 +43,7 @@ export type DiagnosticCode =
   | 'editor_heartbeat'
   | 'editor_unresponsive'
   | 'editor_recovered';
-export type DiagnosticModule = 'portal' | 'scratch' | 'electronics' | 'auth';
+export type { DiagnosticModule } from './client-diagnostic-outbox';
 export interface DiagnosticDetail {
   readonly operation?: string;
   readonly method?: string;

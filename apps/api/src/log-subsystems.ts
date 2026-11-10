@@ -5,6 +5,7 @@ export const LOG_SUBSYSTEMS = [
   'classrooms',
   'learning',
   'courses',
+  'ai',
   'access',
   'analytics',
   'administration',
@@ -33,7 +34,18 @@ export const LOG_EDITOR_MODULES = [
   'chess',
   'checkers',
 ] as const;
-export const LOG_MODULES = ['portal', 'auth', 'system', ...LOG_EDITOR_MODULES] as const;
+export const LOG_MODULES = ['portal', 'auth', 'system', 'ai', ...LOG_EDITOR_MODULES] as const;
+export const CLIENT_DIAGNOSTIC_MODULES = ['portal', 'auth', ...LOG_EDITOR_MODULES] as const;
+
+const DATABASE_SUBSYSTEMS: Readonly<Record<string, string>> = {
+  ai_image_jobs: 'ai',
+  ai_usage_journal: 'ai',
+  chess_live_events: 'chess',
+  checkers_reaction_events: 'checkers',
+  product_analytics_events: 'analytics',
+  classroom_activity_events: 'classrooms',
+  grade_change_events: 'learning',
+};
 
 export function logEditorModule(value: string): string | undefined {
   if (value === 'blocks') return 'scratch';
@@ -45,6 +57,8 @@ export function logModule(source: string, subsystem: string, reported = '', prev
   if (isHostLogSource(source)) return 'system';
   const own = logEditorModule(source);
   if (own) return own;
+  if (subsystem === 'ai' || (source === 'audit' && ['chess', 'checkers'].includes(subsystem)))
+    return subsystem;
   if (source === 'api' || source === 'web') {
     return (
       logEditorModule(subsystem) ??
@@ -96,8 +110,14 @@ export function logSubsystem(
     if (context) return context;
   }
   if (source === 'web' && path.startsWith('/internal/blocks/')) return 'scratch';
+  const [, prefix, route = '', child, section] = path.split('?')[0]!.split('/');
+  if ((source === 'api' || source === 'web') && prefix === 'api') {
+    if (route === 'games' && (child === 'chess' || child === 'checkers')) return child;
+    if (route === 'ai' || (route === 'admin' && child === 'v1' && section === 'ai')) return 'ai';
+    const editorRoute = logEditorModule(route);
+    if (editorRoute) return editorRoute;
+  }
   if (source === 'api') {
-    const route = path.split('?')[0]!.split('/')[2] ?? '';
     if (/^(auth|class-join|account|accounts|identity|max|student)/.test(route)) return 'access';
     if (/^classroom/.test(route)) return 'classrooms';
     if (/^(blocks|scratch)/.test(route)) return 'scratch';
@@ -105,30 +125,14 @@ export function logSubsystem(
     if (/^admin/.test(route)) return 'administration';
     if (route === 'assignments') return 'learning';
     if (['session', 'workspaces', 'capabilities', 'schools'].includes(route)) return 'access';
-    if (
-      [
-        'projects',
-        'learning',
-        'courses',
-        'analytics',
-        'diagnostics',
-        'electronics',
-        'robotics',
-        'chess',
-        'checkers',
-        'three-d',
-      ].includes(route)
-    )
+    if (['projects', 'learning', 'courses', 'analytics', 'diagnostics'].includes(route))
       return route;
     return 'api';
   }
   if (source === 'postgres' || source === 'migration') return 'database';
   if (source.startsWith('minio')) return 'storage';
   if (source === 'tunnel') return 'network';
-  if (origin === 'ai_image_jobs' || origin === 'ai_usage_journal') return 'diagnostics';
-  if (origin === 'product_analytics_events') return 'analytics';
-  if (origin === 'classroom_activity_events') return 'classrooms';
-  if (origin === 'grade_change_events') return 'learning';
+  if (Object.hasOwn(DATABASE_SUBSYSTEMS, origin)) return DATABASE_SUBSYSTEMS[origin]!;
   if (source === 'auth') return 'access';
   return LOG_SUBSYSTEMS.includes(source as (typeof LOG_SUBSYSTEMS)[number]) ? source : 'audit';
 }

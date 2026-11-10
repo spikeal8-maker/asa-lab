@@ -31,6 +31,28 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('bounded diagnostics delivery', () => {
+  it('restores and sends robotics and 3D diagnostics without widening private payloads', async () => {
+    const port = storage();
+    port.setItem(
+      'queue',
+      JSON.stringify([
+        { ...event(1), module: 'robotics', code: 'simulation_failed', phase: 'simulation' },
+        { ...event(2), module: 'three-d', code: 'export_failed', phase: 'runtime' },
+        { ...event(3), module: 'robotics', projectDocument: 'private' },
+      ]),
+    );
+    const transport = vi.fn<typeof fetch>(
+      async () => new Response('{"accepted":true}', { status: 202 }),
+    );
+    vi.stubGlobal('fetch', transport);
+    new DiagnosticOutbox(port).retryNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(transport.mock.calls.map(([, init]) => JSON.parse(String(init?.body)))).toEqual([
+      expect.objectContaining({ eventId: id(1), module: 'robotics', code: 'simulation_failed' }),
+      expect.objectContaining({ eventId: id(2), module: 'three-d', code: 'export_failed' }),
+    ]);
+    expect(JSON.parse(port.getItem())).toEqual([]);
+  });
   it('coalesces distinct attempts and freezes a sent aggregate through failure, wakeups and retry', async () => {
     vi.mocked(Math.random).mockReturnValue(0.5);
     const disk = storage();

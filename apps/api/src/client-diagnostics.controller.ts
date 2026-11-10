@@ -3,6 +3,7 @@ import { Body, Controller, HttpCode, HttpException, Post, Req } from '@nestjs/co
 import type { FastifyRequest } from 'fastify';
 import { clientAddress } from './client-address.js';
 import { validClientException } from './client-error-details.js';
+import { CLIENT_DIAGNOSTIC_MODULES } from './log-subsystems.js';
 
 const CODES = new Set([
   'render_failed',
@@ -13,6 +14,7 @@ const CODES = new Set([
   'editor_runtime_error',
   'simulation_failed',
   'autosave_failed',
+  'export_failed',
   'session_refresh_failed',
   'request_failed',
   'request_cancelled',
@@ -22,7 +24,7 @@ const CODES = new Set([
   'editor_unresponsive',
   'editor_recovered',
 ]);
-const MODULES = new Set(['portal', 'scratch', 'electronics', 'auth']);
+const MODULES = new Set<string>(CLIENT_DIAGNOSTIC_MODULES);
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const CATEGORIES = [
   'unsupported',

@@ -703,6 +703,24 @@ class CollectorTests(unittest.TestCase):
         self.assertNotIn('private-capability', entry['message'])
         self.assertIn('[redacted]', entry['message'])
 
+    def test_normalized_zip_keeps_the_category_of_a_truncated_ai_http_event(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = Collector(Path(directory), {})
+            try:
+                entry = normalize('api', json.dumps({'path': '/api/ai/chat', 'msg': 'x' * 20000}),
+                                  now(), 'large-ai-event', 'application-stdout')
+                self.assertTrue(entry['truncated'])
+                self.assertEqual((entry['module'], entry['subsystem']), ('ai', 'ai'))
+                archive = Path(directory) / 'ai-fixture.zip'
+                with zipfile.ZipFile(archive, 'w') as z:
+                    z.writestr('manifest.json', json.dumps({'normalized': True, 'count': 1}))
+                    z.writestr('records/part-00001.jsonl', json.dumps(entry) + '\n')
+                c.import_history(archive)
+                restored = json.loads(gzip.decompress(c.db.execute('SELECT payload FROM events').fetchone()[0]))
+                self.assertEqual((restored['module'], restored['subsystem']), ('ai', 'ai'))
+                self.assertEqual(restored['id'], entry['id'])
+            finally: c.db.close()
+
     def test_multiline_postgres_metrics_use_csv_and_survive_docker_stats_failure(self):
         import csv, io
         sample = {'connections': 17, 'waits': [{'state': 'active', 'wait_event_type': None, 'count': 2}]}

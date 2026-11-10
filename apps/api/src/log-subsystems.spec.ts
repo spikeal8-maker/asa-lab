@@ -6,6 +6,23 @@ import { recordServerFailure } from './server-diagnostics.js';
 import { logFilter } from './admin-logs.controller.js';
 
 describe('editor log classification contract', () => {
+  it.each([
+    ['/api/games/chess/tickets?view=1', 'chess'],
+    ['/api/games/checkers/tickets', 'checkers'],
+    ['/api/ai/chat', 'ai'],
+    ['/api/admin/v1/ai/images', 'ai'],
+    ['/api/robotics/fixture', 'robotics'],
+    ['/api/three-d/fixture', 'three-d'],
+  ])('gives %s the trusted route category %s at both HTTP layers', (path, module) => {
+    for (const source of ['api', 'web']) {
+      const group = logSubsystem(source, path, '', 'http_response', 'electronics');
+      expect(group).toBe(module);
+      expect(logModule(source, group, 'electronics', 'portal')).toBe(module);
+      expect(logFilter({ module, subsystem: module })).toMatchObject({ module, subsystem: module });
+    }
+    expect(logSubsystem('api', '/api/games/chess-fake')).toBe('api');
+    expect(logSubsystem('api', '/api/admin/v1/ai-fake')).toBe('administration');
+  });
   it('recognizes the real module registry names and keeps source and route authority', () => {
     expect(ANALYTICS_MODULES.map(logEditorModule).sort()).toEqual(
       ['scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'].sort(),

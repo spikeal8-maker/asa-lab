@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useReportProjectSaveEvidence } from '../modules/project-save-evidence';
+import { reportClientDiagnostic } from '../client-diagnostics';
 import {
   alignDocumentNodes,
   bundleDocumentNodes,
@@ -177,6 +178,10 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     void api.openProject<ThreeDDocument>(projectId).then((response) => {
       if (!active) return;
       if (!response.ok) {
+        reportClientDiagnostic('editor_start_failed', 'three-d', {
+          phase: 'startup',
+          httpStatus: response.status,
+        });
         setError(
           response.status === 401
             ? 'Сессия завершена. Обновите страницу и войдите снова.'
@@ -187,6 +192,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
       }
       const parsed = parseThreeDDocument(response.data.draft.document);
       if (!parsed.ok) {
+        reportClientDiagnostic('editor_start_failed', 'three-d', { phase: 'startup' });
         setError(parsed.message);
         setLoading(false);
         return;
@@ -240,12 +246,17 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
         setSaveState('saving');
         const baseRevision = serverRevisionRef.current;
         if (baseRevision === null) {
+          reportClientDiagnostic('autosave_failed', 'three-d', { phase: 'save' });
           setSaveState('error');
           setSaveError('Не удалось определить сохранённую версию проекта.');
           return;
         }
         const response = await api.saveDraft<ThreeDDocument>(projectId, document, baseRevision);
         if (!response.ok) {
+          reportClientDiagnostic('autosave_failed', 'three-d', {
+            phase: 'save',
+            httpStatus: response.status,
+          });
           const failure = friendlySaveFailure(response.status);
           setSaveState('error');
           setSaveError(failure.message);
@@ -784,6 +795,10 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     }
     const save = await api.saveDraft<ThreeDDocument>(projectId, document, baseRevision);
     if (!save.ok) {
+      reportClientDiagnostic('autosave_failed', 'three-d', {
+        phase: 'save',
+        httpStatus: save.status,
+      });
       const failure = friendlySaveFailure(save.status);
       setSaveState('error');
       setSaveError(failure.message);

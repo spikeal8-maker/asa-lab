@@ -12,6 +12,7 @@ export const DIAGNOSTIC_CODES = [
   'editor_runtime_error',
   'simulation_failed',
   'autosave_failed',
+  'export_failed',
   'session_refresh_failed',
   'request_failed',
   'request_cancelled',
@@ -21,6 +22,20 @@ export const DIAGNOSTIC_CODES = [
   'editor_unresponsive',
   'editor_recovered',
 ] as const;
+const DIAGNOSTIC_MODULES = [
+  'portal',
+  'auth',
+  'scratch',
+  'electronics',
+  'robotics',
+  'three-d',
+  'chess',
+  'checkers',
+] as const;
+export type DiagnosticModule = (typeof DIAGNOSTIC_MODULES)[number];
+export function isDiagnosticModule(value: unknown): value is DiagnosticModule {
+  return typeof value === 'string' && (DIAGNOSTIC_MODULES as readonly string[]).includes(value);
+}
 export const FAILURE_CATEGORIES = [
   'unsupported',
   'nonconvergent',
@@ -146,7 +161,7 @@ function valid(value: unknown, now: number): value is Envelope {
         (v.lastOccurredAt as number) <= now + 60_000 &&
         (v.lastOccurredAt as number) - (v.firstOccurredAt as number) <= TTL)) &&
     DIAGNOSTIC_CODES.includes(v.code as (typeof DIAGNOSTIC_CODES)[number]) &&
-    ['portal', 'scratch', 'electronics', 'auth'].includes(v.module as string) &&
+    isDiagnosticModule(v.module) &&
     typeof v.revision === 'string' &&
     /^(?:[a-f0-9]{7,64}|unknown|development)$/.test(v.revision) &&
     validRequestDetails(v) &&

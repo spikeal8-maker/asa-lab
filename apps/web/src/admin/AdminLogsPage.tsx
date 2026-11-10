@@ -145,6 +145,7 @@ const MODULE: Record<string, string> = {
   electronics: 'Электроника',
   robotics: 'Робототехника',
   'three-d': '3D',
+  ai: 'ИИ',
   chess: 'Шахматы',
   checkers: 'Шашки',
   auth: 'Вход',
@@ -162,6 +163,7 @@ const SUBSYSTEM: Record<string, string> = {
   classrooms: 'Классы и журнал',
   learning: 'Обучение',
   courses: 'Курсы',
+  ai: 'ИИ',
   access: 'Вход и доступ',
   analytics: 'Активность',
   administration: 'Администрирование',
@@ -208,7 +210,13 @@ function eventHeadline(message: string): string | null {
   try {
     const data = JSON.parse(message) as Record<string, unknown>;
     const codes = new Set(
-      [data['errorCode'], data['generation_error_code'], data['code'], data['failureCode']].filter(
+      [
+        data['errorCode'],
+        data['generation_error_code'],
+        data['image_error_code'],
+        data['code'],
+        data['failureCode'],
+      ].filter(
         (value): value is string => typeof value === 'string' && /^[\w-]{1,80}$/.test(value),
       ),
     );
