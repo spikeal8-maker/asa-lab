@@ -21,6 +21,22 @@
 .admin-logs-actions button {
   width: auto;
 }
+
+.admin-logs-selection {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-logs-hint,
+.admin-logs-selection p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-logs-hint {
+  font-size: 0.875rem;
+}
 .admin-logs-filters {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -50,6 +66,7 @@
 .admin-logs-filter-actions {
   grid-column: 1 / -1;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 12px;
 }
@@ -103,6 +120,12 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px 14px;
+  overflow-wrap: anywhere;
+}
+
+.admin-log-headline {
+  margin: 8px 0;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 .admin-log-entry pre {

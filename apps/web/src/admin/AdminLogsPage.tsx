@@ -28,6 +28,8 @@ interface LogSource {
   readonly retainedFrom?: string | null;
   readonly retainedTo?: string | null;
   readonly trimmed?: boolean;
+  readonly applicable?: boolean;
+  readonly possibleCoverageGap?: boolean;
 }
 interface LogStatus {
   readonly state: 'ok' | 'stale' | 'unavailable' | 'error';
@@ -39,6 +41,18 @@ interface LogStatus {
     readonly policy: string;
     readonly state: 'ok' | 'incomplete' | 'unknown';
     readonly requiredSourceIds: readonly string[];
+    readonly sources?: readonly {
+      readonly source: string;
+      readonly state: 'ok' | 'incomplete' | 'unknown';
+    }[];
+    readonly native?: {
+      readonly state: 'ok' | 'incomplete' | 'unknown';
+      readonly counters?: {
+        readonly pending: number;
+        readonly dropped: number;
+        readonly failures: number;
+      };
+    };
   };
   readonly collectorHealth?: {
     readonly state: string;
@@ -73,6 +87,23 @@ interface ExportJob {
   readonly bytes: number | null;
   readonly error: string | null;
 }
+interface LogSelection {
+  from: string;
+  to: string;
+  source: string;
+  module: string;
+  subsystem: string;
+  level: string;
+  search: string;
+  scope: string;
+}
+function requestSelection(selection: LogSelection) {
+  return {
+    ...selection,
+    from: `${selection.from}T00:00:00+03:00`,
+    to: `${selection.to}T23:59:59.999+03:00`,
+  };
+}
 const TIME = new Intl.DateTimeFormat('ru-RU', {
   timeZone: 'Europe/Moscow',
   dateStyle: 'short',
@@ -96,6 +127,14 @@ const SOURCE: Record<string, string> = {
   backup: 'Резервное копирование',
   tunnel: 'Сетевой туннель',
   'docker-desktop': 'Docker Desktop',
+  'docker-lifecycle': 'События контейнеров Docker',
+  'linux:journal': 'Системный журнал Linux',
+  'linux:1panel-supervisor': 'Сборщик 1Panel',
+  'database-history:classroom_activity_events': 'История активности классов',
+  'database-events:ai_usage_journal': 'Журнал использования ИИ',
+  'database-events:ai_image_jobs': 'Задания генерации изображений',
+  'operations:backup': 'Операции резервного копирования',
+  'operations:updates': 'Операции обновления',
   audit: 'Действия пользователей',
   auth: 'Вход и активность',
   metrics: 'Нагрузка сервера',
@@ -164,6 +203,38 @@ const DETAIL: Record<string, string> = {
   'Access denied': 'Нет доступа к этому журналу.',
 };
 
+function eventHeadline(message: string): string | null {
+  if (!message.startsWith('{')) return null;
+  try {
+    const data = JSON.parse(message) as Record<string, unknown>;
+    const codes = new Set(
+      [data['errorCode'], data['generation_error_code'], data['code'], data['failureCode']].filter(
+        (value): value is string => typeof value === 'string' && /^[\w-]{1,80}$/.test(value),
+      ),
+    );
+    const status = data['status'] ?? data['httpStatus'];
+    if (typeof status === 'number' && Number.isInteger(status) && status >= 100 && status <= 599)
+      codes.add(`HTTP ${status}`);
+    return [...codes].join(' · ') || null;
+  } catch {
+    return null;
+  }
+}
+
+function LogMessage({ message }: { readonly message: string }): JSX.Element {
+  const headline = eventHeadline(message);
+  if (!headline) return <pre>{message}</pre>;
+  return (
+    <>
+      <p className="admin-log-headline">{headline}</p>
+      <details>
+        <summary>Текст события</summary>
+        <pre>{message}</pre>
+      </details>
+    </>
+  );
+}
+
 export function AdminLogsPage({
   onAccessDenied,
 }: {
@@ -185,8 +256,9 @@ export function AdminLogsPage({
   const [job, setJob] = useState<ExportJob | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [shareFeedback, setShareFeedback] = useState('');
   const generation = useRef(0);
-  const appliedFilter = useRef('');
+  const appliedFilter = useRef<LogSelection | null>(null);
   const filters = useRef({ from, to, source, module, subsystem, level, search, scope });
   filters.current = { from, to, source, module, subsystem, level, search, scope };
 
@@ -197,13 +269,10 @@ export function AdminLogsPage({
       setError(null);
       setScanned(0);
       const current = filters.current;
-      const fingerprint = JSON.stringify(current);
-      if (append && appliedFilter.current !== fingerprint) append = false;
-      const params = new URLSearchParams({
-        ...current,
-        from: `${current.from}T00:00:00+03:00`,
-        to: `${current.to}T23:59:59.999+03:00`,
-      });
+      setShareFeedback('');
+      if (append && JSON.stringify(appliedFilter.current) !== JSON.stringify(current))
+        append = false;
+      const params = new URLSearchParams(requestSelection(current));
       if (append && page?.next) {
         params.set('beforeTime', page.next.time);
         params.set('beforeId', page.next.id);
@@ -243,7 +312,7 @@ export function AdminLogsPage({
         ...result.data,
         items: append && prior ? [...prior.items, ...result.data.items] : result.data.items,
       }));
-      appliedFilter.current = fingerprint;
+      appliedFilter.current = current;
     },
     [onAccessDenied, page?.next],
   );
@@ -277,19 +346,27 @@ export function AdminLogsPage({
     };
   }, [job, onAccessDenied]);
 
-  const exportArchive = async (errorsOnly: boolean, applicationOnly = false): Promise<void> => {
+  const exportArchive = async (
+    mode: 'selection' | 'application' | 'all' | 'errors',
+  ): Promise<void> => {
+    const selection = mode === 'selection' ? appliedFilter.current : filters.current;
+    if (!selection) return;
     setExporting(true);
     setExportError(null);
     setJob(null);
-    const current = filters.current;
+    const current = requestSelection(selection);
     const result = await call<ExportJob>('/api/admin/v1/logs/exports', {
       method: 'POST',
-      body: JSON.stringify({
-        from: `${current.from}T00:00:00+03:00`,
-        to: `${current.to}T23:59:59.999+03:00`,
-        level: errorsOnly ? 'error' : '',
-        scope: applicationOnly ? 'application' : 'all',
-      }),
+      body: JSON.stringify(
+        mode === 'selection'
+          ? current
+          : {
+              from: current.from,
+              to: current.to,
+              level: mode === 'errors' ? 'error' : '',
+              scope: mode === 'application' ? 'application' : 'all',
+            },
+      ),
     });
     setExporting(false);
     if (!result.ok) {
@@ -306,7 +383,44 @@ export function AdminLogsPage({
   };
   const unavailable = status?.state === 'unavailable';
   const disabled = exporting || job?.state === 'running' || unavailable || !status;
-  const failedSources = status?.sources.filter((s) => s.state === 'error') ?? [];
+  const applicableSources = status?.sources.filter((source) => source.applicable !== false) ?? [];
+  const failedSources = applicableSources.filter((source) => source.state === 'error');
+  const required = status?.requiredCoverage;
+  const requiredStates =
+    required?.version === 1 && required.policy === 'asa-connected-v1'
+      ? required.sources
+      : undefined;
+  const gaps = requiredStates?.filter((source) => source.state !== 'ok') ?? [];
+  const pending = required?.native?.counters;
+  const applied = appliedFilter.current;
+  const selectionChanged = JSON.stringify(filters.current) !== JSON.stringify(applied);
+  const canUseSelection = !!applied && !!page && !loading && !error && !selectionChanged;
+
+  async function copySummary() {
+    if (!page || !applied || !canUseSelection) return;
+    const counts = new Map<string, number>();
+    for (const row of page.items) {
+      const module = Object.hasOwn(MODULE, row.module) ? MODULE[row.module] : 'Другой модуль';
+      const level = Object.hasOwn(LEVEL, row.level) ? LEVEL[row.level] : 'Другой уровень';
+      const key = `${module} · ${level}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const summary = [
+      'ASA Lab · сводка диагностики',
+      `Период: ${applied.from} — ${applied.to} (МСК)`,
+      `Загружено записей: ${page.items.length}${page.partial || page.next ? ' (часть выборки)' : ''}`,
+      requiredStates
+        ? `Обязательные источники без замечаний: ${requiredStates.length - gaps.length}/${requiredStates.length}`
+        : 'Статус обязательных источников не определён',
+      ...Array.from(counts, ([key, count]) => `${key}: ${count}`),
+    ].join('\n');
+    try {
+      await navigator.clipboard.writeText(summary);
+      setShareFeedback('Сводка скопирована. Вставьте её в нужного бота.');
+    } catch {
+      setShareFeedback('Не удалось скопировать сводку. Проверьте разрешение буфера обмена.');
+    }
+  }
 
   return (
     <section className="admin-logs" aria-label="Журналы системы">
@@ -317,7 +431,7 @@ export function AdminLogsPage({
             type="button"
             className="btn-primary"
             disabled={disabled}
-            onClick={() => void exportArchive(false, true)}
+            onClick={() => void exportArchive('application')}
           >
             Скачать журналы приложения
           </button>
@@ -325,7 +439,7 @@ export function AdminLogsPage({
             type="button"
             className="btn-secondary"
             disabled={disabled}
-            onClick={() => void exportArchive(false)}
+            onClick={() => void exportArchive('all')}
           >
             Скачать все журналы
           </button>
@@ -333,12 +447,15 @@ export function AdminLogsPage({
             type="button"
             className="btn-secondary"
             disabled={disabled}
-            onClick={() => void exportArchive(true)}
+            onClick={() => void exportArchive('errors')}
           >
             Скачать ошибки
           </button>
         </div>
       </div>
+      <p className="admin-logs-hint">
+        Эти три архива используют выбранные даты. Для остальных фильтров используйте ZIP выборки.
+      </p>
       <form
         className="admin-logs-filters"
         onSubmit={(event) => {
@@ -393,7 +510,7 @@ export function AdminLogsPage({
             }}
           >
             <option value="application">Приложение</option>
-            <option value="host">Windows, Docker и нагрузку</option>
+            <option value="host">Сервер, Docker и нагрузка</option>
             <option value="all">Все журналы</option>
           </select>
         </label>
@@ -447,6 +564,20 @@ export function AdminLogsPage({
           <button
             type="button"
             className="btn-secondary"
+            disabled={loading}
+            onClick={() => {
+              const today = DAY.format(new Date());
+              setFrom(today);
+              setTo(today);
+              filters.current = { ...filters.current, from: today, to: today };
+              void load();
+            }}
+          >
+            Сегодня
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
             onClick={() => {
               const start = DAY.format(new Date(Date.now() - 6 * 86400_000));
               const end = DAY.format(new Date());
@@ -460,6 +591,32 @@ export function AdminLogsPage({
           </button>
         </div>
       </form>
+      <div className="admin-logs-selection" aria-label="Выгрузка выборки">
+        <div className="admin-logs-actions">
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={disabled || !canUseSelection}
+            onClick={() => void exportArchive('selection')}
+          >
+            Подготовить ZIP выборки
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={!canUseSelection}
+            onClick={() => void copySummary()}
+          >
+            Скопировать сводку для бота
+          </button>
+        </div>
+        <p className="admin-logs-hint">
+          {selectionChanged && applied
+            ? 'Фильтры изменены. Нажмите «Показать».'
+            : 'ZIP использует все применённые фильтры. Сводка содержит только период и счётчики загруженных записей.'}
+        </p>
+        {shareFeedback && <p role="status">{shareFeedback}</p>}
+      </div>
       {status ? (
         <div className="admin-logs-coverage">
           <p role="status">
@@ -476,6 +633,23 @@ export function AdminLogsPage({
               : 'покрытие пока не подтверждено.'}{' '}
             Полнота всей истории не подтверждена.
           </p>
+          {requiredStates ? (
+            <p>
+              Без замечаний:{' '}
+              <strong>
+                {requiredStates.length - gaps.length} из {requiredStates.length}
+              </strong>
+              .
+              {gaps.length > 0 &&
+                ` Проверить: ${gaps.map((source) => sourceLabel(source.source)).join(', ')}.`}
+            </p>
+          ) : null}
+          {pending && required?.native?.state !== 'ok' ? (
+            <p>
+              Запись приложения: ожидают {pending.pending}, потеряно {pending.dropped}, ошибок
+              записи {pending.failures}.
+            </p>
+          ) : null}
           {status.applicationCollection === 'embedded' ? (
             <p role="status">
               <strong>Журналы приложения подключены автоматически.</strong>{' '}
@@ -524,12 +698,13 @@ export function AdminLogsPage({
               </p>
               <details>
                 <summary>
-                  Источники и полнота: {status.sources.filter((s) => s.state === 'pending').length}{' '}
-                  дозагружаются; {failedSources.length} с ошибкой;{' '}
-                  {status.sources.filter((s) => s.state === 'unavailable').length} недоступны
+                  Источники и полнота:{' '}
+                  {applicableSources.filter((s) => s.state === 'pending').length} дозагружаются;{' '}
+                  {failedSources.length} с ошибкой;{' '}
+                  {applicableSources.filter((s) => s.state === 'unavailable').length} недоступны
                 </summary>
                 <ul>
-                  {status.sources.map((s) => (
+                  {applicableSources.map((s) => (
                     <li key={s.source}>
                       <strong>{sourceLabel(s.source)}</strong> —{' '}
                       {s.state === 'ok'
@@ -541,6 +716,9 @@ export function AdminLogsPage({
                             : 'недоступен'}
                       ; проверено {dateLabel(s.checkedAt ?? s.lastCollectedAt)}
                       {s.collectedThrough ? `; обработано по ${dateLabel(s.collectedThrough)}` : ''}
+                      {s.possibleCoverageGap ? (
+                        <small>Есть возможный пробел в истории источника.</small>
+                      ) : null}
                       {s.retainedFrom ? (
                         <small>
                           Сохранились записи: {dateLabel(s.retainedFrom)} —{' '}
@@ -616,7 +794,7 @@ export function AdminLogsPage({
                 {entry.subsystem ? ` · ${SUBSYSTEM[entry.subsystem] ?? entry.subsystem}` : ''}
               </span>
             </div>
-            <pre>{entry.message}</pre>
+            <LogMessage message={entry.message} />
             {entry.requestId ||
             entry.revision ||
             entry.origin ||

@@ -681,7 +681,9 @@ class Collector:
         value = dict(source=source, state=state, checkedAt=now(), lastCollectedAt=now() if state == "ok" else prior.get("lastCollectedAt"), collectedThrough=collected_through or prior.get("collectedThrough"), detail=clean(str(detail))[:500])
         value['applicable'] = not (source.startswith('windows') and os.name != 'nt' or source.startswith('linux:') and not sys.platform.startswith('linux'))
         if source == 'docker-lifecycle':
-            value['possibleCoverageGap'] = bool(self.state('docker:lifecycle:coverage', []))
+            value['possibleCoverageGap'] = bool(
+                self.state('docker:lifecycle:coverage', []) or self.state('docker:lifecycle:replay-limit')
+            )
         if source == 'linux:journal':
             value['possibleCoverageGap'] = bool(self.state('linux:journal:gap', False))
         self.db.execute("INSERT OR REPLACE INTO sources VALUES(?,?)", (source, json.dumps(value)))
@@ -1289,9 +1291,15 @@ class Collector:
                             window = dict(container=cid[:12], **{k: payload[k] for k in ('possibleUncollectedFrom', 'possibleUncollectedTo')})
                             if window not in windows: self.set_state('docker:lifecycle:coverage', [*windows, window][-20:])
                 self.add(normalize('docker-lifecycle', json.dumps(payload), timestamp(stamp, until), str(actor.get('ID')) + ':' + action + ':' + str(nanos)))
+            # The daemon returns at most its last 256 historical events. A full
+            # scoped response may have skipped earlier records in this interval.
+            # Fewer matches do not prove absence of a gap in the daemon ring.
+            if len(rows) >= 256:
+                self.set_state('docker:lifecycle:replay-limit', {'from': start, 'to': until})
             self.set_state('docker:lifecycle:through', until)
             detail = 'Installation-scoped events; Docker retains only its last 256 events, earlier/lost daemon history is not recoverable'
             if self.state('docker:lifecycle:coverage', []): detail += '; removed containers have possible uncollected stdout-tail windows (not a proven lost count)'
+            if self.state('docker:lifecycle:replay-limit'): detail += '; a replay reached the Docker event limit; earlier events may be missing'
             self.status('docker-lifecycle', 'ok', detail, until)
         except Exception as exc: self.status('docker-lifecycle', 'error', str(exc))
 
@@ -1786,6 +1794,7 @@ class Collector:
             self.docker(history=False)
             self.database(history=False)
             self.checkpoint(force=True)
+            self.lifecycle()
             self.docker(history=True)
             self.database(history=True)
             self.checkpoint()
@@ -1794,7 +1803,6 @@ class Collector:
             self.operational_database()
             self.windows(background=True)
             self.linux()
-            self.lifecycle()
             self.checkpoint(force=True)
         finally: self.checkpoint_enabled = False
 

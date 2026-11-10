@@ -679,6 +679,25 @@ class CollectorTests(unittest.TestCase):
             source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='docker-lifecycle'").fetchone()[0]); self.assertTrue(source['possibleCoverageGap'])
             self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 2); c.db.close()
 
+    def test_docker_lifecycle_replay_limit_survives_next_quiet_cycle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = Collector(Path(directory), {'project': 'asa-owned'})
+            c.postgres = 'fixture'
+            attrs = {'com.docker.compose.project': 'asa-owned',
+                     'com.docker.compose.project.working_dir': str(c.root)}
+            row = json.dumps({'Action': 'exec_start', 'Actor': {'Attributes': attrs}}).encode()
+            c.command = lambda *args, **kwargs: b'\n'.join([row] * 256)
+            c.lifecycle()
+            replay = c.state('docker:lifecycle:replay-limit')
+            self.assertLess(replay['from'], replay['to'])
+            c.command = lambda *args, **kwargs: b''
+            c.lifecycle()
+            self.assertEqual(c.state('docker:lifecycle:replay-limit'), replay)
+            source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='docker-lifecycle'").fetchone()[0])
+            self.assertTrue(source['possibleCoverageGap'])
+            self.assertIn('reached the Docker event limit', source['detail'])
+            c.db.close()
+
     def test_historical_invitation_path_is_redacted_before_retention(self):
         entry = normalize('api', json.dumps({'path':'/api/classroom-teacher-invitations/private-capability/accept'}), now(), 'fixture')
         self.assertNotIn('private-capability', entry['message'])
