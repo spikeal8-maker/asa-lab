@@ -121,10 +121,16 @@ async function openFieldSettings(page: Page): Promise<void> {
 /** Select the real scene object, not the removed right-hand object list.
  * This exercises the new floating editor and keeps all object invariants. */
 async function selectFieldObject(page: Page, key: string): Promise<void> {
+  const dismissInspector = page.getByRole('button', { name: 'Закрыть параметры объекта' });
+  if (await dismissInspector.isVisible()) await dismissInspector.click();
   const closeCatalog = page.getByRole('button', { name: 'Закрыть каталог элементов' });
   if (await closeCatalog.isVisible()) await closeCatalog.click();
   await page.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
-  const shape = page.locator('#robotics-panel-field [data-scene-key="' + key + '"]').first();
+  // Resize grips share data-scene-key with the source item. Select the
+  // actual body/path, otherwise Playwright clicks a grip behind the object.
+  const shape = page
+    .locator('#robotics-panel-field [data-scene-key="' + key + '"]:not([data-vector-handle])')
+    .first();
   await expect(shape).toBeAttached();
   if (key.startsWith('mark-group:')) {
     // Straight SVG lines can have a zero-width/zero-height DOM bounding box,
@@ -140,7 +146,7 @@ async function selectFieldObject(page: Page, key: string): Promise<void> {
     await page.mouse.click(position.x, position.y);
   } else {
     await expect(shape).toBeVisible();
-    await shape.click();
+    await shape.click({ timeout: 15_000 });
   }
   await expect(page.getByRole('dialog', { name: 'Параметры выбранного объекта' })).toBeVisible();
 }
