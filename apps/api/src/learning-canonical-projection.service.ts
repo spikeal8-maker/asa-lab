@@ -17,7 +17,7 @@ export interface EvidenceRow {
   schoolId: string;
   classroomId: string;
   classroomAssignmentId: string;
-  kind: 'direct_project' | 'course_project' | 'quiz' | 'essay';
+  kind: 'direct_project' | 'course_project' | 'quiz' | 'essay' | 'file';
   dueAt: string | null;
   assignmentStatus: 'open' | 'closed';
   seatId: string;
@@ -144,7 +144,8 @@ function adapterInput(row: EvidenceRow, asOf: string): CanonicalAdapterInput {
 function resolveEvidence(row: EvidenceRow, asOf: string): CanonicalLearningState {
   const input = adapterInput(row, asOf);
   if (row.kind === 'quiz') return resolveCanonicalLearningState(adaptQuizCanonicalInput(input));
-  if (row.kind === 'essay') return resolveCanonicalLearningState(adaptEssayCanonicalInput(input));
+  if (row.kind === 'essay' || row.kind === 'file')
+    return resolveCanonicalLearningState(adaptEssayCanonicalInput(input));
   if (row.kind === 'course_project') {
     return resolveCanonicalLearningState(adaptCourseProjectCanonicalInput(input));
   }
@@ -300,6 +301,7 @@ export class LearningCanonicalProjectionService {
       if (
         (evidence.kind === 'course_project' ||
           evidence.kind === 'essay' ||
+          evidence.kind === 'file' ||
           evidence.kind === 'quiz') &&
         evidence.activityRunId &&
         evidence.participation
