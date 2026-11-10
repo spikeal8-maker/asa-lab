@@ -1,4 +1,4 @@
-import { photoresistorIllumination } from '@asa-lab/electronics/simulation';
+import { photoresistorIllumination } from '@asa-lab/electronics/rendering';
 import { resetElectronicsTimedState } from '@asa-lab/electronics/timed-state';
 import type {
   ElectronicsArduinoSerialProjection,

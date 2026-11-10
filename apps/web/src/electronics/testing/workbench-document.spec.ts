@@ -71,6 +71,61 @@ beforeAll(() => {
   );
 });
 
+it('preserves an optical link on reopen, remaps a copied pair and clears a deleted lamp', () => {
+  const document: SchematicDocument = {
+    ...EMPTY,
+    components: [
+      { id: 'lamp', kind: 'lamp', value: 6, position: { x: 0, y: 0 } },
+      {
+        id: 'ldr',
+        kind: 'photoresistor',
+        value: 0,
+        position: { x: 100, y: 0 },
+        stateProperties: {
+          illumination: 0.2,
+          lightSourceComponentId: 'lamp',
+          lightSourceDistanceCm: 25,
+        },
+      },
+    ],
+  };
+  const reopened = parseElectronicsDocument(JSON.parse(JSON.stringify(document)));
+  expect(reopened.ok).toBe(true);
+  if (!reopened.ok) throw new Error(reopened.message);
+  expect(reopened.document.components[1]?.stateProperties).toEqual(
+    document.components[1]?.stateProperties,
+  );
+  const copiedSensor = duplicateComponentInDocument(document, {
+    kind: 'component',
+    id: 'ldr',
+    ids: ['ldr'],
+  })!;
+  expect(copiedSensor.component.stateProperties?.['lightSourceComponentId']).toBe('lamp');
+  const copiedPair = duplicateComponentInDocument(document, {
+    kind: 'component',
+    id: 'ldr',
+    ids: ['ldr', 'lamp'],
+  })!;
+  const copiedLamp = copiedPair.components.find((component) => component.kind === 'lamp')!;
+  const ldr = copiedPair.components.find((component) => component.kind === 'photoresistor')!;
+  expect(ldr.stateProperties).toMatchObject({
+    lightSourceComponentId: copiedLamp.id,
+    lightSourceDistanceCm: 25,
+  });
+  const removed = removeSelectionFromDocument(copiedPair.document, {
+    kind: 'component',
+    id: 'lamp',
+    ids: ['lamp'],
+  });
+  expect(removed.components.find((component) => component.id === 'ldr')?.stateProperties).toEqual({
+    illumination: 0.2,
+    lightSourceDistanceCm: 25,
+  });
+  expect(removed.components.find((component) => component.id === ldr.id)?.stateProperties).toEqual(
+    ldr.stateProperties,
+  );
+});
+
 it('deleting a breadboard preserves the circuit and clears only bindings to deleted boards', () => {
   const document: SchematicDocument = {
     ...EMPTY,

@@ -1229,6 +1229,60 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     }
   });
 
+  it('reads lamp light on A0 as the filament warms and cools without electrical coupling', () => {
+    const doc = circuit(
+      [
+        board('uno', 'int reading;void setup(){}void loop(){reading=analogRead(A0);delay(10);}'),
+        {
+          ...part('ldr', 'photoresistor', 0),
+          stateProperties: {
+            illumination: 0,
+            lightSourceComponentId: 'lamp',
+            lightSourceDistanceCm: 10,
+          },
+        },
+        part('sense', 'resistor', 10_000),
+        part('lamp-power', 'source', 6),
+        { ...part('switch', 'button', 0), state: false },
+        {
+          ...part('lamp', 'lamp', 6),
+          componentTypeId: 'incandescent-lamp',
+          pinIds: ['L1', 'L2'],
+        },
+      ],
+      [
+        ['uno', 'power-5v', 'ldr', 'a'],
+        ['ldr', 'b', 'sense', 'a'],
+        ['ldr', 'b', 'uno', 'a0'],
+        ['sense', 'b', 'uno', 'power-gnd-1'],
+        ['lamp-power', 'a', 'switch', 'a'],
+        ['switch', 'b', 'lamp', 'L1'],
+        ['lamp', 'L2', 'lamp-power', 'b'],
+      ],
+    );
+    const dark = through(doc, 20_000);
+    const inputs: readonly ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 21_000, componentId: 'switch', property: 'state', value: true },
+      { atMicroseconds: 601_000, componentId: 'switch', property: 'state', value: false },
+    ];
+    const warm = through(doc, 600_000, dark.state!, inputs.slice(0, 1));
+    const cold = through(doc, 1_100_000, warm.state!, inputs);
+    const sensor = (frame: ArduinoCircuitClockAdvance) =>
+      frame.result!.components.find((entry) => entry.componentId === 'ldr')!;
+    expect(sensor(dark)).toMatchObject({ illuminanceLux: 0, effectiveResistanceOhm: 1_000_000 });
+    expect(sensor(warm).illuminanceLux).toBeGreaterThan(60);
+    expect(sensor(warm).effectiveResistanceOhm).toBeLessThan(5_000);
+    expect(sensor(warm).current).toBeCloseTo(
+      sensor(warm).voltageDrop / sensor(warm).effectiveResistanceOhm!,
+      8,
+    );
+    expect(runtime(dark).variables.reading).toBeLessThan(20);
+    expect(runtime(warm).variables.reading).toBeGreaterThan(600);
+    expect(runtime(cold).variables.reading).toBe(runtime(dark).variables.reading);
+    expect(cold.state?.reachedMicroseconds).toBe(1_100_000);
+    for (const frame of [dark, warm, cold]) expect(frame.result?.quality.passed).toBe(true);
+  });
+
   it('rejects malformed continuation before any carried GPIO is used as a source', () => {
     const doc = buttonCircuit();
     const valid = through(doc, 10).state!;

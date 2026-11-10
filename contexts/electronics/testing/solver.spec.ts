@@ -1665,7 +1665,7 @@ describe('MATH-10A2 multimeter DC current', () => {
 describe('photoresistor electrical model', () => {
   it('uses a deterministic versioned GL5528-class illumination profile', () => {
     expect(JSON.parse(canonicalPhotoresistorProfileRegistry())).toEqual({
-      registryVersion: 2,
+      registryVersion: 3,
       profiles: [PHOTORESISTOR_PROFILE],
     });
     expect(PHOTORESISTOR_PROFILE.resistanceAt10LuxOhm).toBe(15_000);
@@ -1807,6 +1807,55 @@ describe('photoresistor electrical model', () => {
     expect(transient.components.find((entry) => entry.componentId === 'ldr')).toMatchObject({
       current: 0,
       deviceHealth: 'failed_open',
+    });
+  });
+
+  it('adds lamp light by distance, preserves an unlinked sensor and goes dark after lamp failure', () => {
+    const sensor = (id: string, lampId: string, distanceCm: number) =>
+      component(id, 'photoresistor', 0, {
+        stateProperties: {
+          illumination: 0,
+          lightSourceComponentId: lampId,
+          lightSourceDistanceCm: distanceCm,
+        },
+      });
+    const circuit = (voltage: number) =>
+      doc(
+        [
+          component('source', 'source', voltage),
+          component('lamp', 'lamp', 6, {
+            componentTypeId: 'incandescent-lamp',
+            pinIds: ['L1', 'L2'],
+          }),
+          sensor('near', 'lamp', 10),
+          sensor('far', 'lamp', 20),
+          sensor('missing', 'missing-lamp', 10),
+        ],
+        [
+          connect('lamp-power', 'source', 'a', 'lamp', 'L1'),
+          connect('lamp-return', 'lamp', 'L2', 'source', 'b'),
+          ...['near', 'far', 'missing'].flatMap((id) => [
+            connect(`${id}-power`, 'source', 'a', id, 'a'),
+            connect(`${id}-return`, id, 'b', 'source', 'b'),
+          ]),
+        ],
+      );
+    const warm = solveCircuit(circuit(6), { simulationTimeMs: 600 });
+    const near = warm.components.find((entry) => entry.componentId === 'near')!;
+    const far = warm.components.find((entry) => entry.componentId === 'far')!;
+    const missing = warm.components.find((entry) => entry.componentId === 'missing')!;
+    expect(near.illuminanceLux).toBeGreaterThan(60);
+    expect(near.illuminanceLux! / far.illuminanceLux!).toBeCloseTo(4, 3);
+    expect(missing.illuminanceLux).toBeUndefined();
+    expect(missing.current).toBeCloseTo(6 / PHOTORESISTOR_DARK_RESISTANCE_OHM, 12);
+
+    const failed = solveCircuit(circuit(12), { simulationTimeMs: 2_000 });
+    expect(failed.components.find((entry) => entry.componentId === 'lamp')?.filamentState).toBe(
+      'burned',
+    );
+    expect(failed.components.find((entry) => entry.componentId === 'near')).toMatchObject({
+      illuminanceLux: 0,
+      effectiveResistanceOhm: PHOTORESISTOR_DARK_RESISTANCE_OHM,
     });
   });
 });
