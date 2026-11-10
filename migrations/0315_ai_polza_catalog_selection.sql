@@ -37,7 +37,7 @@ BEGIN
    VALUES(m->>'id',m->>'upstream',m->>'label',m->>'kind',(m->>'vision')::boolean,(m->>'tools')::boolean,(m->>'maxOutputTokens')::integer,true,false,m->>'catalogMonth')
    ON CONFLICT(id) DO UPDATE SET label=excluded.label,kind=excluded.kind,vision=excluded.vision,tools=excluded.tools,
     max_output_tokens=excluded.max_output_tokens,active=true,selected=ai_polza_models.selected AND ai_polza_models.kind=excluded.kind,
-    catalog_month=excluded.catalog_month;
+    catalog_month=coalesce(excluded.catalog_month,ai_polza_models.catalog_month);
  END LOOP;
  UPDATE public.ai_polza_catalog_state SET revision=revision+1,checked_at=clock_timestamp(),credential_fingerprint=s.key_fingerprint WHERE singleton_key;
  UPDATE public.ai_assistant_config SET configuration_version=configuration_version+1 WHERE singleton_key;

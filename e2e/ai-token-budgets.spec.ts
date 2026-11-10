@@ -128,6 +128,16 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
           await page.setViewportSize({ width, height: width <= 390 ? 844 : 900 });
           await page.emulateMedia({ colorScheme });
           await expect(row).toBeVisible();
+          const fieldsFit = await row.getByRole('textbox').evaluateAll(
+            (fields) =>
+              fields.length === 2 &&
+              fields.every((field) => {
+                const bounds = field.getBoundingClientRect();
+                const list = field.closest('.asa-ai-policy-models')!.getBoundingClientRect();
+                return bounds.left >= list.left && bounds.right <= list.right;
+              }),
+          );
+          expect(fieldsFit).toBe(true);
           const background = await budgets.evaluate(
             (element) => getComputedStyle(element).backgroundColor,
           );

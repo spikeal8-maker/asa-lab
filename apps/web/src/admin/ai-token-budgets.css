@@ -152,6 +152,16 @@
   gap: 6px;
   padding-block: 8px;
 }
+@media (max-width: 800px) {
+  .asa-ai-inline-budgets .asa-settings-compact .asa-ai-policy-models > fieldset {
+    min-width: 0;
+    padding: 0;
+  }
+  .asa-ai-inline-budgets .asa-settings-compact .asa-ai-policy-models legend {
+    position: static;
+    width: auto;
+  }
+}
 @media (max-width: 620px) {
   .asa-settings-compact .asa-ai-policy-model-row:has(.asa-ai-inline-budget) {
     grid-template-columns: minmax(0, 1fr) auto auto;
@@ -159,7 +169,7 @@
   }
   .asa-ai-policy-model-row > .asa-ai-inline-budget {
     grid-column: 1 / -1;
-    padding-left: 22px;
+    padding-left: 8px;
   }
 }
 

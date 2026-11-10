@@ -29,6 +29,7 @@ export function AdminPolzaConnection({
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [catalogBusy, setCatalogBusy] = useState(false);
   const [catalogDirty, setCatalogDirty] = useState(false);
   const [reload, setReload] = useState(0);
   const [catalogRevision, setCatalogRevision] = useState(0);
@@ -68,12 +69,11 @@ export function AdminPolzaConnection({
     return () => onDirtyChange?.(false);
   }, [dirty, catalogDirty, onDirtyChange]);
   const keyReady = !!keyInput || (!!config?.apiKeyConfigured && !clearKey);
+  const connectionLocked = busy || loading || catalogBusy || catalogDirty;
   const canSave =
     !!config &&
     dirty &&
-    !catalogDirty &&
-    !busy &&
-    !loading &&
+    !connectionLocked &&
     config.encryptionReady &&
     (!enabled || keyReady) &&
     Number.isInteger(paidPerHour) &&
@@ -196,7 +196,7 @@ export function AdminPolzaConnection({
                 spellCheck={false}
                 maxLength={2048}
                 value={keyInput}
-                disabled={busy || catalogDirty || clearKey || !config.encryptionReady}
+                disabled={connectionLocked || clearKey || !config.encryptionReady}
                 placeholder={config.apiKeyConfigured ? 'pza_•••••••• · сохранён' : 'pza_…'}
                 onChange={(event) => {
                   setKeyInput(event.target.value);
@@ -216,7 +216,7 @@ export function AdminPolzaConnection({
                   min="0"
                   max="10000"
                   value={paidPerHour}
-                  disabled={busy || catalogDirty}
+                  disabled={connectionLocked}
                   onChange={(e) => setPaidPerHour(Number(e.target.value))}
                 />
               </label>
@@ -225,7 +225,7 @@ export function AdminPolzaConnection({
               <input
                 type="checkbox"
                 checked={enabled}
-                disabled={busy || catalogDirty || !config.encryptionReady}
+                disabled={connectionLocked || !config.encryptionReady}
                 onChange={(event) => {
                   setEnabled(event.target.checked);
                   setMessage('');
@@ -242,7 +242,7 @@ export function AdminPolzaConnection({
             <button
               type="button"
               className="asa-polza-secondary"
-              disabled={busy || dirty || !config.apiKeyConfigured}
+              disabled={connectionLocked || dirty || !config.apiKeyConfigured}
               onClick={() => {
                 setBusy(true);
                 setError('');
@@ -277,7 +277,7 @@ export function AdminPolzaConnection({
                 <input
                   type="checkbox"
                   checked={clearKey}
-                  disabled={busy || catalogDirty}
+                  disabled={connectionLocked}
                   onChange={(event) => {
                     setClearKey(event.target.checked);
                     if (event.target.checked) {
@@ -299,10 +299,12 @@ export function AdminPolzaConnection({
           connectionDirty={dirty || busy}
           onAccessDenied={onAccessDenied}
           onUpdated={() => {
+            setLoading(true);
             setReload((value) => value + 1);
             onUpdated?.();
           }}
           onDirtyChange={setCatalogDirty}
+          onBusyChange={setCatalogBusy}
         />
       ) : null}
     </section>

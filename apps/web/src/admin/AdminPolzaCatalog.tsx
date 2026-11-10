@@ -55,6 +55,7 @@ export function AdminPolzaCatalog({
   onAccessDenied,
   onUpdated,
   onDirtyChange,
+  onBusyChange,
   kind: initialKind = 'chat',
   connection = false,
   connectionDirty = false,
@@ -63,6 +64,7 @@ export function AdminPolzaCatalog({
   onAccessDenied: () => void;
   onUpdated?: (() => void) | undefined;
   onDirtyChange?: (dirty: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
   kind?: keyof typeof MODEL_GROUPS;
   connected?: boolean;
   connection?: boolean;
@@ -99,6 +101,7 @@ export function AdminPolzaCatalog({
   async function request(refresh: boolean) {
     if (busy || connectionDirty || (!refresh && !catalog)) return;
     setBusy(true);
+    onBusyChange?.(true);
     setError('');
     setNotice('');
     try {
@@ -118,6 +121,7 @@ export function AdminPolzaCatalog({
       }
     } finally {
       setBusy(false);
+      onBusyChange?.(false);
     }
   }
   const shown = (catalog?.credentialCurrent ? catalog.items : []).filter(

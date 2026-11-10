@@ -452,7 +452,7 @@ const upgradeArtifacts = [
   [
     '0315',
     '0315_ai_polza_catalog_selection.sql',
-    'c70b84a10cb2eb8451edc88511b76e3030c5030ff5786ad2eb4ab624140020e8',
+    'd2225933b2d5bc146d82262d7073ea5fabae47bcdb20581f2ff01c788bd5d311',
   ],
 ] as const;
 
