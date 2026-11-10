@@ -9490,38 +9490,32 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: complete_quiz_vertical_with_verified_parent_integration_repairs
-      selected_slice:
+      checkpoint: immutable_learner_file_answers
+      accepted_previous_slice:
         id: LRN-QUIZ-COMPLETE-COURSE-VERTICAL
+        pr: 1039
+        source_sha: 9accb6856ecf5290a477720f2681d3270e232ffd
+        merge_sha: 28a39f4cf8d17181a44832c008dd2bdbf0660bf3
+        general_run: 42732132770
+        learning_run: 42732132516
+        browser_journeys_passed: 48
+        status: merged
+      selected_slice:
+        id: LRN-IMMUTABLE-FILE-ANSWERS
         status: in_progress
         kind: implementation
-        owner_authorization: Owner renewed the complete compact assignment and Course authoring programme and explicitly authorized verified source integration into main on2026-11-03. Reuse the existing core; deliver visible desktop and phone functionality.
-        scope: One complete Quiz vertical across author question and Quiz drafts, publication and exact Course composition, class delivery, persisted learner player, immutable submission, automatic and manual assessment and the existing journal. All eight normative question types are included.
-        source_inputs:
-        - pr: 966
-          sha: 2d97266087b1cd11d8388cbfe02804e35eb8cb83
-        - pr: 939
-          sha: 4cc9938224a89a4cbfd556fd9b42dada3ca0bd46
-          use: Unfinished design provenance only; never apply its SQL wholesale.
+        owner_authorization: Owner explicitly requested completing learner file answers after PR 1039 merges and verifying the whole course on desktop and phone.
+        scope: File-answer assignment authoring in the shared class and Course editor, exact published version, authenticated learner upload and immutable submission, teacher authorized download and review, canonical result and journal.
         expected_write_areas:
-        - Existing Learning authoring, Question bank and Quiz controllers, contracts and compact web editor.
-        - Existing Quiz attempt state, submission, assessment, reminders expiry sweep and canonical journal review.
-        - Additive forward SQL and strict migration-prefix fixtures, focused HTTP, mounted, PostgreSQL and real browser evidence.
-        - docs/product/learning/execution/LRN-QUIZ-COURSE-VERTICAL_EXECUTION_SPEC.md and relevant API/test contracts.
+        - Existing Learning authoring, learner player, teacher review and OpenAPI.
+        - Existing private object-storage transport and additive tenant-scoped attachment metadata if necessary.
+        - Focused real PostgreSQL and browser scenarios with desktop and mobile evidence.
         acceptance:
-        - Write DB-000 physical schema reuse proof and exact required SQL, constraints, indexes, FK actions and RLS in the execution spec before new physical implementation. No second academic runtime or general core refactor.
-        - Persist incomplete Question and Quiz author drafts and reopen them without fake publication. Publish immutable exact QuestionVersion and QuizVersion pins atomically; author-only draft references cannot enter published content.
-        - Support single_choice, multiple_choice, boolean, numeric, short_text, matching, ordering and long_text_manual through creation, learner interaction and assessment. Keep answer keys private until the pinned feedback policy permits release.
-        - Reuse the same compact assignment creator and Course composition. Native keyboard-accessible controls, compact grouped actions and usable320,390,1024,1440 layouts; no expanded decorative panels.
-        - Preserve existing stable Account and StudentSeat identity, activation, immutable policies, dense attempt ordinals, saved server answers, revision conflicts, replay and server-authoritative deadlines.
-        - Submit the existing attempt idempotently using confirmed answers. Extend the existing bounded lifecycle-managed expiry sweep for auto_submit or expire_without_submission; no duplicate attempts, new timer service or fabricated grades.
-        - Reuse existing five-type grading rules and extend matching and ordering deterministically. Manual pending work cannot produce final selected grades or course completion; teacher review uses the existing ClassroomGradebook seam.
-        - Prove the complete authored Course to class to learner to review and journal journey in isolated actual PostgreSQL and browser runs, plus full required exact-head gates and independent review.
-        dependencies: Essay957 and foundation2d have successful General and Learning workflows and independent source approval. Their final integration candidates Essay045dbcc and foundation2e3e002 are also source-approved; Essay045 has fresh47 browser passes and General governance, code and data success while Access is finishing. Full Quiz inherits both candidates. Integrate these dependencies together with the complete Quiz in one joint candidate after its own final exact-head repository, focused, browser and independent-review evidence; separate parent merges are no longer prerequisites. Do not infer acceptance from inherited receipts alone.
-        integration_strategy: Published publication0303 intersected the provisional private Essay303 after its final convergence. One controlled additional convergence is selected for the joint candidate against actual main01b6cc2fc, preserving all published SQL and foreign product changes. Renumber only private dependency files and update strict current-prefix fixtures, then test the joint result once rather than repeating equivalent parent-only cycles. Do not integrate conflicting parent PRs separately. If another published ordinal intersection invalidates this final convergence, stop integration for an owner integration window instead of chasing main indefinitely; independent development may continue.
-        migration_allocation: Actual published main01b6cc2fc ends at0303_publication_owner_editor.sql. Provisional joint order is Essay304, Quiz policy305, Quiz attempt state306 and complete Quiz307. Verify the actual published frontier before convergence; private claims are not reservations. Preserve every published byte and historical checksum, and attest byte identity of private dependency SQL across renames.
-        constraints: Expected areas are forecasts, not per-file permission leases. Inspect real unfinished overlaps before writing and preserve foreign drafts, especially owner ClassroomPage and related classroom WIP. No learner-file feature, Python runner, tenant or RLS model change, unrelated repair, new dependency or workflow, deployment, owner database or protected assets in this slice. Preserve existing tests, limits, retries and timeouts.
-        programme_next: After accepted Quiz integration complete immutable learner-file answers, then the combined four-kind Course authoring, composition and class journey acceptance. The programme does not end at this slice.
+        - Document physical schema reuse, exact additive SQL, immutable lineage and authorization before implementation.
+        - Reuse existing private object storage, bound uploads, validate configured formats and sizes, safely serve original bytes to authorized viewers.
+        - Preserve stable Account and StudentSeat identity, exact assignment version, idempotent submission and existing result semantics.
+        - Verify teacher creation from both class and Course, learner upload, submission, review and journal, including practice, Essay and Quiz regressions at 320, 390, 1024 and 1440 widths.
+        constraints: Preserve all published SQL, existing RLS model, owner work and unrelated code. No live database actions, deployment, new infrastructure, external scanning service or second authoring/runtime system.
       pending_validation_slices:
       - id: LRN-E1-ESSAY-COURSE-VERTICAL
         source_pr: 964
