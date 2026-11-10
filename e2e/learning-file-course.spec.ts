@@ -44,12 +44,12 @@ async function downloadExact(page: Page, link: Locator, name: string, bytes: Buf
   expect(await readFile(path!)).toEqual(bytes);
 }
 
-async function createFileDraft(editor: Locator, title: string) {
+async function createFileDraft(editor: Locator, title: string, saveLabel = 'Создать задание') {
   await editor.getByLabel('Тип задания', { exact: true }).selectOption('file');
   await expect(editor.getByLabel('Среда задания', { exact: true })).toHaveCount(0);
   await editor.getByLabel('Название задания', { exact: true }).fill(title);
   await editor.getByLabel('Содержание', { exact: true }).fill('Приложите файл с результатом.');
-  await editor.getByRole('button', { name: 'Создать задание', exact: true }).click();
+  await editor.getByRole('button', { name: saveLabel, exact: true }).click();
   await expect(
     editor.getByText('Черновик сохранён. Публикация — отдельное действие.', { exact: true }),
   ).toBeVisible();
@@ -110,13 +110,30 @@ test('File answers: shared authoring, mixed Course, exact Seat uploads and froze
     .getByRole('navigation', { name: 'Материалы класса' })
     .getByRole('button', { name: 'Отдельные задания', exact: true })
     .click();
-  await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
-  await page.getByRole('button', { name: '+ Новое задание', exact: true }).click();
+  await page.getByRole('button', { name: 'Выдать задание', exact: true }).click();
+  const directPicker = page.getByRole('dialog', { name: 'Назначить задание', exact: true });
+  await directPicker.getByRole('button', { name: 'Создать новое задание', exact: true }).click();
+  const classAuthor = page.getByRole('dialog', { name: 'Новое задание класса', exact: true });
+  await createFileDraft(classAuthor, directTitle, 'Сохранить черновик');
+  await capture(page, classAuthor.getByLabel('Название задания', { exact: true }), 'class-author');
+  await classAuthor.getByRole('button', { name: 'Вернуться к классу', exact: true }).click();
+  await expect(classAuthor).toBeHidden();
+  await page.getByRole('button', { name: 'Выдать задание', exact: true }).click();
+  await directPicker.getByText('Продолжить черновик', { exact: true }).click();
+  await directPicker.getByLabel('Черновик', { exact: true }).selectOption({ label: directTitle });
+  await directPicker.getByRole('button', { name: 'Открыть черновик', exact: true }).click();
+  const resumed = page.getByRole('dialog', { name: 'Редактор задания класса', exact: true });
+  await expect(resumed.getByLabel('Тип задания', { exact: true })).toHaveValue('file');
+  await expect(resumed.getByLabel('Название задания', { exact: true })).toHaveValue(directTitle);
+  await resumed.getByRole('button', { name: 'К выдаче', exact: true }).click();
+  await expect(resumed).toBeHidden();
+  await expect(directPicker.getByText(directTitle, { exact: true })).toBeVisible();
+  await expect(directPicker.getByLabel('Весь класс', { exact: true })).toBeChecked();
+  await directPicker.getByRole('button', { name: 'Назначить', exact: true }).click();
+  await expect(directPicker).toBeHidden();
+  await expect(page.getByRole('status').filter({ hasText: 'выдано всему классу' })).toBeVisible();
+
   const sharedEditor = page.locator('[aria-label="Редактор задания"]');
-  await createFileDraft(sharedEditor, directTitle);
-  await sharedEditor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
-  await expect(sharedEditor.getByText(/Опубликована версия 1/)).toBeVisible();
-  await capture(page, sharedEditor.getByLabel('Название задания', { exact: true }), 'class-author');
 
   for (const [kind, title] of [
     ['project', practiceTitle],
@@ -231,6 +248,16 @@ test('File answers: shared authoring, mixed Course, exact Seat uploads and froze
   await learner.getByLabel('Код ученика', { exact: true }).fill(studentCode);
   await learner.getByRole('button', { name: 'Войти', exact: true }).click();
   await openPortalSection(learner, 'Моё обучение');
+  const assignments = await learner.request.get('/api/class-join/me/assignments');
+  expect(assignments.ok()).toBe(true);
+  expect((await assignments.json()).items).toContainEqual(
+    expect.objectContaining({
+      title: directTitle,
+      activityKind: 'file',
+      activityRunId: expect.any(String),
+      projectId: null,
+    }),
+  );
   const runs = await learner.request.get('/api/class-join/me/course-runs');
   expect(runs.ok()).toBe(true);
   const run = (await runs.json()).items.find(
