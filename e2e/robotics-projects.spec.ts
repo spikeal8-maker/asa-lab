@@ -616,7 +616,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     await publicationDialog
       .locator('.project-properties-head')
       .getByRole('button', { name: 'Закрыть', exact: true })
-      .click();
+      .click({ timeout: 15_000 });
 
     const otherAccount = await browser.newContext({
       baseURL: origin(restored),
