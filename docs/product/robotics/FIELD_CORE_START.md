@@ -1,7 +1,7 @@
 # Поле робототехники — вход в реализацию
 
 [ТЗ 1.1](FIELD_CORE_SPEC.md) · [Технический аудит](FIELD_CORE_SPEC_REVIEW.md) ·
-[Карта приёмки](FIELD_CORE_TRACEABILITY.json) · [Карточка E1](tasks/TASK-ROBOTICS-FIELD-CORE-E1-001.md).
+[Карта приёмки](FIELD_CORE_TRACEABILITY.json) · [Карточка E1](../electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md).
 
 ## Где читать состояние
 

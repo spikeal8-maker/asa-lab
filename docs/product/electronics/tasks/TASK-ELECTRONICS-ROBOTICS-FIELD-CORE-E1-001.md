@@ -1,9 +1,9 @@
 ---
-task_id: TASK-ROBOTICS-FIELD-CORE-E1-001
+task_id: TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001
 kind: implementation
 risk: high
 semantic_change: 'yes'
-roadmap_slice: ROBOTICS-FIELD-CORE-001/E1
+roadmap_slice: null
 prerequisites:
   - docs/execution/current.yaml
   - docs/product/robotics/FIELD_CORE_SPEC.md
@@ -15,13 +15,16 @@ review: independent
 
 # E1 — квалификация пространственного ядра поля
 
+Программа ROBOTICS-FIELD-CORE-001, этап E1. Идентификатор и расположение карточки
+следуют существующему контракту дочернего направления Electronics; это не отдельное электрическое ядро.
+
 ## Цель и источник состояния
 
 Подтвердить применимость физического кандидата, не меняя пока рабочий редактор.
 Выбранный этап, Issue, фактический checkpoint и разрешения читаются только из
 [current.yaml](../../../execution/current.yaml). Эта карточка — контракт, не журнал готовности.
-Основное [ТЗ 1.1](../FIELD_CORE_SPEC.md), [аудит](../FIELD_CORE_SPEC_REVIEW.md) и
-[матрица требований](../FIELD_CORE_TRACEABILITY.json) сохраняют весь объём будущей системы.
+Основное [ТЗ 1.1](../../robotics/FIELD_CORE_SPEC.md), [аудит](../../robotics/FIELD_CORE_SPEC_REVIEW.md) и
+[матрица требований](../../robotics/FIELD_CORE_TRACEABILITY.json) сохраняют весь объём будущей системы.
 
 ## До первой записи
 

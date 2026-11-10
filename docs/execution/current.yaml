@@ -17142,12 +17142,13 @@ parallel_lanes:
       - contexts/robotics/**
       - modules/robotics/**
       - docs/product/robotics/**
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
-      id: TASK-ROBOTICS-FIELD-CORE-E1-001
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001
       issue: 1071
       branch: main
       base_branch: main
@@ -17193,7 +17194,7 @@ parallel_lanes:
           performance or deployment acceptance without corresponding evidence.
       context_hints:
         - docs/product/robotics/FIELD_CORE_START.md
-        - docs/product/robotics/tasks/TASK-ROBOTICS-FIELD-CORE-E1-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
         - docs/product/robotics/FIELD_CORE_SPEC.md
         - docs/product/robotics/FIELD_CORE_SPEC_REVIEW.md
         - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
@@ -17677,7 +17678,7 @@ blocking:
   - id: ROBOTICS-FIELD-CORE-D01-D02
     kind: acceptance_blocker
     lane: robotics
-    task_id: TASK-ROBOTICS-FIELD-CORE-E1-001
+    task_id: TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001
     blocks:
       - spatial_product_integration
       - full_physics_acceptance
