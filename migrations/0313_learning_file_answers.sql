@@ -79,7 +79,7 @@ END $$;
 CREATE FUNCTION public.learning_response_access_internal(p_actor uuid,p_run uuid,p_kind varchar)
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path=pg_catalog,pg_temp AS $$
-DECLARE a record; r record; s record; p record; e jsonb; writable boolean;
+DECLARE a record; r record; s record; p record; e jsonb; writable boolean; direct_file_closed boolean;
 BEGIN
   SELECT run.*,version.canonical_kind,version.module_key,
     room.status AS room_status,handout.status AS handout_status,
@@ -164,6 +164,12 @@ BEGIN
     IF NOT public.learning_direct_assignment_seat_visible(s.id,r.source_classroom_assignment_id)
       THEN RETURN NULL; END IF;
   ELSE RETURN NULL; END IF;
+  direct_file_closed:=p_kind='file' AND r.source_kind='direct' AND r.handout_status='closed';
+  IF direct_file_closed AND (r.room_status<>'active' OR NOT EXISTS(
+    SELECT 1 FROM public.learning_attempts attempt
+    WHERE attempt.tenant_id=r.tenant_id AND attempt.activity_participation_id=p.id
+      AND public.learning_file_submitted_at(attempt.tenant_id,attempt.id) IS NOT NULL
+  )) THEN RETURN NULL; END IF;
   e:=public.learning_effective_conditions_internal(p_run,p.id);
   writable:=p.status IN ('assigned','active') AND NOT p.excused
     AND r.lifecycle_status='active' AND r.room_status='active' AND r.handout_status='open'
@@ -182,7 +188,8 @@ BEGIN
     'classroomId',r.classroom_id,'assignmentId',r.source_classroom_assignment_id,
     'activityRunId',r.id,'versionId',r.learning_activity_version_id,'participationId',p.id,
     'learnerId',p.learner_identity_id,'seatId',s.id,'enrollmentId',p.source_course_enrollment_id,
-    'writable',COALESCE(writable,false),'effective',e,'extraAttempts',p.extra_attempts);
+    'writable',COALESCE(writable,false),'effective',e,'extraAttempts',p.extra_attempts,
+    'directFileClosed',direct_file_closed);
 END;
 $$;
 CREATE OR REPLACE FUNCTION public.learning_essay_access(p_actor uuid,p_run uuid)
@@ -203,6 +210,20 @@ RETURNS jsonb LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $
     'contentType',p_file.content_type,'sha256',p_file.sha256);
 $$;
 REVOKE ALL ON FUNCTION public.learning_file_descriptor(public.learning_file_versions) FROM PUBLIC,asalab_app;
+CREATE FUNCTION public.learning_file_submitted_at(p_tenant uuid,p_attempt uuid)
+RETURNS timestamptz LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+  SELECT attempt.submitted_at
+  FROM public.learning_attempts attempt
+  JOIN public.learning_submissions submission ON submission.tenant_id=attempt.tenant_id
+    AND submission.attempt_id=attempt.id AND submission.payload_manifest->>'kind'='file'
+  JOIN public.learning_file_versions file ON file.tenant_id=attempt.tenant_id AND file.attempt_id=attempt.id
+    AND file.id::text=submission.payload_manifest#>>'{file,id}'
+    AND submission.payload_manifest->'file'=public.learning_file_descriptor(file)
+    AND submission.payload_digest=file.sha256
+  WHERE attempt.tenant_id=p_tenant AND attempt.id=p_attempt;
+$$;
+REVOKE ALL ON FUNCTION public.learning_file_submitted_at(uuid,uuid) FROM PUBLIC,asalab_app;
+
 CREATE FUNCTION public.learning_file_attempt_read(p_actor uuid,p_run uuid)
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path=pg_catalog,pg_temp AS $$
@@ -235,6 +256,8 @@ BEGIN
       ORDER BY result.revision_number DESC LIMIT 1) review ON true
     WHERE attempt.activity_participation_id=(scope->>'participationId')::uuid
       AND attempt.tenant_id=(scope->>'tenantId')::uuid
+      AND (NOT(scope->>'directFileClosed')::boolean OR
+        public.learning_file_submitted_at(attempt.tenant_id,attempt.id) IS NOT NULL)
     ORDER BY attempt.attempt_number DESC LIMIT 1;
   response:=jsonb_build_object('resultCode','ok','activityRunId',p_run,
     'participationId',scope->'participationId','activityVersionId',version.id,
@@ -760,8 +783,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
             WHEN EXISTS(SELECT 1 FROM public.learning_activity_versions typed_version
               WHERE typed_version.id=run.learning_activity_version_id
                 AND typed_version.canonical_kind='essay') THEN 'essay'
-            WHEN EXISTS(SELECT 1 FROM public.learning_activity_versions typed_version
-              WHERE typed_version.id=run.learning_activity_version_id AND typed_version.canonical_kind='file') THEN 'file'
+            WHEN file_version.id IS NOT NULL THEN 'file'
             WHEN assignment.quiz_version_id IS NOT NULL OR EXISTS(SELECT 1 FROM public.learning_activity_versions typed_version WHERE typed_version.id=run.learning_activity_version_id AND typed_version.canonical_kind='quiz') THEN 'quiz'
             WHEN assignment.course_run_id IS NOT NULL THEN 'course_project'
             ELSE 'direct_project'
@@ -852,6 +874,9 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
        AND learner_link.school_id = classroom.school_id
        AND learner_link.status = 'active'
       LEFT JOIN public.activity_runs run ON run.source_classroom_assignment_id=assignment.id
+      LEFT JOIN public.learning_activity_versions file_version
+        ON file_version.tenant_id=run.tenant_id AND file_version.id=run.learning_activity_version_id
+       AND file_version.canonical_kind='file' AND file_version.module_key IS NULL
       LEFT JOIN public.activity_participations participation ON participation.activity_run_id=run.id
         AND participation.learner_identity_id=learner_link.learner_identity_id
       LEFT JOIN LATERAL public.learning_selected_result_internal(participation.id) canonical_selection ON true
@@ -863,6 +888,12 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
             FROM public.learning_attempts current_attempt
            WHERE current_attempt.classroom_assignment_id = assignment.id
              AND current_attempt.seat_id = seat.id
+             AND (file_version.id IS NULL OR (
+               current_attempt.tenant_id=run.tenant_id
+               AND current_attempt.activity_participation_id=participation.id
+               AND (run.source_kind<>'direct' OR assignment.status<>'closed' OR
+                 public.learning_file_submitted_at(current_attempt.tenant_id,current_attempt.id) IS NOT NULL)
+             ))
            ORDER BY current_attempt.attempt_number DESC, current_attempt.id DESC
            LIMIT 1
       ) attempt ON true
@@ -1394,8 +1425,9 @@ BEGIN
   JOIN public.learning_file_versions file ON file.tenant_id=attempt.tenant_id AND file.attempt_id=attempt.id
   WHERE attempt.tenant_id=(scope->>'tenantId')::uuid
     AND attempt.activity_participation_id=(scope->>'participationId')::uuid AND file.id=p_file
-    AND (EXISTS(SELECT 1 FROM public.learning_file_drafts draft WHERE draft.attempt_id=attempt.id
-      AND draft.tenant_id=attempt.tenant_id AND draft.file_id=file.id)
+    AND ((NOT(scope->>'directFileClosed')::boolean AND EXISTS(
+      SELECT 1 FROM public.learning_file_drafts draft WHERE draft.attempt_id=attempt.id
+        AND draft.tenant_id=attempt.tenant_id AND draft.file_id=file.id))
       OR EXISTS(SELECT 1 FROM public.learning_submissions submission WHERE submission.attempt_id=attempt.id
         AND submission.tenant_id=attempt.tenant_id AND submission.payload_manifest->>'kind'='file'
         AND submission.payload_manifest->'file'=public.learning_file_descriptor(file)
@@ -1403,14 +1435,34 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.learning_file_assignment_view(p_actor uuid,p_assignment uuid) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE run_id uuid; run_count integer; scope jsonb; submitted_at timestamptz;
+BEGIN
+  SELECT count(*),(array_agg(run.id))[1] INTO run_count,run_id FROM public.activity_runs run
+  JOIN public.learning_activity_versions version ON version.tenant_id=run.tenant_id
+    AND version.id=run.learning_activity_version_id AND version.canonical_kind='file'
+    AND version.module_key IS NULL
+  WHERE run.source_kind='direct' AND run.source_classroom_assignment_id=p_assignment;
+  IF run_count=0 THEN RETURN NULL; END IF;
+  IF run_count<>1 THEN RETURN '{}'::jsonb; END IF;
+  scope:=public.learning_file_access(p_actor,run_id);
+  IF scope IS NULL THEN RETURN '{}'::jsonb; END IF;
+  SELECT max(public.learning_file_submitted_at(attempt.tenant_id,attempt.id)) INTO submitted_at
+    FROM public.learning_attempts attempt WHERE attempt.tenant_id=(scope->>'tenantId')::uuid
+      AND attempt.activity_participation_id=(scope->>'participationId')::uuid;
+  RETURN jsonb_build_object('activityRunId',run_id,'submittedAt',submitted_at);
+END;
+$$;
+
 CREATE FUNCTION public.learning_file_assignment_kind(p_actor uuid,p_assignment uuid) RETURNS varchar
 LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
- SELECT CASE WHEN count(*)=1 THEN 'file'::varchar END FROM public.activity_runs run
- JOIN public.learning_activity_versions version ON version.tenant_id=run.tenant_id
-   AND version.id=run.learning_activity_version_id AND version.canonical_kind='file'
- WHERE run.source_kind='direct' AND run.source_classroom_assignment_id=p_assignment
-   AND public.learning_file_access(p_actor,run.id) IS NOT NULL;
+  SELECT CASE WHEN public.learning_file_assignment_view(p_actor,p_assignment) ? 'activityRunId'
+    THEN 'file'::varchar END;
 $$;
+
+REVOKE ALL ON FUNCTION public.learning_file_assignment_view(uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.learning_file_assignment_view(uuid,uuid) TO asalab_app;
 
 REVOKE ALL ON FUNCTION public.learning_response_access_internal(uuid,uuid,varchar),
   public.learning_file_access(uuid,uuid), public.learning_file_descriptor(public.learning_file_versions),
@@ -1431,3 +1483,162 @@ GRANT EXECUTE ON FUNCTION public.learning_file_attempt_read(uuid,uuid),
   public.learning_file_media_read(uuid,uuid,varchar,varchar),
   public.learning_teacher_exact_file_submission(uuid,uuid,uuid),
   public.learning_file_download(uuid,uuid,uuid),public.learning_file_assignment_kind(uuid,uuid) TO asalab_app;
+
+CREATE OR REPLACE FUNCTION public.classroom_assignments_for_seat(p_seat_id uuid)
+ RETURNS TABLE(
+    id uuid,
+    title character varying,
+    brief character varying,
+    goal character varying,
+    module_key character varying,
+    due_at timestamp with time zone,
+    status character varying,
+    sample_image character varying,
+    project_id uuid,
+    submitted_at timestamp with time zone,
+    snapshot_revision integer,
+    updated_at timestamp with time zone
+ )
+ LANGUAGE sql
+ VOLATILE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'pg_temp'
+AS $function$
+    SELECT h.id,
+           COALESCE(lv.title,t.title),
+           COALESCE(lv.instructions,t.brief),
+           CASE
+             WHEN lv.goal_snapshot_present THEN
+               CASE
+                 WHEN w.project_id IS NOT NULL THEN lv.goal
+                 WHEN EXISTS (
+                   SELECT 1
+                     FROM public.activity_runs runtime
+                     JOIN public.classrooms classroom
+                       ON classroom.tenant_id = runtime.tenant_id
+                      AND classroom.id = runtime.classroom_id
+                      AND classroom.status = 'active'
+                     JOIN public.learner_identity_links link
+                       ON link.tenant_id = runtime.tenant_id
+                      AND link.school_id = runtime.school_id
+                      AND link.seat_id = s.id
+                      AND link.link_kind = 'student_seat'
+                      AND link.status = 'active'
+                     JOIN public.activity_participations participation
+                       ON participation.tenant_id = runtime.tenant_id
+                      AND participation.school_id = runtime.school_id
+                      AND participation.activity_run_id = runtime.id
+                      AND participation.learner_identity_id = link.learner_identity_id
+                    WHERE runtime.tenant_id = h.tenant_id
+                      AND runtime.source_classroom_assignment_id = h.id
+                      AND runtime.learning_activity_version_id = lv.id
+                      AND runtime.lifecycle_status = 'active'
+                      AND h.status = 'open'
+                      AND participation.status IN ('assigned', 'active')
+                      AND (
+                        (runtime.source_kind = 'direct'
+                         AND public.learning_direct_assignment_seat_visible(s.id, h.id))
+                        OR (runtime.source_kind = 'course'
+                            AND public.learning_course_seat_visible(s.id, runtime.source_course_run_id)
+                            AND EXISTS (
+                              SELECT 1 FROM public.classroom_course_runs course
+                               WHERE course.id = runtime.source_course_run_id
+                                 AND course.tenant_id = runtime.tenant_id
+                                 AND course.status = 'open'
+                            )
+                            AND (participation.source_course_enrollment_id IS NULL OR EXISTS (
+                              SELECT 1 FROM public.course_enrollments enrollment
+                               WHERE enrollment.id = participation.source_course_enrollment_id
+                                 AND enrollment.tenant_id = runtime.tenant_id
+                                 AND enrollment.school_id = runtime.school_id
+                                 AND enrollment.status IN ('assigned', 'active')
+                            )))
+                      )
+                      AND COALESCE((
+                        public.learning_effective_conditions_internal(
+                          runtime.id, participation.id
+                        ) #>> '{values,opensAt}'
+                      )::timestamptz, '-infinity'::timestamptz) <= now()
+                 ) THEN lv.goal
+                 ELSE NULL
+               END
+             ELSE t.goal
+           END,
+           COALESCE(lv.module_key,t.module_key),
+           h.due_at,
+           h.status,
+           CASE
+             WHEN h.learning_activity_version_id IS NOT NULL THEN
+               CASE WHEN EXISTS (
+                   SELECT 1
+                     FROM public.learning_activity_version_media media
+                    WHERE media.tenant_id = h.tenant_id
+                      AND media.activity_version_id = h.learning_activity_version_id
+                      AND media.role = 'sample'
+               ) THEN (
+                   '/api/assignments/activity-versions/'
+                   || h.learning_activity_version_id::text
+                   || '/sample'
+               )::varchar ELSE NULL::varchar END
+             ELSE t.sample_image
+           END,
+           w.project_id,
+           w.submitted_at,
+           snapshot.source_revision,
+           draft.updated_at
+      FROM public.classroom_student_seats s
+      JOIN public.classroom_assignments h
+        ON h.tenant_id = s.tenant_id AND h.classroom_id = s.classroom_id
+      LEFT JOIN public.teacher_assignments t ON t.id = h.assignment_id
+      LEFT JOIN public.learning_activity_versions lv ON lv.id = h.learning_activity_version_id
+      LEFT JOIN public.classroom_assignment_work w
+        ON w.assignment_id = h.id AND w.seat_id = s.id
+      LEFT JOIN public.project_drafts draft ON draft.project_id = w.project_id
+      LEFT JOIN public.project_snapshots snapshot ON snapshot.project_id = w.project_id
+     WHERE (t.id IS NOT NULL OR lv.id IS NOT NULL)
+       AND s.id = p_seat_id
+       AND s.status = 'active'
+       AND (h.status = 'open' OR w.project_id IS NOT NULL OR
+         CASE WHEN lv.canonical_kind='file' THEN
+           public.learning_file_assignment_view(public.principal_for_seat(s.id),h.id) ? 'activityRunId'
+         ELSE false END OR EXISTS (
+           SELECT 1 FROM public.learning_project_origins origin
+           JOIN public.activity_runs run
+             ON run.id = origin.activity_run_id
+            AND run.tenant_id = origin.school_tenant_id
+            AND run.source_kind = 'direct'
+            AND run.source_classroom_assignment_id = h.id
+           JOIN public.learner_identity_links link
+             ON link.tenant_id = origin.school_tenant_id
+            AND link.school_id = origin.school_id
+            AND link.learner_identity_id = origin.learner_identity_id
+            AND link.link_kind = 'student_seat'
+            AND link.seat_id = s.id
+            AND link.status = 'active'
+          WHERE origin.school_tenant_id = h.tenant_id
+            AND run.classroom_id = s.classroom_id
+       ))
+     ORDER BY (w.submitted_at IS NOT NULL), h.created_at;
+$function$;
+CREATE OR REPLACE FUNCTION public.classroom_assignments_for_account(p_account_id uuid)
+ RETURNS TABLE(id uuid, seat_id uuid, classroom_title character varying, title character varying, brief character varying, goal character varying, module_key character varying, due_at timestamp with time zone, status character varying, sample_image character varying, project_id uuid, submitted_at timestamp with time zone, snapshot_revision integer, updated_at timestamp with time zone)
+ LANGUAGE sql
+ VOLATILE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'pg_temp'
+AS $function$
+    SELECT work.id, s.id, c.title, work.title, work.brief, work.goal, work.module_key,
+           work.due_at, work.status, work.sample_image, work.project_id, work.submitted_at,
+           work.snapshot_revision, work.updated_at
+      FROM public.classroom_student_seats s
+      JOIN public.classrooms c ON c.id = s.classroom_id
+      CROSS JOIN LATERAL public.classroom_assignments_for_seat(s.id) work
+     WHERE s.account_id = p_account_id
+       AND s.status = 'active'
+       AND c.status = 'active'
+       AND (work.status='open' OR COALESCE(
+         public.learning_file_assignment_view(
+           (SELECT principal.id FROM public.principals principal
+             WHERE principal.account_id=p_account_id AND principal.kind='account'),
+           work.id
+         ) ? 'activityRunId',true)
+       );
+$function$;
