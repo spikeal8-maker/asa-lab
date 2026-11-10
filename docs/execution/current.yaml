@@ -17154,7 +17154,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: e0_preserved_e1_selected_pending_canonical_registration
+      checkpoint: e0_preserved_e1_qualification_ready
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       owner_authorization: "Owner on 2026-11-11 explicitly instructed: «Сделай всё это и подготовь», after
