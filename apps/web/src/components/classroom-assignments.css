@@ -543,7 +543,16 @@
   margin-block-end: 0.5rem;
 }
 
-.classroom-assignment-editor {
+.classroom-assignment-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgb(15 23 42 / 55%);
+}
+
+.course-editor-dialog.classroom-assignment-editor[data-screen='true'] {
   box-sizing: border-box;
   width: min(54rem, calc(100% - 1rem));
   max-width: none;
@@ -556,6 +565,6 @@
   color: inherit;
 }
 
-.classroom-assignment-editor::backdrop {
-  background: rgb(15 23 42 / 55%);
+.classroom-assignment-editor .assignment-document-topbar {
+  top: 0;
 }

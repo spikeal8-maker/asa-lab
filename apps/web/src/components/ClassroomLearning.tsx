@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { newClientId } from '../client-id';
 import { useLearningDestination } from '../learning/use-learning-destination';
@@ -7,6 +8,7 @@ import { AssignLearningActivityDialog } from './AssignLearningActivityDialog';
 import { ClassroomAssignments } from './ClassroomAssignments';
 import { ClassroomCourses } from './ClassroomCourses';
 import { ClassroomQuizzes } from './ClassroomQuizzes';
+import { CourseEditorDialog } from './CourseEditorDialog';
 
 export function ClassroomLearning({
   classroomId,
@@ -22,15 +24,24 @@ export function ClassroomLearning({
   const [notice, setNotice] = useState('');
   const [assignmentRefresh, setAssignmentRefresh] = useState(0);
   const issueButton = useRef<HTMLButtonElement>(null);
-  const editorDialog = useRef<HTMLDialogElement>(null);
   const editorLeaveGuard = useRef<(() => boolean) | null>(null);
   const request = useRef<{ versionId: string; id: string } | null>(null);
   const destination = useLearningDestination();
   useEffect(() => {
     if (destination.courseRun && !destination.assignment) setTab('courses');
   }, [destination.courseRun, destination.assignment]);
-  useEffect(() => {
-    if (flow === 'create') editorDialog.current?.showModal();
+  useLayoutEffect(() => {
+    if (flow !== 'create') return;
+    // The preview opens image overlays on body, alongside the editor.
+    const background = issueButton.current?.closest<HTMLElement>('#root');
+    const previousInert = background?.inert ?? false;
+    const previousOverflow = document.documentElement.style.overflow;
+    if (background) background.inert = true;
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      if (background) background.inert = previousInert;
+      document.documentElement.style.overflow = previousOverflow;
+    };
   }, [flow]);
 
   function closeFlow() {
@@ -133,25 +144,32 @@ export function ClassroomLearning({
           }
         />
       ) : null}
-      {flow === 'create' && !archived ? (
-        <dialog
-          ref={editorDialog}
-          className="classroom-assignment-editor"
-          aria-label="Новое задание класса"
-          onCancel={(event) => {
-            event.preventDefault();
-            if (editorLeaveGuard.current?.()) closeFlow();
-          }}
-        >
-          <AuthoredMaterialsPage
-            embedded
-            onRegisterLeaveGuard={(guard) => {
-              editorLeaveGuard.current = guard;
-            }}
-            classroomCreation={{ onClose: closeFlow, onPublished: issueNewAssignment }}
-          />
-        </dialog>
-      ) : null}
+      {flow === 'create' && !archived
+        ? createPortal(
+            <div className="classroom-assignment-editor-backdrop">
+              <CourseEditorDialog
+                open
+                screen
+                showHeader={false}
+                title="Новое задание класса"
+                closeLabel="Вернуться к классу"
+                className="classroom-assignment-editor"
+                onClose={() => {
+                  if (editorLeaveGuard.current?.()) closeFlow();
+                }}
+              >
+                <AuthoredMaterialsPage
+                  embedded
+                  onRegisterLeaveGuard={(guard) => {
+                    editorLeaveGuard.current = guard;
+                  }}
+                  classroomCreation={{ onClose: closeFlow, onPublished: issueNewAssignment }}
+                />
+              </CourseEditorDialog>
+            </div>,
+            document.body,
+          )
+        : null}
     </section>
   );
 }

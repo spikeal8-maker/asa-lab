@@ -377,6 +377,27 @@ test('learner starts the real project editor and submits one immutable attempt',
   await author.getByLabel('Среда задания', { exact: true }).selectOption('electronics');
   await author.getByRole('textbox', { name: 'Содержание' }).fill('Соберите цепь со светодиодом.');
   await author.screenshot({ path: `${evidenceDir}/teacher-create-in-class-mobile.png` });
+  const image = 'apps/web/public/assets/assignments/demo-robot.jpg';
+  await author.getByRole('button', { name: 'Добавить содержимое' }).click();
+  await author.getByLabel('Файл блока изображения', { exact: true }).setInputFiles(image);
+  await author.getByRole('button', { name: 'Добавить содержимое' }).click();
+  await author.getByLabel('Файл схемы или изображения', { exact: true }).setInputFiles(image);
+  await author.getByRole('button', { name: 'Сохранить черновик', exact: true }).click();
+  await author.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+  const preview = author.getByRole('dialog', { name: 'Как увидит ученик' });
+  await preview.getByRole('button', { name: 'Открыть крупно:' }).click();
+  await page
+    .getByRole('dialog', { name: 'Изображение задания:' })
+    .getByRole('button', { name: 'Закрыть', exact: true })
+    .click();
+  await preview.getByRole('button', { name: 'Закрепить изображение:' }).click();
+  await page.getByRole('button', { name: 'Закрыть окно: Материал', exact: true }).click();
+  await preview.getByRole('button', { name: 'Открыть образец:' }).click();
+  await page
+    .getByRole('dialog', { name: 'Образец:' })
+    .getByRole('button', { name: 'Закрыть', exact: true })
+    .click();
+  await preview.getByRole('button', { name: 'Закрыть предпросмотр' }).click();
   await author.getByRole('button', { name: 'Выдать всему классу', exact: true }).click();
   await expect(author).toBeHidden();
   await expect(page).toHaveURL(classroomUrl);

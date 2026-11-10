@@ -1332,8 +1332,14 @@ export function AuthoredMaterialsPage({
                   type="button"
                   className="assignment-document-back"
                   disabled={busy}
-                  aria-label={courseCreation ? 'Вернуться к уроку' : undefined}
-                  data-course-dialog-initial-focus={courseCreation ? '' : undefined}
+                  aria-label={
+                    courseCreation
+                      ? 'Вернуться к уроку'
+                      : classroomCreation
+                        ? 'Вернуться к классу'
+                        : undefined
+                  }
+                  data-course-dialog-initial-focus={inlineCreation ? '' : undefined}
                   onClick={returnToList}
                 >
                   {courseCreation ? '← К уроку' : classroomCreation ? '← К классу' : '← Задания'}
@@ -1478,7 +1484,11 @@ export function AuthoredMaterialsPage({
                       </option>
                     ))}
                   </select>
-                  <small>Сохранится в библиотеке; в урок попадёт опубликованная версия.</small>
+                  <small>
+                    {classroomCreation
+                      ? 'После выдачи задание появится у учеников и сохранится в библиотеке.'
+                      : 'Сохранится в библиотеке; в урок попадёт опубликованная версия.'}
+                  </small>
                 </label>
               ) : null}
               <label className="assignment-document-title-field">
