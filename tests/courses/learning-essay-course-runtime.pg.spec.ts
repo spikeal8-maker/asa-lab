@@ -36,7 +36,7 @@ afterAll(async () => {
 
 const taskPdf = Buffer.from('%PDF-1.4\nEssay exact instruction file\n%%EOF');
 const taskHash = createHash('sha256').update(taskPdf).digest('hex');
-async function fixture(withMedia = false, kind: 'essay' | 'file' = 'essay') {
+async function fixture(withMedia = false, kind: 'essay' | 'file' = 'essay', directOnly = false) {
   const client = await admin.connect();
   try {
     await client.query('BEGIN');
@@ -110,6 +110,11 @@ async function fixture(withMedia = false, kind: 'essay' | 'file' = 'essay') {
     );
     expect(published.rows[0].result_code).toBe('ok');
     const version = published.rows[0].activity_version_id as string;
+    const runs: Array<{ id: string; course: string; assignment: string; lesson: string }> = [];
+    if (directOnly) {
+      await client.query('COMMIT');
+      return { classroomId, courseId: null, version, runs, seat: seats[0]!, other: seats[1]! };
+    }
     const course = await client.query(
       "SELECT * FROM course_save_v2($1,$2,NULL,$3,NULL,NULL,'private',NULL,$4)",
       [teacherPrincipal, teacher.tenantId, 'Курс с письменным ответом', key('course')],
@@ -146,7 +151,6 @@ async function fixture(withMedia = false, kind: 'essay' | 'file' = 'essay') {
       key('course-publish'),
     ]);
     expect(release.rows[0].result_code).toBe('ok');
-    const runs: Array<{ id: string; course: string; assignment: string; lesson: string }> = [];
     for (let delivery = 0; delivery < 2; delivery++) {
       const assigned = await client.query(
         "SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,1,'whole_class','{}'::uuid[],$4)",
@@ -527,8 +531,62 @@ describe('written-response exact Course academic chain', () => {
   });
 });
 
+async function linkedFileAccount(
+  data: Awaited<ReturnType<typeof fixture>>,
+  participationId: string,
+) {
+  const linkedAccount = await admin.query(
+    "INSERT INTO accounts(email,password_hash,birth_date,country) VALUES($1,'test-only',DATE '2000-01-01','RU') RETURNING id",
+    [key('file-account') + '@test.local'],
+  );
+  const accountId = linkedAccount.rows[0].id as string;
+  const linkedPrincipal = await admin.query(
+    "INSERT INTO principals(kind,account_id) VALUES('account',$1) RETURNING id",
+    [accountId],
+  );
+  const accountActor = linkedPrincipal.rows[0].id as string;
+  await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
+    accountId,
+    data.seat.id,
+  ]);
+  await admin.query(
+    "INSERT INTO learner_identity_links(id,tenant_id,school_id,learner_identity_id,link_kind,account_id) SELECT gen_random_uuid(),tenant_id,school_id,learner_identity_id,'account',$1 FROM activity_participations WHERE id=$2",
+    [accountId, participationId],
+  );
+  return { accountId, accountActor };
+}
+
+async function directFileFixture() {
+  const data = await fixture(false, 'file', true);
+  const actor = data.seat.principal;
+  const direct = await app.query(
+    "SELECT * FROM learning_direct_assignment_create($1,$2,$3,$4,NULL,'whole_class','{}'::uuid[],$5)",
+    [teacherPrincipal, teacher.tenantId, data.classroomId, data.version, key('direct')],
+  );
+  expect(direct.rows[0].result_code).toBe('ok');
+  const directRun = direct.rows[0].activity_run_id as string;
+  const directAssignment = direct.rows[0].classroom_assignment_id as string;
+  const directStart = await command('learning_file_attempt_start', [
+    actor,
+    directRun,
+    key('direct-start'),
+  ]);
+  const directAttempt = directStart.attempt!.id;
+  const { accountId, accountActor } = await linkedFileAccount(data, directStart.participationId);
+  return {
+    data,
+    actor,
+    directRun,
+    directAssignment,
+    directStart,
+    directAttempt,
+    accountId,
+    accountActor,
+  };
+}
+
 describe('immutable file answers in classes and Courses', () => {
-  it('checks lineage, optimistic replacement, exact downloads, review and journal', async () => {
+  it('keeps Course file revisions, exact downloads and journal results', async () => {
     const data = await fixture(false, 'file');
     const run = data.runs[0]!;
     const actor = data.seat.principal;
@@ -559,153 +617,9 @@ describe('immutable file answers in classes and Courses', () => {
     expect(attempt).not.toBe(directStart.attempt?.id);
     const scope = (principal: string, id: string, revision: number, request: string) =>
       command('learning_file_upload_scope', [principal, run.id, id, revision, request]);
-    const linkedAccount = await admin.query(
-      "INSERT INTO accounts(email,password_hash,birth_date,country) VALUES($1,'test-only',DATE '2000-01-01','RU') RETURNING id",
-      [key('file-account') + '@test.local'],
-    );
-    const accountId = linkedAccount.rows[0].id as string;
-    const linkedPrincipal = await admin.query(
-      "INSERT INTO principals(kind,account_id) VALUES('account',$1) RETURNING id",
-      [accountId],
-    );
-    const accountActor = linkedPrincipal.rows[0].id as string;
-    await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
-      accountId,
-      data.seat.id,
-    ]);
-    await admin.query(
-      "INSERT INTO learner_identity_links(id,tenant_id,school_id,learner_identity_id,link_kind,account_id) SELECT gen_random_uuid(),tenant_id,school_id,learner_identity_id,'account',$1 FROM activity_participations WHERE id=$2",
-      [accountId, started.participationId],
-    );
+    const { accountId, accountActor } = await linkedFileAccount(data, started.participationId);
     expect((await command('learning_file_attempt_read', [accountActor, run.id])).attempt?.id).toBe(
       attempt,
-    );
-
-    const directRun = direct.rows[0].activity_run_id as string;
-    const directAssignment = direct.rows[0].classroom_assignment_id as string;
-    const directAttempt = directStart.attempt!.id;
-    const directFile = await command('learning_file_draft_save', [
-      actor,
-      directRun,
-      directAttempt,
-      0,
-      'Class.txt',
-      8,
-      'text/plain',
-      '3'.repeat(64),
-      key('direct-file'),
-    ]);
-    const submittedDirect = await command('learning_file_submission_create', [
-      actor,
-      directRun,
-      directAttempt,
-      1,
-      key('direct-submit'),
-    ]);
-    expect(submittedDirect.attempt?.state).toBe('submitted');
-    const directEvidence = async (viewer: string, source: 'seat' | 'account') => {
-      const rows = (
-        await app.query(
-          source === 'seat'
-            ? 'SELECT evidence FROM learning_canonical_evidence_for_seat($1)'
-            : 'SELECT evidence FROM learning_canonical_evidence_for_account($1)',
-          [viewer],
-        )
-      ).rows;
-      return rows.find((row) => row.evidence.activityRunId === directRun)?.evidence;
-    };
-    const expectDirect = async (state: string, reviewDecision: string | null) => {
-      for (const proof of [
-        await directEvidence(data.seat.id, 'seat'),
-        await directEvidence(accountId, 'account'),
-      ]) {
-        expect(proof).toMatchObject({
-          kind: 'file',
-          activityRunId: directRun,
-          attempt: { id: directAttempt, state, reviewDecision },
-        });
-      }
-    };
-    await expectDirect('submitted', null);
-    const reviewedDirect = await app.query(
-      "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'changes_requested',NULL,'Return','Needs revision',NULL,$5)",
-      [teacherAccount, teacherPrincipal, data.classroomId, directAttempt, key('return-direct')],
-    );
-    expect(reviewedDirect.rows[0].result_code).toBe('ok');
-    await expectDirect('closed', 'changes_requested');
-    const rework = await command('learning_file_attempt_start', [
-      actor,
-      directRun,
-      key('direct-rework'),
-    ]);
-    expect(rework.attempt?.revisionOfAttemptId).toBe(directAttempt);
-    const reworkDraft = await command('learning_file_draft_save', [
-      actor,
-      directRun,
-      rework.attempt!.id,
-      0,
-      'Draft.txt',
-      8,
-      'text/plain',
-      '4'.repeat(64),
-      key('new-file'),
-    ]);
-    const closed = await app.query(
-      "SELECT classroom_assignment_set_status($1,$2,$3,'closed') AS ok",
-      [teacherAccount, data.classroomId, directAssignment],
-    );
-    expect(closed.rows[0].ok).toBe(true);
-    await expectDirect('closed', 'changes_requested');
-    for (const principal of [actor, accountActor]) {
-      const exact = await command('learning_file_attempt_read', [principal, directRun]);
-      expect(exact).toMatchObject({
-        canEdit: false,
-        canStart: false,
-        attempt: { id: directAttempt },
-      });
-      const listing = await app.query('SELECT learning_file_assignment_view($1,$2) AS file', [
-        principal,
-        directAssignment,
-      ]);
-      expect(listing.rows[0].file).toMatchObject({
-        activityRunId: directRun,
-        submittedAt: expect.any(String),
-      });
-      const download = (id: string) =>
-        app.query('SELECT * FROM learning_file_download($1,$2,$3)', [principal, directRun, id]);
-      expect((await download(directFile.attempt!.file!.id)).rows).toHaveLength(1);
-      expect((await download(reworkDraft.attempt!.file!.id)).rows).toEqual([]);
-    }
-    const seatAssignments = (id: string) =>
-      app.query('SELECT * FROM classroom_assignments_for_seat($1) WHERE id=$2', [
-        id,
-        directAssignment,
-      ]);
-    const accountAssignments = () =>
-      app.query('SELECT * FROM classroom_assignments_for_account($1) WHERE id=$2', [
-        accountId,
-        directAssignment,
-      ]);
-    expect((await seatAssignments(data.seat.id)).rows[0]).toMatchObject({
-      status: 'closed',
-      project_id: null,
-    });
-    expect((await seatAssignments(data.other.id)).rows).toEqual([]);
-    expect((await accountAssignments()).rows[0]).toMatchObject({
-      status: 'closed',
-      project_id: null,
-    });
-    expect(
-      (await command('learning_file_attempt_read', [data.other.principal, directRun])).resultCode,
-    ).toBe('forbidden');
-    await admin.query(
-      "UPDATE learner_identity_links SET status='inactive',disabled_at=now() WHERE account_id=$1",
-      [accountId],
-    );
-    expect((await accountAssignments()).rows).toEqual([]);
-    await admin.query(
-      "UPDATE learner_identity_links SET status='active',disabled_at=NULL WHERE account_id=$1",
-      [accountId],
     );
 
     const firstRequest = key('file-upload');
@@ -805,7 +719,197 @@ describe('immutable file answers in classes and Courses', () => {
         file.id,
       ]),
     ).rejects.toThrow();
+  });
 
+  it('retains exact direct File history after closing with an unsubmitted rework draft', async () => {
+    const { data, actor, directRun, directAssignment, directAttempt, accountId, accountActor } =
+      await directFileFixture();
+    const directFile = await command('learning_file_draft_save', [
+      actor,
+      directRun,
+      directAttempt,
+      0,
+      'Class.txt',
+      8,
+      'text/plain',
+      '3'.repeat(64),
+      key('direct-file'),
+    ]);
+    const submittedDirect = await command('learning_file_submission_create', [
+      actor,
+      directRun,
+      directAttempt,
+      1,
+      key('direct-submit'),
+    ]);
+    expect(submittedDirect.attempt?.state).toBe('submitted');
+    const directEvidence = async (viewer: string, source: 'seat' | 'account') => {
+      const rows = (
+        await app.query(
+          source === 'seat'
+            ? 'SELECT evidence FROM learning_canonical_evidence_for_seat($1)'
+            : 'SELECT evidence FROM learning_canonical_evidence_for_account($1)',
+          [viewer],
+        )
+      ).rows;
+      return rows.find((row) => row.evidence.activityRunId === directRun)?.evidence;
+    };
+    const expectDirect = async (state: string, reviewDecision: string | null) => {
+      for (const proof of await Promise.all([
+        directEvidence(data.seat.id, 'seat'),
+        directEvidence(accountId, 'account'),
+      ])) {
+        expect(proof).toMatchObject({
+          kind: 'file',
+          activityRunId: directRun,
+          attempt: { id: directAttempt, state, reviewDecision },
+        });
+      }
+    };
+    await expectDirect('submitted', null);
+    const reviewedDirect = await app.query(
+      "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'changes_requested',NULL,'Return','Needs revision',NULL,$5)",
+      [teacherAccount, teacherPrincipal, data.classroomId, directAttempt, key('return-direct')],
+    );
+    expect(reviewedDirect.rows[0].result_code).toBe('ok');
+    await expectDirect('closed', 'changes_requested');
+    const rework = await command('learning_file_attempt_start', [
+      actor,
+      directRun,
+      key('direct-rework'),
+    ]);
+    expect(rework.attempt?.revisionOfAttemptId).toBe(directAttempt);
+    const reworkDraft = await command('learning_file_draft_save', [
+      actor,
+      directRun,
+      rework.attempt!.id,
+      0,
+      'Draft.txt',
+      8,
+      'text/plain',
+      '4'.repeat(64),
+      key('new-file'),
+    ]);
+    const closed = await app.query(
+      "SELECT classroom_assignment_set_status($1,$2,$3,'closed') AS ok",
+      [teacherAccount, data.classroomId, directAssignment],
+    );
+    expect(closed.rows[0].ok).toBe(true);
+    await expectDirect('closed', 'changes_requested');
+    for (const principal of [actor, accountActor]) {
+      const exact = await command('learning_file_attempt_read', [principal, directRun]);
+      expect(exact).toMatchObject({
+        canEdit: false,
+        canStart: false,
+        attempt: { id: directAttempt },
+      });
+      const listing = await app.query('SELECT learning_file_assignment_view($1,$2) AS file', [
+        principal,
+        directAssignment,
+      ]);
+      expect(listing.rows[0].file).toMatchObject({
+        activityRunId: directRun,
+        submittedAt: expect.any(String),
+      });
+      const download = (id: string) =>
+        app.query('SELECT * FROM learning_file_download($1,$2,$3)', [principal, directRun, id]);
+      expect((await download(directFile.attempt!.file!.id)).rows).toHaveLength(1);
+      expect((await download(reworkDraft.attempt!.file!.id)).rows).toEqual([]);
+    }
+    const seatAssignments = (id: string) =>
+      app.query('SELECT * FROM classroom_assignments_for_seat($1) WHERE id=$2', [
+        id,
+        directAssignment,
+      ]);
+    const accountAssignments = () =>
+      app.query('SELECT * FROM classroom_assignments_for_account($1) WHERE id=$2', [
+        accountId,
+        directAssignment,
+      ]);
+    expect((await seatAssignments(data.seat.id)).rows[0]).toMatchObject({
+      status: 'closed',
+      project_id: null,
+    });
+    expect((await seatAssignments(data.other.id)).rows).toEqual([]);
+    expect((await accountAssignments()).rows[0]).toMatchObject({
+      status: 'closed',
+      project_id: null,
+    });
+    expect(
+      (await command('learning_file_attempt_read', [data.other.principal, directRun])).resultCode,
+    ).toBe('forbidden');
+    await admin.query(
+      "UPDATE learner_identity_links SET status='inactive',disabled_at=now() WHERE account_id=$1",
+      [accountId],
+    );
+    expect((await accountAssignments()).rows).toEqual([]);
+    await admin.query(
+      "UPDATE learner_identity_links SET status='active',disabled_at=NULL WHERE account_id=$1",
+      [accountId],
+    );
+  });
+
+  it('retains submitted direct File evidence after replacement of the learner Seat', async () => {
+    const {
+      data,
+      actor,
+      directRun,
+      directAssignment,
+      directStart,
+      directAttempt,
+      accountId,
+      accountActor,
+    } = await directFileFixture();
+    const directFile = await command('learning_file_draft_save', [
+      actor,
+      directRun,
+      directAttempt,
+      0,
+      'Class.txt',
+      8,
+      'text/plain',
+      '3'.repeat(64),
+      key('replacement-file'),
+    ]);
+    await command('learning_file_submission_create', [
+      actor,
+      directRun,
+      directAttempt,
+      1,
+      key('replacement-submit'),
+    ]);
+    const returned = await app.query(
+      "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'changes_requested',NULL,'Return','Needs revision',NULL,$5)",
+      [
+        teacherAccount,
+        teacherPrincipal,
+        data.classroomId,
+        directAttempt,
+        key('replacement-review'),
+      ],
+    );
+    expect(returned.rows[0].result_code).toBe('ok');
+    await app.query("SELECT classroom_assignment_set_status($1,$2,$3,'closed')", [
+      teacherAccount,
+      data.classroomId,
+      directAssignment,
+    ]);
+    const directEvidence = async (viewer: string, source: 'seat' | 'account') => {
+      const rows = (
+        await app.query(
+          source === 'seat'
+            ? 'SELECT evidence FROM learning_canonical_evidence_for_seat($1)'
+            : 'SELECT evidence FROM learning_canonical_evidence_for_account($1)',
+          [viewer],
+        )
+      ).rows;
+      return rows.find((row) => row.evidence.activityRunId === directRun)?.evidence;
+    };
+    const seatAssignments = (id: string) =>
+      app.query('SELECT * FROM classroom_assignments_for_seat($1) WHERE id=$2', [
+        id,
+        directAssignment,
+      ]);
     await admin.query("UPDATE accounts SET status='active' WHERE id=$1", [accountId]);
     // Move the account while the old Seat still holds the class membership.
     await admin.query('UPDATE classroom_student_seats SET account_id=NULL WHERE id=$1', [
@@ -836,10 +940,10 @@ describe('immutable file answers in classes and Courses', () => {
         ])
       ).rows[0].learner_identity_id,
     );
-    for (const proof of [
-      await directEvidence(replacementSeat, 'seat'),
-      await directEvidence(accountId, 'account'),
-    ]) {
+    for (const proof of await Promise.all([
+      directEvidence(replacementSeat, 'seat'),
+      directEvidence(accountId, 'account'),
+    ])) {
       expect(proof).toMatchObject({
         seatId: replacementSeat,
         attempt: { id: directAttempt, state: 'closed', reviewDecision: 'changes_requested' },
