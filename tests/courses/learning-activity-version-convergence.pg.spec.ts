@@ -1124,7 +1124,7 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     ).toEqual(visibleBlocksV1);
   });
 
-  it('pins exact QuizVersion content while LAV owns future policy defaults', async () => {
+  it('pins exact QuizVersion content while independent LAV policies and published snapshots remain frozen', async () => {
     const question = await admin.query(
       `SELECT * FROM question_version_create(
          $1,$2,'school','boolean','[{"type":"paragraph","text":"Ready?"}]'::jsonb,
@@ -1142,9 +1142,17 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
          FROM quiz_versions WHERE id=$1`,
       [quiz.rows[0].quiz_version_id],
     );
+    const quizPolicies = {
+      ...basePolicies,
+      attemptPolicy: { maxAttempts: 4, timeLimitMinutes: 25 },
+      resultSelectionPolicy: { mode: 'best' },
+      assessmentPolicy: { mode: 'automatic', passThresholdBasisPoints: 6000 },
+      feedbackReleasePolicy: { mode: 'score_only' },
+    };
     const created = await createActivity({
       kind: 'quiz',
       title: 'Canonical quiz wrapper',
+      policies: quizPolicies,
       resultMode: 'graded',
       maxPoints: 999,
       quizVersionId: quiz.rows[0].quiz_version_id,
@@ -1160,11 +1168,7 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
       result_mode: 'graded',
       max_points: 3,
       quiz_version_id: quiz.rows[0].quiz_version_id,
-      policy_snapshot: {
-        attemptPolicy: { maxAttempts: 2, timeLimitMinutes: 15 },
-        assessmentPolicy: { mode: 'automatic', passThresholdBasisPoints: 7500 },
-        feedbackReleasePolicy: { mode: 'after_close' },
-      },
+      policy_snapshot: quizPolicies,
     });
     const after = await admin.query(
       `SELECT attempt_limit,time_limit_minutes,pass_threshold_basis_points,
@@ -1173,6 +1177,91 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
       [quiz.rows[0].quiz_version_id],
     );
     expect(after.rows).toEqual(before.rows);
+
+    const frozen = (
+      await admin.query(
+        'SELECT to_jsonb(version) AS snapshot FROM learning_activity_versions version WHERE id=$1',
+        [published.activity_version_id],
+      )
+    ).rows[0].snapshot;
+    const otherPolicies = {
+      ...quizPolicies,
+      attemptPolicy: { maxAttempts: 2, timeLimitMinutes: null },
+      resultSelectionPolicy: { mode: 'first' },
+      assessmentPolicy: { mode: 'automatic', passThresholdBasisPoints: 9000 },
+      feedbackReleasePolicy: { mode: 'immediate' },
+    };
+    const other = await createActivity({
+      kind: 'quiz',
+      title: 'Same questions, other policy',
+      resultMode: 'graded',
+      maxPoints: 3,
+      quizVersionId: quiz.rows[0].quiz_version_id,
+      policies: otherPolicies,
+    });
+    expect(other.result_code).toBe('ok');
+    const otherVersion = await publish(other.activity_id!, 1, 'quiz:other:publish:0001');
+    expect(otherVersion.result_code).toBe('ok');
+    expect(
+      (
+        await admin.query(
+          'SELECT quiz_version_id,policy_snapshot FROM learning_activity_versions WHERE id=$1',
+          [otherVersion.activity_version_id],
+        )
+      ).rows[0],
+    ).toEqual({
+      quiz_version_id: quiz.rows[0].quiz_version_id,
+      policy_snapshot: otherPolicies,
+    });
+    const edited = (
+      await admin.query(
+        `SELECT * FROM learning_activity_draft_put($1,$2,$3,1,'Changed rules','Same questions',
+        'graded',3,$4::jsonb,NULL,$5,NULL)`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          created.activity_id,
+          JSON.stringify(otherPolicies),
+          quiz.rows[0].quiz_version_id,
+        ],
+      )
+    ).rows[0];
+    expect(edited).toMatchObject({ result_code: 'ok', draft_revision: 2 });
+    const v2 = await publish(created.activity_id!, 2, 'quiz:changed:publish:0001');
+    expect(v2.result_code).toBe('ok');
+    expect(v2.activity_version_id).not.toBe(published.activity_version_id);
+    expect(
+      (
+        await admin.query('SELECT policy_snapshot FROM learning_activity_versions WHERE id=$1', [
+          v2.activity_version_id,
+        ])
+      ).rows[0].policy_snapshot,
+    ).toEqual(otherPolicies);
+    expect(
+      (
+        await admin.query('SELECT * FROM learning_activity_draft_from_version($1,$2,$3,$4,2)', [
+          ownerPrincipalId,
+          owner.tenantId,
+          created.activity_id,
+          published.activity_version_id,
+        ])
+      ).rows[0],
+    ).toMatchObject({ result_code: 'ok', draft_revision: 3 });
+    expect(
+      (
+        await admin.query('SELECT draft_payload FROM learning_activities WHERE id=$1', [
+          created.activity_id,
+        ])
+      ).rows[0].draft_payload.policies,
+    ).toEqual(quizPolicies);
+    expect(
+      (
+        await admin.query(
+          'SELECT to_jsonb(version) AS snapshot FROM learning_activity_versions version WHERE id=$1',
+          [published.activity_version_id],
+        )
+      ).rows[0].snapshot,
+    ).toEqual(frozen);
 
     const quizAssignment = await admin.query(
       `SELECT * FROM classroom_quiz_assign($1,$2,$3,$4,NULL)`,
@@ -1230,6 +1319,7 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     const independentlyProvenanced = await createActivity({
       kind: 'quiz',
       title: 'Independent exact QuizVersion lineage',
+      policies: quizPolicies,
       resultMode: 'graded',
       maxPoints: 3,
       quizVersionId: quiz.rows[0].quiz_version_id,
@@ -1243,6 +1333,169 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     expect(canonicalFromQuiz.activity_version_id).not.toBe(
       quiz.rows[0].learning_activity_version_id,
     );
+  });
+
+  it('preserves null policy semantics, defaults only the graded Quiz selector and rejects invalid explicit settings', async () => {
+    const question = (
+      await admin.query(
+        `SELECT * FROM question_version_create($1,$2,'school','boolean',
+        '[{"type":"paragraph","text":"Policy isolation?"}]'::jsonb,'{}'::jsonb,
+        '{"value":true}'::jsonb,3,'Science','10-12',ARRAY['policy'])`,
+        [ownerPrincipalId, owner.tenantId],
+      )
+    ).rows[0];
+    const quiz = (
+      await admin.query(
+        `SELECT * FROM quiz_version_create($1,$2,'Policy content','Exact content',$3::jsonb,2,15,7500,'after_close')`,
+        [ownerPrincipalId, owner.tenantId, JSON.stringify([question.question_version_id])],
+      )
+    ).rows[0];
+    const nullPolicies = Object.fromEntries(Object.keys(basePolicies).map((key) => [key, null]));
+    const created = await createActivity({
+      kind: 'quiz',
+      title: 'Explicitly absent policies',
+      resultMode: 'graded',
+      maxPoints: 3,
+      quizVersionId: quiz.quiz_version_id,
+      policies: nullPolicies,
+    });
+    expect(created.result_code).toBe('ok');
+    const version = await publish(created.activity_id!, 1, 'quiz:null:publish:0001');
+    expect(version.result_code).toBe('ok');
+    expect(
+      (
+        await admin.query('SELECT policy_snapshot FROM learning_activity_versions WHERE id=$1', [
+          version.activity_version_id,
+        ])
+      ).rows[0].policy_snapshot,
+    ).toEqual({ ...nullPolicies, resultSelectionPolicy: { mode: 'best' } });
+    const completion = await createActivity({
+      kind: 'quiz',
+      title: 'Completion without numeric policy',
+      resultMode: 'completion',
+      quizVersionId: quiz.quiz_version_id,
+      policies: nullPolicies,
+    });
+    expect(completion.result_code).toBe('ok');
+    expect(
+      (
+        await admin.query('SELECT draft_payload FROM learning_activities WHERE id=$1', [
+          completion.activity_id,
+        ])
+      ).rows[0].draft_payload.policies,
+    ).toEqual(nullPolicies);
+    const { attemptPolicy: omitted, ...missing } = nullPolicies;
+    void omitted;
+    const invalid = [
+      missing,
+      { ...nullPolicies, attemptPolicy: { maxAttempts: 0 } },
+      { ...nullPolicies, attemptPolicy: { maxAttempts: '2' } },
+      { ...nullPolicies, attemptPolicy: { maxAttempts: 2147483648 } },
+      { ...nullPolicies, attemptPolicy: { maxAttempts: 1.5 } },
+      { ...nullPolicies, attemptPolicy: { maxAttempts: 1e50 } },
+      { ...nullPolicies, attemptPolicy: { timeLimitMinutes: -1 } },
+      { ...nullPolicies, attemptPolicy: { timeLimitMinutes: true } },
+      { ...nullPolicies, attemptPolicy: { timeLimitSeconds: 0 } },
+      { ...nullPolicies, assessmentPolicy: { passThresholdBasisPoints: 10001 } },
+      { ...nullPolicies, assessmentPolicy: { passThresholdBasisPoints: '6000' } },
+      { ...nullPolicies, feedbackReleasePolicy: { mode: 'reveal_everything' } },
+      { ...nullPolicies, resultSelectionPolicy: { mode: 'random' } },
+      { ...nullPolicies, latePolicy: { mode: 'silently_accept' } },
+    ];
+    for (const policies of invalid)
+      expect(
+        (
+          await createActivity({
+            kind: 'quiz',
+            title: 'Invalid explicit Quiz policy',
+            resultMode: 'graded',
+            maxPoints: 3,
+            quizVersionId: quiz.quiz_version_id,
+            policies,
+          })
+        ).result_code,
+      ).toBe('invalid_draft');
+    const validOptional = {
+      ...nullPolicies,
+      attemptPolicy: { maxAttempts: 1, timeLimitMinutes: null },
+      assessmentPolicy: { mode: 'automatic', passThresholdBasisPoints: 0 },
+      feedbackReleasePolicy: { mode: 'after_close' },
+      resultSelectionPolicy: { mode: 'teacher_selected' },
+    };
+    expect(
+      (
+        await createActivity({
+          kind: 'quiz',
+          title: 'Zero threshold is explicit',
+          resultMode: 'graded',
+          maxPoints: 3,
+          quizVersionId: quiz.quiz_version_id,
+          policies: validOptional,
+        })
+      ).result_code,
+    ).toBe('ok');
+    const rowsBeforeDenials = (
+      await admin.query(
+        'SELECT count(*)::integer AS count FROM learning_activities WHERE tenant_id=ANY($1::uuid[])',
+        [[owner.tenantId, outsider.tenantId]],
+      )
+    ).rows[0].count;
+    const deniedCases = [
+      // Membership alone does not grant the peer content-author capability.
+      {
+        actor: peerPrincipalId,
+        tenant: owner.tenantId,
+        mayAuthor: false,
+        expected: 'tenant_forbidden',
+      },
+      {
+        actor: outsiderPrincipalId,
+        tenant: owner.tenantId,
+        mayAuthor: false,
+        expected: 'tenant_forbidden',
+      },
+      // This actor IS an author in its own tenant; the exact QuizVersion belongs
+      // to the owner tenant and must reach the distinct content-ownership check.
+      {
+        actor: outsiderPrincipalId,
+        tenant: outsider.tenantId,
+        mayAuthor: true,
+        expected: 'quiz_version_forbidden',
+      },
+    ];
+    for (const [index, { actor, tenant, mayAuthor, expected }] of deniedCases.entries()) {
+      expect(
+        (
+          await admin.query('SELECT learning_author_can_use_tenant($1,$2) AS allowed', [
+            actor,
+            tenant,
+          ])
+        ).rows[0].allowed,
+      ).toBe(mayAuthor);
+      expect(
+        (
+          await admin.query(
+            `SELECT * FROM learning_activity_create($1,$2,'school','private','quiz','No foreign content',NULL,
+          'graded',3,$3::jsonb,NULL,$4,NULL,NULL,$5)`,
+            [
+              actor,
+              tenant,
+              JSON.stringify(validOptional),
+              quiz.quiz_version_id,
+              'quiz:policy:denied:' + index,
+            ],
+          )
+        ).rows[0],
+      ).toEqual({ result_code: expected, activity_id: null, draft_revision: null });
+    }
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::integer AS count FROM learning_activities WHERE tenant_id=ANY($1::uuid[])',
+          [[owner.tenantId, outsider.tenantId]],
+        )
+      ).rows[0].count,
+    ).toBe(rowsBeforeDenials);
   });
 
   it('enforces result modes, five-kind domain support, immutability and compatibility isolation', async () => {

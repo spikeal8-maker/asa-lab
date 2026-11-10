@@ -190,6 +190,8 @@ type DraftInput = {
   policies: Record<string, unknown>;
   moduleKey: string | null;
   quizVersionId: string | null;
+  quizDraftId: string | null;
+  quizDraftRevision: number | null;
   starterProjectVersionId: string | null;
 };
 
@@ -245,6 +247,8 @@ export class LearningActivitiesController {
       'policies',
       'moduleKey',
       'quizVersionId',
+      'quizDraftId',
+      'quizDraftRevision',
       'starterProjectVersionId',
       ...(includeKind ? ['scope', 'visibility', 'sourceTeacherAssignmentId'] : []),
       ...(includeKind ? ['requestId'] : []),
@@ -262,6 +266,8 @@ export class LearningActivitiesController {
     const policies = shape.body['policies'];
     const moduleKey = shape.body['moduleKey'] ?? null;
     const quizVersionId = shape.body['quizVersionId'] ?? null;
+    const quizDraftId = shape.body['quizDraftId'] ?? null;
+    const quizDraftRevision = shape.body['quizDraftRevision'] ?? null;
     const starterProjectVersionId = shape.body['starterProjectVersionId'] ?? null;
     if (
       (includeKind && (typeof kind !== 'string' || !KINDS.has(kind))) ||
@@ -282,7 +288,12 @@ export class LearningActivitiesController {
       !RESULT_MODES.has(resultMode) ||
       (maxPoints !== null &&
         (typeof maxPoints !== 'number' || !Number.isInteger(maxPoints) || maxPoints <= 0)) ||
-      (resultMode === 'graded' && maxPoints === null) ||
+      (quizDraftId !== null &&
+        (typeof quizDraftId !== 'string' ||
+          !UUID_PATTERN.test(quizDraftId) ||
+          !Number.isSafeInteger(quizDraftRevision) ||
+          Number(quizDraftRevision) < 1)) ||
+      (resultMode === 'graded' && maxPoints === null && quizDraftId === null) ||
       (resultMode !== 'graded' && maxPoints !== null) ||
       !policies ||
       typeof policies !== 'object' ||
@@ -318,6 +329,8 @@ export class LearningActivitiesController {
       policies: policies as Record<string, unknown>,
       moduleKey,
       quizVersionId,
+      quizDraftId: quizDraftId as string | null,
+      quizDraftRevision: quizDraftRevision as number | null,
       starterProjectVersionId,
     };
   }
@@ -444,8 +457,8 @@ export class LearningActivitiesController {
       throw new HttpException(error('validation_error', 'Проверьте владельца активности.'), 400);
     }
     const createSql = `SELECT result_code, activity_id, draft_revision
-         FROM learning_activity_create(
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb
+         FROM ${draft.quizDraftId ? 'learning_activity_quiz_create' : 'learning_activity_create'}(
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb${draft.quizDraftId ? ',$18,$19' : ''}
          )`;
     const createParams = [
       context.principalId,
@@ -465,6 +478,7 @@ export class LearningActivitiesController {
       requestId,
       draft.goal === undefined ? null : JSON.stringify(draft.goal),
       draft.blocks === undefined ? null : JSON.stringify(draft.blocks),
+      ...(draft.quizDraftId ? [draft.quizDraftId, draft.quizDraftRevision] : []),
     ];
     const pool = this.requirePool();
     const result =
@@ -927,7 +941,8 @@ export class LearningActivitiesController {
     const pool = this.requirePool();
     const result = await pool.query(
       `SELECT result_code,activity_id,source_kind,source_id,draft_revision,version_number,
-              title,instructions,module_key,result_mode,max_points,policy_snapshot,content_digest,goal
+              title,instructions,module_key,result_mode,max_points,policy_snapshot,content_digest,goal,
+              (SELECT kind FROM learning_activity_get($1,$2,$3)) AS activity_kind
          FROM learning_activity_preview_with_goal_as_author($1,$2,$3,$4,$5,$6)`,
       [context.principalId, context.tenantId, activityId, source, versionId, draftRevision],
     );
@@ -999,6 +1014,7 @@ export class LearningActivitiesController {
     }
 
     return {
+      ...(typeof row['activity_kind'] === 'string' ? { kind: row['activity_kind'] } : {}),
       source: {
         kind: String(row['source_kind']) as 'draft' | 'published',
         id: row['source_id'] ? String(row['source_id']) : null,
@@ -1064,8 +1080,8 @@ export class LearningActivitiesController {
     }
     const result = await this.requirePool().query(
       `SELECT result_code, draft_revision
-         FROM learning_activity_draft_put(
-           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13::jsonb,$14::jsonb
+         FROM ${draft.quizDraftId ? 'learning_activity_quiz_draft_put' : 'learning_activity_draft_put'}(
+           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13::jsonb,$14::jsonb${draft.quizDraftId ? ',$15,$16' : ''}
          )`,
       [
         context.principalId,
@@ -1082,6 +1098,7 @@ export class LearningActivitiesController {
         draft.starterProjectVersionId,
         draft.goal === undefined ? null : JSON.stringify(draft.goal),
         draft.blocks === undefined ? null : JSON.stringify(draft.blocks),
+        ...(draft.quizDraftId ? [draft.quizDraftId, draft.quizDraftRevision] : []),
       ],
     );
     const row = result.rows[0];

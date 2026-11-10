@@ -7913,6 +7913,7 @@ test.describe('owner D3-D6 acceptance', () => {
       .locator('input, select, button')
       .evaluateAll((controls) =>
         controls.some((control) => {
+          if (control.getClientRects().length === 0) return false;
           const box = control.getBoundingClientRect();
           const panel = control.closest('.workbench-inspector')?.getBoundingClientRect();
           return Boolean(panel && (box.left < panel.left - 1 || box.right > panel.right + 1));
@@ -8344,7 +8345,44 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
             initialViewBox!,
           );
           expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
-          await page.getByRole('button', { name: 'Увеличить масштаб', exact: true }).click();
+          const zoomIn = page.getByRole('button', {
+            name: 'Увеличить масштаб',
+            exact: true,
+            includeHidden: true,
+          });
+          const scale = () =>
+            page
+              .locator('.workbench-canvas')
+              .evaluate((canvas) => (canvas as SVGSVGElement).getScreenCTM()!.a);
+          const scaleBefore = await scale();
+          const zoomFactor = 1.18;
+          if (width <= 390) {
+            await expect(zoomIn).toBeHidden();
+            const centerX = stage.x + stage.width / 2;
+            const centerY = stage.y + stage.height / 2;
+            const halfSpan = 40;
+            const touchPoints = (span: number) => [
+              { id: 1, x: centerX - span, y: centerY },
+              { id: 2, x: centerX + span, y: centerY },
+            ];
+            const cdp = await page.context().newCDPSession(page);
+            try {
+              await cdp.send('Input.dispatchTouchEvent', {
+                type: 'touchStart',
+                touchPoints: touchPoints(halfSpan),
+              });
+              await cdp.send('Input.dispatchTouchEvent', {
+                type: 'touchMove',
+                touchPoints: touchPoints(halfSpan * zoomFactor),
+              });
+              await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            } finally {
+              await cdp.detach();
+            }
+          } else {
+            await zoomIn.click();
+          }
+          await expect.poll(async () => (await scale()) / scaleBefore).toBeCloseTo(zoomFactor, 2);
           // The resistor legitimately has a native painted path. Keep Shift/
           // right-button controls on it, separate from the owner-image probe.
           const point = await part(page, 'field-resistor')

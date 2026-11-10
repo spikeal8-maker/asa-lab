@@ -87,8 +87,12 @@ const expectedPending = [
   '0306', // Robotics in the existing immutable publication catalog.
   '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
   '0308', // Independent eight-tool controls, preserving legacy snapshots.
-  '0309', // OpenAI Responses catalog admission.
-  '0310', // Polza video catalog category.
+  '0309', // Written Course responses reuse the canonical academic chain.
+  '0310', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+  '0311', // Exact Quiz Start and answer state; historical rows remain unchanged.
+  '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
+  '0313', // OpenAI Responses catalog admission.
+  '0314', // Polza video catalog category.
 ];
 
 interface Identity {

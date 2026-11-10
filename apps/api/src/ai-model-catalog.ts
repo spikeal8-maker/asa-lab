@@ -27,7 +27,7 @@ const OPENAI_CHAT_MODELS = [
  * https://developers.openai.com/api/docs/changelog (2025-08-07: minimal effort)
  * https://api-docs.deepseek.com/quick_start/pricing/
  * https://api-docs.deepseek.com/guides/thinking_mode/
- * Migration 0309 mirrors the closed SQL boundary; a regression checks parity.
+ * Migration 0313 mirrors the closed SQL boundary; a regression checks parity.
  * Ollama Cloud names verified 2026-10-25 at https://ollama.com/api/tags.
  * https://docs.ollama.com/api/openai-compatibility; migration 0252 extends the same guards.
  */
