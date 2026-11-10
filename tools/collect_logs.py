@@ -1218,6 +1218,25 @@ class Collector:
                 if child.poll() is None: child.kill(); child.wait(timeout=3)
                 child.stdout.close()
 
+    def add_journal_row(self, row, until):
+        if not isinstance(row, dict): raise ValueError('Invalid journal row')
+        identity = row.get('__CURSOR')
+        micros = row.get('__REALTIME_TIMESTAMP')
+        if not isinstance(identity, str) or len(identity) > 4096 or not str(micros).isdecimal():
+            raise ValueError('Invalid journal identity; cursor retained')
+        stamp = datetime.fromtimestamp(int(micros) / 1000000, UTC).isoformat()
+        raw = row.get('MESSAGE', '')
+        if not isinstance(raw, str): raw = '[non-text journal message]'
+        unit = row.get('_SYSTEMD_UNIT', '')
+        if not isinstance(unit, str) or not re.fullmatch(r'[A-Za-z0-9@_.:-]{1,200}', unit): unit = None
+        kernel_oom = row.get('_TRANSPORT') == 'kernel' and bool(re.search(r'out of memory|oom.kill|killed process', raw, re.I))
+        kind = 'kernel_oom' if kernel_oom else 'system_service_failure' if unit and re.search(r'failed|failure', raw, re.I) else 'system_journal'
+        priority = int(row.get('PRIORITY', 4))
+        payload = dict(kind=kind, module='system', level='error' if priority <= 3 else 'warn', message=raw[:16384], unit=unit)
+        origin = unit or ('kernel' if row.get('_TRANSPORT') == 'kernel' else 'system')
+        self.add(normalize('linux:journal', json.dumps(payload), timestamp(stamp, until), identity, origin))
+        return identity, stamp
+
     def linux(self):
         if not sys.platform.startswith('linux'):
             self.status('linux:journal', 'unavailable', 'Linux journal is not available on this host')
@@ -1239,25 +1258,21 @@ class Collector:
                 self.set_state('linux:journal:gap', True)
                 rows, limited = self.journal_batch(args + ['--since', start])
             for row in rows:
-                identity = row.get('__CURSOR')
-                micros = row.get('__REALTIME_TIMESTAMP')
-                if not isinstance(identity, str) or len(identity) > 4096 or not str(micros).isdecimal():
-                    raise ValueError('Invalid journal identity; cursor retained')
-                stamp = datetime.fromtimestamp(int(micros) / 1000000, UTC).isoformat()
-                raw = row.get('MESSAGE', '')
-                if not isinstance(raw, str): raw = '[non-text journal message]'
-                unit = row.get('_SYSTEMD_UNIT', '')
-                if not isinstance(unit, str) or not re.fullmatch(r'[A-Za-z0-9@_.:-]{1,200}', unit): unit = None
-                kernel_oom = row.get('_TRANSPORT') == 'kernel' and bool(re.search(r'out of memory|oom.kill|killed process', raw, re.I))
-                kind = 'kernel_oom' if kernel_oom else 'system_service_failure' if unit and re.search(r'failed|failure', raw, re.I) else 'system_journal'
-                priority = int(row.get('PRIORITY', 4))
-                payload = dict(kind=kind, module='system', level='error' if priority <= 3 else 'warn', message=raw[:16384], unit=unit)
-                origin = unit or ('kernel' if row.get('_TRANSPORT') == 'kernel' else 'system')
-                self.add(normalize('linux:journal', json.dumps(payload), timestamp(stamp, until), identity, origin))
+                identity, stamp = self.add_journal_row(row, until)
                 self.set_state('linux:journal:cursor', identity)
                 self.set_state('linux:journal:through', stamp)
             if not limited: self.set_state('linux:journal:through', until)
-            detail = 'Warning/error system journal, bounded to 500 records/2 MiB per cycle'
+            detail = 'Warning/error system journal, bounded to 500 records/2 MiB per batch'
+            if limited:
+                # Sample the head without advancing the chronological cursor or claiming coverage.
+                recent_start = (datetime.fromisoformat(until) - timedelta(minutes=5)).isoformat()
+                try:
+                    recent, recent_limited = self.journal_batch(args + ['--reverse', '--since', recent_start])
+                    for row in recent:
+                        self.add_journal_row(row, until)
+                    detail += '; recent sample bounded by batch limit' if recent_limited else '; recent sample checked'
+                except (OSError, RuntimeError, TypeError, ValueError, OverflowError, subprocess.TimeoutExpired):
+                    detail += '; recent sample failed while history is pending'
             if self.state('linux:journal:gap'): detail += '; journal cursor was lost/vacuumed: historical coverage has a gap'
             self.status('linux:journal', 'pending' if limited else 'ok', detail, self.state('linux:journal:through', start))
         except (PermissionError, FileNotFoundError) as exc:

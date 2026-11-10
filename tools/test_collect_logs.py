@@ -648,6 +648,47 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(source['state'], 'unavailable'); self.assertEqual(c.state('linux:journal:cursor'), cursor)
             self.assertTrue(Collector.host_segment({'sources': ['linux:journal', 'docker-lifecycle']})); c.db.close()
 
+    def test_journal_samples_recent_warnings_without_skipping_backlog(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = Collector(Path(directory), {})
+            at = datetime.now(timezone.utc) - timedelta(seconds=10)
+            recent = {'__CURSOR': 'recent', '__REALTIME_TIMESTAMP': str(int(at.timestamp()*1000000)),
+                      'PRIORITY': '4', 'MESSAGE': 'Recent warning'}
+            older = {**recent, '__CURSOR': 'older', 'MESSAGE': 'Older warning',
+                     '__REALTIME_TIMESTAMP': str(int((at-timedelta(hours=2)).timestamp()*1000000))}
+            with patch('collect_logs.sys.platform', 'linux'), patch('collect_logs.shutil.which', return_value='/usr/bin/journalctl'), patch.object(c, 'journal_batch', side_effect=[([older], True), ([recent], True), ([recent], False)]) as journal:
+                c.linux()
+                source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='linux:journal'").fetchone()[0])
+                self.assertEqual(source['state'], 'pending')
+                self.assertEqual(source['collectedThrough'], (at-timedelta(hours=2)).isoformat())
+                self.assertEqual(c.state('linux:journal:cursor'), 'older')
+                self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 2)
+                self.assertIn('--reverse', journal.call_args_list[1].args[0])
+                c.set_state('linux:journal:last', 0)
+                c.linux()
+                self.assertEqual(journal.call_count, 3)
+                self.assertEqual(journal.call_args.args[0][-2:], ['--after-cursor', 'older'])
+            source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='linux:journal'").fetchone()[0])
+            self.assertEqual(source['state'], 'ok')
+            self.assertEqual(c.state('linux:journal:cursor'), 'recent')
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 2)
+            c.db.close()
+
+    def test_journal_recent_sample_failure_preserves_history_progress(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = Collector(Path(directory), {})
+            row = {'__CURSOR': 'history', '__REALTIME_TIMESTAMP': str(int(time.time()*1000000)),
+                   'PRIORITY': '4', 'MESSAGE': 'History warning'}
+            with patch('collect_logs.sys.platform', 'linux'), patch('collect_logs.shutil.which', return_value='/usr/bin/journalctl'), patch.object(c, 'journal_batch', side_effect=[([row], True), RuntimeError('private-source-details')]):
+                c.linux()
+            source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='linux:journal'").fetchone()[0])
+            self.assertEqual(source['state'], 'pending')
+            self.assertIn('recent sample failed', source['detail'])
+            self.assertNotIn('private-source-details', source['detail'])
+            self.assertEqual(c.state('linux:journal:cursor'), 'history')
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
+            c.db.close()
+
     def test_docker_lifecycle_is_root_scoped_deduplicated_and_excludes_labels(self):
         with tempfile.TemporaryDirectory() as directory:
             c = Collector(Path(directory), {'project': 'asa-owned'}); c.postgres = 'fixture'
