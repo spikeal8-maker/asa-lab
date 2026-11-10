@@ -253,8 +253,6 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
     require(not require_application_rollback or not (fresh or scheduled),
             'ROLLBACK_ARGUMENT', 'Application return preparation belongs only to a manual existing P0 update.')
     offsite_policy = 'updatePolicy' in install.settings and not fresh
-    require(not offsite_policy or require_application_rollback, 'OFFSITE_POLICY',
-            'Для этой установки используйте штатные команды asa check и asa update с проверкой возврата.')
     application_rollback.guard_update(install)
     if scheduled:
         require(install.settings.get("automaticUpdates") is True, "SCHEDULE_DISABLED", "Automatic updates are disabled.")
@@ -334,7 +332,7 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
         if os.name != 'nt' and not install.env.get('ASA_LOG_READER_GID'):
             print('COLLECTOR_PLAN diagnostic reader group must be prepared during an authorized update')
         if operator:
-            print('Обновление доступно. Проверка выпуска и возврата пройдена. Для установки выполните asa update.')
+            print('Обновление доступно. Выполните asa update. Менеджер проверит план миграций и сделает резервную копию.')
         return
     preparation = {'readerGroupChanged': False}
     if same_release:
@@ -445,8 +443,7 @@ def run_operator(install, action, deployment_digest):
         digest = release_transport.published_deployment_digest()
     for attempt in range(2):
         try:
-            return update(install, check=action == 'check', deployment_digest=digest,
-                          require_application_rollback=True, operator=True)
+            return update(install, check=action == 'check', deployment_digest=digest, operator=True)
         except Blocked as error:
             if action != 'update' or attempt or error.code != 'RETRY_NEW_MANAGER':
                 raise
@@ -462,11 +459,7 @@ def operator_failure(code):
     if code == 'OFFSITE_BACKUP':
         return 'Сначала проверьте облачные копии. Для обновления нужна полная копия текущего выпуска за последние 36 часов.'
     if code in ('ROLLBACK_PENDING', 'MAINTENANCE', 'FAILED_SWITCH'):
-        return 'Предыдущая операция ещё не завершена. Сначала проверьте план возврата или восстановления.'
-    if code in ('ROLLBACK_RUNTIME', 'ROLLBACK_QUALIFICATION', 'ROLLBACK_PAIR', 'ROLLBACK_SELECTION'):
-        return 'Для этой пары версий пока не подтверждён штатный возврат. Установка остановлена.'
-    if code == 'ROLLBACK_EXTERNAL_TOOLS':
-        return 'Нужен отдельный проверенный каталог инструментов обновления. Обратитесь к администратору.'
+        return 'Предыдущая операция ещё не завершена. Проверьте состояние командой asa repair-plan.'
     if code.startswith('CI_'):
         return 'Не удалось подтвердить проверки этого выпуска на GitHub. Установка остановлена.'
     if code == 'LOCKED':
@@ -504,12 +497,11 @@ def main(argv=None):
                 'OFFSITE_POLICY', 'Путь --offsite-receipt задаётся один раз командой configure-offsite.')
         if args.operator:
             require(args.action in ('check', 'update') and not args.scheduled and args.profile == 'production'
-                    and not args.enable_auto_update and args.collector_mode is None,
+                    and not args.enable_auto_update and args.collector_mode is None and not args.require_application_rollback,
                     'OPERATOR_ARGUMENT', 'The operator flow is only for manual check and update on production.')
-            args.require_application_rollback = True
         require(not args.require_application_rollback or args.action in ('check', 'update') and not args.scheduled,
                 'ROLLBACK_ARGUMENT', '--require-application-rollback belongs only to manual check/update.')
-        if args.action in ('rollback-plan', 'rollback', 'configure-offsite') or args.require_application_rollback:
+        if args.action in ('rollback-plan', 'rollback', 'configure-offsite') or args.require_application_rollback or args.operator:
             require(not args.scheduled and not args.enable_auto_update and args.collector_mode is None,
                     'ROLLBACK_ARGUMENT', 'Application return is manual and cannot change automatic updates or collector configuration.')
             original_arguments = argv if argv is not None else sys.argv[1:]
@@ -552,7 +544,7 @@ def main(argv=None):
         if args.operator:
             require(install.settings.get('profile') == 'production', 'OPERATOR_INSTALLATION',
                     'The operator flow requires an existing installation with the production profile.')
-        if args.action in ('rollback-plan', 'rollback', 'configure-offsite') or args.require_application_rollback:
+        if args.action in ('rollback-plan', 'rollback', 'configure-offsite') or args.require_application_rollback or args.operator:
             application_rollback.attest_private_state(install)
         if args.action in ('install', 'check', 'update'):
             args.deployment_digest, _ = resolve_selection(install, args.deployment_digest)
@@ -564,9 +556,9 @@ def main(argv=None):
                     require(install.settings.get('profile') == 'production', 'OPERATOR_INSTALLATION',
                             'The operator flow requires an existing installation with the production profile.')
                 if args.action == 'update' and args.collector_mode is not None:
-                    require('updatePolicy' not in install.settings or args.require_application_rollback,
-                            'OFFSITE_POLICY', 'Для этой установки используйте штатную команду asa update.')
-                if args.action == 'configure-offsite' or args.require_application_rollback:
+                    require('updatePolicy' not in install.settings, 'OFFSITE_POLICY',
+                            'Для школьной установки настройте сборщик отдельно от обновления.')
+                if args.action == 'configure-offsite' or args.require_application_rollback or args.operator:
                     application_rollback.attest_private_state(install)
             if args.action in ('install', 'check', 'update'):
                 args.deployment_digest, _ = resolve_selection(install, args.deployment_digest)

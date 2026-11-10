@@ -35,16 +35,9 @@ class OffsitePolicyTests(unittest.TestCase):
         with patch.object(manager, 'Installation', side_effect=[original, configured]), \
                 patch.object(manager, 'resolve_selection', return_value=(None, None)), \
                 patch.object(manager, 'operation_lock', return_value=contextlib.nullcontext()), \
-                contextlib.redirect_stderr(io.StringIO()) as output:
-            self.assertEqual(manager.main(['update', '--root', str(root), '--profile', 'production']), 2)
-        self.assertIn('BLOCKED OFFSITE_POLICY', output.getvalue())
-
-    def test_an_existing_policy_requires_the_guarded_update_path(self):
-        install = SimpleNamespace(settings={'updatePolicy': {'receipt': '/receipt'}})
-        for check, scheduled in [(True, False), (False, False), (False, True)]:
-            with self.subTest(check=check, scheduled=scheduled), self.assertRaises(Blocked) as error:
-                manager.update(install, check=check, scheduled=scheduled)
-            self.assertEqual(error.exception.code, 'OFFSITE_POLICY')
+                patch.object(manager, 'update') as update:
+            self.assertEqual(manager.main(['update', '--root', str(root), '--profile', 'production']), 0)
+        update.assert_called_once_with(configured, check=False, scheduled=False)
 
     @unittest.skipUnless(os.name == 'posix' and os.geteuid() == 0, 'School receipt paths must be owned by root')
     def test_only_fresh_full_receipt_for_the_current_release_passes(self):
@@ -169,15 +162,14 @@ class ContinuationTests(unittest.TestCase):
         reload.assert_called_once_with(self.root, self.install.profile)
         self.assertEqual(update.call_count, 2)
         for call in update.call_args_list:
-            self.assertEqual(call.kwargs, dict(check=False, deployment_digest=DIGEST,
-                                               require_application_rollback=True, operator=True))
+            self.assertEqual(call.kwargs, dict(check=False, deployment_digest=DIGEST, operator=True))
 
-    def test_operator_never_retries_an_unqualified_update_or_a_changed_pin(self):
+    def test_operator_never_retries_failed_ci_or_a_changed_pin(self):
         with patch.object(manager, 'update', side_effect=Blocked(
-                'ROLLBACK_QUALIFICATION', 'blocked', 'inspect the cause')) as update:
+                'CI_BLOCKED', 'blocked', 'inspect the cause')) as update:
             with self.assertRaises(Blocked) as denied:
                 manager.run_operator(self.install, 'update', DIGEST)
-            self.assertEqual(denied.exception.code, 'ROLLBACK_QUALIFICATION')
+            self.assertEqual(denied.exception.code, 'CI_BLOCKED')
             update.assert_called_once()
 
         def changed_pin(*args, **kwargs):
@@ -196,8 +188,7 @@ class ContinuationTests(unittest.TestCase):
                 patch.object(manager, 'update') as update:
             manager.run_operator(self.install, 'check', None)
         select.assert_not_called()
-        update.assert_called_once_with(self.install, check=True, deployment_digest=DIGEST,
-                                       require_application_rollback=True, operator=True)
+        update.assert_called_once_with(self.install, check=True, deployment_digest=DIGEST, operator=True)
 
     def checked_update(self, transport, **kwargs):
         with patch.object(manager,'doctor') as doctor, patch.object(manager,'clean_checkout'), \
@@ -206,6 +197,15 @@ class ContinuationTests(unittest.TestCase):
              patch.object(manager,'fetch_images') as images, contextlib.redirect_stdout(io.StringIO()):
             manager.update(self.install,check=True,**kwargs)
         doctor.assert_called_once(); ci.assert_called_once_with(transport.payload); images.assert_not_called()
+
+    def test_normal_school_check_accepts_a_new_schema_with_backup_without_return_preflight(self):
+        policy = {'receipt': '/receipt'}
+        self.install.settings['updatePolicy'] = policy
+        with patch.object(manager, 'verify_offsite_backup') as backup, \
+                patch.object(manager.application_rollback, 'prepare_candidate') as recovery:
+            self.checked_update(Transport(), deployment_digest=DIGEST, operator=True)
+        backup.assert_called_once_with(policy, self.install.readiness.return_value)
+        recovery.assert_not_called()
 
     def test_retry_checkpoint_written_before_switch_and_reused_with_fresh_ci(self):
         with patch.object(manager,'recovery_configuration',return_value={'synthetic':'old runtime'}), self.assertRaises(Blocked) as stopped:

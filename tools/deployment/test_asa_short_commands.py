@@ -67,11 +67,9 @@ class PortableASACommandTests(unittest.TestCase):
         self.assertEqual(blocked.returncode, 64)
         self.assertIn("--deployment-digest", blocked.stderr)
         digest = "sha256:" + "b" * 64
-        guarded = self.call("update", "--deployment-digest", digest)
-        self.assertEqual(guarded.returncode, 0, guarded.stderr)
-        arguments = json.loads(guarded.stdout)
-        self.assertIn("--require-application-rollback", arguments)
-        self.assertEqual(arguments.count("--require-application-rollback"), 1)
+        selected = self.call("update", "--deployment-digest", digest)
+        self.assertEqual(selected.returncode, 0, selected.stderr)
+        self.assertNotIn("--require-application-rollback", json.loads(selected.stdout))
         explicit = self.call("update", "--deployment-digest", digest, "--require-application-rollback")
         self.assertEqual(explicit.returncode, 0, explicit.stderr)
         self.assertEqual(json.loads(explicit.stdout).count("--require-application-rollback"), 1)
@@ -162,7 +160,7 @@ class PortableASACommandTests(unittest.TestCase):
             def launch(*args):
                 return subprocess.run([str(launcher), *args], capture_output=True, text=True, timeout=10,
                                       env={**self.env, "ASA_INSTALL_ROOT": "/invalid", "ASA_PROFILE": "dev"})
-            self.assertEqual(launch("--launcher-verify", str(self.root)).stdout.strip(), "ASA_LAUNCHER_OFFSITE_V1")
+            self.assertEqual(launch("--launcher-verify", str(self.root)).stdout.strip(), "ASA_LAUNCHER_FORWARD_V1")
             self.assertEqual(launch("--launcher-verify", "/another-installation").returncode, 64)
             for action in ("check", "update"):
                 with self.subTest(action=action):
