@@ -5,6 +5,7 @@ import type {
   SchematicDocument,
   Terminal,
 } from '../api';
+import { photoresistorLightSourceId } from '@asa-lab/electronics';
 import { resolveElectricalModelIdentity } from '@asa-lab/electronics/simulation';
 import { newClientId } from '../client-id';
 import {
@@ -249,12 +250,19 @@ export function duplicateComponentInDocument(
   const copySuffix = ' — копия';
   const idMap = new Map<string, string>();
   sources.forEach((source, index) => idMap.set(source.id, `${id}-${index + 1}`));
-  const components = sources.map((source) => ({
-    ...source,
-    id: idMap.get(source.id) as string,
-    name: `${(source.name ?? source.kind).slice(0, 120 - copySuffix.length)}${copySuffix}`,
-    position: { x: source.position.x + 28, y: source.position.y + 28 },
-  }));
+  const components = sources.map((source) => {
+    const lampId = photoresistorLightSourceId(source);
+    const copiedLampId = lampId ? idMap.get(lampId) : undefined;
+    return {
+      ...source,
+      id: idMap.get(source.id) as string,
+      name: `${(source.name ?? source.kind).slice(0, 120 - copySuffix.length)}${copySuffix}`,
+      position: { x: source.position.x + 28, y: source.position.y + 28 },
+      ...(copiedLampId
+        ? { stateProperties: { ...source.stateProperties, lightSourceComponentId: copiedLampId } }
+        : {}),
+    };
+  });
   const connections = document.connections
     .filter(
       (wire) => selectedIds.has(wire.from.componentId) && selectedIds.has(wire.to.componentId),
@@ -302,6 +310,12 @@ export function removeSelectionFromDocument(
     components: document.components
       .filter((item) => !ids.has(item.id))
       .map((item) => {
+        const lampId = photoresistorLightSourceId(item);
+        if (lampId && ids.has(lampId)) {
+          const stateProperties = { ...item.stateProperties };
+          delete stateProperties['lightSourceComponentId'];
+          item = { ...item, stateProperties };
+        }
         if (!item.holeBindings) return item;
         const retained = Object.entries(item.holeBindings).filter(
           ([, binding]) => !ids.has(binding.breadboardComponentId),

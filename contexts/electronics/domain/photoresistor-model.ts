@@ -2,7 +2,7 @@ import type { SchematicComponent } from './document.js';
 import type { ThermalProfile } from './models/thermal-transient-model.js';
 
 export const PHOTORESISTOR_DEFAULT_ILLUMINATION = 0.5;
-export const PHOTORESISTOR_PROFILE_REGISTRY_VERSION = 2;
+export const PHOTORESISTOR_PROFILE_REGISTRY_VERSION = 3;
 
 // Lumped approximation for a small epoxy-coated CdS cell. The datasheet
 // specifies the electrical limits, but does not give a burnout time.
@@ -36,6 +36,14 @@ export const PHOTORESISTOR_PROFILE = {
   maximumVoltageVolt: 150,
   maximumPowerWatt: 0.1,
   thermal: PHOTORESISTOR_THERMAL_PROFILE,
+  optical: {
+    id: 'incandescent-photoresistor-link@1',
+    // Approximate the nominal light of the comparable CEC 259, 6.3 V / 250 mA.
+    lampRatedIntensityCandela: 0.65,
+    defaultDistanceCm: 10,
+    minimumDistanceCm: 1,
+    maximumDistanceCm: 1000,
+  },
   sourceIds: ['senba-gl5528-datasheet', 'adafruit-photocells-guide'],
 } as const;
 
@@ -83,6 +91,34 @@ export function photoresistorResistanceAtIlluminanceOhm(lux: number): number {
 
 export function photoresistorResistanceOhm(component: SchematicComponent): number {
   return photoresistorResistanceAtIlluminanceOhm(photoresistorIlluminanceLux(component));
+}
+
+export function photoresistorLightSourceId(component: SchematicComponent): string | undefined {
+  const id = component.stateProperties?.['lightSourceComponentId'];
+  return component.kind === 'photoresistor' && typeof id === 'string' && id ? id : undefined;
+}
+
+export function photoresistorLightSourceDistanceCm(component: SchematicComponent): number {
+  const distance = component.stateProperties?.['lightSourceDistanceCm'];
+  const { defaultDistanceCm, minimumDistanceCm, maximumDistanceCm } = PHOTORESISTOR_PROFILE.optical;
+  return typeof distance === 'number' &&
+    distance >= minimumDistanceCm &&
+    distance <= maximumDistanceCm
+    ? distance
+    : defaultDistanceCm;
+}
+
+export function photoresistorIlluminanceWithLampLux(
+  component: SchematicComponent,
+  lampBrightnessPercent: number,
+): number {
+  const distanceMeters = photoresistorLightSourceDistanceCm(component) / 100;
+  const intensity =
+    (PHOTORESISTOR_PROFILE.optical.lampRatedIntensityCandela * lampBrightnessPercent) / 100;
+  return Math.min(
+    PHOTORESISTOR_PROFILE.maximumIlluminanceLux,
+    photoresistorIlluminanceLux(component) + intensity / distanceMeters ** 2,
+  );
 }
 
 export function canonicalPhotoresistorProfileRegistry(): string {
