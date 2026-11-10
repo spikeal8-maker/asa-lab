@@ -1,12 +1,4 @@
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ComponentType,
-} from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react';
 import { api, type PublicUser } from '../api';
 import { loadChessEditor } from '../chess/load-chess-editor';
 import { chessRouteFromHash, chessRouteToHash } from '../chess/chess-navigation';
@@ -109,6 +101,14 @@ function canonicalEditorHash(
   return null;
 }
 
+function EditorDiagnosticContext({ moduleKey }: { readonly moduleKey: string }): null {
+  useEffect(
+    () => (isDiagnosticModule(moduleKey) ? beginDiagnosticContext(moduleKey) : undefined),
+    [moduleKey],
+  );
+  return null;
+}
+
 /** Shared editor host. Project Core selects a module by manifest key; the host
  * mounts the registered subject editor without putting subject branches in App. */
 export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
@@ -194,17 +194,6 @@ function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
       active = false;
     };
   }, [props.moduleKey, props.onModuleResolved, props.projectId, returnToDependency]);
-
-  // The editor can read its project in its first passive effect.
-  useLayoutEffect(() => {
-    if (
-      state.kind === 'ready' &&
-      isDiagnosticModule(state.moduleKey) &&
-      Object.hasOwn(EDITORS, state.moduleKey)
-    )
-      return beginDiagnosticContext(state.moduleKey);
-    return undefined;
-  }, [state.kind, state.kind === 'ready' ? state.moduleKey : null, props.projectId]);
 
   useEffect(() => {
     if (state.kind !== 'ready') return;
@@ -297,6 +286,8 @@ function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
   return (
     <EditorErrorBoundary onBack={props.onBack} backLabel={backLabel}>
       <ProjectSaveEvidence key={props.projectId}>
+        {/* The old editor cleans up before this effect runs, and the new editor reads after it. */}
+        <EditorDiagnosticContext moduleKey={state.moduleKey} />
         {/* What to make, while you are making it. Renders nothing for anyone
           whose project is not work a teacher set. */}
         <AssignmentBrief projectId={props.projectId} />
