@@ -365,7 +365,7 @@ test('image workbench: responsive settings and an explicit preview', async ({ pa
 
   await api.click();
   await expect(api).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('heading', { name: 'Polza AI' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Polza AI', exact: true })).toBeVisible();
   await expect(page.getByText('Не подключён')).toBeVisible();
   expect(fixture.imagePosts).toHaveLength(0);
 

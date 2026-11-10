@@ -19,7 +19,7 @@ resolves through the learner's exact current draft or submitted Attempt, or an
 educator's authorized exact submission. A client cannot supply an object key.
 Submission and review never write the bytes or copy them across tenants.
 
-Physical schema for forward migration 0313. The composite primary and foreign
+Physical schema for forward migration 0315. The composite primary and foreign
 keys also support attempt-scoped lookup; deletes use the default NO ACTION.
 No new row receives an application-role table grant.
 

@@ -557,7 +557,10 @@ function AssignedClassroomGradebook({
       {!items ? (
         <p>Загружаем журнал…</p>
       ) : !items.length ? (
-        <p>Добавьте учеников и назначьте работу.</p>
+        <p>
+          Здесь появятся работы и оценки. Чтобы дать первое задание, откройте «Обучение» и нажмите
+          «Выдать задание».
+        </p>
       ) : (
         <div
           className="gradebook-matrix-scroll"

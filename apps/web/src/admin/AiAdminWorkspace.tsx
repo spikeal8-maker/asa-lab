@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AiAdminPage } from './AdminAiPage';
+import { AdminCloudCatalogConnection } from './AdminCloudCatalogConnection';
 import { AdminOllamaPage } from './AdminOllamaPage';
 import { AdminComfyUiPage } from './AdminComfyUiPage';
 import { AdminPolzaConnection } from './AdminPolzaConnection';
@@ -36,7 +37,7 @@ const PROVIDERS: ReadonlyArray<{ id: ProviderChoice; label: string; hint: string
   { id: 'ollama-cloud', label: 'Ollama Cloud', hint: 'ollama.com · API-ключ' },
   { id: 'deepseek', label: 'DeepSeek', hint: 'Облачный API' },
   { id: 'openai', label: 'OpenAI', hint: 'Облачный API' },
-  { id: 'polza', label: 'Polza AI', hint: 'Текст · изображения · речь' },
+  { id: 'polza', label: 'Polza AI', hint: 'Текст, речь и медиа' },
 ];
 
 export function AiAdminWorkspace({
@@ -76,8 +77,6 @@ function AiAdminWorkspaceSession({
   const [toolDirty, setToolDirty] = useState(false);
   const [networkDirty, setNetworkDirty] = useState(false);
   const [budgetDirty, setBudgetDirty] = useState(false);
-  const [budgetRevision, setBudgetRevision] = useState(0);
-  const refreshBudgets = useCallback(() => setBudgetRevision((value) => value + 1), []);
   const [eligibleModels, setEligibleModels] = useState<readonly string[]>([]);
   function navigate(value: AiAdminNavigation) {
     if (value.section === navigation.section && value.provider === navigation.provider) return;
@@ -154,8 +153,7 @@ function AiAdminWorkspaceSession({
     void Promise.all([
       call<AiAdminConfig>('/api/admin/v1/ai'),
       call<LocalState>('/api/admin/v1/ai/ollama'),
-      call<unknown>('/api/admin/v1/ai/polza'),
-    ]).then(([cloudResponse, localResponse, polzaResponse]) => {
+    ]).then(([cloudResponse, localResponse]) => {
       if (!mounted) return;
       if (!cloudResponse.ok && (cloudResponse.status === 401 || cloudResponse.status === 403)) {
         onAccessDenied();
@@ -165,12 +163,26 @@ function AiAdminWorkspaceSession({
       }
       setCloud(cloudResponse.ok ? cloudResponse.data : null);
       setLocal(localResponse.ok ? localResponse.data : null);
-      setPolza(polzaResponse.ok && isPolzaConfig(polzaResponse.data) ? polzaResponse.data : null);
     });
     return () => {
       mounted = false;
     };
   }, [onAccessDenied, statusRevision, section]);
+
+  const needsPolzaStatus =
+    section === 'connections' || section === 'comfyui' || section === 'video';
+  useEffect(() => {
+    if (!needsPolzaStatus) return;
+    let mounted = true;
+    void call<unknown>('/api/admin/v1/ai/polza').then((response) => {
+      if (!mounted) return;
+      if (!response.ok && (response.status === 401 || response.status === 403)) onAccessDenied();
+      setPolza(response.ok && isPolzaConfig(response.data) ? response.data : null);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [needsPolzaStatus, onAccessDenied, statusRevision]);
 
   function providerStatus(value: ProviderChoice): string {
     if (value === 'polza')
@@ -272,6 +284,14 @@ function AiAdminWorkspaceSession({
               onUpdated={refreshStatus}
               onDirtyChange={setConnectionDirty}
             />
+          ) : provider === 'deepseek' || provider === 'openai' ? (
+            <AdminCloudCatalogConnection
+              key={provider}
+              provider={provider}
+              onAccessDenied={onAccessDenied}
+              onUpdated={refreshStatus}
+              onDirtyChange={setConnectionDirty}
+            />
           ) : (
             <AiAdminPage
               key={provider}
@@ -281,17 +301,6 @@ function AiAdminWorkspaceSession({
               onDirtyChange={setConnectionDirty}
             />
           )}
-          {provider !== 'polza' ? (
-            <AdminAiGenerationPolicy
-              key={'policy-' + provider}
-              section="connections"
-              provider={provider}
-              onAccessDenied={onAccessDenied}
-              onDirtyChange={setPolicyDirty}
-              onEligibleModels={setEligibleModels}
-              onCatalogSaved={refreshBudgets}
-            />
-          ) : null}
         </section>
       ) : section === 'prompt' || section === 'settings' ? (
         <div
@@ -325,7 +334,6 @@ function AiAdminWorkspaceSession({
               onAccessDenied={onAccessDenied}
               eligibleModels={eligibleModels}
               onDirtyChange={setBudgetDirty}
-              refreshKey={budgetRevision}
             />
           ) : null}
         </div>
@@ -344,7 +352,7 @@ function AiAdminWorkspaceSession({
           aria-labelledby="ai-tab-video"
           className="asa-ai-settings"
         >
-          <AdminAiVideo />
+          <AdminAiVideo connected={!!polza?.apiKeyConfigured} onAccessDenied={onAccessDenied} />
         </div>
       ) : section === 'transcription' ? (
         <div
@@ -357,7 +365,13 @@ function AiAdminWorkspaceSession({
         </div>
       ) : (
         <div id="ai-panel-comfyui" role="tabpanel" aria-labelledby="ai-tab-comfyui">
-          <AdminComfyUiPage onAccessDenied={onAccessDenied} principalId={principalId} />
+          <AdminComfyUiPage
+            key={provider === 'polza' ? 'polza' : 'local'}
+            onAccessDenied={onAccessDenied}
+            principalId={principalId}
+            polzaConnected={!!polza?.apiKeyConfigured}
+            initialTab={provider === 'polza' ? 'api' : 'local'}
+          />
         </div>
       )}
     </div>

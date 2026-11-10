@@ -276,6 +276,7 @@ export function AdminAiToolPolicies({
   }, [configuration, onConfigurationChange]);
   const selected = configuration?.tools.find((tool) => tool.id === selectedTool);
   const detail = presentation === 'detail';
+  const PolicyEditor = detail ? 'details' : 'div';
   const status = (tool: ToolPolicy) =>
     !tool.enabled ? 'Выключен' : tool.available ? 'Настроено' : 'Нужно настроить';
   const help = (tool: ToolPolicy) => (
@@ -367,96 +368,101 @@ export function AdminAiToolPolicies({
         <p role="status">Состояние инструментов неизвестно. Сохранение недоступно.</p>
       ) : null}
       {configuration ? (
-        <form onSubmit={(event) => void save(event)}>
-          <div className="asa-ai-tools-grid">
-            {TOOL_IDS.map((id) => {
-              const tool = configuration.tools.find((item) => item.id === id)!;
-              const edit = edits.find((item) => item.id === id)!;
-              const instruction = (
-                <label className="asa-ai-tool-instructions">
-                  Инструкция для модели
-                  <textarea
-                    rows={2}
-                    value={edit.instructions}
-                    maxLength={3000}
-                    disabled={busy || !writable}
-                    onChange={(event) => update(id, 'instructions', event.target.value)}
-                    aria-label={'Дополнительные инструкции: ' + TOOL_LABELS[id]}
-                    placeholder="Когда и как использовать инструмент"
-                  />
-                </label>
-              );
-              return (
-                <article
-                  className="asa-ai-tool-card"
-                  key={id}
-                  aria-label={TOOL_LABELS[id]}
-                  hidden={selectedTool !== undefined && selectedTool !== id}
-                >
-                  {!detail ? (
-                    <>
-                      <h3>{TOOL_LABELS[id]}</h3>
-                      {help(tool)}
-                      <span
-                        className={
-                          'asa-ai-tool-status' + (tool.enabled && tool.available ? ' ready' : '')
-                        }
-                      >
-                        {status(tool)}
-                      </span>
-                      <a href={'#/admin/ai?section=tools&tool=' + id}>Настроить</a>
-                      <label className="asa-ai-tool-toggle">
-                        <span className="asa-ai-tool-toggle-text">Включить инструмент</span>
-                        <input
-                          type="checkbox"
-                          checked={edit.enabled}
-                          disabled={busy || !writable}
-                          onChange={(event) => update(id, 'enabled', event.target.checked)}
-                        />
-                      </label>
-                    </>
-                  ) : null}
-                  {presentation !== 'switches' ? (
-                    detail ? (
-                      instruction
-                    ) : (
-                      <details>
-                        <summary>Инструкция для модели</summary>
-                        {instruction}
-                      </details>
-                    )
-                  ) : null}
+        <PolicyEditor className={detail ? 'asa-ai-tool-disclosure' : undefined}>
+          {detail ? (
+            <summary>Инструкция для модели{changed ? ' · не сохранено' : ''}</summary>
+          ) : null}
+          <form onSubmit={(event) => void save(event)}>
+            <div className="asa-ai-tools-grid">
+              {TOOL_IDS.map((id) => {
+                const tool = configuration.tools.find((item) => item.id === id)!;
+                const edit = edits.find((item) => item.id === id)!;
+                const instruction = (
+                  <label className="asa-ai-tool-instructions">
+                    Инструкция для модели
+                    <textarea
+                      rows={2}
+                      value={edit.instructions}
+                      maxLength={3000}
+                      disabled={busy || !writable}
+                      onChange={(event) => update(id, 'instructions', event.target.value)}
+                      aria-label={'Дополнительные инструкции: ' + TOOL_LABELS[id]}
+                      placeholder="Когда и как использовать инструмент"
+                    />
+                  </label>
+                );
+                return (
+                  <article
+                    className="asa-ai-tool-card"
+                    key={id}
+                    aria-label={TOOL_LABELS[id]}
+                    hidden={selectedTool !== undefined && selectedTool !== id}
+                  >
+                    {!detail ? (
+                      <>
+                        <h3>{TOOL_LABELS[id]}</h3>
+                        {help(tool)}
+                        <span
+                          className={
+                            'asa-ai-tool-status' + (tool.enabled && tool.available ? ' ready' : '')
+                          }
+                        >
+                          {status(tool)}
+                        </span>
+                        <a href={'#/admin/ai?section=tools&tool=' + id}>Настроить</a>
+                        <label className="asa-ai-tool-toggle">
+                          <span className="asa-ai-tool-toggle-text">Включить инструмент</span>
+                          <input
+                            type="checkbox"
+                            checked={edit.enabled}
+                            disabled={busy || !writable}
+                            onChange={(event) => update(id, 'enabled', event.target.checked)}
+                          />
+                        </label>
+                      </>
+                    ) : null}
+                    {presentation !== 'switches' ? (
+                      detail ? (
+                        instruction
+                      ) : (
+                        <details>
+                          <summary>Инструкция для модели</summary>
+                          {instruction}
+                        </details>
+                      )
+                    ) : null}
+                  </article>
+                );
+              })}
+              {presentation === 'all' ? (
+                <article className="asa-ai-tool-card asa-ai-tool-future" aria-label="Видео — скоро">
+                  <h3>Видео — скоро</h3>
+                  <span>Пока недоступен</span>
                 </article>
-              );
-            })}
-            {presentation === 'all' ? (
-              <article className="asa-ai-tool-card asa-ai-tool-future" aria-label="Видео — скоро">
-                <h3>Видео — скоро</h3>
-                <span>Пока недоступен</span>
-              </article>
-            ) : null}
-          </div>
-          <div className="asa-ai-tools-actions">
-            {!writable ? (
-              <span role="status">
-                Настройки инструментов ещё не установлены. Сохранение недоступно.
-              </span>
-            ) : null}
-            {changed ? <span role="status">Есть несохранённые изменения.</span> : null}
-            <button
-              type="submit"
-              className="asa-cloud-apply"
-              disabled={busy || loading || invalid || conflict || !changed || !writable}
-            >
-              {busy ? 'Сохраняем…' : detail ? 'Сохранить инструкцию' : 'Сохранить инструменты'}
-            </button>
-            {notice ? (
-              <span role="status" className="asa-cloud-confirmed">
-                {notice}
-              </span>
-            ) : null}
-          </div>
-        </form>
+              ) : null}
+            </div>
+            <div className="asa-ai-tools-actions">
+              {!writable ? (
+                <span role="status">
+                  Настройки инструментов ещё не установлены. Сохранение недоступно.
+                </span>
+              ) : null}
+              {changed ? <span role="status">Есть несохранённые изменения.</span> : null}
+              <button
+                type="submit"
+                className="asa-cloud-apply"
+                disabled={busy || loading || invalid || conflict || !changed || !writable}
+              >
+                {busy ? 'Сохраняем…' : detail ? 'Сохранить инструкцию' : 'Сохранить инструменты'}
+              </button>
+              {notice ? (
+                <span role="status" className="asa-cloud-confirmed">
+                  {notice}
+                </span>
+              ) : null}
+            </div>
+          </form>
+        </PolicyEditor>
       ) : null}
     </section>
   );

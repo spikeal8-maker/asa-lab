@@ -11,6 +11,7 @@ import {
 import { GrowingTextarea } from '../components/GrowingTextarea';
 import { AssignmentView } from '../components/AssignmentView';
 import { AuthoredTaskBlocksEditor } from '../components/AuthoredTaskBlocksEditor';
+import './assignment-library.css';
 
 async function readDraftImage(file: File): Promise<string> {
   const reader = new FileReader();
@@ -355,7 +356,7 @@ function AssignmentAssignDialog({
   );
 }
 
-function CourseCreationFields({
+function InlineCreationFields({
   active,
   busy,
   children,
@@ -379,9 +380,14 @@ export function AuthoredMaterialsPage({
   onChanged,
   onRegisterLeaveGuard,
   courseCreation,
+  classroomCreation,
 }: {
   readonly courseCreation?: {
     readonly allowEssay?: boolean;
+    readonly onClose: () => void;
+    readonly onPublished: (rootId: string, versionId: string) => Promise<void>;
+  };
+  readonly classroomCreation?: {
     readonly onClose: () => void;
     readonly onPublished: (rootId: string, versionId: string) => Promise<void>;
   };
@@ -389,6 +395,7 @@ export function AuthoredMaterialsPage({
   readonly onChanged?: () => void;
   readonly onRegisterLeaveGuard?: (guard: (() => boolean) | null) => void;
 }): JSX.Element {
+  const inlineCreation = courseCreation ?? classroomCreation;
   const [items, setItems] = useState<
     { id: string; title: string; draftRevision: number; currentPublishedVersionId: string | null }[]
   >([]);
@@ -397,11 +404,11 @@ export function AuthoredMaterialsPage({
   const [modulesLoading, setModulesLoading] = useState(true);
   const assignableModules = modules.filter(isAssignableModule);
   const [busy, setBusy] = useState(false);
-  const courseOperationRef = useRef(false);
-  const [courseOperationBusy, setCourseOperationBusy] = useState(false);
+  const inlineOperationRef = useRef(false);
+  const [inlineOperationBusy, setInlineOperationBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const emptyDraft: AuthoredActivityDraft = courseCreation
+  const emptyDraft: AuthoredActivityDraft = inlineCreation
     ? { ...initial, kind: 'project' }
     : initial;
   const [draft, setDraft] = useState<AuthoredActivityDraft>(emptyDraft);
@@ -425,7 +432,7 @@ export function AuthoredMaterialsPage({
   >(null);
   const [search, setSearch] = useState('');
   const [screen, setScreen] = useState<'list' | 'editor'>(
-    embedded && !courseCreation ? 'list' : 'editor',
+    embedded && !inlineCreation ? 'list' : 'editor',
   );
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'published'>('all');
   const [panel, setPanel] = useState<'settings' | 'preview' | 'history' | null>(null);
@@ -538,10 +545,10 @@ export function AuthoredMaterialsPage({
     setScreen('editor');
   }
 
-  async function save(event?: FormEvent, insideCourseOperation = false) {
+  async function save(event?: FormEvent, insideInlineOperation = false) {
     event?.preventDefault();
-    if (courseOperationRef.current && !insideCourseOperation) return null;
-    if (courseCreation && !canAssignDraftModule) return null;
+    if (inlineOperationRef.current && !insideInlineOperation) return null;
+    if (inlineCreation && !canAssignDraftModule) return null;
     if (busy || !draft.title.trim() || (!opened && !canSaveDraftModule)) return null;
     if (
       !opened &&
@@ -871,14 +878,14 @@ export function AuthoredMaterialsPage({
     onChanged?.();
     setBusy(false);
   }
-  async function publish(addToCourse = false): Promise<string | null> {
-    if (!canPublish || (addToCourse && !canAssignDraftModule)) return null;
-    if (courseCreation && (courseOperationRef.current || busy)) return null;
-    if (courseCreation) {
+  async function publish(deliver = false): Promise<string | null> {
+    if (!canPublish || (deliver && !canAssignDraftModule)) return null;
+    if (inlineCreation && (inlineOperationRef.current || busy)) return null;
+    if (inlineCreation) {
       // Helpers below have their own busy state. It must not release this
       // complete save/publish/refresh/verification operation's navigation lock.
-      courseOperationRef.current = true;
-      setCourseOperationBusy(true);
+      inlineOperationRef.current = true;
+      setInlineOperationBusy(true);
     }
     try {
       const saved = await save(undefined, true);
@@ -901,15 +908,15 @@ export function AuthoredMaterialsPage({
         );
         await refresh();
         onChanged?.();
-        if (addToCourse && courseCreation) {
+        if (deliver && inlineCreation) {
           setBusy(true);
           try {
-            await courseCreation.onPublished(saved.id, result.data.id);
+            await inlineCreation.onPublished(saved.id, result.data.id);
           } catch (problem) {
             setError(
               problem instanceof Error
                 ? problem.message
-                : 'Не удалось добавить задание в урок. Повторите попытку.',
+                : 'Не удалось выдать задание. Повторите попытку.',
             );
             setBusy(false);
             return null;
@@ -922,9 +929,9 @@ export function AuthoredMaterialsPage({
       setBusy(false);
       return null;
     } finally {
-      if (courseCreation) {
-        courseOperationRef.current = false;
-        setCourseOperationBusy(false);
+      if (inlineCreation) {
+        inlineOperationRef.current = false;
+        setInlineOperationBusy(false);
       }
     }
   }
@@ -1077,7 +1084,7 @@ export function AuthoredMaterialsPage({
   const hasUnsavedEditorChanges = quizDirty || (opened === null ? newDraftDirty : draftDirty);
 
   function canLeaveEditor(): boolean {
-    if (courseOperationRef.current) return false;
+    if (inlineOperationRef.current) return false;
     if (screen !== 'editor') return true;
     if (busy) return false;
     if (hasUnsavedEditorChanges) {
@@ -1102,7 +1109,7 @@ export function AuthoredMaterialsPage({
       screen !== 'editor' ||
       (!hasUnsavedEditorChanges &&
         !busy &&
-        !courseOperationBusy &&
+        !inlineOperationBusy &&
         assignmentAttempt.current?.value.submittedDueAt === undefined)
     )
       return;
@@ -1112,12 +1119,12 @@ export function AuthoredMaterialsPage({
     };
     window.addEventListener('beforeunload', warnBeforeUnload);
     return () => window.removeEventListener('beforeunload', warnBeforeUnload);
-  }, [screen, hasUnsavedEditorChanges, busy, courseOperationBusy, assignVersionId]);
+  }, [screen, hasUnsavedEditorChanges, busy, inlineOperationBusy, assignVersionId]);
 
   function returnToList(): void {
     if (!canLeaveEditor()) return;
-    if (courseCreation) {
-      courseCreation.onClose();
+    if (inlineCreation) {
+      inlineCreation.onClose();
       return;
     }
     previewRequest.current += 1;
@@ -1274,7 +1281,7 @@ export function AuthoredMaterialsPage({
         : isFile
           ? 'Файловый ответ'
           : draft.moduleKey === null
-            ? courseCreation
+            ? inlineCreation
               ? 'Среда не выбрана'
               : 'Материал без среды'
             : (modules.find((module) => module.moduleKey === draft.moduleKey)?.displayName ??
@@ -1287,7 +1294,7 @@ export function AuthoredMaterialsPage({
           ? 'Выполнение'
           : 'Без оценки';
     const saveState =
-      busy || courseOperationBusy
+      busy || inlineOperationBusy
         ? 'Сохраняем…'
         : error
           ? 'Проверьте ошибку'
@@ -1307,7 +1314,7 @@ export function AuthoredMaterialsPage({
           }}
           onKeyDown={(event) => {
             if (
-              courseCreation &&
+              inlineCreation &&
               panel &&
               event.key === 'Escape' &&
               event.currentTarget.contains(event.target as Node)
@@ -1318,7 +1325,7 @@ export function AuthoredMaterialsPage({
             }
           }}
         >
-          <CourseCreationFields active={!!courseCreation} busy={busy || courseOperationBusy}>
+          <InlineCreationFields active={!!inlineCreation} busy={busy || inlineOperationBusy}>
             <header className="assignment-document-topbar">
               <div
                 className="assignment-document-actions"
@@ -1329,11 +1336,17 @@ export function AuthoredMaterialsPage({
                   type="button"
                   className="assignment-document-back"
                   disabled={busy}
-                  aria-label={courseCreation ? 'Вернуться к уроку' : undefined}
-                  data-course-dialog-initial-focus={courseCreation ? '' : undefined}
+                  aria-label={
+                    courseCreation
+                      ? 'Вернуться к уроку'
+                      : classroomCreation
+                        ? 'Вернуться к классу'
+                        : undefined
+                  }
+                  data-course-dialog-initial-focus={inlineCreation ? '' : undefined}
                   onClick={returnToList}
                 >
-                  {courseCreation ? '← К уроку' : '← Задания'}
+                  {courseCreation ? '← К уроку' : classroomCreation ? '← К классу' : '← Задания'}
                 </button>
                 <button
                   type="submit"
@@ -1342,11 +1355,15 @@ export function AuthoredMaterialsPage({
                     busy ||
                     !draft.title.trim() ||
                     (!opened && !canSaveDraftModule) ||
-                    (!!courseCreation && !canAssignDraftModule) ||
+                    (!!inlineCreation && !canAssignDraftModule) ||
                     (draft.resultMode === 'graded' && !draft.maxPoints && !isQuiz)
                   }
                 >
-                  {opened ? 'Сохранить' : 'Создать задание'}
+                  {opened
+                    ? 'Сохранить'
+                    : classroomCreation
+                      ? 'Сохранить черновик'
+                      : 'Создать задание'}
                 </button>
                 <button
                   type="button"
@@ -1366,9 +1383,13 @@ export function AuthoredMaterialsPage({
                     (!courseCreation && isEssay) ||
                     (draft.resultMode === 'graded' && !draft.maxPoints && !isQuiz)
                   }
-                  onClick={() => void (courseCreation ? publish(true) : openAssignFlow())}
+                  onClick={() => void (inlineCreation ? publish(true) : openAssignFlow())}
                 >
-                  {courseCreation ? 'Добавить в урок' : 'Назначить'}
+                  {courseCreation
+                    ? 'Добавить в урок'
+                    : classroomCreation
+                      ? 'Выдать всему классу'
+                      : 'Назначить'}
                 </button>
                 <button
                   type="button"
@@ -1377,7 +1398,7 @@ export function AuthoredMaterialsPage({
                 >
                   Настройки
                 </button>
-                {!courseCreation ? (
+                {!inlineCreation ? (
                   <button
                     type="button"
                     className="btn-secondary"
@@ -1423,7 +1444,7 @@ export function AuthoredMaterialsPage({
               </div>
             ) : null}
 
-            <main className="assignment-document-canvas">
+            <div className="assignment-document-canvas">
               <label className="teacher-field assignment-document-environment">
                 <span>Тип задания</span>
                 <select
@@ -1440,15 +1461,15 @@ export function AuthoredMaterialsPage({
                   }}
                 >
                   <option value="project">Проектная практика</option>
-                  {!courseCreation || courseCreation.allowEssay ? (
+                  {!inlineCreation || courseCreation?.allowEssay ? (
                     <option value="essay">Письменный ответ</option>
                   ) : null}
                   <option value="quiz">Тест</option>
                   <option value="file">Файловый ответ</option>
-                  {!courseCreation ? <option value="manual">Материал курса</option> : null}
+                  {!inlineCreation ? <option value="manual">Материал курса</option> : null}
                 </select>
               </label>
-              {courseCreation && !hasResponseKind ? (
+              {inlineCreation && !hasResponseKind ? (
                 <label className="teacher-field assignment-document-environment">
                   <span>Среда задания</span>
                   <select
@@ -1468,7 +1489,11 @@ export function AuthoredMaterialsPage({
                       </option>
                     ))}
                   </select>
-                  <small>Сохранится в библиотеке; в урок попадёт опубликованная версия.</small>
+                  <small>
+                    {classroomCreation
+                      ? 'После выдачи задание появится у учеников и сохранится в библиотеке.'
+                      : 'Сохранится в библиотеке; в урок попадёт опубликованная версия.'}
+                  </small>
                 </label>
               ) : null}
               <label className="assignment-document-title-field">
@@ -1562,7 +1587,7 @@ export function AuthoredMaterialsPage({
                 </span>
                 <span>{resultTitle}</span>
               </footer>
-              {draft.moduleKey === null && !courseCreation && !isFile ? (
+              {draft.moduleKey === null && !inlineCreation && !isFile ? (
                 <p className="assignment-document-hint">
                   {isEssay
                     ? 'Опубликуйте задание и добавьте его в урок курса.'
@@ -1571,7 +1596,7 @@ export function AuthoredMaterialsPage({
                       : 'Материал можно добавить в курс; для отдельной практики выберите среду в параметрах.'}
                 </p>
               ) : null}
-            </main>
+            </div>
 
             {panel === 'settings' ? (
               <div
@@ -1832,7 +1857,7 @@ export function AuthoredMaterialsPage({
                 </aside>
               </div>
             ) : null}
-          </CourseCreationFields>
+          </InlineCreationFields>
         </form>
 
         {assignVersionId ? (

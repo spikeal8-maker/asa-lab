@@ -207,6 +207,18 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
       path === '/api/admin/v1/ai/generation-policy/catalog'
     )
       return respond(route, generationPolicyFixture());
+    if (path === '/api/admin/v1/ai/openai/catalog' && method === 'POST')
+      return respond(route, {
+        models: [
+          {
+            id: 'gpt-5-mini',
+            name: 'GPT-5 mini',
+            inputModalities: ['text', 'image'],
+            outputModalities: ['text'],
+            contextTokens: null,
+          },
+        ],
+      });
     if (path === '/api/admin/v1/ai') {
       if (method === 'PUT') {
         const payload = req.postDataJSON() as {
@@ -1762,11 +1774,11 @@ test('Platform admin saves a separate cloud key without exposing it to the page'
     .click();
   await page.getByRole('region', { name: 'Настройки OpenAI' }).waitFor();
   const secret = 'sk-ai-fake-test-secret-safe-value';
-  await page.getByRole('checkbox', { name: 'Включено' }).uncheck();
-  await page.getByLabel('Новый API-ключ').fill(secret);
-  await page.getByRole('button', { name: 'Сохранить выключенным' }).click();
-  await expect(page.getByText('Сохранено · облачные запросы выключены')).toBeVisible();
-  await expect(page.getByLabel('Новый API-ключ')).toHaveValue('');
+  await page.getByRole('checkbox', { name: 'Включён' }).uncheck();
+  await page.getByLabel('API-ключ OpenAI').fill(secret);
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(page.getByText('Сохранено', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('API-ключ OpenAI')).toHaveValue('');
   const selectedCard = page
     .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
     .getByRole('button', { name: /^OpenAI/ });
@@ -1943,7 +1955,7 @@ test('compact tool mode keeps the full Auto label at 320px', async ({ page }) =>
 });
 
 for (const width of [1440, 600, 390, 320]) {
-  test(`Admin tests the saved provider only with explicit paid consent at ${width}px`, async ({
+  test(`Admin checks the OpenAI key without generating a paid response at ${width}px`, async ({
     page,
   }) => {
     await fixture(page);
@@ -1951,16 +1963,7 @@ for (const width of [1440, 600, 390, 320]) {
     const tests: unknown[] = [];
     await page.route('**/api/admin/v1/ai/test', async (route) => {
       tests.push(route.request().postDataJSON());
-      return route.fulfill({
-        json: {
-          provider: 'openai',
-          model: 'gpt-5-mini',
-          elapsedMs: 120,
-          testedAt: NOW,
-          configurationVersion: 2,
-          providerConfigurationVersion: 2,
-        },
-      });
+      return route.fulfill({ status: 500 });
     });
     await page.goto('/#/admin/ai', { waitUntil: 'domcontentloaded' });
     await page.getByRole('tab', { name: 'Подключения', exact: true }).click();
@@ -1969,25 +1972,12 @@ for (const width of [1440, 600, 390, 320]) {
       .getByRole('button', { name: /^OpenAI/ })
       .click();
     await page.getByRole('region', { name: 'Настройки OpenAI' }).waitFor();
-    await page.getByLabel('Новый API-ключ').fill('sk-safe-test-value-not-real-key');
-    const apply = page.getByRole('button', { name: 'Сохранить и проверить', exact: true });
-    await expect(apply).toBeDisabled();
-    await page.getByLabel('Разрешаю один платный запрос для проверки').check();
-    await apply.click();
-    await expect(page.getByText(/Подключено · OpenAI/)).toBeVisible();
-    expect(tests).toEqual([
-      {
-        acknowledgePaidRequest: true,
-        configurationVersion: 2,
-        provider: 'openai',
-        providerConfigurationVersion: 2,
-      },
-    ]);
-    await expect(page.getByLabel('Разрешаю один платный запрос для проверки')).not.toBeChecked();
-    await expect(apply).toBeDisabled();
-    await page.getByLabel('Модель', { exact: true }).selectOption('gpt-4.1-mini');
-    await expect(page.getByText(/Подключено · OpenAI/)).toHaveCount(0);
-    await expect(apply).toBeDisabled();
+    const field = page.getByLabel('API-ключ OpenAI');
+    await field.fill('sk-safe-test-value-not-real-key');
+    await page.getByRole('button', { name: 'Проверить ключ', exact: true }).click();
+    await expect(page.getByText('Ключ принят · моделей: 1')).toBeVisible();
+    await expect(field).toHaveValue('sk-safe-test-value-not-real-key');
+    expect(tests).toHaveLength(0);
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       .toBe(true);
