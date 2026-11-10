@@ -788,3 +788,78 @@ describe('owned instruction workspace lifetimes', () => {
     expect(createOwnedClockedArduinoRuntime(source)).toBeNull();
   });
 });
+
+describe('owned stable loop accounting', () => {
+  function compareStableLoops(
+    source: string,
+    initial: ArduinoRuntimeState | undefined,
+    targets: readonly number[],
+    budget: number,
+  ) {
+    const ordinary = createOwnedClockedArduinoRuntime(source, structuredClone(initial))!;
+    const optimized = createOwnedClockedArduinoRuntime(source, structuredClone(initial), {
+      accountForStableLoops: true,
+    })!;
+    let previous = initial;
+    let skippedActions = 0;
+    try {
+      for (const target of targets) {
+        for (let step = 0; ; step++) {
+          expect(step).toBeLessThan(2000);
+          const reference = advanceClockedArduinoRuntime(source, {}, target, previous, undefined, {
+            instructionBudget: budget,
+            stopAtElectricalBoundary: true,
+          });
+          const direct = ordinary.advance(target, budget, true);
+          expect(direct).toStrictEqual(reference);
+          const { loopActions, ...comparable } = optimized.advance(target, budget, true);
+          const { loopActions: referenceActions, ...referenceResult } = reference;
+          expect(comparable).toStrictEqual(referenceResult);
+          skippedActions += referenceActions.length - loopActions.length;
+          previous = reference.state;
+          if (reference.executionStatus !== 'yielded') break;
+        }
+      }
+      return skippedActions;
+    } finally {
+      ordinary.dispose();
+      optimized.dispose();
+    }
+  }
+
+  it.each([1, 7, 256])('preserves literal write boundaries and the budget %i', (budget) => {
+    const source = 'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,LOW);}';
+    const initial = advanceClockedArduinoRuntime(source, {}, 0.005).state;
+    const signedZero = { ...initial, outputVoltages: { ...initial.outputVoltages, d13: -0 } };
+    const skipped = compareStableLoops(source, signedZero, [0.006, 0.019, 0.041, 0.098], budget);
+    expect(skipped > 0).toBe(budget > 1);
+  });
+
+  it('keeps stable millis iterations exact through the unsigned rollover', () => {
+    const source = `unsigned long prev=0;void setup(){pinMode(13,OUTPUT);}
+      void loop(){unsigned long now=millis();if(now-prev>=1){prev=now;}digitalWrite(13,HIGH);}`;
+    const initial = advanceClockedArduinoRuntime(source, {}, 2).state;
+    const wrap = 2 ** 32;
+    const shift = wrap - 3;
+    const nearWrap = {
+      ...initial,
+      virtualTimeMs: initial.virtualTimeMs + shift,
+      resumeAtMs: initial.resumeAtMs + shift,
+      loopStartedAtMs: initial.loopStartedAtMs + shift,
+    };
+    expect(
+      compareStableLoops(source, nearWrap, [wrap - 0.003, wrap, wrap + 0.041, wrap + 0.21], 256),
+    ).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ['changing globals', 'count++;digitalWrite(13,HIGH);'],
+    ['microsecond reads', 'unsigned long finer=micros();digitalWrite(13,HIGH);'],
+    ['delays', 'digitalWrite(13,HIGH);delayMicroseconds(10);'],
+    ['pin transitions', 'digitalWrite(13,HIGH);digitalWrite(13,LOW);'],
+  ])('runs %s through the original instructions', (_case, statements) => {
+    const source = `int count=0;void setup(){pinMode(13,OUTPUT);}
+      void loop(){unsigned long now=millis();${statements}}`;
+    expect(compareStableLoops(source, undefined, [0, 0.011, 0.151], 256)).toBe(0);
+  });
+});

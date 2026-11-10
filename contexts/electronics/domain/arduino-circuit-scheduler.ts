@@ -1554,7 +1554,9 @@ export function advanceArduinoCircuitClock(
     ) {
       const source = executionSources.get(onlyBoard.id)!;
       if (ownership && ownership.runtime === undefined) {
-        ownership.runtime = createOwnedClockedArduinoRuntime(source, currentRuntime);
+        ownership.runtime = createOwnedClockedArduinoRuntime(source, currentRuntime, {
+          accountForStableLoops: true,
+        });
         ownership.source = source;
       }
       let readFailed = false;
