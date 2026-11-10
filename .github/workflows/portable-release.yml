@@ -74,7 +74,7 @@ jobs:
           from deployment.publication import canonical_main, is_ancestor, verify_recovery_source
           from deployment.contracts import require
           from deployment.system import run
-          revision = os.environ['REVISION']
+          revision = os.environ.get('REVISION', '')
           require(re.fullmatch(r'[a-f0-9]{40}', revision), 'RELEASE_SOURCE', 'Invalid candidate revision.')
           main = canonical_main()
           recovery = bool(os.environ['RECOVERY_REVISION'])
