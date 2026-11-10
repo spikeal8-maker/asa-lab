@@ -16353,7 +16353,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-WAIT-CONTRACT-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-WORKER-RESIDUAL-001.md
     previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
@@ -16377,22 +16377,26 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-BROWSER-WAIT-CONTRACT-001
+      id: TASK-ELECTRONICS-WORKER-RESIDUAL-001
       issue: 539
       branch: main
       base_branch: main
       pr: null
       status: in_progress
       kind: repair
-      risk: medium
+      risk: high
       semantic_change: 'no'
-      checkpoint: browser_wait_contract_selected
+      checkpoint: worker_residual_allocation_selected
       owner_acceptance: pending
       owner_authorization: Owner requests fixing remaining Electronics timing failures, verifying the work in the browser, and publishing the verified changes in main.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-WAIT-CONTRACT-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-WORKER-RESIDUAL-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
+      previous_browser_wait_contract_slice:
+        task_id: TASK-ELECTRONICS-BROWSER-WAIT-CONTRACT-001
+        integrated_sha: ab8d857a225538c42cb8614c41391f62ae755a09
+        pr: 1057
       previous_owned_stable_loops_slice:
         task_id: TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001
         integrated_sha: 39656d38b55bd6b3aca4c31be0da78a68f4e8699
