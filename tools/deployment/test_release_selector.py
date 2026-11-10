@@ -1,7 +1,9 @@
 """Immutable selection transport/continuation; all Docker/Git/CI calls are fakes."""
 import contextlib
+import datetime as dt
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -25,6 +27,39 @@ def manifest():
                 images={s: REGISTRY+'/'+s+'@sha256:'+'b'*64 for s in SERVICES})
 
 
+class OffsitePolicyTests(unittest.TestCase):
+    def test_update_reads_policy_again_after_taking_operation_lock(self):
+        root = Path.cwd()
+        original = SimpleNamespace(root=root, settings={})
+        configured = SimpleNamespace(root=root, settings={'updatePolicy': {'receipt': '/receipt'}})
+        with patch.object(manager, 'Installation', side_effect=[original, configured]), \
+                patch.object(manager, 'resolve_selection', return_value=(None, None)), \
+                patch.object(manager, 'operation_lock', return_value=contextlib.nullcontext()), \
+                patch.object(manager, 'update') as update:
+            self.assertEqual(manager.main(['update', '--root', str(root), '--profile', 'production']), 0)
+        update.assert_called_once_with(configured, check=False, scheduled=False)
+
+    @unittest.skipUnless(os.name == 'posix' and os.geteuid() == 0, 'School receipt paths must be owned by root')
+    def test_only_fresh_full_receipt_for_the_current_release_passes(self):
+        current = {'revision': 'a' * 40, 'schema': 308}
+        now = dt.datetime.now(dt.timezone.utc)
+        receipt = {**current, 'format': 'asa-school-gfs-receipt-v1', 'kind': 'full', 'encrypted': 'age',
+                   'runtimeSource': 'verified-manifest',
+                   'createdAt': now.isoformat(), 'remoteFullReadbackSha256': True, 'remote': {'daily-full': {}}}
+        with tempfile.TemporaryDirectory(dir='/root') as folder:
+            path = Path(folder) / 'latest-full.json'
+            policy = {'receipt': str(path)}
+            path.write_text(json.dumps(receipt), encoding='utf-8')
+            path.chmod(0o600)
+            manager.verify_offsite_backup(policy, current)
+            for change in ({'schema': 307}, {'revision': 'b' * 40}, {'kind': 'hourly'}, {'remote': {}}, {'runtimeSource': None},
+                           {'remoteFullReadbackSha256': False}, {'createdAt': (now - dt.timedelta(hours=37)).isoformat()}):
+                with self.subTest(change=change), self.assertRaises(Blocked) as error:
+                    path.write_text(json.dumps({**receipt, **change}), encoding='utf-8')
+                    manager.verify_offsite_backup(policy, current)
+                self.assertEqual(error.exception.code, 'OFFSITE_BACKUP')
+
+
 class Transport:
     def __init__(self, payload=None, digests=None):
         self.payload = manifest() if payload is None else payload
@@ -43,6 +78,15 @@ class Transport:
 
 
 class DiscoveryTests(unittest.TestCase):
+    def test_operator_pins_the_digest_reported_by_the_stable_pull(self):
+        with patch.object(releases, 'run', return_value=f"Digest: {DIGEST}\nStatus: Downloaded") as run:
+            self.assertEqual(releases.published_deployment_digest(), DIGEST)
+            run.assert_called_once_with(['docker', 'pull', REGISTRY+'/deployment:stable'], capture=True)
+        for receipt in ('Status: Downloaded', f'Digest: {DIGEST}\nDigest: {DIGEST}'):
+            with self.subTest(receipt=receipt), patch.object(releases, 'run', return_value=receipt):
+                with self.assertRaisesRegex(Blocked, 'unique digest'):
+                    releases.published_deployment_digest()
+
     def test_exact_reference_and_local_id_pinned_before_extraction(self):
         transport = Transport()
         with patch.object(releases, 'run', side_effect=transport), contextlib.redirect_stdout(io.StringIO()):
@@ -104,6 +148,48 @@ class ContinuationTests(unittest.TestCase):
         self.install.state.mkdir(exist_ok=True)
         manager.private_atomic_json(self.install.state/'release-selection.json',manager.selection_record(DIGEST,manifest()))
 
+    def test_operator_resumes_only_the_saved_digest_after_source_switch(self):
+        def first_update(*args, **kwargs):
+            if not manager.pending_selection(self.install):
+                self.save_pending()
+                raise Blocked('RETRY_NEW_MANAGER', 'source changed', 'use the same digest')
+
+        with patch.object(manager.release_transport, 'published_deployment_digest', return_value=DIGEST) as select, \
+                patch.object(manager, 'update', side_effect=first_update) as update, \
+                patch.object(manager, 'Installation', return_value=self.install) as reload, contextlib.redirect_stdout(io.StringIO()):
+            manager.run_operator(self.install, 'update', None)
+        select.assert_called_once_with()
+        reload.assert_called_once_with(self.root, self.install.profile)
+        self.assertEqual(update.call_count, 2)
+        for call in update.call_args_list:
+            self.assertEqual(call.kwargs, dict(check=False, deployment_digest=DIGEST, operator=True))
+
+    def test_operator_never_retries_failed_ci_or_a_changed_pin(self):
+        with patch.object(manager, 'update', side_effect=Blocked(
+                'CI_BLOCKED', 'blocked', 'inspect the cause')) as update:
+            with self.assertRaises(Blocked) as denied:
+                manager.run_operator(self.install, 'update', DIGEST)
+            self.assertEqual(denied.exception.code, 'CI_BLOCKED')
+            update.assert_called_once()
+
+        def changed_pin(*args, **kwargs):
+            self.save_pending()
+            raise Blocked('RETRY_NEW_MANAGER', 'source changed', 'inspect the saved release')
+
+        with patch.object(manager, 'update', side_effect=changed_pin) as update:
+            with self.assertRaises(Blocked) as denied:
+                manager.run_operator(self.install, 'update', 'sha256:' + 'e'*64)
+            self.assertEqual(denied.exception.code, 'RELEASE_SELECTION_PENDING')
+            update.assert_called_once()
+
+    def test_operator_uses_pending_selection_before_looking_at_stable(self):
+        self.save_pending()
+        with patch.object(manager.release_transport, 'published_deployment_digest') as select, \
+                patch.object(manager, 'update') as update:
+            manager.run_operator(self.install, 'check', None)
+        select.assert_not_called()
+        update.assert_called_once_with(self.install, check=True, deployment_digest=DIGEST, operator=True)
+
     def checked_update(self, transport, **kwargs):
         with patch.object(manager,'doctor') as doctor, patch.object(manager,'clean_checkout'), \
              patch.object(manager,'backup_directory'), patch.object(manager,'attest_editor_env'), \
@@ -111,6 +197,15 @@ class ContinuationTests(unittest.TestCase):
              patch.object(manager,'fetch_images') as images, contextlib.redirect_stdout(io.StringIO()):
             manager.update(self.install,check=True,**kwargs)
         doctor.assert_called_once(); ci.assert_called_once_with(transport.payload); images.assert_not_called()
+
+    def test_normal_school_check_accepts_a_new_schema_with_backup_without_return_preflight(self):
+        policy = {'receipt': '/receipt'}
+        self.install.settings['updatePolicy'] = policy
+        with patch.object(manager, 'verify_offsite_backup') as backup, \
+                patch.object(manager.application_rollback, 'prepare_candidate') as recovery:
+            self.checked_update(Transport(), deployment_digest=DIGEST, operator=True)
+        backup.assert_called_once_with(policy, self.install.readiness.return_value)
+        recovery.assert_not_called()
 
     def test_retry_checkpoint_written_before_switch_and_reused_with_fresh_ci(self):
         with patch.object(manager,'recovery_configuration',return_value={'synthetic':'old runtime'}), self.assertRaises(Blocked) as stopped:
