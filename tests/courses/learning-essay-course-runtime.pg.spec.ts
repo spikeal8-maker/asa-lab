@@ -805,5 +805,64 @@ describe('immutable file answers in classes and Courses', () => {
         file.id,
       ]),
     ).rejects.toThrow();
+
+    await admin.query("UPDATE accounts SET status='active' WHERE id=$1", [accountId]);
+    // Move the account while the old Seat still holds the class membership.
+    await admin.query('UPDATE classroom_student_seats SET account_id=NULL WHERE id=$1', [
+      data.seat.id,
+    ]);
+    const replacementSeat = (
+      await admin.query(
+        "INSERT INTO classroom_student_seats(tenant_id,classroom_id,account_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by) VALUES($1,$2,$3,'Replacement',$4,$4,true,'active',$5) RETURNING id",
+        [teacher.tenantId, data.classroomId, accountId, key('replacement'), teacher.teacherId],
+      )
+    ).rows[0].id as string;
+    await admin.query("UPDATE classroom_student_seats SET status='removed' WHERE id=$1", [
+      data.seat.id,
+    ]);
+    const replacementActor = (
+      await admin.query('SELECT principal_id FROM student_seat_principal($1)', [replacementSeat])
+    ).rows[0].principal_id as string;
+    expect(
+      (
+        await admin.query('SELECT learning_audience_ensure_seat_identity($1) AS learner', [
+          replacementSeat,
+        ])
+      ).rows[0].learner,
+    ).toBe(
+      (
+        await admin.query('SELECT learner_identity_id FROM activity_participations WHERE id=$1', [
+          directStart.participationId,
+        ])
+      ).rows[0].learner_identity_id,
+    );
+    for (const proof of [
+      await directEvidence(replacementSeat, 'seat'),
+      await directEvidence(accountId, 'account'),
+    ]) {
+      expect(proof).toMatchObject({
+        seatId: replacementSeat,
+        attempt: { id: directAttempt, state: 'closed', reviewDecision: 'changes_requested' },
+      });
+    }
+    expect((await seatAssignments(replacementSeat)).rows[0]).toMatchObject({ status: 'closed' });
+    expect((await seatAssignments(data.seat.id)).rows).toEqual([]);
+    const downloadPreviousSeatFile = (principal: string) =>
+      app.query('SELECT * FROM learning_file_download($1,$2,$3)', [
+        principal,
+        directRun,
+        directFile.attempt!.file!.id,
+      ]);
+    for (const principal of [replacementActor, accountActor]) {
+      expect((await downloadPreviousSeatFile(principal)).rows[0]).toMatchObject({
+        attempt_id: directAttempt,
+      });
+    }
+    for (const principal of [actor, data.other.principal]) {
+      expect((await downloadPreviousSeatFile(principal)).rows).toEqual([]);
+      expect((await command('learning_file_attempt_read', [principal, directRun])).resultCode).toBe(
+        'forbidden',
+      );
+    }
   });
 });

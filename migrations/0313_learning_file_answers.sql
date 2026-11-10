@@ -887,9 +887,9 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
           SELECT current_attempt.*
             FROM public.learning_attempts current_attempt
            WHERE current_attempt.classroom_assignment_id = assignment.id
-             AND current_attempt.seat_id = seat.id
-             AND (file_version.id IS NULL OR (
-               current_attempt.tenant_id=run.tenant_id
+             AND ((file_version.id IS NULL AND current_attempt.seat_id=seat.id) OR (
+               file_version.id IS NOT NULL
+               AND current_attempt.tenant_id=run.tenant_id
                AND current_attempt.activity_participation_id=participation.id
                AND (run.source_kind<>'direct' OR assignment.status<>'closed' OR
                  public.learning_file_submitted_at(current_attempt.tenant_id,current_attempt.id) IS NOT NULL)

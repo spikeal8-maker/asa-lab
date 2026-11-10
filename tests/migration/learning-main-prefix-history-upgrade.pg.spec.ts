@@ -442,7 +442,7 @@ const upgradeArtifacts = [
   [
     '0313',
     '0313_learning_file_answers.sql',
-    '6f0091b2703acf94e81cc0325f78cd71fe6740668a3a544df908061397584b19',
+    '4e63b37b20a09b4e0b2eba6e96140de1b2372febae7490cbf21ee505c7ec78c9',
   ],
 ] as const;
 
