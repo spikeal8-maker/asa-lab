@@ -75,7 +75,12 @@ untracked=$(git_clean ls-files --others -- tools) || fail 'Не удалось �
 [ "$(git_clean rev-parse --verify HEAD)" = "$revision" ] &&
   git_clean diff --no-ext-diff --quiet "$revision" -- tools &&
   [ -z "$untracked" ] || fail 'Инструменты отличаются от установленного коммита; переподключите команду из проверенного checkout'
-[ "${1:-}" != --launcher-verify ] || exit 0
+if [ "${1:-}" = --launcher-verify ]; then
+  [ "$#" -ne 1 ] || exit 0
+  [ "$#" -eq 2 ] && [ "$2" = "$install_root" ] || fail 'Команда привязана к другому каталогу ASA Lab'
+  printf '%s\n' 'ASA_LAUNCHER_OFFSITE_V1'
+  exit 0
+fi
 unset ASA_PROFILE ASA_PYTHON PYTHONPATH PYTHONHOME PYTHONSTARTUP PYTHONUSERBASE
 ASA_INSTALL_ROOT=$install_root
 ASA_PYTHON=/usr/bin/python3

@@ -159,9 +159,11 @@ class PortableASACommandTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(launcher.is_symlink())
             (self.tools / "asa").write_text("#!/bin/sh\nexit 97\n", encoding="utf-8")
-            def launch(action):
-                return subprocess.run([str(launcher), action], capture_output=True, text=True, timeout=10,
+            def launch(*args):
+                return subprocess.run([str(launcher), *args], capture_output=True, text=True, timeout=10,
                                       env={**self.env, "ASA_INSTALL_ROOT": "/invalid", "ASA_PROFILE": "dev"})
+            self.assertEqual(launch("--launcher-verify", str(self.root)).stdout.strip(), "ASA_LAUNCHER_OFFSITE_V1")
+            self.assertEqual(launch("--launcher-verify", "/another-installation").returncode, 64)
             for action in ("check", "update"):
                 with self.subTest(action=action):
                     result = launch(action)

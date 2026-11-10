@@ -129,10 +129,10 @@ if [ "$action" = update ] && [ "$profile" = production ]; then
 fi
 
 case "$action" in
-  install|doctor|check|update|backup|verify-backup|restore-check|repair-plan|rollback-plan|rollback|acknowledge)
+  install|doctor|check|update|backup|verify-backup|restore-check|repair-plan|rollback-plan|rollback|acknowledge|configure-offsite)
     manager_root=$root
     case "$profile:$action" in
-      production:check|production:update|production:rollback-plan|production:rollback|production:acknowledge)
+      production:check|production:update|production:rollback-plan|production:rollback|production:acknowledge|production:configure-offsite)
         manager_root=$tools_root ;;
     esac
     exec "$python" -E -s -B "$manager_root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" "$@"

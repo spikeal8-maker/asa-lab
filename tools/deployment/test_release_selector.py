@@ -1,7 +1,9 @@
 """Immutable selection transport/continuation; all Docker/Git/CI calls are fakes."""
 import contextlib
+import datetime as dt
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -23,6 +25,46 @@ def manifest():
     return dict(format='asa-deployment-v2', repository='spikeal8-maker/asa-lab', revision='a'*40,
                 schema=300, platform='linux/amd64', publicationRunId=123,
                 images={s: REGISTRY+'/'+s+'@sha256:'+'b'*64 for s in SERVICES})
+
+
+class OffsitePolicyTests(unittest.TestCase):
+    def test_update_reads_policy_again_after_taking_operation_lock(self):
+        root = Path.cwd()
+        original = SimpleNamespace(root=root, settings={})
+        configured = SimpleNamespace(root=root, settings={'updatePolicy': {'receipt': '/receipt'}})
+        with patch.object(manager, 'Installation', side_effect=[original, configured]), \
+                patch.object(manager, 'resolve_selection', return_value=(None, None)), \
+                patch.object(manager, 'operation_lock', return_value=contextlib.nullcontext()), \
+                contextlib.redirect_stderr(io.StringIO()) as output:
+            self.assertEqual(manager.main(['update', '--root', str(root), '--profile', 'production']), 2)
+        self.assertIn('BLOCKED OFFSITE_POLICY', output.getvalue())
+
+    def test_an_existing_policy_requires_the_guarded_update_path(self):
+        install = SimpleNamespace(settings={'updatePolicy': {'receipt': '/receipt'}})
+        for check, scheduled in [(True, False), (False, False), (False, True)]:
+            with self.subTest(check=check, scheduled=scheduled), self.assertRaises(Blocked) as error:
+                manager.update(install, check=check, scheduled=scheduled)
+            self.assertEqual(error.exception.code, 'OFFSITE_POLICY')
+
+    @unittest.skipUnless(os.name == 'posix' and os.geteuid() == 0, 'School receipt paths must be owned by root')
+    def test_only_fresh_full_receipt_for_the_current_release_passes(self):
+        current = {'revision': 'a' * 40, 'schema': 308}
+        now = dt.datetime.now(dt.timezone.utc)
+        receipt = {**current, 'format': 'asa-school-gfs-receipt-v1', 'kind': 'full', 'encrypted': 'age',
+                   'runtimeSource': 'verified-manifest',
+                   'createdAt': now.isoformat(), 'remoteFullReadbackSha256': True, 'remote': {'daily-full': {}}}
+        with tempfile.TemporaryDirectory(dir='/root') as folder:
+            path = Path(folder) / 'latest-full.json'
+            policy = {'receipt': str(path)}
+            path.write_text(json.dumps(receipt), encoding='utf-8')
+            path.chmod(0o600)
+            manager.verify_offsite_backup(policy, current)
+            for change in ({'schema': 307}, {'revision': 'b' * 40}, {'kind': 'hourly'}, {'remote': {}}, {'runtimeSource': None},
+                           {'remoteFullReadbackSha256': False}, {'createdAt': (now - dt.timedelta(hours=37)).isoformat()}):
+                with self.subTest(change=change), self.assertRaises(Blocked) as error:
+                    path.write_text(json.dumps({**receipt, **change}), encoding='utf-8')
+                    manager.verify_offsite_backup(policy, current)
+                self.assertEqual(error.exception.code, 'OFFSITE_BACKUP')
 
 
 class Transport:

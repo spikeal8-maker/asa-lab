@@ -85,9 +85,9 @@ jobs:
       - name: Validate Linux wrapper syntax
         if: runner.os == 'Linux'
         run: sh -n tools/asa tools/install-asa-command.sh tools/asa-manager.sh tools/install-maintenance.sh tools/asa-lab.sh tools/docker-update.sh tools/install-log-collector.sh docker/web/start.sh infra/scratch-editor/start.sh
-      - name: Test the persistent production command
+      - name: Test the persistent production command and cloud backup guard
         if: runner.os == 'Linux'
-        run: sudo /usr/bin/python3 -B -m unittest tools.deployment.test_asa_short_commands.PortableASACommandTests.test_production_launcher_survives_application_switch_and_rejects_writable_tools
+        run: sudo /usr/bin/python3 -B -m unittest tools.deployment.test_asa_short_commands.PortableASACommandTests.test_production_launcher_survives_application_switch_and_rejects_writable_tools tools.deployment.test_release_selector.OffsitePolicyTests
 
   images:
     needs: contracts
