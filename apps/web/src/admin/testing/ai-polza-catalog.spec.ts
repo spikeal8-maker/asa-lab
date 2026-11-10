@@ -93,7 +93,9 @@ it.each(['image', 'stt', 'video'] as const)('shows only %s models in its section
           id: 'polza/test/' + type,
           label: 'Polza fixture ' + type,
           kind: type,
+          selected: true,
         })),
+        { ...item, id: 'polza/test/unselected', label: 'Not selected', kind },
       ],
     },
   });

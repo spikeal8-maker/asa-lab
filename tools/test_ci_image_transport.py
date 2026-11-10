@@ -163,6 +163,23 @@ def general_d0_v1_contract(contract):
     return contract
 
 
+def general_d1_v1_contract(contract):
+    """Add applicability after D0 without changing any full-job transport step."""
+    contract = deepcopy(contract)
+    contract["workflow_controls"]["env"].update({
+        "SOURCE_SHA": "${{ github.event.pull_request.head.sha || github.sha }}",
+        "BASE_SHA": "${{ github.event.pull_request.base.sha || github.event.before }}",
+        "BASE_REF": "${{ github.event.pull_request.base.ref || github.ref_name }}",
+        "EVENT_NAME": "${{ github.event_name }}", "EVENT_REF": "${{ github.ref }}",
+        "MERGE_CANDIDATE_SHA": "${{ github.sha }}",
+    })
+    for job_id in ("code", "postgres-tests", "access-a-browser"):
+        contract["jobs"][job_id]["controls"].update(
+            needs=["governance" if job_id == "code" else "code", "selection"],
+            **{"if": "needs.selection.outputs.route == 'FULL' || needs.selection.outputs.route == 'PARALLEL'"})
+    return contract
+
+
 def electronics_receipt(receipt, general):
     """The selected classroom jobs reuse proven image identities, never new content."""
     override = json.loads(read(ELECTRONICS_TRANSPORT))
@@ -449,6 +466,8 @@ def check_workflow(path, contract, receipt, general_node, electronics):
             "Failure report flag must not be inherited by the entire workflow: " + path)
     triggers = workflow.get("on")
     if path == GENERAL:
+        from devex_ci_contract import check_wiring
+        check_wiring(workflow)
         require(isinstance(triggers, dict)
                 and {event: {} if options is None else options for event, options in triggers.items()}
                 == contract["required_triggers"],
@@ -562,12 +581,15 @@ def check_offline(receipt):
     classroom = electronics_receipt(receipt, effective)
     for path, expected in contract["workflows"].items():
         if path == GENERAL:
-            expected = general_d0_v1_contract(general_node_contract(expected, receipt, effective))
+            expected = general_d1_v1_contract(general_d0_v1_contract(
+                general_node_contract(expected, receipt, effective)))
         elif path == FOCUSED:
             expected = qualification_contract(electronics_contract(expected, receipt, classroom))
             expected = failure_evidence_contract(expected)
             expected = d2_classroom_budget_contract(expected)
         check_workflow(path, expected, receipt, effective, classroom)
+    from devex_ci_contract import check_bounded_wiring
+    check_bounded_wiring(parse_yaml(read(".github/workflows/devex-changed.yml")))
     print("CI image transport semantic guard: PASS (5 immutable mappings; required gates/security/defaults)")
 
 
@@ -775,6 +797,7 @@ def check_challenges(receipt):
     from unittest.mock import patch
 
     source = {path: read(path) for path in [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+              ".github/workflows/devex-changed.yml",
               *receipt["semantic_contract"]["dockerfile_defaults"],
               *receipt["semantic_contract"]["workflows"]]}
     general = ".github/workflows/spec-validation.yml"
@@ -1072,6 +1095,7 @@ def check_electronics_challenges(receipt):
     from unittest.mock import patch
 
     paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
              *receipt["semantic_contract"]["dockerfile_defaults"],
              *receipt["semantic_contract"]["workflows"]]
     source = {path: read(path) for path in paths}
@@ -1244,6 +1268,7 @@ def check_qualification_challenges(receipt):
     from unittest.mock import patch
 
     paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
              *receipt["semantic_contract"]["dockerfile_defaults"],
              *receipt["semantic_contract"]["workflows"]]
     source = {path: read(path) for path in paths}
@@ -1339,6 +1364,7 @@ def check_failure_evidence_challenges(receipt):
     from unittest.mock import patch
 
     paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
              *receipt["semantic_contract"]["dockerfile_defaults"],
              *receipt["semantic_contract"]["workflows"]]
     source = {path: read(path) for path in paths}

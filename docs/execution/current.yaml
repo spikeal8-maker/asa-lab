@@ -16353,7 +16353,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-GMIN-POWER-001.md
     previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
@@ -16377,7 +16377,7 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001
+      id: TASK-ELECTRONICS-GMIN-POWER-001
       issue: 539
       branch: main
       base_branch: main
@@ -16385,14 +16385,33 @@ parallel_lanes:
       status: in_progress
       kind: repair
       risk: high
-      semantic_change: 'no'
-      checkpoint: owned_stable_loop_stride_selected
+      semantic_change: 'yes'
+      checkpoint: gmin_power_accounting_selected
       owner_acceptance: pending
-      owner_authorization: Owner requests fixing remaining Electronics timing failures, verifying the work in the browser, and publishing the verified changes in main.
+      owner_authorization: Owner requests fixing the confirmed kernel defects starting with power accounting, preserving every physical step and quality check, verifying in the browser and integrating verified slices in main; then continue the next errors. Server and foreign changes remain prohibited.
+      programme_sequence:
+        - GMIN power accounting with unchanged tolerances
+        - Consistent lamp electrical and thermal endpoint
+        - FET nonlinear convergence and transient validation
+        - short100 end-to-end phase delivery with unchanged physical steps and deadlines
+      previous_residual_candidate:
+        task_id: TASK-ELECTRONICS-WORKER-RESIDUAL-001
+        pr: 1064
+        candidate_sha: 963038993170ef1b3fcbe8483ffca19913dca9d4
+        status: not_integrated
+        result: General failed own size gate and strict browser timing remains open; no timing closure claimed.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GMIN-POWER-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
+      previous_browser_wait_contract_slice:
+        task_id: TASK-ELECTRONICS-BROWSER-WAIT-CONTRACT-001
+        integrated_sha: ab8d857a225538c42cb8614c41391f62ae755a09
+        pr: 1057
+      previous_owned_stable_loops_slice:
+        task_id: TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001
+        integrated_sha: 39656d38b55bd6b3aca4c31be0da78a68f4e8699
+        pr: 1052
       previous_spdt_evidence_budget_slice:
         task_id: TASK-ELECTRONICS-SPDT-EVIDENCE-BUDGET-001
         integrated_sha: bbff6866aa9f6779031f006aa179c864c88e5d6e
@@ -16478,7 +16497,7 @@ parallel_lanes:
         branch: main
         sha: eacb9fa9a1e6bfacd22d10c16ae017a5d551ef6f
       observed_at: '2026-11-01T22:29:00Z'
-      observation_note: Fresh fetch main before edits and integration. Recorded baseline remains historical. Main 6e57e0ae6 had successful General run 42613626991 at selection. Existing timing thresholds and browser test remain intact.
+      observation_note: Fresh fetch main before edits and integration. This recorded baseline remains historical. Browser timing and electrical acceptance thresholds stay unchanged.
 
   - id: electronics-compact-toolbar-hit
     parent_lane: electronics

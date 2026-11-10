@@ -117,7 +117,9 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
     await page.goto('/#/admin/ai?section=settings');
     const budgets = page.getByRole('region', { name: 'Месячные лимиты токенов' });
     await expect(budgets.getByRole('button', { name: 'Сохранить лимиты токенов' })).toBeVisible();
-    const row = budgets.getByRole('row', { name: /Локальная Ollama/ });
+    const row = budgets.locator('.asa-ai-policy-model-row').filter({
+      has: page.getByRole('textbox', { name: 'Общий лимит ollama-local' }),
+    });
     // Evidence is from native product CSS, never injected screenshot styles.
     async function capture(state: string, widths = [1440, 1024, 390, 320]) {
       for (const width of widths) {
@@ -126,6 +128,16 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
           await page.setViewportSize({ width, height: width <= 390 ? 844 : 900 });
           await page.emulateMedia({ colorScheme });
           await expect(row).toBeVisible();
+          const fieldsFit = await row.getByRole('textbox').evaluateAll(
+            (fields) =>
+              fields.length === 2 &&
+              fields.every((field) => {
+                const bounds = field.getBoundingClientRect();
+                const list = field.closest('.asa-ai-policy-models')!.getBoundingClientRect();
+                return bounds.left >= list.left && bounds.right <= list.right;
+              }),
+          );
+          expect(fieldsFit).toBe(true);
           const background = await budgets.evaluate(
             (element) => getComputedStyle(element).backgroundColor,
           );

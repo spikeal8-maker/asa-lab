@@ -11,6 +11,7 @@ export interface PolzaModel {
   maxOutputTokens: number;
   active: boolean;
   selected: boolean;
+  catalogMonth?: string | null;
 }
 export interface PolzaCatalog {
   version: number;
@@ -54,7 +55,16 @@ export function parsePolzaModels(raw: unknown): PolzaModel[] {
     const video =
       m.type === 'video' && outputs.includes('video') && endpoints.includes('/api/v1/media');
     const maximum = top?.max_completion_tokens ?? m.max_completion_tokens;
+    const created = m.created;
+    const catalogMonth =
+      typeof created === 'number' &&
+      Number.isSafeInteger(created) &&
+      created > 0 &&
+      created <= 253402300799
+        ? new Date(created * 1000).toISOString().slice(0, 7)
+        : null;
     return {
+      ...(catalogMonth ? { catalogMonth } : {}),
       id: 'polza/' + m.id,
       upstream: m.id,
       label: typeof m.name === 'string' && m.name.trim() ? m.name.trim().slice(0, 120) : m.id,
