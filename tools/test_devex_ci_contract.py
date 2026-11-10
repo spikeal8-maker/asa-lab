@@ -17,6 +17,7 @@ import devex_ci_contract as contract
 
 ROOT = Path(__file__).resolve().parents[1]
 REF = "refs/pull/999/merge"
+STYLE_PATH = "apps/web/src/components/collect-picker.css"
 
 
 class GeneralContractTests(unittest.TestCase):
@@ -36,18 +37,22 @@ class GeneralContractTests(unittest.TestCase):
             else:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(original.read_bytes())
-        for name in [*contract.PRODUCTION, "apps/web/src/components/CollectPicker.spec.ts",
+        for name in [*(contract.PRODUCTION - {STYLE_PATH}), "apps/web/src/components/CollectPicker.spec.ts",
                      "tools/devex_ci_contract.py"]:
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes((ROOT / name).read_bytes())
         (self.root / ".gitignore").write_text(".asa/\n")
+        # Own both sides of the effect so a real product edit cannot erase it.
+        self.write_style("min-height: 34px")
         self.base = self.commit()
-        css = self.root / "apps/web/src/components/collect-picker.css"
-        css.write_text(css.read_text(encoding="utf-8").replace("min-height: 34px", "min-height: 44px"),
-                       encoding="utf-8")
+        self.write_style("min-height: 44px")
         self.head = self.commit()
         self.merge_sha = self.merge_candidate()
+
+    def write_style(self, declaration):
+        (self.root / STYLE_PATH).write_text(
+            f".collect-picker-create input {{\n  {declaration};\n}}\n", encoding="utf-8")
 
     def run_git(self, *args):
         return subprocess.check_output(["git", *args], cwd=self.root, env=self.env,
@@ -118,9 +123,7 @@ class GeneralContractTests(unittest.TestCase):
         self.assertEqual(report["status"], "PASS")
         self.assertEqual(report["full_regression_verified"], expected_route == "PARALLEL")
         self.assertFalse(report["release_ready"])
-        css = self.root / "apps/web/src/components/collect-picker.css"
-        css.write_text(css.read_text(encoding="utf-8").replace("min-height: 44px", "min-width: 44px"),
-                       encoding="utf-8")
+        self.write_style("min-width: 44px")
         self.head = self.commit()
         proof = prove()
         self.assertFalse(proof["eligible"])
