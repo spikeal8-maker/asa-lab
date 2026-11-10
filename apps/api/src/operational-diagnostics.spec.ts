@@ -51,14 +51,14 @@ it('exposes only recorded AI operational scalars and classifies async failures i
     }),
   );
   expect(result.level).toBe('error');
-  expect(result.subsystem).toBe('diagnostics');
+  expect(result).toMatchObject({ module: 'ai', subsystem: 'ai' });
   expect(result.message).not.toContain(privateValue);
   expect(JSON.parse(result.message)).toEqual({
     image_state: 'failed',
     image_error_code: 'ai_image_provider_failed',
     image_created_at: '2026-11-02T00:30:00Z',
   });
-  expect(logSubsystem('audit', '', 'ai_usage_journal')).toBe('diagnostics');
+  expect(logSubsystem('audit', '', 'ai_usage_journal')).toBe('ai');
   const usage = projectDatabaseEntry(
     entry('ai_usage_journal', {
       generation_status: 'failed',

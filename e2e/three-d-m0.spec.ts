@@ -671,7 +671,23 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   });
   const savedCentre = (await directHandlePoint(page, 'resize-height')).centre;
 
-  await page.reload();
+  const editorUrl = page.url();
+  const projectPath = `/api/projects/${new URL(editorUrl).hash.split(/[/?]/)[2]}`;
+  const expectTaggedProjectRead = async (navigate: () => Promise<unknown>) => {
+    const [request] = await Promise.all([
+      page.waitForRequest(
+        (request) => request.method() === 'GET' && new URL(request.url()).pathname === projectPath,
+      ),
+      navigate(),
+    ]);
+    expect(await request.headerValue('x-asa-diagnostic-module')).toBe('three-d');
+  };
+
+  await expectTaggedProjectRead(() => page.reload());
+  await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 20_000 });
+  await page.goto('/#/home');
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
+  await expectTaggedProjectRead(() => page.goto(editorUrl));
   await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('1 объект', { exact: true })).toBeVisible();
   await selectObject(page);

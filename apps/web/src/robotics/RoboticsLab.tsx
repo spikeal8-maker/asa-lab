@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { ArduinoCodePanel, type ArduinoCodePanelHandle } from '../electronics/ArduinoCodePanel';
+import { reportClientDiagnostic } from '../client-diagnostics';
 import { CircuitIcon, CodeIcon, SaveIcon } from '../electronics/workbench-icons';
 import { ProjectModuleIcon } from '../modules/ProjectModuleIcon';
 import { WorkbenchSidebars } from '../electronics/WorkbenchSidebars';
@@ -455,8 +456,20 @@ export function RoboticsWorkspace({
     return () => window.cancelAnimationFrame(frame);
   }, [local.openRevision, section, compactLayout]);
 
-  const halt = useCallback((message: string) => {
+  useEffect(() => {
+    const message = controller.simulationMessage;
+    if (message && message.category !== 'circuit-state')
+      reportClientDiagnostic('simulation_failed', 'robotics', {
+        phase: 'simulation',
+        category: message.category,
+        failureCode: message.code,
+      });
+  }, [controller.simulationMessage]);
+
+  const halt = useCallback((message: string, failureCode?: string) => {
     if (haltedRef.current) return;
+    if (failureCode)
+      reportClientDiagnostic('simulation_failed', 'robotics', { phase: 'simulation', failureCode });
     haltedRef.current = message;
     setHaltReason(message);
     if (controllerRef.current.simulationRunning) controllerRef.current.setSimulationRate(0);
@@ -474,7 +487,10 @@ export function RoboticsWorkspace({
     if (haltedRef.current) return;
     const result = observation.result;
     if (!result.solved || result.status !== 'solved' || result.quality?.passed !== true) {
-      halt('Расчёт схемы не дал достоверного результата. Проверьте электронику и сбросьте запуск.');
+      halt(
+        'Расчёт схемы не дал достоверного результата. Проверьте электронику и сбросьте запуск.',
+        'electrical_quality_failed',
+      );
       return;
     }
     const bindings = sourceWorld.bindings;
@@ -490,7 +506,10 @@ export function RoboticsWorkspace({
       !Number.isFinite(leftRpm) ||
       !Number.isFinite(rightRpm)
     ) {
-      halt('Нет достоверных оборотов одного из двигателей. Проверьте схему и привязки робота.');
+      halt(
+        'Нет достоверных оборотов одного из двигателей. Проверьте схему и привязки робота.',
+        'electrical_sample_failed',
+      );
       return;
     }
     const next = runtimeRef.current!.advance({
@@ -501,7 +520,10 @@ export function RoboticsWorkspace({
     worldRef.current = next;
     setWorldState(next);
     if (next.haltReason) {
-      halt(next.haltReason);
+      halt(
+        next.haltReason,
+        time < ROBOTICS_RUN_LIMIT_MICROSECONDS ? 'physical_advance_failed' : undefined,
+      );
       return;
     }
     if (time >= ROBOTICS_RUN_LIMIT_MICROSECONDS) {

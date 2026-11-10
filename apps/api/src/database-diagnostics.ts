@@ -1,6 +1,6 @@
 import contract from './database-diagnostic-contract.json';
 import type { LogEntry } from './admin-logs.worker.js';
-import { logSubsystem } from './log-subsystems.js';
+import { logModule, logSubsystem } from './log-subsystems.js';
 
 interface FieldRule {
   type: string;
@@ -114,6 +114,7 @@ export function projectDatabaseEntry(entry: LogEntry): LogEntry {
     }
   }
   const source = origin === 'product_analytics_events' ? 'auth' : 'audit';
+  const subsystem = logSubsystem(source, '', origin ?? '');
   const severity = rule?.severity;
   const outcome = severity ? diagnostic[severity.field] : undefined;
   const level =
@@ -126,8 +127,8 @@ export function projectDatabaseEntry(entry: LogEntry): LogEntry {
     id: entry.id,
     time: entry.time,
     source,
-    module: source === 'auth' ? 'auth' : 'system',
-    subsystem: logSubsystem(source, '', origin ?? ''),
+    module: logModule(source, subsystem, '', source === 'auth' ? 'auth' : 'system'),
+    subsystem,
     level,
     message: JSON.stringify(diagnostic),
     requestId: null,

@@ -583,6 +583,14 @@ describe('OBS007 repair actual ModuleEditorHost startup observation', () => {
     vi.doUnmock('./components/AssignmentBrief');
   });
 
+  it('opens the actual chess host with a chess diagnostics context', async () => {
+    const diagnostics = await import('./client-diagnostics');
+    const begin = vi.spyOn(diagnostics, 'beginDiagnosticContext');
+    await mountHost();
+    expect(begin).toHaveBeenCalledWith('chess');
+    expect(begin).not.toHaveBeenCalledWith('electronics');
+  });
+
   it('cancels a pre-hide startup callback and accepts only fresh pointer or keyboard input after return', async () => {
     await mountHost();
     // The real host has mounted, but its initial setTimeout(input,0) has not fired.

@@ -7,7 +7,7 @@ import { AdminLogsPage } from '../AdminLogsPage';
 vi.mock('../admin-api', () => ({ call: vi.fn() }));
 
 describe('administrative log editor filter', () => {
-  it('renders selectable values and labels for all six editors in both actual page filters', () => {
+  it('renders selectable values and labels for the six editors and AI in both page filters', () => {
     const html = renderToStaticMarkup(createElement(AdminLogsPage, { onAccessDenied: vi.fn() }));
     const moduleSelect = /Модуль<select[^>]*>(.*?)<\/select>/s.exec(html)?.[1];
     const subsystemSelect = /Подсистема<select[^>]*>(.*?)<\/select>/s.exec(html)?.[1];
@@ -20,6 +20,7 @@ describe('administrative log editor filter', () => {
       ['three-d', '3D'],
       ['chess', 'Шахматы'],
       ['checkers', 'Шашки'],
+      ['ai', 'ИИ'],
     ]) {
       expect(moduleSelect).toContain(`<option value="${value}">${label}</option>`);
       expect(subsystemSelect).toContain(`<option value="${value}">${label}</option>`);

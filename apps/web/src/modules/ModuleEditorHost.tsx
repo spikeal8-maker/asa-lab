@@ -11,6 +11,7 @@ import { AssignmentBrief } from '../components/AssignmentBrief';
 import { ProjectSaveEvidence } from './project-save-evidence';
 import { AppBootShell } from '../components/AppBootShell';
 import { beginDiagnosticContext } from '../client-diagnostics';
+import { isDiagnosticModule } from '../client-diagnostic-outbox';
 import { isGameModule } from '../games/game-catalog';
 import { gameAccessApi, gameAccessMessage } from '../games/game-access-api';
 import { BlocksEditor } from '../blocks/BlocksEditor';
@@ -100,6 +101,14 @@ function canonicalEditorHash(
   return null;
 }
 
+function EditorDiagnosticContext({ moduleKey }: { readonly moduleKey: string }): null {
+  useEffect(
+    () => (isDiagnosticModule(moduleKey) ? beginDiagnosticContext(moduleKey) : undefined),
+    [moduleKey],
+  );
+  return null;
+}
+
 /** Shared editor host. Project Core selects a module by manifest key; the host
  * mounts the registered subject editor without putting subject branches in App. */
 export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
@@ -185,12 +194,6 @@ function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
       active = false;
     };
   }, [props.moduleKey, props.onModuleResolved, props.projectId, returnToDependency]);
-
-  useEffect(() => {
-    if (state.kind === 'ready' && state.moduleKey === 'electronics')
-      return beginDiagnosticContext('electronics');
-    return undefined;
-  }, [state.kind, state.kind === 'ready' ? state.moduleKey : null, props.projectId]);
 
   useEffect(() => {
     if (state.kind !== 'ready') return;
@@ -283,6 +286,8 @@ function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
   return (
     <EditorErrorBoundary onBack={props.onBack} backLabel={backLabel}>
       <ProjectSaveEvidence key={props.projectId}>
+        {/* The old editor cleans up before this effect runs, and the new editor reads after it. */}
+        <EditorDiagnosticContext moduleKey={state.moduleKey} />
         {/* What to make, while you are making it. Renders nothing for anyone
           whose project is not work a teacher set. */}
         <AssignmentBrief projectId={props.projectId} />

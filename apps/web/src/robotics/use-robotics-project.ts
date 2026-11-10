@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import { analyseArduinoSourceSupport } from '@asa-lab/electronics';
+import { reportClientDiagnostic } from '../client-diagnostics';
 import {
   api,
   type Project,
@@ -333,6 +334,10 @@ export function useOpenRoboticsProject(
       .then((result) => {
         if (!active || controller.signal.aborted) return;
         if (!result.ok) {
+          reportClientDiagnostic('editor_start_failed', 'robotics', {
+            phase: 'startup',
+            httpStatus: result.status,
+          });
           setState({
             scope,
             value: { kind: 'error', message: result.error.message || 'Не удалось открыть проект.' },
@@ -345,6 +350,7 @@ export function useOpenRoboticsProject(
           result.data.project.moduleKey !== 'robotics' ||
           !parsed.ok
         ) {
+          reportClientDiagnostic('editor_start_failed', 'robotics', { phase: 'startup' });
           setState({
             scope,
             value: {
@@ -363,8 +369,10 @@ export function useOpenRoboticsProject(
         });
       })
       .catch((reason: unknown) => {
-        if (active && !controller.signal.aborted)
+        if (active && !controller.signal.aborted) {
+          reportClientDiagnostic('editor_start_failed', 'robotics', { phase: 'startup' });
           setState({ scope, value: { kind: 'error', message: messageOf(reason) } });
+        }
       });
     return () => {
       active = false;
@@ -511,16 +519,22 @@ export function useRoboticsProject(
               unloading,
             });
           } catch (reason) {
-            if (scope.active)
+            if (scope.active) {
+              reportClientDiagnostic('autosave_failed', 'robotics', { phase: 'save' });
               reportError(
                 `Сохранение не подтверждено. ${messageOf(reason)} Повторите отправку.`,
                 'offline',
               );
+            }
             return false;
           }
           if (!scope.active) return false;
           if (!response.ok) {
             const status = response.status;
+            reportClientDiagnostic('autosave_failed', 'robotics', {
+              phase: 'save',
+              httpStatus: status,
+            });
             // These responses confirm that this payload was rejected. A learner
             // can correct it and send the current source. Ambiguous delivery and
             // conflicts retain their original attempt and base revision.

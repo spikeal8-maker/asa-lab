@@ -77,7 +77,11 @@ class DatabaseDiagnosticTests(unittest.TestCase):
                         message = json.loads(event['message'])
                         self.assertEqual(message, {**expected, column: message[column]})
                         for secret in SENTINELS: self.assertNotIn(secret, json.dumps(event))
-                        self.assertEqual(event['module'], 'auth' if event['source'] == 'auth' else 'system')
+                        games = {'chess_live_events': 'chess', 'checkers_reaction_events': 'checkers'}
+                        self.assertEqual(event['module'], games.get(
+                            event['origin'], 'auth' if event['source'] == 'auth' else 'system'))
+                        if event['origin'] in games:
+                            self.assertEqual(event['subsystem'], games[event['origin']])
                         self.assertEqual(event['level'], 'error' if event['origin'] in
                             ('administrative_audit_events', 'product_analytics_events') else 'info')
                         self.assertIsNone(event['requestId']); self.assertIsNone(event['revision'])

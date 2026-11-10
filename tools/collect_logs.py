@@ -233,7 +233,13 @@ def host_source(source: str) -> bool:
 
 
 EDITOR_MODULES = ('scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers')
-LOG_MODULES = ('system', 'portal', 'auth', *EDITOR_MODULES)
+LOG_MODULES = ('system', 'portal', 'auth', 'ai', *EDITOR_MODULES)
+DATABASE_SUBSYSTEMS = {
+    'ai_image_jobs': 'ai', 'ai_usage_journal': 'ai',
+    'chess_live_events': 'chess', 'checkers_reaction_events': 'checkers',
+    'product_analytics_events': 'analytics', 'classroom_activity_events': 'classrooms',
+    'grade_change_events': 'learning',
+}
 
 
 def editor_module(value):
@@ -248,20 +254,23 @@ def subsystem(source: str, payload=None, origin="") -> str:
         if editor_module(module): return editor_module(module)
         if module in ('portal', 'auth'): return {'portal': 'web', 'auth': 'access'}[module]
     if source == 'web' and isinstance(payload, dict) and str(payload.get('path', '')).startswith('/internal/blocks/'): return 'scratch'
+    parts = str(payload.get('path', '')).split('?')[0].split('/') if isinstance(payload, dict) else []
+    route = parts[2] if len(parts) > 2 else ''
+    child = parts[3] if len(parts) > 3 else ''
+    if source in ('api', 'web') and len(parts) > 1 and parts[1] == 'api':
+        if route == 'games' and child in ('chess', 'checkers'): return child
+        if route == 'ai' or (route == 'admin' and parts[3:5] == ['v1', 'ai']): return 'ai'
+        if editor_module(route): return editor_module(route)
     if source == "api":
-        route = str(payload.get("path", "")).split("?")[0].split("/") if isinstance(payload, dict) else []
-        route = route[2] if len(route) > 2 else ""
         for pattern, name in ((r"^(auth|class-join|account|identity|max|student)", "access"), (r"^classroom", "classrooms"), (r"^(blocks|scratch)", "scratch"), (r"^(files|uploads|storage)", "storage"), (r"^admin", "administration")):
             if re.search(pattern, route): return name
         if route == 'assignments': return 'learning'
         if route in ('session', 'workspaces', 'capabilities', 'schools'): return 'access'
-        return route if route in ("projects", "learning", "courses", "analytics", "diagnostics", "electronics", "robotics", "chess", "checkers", "three-d") else "api"
+        return route if route in ("projects", "learning", "courses", "analytics", "diagnostics") else "api"
     if source in ("postgres", "migration"): return "database"
     if source.startswith("minio"): return "storage"
     if source == "tunnel": return "network"
-    if origin in ('ai_image_jobs', 'ai_usage_journal'): return 'diagnostics'
-    if origin in ("product_analytics_events", "classroom_activity_events", "grade_change_events"):
-        return {"product_analytics_events": "analytics", "classroom_activity_events": "classrooms", "grade_change_events": "learning"}[origin]
+    if origin in DATABASE_SUBSYSTEMS: return DATABASE_SUBSYSTEMS[origin]
     if source == "auth": return "access"
     return source if source in ("web", "scratch", "electronics", "chess", "checkers", "three-d", "audit", "updates", "backup", "metrics") else "audit"
 
@@ -281,7 +290,10 @@ def event_subsystem(event):
         if event.get('truncated') and not payload and event.get('subsystem') not in (None, 'host'):
             return event['subsystem']
         return subsystem(source, payload, event.get('origin', ''))
-    return event.get('subsystem') or subsystem(source, origin=event.get('origin', ''))
+    origin = event.get('origin', '')
+    if source in ('audit', 'auth') and origin in DATABASE_SUBSYSTEMS:
+        return subsystem(source, origin=origin)
+    return event.get('subsystem') or subsystem(source, origin=origin)
 
 
 def classify_event(event):
@@ -289,6 +301,7 @@ def classify_event(event):
     group = event_subsystem(event)
     if host_source(source): module = 'system'
     elif editor_module(source): module = editor_module(source)
+    elif group == 'ai' or (source == 'audit' and group in ('chess', 'checkers')): module = group
     elif source in ('api', 'web'):
         payload = classification_payload(event)
         module = editor_module(group) or editor_module(payload.get('module')) or editor_module(event.get('module'))
@@ -681,7 +694,9 @@ class Collector:
         value = dict(source=source, state=state, checkedAt=now(), lastCollectedAt=now() if state == "ok" else prior.get("lastCollectedAt"), collectedThrough=collected_through or prior.get("collectedThrough"), detail=clean(str(detail))[:500])
         value['applicable'] = not (source.startswith('windows') and os.name != 'nt' or source.startswith('linux:') and not sys.platform.startswith('linux'))
         if source == 'docker-lifecycle':
-            value['possibleCoverageGap'] = bool(self.state('docker:lifecycle:coverage', []))
+            value['possibleCoverageGap'] = bool(
+                self.state('docker:lifecycle:coverage', []) or self.state('docker:lifecycle:replay-limit')
+            )
         if source == 'linux:journal':
             value['possibleCoverageGap'] = bool(self.state('linux:journal:gap', False))
         self.db.execute("INSERT OR REPLACE INTO sources VALUES(?,?)", (source, json.dumps(value)))
@@ -1203,6 +1218,25 @@ class Collector:
                 if child.poll() is None: child.kill(); child.wait(timeout=3)
                 child.stdout.close()
 
+    def add_journal_row(self, row, until):
+        if not isinstance(row, dict): raise ValueError('Invalid journal row')
+        identity = row.get('__CURSOR')
+        micros = row.get('__REALTIME_TIMESTAMP')
+        if not isinstance(identity, str) or len(identity) > 4096 or not str(micros).isdecimal():
+            raise ValueError('Invalid journal identity; cursor retained')
+        stamp = datetime.fromtimestamp(int(micros) / 1000000, UTC).isoformat()
+        raw = row.get('MESSAGE', '')
+        if not isinstance(raw, str): raw = '[non-text journal message]'
+        unit = row.get('_SYSTEMD_UNIT', '')
+        if not isinstance(unit, str) or not re.fullmatch(r'[A-Za-z0-9@_.:-]{1,200}', unit): unit = None
+        kernel_oom = row.get('_TRANSPORT') == 'kernel' and bool(re.search(r'out of memory|oom.kill|killed process', raw, re.I))
+        kind = 'kernel_oom' if kernel_oom else 'system_service_failure' if unit and re.search(r'failed|failure', raw, re.I) else 'system_journal'
+        priority = int(row.get('PRIORITY', 4))
+        payload = dict(kind=kind, module='system', level='error' if priority <= 3 else 'warn', message=raw[:16384], unit=unit)
+        origin = unit or ('kernel' if row.get('_TRANSPORT') == 'kernel' else 'system')
+        self.add(normalize('linux:journal', json.dumps(payload), timestamp(stamp, until), identity, origin))
+        return identity, stamp
+
     def linux(self):
         if not sys.platform.startswith('linux'):
             self.status('linux:journal', 'unavailable', 'Linux journal is not available on this host')
@@ -1224,25 +1258,21 @@ class Collector:
                 self.set_state('linux:journal:gap', True)
                 rows, limited = self.journal_batch(args + ['--since', start])
             for row in rows:
-                identity = row.get('__CURSOR')
-                micros = row.get('__REALTIME_TIMESTAMP')
-                if not isinstance(identity, str) or len(identity) > 4096 or not str(micros).isdecimal():
-                    raise ValueError('Invalid journal identity; cursor retained')
-                stamp = datetime.fromtimestamp(int(micros) / 1000000, UTC).isoformat()
-                raw = row.get('MESSAGE', '')
-                if not isinstance(raw, str): raw = '[non-text journal message]'
-                unit = row.get('_SYSTEMD_UNIT', '')
-                if not isinstance(unit, str) or not re.fullmatch(r'[A-Za-z0-9@_.:-]{1,200}', unit): unit = None
-                kernel_oom = row.get('_TRANSPORT') == 'kernel' and bool(re.search(r'out of memory|oom.kill|killed process', raw, re.I))
-                kind = 'kernel_oom' if kernel_oom else 'system_service_failure' if unit and re.search(r'failed|failure', raw, re.I) else 'system_journal'
-                priority = int(row.get('PRIORITY', 4))
-                payload = dict(kind=kind, module='system', level='error' if priority <= 3 else 'warn', message=raw[:16384], unit=unit)
-                origin = unit or ('kernel' if row.get('_TRANSPORT') == 'kernel' else 'system')
-                self.add(normalize('linux:journal', json.dumps(payload), timestamp(stamp, until), identity, origin))
+                identity, stamp = self.add_journal_row(row, until)
                 self.set_state('linux:journal:cursor', identity)
                 self.set_state('linux:journal:through', stamp)
             if not limited: self.set_state('linux:journal:through', until)
-            detail = 'Warning/error system journal, bounded to 500 records/2 MiB per cycle'
+            detail = 'Warning/error system journal, bounded to 500 records/2 MiB per batch'
+            if limited:
+                # Sample the head without advancing the chronological cursor or claiming coverage.
+                recent_start = (datetime.fromisoformat(until) - timedelta(minutes=5)).isoformat()
+                try:
+                    recent, recent_limited = self.journal_batch(args + ['--reverse', '--since', recent_start])
+                    for row in recent:
+                        self.add_journal_row(row, until)
+                    detail += '; recent sample bounded by batch limit' if recent_limited else '; recent sample checked'
+                except (OSError, RuntimeError, TypeError, ValueError, OverflowError, subprocess.TimeoutExpired):
+                    detail += '; recent sample failed while history is pending'
             if self.state('linux:journal:gap'): detail += '; journal cursor was lost/vacuumed: historical coverage has a gap'
             self.status('linux:journal', 'pending' if limited else 'ok', detail, self.state('linux:journal:through', start))
         except (PermissionError, FileNotFoundError) as exc:
@@ -1289,9 +1319,15 @@ class Collector:
                             window = dict(container=cid[:12], **{k: payload[k] for k in ('possibleUncollectedFrom', 'possibleUncollectedTo')})
                             if window not in windows: self.set_state('docker:lifecycle:coverage', [*windows, window][-20:])
                 self.add(normalize('docker-lifecycle', json.dumps(payload), timestamp(stamp, until), str(actor.get('ID')) + ':' + action + ':' + str(nanos)))
+            # The daemon returns at most its last 256 historical events. A full
+            # scoped response may have skipped earlier records in this interval.
+            # Fewer matches do not prove absence of a gap in the daemon ring.
+            if len(rows) >= 256:
+                self.set_state('docker:lifecycle:replay-limit', {'from': start, 'to': until})
             self.set_state('docker:lifecycle:through', until)
             detail = 'Installation-scoped events; Docker retains only its last 256 events, earlier/lost daemon history is not recoverable'
             if self.state('docker:lifecycle:coverage', []): detail += '; removed containers have possible uncollected stdout-tail windows (not a proven lost count)'
+            if self.state('docker:lifecycle:replay-limit'): detail += '; a replay reached the Docker event limit; earlier events may be missing'
             self.status('docker-lifecycle', 'ok', detail, until)
         except Exception as exc: self.status('docker-lifecycle', 'error', str(exc))
 
@@ -1517,14 +1553,17 @@ class Collector:
                                 not isinstance(entry.get("source"), str) or not 1 <= len(entry["source"]) <= 200 or
                                 not isinstance(entry.get("message"), str) or len(entry["message"]) > 16384 or not timestamp(entry.get("time"), "")):
                                 raise RuntimeError("Diagnostic archive contains an invalid record")
-                            editor_hint = editor_module(entry.get('subsystem')) if entry['source'] in ('api', 'web') else None
+                            hint = None
+                            if entry['source'] in ('api', 'web'):
+                                group = entry.get('subsystem')
+                                hint = 'ai' if group == 'ai' and entry.get('truncated') is True else editor_module(group)
                             entry = {k: v for k, v in entry.items() if k in ("id", "time", "source", "module", "level", "message", "requestId", "revision", "origin", "truncated", "timeBasis", "windowsRecordId", "windowsEventId", "normalizationVersion")}
                             entry["time"] = timestamp(entry["time"], "")
                             entry["message"] = clean(entry["message"])
                             entry["origin"] = clean(str(entry.get("origin", "")))[:500]
-                            # Truncated editor JSON cannot reconstruct this known classification hint.
-                            if editor_hint and entry['origin'] not in DATABASE_DIAGNOSTICS['sources']:
-                                entry['subsystem'] = editor_hint
+                            # A truncated HTTP record cannot recover a known classification from JSON.
+                            if hint and entry['origin'] not in DATABASE_DIAGNOSTICS['sources']:
+                                entry['subsystem'] = hint
                             entry["requestId"] = entry.get("requestId") if isinstance(entry.get("requestId"), str) and re.fullmatch(r"[a-fA-F0-9-]{36}", entry["requestId"]) else None
                             entry["revision"] = entry.get("revision") if isinstance(entry.get("revision"), str) and re.fullmatch(r"[a-f0-9]{7,64}", entry["revision"]) else None
                             entry["truncated"] = entry.get("truncated") is True
@@ -1786,6 +1825,7 @@ class Collector:
             self.docker(history=False)
             self.database(history=False)
             self.checkpoint(force=True)
+            self.lifecycle()
             self.docker(history=True)
             self.database(history=True)
             self.checkpoint()
@@ -1794,7 +1834,6 @@ class Collector:
             self.operational_database()
             self.windows(background=True)
             self.linux()
-            self.lifecycle()
             self.checkpoint(force=True)
         finally: self.checkpoint_enabled = False
 

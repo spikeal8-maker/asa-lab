@@ -42,6 +42,134 @@ function zipMembers(zip: Buffer): Map<string, Buffer> {
 }
 
 describe('retained log reader and archive', () => {
+  it('keeps game, AI, robotics and 3D events together in the correct query and ZIP', async () => {
+    const cases = [
+      {
+        source: 'api',
+        payload: { path: '/api/games/chess/tickets', module: 'electronics' },
+        module: 'chess',
+        legacy: true,
+      },
+      { source: 'web', payload: { path: '/api/games/chess/tickets' }, module: 'chess' },
+      {
+        source: 'api',
+        payload: { path: '/api/games/checkers/tickets' },
+        module: 'checkers',
+        legacy: true,
+      },
+      {
+        source: 'api',
+        payload: { path: '/api/ai/chat', module: 'electronics' },
+        module: 'ai',
+        legacy: true,
+      },
+      { source: 'web', payload: { path: '/api/admin/v1/ai/images' }, module: 'ai' },
+      {
+        source: 'audit',
+        origin: 'ai_image_jobs',
+        payload: { image_state: 'failed' },
+        module: 'ai',
+        legacy: true,
+      },
+      {
+        source: 'audit',
+        origin: 'ai_usage_journal',
+        payload: { generation_status: 'failed' },
+        module: 'ai',
+      },
+      {
+        source: 'api',
+        payload: { kind: 'client_diagnostic', code: 'simulation_failed', module: 'robotics' },
+        module: 'robotics',
+      },
+      {
+        source: 'api',
+        payload: { kind: 'client_diagnostic', code: 'export_failed', module: 'three-d' },
+        module: 'three-d',
+      },
+    ] as const;
+    const current = JSON.parse(
+      execFileSync(
+        'python',
+        [
+          '-c',
+          [
+            'import sys,json',
+            "sys.path.insert(0,'tools')",
+            'from collect_logs import normalize',
+            'rows=json.load(sys.stdin)',
+            "print(json.dumps([normalize(row['source'],json.dumps(row['payload']),'2026-10-02T00:00:00.000Z',str(i),row.get('origin','')) for i,row in enumerate(rows)]))",
+          ].join('\n'),
+        ],
+        { input: JSON.stringify(cases), encoding: 'utf8' },
+      ),
+    ) as LogEntry[];
+    for (const [i, row] of current.entries())
+      expect(row).toMatchObject({ module: cases[i]!.module, subsystem: cases[i]!.module });
+    const saved = current.map((row, i) =>
+      'legacy' in cases[i]!
+        ? {
+            ...row,
+            module: 'electronics',
+            subsystem: row.source === 'audit' ? 'diagnostics' : 'api',
+          }
+        : row,
+    );
+    const root = await mkdtemp(join(tmpdir(), 'asa-game-ai-logs-'));
+    try {
+      const raw = Buffer.from(saved.map((row) => JSON.stringify(row)).join('\n') + '\n');
+      const compressed = gzipSync(raw);
+      const file = 'seg-0000000000000001-0000000000000009.jsonl.gz';
+      await writeFile(join(root, file), compressed);
+      const catalog = JSON.stringify({
+        version: 1,
+        sources: [],
+        segments: [
+          {
+            file,
+            schema: 2,
+            bytes: compressed.length,
+            rawBytes: raw.length,
+            sha256: createHash('sha256').update(raw).digest('hex'),
+            count: saved.length,
+            first: current[0]!.time,
+            last: current[0]!.time,
+            sources: ['api', 'web', 'audit'],
+            modules: ['electronics'],
+            subsystems: ['api'],
+            levels: ['info'],
+          },
+        ],
+      });
+      await writeFile(join(root, 'catalog.json'), catalog);
+      for (const module of ['chess', 'checkers', 'ai', 'robotics', 'three-d', 'electronics']) {
+        const selected = logFilter({ ...filter, module, subsystem: module });
+        const expected = current.filter((row) => row.module === module);
+        const page = await queryLogs(root, selected, 100);
+        expect(page.items.map((row) => row.id).sort()).toEqual(
+          expected.map((row) => row.id).sort(),
+        );
+        const zip = join(root, `${module}.zip`);
+        expect((await exportLogs(root, selected, zip)).count).toBe(expected.length);
+        const contents = [...zipMembers(await readFile(zip))]
+          .filter(([name]) => name.endsWith('.jsonl'))
+          .flatMap(([, bytes]) =>
+            bytes
+              .toString()
+              .trim()
+              .split('\n')
+              .map((line) => JSON.parse(line) as LogEntry),
+          );
+        expect(contents.sort((a, b) => a.id.localeCompare(b.id))).toEqual(
+          [...page.items].sort((a, b) => a.id.localeCompare(b.id)),
+        );
+      }
+      expect(await readFile(join(root, file))).toEqual(compressed);
+      expect(await readFile(join(root, 'catalog.json'), 'utf8')).toBe(catalog);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it('leaves unknown optional required-coverage metadata unknown without breaking legacy queries', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-required-reader-'));
     try {

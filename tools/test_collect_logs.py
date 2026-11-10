@@ -648,6 +648,47 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(source['state'], 'unavailable'); self.assertEqual(c.state('linux:journal:cursor'), cursor)
             self.assertTrue(Collector.host_segment({'sources': ['linux:journal', 'docker-lifecycle']})); c.db.close()
 
+    def test_journal_samples_recent_warnings_without_skipping_backlog(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = Collector(Path(directory), {})
+            at = datetime.now(timezone.utc) - timedelta(seconds=10)
+            recent = {'__CURSOR': 'recent', '__REALTIME_TIMESTAMP': str(int(at.timestamp()*1000000)),
+                      'PRIORITY': '4', 'MESSAGE': 'Recent warning'}
+            older = {**recent, '__CURSOR': 'older', 'MESSAGE': 'Older warning',
+                     '__REALTIME_TIMESTAMP': str(int((at-timedelta(hours=2)).timestamp()*1000000))}
+            with patch('collect_logs.sys.platform', 'linux'), patch('collect_logs.shutil.which', return_value='/usr/bin/journalctl'), patch.object(c, 'journal_batch', side_effect=[([older], True), ([recent], True), ([recent], False)]) as journal:
+                c.linux()
+                source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='linux:journal'").fetchone()[0])
+                self.assertEqual(source['state'], 'pending')
+                self.assertEqual(source['collectedThrough'], (at-timedelta(hours=2)).isoformat())
+                self.assertEqual(c.state('linux:journal:cursor'), 'older')
+                self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 2)
+                self.assertIn('--reverse', journal.call_args_list[1].args[0])
+                c.set_state('linux:journal:last', 0)
+                c.linux()
+                self.assertEqual(journal.call_count, 3)
+                self.assertEqual(journal.call_args.args[0][-2:], ['--after-cursor', 'older'])
+            source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='linux:journal'").fetchone()[0])
+            self.assertEqual(source['state'], 'ok')
+            self.assertEqual(c.state('linux:journal:cursor'), 'recent')
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 2)
+            c.db.close()
+
+    def test_journal_recent_sample_failure_preserves_history_progress(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = Collector(Path(directory), {})
+            row = {'__CURSOR': 'history', '__REALTIME_TIMESTAMP': str(int(time.time()*1000000)),
+                   'PRIORITY': '4', 'MESSAGE': 'History warning'}
+            with patch('collect_logs.sys.platform', 'linux'), patch('collect_logs.shutil.which', return_value='/usr/bin/journalctl'), patch.object(c, 'journal_batch', side_effect=[([row], True), RuntimeError('private-source-details')]):
+                c.linux()
+            source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='linux:journal'").fetchone()[0])
+            self.assertEqual(source['state'], 'pending')
+            self.assertIn('recent sample failed', source['detail'])
+            self.assertNotIn('private-source-details', source['detail'])
+            self.assertEqual(c.state('linux:journal:cursor'), 'history')
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
+            c.db.close()
+
     def test_docker_lifecycle_is_root_scoped_deduplicated_and_excludes_labels(self):
         with tempfile.TemporaryDirectory() as directory:
             c = Collector(Path(directory), {'project': 'asa-owned'}); c.postgres = 'fixture'
@@ -679,10 +720,47 @@ class CollectorTests(unittest.TestCase):
             source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='docker-lifecycle'").fetchone()[0]); self.assertTrue(source['possibleCoverageGap'])
             self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 2); c.db.close()
 
+    def test_docker_lifecycle_replay_limit_survives_next_quiet_cycle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = Collector(Path(directory), {'project': 'asa-owned'})
+            c.postgres = 'fixture'
+            attrs = {'com.docker.compose.project': 'asa-owned',
+                     'com.docker.compose.project.working_dir': str(c.root)}
+            row = json.dumps({'Action': 'exec_start', 'Actor': {'Attributes': attrs}}).encode()
+            c.command = lambda *args, **kwargs: b'\n'.join([row] * 256)
+            c.lifecycle()
+            replay = c.state('docker:lifecycle:replay-limit')
+            self.assertLess(replay['from'], replay['to'])
+            c.command = lambda *args, **kwargs: b''
+            c.lifecycle()
+            self.assertEqual(c.state('docker:lifecycle:replay-limit'), replay)
+            source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='docker-lifecycle'").fetchone()[0])
+            self.assertTrue(source['possibleCoverageGap'])
+            self.assertIn('reached the Docker event limit', source['detail'])
+            c.db.close()
+
     def test_historical_invitation_path_is_redacted_before_retention(self):
         entry = normalize('api', json.dumps({'path':'/api/classroom-teacher-invitations/private-capability/accept'}), now(), 'fixture')
         self.assertNotIn('private-capability', entry['message'])
         self.assertIn('[redacted]', entry['message'])
+
+    def test_normalized_zip_keeps_the_category_of_a_truncated_ai_http_event(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = Collector(Path(directory), {})
+            try:
+                entry = normalize('api', json.dumps({'path': '/api/ai/chat', 'msg': 'x' * 20000}),
+                                  now(), 'large-ai-event', 'application-stdout')
+                self.assertTrue(entry['truncated'])
+                self.assertEqual((entry['module'], entry['subsystem']), ('ai', 'ai'))
+                archive = Path(directory) / 'ai-fixture.zip'
+                with zipfile.ZipFile(archive, 'w') as z:
+                    z.writestr('manifest.json', json.dumps({'normalized': True, 'count': 1}))
+                    z.writestr('records/part-00001.jsonl', json.dumps(entry) + '\n')
+                c.import_history(archive)
+                restored = json.loads(gzip.decompress(c.db.execute('SELECT payload FROM events').fetchone()[0]))
+                self.assertEqual((restored['module'], restored['subsystem']), ('ai', 'ai'))
+                self.assertEqual(restored['id'], entry['id'])
+            finally: c.db.close()
 
     def test_multiline_postgres_metrics_use_csv_and_survive_docker_stats_failure(self):
         import csv, io
