@@ -814,7 +814,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
             'percentageBasisPoints', CASE WHEN compatibility.grading_semantics = 'unknown' THEN NULL ELSE selected_result.percentage_basis_points END,
             'displayGrade', CASE WHEN compatibility.grading_semantics = 'unknown' THEN NULL ELSE
                 COALESCE(public.grade_label_for_classroom(assignment.classroom_id, selected_result.percentage_basis_points),
-                    CASE selected_result.outcome WHEN 'passed' THEN 'Р—Р°С‡С‘С‚' WHEN 'failed' THEN 'РќРµ Р·Р°С‡С‚РµРЅРѕ' END)
+                    CASE selected_result.outcome WHEN 'passed' THEN 'Зачёт' WHEN 'failed' THEN 'Не зачтено' END)
             END,
             'outcome', CASE WHEN compatibility.grading_semantics = 'unknown' THEN NULL ELSE selected_result.outcome END,
             'publishedAt', selected_result.published_at
@@ -1151,7 +1151,7 @@ BEGIN
  END IF;
  SELECT public.learning_gradebook_projection_sync_internal(
    v_attempt.activity_participation_id,p_reviewer_principal_id,v_result,
-   COALESCE(NULLIF(trim(p_reason),''),'РџСЂРѕРІРµСЂРєР° СЂР°Р±РѕС‚С‹')
+   COALESCE(NULLIF(trim(p_reason),''),'Проверка работы')
  ) INTO v_gradebook;
  RETURN QUERY SELECT 'ok'::varchar,v_result,v_gradebook,
    'closed'::varchar,v_percentage;
