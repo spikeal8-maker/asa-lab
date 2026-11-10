@@ -17,8 +17,6 @@ import ci_required as aggregate
 
 
 SHA = "a" * 40
-REQUIRED_JOB_NAME = ("${{ github.event_name == 'push' && github.ref != 'refs/heads/main' "
-                     "&& 'ASA / branch push (not required)' || 'ASA / required' }}")
 
 
 def successful_needs():
@@ -110,7 +108,7 @@ class RequiredSummaryTests(unittest.TestCase):
     def test_native_workflow_wiring_and_canonical_regression_command(self):
         workflow = yaml.safe_load((aggregate.ROOT / ".github/workflows/spec-validation.yml").read_text(encoding="utf-8"))
         job = workflow["jobs"]["required"]
-        self.assertEqual(job["name"], REQUIRED_JOB_NAME)
+        self.assertEqual(job["name"], "ASA / required")
         self.assertEqual(job["needs"], list(aggregate.REQUIRED_JOBS))
         self.assertEqual(job["if"], "${{ always() }}")
         self.assertEqual(job["permissions"], {"contents": "read"})
@@ -125,35 +123,9 @@ class RequiredSummaryTests(unittest.TestCase):
         gate = (aggregate.ROOT / "tools/gate-governance.sh").read_text(encoding="utf-8")
         self.assertIn('run "$PYTHON" tools/test_ci_required.py', gate)
 
-    def test_static_event_name_contract_keeps_branch_push_failures_out_of_required_context(self):
+    def test_general_runs_on_main_push_and_unfiltered_pull_requests(self):
         workflow = yaml.safe_load((aggregate.ROOT / ".github/workflows/spec-validation.yml").read_text(encoding="utf-8"))
-        self.assertEqual(workflow["jobs"]["required"]["name"], REQUIRED_JOB_NAME)
-
-        # Static wiring contract for this exact pinned and/or expression, not a
-        # general expression evaluator. Native push/PR checks prove the names.
-        def check_name(event, ref):
-            return (event == "push" and ref != "refs/heads/main"
-                    and "ASA / branch push (not required)") or "ASA / required"
-
-        for event, ref in (("pull_request", "refs/pull/983/merge"),
-                           ("pull_request", "refs/heads/codex/work"),
-                           ("push", "refs/heads/main")):
-            with self.subTest(event=event, ref=ref):
-                self.assertEqual(check_name(event, ref), "ASA / required")
-
-        cancelled = {**successful_needs(), "code": {"result": "cancelled"}}
-        for ref in ("refs/heads/agent/work", "refs/heads/assistant/work",
-                    "refs/heads/codex/work", "refs/heads/main-backup"):
-            with self.subTest(ref=ref):
-                branch_name = check_name("push", ref)
-                self.assertEqual(branch_name, "ASA / branch push (not required)")
-                checks = {branch_name: aggregate.summarize(SHA, SHA, cancelled),
-                          check_name("pull_request", "refs/pull/983/merge"):
-                              aggregate.summarize(SHA, SHA, successful_needs())}
-                self.assertEqual(len(checks), 2)
-                self.assertEqual(checks["ASA / required"]["status"], "PASS")
-                self.assertEqual(checks[branch_name]["status"], "CANCELLED")
-                self.assertFalse(checks[branch_name]["full_regression_verified"])
+        self.assertEqual(workflow["on"], {"push": {"branches": ["main"]}, "pull_request": {}})
 
 
 if __name__ == "__main__":

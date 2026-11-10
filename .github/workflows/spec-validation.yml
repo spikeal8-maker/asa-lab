@@ -4,9 +4,6 @@ name: ASA Lab Governance and Code Gates
   push:
     branches:
       - main
-      - "agent/**"
-      - "assistant/**"
-      - "codex/**"
   pull_request: {}
 
 # Read-only, but wider than contents alone: the control-plane validator compares
@@ -337,7 +334,7 @@ jobs:
           if-no-files-found: error
 
   required:
-    name: ${{ github.event_name == 'push' && github.ref != 'refs/heads/main' && 'ASA / branch push (not required)' || 'ASA / required' }}
+    name: ASA / required
     needs: [governance, code, postgres-tests, access-a-browser]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
