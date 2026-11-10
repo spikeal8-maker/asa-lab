@@ -1,12 +1,22 @@
 name: ASA Portable Release
-run-name: Release ${{ github.event.workflow_run.head_sha || github.sha }}
+run-name: ${{ github.event_name == 'workflow_dispatch' && inputs.recovery_revision && format('Recovery candidate {0}', inputs.recovery_revision) || format('Release {0}', github.event.workflow_run.head_sha || github.sha) }}
 
 'on':
   workflow_run:
     workflows: ['ASA Lab Governance and Code Gates']
     branches: [main]
     types: [completed]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      recovery_revision:
+        description: 'Recovery source SHA (leave empty for a normal main release)'
+        type: string
+      recovery_base:
+        description: 'Main revision whose application source the recovery candidate preserves'
+        type: string
+      recovery_target:
+        description: 'Main revision whose complete migration tree the candidate preserves'
+        type: string
 
 permissions:
   contents: read
@@ -19,6 +29,7 @@ concurrency:
 
 jobs:
   contracts:
+    needs: gate
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -26,40 +37,61 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ needs.gate.outputs.revision }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: python -m unittest discover -s tools/deployment -p "test_*.py" -v
       - run: python tools/test_collect_logs.py
   gate:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository))
+    if: (github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository))) || (github.event_name == 'workflow_dispatch' && inputs.recovery_revision != '')
     runs-on: ubuntu-latest
     outputs:
       revision: ${{ steps.source.outputs.revision }}
+      recovery: ${{ steps.source.outputs.recovery }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
           persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - id: source
         env:
           GH_TOKEN: ${{ github.token }}
-          REVISION: ${{ github.event.workflow_run.head_sha || github.sha }}
+          REVISION: ${{ inputs.recovery_revision || github.event.workflow_run.head_sha || github.sha }}
+          RECOVERY_REVISION: ${{ inputs.recovery_revision }}
+          RECOVERY_BASE: ${{ inputs.recovery_base }}
+          RECOVERY_TARGET: ${{ inputs.recovery_target }}
+          PYTHONPATH: ${{ github.workspace }}/tools
         run: |
-          python - <<'PY'
-          import os, re, sys
-          sys.path.insert(0, 'tools')
+          python -P - <<'PY'
+          import os, re
           from deployment.releases import assert_general_ci
-          from deployment.system import run
+          from deployment.publication import canonical_main, is_ancestor, verify_recovery_source
           from deployment.contracts import require
-          latest = run(['git', 'ls-remote', 'origin', 'refs/heads/main'], capture=True)
-          main = re.fullmatch(r'([0-9a-f]{40})\trefs/heads/main', latest)
-          require(main and main[1] == os.environ.get('REVISION'), 'STALE_RELEASE',
-                  'Candidate is not the current main; stop before building release images.')
-          assert_general_ci(os.environ['REVISION'])
+          from deployment.system import run
+          revision = os.environ['REVISION']
+          require(re.fullmatch(r'[a-f0-9]{40}', revision), 'RELEASE_SOURCE', 'Invalid candidate revision.')
+          main = canonical_main()
+          recovery = bool(os.environ['RECOVERY_REVISION'])
+          if recovery:
+              base, target = os.environ['RECOVERY_BASE'], os.environ['RECOVERY_TARGET']
+              run(['git', 'fetch', '--no-tags', 'origin', revision])
+              verify_recovery_source(revision, base, target, main)
+              assert_general_ci(base)
+              assert_general_ci(target)
+          else:
+              require(not os.environ['RECOVERY_BASE'] and not os.environ['RECOVERY_TARGET'], 'RELEASE_SOURCE',
+                      'Supply all three recovery revisions together.')
+              require(is_ancestor(revision, main), 'RELEASE_SOURCE',
+                      'Candidate must belong to the canonical main history.')
+              assert_general_ci(revision)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write('revision=' + os.environ['REVISION'] + '\n')
+              output.write(f'revision={revision}\nrecovery={str(recovery).lower()}\n')
           PY
   build:
     needs: [gate, contracts]
@@ -167,18 +199,22 @@ jobs:
       - run: python tools/deployment/ci_manifest.py
       - name: Verify the exact images before promoting stable
         run: python tools/deployment/ci_smoke.py .asa/release/release.json
-      - name: Prevent a delayed workflow from rolling the channel backward
-        run: |
-          python - <<'PY'
-          import os, sys
-          sys.path.insert(0, 'tools')
-          from deployment.system import run
-          from deployment.contracts import require
-          latest = run(['git', 'ls-remote', 'origin', 'refs/heads/main'], capture=True).split()[0]
-          require(latest == os.environ['ASA_BUILD_REVISION'], 'STALE_RELEASE',
-                  'Main advanced during the build; keep stable unchanged and publish the next green main.')
-          PY
+      - uses: actions/checkout@v4
+        if: needs.gate.outputs.recovery == 'false'
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .asa/publication-tools
+          sparse-checkout: tools/deployment
+          persist-credentials: false
+      - name: Compare the qualified candidate with the published channel
+        if: needs.gate.outputs.recovery == 'false'
+        id: promotion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PYTHONPATH: ${{ github.workspace }}/.asa/publication-tools/tools
+        run: python -P -m deployment.publication
       - uses: docker/build-push-action@v6
+        if: needs.gate.outputs.recovery == 'false' && steps.promotion.outputs.promote == 'true'
         with:
           context: .asa/release
           file: infra/deployment/Dockerfile
@@ -187,4 +223,14 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/deployment:${{ needs.gate.outputs.revision }}
             ghcr.io/${{ github.repository }}/deployment:stable
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+      - name: Publish isolated recovery candidate
+        if: needs.gate.outputs.recovery == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .asa/release
+          file: infra/deployment/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ghcr.io/${{ github.repository }}/deployment:recovery-${{ needs.gate.outputs.revision }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
