@@ -17135,18 +17135,95 @@ parallel_lanes:
 
   - id: robotics
     parent_lane: electronics
-    worktree_id: robotics-field-v2-20261106
+    worktree_id: robotics-field-core-e1-001
     owned_paths:
-    - apps/web/robotics-dev.html
-    - apps/web/src/robotics/**
-    - contexts/robotics/**
-    - modules/robotics/**
-    - docs/product/robotics/**
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
+      - apps/web/robotics-dev.html
+      - apps/web/src/robotics/**
+      - contexts/robotics/**
+      - modules/robotics/**
+      - docs/product/robotics/**
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ROBOTICS-FIELD-CORE-E1-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      checkpoint: e0_preserved_e1_selected_pending_canonical_registration
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      owner_authorization: "Owner on 2026-11-11 explicitly instructed: «Сделай всё это и подготовь», after
+        readiness review identifying spec adoption, new canonical selection, E0 preservation and bounded
+        E1 qualification. Authorizes this documentation-only registration, ordinary protected
+        integration of PR1069, preservation of D2-R2:4630 work and subsequent bounded E1 after this
+        record is accepted on main. Does not authorize production deployment, working database writes,
+        replacement of live checkout, wholesale editor rewrite or owner acceptance of physics."
+      scope: "E1 only: qualify a pinned 3D physics candidate with six TEST_ONLY mechanical scenes and
+        inspect existing electrical/Arduino timed API; produce D01 ADR and D02 feasibility/seam report.
+        Preserve all v1.1 requirements; no product 3D activation until dependencies pass."
+      constraints:
+        - Canonical selection takes effect only after this documentation proposal is accepted on main.
+          Product branches inherit it; do not edit current.yaml to self-authorize.
+        - E0 safety checkpoint and hash-verified archive preserve the original 4630 source, one modified
+          test and 148 untracked evidence files; live checkout/index/HEAD remain unchanged. Archive
+          branch is preservation-only, not an integration candidate.
+        - Use a clean isolated source checkout for E1; no new persistent server, Docker project, port or
+          database. Existing owner-authorized 4630/4631/4632 remain unchanged.
+        - Permit a pinned 3D WASM dependency only inside the bounded qualification harness after
+          current-main convergence, license/hash/lock/build checks. No CDN latest or runtime downloads.
+        - "Six TEST_ONLY scenes: free fall; cylinder rest/tip; sphere rolling; wheel chassis flat; ramp
+          ascent; three-link limited-drive mechanism. Diagnostic torques are not a production motor
+          model."
+        - Read and probe only existing public electrical/Arduino APIs; no copied solver, fake sensor,
+          invented reverse or electrical load/stall claim. Report unsupported barriers/state ownership
+          as D02 gaps.
+        - D01 and D02 remain open until actual exact-SHA evidence. Full CoupledCheckpoint/persistent
+          resume remains disabled; no snapshot equivalence claim.
+        - No mutation of old project schemas, public artifacts, owner SVG, RLS or working DB. Historical
+          FIELD-002 constraints continue to describe its old 2D profile, not this new bounded
+          qualification.
+        - E3/E4 UI-only work requires a separately selected bounded slice after E0; do not mix
+          camera/editor source changes into E1.
+        - Focused self-review is not independent review. No physical precision, weak-school-PC
+          performance or deployment acceptance without corresponding evidence.
+      context_hints:
+        - docs/product/robotics/FIELD_CORE_START.md
+        - docs/product/robotics/tasks/TASK-ROBOTICS-FIELD-CORE-E1-001.md
+        - docs/product/robotics/FIELD_CORE_SPEC.md
+        - docs/product/robotics/FIELD_CORE_SPEC_REVIEW.md
+        - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
+      gate_boundary: "Registration: scoped preflight, exact doc/trace hashes, control-plane and
+        governance, applicable protected CI. E1: reproduce exact qualification commands and raw
+        measurements on pinned candidate, required General/build/dependency checks and independent
+        review before D01 acceptance. Existing pnpm test:robotics is regression, not proof of new
+        physics."
+      deployment: not_authorized
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: f02b9b350bc630ccafefa2fec7d4beb7e1e53953
+      head_sha: null
+      observed_at: '2026-11-10T21:11:26.637Z'
+      main:
+        branch: main
+        sha: f02b9b350bc630ccafefa2fec7d4beb7e1e53953
+      observation_note: Dated GitHub observation only. Fetch main and the immutable recovery branch before
+        writes; this record is not current HEAD, implementation acceptance or deployment authority.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    previous_task:
       id: TASK-ELECTRONICS-ROBOTICS-FIELD-002
       issue: 1001
       branch: codex/robotics-field-v2-20261106
@@ -17158,64 +17235,65 @@ parallel_lanes:
       owner_acceptance: pending
       source_pr: 991
       source_head_sha: 9b14fb92e85c83636e9146da68597020d0885f55
-      owner_authorization: 'Owner explicitly requests continued Robotics field development: freely editable
-        field and strips, real-life ball, metal can and other elements, 30 cm modular tiles, more realistic
-        robot contacts and selectable physics levels. Prior explicit instruction to send completed Robotics
-        work into main persists. This authorizes canonical registration and bounded implementation/review/normal
-        protected source integration, not deployment, working database changes or owner acceptance. Portal
-        source integration PR991 and its post-merge General/Publications succeeded; unrelated acceptance
-        risks remain open.'
-      scope: 'Deliver one coherent Field v2 result in the existing Robotics portal: metric modular field,
-        editable lines/curves and tile stamps, ball/can/box catalogue, legacy-compatible educational mode
-        and finite-mass planar dynamics, independent numerical accuracy, authored save/reopen and immutable
-        public geometry.'
+      owner_authorization: "Owner explicitly requests continued Robotics field development: freely
+        editable field and strips, real-life ball, metal can and other elements, 30 cm modular tiles,
+        more realistic robot contacts and selectable physics levels. Prior explicit instruction to send
+        completed Robotics work into main persists. This authorizes canonical registration and bounded
+        implementation/review/normal protected source integration, not deployment, working database
+        changes or owner acceptance. Portal source integration PR991 and its post-merge
+        General/Publications succeeded; unrelated acceptance risks remain open."
+      scope: "Deliver one coherent Field v2 result in the existing Robotics portal: metric modular field,
+        editable lines/curves and tile stamps, ball/can/box catalogue, legacy-compatible educational
+        mode and finite-mass planar dynamics, independent numerical accuracy, authored save/reopen and
+        immutable public geometry."
       constraints:
-      - Reuse the existing electronics solver, Arduino/Blockly, catalog and committed motor/source-time
-        contracts; no copied motor equations, electrical load/stall claims or fake sensors.
-      - Preserve legacy world behaviour and source schema during server validation. New scene schemas have
-        explicit editor upgrade and reject downgrade/replacement data loss; old immutable publication schemas
-        stay readable.
-      - Finite-mass dynamic robot and objects react mutually to contacts. Mechanical traction limit and
-        floor resistance are explicit parameters; rolling and sliding are distinct. No vertical/tipping/deformation
-        claims.
-      - Field extent, tile size, grid/snap and screen zoom are distinct. Marks are authored geometry, not
-        walls or a fabricated color sensor. Invalid resize/placement preserves the valid source.
-      - Runtime pose/velocity stays outside authored saves, history and public artifacts. Pause/Reset and
-        deterministic committed-clock stepping remain authoritative.
-      - Public artifacts allowlist geometry only and exclude code/circuit/bindings/runtime/physics-private
-        fields. Account/StudentSeat, ACL/RLS, CAS/idempotency and publication immutability remain unchanged.
-      - One bounded mature 2D physics dependency is allowed if necessary, with exact pin, license and lockfile/build/bundle
-        validation. No new backend/service or runtime installation.
-      - Controller coordinates canonically registered work; domain and UI authors own explicitly disjoint
-        paths in one checkout. Independent final-SHA review covers mechanics/clock/rollout/layout.
-      - Built Web/API, real isolated PostgreSQL and main-site browser evidence cover 1440/1024/390/320.
-        Focused tests do not replace applicable General or owner acceptance.
-      - No deployment, working database, owner asset changes, 3D, line/color sensor runtime, noise model
-        or unrelated module repair. Inherited FAIL/UNKNOWN is retained until separately resolved.
-      - The necessary existing HC-SR04 no-echo timed-input seam is allowed as a separate bounded dependency for larger fields. Preserve legacy defaults, accepted Trig/Echo and pulseIn timeout; no range clamp, stale echo, alternate sensor or clock rewrite.
+        - Reuse the existing electronics solver, Arduino/Blockly, catalog and committed
+          motor/source-time contracts; no copied motor equations, electrical load/stall claims or fake
+          sensors.
+        - Preserve legacy world behaviour and source schema during server validation. New scene schemas
+          have explicit editor upgrade and reject downgrade/replacement data loss; old immutable
+          publication schemas stay readable.
+        - Finite-mass dynamic robot and objects react mutually to contacts. Mechanical traction limit
+          and floor resistance are explicit parameters; rolling and sliding are distinct. No
+          vertical/tipping/deformation claims.
+        - Field extent, tile size, grid/snap and screen zoom are distinct. Marks are authored geometry,
+          not walls or a fabricated color sensor. Invalid resize/placement preserves the valid source.
+        - Runtime pose/velocity stays outside authored saves, history and public artifacts. Pause/Reset
+          and deterministic committed-clock stepping remain authoritative.
+        - Public artifacts allowlist geometry only and exclude
+          code/circuit/bindings/runtime/physics-private fields. Account/StudentSeat, ACL/RLS,
+          CAS/idempotency and publication immutability remain unchanged.
+        - One bounded mature 2D physics dependency is allowed if necessary, with exact pin, license and
+          lockfile/build/bundle validation. No new backend/service or runtime installation.
+        - Controller coordinates canonically registered work; domain and UI authors own explicitly
+          disjoint paths in one checkout. Independent final-SHA review covers
+          mechanics/clock/rollout/layout.
+        - Built Web/API, real isolated PostgreSQL and main-site browser evidence cover
+          1440/1024/390/320. Focused tests do not replace applicable General or owner acceptance.
+        - No deployment, working database, owner asset changes, 3D, line/color sensor runtime, noise
+          model or unrelated module repair. Inherited FAIL/UNKNOWN is retained until separately
+          resolved.
+        - The necessary existing HC-SR04 no-echo timed-input seam is allowed as a separate bounded
+          dependency for larger fields. Preserve legacy defaults, accepted Trig/Echo and pulseIn
+          timeout; no range clamp, stale echo, alternate sensor or clock rewrite.
       context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
-      - docs/product/robotics/FIELD_V2_PLAN.md
-      - docs/product/robotics/README.md
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
+        - docs/product/robotics/FIELD_V2_PLAN.md
+        - docs/product/robotics/README.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       gate_boundary: Registration uses governance only. Product uses test:robotics, projects-publication
         code/PG and built-browser gates, types/build/bundle, required General and independent final-SHA
-        review. Local ephemeral formatting/unit checks are allowed; real browser/PostgreSQL evidence uses
-        isolated CI.
+        review. Local ephemeral formatting/unit checks are allowed; real browser/PostgreSQL evidence
+        uses isolated CI.
       deployment: not_authorized
       database_actions: isolated_tests_only
-    revisions:
-      convergence_baseline_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
-      head_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
-    gates:
-      focused:
-        workflow: ASA Lab Governance and Code Gates
-        commands:
-        - pnpm gate:governance
-      general:
-        workflow: ASA Lab Governance and Code Gates
-        commands:
-        - pnpm gate:repository
+      revisions:
+        convergence_baseline_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
+        head_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
+      transition_reason: Superseded as selected work by owner-requested field-core E1 preparation. This is
+        not technical or owner acceptance of FIELD-002 or PR1044.
+      preserved_source_pr: 1044
+      preserved_source_sha: 47ac27e9cca6cb1e28b99637453cc935cba071b5
 
 integration:
   owner_lane: visual-programming
@@ -17596,5 +17674,27 @@ blocking:
     - independent_product_review
     reason: D2-D4 is selected only after the external actual D13 controller acceptance receipt, new independent review and normal tested-source main integration recorded in previous_task. The five-file source-only review does not grant actual browser acceptance. Require the existing physical/source/native joint-frame, seven acquisitions/eight cycles/49 ordered vectors, five programmes, Reset/cookies-reopen, relative periods/duty, startup5s/Stop1s/raw50ms/backlog2 criteria; D2-local Save R2 requires matching finished PUT200, the whole independently intended circuit and exact request/response/GET revisions without forced dirty or Save clicks. Require existing exact source/CI gates and actual discovery of all170 prior cases plus1 D2 case. Selected150s acquisition/20s native-vector/840s case budgets and browser50 with review-images35 add no exceptions or command changes. Clear only this new slice's evidenced cause before its integration and release claims; full-realtime Issue546 and all other blockers remain unchanged.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D2-D4-001.md
+  - id: ROBOTICS-FIELD-CORE-D01-D02
+    kind: acceptance_blocker
+    lane: robotics
+    task_id: TASK-ROBOTICS-FIELD-CORE-E1-001
+    blocks:
+      - spatial_product_integration
+      - full_physics_acceptance
+      - release_claim
+      - deployment
+    allows:
+      - documentation_update
+      - source_preservation
+      - bounded_e1_qualification
+      - focused_verification
+      - independent_source_review
+    reason: D01 engine qualification and D02 causal electromechanical/timed-sensor coupling are not
+      proved. E1 may use diagnostic TEST_ONLY forces, not replace product electrical truth. UI-only work
+      must be separately selected; no vertical physics acceptance by document publication.
+    unblock_requires: Exact pinned engine fixtures and D01 ADR; explicit D02 feasibility and before
+      dependent E7 actual TIME-01..03 coupling evidence with single state ownership; independent review
+      on actual final candidate.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/1071
 
 next_task: null
