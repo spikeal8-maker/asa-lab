@@ -212,8 +212,16 @@ def selected_source(install, release, *, existing, deployment_digest=None):
                           "Run the same command again. Containers and data have not been changed.")
 
 
+def verify_running_release(install, release):
+    records = install.identity()
+    for name, expected in release['images'].items():
+        require(records.get(name, {}).get('image') == expected, 'IMAGE_DRIFT',
+                f'Running {name} differs from the pinned release.')
+    verify_embedded_entry_http(install.env['ASA_UPDATE_ENTRY_ORIGIN'], release['revision'])
+
+
 def update(install, *, check=False, scheduled=False, fresh=False, deployment_digest=None,
-           require_application_rollback=False):
+           require_application_rollback=False, operator=False):
     require(not require_application_rollback or not (fresh or scheduled),
             'ROLLBACK_ARGUMENT', 'Application return preparation belongs only to a manual existing P0 update.')
     application_rollback.guard_update(install)
@@ -237,12 +245,21 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
         require(selection_record(deployment_digest, release) == pending, 'RELEASE_SELECTION_MISMATCH',
                 'The rediscovered immutable manifest differs from the pending selection.')
     before = None if fresh else install.readiness()
+    if operator:
+        print(f"Установлено: {before['revision'][:8]}, схема базы {before['schema']}.", flush=True)
+        print(f"Проверяем выпуск {release['revision'][:8]}, схема базы {release['schema']}.", flush=True)
     if before:
         require(int(release['schema']) >= int(before['schema']), 'RELEASE_DOWNGRADE',
                 'Published release schema is older than the running database; refusing downgrade.')
     installed_path = install.state / "installed-release.json"
     installed = json.loads(installed_path.read_text(encoding="utf-8")) if installed_path.exists() else None
     same_release = bool(before and before['revision'] == release['revision'] and installed == release)
+    if operator and same_release:
+        verify_running_release(install, release)
+        if not check:
+            finish_selection(install, deployment_digest, release)
+        print('Этот выпуск уже установлен и отвечает. Обновление не требуется.')
+        return
     # An already accepted, identical release needs no new GitHub CI query for a
     # no-op update. The local release identity, images and entry are still checked
     # below. All real updates, checks, rollback preparation and collector repairs
@@ -283,6 +300,8 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
         print(f"{'NO_CHANGE' if same_release else 'AVAILABLE'} revision={release['revision']} schema={release['schema']}; read-only check, no installation changes")
         if os.name != 'nt' and not install.env.get('ASA_LOG_READER_GID'):
             print('COLLECTOR_PLAN diagnostic reader group must be prepared during an authorized update')
+        if operator:
+            print('Обновление доступно. Проверка выпуска и возврата пройдена. Для установки выполните asa update.')
         return
     preparation = {'readerGroupChanged': False}
     if same_release:
@@ -375,6 +394,8 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
         (install.state / "maintenance.json").unlink()
         finish_selection(install, deployment_digest, release)
         print(f"UPDATED {release['revision']} schema={release['schema']}")
+        if operator:
+            print(f"ASA Lab обновлён до {release['revision'][:8]} и отвечает. Схема базы {release['schema']}.")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
     except BaseException:
         atomic_json(install.state / "failed-switch.json", operation)
@@ -383,6 +404,39 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
     # Application acceptance and diagnostic runner maintenance are independent.
     if rollback_journal is None:
         reconcile_collector(install)
+
+
+def run_operator(install, action, deployment_digest):
+    digest, _ = resolve_selection(install, deployment_digest)
+    if digest is None:
+        digest = release_transport.published_deployment_digest()
+    for attempt in range(2):
+        try:
+            return update(install, check=action == 'check', deployment_digest=digest,
+                          require_application_rollback=True, operator=True)
+        except Blocked as error:
+            if action != 'update' or attempt or error.code != 'RETRY_NEW_MANAGER':
+                raise
+            pending = pending_selection(install)
+            require(pending is not None and pending['deploymentDigest'] == digest,
+                    'RELEASE_SELECTION_PENDING', 'The saved release does not match the running update.')
+            # The approved external manager remains loaded. Only the installation checkout changed.
+            print('Исходники выпуска подготовлены. Продолжаем установку того же выпуска.', flush=True)
+            install = Installation(install.root, install.profile)
+
+
+def operator_failure(code):
+    if code in ('ROLLBACK_PENDING', 'MAINTENANCE', 'FAILED_SWITCH'):
+        return 'Предыдущая операция ещё не завершена. Сначала проверьте план возврата или восстановления.'
+    if code in ('ROLLBACK_RUNTIME', 'ROLLBACK_QUALIFICATION', 'ROLLBACK_PAIR', 'ROLLBACK_SELECTION'):
+        return 'Для этой пары версий пока не подтверждён штатный возврат. Установка остановлена.'
+    if code == 'ROLLBACK_EXTERNAL_TOOLS':
+        return 'Нужен отдельный проверенный каталог инструментов обновления. Обратитесь к администратору.'
+    if code.startswith('CI_'):
+        return 'Не удалось подтвердить проверки этого выпуска на GitHub. Установка остановлена.'
+    if code == 'LOCKED':
+        return 'Другая операция обслуживания уже выполняется.'
+    return 'Операция остановлена. Код и технические подробности приведены ниже.'
 
 
 def main(argv=None):
@@ -397,6 +451,7 @@ def main(argv=None):
     parser.add_argument("--deployment-digest", help="Exact canonical deployment OCI sha256 digest; install/check/update only")
     parser.add_argument("--require-application-rollback", action="store_true",
                         help="Fail closed unless the declared P0 application return can be armed; manual check/update only")
+    parser.add_argument("--operator", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--enable-auto-update", action="store_true")
     parser.add_argument("--collector-mode", choices=('system-root',), help="Explicit root-operated Linux diagnostic runner; never grants another user Docker access")
     parser.add_argument("--collector-reader-gid", type=int, help="Nonzero API read-only diagnostic group for explicit system-root mode")
@@ -409,6 +464,11 @@ def main(argv=None):
     parser.add_argument("--install-network-cidrs", help="Opt-in private Docker-only database, application, scratch network CIDRs")
     args = parser.parse_args(argv)
     try:
+        if args.operator:
+            require(args.action in ('check', 'update') and not args.scheduled and args.profile == 'production'
+                    and not args.enable_auto_update and args.collector_mode is None,
+                    'OPERATOR_ARGUMENT', 'The operator flow is only for manual check and update on production.')
+            args.require_application_rollback = True
         require(not args.require_application_rollback or args.action in ('check', 'update') and not args.scheduled,
                 'ROLLBACK_ARGUMENT', '--require-application-rollback belongs only to manual check/update.')
         if args.action in ('rollback-plan', 'rollback') or args.require_application_rollback:
@@ -451,6 +511,9 @@ def main(argv=None):
             print("IMPORT_TARGET_PLAN " + json.dumps(report, sort_keys=True))
             return 0
         install = Installation(args.root, args.profile)
+        if args.operator:
+            require(install.settings.get('profile') == 'production', 'OPERATOR_INSTALLATION',
+                    'The operator flow requires an existing installation with the production profile.')
         if args.action in ('rollback-plan', 'rollback') or args.require_application_rollback:
             application_rollback.attest_private_state(install)
         if args.action in ('install', 'check', 'update'):
@@ -501,9 +564,12 @@ def main(argv=None):
                 if args.collector_mode:
                     select_root_mode(install, args.collector_reader_gid)
                     install = Installation(install.root, install.profile)
-                update(install, check=args.action == "check", scheduled=args.scheduled,
-                       **({'require_application_rollback': True} if args.require_application_rollback else {}),
-                       **({'deployment_digest': args.deployment_digest} if args.deployment_digest is not None else {}))
+                if args.operator:
+                    run_operator(install, args.action, args.deployment_digest)
+                else:
+                    update(install, check=args.action == "check", scheduled=args.scheduled,
+                           **({'require_application_rollback': True} if args.require_application_rollback else {}),
+                           **({'deployment_digest': args.deployment_digest} if args.deployment_digest is not None else {}))
             elif args.action == "backup":
                 export_backup(install, args.output)
             elif args.action == "restore-check":
@@ -528,6 +594,8 @@ def main(argv=None):
         code = (exc.code if isinstance(exc, Blocked) else
                 "SEARCH_SECRET_INVALID" if isinstance(exc, InvalidSearchSecret) else "IO_OR_CONFIGURATION")
         action = exc.action if isinstance(exc, Blocked) else "Inspect the configuration and completed stages; do not discard data."
+        if args.operator:
+            print(operator_failure(code), file=sys.stderr)
         print(f"BLOCKED {code}: {exc}\nSAFE_ACTION: {action}", file=sys.stderr)
         return 2
 

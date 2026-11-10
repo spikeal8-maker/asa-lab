@@ -43,6 +43,15 @@ class Transport:
 
 
 class DiscoveryTests(unittest.TestCase):
+    def test_operator_pins_the_digest_reported_by_the_stable_pull(self):
+        with patch.object(releases, 'run', return_value=f"Digest: {DIGEST}\nStatus: Downloaded") as run:
+            self.assertEqual(releases.published_deployment_digest(), DIGEST)
+            run.assert_called_once_with(['docker', 'pull', REGISTRY+'/deployment:stable'], capture=True)
+        for receipt in ('Status: Downloaded', f'Digest: {DIGEST}\nDigest: {DIGEST}'):
+            with self.subTest(receipt=receipt), patch.object(releases, 'run', return_value=receipt):
+                with self.assertRaisesRegex(Blocked, 'unique digest'):
+                    releases.published_deployment_digest()
+
     def test_exact_reference_and_local_id_pinned_before_extraction(self):
         transport = Transport()
         with patch.object(releases, 'run', side_effect=transport), contextlib.redirect_stdout(io.StringIO()):
@@ -103,6 +112,50 @@ class ContinuationTests(unittest.TestCase):
     def save_pending(self):
         self.install.state.mkdir(exist_ok=True)
         manager.private_atomic_json(self.install.state/'release-selection.json',manager.selection_record(DIGEST,manifest()))
+
+    def test_operator_resumes_only_the_saved_digest_after_source_switch(self):
+        def first_update(*args, **kwargs):
+            if not manager.pending_selection(self.install):
+                self.save_pending()
+                raise Blocked('RETRY_NEW_MANAGER', 'source changed', 'use the same digest')
+
+        with patch.object(manager.release_transport, 'published_deployment_digest', return_value=DIGEST) as select, \
+                patch.object(manager, 'update', side_effect=first_update) as update, \
+                patch.object(manager, 'Installation', return_value=self.install) as reload, contextlib.redirect_stdout(io.StringIO()):
+            manager.run_operator(self.install, 'update', None)
+        select.assert_called_once_with()
+        reload.assert_called_once_with(self.root, self.install.profile)
+        self.assertEqual(update.call_count, 2)
+        for call in update.call_args_list:
+            self.assertEqual(call.kwargs, dict(check=False, deployment_digest=DIGEST,
+                                               require_application_rollback=True, operator=True))
+
+    def test_operator_never_retries_an_unqualified_update_or_a_changed_pin(self):
+        with patch.object(manager, 'update', side_effect=Blocked(
+                'ROLLBACK_QUALIFICATION', 'blocked', 'inspect the cause')) as update:
+            with self.assertRaises(Blocked) as denied:
+                manager.run_operator(self.install, 'update', DIGEST)
+            self.assertEqual(denied.exception.code, 'ROLLBACK_QUALIFICATION')
+            update.assert_called_once()
+
+        def changed_pin(*args, **kwargs):
+            self.save_pending()
+            raise Blocked('RETRY_NEW_MANAGER', 'source changed', 'inspect the saved release')
+
+        with patch.object(manager, 'update', side_effect=changed_pin) as update:
+            with self.assertRaises(Blocked) as denied:
+                manager.run_operator(self.install, 'update', 'sha256:' + 'e'*64)
+            self.assertEqual(denied.exception.code, 'RELEASE_SELECTION_PENDING')
+            update.assert_called_once()
+
+    def test_operator_uses_pending_selection_before_looking_at_stable(self):
+        self.save_pending()
+        with patch.object(manager.release_transport, 'published_deployment_digest') as select, \
+                patch.object(manager, 'update') as update:
+            manager.run_operator(self.install, 'check', None)
+        select.assert_not_called()
+        update.assert_called_once_with(self.install, check=True, deployment_digest=DIGEST,
+                                       require_application_rollback=True, operator=True)
 
     def checked_update(self, transport, **kwargs):
         with patch.object(manager,'doctor') as doctor, patch.object(manager,'clean_checkout'), \

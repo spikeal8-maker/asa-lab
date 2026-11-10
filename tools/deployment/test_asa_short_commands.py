@@ -61,8 +61,8 @@ class PortableASACommandTests(unittest.TestCase):
             "--deployment-digest", digest,
         ])
 
-    def test_production_update_requires_immutable_release(self):
-        blocked = self.call("update")
+    def test_production_update_with_advanced_options_requires_immutable_release(self):
+        blocked = self.call("update", "--scheduled")
         self.assertEqual(blocked.returncode, 64)
         self.assertIn("--deployment-digest", blocked.stderr)
         digest = "sha256:" + "b" * 64
@@ -74,6 +74,21 @@ class PortableASACommandTests(unittest.TestCase):
         explicit = self.call("update", "--deployment-digest", digest, "--require-application-rollback")
         self.assertEqual(explicit.returncode, 0, explicit.stderr)
         self.assertEqual(json.loads(explicit.stdout).count("--require-application-rollback"), 1)
+
+    def test_plain_production_commands_use_external_manager_and_keep_installation_root(self):
+        external = Path(self.temp.name) / "approved"
+        (external / "tools").mkdir(parents=True)
+        (external / "tools" / "asa_manager.py").write_text(
+            "import json,sys\nprint(json.dumps(['external', *sys.argv[1:]]))\n", encoding="utf-8"
+        )
+        env = {**self.env, "ASA_UPDATE_TOOLS_ROOT": str(external)}
+        for action in ("check", "update"):
+            with self.subTest(action=action):
+                result = self.call(action, env=env)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout), [
+                    "external", action, "--root", str(self.root), "--profile", "production", "--operator",
+                ])
 
     def test_without_profile_does_not_update_unknown_installation(self):
         (self.state / "installation.json").unlink()

@@ -13,8 +13,8 @@ ASA Lab — команды школьного и других серверов
   asa report                       статус, резервная копия, нагрузка
   asa logs [api|web|postgres|minio|scratch|search] [--tail N]
   asa doctor                       полная диагностика (без изменений)
-  asa check [--deployment-digest sha256:...]
-  asa update [--deployment-digest sha256:...]
+  asa check                        проверить выпуск и возможность обновления
+  asa update                       установить выпуск после штатных проверок
   asa backup
   asa verify-backup --backup /absolute/path
   asa restore-check --backup /absolute/path --database new_name_test
@@ -24,8 +24,9 @@ ASA Lab — команды школьного и других серверов
 
 По умолчанию используется текущая установка (путь определяется по скрипту).
 ASA_INSTALL_ROOT=/absolute/path переопределяет путь; ASA_PROFILE задаёт профиль,
-если установка ещё не настроена. Команда update использует все штатные
-проверки SHA, CI, схемы и резервной копии менеджера, без обходных путей.
+если установка ещё не настроена. Для production ASA_UPDATE_TOOLS_ROOT указывает
+на отдельно подготовленный проверенный checkout инструментов. Можно явно выбрать
+выпуск с --deployment-digest sha256:... .
 HELP
 }
 
@@ -97,7 +98,18 @@ case "$profile" in
   *) fail 'Укажите ASA_PROFILE (dev/production/staging/base), если установка ещё не создана' ;;
 esac
 
-# The operator shorthand must not silently perform a production release switch.
+# Plain production commands use the manager's guarded operator path.
+if [ "$profile" = production ] && [ "$#" -eq 0 ]; then
+  case "$action" in
+    check|update)
+      tools_root=${ASA_UPDATE_TOOLS_ROOT:-$root}
+      [ -f "$tools_root/tools/asa_manager.py" ] || fail 'Не найдены проверенные инструменты обновления'
+      exec "$python" -E -s -B "$tools_root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" --operator
+      ;;
+  esac
+fi
+
+# Advanced production calls still require an explicit immutable selection.
 # Only an explicit immutable OCI selection with the manager's qualified return
 # preflight is permitted. Unsupported rollback pairs fail closed in the manager.
 if [ "$action" = update ] && [ "$profile" = production ]; then
