@@ -24,9 +24,9 @@ ASA Lab — команды школьного и других серверов
 
 По умолчанию используется текущая установка (путь определяется по скрипту).
 ASA_INSTALL_ROOT=/absolute/path переопределяет путь; ASA_PROFILE задаёт профиль,
-если установка ещё не настроена. Для production ASA_UPDATE_TOOLS_ROOT указывает
-на отдельно подготовленный проверенный checkout инструментов. Можно явно выбрать
-выпуск с --deployment-digest sha256:... .
+если установка ещё не настроена. Для production установите постоянную команду
+из проверенного checkout: tools/install-asa-command.sh --production.
+Можно явно выбрать выпуск с --deployment-digest sha256:... .
 HELP
 }
 
@@ -45,25 +45,26 @@ for argument in "$@"; do
   esac
 done
 
+script=$0
+case "$script" in
+  */*) ;;
+  *) script=$(command -v "$script" || true); [ -n "$script" ] || fail 'Не найдена команда asa' ;;
+esac
+hops=0
+while [ -L "$script" ]; do
+  hops=$((hops + 1))
+  [ "$hops" -le 16 ] || fail 'Циклическая цепочка ссылок asa'
+  link=$(readlink "$script") || fail 'Не удаётся прочитать ссылку asa'
+  case "$link" in
+    /*) script=$link ;;
+    *) script=$(dirname -- "$script")/$link ;;
+  esac
+done
+tools_root=$(CDPATH= cd -- "$(dirname -- "$script")/.." && pwd -P) || fail 'Не определён каталог инструментов ASA Lab'
 if [ -n "${ASA_INSTALL_ROOT:-}" ]; then
   root=$(CDPATH= cd -- "$ASA_INSTALL_ROOT" && pwd -P) || fail 'Каталог ASA_INSTALL_ROOT недоступен'
 else
-  script=$0
-  case "$script" in
-    */*) ;;
-    *) script=$(command -v "$script" || true); [ -n "$script" ] || fail 'Не найдена команда asa' ;;
-  esac
-  hops=0
-  while [ -L "$script" ]; do
-    hops=$((hops + 1))
-    [ "$hops" -le 16 ] || fail 'Циклическая цепочка ссылок asa'
-    link=$(readlink "$script") || fail 'Не удаётся прочитать ссылку asa'
-    case "$link" in
-      /*) script=$link ;;
-      *) script=$(dirname -- "$script")/$link ;;
-    esac
-  done
-  root=$(CDPATH= cd -- "$(dirname -- "$script")/.." && pwd -P) || fail 'Не определён каталог ASA Lab'
+  root=$tools_root
 fi
 [ -f "$root/tools/asa_manager.py" ] || fail "Не найдён менеджер: $root/tools/asa_manager.py"
 python=${ASA_PYTHON:-python3}
@@ -78,7 +79,7 @@ case "$action" in
     ;;
 esac
 
-installed_profile=$("$python" -B - "$root/.asa/installation.json" <<'PY'
+installed_profile=$("$python" -I -S -B - "$root/.asa/installation.json" <<'PY'
 import json
 import pathlib
 import sys
@@ -102,7 +103,7 @@ esac
 if [ "$profile" = production ] && [ "$#" -eq 0 ]; then
   case "$action" in
     check|update)
-      tools_root=${ASA_UPDATE_TOOLS_ROOT:-$root}
+      [ "$tools_root" != "$root" ] || fail 'Установите постоянную команду ASA Lab из отдельного проверенного каталога инструментов'
       [ -f "$tools_root/tools/asa_manager.py" ] || fail 'Не найдены проверенные инструменты обновления'
       exec "$python" -E -s -B "$tools_root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" --operator
       ;;
@@ -129,7 +130,12 @@ fi
 
 case "$action" in
   install|doctor|check|update|backup|verify-backup|restore-check|repair-plan|rollback-plan|rollback|acknowledge)
-    exec "$python" -B "$root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" "$@"
+    manager_root=$root
+    case "$profile:$action" in
+      production:check|production:update|production:rollback-plan|production:rollback|production:acknowledge)
+        manager_root=$tools_root ;;
+    esac
+    exec "$python" -E -s -B "$manager_root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" "$@"
     ;;
   *)
     usage >&2

@@ -24,6 +24,7 @@ class PortableASACommandTests(unittest.TestCase):
         shutil.copy2(ROOT / "tools" / "asa", self.tools / "asa")
         shutil.copy2(ROOT / "tools" / "install-asa-command.sh", self.tools / "install-asa-command.sh")
         (self.tools / "asa").chmod(0o755)
+        (self.tools / "install-asa-command.sh").chmod(0o755)
         (self.tools / "asa_manager.py").write_text(
             "import json,sys\nprint(json.dumps(sys.argv[1:]))\n", encoding="utf-8"
         )
@@ -75,7 +76,7 @@ class PortableASACommandTests(unittest.TestCase):
         self.assertEqual(explicit.returncode, 0, explicit.stderr)
         self.assertEqual(json.loads(explicit.stdout).count("--require-application-rollback"), 1)
 
-    def test_plain_production_commands_use_external_manager_and_keep_installation_root(self):
+    def test_plain_production_rejects_external_manager_environment_override(self):
         external = Path(self.temp.name) / "approved"
         (external / "tools").mkdir(parents=True)
         (external / "tools" / "asa_manager.py").write_text(
@@ -85,10 +86,9 @@ class PortableASACommandTests(unittest.TestCase):
         for action in ("check", "update"):
             with self.subTest(action=action):
                 result = self.call(action, env=env)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(json.loads(result.stdout), [
-                    "external", action, "--root", str(self.root), "--profile", "production", "--operator",
-                ])
+                self.assertEqual(result.returncode, 64)
+                self.assertFalse(result.stdout)
+                self.assertIn("постоянную команду", result.stderr)
 
     def test_without_profile_does_not_update_unknown_installation(self):
         (self.state / "installation.json").unlink()
@@ -131,11 +131,55 @@ class PortableASACommandTests(unittest.TestCase):
         bindir.mkdir()
         env = {**self.env, "ASA_BIN_DIR": str(bindir)}
         self.assertEqual(self.call(script="install-asa-command.sh", env=env).returncode, 0)
+        (self.state / "installation.json").write_text('{"profile":"dev"}', encoding="utf-8")
         env.pop("ASA_INSTALL_ROOT")
         result = subprocess.run([str(bindir / "asa"), "check"], capture_output=True, text=True, env=env, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         args = json.loads(result.stdout)
-        self.assertEqual(args[:5], ["check", "--root", str(self.root), "--profile", "production"])
+        self.assertEqual(args[:5], ["check", "--root", str(self.root), "--profile", "dev"])
+
+    @unittest.skipUnless(os.name == "posix" and os.geteuid() == 0, "Production launcher is installed by root")
+    def test_production_launcher_survives_application_switch_and_rejects_writable_tools(self):
+        with tempfile.TemporaryDirectory(dir="/root", prefix="asa-launcher-test-") as work:
+            external = Path(work) / "tools-checkout"
+            bindir = Path(work) / "bin"
+            bindir.mkdir()
+            shutil.copytree(self.tools, external / "tools")
+            def git(*args):
+                return subprocess.check_output(["git", "-C", str(external), *args], text=True, stderr=subprocess.PIPE)
+            git("init", "--quiet")
+            git("remote", "add", "origin", "https://github.com/spikeal8-maker/asa-lab.git")
+            git("add", "tools")
+            git("-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "fixture")
+            git("update-ref", "refs/remotes/origin/main", "HEAD")
+            launcher = bindir / "asa"
+            launcher.symlink_to(self.tools / "asa")
+            result = subprocess.run(["sh", str(external / "tools" / "install-asa-command.sh"), "--production"],
+                                    env={**self.env, "ASA_BIN_DIR": str(bindir)}, text=True, capture_output=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(launcher.is_symlink())
+            (self.tools / "asa").write_text("#!/bin/sh\nexit 97\n", encoding="utf-8")
+            def launch(action):
+                return subprocess.run([str(launcher), action], capture_output=True, text=True, timeout=10,
+                                      env={**self.env, "ASA_INSTALL_ROOT": "/invalid", "ASA_PROFILE": "dev"})
+            for action in ("check", "update"):
+                with self.subTest(action=action):
+                    result = launch(action)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(result.stdout), [
+                        action, "--root", str(self.root), "--profile", "production", "--operator",
+                    ])
+            manager = external / "tools" / "asa_manager.py"
+            manager.chmod(0o666)
+            result = launch("check")
+            self.assertEqual(result.returncode, 64)
+            self.assertFalse(result.stdout)
+            self.assertIn("Небезопасный файл", result.stderr)
+            manager.chmod(0o644)
+            manager.write_text("raise RuntimeError('unapproved source')\n", encoding="utf-8")
+            result = launch("check")
+            self.assertEqual(result.returncode, 64)
+            self.assertIn("отличаются от установленного коммита", result.stderr)
 
 
 if __name__ == "__main__":
