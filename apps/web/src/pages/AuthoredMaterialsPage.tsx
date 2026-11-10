@@ -11,6 +11,7 @@ import {
 import { GrowingTextarea } from '../components/GrowingTextarea';
 import { AssignmentView } from '../components/AssignmentView';
 import { AuthoredTaskBlocksEditor } from '../components/AuthoredTaskBlocksEditor';
+import './assignment-library.css';
 
 async function readDraftImage(file: File): Promise<string> {
   const reader = new FileReader();

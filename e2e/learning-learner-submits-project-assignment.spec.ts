@@ -373,6 +373,10 @@ test('learner starts the real project editor and submits one immutable attempt',
   await page.getByRole('button', { name: 'Создать новое задание', exact: true }).click();
   const author = page.getByRole('dialog', { name: 'Новое задание класса' });
   expect(await author.evaluate((dialog) => dialog.scrollWidth <= dialog.clientWidth)).toBe(true);
+  await expect(author.getByRole('group', { name: 'Действия задания' })).toHaveCSS(
+    'display',
+    'flex',
+  );
   await author.getByLabel('Название задания', { exact: true }).fill(title);
   await author.getByLabel('Среда задания', { exact: true }).selectOption('electronics');
   await author.getByRole('textbox', { name: 'Содержание' }).fill('Соберите цепь со светодиодом.');
