@@ -1,4 +1,12 @@
-import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react';
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentType,
+} from 'react';
 import { api, type PublicUser } from '../api';
 import { loadChessEditor } from '../chess/load-chess-editor';
 import { chessRouteFromHash, chessRouteToHash } from '../chess/chess-navigation';
@@ -187,7 +195,8 @@ function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
     };
   }, [props.moduleKey, props.onModuleResolved, props.projectId, returnToDependency]);
 
-  useEffect(() => {
+  // The editor can read its project in its first passive effect.
+  useLayoutEffect(() => {
     if (
       state.kind === 'ready' &&
       isDiagnosticModule(state.moduleKey) &&

@@ -671,7 +671,12 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   });
   const savedCentre = (await directHandlePoint(page, 'resize-height')).centre;
 
+  const projectPath = `/api/projects/${new URL(page.url()).hash.split(/[/?]/)[2]}`;
+  const firstProjectRead = page.waitForRequest(
+    (request) => request.method() === 'GET' && new URL(request.url()).pathname === projectPath,
+  );
   await page.reload();
+  expect(await (await firstProjectRead).headerValue('x-asa-diagnostic-module')).toBe('three-d');
   await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('1 объект', { exact: true })).toBeVisible();
   await selectObject(page);
