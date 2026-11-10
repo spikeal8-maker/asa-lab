@@ -16,7 +16,6 @@ import { CLASSROOM_AGE_OPTIONS } from '../components/ClassroomFields';
 import { Dropdown } from '../components/Dropdown';
 import { useSchoolTime } from '../components/school-time';
 import '../components/classroom-assignments.css';
-import './assignment-library.css';
 
 /**
  * Банк заданий.
