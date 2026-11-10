@@ -6,10 +6,12 @@ import { assignmentDateTime } from '../learning/assignment-date-time';
 export function AssignLearningActivityDialog({
   classroomId,
   onClose,
+  onCreate,
   onAssigned,
 }: {
   readonly classroomId: string;
   readonly onClose: () => void;
+  readonly onCreate: () => void;
   readonly onAssigned: (title: string, count: number) => void;
 }): JSX.Element {
   const [activities, setActivities] = useState<LearningAssignableActivity[] | null>(null);
@@ -37,9 +39,6 @@ export function AssignLearningActivityDialog({
           ? roster.data.items.filter((student) => ['issued', 'active'].includes(student.status))
           : [],
       );
-      if (library.ok && library.data.items[0]) {
-        setActivityVersionId(library.data.items[0].versionId);
-      }
     });
     return () => {
       cancelled = true;
@@ -87,7 +86,7 @@ export function AssignLearningActivityDialog({
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="modal-backdrop" role="presentation" onMouseDown={busy ? undefined : onClose}>
       <section
         className="modal learning-assign-dialog"
         role="dialog"
@@ -98,18 +97,33 @@ export function AssignLearningActivityDialog({
         <header>
           <div>
             <h2 id="learning-assign-title">Назначить задание</h2>
-            <p>Выберите готовый материал, учеников и срок.</p>
+            <p>Создайте новое или выберите готовое задание для класса.</p>
           </div>
-          <button type="button" className="modal-close" aria-label="Закрыть" onClick={onClose}>
+          <button
+            type="button"
+            className="modal-close"
+            aria-label="Закрыть"
+            onClick={onClose}
+            disabled={busy}
+          >
             ×
           </button>
         </header>
+        <div className="classroom-assignment-issue">
+          <button type="button" className="btn-secondary" onClick={onCreate} disabled={busy}>
+            Создать новое задание
+          </button>
+        </div>
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
         {activities === null || students === null ? (
           <p role="status">Загружаем материалы и класс…</p>
         ) : activities.length === 0 ? (
           <div className="classroom-roster-empty">
-            <h3>Нет опубликованных заданий</h3>
-            <p>Сначала опубликуйте проект в разделе «Задания».</p>
+            <p>Готовых заданий пока нет. Создайте первое прямо здесь.</p>
           </div>
         ) : (
           <form onSubmit={(event) => void submit(event)}>
@@ -119,6 +133,9 @@ export function AssignLearningActivityDialog({
                 value={activityVersionId}
                 onChange={(event) => setActivityVersionId(event.target.value)}
               >
+                <option value="" disabled>
+                  Выберите готовое задание
+                </option>
                 {activities.map((entry) => (
                   <option key={entry.versionId} value={entry.versionId}>
                     {entry.title}
@@ -182,13 +199,8 @@ export function AssignLearningActivityDialog({
                 Дата и время: {Intl.DateTimeFormat().resolvedOptions().timeZone}. Пусто — без срока.
               </small>
             </label>
-            {error ? (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
-            ) : null}
             <footer>
-              <button type="button" className="btn-secondary" onClick={onClose}>
+              <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
                 Отмена
               </button>
               <button
