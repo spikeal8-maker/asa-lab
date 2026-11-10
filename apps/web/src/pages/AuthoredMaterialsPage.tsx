@@ -490,8 +490,10 @@ export function AuthoredMaterialsPage({
       setPendingDraftSample(null);
       setPendingTaskMedia([]);
       const loaded: AuthoredActivityDraft = {
-        ...(result.data.kind === 'essay' || result.data.kind === 'quiz'
-          ? { kind: result.data.kind as 'essay' | 'quiz' }
+        ...(result.data.kind === 'essay' ||
+        result.data.kind === 'quiz' ||
+        result.data.kind === 'file'
+          ? { kind: result.data.kind }
           : {}),
         title: value.title,
         // A legacy teacher-source draft may have no goal key. Keep that
@@ -1036,25 +1038,24 @@ export function AuthoredMaterialsPage({
     openedKind ?? draft.kind ?? (draft.moduleKey === null ? 'manual' : 'project');
   const isEssay = effectiveKind === 'essay';
   const isQuiz = effectiveKind === 'quiz';
-  const canAssignDraftModule =
-    isEssay || isQuiz
-      ? draft.moduleKey === null
-      : !modulesLoading &&
-        (openedKind === null || openedKind === 'project') &&
-        draft.moduleKey !== null &&
-        assignableModules.some((module) => module.moduleKey === draft.moduleKey);
-  const canSaveDraftModule =
-    isEssay || isQuiz
-      ? draft.moduleKey === null
-      : draft.moduleKey === null
-        ? effectiveKind === 'manual'
-        : canAssignDraftModule;
-  const canPublish =
-    isEssay || isQuiz
-      ? draft.moduleKey === null
-      : draft.moduleKey === null
-        ? effectiveKind === 'manual' && opened !== null
-        : canAssignDraftModule;
+  const isFile = effectiveKind === 'file';
+  const hasResponseKind = isEssay || isQuiz || isFile;
+  const canAssignDraftModule = hasResponseKind
+    ? draft.moduleKey === null
+    : !modulesLoading &&
+      (openedKind === null || openedKind === 'project') &&
+      draft.moduleKey !== null &&
+      assignableModules.some((module) => module.moduleKey === draft.moduleKey);
+  const canSaveDraftModule = hasResponseKind
+    ? draft.moduleKey === null
+    : draft.moduleKey === null
+      ? effectiveKind === 'manual'
+      : canAssignDraftModule;
+  const canPublish = hasResponseKind
+    ? draft.moduleKey === null
+    : draft.moduleKey === null
+      ? effectiveKind === 'manual' && opened !== null
+      : canAssignDraftModule;
   const displayedDraftSample = pendingDraftSample ?? draftSampleImage;
   const normalizedSearch = search.trim().toLocaleLowerCase('ru-RU');
   const publishedCount = items.filter((item) => item.currentPublishedVersionId !== null).length;
@@ -1270,12 +1271,14 @@ export function AuthoredMaterialsPage({
       ? 'Тест'
       : isEssay
         ? 'Письменный ответ'
-        : draft.moduleKey === null
-          ? courseCreation
-            ? 'Среда не выбрана'
-            : 'Материал без среды'
-          : (modules.find((module) => module.moduleKey === draft.moduleKey)?.displayName ??
-            draft.moduleKey);
+        : isFile
+          ? 'Файловый ответ'
+          : draft.moduleKey === null
+            ? courseCreation
+              ? 'Среда не выбрана'
+              : 'Материал без среды'
+            : (modules.find((module) => module.moduleKey === draft.moduleKey)?.displayName ??
+              draft.moduleKey);
     const attemptCount = Number(draft.policies.attemptPolicy?.['maxAttempts'] ?? 1);
     const resultTitle =
       draft.resultMode === 'graded'
@@ -1428,7 +1431,7 @@ export function AuthoredMaterialsPage({
                   value={effectiveKind}
                   disabled={busy || opened !== null}
                   onChange={(event) => {
-                    const kind = event.target.value as 'project' | 'essay' | 'quiz' | 'manual';
+                    const kind = event.target.value as NonNullable<AuthoredActivityDraft['kind']>;
                     setDraft((current) => ({
                       ...current,
                       kind,
@@ -1441,10 +1444,11 @@ export function AuthoredMaterialsPage({
                     <option value="essay">Письменный ответ</option>
                   ) : null}
                   <option value="quiz">Тест</option>
+                  <option value="file">Файловый ответ</option>
                   {!courseCreation ? <option value="manual">Материал курса</option> : null}
                 </select>
               </label>
-              {courseCreation && !isEssay && !isQuiz ? (
+              {courseCreation && !hasResponseKind ? (
                 <label className="teacher-field assignment-document-environment">
                   <span>Среда задания</span>
                   <select
@@ -1558,7 +1562,7 @@ export function AuthoredMaterialsPage({
                 </span>
                 <span>{resultTitle}</span>
               </footer>
-              {draft.moduleKey === null && !courseCreation ? (
+              {draft.moduleKey === null && !courseCreation && !isFile ? (
                 <p className="assignment-document-hint">
                   {isEssay
                     ? 'Опубликуйте задание и добавьте его в урок курса.'
@@ -1596,7 +1600,7 @@ export function AuthoredMaterialsPage({
                   </header>
 
                   <div className="teacher-drawer-body">
-                    {!isEssay && !isQuiz ? (
+                    {!hasResponseKind ? (
                       <label className="teacher-field">
                         <span>Среда</span>
                         <select
@@ -2018,32 +2022,34 @@ export function AuthoredMaterialsPage({
                 : ''
             }
           />
-          <label>
-            Среда проекта
-            <select
-              value={draft.moduleKey ?? ''}
-              disabled={busy || modulesLoading || openedKind === 'manual'}
-              onChange={(event) => {
-                const moduleKey = event.target.value || null;
-                setDraft((current) => ({ ...current, moduleKey }));
-              }}
-            >
-              <option value="" disabled={openedKind === 'project'}>
-                Материал без среды
-              </option>
-              {draft.moduleKey &&
-              !assignableModules.some((module) => module.moduleKey === draft.moduleKey) ? (
-                <option value={draft.moduleKey}>
-                  {draft.moduleKey} · недоступно для назначения
+          {!isFile ? (
+            <label>
+              Среда проекта
+              <select
+                value={draft.moduleKey ?? ''}
+                disabled={busy || modulesLoading || openedKind === 'manual'}
+                onChange={(event) => {
+                  const moduleKey = event.target.value || null;
+                  setDraft((current) => ({ ...current, moduleKey }));
+                }}
+              >
+                <option value="" disabled={openedKind === 'project'}>
+                  Материал без среды
                 </option>
-              ) : null}
-              {assignableModules.map((module) => (
-                <option key={module.moduleKey} value={module.moduleKey}>
-                  {module.displayName}
-                </option>
-              ))}
-            </select>
-          </label>
+                {draft.moduleKey &&
+                !assignableModules.some((module) => module.moduleKey === draft.moduleKey) ? (
+                  <option value={draft.moduleKey}>
+                    {draft.moduleKey} · недоступно для назначения
+                  </option>
+                ) : null}
+                {assignableModules.map((module) => (
+                  <option key={module.moduleKey} value={module.moduleKey}>
+                    {module.displayName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
             Результат
             <select

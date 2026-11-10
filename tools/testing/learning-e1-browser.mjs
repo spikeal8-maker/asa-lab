@@ -12,6 +12,7 @@ const firstSelectors = [
   'e2e/courses-sharing.spec.ts',
 ];
 const secondSelectors = [
+  'e2e/learning-file-course.spec.ts',
   'e2e/learning-learner-submits-project-assignment.spec.ts',
   'e2e/learning-quiz-course.spec.ts',
   'e2e/learning-surface-convergence.spec.ts',
@@ -58,6 +59,9 @@ const manifest = {
     'Course Builder corrects the exact second prepublish block and preserves later edits and published history',
     'Course archive rejects a stale assignment dialog, keeps exact replay and old learning, then restores assignment',
     'Course media errors survive saved author preview and learner delivery with explicit retry',
+  ],
+  'learning-file-course.spec.ts': [
+    'File answers: shared authoring, mixed Course, exact Seat uploads and frozen teacher downloads at four widths',
   ],
   'learning-learner-submits-project-assignment.spec.ts': [
     'learner starts the real project editor and submits one immutable attempt',
@@ -366,7 +370,7 @@ function execution(report, destination, expected) {
 }
 
 function main() {
-  // CI executes the complete 32 + 16 identity matrix in two isolated jobs.
+  // CI executes the complete 32 + 17 identity matrix in two isolated jobs.
   // Local invocation without a phase retains the exact original all-cases behavior.
   const phase = process.env.LEARNING_E1_BATCH ?? 'all';
   check(
@@ -558,7 +562,7 @@ function main() {
         status: firstExitCode === null ? 'NOT_RUN' : firstExitCode ? 'FAIL' : 'PASS',
       },
       second: {
-        cases: 16,
+        cases: 17,
         exitCode: secondExitCode,
         status: secondExitCode === null ? 'NOT_RUN' : secondExitCode ? 'FAIL' : 'PASS',
       },

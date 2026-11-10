@@ -56,15 +56,17 @@ export function PinnedPracticePreview({ versionId }: { readonly versionId: strin
       <small>
         {preview.kind === 'quiz'
           ? 'Тест'
-          : preview.kind === 'essay'
-            ? 'Письменный ответ'
-            : preview.moduleKey === 'electronics'
-              ? 'Электроника'
-              : preview.moduleKey === 'three-d'
-                ? '3D'
-                : preview.moduleKey === 'blocks'
-                  ? 'Scratch'
-                  : 'Практика'}{' '}
+          : preview.kind === 'file'
+            ? 'Файловый ответ'
+            : preview.kind === 'essay'
+              ? 'Письменный ответ'
+              : preview.moduleKey === 'electronics'
+                ? 'Электроника'
+                : preview.moduleKey === 'three-d'
+                  ? '3D'
+                  : preview.moduleKey === 'blocks'
+                    ? 'Scratch'
+                    : 'Практика'}{' '}
         · опубликованная версия {preview.source.versionNumber}
       </small>
       <AssignmentView assignment={preview.assignment} compact />
@@ -153,7 +155,8 @@ export function CanonicalPracticePicker({
             (item) =>
               (item.kind === 'project' ||
                 (allowEssay && item.kind === 'essay') ||
-                item.kind === 'quiz') &&
+                item.kind === 'quiz' ||
+                item.kind === 'file') &&
               item.currentPublishedVersionId !== null,
           ),
         );
@@ -199,6 +202,7 @@ export function CanonicalPracticePicker({
                       if (!result.ok) throw new Error(result.error.message);
                       const essay =
                         (result.data.kind === 'quiz' ||
+                          result.data.kind === 'file' ||
                           (allowEssay && result.data.kind === 'essay')) &&
                         result.data.moduleKey === null;
                       if (!modules.ok && !essay) throw new Error(modules.error.message);
@@ -298,6 +302,7 @@ export function CanonicalPracticePicker({
                             const essay =
                               result.ok &&
                               (result.data.kind === 'quiz' ||
+                                result.data.kind === 'file' ||
                                 (allowEssay && result.data.kind === 'essay')) &&
                               result.data.moduleKey === null;
                             const supported =

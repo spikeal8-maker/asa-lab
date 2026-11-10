@@ -36,7 +36,7 @@ afterAll(async () => {
 
 const taskPdf = Buffer.from('%PDF-1.4\nEssay exact instruction file\n%%EOF');
 const taskHash = createHash('sha256').update(taskPdf).digest('hex');
-async function fixture(withMedia = false) {
+async function fixture(withMedia = false, kind: 'essay' | 'file' = 'essay') {
   const client = await admin.connect();
   try {
     await client.query('BEGIN');
@@ -68,16 +68,17 @@ async function fixture(withMedia = false) {
       seats.push({ id, principal: principal.rows[0].principal_id as string });
     }
     const activity = await client.query(
-      `SELECT * FROM learning_activity_create($1,$2,'school','private','essay',$3,$4,
+      `SELECT * FROM learning_activity_create($1,$2,'school','private',$8,$3,$4,
         'graded',10,$5::jsonb,NULL,NULL,NULL,NULL,$6,NULL::jsonb,$7::jsonb)`,
       [
         teacherPrincipal,
         teacher.tenantId,
-        'Письменный ответ',
+        kind === 'file' ? 'Ответ файлом' : 'Письменный ответ',
         'Объясните своими словами.',
         JSON.stringify(policies),
         key('create'),
         null,
+        kind,
       ],
     );
     expect(activity.rows[0].result_code).toBe('ok');
@@ -186,6 +187,7 @@ type Essay = {
     number: number;
     revision: number;
     text: string;
+    file?: { id: string; name: string; sizeBytes: number; sha256: string } | null;
     state: string;
     digest: string | null;
     submissionId: string | null;
@@ -522,5 +524,159 @@ describe('written-response exact Course academic chain', () => {
       [teacherAccount, data.classroomId, first.attempt!.id],
     );
     expect(teacherEvidence.rows[0].response_text).toBe('Сданный ответ до переноса открытия');
+  });
+});
+
+describe('immutable file answers in classes and Courses', () => {
+  it('checks lineage, optimistic replacement, exact downloads, review and journal', async () => {
+    const data = await fixture(false, 'file');
+    const run = data.runs[0]!;
+    const actor = data.seat.principal;
+    const direct = await app.query(
+      "SELECT * FROM learning_direct_assignment_create($1,$2,$3,$4,NULL,'whole_class','{}'::uuid[],$5)",
+      [teacherPrincipal, teacher.tenantId, data.classroomId, data.version, key('direct')],
+    );
+    expect(direct.rows[0].result_code).toBe('ok');
+    const classified = await app.query('SELECT learning_file_assignment_kind($1,$2) AS kind', [
+      actor,
+      direct.rows[0].classroom_assignment_id,
+    ]);
+    expect(classified.rows[0].kind).toBe('file');
+    const directStart = await command('learning_file_attempt_start', [
+      actor,
+      direct.rows[0].activity_run_id,
+      key('direct-start'),
+    ]);
+    expect(directStart.attempt?.id).toBeTruthy();
+
+    const started = await command('learning_file_attempt_start', [
+      actor,
+      run.id,
+      key('file-start'),
+    ]);
+    expect(started.attempt).toMatchObject({ state: 'in_progress', file: null, revision: 0 });
+    const attempt = started.attempt!.id;
+    expect(attempt).not.toBe(directStart.attempt?.id);
+    const scope = (principal: string, id: string, revision: number, request: string) =>
+      command('learning_file_upload_scope', [principal, run.id, id, revision, request]);
+    const linkedAccount = await admin.query(
+      "INSERT INTO accounts(email,password_hash,birth_date,country) VALUES($1,'test-only',DATE '2000-01-01','RU') RETURNING id",
+      [key('file-account') + '@test.local'],
+    );
+    const accountId = linkedAccount.rows[0].id as string;
+    const linkedPrincipal = await admin.query(
+      "INSERT INTO principals(kind,account_id) VALUES('account',$1) RETURNING id",
+      [accountId],
+    );
+    const accountActor = linkedPrincipal.rows[0].id as string;
+    await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
+      accountId,
+      data.seat.id,
+    ]);
+    await admin.query(
+      "INSERT INTO learner_identity_links(id,tenant_id,school_id,learner_identity_id,link_kind,account_id) SELECT gen_random_uuid(),tenant_id,school_id,learner_identity_id,'account',$1 FROM activity_participations WHERE id=$2",
+      [accountId, started.participationId],
+    );
+    expect((await command('learning_file_attempt_read', [accountActor, run.id])).attempt?.id).toBe(
+      attempt,
+    );
+
+    const firstRequest = key('file-upload');
+    expect((await scope(actor, attempt, 0, firstRequest)).resultCode).toBe('ok');
+    expect((await scope(data.other.principal, attempt, 0, firstRequest)).resultCode).toBe(
+      'forbidden',
+    );
+    const saveFile = (revision: number, name: string, sha: string, request: string) =>
+      command('learning_file_draft_save', [
+        actor,
+        run.id,
+        attempt,
+        revision,
+        name,
+        8,
+        'text/plain',
+        sha,
+        request,
+      ]);
+    const first = await saveFile(0, 'Первый.txt', '1'.repeat(64), firstRequest);
+    expect(first.attempt?.file).toMatchObject({
+      name: 'Первый.txt',
+      sizeBytes: 8,
+      sha256: '1'.repeat(64),
+    });
+    expect(await saveFile(0, 'Первый.txt', '1'.repeat(64), firstRequest)).toEqual(first);
+    expect((await saveFile(0, 'Другой.txt', '9'.repeat(64), firstRequest)).resultCode).toBe(
+      'request_conflict',
+    );
+    expect((await saveFile(0, 'Старый.txt', '1'.repeat(64), key('stale-file'))).resultCode).toBe(
+      'draft_revision_conflict',
+    );
+    const next = await saveFile(1, 'Итог.txt', '2'.repeat(64), key('replace'));
+    const file = next.attempt!.file!;
+    expect(file.id).not.toBe(first.attempt?.file?.id);
+    const download = (principal: string, id: string) =>
+      app.query('SELECT * FROM learning_file_download($1,$2,$3)', [principal, run.id, id]);
+    expect((await download(actor, first.attempt!.file!.id)).rows).toEqual([]);
+    expect((await download(data.other.principal, file.id)).rows).toEqual([]);
+    expect((await download(accountActor, file.id)).rows).toHaveLength(1);
+    await admin.query("UPDATE accounts SET status='suspended' WHERE id=$1", [accountId]);
+    expect((await download(accountActor, file.id)).rows).toEqual([]);
+    expect((await download(actor, file.id)).rows[0]).toMatchObject({
+      tenant_id: teacher.tenantId,
+      attempt_id: attempt,
+      file_descriptor: file,
+    });
+    const teacherRead = (account = teacherAccount) =>
+      app.query('SELECT * FROM learning_teacher_exact_file_submission($1,$2,$3)', [
+        account,
+        data.classroomId,
+        attempt,
+      ]);
+    expect((await teacherRead()).rows).toEqual([]);
+    const frozen = await command('learning_file_submission_create', [
+      actor,
+      run.id,
+      attempt,
+      2,
+      key('file-submit'),
+    ]);
+    expect(frozen.attempt).toMatchObject({
+      state: 'submitted',
+      file,
+      revision: 2,
+      digest: file.sha256,
+    });
+    expect((await teacherRead()).rows[0]).toMatchObject({
+      file_descriptor: file,
+      payload_digest: file.sha256,
+      draft_revision: 2,
+    });
+    expect((await teacherRead(randomUUID())).rows).toEqual([]);
+    expect((await saveFile(2, 'Замена.txt', '3'.repeat(64), key('after-submit'))).resultCode).toBe(
+      'not_available',
+    );
+    const reviewed = await app.query(
+      "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'accepted',8,'Проверено',NULL,NULL,$5)",
+      [teacherAccount, teacherPrincipal, data.classroomId, attempt, key('file-review')],
+    );
+    expect(reviewed.rows[0].result_code).toBe('ok');
+    const journal = await app.query('SELECT * FROM classroom_gradebook_list($1,$2)', [
+      teacherAccount,
+      data.classroomId,
+    ]);
+    expect(
+      journal.rows.find(
+        (row) => row.assignment_id === run.assignment && row.seat_id === data.seat.id,
+      ),
+    ).toMatchObject({ attempt_id: attempt, raw_points: 8, max_points: 10, feedback: 'Проверено' });
+    await expect(app.query('SELECT id FROM learning_file_versions')).rejects.toMatchObject({
+      code: '42501',
+    });
+    await expect(
+      admin.query('UPDATE learning_file_versions SET name=$1 WHERE id=$2', [
+        'replaced.txt',
+        file.id,
+      ]),
+    ).rejects.toThrow();
   });
 });

@@ -1,0 +1,26 @@
+.file-response {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.file-response > p {
+  margin: 0;
+}
+
+.file-response input[type='file'] {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.file-response-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.file-response-actions:empty {
+  display: none;
+}

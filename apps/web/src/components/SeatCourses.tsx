@@ -14,6 +14,7 @@ import { courseCompletion, lessonComplete, lessonExcused } from '../learning/cou
 import { AssignmentView } from './AssignmentView';
 import { TaskBlocks } from './TaskBlocks';
 import { AssignmentGoal } from './BriefText';
+import { FileResponseEditor } from './FileResponseEditor';
 import { EssayResponseEditor } from './EssayResponseEditor';
 import { LessonBlocks } from './LessonBlocks';
 import { useSchoolTime } from './school-time';
@@ -474,7 +475,11 @@ export function SeatCourses({
                     </>
                   );
                 }
-                if (occurrence.activityKind === 'essay' || occurrence.activityKind === 'quiz') {
+                if (
+                  occurrence.activityKind === 'essay' ||
+                  occurrence.activityKind === 'quiz' ||
+                  occurrence.activityKind === 'file'
+                ) {
                   return (
                     <div
                       className="seat-course-activity"
@@ -491,7 +496,11 @@ export function SeatCourses({
                     >
                       <div className="seat-course-activity-main">
                         <span className="course-eyebrow">
-                          {occurrence.activityKind === 'quiz' ? 'Тест' : 'Письменный ответ'}
+                          {occurrence.activityKind === 'quiz'
+                            ? 'Тест'
+                            : occurrence.activityKind === 'file'
+                              ? 'Файловый ответ'
+                              : 'Письменный ответ'}
                         </span>
                         <strong>{occurrence.title}</strong>
                         <small>{courseActivityStatus(occurrence)}</small>
@@ -503,6 +512,13 @@ export function SeatCourses({
                           key={occurrence.activityRunId}
                           activityRunId={occurrence.activityRunId}
                           renderedTaskBlocks={occurrence.blocks ?? null}
+                          onChanged={reload}
+                          onRegisterLeaveGuard={registerResponseGuard}
+                        />
+                      ) : occurrence.activityKind === 'file' ? (
+                        <FileResponseEditor
+                          activityRunId={occurrence.activityRunId}
+                          activityVersionId={occurrence.learningActivityVersionId}
                           onChanged={reload}
                           onRegisterLeaveGuard={registerResponseGuard}
                         />

@@ -182,6 +182,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0310', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
         '0311', // Exact Quiz Start and answer state; historical rows remain unchanged.
         '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
+        '0313', // Immutable learner file answers in class and Course assignments.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -523,6 +524,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0310', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
           '0311', // Exact Quiz Start and answer state; historical rows remain unchanged.
           '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
+          '0313', // Immutable learner file answers in class and Course assignments.
         ]);
         expect(
           await applyIsolatedTestPlan(

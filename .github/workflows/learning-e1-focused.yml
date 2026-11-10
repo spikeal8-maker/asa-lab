@@ -12,6 +12,8 @@ on:
       - 'tests/account/**'
       - 'e2e/learning-*.spec.ts'
       - 'e2e/courses-sharing.spec.ts'
+      - 'infra/minio/Dockerfile'
+      - 'tools/testing/learning-e1-browser.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/learning-e1-focused.yml'
@@ -248,7 +250,34 @@ jobs:
           ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4612
           ASA_BLOCKS_UPSTREAM_ORIGIN: http://127.0.0.1:4613
         shell: bash
-        run: node tools/testing/learning-e1-browser.mjs
+        run: |
+          if [[ "$LEARNING_E1_BATCH" == second ]]; then
+            # Private, temporary storage for real browser file transfers in this runner.
+            export ASA_OBJECT_STORAGE_ENDPOINT=http://127.0.0.1:19000
+            export ASA_OBJECT_STORAGE_REGION=us-east-1
+            export ASA_OBJECT_STORAGE_BUCKET="learning-files-${GITHUB_RUN_ID}"
+            export ASA_OBJECT_STORAGE_FORCE_PATH_STYLE=true
+            export ASA_OBJECT_STORAGE_ACCESS_KEY=learning-files-ci-only
+            export ASA_OBJECT_STORAGE_SECRET_KEY=learning-files-ci-only-secret
+            image="asa-learning-files-minio:${GITHUB_RUN_ID}"
+            docker build -f infra/minio/Dockerfile -t "$image" infra/minio
+            container="$(docker run --detach --pull=never --read-only --cap-drop ALL \
+              --security-opt no-new-privileges --publish 127.0.0.1:19000:9000 \
+              --tmpfs /data:rw,nosuid,nodev,noexec,size=512m,uid=1000,gid=1000,mode=0700 \
+              --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,uid=1000,gid=1000,mode=0700 \
+              -e MINIO_ROOT_USER="$ASA_OBJECT_STORAGE_ACCESS_KEY" \
+              -e MINIO_ROOT_PASSWORD="$ASA_OBJECT_STORAGE_SECRET_KEY" -e MINIO_BROWSER=off "$image" \
+              --certs-dir /tmp/certs server /data --address :9000 --console-address :9001)"
+            trap 'docker rm -f "$container" >/dev/null' EXIT
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent --show-error --max-time 2 "$ASA_OBJECT_STORAGE_ENDPOINT/minio/health/ready"; then break; fi
+              sleep 1
+            done
+            curl --fail --silent --show-error --max-time 2 "$ASA_OBJECT_STORAGE_ENDPOINT/minio/health/ready"
+            docker exec -e MC_HOST_learning="http://${ASA_OBJECT_STORAGE_ACCESS_KEY}:${ASA_OBJECT_STORAGE_SECRET_KEY}@127.0.0.1:9000" \
+              "$container" mc mb "learning/$ASA_OBJECT_STORAGE_BUCKET"
+          fi
+          node tools/testing/learning-e1-browser.mjs
       - name: Record the complete exact-source browser partition
         env:
           SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}

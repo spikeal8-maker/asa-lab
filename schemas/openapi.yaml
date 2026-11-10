@@ -6629,6 +6629,156 @@ paths:
             request conflict or unavailable attempt,
           }
         '503': { description: Learning dependency unavailable }
+  /api/learning/file/runs/{activityRunId}:
+    parameters:
+      - { $ref: '#/components/parameters/LearningFileRunId' }
+    get:
+      operationId: readLearningFileAttempt
+      summary: Read the authorized exact file response and available actions
+      responses:
+        '200': { $ref: '#/components/responses/LearningFileAttempt' }
+        '400': { $ref: '#/components/responses/LearningFileError' }
+        '401': { $ref: '#/components/responses/LearningFileError' }
+        '404': { $ref: '#/components/responses/LearningFileError' }
+        '503': { $ref: '#/components/responses/LearningFileError' }
+  /api/learning/file/runs/{activityRunId}/start:
+    parameters:
+      - { $ref: '#/components/parameters/LearningFileRunId' }
+    post:
+      operationId: startLearningFileAttempt
+      summary: Start or resume a file response attempt with an empty slot on rework
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId]
+              properties:
+                requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+      responses:
+        '200': { $ref: '#/components/responses/LearningFileAttempt' }
+        '400': { $ref: '#/components/responses/LearningFileError' }
+        '401': { $ref: '#/components/responses/LearningFileError' }
+        '404': { $ref: '#/components/responses/LearningFileError' }
+        '409': { $ref: '#/components/responses/LearningFileError' }
+        '503': { $ref: '#/components/responses/LearningFileError' }
+  /api/learning/file/runs/{activityRunId}/draft/{attemptId}/{expectedRevision}/{requestId}:
+    parameters:
+      - { $ref: '#/components/parameters/LearningFileRunId' }
+      - { name: attemptId, in: path, required: true, schema: { type: string, format: uuid } }
+      - name: expectedRevision
+        in: path
+        required: true
+        schema: { type: integer, minimum: 0, maximum: 2147483645 }
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+    put:
+      operationId: uploadLearningFileDraft
+      summary: Validate and replace the file slot for one exact draft revision
+      description: One validated immutable file per revision. PDF is limited to 25000000 bytes, PNG/JPEG/WebP to 20000000 bytes and other enabled formats to 50000000 bytes.
+      parameters:
+        - name: X-Asa-File-Name
+          in: header
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 3060 }
+          description: Percent-encoded UTF-8 basename
+        - name: Content-Length
+          in: header
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 50000000 }
+      requestBody:
+        required: true
+        content:
+          application/vnd.asa.learning-file: { schema: { type: string, format: binary } }
+      responses:
+        '200': { $ref: '#/components/responses/LearningFileAttempt' }
+        '400': { $ref: '#/components/responses/LearningFileError' }
+        '401': { $ref: '#/components/responses/LearningFileError' }
+        '404': { $ref: '#/components/responses/LearningFileError' }
+        '409': { $ref: '#/components/responses/LearningFileError' }
+        '411': { $ref: '#/components/responses/LearningFileError' }
+        '413': { $ref: '#/components/responses/LearningFileError' }
+        '415': { $ref: '#/components/responses/LearningFileError' }
+        '429': { $ref: '#/components/responses/LearningFileError' }
+        '503': { $ref: '#/components/responses/LearningFileError' }
+  /api/learning/file/runs/{activityRunId}/submit:
+    parameters:
+      - { $ref: '#/components/parameters/LearningFileRunId' }
+    post:
+      operationId: submitLearningFileAttempt
+      summary: Submit the exact saved file version, without sending any new bytes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningEssaySubmitRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/LearningFileAttempt' }
+        '400': { $ref: '#/components/responses/LearningFileError' }
+        '401': { $ref: '#/components/responses/LearningFileError' }
+        '404': { $ref: '#/components/responses/LearningFileError' }
+        '409': { $ref: '#/components/responses/LearningFileError' }
+        '503': { $ref: '#/components/responses/LearningFileError' }
+  /api/learning/file/runs/{activityRunId}/files/{fileId}:
+    parameters:
+      - { $ref: '#/components/parameters/LearningFileRunId' }
+      - { $ref: '#/components/parameters/LearningFileId' }
+    get:
+      operationId: downloadLearnerLearningFile
+      summary: Download a file in the learner's authorized current draft or immutable submission
+      responses:
+        '200': { $ref: '#/components/responses/LearningFileDownload' }
+        '400': { $ref: '#/components/responses/LearningFileError' }
+        '401': { $ref: '#/components/responses/LearningFileError' }
+        '404': { $ref: '#/components/responses/LearningFileError' }
+        '429': { $ref: '#/components/responses/LearningFileError' }
+        '503': { $ref: '#/components/responses/LearningFileError' }
+  /api/learning/file/classes/{classroomId}/attempts/{attemptId}/files/{fileId}:
+    parameters:
+      - { name: classroomId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: attemptId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { $ref: '#/components/parameters/LearningFileId' }
+    get:
+      operationId: downloadTeacherLearningFile
+      summary: Download the exact immutable submitted file as an authorized classroom educator
+      responses:
+        '200': { $ref: '#/components/responses/LearningFileDownload' }
+        '400': { $ref: '#/components/responses/LearningFileError' }
+        '401': { $ref: '#/components/responses/LearningFileError' }
+        '403': { $ref: '#/components/responses/LearningFileError' }
+        '404': { $ref: '#/components/responses/LearningFileError' }
+        '429': { $ref: '#/components/responses/LearningFileError' }
+        '503': { $ref: '#/components/responses/LearningFileError' }
+  /api/learning/file/runs/{activityRunId}/media/{role}/{contentHash}:
+    parameters:
+      - { name: activityRunId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: role, in: path, required: true, schema: { type: string, enum: [image, file] } }
+      - {
+          name: contentHash,
+          in: path,
+          required: true,
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' },
+        }
+    get:
+      operationId: readFileInstructionMedia
+      summary: Read exact pinned instruction image or PDF after current learner and opening checks
+      description: Serves the authorized teacher instruction image or PDF pinned to this run.
+      responses:
+        '200':
+          description: Private immutable instruction bytes with no-store and nosniff headers
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+        '400': { description: Invalid Run, role or content hash }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Unavailable scope, unopened instructions or unmatched pinned asset }
+        '503': { description: Learning dependency unavailable }
   /api/learning/activities:
     get:
       operationId: listLearningActivities
@@ -8197,6 +8347,25 @@ paths:
         '409': { description: Membership changed; nothing overwritten }
 components:
   responses:
+    LearningFileAttempt:
+      description: Authorized file-response activity, exact attempt and confirmed file metadata
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/LearningFileResponse' }
+    LearningFileDownload:
+      description: Verified immutable bytes as a private attachment
+      headers:
+        Content-Disposition: { schema: { type: string } }
+        Content-Security-Policy: { schema: { type: string } }
+        Cache-Control: { schema: { type: string } }
+        X-Content-Type-Options: { schema: { type: string } }
+      content:
+        application/octet-stream: { schema: { type: string, format: binary } }
+    LearningFileError:
+      description: File operation unavailable, denied, invalid, conflicting or temporarily limited
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
     AuthValidationError:
       description: Invalid request fields
       content:
@@ -8246,6 +8415,16 @@ components:
           schema:
             $ref: '#/components/schemas/AccountVerificationRequiredResponse'
   parameters:
+    LearningFileRunId:
+      name: activityRunId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    LearningFileId:
+      name: fileId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     ProjectId:
       name: projectId
       in: path
@@ -8479,6 +8658,100 @@ components:
                     enum: [accepted, changes_requested, incomplete, excused, null],
                   }
                 feedback: { type: [string, 'null'] }
+    LearningFileResponse:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          activityRunId,
+          participationId,
+          activityVersionId,
+          title,
+          instructions,
+          goal,
+          blocks,
+          resultMode,
+          maxPoints,
+          canStart,
+          canEdit,
+          attempt,
+        ]
+      properties:
+        activityRunId: { type: string, format: uuid }
+        participationId: { type: string, format: uuid }
+        activityVersionId: { type: string, format: uuid }
+        title: { type: string }
+        instructions: { type: [string, 'null'] }
+        goal: { type: [string, 'null'] }
+        blocks: { type: [array, 'null'], items: { type: object } }
+        resultMode: { type: string, enum: [ungraded, completion, graded] }
+        maxPoints: { type: [integer, 'null'], minimum: 1 }
+        canStart: { type: boolean }
+        canEdit: { type: boolean }
+        attempt:
+          oneOf:
+            - type: 'null'
+            - type: object
+              additionalProperties: false
+              required:
+                [
+                  id,
+                  number,
+                  state,
+                  revisionOfAttemptId,
+                  revision,
+                  file,
+                  savedAt,
+                  submittedAt,
+                  submissionId,
+                  digest,
+                  reviewDecision,
+                  feedback,
+                ]
+              properties:
+                id: { type: string, format: uuid }
+                number: { type: integer, minimum: 1 }
+                state:
+                  {
+                    type: string,
+                    enum: [in_progress, submitted, evaluating, closed, invalidated, expired],
+                  }
+                revisionOfAttemptId: { type: [string, 'null'], format: uuid }
+                revision: { type: integer, minimum: 0 }
+                file:
+                  oneOf:
+                    - type: 'null'
+                    - $ref: '#/components/schemas/LearningFileDescriptor'
+                savedAt: { type: string, format: date-time }
+                submittedAt: { type: [string, 'null'], format: date-time }
+                submissionId: { type: [string, 'null'], format: uuid }
+                digest: { type: [string, 'null'], pattern: '^[a-f0-9]{64}$' }
+                reviewDecision:
+                  {
+                    type: [string, 'null'],
+                    enum: [accepted, changes_requested, incomplete, excused, null],
+                  }
+                feedback: { type: [string, 'null'] }
+    LearningFileDescriptor:
+      type: object
+      additionalProperties: false
+      required: [id, name, sizeBytes, contentType, sha256]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 255 }
+        sizeBytes: { type: integer, minimum: 1, maximum: 50000000 }
+        contentType: { type: string }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+    LearningFileFrozenSubmission:
+      type: object
+      additionalProperties: false
+      required: [kind, submissionId, digest, file, sourceRevision]
+      properties:
+        kind: { const: file }
+        submissionId: { type: string, format: uuid }
+        digest: { type: string, pattern: '^[a-f0-9]{64}$' }
+        file: { $ref: '#/components/schemas/LearningFileDescriptor' }
+        sourceRevision: { type: integer, minimum: 1 }
     LearningEssayFrozenSubmission:
       type: object
       additionalProperties: false
@@ -10466,6 +10739,7 @@ components:
       oneOf:
         - $ref: '#/components/schemas/LearningProjectFrozenSubmission'
         - $ref: '#/components/schemas/LearningEssayFrozenSubmission'
+        - $ref: '#/components/schemas/LearningFileFrozenSubmission'
     LearningProjectFrozenSubmission:
       {
         'type': 'object',

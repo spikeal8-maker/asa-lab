@@ -63,7 +63,7 @@ function ReviewDetail({
       ? destination.attempt
       : null,
   );
-  const [frozen, setFrozen] = useState<Frozen | null>(null);
+  const [loadedSubmission, setFrozen] = useState<Frozen | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [points, setPoints] = useState('');
@@ -84,6 +84,7 @@ function ReviewDetail({
   }, [load]);
   const attempt = context?.attempts.find((entry) => entry.id === attemptId);
   const latest = attempt?.results[0] ?? null;
+  const frozen = loadedSubmission?.submissionId === attempt?.submissionId ? loadedSubmission : null;
   useEffect(() => {
     setFrozen(null);
     setError(null);
@@ -194,7 +195,7 @@ function ReviewDetail({
           {attempt && !attempt.submissionId ? (
             <p>Попытка в работе. Оценивать несданный черновик нельзя.</p>
           ) : null}
-          {frozen ? (
+          {frozen && attempt ? (
             <div className="gradebook-exact">
               <p>
                 <strong>Сданная версия</strong> · ревизия сохранения{' '}
@@ -223,6 +224,17 @@ function ReviewDetail({
                     </fieldset>
                   ))}
                 </div>
+              ) : frozen.kind === 'file' ? (
+                <p data-testid="submission-file">
+                  <a
+                    download
+                    href={`/api/learning/file/classes/${encodeURIComponent(classroomId)}/attempts/${encodeURIComponent(attempt.id)}/files/${encodeURIComponent(frozen.file.id)}`}
+                    style={{ overflowWrap: 'anywhere' }}
+                  >
+                    Скачать {frozen.file.name}
+                  </a>{' '}
+                  · {frozen.file.sizeBytes.toLocaleString('ru-RU')} Б
+                </p>
               ) : frozen.kind === 'essay' ? (
                 <p
                   data-testid="submission-essay-text"
@@ -246,7 +258,7 @@ function ReviewDetail({
               <details>
                 <summary>Содержимое и контрольная сумма сдачи</summary>
                 <p>{frozen.digest}</p>
-                {frozen.kind !== 'essay' && frozen.kind !== 'quiz' ? (
+                {frozen.kind !== 'essay' && frozen.kind !== 'quiz' && frozen.kind !== 'file' ? (
                   <pre>{JSON.stringify(frozen.document, null, 2)}</pre>
                 ) : null}
               </details>
