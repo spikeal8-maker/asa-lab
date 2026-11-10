@@ -1157,10 +1157,11 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
       await expect(properties).toBeFocused();
       await expect(properties).toHaveAttribute('aria-expanded', 'false');
     }
-    await page
-      .getByTestId('robotics-field-palette')
-      .getByRole('button', { name: 'Выбор', exact: true })
-      .click();
+    // The Select palette card was removed. Escape on the field canvas is
+    // the supported way to return to selection mode without another edit.
+    const fieldCanvas = page.getByRole('group', { name: 'Полотно поля' });
+    await fieldCanvas.focus();
+    await fieldCanvas.press('Escape');
     expect(await page.evaluate(() => !!document.activeElement?.closest('[hidden], [inert]'))).toBe(
       false,
     );
