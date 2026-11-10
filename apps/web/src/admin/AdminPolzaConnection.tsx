@@ -29,6 +29,7 @@ export function AdminPolzaConnection({
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [catalogBusy, setCatalogBusy] = useState(false);
   const [catalogDirty, setCatalogDirty] = useState(false);
   const [reload, setReload] = useState(0);
   const [catalogRevision, setCatalogRevision] = useState(0);
@@ -68,12 +69,11 @@ export function AdminPolzaConnection({
     return () => onDirtyChange?.(false);
   }, [dirty, catalogDirty, onDirtyChange]);
   const keyReady = !!keyInput || (!!config?.apiKeyConfigured && !clearKey);
+  const connectionLocked = busy || loading || catalogBusy || catalogDirty;
   const canSave =
     !!config &&
     dirty &&
-    !catalogDirty &&
-    !busy &&
-    !loading &&
+    !connectionLocked &&
     config.encryptionReady &&
     (!enabled || keyReady) &&
     Number.isInteger(paidPerHour) &&
@@ -164,7 +164,6 @@ export function AdminPolzaConnection({
       <header className="asa-ai-integration-header">
         <div>
           <h2>Polza AI</h2>
-          <p>Один API-ключ для каталога и подключённых функций Polza AI.</p>
         </div>
         <span className="asa-ai-integration-state">
           {config?.enabled
@@ -197,47 +196,44 @@ export function AdminPolzaConnection({
                 spellCheck={false}
                 maxLength={2048}
                 value={keyInput}
-                disabled={busy || clearKey || !config.encryptionReady}
-                placeholder={
-                  config.apiKeyConfigured ? 'Сохранён · введите новый для замены' : 'pza_…'
-                }
+                disabled={connectionLocked || clearKey || !config.encryptionReady}
+                placeholder={config.apiKeyConfigured ? 'pza_•••••••• · сохранён' : 'pza_…'}
                 onChange={(event) => {
                   setKeyInput(event.target.value);
                   setMessage('');
                 }}
               />
             </label>
+            {config.textConfigurationVersion !== undefined ? (
+              <label
+                className="asa-polza-key asa-polza-hourly"
+                title="Общий лимит платных текстовых запросов всех облачных провайдеров. Ноль отключает платные запросы."
+              >
+                <span>Запросов в час</span>
+                <input
+                  aria-label="Общий лимит платных запросов в час"
+                  type="number"
+                  min="0"
+                  max="10000"
+                  value={paidPerHour}
+                  disabled={connectionLocked}
+                  onChange={(e) => setPaidPerHour(Number(e.target.value))}
+                />
+              </label>
+            ) : null}
             <label className="asa-polza-switch">
               <input
                 type="checkbox"
                 checked={enabled}
-                disabled={busy || !config.encryptionReady}
+                disabled={connectionLocked || !config.encryptionReady}
                 onChange={(event) => {
                   setEnabled(event.target.checked);
                   setMessage('');
                 }}
               />
-              Использовать Polza AI
+              Включено
             </label>
           </div>
-          {config.textConfigurationVersion !== undefined ? (
-            <label className="asa-polza-key">
-              <span>Общий лимит платных текстовых запросов в час</span>
-              <input
-                aria-label="Общий лимит платных запросов в час"
-                type="number"
-                min="0"
-                max="10000"
-                value={paidPerHour}
-                disabled={busy}
-                onChange={(e) => setPaidPerHour(Number(e.target.value))}
-              />
-              <small>
-                Для всех облачных провайдеров ASA. 0 запрещает новые платные запросы. Лимиты токенов
-                задаются в Настройках.
-              </small>
-            </label>
-          ) : null}
           <div className="asa-polza-actions">
             <button className="asa-polza-primary" type="submit" disabled={!canSave}>
               {busy ? 'Сохраняем…' : enabled ? 'Сохранить и проверить' : 'Сохранить'}
@@ -246,7 +242,7 @@ export function AdminPolzaConnection({
             <button
               type="button"
               className="asa-polza-secondary"
-              disabled={busy || dirty || !config.apiKeyConfigured}
+              disabled={connectionLocked || dirty || !config.apiKeyConfigured}
               onClick={() => {
                 setBusy(true);
                 setError('');
@@ -281,7 +277,7 @@ export function AdminPolzaConnection({
                 <input
                   type="checkbox"
                   checked={clearKey}
-                  disabled={busy}
+                  disabled={connectionLocked}
                   onChange={(event) => {
                     setClearKey(event.target.checked);
                     if (event.target.checked) {
@@ -296,32 +292,19 @@ export function AdminPolzaConnection({
           </details>
         </form>
       ) : null}
-      <div className="asa-polza-capabilities" aria-label="Направления Polza AI">
-        <div>
-          <strong>Текст и Vision</strong>
-          <span>Модели выбираются в каталоге ниже</span>
-        </div>
-        <div>
-          <strong>Изображения</strong>
-          <a href="#/admin/ai?section=comfyui&provider=polza">Модели изображений</a>
-        </div>
-        <div>
-          <strong>Транскрибация</strong>
-          <a href="#/admin/ai?section=transcription&provider=polza">
-            {config?.transcriptionEnabled ? 'Включена' : 'Модели и настройки'}
-          </a>
-        </div>
-        <div>
-          <strong>Видео</strong>
-          <a href="#/admin/ai?section=video&provider=polza">Видеомодели</a>
-        </div>
-      </div>
       {config?.apiKeyConfigured ? (
         <AdminPolzaCatalog
           key={catalogRevision}
+          connection
+          connectionDirty={dirty || busy}
           onAccessDenied={onAccessDenied}
-          onUpdated={onUpdated}
+          onUpdated={() => {
+            setLoading(true);
+            setReload((value) => value + 1);
+            onUpdated?.();
+          }}
           onDirtyChange={setCatalogDirty}
+          onBusyChange={setCatalogBusy}
         />
       ) : null}
     </section>

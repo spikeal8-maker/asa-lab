@@ -93,6 +93,7 @@ const expectedPending = [
   '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
   '0313', // OpenAI Responses catalog admission.
   '0314', // Polza video catalog category.
+  '0315', // Polza catalog selections and dates.
 ];
 
 interface Identity {
