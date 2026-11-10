@@ -1,3 +1,4 @@
+import { QuizResponsePlayer } from './QuizResponsePlayer';
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type SeatAssignment } from '../api';
@@ -235,6 +236,18 @@ export function SeatAssignments({
                         : 'Сдать'}
                   </button>
                 </>
+              ) : assignment.activityKind === 'quiz' && assignment.activityRunId ? (
+                openId === assignment.id ? (
+                  <QuizResponsePlayer activityRunId={assignment.activityRunId} onChanged={reload} />
+                ) : (
+                  <button
+                    type="button"
+                    className="portal-create-button"
+                    onClick={() => setOpenId(assignment.id)}
+                  >
+                    Открыть тест
+                  </button>
+                )
               ) : assignment.activityRunId ? (
                 <button
                   type="button"

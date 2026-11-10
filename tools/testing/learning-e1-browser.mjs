@@ -13,6 +13,7 @@ const firstSelectors = [
 ];
 const secondSelectors = [
   'e2e/learning-learner-submits-project-assignment.spec.ts',
+  'e2e/learning-quiz-course.spec.ts',
   'e2e/learning-surface-convergence.spec.ts',
   'e2e/learning-teacher-assigns-activity.spec.ts',
 ];
@@ -52,6 +53,7 @@ const manifest = {
     'Course Builder persists informational block structural controls into future versions only',
     'private authored course → approved Account → theory and real electronics submission → exact review',
     'private authored course → approved Account → theory and real three-d submission → exact review',
+    'Written Course response: compact author, Seat and Account drafts, immutable rework and exact journal grade',
     'Course Activity blocks preserve mixed order and open exact Electronics and 3D runtimes',
     'Course Builder corrects the exact second prepublish block and preserves later edits and published history',
     'Course archive rejects a stale assignment dialog, keeps exact replay and old learning, then restores assignment',
@@ -67,6 +69,9 @@ const manifest = {
     'A0 3D shell keeps anchor and panel above the editor while tools remain interactive',
     'A0 Blocks keeps anchor and panel topmost over fullscreen Scratch',
     'A0 mobile shell uses a permanent bottom anchor and bounded sheet at 390 and 320',
+  ],
+  'learning-quiz-course.spec.ts': [
+    'Complete Quiz Course: inline eight-type author, exact versions, Seat and Account saved answers, automatic and manual journal at four widths',
   ],
   'learning-surface-convergence.spec.ts': [
     'legacy, revision and selected-result semantics stay equal across learner and teacher surfaces',
@@ -361,7 +366,7 @@ function execution(report, destination, expected) {
 }
 
 function main() {
-  // CI executes the complete 31 + 15 identity matrix in two isolated jobs.
+  // CI executes the complete 32 + 16 identity matrix in two isolated jobs.
   // Local invocation without a phase retains the exact original all-cases behavior.
   const phase = process.env.LEARNING_E1_BATCH ?? 'all';
   check(
@@ -395,11 +400,11 @@ function main() {
   }
   equal(
     groups.map((group) => group.length),
-    [1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 1],
     'Review changed course declarations or either parameterized pair.',
   );
   check(
-    new Set(groups.map(([entry]) => `${entry.line}:${entry.column}`)).size === 16,
+    new Set(groups.map(([entry]) => `${entry.line}:${entry.column}`)).size === 17,
     'A declaration cannot appear in multiple groups.',
   );
   const firstBatches = files.slice(0, 2).map((file, index) => ({
@@ -417,7 +422,7 @@ function main() {
       cases: group,
     }),
   );
-  const secondBatch = { name: '19-second-batch', selectors: secondSelectors, cases: second };
+  const secondBatch = { name: '20-second-batch', selectors: secondSelectors, cases: second };
   const verified = [];
   // Pre-discover every actual invocation before any browser/server starts.
   for (const batch of [...firstBatches, secondBatch]) {
@@ -429,11 +434,11 @@ function main() {
     );
     if (batch !== secondBatch) verified.push(...selected);
   }
-  equal(verified, first, 'Ordered first-batch union must be all 31 cases exactly once.');
+  equal(verified, first, 'Ordered first-batch union must be all 32 cases exactly once.');
   equal(
     firstBatches.slice(2).flatMap((batch) => batch.cases),
     course,
-    'Ordered declaration union must be all 18 course cases exactly once.',
+    'Ordered declaration union must be all 19 course cases exactly once.',
   );
   write(path.join(evidence, 'plan.json'), {
     playwright: '1.55.1',
@@ -548,12 +553,12 @@ function main() {
     write(path.join(evidence, 'summary.json'), {
       phase,
       first: {
-        cases: 31,
+        cases: 32,
         exitCode: firstExitCode,
         status: firstExitCode === null ? 'NOT_RUN' : firstExitCode ? 'FAIL' : 'PASS',
       },
       second: {
-        cases: 15,
+        cases: 16,
         exitCode: secondExitCode,
         status: secondExitCode === null ? 'NOT_RUN' : secondExitCode ? 'FAIL' : 'PASS',
       },

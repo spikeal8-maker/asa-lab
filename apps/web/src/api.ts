@@ -36,7 +36,11 @@ export type SafeTaskBlock =
   | { type: 'file'; name: string; contentHash: string; src?: string };
 
 export interface AuthoredActivityDraft {
+  /** Explicit on new typed tasks; omitted only by historical author clients. */
+  kind?: 'project' | 'essay' | 'manual' | 'quiz' | 'file';
   quizVersionId?: string | null;
+  quizDraftId?: string | null;
+  quizDraftRevision?: number | null;
   starterProjectVersionId?: string | null;
   title: string;
   goal?: string | null;
@@ -55,7 +59,66 @@ export interface AuthoredActivityDraft {
   };
 }
 
+export interface EssayLearningResponse {
+  activityRunId: string;
+  participationId: string;
+  activityVersionId: string;
+  title: string;
+  instructions: string | null;
+  goal: string | null;
+  blocks: SafeTaskBlock[] | null;
+  resultMode: 'ungraded' | 'completion' | 'graded';
+  maxPoints: number | null;
+  canStart: boolean;
+  canEdit: boolean;
+  attempt: {
+    id: string;
+    number: number;
+    state: LearningAttemptState;
+    revisionOfAttemptId: string | null;
+    revision: number;
+    text: string;
+    savedAt: string;
+    submittedAt: string | null;
+    submissionId: string | null;
+    digest: string | null;
+    reviewDecision: 'accepted' | 'changes_requested' | 'incomplete' | 'excused' | null;
+    feedback: string | null;
+  } | null;
+}
+
+export type ExactLearningSubmission =
+  | {
+      kind: 'quiz';
+      submissionId: string;
+      sourceRevision: number;
+      digest: string;
+      questions: QuizAttemptQuestion[];
+      answers: Record<string, QuizAnswer>;
+      autoPoints: number;
+      manualPending: boolean;
+    }
+  | {
+      kind: 'essay';
+      submissionId: string;
+      sourceRevision: number;
+      digest: string;
+      text: string;
+    }
+  | {
+      /** Missing only on historical Project responses. */
+      kind?: 'project';
+      submissionId: string;
+      projectVersionId: string;
+      sourceRevision: number | null;
+      digest: string;
+      moduleKey: string;
+      document: unknown;
+      preview: import('@asa-lab/module-sdk').ModulePreviewDescriptor | null;
+    };
+
 export interface AuthoredActivityLearnerPreview {
+  kind?: string;
   source: {
     kind: 'draft' | 'published';
     id: string | null;
@@ -366,7 +429,7 @@ export function visibilityLabel(value: string): string {
 export interface PublishedCoursePin {
   /** JSON pointer into this exact immutable outline, never a mutable root. */
   pointer: string;
-  pinKind: 'project' | 'manual';
+  pinKind: 'project' | 'essay' | 'manual';
   available: boolean;
   activityId: string | null;
   versionId: string | null;
@@ -586,7 +649,8 @@ export interface CourseActivityOccurrence {
   title: string;
   goal: string | null;
   blocks?: SafeTaskBlock[] | null | undefined;
-  moduleKey: string;
+  activityKind?: 'project' | 'essay' | 'quiz';
+  moduleKey: string | null;
   sampleImage: string | null;
   projectId: string | null;
   submittedAt: string | null;
@@ -837,8 +901,8 @@ export interface LearningAssignableActivity {
   versionId: string;
   title: string;
   instructions: string | null;
-  kind: 'project';
-  moduleKey: string;
+  kind: 'project' | 'quiz';
+  moduleKey: string | null;
 }
 
 export interface ClassroomAssignmentProgress {
@@ -1024,6 +1088,7 @@ export interface LearnerResult {
 
 /** The same assignment as the learner sees it: theirs, and where they are. */
 export interface SeatAssignment {
+  activityKind?: 'project' | 'essay' | 'quiz';
   id: string;
   /** Exact Direct or lesson-level Course ActivityRun for atomic Start. */
   activityRunId?: string | null;
@@ -1109,14 +1174,96 @@ export type LearningWorkContext =
     };
 
 export type QuizQuestionType =
-  'single_choice' | 'multiple_choice' | 'boolean' | 'numeric' | 'short_text';
+  | 'single_choice'
+  | 'multiple_choice'
+  | 'boolean'
+  | 'numeric'
+  | 'short_text'
+  | 'matching'
+  | 'ordering'
+  | 'long_text_manual';
+
+export type QuizAnswer = { value: string | number | boolean | null } | { values: string[] };
+export interface QuizResponseSchema {
+  options?: Array<{ id: string; label: string }>;
+  left?: Array<{ id: string; label: string }>;
+  right?: Array<{ id: string; label: string }>;
+  input?: string;
+  [key: string]: unknown;
+}
+export interface QuizAttemptQuestion {
+  id: string;
+  type: QuizQuestionType;
+  promptBlocks: Array<{ type?: string; text?: string }>;
+  options?: Array<{ id: string; label: string }>;
+  responseSchema?: QuizResponseSchema;
+  maxPoints: number;
+}
+export interface LearningQuizAttempt {
+  attemptId: string;
+  version: number;
+  answers: Record<string, QuizAnswer>;
+  questions: QuizAttemptQuestion[];
+  questionOrder: string[];
+  state: string;
+  expiresAt: string | null;
+  serverNow: string;
+  lastSavedAt: string | null;
+  result?: { points: number | null; maxPoints: number; outcome: string; provisional: boolean };
+  /** Present only when the server releases per-question feedback. Never includes keys. */
+  feedback?: Array<{
+    questionVersionId: string;
+    points: number | null;
+    correct: boolean | null;
+    maxPoints: number;
+    manualPending: boolean;
+  }>;
+}
+export interface AuthoredQuestionPayload {
+  questionType: QuizQuestionType;
+  promptBlocks: Array<{ type: 'text'; text: string }>;
+  responseSchema: QuizResponseSchema;
+  answerKey: Record<string, unknown>;
+  maxPoints: number | null;
+  subject: null;
+  ageBand: null;
+  tags: string[];
+}
+export interface AuthoredQuizPayload {
+  title: string;
+  instructions: string | null;
+  questions: Array<{
+    questionId?: string;
+    questionDraftRevision?: number;
+    questionVersionId?: string;
+    maxPoints: number | null;
+    required: true;
+  }>;
+  shuffleQuestions: boolean;
+  shuffleOptions: boolean;
+}
+export interface QuizContentRoot<T> {
+  id: string;
+  kind?: string;
+  draftRevision: number;
+  latestVersionId: string | null;
+  draft: T;
+  versions: Array<{ id?: string; versionId?: string }>;
+}
+export interface QuizContentReceipt {
+  code: string;
+  id: string;
+  draftRevision: number;
+  latestVersionId?: string | null;
+  versionId?: string;
+}
 
 export interface QuestionBankItem {
   id: string;
   versionId: string;
   type: QuizQuestionType;
   promptBlocks: Array<{ type?: string; text?: string }>;
-  responseSchema: { options?: Array<{ id: string; label: string }>; input?: string };
+  responseSchema: QuizResponseSchema;
   maxPoints: number;
   scope: 'personal' | 'school';
   subject: string | null;
@@ -1157,7 +1304,7 @@ export interface LearnerQuiz {
     versionId: string;
     type: QuizQuestionType;
     promptBlocks: Array<{ type?: string; text?: string }>;
-    responseSchema: { options?: Array<{ id: string; label: string }>; input?: string };
+    responseSchema: QuizResponseSchema;
     maxPoints: number;
     position: number;
   }>;
@@ -1628,6 +1775,7 @@ export interface ComponentResult {
   thermalLoadPercent?: number;
   accumulatedDamagePercent?: number;
   effectiveResistanceOhm?: number;
+  illuminanceLux?: number;
   ratedVoltageVolt?: number;
   ratedCurrentAmp?: number;
   ratedPowerWatt?: number;
@@ -1834,6 +1982,85 @@ export interface LearningNotification {
   readAt: string | null;
 }
 export const api = {
+  authoredQuestionVersion: (id: string) =>
+    call<{
+      id: string;
+      questionId: string;
+      type: QuizQuestionType;
+      promptBlocks: AuthoredQuestionPayload['promptBlocks'];
+      responseSchema: QuizResponseSchema;
+      maxPoints: number;
+      answerKey: Record<string, unknown>;
+    }>(`/api/learning/questions/versions/${encodeURIComponent(id)}`),
+  authoredQuizVersion: (id: string, versionId: string) =>
+    call<{
+      questions: Array<
+        QuizAttemptQuestion & { questionVersionId?: string; editableQuestion?: boolean }
+      >;
+    }>(`/api/learning/quizzes/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`),
+  questionDraft: (id: string) =>
+    call<QuizContentRoot<AuthoredQuestionPayload>>(
+      `/api/learning/questions/${encodeURIComponent(id)}`,
+    ),
+  createQuestionDraft: (payload: AuthoredQuestionPayload, requestId: string) =>
+    call<QuizContentReceipt>('/api/learning/questions', {
+      method: 'POST',
+      body: JSON.stringify({ requestId, payload }),
+    }),
+  saveQuestionDraft: (
+    id: string,
+    expectedRevision: number,
+    expectedHeadId: string | null,
+    payload: AuthoredQuestionPayload,
+    requestId: string,
+  ) =>
+    call<QuizContentReceipt>(`/api/learning/questions/${encodeURIComponent(id)}/draft`, {
+      method: 'PUT',
+      body: JSON.stringify({ requestId, expectedRevision, expectedHeadId, payload }),
+    }),
+  quizDraft: (id: string) =>
+    call<QuizContentRoot<AuthoredQuizPayload>>(`/api/learning/quizzes/${encodeURIComponent(id)}`),
+  createQuizDraft: (payload: AuthoredQuizPayload, requestId: string) =>
+    call<QuizContentReceipt>('/api/learning/quizzes', {
+      method: 'POST',
+      body: JSON.stringify({ requestId, payload }),
+    }),
+  saveQuizDraft: (
+    id: string,
+    expectedRevision: number,
+    expectedHeadId: string | null,
+    payload: AuthoredQuizPayload,
+    requestId: string,
+  ) =>
+    call<QuizContentReceipt>(`/api/learning/quizzes/${encodeURIComponent(id)}/draft`, {
+      method: 'PUT',
+      body: JSON.stringify({ requestId, expectedRevision, expectedHeadId, payload }),
+    }),
+  readQuizLearning: (runId: string) =>
+    call<{
+      participationId: string;
+      attempt: LearningQuizAttempt | null;
+      title: string | null;
+      canStart: boolean;
+      instructions: string | null;
+    }>(`/api/learning/quiz/runs/${encodeURIComponent(runId)}`),
+  startQuizLearning: (participationId: string, requestId: string) =>
+    call<{ attempt: LearningQuizAttempt; reused: boolean }>(
+      `/api/learning/activity-participations/${encodeURIComponent(participationId)}/attempts`,
+      { method: 'POST', body: JSON.stringify({ requestId }) },
+    ),
+  readQuizAttempt: (id: string) =>
+    call<{ attempt: LearningQuizAttempt }>(`/api/learning/attempts/${encodeURIComponent(id)}`),
+  saveQuizAnswers: (id: string, expectedVersion: number, answers: Record<string, QuizAnswer>) =>
+    call<{ version: number; savedAt: string; expiresAt: string | null }>(
+      `/api/learning/attempts/${encodeURIComponent(id)}/quiz-answers`,
+      { method: 'PATCH', body: JSON.stringify({ expectedVersion, answers }) },
+    ),
+  submitQuizAttempt: (id: string, expectedVersion: number, requestId: string) =>
+    call<{ attempt: LearningQuizAttempt }>(
+      `/api/learning/attempts/${encodeURIComponent(id)}/submit`,
+      { method: 'POST', body: JSON.stringify({ requestId, expectedVersion }) },
+    ),
   legacyLearningReview: (classroomId: string, assignmentId: string, seatId: string) =>
     call<{
       attemptId: string;
@@ -2134,7 +2361,7 @@ export const api = {
       `/api/learning/activities/${encodeURIComponent(id)}/draft`,
       {
         method: 'PUT',
-        body: JSON.stringify({ ...draft, expectedRevision }),
+        body: JSON.stringify({ ...draft, kind: undefined, expectedRevision }),
       },
     ),
   saveAuthoredActivityDraftSample: (id: string, expectedRevision: number, imageDataUrl: string) =>
@@ -2179,7 +2406,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({
         ...draft,
-        kind: draft.moduleKey === null ? 'manual' : 'project',
+        kind: draft.kind ?? (draft.moduleKey === null ? 'manual' : 'project'),
         scope: 'personal',
         visibility: 'private',
         requestId,
@@ -2369,15 +2596,7 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/students/${encodeURIComponent(seatId)}/review-context${activityRunId === undefined ? '' : `?activityRunId=${encodeURIComponent(activityRunId)}`}`,
     ),
   exactLearningSubmission: (classroomId: string, attemptId: string) =>
-    call<{
-      submissionId: string;
-      projectVersionId: string;
-      sourceRevision: number | null;
-      digest: string;
-      moduleKey: string;
-      document: unknown;
-      preview: import('@asa-lab/module-sdk').ModulePreviewDescriptor | null;
-    }>(
+    call<ExactLearningSubmission>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/attempts/${encodeURIComponent(attemptId)}/submission`,
     ),
   selectLearningAttempt: (
@@ -3074,6 +3293,29 @@ export const api = {
     call<LearningStartReceipt>(
       `/api/learning/work/runs/${encodeURIComponent(activityRunId)}/start`,
       { method: 'POST', body: JSON.stringify({ requestId }) },
+    ),
+  readEssayLearning: (activityRunId: string) =>
+    call<EssayLearningResponse>(`/api/learning/essay/runs/${encodeURIComponent(activityRunId)}`),
+  startEssayLearning: (activityRunId: string, requestId: string) =>
+    call<EssayLearningResponse>(
+      `/api/learning/essay/runs/${encodeURIComponent(activityRunId)}/start`,
+      { method: 'POST', body: JSON.stringify({ requestId }) },
+    ),
+  saveEssayLearning: (
+    activityRunId: string,
+    input: { requestId: string; attemptId: string; expectedRevision: number; text: string },
+  ) =>
+    call<EssayLearningResponse>(
+      `/api/learning/essay/runs/${encodeURIComponent(activityRunId)}/draft`,
+      { method: 'PUT', body: JSON.stringify(input) },
+    ),
+  submitEssayLearning: (
+    activityRunId: string,
+    input: { requestId: string; attemptId: string; expectedRevision: number },
+  ) =>
+    call<EssayLearningResponse>(
+      `/api/learning/essay/runs/${encodeURIComponent(activityRunId)}/submit`,
+      { method: 'POST', body: JSON.stringify(input) },
     ),
   submitLearningProject: (
     projectId: string,
