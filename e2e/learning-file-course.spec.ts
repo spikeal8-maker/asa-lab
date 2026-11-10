@@ -196,10 +196,23 @@ test('File answers: shared authoring, mixed Course, exact Seat uploads and froze
   }
   const roots = await page.request.get('/api/learning/activities');
   expect(roots.ok()).toBe(true);
-  const fileRoot = (await roots.json()).items.find(
-    (item: { title: string }) => item.title === fileTitle,
-  );
-  expect(fileRoot).toMatchObject({ kind: 'file', currentPublishedVersionId: expect.any(String) });
+  const authored = (await roots.json()).items as Array<{
+    title: string;
+    kind: string;
+    currentPublishedVersionId: string;
+  }>;
+  const orderedPins = [
+    [fileTitle, 'file'],
+    [practiceTitle, 'project'],
+    [essayTitle, 'essay'],
+    [quizTitle, 'quiz'],
+  ] as const;
+  const publishedVersionIds = orderedPins.map(([title, kind]) => {
+    const activity = authored.find((item) => item.title === title);
+    expect(activity).toMatchObject({ kind, currentPublishedVersionId: expect.any(String) });
+    return activity!.currentPublishedVersionId;
+  });
+  expect(new Set(publishedVersionIds).size).toBe(4);
   await courseEditor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
   await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
   await courseEditor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
@@ -224,18 +237,17 @@ test('File answers: shared authoring, mixed Course, exact Seat uploads and froze
     (item: { title: string }) => item.title === courseTitle,
   );
   const occurrences = run.sections[0].lessons[0].activityOccurrences;
-  expect(
-    occurrences.map((item: { title: string; activityKind: string }) => [
-      item.title,
-      item.activityKind,
-    ]),
-  ).toEqual([
-    [fileTitle, 'file'],
-    [practiceTitle, 'project'],
-    [essayTitle, 'essay'],
-    [quizTitle, 'quiz'],
-  ]);
-  expect(occurrences[0].learningActivityVersionId).toBe(fileRoot.currentPublishedVersionId);
+  expect(occurrences).toHaveLength(orderedPins.length);
+  for (const [index, [title, kind]] of orderedPins.entries()) {
+    const occurrence = occurrences[index];
+    expect(occurrence).toMatchObject({
+      title,
+      learningActivityVersionId: publishedVersionIds[index],
+      moduleKey: kind === 'project' ? 'electronics' : null,
+    });
+    // Project practices keep the existing module-based Course DTO.
+    expect(occurrence.activityKind).toBe(kind === 'project' ? undefined : kind);
+  }
   await learner.goto('/#/learning?courseRun=' + encodeURIComponent(run.id));
   const learnerTasks = learner.getByTestId('course-activity-runtime');
   await expect(learnerTasks).toHaveCount(4);
