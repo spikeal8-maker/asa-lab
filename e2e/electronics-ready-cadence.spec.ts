@@ -4155,10 +4155,16 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
         expect(fields?.TIME, 'saved asa_wait has no legacy TIME field').toBeUndefined();
         expect(time?.block, 'edited default TIME is still a shadow').toBeUndefined();
         expect(time?.shadow?.type).toBe('asa_number');
-        if (typeof duration !== 'number' || !Number.isFinite(duration)) {
-          throw new Error('Saved asa_wait TIME shadow must contain a finite numeric VALUE');
+        const numericDuration =
+          typeof duration === 'number' ||
+          (typeof duration === 'string' &&
+            /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(duration))
+            ? Number(duration)
+            : Number.NaN;
+        if (!Number.isFinite(numericDuration)) {
+          throw new Error('Saved asa_wait TIME shadow must contain a finite numeric field VALUE');
         }
-        savedWaits.push([duration, fields?.UNIT]);
+        savedWaits.push([numericDuration, fields?.UNIT]);
       }
       Object.values(row).forEach(inspect);
     };
