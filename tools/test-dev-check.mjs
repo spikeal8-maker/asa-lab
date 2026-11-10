@@ -792,7 +792,7 @@ function learningFixture(t) {
   };
   const files = {};
   const receipts = {};
-  for (const batch of ['first', 'second']) {
+  for (const batch of ['first', 'second', 'file']) {
     files[batch] = path.join(
       f.directory,
       '.asa/learning-partitions',
@@ -812,7 +812,7 @@ function learningFixture(t) {
     };
   }
   const restore = () => {
-    for (const batch of ['first', 'second'])
+    for (const batch of ['first', 'second', 'file'])
       fs.writeFileSync(files[batch], JSON.stringify(receipts[batch]));
   };
   restore();
@@ -825,7 +825,7 @@ test('focused Learning aggregate requires real exact-source partitions while N/A
   assert.equal(full.status, 0, full.stderr);
   const result = JSON.parse(full.stdout);
   assert.equal(result.status, 'PASS');
-  assert.equal(result.partitions_completed, 2);
+  assert.equal(result.partitions_completed, 3);
   assert.equal(
     result.partitions.first.run_attempt,
     1,
@@ -839,7 +839,7 @@ test('focused Learning aggregate requires real exact-source partitions while N/A
     LEARNING_E1_BATCH_RESULT: 'skipped',
   });
   assert.notEqual(none.status, 0, 'the test aggregate never fabricates PASS for a N/A route');
-  for (const batch of ['first', 'second']) {
+  for (const batch of ['first', 'second', 'file']) {
     const record = workflowPython(partitionSource, f.directory, {
       SOURCE_SHA: f.base,
       BATCH: batch,
@@ -890,19 +890,22 @@ test('focused Learning aggregate rejects failed cancelled skipped missing and pa
     );
   }
   f.restore();
-  fs.unlinkSync(f.files.second);
-  assert.notEqual(
-    workflowPython(aggregateSource, f.directory, f.env).status,
-    0,
-    'a single successful half is insufficient',
-  );
+  for (const batch of ['first', 'second', 'file']) {
+    f.restore();
+    fs.unlinkSync(f.files[batch]);
+    assert.notEqual(
+      workflowPython(aggregateSource, f.directory, f.env).status,
+      0,
+      `the aggregate rejects a missing ${batch} partition`,
+    );
+  }
   f.restore();
   const extra = path.join(path.dirname(f.files.second), 'learning-partition-duplicate.json');
   fs.writeFileSync(extra, JSON.stringify(f.receipts.second));
   assert.notEqual(
     workflowPython(aggregateSource, f.directory, f.env).status,
     0,
-    'duplicated proofs cannot hide a missing half',
+    'duplicated proofs cannot hide a missing partition',
   );
   fs.unlinkSync(extra);
   for (const state of ['failure', 'cancelled', 'skipped', '']) {

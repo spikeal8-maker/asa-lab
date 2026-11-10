@@ -222,22 +222,29 @@ function FileResponseSession({
       ) : null}
       {response?.canEdit ? (
         <div>
-          <label htmlFor={helpId + '-input'}>Файл ответа</label>
-          <input
-            id={helpId + '-input'}
-            aria-describedby={helpId}
-            ref={input}
-            type="file"
-            accept={accepted}
-            disabled={busy || refreshRequired}
-            onChange={(event) => {
-              const file = event.target.files?.item(0) ?? null;
-              const problem = file ? fileProblem(file) : null;
-              setError(problem);
-              setSelected(problem ? null : file);
-              if (problem) event.target.value = '';
-            }}
-          />
+          <div className="file-response-selection">
+            <label className="file-response-picker">
+              <input
+                aria-label="Файл ответа"
+                aria-describedby={helpId}
+                ref={input}
+                type="file"
+                accept={accepted}
+                disabled={busy || refreshRequired}
+                onChange={(event) => {
+                  const file = event.target.files?.item(0) ?? null;
+                  const problem = file ? fileProblem(file) : null;
+                  setError(problem);
+                  setSelected(problem ? null : file);
+                  if (problem) event.target.value = '';
+                }}
+              />
+              <span className="btn-secondary" aria-hidden="true">
+                Выбрать файл
+              </span>
+            </label>
+            {selected ? <span>{selected.name}</span> : null}
+          </div>
           <small id={helpId}>
             PDF до 25 МБ, PNG, JPG и WebP до 20 МБ. TXT, CSV, INO, DOCX, PPTX, XLSX, SB3, STL и ZIP
             до 50 МБ.

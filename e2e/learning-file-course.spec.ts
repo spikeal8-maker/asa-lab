@@ -254,15 +254,30 @@ test('File answers: shared authoring, mixed Course, exact Seat uploads and froze
   for (const [index, title] of [fileTitle, practiceTitle, essayTitle, quizTitle].entries()) {
     await expect(learnerTasks.nth(index)).toContainText(title);
   }
+  const outline = learner.getByRole('list', {
+    name: 'Практики урока «Теория и четыре вида заданий»',
+  });
+  for (const [index, label] of [
+    'Файловый ответ',
+    'Electronics',
+    'Письменный ответ',
+    'Тест',
+  ].entries()) {
+    const link = outline.getByRole('listitem').nth(index).getByRole('button');
+    await expect(link).toContainText(orderedPins[index]![0]);
+    await expect(link).toContainText(label + ' ·');
+  }
   const answer = learner.getByRole('region', { name: 'Файловый ответ', exact: true });
   const status = answer.getByRole('status');
   const learnerDownload = answer.getByRole('link', { name: 'Скачать ' + fileName, exact: true });
   async function upload(bytes: Buffer) {
+    await expect(answer.getByText('Выбрать файл', { exact: true })).toBeVisible();
     await answer.getByLabel('Файл ответа', { exact: true }).setInputFiles({
       name: fileName,
       mimeType: 'text/plain',
       buffer: bytes,
     });
+    await expect(answer.getByText(fileName, { exact: true })).toBeVisible();
     await answer.getByRole('button', { name: 'Загрузить файл', exact: true }).click();
     await expect(status).toContainText('Файл сохранён');
   }

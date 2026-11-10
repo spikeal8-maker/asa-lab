@@ -116,8 +116,12 @@ it('submits only the acknowledged file revision and keeps its download after rev
   );
   await mount();
   expect(button('Сдать файл').disabled).toBe(true);
+  const picker = host.querySelector<HTMLInputElement>('input[type="file"]');
+  expect(picker?.getAttribute('aria-label')).toBe('Файл ответа');
+  expect(picker?.closest('label')?.textContent?.trim()).toBe('Выбрать файл');
   const file = new File(['report'], 'отчёт.txt');
   await select(file);
+  expect(host.querySelector('.file-response-selection')?.textContent).toContain(file.name);
   expect(button('Сдать файл').disabled).toBe(true);
   await click('Загрузить файл');
   expect(upload).toHaveBeenCalledWith('run', {
