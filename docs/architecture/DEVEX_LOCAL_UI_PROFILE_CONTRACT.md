@@ -165,8 +165,9 @@ test establishes a speed gain, complete layout acceptance or owner acceptance.
 The separately reviewed CI applicability extension uses the existing v1 effect
 proof only for Account Confirmation, Learning E1 and Public Projects Publication.
 It does not alter the canonical SHADOW risk, unknowns, plan or deferred mandatory
-IDs. All four General jobs and `ASA / required` remain fully enforced. The
-source-bound local checks and concrete 24-case browser route remain separate
+IDs. The initial extension kept all four General jobs and `ASA / required`
+fully enforced. Section 7 defines General applicability. The source-bound local
+checks and concrete 24-case browser route remain separate
 verification obligations; applicability does not establish their success.
 
 Each focused workflow checks the exact event HEAD, comparable base and clean
@@ -207,10 +208,11 @@ median, automatic release readiness or the new route's realized aggregate cost.
 
 ## 7. General applicability: general-collect-picker-v1
 
-This version starts with `FAST_ENABLED = False`. Eligible PRs run `PARALLEL`,
-which requires the four full General jobs and the bounded UI job on the same
-merge candidate. The local profile and canonical SHADOW ranks and unknowns
-continue to apply.
+This version first qualified the bounded route through `PARALLEL`, which
+required the four full General jobs and the bounded UI job on the same merge
+candidate. An accepted `main` base with `FAST_ENABLED = True` enables FAST for
+the CSS-only L0 effect in the existing CollectPicker profile. The local profile
+and canonical SHADOW ranks and unknowns continue to apply.
 `main` pushes always execute Governance, Code, PostgreSQL/Data/RLS and Access A
 including auth and migration controls. Release evidence still requires the full
 exact-source General result and the existing release verifier. General retains
@@ -236,6 +238,15 @@ A candidate installs only exact proof dependencies and invokes the existing
 the complete current source digest and the fixed catalog/browser obligations
 can select the bounded route. Malformed identity or proof is BLOCKED. A valid
 unsupported effect selects FULL. Governance is required on each route.
+
+FAST requires a valid L0 proof and a Git diff from the accepted base to the
+event source that modifies only `apps/web/src/components/collect-picker.css`.
+L1 effects and eligible changes with added regression files use PARALLEL. The
+proof binds source and effect.
+Component tests execute before Playwright in the same runner, so the file diff
+also limits which sources can use FAST. PARALLEL requires all four full jobs
+to succeed on their separate runners.
+
 PARALLEL and FAST call the existing changed-UI workflow as a reusable job. It
 executes the same three `dev:check` format/lint/component checks, validates their
 current receipt, builds only the Web dependency closure, and runs the existing
@@ -243,7 +254,7 @@ current receipt, builds only the Web dependency closure, and runs the existing
 skips. Proof and clean source are checked again after browser execution. The
 local receipt remains `LOCAL_PASS`, `CI_PENDING`, `RELEASE_NOT_READY`; the final
 CI subset receipt is `FOCUSED_PASS`. PARALLEL also runs full Code/Data/Access.
-Once activated, FAST skips those jobs with the pinned-plan `NOT_APPLICABLE`
+FAST skips those jobs with the pinned-plan `NOT_APPLICABLE`
 explanation and reports `full_regression_verified: false`.
 
 `ASA / required` consumes native same-run job results and outputs. It revalidates
@@ -264,16 +275,40 @@ Code does not inherit validator packages from Governance or an earlier wrapper's
 temporary environment. This invocation checks its own interpreter requirements
 and prepares and removes an isolated environment when PyYAML is unavailable.
 
-After the contract is accepted on `main`, run the first authorized pilot from
-that base with one supported CollectPicker effect and its permanent regression.
-Run `pnpm dev:check --changed --base <accepted-main-sha>` locally, then use the
-normal PR workflow. Confirm `PARALLEL` and matching source, base and tree in the
-selection and bounded receipts, the four full job successes and `ASA / required`
-on that candidate. Compare that pair with the existing L0/L1 shadow pilots
-recorded for PRs 948 and 956. Retain the full `main` result after integration.
+Both actual PARALLEL pilots used base `ce1e798dea5b783a7c857fea7056cee8300df8bb`.
+Each General run completed all seven jobs successfully, including the four full
+gates and `ASA / required`. Each bounded receipt matched its selection plan and
+source proof after execution, recorded three local checks and passed all 24
+browser cases. Both PRs remained drafts.
 
-After independent review of that comparison, a separate reviewed `main` change
-can set `FAST_ENABLED = True` in the same versioned adapter. The activation PR
-itself selects FULL because it changes a control. Later eligible PRs take FAST
-only from an accepted base containing that exact adapter. FAST evidence cannot
-establish full regression, release readiness or a speed gain by itself.
+- L0 PR 948 changed the input minimum height. Source
+  `6b4e123ac39b86c32d8dece9f0708020d440e80c`, merge candidate
+  `d5aa1e6d7f8b5f8bf7429a3d78e01c0cf10c4f4c` and tree
+  `f3e8967f3f7e17b8a1cd47c891c94d29d6d54597`. [General run 42841223504](https://github.com/spikeal8-maker/asa-lab/actions/runs/42841223504)
+- L1 PR 956 changed the dialog's `aria-busy` behavior. Source
+  `b4c2e194d8a829f94bfe5cc4dd69fd02c6afe35f`, merge candidate
+  `08c272da3ebb41c78de6e982c6566a1e6211ed4b` and tree
+  `110d9fbc932bbf2d403494a1ff52ecad25599674`. [General run 42849226921](https://github.com/spikeal8-maker/asa-lab/actions/runs/42849226921)
+
+| Pilot | Local wall time | Bounded job complete | `ASA / required` complete | General runner-min | All five workflows runner-min |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| L0 PR 948 | 62.198 s | 5:01 | 30:54 | 46.17 | 47.85 |
+| L1 PR 956 | 97.799 s | 4:54 | 26:36 | 42.00 | 43.47 |
+
+The completion times start at workflow creation. Runner time sums allocated job
+durations. The L0 run gives the comparison baseline for a live CSS-only FAST
+run. The L1 run records the PARALLEL path for executable changes.
+
+The activation PR selects FULL because it changes a control. Later eligible PRs
+take FAST from an accepted base containing the exact adapter. A FAST required
+check attests to the bounded checks for that merge candidate. Full regression
+and release readiness still require the full `main` gates and release verifier.
+
+For the first live FAST observation, update the existing L0 draft to the accepted
+base with a normal merge and retain its CSS-only diff. Run the same local
+`pnpm dev:check --changed --base <accepted-main-sha>` command and normal PR CI.
+Record the exact source, base and merge candidate tree, `FOCUSED_PASS`, all 24
+browser cases, the planned `NOT_APPLICABLE` jobs and the `ASA / required` result.
+Compare its required-check wall time and actual allocated runner time with the
+L0 PARALLEL observation above. Any later product integration has its own review
+and full `main` evidence.
