@@ -16353,7 +16353,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-PHOTORESISTOR-OPTICAL-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-INSPECTOR-ORACLES-001.md
     previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
@@ -16377,22 +16377,30 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-PHOTORESISTOR-OPTICAL-001
+      id: TASK-ELECTRONICS-MOBILE-INSPECTOR-ORACLES-001
       issue: 539
       branch: main
       base_branch: main
       pr: null
       status: in_progress
       kind: repair
-      risk: high
-      semantic_change: 'yes'
-      checkpoint: photoresistor_optical_selected
+      risk: low
+      semantic_change: 'no'
+      checkpoint: mobile_inspector_browser_oracles_selected
       owner_acceptance: pending
-      owner_authorization: Owner requests that the photoresistor respond to lamp light and that the result be checked in a browser with Arduino and different supplies.
+      owner_authorization: Owner requests repair of the 42 Electronics browser failures, easiest first, with browser verification and integration in main.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-PHOTORESISTOR-OPTICAL-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-INSPECTOR-ORACLES-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
+      previous_blockly_media_oracle_slice:
+        task_id: TASK-ELECTRONICS-BLOCKLY-MEDIA-ORACLE-001
+        integrated_sha: e7bc8e9af79c47cf6aeb612f9f6f765d9f2803e9
+        pr: 1046
+      previous_photoresistor_optical_slice:
+        task_id: TASK-ELECTRONICS-PHOTORESISTOR-OPTICAL-001
+        integrated_sha: 54f8f68e8f31f5b44af8ee24a4060f0c859a576e
+        pr: 1042
       previous_photoresistor_overload_slice:
         task_id: TASK-ELECTRONICS-PHOTORESISTOR-OVERLOAD-001
         integrated_sha: c284b15612c390e22efa8624394b600c75b7e7b2
