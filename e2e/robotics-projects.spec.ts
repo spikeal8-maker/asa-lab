@@ -1143,6 +1143,9 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
     await expect(name).toHaveValue(longLabel);
     await noOverflow(page);
     await page.screenshot({ path: `${EVIDENCE}/field-v3-inspector-${width}.png`, fullPage: true });
+    // Selecting a scene object closes the mobile catalog. Reopen settings
+    // explicitly before editing field dimensions on a narrow screen.
+    await openFieldSettings(page);
     const widthInput = page.getByRole('spinbutton', { name: 'Ширина поля', exact: true });
     await widthInput.fill('0.8');
     await widthInput.press('Tab');
