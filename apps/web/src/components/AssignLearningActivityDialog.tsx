@@ -161,7 +161,11 @@ export function AssignLearningActivityDialog({
                 <summary>Продолжить черновик</summary>
                 <label className="learning-assign-field">
                   Черновик
-                  <select value={draftId} onChange={(event) => setDraftId(event.target.value)}>
+                  <select
+                    aria-label="Черновик"
+                    value={draftId}
+                    onChange={(event) => setDraftId(event.target.value)}
+                  >
                     <option value="" disabled>
                       Выберите черновик
                     </option>
