@@ -41,6 +41,8 @@ async function adminFixture(page: Page) {
   }));
   let polza = {
     configurationVersion: 1,
+    textConfigurationVersion: 1,
+    paidOperationsPerHour: 0,
     enabled: false,
     transcriptionEnabled: false,
     dailySecondsLimit: 600,
@@ -141,7 +143,11 @@ async function adminFixture(page: Page) {
     if (path === '/api/admin/v1/ai/polza' && request.method() === 'PUT') {
       const input = request.postDataJSON() as Record<string, unknown>;
       polzaWrites.push(input);
-      if (input.configurationVersion !== polza.configurationVersion)
+      if (
+        input.configurationVersion !== polza.configurationVersion ||
+        (input.textConfigurationVersion !== undefined &&
+          input.textConfigurationVersion !== polza.textConfigurationVersion)
+      )
         return json({ error: { code: 'ai_polza_conflict', message: 'Settings changed' } }, 409);
       polza = {
         ...polza,
@@ -153,6 +159,8 @@ async function adminFixture(page: Page) {
         apiKeyConfigured: Boolean(input.apiKey) || (polza.apiKeyConfigured && !input.clearApiKey),
         keyFingerprint: input.apiKey ? 'test-fingerprint' : polza.keyFingerprint,
         configurationVersion: polza.configurationVersion + 1,
+        paidOperationsPerHour: Number(input.paidOperationsPerHour ?? polza.paidOperationsPerHour),
+        textConfigurationVersion: polza.textConfigurationVersion + 1,
         updatedAt: '2026-10-29T00:02:00.000Z',
       };
       return json(polza);
@@ -163,7 +171,10 @@ async function adminFixture(page: Page) {
       path === '/api/admin/v1/ai/polza/models' ||
       path === '/api/admin/v1/ai/polza/models/refresh'
     ) {
-      if (request.method() === 'POST' && polza.apiKeyConfigured) polzaCatalogReady = true;
+      if (request.method() === 'POST' && polza.apiKeyConfigured) {
+        polzaCatalogReady = true;
+        polza = { ...polza, textConfigurationVersion: polza.textConfigurationVersion + 1 };
+      }
       return json({
         version: polzaCatalogReady ? 2 : 1,
         checkedAt: polzaCatalogReady ? '2026-10-29T00:02:01.000Z' : null,
@@ -566,6 +577,13 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
   expect(fixture.polzaWrites).toHaveLength(1);
   expect(fixture.polzaWrites[0]?.apiKey).toBe('pza_fixture_polza_admin_20261029');
   await expect(page.getByRole('checkbox', { name: 'В настройки: Polza Text' })).toBeVisible();
+  await page.getByLabel('Общий лимит платных запросов в час').fill('5');
+  await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
+  await expect(page.getByText('Подключение подтверждено', { exact: false })).toBeVisible();
+  expect(fixture.polzaWrites[1]).toMatchObject({
+    paidOperationsPerHour: 5,
+    textConfigurationVersion: 3,
+  });
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
     for (const colorScheme of ['light', 'dark'] as const) {
@@ -606,8 +624,8 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
   await expect(
     page.getByText('Настройки транскрибации сохранены.', { exact: false }),
   ).toBeVisible();
-  expect(fixture.polzaWrites).toHaveLength(2);
-  expect(fixture.polzaWrites[1]?.transcriptionEnabled).toBe(true);
+  expect(fixture.polzaWrites).toHaveLength(3);
+  expect(fixture.polzaWrites[2]?.transcriptionEnabled).toBe(true);
 
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });

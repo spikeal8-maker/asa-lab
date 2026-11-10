@@ -151,7 +151,7 @@ export function AdminCloudCatalogConnection({
         ? 'Дождитесь проверки ключа.'
         : busy === 'load'
           ? 'Загружаем каталог…'
-          : !config?.encryptionReady
+          : !config?.encryptionReady && !(clearKey && !enabled && !keyDraft)
             ? 'Шифрование ключей недоступно.'
             : !/^\d+$/.test(quota) || Number(quota) > 2147483647
               ? 'Укажите целое число запросов в час.'
@@ -324,12 +324,9 @@ export function AdminCloudCatalogConnection({
               {busy === 'save' ? 'Сохраняем…' : 'Сохранить'}
             </button>
             <small role="status">
-              {saveBlocked ||
-                (dirty
-                  ? 'Есть несохранённые изменения'
-                  : message?.ok
-                    ? message.text
-                    : 'Нет изменений')}
+              {!dirty && message?.ok
+                ? message.text
+                : saveBlocked || (dirty ? 'Есть несохранённые изменения' : 'Нет изменений')}
             </small>
             {enabled && Number(quota) === 0 ? (
               <small>Платные запросы отключены при лимите 0.</small>

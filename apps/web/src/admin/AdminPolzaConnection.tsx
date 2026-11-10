@@ -146,6 +146,8 @@ export function AdminPolzaConnection({
           body: '{}',
         });
         if (catalog.ok) {
+          setLoading(true);
+          setReload((version) => version + 1);
           setCatalogRevision((version) => version + 1);
           onUpdated?.();
         } else {

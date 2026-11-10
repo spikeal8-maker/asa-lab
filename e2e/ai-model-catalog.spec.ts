@@ -613,6 +613,31 @@ test('Separate OpenAI and DeepSeek keys stay server-side and delete only selecte
   expect(fake.paidTests).toHaveLength(0);
 });
 
+for (const provider of ['openai', 'deepseek'] as const) {
+  test(`A saved ${provider} key can be deleted without server encryption`, async ({ page }) => {
+    const label = provider === 'openai' ? 'OpenAI' : 'DeepSeek';
+    const fake = await adminFixture(
+      page,
+      aiAdminFixture({
+        provider,
+        model: provider === 'openai' ? 'gpt-6-luna' : 'deepseek-flash',
+        enabled: true,
+        apiKeyConfigured: true,
+        encryptionReady: false,
+      }),
+    );
+    await openAdmin(page);
+    await selectProvider(page, provider);
+    const panel = page.getByRole('region', { name: 'Настройки ' + label });
+    await expect(panel.getByLabel('API-ключ ' + label)).toBeDisabled();
+    await panel.getByRole('button', { name: 'Удалить ключ' }).click();
+    await panel.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await expect(panel.getByText('Сохранено', { exact: true })).toBeVisible();
+    expect(fake.writes[0]).toMatchObject({ provider, enabled: false, clearApiKey: true });
+    expect(fake.writes[0]).not.toHaveProperty('apiKey');
+  });
+}
+
 test('OpenAI loads its catalogue automatically and saves model selection with the connection', async ({
   page,
 }) => {
