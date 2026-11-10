@@ -19,6 +19,15 @@ def validate_deployment_digest(value):
     return value
 
 
+def published_deployment_digest():
+    # Use the digest returned by this pull, not a later lookup of the mutable tag.
+    receipt = run(["docker", "pull", f"{REGISTRY}/deployment:stable"], capture=True)
+    digests = re.findall(r"^Digest: (sha256:[a-f0-9]{64})$", receipt, re.MULTILINE)
+    require(len(digests) == 1, "RELEASE_DIGEST_MISMATCH",
+            "Docker did not report a unique digest for the published deployment.")
+    return validate_deployment_digest(digests[0])
+
+
 def discover_release(deployment_digest=None):
     reference = (f"{REGISTRY}/deployment@{validate_deployment_digest(deployment_digest)}"
                  if deployment_digest is not None else f"{REGISTRY}/deployment:stable")
