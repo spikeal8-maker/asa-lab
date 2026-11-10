@@ -388,6 +388,7 @@ export function AuthoredMaterialsPage({
     readonly onPublished: (rootId: string, versionId: string) => Promise<void>;
   };
   readonly classroomCreation?: {
+    readonly draftId: string | null;
     readonly onClose: () => void;
     readonly onPublished: (rootId: string, versionId: string) => Promise<void>;
   };
@@ -477,7 +478,7 @@ export function AuthoredMaterialsPage({
       modulesRequest.current += 1;
     };
   }, [embedded, refreshModules, screen]);
-  async function open(id: string) {
+  const open = useCallback(async (id: string) => {
     previewRequest.current += 1;
     setPreview(null);
     setPanel(null);
@@ -524,7 +525,11 @@ export function AuthoredMaterialsPage({
       setScreen('editor');
     } else setError(result.error.message || 'Материал недоступен.');
     setBusy(false);
-  }
+  }, []);
+  const classroomDraftId = classroomCreation?.draftId ?? null;
+  useEffect(() => {
+    if (classroomDraftId) void open(classroomDraftId);
+  }, [classroomDraftId, open]);
   function startNew(): void {
     previewRequest.current += 1;
     setPreview(null);
@@ -1388,7 +1393,7 @@ export function AuthoredMaterialsPage({
                   {courseCreation
                     ? 'Добавить в урок'
                     : classroomCreation
-                      ? 'Выдать всему классу'
+                      ? 'К выдаче'
                       : 'Назначить'}
                 </button>
                 <button
@@ -1491,7 +1496,7 @@ export function AuthoredMaterialsPage({
                   </select>
                   <small>
                     {classroomCreation
-                      ? 'После выдачи задание появится у учеников и сохранится в библиотеке.'
+                      ? 'Получателей и срок можно выбрать перед выдачей.'
                       : 'Сохранится в библиотеке; в урок попадёт опубликованная версия.'}
                   </small>
                 </label>

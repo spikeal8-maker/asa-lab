@@ -129,7 +129,23 @@ test('File answers: shared authoring, mixed Course, exact Seat uploads and froze
   await expect(resumed).toBeHidden();
   await expect(directPicker.getByText(directTitle, { exact: true })).toBeVisible();
   await expect(directPicker.getByLabel('Весь класс', { exact: true })).toBeChecked();
+  const directActivities = await page.request.get('/api/learning/activities');
+  expect(directActivities.ok()).toBe(true);
+  const directPublished = (await directActivities.json()).items.find(
+    (item: { title: string }) => item.title === directTitle,
+  );
+  expect(directPublished).toMatchObject({
+    kind: 'file',
+    currentPublishedVersionId: expect.any(String),
+  });
+  const issueDirect = page.waitForRequest(
+    (request) => request.method() === 'POST' && request.url().endsWith('/learning/activity-runs'),
+  );
   await directPicker.getByRole('button', { name: 'Назначить', exact: true }).click();
+  expect((await issueDirect).postDataJSON()).toMatchObject({
+    activityVersionId: directPublished.currentPublishedVersionId,
+    audienceType: 'whole_class',
+  });
   await expect(directPicker).toBeHidden();
   await expect(page.getByRole('status').filter({ hasText: 'выдано всему классу' })).toBeVisible();
 
