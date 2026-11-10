@@ -34,6 +34,12 @@ interface LogStatus {
   readonly applicationCollection?: 'embedded';
   readonly hostCollection?: 'ok' | 'error' | 'stale' | 'unavailable' | 'invalid';
   readonly coverageComplete?: boolean;
+  readonly requiredCoverage?: {
+    readonly version: number;
+    readonly policy: string;
+    readonly state: 'ok' | 'incomplete' | 'unknown';
+    readonly requiredSourceIds: readonly string[];
+  };
   readonly collectorHealth?: {
     readonly state: string;
     readonly lastSuccessAt: string | null;
@@ -98,6 +104,7 @@ const MODULE: Record<string, string> = {
   portal: 'Сайт',
   scratch: 'Scratch',
   electronics: 'Электроника',
+  robotics: 'Робототехника',
   'three-d': '3D',
   chess: 'Шахматы',
   checkers: 'Шашки',
@@ -124,6 +131,7 @@ const SUBSYSTEM: Record<string, string> = {
   database: 'База данных',
   scratch: 'Scratch',
   electronics: 'Электроника',
+  robotics: 'Робототехника',
   chess: 'Шахматы',
   checkers: 'Шашки',
   'three-d': '3D',
@@ -454,6 +462,20 @@ export function AdminLogsPage({
       </form>
       {status ? (
         <div className="admin-logs-coverage">
+          <p role="status">
+            <strong>Обязательные подключённые источники:</strong>{' '}
+            {status.requiredCoverage?.version === 1 &&
+            status.requiredCoverage.policy === 'asa-connected-v1' &&
+            Array.isArray(status.requiredCoverage.requiredSourceIds) &&
+            status.requiredCoverage.requiredSourceIds.length > 0
+              ? status.requiredCoverage.state === 'ok'
+                ? `сбор исправен (${status.requiredCoverage.requiredSourceIds.length}).`
+                : status.requiredCoverage.state === 'incomplete'
+                  ? 'сбор неполон, требуется проверка.'
+                  : 'покрытие пока не подтверждено.'
+              : 'покрытие пока не подтверждено.'}{' '}
+            Полнота всей истории не подтверждена.
+          </p>
           {status.applicationCollection === 'embedded' ? (
             <p role="status">
               <strong>Журналы приложения подключены автоматически.</strong>{' '}

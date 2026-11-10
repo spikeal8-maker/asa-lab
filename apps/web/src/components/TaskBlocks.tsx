@@ -22,6 +22,15 @@ function catalogueMedia(value: string | undefined): value is string {
   );
 }
 
+function essayMedia(value: string | undefined, role: 'image' | 'file'): value is string {
+  return (
+    typeof value === 'string' &&
+    new RegExp('^/api/learning/essay/runs/[0-9a-f-]{36}/media/' + role + '/[0-9a-f]{64}$').test(
+      value,
+    )
+  );
+}
+
 export interface TaskImageSelection {
   readonly src: string;
   readonly alt: string;
@@ -33,7 +42,8 @@ function TaskFile({ block }: { readonly block: Extract<SafeTaskBlock, { type: 'f
   const src =
     block.src?.startsWith('/api/learning/activities/') === true ||
     block.src?.startsWith('/api/class-join/course-runs/') === true ||
-    catalogueMedia(block.src)
+    catalogueMedia(block.src) ||
+    essayMedia(block.src, 'file')
       ? block.src
       : `/api/assignments/task-files/${encodeURIComponent(block.contentHash)}`;
   useEffect(() => setUnavailable(false), [src]);
@@ -93,7 +103,8 @@ function TaskImage({
   const src =
     block.src?.startsWith('/api/learning/activities/') === true ||
     block.src?.startsWith('/api/class-join/course-runs/') === true ||
-    catalogueMedia(block.src)
+    catalogueMedia(block.src) ||
+    essayMedia(block.src, 'image')
       ? block.src
       : `/api/assignments/task-images/${encodeURIComponent(block.contentHash)}`;
   useEffect(() => {

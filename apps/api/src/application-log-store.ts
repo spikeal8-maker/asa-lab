@@ -21,8 +21,16 @@ const FIELDS = new Set([
   'errorClass',
   'frames',
   'clientAttemptId',
+  'httpStatus',
+  'relatedRequestId',
+  'operation',
+  'failureKind',
   'instanceId',
   'eventId',
+  'occurredAt',
+  'repetitionCount',
+  'firstOccurredAt',
+  'lastOccurredAt',
   'sessionDatabase',
   'runtime',
   'addressResolution',
@@ -56,6 +64,55 @@ const FIELDS = new Set([
   'abruptTerminationTail',
 ]);
 const SEGMENT = /^seg-\d{16}-\d{16}\.jsonl$/;
+// Recheck the client controller's closed request context at the storage boundary.
+// These fields never admit URLs, error text or provider operation labels.
+const REQUEST_CONTEXT: Readonly<Record<string, (value: unknown) => boolean>> = {
+  httpStatus: (value) =>
+    typeof value === 'number' && Number.isInteger(value) && value >= 100 && value <= 599,
+  relatedRequestId: (value) =>
+    typeof value === 'string' &&
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value),
+  operation: (value) =>
+    typeof value === 'string' &&
+    [
+      'auth_me',
+      'auth_refresh',
+      'auth_other',
+      'project_read',
+      'project_save',
+      'electronics_draft_read',
+      'electronics_draft_write',
+      'blocks_runtime_session',
+      'other_api',
+    ].includes(value),
+  failureKind: (value) =>
+    typeof value === 'string' &&
+    ['http', 'timeout', 'cancelled', 'network', 'unknown'].includes(value),
+};
+const REPETITION_FIELDS = new Set([
+  'occurredAt',
+  'repetitionCount',
+  'firstOccurredAt',
+  'lastOccurredAt',
+]);
+/** Recheck the complete bounded aggregate, never retain arbitrary values from another producer. */
+function validDiagnosticRepetitions(value: Record<string, unknown>): boolean {
+  return (
+    value['kind'] === 'client_diagnostic' &&
+    typeof value['eventId'] === 'string' &&
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value['eventId']) &&
+    Number.isSafeInteger(value['repetitionCount']) &&
+    (value['repetitionCount'] as number) >= 1 &&
+    (value['repetitionCount'] as number) <= 1_000_000 &&
+    Number.isSafeInteger(value['occurredAt']) &&
+    (value['occurredAt'] as number) >= 0 &&
+    value['firstOccurredAt'] === value['occurredAt'] &&
+    Number.isSafeInteger(value['lastOccurredAt']) &&
+    (value['lastOccurredAt'] as number) >= (value['firstOccurredAt'] as number) &&
+    (value['lastOccurredAt'] as number) <= 8_640_000_000_000_000 &&
+    (value['lastOccurredAt'] as number) - (value['firstOccurredAt'] as number) <= 15 * 60_000
+  );
+}
 type Segment = {
   file: string;
   bytes: number;
@@ -145,9 +202,16 @@ export class ApplicationLogStore {
       this.counters.dropped++;
       return;
     }
+    const repetitionsValid = validDiagnosticRepetitions(value);
     const projected = Object.fromEntries(
       Object.entries(value)
-        .filter(([key]) => FIELDS.has(key))
+        .filter(
+          ([key, item]) =>
+            FIELDS.has(key) &&
+            (!REPETITION_FIELDS.has(key) || repetitionsValid) &&
+            (!Object.hasOwn(REQUEST_CONTEXT, key) ||
+              (value['kind'] === 'client_diagnostic' && REQUEST_CONTEXT[key]!(item))),
+        )
         .map(([key, item]) => [key, safeValue(item)]),
     );
     if (typeof projected['path'] === 'string') projected['path'] = projected['path'].split('?')[0];

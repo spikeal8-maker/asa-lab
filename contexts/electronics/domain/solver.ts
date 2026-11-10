@@ -18,7 +18,13 @@ import {
   type ArduinoTerminalVoltages,
 } from './arduino-program-runtime.js';
 import { analyseArduinoSourceSupport } from './arduino-capabilities.js';
-import { photoresistorResistanceOhm } from './photoresistor-model.js';
+import {
+  PHOTORESISTOR_PROFILE,
+  photoresistorIlluminanceWithLampLux,
+  photoresistorLightSourceId,
+  photoresistorResistanceAtIlluminanceOhm,
+  photoresistorResistanceOhm,
+} from './photoresistor-model.js';
 import { switchSelectedTerminal, switchContactClosed } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
 import { solveLinear } from './linear-system.js';
@@ -377,6 +383,7 @@ export interface ComponentResult {
   readonly thermalLoadPercent?: number;
   readonly accumulatedDamagePercent?: number;
   readonly effectiveResistanceOhm?: number;
+  readonly illuminanceLux?: number;
   readonly ratedVoltageVolt?: number;
   readonly ratedCurrentAmp?: number;
   readonly ratedPowerWatt?: number;
@@ -1595,6 +1602,7 @@ function applyThermalObservations(
           {
             source: 'Источник питания',
             resistor: 'Резистор',
+            photoresistor: 'Фоторезистор',
             led: 'Светодиод',
             lamp: 'Лампа накаливания',
             diode: 'Диод',
@@ -2708,6 +2716,24 @@ function solveCircuitStep(
   const preparation = options.preparation?.(document);
   const netlist = preparation?.netlist ?? buildNetlist(document);
   const failedComponentIds = options.failedComponentIds ?? new Set<string>();
+  // Only actual lamp IDs have filament temperatures. Carry one resistance
+  // through both the matrix stamp and the measured current for this frame.
+  let photoresistorLight:
+    Map<string, { illuminanceLux: number; resistanceOhm: number }> | undefined;
+  if (options.lampTemperatureById && Object.keys(options.lampTemperatureById).length > 0) {
+    for (const component of document.components) {
+      const lampId = photoresistorLightSourceId(component);
+      if (!lampId || !Object.hasOwn(options.lampTemperatureById, lampId)) continue;
+      const lampBrightness = failedComponentIds.has(lampId)
+        ? 0
+        : incandescentLampBrightnessPercent(options.lampTemperatureById[lampId]!);
+      const illuminanceLux = photoresistorIlluminanceWithLampLux(component, lampBrightness);
+      (photoresistorLight ??= new Map()).set(component.id, {
+        illuminanceLux,
+        resistanceOhm: photoresistorResistanceAtIlluminanceOhm(illuminanceLux),
+      });
+    }
+  }
   const simulationTimeMs = options.simulationTimeMs ?? 0;
   const branchesForSnapshots = (snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>) =>
     document.components.flatMap((component) =>
@@ -3399,7 +3425,10 @@ function solveCircuitStep(
       const b = nodeIndex(component, 'b');
       if (component.kind === 'resistor') continue;
       if (component.kind === 'photoresistor') {
-        stampConductance(a, b, 1 / photoresistorResistanceOhm(component));
+        const resistanceOhm =
+          photoresistorLight?.get(component.id)?.resistanceOhm ??
+          photoresistorResistanceOhm(component);
+        stampConductance(a, b, 1 / resistanceOhm);
       } else if (component.kind === 'piezo') {
         stampConductance(a, b, 1 / piezoDcResistanceOhm(component));
       } else if (component.kind === 'lamp') {
@@ -3909,6 +3938,7 @@ function solveCircuitStep(
     pointSlot && !reusedPoint && failedComponentIds.size === 0 ? [] : undefined;
   const components: ComponentResult[] = observationRouting.components.map(
     ({ component, terminals }) => {
+      const linkedLight = photoresistorLight?.get(component.id);
       const terminalVoltages: Partial<Record<Terminal, number>> = {};
       for (const terminal of terminals) {
         terminalVoltages[terminal] = round(physicalVoltageAt(component, terminal));
@@ -3959,6 +3989,7 @@ function solveCircuitStep(
           deviceHealth: 'failed_open',
           damageState: 'failed',
           presentationState: 'failed',
+          ...(linkedLight ? { illuminanceLux: round(linkedLight.illuminanceLux, 4) } : {}),
           ...(failedMotorTransition
             ? motorComponentObservation(component, failedMotorTransition)
             : {}),
@@ -4103,7 +4134,8 @@ function solveCircuitStep(
       else if (isArduinoUno(component))
         current = Math.max(0, ...arduinoBranchResults.map((entry) => Math.abs(entry.current)));
       else if (component.kind === 'photoresistor')
-        current = voltageDrop / photoresistorResistanceOhm(component);
+        current =
+          voltageDrop / (linkedLight?.resistanceOhm ?? photoresistorResistanceOhm(component));
       else if (component.kind === 'lamp') current = voltageDrop / (lampResistanceOhm as number);
       else if (component.kind === 'piezo') current = voltageDrop / piezoDcResistanceOhm(component);
       else if (motorStep) current = motorStep.observation.currentAmp;
@@ -4174,8 +4206,14 @@ function solveCircuitStep(
         component.kind === 'lamp'
           ? incandescentLampBrightnessPercent(lampTemperatureCelsius as number)
           : Math.max(0, ...Object.values(branchBrightness));
+      const photoresistorPowerPercent =
+        component.kind === 'photoresistor'
+          ? (100 * power) / PHOTORESISTOR_PROFILE.maximumPowerWatt
+          : undefined;
       const powerUtilizationPercent =
-        linearDcObservation?.powerUtilizationPercent ?? transistorResult?.powerUtilizationPercent;
+        linearDcObservation?.powerUtilizationPercent ??
+        transistorResult?.powerUtilizationPercent ??
+        photoresistorPowerPercent;
       const currentUtilizationPercent =
         transistorResult?.currentUtilizationPercent ??
         (branches.length > 0
@@ -4197,9 +4235,18 @@ function solveCircuitStep(
           : undefined;
       const activePiezoObservation =
         component.kind === 'piezo' ? observeActivePiezo(component, voltageDrop) : null;
+      const photoresistorStress =
+        photoresistorPowerPercent === undefined
+          ? undefined
+          : Math.abs(voltageDrop) > PHOTORESISTOR_PROFILE.maximumVoltageVolt
+            ? 'burned'
+            : photoresistorPowerPercent > 100
+              ? 'overcurrent'
+              : 'normal';
       const stressState =
         linearDcObservation?.stressState ??
         transistorResult?.stressState ??
+        photoresistorStress ??
         (activePiezoObservation?.driveState === 'overvoltage'
           ? 'warning'
           : lampVoltageRatio !== undefined
@@ -4413,6 +4460,12 @@ function solveCircuitStep(
         ...(powerUtilizationPercent === undefined
           ? {}
           : { powerUtilizationPercent: round(powerUtilizationPercent, 2) }),
+        ...(linkedLight
+          ? {
+              illuminanceLux: round(linkedLight.illuminanceLux, 4),
+              effectiveResistanceOhm: round(linkedLight.resistanceOhm, 3),
+            }
+          : {}),
         ...(stressState === undefined
           ? {}
           : {

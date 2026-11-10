@@ -24,6 +24,7 @@ import zlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from deployment.paths import atomic_bytes
+from deployment import operational
 from resource_sampling import ResourceSampler
 from memory_sampling import CAPTURE_SECONDS, capture_memory
 
@@ -40,9 +41,14 @@ DATABASE_DIAGNOSTICS = json.loads((Path(__file__).resolve().parent.parent /
 # public diagnostic projection (two different rows can have identical messages).
 DATABASE_NATIVE_KEYS = {table: ('event_hash',) if table == 'max_webhook_events' else ('id',)
                         for table in DATABASE_DIAGNOSTICS['sources']}
+DATABASE_NATIVE_KEYS.update({table: ('owner_principal_id', 'request_id') for table in ('ai_image_jobs','ai_usage_journal')})
 DATABASE_IDENTITY_LIMIT = 256
 DATABASE_BATCH_ROWS = 128
 DATABASE_BATCH_BYTES = 4 * 1024 * 1024
+# Fresh sources share a bounded round-robin drain. The deadline stops starting
+# pages; an in-flight page retains its existing 15s SQL / 25s command timeout.
+DATABASE_FRESH_PAGES = 64
+DATABASE_FRESH_SECONDS = 5
 DATABASE_METRICS_SQL = """BEGIN READ ONLY; SET LOCAL statement_timeout='5s';
 COPY (SELECT json_build_object(
  'connections',(SELECT numbackends FROM pg_stat_database WHERE datname=current_database()),
@@ -83,6 +89,36 @@ def database_diagnostics(origin, value):
 
 def history_error(reason):
     return RuntimeError(f"Diagnostic history/index inconsistency: {reason}; private payloads were preserved; restore a consistent diagnostic snapshot")
+
+
+def verify_successor_retirements(retired, metadata, ledger, key):
+    """Verify typed operator authority in core code; no incident-tool dependency at startup."""
+    try:
+        canonical = lambda value: json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
+        bindings = {}
+        for batch_id, batch in ledger.items():
+            if batch.get('kind') != 'verified-successor-v1' or not isinstance(batch.get('fileBindings'), dict) or len(batch['fileBindings']) > 32:
+                raise ValueError('invalid successor ledger')
+            proof = batch.get('ledgerProof')
+            value = {k:v for k,v in batch.items() if k != 'ledgerProof'}
+            if batch.get('metadataSha256') != batch_id or not isinstance(proof, str) or not hmac.compare_digest(proof, hmac.new(key, b'asa-retired-successor-ledger-v1\0'+canonical(value), hashlib.sha256).hexdigest()):
+                raise ValueError('invalid successor ledger proof')
+            for name, digest in batch['fileBindings'].items():
+                if name in retired:
+                    if name in bindings and bindings[name] != digest: raise ValueError('conflicting successor bindings')
+                    bindings[name] = digest
+        for name in retired:
+            meta = metadata.get(name, {})
+            if name not in bindings and 'retirementAuthority' not in meta and 'retirementAuthorityProof' not in meta: continue
+            if name not in bindings: raise ValueError('missing successor ledger binding')
+            if name in bindings and hashlib.sha256(canonical(meta)).hexdigest() != bindings[name]: raise ValueError('binding differs')
+            if meta.get('retirementAuthority', {}).get('kind') != 'verified-successor-v1': raise ValueError('wrong authority')
+            value = {k:v for k,v in meta.items() if k != 'retirementAuthorityProof'}
+            proof = meta.get('retirementAuthorityProof')
+            if not isinstance(proof, str) or not hmac.compare_digest(proof, hmac.new(key, b'asa-retired-successor-v1\0'+canonical(value), hashlib.sha256).hexdigest()):
+                raise ValueError('wrong authority proof')
+    except (ValueError, TypeError, KeyError, AttributeError):
+        raise history_error('retired successor authority is invalid') from None
 
 
 def immutable_segment_bytes(path, data):
@@ -196,7 +232,7 @@ def host_source(source: str) -> bool:
     return source.startswith(("windows:", "linux:")) or source in ("docker-desktop", "docker-lifecycle", "metrics")
 
 
-EDITOR_MODULES = ('scratch', 'electronics', 'three-d', 'chess', 'checkers')
+EDITOR_MODULES = ('scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers')
 LOG_MODULES = ('system', 'portal', 'auth', *EDITOR_MODULES)
 
 
@@ -219,10 +255,11 @@ def subsystem(source: str, payload=None, origin="") -> str:
             if re.search(pattern, route): return name
         if route == 'assignments': return 'learning'
         if route in ('session', 'workspaces', 'capabilities', 'schools'): return 'access'
-        return route if route in ("projects", "learning", "courses", "analytics", "diagnostics", "electronics", "chess", "checkers", "three-d") else "api"
+        return route if route in ("projects", "learning", "courses", "analytics", "diagnostics", "electronics", "robotics", "chess", "checkers", "three-d") else "api"
     if source in ("postgres", "migration"): return "database"
     if source.startswith("minio"): return "storage"
     if source == "tunnel": return "network"
+    if origin in ('ai_image_jobs', 'ai_usage_journal'): return 'diagnostics'
     if origin in ("product_analytics_events", "classroom_activity_events", "grade_change_events"):
         return {"product_analytics_events": "analytics", "classroom_activity_events": "classrooms", "grade_change_events": "learning"}[origin]
     if source == "auth": return "access"
@@ -472,7 +509,9 @@ class Collector:
                 due = continuous and audit['cursor'] < name <= audit['boundary']
                 budget = audited_count < HISTORY_AUDIT_SEGMENTS and audited_bytes < HISTORY_AUDIT_BYTES and time.monotonic()-started < HISTORY_AUDIT_SECONDS
                 pos = bisect.bisect_left(changed, first)
-                mandatory = name not in trusted or pos < len(changed) and changed[pos] <= last
+                # Publication can commit a payload/index before its catalog/state
+                # metadata. Recheck that gap even outside the rolling audit budget.
+                mandatory = name not in trusted or name not in metadata or pos < len(changed) and changed[pos] <= last
                 verify = not continuous or mandatory or due and budget
                 if not verify:
                     expected = metadata.get(name, {})
@@ -495,7 +534,9 @@ class Collector:
                 digest = hashlib.sha256()
                 with file.open('rb') as stream:
                     while chunk := stream.read(1024 * 1024): digest.update(chunk)
-                expected = metadata.get(name, {})
+                # A prior full check supplies the checksum only for absent
+                # metadata; a conflicting retained descriptor must still fail.
+                expected = metadata.get(name, trusted.get(name, {}))
                 identity_proof = name + ':' + digest.hexdigest() + ':' + mapping.hexdigest() + ':'
                 cached = self.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone()
                 proof = hmac.new(self.verification_key, (identity_proof + cached[1]).encode('utf-8'), hashlib.sha256).hexdigest() if cached else None
@@ -527,6 +568,11 @@ class Collector:
                             pending_ids.extend(bytes.fromhex(json.loads(line)['id']) for line in content.splitlines())
                     if ids != pending_ids: raise ValueError('pending compaction output identities differ from originals')
                     continue
+                # A failed existing receipt cannot become a fresh reference from
+                # the same unverified bytes after a cold start. A retained or
+                # process-verified checksum still permits full cache fallback.
+                if cached and name not in metadata and not expected.get('sha256'):
+                    raise ValueError(f'immutable segment receipt cannot authenticate missing metadata: {name}')
                 if indexed != ids or rows[0][0] != first or rows[-1][0] != last:
                     raise ValueError(f'immutable segment identities differ from private index: {name}')
                 classified = [classify_event(e) for e in entries]
@@ -561,7 +607,7 @@ class Collector:
                 self.set_state('history:audit', audit)
             else:
                 self.set_state('history:audit', dict(generation=uuid.uuid4().hex, cursor=max(active, default=''),
-                    checked=len(active), total=len(active), lastCompletedAt=now(), deadline=time.time()+900, state='complete'))
+                    checked=len(active), total=len(active), lastCompletedAt=now(), deadline=time.time()+900, state='complete', incomplete=False))
             self.db.execute('DELETE FROM history_mapping_changes')
         except (ValueError, TypeError, KeyError, IndexError, OSError, EOFError, sqlite3.Error, zlib.error) as exc:
             if continuous:
@@ -731,8 +777,16 @@ class Collector:
             actual = canonical["Config"]["Labels"].get("com.docker.compose.project.working_dir", "")
             if os.path.normcase(os.path.abspath(actual)) != os.path.normcase(str(self.root)):
                 raise RuntimeError("Collector root differs from the canonical installation")
-            if any(c['Config']['Labels'].get('com.docker.compose.project.working_dir') != actual for c in inspected):
-                raise RuntimeError('Mixed installation roots; collection stopped')
+            if any(c['Config']['Labels'].get('com.docker.compose.project.working_dir') != actual or
+                   c['Config']['Labels'].get('com.docker.compose.project') != project for c in inspected):
+                raise RuntimeError('Mixed installation roots/projects; collection stopped')
+            observed_services = [c['Config']['Labels'].get('com.docker.compose.service') for c in inspected]
+            previous_services = operational.compose_service_ids(self.state('docker:required-services', []))
+            required_services = operational.compose_service_ids(previous_services, observed_services)
+            self.set_state('docker:required-services', required_services)
+            for service in set(previous_services) - set(observed_services):
+                self.status(service + ':recent', 'unavailable',
+                            'Previously observed canonical Compose service is absent from the current inventory')
             if getattr(self, 'sampler', None):
                 self.sampler.set_targets(tuple(c['Id'] for c in inspected if c.get('State', {}).get('Running', True)), canonical['Id'])
             self.postgres = canonical["Id"]
@@ -819,11 +873,21 @@ class Collector:
             CASE WHEN a.atthasmissing THEN to_jsonb(a.attmissingval)->0 ELSE 'null'::jsonb END)
             FROM pg_attribute a WHERE a.attrelid='public."{table}"'::regclass
             AND a.attnum>0 AND NOT a.attisdropped)::text'''
+        projection = DATABASE_DIAGNOSTICS['sources'][table].get('projection')
+        columns = '*'
+        if projection is not None:
+            # AI prompts, output/storage keys, profile snapshots and model names
+            # never cross the PostgreSQL subprocess boundary in the first place.
+            names = {column, *DATABASE_NATIVE_KEYS[table]}
+            if not isinstance(projection, dict) or any(not re.fullmatch('[a-z_]{1,64}', name) for name in (*projection, *projection.values())):
+                raise ValueError('Invalid closed database projection')
+            columns = ','.join(f'"{name}"' for name in sorted(names)) + ',' + ','.join(f'"{source}" AS "{name}"' for name, source in projection.items())
+            defaults_sql = "'{}'::text"
         # Limit before encoding. The doubled UTF-8 length also bounds CSV quote
         # escaping; the extra allowance covers separators and the final trailer.
         sql = f'''BEGIN READ ONLY; SET LOCAL statement_timeout='15s';
             COPY (WITH candidates AS MATERIALIZED (
-                SELECT * FROM public."{table}" WHERE {condition} ORDER BY {order} LIMIT {DATABASE_BATCH_ROWS + 1}
+                SELECT {columns} FROM public."{table}" WHERE {condition} ORDER BY {order} LIMIT {DATABASE_BATCH_ROWS + 1}
             ), encoded AS MATERIALIZED (
                 SELECT row_to_json(t)::text AS raw, {defaults_sql} AS defaults,
                     row_number() OVER (ORDER BY {order}) AS n FROM candidates t
@@ -867,71 +931,114 @@ class Collector:
         if not getattr(self, "postgres", None):
             self.status("database-events", "unavailable", "Canonical PostgreSQL was not identified")
             return
-        tables = {table: rule['timeColumn'] for table, rule in DATABASE_DIAGNOSTICS['sources'].items()}
+        tables = {table: rule['timeColumn'] for table, rule in DATABASE_DIAGNOSTICS['sources'].items() if not rule.get('operational')}
         if history is True:
             turn = self.state('database:history:turn', 0) % len(tables)
             self.set_state('database:history:turn', turn + 1)
             tables = dict([list(tables.items())[turn]])
-        failures, pending = 0, 0
-        for table, column in tables.items():
+        order = list(tables)
+        if history is False:
+            turn = self.state('database:fresh:turn', 0) % len(order)
+            order = order[turn:] + order[:turn]
+        queued = [(table, tables[table], historical) for table in order
+                  for historical in ((False, True) if history is None else (history,))]
+        outcomes, pages = {}, 0
+        deadline = time.monotonic() + DATABASE_FRESH_SECONDS
+        while queued:
+            if history is False and (pages >= DATABASE_FRESH_PAGES or time.monotonic() >= deadline): break
+            table, column, historical = queued.pop(0)
             key = ('db:live:' if history is False else 'db:') + table
             cutoff = datetime.now(UTC) - timedelta(days=self.config.get("retentionDays", 30))
-            for historical in ((False, True) if history is None else (history,)):
-                lane_key = 'db:history:' + table if historical else key
-                source = ('database-history:' if historical else 'database-events:') + table
-                if historical and time.time() - self.state(lane_key + ':completed', 0) < 6 * 3600:
-                    continue
-                span = self.state(lane_key + ':span', self.config.get('retentionDays', 30)*86400 if historical else 6*3600)
-                window = self.state(lane_key + ':window')
-                if window is None:
-                    default_start = max(cutoff, datetime.now(UTC)-timedelta(minutes=5)) if history is False else cutoff
-                    start = max(cutoff, datetime.fromisoformat(self.state(lane_key, default_start.isoformat()).replace('Z', '+00:00')))
-                    end = min(datetime.now(UTC), start + timedelta(seconds=span))
-                    recent_end = datetime.now(UTC)
-                    window = dict(start=start.isoformat(), end=end.isoformat(), recentEnd=recent_end.isoformat(),
-                                  recentStart=(recent_end-timedelta(minutes=30)).isoformat(), after=None)
-                def between(start, end):
-                    if column.endswith('_ms'):
-                        return f'"{column}" BETWEEN {int(datetime.fromisoformat(start).timestamp()*1000)} AND {int(datetime.fromisoformat(end).timestamp()*1000)}'
-                    return f'"{column}" BETWEEN TIMESTAMPTZ \'{start}\' AND TIMESTAMPTZ \'{end}\''
-                condition = between(window['start'], window['end'])
-                if not historical: condition += ' OR ' + between(window['recentStart'], window['recentEnd'])
-                # Keep the attempted window on errors too: an uncommitted page
-                # must be retried against the same upper bound, even after restart.
-                self.set_state(lane_key + ':window', window)
-                self.db.execute('SAVEPOINT database_page')
-                try:
-                    rows, more, after = self.database_batch(table, condition, window['after'])
-                    for value, defaults in rows:
-                        stamp = datetime.fromtimestamp(value[column]/1000, UTC).isoformat() if column.endswith('_ms') else value[column]
-                        self.add_database_row(table, value, defaults, timestamp(stamp, window['end']))
-                    if more:
-                        self.set_state(lane_key + ':window', {**window, 'after': after})
-                    else:
-                        self.set_state(lane_key + ':window', None)
-                        complete = historical and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
-                        self.set_state(lane_key, cutoff.isoformat() if complete else window['end'])
-                        if complete: self.set_state(lane_key + ':completed', time.time())
-                    # A keyset time at a tie is not complete coverage through that
-                    # timestamp. Only completed windows advance collectedThrough.
-                    caught_up = not more and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
-                    if not caught_up: pending += 1
-                    detail = 'Database backlog; bounded page continuation queued' if more else 'Historical reconciliation complete' if historical and caught_up else 'Fresh database events' if caught_up else 'Database backlog; next time window queued'
-                    self.status(source, 'ok' if caught_up else 'pending', detail,
-                                window['end'] if not more else None)
-                    self.db.execute('RELEASE database_page')
-                except Exception as exc:
-                    self.db.execute('ROLLBACK TO database_page'); self.db.execute('RELEASE database_page')
-                    failures += 1
-                    self.set_state(lane_key + ':span', max(1, span // 2))
-                    self.status(source, 'error', str(exc))
-                self.checkpoint()
+            lane_key = 'db:history:' + table if historical else key
+            source = ('database-history:' if historical else 'database-events:') + table
+            if historical and time.time() - self.state(lane_key + ':completed', 0) < 6 * 3600:
+                continue
+            span = self.state(lane_key + ':span', self.config.get('retentionDays', 30)*86400 if historical else 6*3600)
+            window = self.state(lane_key + ':window')
+            if window is None:
+                default_start = max(cutoff, datetime.now(UTC)-timedelta(minutes=5)) if history is False else cutoff
+                start = max(cutoff, datetime.fromisoformat(self.state(lane_key, default_start.isoformat()).replace('Z', '+00:00')))
+                end = min(datetime.now(UTC), start + timedelta(seconds=span))
+                recent_end = datetime.now(UTC)
+                window = dict(start=start.isoformat(), end=end.isoformat(), recentEnd=recent_end.isoformat(),
+                              recentStart=(recent_end-timedelta(minutes=30)).isoformat(), after=None)
+            def between(start, end):
+                if column.endswith('_ms'):
+                    return f'"{column}" BETWEEN {int(datetime.fromisoformat(start).timestamp()*1000)} AND {int(datetime.fromisoformat(end).timestamp()*1000)}'
+                return f'"{column}" BETWEEN TIMESTAMPTZ \'{start}\' AND TIMESTAMPTZ \'{end}\''
+            condition = between(window['start'], window['end'])
+            if not historical: condition += ' OR ' + between(window['recentStart'], window['recentEnd'])
+            # Keep the attempted window on errors too: an uncommitted page
+            # must be retried against the same upper bound, even after restart.
+            self.set_state(lane_key + ':window', window)
+            self.db.execute('SAVEPOINT database_page')
+            try:
+                rows, more, after = self.database_batch(table, condition, window['after'])
+                for value, defaults in rows:
+                    stamp = datetime.fromtimestamp(value[column]/1000, UTC).isoformat() if column.endswith('_ms') else value[column]
+                    self.add_database_row(table, value, defaults, timestamp(stamp, window['end']))
+                if more:
+                    self.set_state(lane_key + ':window', {**window, 'after': after})
+                else:
+                    self.set_state(lane_key + ':window', None)
+                    complete = historical and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
+                    self.set_state(lane_key, cutoff.isoformat() if complete else window['end'])
+                    if complete: self.set_state(lane_key + ':completed', time.time())
+                # A keyset time at a tie is not complete coverage through that
+                # timestamp. Only completed windows advance collectedThrough.
+                caught_up = not more and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
+                outcomes[source] = 'ok' if caught_up else 'pending'
+                detail = 'Database backlog; bounded page continuation queued' if more else 'Historical reconciliation complete' if historical and caught_up else 'Fresh database events' if caught_up else 'Database backlog; next time window queued'
+                self.status(source, outcomes[source], detail, window['end'] if not more else None)
+                self.db.execute('RELEASE database_page')
+                if history is False and not caught_up:
+                    queued.append((table, column, historical))
+            except Exception as exc:
+                self.db.execute('ROLLBACK TO database_page'); self.db.execute('RELEASE database_page')
+                outcomes[source] = 'error'
+                self.set_state(lane_key + ':span', max(1, span // 2))
+                self.status(source, 'error', str(exc))
+            pages += 1
+            if history is False:
+                # A slow table cannot monopolize the next call after a deadline.
+                self.set_state('database:fresh:turn', (list(tables).index(table) + 1) % len(tables))
+            self.checkpoint()
+        failures = sum(state == 'error' for state in outcomes.values())
+        # A completed continuation replaces its earlier pending outcome. Tables
+        # not reached within this call's budget remain pending, never inferred ok.
+        pending = len({source for source, state in outcomes.items() if state == 'pending'} |
+                      {('database-history:' if historical else 'database-events:') + table for table, _, historical in queued})
         self.set_state(last_key, time.time())
         self.status('database-history' if history is True else "database-events", 'error' if failures else 'pending' if pending else 'ok',
                     f'{failures} table sources require attention' if failures else f'{pending} database sources have queued backlog' if pending else '')
 
+    def operational_database(self):
+        for table, rule in DATABASE_DIAGNOSTICS['sources'].items():
+            if not rule.get('operational'): continue
+            source, key = 'database-events:' + table, 'db:operational:' + table
+            if not getattr(self, 'postgres', None):
+                self.status(source, 'unavailable', 'Canonical PostgreSQL was not identified')
+                continue
+            try:
+                # These ledgers have no updated_at. Reconcile bounded retained
+                # pages continuously, so long-queued jobs' late outcomes are
+                # observed instead of waiting for a six-hour historical pass.
+                cutoff = (datetime.now(UTC)-timedelta(days=self.config.get('retentionDays',30))).isoformat()
+                column = rule['timeColumn']
+                rows, more, after = self.database_batch(table, f'"{column}">=TIMESTAMPTZ \'{cutoff}\'', self.state(key))
+                observed = now()
+                for value, defaults in rows: self.add_database_row(table, value, defaults, observed)
+                self.set_state(key, after if more else None)
+                self.status(source, 'pending' if more else 'ok', 'Bounded AI ledger reconciliation queued' if more else 'Typed AI ledger observed; silent worker exception causes are not recorded by this source', observed if not more else None)
+            except Exception:
+                self.status(source, 'error', 'AI diagnostic projection unavailable; no raw rows persisted')
+
     def files(self):
-        configured = [{"source": "updates", "path": str(self.root / ".asa" / "logs")}, *self.config.get("fileSources", [])]
+        if not any(item['source'] == 'updates' for item in self.config.get('fileSources', [])):
+            # Retire only the old implicit missing .asa/logs health row. Retained
+            # event/history bytes and explicitly configured file sources survive.
+            self.db.execute("DELETE FROM sources WHERE name='updates'")
+        configured = [*self.config.get("fileSources", [])]
         if os.name == "nt" and self.config.get("includeDockerDesktop", True):
             configured.append({"source": "docker-desktop", "path": str(Path(os.environ.get("LOCALAPPDATA", "")) / "Docker" / "log")})
         cutoff = time.time() - self.config.get("retentionDays", 30) * 86400
@@ -1217,6 +1324,10 @@ class Collector:
             with opener(file, 'rb') as stream: raw = stream.read(4*1024*1024+1)
             if len(raw) != meta.get('rawBytes') or hashlib.sha256(raw).hexdigest() != meta.get('sha256'):
                 raise ValueError('affected immutable segment checksum differs')
+            if meta.get('retirementAuthority', {}).get('kind') == 'verified-successor-v1':
+                with file.open('rb') as stream: data = stream.read(8*1024*1024+1)
+                if len(data) != meta.get('bytes') or len(data) > 8*1024*1024 or hashlib.sha256(data).hexdigest() != meta['retirementAuthority']['predecessorCompressedSha256']:
+                    raise ValueError('affected successor-authorized file bytes differ')
             if mapping:
                 first,last = map(int, file.name.split('.')[0].split('-')[1:])
                 rows = self.db.execute('SELECT id FROM events WHERE seq BETWEEN ? AND ? ORDER BY seq', (first,last)).fetchall()
@@ -1298,7 +1409,11 @@ class Collector:
             raw = gzip.decompress(data) if meta["file"].endswith(".gz") else data
             if len(raw) != meta["rawBytes"] or hashlib.sha256(raw).hexdigest() != meta["sha256"]:
                 raise RuntimeError("Compaction original failed verification; originals preserved")
-            events.extend(json.loads(line) for line in raw.splitlines())
+            original_events = [json.loads(line) for line in raw.splitlines()]
+            if len(original_events) != meta['count']:
+                raise RuntimeError("Compaction original count differs; originals preserved")
+            self.verify_affected_segment(meta)
+            events.extend(original_events)
         if len(events) != intent["count"] or len({e["id"] for e in events}) != len(events):
             raise RuntimeError("Compaction identities failed verification; originals preserved")
         for event in events:
@@ -1312,6 +1427,17 @@ class Collector:
         finally: self.reader_format = old_format
         segments = self.state("segments", {})
         retired = self.state("retired:segments", {})
+        # Original mapping is still present and verified here. Persist its exact
+        # metadata in the SAME transaction as retirement/remapping, before the
+        # durable intent is removed. Newly written originals need not have been
+        # in the previous catalog or the process-local verification cache.
+        retired_metadata = self.state('retired:metadata', {})
+        for original in intent['originals']:
+            prior = retired_metadata.get(original['file'])
+            if prior is not None and prior != original:
+                raise history_error('compaction original retirement metadata differs')
+            retired_metadata[original['file']] = dict(original)
+        self.set_state('retired:metadata', retired_metadata)
         for offset, event in enumerate(events):
             self.db.execute("UPDATE events SET seq=? WHERE id=?", (intent["first"]+offset, bytes.fromhex(event["id"])))
         for original in intent["originals"]:
@@ -1425,6 +1551,8 @@ class Collector:
         self.db.commit()
         retired = self.state("retired:segments", {})
         retired_metadata = self.state('retired:metadata', {})
+        successor_ledger = self.state('retired:successor-recovery:v1', {})
+        verify_successor_retirements(retired, retired_metadata, successor_ledger, self.verification_key)
         # Resolve every existing legacy retirement before any cleanup or fresh
         # publication. Unverifiable debt must not disappear behind active quota.
         for name in retired:
@@ -1518,6 +1646,9 @@ class Collector:
                 retired.setdefault(segment["file"], None)
             else: canonical.append(segment)
         canonical, retired = self.compact(canonical, retired)
+        # finish_compaction committed original metadata; do not overwrite that
+        # durable addition with publish()'s earlier pre-compaction local snapshot.
+        retired_metadata.update({name:meta for name,meta in self.state('retired:metadata', {}).items() if name in retired})
         segments = []
         for meta in canonical:
             if meta["last"] < cutoff:
@@ -1622,7 +1753,9 @@ class Collector:
         audit = self.state('history:audit', {})
         audit_public = {k:v for k,v in audit.items() if k not in ('boundary',)}
         if audit and audit.get('state') != 'complete' and time.time() > audit.get('deadline', 0): audit_public['state'] = 'overdue'
-        catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), historyAudit=audit_public, sources=sources, segments=segments)
+        catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), historyAudit=audit_public, sources=sources, segments=segments,
+            requiredSources=operational.required_sources(self.config, DATABASE_DIAGNOSTICS['sources'],
+                'windows' if os.name == 'nt' else 'linux', self.state('docker:required-services', [])))
         atomic_bytes(self.store / 'catalog.json', json.dumps(catalog, ensure_ascii=False).encode('utf-8'))
         self.verified_metadata = {s['file']: s for s in segments}
         # The resource spool remains replayable until both index and catalog
@@ -1657,6 +1790,8 @@ class Collector:
             self.database(history=True)
             self.checkpoint()
             self.files()
+            operational.collect(self, normalize)
+            self.operational_database()
             self.windows(background=True)
             self.linux()
             self.lifecycle()
@@ -1843,7 +1978,7 @@ def main():
             raise ValueError('Invalid installation project')
         # The running collector needs public installation identity, not .env
         # credentials. Canonical Docker labels are checked on every cycle.
-        install = SimpleNamespace(root=args.root, state=args.root / '.asa', project=installation['project'])
+        install = SimpleNamespace(root=args.root, state=args.root / '.asa', project=installation['project'], settings=installation)
         safe_paths(install)
         validate_config(install)
         for key, lower, upper in (("retentionDays", 1, 365), ("maxBytes", 16 * 1024 * 1024, 10 * 1024 * 1024 * 1024), ("intervalSeconds", 10, 300)):

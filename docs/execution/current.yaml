@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_d_collect_picker_pilot_and_addressed_ci_selected
+      checkpoint: package_d_preflight_and_required_context_candidate
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -109,23 +109,64 @@ parallel_lanes:
         Owner confirms progression after C on 2026-11-02: separate LOCAL_PASS from CI_PENDING and RELEASE_NOT_READY,
         prove bounded checks on real small UI changes, repair browser runner compatibility and measure edit-to-result,
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
+        On 2026-11-03 the owner reprioritized recovery first, then protected PR integration and existing addressed CI.
+        Owner explicitly approves independent development of tools/test_ci_image_transport.py in this isolated
+        branch while the D13 physical checkout, index, HEAD and all WIP remain untouched. A matching relative path
+        alone is an integration risk, not a perpetual development veto. Initial minimal preflight/policy repair is
+        authorized after independent read-only verification of exact own paths and physical isolation. Unknown
+        status, physical overlap, filesystem aliases and unplanned scope remain blocked. This coordination is
+        usable only after acceptance on canonical main and never substitutes for merge-candidate CI, required
+        GitHub checks/review or release evidence. Production, live data, local Docker, network and secrets stay prohibited.
+        The owner subsequently authorizes minimal GitHub main protection: ordinary changes through PR,
+        strict ASA / required from GitHub Actions, admin enforcement and no bypass, force push or deletion.
+        No second account, access grant or formal GitHub approval requirement is authorized; independent
+        technical review of critical exact-SHA changes remains required. Live GitHub restrictions apply
+        even where legacy direct_main metadata describes PRs as optional.
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/.codex/worktrees/devex-engine-20261030/ASA-lab
+          branch: codex/recovery-delivery-20261103
+        peer:
+          worktree: E:/ASA-previews/electronics-classroom-d13-candidate-20261019
+          branch: codex/electronics-classroom-d2-d4-649
+          head: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+          path_sha256:
+            tools/test_ci_image_transport.py: ced65c7414d4283a546cad5aef843365d8d0efcbc5a67c350f0c0063cb5314a9
+        paths:
+          - tools/test_ci_image_transport.py
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: dfee5badd299d318a8e51ff0cbf88e9656333a5d
+      convergence_baseline_sha: 98d7fbb42ae9e53113cb45ada4b4301334de9c27
       head_sha: null
-      observed_at: '2026-11-02T16:25:09Z'
+      observed_at: '2026-11-03T16:35:11Z'
       main:
         branch: main
-        sha: dfee5badd299d318a8e51ff0cbf88e9656333a5d
+        sha: 98d7fbb42ae9e53113cb45ada4b4301334de9c27
       observation_note: >-
-        Dated C integration: PR 912 merged as 413590622e6c8638e06eb629b8bd8dd87558bcc2 after independent review
-        approved source 879184a5c68c165532153d546139b7050dc6b93d and General 41350335177 succeeded in all four jobs.
-        The real package.json handoff was resolved by its author; foreign checkouts and D13 WIP were untouched.
-        Select D: finish the bounded CollectPicker pilot with concrete registered browser spec, then implement
-        addressed CI alongside existing gates and compare old/new verification on the same source SHA. C is not reopened.
-        Product UI improvements require separate agreement and remain outside the main DevEx PR. Reuse PR 916 for Ubuntu
-        browser compatibility; do not duplicate it. Known contracts lint baseline repair is already accepted on main. Fetch main before writes. Canonical SHADOW risk and mandatory CI obligations
-        remain intact. No demonstrated UI speed gain, deployment or owner acceptance is claimed.
+        Main98d7fbb4 passed General41668252953 all5 actual jobs and Publications41668252727.
+        Portable41673912975 passed both host contracts and source-image smoke: clean boot, verified complete
+        backup, PostgreSQL/object checksum restore into asalab_delivery_restore_test, restricted-role login,
+        ACL/RLS and origin checks. Existing real PostgreSQL supported0225-prefix upgrade reaches0304 and
+        verifies preserved ledger/checksums and zero-apply rerun; no current SQL repair or historical migration
+        rewrite selected. Prior E974/F975/G978/F979/G980 remain accepted without repeated audit or tests.
+        Owner's new explicit isolated-development consent supersedes indefinite D13 logical-path waiting;
+        foreign guard remains15addedlines on16cbed5d, with its byte fingerprint pinned above. This PR changes
+        the preflight prerequisite and records consent; it does not implement D or import foreign WIP.
+        A bounded CI admission repair separates working-push aggregate display names from the unchanged
+        PR/main ASA / required context; all four native mandatory jobs and fail-closed checks remain intact.
+        After policy/consent acceptance, repeat exact8path D preflight; genuine SAFE_TO_START is required.
+        The initial protection snapshot had no required checks/reviews or rulesets. Owner-authorized minimal
+        protection is now applied and read back: strict ASA / required app15368, mandatory PR, zero formal
+        approvals, admin enforcement; all other parameters are unchanged and before/restore payloads saved.
+        General41686002301 passed all5 exactcf262 jobs, yet cancelled duplicate push41685995018 left a second
+        same-name failed required context. This candidate fixes that confirmed admission collision without
+        changing protection or tools/ci_required.py; new final-SHA CI and positive admission remain pending.
+        Full Main/release/RLS/auth/migration evidence and exact merged-tree checks remain mandatory. No deployment,
+        forced publication, working database, local Docker or network action; owner acceptance remains pending.
+        Fetch main before writes and recover exact Git/CI; this dated snapshot grants no edit or release authority.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -138,9 +179,74 @@ parallel_lanes:
     programme:
       id: ASA-DEVEX-ENGINE-001
       selected_slice: D
+      selected_subslice: D-CONDITIONAL-GENERAL-CONTRACT-001
+      verification_pending_slices: []
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
+      partial_slices:
+        - id: D-PARALLEL-UI-CI
+          source_sha: 6176394ff255e911ccb4e93788b9ea47e7c065ba
+          integrated_sha: 4be7dca052e3b02cfb11bb9ab15e86c565f4d553
+          pr: 945
+          exact_source_general_run: 41510340520
+          independent_review: approved
+          real_ui_pilots:
+            - change_class: L0
+              pr: 948
+              source_sha: 1bb2501bdaca88cc3c8d25daac081de058ced85c
+              scoped_ci_run: 41499682067
+              full_ci_run: 41499681853
+              full_ci_jobs_passed: 4
+            - change_class: L1
+              pr: 956
+              source_sha: f1381233e81fcf738127bbe718781e874663ad0f
+              scoped_ci_run: 41503951850
+              full_ci_run: 41503951810
+              full_ci_jobs_passed: 4
+          source_general_jobs_passed: 5
+        - id: F-MINIMAL-ENTRY-001
+          source_sha: cb023dc6cea4249f43b3893b54f6add543c9652b
+          integrated_sha: 9ce041a292e4bb8463ca368b71aa595eb5ae6df1
+          pr: 975
+          exact_source_general_run: 41589321193
+          independent_review: approved
+        - id: G-RELEASE-QUEUE-001
+          source_sha: 6a6b50cd7eacdd5849a476c66e79781e2e27f464
+          integrated_sha: ec534c8da79fe080358534b6f5cff001c8c90421
+          pr: 978
+          exact_source_general_run: 41590658339
+          independent_review: approved
+        - id: D-ADDRESSED-FOCUSED-ROUTING-001
+          source_sha: f503764c3d7060da3a51331ecf7fc2436df7e1df
+          integrated_sha: 900f2e10b7abf180a26b465ad5e2b9e1a5cc0aee
+          pr: 967
+          exact_source_general_run: 41540467267
+          independent_review: approved
+        - id: G-FULL-RELEASE-EVIDENCE-001
+          source_sha: 82029c5745a9b8d47f9a49302c61275056e2f491
+          integrated_sha: 50b1dc159e654823de3e319f3c0f9528971e10ef
+          pr: 969
+          exact_source_general_run: 41565687242
+          independent_review: approved
+        - id: E-WEB-CACHE-001
+          source_sha: aaf00ad5bc6c09d5906208e4dbd5914eab429589
+          integrated_sha: 9caddfbeff635507f9b10deaf9ea5bb08da9d22c
+          pr: 974
+          exact_source_general_run: 41596023473
+          independent_review: approved
+        - id: F-PREFLIGHT-INVOCATION-SNAPSHOT-001
+          source_sha: 57dbfa2ec9037f2029e6dc90383fedb687f98661
+          integrated_sha: 237e71e7d2f8ab31f1366dfbc41bd182aea05942
+          pr: 979
+          exact_source_general_run: 41615953580
+          independent_review: approved
+        - id: G-EARLY-STALE-CANDIDATE-001
+          source_sha: 92669603d1264e2ee8c357d76ec151d22fd10362
+          integrated_sha: ff90d55c4859201555c451b5c24f9689bfbd4045
+          pr: 980
+          exact_source_general_run: 41616930713
+          independent_review: approved
       completed_slices:
         - id: PREFLIGHT
           source_sha: bbf6bb3223e1cbb9d4196741787b26e09eae7e34
@@ -206,6 +312,65 @@ parallel_lanes:
     gates:
       focused:
         workflow: ASA Portable Release
+        commands:
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+  - id: school-308-application-return
+    worktree_id: school-308-application-return-20261109
+    owned_paths:
+      - tools/asa
+      - docs/deployment/APPLICATION_ROLLBACK.md
+    task:
+      id: TASK-SCHOOL-308-APPLICATION-RETURN-001
+      issue: 1029
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: select_schema308_guarded_recovery
+      owner_acceptance: pending
+      owner_authorization: >-
+        On 2026-11-09 the owner requested an official schema 308 fallback release,
+        a native H03 application return with data written after the update, and
+        GitHub evidence. The owner conditions school deployment on successful
+        qualification. This selection authorizes source and disposable H03 work.
+      scope: >-
+        Add a bounded application return for the school transition from the
+        official schema 307 runtime to a distinct official schema 308 target.
+        Use the already-published 406ac609474bae731bd324e8e4fac6993bb9bc8b
+        release as the schema 308 fallback candidate. Preserve the existing
+        schema 304 contract. Bind recovery to exact manifests and a durable
+        record before switching. Choose recovery from observed migration history.
+      constraints:
+        - Test with an isolated synthetic H03 project before any school switch.
+        - Preserve the PostgreSQL container, database identity, MinIO and persistent volumes.
+        - No schema downgrade, snapshot overwrite, manual marker clearing or readiness override.
+        - Prove normal return, restart after interruption and API/S3 readback of writes made after update.
+        - Require independent source review, exact CI and publication evidence. Keep the school deployment gate until native evidence passes.
+      execution_coordination: >-
+        Use direct-main coordination for the existing manager, deployment tools
+        and shared workflow paths. Check exact planned paths and do not touch
+        legacy 809 worktrees or reuse its permissions.
+      evidence: https://github.com/spikeal8-maker/asa-lab/issues/1029#issuecomment-6750120831
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 64176e85dece6a05e0ab8986fcb7fa0b1b33aa00
+      head_sha: null
+      main:
+        branch: main
+        sha: 64176e85dece6a05e0ab8986fcb7fa0b1b33aa00
+      observed_at: '2026-11-09T20:05:00Z'
+      observation_note: >-
+        Baseline observation for task selection. The schema 308 fallback
+        candidate is published. School recovery tooling and native evidence
+        are pending. Fetch main before authoring.
+    gates:
+      focused:
+        workflow: ASA P0 Application Return
         commands:
           - pnpm gate:governance
       general:
@@ -7557,30 +7722,35 @@ parallel_lanes:
       - docs/product/games-platform/**
       - docs/product/ASA_CHECKERS_ONLINE_PLAY.md
     task:
-      id: TASK-CHESS-NETWORK-001
-      issue: 67
+      id: TASK-CHECKERS-NETWORK-001
+      issue: 250
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_selected_casual_network_teacher_scope_vertical
+      checkpoint: owner_selected_checkers_chess_parity_vertical
       owner_acceptance: pending
       context_hints:
-        - docs/product/games-platform/CHESS_NETWORK_DELIVERY.md
+        - docs/product/games-platform/R1_DELIVERY_BRIEF.md
       repair_scope: >-
-        One casual Chess network vertical: platform-owned game identities and matches,
-        teacher game access plus separate network off/classroom/school/platform policy,
-        bilateral current authorization, private invitations, authoritative play,
-        reconnect and durable finish/history, real two-user PostgreSQL/Chromium CI.
+        Owner explicitly requested Checkers parity with the completed Chess vertical:
+        compact ASA home/board and direct bot/local/network entry; real Russian-64
+        network matches, shared verified game identities and current teacher game/network
+        class/school/platform restrictions including linked personal Accounts; scoped
+        online players with avatars, directed invitations and per-game portal badges,
+        one-shot notification audio, authoritative rules/clocks, reconnect and durable
+        terminal history. Preserve existing lessons, assignments and local/bot play.
+        This owner-selected scope supersedes the old R1 private-invite-only UI limit.
       next_action: >-
-        Author one bounded candidate under CHESS_NETWORK_DELIVERY; focused/data/browser
-        gates and NEW independent L3 review before integration. Preserve offline
-        admission, old Chess Live compatibility, calibration candidate and foreign lanes.
+        Deliver one bounded Checkers parity candidate, reuse existing Games identity,
+        network policy and notification safety mechanisms, add focused real two-user
+        PostgreSQL/Chromium evidence and NEW independent L3 exact-SHA review. Follow
+        normal checked publication to main; no installation or live database actions.
       exclusions:
-        - Rated matchmaking, social directory, Checkers migration, unrelated cleanup.
-        - Existing tenant/RLS/Auth weakening or synthetic Games tenant.
-        - Local Docker or live database, deployment, backup or host network operations.
+        - Rated play, matchmaking queues, new infrastructure and unrelated cleanup.
+        - Tenant/RLS/Auth weakening or synthetic Games tenant.
+        - Local Docker, working database, deployment, backup or host network changes.
     revisions:
       kind: observed_snapshot
       convergence_baseline_sha: 32ae3ad3948b1dd098ac517cb7bb692cec7d98f7
@@ -9116,6 +9286,26 @@ parallel_lanes:
   - id: learning
     worktree_id: learning-course-01
     accepted_slices:
+    - id: LRN-E1-COMPACT-AUTHORING
+      source_pr: 960
+      source_sha: f3e736b9ed52639132908d293f588759e516820a
+      integrated_sha: 3f6ae864746865d263eeaff9b7859f0ae4c5978b
+      integration_parent: 63b68fd7a44ed3bb2aa5d1fced75d8fbae28d3d2
+      status: technical_accepted
+      source_general_run: 41515306462
+      source_learning_run: 41515306629
+      source_account_run: 41515306616
+      source_public_run: 41515306747
+      independent_source_review: approved
+      independent_visual_review: approved
+      browser_cases_passed: 46
+      actual_images_reviewed: 20
+      visual_viewports: [1440, 1024, 390, 320]
+      qa_report_sha256: b5c7e0581353681631b6edb39202042a74d5264a081a13ce66bcd9ab77e6bc42
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/960
+      acceptance_limit: Compact task editor and saved Course journeys only; the four-kind programme continues. All ten source blobs match the reviewed candidate and only those ten paths changed from the actual integration parent.
+      owner_acceptance: pending
+      deployment: not_run
     - id: LRN-E1-AUTHOR-USAGE-001
       source_pr: 900
       source_sha: 64dfb57fe4c37c80524cf039cf74b5e668a6c891
@@ -9201,6 +9391,39 @@ parallel_lanes:
       acceptance_limit: Exact authorized read prerequisite; client mock transport and restricted-PG controller, no new exact-query HTTP or raster claim. Unrelated-learner denials preserve existing stable learner alias semantics.
       owner_acceptance: pending
       deployment: not_run
+    - id: LRN-E1-VISIBLE-COURSE-TASK-CREATION
+      source_pr: 943
+      source_sha: c96dea558255c5e55e476a6f83610b2283fd5970
+      integrated_sha: ff27c2cdae7e35c47f39a2af0e415b7d16b2aaf6
+      status: technical_accepted
+      source_general_run: 41491774903
+      source_learning_run: 41491775038
+      source_account_run: 41491774993
+      source_public_run: 41491774907
+      independent_source_review: approved
+      integration_review_sha: dfe1dd504d3db32c66077bba44d18855bb061712
+      browser_cases_passed: 46
+      visual_viewports: [1440, 1024, 390, 320]
+      qa_report_sha256: 7ca839c530fc43e0118ae2928b1460a73b6b8de495d6f996e7346cec637a284d
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/943#issuecomment-6584236017
+      acceptance_limit: Exact inline project authoring and saved lesson; not complete Courses or Quiz. Owner subsequently requires a more compact authoring layout; that is the selected follow-up below.
+      owner_acceptance: pending
+      deployment: not_run
+    - id: LRN-PREVIEW-TELEMETRY-BASELINE-949
+      source_pr: 950
+      issue: 949
+      source_sha: e555f52dc607552bfc83b74dfdcc26ccbaa26f13
+      integrated_sha: dfe1dd504d3db32c66077bba44d18855bb061712
+      status: technical_accepted
+      source_general_run: 41492507572
+      source_learning_run: 41492507642
+      independent_source_review: approved
+      integration_review: approved
+      integration_parent: 553932661d76a57fcc6c4b69d1797c2bf95a9969
+      browser_cases_passed: 46
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/950#issuecomment-6583904170
+      acceptance_limit: Only exact same-origin diagnostics receipt exemption; every academic mutation assertion retained. Other accepted main changes between the two merges preserved; no new-main or installed acceptance inferred.
+      deployment: not_run
     owned_paths:
     - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
     - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
@@ -9267,30 +9490,67 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: visible_course_task_creation_selected
+      checkpoint: complete_quiz_vertical_with_verified_parent_integration_repairs
       selected_slice:
-        id: LRN-E1-VISIBLE-COURSE-TASK-CREATION
+        id: LRN-QUIZ-COMPLETE-COURSE-VERTICAL
         status: in_progress
-        owner_authorization: Owner resumed development on 2026-11-02 and explicitly prioritised visible buttons for creating tasks inside courses over further invisible backend work.
-        scope: Reuse the canonical authored activity editor from the course practice picker; create, save, publish and select the exact new practice without losing the course lesson draft. No new academic runtime or migration.
-        expected_write_paths:
-        - apps/web/src/components/CanonicalPracticePicker.tsx
-        - apps/web/src/pages/AuthoredMaterialsPage.tsx
-        - apps/web/src/components/CoursesPanel.tsx
-        - apps/web/src/learning/testing/course-visible-authoring.spec.ts
-        - apps/web/src/learning/testing/course-inline-task-creation.spec.ts
-        - apps/web/src/components/courses-panel.css
-        - e2e/learning-course-01.spec.ts
-        - apps/web/src/components/LessonBlockEditor.tsx
+        kind: implementation
+        owner_authorization: Owner renewed the complete compact assignment and Course authoring programme and explicitly authorized verified source integration into main on2026-11-03. Reuse the existing core; deliver visible desktop and phone functionality.
+        scope: One complete Quiz vertical across author question and Quiz drafts, publication and exact Course composition, class delivery, persisted learner player, immutable submission, automatic and manual assessment and the existing journal. All eight normative question types are included.
+        source_inputs:
+        - pr: 966
+          sha: 2d97266087b1cd11d8388cbfe02804e35eb8cb83
+        - pr: 939
+          sha: 4cc9938224a89a4cbfd556fd9b42dada3ca0bd46
+          use: Unfinished design provenance only; never apply its SQL wholesale.
+        expected_write_areas:
+        - Existing Learning authoring, Question bank and Quiz controllers, contracts and compact web editor.
+        - Existing Quiz attempt state, submission, assessment, reminders expiry sweep and canonical journal review.
+        - Additive forward SQL and strict migration-prefix fixtures, focused HTTP, mounted, PostgreSQL and real browser evidence.
+        - docs/product/learning/execution/LRN-QUIZ-COURSE-VERTICAL_EXECUTION_SPEC.md and relevant API/test contracts.
         acceptance:
-        - A visible create-task action opens the existing canonical editor within the course workflow.
-        - Saving and publication use existing server commands; only a confirmed published supported project version can be inserted.
-        - Closing, error, busy and dirty navigation preserve or guard both author and lesson drafts.
-        - Exact saved lesson content survives reopening; no fake Quiz support or unsupported task types advertised.
-        - Focused mounted interaction checks and required Learning browser evidence distinguish implementation from installed owner acceptance.
-        preserved_work: Draft PR918,923,927,928,939 remain preserved; no merge, migration renumbering or foreign WIP edits in this slice.
-        previous_wait_resolution: Owner explicitly changed order; fresh remote main dfee5badd299d318a8e51ff0cbf88e9656333a5d observed with successful General workflow. Root ClassroomPage and classroom E2E/CSS WIP preserved. This slice avoids those paths and all migration fixtures; no migration allocation applies.
-        historical_checkpoint: https://github.com/spikeal8-maker/asa-lab/issues/179#issuecomment-6582162186
+        - Write DB-000 physical schema reuse proof and exact required SQL, constraints, indexes, FK actions and RLS in the execution spec before new physical implementation. No second academic runtime or general core refactor.
+        - Persist incomplete Question and Quiz author drafts and reopen them without fake publication. Publish immutable exact QuestionVersion and QuizVersion pins atomically; author-only draft references cannot enter published content.
+        - Support single_choice, multiple_choice, boolean, numeric, short_text, matching, ordering and long_text_manual through creation, learner interaction and assessment. Keep answer keys private until the pinned feedback policy permits release.
+        - Reuse the same compact assignment creator and Course composition. Native keyboard-accessible controls, compact grouped actions and usable320,390,1024,1440 layouts; no expanded decorative panels.
+        - Preserve existing stable Account and StudentSeat identity, activation, immutable policies, dense attempt ordinals, saved server answers, revision conflicts, replay and server-authoritative deadlines.
+        - Submit the existing attempt idempotently using confirmed answers. Extend the existing bounded lifecycle-managed expiry sweep for auto_submit or expire_without_submission; no duplicate attempts, new timer service or fabricated grades.
+        - Reuse existing five-type grading rules and extend matching and ordering deterministically. Manual pending work cannot produce final selected grades or course completion; teacher review uses the existing ClassroomGradebook seam.
+        - Prove the complete authored Course to class to learner to review and journal journey in isolated actual PostgreSQL and browser runs, plus full required exact-head gates and independent review.
+        dependencies: Essay957 and foundation2d have successful General and Learning workflows and independent source approval. Their final integration candidates Essay045dbcc and foundation2e3e002 are also source-approved; Essay045 has fresh47 browser passes and General governance, code and data success while Access is finishing. Full Quiz inherits both candidates. Integrate these dependencies together with the complete Quiz in one joint candidate after its own final exact-head repository, focused, browser and independent-review evidence; separate parent merges are no longer prerequisites. Do not infer acceptance from inherited receipts alone.
+        integration_strategy: Published publication0303 intersected the provisional private Essay303 after its final convergence. One controlled additional convergence is selected for the joint candidate against actual main01b6cc2fc, preserving all published SQL and foreign product changes. Renumber only private dependency files and update strict current-prefix fixtures, then test the joint result once rather than repeating equivalent parent-only cycles. Do not integrate conflicting parent PRs separately. If another published ordinal intersection invalidates this final convergence, stop integration for an owner integration window instead of chasing main indefinitely; independent development may continue.
+        migration_allocation: Actual published main01b6cc2fc ends at0303_publication_owner_editor.sql. Provisional joint order is Essay304, Quiz policy305, Quiz attempt state306 and complete Quiz307. Verify the actual published frontier before convergence; private claims are not reservations. Preserve every published byte and historical checksum, and attest byte identity of private dependency SQL across renames.
+        constraints: Expected areas are forecasts, not per-file permission leases. Inspect real unfinished overlaps before writing and preserve foreign drafts, especially owner ClassroomPage and related classroom WIP. No learner-file feature, Python runner, tenant or RLS model change, unrelated repair, new dependency or workflow, deployment, owner database or protected assets in this slice. Preserve existing tests, limits, retries and timeouts.
+        programme_next: After accepted Quiz integration complete immutable learner-file answers, then the combined four-kind Course authoring, composition and class journey acceptance. The programme does not end at this slice.
+      pending_validation_slices:
+      - id: LRN-E1-ESSAY-COURSE-VERTICAL
+        source_pr: 964
+        source_sha: 045dbcc1442530fadc962c383e924aaa62e843cd
+        source_review: approved
+        learning_run: 41617317893
+        general_run: 41617317904
+        exact_head_gates: focused_success_repository_access_pending
+        browser_journeys_passed: 47
+        responsive_visuals: 16 images at320,390,1024,1440; exact frozen review and journal accepted.
+        status: joint_candidate_dependency
+        remaining: Preserve the reviewed Essay SQL and UI in the complete Quiz joint candidate; rename its private migration after newly published publication303 and require the joint exact-head evidence. Do not repeat a separate parent-only integration cycle.
+        owner_acceptance: pending
+        deployment: not_run
+      - id: LRN-QUIZ-FOUNDATION-RECOVERY
+        source_pr: 966
+        source_sha: 2e3e00211ee91993331d05a67fed06b6368a1f83
+        source_review: approved
+        learning_run: 41617902701
+        general_run: 41617902840
+        exact_head_gates: pending
+        previous_approved_receipt: Source2d972660 with General41539125989 and Learning41539126101 SUCCESS;47 actual browser cases and114files1240PASS per partition.
+        previous_browser_journeys_passed: 47
+        previous_actual_regression: Source2d each partition114files1240PASS and1diagnosticSKIP; Quiz state13,policy10,HTTP5 pass.
+        status: joint_candidate_dependency
+        remaining: Preserve the independently reviewed foundation SQL and controller blobs in the complete Quiz joint candidate, rename private forward files and require the joint exact-head evidence. No separate parent merge is required.
+        acceptance_limit: Persisted Quiz foundation only; no complete editor, submission, grading or installed readiness claim.
+        owner_acceptance: pending
+        deployment: not_run
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
@@ -12418,15 +12678,18 @@ parallel_lanes:
     execution_lease: {}
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 3e09f7b45957c0c69c7c80e3ad7418cced6a7313
+      convergence_baseline_sha: 3e8713476cafedda3e24a39665458e833efd7c22
       head_sha: null
-      observed_at: '2026-10-11T16:17:00Z'
+      observed_at: '2026-11-08T11:28:27Z'
       main:
         branch: main
-        sha: 3e09f7b45957c0c69c7c80e3ad7418cced6a7313
-      observation_note: Dated SERVER acceptance after exact aab integrated CI and independently reviewed source-equivalent 3e09 main integration; select CLIENT only. Full CI belongs to aab, not 3e09. Fetch main and exact CI before writes.
+        sha: 3e8713476cafedda3e24a39665458e833efd7c22
+      observation_note: Dated GitHub main snapshot for owner-selected school logging repair. Previous OBS015-017 evidence remains historical. Local candidates are not published, deployed, or owner accepted; Fetch main again before any write, then recheck its exact SHA and applicable CI before integration.
     owned_paths:
       - docs/deployment/ADMIN_LOGS.md
+      - tools/collect_logs.py
+      - tools/test_database_progress.py
+      - docs/deployment/ONEPANEL_COLLECTOR.md
     task:
       id: TASK-OBSERVABILITY-001
       issue: 551
@@ -12435,8 +12698,17 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS015_OBS016_OBS017_verified_reported_STOP_no_site_update
+      checkpoint: SCHOOL_LOGGING_REPAIR_20261108_selected_source_review_CI_and_runtime_pending
       owner_acceptance: pending
+      owner_authorization: explicit_owner_school_logging_repair_via_GitHub_Linux_1Panel_20261108
+      parallel_change_review:
+        pr: 982
+        observed_head: 339bf66f7b44d7158cc2ebf789f5ec871b7e7764
+        path: tools/collect_logs.py
+        peer_scope: file_timestamp_Nginx_combined_time
+        selected_scope: database_fresh_page_scheduler
+        decision: distinct_hunks_preserve_peer_branch_and_recheck_fresh_head_before_integration
+        physical_worktree_coordination: not_claimed_remote_PR_is_not_a_local_worktree
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
@@ -12453,9 +12725,50 @@ parallel_lanes:
         - document: RELEASE-WINDOWS-JUNCTION-FIXTURE-SPEC
           revision: '1.0'
     programme:
-      owner_authorization: sequential_log_and_user_observability_repair_20261011
+      owner_authorization: explicit_owner_school_logging_repair_via_GitHub_Linux_1Panel_20261108
       status: in_progress
-      selected_slice: OBS3B-CLIENT
+      selected_slice: SCHOOL-LOGGING-REPAIR-20261108
+      school_logging_repair:
+        status: selected_source_candidates_under_review
+        owner_instruction: Make school logging operational through reproducible GitHub source and native Linux 1Panel management; prepare and test the school system without application cutover.
+        source_baseline_sha: 3e8713476cafedda3e24a39665458e833efd7c22
+        runtime_authorization:
+          status: already_owner_authorized
+          target: asa-school-vm100
+          permitted: school_host_logging_setup_and_reproducible_native_1Panel_management
+          prerequisites: controller_exact_source_review_CI_backup_pin_review_and_operation_GO
+          additional_owner_permission_required: false
+          application_cutover_authorized: false
+          H04_changes_authorized: false
+          relation_to_programme_deployment_authorized: bounded_school_host_authorization_does_not_enable_full_observability_or_application_cutover
+        parts:
+          LOG-FIX-01: bounded_fair_fresh_database_page_drain_and_regressions
+          PANEL-LOG-01: native_1Panel_collector_manager_adapter_tests_and_minimal_runbook
+        controller_scope_assignment: >-
+          Keep tools/deployment/** under deployment-legacy-809's existing advisory path classification.
+          The current owner-selected school repair authorizes only the two named 1Panel adapter paths
+          in planned_paths; it does not reopen issue809 or change its task, legacy transition, or blockers.
+          Check all five planned paths and real worktree overlaps in canonical preflight; no fabricated
+          shared_path_coordination or duplicate owned_paths classification is introduced.
+        planned_paths:
+          - tools/collect_logs.py
+          - tools/test_database_progress.py
+          - tools/deployment/collector.py
+          - tools/deployment/test_panel_collector.py
+          - docs/deployment/ONEPANEL_COLLECTOR.md
+        boundaries:
+          history: preserve_immutable_events_cursor_windows_late_events_and_Docker_gap_flags
+          freshness: unchanged_thresholds_and_truthful_pending_on_budget_exhaustion
+          application: keep_runtime_images_at_3e_schema307_databaseOid117178_no_domain_cutover
+          source_release: reviewed_clean_canonical_source_only_fast_forward_separate_from_runtime_revision
+          secrets_and_roles: no_authentication_bypass_foreign_role_change_or_secret_publication
+          deployment: separate_reviewed_operation_only_after_exact_source_CI_and_backup_pin_review
+        gates_pending:
+          - canonical_preflight_on_real_full_checkout_after_main_selection
+          - exact_combined_source_review_and_applicable_GitHub_CI
+          - bounded_owned_runtime_burst_validation_and_cleanup
+        historical_causality: unproven_1053_pending_observation_1144_sources_already_fresh_without_our_changes
+        prior_batch: OBS015_OBS016_OBS017_completed_STOP_preserved_OBS018_045_not_selected
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
         selected_item: OBS-017
@@ -13055,18 +13368,20 @@ parallel_lanes:
           runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
           production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        OBS001-016 accepted within each report's declared scope. OBS016 real PostgreSQL baseline reproduced
-        schema-only duplicates, exact focused repaired CI succeeded, independent review PASS. Only OBS017
-        selected for new bounded author. Controller STOP after OBS017; OBS018 needs new owner instruction.
+        Preserve all previous OBS001-017 reports and the completed owner batch STOP. The owner now selects
+        only SCHOOL-LOGGING-REPAIR-20261108: fresh database scheduling and native 1Panel management.
+        This does not select OBS018-045, accept the full programme, or authorize application cutover.
       deployment_authorized: false
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
       scope_note: >-
-        Authorized batch OBS015-017: all editor classifications, schema-compatible identity verification,
-        bounded progress under recent DB load. No website update or live database/logs, local Docker or
-        schedule operations. Isolated synthetic database evidence may run in GitHub CI; no production data.
-        Preserve accepted history, other lanes and blockers. OBS018-045 remain unselected; no full programme
-        or live Linux acceptance is inferred from focused evidence.
+        The previous OBS015-017 owner batch and its no-site-update STOP remain historical completed work.
+        The new owner-selected repair is limited to the five school_logging_repair planned paths and
+        separately reviewed Server-setings integration. Preserve source history, existing application images,
+        database data and Docker legacy gap provenance. School host logging setup is already owner authorized;
+        exact operation release waits for controller review and CI, not a new owner permission. Local unit
+        success is not CI, runtime burst evidence, full log coverage, or owner acceptance. Apply main selection before product
+        branches inherit it; do not use a product branch to authorize itself. Other lanes and blockers remain.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -16038,8 +16353,8 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001.md
-    task:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-WAIT-CONTRACT-001.md
+    previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
       branch: main
@@ -16061,11 +16376,100 @@ parallel_lanes:
       analysis_result: 16complete_states_equal_saved_originals_and_complete_response_repeats_equal_except_computeMs_owned_and_prepared_paths_active
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
+    task:
+      id: TASK-ELECTRONICS-BROWSER-WAIT-CONTRACT-001
+      issue: 539
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: browser_wait_contract_selected
+      owner_acceptance: pending
+      owner_authorization: Owner requests fixing remaining Electronics timing failures, verifying the work in the browser, and publishing the verified changes in main.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-WAIT-CONTRACT-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+      previous_owned_stable_loops_slice:
+        task_id: TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001
+        integrated_sha: 39656d38b55bd6b3aca4c31be0da78a68f4e8699
+        pr: 1052
+      previous_spdt_evidence_budget_slice:
+        task_id: TASK-ELECTRONICS-SPDT-EVIDENCE-BUDGET-001
+        integrated_sha: bbff6866aa9f6779031f006aa179c864c88e5d6e
+        pr: 1050
+      previous_field_pinch_oracle_slice:
+        task_id: TASK-ELECTRONICS-FIELD-PINCH-ORACLE-001
+        integrated_sha: c9cc1e699211971c804dca7e2324e8801683b41a
+        pr: 1048
+      previous_mobile_inspector_oracle_slice:
+        task_id: TASK-ELECTRONICS-MOBILE-INSPECTOR-ORACLES-001
+        integrated_sha: 4b3e21467622bed7d2d6e0f2541e137d18e0e3e3
+        pr: 1047
+      previous_blockly_media_oracle_slice:
+        task_id: TASK-ELECTRONICS-BLOCKLY-MEDIA-ORACLE-001
+        integrated_sha: e7bc8e9af79c47cf6aeb612f9f6f765d9f2803e9
+        pr: 1046
+      previous_photoresistor_optical_slice:
+        task_id: TASK-ELECTRONICS-PHOTORESISTOR-OPTICAL-001
+        integrated_sha: 54f8f68e8f31f5b44af8ee24a4060f0c859a576e
+        pr: 1042
+      previous_photoresistor_overload_slice:
+        task_id: TASK-ELECTRONICS-PHOTORESISTOR-OVERLOAD-001
+        integrated_sha: c284b15612c390e22efa8624394b600c75b7e7b2
+        pr: 1041
+      previous_photoresistor_light_input_slice:
+        task_id: TASK-ELECTRONICS-PHOTORESISTOR-LIVE-001
+        integrated_sha: e4d1a773c081d4ced3ee4e074a62df15596b8d8e
+        pr: 1036
+      previous_button_serial_slice:
+        task_id: TASK-ELECTRONICS-BUTTON-LED-RESPONSE-001
+        integrated_sha: 64176e85dece6a05e0ab8986fcb7fa0b1b33aa00
+        browser_run: 42662331705
+        required_run: 42680311758
+      rejected_quantum_experiment:
+        task_id: TASK-ELECTRONICS-WORKER-WORK-QUANTUM-001
+        candidate_sha: e754f1ffe6e65e6c7f3cfa0a8e720d6b926a836e
+        result: Rejected; mixed raw Worker cancellation delayed from 253.7ms to 1571.9ms. Default 256 preserved. Zero timing failures closed.
+        independent_review: APPROVE_negative_evidence_REJECT_activation
+        card: docs/product/electronics/tasks/TASK-ELECTRONICS-WORKER-WORK-QUANTUM-001.md
+      previous_experiment:
+        task_id: TASK-ELECTRONICS-INTERPRETER-HOT-LOOP-001
+        status: completed_negative_no_product_activation
+        candidate_sha: 5943e737dc6338f6beb9311c5c87122ce1bd28da
+        independent_review: APPROVE_negative_evidence_only
+        result: Full320responses_equal_but_no_speed_gain_2145.70ms_before_2178.20ms_after_zero_timing_failures_closed
+        report: docs/product/electronics/evidence/interpreter-arity-20261103/REPORT.md
+      queue_copy_experiment:
+        task_id: TASK-ELECTRONICS-EVENT-QUEUE-COPY-001
+        status: completed_negative_no_product_activation
+        candidate_sha: 00ddd883a5f8f92996c7b786067d051231b124a4
+        independent_review: APPROVE_negative_evidence_only
+        result: Full320responses_equal_but_no_consistent_gain_median13.45ms_before_14.90ms_after_zero_timing_failures_closed
+        report: docs/product/electronics/evidence/event-queue-copy-20261103/REPORT.md
+      production_profile:
+        candidate_sha: 5bc1ac413e4c6f66c3128b306a8350a046907864
+        independent_review: APPROVE_diagnostic_evidence_only
+        report: docs/product/electronics/evidence/production-cpu-20261103/REPORT.md
+        result: NativeWorker160fullresponses_equal_6826samples_guard228.049ms_self_zero_timing_failures_closed
+      rejected_batch_design:
+        task_id: TASK-ELECTRONICS-SYNC-BATCH-GUARDS-001
+        result: NOT_SAFE_WITHIN_SELECTED_PATH_SET_no_source_edits_no_timing_failures_closed
+        independent_review: REJECT_before_product_edits
+        report: docs/product/electronics/evidence/sync-batch-guards-20261103/REPORT.md
+      next_scan_experiment:
+        candidate_sha: c88f07e4b9a0cc53d1d817226ea78bb1428d0a9e
+        independent_review: APPROVE_negative_evidence_only
+        result: Full320responses_equal_but_no_gain_compute4.30percent_slower_zero_timing_failures_closed
+        report: docs/product/electronics/evidence/next-event-scan-20261103/REPORT.md
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Electronics R4-M1 Focused
         commands:
-          - pnpm validate:electronics-agent-docs
+          - pnpm gate:electronics-m1
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
@@ -16078,7 +16482,7 @@ parallel_lanes:
         branch: main
         sha: eacb9fa9a1e6bfacd22d10c16ae017a5d551ef6f
       observed_at: '2026-11-01T22:29:00Z'
-      observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Read-only cause measurement selected separately; caption candidate waits for original browser and General evidence; no runtime source authorization.
+      observation_note: Fresh fetch main before edits and integration. This recorded baseline remains historical. Browser timing and electrical acceptance thresholds stay unchanged.
 
   - id: electronics-compact-toolbar-hit
     parent_lane: electronics
@@ -16091,17 +16495,22 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: owner_selected_four_native_toolbar_hit_failures
+      checkpoint: source_f641_four_native_journeys_and_general_verified_in_main
+      accepted_candidate_sha: f64141870b52458ad19b82b51582c47cb14460ea
+      independent_review: APPROVE_final_source_and_four_selected_actual_journeys
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
+      browser_run: 41525333022
+      general_run: 41527917133
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-COMPACT-CONTROLS-001.md
       repair_scope: CSS-only desktop toolbar packing and strengthened existing native oracle; preserve all original four Code journeys and all mobile/emergency-caption behavior.
       owner_authorization: Repair remaining Electronics failures easiest first; no server or foreign changes. Desktop-only authorship starts after this selection is published; inherit independently reviewed8080 caption source while its separate General finishes, without concurrent edits to the mobile caption.
-      next_action: One bounded author preserves accepted main, reproduces original1374/1181 clock/tool overlap in actual Header, fixes desktop packing, verifies native controls and original four Code journeys; new independent review and exact CI before integration.
+      next_action: The original four desktop/blocks Code journeys pass with87 selected compact phases, complete captions, native hit ownership and whole intent receipts. Mobile emergency E01 also passes. Broader fifth text-mobile qualification remains in Task870; owner acceptance and deployment are separate.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
@@ -16132,17 +16541,19 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: analysis/inventory
       risk: high
       semantic_change: 'no'
-      checkpoint: initial_probe_semantic_parity_pass_performance_inconclusive_vite_graph_correction
+      checkpoint: canonical_vite_probe_reviewed_yields_not_material_no_runtime_change
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001.md
       scope: TEMP-only real Chromium Worker measurement on frozen actual no-delay and millis requests; compare unchanged baseline, timer instrumentation and experimental MessageChannel yield. No repository runtime edits or acceptance.
       owner_authorization: Owner requests fixing remaining20 Electronics timing failures after simple toolbar fixes; measure independent Worker cause while reviewed desktop candidate waits for CI.
-      next_action: One corrected bounded TEMP-only probe must use actual canonical Vite Worker ES production build and full resolve aliases, retaining same8inputs3variants2passes. Audit emitted graph against Vite settings before execution; new independent actual review; no repository runtime implementation.
+      next_action: Diagnostic complete with independent DIAGNOSTIC_PASS_WITH_LIMITS. Resume existing application failure evidence before separately selecting a bounded runtime repair; no scheduler replacement or additional profiling is justified by this probe.
+      corrected_probe_evidence: docs/product/electronics/evidence/host-yield-diagnosis-934-20261102/review-receipt.json
+      corrected_probe_result: Canonical Vite ES Worker54sourceModules18artifacts verified;48completeResponsesAndSavedStatesEqual;nativeWait0to1_10msPerRequest_not_material;zeroTimingFailuresClosed_no_runtime_acceptance
       initial_probe_result: 48complete_responses_and_saved_states_match_cancellation8_7ms_no_stale300ms_but_44ignored_dist_modules901168bytes_and_unminified_IIFE_keepNames_make_production_perf_INCONCLUSIVE
       initial_probe_evidence: OS_temp_asa_browser_yield_138859ec_report_receipt_manifest_independently_verified118files291source_entries
       correction_boundary: Exactly one repeat for demonstrated build/provenance mismatch; no changed inputs, budgets, physical timing, deadlines or broader workload.
@@ -16164,6 +16575,108 @@ parallel_lanes:
         sha: 60264f69e9abdfe97111bd4ec4e447c7a9cbd9a4
       observed_at: '2026-11-02T00:20:23Z'
       observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Browser measurement grants no repository runtime mutation, realtime acceptance or deployment.
+
+  - id: electronics-mobile-properties
+    parent_lane: electronics
+    worktree_id: electronics-mobile-properties
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-PROPERTIES-001.md
+      - apps/web/src/electronics/mobile-inspector-disclosure.tsx
+    task:
+      id: TASK-ELECTRONICS-MOBILE-PROPERTIES-001
+      issue: 952
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: repair
+      risk: medium
+      semantic_change: 'yes'
+      checkpoint: source_b77_general_and_three_native_journeys_verified_in_main
+      accepted_candidate_sha: b77a43e0d473cef72bf182b0700f19867f6dbdaa
+      independent_review: APPROVE_final_source_recipe_and_actual_three
+      report: docs/product/electronics/evidence/mobile-properties-952-20261103/REPORT.md
+      browser_run: 41539218485
+      general_run: 41542126607
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-PROPERTIES-001.md
+      scope: Phone component properties collapsed square by default, compact expandable inspector, original property editing and native pinch preserved; hide phone zoom buttons. Desktop remains expanded. No physics or deployment changes.
+      owner_authorization: Owner explicitly requests restoring phone component properties, compact collapse/expand, desktop immediate display and removal of phone zoom controls on2026-11-02.
+      next_action: Exact sourceb77a43e0 General41542126607 passes all four jobs; native three-case41539218485 and independent review pass complete phone390, phone568 and desktop1536 journeys, Save/server-only reopen, touch scaling and metadata preservation. Controller integrates the seven bounded source files without regressing the newer pin-settings journey in main. Physical OS-keyboard and settled partial-code interaction remain evidence limits; owner acceptance and deployment are separate.
+      integration_order: Source preparation only in independent worktree; main integration follows verified944 pin initialization.
+    gates:
+      focused:
+        workflow: Electronics M1 Focused Gate
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: dfe1dd504d3db32c66077bba44d18855bb061712
+      head_sha: null
+      main:
+        branch: main
+        sha: dfe1dd504d3db32c66077bba44d18855bb061712
+      observed_at: '2026-11-02T18:45:06Z'
+      observation_note: Observed snapshot only; fresh fetch main and inspect exact-SHA CI before new edits. General41500859121 was in_progress, not PASS. No source integration or deployment acceptance granted.
+
+  - id: electronics-block-pin-setup
+    parent_lane: electronics
+    worktree_id: electronics-block-pin-setup
+    owned_paths:
+      - apps/web/src/electronics/arduino-blocks.ts
+      - apps/web/src/electronics/arduino-output-pins.ts
+      - apps/web/src/electronics/testing/arduino-pin-inputs.spec.ts
+      - apps/web/src/electronics/testing/arduino-output-pins.spec.ts
+      - apps/web/src/electronics/arduino-program-state.ts
+      - apps/web/src/electronics/testing/arduino-program-state.spec.ts
+      - apps/web/src/electronics/testing/arduino-inactive-blocks.spec.ts
+      - e2e/electronics-block-pin-setup.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PIN-SETUP-001.md
+    task:
+      id: TASK-ELECTRONICS-BLOCK-PIN-SETUP-001
+      issue: 944
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: source_f641_general_and_seven_browser_verified_in_main
+      accepted_candidate_sha: f64141870b52458ad19b82b51582c47cb14460ea
+      independent_review: APPROVE_final_source_and_actual_seven
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
+      browser_run: 41525333022
+      general_run: 41527917133
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PIN-SETUP-001.md
+      scope: Generated explicit pinMode in setup, simplified computed commands and legacy preservation. Owner explicitly chooses all canonical GPIO as OUTPUT except button/sensor input ports; no whole-program range analysis. Owner also approves a persisted per-board input-port list in Arduino settings for computed input numbers.
+      owner_authorization: Owner urgently requests computed pin initialization repair for public project7ad29bb5 on2026-11-02, then explicitly instructs configuring all ports as outputs except ports assigned as inputs for buttons. Owner subsequently approves an explicit input-port list in Arduino settings. No server or foreign changes.
+      next_action: Verified source is integrated by the controller with original five scoped journeys and both owner settings journeys green. Owner acceptance and deployment remain separate; default-height mobile Reset and broader raw/empty/corrupt Task865 preservation are still open.
+    gates:
+      focused:
+        workflow: Electronics M1 Focused Gate
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: eb696b485daf7b80376aa8bb7949eea83628c8b6
+      head_sha: null
+      main:
+        branch: main
+        sha: eb696b485daf7b80376aa8bb7949eea83628c8b6
+      observed_at: '2026-11-02T16:52:27Z'
+      observation_note: Observed snapshot only, not live status; fresh fetch main and inspect exact-SHA CI before new edits. No deployment or acceptance granted.
 
   - id: electronics-emergency-toolbar
     parent_lane: electronics
@@ -16248,15 +16761,15 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: low
       semantic_change: 'no'
-      checkpoint: selected_fixed_menu_actual_intersection_oracle_repair
-      accepted_candidate_sha: a85c5a2a68db9fe83755e2b0168aa7fadde69f74
+      checkpoint: all_96_current_compact_phases_verified_in_main
+      accepted_candidate_sha: 31f1b7b41f8fe62290cb9eec33e63d236d14a920
       source_review_evidence: done
-      independent_review: APPROVE_initial_header_only_not_full_journeys
-      report: docs/product/electronics/evidence/toolbar-oracle-870/GATES.md
+      independent_review: APPROVE_source_and_combined_87_plus_9_actual_phases
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
       owner_acceptance: pending
       execution_role: bounded_test_executor_then_new_independent_review
       context_hints:
@@ -16264,9 +16777,9 @@ parallel_lanes:
       owner_authorization: Owner continues remainingprogramme simplest first; actual frozenCI proves first four header assertions stale after accepted text tool and one-row policy. Test-only alignment, no product or generic paused timedAPI repair.
       acceptance_boundary: Actual_clipping_measurement_only_all_original_95_phases_and_five_native_points_retained
       current_repair_scope: Correct only the compact-case clipping collector/assertion to browser-computed actual intersections; preserve ancestor diagnostics, all bounds tolerances and genuine clipping/ownership tests. No product edits.
-      current_failure: Scoped41365631046 text-desktop-compact981-native-open falsely compares viewport-fixed purple bottom162 against uninvolved scroll-group bottom95 while all5nativepoints are owned.
-      current_evidence: Independent actual raw_PNG_and5_serverless_adversarial_cases_CONFIRM_ORACLE_FALSE_POSITIVE; both_fixed_menu_and_overflow_preexist_c353.
-      current_next_action: New bounded test-only executor preserves95originalphases/intents; one batched observer per capture, adversarial clipping and occlusion coverage, canonical browser-digest-only generation; new exact-source and actual review; STOP.
+      current_failure: No remaining compact-control qualification failure is demonstrated.
+      current_evidence: Run41525333022 independently approves87 compact phases and run41537679267 on identical relevant main31 source independently approves remaining9 text-mobile phases, 72 control observations and360 owned native points. Together96 cover historical95 plus981-native-closed; single attempts, retry0, unchanged whole intent receipts. This is viewport qualification, not phone-hardware or elapsed-clock proof.
+      current_next_action: Source and all preserved original compact cases are technically qualified. Owner acceptance, deployment and the separate runtime timing programme remain open; no further oracle mutation is selected.
       deployment: prohibited_by_owner
       database_actions: none_live
     gates:
@@ -16604,6 +17117,90 @@ parallel_lanes:
         commands:
           - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-RUNTIME-RESPONSIBILITY-001
           - pnpm control-plane:check
+
+  - id: robotics
+    parent_lane: electronics
+    worktree_id: robotics-field-v2-20261106
+    owned_paths:
+    - apps/web/robotics-dev.html
+    - apps/web/src/robotics/**
+    - contexts/robotics/**
+    - modules/robotics/**
+    - docs/product/robotics/**
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
+    task:
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-002
+      issue: 1001
+      branch: codex/robotics-field-v2-20261106
+      base_branch: main
+      pr: null
+      pr_draft: true
+      status: in_progress
+      checkpoint: owner_selected_editable_field_and_planar_dynamics
+      owner_acceptance: pending
+      source_pr: 991
+      source_head_sha: 9b14fb92e85c83636e9146da68597020d0885f55
+      owner_authorization: 'Owner explicitly requests continued Robotics field development: freely editable
+        field and strips, real-life ball, metal can and other elements, 30 cm modular tiles, more realistic
+        robot contacts and selectable physics levels. Prior explicit instruction to send completed Robotics
+        work into main persists. This authorizes canonical registration and bounded implementation/review/normal
+        protected source integration, not deployment, working database changes or owner acceptance. Portal
+        source integration PR991 and its post-merge General/Publications succeeded; unrelated acceptance
+        risks remain open.'
+      scope: 'Deliver one coherent Field v2 result in the existing Robotics portal: metric modular field,
+        editable lines/curves and tile stamps, ball/can/box catalogue, legacy-compatible educational mode
+        and finite-mass planar dynamics, independent numerical accuracy, authored save/reopen and immutable
+        public geometry.'
+      constraints:
+      - Reuse the existing electronics solver, Arduino/Blockly, catalog and committed motor/source-time
+        contracts; no copied motor equations, electrical load/stall claims or fake sensors.
+      - Preserve legacy world behaviour and source schema during server validation. New scene schemas have
+        explicit editor upgrade and reject downgrade/replacement data loss; old immutable publication schemas
+        stay readable.
+      - Finite-mass dynamic robot and objects react mutually to contacts. Mechanical traction limit and
+        floor resistance are explicit parameters; rolling and sliding are distinct. No vertical/tipping/deformation
+        claims.
+      - Field extent, tile size, grid/snap and screen zoom are distinct. Marks are authored geometry, not
+        walls or a fabricated color sensor. Invalid resize/placement preserves the valid source.
+      - Runtime pose/velocity stays outside authored saves, history and public artifacts. Pause/Reset and
+        deterministic committed-clock stepping remain authoritative.
+      - Public artifacts allowlist geometry only and exclude code/circuit/bindings/runtime/physics-private
+        fields. Account/StudentSeat, ACL/RLS, CAS/idempotency and publication immutability remain unchanged.
+      - One bounded mature 2D physics dependency is allowed if necessary, with exact pin, license and lockfile/build/bundle
+        validation. No new backend/service or runtime installation.
+      - Controller coordinates canonically registered work; domain and UI authors own explicitly disjoint
+        paths in one checkout. Independent final-SHA review covers mechanics/clock/rollout/layout.
+      - Built Web/API, real isolated PostgreSQL and main-site browser evidence cover 1440/1024/390/320.
+        Focused tests do not replace applicable General or owner acceptance.
+      - No deployment, working database, owner asset changes, 3D, line/color sensor runtime, noise model
+        or unrelated module repair. Inherited FAIL/UNKNOWN is retained until separately resolved.
+      - The necessary existing HC-SR04 no-echo timed-input seam is allowed as a separate bounded dependency for larger fields. Preserve legacy defaults, accepted Trig/Echo and pulseIn timeout; no range clamp, stale echo, alternate sensor or clock rewrite.
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
+      - docs/product/robotics/FIELD_V2_PLAN.md
+      - docs/product/robotics/README.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
+      gate_boundary: Registration uses governance only. Product uses test:robotics, projects-publication
+        code/PG and built-browser gates, types/build/bundle, required General and independent final-SHA
+        review. Local ephemeral formatting/unit checks are allowed; real browser/PostgreSQL evidence uses
+        isolated CI.
+      deployment: not_authorized
+      database_actions: isolated_tests_only
+    revisions:
+      convergence_baseline_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
+      head_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
 
 integration:
   owner_lane: visual-programming

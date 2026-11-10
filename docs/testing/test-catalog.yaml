@@ -26,6 +26,66 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-LEARNING-ESSAY-COURSE-001
+    title: Written Course responses preserve exact publication, learner authority, revisions, immutable evidence, rework and canonical journal results
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/courses/learning-essay-course-runtime.pg.spec.ts tests/courses/learning-essay-attempts.controller.spec.ts --maxWorkers=1
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-PUBLICATION-BROWSER-ISOLATION-001
+    title: Publication browser partitions preserve every scenario and use sequential owned API lifecycles without retry or limiter changes
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: node --test tools/projects-publication-partitions.test.mjs
+    timeout_seconds: 30
+    owner: identity
+    artifacts: [node-test-report]
+  - id: TST-JOINT-PREFIX-CANONICAL-MIGRATIONS-001
+    title: Real historical Course and joint Learning prefixes reach the complete canonical tail while preserving data, defaults, ACL, ledger and rejected unsupported history
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/migration/course-structure-forward-upgrade.pg.spec.ts tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts --maxWorkers=1
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-SCHOOL-CANONICAL-MIGRATIONS-001
+    title: Canonical published migrations and byte-preserved unreleased queue upgrade school schema 286 through 300 with exact ledger and owned uncertain jobs intact
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm gate:ai-image-queue
+    timeout_seconds: 1200
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-LRN-QUIZ-COMPLETE-COURSE-001
+    title: Eight-type persistent Quiz authoring, exact Attempt submission, automatic and pending manual journal results, saved-answer expiry and narrow author/Seat authority
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/courses/quiz-complete-course.pg.spec.ts tests/courses/learning-content.controller.spec.ts tests/courses/learning-quiz-attempts.controller.spec.ts apps/api/src/account-verification.guard.spec.ts apps/web/src/learning/testing/quiz-complete-ui.spec.ts
+    timeout_seconds: 300
+    owner: learning
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-LRN-QUIZ-ATTEMPT-STATE-001
+    title: Exact Quiz Start replay, confirmed answer revision, identity isolation and server deadline without academic result writes
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/courses/quiz-attempt-state.pg.spec.ts tests/courses/learning-quiz-attempts.controller.spec.ts apps/api/src/account-verification.guard.spec.ts
+    timeout_seconds: 300
+    owner: learning
+    artifacts: [vitest-report, postgresql-isolation-report]
   - id: TST-AI-TOKEN-BUDGETS-CORE-001
     title: Soft monthly model budgets, actual journal settlement, retained unknowns, complete native rounds, own-principal privacy and independent CAS settings
     suite: authorization
@@ -118,6 +178,16 @@ tests:
     timeout_seconds: 180
     owner: ai-assistant
     artifacts: [vitest-report, private-storage-reconciliation-report]
+  - id: TST-AI-FIXTURE-STARTUP-001
+    title: Actual fixture CLI rejects incomplete asynchronous startup without Docker or network access
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: node --test tests/ai-attachments/minio-fixture.test.mjs
+    timeout_seconds: 30
+    owner: ai-assistant
+    artifacts: [node-test-report]
   - id: TST-AI-CLOUD-PG-001
     title: Separate encrypted cloud provider credentials, Ollama Cloud transport, paid admission and durable usage
     suite: authorization
@@ -1529,6 +1599,39 @@ tests:
     timeout_seconds: 300
     owner: devex-engine
     artifacts: [shadow-control-report]
+
+  - id: TST-DEVEX-CI-REQUIRED-001
+    title: Exact-source General aggregate rejects missing skipped cancelled failed and inapplicable mandatory jobs
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: python tools/test_ci_required.py
+    timeout_seconds: 180
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-CI-CONTRACT-001
+    title: Versioned General accepted-base selection and actual applicable exact-source results fail closed
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: python tools/test_devex_ci_contract.py
+    timeout_seconds: 180
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-CI-EFFECT-INTEGRATION-001
+    title: General contract reuses the installed AST helper for an actual accepted CSS effect and unsupported effect rejection
+    suite: contracts
+    level: integration
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-python.mjs tools/test_devex_ci_contract.py --helper-integration
+    timeout_seconds: 60
+    owner: devex-engine
+    artifacts: [test-report]
 
   - id: TST-DEVEX-CHECK-001
     title: Changed local runner preflight, actual subprocess failure and timeout, safe scheduling and isolated Python bootstrap

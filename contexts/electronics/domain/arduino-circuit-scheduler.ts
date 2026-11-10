@@ -83,6 +83,7 @@ import {
 import {
   advanceHcSr04Due,
   hcSr04DistanceMeters,
+  hcSr04EchoAvailable,
   hcSr04InputLevels,
   hcSr04NextDueMicroseconds,
   initialHcSr04RuntimeState,
@@ -136,6 +137,18 @@ function usesElectrothermalProfile(document: ElectronicsDocument): boolean {
     )
   )
     return true;
+  // A photoresistor without a source still accepts ambient-light inputs.
+  // Select a thermal clock only when its circuit can supply electrical power.
+  if (
+    document.components.some((component) => component.kind === 'photoresistor') &&
+    document.components.some(
+      (component) =>
+        isArduinoUno(component) ||
+        electricalModelFor(component).id === 'ideal-dc-source' ||
+        electricalModelFor(component).id === 'function-generator',
+    )
+  )
+    return true;
   // Select the physical profile from the fixed circuit, not the live meter mode.
   // A passive no-source circuit must retain the observable algebraic profile;
   // energized circuits keep the fuse history across A/V/R changes.
@@ -184,10 +197,12 @@ export interface ArduinoCircuitInputEvent {
   readonly property:
     | 'state'
     | 'wiperPosition'
+    | 'illumination'
     | 'temperatureCelsius'
     | 'moisturePercent'
     | 'motionDetected'
     | 'distanceMeters'
+    | 'echoAvailable'
     | 'serialRx'
     | 'voltageSetpointVolt'
     | 'currentLimitAmp'
@@ -360,6 +375,12 @@ function validInputs(
             Number.isFinite(event.value) &&
             event.value >= 0 &&
             event.value <= 1) ||
+          (event.property === 'illumination' &&
+            component.kind === 'photoresistor' &&
+            typeof event.value === 'number' &&
+            Number.isFinite(event.value) &&
+            event.value >= 0 &&
+            event.value <= 1) ||
           (event.property === 'moisturePercent' &&
             component.componentTypeId === 'soil-moisture-sensor' &&
             typeof event.value === 'number' &&
@@ -382,6 +403,9 @@ function validInputs(
             Number.isFinite(event.value) &&
             event.value >= 0.02 &&
             event.value <= (component.componentTypeId === 'ultrasonic-hc-sr04' ? 4 : 3)) ||
+          (event.property === 'echoAvailable' &&
+            component.componentTypeId === 'ultrasonic-hc-sr04' &&
+            typeof event.value === 'boolean') ||
           (event.property === 'serialRx' &&
             isArduinoUno(component) &&
             typeof event.value === 'string' &&
@@ -855,6 +879,14 @@ export function advanceArduinoCircuitClock(
       'invalid_hc_sr04_distance',
       `${invalidHcSr04.id}: distanceMeters должен быть 0.02…4.00 м.`,
     );
+  const invalidHcSr04Echo = hcSr04Components.find(
+    (component) => hcSr04EchoAvailable(component) === null,
+  );
+  if (invalidHcSr04Echo)
+    return fault(
+      'invalid_hc_sr04_echo_available',
+      `${invalidHcSr04Echo.id}: echoAvailable должен быть логическим значением.`,
+    );
   const invalidPingUltrasonic = pingUltrasonicComponents.find(
     (component) => pingUltrasonicDistanceMeters(component) === null,
   );
@@ -1322,6 +1354,7 @@ export function advanceArduinoCircuitClock(
         levels.powered,
         levels.triggerHigh,
         hcSr04DistanceMeters(activeComponent)!,
+        hcSr04EchoAvailable(activeComponent)!,
       );
       hcSr04States.set(component.id, step.state);
       echoChanged ||= step.echoChanged;
@@ -1521,7 +1554,9 @@ export function advanceArduinoCircuitClock(
     ) {
       const source = executionSources.get(onlyBoard.id)!;
       if (ownership && ownership.runtime === undefined) {
-        ownership.runtime = createOwnedClockedArduinoRuntime(source, currentRuntime);
+        ownership.runtime = createOwnedClockedArduinoRuntime(source, currentRuntime, {
+          accountForStableLoops: true,
+        });
         ownership.source = source;
       }
       let readFailed = false;

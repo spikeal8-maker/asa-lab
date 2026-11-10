@@ -5,8 +5,11 @@ import type { PublicProjectListView } from '../creator-portal/navigation';
 import { publicProjectsApi, type PublicProject } from './api';
 import { PublicationPreview } from './PublicationPreview';
 import { PublicAuthorAvatar } from './PublicAuthorAvatar';
+import { ProjectModuleIcon } from '../modules/ProjectModuleIcon';
 import { PUBLIC_PROJECT_MODULES, publicationHref, publicModuleName } from './presentation';
 import './public-projects.css';
+
+const CATALOG_MODULES = [...PUBLIC_PROJECT_MODULES, { value: 'ai', label: 'ИИ' }];
 
 export function PublicProjectsPage({
   view,
@@ -38,6 +41,11 @@ export function PublicProjectsPage({
     setNextOffset(null);
     setLoadingMore(false);
     moreRequest.current = false;
+    // AI is a catalog-only category until its publication contract is admitted.
+    if (moduleFilter === 'ai') {
+      setItems([]);
+      return;
+    }
     const result = await publicProjectsApi.list({
       ...(view.search ? { search: view.search } : {}),
       ...(moduleFilter ? { module: moduleFilter } : {}),
@@ -156,9 +164,8 @@ export function PublicProjectsPage({
         <div className="public-projects-categories" role="group" aria-label="Среда проекта">
           {[
             { value: '', label: 'Все' },
-            ...PUBLIC_PROJECT_MODULES,
-            ...(moduleFilter &&
-            !PUBLIC_PROJECT_MODULES.some((module) => module.value === moduleFilter)
+            ...CATALOG_MODULES,
+            ...(moduleFilter && !CATALOG_MODULES.some((module) => module.value === moduleFilter)
               ? [{ value: moduleFilter, label: publicModuleName(moduleFilter) }]
               : []),
           ].map((module) => (
@@ -177,6 +184,7 @@ export function PublicProjectsPage({
                 })
               }
             >
+              <ProjectModuleIcon moduleKey={module.value || 'all'} />
               {module.label}
             </button>
           ))}
@@ -277,19 +285,9 @@ export function PublicProjectsPage({
                       className="publication-module"
                       data-module={publication.moduleKey}
                       title={publicModuleName(publication.moduleKey)}
+                      aria-label={publicModuleName(publication.moduleKey)}
                     >
-                      <span className="public-project-module-full">
-                        {publication.moduleKey === 'blocks'
-                          ? 'Программа'
-                          : publication.moduleKey === 'three-d'
-                            ? '3D'
-                            : publicModuleName(publication.moduleKey)}
-                      </span>
-                      {publication.moduleKey === 'electronics' ? (
-                        <span className="public-project-module-compact" aria-hidden="true">
-                          Схемы
-                        </span>
-                      ) : null}
+                      <ProjectModuleIcon moduleKey={publication.moduleKey} />
                     </span>
                   </div>
                   <div className="public-project-card-marks">

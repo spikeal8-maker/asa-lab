@@ -1,0 +1,81 @@
+.quiz-editor,
+.quiz-player {
+  min-width: 0;
+  max-width: 100%;
+  display: grid;
+  gap: 12px;
+}
+.quiz-editor fieldset,
+.quiz-player fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border-color, #d5d9e0);
+  border-radius: 8px;
+}
+.quiz-editor label,
+.quiz-player label,
+.quiz-options {
+  display: grid;
+  gap: 6px;
+  margin-block: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.quiz-editor input:not([type='checkbox']):not([type='radio']),
+.quiz-editor select,
+.quiz-editor textarea,
+.quiz-player input:not([type='checkbox']):not([type='radio']),
+.quiz-player select,
+.quiz-player textarea {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  font: inherit;
+  padding: 8px;
+}
+.quiz-options .quiz-choice {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+}
+.quiz-choice > input:is([type='radio'], [type='checkbox']) {
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  padding: 0;
+}
+.quiz-choice > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.quiz-editor textarea,
+.quiz-player textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.quiz-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.quiz-editor legend,
+.quiz-player legend {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.quiz-editor details,
+.quiz-editor summary {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.quiz-actions button,
+.quiz-editor button {
+  max-width: 100%;
+  white-space: normal;
+}

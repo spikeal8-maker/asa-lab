@@ -341,15 +341,54 @@ test('portrait snapshots cannot stretch existing project cards on desktop or pho
   });
   for (const width of [1100, 390]) {
     await page.setViewportSize({ width, height: 900 });
-    const frames = await page.locator('.project-card-frame').evaluateAll((elements) =>
+    const cards = await page.locator('.project-card').evaluateAll((elements) =>
       elements.map((element) => {
-        const bounds = element.getBoundingClientRect();
-        return { width: bounds.width, height: bounds.height };
+        const frame = element.querySelector('.project-card-frame');
+        const body = element.querySelector('.project-card-body');
+        const image = element.querySelector('img');
+        if (!frame || !body || !image) throw new Error('Project card preview is incomplete');
+        const bounds = (node: Element) => {
+          const { left, top, right, bottom, width, height } = node.getBoundingClientRect();
+          return { left, top, right, bottom, width, height };
+        };
+        return {
+          card: bounds(element),
+          frame: bounds(frame),
+          body: bounds(body),
+          image: bounds(image),
+          decoded: image.complete,
+          naturalSize: [image.naturalWidth, image.naturalHeight],
+          objectFit: getComputedStyle(image).objectFit,
+        };
       }),
     );
-    for (const frame of frames)
-      expect(Math.abs(frame.height - (frame.width * 3) / 4)).toBeLessThan(2);
-    expect(Math.abs(frames[0]!.height - frames[1]!.height)).toBeLessThan(2);
+    expect(cards).toHaveLength(2);
+    expect(cards.map((card) => card.naturalSize)).toEqual([
+      [960, 640],
+      [390, 844],
+    ]);
+    // Ordinary grid cards are square; their flexible preview fills the space above the caption.
+    // Check the outer shape too: equally stretched frames alone would hide a taller grid row.
+    for (const { card, frame, body, image, decoded, objectFit } of cards) {
+      expect(card.width).toBeGreaterThan(0);
+      expect(Math.abs(card.height - card.width)).toBeLessThan(2);
+      expect(frame.width).toBeGreaterThan(0);
+      expect(frame.height).toBeGreaterThan(0);
+      expect(frame.left).toBeGreaterThanOrEqual(card.left);
+      expect(frame.right).toBeLessThanOrEqual(card.right);
+      expect(frame.top).toBeGreaterThanOrEqual(card.top);
+      expect(frame.bottom).toBeLessThanOrEqual(body.top + 1);
+      expect(body.bottom).toBeLessThanOrEqual(card.bottom);
+      expect(decoded).toBe(true);
+      expect(objectFit).toBe('contain');
+      expect(Math.abs(image.left - frame.left)).toBeLessThan(2);
+      expect(Math.abs(image.right - frame.right)).toBeLessThan(2);
+      expect(Math.abs(image.top - frame.top)).toBeLessThan(2);
+      expect(Math.abs(image.bottom - frame.bottom)).toBeLessThan(2);
+    }
+    expect(Math.abs(cards[0]!.card.height - cards[1]!.card.height)).toBeLessThan(2);
+    expect(Math.abs(cards[0]!.frame.height - cards[1]!.frame.height)).toBeLessThan(2);
+    expect(Math.abs(cards[0]!.frame.top - cards[1]!.frame.top)).toBeLessThan(2);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       width,
     );

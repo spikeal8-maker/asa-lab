@@ -374,6 +374,81 @@ const upgradeArtifacts = [
     '0299_ai_polza_token_budget_catalog.sql',
     '12b080915d4808056f4ba5d9995631aa6c93f41d2c37c3b314621090400b1fac',
   ],
+  [
+    '0300',
+    '0300_ai_image_durable_queue.sql',
+    '0ea57787d707326f9222fb906bc7d826a91d417c3efdeeb6251c6a3156b6cd26',
+  ],
+  [
+    '0301',
+    '0301_games_chess_lobby.sql',
+    'f64f992a4b6f0d98a9e7e33666e7c67083c4ff274a0780311159ae6ac84514f2',
+  ],
+  [
+    '0302',
+    '0302_games_chess_notifications.sql',
+    '43fb00c4ee7cdff378ffcaa1acd803a2b312eabc9d3211181c23bd238ba05a6d',
+  ],
+  [
+    '0303',
+    '0303_publication_owner_editor.sql',
+    '92818d6ea4dff20e5201e7e4e228678067048155714c89ce9d6f3270792bf60c',
+  ],
+  [
+    '0304',
+    '0304_games_checkers_network.sql',
+    'ecb1283c5adea892895b540f2e04d75a74ab51c54660110bf5a8269f56b3279d',
+  ],
+  [
+    '0305',
+    '0305_robotics_projects.sql',
+    'd706c3eaa79a7b3ce24824c507fa27ff524d9fcd9a0bb49eea1d6ee7410750bb',
+  ],
+  [
+    '0306',
+    '0306_robotics_publications.sql',
+    '7c88a610329dc61030dc2155ffc33cf573062f18425044173026e67723737f11',
+  ],
+  [
+    '0307',
+    '0307_robotics_telemetry_v2.sql',
+    '3ea56361e766b572a5e83b4bce8d68ac90e3b82b92c79eabe6750619b8e71779',
+  ],
+  [
+    '0308',
+    '0308_ai_eight_tool_registry.sql',
+    '85722956cf9ec5aa183e8b710f720c7f2356d761bc47466f756b87f8358bbf9a',
+  ],
+  [
+    '0309',
+    '0309_learning_essay_course_runtime.sql',
+    '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
+  ],
+  [
+    '0310',
+    '0310_learning_quiz_policy_authority.sql',
+    '85b4df00292bc47058616fe20054301a8a533a5ae3474daf8dbd3edc951fed39',
+  ],
+  [
+    '0311',
+    '0311_learning_quiz_attempt_state.sql',
+    '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
+  ],
+  [
+    '0312',
+    '0312_learning_quiz_complete_course.sql',
+    'fb93b9453e0127d94843feb45abf8371437eee0b0421ceb34323171bc5a1825b',
+  ],
+  [
+    '0313',
+    '0313_ai_openai_chat_catalog.sql',
+    'e16505c4be32c1bb8996f349a946d4aa5db469746781385c8fa029ac29c4dc13',
+  ],
+  [
+    '0314',
+    '0314_ai_polza_video_catalog.sql',
+    '0a72cf57049ff31c89950609ffec5d6d9918eeff9f73b68057346c4fdf951f81',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -455,6 +530,11 @@ const preservedTables = [
   'learner_identity_links',
   'learning_activities',
   'learning_activity_versions',
+  'question_bank_items',
+  'question_versions',
+  'question_answer_keys',
+  'quiz_versions',
+  'quiz_version_questions',
   'courses',
   'course_sections',
   'course_lessons',
@@ -464,6 +544,11 @@ const preservedTables = [
   'course_enrollments',
   'activity_runs',
   'activity_participations',
+  'learning_attempts',
+  'learning_submissions',
+  'learning_evaluations',
+  'assessment_results',
+  'gradebook_entries',
   'projects',
   'project_drafts',
   'project_versions',
@@ -487,20 +572,22 @@ async function preservedData(pool: pg.Pool) {
     // Normalize only known additive columns; all old and unknown future fields
     // remain covered by the strict before/after equality below.
     const addedColumns =
-      table === 'projects'
-        ? [...copiedProjectOriginFields]
-        : table === 'project_publication_state'
-          ? [
-              'acquisition_allowed',
-              'acquisition_version',
-              'reactions_enabled',
-              'reactions_version',
-              'comments_admin_enabled',
-              'comments_enabled',
-              'comments_version',
-              'pinned_comment_id',
-            ]
-          : [];
+      table === 'learning_attempts'
+        ? ['expires_at']
+        : table === 'projects'
+          ? [...copiedProjectOriginFields]
+          : table === 'project_publication_state'
+            ? [
+                'acquisition_allowed',
+                'acquisition_version',
+                'reactions_enabled',
+                'reactions_version',
+                'comments_enabled',
+                'comments_admin_enabled',
+                'comments_version',
+                'pinned_comment_id',
+              ]
+            : [];
     result[table] = (
       await pool.query(
         `SELECT to_jsonb(snapshot_row) - $1::text[] AS value
@@ -624,6 +711,51 @@ async function seedOldContracts(pool: pg.Pool, client: pg.PoolClient) {
     assessmentPolicy: { mode: 'manual' },
     feedbackReleasePolicy: { mode: 'immediate' },
   };
+  // These rows are created under the OLD normalizer before the additive
+  // authority repair. Full table snapshots below must preserve their old rules
+  // and content digests byte-for-byte through the forward upgrade.
+  const quizQuestion = (
+    await pool.query(
+      `SELECT * FROM question_version_create($1,$2,'school','boolean',
+      '[{"type":"paragraph","text":"Historical Quiz?"}]'::jsonb,'{}'::jsonb,
+      '{"value":true}'::jsonb,3,'Science','10-12',ARRAY['prefix'])`,
+      [principal, teacher.tenantId],
+    )
+  ).rows[0];
+  expect(quizQuestion.result_code).toBe('ok');
+  const oldQuiz = (
+    await pool.query(
+      `SELECT * FROM quiz_version_create($1,$2,'Historical Quiz','Keep its rules',$3::jsonb,2,15,7500,'after_close')`,
+      [principal, teacher.tenantId, JSON.stringify([quizQuestion.question_version_id])],
+    )
+  ).rows[0];
+  expect(oldQuiz.result_code).toBe('ok');
+  const oldCanonicalQuiz = (
+    await pool.query(
+      `SELECT * FROM learning_activity_create($1,$2,'school','private','quiz',
+      'Old canonical Quiz','Keep frozen policy','graded',3,$3::jsonb,NULL,$4,NULL,NULL,'prefix-quiz-225')`,
+      [principal, teacher.tenantId, JSON.stringify(policies), oldQuiz.quiz_version_id],
+    )
+  ).rows[0];
+  expect(oldCanonicalQuiz.result_code).toBe('ok');
+  const oldQuizVersion = (
+    await pool.query(
+      `SELECT * FROM learning_activity_publish($1,$2,$3,1,'prefix-quiz-publish-225')`,
+      [principal, teacher.tenantId, oldCanonicalQuiz.activity_id],
+    )
+  ).rows[0];
+  expect(oldQuizVersion.result_code).toBe('ok');
+  expect(
+    (
+      await pool.query('SELECT policy_snapshot FROM learning_activity_versions WHERE id=$1', [
+        oldQuizVersion.activity_version_id,
+      ])
+    ).rows[0].policy_snapshot,
+  ).toMatchObject({
+    attemptPolicy: { maxAttempts: 2, timeLimitMinutes: 15 },
+    assessmentPolicy: { mode: 'automatic', passThresholdBasisPoints: 7500 },
+    feedbackReleasePolicy: { mode: 'after_close' },
+  });
   const activity = (
     await pool.query(
       `SELECT * FROM learning_activity_create($1,$2,'school','private','project',
@@ -699,6 +831,19 @@ async function seedOldContracts(pool: pg.Pool, client: pg.PoolClient) {
     )
   ).rows;
   expect(participation).toHaveLength(1);
+  // A real historical Attempt exists before the new nullable expiry column.
+  // Preserve its complete old row, not a fabricated post-upgrade snapshot.
+  await pool.query(
+    `INSERT INTO learning_attempts
+    (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
+     seat_id,learner_identity_id,activity_participation_id,attempt_number,state)
+    SELECT run.tenant_id,run.classroom_id,run.source_classroom_assignment_id,
+      run.learning_activity_version_id,$2,part.learner_identity_id,part.id,1,'closed'
+    FROM activity_participations part JOIN activity_runs run ON run.id=part.activity_run_id
+    WHERE part.id=$1`,
+    [participation[0].id, seat],
+  );
+
   // This historical command reads app.tenant_id. Keep its context and decision
   // on one connection/transaction; a prior autocommit query cannot supply it.
   try {
@@ -790,10 +935,17 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
           .filter((item) => Number(item.version) <= 225)
           .map(({ version, name, checksum }) => ({ version, name, checksum })),
       );
+      const normalizerSecurity = (
+        await pool.query(
+          `SELECT proowner,proacl,prosecdef,proconfig FROM pg_proc
+          WHERE oid='learning_activity_normalize_draft(uuid,uuid,character varying,character varying,character varying,character varying,integer,jsonb,character varying,uuid,uuid,uuid)'::regprocedure`,
+        )
+      ).rows;
       const before = await preservedData(pool);
       expect(before.course_versions).toHaveLength(1);
       expect(before.course_enrollments).toHaveLength(1);
       expect(before.activity_participations).toHaveLength(1);
+      expect(before.learning_attempts).toHaveLength(1);
       expect(before.project_versions).toHaveLength(1);
       expect(before.ai_paid_operation_quota).toHaveLength(2);
       const threads = (await pool.query('SELECT * FROM ai_assistant_threads ORDER BY id')).rows;
@@ -863,6 +1015,25 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         })),
       );
       expect(await preservedData(pool)).toEqual(before);
+      expect(
+        (await pool.query('SELECT expires_at FROM learning_attempts ORDER BY id')).rows,
+      ).toEqual(before.learning_attempts!.map(() => ({ expires_at: null })));
+      expect(
+        (
+          await pool.query(`SELECT
+        (SELECT count(*) FROM quiz_attempt_states) AS states,
+        (SELECT count(*) FROM quiz_attempt_start_receipts) AS receipts`)
+        ).rows[0],
+      ).toEqual({ states: '0', receipts: '0' });
+
+      expect(
+        (
+          await pool.query(
+            `SELECT proowner,proacl,prosecdef,proconfig FROM pg_proc
+          WHERE oid='learning_activity_normalize_draft(uuid,uuid,character varying,character varying,character varying,character varying,integer,jsonb,character varying,uuid,uuid,uuid)'::regprocedure`,
+          )
+        ).rows,
+      ).toEqual(normalizerSecurity);
       // New public-copy provenance columns must be NULL on every historical Project.
       expect(
         (

@@ -265,3 +265,63 @@ test('My Projects empty state does not expose a collection action without a proj
   );
   expect(collectionApp.requests).toEqual([]);
 });
+
+// The Home entry renders the same CollectPicker through useHomeProjectActions.
+// Keep the original MyProjects cases above intact and cover this caller directly.
+for (const width of [1440, 1024, 390, 320]) {
+  for (const populated of [false, true]) {
+    test(`Home collection picker baseline ${populated ? 'long populated' : 'empty'} at ${width}px`, async ({
+      page,
+      collectionApp,
+    }, info) => {
+      await page.setViewportSize({ width, height: 900 });
+      await collectionApp.openHome({
+        longContent: true,
+        collections: populated
+          ? [
+              {
+                ...COLLECTIONS[0],
+                title: 'Схемы для занятий и самостоятельного исследования электрических цепей',
+              },
+              { ...COLLECTIONS[1], title: 'Идеи для следующего проекта и полезные наблюдения' },
+            ]
+          : [],
+        holding: populated ? [COLLECTIONS[0].id] : [],
+      });
+      const dialog = await collectionApp.openPicker();
+      await expect(
+        dialog.getByText('Исследование электрических цепей', { exact: false }),
+      ).toBeVisible();
+      if (populated) {
+        await expect(dialog.getByRole('checkbox')).toHaveCount(2);
+        await expect(dialog.getByRole('checkbox').first()).toBeChecked();
+        await expect(dialog.getByRole('checkbox').last()).not.toBeChecked();
+      } else {
+        await expect(dialog.getByText('Подборок пока нет — создайте первую.')).toBeVisible();
+        await expect(dialog.getByRole('checkbox')).toHaveCount(0);
+      }
+      await expect(
+        dialog.getByRole('button', { name: 'Создать и добавить', exact: true }),
+      ).toBeDisabled();
+      await dialog.getByPlaceholder('Новая подборка').fill('   ');
+      await expect(
+        dialog.getByRole('button', { name: 'Создать и добавить', exact: true }),
+      ).toBeDisabled();
+      expectPickerLayout(
+        await capturePickerGeometry(
+          page,
+          info,
+          `home-baseline-${populated ? 'populated' : 'empty'}-${width}`,
+        ),
+      );
+      await dialog.getByRole('button', { name: 'Готово', exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      await collectionApp.openPicker();
+      await page.keyboard.press('Escape');
+      await expect(picker(page)).toHaveCount(0);
+      expect(
+        collectionApp.requests.filter((item) => ['create', 'toggle'].includes(item.operation)),
+      ).toEqual([]);
+    });
+  }
+}

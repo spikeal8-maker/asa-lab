@@ -4,9 +4,6 @@ name: ASA Lab Governance and Code Gates
   push:
     branches:
       - main
-      - "agent/**"
-      - "assistant/**"
-      - "codex/**"
   pull_request: {}
 
 # Read-only, but wider than contents alone: the control-plane validator compares
@@ -26,8 +23,84 @@ concurrency:
 env:
   CI: "true"
   NX_SKIP_NX_CACHE: "true"
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+  BASE_REF: ${{ github.event.pull_request.base.ref || github.ref_name }}
+  EVENT_NAME: ${{ github.event_name }}
+  EVENT_REF: ${{ github.ref }}
+  MERGE_CANDIDATE_SHA: ${{ github.sha }}
 
 jobs:
+  selection:
+    name: Versioned General applicability
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    outputs:
+      route: ${{ steps.plan.outputs.route }}
+      plan: ${{ steps.plan.outputs.plan }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Cheap source diff and accepted-base classification
+        id: changes
+        shell: bash
+        run: |
+          git switch --detach "$SOURCE_SHA"
+          git diff --check
+          if [ "$EVENT_NAME" = pull_request ] && [ "$BASE_REF" = main ] && git show "$BASE_SHA:tools/devex_ci_contract.py" > "$RUNNER_TEMP/devex_ci_contract.py"; then
+            python3 "$RUNNER_TEMP/devex_ci_contract.py" classify
+          else
+            GITHUB_OUTPUT='' python3 tools/devex_ci_contract.py classify
+            printf 'candidate=false\n' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@v4
+        if: steps.changes.outputs.candidate == 'true'
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.candidate == 'true'
+        with:
+          node-version: "22"
+          cache: pnpm
+      - name: Install proof dependencies only for bounded candidate
+        if: steps.changes.outputs.candidate == 'true'
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Existing AST and source proof
+        if: steps.changes.outputs.candidate == 'true'
+        env:
+          MERGE_BASE: ${{ steps.changes.outputs.merge_base }}
+        run: node tools/devex-local-ui.mjs --prove "$MERGE_BASE" > .asa/devex/ci-proof.json
+      - name: Publish exact-source applicability plan
+        id: plan
+        shell: bash
+        run: |
+          if [ "$EVENT_NAME" = pull_request ] && [ "$BASE_REF" = main ] && [ -s "$RUNNER_TEMP/devex_ci_contract.py" ]; then
+            python3 "$RUNNER_TEMP/devex_ci_contract.py" select
+          else
+            python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          plan = json.loads(Path('.asa/devex/general-plan.json').read_text())
+          if plan['route'] != 'FULL' or plan['candidate'] is not False:
+              raise SystemExit('Bootstrap/Main must be FULL')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('route=FULL\nplan=' + json.dumps(plan, separators=(',', ':')) + '\n')
+          PY
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: general-plan-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .asa/devex/general-plan.json
+            .asa/devex/ci-proof.json
+          include-hidden-files: true
+          if-no-files-found: error
+
   governance:
     name: Governance contracts
     runs-on: ubuntu-latest
@@ -62,7 +135,8 @@ jobs:
 
   code:
     name: Format lint types contracts build
-    needs: governance
+    needs: [governance, selection]
+    if: needs.selection.outputs.route == 'FULL' || needs.selection.outputs.route == 'PARALLEL'
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -89,6 +163,9 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Web cache native hasher regressions
+        run: pnpm exec vitest run tests/production/nx-web-cache.spec.ts --maxWorkers=1
+
       - name: Set up Python for observability checks
         uses: actions/setup-python@v5
         with:
@@ -97,6 +174,9 @@ jobs:
       # Mandatory integration uses the same canonical command locally and in CI.
       - name: DevEx shadow planner integration
         run: pnpm test:devex-plan:integration
+
+      - name: General contract existing effect helper integration
+        run: node tools/devex-python.mjs tools/test_devex_ci_contract.py --helper-integration
 
       - name: DevEx changed local checks execution
         run: pnpm test:dev-check
@@ -111,7 +191,8 @@ jobs:
 
   postgres-tests:
     name: PostgreSQL tests and RLS
-    needs: code
+    needs: [code, selection]
+    if: needs.selection.outputs.route == 'FULL' || needs.selection.outputs.route == 'PARALLEL'
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -175,6 +256,16 @@ jobs:
       # makes a local PASS mean the same thing as this job.
       # Observe the disposable test container; keep the mandatory gate itself
       # byte-for-byte unchanged, including command, environment and exit status.
+      - name: Web cache native hasher in protected test image
+        env:
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: |
+          export ASA_TEST_UID="$(id -u)" ASA_TEST_GID="$(id -g)"
+          test "$ASA_TEST_UID" -ne 0
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test run --rm --no-deps test-runner pnpm exec vitest run tests/production/nx-web-cache.spec.ts --maxWorkers=1
+
       - name: Capture disposable test container output
         env:
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
@@ -233,7 +324,8 @@ jobs:
 
   access-a-browser:
     name: Access A real browser journeys
-    needs: code
+    needs: [code, selection]
+    if: needs.selection.outputs.route == 'FULL' || needs.selection.outputs.route == 'PARALLEL'
     # Playwright 1.55.1 chromium installer rejects ubuntu26.04 in ubuntu-latest.
     # Pin a supported runner; do not bypass browser tests or apt signatures.
     runs-on: ubuntu-24.04
@@ -322,3 +414,37 @@ jobs:
           path: reports/playwright/access-a-summary.json
           retention-days: 14
           if-no-files-found: error
+
+  changed-ui:
+    needs: [selection, governance]
+    if: needs.selection.outputs.route == 'FAST' || needs.selection.outputs.route == 'PARALLEL'
+    uses: ./.github/workflows/devex-changed.yml
+    with:
+      plan: ${{ needs.selection.outputs.plan }}
+
+  required:
+    name: ASA / required
+    needs: [governance, code, postgres-tests, access-a-browser, selection, changed-ui]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      ASA_REQUIRED_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_REQUIRED_NEEDS_JSON: ${{ toJSON(needs) }}
+      GENERAL_PLAN: ${{ needs.selection.outputs.plan }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Require complete applicable exact-source General results
+        shell: bash
+        run: |
+          git switch --detach "$SOURCE_SHA"
+          python tools/devex_ci_contract.py required

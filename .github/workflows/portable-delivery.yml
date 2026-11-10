@@ -6,6 +6,10 @@ name: ASA Portable Delivery Checks
       [
         'tools/deployment/**',
         'tools/*manager*',
+        'tools/asa',
+        'tools/asa_status.py',
+        'tools/asa_offsite.py',
+        'tools/install-asa-command.sh',
         'tools/*maintenance*',
         'tools/asa-bootstrap.ps1',
         'tools/asa-setup.ps1',
@@ -25,6 +29,10 @@ name: ASA Portable Delivery Checks
       [
         'tools/deployment/**',
         'tools/*manager*',
+        'tools/asa',
+        'tools/asa_status.py',
+        'tools/asa_offsite.py',
+        'tools/install-asa-command.sh',
         'tools/*maintenance*',
         'tools/asa-bootstrap.ps1',
         'tools/asa-setup.ps1',
@@ -53,7 +61,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -76,7 +84,7 @@ jobs:
           }
       - name: Validate Linux wrapper syntax
         if: runner.os == 'Linux'
-        run: sh -n tools/asa-manager.sh tools/install-maintenance.sh tools/asa-lab.sh tools/docker-update.sh tools/install-log-collector.sh docker/web/start.sh infra/scratch-editor/start.sh
+        run: sh -n tools/asa tools/install-asa-command.sh tools/asa-manager.sh tools/install-maintenance.sh tools/asa-lab.sh tools/docker-update.sh tools/install-log-collector.sh docker/web/start.sh infra/scratch-editor/start.sh
 
   images:
     needs: contracts

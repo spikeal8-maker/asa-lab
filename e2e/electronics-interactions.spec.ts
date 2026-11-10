@@ -422,6 +422,26 @@ async function realtime682Journal(
   const records: Realtime682Record[] = [];
   const errors: string[] = [];
   let acknowledged = 0;
+  let onAcknowledgedBatch: ((batch: Realtime682Record[]) => void) | undefined;
+  const waitForAcknowledgedRecord = (
+    predicate: (record: Realtime682Record) => boolean,
+    timeout: number,
+  ) =>
+    new Promise<void>((resolve, reject) => {
+      const deadline = performance.now() + timeout;
+      const finish = (matched: boolean) => {
+        clearTimeout(timer);
+        onAcknowledgedBatch = undefined;
+        if (matched) resolve();
+        else reject(new Error(`No matching browser evidence acknowledged within ${timeout} ms`));
+      };
+      const timer = setTimeout(() => finish(false), timeout);
+      onAcknowledgedBatch = (batch) => {
+        if (performance.now() >= deadline) finish(false);
+        else if (batch.some(predicate)) finish(true);
+      };
+      onAcknowledgedBatch(records);
+    });
   const retain = (kind: string, data: unknown) => {
     try {
       appendFileSync(path, `${JSON.stringify({ kind, nodeAt: Date.now(), data })}\n`, {
@@ -462,6 +482,7 @@ async function realtime682Journal(
         }
       }
       acknowledged = batch.at(-1)!.sequence;
+      onAcknowledgedBatch?.(batch);
       return acknowledged;
     } catch (error) {
       errors.push(String(error));
@@ -837,7 +858,7 @@ async function realtime682Journal(
     );
     await barrier();
   };
-  return { records, retain, barrier, finish, errors };
+  return { records, retain, barrier, finish, errors, waitForAcknowledgedRecord };
 }
 
 function realtime682Fixture(source: string, button: boolean): SchematicDocument {
@@ -1126,14 +1147,37 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
               )
               .toBeGreaterThanOrEqual(shortMs * 22_000 + 1000);
           } else if (mode === 'delays') {
-            await expect
-              .poll(
-                () =>
-                  (responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined)
-                    ?.committedHorizonMicroseconds ?? 0,
-                { timeout: 22_000 },
+            let finalLowResponseAt: number | undefined;
+            await journal.waitForAcknowledgedRecord((row) => {
+              if (
+                finalLowResponseAt === undefined &&
+                row.kind === 'response' &&
+                row.source === source
+              ) {
+                const advance = row.advance as SimulationTimedAdvancePayload | null;
+                if (
+                  advance?.executionStatus === 'ready' &&
+                  advance.committedHorizonMicroseconds >= 21_031_000 &&
+                  advance.result?.components.find((led) => led.componentId === 'led0')
+                    ?.brightness === 0
+                )
+                  finalLowResponseAt = row.at;
+              }
+              if (
+                row.kind !== 'paint' ||
+                finalLowResponseAt === undefined ||
+                typeof row.witnessAt !== 'number' ||
+                !Number.isFinite(row.witnessAt) ||
+                row.witnessAt < finalLowResponseAt
               )
-              .toBeGreaterThanOrEqual(21_031_000);
+                return false;
+              const [led] = row.leds as Array<{
+                brightness: number | null;
+                loadedAt: number | null;
+                visible: boolean;
+              }>;
+              return led?.visible === true && Number.isFinite(led.loadedAt) && led.brightness === 0;
+            }, 22_000);
           } else {
             await expect.poll(() => latest('led0')).toBe(0);
             const box = await part(page, 'button-682').boundingBox();
@@ -7913,6 +7957,7 @@ test.describe('owner D3-D6 acceptance', () => {
       .locator('input, select, button')
       .evaluateAll((controls) =>
         controls.some((control) => {
+          if (control.getClientRects().length === 0) return false;
           const box = control.getBoundingClientRect();
           const panel = control.closest('.workbench-inspector')?.getBoundingClientRect();
           return Boolean(panel && (box.left < panel.left - 1 || box.right > panel.right + 1));
@@ -8344,7 +8389,44 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
             initialViewBox!,
           );
           expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
-          await page.getByRole('button', { name: 'Увеличить масштаб', exact: true }).click();
+          const zoomIn = page.getByRole('button', {
+            name: 'Увеличить масштаб',
+            exact: true,
+            includeHidden: true,
+          });
+          const scale = () =>
+            page
+              .locator('.workbench-canvas')
+              .evaluate((canvas) => (canvas as SVGSVGElement).getScreenCTM()!.a);
+          const scaleBefore = await scale();
+          const zoomFactor = 1.18;
+          if (width <= 390) {
+            await expect(zoomIn).toBeHidden();
+            const centerX = stage.x + stage.width / 2;
+            const centerY = stage.y + stage.height / 2;
+            const halfSpan = 40;
+            const touchPoints = (span: number) => [
+              { id: 1, x: centerX - span, y: centerY },
+              { id: 2, x: centerX + span, y: centerY },
+            ];
+            const cdp = await page.context().newCDPSession(page);
+            try {
+              await cdp.send('Input.dispatchTouchEvent', {
+                type: 'touchStart',
+                touchPoints: touchPoints(halfSpan),
+              });
+              await cdp.send('Input.dispatchTouchEvent', {
+                type: 'touchMove',
+                touchPoints: touchPoints(halfSpan * zoomFactor),
+              });
+              await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            } finally {
+              await cdp.detach();
+            }
+          } else {
+            await zoomIn.click();
+          }
+          await expect.poll(async () => (await scale()) / scaleBefore).toBeCloseTo(zoomFactor, 2);
           // The resistor legitimately has a native painted path. Keep Shift/
           // right-button controls on it, separate from the owner-image probe.
           const point = await part(page, 'field-resistor')

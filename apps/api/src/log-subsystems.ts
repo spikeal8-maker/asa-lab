@@ -13,6 +13,7 @@ export const LOG_SUBSYSTEMS = [
   'database',
   'scratch',
   'electronics',
+  'robotics',
   'chess',
   'checkers',
   'three-d',
@@ -27,6 +28,7 @@ export const LOG_SUBSYSTEMS = [
 export const LOG_EDITOR_MODULES = [
   'scratch',
   'electronics',
+  'robotics',
   'three-d',
   'chess',
   'checkers',
@@ -111,6 +113,7 @@ export function logSubsystem(
         'analytics',
         'diagnostics',
         'electronics',
+        'robotics',
         'chess',
         'checkers',
         'three-d',
@@ -122,6 +125,7 @@ export function logSubsystem(
   if (source === 'postgres' || source === 'migration') return 'database';
   if (source.startsWith('minio')) return 'storage';
   if (source === 'tunnel') return 'network';
+  if (origin === 'ai_image_jobs' || origin === 'ai_usage_journal') return 'diagnostics';
   if (origin === 'product_analytics_events') return 'analytics';
   if (origin === 'classroom_activity_events') return 'classrooms';
   if (origin === 'grade_change_events') return 'learning';

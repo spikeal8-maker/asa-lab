@@ -324,6 +324,20 @@ export class PublicProjectsController {
     return { publication: publicProject(row, admitted.has(row.publication_id)) };
   }
 
+  @Get(':publicationId/editor')
+  @Header('Cache-Control', 'private, no-store')
+  async editor(@Req() request: FastifyRequest, @Param('publicationId') publicationId: string) {
+    requireUuid(publicationId);
+    const actor = await this.reactionActor(request);
+    const result = await requirePool(this.pool).query<{
+      editor: { projectId: string; moduleKey: string } | null;
+    }>('SELECT public.project_publication_owner_editor($1, $2) AS editor', [
+      actor.principal,
+      publicationId,
+    ]);
+    return { editor: result.rows[0]?.editor ?? null };
+  }
+
   @Get(':publicationId/artifact')
   @Header('Cache-Control', 'no-store')
   async artifact(

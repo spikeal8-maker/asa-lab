@@ -1665,7 +1665,7 @@ describe('MATH-10A2 multimeter DC current', () => {
 describe('photoresistor electrical model', () => {
   it('uses a deterministic versioned GL5528-class illumination profile', () => {
     expect(JSON.parse(canonicalPhotoresistorProfileRegistry())).toEqual({
-      registryVersion: 1,
+      registryVersion: 3,
       profiles: [PHOTORESISTOR_PROFILE],
     });
     expect(PHOTORESISTOR_PROFILE.resistanceAt10LuxOhm).toBe(15_000);
@@ -1739,6 +1739,124 @@ describe('photoresistor electrical model', () => {
     expect(dark?.current).toBeCloseTo(5 / PHOTORESISTOR_DARK_RESISTANCE_OHM, 12);
     expect(bright?.current).toBeCloseTo(5 / PHOTORESISTOR_BRIGHT_RESISTANCE_OHM, 8);
     expect(Math.abs(bright?.current ?? 0)).toBeGreaterThan(Math.abs(dark?.current ?? 0));
+  });
+
+  it('keeps a fully illuminated photoresistor conducting within its power rating', () => {
+    const circuit = series(
+      [component('ldr', 'photoresistor', 0, { stateProperties: { illumination: 1 } })],
+      3,
+    );
+    const result = solveCircuit(circuit, { simulationTimeMs: 5_000 });
+    const ldr = result.components.find((entry) => entry.componentId === 'ldr');
+
+    expect(ldr).toMatchObject({ deviceHealth: 'normal', accumulatedDamagePercent: 0 });
+    expect(ldr?.current).toBeCloseTo(3 / PHOTORESISTOR_BRIGHT_RESISTANCE_OHM, 8);
+    expect(ldr?.powerUtilizationPercent).toBeCloseTo(
+      (100 * 3 ** 2) /
+        (PHOTORESISTOR_BRIGHT_RESISTANCE_OHM * PHOTORESISTOR_PROFILE.maximumPowerWatt),
+      2,
+    );
+  });
+
+  it('heats during overload, recovers if dimmed early, and stays open after burnout', () => {
+    const circuit = (illumination: number) =>
+      series([component('ldr', 'photoresistor', 0, { stateProperties: { illumination } })], 9);
+    const early = solveCircuit(circuit(1), { simulationTimeMs: 200 });
+    const before = early.components.find((entry) => entry.componentId === 'ldr');
+    expect(before).toMatchObject({ stressState: 'overcurrent', presentationState: 'warning' });
+    expect(before?.temperatureCelsius).toBeGreaterThan(25);
+    expect(before?.current).toBeGreaterThan(0);
+
+    const cooled = solveCircuit(circuit(0), {
+      simulationTimeMs: 5_000,
+      transientState: early.transientState,
+    });
+    const recovered = cooled.components.find((entry) => entry.componentId === 'ldr');
+    expect(recovered?.current).toBeCloseTo(9 / PHOTORESISTOR_DARK_RESISTANCE_OHM, 12);
+    expect(recovered?.temperatureCelsius).toBeLessThan(before?.temperatureCelsius ?? 0);
+
+    const burned = solveCircuit(circuit(1), {
+      simulationTimeMs: 2_000,
+      transientState: early.transientState,
+    });
+    const failed = burned.components.find((entry) => entry.componentId === 'ldr');
+    expect(failed).toMatchObject({ current: 0, power: 0, deviceHealth: 'failed_open' });
+    expect(burned.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'component_failed', componentIds: ['ldr'] }),
+    );
+
+    const dimmedAfterFailure = solveCircuit(circuit(0), {
+      simulationTimeMs: 5_000,
+      transientState: burned.transientState,
+    });
+    expect(
+      dimmedAfterFailure.components.find((entry) => entry.componentId === 'ldr'),
+    ).toMatchObject({ current: 0, power: 0, deviceHealth: 'failed_open' });
+  });
+
+  it('can fail from excess voltage even when dark and below the power rating', () => {
+    const circuit = series(
+      [component('ldr', 'photoresistor', 0, { stateProperties: { illumination: 0 } })],
+      200,
+    );
+    const dc = resultFor(circuit, 'ldr');
+    expect(dc?.power).toBeLessThan(PHOTORESISTOR_PROFILE.maximumPowerWatt);
+    expect(dc?.voltageDrop).toBeGreaterThan(PHOTORESISTOR_PROFILE.maximumVoltageVolt);
+    expect(dc?.deviceHealth).not.toBe('failed_open');
+    const transient = solveCircuit(circuit, { simulationTimeMs: 2_000 });
+    expect(transient.components.find((entry) => entry.componentId === 'ldr')).toMatchObject({
+      current: 0,
+      deviceHealth: 'failed_open',
+    });
+  });
+
+  it('adds lamp light by distance, preserves an unlinked sensor and goes dark after lamp failure', () => {
+    const sensor = (id: string, lampId: string, distanceCm: number) =>
+      component(id, 'photoresistor', 0, {
+        stateProperties: {
+          illumination: 0,
+          lightSourceComponentId: lampId,
+          lightSourceDistanceCm: distanceCm,
+        },
+      });
+    const circuit = (voltage: number) =>
+      doc(
+        [
+          component('source', 'source', voltage),
+          component('lamp', 'lamp', 6, {
+            componentTypeId: 'incandescent-lamp',
+            pinIds: ['L1', 'L2'],
+          }),
+          sensor('near', 'lamp', 10),
+          sensor('far', 'lamp', 20),
+          sensor('missing', 'missing-lamp', 10),
+        ],
+        [
+          connect('lamp-power', 'source', 'a', 'lamp', 'L1'),
+          connect('lamp-return', 'lamp', 'L2', 'source', 'b'),
+          ...['near', 'far', 'missing'].flatMap((id) => [
+            connect(`${id}-power`, 'source', 'a', id, 'a'),
+            connect(`${id}-return`, id, 'b', 'source', 'b'),
+          ]),
+        ],
+      );
+    const warm = solveCircuit(circuit(6), { simulationTimeMs: 600 });
+    const near = warm.components.find((entry) => entry.componentId === 'near')!;
+    const far = warm.components.find((entry) => entry.componentId === 'far')!;
+    const missing = warm.components.find((entry) => entry.componentId === 'missing')!;
+    expect(near.illuminanceLux).toBeGreaterThan(60);
+    expect(near.illuminanceLux! / far.illuminanceLux!).toBeCloseTo(4, 3);
+    expect(missing.illuminanceLux).toBeUndefined();
+    expect(missing.current).toBeCloseTo(6 / PHOTORESISTOR_DARK_RESISTANCE_OHM, 12);
+
+    const failed = solveCircuit(circuit(12), { simulationTimeMs: 2_000 });
+    expect(failed.components.find((entry) => entry.componentId === 'lamp')?.filamentState).toBe(
+      'burned',
+    );
+    expect(failed.components.find((entry) => entry.componentId === 'near')).toMatchObject({
+      illuminanceLux: 0,
+      effectiveResistanceOhm: PHOTORESISTOR_DARK_RESISTANCE_OHM,
+    });
   });
 });
 

@@ -1,6 +1,6 @@
+import { InfoHint } from '../components/InfoHint';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AiPromptGuide } from './AiPromptGuide';
-import { AdminAiToolPolicies } from './AdminAiToolPolicies';
 import type { AiGenerationPolicy, AiGenerationPolicyUpdate } from '@asa-lab/contracts';
 import { call } from './admin-api';
 import './ai-generation-policy.css';
@@ -13,7 +13,7 @@ const PROVIDERS = [
   { id: 'ollama', label: 'Ollama · локально' },
 ] as const;
 
-function policyShape(value: unknown): value is AiGenerationPolicy {
+export function policyShape(value: unknown): value is AiGenerationPolicy {
   if (!value || typeof value !== 'object') return false;
   const data = value as Partial<AiGenerationPolicy>;
   return (
@@ -278,7 +278,11 @@ export function AdminAiGenerationPolicy({
           model.provider === id &&
           model.connectionSelected !== false &&
           (section === 'connections' ||
-            (model.ready && model.adapterCompatible !== false && preference(model.id).eligible)),
+            (model.ready &&
+              model.adapterCompatible !== false &&
+              (model.provider === 'ollama' ||
+                model.provider === 'ollama-cloud' ||
+                preference(model.id).eligible))),
       )
       .sort(
         (a, b) =>
@@ -531,11 +535,22 @@ export function AdminAiGenerationPolicy({
                 <h2>
                   {section === 'connections' ? 'Модели подключения' : 'Модели для пользователей'}
                 </h2>
-                <p>
-                  {section === 'settings'
-                    ? 'Отметьте модели для пользователей. Список подключений задаётся отдельно.'
-                    : 'Выберите модели подключения. Показ пользователям задаётся в Настройках.'}
-                </p>
+                {section === 'settings' ? (
+                  <InfoHint label="Как настроить модели">
+                    <p>
+                      Галочки определяют доступные пользователям модели. Стрелки меняют порядок
+                      провайдеров и моделей. Подключения определяют исходный список; модель по
+                      умолчанию выбирается выше списка.
+                    </p>
+                  </InfoHint>
+                ) : (
+                  <p>Выберите модели подключения. Показ пользователям задаётся в Настройках.</p>
+                )}
+                {section === 'settings' ? (
+                  <a className="asa-ai-tools-refresh" href="#/admin/ai?section=tools">
+                    Настроить инструменты
+                  </a>
+                ) : null}
               </div>
               {section !== 'connections' ? (
                 <label className="asa-cloud-field asa-ai-policy-default">
@@ -684,17 +699,30 @@ export function AdminAiGenerationPolicy({
                                 <input
                                   type="checkbox"
                                   aria-label={'Показывать пользователям: ' + model.label}
-                                  checked={allowedModels.includes(model.id)}
+                                  checked={
+                                    allowedModels.includes(model.id) &&
+                                    preference(model.id).eligible
+                                  }
                                   disabled={
                                     busy ||
-                                    ((!model.selectable || !preference(model.id).eligible) &&
+                                    ((!model.selectable ||
+                                      (model.provider !== 'ollama' &&
+                                        model.provider !== 'ollama-cloud' &&
+                                        !preference(model.id).eligible)) &&
                                       !allowedModels.includes(model.id))
                                   }
                                   onChange={(event) => {
                                     const checked = event.target.checked;
+                                    if (
+                                      checked &&
+                                      (model.provider === 'ollama' ||
+                                        model.provider === 'ollama-cloud') &&
+                                      !preference(model.id).eligible
+                                    )
+                                      changePreference(model.id, { eligible: true });
                                     setAllowedModels((previous) =>
                                       checked
-                                        ? [...previous, model.id]
+                                        ? [...new Set([...previous, model.id])]
                                         : previous.filter((id) => id !== model.id),
                                     );
                                     if (!checked && defaultModel === model.id)
@@ -704,6 +732,10 @@ export function AdminAiGenerationPolicy({
                                 />
                                 <span>
                                   <strong>{model.label}</strong>
+                                </span>
+                              </label>
+                              <InfoHint label={'Сведения о модели ' + model.label}>
+                                <div className="asa-ai-model-hint">
                                   {model.inputModalities ? (
                                     <span
                                       className="asa-ai-model-vision"
@@ -727,8 +759,8 @@ export function AdminAiGenerationPolicy({
                                           ? 'Подключение готово'
                                           : 'Сначала настройте подключение')}
                                   </small>
-                                </span>
-                              </label>
+                                </div>
+                              </InfoHint>
                             </>
                           ) : null}
                         </div>
@@ -747,10 +779,7 @@ export function AdminAiGenerationPolicy({
               Выберите разрешённую подключённую модель по умолчанию во вкладке «Настройки».
             </p>
           ) : null}
-          <p className="asa-ai-policy-save-note">
-            {dirty ? 'Есть несохранённые изменения. ' : ''}Подключения определяют список моделей;
-            Настройки — их показ пользователям.
-          </p>
+          {dirty ? <p className="asa-ai-policy-save-note">Есть несохранённые изменения.</p> : null}
           <div className="asa-cloud-bottom">
             <button
               type="submit"
@@ -773,7 +802,7 @@ export function AdminAiGenerationPolicy({
           </div>
         </form>
       ) : null}
-      {section === 'prompt' ? <AdminAiToolPolicies onAccessDenied={onAccessDenied} /> : null}
+
       {config && section === 'prompt' ? <AiPromptGuide variables={config.variables} /> : null}
     </section>
   );

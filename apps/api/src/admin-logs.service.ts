@@ -5,7 +5,18 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { applicationLogStore } from './application-log-store.js';
 import type { Readable } from 'node:stream';
-import { readLogCatalog, type LogFilter, type LogScanState } from './admin-logs.worker.js';
+import {
+  readLogCatalog,
+  verifyNativeLogIntegrity,
+  type LogFilter,
+  type LogScanState,
+} from './admin-logs.worker.js';
+import {
+  combineRequiredCoverage,
+  completeCatalogMetadata,
+  hostRequiredCoverage,
+  type NativeCoverage,
+} from './required-log-coverage.js';
 
 interface ExportJob {
   readonly id: string;
@@ -19,6 +30,7 @@ interface ExportJob {
 }
 
 export class AdminLogsService {
+  private readonly nativeIntegrityProofs = new Map<string, number>();
   private running = 0;
   private readonly jobs = new Map<string, ExportJob>();
   private lastCleanup = 0;
@@ -59,6 +71,8 @@ export class AdminLogsService {
         observed.state === 'stale' && local.isIdleHealthy()
           ? { ...observed, state: 'ok' as const }
           : observed;
+      const native = await this.nativeCoverage(local, own);
+      const requiredCoverage = combineRequiredCoverage(hostStatus?.requiredCoverage, native);
       if (hostStatus?.state === 'ok')
         return {
           ...hostStatus,
@@ -66,6 +80,7 @@ export class AdminLogsService {
           hostCollection: hostState,
           embeddedCollection: own.state,
           coverageComplete: false,
+          requiredCoverage,
           ...(own.state === 'error' || own.state === 'unavailable'
             ? { state: 'error' as const, collectorHealth: own.collectorHealth }
             : {}),
@@ -75,6 +90,7 @@ export class AdminLogsService {
         applicationCollection: 'embedded',
         hostCollection: hostState,
         coverageComplete: false,
+        requiredCoverage,
         collectorHealth: own.collectorHealth
           ? {
               ...own.collectorHealth,
@@ -83,7 +99,82 @@ export class AdminLogsService {
           : null,
       };
     }
-    return this.statusAt(this.root);
+    const host = await this.statusAt(this.root);
+    return {
+      ...host,
+      coverageComplete: false,
+      requiredCoverage: combineRequiredCoverage(host.requiredCoverage, {
+        state: 'unknown',
+        reason: 'native_writer_unavailable',
+      }),
+    };
+  }
+
+  private async nativeCoverage(
+    local: NonNullable<ReturnType<typeof applicationLogStore>>,
+    observed: Awaited<ReturnType<AdminLogsService['statusAt']>>,
+  ): Promise<NativeCoverage> {
+    const counters = {
+      ...local.counters,
+      pending: Math.max(0, local.counters.accepted - local.counters.persisted),
+    };
+    if (
+      counters.persisted > counters.accepted ||
+      Object.values(counters).some((value) => !Number.isSafeInteger(value) || value < 0)
+    )
+      return { state: 'unknown', reason: 'native_counters_invalid' };
+    if (
+      !local.isIdleHealthy() ||
+      counters.dropped ||
+      counters.failures ||
+      counters.pending ||
+      observed.state !== 'ok' ||
+      observed.collectorHealth?.state !== 'ok'
+    )
+      return { state: 'incomplete', reason: 'native_writer_incomplete', counters };
+    try {
+      const catalog = await readLogCatalog(local.root);
+      if (
+        !catalog ||
+        catalog.applicationOwned !== true ||
+        !completeCatalogMetadata(catalog) ||
+        Date.parse(catalog.collectedAt) > Date.now() + 5000 ||
+        !Number.isFinite(Date.parse(observed.collectorHealth.lastSuccessAt ?? '')) ||
+        Date.parse(observed.collectorHealth.lastSuccessAt ?? '') > Date.now() + 5000 ||
+        Date.parse(observed.collectorHealth.checkedAt) > Date.now() + 5000 ||
+        catalog.maxBytes > 128 * 1024 * 1024 ||
+        catalog.sources.length !== 1 ||
+        catalog.sources[0]?.source !== 'api' ||
+        catalog.sources[0].state !== 'ok'
+      )
+        return { state: 'unknown', reason: 'native_catalog_metadata_invalid', counters };
+      const integrity = await verifyNativeLogIntegrity(
+        local.root,
+        catalog,
+        this.nativeIntegrityProofs,
+      );
+      if (
+        !local.isIdleHealthy() ||
+        Object.keys(local.counters).some(
+          (key) =>
+            local.counters[key as keyof typeof local.counters] !==
+            counters[key as keyof typeof local.counters],
+        )
+      )
+        return { state: 'incomplete', reason: 'native_writer_changed_during_check', counters };
+      return {
+        state: integrity === 'ok' ? 'ok' : integrity === 'partial' ? 'unknown' : 'incomplete',
+        reason:
+          integrity === 'ok'
+            ? 'native_writer_and_recent_integrity_verified'
+            : integrity === 'partial'
+              ? 'native_integrity_pending'
+              : 'native_integrity_failed',
+        counters,
+      };
+    } catch {
+      return { state: 'incomplete', reason: 'native_catalog_unreadable', counters };
+    }
   }
 
   private async statusAt(root: string) {
@@ -155,10 +246,16 @@ export class AdminLogsService {
           detail: 'Collector health file is unreadable',
         };
     }
-    const catalog = await readLogCatalog(root);
+    let catalog;
+    let invalidCatalog = false;
+    try {
+      catalog = await readLogCatalog(root);
+    } catch {
+      invalidCatalog = true;
+    }
     if (!catalog)
       return {
-        state: 'unavailable' as const,
+        state: invalidCatalog ? ('error' as const) : ('unavailable' as const),
         collectorHealth,
         collectedAt: null,
         sources: [],
@@ -167,6 +264,7 @@ export class AdminLogsService {
         first: null,
         last: null,
         trimmed: false,
+        requiredCoverage: hostRequiredCoverage(null, collectorHealth),
       };
     const age = Date.now() - Date.parse(catalog.collectedAt);
     const sourceFailures = catalog.sources.filter((s) => s.state === 'error');
@@ -193,6 +291,7 @@ export class AdminLogsService {
         null,
       ),
       trimmed: catalog.trimmed,
+      requiredCoverage: hostRequiredCoverage(catalog, collectorHealth),
     };
   }
 

@@ -1,3 +1,4 @@
+import { CheckersNetworkController } from './checkers-network.controller.js';
 import { PublicationCommentsController } from './publication-comments.controller.js';
 import { ChessNetworkController } from './chess-network.controller.js';
 import { AiImageService } from './ai-image.service.js';
@@ -94,6 +95,9 @@ import { ClassroomParticipantsController } from './classroom-participants.contro
 import { ClassroomObservationController } from './classroom-observation.controller.js';
 import { LearningWorkContextController } from './learning-work-context.controller.js';
 import { LearningStartController } from './learning-start.controller.js';
+import { LearningEssayAttemptsController } from './learning-essay-attempts.controller.js';
+import { LearningContentController } from './learning-content.controller.js';
+import { LearningQuizAttemptsController } from './learning-quiz-attempts.controller.js';
 import { LearningRemindersService } from './learning-reminders.service.js';
 import { GalleryController } from './gallery.controller.js';
 import {
@@ -296,6 +300,9 @@ export class AppModule {
         ClassroomObservationController,
         LearningWorkContextController,
         LearningStartController,
+        LearningEssayAttemptsController,
+        LearningQuizAttemptsController,
+        LearningContentController,
         GalleryController,
         ProjectPublicationController,
         PublicProjectsController,
@@ -316,6 +323,7 @@ export class AppModule {
         CheckersClassroomController,
         ChessLiveController,
         ChessNetworkController,
+        CheckersNetworkController,
         VersionController,
         ProductAnalyticsController,
       ],

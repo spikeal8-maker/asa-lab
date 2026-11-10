@@ -2,6 +2,7 @@ import type pg from 'pg';
 import {
   adaptCourseProjectCanonicalInput,
   adaptDirectProjectCanonicalInput,
+  adaptEssayCanonicalInput,
   adaptQuizCanonicalInput,
   resolveCanonicalLearningState,
   type CanonicalAdapterInput,
@@ -16,7 +17,7 @@ export interface EvidenceRow {
   schoolId: string;
   classroomId: string;
   classroomAssignmentId: string;
-  kind: 'direct_project' | 'course_project' | 'quiz';
+  kind: 'direct_project' | 'course_project' | 'quiz' | 'essay';
   dueAt: string | null;
   assignmentStatus: 'open' | 'closed';
   seatId: string;
@@ -143,6 +144,7 @@ function adapterInput(row: EvidenceRow, asOf: string): CanonicalAdapterInput {
 function resolveEvidence(row: EvidenceRow, asOf: string): CanonicalLearningState {
   const input = adapterInput(row, asOf);
   if (row.kind === 'quiz') return resolveCanonicalLearningState(adaptQuizCanonicalInput(input));
+  if (row.kind === 'essay') return resolveCanonicalLearningState(adaptEssayCanonicalInput(input));
   if (row.kind === 'course_project') {
     return resolveCanonicalLearningState(adaptCourseProjectCanonicalInput(input));
   }
@@ -295,7 +297,13 @@ export class LearningCanonicalProjectionService {
       projections.set(key, canonicalProjectionFromEvidence(evidence, key, asOf, audience));
       // Handout-keyed canonical state may collapse sibling Activity Runs.
       // Preserve every learner/Run participation independently of work origin.
-      if (evidence.kind === 'course_project' && evidence.activityRunId && evidence.participation) {
+      if (
+        (evidence.kind === 'course_project' ||
+          evidence.kind === 'essay' ||
+          evidence.kind === 'quiz') &&
+        evidence.activityRunId &&
+        evidence.participation
+      ) {
         const runKey = canonicalCourseParticipationKey(evidence.seatId, evidence.activityRunId);
         if (courseProjectionsByRun.has(runKey)) {
           // Multiple evidence rows for the same learner/run are ambiguous.

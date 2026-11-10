@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { useEffect, useLayoutEffect, useId, useRef, useState, type JSX } from 'react';
+import { createPortal } from 'react-dom';
+import { AuthoredMaterialsPage } from '../pages/AuthoredMaterialsPage';
+import { CourseEditorDialog } from './CourseEditorDialog';
 import { api, type AuthoredActivityLearnerPreview } from '../api';
 import { AssignmentView } from './AssignmentView';
 
@@ -51,13 +54,17 @@ export function PinnedPracticePreview({ versionId }: { readonly versionId: strin
     <div className="course-pinned-practice">
       <strong>{preview.assignment.title}</strong>
       <small>
-        {preview.moduleKey === 'electronics'
-          ? 'Электроника'
-          : preview.moduleKey === 'three-d'
-            ? '3D'
-            : preview.moduleKey === 'blocks'
-              ? 'Scratch'
-              : 'Практика'}{' '}
+        {preview.kind === 'quiz'
+          ? 'Тест'
+          : preview.kind === 'essay'
+            ? 'Письменный ответ'
+            : preview.moduleKey === 'electronics'
+              ? 'Электроника'
+              : preview.moduleKey === 'three-d'
+                ? '3D'
+                : preview.moduleKey === 'blocks'
+                  ? 'Scratch'
+                  : 'Практика'}{' '}
         · опубликованная версия {preview.source.versionNumber}
       </small>
       <AssignmentView assignment={preview.assignment} compact />
@@ -68,10 +75,57 @@ export function PinnedPracticePreview({ versionId }: { readonly versionId: strin
 export function CanonicalPracticePicker({
   value,
   onChange,
+  onRegisterNestedLeaveGuard,
+  allowEssay = false,
 }: {
+  readonly allowEssay?: boolean;
+  readonly onRegisterNestedLeaveGuard?: (id: string, guard: (() => boolean) | null) => void;
   readonly value: string;
   readonly onChange: (versionId: string, title: string) => void;
 }): JSX.Element {
+  const editorId = useId();
+  const sessionRef = useRef(0);
+  const [creationSession, setCreationSession] = useState<number | null>(null);
+  const creating = creationSession !== null;
+  function endCreation(session: number): void {
+    if (sessionRef.current !== session) return;
+    sessionRef.current += 1;
+    registerGuard.current?.(editorId, null);
+    setCreationSession(null);
+  }
+  const createButtonRef = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (!creating) return;
+    // Keep body-based image/preview portals usable, while the preserved app
+    // (including the lesson form) is outside the keyboard and accessibility tree.
+    const background =
+      createButtonRef.current?.closest<HTMLElement>('#root') ??
+      createButtonRef.current?.closest<HTMLElement>('form');
+    const wasInert = background?.inert ?? false;
+    const previousOverflow = document.documentElement.style.overflow;
+    if (background) background.inert = true;
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      if (background) background.inert = wasInert;
+      document.documentElement.style.overflow = previousOverflow;
+      const trigger = createButtonRef.current;
+      if (trigger?.isConnected) trigger.focus();
+    };
+  }, [creating]);
+  const authorLeaveGuard = useRef<(() => boolean) | null>(null);
+  const registerGuard = useRef(onRegisterNestedLeaveGuard);
+  registerGuard.current = onRegisterNestedLeaveGuard;
+  useLayoutEffect(
+    () => () => {
+      sessionRef.current += 1;
+      registerGuard.current?.(editorId, null);
+    },
+    [editorId],
+  );
+  function closeAuthor(): void {
+    if (!authorLeaveGuard.current?.()) return;
+    if (creationSession !== null) endCreation(creationSession);
+  }
   const latestChange = useRef(onChange);
   latestChange.current = onChange;
   const mounted = useRef(true);
@@ -96,7 +150,11 @@ export function CanonicalPracticePicker({
       if (result.ok)
         setItems(
           result.data.items.filter(
-            (item) => item.kind === 'project' && item.currentPublishedVersionId !== null,
+            (item) =>
+              (item.kind === 'project' ||
+                (allowEssay && item.kind === 'essay') ||
+                item.kind === 'quiz') &&
+              item.currentPublishedVersionId !== null,
           ),
         );
       else setError(result.error.message);
@@ -104,9 +162,74 @@ export function CanonicalPracticePicker({
     return () => {
       active = false;
     };
-  }, [open]);
+  }, [open, allowEssay]);
   return (
     <div className="course-practice-picker">
+      {creating
+        ? createPortal(
+            <div onSubmit={(event) => event.stopPropagation()}>
+              <CourseEditorDialog
+                open
+                screen
+                showHeader={false}
+                returnFocusRef={createButtonRef}
+                title="Новое задание для урока"
+                closeLabel="Вернуться к уроку"
+                className="course-inline-task-dialog"
+                onClose={closeAuthor}
+              >
+                <AuthoredMaterialsPage
+                  key={creationSession}
+                  embedded
+                  onRegisterLeaveGuard={(guard) => {
+                    if (creationSession === sessionRef.current) authorLeaveGuard.current = guard;
+                  }}
+                  courseCreation={{
+                    allowEssay,
+                    onClose: () => {
+                      if (creationSession !== null) endCreation(creationSession);
+                    },
+                    onPublished: async (rootId, versionId) => {
+                      if (!mounted.current || creationSession !== sessionRef.current) return;
+                      const [result, modules] = await Promise.all([
+                        api.previewAuthoredActivityVersion(rootId, versionId),
+                        api.listModules(),
+                      ]);
+                      if (!mounted.current || creationSession !== sessionRef.current) return;
+                      if (!result.ok) throw new Error(result.error.message);
+                      const essay =
+                        (result.data.kind === 'quiz' ||
+                          (allowEssay && result.data.kind === 'essay')) &&
+                        result.data.moduleKey === null;
+                      if (!modules.ok && !essay) throw new Error(modules.error.message);
+                      if (
+                        result.data.source.kind !== 'published' ||
+                        result.data.source.id !== versionId ||
+                        (!essay &&
+                          (!modules.ok ||
+                            !modules.data.items.some(
+                              (module) =>
+                                module.moduleKey === result.data.moduleKey &&
+                                module.creatable &&
+                                module.learningCapabilities?.assignable === true,
+                            )))
+                      ) {
+                        throw new Error(
+                          'Опубликованное задание сейчас недоступно для добавления в курс.',
+                        );
+                      }
+                      latestChange.current(versionId, result.data.assignment.title);
+                      if (creationSession !== null) endCreation(creationSession);
+                      setOpen(false);
+                      setItems(null);
+                    },
+                  }}
+                />
+              </CourseEditorDialog>
+            </div>,
+            document.body,
+          )
+        : null}
       {value ? (
         <PinnedPracticePreview versionId={value} />
       ) : (
@@ -121,6 +244,19 @@ export function CanonicalPracticePicker({
         }}
       >
         {value ? 'Заменить практику' : 'Выбрать практику'}
+      </button>
+      <button
+        ref={createButtonRef}
+        type="button"
+        className="btn-primary"
+        onClick={() => {
+          authorLeaveGuard.current = null;
+          registerGuard.current?.(editorId, () => authorLeaveGuard.current?.() ?? false);
+          sessionRef.current += 1;
+          setCreationSession(sessionRef.current);
+        }}
+      >
+        Создать задание для урока
       </button>
       {open ? (
         <div className="course-practice-options" aria-label="Выбор практики">
@@ -159,19 +295,25 @@ export function CanonicalPracticePicker({
                           .then(async (result) => {
                             const modules = await api.listModules();
                             if (!mounted.current) return;
-                            const supported =
+                            const essay =
                               result.ok &&
-                              modules.ok &&
-                              modules.data.items.some(
-                                (module) =>
-                                  module.moduleKey === result.data.moduleKey &&
-                                  module.creatable &&
-                                  module.learningCapabilities?.assignable === true,
-                              );
+                              (result.data.kind === 'quiz' ||
+                                (allowEssay && result.data.kind === 'essay')) &&
+                              result.data.moduleKey === null;
+                            const supported =
+                              essay ||
+                              (result.ok &&
+                                modules.ok &&
+                                modules.data.items.some(
+                                  (module) =>
+                                    module.moduleKey === result.data.moduleKey &&
+                                    module.creatable &&
+                                    module.learningCapabilities?.assignable === true,
+                                ));
                             if (
                               supported &&
                               result.ok &&
-                              result.data.moduleKey !== null &&
+                              (essay || result.data.moduleKey !== null) &&
                               result.data.source.kind === 'published' &&
                               result.data.source.id === item.currentPublishedVersionId
                             ) {

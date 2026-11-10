@@ -57,6 +57,7 @@ describe('original server-issued identity and safe visit context', () => {
   });
   it('maps parsed views only; secret IDs and query fragments cannot become stored routes', () => {
     expect(telemetryRoute({ kind: 'editor', moduleKey: 'blocks' })).toBe('editor.blocks');
+    expect(telemetryRoute({ kind: 'editor', moduleKey: 'robotics' })).toBe('editor.robotics');
     expect(telemetryRoute({ kind: 'editor', moduleKey: 'secret?token=hidden' })).toBe('unknown');
     expect(telemetryRoute({ kind: 'teacher-invite' })).toBe('classes');
     expect(telemetryRoute({ kind: 'home' }, true)).toBe('admin');

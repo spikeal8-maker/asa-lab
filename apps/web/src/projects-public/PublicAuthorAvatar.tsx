@@ -30,8 +30,8 @@ export function PublicAuthorAvatar({
         <img
           src={url}
           alt=""
-          width={detail ? 40 : 24}
-          height={detail ? 40 : 24}
+          width={detail ? 48 : 32}
+          height={detail ? 48 : 32}
           loading="lazy"
           decoding="async"
           referrerPolicy="no-referrer"

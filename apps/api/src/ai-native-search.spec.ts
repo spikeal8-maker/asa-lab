@@ -1,3 +1,5 @@
+import { aiToolPolicyQueryFixture } from './testing/ai-tool-policy-query.fixture';
+import { AiToolPolicyService } from './ai-tool-policy';
 import type { AiToolActivity } from '@asa-lab/contracts';
 import * as cloudAdapter from './ai-provider-stream';
 import * as localAdapter from './ai-ollama';
@@ -22,6 +24,22 @@ const originalCloud = cloudAdapter.streamProviderText;
 const OWNER = '11111111-1111-4111-8111-111111111111';
 const THREAD = '22222222-2222-4222-8222-222222222222';
 const REQUEST = '33333333-3333-4333-8333-333333333333';
+
+it('does not dispatch a tool when Stop arrives during asynchronous authorization', async () => {
+  const f = fixture('auto', 'web_search');
+  const admission = vi
+    .spyOn(AiToolPolicyService.prototype, 'assertAllowed')
+    .mockImplementationOnce(async () => {
+      f.client.abort();
+    });
+  try {
+    expect((await f.send()).stopped).toBe(true);
+    expect(admission).toHaveBeenCalled();
+    expect(f.requests.some((item) => item.url.includes('/search?'))).toBe(false);
+  } finally {
+    admission.mockRestore();
+  }
+});
 function toolNames(body: Record<string, unknown> | undefined): unknown[] {
   return ((body?.tools ?? []) as { name?: string; function?: { name: string } }[]).map(
     (tool) => tool.name ?? tool.function?.name,
@@ -49,6 +67,16 @@ function fixture(
   const calls: { sql: string; params: unknown[] }[] = [];
   const query = vi.fn(async (sql: string, params: unknown[] = []) => {
     calls.push({ sql, params });
+    if (sql.includes("to_regprocedure('public.ai_tool_policy_permit"))
+      return { rows: [{ ready: true }] };
+    if (sql.includes('ai_tool_policy_permit'))
+      return {
+        rows: [
+          {
+            value: !disabledTools.includes(params[3] as 'web_search' | 'image_search' | 'weather'),
+          },
+        ],
+      };
     const journal = aiUsageQueryFixture(sql);
     if (journal) return journal;
     if (
@@ -974,6 +1002,8 @@ describe('native local internet tools', () => {
   it('persists an unsafe image-query decision without contacting SearxNG', async () => {
     const sql: string[] = [];
     const query = vi.fn(async (statement: string) => {
+      const policy = aiToolPolicyQueryFixture(statement);
+      if (policy) return policy;
       sql.push(statement);
       if (statement.includes('ai_web_search_runtime'))
         return {
@@ -1018,6 +1048,8 @@ describe('native local internet tools', () => {
 
   it('rejects an address passed as a weather city before geocoding or search', async () => {
     const query = vi.fn(async (statement: string) => {
+      const policy = aiToolPolicyQueryFixture(statement);
+      if (policy) return policy;
       if (statement.includes('ai_web_search_runtime'))
         return {
           rows: [

@@ -1,6 +1,7 @@
 import json
 import gzip
 import secrets
+import sqlite3
 from contextlib import ExitStack
 import threading
 import zipfile
@@ -17,6 +18,7 @@ from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIR
 from test_database_diagnostics import DatabaseDiagnosticTests  # Included by the canonical collector test runner.
 from test_database_identity import ActualDatabaseIdentityTests, DatabaseIdentityUnitTests
 from test_database_progress import ActualDatabaseProgressTests, DatabaseProgressUnitTests, response
+from test_compose_required_sources import ObservedComposePolicyTests
 
 
 def system_classification_fixture(root, compressed):
@@ -60,13 +62,13 @@ def system_classification_fixture(root, compressed):
 
 
 def editor_classification_fixture(root, compressed):
-    """Five editor names, explicit levels and all three retained-history paths."""
+    """Six editor names, explicit levels and all three retained-history paths."""
     c = Collector(root, {'retentionDays': 365})
     c.reader_format = 2 if compressed else 1
     rows = []
     for generation in ('fresh', 'imported', 'legacy'):
         batch = []
-        for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+        for module in ('scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'):
             for level in ('info', 'warn', 'error'):
                 payload = {'kind': 'client_diagnostic', 'module': 'blocks' if module == 'scratch' else module,
                            'level': level, 'path': '/api/diagnostics/client', 'message': 'OBS015 failure marker'}
@@ -139,6 +141,269 @@ class CollectorTests(unittest.TestCase):
                     self.assertIsNotNone(catalog['historyAudit']['generation'])
                 self.assertIsNotNone(catalog['historyAudit']['lastCompletedAt'])
             finally: c.db.close()
+
+    def interrupted_publication_fixture(self, root, reader, cleanup):
+        c = Collector(root, {})
+        cleanup.callback(c.db.close)
+        c.reader_format = reader
+        for i in range(2):
+            c.add(normalize('api', 'retained '+str(i), now(), 'retained-'+str(i)))
+            c.publish()
+        catalog = (c.store/'catalog.json').read_bytes()
+        prior = set(c.state('segments'))
+        c.add(normalize('api', 'publication pending', now(), 'publication-pending'))
+        c.db.commit()
+        set_state = c.set_state
+        def interrupted(key, value):
+            if key == 'segments': raise RuntimeError('publication interrupted before metadata commit')
+            return set_state(key, value)
+        with patch.object(c, 'set_state', side_effect=interrupted):
+            with self.assertRaisesRegex(RuntimeError, 'publication interrupted'):
+                c.publish()
+        c.db.rollback()
+        originals = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+        missing = set(originals)-prior
+        self.assertEqual(len(missing), 1)
+        name = missing.pop()
+        rows = c.db.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall()
+        self.assertEqual([row[2] for row in rows], [1, 1, 1])
+        self.assertEqual((c.store/'catalog.json').read_bytes(), catalog)
+        key = (c.private/'segment-verification.key').read_bytes()
+        c.db.close()
+        c = Collector(root, {})
+        cleanup.callback(c.db.close)
+        c.reader_format = reader
+        self.assertEqual(c.state('history:audit')['state'], 'complete')
+        self.assertNotIn(name, c.state('segments'))
+        self.assertNotIn(name, {meta['file'] for meta in json.loads(catalog)['segments']})
+        self.assertIn(name, c.verified_metadata)
+        self.assertIsNotNone(c.db.execute('SELECT 1 FROM segment_verification WHERE name=?', (name,)).fetchone())
+        c.db.commit()
+        return c, name, catalog, originals, key, rows
+
+    def test_interrupted_publication_metadata_gap_rechecks_before_publish(self):
+        for reader in (1, 2):
+            with self.subTest(reader=reader), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                c, name, _, originals, key, rows = self.interrupted_publication_fixture(Path(temp), reader, cleanup)
+                opened = []
+                path_open = Path.open
+                def tracked_open(path, *args, **kwargs):
+                    if path.name == name and args and args[0] == 'rb': opened.append(path.name)
+                    return path_open(path, *args, **kwargs)
+                with patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 1), patch.object(Path, 'open', tracked_open):
+                    c.publish()
+                    self.assertIn(name, opened)
+                    self.assertEqual(c.state('history:audit')['checked'], 1)
+                    self.assertIn(name, c.state('segments'))
+                    self.assertIn(name, {meta['file'] for meta in json.loads((c.store/'catalog.json').read_text())['segments']})
+                    c.publish(); c.publish()
+                self.assertEqual(c.state('history:audit')['state'], 'complete')
+                self.assertEqual(c.db.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall(), rows)
+                self.assertEqual({p.name: p.read_bytes() for p in c.store.glob('seg-*')}, originals)
+                self.assertEqual((c.private/'segment-verification.key').read_bytes(), key)
+
+    def test_interrupted_publication_metadata_gap_preserves_integrity_failures(self):
+        for reader in (1, 2):
+            for fault in ('checksum', 'mapping', 'private_metadata', 'catalog_metadata'):
+                with self.subTest(reader=reader, fault=fault), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                    c, name, _, originals, key, rows = self.interrupted_publication_fixture(Path(temp), reader, cleanup)
+                    if fault == 'checksum':
+                        raw = gzip.decompress(originals[name]) if reader == 2 else originals[name]
+                        corrupt = raw.replace(b'publication pending', b'publication changed')
+                        self.assertNotEqual(corrupt, raw)
+                        self.assertEqual(len(corrupt), len(raw))
+                        (c.store/name).write_bytes(gzip.compress(corrupt, mtime=0) if reader == 2 else corrupt)
+                        error = 'checksum differs'
+                    elif fault == 'mapping':
+                        c.db.execute('UPDATE events SET id=? WHERE seq=?', (bytes.fromhex('f'*64), rows[-1][0]))
+                        c.db.commit()
+                        error = 'identities differ from private index'
+                    else:
+                        conflict = {**c.verified_metadata[name], 'sha256': '0'*64}
+                        if fault == 'private_metadata':
+                            c.set_state('segments', {**c.state('segments'), name: conflict})
+                            c.db.commit()
+                        else:
+                            catalog = json.loads((c.store/'catalog.json').read_text())
+                            catalog['segments'].append(conflict)
+                            (c.store/'catalog.json').write_text(json.dumps(catalog), encoding='utf-8')
+                        error = 'metadata differs from verified history'
+                    before = self.history_bytes(c)
+                    indexed = c.db.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall()
+                    with patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 1):
+                        with self.assertRaisesRegex(RuntimeError, error): c.publish()
+                    self.assertEqual(c.state('history:audit')['state'], 'error')
+                    with self.assertRaisesRegex(RuntimeError, 'previously failed'): c.publish()
+                    self.assertEqual(self.history_bytes(c), before)
+                    self.assertEqual(c.db.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall(), indexed)
+                    self.assertEqual((c.private/'segment-verification.key').read_bytes(), key)
+
+    def test_interrupted_publication_sticky_error_requires_successful_cold_audit(self):
+        for reader in (1, 2):
+            for corrupt_startup in (False, True):
+                with self.subTest(reader=reader, corrupt_startup=corrupt_startup), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                    root = Path(temp)
+                    c, name, catalog, originals, key, rows = self.interrupted_publication_fixture(root, reader, cleanup)
+                    path_open = Path.open
+                    def unavailable(path, *args, **kwargs):
+                        if path.name == name and args and args[0] == 'rb': raise OSError('synthetic temporary segment read failure')
+                        return path_open(path, *args, **kwargs)
+                    with patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 1), patch.object(Path, 'open', unavailable):
+                        with self.assertRaisesRegex(RuntimeError, 'synthetic temporary segment read failure'): c.publish()
+                    self.assertEqual(c.state('history:audit')['state'], 'error')
+                    with self.assertRaisesRegex(RuntimeError, 'previously failed'): c.publish()
+                    failed_audit = c.state('history:audit')
+                    self.assertEqual(self.history_bytes(c), {**originals, 'catalog.json': catalog})
+                    c.db.close()
+                    if corrupt_startup:
+                        retained = sorted(originals)[0]
+                        raw = gzip.decompress(originals[retained]) if reader == 2 else originals[retained]
+                        corrupt = raw.replace(b'retained 0', b'corrupt! 0')
+                        self.assertNotEqual(corrupt, raw)
+                        self.assertEqual(len(corrupt), len(raw))
+                        (c.store/retained).write_bytes(gzip.compress(corrupt, mtime=0) if reader == 2 else corrupt)
+                    before = self.history_bytes(c)
+                    opened = []
+                    def tracked_open(path, *args, **kwargs):
+                        if path.name.startswith('seg-') and args and args[0] == 'rb': opened.append(path.name)
+                        return path_open(path, *args, **kwargs)
+                    with patch.object(Path, 'open', tracked_open):
+                        if corrupt_startup:
+                            with self.assertRaisesRegex(RuntimeError, 'checksum differs'): Collector(root, {})
+                        else:
+                            recovered = Collector(root, {})
+                            cleanup.callback(recovered.db.close)
+                    if not corrupt_startup:
+                        self.assertEqual(set(opened), set(originals))
+                        self.assertEqual(recovered.state('history:audit')['state'], 'complete')
+                        recovered.reader_format = reader
+                        with patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 1): recovered.publish()
+                        self.assertIn(name, recovered.state('segments'))
+                        self.assertEqual({p.name: p.read_bytes() for p in recovered.store.glob('seg-*')}, originals)
+                    else:
+                        db = sqlite3.connect((c.private/'index.sqlite').as_uri()+'?mode=ro', uri=True)
+                        try:
+                            self.assertEqual(json.loads(db.execute("SELECT value FROM state WHERE key='history:audit'").fetchone()[0]), failed_audit)
+                            self.assertEqual(db.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall(), rows)
+                        finally: db.close()
+                        self.assertEqual(self.history_bytes(c), before)
+                    self.assertEqual((c.private/'segment-verification.key').read_bytes(), key)
+
+    def test_cold_gap_receipt_cannot_be_replaced_by_unverified_content(self):
+        for reader in (1, 2):
+            for fault in ('none', 'same_id_content', 'receipt', 'key_loss'):
+                with self.subTest(reader=reader, fault=fault), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                    root = Path(temp)
+                    c, name, _, originals, key, rows = self.interrupted_publication_fixture(root, reader, cleanup)
+                    path_open = Path.open
+                    def unavailable(path, *args, **kwargs):
+                        if path.name == name and args and args[0] == 'rb': raise OSError('synthetic temporary gap read failure')
+                        return path_open(path, *args, **kwargs)
+                    with patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 1), patch.object(Path, 'open', unavailable):
+                        with self.assertRaisesRegex(RuntimeError, 'synthetic temporary gap read failure'): c.publish()
+                    with self.assertRaisesRegex(RuntimeError, 'previously failed'): c.publish()
+                    failed_audit = c.state('history:audit')
+                    self.assertEqual(failed_audit['state'], 'error')
+                    if fault == 'receipt':
+                        c.db.execute('UPDATE segment_verification SET proof=? WHERE name=?', ('0'*64, name))
+                        c.db.commit()
+                    receipt = c.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone()
+                    self.assertIsNotNone(receipt)
+                    c.db.close()
+                    if fault == 'same_id_content':
+                        raw = gzip.decompress(originals[name]) if reader == 2 else originals[name]
+                        corrupt = raw.replace(b'publication pending', b'publication changed')
+                        self.assertNotEqual(corrupt, raw)
+                        self.assertEqual(len(corrupt), len(raw))
+                        self.assertEqual([json.loads(line)['id'] for line in corrupt.splitlines()],
+                                         [json.loads(line)['id'] for line in raw.splitlines()])
+                        (c.store/name).write_bytes(gzip.compress(corrupt, mtime=0) if reader == 2 else corrupt)
+                    elif fault == 'key_loss':
+                        (c.private/'segment-verification.key').unlink()
+                    before = self.history_bytes(c)
+                    if fault == 'none':
+                        recovered = Collector(root, {})
+                        cleanup.callback(recovered.db.close)
+                        recovered.reader_format = reader
+                        self.assertEqual(recovered.state('history:audit')['state'], 'complete')
+                        self.assertEqual(recovered.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone(), receipt)
+                        with patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 1):
+                            for _ in range(3): recovered.publish()
+                        self.assertEqual(recovered.state('history:audit')['state'], 'complete')
+                        self.assertEqual(recovered.state('segments')[name]['sha256'], json.loads(receipt[1])['sha256'])
+                        self.assertEqual(recovered.db.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall(), rows)
+                        self.assertEqual({p.name: p.read_bytes() for p in recovered.store.glob('seg-*')}, originals)
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, 'receipt cannot authenticate missing metadata'):
+                            unexpected = Collector(root, {})
+                            cleanup.callback(unexpected.db.close)
+                        observed = sqlite3.connect((c.private/'index.sqlite').as_uri()+'?mode=ro', uri=True)
+                        cleanup.callback(observed.close)
+                        self.assertEqual(json.loads(observed.execute("SELECT value FROM state WHERE key='history:audit'").fetchone()[0]), failed_audit)
+                        self.assertEqual(observed.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone(), receipt)
+                        self.assertEqual(observed.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall(), rows)
+                        self.assertEqual(self.history_bytes(c), before)
+                    if fault != 'key_loss':
+                        self.assertEqual((c.private/'segment-verification.key').read_bytes(), key)
+
+    def test_retained_descriptor_preserves_cold_cache_and_key_loss_fallback(self):
+        for reader in (1, 2):
+            for fault in ('receipt', 'key_loss'):
+                for corrupt_content in (False, True):
+                    with self.subTest(reader=reader, fault=fault, corrupt_content=corrupt_content), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                        root = Path(temp)
+                        c, name, _, originals, key, rows = self.interrupted_publication_fixture(root, reader, cleanup)
+                        c.publish()
+                        retained = c.state('segments')[name]
+                        if fault == 'receipt':
+                            c.db.execute('UPDATE segment_verification SET proof=? WHERE name=?', ('0'*64, name))
+                            c.db.commit()
+                        c.db.close()
+                        if fault == 'key_loss': (c.private/'segment-verification.key').unlink()
+                        if corrupt_content:
+                            raw = gzip.decompress(originals[name]) if reader == 2 else originals[name]
+                            corrupt = raw.replace(b'publication pending', b'publication changed')
+                            self.assertNotEqual(corrupt, raw)
+                            self.assertEqual(len(corrupt), len(raw))
+                            (c.store/name).write_bytes(gzip.compress(corrupt, mtime=0) if reader == 2 else corrupt)
+                        before = self.history_bytes(c)
+                        if corrupt_content:
+                            with self.assertRaisesRegex(RuntimeError, 'checksum differs'):
+                                unexpected = Collector(root, {})
+                                cleanup.callback(unexpected.db.close)
+                            self.assertEqual(self.history_bytes(c), before)
+                        else:
+                            recovered = Collector(root, {})
+                            cleanup.callback(recovered.db.close)
+                            self.assertEqual(recovered.state('history:audit')['state'], 'complete')
+                            self.assertEqual(recovered.verified_metadata[name]['sha256'], retained['sha256'])
+                            self.assertEqual(recovered.db.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall(), rows)
+                            proof, metadata = recovered.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone()
+                            self.assertNotEqual(proof, '0'*64)
+                            self.assertEqual(json.loads(metadata)['sha256'], retained['sha256'])
+                            self.assertEqual(self.history_bytes(recovered), before)
+                        if fault == 'key_loss':
+                            replacement_key = (c.private/'segment-verification.key').read_bytes()
+                            self.assertEqual(len(replacement_key), 32)
+                            self.assertNotEqual(replacement_key, key)
+                        else:
+                            self.assertEqual((c.private/'segment-verification.key').read_bytes(), key)
+
+    def test_warm_gap_verified_checksum_allows_full_receipt_fallback(self):
+        for reader in (1, 2):
+            with self.subTest(reader=reader), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                c, name, _, originals, key, rows = self.interrupted_publication_fixture(Path(temp), reader, cleanup)
+                checksum = c.verified_metadata[name]['sha256']
+                c.db.execute('UPDATE segment_verification SET proof=? WHERE name=?', ('0'*64, name))
+                c.db.commit()
+                with patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 1): c.publish()
+                self.assertEqual(c.state('segments')[name]['sha256'], checksum)
+                proof, metadata = c.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone()
+                self.assertNotEqual(proof, '0'*64)
+                self.assertEqual(json.loads(metadata)['sha256'], checksum)
+                self.assertEqual(c.db.execute('SELECT seq,id,published FROM events ORDER BY seq').fetchall(), rows)
+                self.assertEqual({p.name: p.read_bytes() for p in c.store.glob('seg-*')}, originals)
+                self.assertEqual((c.private/'segment-verification.key').read_bytes(), key)
 
     def test_incremental_audit_same_size_corruption_is_terminal(self):
         with tempfile.TemporaryDirectory() as temp, patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 2):
@@ -463,7 +728,7 @@ class CollectorTests(unittest.TestCase):
             c.db.close()
 
     def test_obs015_all_editor_names_and_route_source_priorities(self):
-        for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+        for module in ('scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'):
             with self.subTest(module=module):
                 reported = 'blocks' if module == 'scratch' else module
                 event = normalize('api', json.dumps({'kind': 'client_diagnostic', 'module': reported, 'level': 'warn'}), now(), module)
@@ -473,17 +738,24 @@ class CollectorTests(unittest.TestCase):
                 self.assertEqual((event['module'], event['subsystem']), (module, module))
         for source, payload, expected in (
             ('linux:journal', {'module': 'chess'}, ('system', 'host')),
+            ('linux:journal', {'module': 'robotics'}, ('system', 'host')),
             ('scratch', {'module': 'chess'}, ('scratch', 'scratch')),
+            ('scratch', {'module': 'robotics'}, ('scratch', 'scratch')),
             ('postgres', {'module': 'chess'}, ('system', 'database')),
+            ('postgres', {'module': 'robotics'}, ('system', 'database')),
             ('api', {'kind': 'client_diagnostic', 'module': 'unknown'}, ('portal', 'api')),
+            ('api', {'kind': 'client_diagnostic', 'module': 'robotics-extra'}, ('portal', 'api')),
+            ('api', {'path': '/api/robotics-extra/fixture'}, ('portal', 'api')),
+            ('api', {'path': '/api/robotics.invalid/fixture'}, ('portal', 'api')),
             ('api', {'path': '/api/projects/fixture', 'module': 'chess'}, ('chess', 'projects')),
+            ('api', {'path': '/api/projects/fixture', 'module': 'robotics'}, ('robotics', 'projects')),
         ):
             with self.subTest(source=source, payload=payload):
                 event = normalize(source, json.dumps(payload), now(), str(payload))
                 self.assertEqual((event['module'], event['subsystem']), expected)
 
     def test_obs015_truncated_json_keeps_classification_collected_before_truncation(self):
-        for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+        for module in ('scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'):
             payload = {'path': '/api/' + module + '/fixture', 'msg': 'x' * 20000, 'level': 'warn'}
             event = normalize('api', json.dumps(payload), now(), module)
             self.assertTrue(event['truncated'])
@@ -504,7 +776,7 @@ class CollectorTests(unittest.TestCase):
                     c.publish()
                     originals = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
                     rows = []; expected = {}
-                    for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+                    for module in ('scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'):
                         for level in ('info', 'warn', 'error'):
                             event = normalize('api', json.dumps({'path': '/api/' + module + '/fixture', 'msg': 'x' * 20000, 'level': level}), now(), module + level)
                             self.assertTrue(event['truncated'])
@@ -554,9 +826,9 @@ class CollectorTests(unittest.TestCase):
                 c, rows, originals = editor_classification_fixture(Path(temp), compressed)
                 try:
                     catalog = json.loads((c.store/'catalog.json').read_text(encoding='utf-8'))
-                    self.assertEqual(sum(meta['count'] for meta in catalog['segments']), 45)
+                    self.assertEqual(sum(meta['count'] for meta in catalog['segments']), 54)
                     for meta in catalog['segments']:
-                        self.assertEqual(set(meta['modules']), {'scratch', 'electronics', 'three-d', 'chess', 'checkers'})
+                        self.assertEqual(set(meta['modules']), {'scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'})
                         self.assertEqual(set(meta['subsystems']), set(meta['modules']))
                         self.assertEqual(set(meta['levels']), {'info', 'warn', 'error'})
                     for file, raw in originals.items(): self.assertEqual((c.store/file).read_bytes(), raw)
@@ -922,7 +1194,7 @@ class CollectorTests(unittest.TestCase):
             def command(args, **kwargs):
                 if args[1] == 'ps': return b'new-container\npostgres-container'
                 if args[1] == 'inspect':
-                    records = [dict(Id=cid, Created=created.isoformat(), Config=dict(Labels={'com.docker.compose.service': service, 'com.docker.compose.project.working_dir': str(collector.root)})) for cid, service in [('new-container', 'api'), ('postgres-container', 'postgres')]]
+                    records = [dict(Id=cid, Created=created.isoformat(), Config=dict(Labels={'com.docker.compose.project': 'asa-lab-dev', 'com.docker.compose.service': service, 'com.docker.compose.project.working_dir': str(collector.root)})) for cid, service in [('new-container', 'api'), ('postgres-container', 'postgres')]]
                     return '\n'.join(json.dumps(c) for c in records).encode()
                 calls.append(args)
                 return (now() + ' ERROR startup failure\n').encode()
@@ -993,6 +1265,17 @@ class CollectorTests(unittest.TestCase):
             # confused with an external index replacement on the next publish.
             collector.publish()
             collector.db.close()
+
+
+def load_tests(loader, tests, pattern):
+    # Existing explicit collector CI entrypoint must run the new regression files;
+    # broad discovery already selects them and must not run them twice.
+    import fnmatch
+    if not pattern or not fnmatch.fnmatch('test_retired_metadata_atomic.py', pattern):
+        import test_retired_metadata_atomic, test_retired_successor_recovery
+        tests.addTests(loader.loadTestsFromModule(test_retired_metadata_atomic))
+        tests.addTests(loader.loadTestsFromModule(test_retired_successor_recovery))
+    return tests
 
 
 if __name__ == '__main__':

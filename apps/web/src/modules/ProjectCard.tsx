@@ -1,9 +1,10 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { ModuleSummary, Project } from '../api';
 import { PortalLink } from '../components/PortalLink';
-import { SettingsGlyph } from '../components/portal-icons';
+import { ProjectCardMenu } from './ProjectCardMenu';
 import { ModuleGlyph, moduleAccent } from './ModuleGlyph';
 import { ProjectPreview } from './ProjectPreviewFigure';
+import { ProjectModuleIcon } from './ProjectModuleIcon';
 import './project-card.css';
 
 /**
@@ -101,6 +102,21 @@ export function ProjectCard({
       data-testid="project-card"
     >
       <div className="project-card-frame">
+        {[
+          'three-d',
+          'electronics',
+          'blocks',
+          'robotics',
+          'ai',
+          'cad',
+          'drawing',
+          'vector',
+          'programming',
+        ].includes(project.moduleKey) ? (
+          <span className="project-card-module-icon" title={subject}>
+            <ProjectModuleIcon moduleKey={project.moduleKey} size={24} />
+          </span>
+        ) : null}
         {open ? (
           // The whole picture is a click target, but it is not a second link for
           // a screen reader: the title below already names this destination.
@@ -138,24 +154,7 @@ export function ProjectCard({
             </button>
           ) : null}
           {menuItems.length > 0 ? (
-            <details className="project-card-tools">
-              <summary aria-label={`Действия с проектом ${project.title}`}>
-                <SettingsGlyph />
-              </summary>
-              <div>
-                {menuItems.map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    className={item.danger === true ? 'danger' : undefined}
-                    disabled={item.disabled === true}
-                    onClick={item.onSelect}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </details>
+            <ProjectCardMenu title={project.title} items={menuItems} />
           ) : null}
         </div>
       </div>
@@ -207,7 +206,9 @@ export function ProjectCard({
             ) : null}
           </>
         )}
-        <p className="project-card-footer">
+        <p
+          className={`project-card-footer${!footerTone && !footerAction && (!footerLabel || footerLabel === 'Личный проект') ? ' is-redundant' : ''}`}
+        >
           {/* When the mark leads somewhere — a teacher's note behind a verdict —
               it is a button. A learner should not have to find a hover menu to
               read why they got "Нужно доделать". */}
@@ -224,7 +225,6 @@ export function ProjectCard({
               {footerLabel}
             </span>
           )}
-          <span className="project-card-subject">{subject}</span>
         </p>
       </div>
     </li>

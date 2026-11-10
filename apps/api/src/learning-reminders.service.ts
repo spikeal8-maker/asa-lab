@@ -29,9 +29,14 @@ export class LearningRemindersService implements OnModuleInit, OnModuleDestroy {
     if (this.running || !this.pool) return;
     this.running = true;
     try {
-      await this.pool.query('SELECT learning_notification_sweep()');
+      try {
+        await this.pool.query('SELECT learning_notification_sweep()');
+      } catch {
+        this.logger.error('Learning reminder sweep failed; persisted evidence will be retried.');
+      }
+      await this.pool.query('SELECT learning_quiz_expiry_sweep()');
     } catch {
-      this.logger.error('Learning reminder sweep failed; persisted evidence will be retried.');
+      this.logger.error('Learning Quiz expiry sweep failed; persisted answers will be retried.');
     } finally {
       this.running = false;
     }

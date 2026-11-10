@@ -1,5 +1,5 @@
 import { newClientId } from './client-id';
-import { isAuthRequest } from './auth-request';
+import { isAuthRequest, isLifecycleCancellation } from './auth-request';
 import {
   REQUEST_OPERATIONS,
   REQUEST_METHODS,
@@ -18,6 +18,7 @@ import {
 } from './client-error-details';
 import {
   ASSET_SCRIPT,
+  criticalDiagnostic,
   DiagnosticOutbox,
   FAILURE_CATEGORIES,
   FAILURE_CODES,
@@ -60,6 +61,7 @@ export interface DiagnosticDetail {
 const recent = new Map<string, number>();
 let windowStarted = 0;
 let count = 0;
+let criticalCount = 0;
 let installed = false;
 let outbox: DiagnosticOutbox | undefined;
 function diagnosticOutbox(): DiagnosticOutbox {
@@ -97,16 +99,11 @@ export function reportClientDiagnostic(
     const now = Date.now();
     const quality = diagnosticQuality();
     quality.increment('attempted');
-    if (now - windowStarted > 60_000) {
+    if (now - windowStarted >= 60_000) {
       windowStarted = now;
       count = 0;
+      criticalCount = 0;
     }
-    const health = [
-      'editor_ready',
-      'editor_heartbeat',
-      'editor_recovered',
-      'request_cancelled',
-    ].includes(code);
     const baseKey = `${context.instanceId}:${module}:${code}`;
     const scratchSave =
       code === 'autosave_failed' &&
@@ -118,30 +115,16 @@ export function reportClientDiagnostic(
       validClientException(detail.exception) && exceptionMatchesCode(detail.exception, code)
         ? detail.exception
         : undefined;
-    const frame = exception?.frames[0];
-    const key =
-      code === 'request_cancelled'
-        ? baseKey
-        : detail.clientAttemptId && UUID.test(detail.clientAttemptId)
-          ? `${baseKey}:${detail.clientAttemptId}`
-          : scratchSave
-            ? `${baseKey}:${detail.failureCode}`
-            : exception
-              ? `${baseKey}:${exception.kind}:${exception.capture}:${frame?.script}:${frame?.line}:${frame?.column}`
-              : baseKey;
-    if (!health && count >= 12) {
-      quality.increment('suppressed');
-      return;
-    }
-    if (now - (recent.get(key) ?? -Infinity) < (health ? 60_000 : 10_000)) {
+    // The controlled-exit wrapper can report the same precise Scratch save failure a second time.
+    if (!scratchSave && now - (recent.get(baseKey) ?? -Infinity) < 10_000) {
       quality.increment('deduplicated');
       return;
     }
-    if (recent.size > 200) for (const [id, at] of recent) if (now - at > 60_000) recent.delete(id);
-    recent.set(key, now);
-    // A precise save report also covers a following generic controlled-exit failure.
-    if (scratchSave) recent.set(baseKey, now);
-    if (!health) count += 1;
+    for (const [id, at] of recent) if (now - at >= 10_000) recent.delete(id);
+    if (scratchSave) {
+      if (recent.size >= 50) recent.delete(recent.keys().next().value!);
+      recent.set(baseKey, now);
+    }
     const revision =
       typeof __ASA_BUILD_REVISION__ === 'string' && /^[a-f0-9]{7,64}$/.test(__ASA_BUILD_REVISION__)
         ? __ASA_BUILD_REVISION__
@@ -204,7 +187,8 @@ export function reportClientDiagnostic(
         ? { phase: detail.phase }
         : {}),
     };
-    diagnosticOutbox().enqueue(
+    const critical = criticalDiagnostic(code);
+    const enqueued = diagnosticOutbox().enqueue(
       {
         code,
         module,
@@ -215,7 +199,14 @@ export function reportClientDiagnostic(
         ...safe,
       },
       false,
+      critical ? criticalCount < 4 : count < 8,
     );
+    // Repeats still join a pending aggregate after admission is exhausted. Reserve four
+    // envelopes for render/autosave so network noise cannot spend their reporting budget.
+    if (enqueued) {
+      if (critical) criticalCount += 1;
+      else count += 1;
+    }
   } catch {
     /* Diagnostics must not change the product action. */
   }
@@ -321,14 +312,12 @@ export function installClientDiagnostics(): void {
     try {
       const response = await original(input, { ...init, headers });
       const durationMs = performance.now() - started;
+      const failed = response.status === 429 || response.status >= 500;
       // Late responses from a closed editor cannot belong to its successor.
-      if (
-        active.instanceId === context.instanceId &&
-        (response.status >= 500 || durationMs >= 10_000)
-      )
-        reportClientDiagnostic(response.status >= 500 ? 'request_failed' : 'request_slow', module, {
+      if (active.instanceId === context.instanceId && (failed || durationMs >= 10_000))
+        reportClientDiagnostic(failed ? 'request_failed' : 'request_slow', module, {
           ...requestDetail,
-          ...(response.status >= 500 ? { failureKind: 'http' } : {}),
+          ...(failed ? { failureKind: 'http' } : {}),
           phase: 'request',
           httpStatus: response.status,
           durationMs,
@@ -337,7 +326,11 @@ export function installClientDiagnostics(): void {
       return response;
     } catch (failure) {
       const failureKind = requestFailureKind(failure, signal);
-      if (active.instanceId === context.instanceId)
+      const lifecycleRead =
+        failureKind === 'cancelled' &&
+        ['GET', 'HEAD'].includes(method) &&
+        isLifecycleCancellation(signal?.reason);
+      if (active.instanceId === context.instanceId && !lifecycleRead)
         reportClientDiagnostic(
           failureKind === 'cancelled' && ['GET', 'HEAD'].includes(method)
             ? 'request_cancelled'

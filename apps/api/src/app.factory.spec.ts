@@ -1,3 +1,4 @@
+import { MutationAbuseProtection } from './abuse-protection';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +8,8 @@ import { NestFactory } from '@nestjs/core';
 import { EventEmitter } from 'node:events';
 import { AppModule } from './app.module.js';
 import { contentSecurityPolicyFor, createApiApp, shouldServeSpaDocument } from './app.factory.js';
+import * as applicationLogging from './application-log-store.js';
+import { queryLogs } from './admin-logs.worker.js';
 
 const apps: Array<Awaited<ReturnType<typeof createApiApp>>> = [];
 const temporaryDirectories: string[] = [];
@@ -21,7 +24,214 @@ afterEach(async () => {
   }
 });
 
+describe('HTTP runtime warning integration', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('counts real terminal hooks once and retains the warning through the unchanged writer and reader', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'performance'] });
+    const output: string[] = [];
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      output.push(String(chunk));
+      return true;
+    });
+    const app = await createApiApp({
+      pool: null,
+      analyticsPool: null,
+      acquisitionPool: null,
+      webDist: null,
+    });
+    const root = await mkdtemp(join(tmpdir(), 'asa-http-alert-reader-'));
+    temporaryDirectories.push(root);
+    const store = new applicationLogging.ApplicationLogStore(root);
+    try {
+      const http = app.getHttpAdapter().getInstance();
+      vi.advanceTimersByTime(10_000);
+      for (let i = 0; i < 20; i++) {
+        const response = await http.inject({
+          method: 'GET',
+          url: i < 5 ? '/api/games/chess/notifications' : '/health/live',
+          headers: {
+            'x-game-presence': '1',
+            'x-alert-canary': 'private-header-must-not-enter-alert',
+          },
+        });
+        expect(response.statusCode).toBe(i < 5 ? 503 : 200);
+      }
+      vi.advanceTimersByTime(50_000);
+      expect(output.filter((line) => line.includes('"kind":"runtime_http_alert"'))).toEqual([]);
+      vi.advanceTimersByTime(10_000);
+      const lines = output.filter((line) => line.includes('"kind":"runtime_http_alert"'));
+      expect(lines).toHaveLength(1);
+      const line = lines[0]!;
+      const warning = JSON.parse(line);
+      expect(warning).toMatchObject({
+        kind: 'runtime_http_alert',
+        code: 'http_5xx_rate',
+        phase: 'opened',
+        level: 'warn',
+        counters: { arrivals: 20, responses: 20, aborted: 0, serverErrors: 5, rateLimited: 0 },
+        gauges: { serverErrorPercent: 25 },
+        coverage: { windowComplete: true, baselineComplete: false },
+      });
+      expect(warning.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(warning.revision).toEqual(expect.any(String));
+      expect(Object.keys(warning).sort()).toEqual([
+        'code',
+        'counters',
+        'coverage',
+        'gauges',
+        'kind',
+        'level',
+        'phase',
+        'revision',
+        'time',
+      ]);
+      expect(Buffer.byteLength(line)).toBeLessThan(2_048);
+      expect(line).not.toMatch(
+        /private|chess|notifications|health|header|requestId|account|seat|project|path|url/i,
+      );
+      store.enqueue(line);
+      await store.flush();
+      const readback = await queryLogs(
+        root,
+        {
+          from: '2020-01-01T00:00:00.000Z',
+          to: '2100-01-01T00:00:00.000Z',
+          source: 'api',
+          module: '',
+          level: 'warn',
+          search: 'runtime_http_alert',
+          before: null,
+        },
+        100,
+      );
+      expect(readback.partial).toBe(false);
+      expect(readback.items).toHaveLength(1);
+      expect(readback.items[0]).toMatchObject({
+        source: 'api',
+        level: 'warn',
+        origin: 'application-owned',
+        requestId: null,
+        revision: warning.revision,
+        truncated: false,
+      });
+      expect(JSON.parse(readback.items[0]!.message)).toEqual(warning);
+    } finally {
+      await app.close();
+      await store.close();
+      stdout.mockRestore();
+    }
+    const count = output.filter((line) => line.includes('"kind":"runtime_http_alert"')).length;
+    vi.advanceTimersByTime(600_000);
+    expect(output.filter((line) => line.includes('"kind":"runtime_http_alert"'))).toHaveLength(
+      count,
+    );
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('isolates a throwing warning logger from real HTTP responses and cleanup', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'performance'] });
+    const warningCalls: string[] = [];
+    vi.spyOn(applicationLogging, 'emitApplicationLog').mockImplementation((line) => {
+      if (line.includes('"kind":"runtime_http_alert"')) {
+        warningCalls.push(line);
+        throw new Error('warning sink unavailable');
+      }
+      return true;
+    });
+    const previousRevision = process.env['ASA_BUILD_REVISION'];
+    process.env['ASA_BUILD_REVISION'] = `https://revision-secret.invalid/${'x'.repeat(8_000)}`;
+    let app: Awaited<ReturnType<typeof createApiApp>> | undefined;
+    try {
+      app = await createApiApp({
+        pool: null,
+        analyticsPool: null,
+        acquisitionPool: null,
+        webDist: null,
+      });
+      const http = app.getHttpAdapter().getInstance();
+      vi.advanceTimersByTime(10_000);
+      for (let i = 0; i < 20; i++) {
+        const response = await http.inject({
+          method: 'GET',
+          url: '/api/games/chess/notifications',
+          headers: { 'x-game-presence': '1' },
+        });
+        expect(response.statusCode).toBe(503);
+      }
+      expect(() => vi.advanceTimersByTime(60_000)).not.toThrow();
+      expect(warningCalls).toHaveLength(1);
+      expect(JSON.parse(warningCalls[0]!).revision).toBe('unknown');
+      expect(Buffer.byteLength(warningCalls[0]!)).toBeLessThan(2_048);
+      expect(warningCalls[0]).not.toContain('revision-secret');
+      const response = await http.inject({ method: 'GET', url: '/health/live' });
+      expect(response.statusCode).toBe(200);
+    } finally {
+      try {
+        await app?.close();
+      } finally {
+        if (previousRevision === undefined) delete process.env['ASA_BUILD_REVISION'];
+        else process.env['ASA_BUILD_REVISION'] = previousRevision;
+      }
+    }
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(600_000);
+    expect(warningCalls).toHaveLength(1);
+  });
+
+  it('clears the warning timer when Nest rejects after metrics construction', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'performance'] });
+    const interval = vi.spyOn(globalThis, 'setInterval');
+    vi.spyOn(NestFactory, 'create').mockRejectedValueOnce(new Error('warning cleanup fixture'));
+    await expect(
+      createApiApp({ pool: null, analyticsPool: null, acquisitionPool: null, webDist: null }),
+    ).rejects.toThrow('warning cleanup fixture');
+    expect(interval).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
 describe('API application factory', () => {
+  it('notification polling does not spend the shared school mutation budget; mutations retain their guard', async () => {
+    const consume = vi.spyOn(MutationAbuseProtection.prototype, 'consume');
+    const app = await createApiApp({
+      pool: null,
+      analyticsPool: null,
+      acquisitionPool: null,
+      webDist: null,
+      allowedWebOrigin: 'http://127.0.0.1:4612',
+    });
+    try {
+      const http = app.getHttpAdapter().getInstance();
+      for (let index = 0; index < 901; index++) {
+        const response = await http.inject({
+          method: 'GET',
+          url:
+            index % 2 === 0
+              ? '/api/games/chess/notifications'
+              : '/api/games/checkers/notifications',
+          headers: { 'x-game-presence': '1' },
+        });
+        // This fixture deliberately has no DB: route exists and fails closed.
+        expect(response.statusCode).toBe(503);
+      }
+      expect(consume).not.toHaveBeenCalled();
+      await http.inject({
+        method: 'POST',
+        url: '/api/games/chess/lobby',
+        headers: { origin: 'http://127.0.0.1:4612' },
+        payload: { scope: 'platform' },
+      });
+      expect(consume).toHaveBeenCalledOnce();
+    } finally {
+      consume.mockRestore();
+      await app.close();
+    }
+  }, 30000);
+
   it('sanitizes the real Nest provider exception zone before rethrow and closes transferred pools once', async () => {
     const canary = 'postgres://canary_password@secret-provider.invalid/private';
     const failure = new Error(canary);

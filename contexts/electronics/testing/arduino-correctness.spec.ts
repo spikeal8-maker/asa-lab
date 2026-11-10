@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { resolve } from 'node:path';
 import {
   advanceArduinoRuntime,
   advanceClockedArduinoRuntime,
@@ -15,6 +18,46 @@ import {
 } from '../domain/arduino-model.js';
 import { parseElectronicsDocument, type SchematicComponent } from '../domain/document.js';
 import { solveCircuit } from '../domain/solver.js';
+
+describe('owner generated setup pin initialization', () => {
+  it('preserves all 765 electrical actions of the immutable owner program through 22000 model ms', () => {
+    // Data-only intake across the project boundary. Frontend tests bind this
+    // golden byte-for-byte to the real generator, without importing core internals.
+    const owner = JSON.parse(
+      readFileSync(
+        resolve(
+          process.cwd(),
+          'apps/web/src/electronics/testing/fixtures/owner-7ad29bb5-pin-setup.json',
+        ),
+        'utf8',
+      ),
+    ) as {
+      arduinoSource: string;
+      arduinoGeneratedSource: string;
+    };
+    const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+    expect(hash(owner.arduinoSource)).toBe(
+      '943d712b0b4430dded820b43938f13d2b096c45ae63c7ef08e050fbcab5b4173',
+    );
+    expect(hash(owner.arduinoGeneratedSource)).toBe(
+      '78eced1ec770d5007688b6e68f5ad9d1e60a4009f730fc8381e3fbd960a5d860',
+    );
+    const original = advanceArduinoRuntime(owner.arduinoSource, {}, 22000);
+    const generated = advanceArduinoRuntime(owner.arduinoGeneratedSource, {}, 22000);
+    expect(original.diagnostics).toEqual([]);
+    expect(generated.diagnostics).toEqual([]);
+    const actions = generated.loopActions.filter((a) => a.kind !== 'pin-mode');
+    expect(actions).toEqual(original.loopActions.filter((a) => a.kind !== 'pin-mode'));
+    expect(actions).toHaveLength(765);
+    expect(hash(JSON.stringify(actions))).toBe(
+      'a84cd95d0d96343e1863384741f1602e43b3dad9eb1fca7bb56d668e0dd943e3',
+    );
+    const pins = actions.filter((a) => a.kind === 'write').map((a) => a.terminal);
+    expect([...new Set(pins)].sort()).toEqual(Array.from({ length: 12 }, (_, i) => `d${i}`).sort());
+    expect(Object.values(generated.state.pinModes)).toEqual(Array(20).fill('OUTPUT'));
+    expect(generated.loopActions.some((a) => a.kind === 'pin-mode')).toBe(false);
+  });
+});
 
 describe('numeric conditional value expressions', () => {
   const sketch = (body: string, globals = 'long value=0;int n=0;') =>

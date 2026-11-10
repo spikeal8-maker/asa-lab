@@ -128,8 +128,9 @@ describe('connected Arduino program', () => {
     expect(before).toContain('Serial.begin(9600)');
     repeat.unplug(false);
     const detached = code();
-    for (const unused of ['float count', 'Serial.', 'readUltrasonicCm', 'pinMode'])
+    for (const unused of ['float count', 'Serial.', 'readUltrasonicCm', ', INPUT)'])
       expect(detached).not.toContain(unused);
+    expect(detached.match(/pinMode\(/g)).toHaveLength(20);
     body(loop, repeat);
     expect(code()).toBe(before);
   });

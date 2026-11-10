@@ -1027,7 +1027,7 @@ async function assignFromUi(
   page: Page,
   input: { title: string; due: string; students?: string[] },
 ): Promise<void> {
-  await page.getByRole('button', { name: 'Назначить задание', exact: true }).click();
+  await page.getByRole('button', { name: 'Выдать задание', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Назначить задание' });
   await dialog.getByLabel('Задание').selectOption({ label: input.title });
   if (input.students) {
@@ -3074,6 +3074,310 @@ for (const module of ['electronics', 'three-d'])
     await context.close();
   });
 
+test('Written Course response: compact author, Seat and Account drafts, immutable rework and exact journal grade', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const suffix = ++sequence;
+  const identity = await seedTeacher(admin, 'essay-course-' + suffix);
+  await loginWithOrganization(page, identity);
+  const classTitle = 'Письменный класс ' + suffix;
+  const code = await createClassWithStudents(page, classTitle, [
+    { label: 'Письменный ученик', handle: 'essay-seat-' + suffix },
+  ]);
+  const classroomId = /classrooms\/([a-f0-9-]+)/.exec(page.url())![1]!;
+  const courseTitle = 'Курс письменных объяснений ' + suffix;
+  const essayTitle = 'Объяснение решения и проверка выводов ' + suffix;
+  const essayPdf = Buffer.from('%PDF-1.4\nExact essay instructions\n%%EOF');
+  await openPortalSection(page, 'Курсы и задания');
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'Новый курс' });
+  await form.getByLabel('Название', { exact: true }).fill(courseTitle);
+  await form.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const editor = page.getByTestId('course-editor');
+  await editor
+    .locator('.course-outline')
+    .getByRole('button', { name: '+ Урок', exact: true })
+    .click();
+  await editor.getByLabel('Название урока').fill('Объясните наблюдения');
+  await editor
+    .getByLabel('Текст блока', { exact: true })
+    .fill('Прочитайте условия и дайте письменный ответ.');
+  await addCourseBlock(page, 'Практика');
+  await editor.getByRole('button', { name: 'Создать задание для урока', exact: true }).click();
+  const author = page.getByRole('dialog', { name: 'Новое задание для урока', exact: true });
+  await author.getByLabel('Тип задания', { exact: true }).selectOption('essay');
+  await expect(author.getByLabel('Среда задания', { exact: true })).toHaveCount(0);
+  await author.getByLabel('Название задания', { exact: true }).fill(essayTitle);
+  await author
+    .getByLabel('Содержание', { exact: true })
+    .fill('Сформулируйте вывод, объясните причину и проверьте аргументы.');
+  await author.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  await author.getByLabel('PDF файл задания').setInputFiles({
+    name: 'essay-instructions.pdf',
+    mimeType: 'application/pdf',
+    buffer: essayPdf,
+  });
+  await expect(author.getByText('essay-instructions.pdf · ожидает сохранения')).toBeVisible();
+  await author.getByRole('button', { name: 'Настройки', exact: true }).click();
+  const settings = author.getByRole('dialog', { name: 'Настройки', exact: true });
+  await expect(settings.getByLabel('Среда проекта', { exact: true })).toHaveCount(0);
+  await settings.getByLabel('Результат', { exact: true }).selectOption('graded');
+  await settings.getByLabel('Максимум баллов', { exact: true }).fill('10');
+  await expect(settings.getByLabel('Попытки', { exact: true })).toHaveValue('1');
+  await settings.getByRole('button', { name: 'Закрыть настройки', exact: true }).click();
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await author.getByLabel('Название задания', { exact: true }).focus();
+    await expect(
+      author.getByRole('button', { name: 'Добавить в урок', exact: true }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({ path: `${evidenceDir}/essay-author-${width}.png`, fullPage: false });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const essayFileSaved = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      /\/api\/learning\/activities\/[^/]+\/draft-task-file$/.test(new URL(response.url()).pathname),
+  );
+  await author.getByRole('button', { name: 'Добавить в урок', exact: true }).click();
+  const essayFileReceipt = await essayFileSaved;
+  expect(essayFileReceipt.ok()).toBe(true);
+  expect((await essayFileReceipt.json()).contentHash).toMatch(/^[a-f0-9]{64}$/);
+  await expect(author).toBeHidden();
+  await expect(editor.locator('.course-pinned-practice')).toContainText('Письменный ответ');
+  const roots = await page.request.get('/api/learning/activities');
+  const activity = (await roots.json()).items.find(
+    (item: { title: string }) => item.title === essayTitle,
+  );
+  expect(activity).toMatchObject({ kind: 'essay', currentPublishedVersionId: expect.any(String) });
+  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
+  await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
+  await openCourseActions(page);
+  await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  const assign = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
+  await assign.getByLabel('Класс для курса').selectOption({ label: classTitle });
+  await assign.getByRole('button', { name: 'Назначить', exact: true }).click();
+  await expect(assign.getByRole('status')).toContainText('Сервер подтвердил версию 1');
+  await assign.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
+  const learner = await learnerAssignments(browser, code, 'essay-seat-' + suffix);
+  const runs = await learner.page.request.get('/api/class-join/me/course-runs');
+  const run = (await runs.json()).items.find(
+    (item: { title: string }) => item.title === courseTitle,
+  );
+  const occurrence = run.sections
+    .flatMap((section: { lessons: Array<{ activityOccurrences: unknown[] }> }) => section.lessons)
+    .flatMap(
+      (lesson: {
+        activityOccurrences: Array<{ title: string; learningActivityVersionId: string }>;
+      }) => lesson.activityOccurrences,
+    )
+    .find((item: { title: string }) => item.title === essayTitle);
+  expect(occurrence).toMatchObject({
+    activityKind: 'essay',
+    moduleKey: null,
+    learningActivityVersionId: activity.currentPublishedVersionId,
+    projectId: null,
+  });
+  const courseUrl = '/#/learning?courseRun=' + encodeURIComponent(run.id);
+  await learner.page.goto(courseUrl);
+  const responseEditor = learner.page.getByTestId('essay-response-editor');
+  const essayInstructionFile = learner.page.getByRole('button', {
+    name: 'Скачать PDF: essay-instructions.pdf',
+    exact: true,
+  });
+  const downloadedInstructions = learner.page.waitForEvent('download');
+  await essayInstructionFile.click();
+  expect((await downloadedInstructions).suggestedFilename()).toBe('essay-instructions.pdf');
+  await responseEditor.getByRole('button', { name: 'Написать ответ', exact: true }).click();
+  const firstAnswer =
+    'Мой вывод с подробным объяснением и проверкой аргументов.\n'.repeat(12) +
+    '<script>window.__essayExecuted = true</script>';
+  await responseEditor.getByLabel('Ваш письменный ответ', { exact: true }).fill(firstAnswer);
+  await responseEditor.getByRole('button', { name: 'Сохранить ответ', exact: true }).click();
+  await expect(responseEditor.getByRole('status')).toContainText('Ответ сохранён');
+  await learner.page.reload();
+  await expect(responseEditor.getByLabel('Ваш письменный ответ', { exact: true })).toHaveValue(
+    firstAnswer,
+  );
+  for (const width of [1440, 1024, 390, 320]) {
+    await learner.page.setViewportSize({ width, height: 900 });
+    const answer = responseEditor.getByLabel('Ваш письменный ответ', { exact: true });
+    await expect
+      .poll(() => answer.evaluate((field) => field.scrollHeight - field.clientHeight))
+      .toBeLessThanOrEqual(2);
+    await responseEditor
+      .getByRole('button', { name: 'Сдать ответ', exact: true })
+      .scrollIntoViewIfNeeded();
+    await expect(
+      responseEditor.getByRole('button', { name: 'Сдать ответ', exact: true }),
+    ).toBeVisible();
+    expect(
+      await learner.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    ).toBe(true);
+    await learner.page.screenshot({
+      path: `${evidenceDir}/essay-learner-saved-${width}.png`,
+      fullPage: false,
+    });
+  }
+  await learner.page.setViewportSize({ width: 1440, height: 900 });
+  const firstSubmit = learner.page.waitForResponse(
+    (item) => item.request().method() === 'POST' && item.url().endsWith('/submit') && item.ok(),
+  );
+  await responseEditor.getByRole('button', { name: 'Сдать ответ', exact: true }).click();
+  const firstFrozen = await (await firstSubmit).json();
+  await expect(responseEditor.getByRole('status')).toContainText('Ответ сдан');
+  async function journal() {
+    await page.goto('/#/classrooms/' + classroomId);
+    await page
+      .getByRole('navigation', { name: 'Разделы класса' })
+      .getByRole('button', { name: 'Журнал', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Задания', exact: true }).click();
+  }
+  await journal();
+  const seatCell = page.getByRole('button', {
+    name: new RegExp('^Письменный ученик · ' + essayTitle),
+  });
+  await seatCell.click();
+  const review = page.getByRole('region', { name: 'Проверка сдачи' });
+  await expect(review.getByTestId('submission-essay-text')).toHaveText(firstAnswer);
+  expect(await page.evaluate(() => Reflect.has(window, '__essayExecuted'))).toBe(false);
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await review.getByTestId('submission-essay-text').scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `${evidenceDir}/essay-teacher-frozen-${width}.png`,
+      fullPage: false,
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await review.getByLabel('Причина возврата или исправления').fill('Добавьте проверку вывода.');
+  await review.getByRole('button', { name: 'Вернуть на доработку', exact: true }).click();
+  await expect(review.getByText('Ревизия 1 · На доработке')).toBeVisible();
+  await learner.page.reload();
+  await responseEditor.getByRole('button', { name: 'Начать доработку', exact: true }).click();
+  await expect(responseEditor.getByRole('status')).toContainText('Попытка 2');
+  await expect(responseEditor.getByLabel('Ваш письменный ответ', { exact: true })).toHaveValue(
+    firstAnswer,
+  );
+  const revisedAnswer = 'Я проверил вывод повторным опытом. Исправленный ответ.';
+  await responseEditor.getByLabel('Ваш письменный ответ', { exact: true }).fill(revisedAnswer);
+  const revisionSubmit = learner.page.waitForResponse(
+    (item) => item.request().method() === 'POST' && item.url().endsWith('/submit') && item.ok(),
+  );
+  await responseEditor.getByRole('button', { name: 'Сдать ответ', exact: true }).click();
+  const revised = await (await revisionSubmit).json();
+  expect(revised.attempt.id).not.toBe(firstFrozen.attempt.id);
+  expect(revised.attempt.revisionOfAttemptId).toBe(firstFrozen.attempt.id);
+  await journal();
+  await seatCell.click();
+  await expect(review.getByTestId('submission-essay-text')).toHaveText(revisedAnswer);
+  await review.getByLabel('Баллы из 10', { exact: true }).fill('8');
+  await review.getByLabel('Отзыв', { exact: true }).fill('Вывод подтверждён.');
+  await review.getByRole('button', { name: 'Принять и оценить', exact: true }).click();
+  await expect(seatCell).toContainText('8/10');
+  await review.getByLabel('Попытка', { exact: true }).selectOption(firstFrozen.attempt.id);
+  await expect(review.getByTestId('submission-essay-text')).toHaveText(firstAnswer);
+  await review.getByRole('button', { name: 'Закрыть проверку', exact: true }).click();
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await seatCell.scrollIntoViewIfNeeded();
+    await expect(seatCell).toContainText('8/10');
+    const matrix = page.locator('.gradebook-matrix-scroll');
+    await expect(matrix).toBeVisible();
+    expect(
+      await matrix.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        return box.left >= 0 && box.right <= innerWidth + 1;
+      }),
+    ).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `${evidenceDir}/essay-journal-accepted-${width}.png`,
+      fullPage: false,
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await learner.page.reload();
+  await expect(responseEditor.getByRole('status')).toContainText('Ответ сдан');
+  await learner.page.getByRole('button', { name: 'Отметить пройденным', exact: true }).click();
+  await expect(learner.page.getByRole('progressbar', { name: 'Прогресс курса' })).toHaveAttribute(
+    'aria-valuenow',
+    '1',
+  );
+
+  // Account work uses the same Course/ActivityRun without a personal Project workspace.
+  const accountIdentity = await seedTeacher(admin, 'essay-account-' + suffix);
+  const accountContext = await browser.newContext();
+  const account = await accountContext.newPage();
+  await loginWithOrganization(account, accountIdentity);
+  await account.goto('/#/attending');
+  await account.getByLabel('Код класса', { exact: true }).fill(code);
+  await account.getByRole('button', { name: 'Войти в класс', exact: true }).click();
+  await expect(account.getByText(/Заявка в класс.*отправлена/)).toBeVisible();
+  await page.goto('/#/classrooms/' + classroomId);
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Заявки', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Обновить заявки', exact: true }).click();
+  await page.getByRole('button', { name: 'Принять заявку', exact: true }).click();
+  await expect(page.locator('.learning-join-requests')).toContainText('Принята');
+  await account.goto(courseUrl);
+  const accountEditor = account.getByTestId('essay-response-editor');
+  await accountEditor.getByRole('button', { name: 'Написать ответ', exact: true }).click();
+  await accountEditor
+    .getByLabel('Ваш письменный ответ', { exact: true })
+    .fill('Ответ ученика с личным аккаунтом.');
+  await accountEditor.getByRole('button', { name: 'Сохранить ответ', exact: true }).click();
+  await expect(accountEditor.getByRole('status')).toContainText('Ответ сохранён');
+  await account.reload();
+  await expect(accountEditor.getByLabel('Ваш письменный ответ', { exact: true })).toHaveValue(
+    'Ответ ученика с личным аккаунтом.',
+  );
+  await accountEditor.getByRole('button', { name: 'Сдать ответ', exact: true }).click();
+  await expect(accountEditor.getByRole('status')).toContainText('Ответ сдан');
+  const accountRead = await account.request.get(
+    `/api/learning/essay/runs/${occurrence.activityRunId}`,
+  );
+  expect(accountRead.ok()).toBe(true);
+  expect((await accountRead.json()).attempt.id).not.toBe(revised.attempt.id);
+  await journal();
+  const gradebook = await page.request.get(`/api/classrooms/${classroomId}/gradebook`);
+  const accountRow = (await gradebook.json()).items.find(
+    (item: { assignmentTitle: string; displayLabel: string }) =>
+      item.assignmentTitle === essayTitle && item.displayLabel !== 'Письменный ученик',
+  );
+  expect(accountRow).toBeTruthy();
+  const escapedLabel = accountRow.displayLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const accountCell = page.getByRole('button', {
+    name: new RegExp('^' + escapedLabel + ' · ' + essayTitle),
+  });
+  await accountCell.click();
+  await expect(review.getByTestId('submission-essay-text')).toHaveText(
+    'Ответ ученика с личным аккаунтом.',
+  );
+  await review.getByLabel('Баллы из 10', { exact: true }).fill('9');
+  await review.getByRole('button', { name: 'Принять и оценить', exact: true }).click();
+  await expect(accountCell).toContainText('9/10');
+  await expect(seatCell).toContainText('8/10');
+  await learner.context.close();
+  await accountContext.close();
+});
+
 test('Course Activity blocks preserve mixed order and open exact Electronics and 3D runtimes', async ({
   browser,
   page,
@@ -3104,14 +3408,6 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   ]);
   const secondClassroomId = /classrooms\/([a-f0-9-]+)/.exec(page.url())![1]!;
 
-  await createPublishedProjectActivityAfterLogin(
-    page,
-    electronicsTitle,
-    'electronics',
-    'completion',
-    electronicsSample,
-    electronicsGoal,
-  );
   await createPublishedProjectActivityAfterLogin(
     page,
     threeDTitle,
@@ -3187,7 +3483,175 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await editor.getByLabel('Текст блока', { exact: true }).fill('Перед Electronics');
 
   await addCourseBlock(page, 'Практика');
-  await selectCoursePractice(page, electronicsTitle);
+  await editor.getByRole('button', { name: 'Создать задание для урока', exact: true }).click();
+  const inlineAuthor = page.getByRole('dialog', { name: 'Новое задание для урока', exact: true });
+  await expect(inlineAuthor).toBeVisible();
+  await expect(inlineAuthor.locator('.course-dialog-header')).toHaveCount(0);
+  await expect(
+    inlineAuthor.getByRole('button', { name: 'Вернуться к уроку', exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    inlineAuthor.getByRole('button', { name: 'Вернуться к уроку', exact: true }),
+  ).toBeFocused();
+  await expect(
+    inlineAuthor.getByRole('group', { name: 'Действия задания', exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    inlineAuthor.getByRole('button', { name: 'Добавить в урок', exact: true }),
+  ).toBeDisabled();
+  await inlineAuthor.getByLabel('Среда задания', { exact: true }).selectOption('electronics');
+  await inlineAuthor.getByLabel('Название задания', { exact: true }).fill(electronicsTitle);
+  await inlineAuthor.getByLabel('Цель задания', { exact: true }).fill(electronicsGoal);
+  await inlineAuthor
+    .getByLabel('Содержание', { exact: true })
+    .fill('Соберите цепь, сохраните проект и сдайте точную редакцию.');
+  await inlineAuthor.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  await inlineAuthor.getByLabel('Файл схемы или изображения', { exact: true }).setInputFiles({
+    name: 'course-activity-sample.png',
+    mimeType: 'image/png',
+    buffer: electronicsSample,
+  });
+  page.once('dialog', (dialog) => void dialog.dismiss());
+  await inlineAuthor.getByRole('button', { name: 'Вернуться к уроку', exact: true }).click();
+  await expect(inlineAuthor).toBeVisible();
+  await expect(inlineAuthor.getByLabel('Название задания', { exact: true })).toHaveValue(
+    electronicsTitle,
+  );
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const action = inlineAuthor.getByRole('button', {
+      name: 'Добавить в урок',
+      exact: true,
+    });
+    await action.scrollIntoViewIfNeeded();
+    await expect(action).toBeVisible();
+    const bounds = (await action.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    await inlineAuthor.getByLabel('Название задания', { exact: true }).focus();
+    await expect
+      .poll(() =>
+        inlineAuthor.evaluate((element) => {
+          const title = element
+            .querySelector('[aria-label="Название задания"]')!
+            .getBoundingClientRect();
+          const toolbar = element
+            .querySelector('.assignment-document-topbar')!
+            .getBoundingClientRect();
+          return title.top - toolbar.bottom;
+        }),
+      )
+      .toBeGreaterThanOrEqual(0);
+    const inlineLayout = await inlineAuthor.evaluate((element) => {
+      const bounds = (selector: string) => {
+        const node = element.querySelector(selector);
+        if (!node) return null;
+        const rect = node.getBoundingClientRect();
+        return { x: rect.x, right: rect.right, width: rect.width, height: rect.height };
+      };
+      const topbar = element.querySelector('.assignment-document-topbar');
+      return {
+        viewportWidth: innerWidth,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        topbar: bounds('.assignment-document-topbar'),
+        saveState: bounds('.assignment-document-save-state'),
+        topbarMarginInline: topbar ? getComputedStyle(topbar).marginInline : null,
+      };
+    });
+    expect(inlineLayout.topbar?.height, JSON.stringify(inlineLayout)).toBeLessThanOrEqual(
+      width < 761 ? 130 : 96,
+    );
+    expect(inlineLayout.scrollWidth, JSON.stringify(inlineLayout)).toBeLessThanOrEqual(
+      inlineLayout.clientWidth,
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `${evidenceDir}/course-inline-task-author-${width}.png`,
+      fullPage: false,
+    });
+    const longTitle =
+      'Исследование электрических цепей и проверка подробного проектного задания. '.repeat(3);
+    const longBody =
+      'Соберите цепь, проверьте каждое соединение и подробно опишите наблюдения.\n'.repeat(24);
+    await inlineAuthor.getByLabel('Название задания', { exact: true }).fill(longTitle);
+    await inlineAuthor.getByLabel('Содержание', { exact: true }).fill(longBody);
+    await inlineAuthor.getByLabel('Название задания', { exact: true }).focus();
+    await expect
+      .poll(() =>
+        inlineAuthor.evaluate((element) => {
+          const title = element
+            .querySelector('[aria-label="Название задания"]')!
+            .getBoundingClientRect();
+          const toolbar = element
+            .querySelector('.assignment-document-topbar')!
+            .getBoundingClientRect();
+          return title.top - toolbar.bottom;
+        }),
+      )
+      .toBeGreaterThanOrEqual(0);
+    for (const label of ['Название задания', 'Содержание']) {
+      await expect
+        .poll(() =>
+          inlineAuthor
+            .getByLabel(label, { exact: true })
+            .evaluate((field) => field.scrollHeight - field.clientHeight),
+        )
+        .toBeLessThanOrEqual(2);
+    }
+    expect(
+      await inlineAuthor
+        .getByLabel('Содержание', { exact: true })
+        .evaluate((field) => field.clientHeight),
+    ).toBeGreaterThan(200);
+    await inlineAuthor.evaluate((element) => element.scrollTo(0, 0));
+    await page.screenshot({
+      path: `${evidenceDir}/course-inline-task-author-long-${width}.png`,
+      fullPage: false,
+    });
+    await inlineAuthor.getByLabel('Название задания', { exact: true }).fill(electronicsTitle);
+    await inlineAuthor
+      .getByLabel('Содержание', { exact: true })
+      .fill('Соберите цепь, сохраните проект и сдайте точную редакцию.');
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await inlineAuthor.getByRole('button', { name: 'Создать задание', exact: true }).click();
+  await expect(
+    inlineAuthor.getByText('Черновик сохранён. Публикация — отдельное действие.'),
+  ).toBeVisible();
+  await inlineAuthor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+  const inlinePreview = inlineAuthor.getByRole('dialog', {
+    name: 'Как увидит ученик',
+    exact: true,
+  });
+  await inlinePreview
+    .getByRole('button', { name: `Открыть образец: ${electronicsTitle}`, exact: true })
+    .click();
+  const inlineLightbox = page.getByRole('dialog', {
+    name: `Образец: ${electronicsTitle}`,
+    exact: true,
+  });
+  await expect(inlineLightbox).toBeVisible();
+  await inlineLightbox.getByRole('button', { name: 'Закрыть', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(inlineLightbox).toBeHidden();
+  await expect(inlineAuthor).toBeVisible();
+  await inlinePreview.getByRole('button', { name: 'Закрыть предпросмотр', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(inlinePreview).toBeHidden();
+  await expect(inlineAuthor).toBeVisible();
+  await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
+  await inlineAuthor.getByRole('button', { name: 'Добавить в урок', exact: true }).click();
+  await expect(inlineAuthor).toBeHidden();
+  await expect(
+    editor.getByRole('button', { name: 'Создать задание для урока', exact: true }).first(),
+  ).toBeFocused();
+  await expect(page.locator('#root')).not.toHaveAttribute('inert', '');
+  await expect(editor.locator('.course-practice-picker').first()).toContainText(electronicsTitle);
+  await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
+  await expect(editor.getByLabel('Текст блока', { exact: true })).toHaveValue('Перед Electronics');
 
   await addCourseBlock(page, 'Врезка');
   await editor.getByLabel('Текст врезки', { exact: true }).fill('Между двумя практиками');

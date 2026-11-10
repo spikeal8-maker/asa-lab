@@ -8,7 +8,13 @@ import { execFileSync } from 'node:child_process';
 import { Worker } from 'node:worker_threads';
 import { resolve } from 'node:path';
 import databaseContract from './database-diagnostic-contract.json';
-import { queryLogs, exportLogs, type LogFilter, type LogEntry } from './admin-logs.worker.js';
+import {
+  queryLogs,
+  exportLogs,
+  readLogCatalog,
+  type LogFilter,
+  type LogEntry,
+} from './admin-logs.worker.js';
 import { DiagnosticsQualityController } from './diagnostics-quality.controller.js';
 import { QUALITY_COUNTERS } from './analytics-envelope.js';
 import { logFilter } from './admin-logs.controller.js';
@@ -36,24 +42,44 @@ function zipMembers(zip: Buffer): Map<string, Buffer> {
 }
 
 describe('retained log reader and archive', () => {
+  it('leaves unknown optional required-coverage metadata unknown without breaking legacy queries', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-required-reader-'));
+    try {
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({
+          version: 1,
+          sources: [],
+          segments: [],
+          requiredSources: { version: 99, policy: 'unknown', sources: [] },
+        }),
+      );
+      expect((await readLogCatalog(root))?.requiredSources).toBeUndefined();
+      expect(await queryLogs(root, filter, 100)).toMatchObject({ items: [], partial: false });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it('preserves previously classified truncated editor JSON without trusting host or database hints', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-editor-truncated-'));
     try {
-      const rows = ['scratch', 'electronics', 'three-d', 'chess', 'checkers'].map((module, i) => ({
-        id: String(i + 1).repeat(64),
-        time: filter.from,
-        source: 'api',
-        module,
-        subsystem: module,
-        level: 'warn',
-        message: '{"path":"/api/' + module + '/fixture","msg":"' + 'x'.repeat(16000),
-        requestId: null,
-        revision: null,
-        origin: 'application-stdout',
-        truncated: true,
-      }));
+      const rows = ['scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'].map(
+        (module, i) => ({
+          id: String(i + 1).repeat(64),
+          time: filter.from,
+          source: 'api',
+          module,
+          subsystem: module,
+          level: 'warn',
+          message: '{"path":"/api/' + module + '/fixture","msg":"' + 'x'.repeat(16000),
+          requestId: null,
+          revision: null,
+          origin: 'application-stdout',
+          truncated: true,
+        }),
+      );
       const raw = Buffer.from(rows.map((row) => JSON.stringify(row)).join('\n') + '\n');
-      const file = 'seg-0000000000000001-0000000000000005.jsonl';
+      const file = 'seg-0000000000000001-0000000000000006.jsonl';
       await writeFile(join(root, file), raw);
       await writeFile(
         join(root, 'catalog.json'),
@@ -64,7 +90,7 @@ describe('retained log reader and archive', () => {
             {
               file,
               bytes: raw.length,
-              count: 5,
+              count: 6,
               first: filter.from,
               last: filter.from,
               sources: ['api'],
@@ -87,7 +113,7 @@ describe('retained log reader and archive', () => {
   });
 
   it.each([false, true])(
-    'classifies all five editors and preserves imported levels through query and ZIP (gzip=%s)',
+    'classifies all six editors and preserves imported levels through query and ZIP (gzip=%s)',
     async (compressed) => {
       const temporary = await mkdtemp(join(tmpdir(), 'asa-editor-classification-'));
       try {
@@ -110,9 +136,16 @@ describe('retained log reader and archive', () => {
         for (const segment of catalog.segments)
           originals.set(segment.file, await readFile(join(root, segment.file)));
         const all = await queryLogs(root, logFilter(filter), 100);
-        expect(all.items).toHaveLength(45);
-        expect(new Set(all.items.map((row) => row.id)).size).toBe(45);
-        for (const module of ['scratch', 'electronics', 'three-d', 'chess', 'checkers']) {
+        expect(all.items).toHaveLength(54);
+        expect(new Set(all.items.map((row) => row.id)).size).toBe(54);
+        for (const module of [
+          'scratch',
+          'electronics',
+          'robotics',
+          'three-d',
+          'chess',
+          'checkers',
+        ]) {
           for (const level of ['info', 'warn', 'error']) {
             for (const search of ['', 'OBS015 failure marker']) {
               const selected = logFilter({ ...filter, module, subsystem: module, level, search });
