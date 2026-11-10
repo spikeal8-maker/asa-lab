@@ -962,18 +962,23 @@ function electricalNumericalQuality(
   matrix: readonly (readonly number[])[] | null,
   rhs: readonly number[] | null,
 ) {
-  const numericalResidual = Math.max(
-    0,
-    ...(matrix ?? []).map((row, rowIndex) =>
-      Math.abs(
-        row.reduce(
-          (sum, coefficient, columnIndex) => sum + coefficient * (solution[columnIndex] ?? 0),
-          0,
-        ) - ((rhs ?? [])[rowIndex] ?? 0),
-      ),
-    ),
-  );
-  const numericalScale = Math.max(1, ...(rhs ?? []).map(Math.abs), ...solution.map(Math.abs));
+  let numericalResidual = 0;
+  if (matrix) {
+    for (let rowIndex = 0; rowIndex < matrix.length; rowIndex++) {
+      const row = matrix[rowIndex]!;
+      let sum = 0;
+      for (let columnIndex = 0; columnIndex < row.length; columnIndex++)
+        sum += row[columnIndex]! * (solution[columnIndex] ?? 0);
+      numericalResidual = Math.max(numericalResidual, Math.abs(sum - (rhs?.[rowIndex] ?? 0)));
+    }
+  }
+  let numericalScale = 1;
+  if (rhs) {
+    for (let index = 0; index < rhs.length; index++)
+      numericalScale = Math.max(numericalScale, Math.abs(rhs[index]!));
+  }
+  for (let index = 0; index < solution.length; index++)
+    numericalScale = Math.max(numericalScale, Math.abs(solution[index]!));
   return { numericalResidual, numericalTolerance: 1e-9 * numericalScale };
 }
 
