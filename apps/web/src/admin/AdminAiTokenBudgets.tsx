@@ -36,6 +36,38 @@ export function budgetAdminShape(raw: unknown): raw is AiTokenBudgetAdmin {
     )
   );
 }
+function BudgetUsage({ usage }: { usage: AiTokenBudgetAdmin['models'][number] }) {
+  const remaining =
+    usage.globalLimit === null
+      ? null
+      : String(
+          BigInt(usage.globalLimit) > BigInt(usage.used) + BigInt(usage.held)
+            ? BigInt(usage.globalLimit) - BigInt(usage.used) - BigInt(usage.held)
+            : 0,
+        );
+  return (
+    <>
+      <span aria-label={'Подтверждено токенов всего: ' + usage.used}>{usage.used}</span>
+      {usage.pendingUnknown || usage.unresolved ? <small>На проверке</small> : null}
+      <InfoHint label={'Подробнее о расходе ' + usage.model}>
+        <div>
+          <p>
+            Резерв: {usage.held} ·{' '}
+            {remaining === null ? 'Без общего лимита' : 'Остаток: ' + remaining}
+          </p>
+          {usage.unresolved ? (
+            <p role="status">
+              Есть неподтверждённый исторический расход: новые запросы с лимитом приостановлены.
+            </p>
+          ) : null}
+          {usage.pendingUnknown ? (
+            <p role="status">Не весь расход подтверждён: резерв сохранён без срока истечения.</p>
+          ) : null}
+        </div>
+      </InfoHint>
+    </>
+  );
+}
 export function AdminAiTokenBudgets({
   onAccessDenied,
   eligibleModels,
@@ -155,12 +187,7 @@ export function AdminAiTokenBudgets({
             }}
           />
         ))}
-        <InfoHint label={'Расход токенов ' + model}>
-          <p>
-            Использовано: {usage.used} · резерв: {usage.held}
-          </p>
-          {usage.unresolved || usage.pendingUnknown ? <p>Часть расхода на проверке.</p> : null}
-        </InfoHint>
+        <BudgetUsage usage={usage} />
       </div>
     );
   }
@@ -239,14 +266,6 @@ export function AdminAiTokenBudgets({
                   if (eligibleModels && m.model !== '*' && !eligibleModels.includes(m.model))
                     return null;
                   const usage = config.models.find((row) => row.model === m.model)!;
-                  const remaining =
-                    usage.globalLimit === null
-                      ? null
-                      : String(
-                          BigInt(usage.globalLimit) > BigInt(usage.used) + BigInt(usage.held)
-                            ? BigInt(usage.globalLimit) - BigInt(usage.used) - BigInt(usage.held)
-                            : 0,
-                        );
                   return (
                     <tr key={m.model}>
                       <th scope="row" title={m.model}>
@@ -291,31 +310,7 @@ export function AdminAiTokenBudgets({
                         />
                       </td>
                       <td className="asa-ai-budget-usage">
-                        <span aria-label={'Подтверждено токенов всего: ' + usage.used}>
-                          {usage.used}
-                        </span>
-                        {usage.pendingUnknown || usage.unresolved ? (
-                          <small>На проверке</small>
-                        ) : null}
-                        <InfoHint label={'Подробнее о расходе ' + m.model}>
-                          <div>
-                            <p>
-                              Резерв: {usage.held} ·{' '}
-                              {remaining === null ? 'Без общего лимита' : 'Остаток: ' + remaining}
-                            </p>
-                            {usage.unresolved ? (
-                              <p role="status">
-                                Есть неподтверждённый исторический расход: новые запросы с лимитом
-                                приостановлены.
-                              </p>
-                            ) : null}
-                            {usage.pendingUnknown ? (
-                              <p role="status">
-                                Не весь расход подтверждён: резерв сохранён без срока истечения.
-                              </p>
-                            ) : null}
-                          </div>
-                        </InfoHint>
+                        <BudgetUsage usage={usage} />
                       </td>
                     </tr>
                   );
