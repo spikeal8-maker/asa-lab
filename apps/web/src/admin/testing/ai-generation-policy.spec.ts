@@ -58,6 +58,42 @@ function writes() {
     .map(([, init]) => JSON.parse(String(init?.body)));
 }
 
+it('lets an administrator restore a previously excluded local Ollama model in Settings', async () => {
+  const base = generationPolicyFixture();
+  const data = generationPolicyFixture({
+    models: [
+      ...base.models.filter((model) => model.id !== 'ollama-local'),
+      {
+        id: 'ollama-local',
+        provider: 'ollama',
+        label: 'gemma4:12b',
+        ready: true,
+        selectable: true,
+        allowed: false,
+        eligible: false,
+      },
+    ],
+    modelPreferences: [{ id: 'ollama-local', eligible: false, order: 0 }],
+  });
+  vi.mocked(call).mockResolvedValue({ ok: true, status: 200, data });
+  await act(async () =>
+    root.render(
+      createElement(AdminAiGenerationPolicy, { section: 'settings', onAccessDenied: denied }),
+    ),
+  );
+  const toggle = host.querySelector<HTMLInputElement>(
+    '[aria-label="Показывать пользователям: gemma4:12b"]',
+  )!;
+  expect(toggle.disabled).toBe(false);
+  expect(toggle.checked).toBe(false);
+  await act(async () => toggle.click());
+  await submit();
+  expect(writes()[0]).toMatchObject({
+    allowedModels: expect.arrayContaining(['ollama-local']),
+    modelPreferences: expect.arrayContaining([{ id: 'ollama-local', eligible: true, order: 0 }]),
+  });
+});
+
 it('inserts a variable at the cursor and preserves the hidden model policy when saving prompt', async () => {
   await render();
   await text('Привет, !');
