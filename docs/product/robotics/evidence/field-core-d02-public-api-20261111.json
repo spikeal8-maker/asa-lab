@@ -1,0 +1,975 @@
+{
+  "schema": "robotics-field-core-d02-public-api-evidence/v1",
+  "report_id": "ROBOTICS-FIELD-CORE-D02-20261111",
+  "report_date": "2026-11-11",
+  "program": "ROBOTICS-FIELD-CORE-001",
+  "task_reference": "TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001",
+  "issue_url": "https://github.com/spikeal8-maker/asa-lab/issues/1071",
+  "human_report": "field-core-d02-public-api-20261111.md",
+  "normative": false,
+  "semantic_change": false,
+  "execution_state_authority": "docs/execution/current.yaml",
+  "verdict": "GAP",
+  "d02_closed": false,
+  "not_run": [
+    "new spatial coupling prototype",
+    "TIME-01",
+    "TIME-02",
+    "TIME-03",
+    "mechanical reverse omega/load port qualification",
+    "joint energy conservation qualification",
+    "CoupledCheckpoint equivalence"
+  ],
+  "scope": {
+    "writes": [
+      "docs/product/robotics/evidence/field-core-d02-public-api-20261111.md",
+      "docs/product/robotics/evidence/field-core-d02-public-api-20261111.json"
+    ],
+    "product_source_changes": false,
+    "test_source_changes": false,
+    "configuration_changes": false,
+    "task_selection_changes": false,
+    "database_actions": "NONE",
+    "server_actions": "NONE",
+    "phy01_review": false
+  },
+  "provenance": {
+    "historical_source_sha": "09b4c8162a52fad4e5f54359eace4d18b6799f31",
+    "historical_verification_head": "759ad24813fc0bb7c7ea0c11b1f32d0abd2546d8",
+    "source_snapshot_sha": "8c58667208202de22b7b8d36851bbcf4a979e3f3",
+    "prior_receipt_url": "https://github.com/spikeal8-maker/asa-lab/issues/1071#issuecomment-6793330420",
+    "comparison_utc": "2026-11-11T17:08:14.231752+00:00",
+    "preflight": {
+      "utc": "2026-11-11T17:06:56.2872260Z",
+      "status": "SAFE_TO_START",
+      "exit_code": 0,
+      "head": "8c58667208202de22b7b8d36851bbcf4a979e3f3",
+      "origin_main": "8c58667208202de22b7b8d36851bbcf4a979e3f3",
+      "branch": "codex/robotics-field-core-d02-report-20261111",
+      "scope": "robotics",
+      "dirty_paths": 0,
+      "worktree_overlaps": 0,
+      "execution_blockers": 0,
+      "control_plane": "PASS",
+      "acceptance_blocker_preserved": true
+    }
+  },
+  "source_comparison": {
+    "method": "Exact git show bytes plus working-tree SHA-256; immutable commits, not mutable branch content.",
+    "baseline": "09b4c8162a52fad4e5f54359eace4d18b6799f31",
+    "current": "8c58667208202de22b7b8d36851bbcf4a979e3f3",
+    "baseline_electronics_tree": "4664adab2da9d7667b3fb6c68bec2bcecb2e8657",
+    "current_electronics_tree": "2724990cd287f42c5e7f9f613eb1a1a87be0d2fe",
+    "manifest_count": 29,
+    "unchanged_count": 27,
+    "changed_count": 2,
+    "prior_receipt_hash_count": 12,
+    "prior_receipt_hashes_matching_current": 11,
+    "historical_pass_carried_to_current": false,
+    "electronics_changed_paths": [
+      "contexts/electronics/domain/numerical-shunt-power.ts",
+      "contexts/electronics/domain/simulation.ts",
+      "contexts/electronics/domain/solver.ts",
+      "contexts/electronics/testing/fixtures/benchmark-golden.v2.json",
+      "contexts/electronics/testing/power-balance-shunts.spec.ts",
+      "contexts/electronics/testing/simulation-contract.spec.ts"
+    ],
+    "manifest": [
+      {
+        "path": "apps/web/src/electronics/live-simulation-worker-controller.ts",
+        "sha256": "a580b8205b726ae2b628583b69dc9e01ac492e8b6fc184901277909fa2f88b06",
+        "git_blob": "d4d9620eedde1faa07ba5a3ecc799bc770ea3237",
+        "unchanged": true
+      },
+      {
+        "path": "apps/web/src/electronics/simulation-worker-protocol.ts",
+        "sha256": "145d5b43486fb868e62afff00a22979c1cc57b398619cd95b374f30e76470f14",
+        "git_blob": "0e4f82ed7f3819a287f27ac110726c8004e0bf7c",
+        "unchanged": true
+      },
+      {
+        "path": "apps/web/src/electronics/use-electronics-workbench.ts",
+        "sha256": "185825a0924c67559051108cdffadcf83af8b388f3903131225c52f2239cc679",
+        "git_blob": "02d4b9955de2431773871a1ae49f449a6cd2fc4e",
+        "unchanged": true
+      },
+      {
+        "path": "apps/web/src/robotics/RoboticsLab.tsx",
+        "sha256": "5cb75e886c65b715c5abbd6345919dd750ce1f35587addf6e49520d07b0bcef1",
+        "git_blob": "cbfd33e634645734e2cc322148cbb6f688c9da85",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+        "sha256": "e0465f5d401da6ad1c6259cdd042b64c1d36417279a0fab5522ab7f4e5b4066a",
+        "git_blob": "60aafe74cc871926b34517052454c4129d58ed9f",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/domain/arduino-pulse-runtime.ts",
+        "sha256": "70b08fe57a0b680e0d807eb3bfbe532465a88819e7c707e81e3ae711884138bd",
+        "git_blob": "9a7af5e3965bae474642a1bd1448a732b4618254",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/domain/models/brushed-motor-transient-model.ts",
+        "sha256": "86570985c5b2bd352b06024748d8e1ee22d1fb58867d1e5e09b935685c00ef0b",
+        "git_blob": "095a4f9c310ab1a77ba833034bdf454e460cfffc",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/domain/models/hc-sr04-runtime.ts",
+        "sha256": "09fec5f8f0fe40eda1c3649a4c485ebbedb97b8907377c5cd67a8c4c06dce794",
+        "git_blob": "e5a91ef1c331934880aa753d05902445a042d7a0",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/domain/models/servo-runtime.ts",
+        "sha256": "c2ba9fcb826dfb52583959406a8cf8d68ee702f5badab3fc92c7b652c8e9b1e4",
+        "git_blob": "877080ded0a0fa32a8300165e99a0a2ead5d73cb",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/domain/simulation-input-digest.ts",
+        "sha256": "0dde5919662fa2ed70d44880fdd9e4743b20d5fb4c21a01fe3aa2e98797faf4e",
+        "git_blob": "04d7c6161c54f3842aa2f168d5c47e1a3c096588",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/domain/simulation.ts",
+        "sha256": "7eedb1d9eb06ce6e1e488300f61098aa0ead4e78fd9f4d5142b4bdb83eefce92",
+        "git_blob": "3809b9064c9c34045d624870dd20833dbd283027",
+        "unchanged": false,
+        "baseline_sha256": "bf065d4a941aebd9662ded31217b5d33d5aae70903e8e7f508e2ecc264e8ffb6",
+        "baseline_git_blob": "2d8585b031086dc93b86eb32f2ffd4acb51d8aef"
+      },
+      {
+        "path": "contexts/electronics/domain/solver.ts",
+        "sha256": "329567d63e1ed97f2dab707ee240c4425165d2d60fb2905d8dad21e59d7c1166",
+        "git_blob": "e4f79b8a2c48346ae6eefe74b2a819b269a23f8a",
+        "unchanged": false,
+        "baseline_sha256": "8238d1a715821bafeff7405521d76ebca7e9e1db1210c05243c046f3ca4881ae",
+        "baseline_git_blob": "81dcbcad02d5b56ea2e906e74bf2239c5a7df1af"
+      },
+      {
+        "path": "contexts/electronics/engine.ts",
+        "sha256": "0564b8cefc11e4ea3be46b1ad5933cd2c328f1d647a71cb0d26aa1ea01f82528",
+        "git_blob": "c37ef3de2ab515733994f140c265b997095457af",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/index.ts",
+        "sha256": "0b329cae069326302e1a52c47799794ba429a7cde3f8a31036a44782ecec0d8b",
+        "git_blob": "104141a8071a5ebb2a5e92024bf0d9c9c1b94789",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/package.json",
+        "sha256": "097262c70536ec1798ee18f73750a07ac88767f02952818dbe5b566e47936348",
+        "git_blob": "c50c9cb724c4b8ee5d1ad94367ec24e5c1aa7cc4",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/simulation.ts",
+        "sha256": "65de5b13e64ec79fc80baa7868746e334b8a3ef4720fa321010b62f7199d2857",
+        "git_blob": "a900ab05e47873152df20698c8b56a2058438100",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/testing/brushed-motor-transient-model.spec.ts",
+        "sha256": "14b99a3fe5d4e939c9cc1efcb74cfe7763c62937ff19ba4dc388996654b8357c",
+        "git_blob": "7974a2196bf0fba5324fa98f1f66f7d302797dfb",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/testing/engine-timed-api.spec.ts",
+        "sha256": "daa07ffad99630d621b5fe46899b4766f3cb5609e7bc87ff8f0c56a124cc2f0e",
+        "git_blob": "4ff1b0a50e451c8dd0a6f0b165e4b7a15c8c569d",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/testing/fixtures/brushed-motor-transient-fixtures.v1.json",
+        "sha256": "f3ec182e6758d3eb4836f54c5b0680b900c05c271a58fec64e8785ef20e024a5",
+        "git_blob": "3aac90f61a3d1a570fbf341c13bd80883b00f8b1",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/testing/hc-sr04-runtime.spec.ts",
+        "sha256": "af7b8e2347de8777074d9a2855991a27a1ad402eeb40e22944bdf88bdc979b56",
+        "git_blob": "a769c7f595b4f244b9103f4890b77bfec20a64a1",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/testing/ultrasonic-distance-timed-input.spec.ts",
+        "sha256": "b36df2c518b4396c0f2258e38cfa5c1485203d58ff711e38f29df52fa46c2330",
+        "git_blob": "a74b57a0566561a1160ea8ddf9a7cabad8afb98e",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/electronics/timed-state.ts",
+        "sha256": "68d8349382dcafec0c94a4d242700595842374e1f18cc1fb0f60a1dca479ea3b",
+        "git_blob": "1528e731acae8856abf4332b0e8c12c6e6e770b5",
+        "unchanged": true
+      },
+      {
+        "path": "contexts/robotics/domain/world-runtime.ts",
+        "sha256": "6aa23e8abe2a219ed37166e648a319b61062e0822d5ca42b20c0a4ce260e9f23",
+        "git_blob": "442ffd27c73a0ce9b65aac588bc5b630acc82e2c",
+        "unchanged": true
+      },
+      {
+        "path": "docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md",
+        "sha256": "88e4db20c64d19673555b80a6969113e8cfaf494ea2f0272a2b02715310b3ce4",
+        "git_blob": "2da34a1f0bf10d8def7c634b40a755d4a164288b",
+        "unchanged": true
+      },
+      {
+        "path": "docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md",
+        "sha256": "0ca37747706d04d38d405bdd99186a19616a8cf7187ae91dad5d8162b4061623",
+        "git_blob": "c2b68e67afa3b012b7b3c158bd3f87a345249d57",
+        "unchanged": true
+      },
+      {
+        "path": "docs/product/robotics/FIELD_CORE_SPEC.md",
+        "sha256": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e",
+        "git_blob": "8bf3a05394b43cfefa416ca707dd49d05747917e",
+        "unchanged": true
+      },
+      {
+        "path": "docs/product/robotics/FIELD_CORE_SPEC_REVIEW.md",
+        "sha256": "df72b4c84db4feac8ff1f8d879bbcdce53b1d2793b5c3c1fdfc970c547887c8e",
+        "git_blob": "9bb722abe8b342a4155ffe074f86db8cc35173f0",
+        "unchanged": true
+      },
+      {
+        "path": "docs/product/robotics/FIELD_CORE_START.md",
+        "sha256": "d7e9c91f9c3a6f81bd6f7bbb4b44a04e12160afd42ba8df1a503c9e76a6e5e60",
+        "git_blob": "b90f1dd5829adc30249a93c6a42b50da4cfc5830",
+        "unchanged": true
+      },
+      {
+        "path": "docs/product/robotics/FIELD_CORE_TRACEABILITY.json",
+        "sha256": "130737e8e492b0a8e924dc657306722f1af7195497a3bf90a88fbd8498a45777",
+        "git_blob": "9457bed260353a21e60afcbaaaa59478ba114289",
+        "unchanged": true
+      }
+    ],
+    "additional_delta_and_toolchain_inputs": [
+      {
+        "path": "contexts/electronics/domain/numerical-shunt-power.ts",
+        "current_blob": "d26e83d9acc506a0890b2dfe8ff1e7afc162d8e6",
+        "current_sha256": "a9304f4f7c719f8618cb787a28e1bb418cb5cbb4d381ba9200c62b59b7b324d5",
+        "baseline_sha256": null,
+        "unchanged": false
+      },
+      {
+        "path": "contexts/electronics/testing/fixtures/benchmark-golden.v2.json",
+        "current_blob": "cc86cd98111ca5780c19cd298446417d766db177",
+        "current_sha256": "2abf2dd5b9c61042b264ece2a622a0cb7dc05ac9f2bc3020e4349a2a7337f898",
+        "baseline_sha256": "43bd341d32698c550bb4329bf3b12b9091f843a68458fa30900fdb787a8217c6",
+        "unchanged": false
+      },
+      {
+        "path": "contexts/electronics/testing/power-balance-shunts.spec.ts",
+        "current_blob": "516498f221d251cf03d974ad829b312375bf3aad",
+        "current_sha256": "1908eaec12370df6d1018efada8798e430eb4fa1453008c054c19a89275cfc00",
+        "baseline_sha256": null,
+        "unchanged": false
+      },
+      {
+        "path": "contexts/electronics/testing/simulation-contract.spec.ts",
+        "current_blob": "44b00cd646b24666d029a71609afb13138333f6a",
+        "current_sha256": "e2c98f68ebb20dbcff807650585f8e2cdd4a7d9bea56dab7bb2346983f4b5730",
+        "baseline_sha256": "7df4e5add12da0644857e9a433ac246c4569337871d33fcce4c6415242863b29",
+        "unchanged": false
+      },
+      {
+        "path": "package.json",
+        "current_blob": "ddbbdea372712e12a5a1eb57e45ee1faf4c2a076",
+        "current_sha256": "c7694ec4bbd5579400b30a208dcf1466377675f6050987410d24fdf5150d60db",
+        "baseline_sha256": "49b1526496f8912c030aa5049beabefec8e4779484e35605ace4db5c9de60a12",
+        "unchanged": false
+      },
+      {
+        "path": "pnpm-lock.yaml",
+        "current_blob": "6f6bb33f45f1fef71ff2a5855b8d69d7f10892d0",
+        "current_sha256": "58689cb085cb89c7da2a849c4c6076e107151cb699006bdb4c78d5b874d03476",
+        "baseline_sha256": "5d96c9cbdaafbbb11c8d520ac8c57c79e900580cd43662b19dbeef66e5b6ad52",
+        "unchanged": false
+      },
+      {
+        "path": "packages/module-sdk/package.json",
+        "current_blob": "bce5dd28d85cd52a5f45e23d73493b0ad5cec00d",
+        "current_sha256": "ece74a3adb777d777c5067fd886c58e01f622ab71c490ad753a97f08042c6440",
+        "baseline_sha256": "ece74a3adb777d777c5067fd886c58e01f622ab71c490ad753a97f08042c6440",
+        "unchanged": true
+      },
+      {
+        "path": "packages/module-sdk/project.json",
+        "current_blob": "6be4c59e31782a8e05b3667ec974a4404c718209",
+        "current_sha256": "2f58f98e028dccc6ded83e93b6d49ae895e75c72e3971e320a99aa01734a0d8f",
+        "baseline_sha256": "2f58f98e028dccc6ded83e93b6d49ae895e75c72e3971e320a99aa01734a0d8f",
+        "unchanged": true
+      },
+      {
+        "path": "packages/module-sdk/tsconfig.json",
+        "current_blob": "6bff308023ef4e0d4d90781bedf43a20526daf43",
+        "current_sha256": "21f550a42500c5d3fbe5c95b1087a1a205b814879573a140f78386e734eec8fe",
+        "baseline_sha256": "21f550a42500c5d3fbe5c95b1087a1a205b814879573a140f78386e734eec8fe",
+        "unchanged": true
+      },
+      {
+        "path": "vitest.config.ts",
+        "current_blob": "ee6ce1f2d962a37d9e2c903f8f71742734eaff9b",
+        "current_sha256": "27dd6c49ade245083b45bf8237d172992e89b0083bddb1a512f7c5f424fd7eb0",
+        "baseline_sha256": "27dd6c49ade245083b45bf8237d172992e89b0083bddb1a512f7c5f424fd7eb0",
+        "unchanged": true
+      }
+    ],
+    "manifest_encoding": "sha256 and git_blob are exact current bytes/object; for unchanged files baseline equals current. baseline_sha256/baseline_git_blob are present only for changed files. Historical run hashes are in historical_regression.sha256_before_after."
+  },
+  "public_surface": [
+    {
+      "entry": "@asa-lab/electronics/engine",
+      "exports": ["advanceElectronicsToHorizon", "createElectronicsAdvanceSession"],
+      "continuation": "ElectronicsTimedContinuation.serializedState is engine-owned opaque",
+      "evidence": ["package_exports", "engine_dto", "engine_session"]
+    },
+    {
+      "entry": "@asa-lab/electronics/simulation",
+      "exports": [
+        "advanceArduinoCircuitClock",
+        "ArduinoCircuitClockAdvance",
+        "ArduinoCircuitClockState",
+        "ArduinoCircuitInputEvent"
+      ],
+      "continuation": "public structured low-level state and Arduino events",
+      "evidence": ["scheduler_export"]
+    },
+    {
+      "entry": "@asa-lab/electronics and /simulation",
+      "exports": [
+        "advanceBrushedMotorTransientState",
+        "brushedMotorCompanion",
+        "observeBrushedMotorTransientState"
+      ],
+      "limit": "Pure model API is not a causal timed reverse port of the running whole-circuit scheduler.",
+      "evidence": ["motor_exports", "motor_step_input"]
+    },
+    {
+      "scope": "scheduler local implementation",
+      "symbols": ["observeSensors", "nextSensorTime", "nextTime"],
+      "public": false,
+      "limit": "These local functions do not form an exported geometry query/barrier handshake.",
+      "evidence": ["scheduler_private_sensor"]
+    }
+  ],
+  "claims": [
+    {
+      "id": "D02-C01",
+      "status": "CONFIRMED",
+      "expected": "Общий canonical clock принимает целые модельные микросекунды и возвращает committed horizon с явным ready/yielded/fault.",
+      "actual": "Фасад предоставляет timed DTO и session step; низкоуровневый advanceArduinoCircuitClock публично экспортируется через /simulation и возвращает структурированное состояние.",
+      "evidence": [
+        "package_exports",
+        "engine_dto",
+        "engine_session",
+        "scheduler_export",
+        "scheduler_result"
+      ]
+    },
+    {
+      "id": "D02-C02",
+      "status": "CONFIRMED",
+      "expected": "Новые воздействия не могут менять уже committed прошлое, включая t=C.",
+      "actual": "Append-only trace сохраняет весь прежний prefix; новое событие при atMicroseconds <= previous.reachedMicroseconds отвергается как retroactive_input.",
+      "evidence": ["clock_contract", "scheduler_validation", "scheduler_no_past"]
+    },
+    {
+      "id": "D02-C03",
+      "status": "CONFIRMED",
+      "expected": "HC измеряет среду на принятом Trig с source-time Echo/timeout.",
+      "actual": "observeHcSr04Inputs фиксирует среду на спадающем фронте Trig после high >=10 us; Echo начинается через 200 us, ширина round(distanceMeters*100*58) us; echoAvailable=false не создаёт импульс. Это существующая модель, не spatial query.",
+      "evidence": ["hc_profile", "hc_width", "hc_accept", "pulse_wait"]
+    },
+    {
+      "id": "D02-G01",
+      "status": "GAP",
+      "expected": "Публичная граница позволяет получить пространственную среду на времени измерения до потребления принятого Trig.",
+      "actual": "Публичный scheduler существует, но observeSensors/nextSensorTime/nextTime локальны; нет декларированного query/barrier handshake. Внутренний null от session.step и structured continuation не доказывают такую границу.",
+      "evidence": [
+        "engine_session",
+        "scheduler_export",
+        "scheduler_options",
+        "scheduler_private_sensor",
+        "hc_accept"
+      ]
+    },
+    {
+      "id": "D02-G02",
+      "status": "GAP",
+      "expected": "Механика получает committed моторное воздействие за согласованный интервал с сохранением импульса/работы.",
+      "actual": "Момент, RPM, мощность, нагрузка и потери уже публичны как endpoint ComponentResult. Timed result не содержит квалифицированной истории моторных событий или интеграла момента/работы за интервал.",
+      "evidence": ["motor_observation_fields", "motor_observation", "engine_dto"]
+    },
+    {
+      "id": "D02-G03",
+      "status": "GAP",
+      "expected": "Причинный timed exchange передаёт фактическую механическую скорость/нагрузку в действующий электрический runtime.",
+      "actual": "Низкоуровневый BrushedMotorStepInput принимает voltage, dt, неотрицательный output-load magnitude и shaftLocked, но не внешнюю omega. Circuit solver читает load/lock из stateProperties; canonical event union и mapper не предоставляют эти timed операции.",
+      "evidence": [
+        "motor_step_input",
+        "motor_load",
+        "motor_solver_inputs",
+        "scheduler_input",
+        "engine_mapper"
+      ]
+    },
+    {
+      "id": "D02-G04",
+      "status": "GAP",
+      "expected": "Один квалифицированный владелец omega, фазы и роторной инерции с согласованным энергетическим обменом.",
+      "actual": "Электрическая модель уже интегрирует motorAngularVelocityRadPerSecond/motorAngularPhaseRadian и использует rotorInertiaKgMeterSquared. Будущее разделение с 3D-механикой не квалифицировано; двойное интегрирование и ручная правка continuation не являются допустимым доказательством.",
+      "evidence": ["motor_companion", "motor_integration", "engine_dto", "requirements"]
+    },
+    {
+      "id": "D02-L01",
+      "status": "LIMITATION",
+      "expected": "Существующий UI-путь нельзя принимать за sample/query в точный момент нового Trig.",
+      "actual": "RoboticsLab сначала использует опубликованное RPM для старого world step, затем подаёт environment sample. Setter не несёт физический timestamp; Worker назначает >=C+1 и retime pending inputs. Это иной причинный путь.",
+      "evidence": ["old_ui", "old_setter", "worker_input_time", "worker_retime", "old_world_step"]
+    },
+    {
+      "id": "D02-L02",
+      "status": "LIMITATION",
+      "expected": "Длительность и объём событий нового профиля квалифицируются явно.",
+      "actual": "MAX_INPUT_EVENTS=1024; MAX_TIME_US=2**50-1001. Исторические 40 s относятся к старому robotics runtime. Нельзя утверждать, что любой 10 min опыт обязательно упирается в 1024, или переносить 40 s на scheduler.",
+      "evidence": ["scheduler_limits", "scheduler_validation", "old_world_limit"]
+    },
+    {
+      "id": "D02-G05",
+      "status": "GAP",
+      "expected": "Пользовательский физический servo имеет ограниченные скорость/момент и контактную реакцию.",
+      "actual": "observeServoMotorInputs декодирует pulse в angleDegrees; этот переход не квалифицирует физический torque-limited привод.",
+      "evidence": ["servo"]
+    },
+    {
+      "id": "D02-G06",
+      "status": "GAP",
+      "expected": "Совместный запуск и согласованный commit/continuation mechanics+electronics имеют доказанный протокол.",
+      "actual": "Worker имеет generationId/projectSessionId/requestId; текущий source audit не подтверждает joint runId/commit или CoupledCheckpoint equivalence. Ручное изменение engine continuation не заменяет контракт.",
+      "evidence": ["worker_protocol", "engine_dto"]
+    },
+    {
+      "id": "D02-DIFF01",
+      "status": "CONFIRMED_SOURCE_DIFF",
+      "expected": "Новый snapshot не получает старый PASS при отличающихся bytes.",
+      "actual": "Изменены solver node emission/copy и quality GMIN-power witness. Публичные timing/motor input contracts в аудируемой выборке не изменились. Исторический PASS сохранён отдельно; на 8c выполнен один новый адресный прогон.",
+      "evidence": ["current_nodes", "current_quality", "current_quality_traversal", "current_shunt"]
+    }
+  ],
+  "state_owners": [
+    {
+      "quantity": "committed model time",
+      "current_owner": "advanceArduinoCircuitClock",
+      "unit": "integer us",
+      "future_boundary": "Механический commit согласуется с canonical clock.",
+      "evidence": ["scheduler_result", "clock_contract"]
+    },
+    {
+      "quantity": "Arduino VM, GPIO, waits",
+      "current_owner": "Arduino runtime under circuit scheduler",
+      "unit": "us at boundary; internal ms adapters",
+      "future_boundary": "Механика не меняет VM или внутренние очереди.",
+      "evidence": ["scheduler_private_sensor", "pulse_wait"]
+    },
+    {
+      "quantity": "HC environment sample",
+      "current_owner": "caller supplies environment; observeHcSr04Inputs latches it",
+      "unit": "m; boolean echoAvailable",
+      "future_boundary": "Доказать sample на точном accepted-Trig time до его потребления.",
+      "evidence": ["hc_accept", "old_setter"]
+    },
+    {
+      "quantity": "Echo and pulseIn",
+      "current_owner": "HC runtime and Arduino pulse runtime",
+      "unit": "integer us",
+      "future_boundary": "Сохранить принятый pulse и точную timeout semantics.",
+      "evidence": ["hc_profile", "pulse_wait"]
+    },
+    {
+      "quantity": "currentAmp and electromagnetic torque",
+      "current_owner": "existing electrical solver / motor model",
+      "unit": "A; N*m",
+      "future_boundary": "Не копировать электрический solver в механический мир.",
+      "evidence": ["motor_companion", "motor_observation"]
+    },
+    {
+      "quantity": "motorAngularVelocityRadPerSecond and motorAngularPhaseRadian",
+      "current_owner": "advanceBrushedMotorTransientState",
+      "unit": "rad/s; rad",
+      "future_boundary": "Будущий владелец/обмен требует отдельной квалификации.",
+      "evidence": ["motor_integration"]
+    },
+    {
+      "quantity": "rotorInertiaKgMeterSquared",
+      "kind": "profile parameter, not dynamic state",
+      "current_owner": "motor profile consumed by electrical integrator",
+      "unit": "kg*m^2",
+      "future_boundary": "Не учитывать одну роторную инерцию дважды в независимых интеграторах.",
+      "evidence": ["motor_companion", "motor_integration"]
+    },
+    {
+      "quantity": "outputRpm and outputTorqueNewtonMeter",
+      "current_owner": "same motor model and gearbox",
+      "unit": "rpm; N*m",
+      "future_boundary": "Нужны согласованные оси, знаки и энергия за интервал.",
+      "evidence": ["motor_observation"]
+    },
+    {
+      "quantity": "old chassis pose",
+      "current_owner": "Robotics world runtime / Planck",
+      "unit": "m; rad",
+      "future_boundary": "Старый RPM-driven путь не доказывает 3D torque/load coupling.",
+      "evidence": ["old_world_step"]
+    },
+    {
+      "quantity": "Worker generation/session",
+      "current_owner": "Worker/controller protocol",
+      "unit": "identifiers",
+      "future_boundary": "Joint runId/commit и checkpoint не квалифицированы.",
+      "evidence": ["worker_protocol"]
+    }
+  ],
+  "evidence": {
+    "package_exports": {
+      "path": "contexts/electronics/package.json",
+      "lines": [7, 29],
+      "symbols": ["exports"],
+      "revision": "historical_source_sha"
+    },
+    "engine_dto": {
+      "path": "contexts/electronics/engine.ts",
+      "lines": [68, 173],
+      "symbols": [
+        "ElectronicsTimedContinuation",
+        "ElectronicsTimedAdvanceRequest",
+        "ElectronicsTimedAdvanceResult"
+      ],
+      "revision": "historical_source_sha"
+    },
+    "engine_session": {
+      "path": "contexts/electronics/engine.ts",
+      "lines": [374, 421],
+      "symbols": ["advanceElectronicsToHorizon", "createElectronicsAdvanceSession"],
+      "revision": "historical_source_sha"
+    },
+    "engine_mapper": {
+      "path": "contexts/electronics/engine.ts",
+      "lines": [200, 277],
+      "symbols": ["schedulerInputEvent"],
+      "visibility": "private module function",
+      "revision": "historical_source_sha"
+    },
+    "scheduler_export": {
+      "path": "contexts/electronics/simulation.ts",
+      "lines": [13, 19],
+      "symbols": [
+        "advanceArduinoCircuitClock",
+        "ArduinoCircuitClockState",
+        "ArduinoCircuitInputEvent"
+      ],
+      "revision": "historical_source_sha"
+    },
+    "motor_exports": {
+      "path": "contexts/electronics/index.ts",
+      "lines": [94, 114],
+      "symbols": [
+        "advanceBrushedMotorTransientState",
+        "brushedMotorCompanion",
+        "observeBrushedMotorTransientState"
+      ],
+      "revision": "historical_source_sha"
+    },
+    "scheduler_input": {
+      "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+      "lines": [194, 220],
+      "symbols": ["ArduinoCircuitInputEvent"],
+      "revision": "historical_source_sha"
+    },
+    "scheduler_result": {
+      "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+      "lines": [260, 270],
+      "symbols": ["ArduinoCircuitClockAdvance", "integerTime"],
+      "revision": "historical_source_sha"
+    },
+    "scheduler_validation": {
+      "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+      "lines": [352, 416],
+      "symbols": ["validInputs"],
+      "revision": "historical_source_sha"
+    },
+    "scheduler_no_past": {
+      "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+      "lines": [1111, 1121],
+      "symbols": ["advanceArduinoCircuitClock"],
+      "section": "append-only prefix and retroactive_input admission",
+      "revision": "historical_source_sha"
+    },
+    "scheduler_private_sensor": {
+      "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+      "lines": [1339, 1444],
+      "symbols": ["observeSensors", "nextSensorTime", "nextTime"],
+      "visibility": "local functions inside public scheduler implementation",
+      "revision": "historical_source_sha"
+    },
+    "scheduler_options": {
+      "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+      "lines": [773, 798],
+      "symbols": ["advanceArduinoCircuitClock"],
+      "revision": "historical_source_sha"
+    },
+    "scheduler_limits": {
+      "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+      "lines": [115, 119],
+      "symbols": ["MAX_TIME_US", "MAX_INPUT_EVENTS", "PHYSICS_QUANTUM_US"],
+      "revision": "historical_source_sha"
+    },
+    "hc_profile": {
+      "path": "contexts/electronics/domain/models/hc-sr04-runtime.ts",
+      "lines": [3, 16],
+      "symbols": ["HC_SR04_PROFILE"],
+      "revision": "historical_source_sha"
+    },
+    "hc_width": {
+      "path": "contexts/electronics/domain/models/hc-sr04-runtime.ts",
+      "lines": [72, 79],
+      "symbols": ["hcSr04EchoWidthMicroseconds"],
+      "revision": "historical_source_sha"
+    },
+    "hc_accept": {
+      "path": "contexts/electronics/domain/models/hc-sr04-runtime.ts",
+      "lines": [177, 233],
+      "symbols": ["observeHcSr04Inputs"],
+      "revision": "historical_source_sha"
+    },
+    "pulse_wait": {
+      "path": "contexts/electronics/domain/arduino-pulse-runtime.ts",
+      "lines": [50, 117],
+      "symbols": ["settleArduinoPulseWait"],
+      "visibility": "private module function",
+      "revision": "historical_source_sha"
+    },
+    "old_ui": {
+      "path": "apps/web/src/robotics/RoboticsLab.tsx",
+      "lines": [465, 539],
+      "symbols": ["RoboticsLab"],
+      "section": "effect consuming committed observations and sampling old world pose",
+      "revision": "historical_source_sha"
+    },
+    "old_setter": {
+      "path": "apps/web/src/electronics/use-electronics-workbench.ts",
+      "lines": [540, 598],
+      "symbols": ["setRuntimeHcSr04EnvironmentSample"],
+      "revision": "historical_source_sha"
+    },
+    "worker_input_time": {
+      "path": "apps/web/src/electronics/live-simulation-worker-controller.ts",
+      "lines": [332, 356],
+      "symbols": ["update"],
+      "section": "LiveSimulationWorkerController method",
+      "revision": "historical_source_sha"
+    },
+    "worker_retime": {
+      "path": "apps/web/src/electronics/live-simulation-worker-controller.ts",
+      "lines": [584, 622],
+      "symbols": ["retimePendingInputsAfterCommitted"],
+      "revision": "historical_source_sha"
+    },
+    "motor_observation_fields": {
+      "path": "contexts/electronics/domain/solver.ts",
+      "lines": [353, 377],
+      "symbols": ["ComponentResult"],
+      "fields": [
+        "motorRpm",
+        "outputRpm",
+        "electromagneticTorqueNewtonMeter",
+        "outputTorqueNewtonMeter"
+      ],
+      "revision": "historical_source_sha"
+    },
+    "motor_observation": {
+      "path": "contexts/electronics/domain/solver.ts",
+      "lines": [1178, 1236],
+      "symbols": ["motorComponentObservation"],
+      "revision": "historical_source_sha"
+    },
+    "motor_solver_inputs": {
+      "path": "contexts/electronics/domain/solver.ts",
+      "lines": [1128, 1143],
+      "symbols": ["outputLoadTorqueNewtonMeter", "shaftLocked"],
+      "section": "component.stateProperties model inputs",
+      "revision": "historical_source_sha"
+    },
+    "motor_step_input": {
+      "path": "contexts/electronics/domain/models/brushed-motor-transient-model.ts",
+      "lines": [38, 47],
+      "symbols": ["BrushedMotorStepInput"],
+      "revision": "historical_source_sha"
+    },
+    "motor_load": {
+      "path": "contexts/electronics/domain/models/brushed-motor-transient-model.ts",
+      "lines": [165, 182],
+      "symbols": ["reflectedLoadTorque"],
+      "revision": "historical_source_sha"
+    },
+    "motor_companion": {
+      "path": "contexts/electronics/domain/models/brushed-motor-transient-model.ts",
+      "lines": [276, 342],
+      "symbols": ["brushedMotorCompanion"],
+      "revision": "historical_source_sha"
+    },
+    "motor_integration": {
+      "path": "contexts/electronics/domain/models/brushed-motor-transient-model.ts",
+      "lines": [503, 528],
+      "symbols": ["advanceBrushedMotorTransientState", "rotorInertiaKgMeterSquared"],
+      "revision": "historical_source_sha"
+    },
+    "servo": {
+      "path": "contexts/electronics/domain/models/servo-runtime.ts",
+      "lines": [117, 130],
+      "symbols": ["observeServoMotorInputs", "angleDegrees"],
+      "revision": "historical_source_sha"
+    },
+    "old_world_limit": {
+      "path": "contexts/robotics/domain/world-runtime.ts",
+      "lines": [33, 49],
+      "symbols": ["ROBOTICS_RUN_LIMIT_MICROSECONDS"],
+      "section": "legacy world runtime limit check",
+      "revision": "historical_source_sha"
+    },
+    "old_world_step": {
+      "path": "contexts/robotics/domain/world-runtime.ts",
+      "lines": [65, 89],
+      "symbols": ["advance"],
+      "section": "returned runtime method integrating endpoint RPM samples",
+      "revision": "historical_source_sha"
+    },
+    "worker_protocol": {
+      "path": "apps/web/src/electronics/simulation-worker-protocol.ts",
+      "lines": [13, 50],
+      "symbols": ["SimulationAdvanceRequest", "SimulationTimedAdvancePayload"],
+      "fields": ["generationId", "projectSessionId", "requestId"],
+      "revision": "historical_source_sha"
+    },
+    "requirements": {
+      "path": "docs/product/robotics/FIELD_CORE_SPEC.md",
+      "lines": [553, 563],
+      "symbols": ["REQ-TIME-04", "REQ-TIME-05", "REQ-TIME-06", "REQ-DRV-06", "REQ-DRV-07"],
+      "revision": "historical_source_sha"
+    },
+    "clock_contract": {
+      "path": "docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md",
+      "symbols": ["canonical microsecond / append-only input contract"],
+      "revision": "historical_source_sha"
+    },
+    "e1_card": {
+      "path": "docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md",
+      "symbols": ["D02 — граница электроники"],
+      "revision": "historical_source_sha"
+    },
+    "current_quality": {
+      "path": "contexts/electronics/domain/simulation.ts",
+      "lines": [638, 658],
+      "symbols": ["verifyCircuitQuality", "numericalShuntPowerWatt"],
+      "revision": "source_snapshot_sha"
+    },
+    "current_quality_traversal": {
+      "path": "contexts/electronics/domain/simulation.ts",
+      "lines": [1093, 1111],
+      "symbols": ["createArduinoQualityTraversal"],
+      "revision": "source_snapshot_sha"
+    },
+    "current_nodes": {
+      "path": "contexts/electronics/domain/solver.ts",
+      "lines": [5033, 5045],
+      "symbols": ["solveCircuitStep", "emitNumericalNodes"],
+      "revision": "source_snapshot_sha"
+    },
+    "current_shunt": {
+      "path": "contexts/electronics/domain/numerical-shunt-power.ts",
+      "lines": [14, 98],
+      "symbols": ["emitNumericalNodes", "copyNumericalNode", "numericalShuntPowerWatt"],
+      "revision": "source_snapshot_sha"
+    }
+  },
+  "historical_regression": {
+    "status": "PASS",
+    "source_sha": "09b4c8162a52fad4e5f54359eace4d18b6799f31",
+    "head_before": "759ad24813fc0bb7c7ea0c11b1f32d0abd2546d8",
+    "head_after": "759ad24813fc0bb7c7ea0c11b1f32d0abd2546d8",
+    "electronics_tree_before": "4664adab2da9d7667b3fb6c68bec2bcecb2e8657",
+    "electronics_tree_after": "4664adab2da9d7667b3fb6c68bec2bcecb2e8657",
+    "started_at_utc": "2026-11-11T10:03:31.5833917Z",
+    "finished_at_utc": "2026-11-11T10:03:48.2293566Z",
+    "command": "pnpm.cmd exec vitest run contexts/electronics/testing/hc-sr04-runtime.spec.ts contexts/electronics/testing/ultrasonic-distance-timed-input.spec.ts contexts/electronics/testing/engine-timed-api.spec.ts contexts/electronics/testing/brushed-motor-transient-model.spec.ts --maxWorkers=1",
+    "environment": {
+      "NX_SKIP_NX_CACHE": "true",
+      "node": "v22.23.3",
+      "pnpm": "9.15.9",
+      "vitest": "4.1.11"
+    },
+    "exit_code": 0,
+    "file_count": 4,
+    "passed_tests": 118,
+    "vitest_seconds": 15.34,
+    "source_hashes_before_after_equal": true,
+    "sha256_before_after": {
+      "contexts/electronics/engine.ts": "0564b8cefc11e4ea3be46b1ad5933cd2c328f1d647a71cb0d26aa1ea01f82528",
+      "contexts/electronics/simulation.ts": "65de5b13e64ec79fc80baa7868746e334b8a3ef4720fa321010b62f7199d2857",
+      "contexts/electronics/domain/arduino-circuit-scheduler.ts": "e0465f5d401da6ad1c6259cdd042b64c1d36417279a0fab5522ab7f4e5b4066a",
+      "contexts/electronics/domain/models/hc-sr04-runtime.ts": "09fec5f8f0fe40eda1c3649a4c485ebbedb97b8907377c5cd67a8c4c06dce794",
+      "contexts/electronics/domain/arduino-pulse-runtime.ts": "70b08fe57a0b680e0d807eb3bfbe532465a88819e7c707e81e3ae711884138bd",
+      "contexts/electronics/domain/models/brushed-motor-transient-model.ts": "86570985c5b2bd352b06024748d8e1ee22d1fb58867d1e5e09b935685c00ef0b",
+      "contexts/electronics/domain/solver.ts": "8238d1a715821bafeff7405521d76ebca7e9e1db1210c05243c046f3ca4881ae",
+      "contexts/electronics/testing/hc-sr04-runtime.spec.ts": "af7b8e2347de8777074d9a2855991a27a1ad402eeb40e22944bdf88bdc979b56",
+      "contexts/electronics/testing/ultrasonic-distance-timed-input.spec.ts": "b36df2c518b4396c0f2258e38cfa5c1485203d58ff711e38f29df52fa46c2330",
+      "contexts/electronics/testing/engine-timed-api.spec.ts": "daa07ffad99630d621b5fe46899b4766f3cb5609e7bc87ff8f0c56a124cc2f0e",
+      "contexts/electronics/testing/brushed-motor-transient-model.spec.ts": "14b99a3fe5d4e939c9cc1efcb74cfe7763c62937ff19ba4dc388996654b8357c",
+      "contexts/electronics/testing/fixtures/brushed-motor-transient-fixtures.v1.json": "f3ec182e6758d3eb4836f54c5b0680b900c05c271a58fec64e8785ef20e024a5"
+    },
+    "receipt_url": "https://github.com/spikeal8-maker/asa-lab/issues/1071#issuecomment-6793330420",
+    "raw_summary": "Test Files  4 passed (4)\nTests       118 passed (118)\nDuration    15.34s (transform 932ms, setup 0ms, import 2.31s, tests 12.39s, environment 0ms)\n{\"D02VerificationEndUtc\":\"2026-11-11T10:03:48.2293566Z\",\"VitestExit\":0}\nProcess completed with exit code 0",
+    "limit": "Historical actual run only; current solver bytes differ."
+  },
+  "fresh_regression": {
+    "status": "PASS",
+    "authorization_reason": "Bounded source diff found changed solver.ts; controller authorized exactly one run of the previous four existing specs.",
+    "head_before": "8c58667208202de22b7b8d36851bbcf4a979e3f3",
+    "head_after": "8c58667208202de22b7b8d36851bbcf4a979e3f3",
+    "electronics_tree_before": "2724990cd287f42c5e7f9f613eb1a1a87be0d2fe",
+    "electronics_tree_after": "2724990cd287f42c5e7f9f613eb1a1a87be0d2fe",
+    "started_at_utc": "2026-11-11T17:13:04.0680519Z",
+    "finished_at_utc": "2026-11-11T17:13:23.2332793Z",
+    "command": "pnpm.cmd exec vitest run contexts/electronics/testing/hc-sr04-runtime.spec.ts contexts/electronics/testing/ultrasonic-distance-timed-input.spec.ts contexts/electronics/testing/engine-timed-api.spec.ts contexts/electronics/testing/brushed-motor-transient-model.spec.ts --maxWorkers=1",
+    "working_directory": "C:\\Users\\spike\\Projects\\asa-lab-robotics-d02-report-20261111",
+    "environment": {
+      "NX_SKIP_NX_CACHE": "true",
+      "node": "v22.23.3",
+      "pnpm": "9.15.9",
+      "vitest": "4.1.11"
+    },
+    "preparation": [
+      {
+        "stage": "install",
+        "command": "pnpm.cmd install --frozen-lockfile",
+        "started_at_utc": "2026-11-11T17:11:12.3530299Z",
+        "finished_at_utc": "2026-11-11T17:11:26.8059206Z",
+        "exit_code": 0,
+        "log_sha256": "ed0dbb7a6fae97a0b1a0d9ee3bfbb54e7af0909b6df0750b32034f37f8a424a5",
+        "raw_receipt": "{\"Marker\":\"D02-8C586672-INSTALL-BEGIN-20261111\",\"Utc\":\"2026-11-11T17:11:12.3530299Z\",\"Head\":\"8c58667208202de22b7b8d36851bbcf4a979e3f3\",\"Command\":\"pnpm.cmd install --frozen-lockfile\",\"Log\":\"C:\\\\Users\\\\spike\\\\AppData\\\\Local\\\\Temp\\\\asa-d02-8c586672-20261111-install.log\"}\nLockfile is up to date, resolution step is skipped\nProgress: resolved 854, reused 854, downloaded 0, added 854, done\nDone in 14.1s using pnpm v9.15.9\n{\"Marker\":\"D02-8C586672-INSTALL-END-20261111\",\"Utc\":\"2026-11-11T17:11:26.8059206Z\",\"ExitCode\":0,\"Head\":\"8c58667208202de22b7b8d36851bbcf4a979e3f3\"}"
+      },
+      {
+        "stage": "build-module-sdk",
+        "command": "pnpm.cmd exec tsc -p packages/module-sdk/tsconfig.json",
+        "started_at_utc": "2026-11-11T17:12:19.9450642Z",
+        "finished_at_utc": "2026-11-11T17:12:21.2666409Z",
+        "exit_code": 0,
+        "log_sha256": "910e2846393d46acbc54e24f540e0c5aff6ea6bd9e6eeb84c01a120a4fc3483c",
+        "raw_receipt": "{\"Marker\":\"D02-8C586672-BUILD-MODULE-SDK-BEGIN-20261111\",\"Utc\":\"2026-11-11T17:12:19.9450642Z\",\"Head\":\"8c58667208202de22b7b8d36851bbcf4a979e3f3\",\"Command\":\"pnpm.cmd exec tsc -p packages/module-sdk/tsconfig.json\",\"Log\":\"C:\\\\Users\\\\spike\\\\AppData\\\\Local\\\\Temp\\\\asa-d02-8c586672-20261111-build-module-sdk.log\"}\n{\"Marker\":\"D02-8C586672-BUILD-MODULE-SDK-END-20261111\",\"Utc\":\"2026-11-11T17:12:21.2666409Z\",\"ExitCode\":0,\"Head\":\"8c58667208202de22b7b8d36851bbcf4a979e3f3\"}"
+      }
+    ],
+    "rebuilt_packages": ["module-sdk"],
+    "module_sdk_tree": "422ec9383c51228e7dab64d3b1ab90c18a8d723d",
+    "nx_executed": false,
+    "attempts": 1,
+    "exit_code": 0,
+    "file_count": 4,
+    "passed_tests": 118,
+    "vitest_seconds": 18.12,
+    "files": [
+      {
+        "path": "contexts/electronics/testing/hc-sr04-runtime.spec.ts",
+        "tests": 11,
+        "milliseconds": 8
+      },
+      {
+        "path": "contexts/electronics/testing/ultrasonic-distance-timed-input.spec.ts",
+        "tests": 9,
+        "milliseconds": 153
+      },
+      {
+        "path": "contexts/electronics/testing/engine-timed-api.spec.ts",
+        "tests": 87,
+        "milliseconds": 13931
+      },
+      {
+        "path": "contexts/electronics/testing/brushed-motor-transient-model.spec.ts",
+        "tests": 11,
+        "milliseconds": 73
+      }
+    ],
+    "source_hash_count": 29,
+    "source_hashes_before_after_equal": true,
+    "source_manifest_sha256": "586611ad586ce157aa114be040872bc59cb25235d8c1af626321e15e9f96172a",
+    "source_diff_exit_code": 0,
+    "start_marker": "D02-8C586672-REGRESSION-BEGIN-20261111",
+    "end_marker": "D02-8C586672-REGRESSION-END-20261111",
+    "raw_log_sha256": "5926527afce22404b3b859a2cb3b847f0cf948091310820333d3ec8fcb69bb1f",
+    "raw_log_encoding": "UTF-8 without BOM; original CRLF and ANSI sequences preserved in raw_log_utf8",
+    "raw_log_utf8": "{\"Marker\":\"D02-8C586672-REGRESSION-BEGIN-20261111\",\"Utc\":\"2026-11-11T17:13:04.0680519Z\",\"Head\":\"8c58667208202de22b7b8d36851bbcf4a979e3f3\",\"ElectronicsTree\":\"2724990cd287f42c5e7f9f613eb1a1a87be0d2fe\",\"SourceCount\":29,\"SourceManifestSha256\":\"586611ad586ce157aa114be040872bc59cb25235d8c1af626321e15e9f96172a\",\"Log\":\"C:\\\\Users\\\\spike\\\\AppData\\\\Local\\\\Temp\\\\asa-d02-8c586672-20261111-regression.log\"}\r\n{\"SourceHashesBefore\":[{\"path\":\"apps/web/src/electronics/live-simulation-worker-controller.ts\",\"sha256\":\"a580b8205b726ae2b628583b69dc9e01ac492e8b6fc184901277909fa2f88b06\"},{\"path\":\"apps/web/src/electronics/simulation-worker-protocol.ts\",\"sha256\":\"145d5b43486fb868e62afff00a22979c1cc57b398619cd95b374f30e76470f14\"},{\"path\":\"apps/web/src/electronics/use-electronics-workbench.ts\",\"sha256\":\"185825a0924c67559051108cdffadcf83af8b388f3903131225c52f2239cc679\"},{\"path\":\"apps/web/src/robotics/RoboticsLab.tsx\",\"sha256\":\"5cb75e886c65b715c5abbd6345919dd750ce1f35587addf6e49520d07b0bcef1\"},{\"path\":\"contexts/electronics/domain/arduino-circuit-scheduler.ts\",\"sha256\":\"e0465f5d401da6ad1c6259cdd042b64c1d36417279a0fab5522ab7f4e5b4066a\"},{\"path\":\"contexts/electronics/domain/arduino-pulse-runtime.ts\",\"sha256\":\"70b08fe57a0b680e0d807eb3bfbe532465a88819e7c707e81e3ae711884138bd\"},{\"path\":\"contexts/electronics/domain/models/brushed-motor-transient-model.ts\",\"sha256\":\"86570985c5b2bd352b06024748d8e1ee22d1fb58867d1e5e09b935685c00ef0b\"},{\"path\":\"contexts/electronics/domain/models/hc-sr04-runtime.ts\",\"sha256\":\"09fec5f8f0fe40eda1c3649a4c485ebbedb97b8907377c5cd67a8c4c06dce794\"},{\"path\":\"contexts/electronics/domain/models/servo-runtime.ts\",\"sha256\":\"c2ba9fcb826dfb52583959406a8cf8d68ee702f5badab3fc92c7b652c8e9b1e4\"},{\"path\":\"contexts/electronics/domain/simulation-input-digest.ts\",\"sha256\":\"0dde5919662fa2ed70d44880fdd9e4743b20d5fb4c21a01fe3aa2e98797faf4e\"},{\"path\":\"contexts/electronics/domain/simulation.ts\",\"sha256\":\"7eedb1d9eb06ce6e1e488300f61098aa0ead4e78fd9f4d5142b4bdb83eefce92\"},{\"path\":\"contexts/electronics/domain/solver.ts\",\"sha256\":\"329567d63e1ed97f2dab707ee240c4425165d2d60fb2905d8dad21e59d7c1166\"},{\"path\":\"contexts/electronics/engine.ts\",\"sha256\":\"0564b8cefc11e4ea3be46b1ad5933cd2c328f1d647a71cb0d26aa1ea01f82528\"},{\"path\":\"contexts/electronics/index.ts\",\"sha256\":\"0b329cae069326302e1a52c47799794ba429a7cde3f8a31036a44782ecec0d8b\"},{\"path\":\"contexts/electronics/package.json\",\"sha256\":\"097262c70536ec1798ee18f73750a07ac88767f02952818dbe5b566e47936348\"},{\"path\":\"contexts/electronics/simulation.ts\",\"sha256\":\"65de5b13e64ec79fc80baa7868746e334b8a3ef4720fa321010b62f7199d2857\"},{\"path\":\"contexts/electronics/testing/brushed-motor-transient-model.spec.ts\",\"sha256\":\"14b99a3fe5d4e939c9cc1efcb74cfe7763c62937ff19ba4dc388996654b8357c\"},{\"path\":\"contexts/electronics/testing/engine-timed-api.spec.ts\",\"sha256\":\"daa07ffad99630d621b5fe46899b4766f3cb5609e7bc87ff8f0c56a124cc2f0e\"},{\"path\":\"contexts/electronics/testing/fixtures/brushed-motor-transient-fixtures.v1.json\",\"sha256\":\"f3ec182e6758d3eb4836f54c5b0680b900c05c271a58fec64e8785ef20e024a5\"},{\"path\":\"contexts/electronics/testing/hc-sr04-runtime.spec.ts\",\"sha256\":\"af7b8e2347de8777074d9a2855991a27a1ad402eeb40e22944bdf88bdc979b56\"},{\"path\":\"contexts/electronics/testing/ultrasonic-distance-timed-input.spec.ts\",\"sha256\":\"b36df2c518b4396c0f2258e38cfa5c1485203d58ff711e38f29df52fa46c2330\"},{\"path\":\"contexts/electronics/timed-state.ts\",\"sha256\":\"68d8349382dcafec0c94a4d242700595842374e1f18cc1fb0f60a1dca479ea3b\"},{\"path\":\"contexts/robotics/domain/world-runtime.ts\",\"sha256\":\"6aa23e8abe2a219ed37166e648a319b61062e0822d5ca42b20c0a4ce260e9f23\"},{\"path\":\"docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md\",\"sha256\":\"88e4db20c64d19673555b80a6969113e8cfaf494ea2f0272a2b02715310b3ce4\"},{\"path\":\"docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md\",\"sha256\":\"0ca37747706d04d38d405bdd99186a19616a8cf7187ae91dad5d8162b4061623\"},{\"path\":\"docs/product/robotics/FIELD_CORE_SPEC.md\",\"sha256\":\"297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e\"},{\"path\":\"docs/product/robotics/FIELD_CORE_SPEC_REVIEW.md\",\"sha256\":\"df72b4c84db4feac8ff1f8d879bbcdce53b1d2793b5c3c1fdfc970c547887c8e\"},{\"path\":\"docs/product/robotics/FIELD_CORE_START.md\",\"sha256\":\"d7e9c91f9c3a6f81bd6f7bbb4b44a04e12160afd42ba8df1a503c9e76a6e5e60\"},{\"path\":\"docs/product/robotics/FIELD_CORE_TRACEABILITY.json\",\"sha256\":\"130737e8e492b0a8e924dc657306722f1af7195497a3bf90a88fbd8498a45777\"}]}\r\nCOMMAND: pnpm.cmd exec vitest run contexts/electronics/testing/hc-sr04-runtime.spec.ts contexts/electronics/testing/ultrasonic-distance-timed-input.spec.ts contexts/electronics/testing/engine-timed-api.spec.ts contexts/electronics/testing/brushed-motor-transient-model.spec.ts --maxWorkers=1\r\n\r\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.11 \u001b[39m\u001b[90mC:/Users/spike/Projects/asa-lab-robotics-d02-report-20261111\u001b[39m\r\n\r\n \u001b[32mтЬУ\u001b[39m \u001b[30m\u001b[46m parallel \u001b[49m\u001b[39m contexts/electronics/testing/brushed-motor-transient-model.spec.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 73\u001b[2mms\u001b[22m\u001b[39m\r\n \u001b[32mтЬУ\u001b[39m \u001b[30m\u001b[46m parallel \u001b[49m\u001b[39m contexts/electronics/testing/ultrasonic-distance-timed-input.spec.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 153\u001b[2mms\u001b[22m\u001b[39m\r\n \u001b[32mтЬУ\u001b[39m \u001b[30m\u001b[46m parallel \u001b[49m\u001b[39m contexts/electronics/testing/hc-sr04-runtime.spec.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 8\u001b[2mms\u001b[22m\u001b[39m\r\n \u001b[32mтЬУ\u001b[39m \u001b[30m\u001b[42m serialized-engine-ownership \u001b[49m\u001b[39m contexts/electronics/testing/engine-timed-api.spec.ts \u001b[2m(\u001b[22m\u001b[2m87 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 13931\u001b[2mms\u001b[22m\u001b[39m\r\n     \u001b[33m\u001b[2mтЬУ\u001b[22m\u001b[39m revokes quality before a foreign model callback and never promotes after restoration \u001b[33m 525\u001b[2mms\u001b[22m\u001b[39m\r\n     \u001b[33m\u001b[2mтЬУ\u001b[22m\u001b[39m detaches every owned runtime view and preserves null boundaries, budget 1 \u001b[33m 2990\u001b[2mms\u001b[22m\u001b[39m\r\n     \u001b[33m\u001b[2mтЬУ\u001b[22m\u001b[39m detaches every owned runtime view and preserves null boundaries, budget 7 \u001b[33m 606\u001b[2mms\u001b[22m\u001b[39m\r\n     \u001b[33m\u001b[2mтЬУ\u001b[22m\u001b[39m transfers the exact completed batch once on origin loss, budget 1 \u001b[33m 3425\u001b[2mms\u001b[22m\u001b[39m\r\n     \u001b[33m\u001b[2mтЬУ\u001b[22m\u001b[39m transfers the exact completed batch once on origin loss, budget 7 \u001b[33m 777\u001b[2mms\u001b[22m\u001b[39m\r\n     \u001b[33m\u001b[2mтЬУ\u001b[22m\u001b[39m transfers the exact completed batch once on origin loss, budget 256 \u001b[33m 327\u001b[2mms\u001b[22m\u001b[39m\r\n     \u001b[33m\u001b[2mтЬУ\u001b[22m\u001b[39m falls back for shared/exotic clone graphs and terminates ordinary cyclic admission \u001b[33m 868\u001b[2mms\u001b[22m\u001b[39m\r\n     \u001b[33m\u001b[2mтЬУ\u001b[22m\u001b[39m preserves every instruction and full public result with budget 1 \u001b[33m 2087\u001b[2mms\u001b[22m\u001b[39m\r\n     \u001b[33m\u001b[2mтЬУ\u001b[22m\u001b[39m preserves every instruction and full public result with budget 7 \u001b[33m 351\u001b[2mms\u001b[22m\u001b[39m\r\n\r\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m4 passed\u001b[39m\u001b[22m\u001b[90m (4)\u001b[39m\r\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m118 passed\u001b[39m\u001b[22m\u001b[90m (118)\u001b[39m\r\n\u001b[2m   Start at \u001b[22m 20:13:04\r\n\u001b[2m   Duration \u001b[22m 18.12s\u001b[2m (transform 1.74s, setup 0ms, import 3.27s, tests 14.17s, environment 0ms)\u001b[22m\r\n\r\n{\"SourceHashesAfter\":[{\"path\":\"apps/web/src/electronics/live-simulation-worker-controller.ts\",\"sha256\":\"a580b8205b726ae2b628583b69dc9e01ac492e8b6fc184901277909fa2f88b06\"},{\"path\":\"apps/web/src/electronics/simulation-worker-protocol.ts\",\"sha256\":\"145d5b43486fb868e62afff00a22979c1cc57b398619cd95b374f30e76470f14\"},{\"path\":\"apps/web/src/electronics/use-electronics-workbench.ts\",\"sha256\":\"185825a0924c67559051108cdffadcf83af8b388f3903131225c52f2239cc679\"},{\"path\":\"apps/web/src/robotics/RoboticsLab.tsx\",\"sha256\":\"5cb75e886c65b715c5abbd6345919dd750ce1f35587addf6e49520d07b0bcef1\"},{\"path\":\"contexts/electronics/domain/arduino-circuit-scheduler.ts\",\"sha256\":\"e0465f5d401da6ad1c6259cdd042b64c1d36417279a0fab5522ab7f4e5b4066a\"},{\"path\":\"contexts/electronics/domain/arduino-pulse-runtime.ts\",\"sha256\":\"70b08fe57a0b680e0d807eb3bfbe532465a88819e7c707e81e3ae711884138bd\"},{\"path\":\"contexts/electronics/domain/models/brushed-motor-transient-model.ts\",\"sha256\":\"86570985c5b2bd352b06024748d8e1ee22d1fb58867d1e5e09b935685c00ef0b\"},{\"path\":\"contexts/electronics/domain/models/hc-sr04-runtime.ts\",\"sha256\":\"09fec5f8f0fe40eda1c3649a4c485ebbedb97b8907377c5cd67a8c4c06dce794\"},{\"path\":\"contexts/electronics/domain/models/servo-runtime.ts\",\"sha256\":\"c2ba9fcb826dfb52583959406a8cf8d68ee702f5badab3fc92c7b652c8e9b1e4\"},{\"path\":\"contexts/electronics/domain/simulation-input-digest.ts\",\"sha256\":\"0dde5919662fa2ed70d44880fdd9e4743b20d5fb4c21a01fe3aa2e98797faf4e\"},{\"path\":\"contexts/electronics/domain/simulation.ts\",\"sha256\":\"7eedb1d9eb06ce6e1e488300f61098aa0ead4e78fd9f4d5142b4bdb83eefce92\"},{\"path\":\"contexts/electronics/domain/solver.ts\",\"sha256\":\"329567d63e1ed97f2dab707ee240c4425165d2d60fb2905d8dad21e59d7c1166\"},{\"path\":\"contexts/electronics/engine.ts\",\"sha256\":\"0564b8cefc11e4ea3be46b1ad5933cd2c328f1d647a71cb0d26aa1ea01f82528\"},{\"path\":\"contexts/electronics/index.ts\",\"sha256\":\"0b329cae069326302e1a52c47799794ba429a7cde3f8a31036a44782ecec0d8b\"},{\"path\":\"contexts/electronics/package.json\",\"sha256\":\"097262c70536ec1798ee18f73750a07ac88767f02952818dbe5b566e47936348\"},{\"path\":\"contexts/electronics/simulation.ts\",\"sha256\":\"65de5b13e64ec79fc80baa7868746e334b8a3ef4720fa321010b62f7199d2857\"},{\"path\":\"contexts/electronics/testing/brushed-motor-transient-model.spec.ts\",\"sha256\":\"14b99a3fe5d4e939c9cc1efcb74cfe7763c62937ff19ba4dc388996654b8357c\"},{\"path\":\"contexts/electronics/testing/engine-timed-api.spec.ts\",\"sha256\":\"daa07ffad99630d621b5fe46899b4766f3cb5609e7bc87ff8f0c56a124cc2f0e\"},{\"path\":\"contexts/electronics/testing/fixtures/brushed-motor-transient-fixtures.v1.json\",\"sha256\":\"f3ec182e6758d3eb4836f54c5b0680b900c05c271a58fec64e8785ef20e024a5\"},{\"path\":\"contexts/electronics/testing/hc-sr04-runtime.spec.ts\",\"sha256\":\"af7b8e2347de8777074d9a2855991a27a1ad402eeb40e22944bdf88bdc979b56\"},{\"path\":\"contexts/electronics/testing/ultrasonic-distance-timed-input.spec.ts\",\"sha256\":\"b36df2c518b4396c0f2258e38cfa5c1485203d58ff711e38f29df52fa46c2330\"},{\"path\":\"contexts/electronics/timed-state.ts\",\"sha256\":\"68d8349382dcafec0c94a4d242700595842374e1f18cc1fb0f60a1dca479ea3b\"},{\"path\":\"contexts/robotics/domain/world-runtime.ts\",\"sha256\":\"6aa23e8abe2a219ed37166e648a319b61062e0822d5ca42b20c0a4ce260e9f23\"},{\"path\":\"docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md\",\"sha256\":\"88e4db20c64d19673555b80a6969113e8cfaf494ea2f0272a2b02715310b3ce4\"},{\"path\":\"docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md\",\"sha256\":\"0ca37747706d04d38d405bdd99186a19616a8cf7187ae91dad5d8162b4061623\"},{\"path\":\"docs/product/robotics/FIELD_CORE_SPEC.md\",\"sha256\":\"297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e\"},{\"path\":\"docs/product/robotics/FIELD_CORE_SPEC_REVIEW.md\",\"sha256\":\"df72b4c84db4feac8ff1f8d879bbcdce53b1d2793b5c3c1fdfc970c547887c8e\"},{\"path\":\"docs/product/robotics/FIELD_CORE_START.md\",\"sha256\":\"d7e9c91f9c3a6f81bd6f7bbb4b44a04e12160afd42ba8df1a503c9e76a6e5e60\"},{\"path\":\"docs/product/robotics/FIELD_CORE_TRACEABILITY.json\",\"sha256\":\"130737e8e492b0a8e924dc657306722f1af7195497a3bf90a88fbd8498a45777\"}]}\r\n{\"Marker\":\"D02-8C586672-REGRESSION-END-20261111\",\"Utc\":\"2026-11-11T17:13:23.2332793Z\",\"VitestExit\":0,\"Head\":\"8c58667208202de22b7b8d36851bbcf4a979e3f3\",\"ElectronicsTree\":\"2724990cd287f42c5e7f9f613eb1a1a87be0d2fe\",\"SourceHashesBeforeAfterEqual\":true}\r\n",
+    "readback_utc": "2026-11-11T17:13:38.097262+00:00",
+    "limit": "Existing public clock/HC and autonomous motor regression only; does not qualify new spatial coupling or TIME-01..03."
+  },
+  "consequences": [
+    {
+      "stage": "E1",
+      "result": "Report contributes D02 evidence; mechanical TEST_ONLY scenes may continue under selected scope. This report does not close E1 or D02."
+    },
+    {
+      "stage": "E2",
+      "result": "Record proven interfaces only; missing coupled contracts remain explicit dependencies."
+    },
+    {
+      "stage": "E7 HC/3D scenes",
+      "blocked_by": ["D02-G01", "D02-L01"]
+    },
+    {
+      "stage": "E7 electrical wheel chassis / ramp scenes",
+      "blocked_by": ["D02-G02", "D02-G03", "D02-G04"]
+    },
+    {
+      "stage": "TIME-03 / PHY-12 / REQ-DRV-07 energy",
+      "blocked_by": ["D02-G02", "D02-G03", "D02-G04"]
+    },
+    {
+      "stage": "physical servo mechanism",
+      "blocked_by": ["D02-G05"]
+    },
+    {
+      "stage": "joint run / resume",
+      "blocked_by": ["D02-G06"]
+    }
+  ],
+  "recommended_bounded_probe": {
+    "status": "NOT_RUN",
+    "recommendation_only": true,
+    "selects_next_task": false,
+    "new_api_allowed": false,
+    "scope": [
+      "Existing public exports only",
+      "10 us Trig accepted near 5000 us with exact Echo/timeout",
+      "Late event admission for t<C and t=C",
+      "Partition/yield equivalence of real public observations",
+      "Existing motor endpoint observations and explicit rejection of undeclared timed inputs"
+    ],
+    "required_evidence": [
+      "exact source SHA",
+      "actual commands",
+      "raw output",
+      "source/test hashes",
+      "separate per-case verdict"
+    ],
+    "limit": "No invented load/omega/query operation, no manual continuation mutation, no second electrical solver; any required architecture/API change needs a separately selected bounded dependency."
+  }
+}
