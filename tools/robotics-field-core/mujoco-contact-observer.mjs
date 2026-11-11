@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { closeSync, fsyncSync, openSync, writeSync } from 'node:fs';
+import { types } from 'node:util';
 
 export const demand = (value, message) => {
   if (!value) throw new Error(message);
@@ -29,6 +30,112 @@ export const finite = (v) => {
   if (v && typeof v === 'object') return Object.values(v).every(finite);
   return true;
 };
+
+const KEY_CACHE_MAX_ENTRIES = 256;
+const KEY_CACHE_MAX_BYTES = 16 * 1024;
+const KEY_CACHE_MAX_KEY_BYTES = 256;
+const objectKeyBytesCache = new Map();
+let objectKeyPayloadBytes = 0;
+
+// Keys alone are immutable strings. Each retained payload owns an unpooled,
+// exact-sized allocation; saturated/oversized misses retain nothing.
+function objectKeyBytes(key) {
+  const hit = objectKeyBytesCache.get(key);
+  if (hit !== undefined) return hit;
+  const length = Buffer.byteLength(key, 'utf8');
+  if (
+    length > KEY_CACHE_MAX_KEY_BYTES ||
+    objectKeyBytesCache.size >= KEY_CACHE_MAX_ENTRIES ||
+    objectKeyPayloadBytes + length > KEY_CACHE_MAX_BYTES
+  ) {
+    return Buffer.from(key, 'utf8');
+  }
+  const bytes = Buffer.allocUnsafeSlow(length);
+  demand(bytes.write(key, 0, length, 'utf8') === length, 'RAW_KEY_UTF8_LENGTH');
+  objectKeyBytesCache.set(key, bytes);
+  objectKeyPayloadBytes += length;
+  return bytes;
+}
+
+// Pure accounting only: no key, Buffer, backing store or cache mutation escapes.
+export function canonicalKeyCacheUsage() {
+  let retainedBackingBytes = 0;
+  let stringCodeUnits = 0;
+  let unpooled = true;
+  for (const [key, bytes] of objectKeyBytesCache) {
+    retainedBackingBytes += bytes.buffer.byteLength;
+    stringCodeUnits += key.length;
+    unpooled &&= bytes.byteOffset === 0 && bytes.buffer.byteLength === bytes.length;
+  }
+  return Object.freeze({
+    entries: objectKeyBytesCache.size,
+    payloadBytes: objectKeyPayloadBytes,
+    retainedBackingBytes,
+    stringCodeUnits,
+    unpooled,
+    maxEntries: KEY_CACHE_MAX_ENTRIES,
+    maxPayloadBytes: KEY_CACHE_MAX_BYTES,
+    maxKeyBytes: KEY_CACHE_MAX_KEY_BYTES,
+  });
+}
+
+const ordinaryArrayIterator = Object.getOwnPropertyDescriptor(
+  Array.prototype,
+  Symbol.iterator,
+).value;
+const arrayIteratorPrototype = Object.getPrototypeOf(ordinaryArrayIterator.call([]));
+const ordinaryArrayIteratorNext = Object.getOwnPropertyDescriptor(
+  arrayIteratorPrototype,
+  'next',
+).value;
+
+function ordinaryArrayIteration() {
+  return (
+    Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator)?.value ===
+      ordinaryArrayIterator &&
+    Object.getOwnPropertyDescriptor(arrayIteratorPrototype, 'next')?.value ===
+      ordinaryArrayIteratorNext
+  );
+}
+
+function smallPlainNumberVector(value) {
+  if (
+    types.isProxy(value) ||
+    !Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Array.prototype
+  ) {
+    return false;
+  }
+  const length = value.length;
+  if (length !== 2 && length !== 3 && length !== 5) return false;
+  // Includes Symbol.iterator and non-index keys, without invoking accessors.
+  if (Reflect.ownKeys(value).length !== length + 1) return false;
+  for (let i = 0; i < length; i += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, i);
+    if (
+      !descriptor ||
+      !Object.hasOwn(descriptor, 'value') ||
+      typeof descriptor.value !== 'number'
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Only the five 2/3/5-number assessContacts comparisons use this fast domain.
+// Validate BOTH complete vectors before any unequal result: an unsupported
+// later element must still reach the original byte encoder and its error.
+export function numberVectorEqual(a, b) {
+  if (!ordinaryArrayIteration() || !smallPlainNumberVector(a) || !smallPlainNumberVector(b)) {
+    return canonicalEqual(a, b);
+  }
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (!Object.is(a[i], b[i])) return false;
+  }
+  return true;
+}
 
 /** Fixed schema tags: null0,false1,true2,f64=3,UTF8=4,array5,object6,bytes7.
  * Lengths/counts are U32LE; object keys sort by UTF8 bytes; f64 keeps signed zero.
@@ -82,11 +189,18 @@ export function canonicalBytes(value) {
       return;
     }
     demand(v && typeof v === 'object', 'RAW_UNSUPPORTED_TYPE ' + typeof v);
-    const keys = Object.keys(v).sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
+    const keys = Object.keys(v).sort((a, b) =>
+      Buffer.compare(objectKeyBytes(a), objectKeyBytes(b)),
+    );
     tag(6);
     u32(keys.length);
     for (const key of keys) {
-      write(key);
+      const bytes = objectKeyBytes(key);
+      tag(4);
+      u32(bytes.length);
+      room(bytes.length);
+      bytes.copy(out, at);
+      at += bytes.length;
       write(v[key]);
     }
   };
@@ -616,10 +730,10 @@ export function assessContacts(f, forward, force, ids, floor) {
       'UNREGISTERED_CONTACT_PAIR_OR_DIM',
     );
     demand(
-      canonicalEqual(c.friction, f.contact.effectiveFriction) &&
-        canonicalEqual(c.solref, f.contact.solref) &&
-        canonicalEqual(c.solreffriction, f.contact.solreffriction) &&
-        canonicalEqual(c.solimp, f.contact.solimp) &&
+      numberVectorEqual(c.friction, f.contact.effectiveFriction) &&
+        numberVectorEqual(c.solref, f.contact.solref) &&
+        numberVectorEqual(c.solreffriction, f.contact.solreffriction) &&
+        numberVectorEqual(c.solimp, f.contact.solimp) &&
         c.includemargin === 0 &&
         c.adhesion === 0 &&
         c.surfacevel.every((v) => v === 0),
@@ -660,7 +774,7 @@ export function assessContacts(f, forward, force, ids, floor) {
     }
     const rowForces = rowsValid ? force.efcForce.slice(address, address + 3) : [];
     if (rowsValid)
-      demand(canonicalEqual(rowForces, solved.force.slice(0, 3)), 'CONTACT_FORCE_EFC_PARITY');
+      demand(numberVectorEqual(rowForces, solved.force.slice(0, 3)), 'CONTACT_FORCE_EFC_PARITY');
     let witness = null;
     if (fn > 0) {
       demand(

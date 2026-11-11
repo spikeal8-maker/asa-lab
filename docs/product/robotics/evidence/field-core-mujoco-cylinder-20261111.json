@@ -6534,5 +6534,1163 @@
         "nativeAdvances": 0
       }
     ]
-  }
+  },
+  "optimizationCandidates": [
+    {
+      "id": "observer-pure-v1-20261111",
+      "status": "NEW_ADMISSION_NOT_RUN",
+      "preparedAtUtc": "2026-11-11T19:11:08.878Z",
+      "baseCommit": "aaf8427f29f213c2320a72d8f8bed592e784c550",
+      "originalAdmission": {
+        "sourceCommit": "aaf8427f29f213c2320a72d8f8bed592e784c550",
+        "registrationAtUtc": "2026-11-11T17:51:19.108Z",
+        "attemptId": "mujoco-cylinder-admission-a1",
+        "verdict": "PASS_FOR_ORIGINAL_SOURCE_ONLY",
+        "rawSha256": "933203436f9ac360ca3d61f3ff790f2f887cfe72a24b0a4d648196ccc87516a1",
+        "archiveReleaseId": 442053227,
+        "qualificationTransferredToCandidate": false
+      },
+      "paths": {
+        "executable": [
+          "tools/robotics-field-core/mujoco-contact-observer.mjs"
+        ],
+        "pureSpec": [
+          "tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts"
+        ],
+        "reports": [
+          "docs/product/robotics/evidence/field-core-mujoco-cylinder-20261111.json",
+          "docs/product/robotics/evidence/field-core-mujoco-cylinder-20261111.md"
+        ]
+      },
+      "changes": [
+        "Only five assessContacts comparisons use numberVectorEqual; canonicalEqual stays byte-based for everything else.",
+        "Eligible vectors are non-proxy plain dense arrays of length 2/3/5 with own numeric data descriptors, no extra keys, and unchanged ordinary array iterator/iterator-next identities.",
+        "Both full eligibility checks precede an unequal result; getter/sparse/proxy/custom-iterator/unsupported inputs use the original encoder fallback.",
+        "Private UTF8 key-byte cache: <=256 entries, <=16384 exact owned backing bytes, <=256 UTF8 bytes per key; saturated/oversized misses bypass cache.",
+        "Stable Buffer.compare key ordering, malformed-surrogate collision ties, tags, U32LE framing, signed zero and canonical NaN bytes are unchanged.",
+        "Cache usage export exposes a fresh frozen object of numeric/boolean accounting only; no keys, buffers, backing stores or reset capability."
+      ],
+      "unchanged": [
+        "executor",
+        "CLI",
+        "fixture",
+        "nine immutable parent inputs",
+        "specification",
+        "all physical tolerances and existing resource thresholds",
+        "native call/phase ordering",
+        "hash chains",
+        "retention cadence",
+        "parity reconstruction"
+      ],
+      "sourceManifest": {
+        "newInputs": {
+          "tools/robotics-field-core/mujoco-contact-observer.mjs": "63f57d38502dfb7f1d0a4fd4899c4112888a0040855932f6f6fdd922b8d914b0",
+          "tools/robotics-field-core/mujoco-cylinder.mjs": "d9748052ca54987aa5ed42f909d0c1f8e21587c0e6ca60c6b5f0b4c3c86ea24b",
+          "tools/robotics-field-core/run-mujoco-cylinder.mjs": "9729d2f48a51db51a09962e412c41c76912d8719ce864ff93f89a10cc59418e9",
+          "tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json": "28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb",
+          "tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts": "a591d2189d8ea24d27706245965a3fbf2b9b9b8bf2533f0d5e10681bb8346a01"
+        },
+        "immutableParents": {
+          "package.json": "c2f5a1421e86b7dd37022eda8a37cf25cded373d986c31dc8f8e1beb435c7492",
+          "pnpm-lock.yaml": "448b5a8faa0f8497c3efe1bdc63959b381fad5577bfb5734261e9578ee5a93e1",
+          "tools/robotics-field-core/mujoco-artifact.json": "1c353e3593f1fcd730c6e97f9549d3b6fdff7ce1fff7b9c45755edd7cd1ca1c3",
+          "tools/robotics-field-core/MUJOCO-LICENSE.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "tools/robotics-field-core/MUJOCO-THIRD-PARTY-NOTICES.txt": "6f681117208684ef2ab3ad03a9f928ae8c6dffb4f765eeab59fb2d8b189e1540",
+          "tools/robotics-field-core/mujoco-phy01.mjs": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+          "tools/robotics-field-core/run-mujoco-phy01.mjs": "5b2179f0ff1b6c759b63757dd881242aee6c9fb4b258243a08a7b50dfefb12ad",
+          "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c",
+          "tests/robotics/field-core-qualification/mujoco-phy01.spec.ts": "1266b4c420baea08fd4448beb9d96a908d039bc3ddcbfc89a67b911aef893cb4"
+        },
+        "specification": {
+          "docs/product/robotics/FIELD_CORE_SPEC.md": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e"
+        },
+        "parentExecution": "Only readFixture, artifact validation, hashes and nativeTimeBudget helpers are imported; prior PHY01 physics is not rerun."
+      },
+      "sourceOnlyDiff": {
+        "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\source-only.diff",
+        "bytes": 19582,
+        "sha256": "87f4983d769982d3611aedc827ea4600b9908bc00a67ba62eae90d5de5d96c24",
+        "stat": ".../mujoco-cylinder.spec.ts                        | 366 +++++++++++++++++++++\n .../mujoco-contact-observer.mjs                    | 128 ++++++-\n 2 files changed, 487 insertions(+), 7 deletions(-)"
+      },
+      "checks": {
+        "scoped": [
+          {
+            "name": "format",
+            "startedAtUtc": "2026-11-11T18:54:37.731Z",
+            "finishedAtUtc": "2026-11-11T18:54:38.806Z",
+            "exitCode": 0
+          },
+          {
+            "name": "pure-suite-a1",
+            "startedAtUtc": "2026-11-11T18:54:38.807Z",
+            "finishedAtUtc": "2026-11-11T18:54:40.748Z",
+            "exitCode": 0
+          },
+          {
+            "name": "lint-a1",
+            "startedAtUtc": "2026-11-11T18:54:40.749Z",
+            "finishedAtUtc": "2026-11-11T18:54:56.152Z",
+            "exitCode": 0
+          }
+        ],
+        "pureTests": 136,
+        "previousPureTests": 102,
+        "addedPureTests": 34,
+        "pureSuiteDurationMs": 967,
+        "syntax": [
+          {
+            "name": "syntax-observer",
+            "startedAtUtc": "2026-11-11T19:04:09.785Z",
+            "finishedAtUtc": "2026-11-11T19:04:09.835Z",
+            "exitCode": 0
+          },
+          {
+            "name": "syntax-oracle",
+            "startedAtUtc": "2026-11-11T19:04:09.836Z",
+            "finishedAtUtc": "2026-11-11T19:04:09.882Z",
+            "exitCode": 0
+          },
+          {
+            "name": "syntax-record-tools",
+            "startedAtUtc": "2026-11-11T19:04:09.882Z",
+            "finishedAtUtc": "2026-11-11T19:04:09.942Z",
+            "exitCode": 0
+          },
+          {
+            "name": "syntax-proof",
+            "startedAtUtc": "2026-11-11T19:04:09.943Z",
+            "finishedAtUtc": "2026-11-11T19:04:09.989Z",
+            "exitCode": 0
+          },
+          {
+            "name": "syntax-benchmark",
+            "startedAtUtc": "2026-11-11T19:04:09.990Z",
+            "finishedAtUtc": "2026-11-11T19:04:10.040Z",
+            "exitCode": 0
+          },
+          {
+            "name": "syntax-watchdog",
+            "startedAtUtc": "2026-11-11T19:04:10.041Z",
+            "finishedAtUtc": "2026-11-11T19:04:10.087Z",
+            "exitCode": 0
+          }
+        ],
+        "governance": "NOT_RUN_FOR_CANDIDATE; historical a1 governance receipt preserved",
+        "nativeInitializations": 0,
+        "models": 0,
+        "data": 0,
+        "advances": 0
+      },
+      "exactByteProof": {
+        "verdict": "PASS",
+        "startedAtUtc": "2026-11-11T19:04:10.131Z",
+        "finishedAtUtc": "2026-11-11T19:04:10.230Z",
+        "immutableByteOracleSha256": "dd22ed00fc47a68cce8c27f4c1e82145b0f6d26b2924908a9f42317115726a8c",
+        "decoder": {
+          "frames": 171,
+          "nodes": 55231,
+          "kinds": {
+            "schema": 1,
+            "invocation": 1,
+            "world-initialization": 8,
+            "checkpoint": 132,
+            "world-complete": 8,
+            "world-cleanup": 8,
+            "settle-boundary": 4,
+            "stage-start": 4,
+            "stage-end": 4,
+            "invocation-end": 1
+          }
+        },
+        "counts": {
+          "frames": 171,
+          "baselineEncodings": 520,
+          "candidateEncodings": 520,
+          "smallComparisons": 240,
+          "edgeCases": 16,
+          "cacheProofRecords": 320
+        },
+        "countInterpretation": "baselineEncodings/candidateEncodings count direct compareBytes calls only. The 240 vector comparisons and 16 edge-case outcomes/errors/traces are separate; their internal encoder calls are not included in those direct counters.",
+        "allOriginalFramesByteExactWithoutExceptions": true,
+        "reconstructedOriginalRawSha256": "933203436f9ac360ca3d61f3ff790f2f887cfe72a24b0a4d648196ccc87516a1",
+        "retainedFrameChain": {
+          "baseline": {
+            "ticks": 171,
+            "sha256": "53cdf0146a390ed804ec6431008136aad9c88c3af694fcc7eeb6bf6ae0c25033"
+          },
+          "candidate": {
+            "ticks": 171,
+            "sha256": "53cdf0146a390ed804ec6431008136aad9c88c3af694fcc7eeb6bf6ae0c25033"
+          }
+        },
+        "chainInterpretation": "This 171-frame retained-data chain is not a recomputation of the 40200-step native trajectory. No native replay occurred.",
+        "savedPhysicalObservations": [
+          {
+            "world": "admission-A-500-split",
+            "tick": 200,
+            "contacts": 8,
+            "subtrees": {
+              "full": {
+                "bytes": 23600,
+                "sha256": "d349a2d103a05f88946eecbbac48a821041609350e80e01ad5a5aeb07fee47de"
+              },
+              "parity": {
+                "bytes": 17629,
+                "sha256": "8bca5228973028b5f3ccf56737fffde987269135fb5fc7d1df36b92160a26dbf"
+              },
+              "endpoint": {
+                "bytes": 539,
+                "sha256": "333a24d3d29cc98defc9423e13628267e7a9e6fe98385d3d1881a05be73431c8"
+              }
+            }
+          },
+          {
+            "world": "admission-A-500-full",
+            "tick": 200,
+            "contacts": 8,
+            "subtrees": {
+              "full": {
+                "bytes": 23600,
+                "sha256": "d349a2d103a05f88946eecbbac48a821041609350e80e01ad5a5aeb07fee47de"
+              },
+              "parity": {
+                "bytes": 17629,
+                "sha256": "8bca5228973028b5f3ccf56737fffde987269135fb5fc7d1df36b92160a26dbf"
+              },
+              "endpoint": {
+                "bytes": 539,
+                "sha256": "333a24d3d29cc98defc9423e13628267e7a9e6fe98385d3d1881a05be73431c8"
+              }
+            }
+          },
+          {
+            "world": "admission-A-250-split",
+            "tick": 400,
+            "contacts": 8,
+            "subtrees": {
+              "full": {
+                "bytes": 23600,
+                "sha256": "3613666cd1d457403edbfcc0db90dcc64f5fe631149256d5d208418e0b7e4a4d"
+              },
+              "parity": {
+                "bytes": 17629,
+                "sha256": "5237e4dd94579f89e6f44ef31cb0f62f96e6f9f8c29fbfd61f629ccbf7d54c05"
+              },
+              "endpoint": {
+                "bytes": 539,
+                "sha256": "615b09f6c778b4ea213dcc12b9d8a99a55c3e918e1de6ed998412bc0a31aa212"
+              }
+            }
+          },
+          {
+            "world": "admission-A-250-full",
+            "tick": 400,
+            "contacts": 8,
+            "subtrees": {
+              "full": {
+                "bytes": 23600,
+                "sha256": "3613666cd1d457403edbfcc0db90dcc64f5fe631149256d5d208418e0b7e4a4d"
+              },
+              "parity": {
+                "bytes": 17629,
+                "sha256": "5237e4dd94579f89e6f44ef31cb0f62f96e6f9f8c29fbfd61f629ccbf7d54c05"
+              },
+              "endpoint": {
+                "bytes": 539,
+                "sha256": "615b09f6c778b4ea213dcc12b9d8a99a55c3e918e1de6ed998412bc0a31aa212"
+              }
+            }
+          },
+          {
+            "world": "admission-B-500-split",
+            "tick": 6500,
+            "contacts": 4,
+            "subtrees": {
+              "full": {
+                "bytes": 13513,
+                "sha256": "1b89b16e97ee0cd220b11101f7aa458e357d2c29f8f0a73e4aa4783853956c31"
+              },
+              "parity": {
+                "bytes": 9600,
+                "sha256": "c0ec60a57b68e05cf1f9792da5b37ea49548493c3be10d105c4e3ee2ef668978"
+              },
+              "endpoint": {
+                "bytes": 350,
+                "sha256": "2065ba9d334aedf6b6b830b97d18218245915e552010c88b155aa1e9aed5303a"
+              }
+            }
+          },
+          {
+            "world": "admission-B-500-full",
+            "tick": 6500,
+            "contacts": 4,
+            "subtrees": {
+              "full": {
+                "bytes": 13513,
+                "sha256": "1b89b16e97ee0cd220b11101f7aa458e357d2c29f8f0a73e4aa4783853956c31"
+              },
+              "parity": {
+                "bytes": 9600,
+                "sha256": "c0ec60a57b68e05cf1f9792da5b37ea49548493c3be10d105c4e3ee2ef668978"
+              },
+              "endpoint": {
+                "bytes": 350,
+                "sha256": "2065ba9d334aedf6b6b830b97d18218245915e552010c88b155aa1e9aed5303a"
+              }
+            }
+          },
+          {
+            "world": "admission-B-250-split",
+            "tick": 13000,
+            "contacts": 4,
+            "subtrees": {
+              "full": {
+                "bytes": 13513,
+                "sha256": "b5012f127d8956c0f2c4106e8d6b9fe17003472dc7e1b8fe5cd666c3ee788068"
+              },
+              "parity": {
+                "bytes": 9600,
+                "sha256": "14af75709151c6799a148394aa8aea2b6411fff5b1cdd75b31e2a1692e55b81a"
+              },
+              "endpoint": {
+                "bytes": 350,
+                "sha256": "4e290140fa94356d027c1377200351ed6efcadcd83502f7189d43c0de032cf1d"
+              }
+            }
+          },
+          {
+            "world": "admission-B-250-full",
+            "tick": 13000,
+            "contacts": 4,
+            "subtrees": {
+              "full": {
+                "bytes": 13513,
+                "sha256": "b5012f127d8956c0f2c4106e8d6b9fe17003472dc7e1b8fe5cd666c3ee788068"
+              },
+              "parity": {
+                "bytes": 9600,
+                "sha256": "14af75709151c6799a148394aa8aea2b6411fff5b1cdd75b31e2a1692e55b81a"
+              },
+              "endpoint": {
+                "bytes": 350,
+                "sha256": "4e290140fa94356d027c1377200351ed6efcadcd83502f7189d43c0de032cf1d"
+              }
+            }
+          }
+        ],
+        "cacheProof": {
+          "entryCap": {
+            "entries": 256,
+            "payloadBytes": 914,
+            "retainedBackingBytes": 914,
+            "stringCodeUnits": 914,
+            "unpooled": true,
+            "maxEntries": 256,
+            "maxPayloadBytes": 16384,
+            "maxKeyBytes": 256
+          },
+          "payloadCap": {
+            "entries": 64,
+            "payloadBytes": 16384,
+            "retainedBackingBytes": 16384,
+            "stringCodeUnits": 16384,
+            "unpooled": true,
+            "maxEntries": 256,
+            "maxPayloadBytes": 16384,
+            "maxKeyBytes": 256
+          },
+          "oversize": {
+            "entries": 0,
+            "payloadBytes": 0,
+            "retainedBackingBytes": 0,
+            "stringCodeUnits": 0,
+            "unpooled": true,
+            "maxEntries": 256,
+            "maxPayloadBytes": 16384,
+            "maxKeyBytes": 256
+          },
+          "savedRecords": {
+            "entries": 256,
+            "payloadBytes": 2988,
+            "retainedBackingBytes": 2988,
+            "stringCodeUnits": 2988,
+            "unpooled": true,
+            "maxEntries": 256,
+            "maxPayloadBytes": 16384,
+            "maxKeyBytes": 256
+          }
+        },
+        "sourceBeforeAfterEqual": true,
+        "rawBeforeAfterEqual": true
+      },
+      "cacheMemory": {
+        "maxEntries": 256,
+        "maxOwnedPayloadBytes": 16384,
+        "maxPerKeyBytes": 256,
+        "maxRetainedKeyCodeUnits": 16384,
+        "maxUncompressedUtf16KeyBytes": 32768,
+        "metadata": "At most 256 Map entries, key strings and Buffer wrappers; VM metadata bytes are not claimed as a measured exact heap bound.",
+        "backingOwnership": "Buffer.allocUnsafeSlow; every retained buffer has byteOffset0 and backing byteLength equal to payload length. No pooled slabs retained."
+      },
+      "pairedBenchmark": {
+        "verdict": "PASS",
+        "invocations": 1,
+        "startedAtUtc": "2026-11-11T19:04:10.361Z",
+        "finishedAtUtc": "2026-11-11T19:04:11.503Z",
+        "node": "v22.23.3",
+        "platform": "win32",
+        "arch": "x64",
+        "ordering": "ABBA blocks per case within one explicit invocation",
+        "cpuProfiling": false,
+        "limits": {
+          "fullRecordEncodings": 10000,
+          "nonSmallCanonicalEncodings": 10000,
+          "smallEqualityCalls": 100000,
+          "wallSoftStopMs": 27000,
+          "cpuSoftStopMs": 27000,
+          "externalWallWatchdogMs": 30000,
+          "pollEveryOperations": 64
+        },
+        "counts": {
+          "fullRecordEncodings": 2828,
+          "nonSmallCanonicalEncodings": 8596,
+          "smallEqualityCalls": 48000,
+          "largeEqualityCalls": 1476,
+          "directEncodings": 5644,
+          "candidateNumberVectorCalls": 20000,
+          "smallGenericCanonicalEqualCalls": 28000,
+          "sha256Calls": 38
+        },
+        "wallMs": 1141.5472,
+        "cpuMs": 1406,
+        "watchdog": {
+          "startedAtUtc": "2026-11-11T19:04:10.308Z",
+          "finishedAtUtc": "2026-11-11T19:04:11.513Z",
+          "wallMs": 1205,
+          "childPid": 14040,
+          "exitCode": 0,
+          "signal": null,
+          "watchdogFired": false,
+          "hardWallMs": 30000,
+          "nativeInitializations": 0,
+          "models": 0,
+          "steps": 0
+        },
+        "samples": [
+          {
+            "world": "admission-A-250-split",
+            "tick": 400,
+            "nativeCounts": {
+              "ncon": 8,
+              "nefc": 24,
+              "nisland": 2,
+              "solverIterations": [
+                3,
+                3
+              ]
+            },
+            "bytes": 23600,
+            "sha256": "3613666cd1d457403edbfcc0db90dcc64f5fe631149256d5d208418e0b7e4a4d",
+            "rawSpan": {
+              "start": 100153,
+              "end": 123753
+            },
+            "permutation": {
+              "seed": "0x6d756a6f",
+              "changedObjects": 45,
+              "objects": 46
+            }
+          },
+          {
+            "world": "admission-B-250-split",
+            "tick": 13000,
+            "nativeCounts": {
+              "ncon": 4,
+              "nefc": 12,
+              "nisland": 1,
+              "solverIterations": [
+                3
+              ]
+            },
+            "bytes": 13513,
+            "sha256": "b5012f127d8956c0f2c4106e8d6b9fe17003472dc7e1b8fe5cd666c3ee788068",
+            "rawSpan": {
+              "start": 534819,
+              "end": 548332
+            },
+            "permutation": {
+              "seed": "0x6d756a6f",
+              "changedObjects": 30,
+              "objects": 32
+            }
+          }
+        ],
+        "aggregates": [
+          {
+            "name": "A8.full.decoded",
+            "baseline": {
+              "calls": 320,
+              "wallMs": 72.57889999999996,
+              "wallUsPerCall": 226.8090624999999
+            },
+            "candidate": {
+              "calls": 320,
+              "wallMs": 54.365399999999994,
+              "wallUsPerCall": 169.89187499999997
+            },
+            "speedupBaselineOverCandidate": 1.3350200679108397
+          },
+          {
+            "name": "A8.full.permuted",
+            "baseline": {
+              "calls": 320,
+              "wallMs": 126.47269999999995,
+              "wallUsPerCall": 395.22718749999984
+            },
+            "candidate": {
+              "calls": 320,
+              "wallMs": 69.6105,
+              "wallUsPerCall": 217.5328125
+            },
+            "speedupBaselineOverCandidate": 1.8168623986323895
+          },
+          {
+            "name": "A8.parity.permuted",
+            "baseline": {
+              "calls": 320,
+              "wallMs": 88.61559999999997,
+              "wallUsPerCall": 276.9237499999999
+            },
+            "candidate": {
+              "calls": 320,
+              "wallMs": 51.44740000000007,
+              "wallUsPerCall": 160.77312500000022
+            },
+            "speedupBaselineOverCandidate": 1.722450502843678
+          },
+          {
+            "name": "A8.endpoint.permuted",
+            "baseline": {
+              "calls": 320,
+              "wallMs": 1.9205999999999221,
+              "wallUsPerCall": 6.001874999999757
+            },
+            "candidate": {
+              "calls": 320,
+              "wallMs": 1.6074000000000979,
+              "wallUsPerCall": 5.023125000000306
+            },
+            "speedupBaselineOverCandidate": 1.1948488241880086
+          },
+          {
+            "name": "A8.contactIdentity",
+            "baseline": {
+              "calls": 224,
+              "wallMs": 38.55409999999995,
+              "wallUsPerCall": 172.1165178571426
+            },
+            "candidate": {
+              "calls": 224,
+              "wallMs": 19.639599999999973,
+              "wallUsPerCall": 87.6767857142856
+            },
+            "speedupBaselineOverCandidate": 1.9630796961241574
+          },
+          {
+            "name": "A8.preEqual",
+            "baseline": {
+              "calls": 56,
+              "wallMs": 0.5253999999999905,
+              "wallUsPerCall": 9.382142857142687
+            },
+            "candidate": {
+              "calls": 56,
+              "wallMs": 0.45049999999991996,
+              "wallUsPerCall": 8.044642857141428
+            },
+            "speedupBaselineOverCandidate": 1.1662597114319286
+          },
+          {
+            "name": "A8.endpointEqual",
+            "baseline": {
+              "calls": 56,
+              "wallMs": 1.6562000000000126,
+              "wallUsPerCall": 29.575000000000223
+            },
+            "candidate": {
+              "calls": 56,
+              "wallMs": 0.9026000000000067,
+              "wallUsPerCall": 16.117857142857265
+            },
+            "speedupBaselineOverCandidate": 1.8349213383558611
+          },
+          {
+            "name": "B4.full.decoded",
+            "baseline": {
+              "calls": 320,
+              "wallMs": 50.7414,
+              "wallUsPerCall": 158.566875
+            },
+            "candidate": {
+              "calls": 320,
+              "wallMs": 34.92130000000009,
+              "wallUsPerCall": 109.12906250000029
+            },
+            "speedupBaselineOverCandidate": 1.453021508363087
+          },
+          {
+            "name": "B4.full.permuted",
+            "baseline": {
+              "calls": 320,
+              "wallMs": 75.43709999999999,
+              "wallUsPerCall": 235.74093749999997
+            },
+            "candidate": {
+              "calls": 320,
+              "wallMs": 39.3143,
+              "wallUsPerCall": 122.85718750000001
+            },
+            "speedupBaselineOverCandidate": 1.9188208870563632
+          },
+          {
+            "name": "B4.parity.permuted",
+            "baseline": {
+              "calls": 320,
+              "wallMs": 45.825500000000034,
+              "wallUsPerCall": 143.20468750000012
+            },
+            "candidate": {
+              "calls": 320,
+              "wallMs": 22.492300000000114,
+              "wallUsPerCall": 70.28843750000036
+            },
+            "speedupBaselineOverCandidate": 2.037386127697025
+          },
+          {
+            "name": "B4.endpoint.permuted",
+            "baseline": {
+              "calls": 320,
+              "wallMs": 1.3742999999999483,
+              "wallUsPerCall": 4.294687499999839
+            },
+            "candidate": {
+              "calls": 320,
+              "wallMs": 0.90199999999993,
+              "wallUsPerCall": 2.818749999999781
+            },
+            "speedupBaselineOverCandidate": 1.5236141906874225
+          },
+          {
+            "name": "B4.contactIdentity",
+            "baseline": {
+              "calls": 224,
+              "wallMs": 20.085100000000125,
+              "wallUsPerCall": 89.66562500000056
+            },
+            "candidate": {
+              "calls": 224,
+              "wallMs": 8.417699999999968,
+              "wallUsPerCall": 37.579017857142716
+            },
+            "speedupBaselineOverCandidate": 2.386055573375174
+          },
+          {
+            "name": "B4.preEqual",
+            "baseline": {
+              "calls": 56,
+              "wallMs": 0.23289999999997235,
+              "wallUsPerCall": 4.158928571428078
+            },
+            "candidate": {
+              "calls": 56,
+              "wallMs": 0.45820000000003347,
+              "wallUsPerCall": 8.182142857143456
+            },
+            "speedupBaselineOverCandidate": 0.5082933216934861
+          },
+          {
+            "name": "B4.endpointEqual",
+            "baseline": {
+              "calls": 56,
+              "wallMs": 0.336800000000153,
+              "wallUsPerCall": 6.014285714288446
+            },
+            "candidate": {
+              "calls": 56,
+              "wallMs": 0.2520999999999276,
+              "wallUsPerCall": 4.501785714284422
+            },
+            "speedupBaselineOverCandidate": 1.3359777865936124
+          },
+          {
+            "name": "small.friction",
+            "baseline": {
+              "calls": 3872,
+              "wallMs": 19.424299999999903,
+              "wallUsPerCall": 5.016606404958652
+            },
+            "candidate": {
+              "calls": 3872,
+              "wallMs": 17.46180000000004,
+              "wallUsPerCall": 4.509762396694225
+            },
+            "speedupBaselineOverCandidate": 1.1123881844941448
+          },
+          {
+            "name": "small.solref",
+            "baseline": {
+              "calls": 3872,
+              "wallMs": 13.410399999999981,
+              "wallUsPerCall": 3.463429752066111
+            },
+            "candidate": {
+              "calls": 3872,
+              "wallMs": 5.871199999999817,
+              "wallUsPerCall": 1.5163223140495394
+            },
+            "speedupBaselineOverCandidate": 2.2840986510424446
+          },
+          {
+            "name": "small.solreffriction",
+            "baseline": {
+              "calls": 3872,
+              "wallMs": 11.5771000000002,
+              "wallUsPerCall": 2.989953512396746
+            },
+            "candidate": {
+              "calls": 3872,
+              "wallMs": 7.79549999999972,
+              "wallUsPerCall": 2.0133006198346384
+            },
+            "speedupBaselineOverCandidate": 1.4851003784235286
+          },
+          {
+            "name": "small.solimp",
+            "baseline": {
+              "calls": 3872,
+              "wallMs": 11.041899999999941,
+              "wallUsPerCall": 2.8517303719008114
+            },
+            "candidate": {
+              "calls": 3872,
+              "wallMs": 6.496999999999844,
+              "wallUsPerCall": 1.6779442148759927
+            },
+            "speedupBaselineOverCandidate": 1.6995382484223807
+          },
+          {
+            "name": "small.efcForce",
+            "baseline": {
+              "calls": 3872,
+              "wallMs": 11.287600000000339,
+              "wallUsPerCall": 2.9151859504133104
+            },
+            "candidate": {
+              "calls": 3872,
+              "wallMs": 7.454499999999825,
+              "wallUsPerCall": 1.9252324380164838
+            },
+            "speedupBaselineOverCandidate": 1.514199476826159
+          },
+          {
+            "name": "small.observedFriction",
+            "baseline": {
+              "calls": 3872,
+              "wallMs": 9.89650000000006,
+              "wallUsPerCall": 2.5559142561983625
+            },
+            "candidate": {
+              "calls": 3872,
+              "wallMs": 17.07400000000007,
+              "wallUsPerCall": 4.409607438016547
+            },
+            "speedupBaselineOverCandidate": 0.5796239896919304
+          }
+        ],
+        "cacheUsage": {
+          "entries": 115,
+          "payloadBytes": 964,
+          "retainedBackingBytes": 964,
+          "stringCodeUnits": 964,
+          "unpooled": true,
+          "maxEntries": 256,
+          "maxPayloadBytes": 16384,
+          "maxKeyBytes": 256
+        },
+        "sourceBeforeAfterEqual": true,
+        "rawBeforeAfterEqual": true,
+        "limitations": [
+          "One bounded paired invocation with ABBA blocks, not independent repeated trials or confidence intervals.",
+          "Only saved A8/B4 records and deterministic key permutations; not native runtime insertion-order reconstruction.",
+          "Pure serialization/comparison cost only; no native engine, IO-path, end-to-end or school performance speedup claim.",
+          "Internal encodings for generic small equality are two per call; numeric helper comparisons are counted as calls, not encodings.",
+          "No new physics qualification or registration."
+        ],
+        "slowerControls": [
+          {
+            "name": "B4.preEqual",
+            "baseline": {
+              "calls": 56,
+              "wallMs": 0.23289999999997235,
+              "wallUsPerCall": 4.158928571428078
+            },
+            "candidate": {
+              "calls": 56,
+              "wallMs": 0.45820000000003347,
+              "wallUsPerCall": 8.182142857143456
+            },
+            "speedupBaselineOverCandidate": 0.5082933216934861
+          },
+          {
+            "name": "small.observedFriction",
+            "baseline": {
+              "calls": 3872,
+              "wallMs": 9.89650000000006,
+              "wallUsPerCall": 2.5559142561983625
+            },
+            "candidate": {
+              "calls": 3872,
+              "wallMs": 17.07400000000007,
+              "wallUsPerCall": 4.409607438016547
+            },
+            "speedupBaselineOverCandidate": 0.5796239896919304
+          }
+        ],
+        "interpretation": "Component-only single-invocation measurements. No native, whole-run, instrumentation-dominance or school/engine performance claim. Both slower untargeted control cases are retained; no benchmark rerun or tuning after results."
+      },
+      "failuresDuringCandidateChecks": [],
+      "artifactManifest": {
+        "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\candidate-artifacts-manifest.json",
+        "bytes": 15313,
+        "sha256": "2e30efa93f5fd2b679d1dfc3104cf8c9f18323ae480c87550fa54f1ffbc95e4b",
+        "artifacts": [
+          {
+            "name": "apply-observer-candidate.py",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\apply-observer-candidate.py",
+            "bytes": 3201,
+            "sha256": "6560860ca6ba00c8ff3c159ef102a0aa9ad672b8ba5e67de285a6a4cddd6d8dc"
+          },
+          {
+            "name": "apply-spec-candidate.py",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\apply-spec-candidate.py",
+            "bytes": 2754,
+            "sha256": "ccc7785463b1090249de330b2194532f196effd584f2f8e5a687827b13d2dd11"
+          },
+          {
+            "name": "candidate-tests.txt",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\candidate-tests.txt",
+            "bytes": 9157,
+            "sha256": "61f2d2104e35e65e516a4ff9511be7b0522cdb4e29ebb9fb8fe15306c749ee89"
+          },
+          {
+            "name": "format-exit.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\format-exit.json",
+            "bytes": 133,
+            "sha256": "811aef8d67ec83b018a62377aa16e38e27f8ab95613331f5d6bfd6c4d07c13cd"
+          },
+          {
+            "name": "format.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\format.log",
+            "bytes": 130,
+            "sha256": "349e31e8c2536cc5862df43654b5d2fb6f8978b97b30a39ec5ce17db060e65ef"
+          },
+          {
+            "name": "lint-a1-exit.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\lint-a1-exit.json",
+            "bytes": 134,
+            "sha256": "093c4b2b5af0d21c783c659b3c2ee8609527255efccda302c680d524dd76df0e"
+          },
+          {
+            "name": "lint-a1.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\lint-a1.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "name": "observer-aaf8427f.mjs",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\observer-aaf8427f.mjs",
+            "bytes": 29036,
+            "sha256": "dd22ed00fc47a68cce8c27f4c1e82145b0f6d26b2924908a9f42317115726a8c"
+          },
+          {
+            "name": "observer-helpers.txt",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\observer-helpers.txt",
+            "bytes": 3455,
+            "sha256": "fe4bf28789dc2ccd31b572e55c7a4fe6675f7db6e3e3e5a7161649e0a7eaaf1f"
+          },
+          {
+            "name": "paired-benchmark-envelope-exit.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\paired-benchmark-envelope-exit.json",
+            "bytes": 152,
+            "sha256": "91d154f9e12c151bdf5b9c9a970622af49435c2fa69e403fe07926dd94c40b5a"
+          },
+          {
+            "name": "paired-benchmark-envelope.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\paired-benchmark-envelope.log",
+            "bytes": 278,
+            "sha256": "acb66087737ab9c6374ce13d1cbf2b8fd90724dc7063895985045e13d12c0caf"
+          },
+          {
+            "name": "paired-benchmark-invoked.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\paired-benchmark-invoked.json",
+            "bytes": 296,
+            "sha256": "74274bc83bf6aac35cd2607bffa2f1d94ba8503c6ee1b80c5148bd22eca24d65"
+          },
+          {
+            "name": "paired-benchmark-result.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\paired-benchmark-result.json",
+            "bytes": 46972,
+            "sha256": "9a0a4b203fd4ee33614450b12b4767304d44e560cd5da7c08bb54577f39fa473"
+          },
+          {
+            "name": "paired-benchmark.mjs",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\paired-benchmark.mjs",
+            "bytes": 11082,
+            "sha256": "69c3f14cdc49ccdf7961a1e66f591a3d51407d1079a1e6f721fa2fc2340ec126"
+          },
+          {
+            "name": "paired-benchmark.stderr.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\paired-benchmark.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "name": "paired-benchmark.stdout.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\paired-benchmark.stdout.log",
+            "bytes": 8915,
+            "sha256": "a32c95ab314b6081a3324033e406e0c28b5c247b66160d82981fa8c5078b2c75"
+          },
+          {
+            "name": "paired-watchdog-receipt.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\paired-watchdog-receipt.json",
+            "bytes": 278,
+            "sha256": "acb66087737ab9c6374ce13d1cbf2b8fd90724dc7063895985045e13d12c0caf"
+          },
+          {
+            "name": "paired-watchdog.mjs",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\paired-watchdog.mjs",
+            "bytes": 1717,
+            "sha256": "35a868ca9a6def6bcced6aeb5dd29be6ee320f26650b9f9114578a8b04008dd9"
+          },
+          {
+            "name": "preflight-exit.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\preflight-exit.json",
+            "bytes": 113,
+            "sha256": "73ecacafd26386a2e3ede53207ee9b2ccd7931490461617a4206960083f01842"
+          },
+          {
+            "name": "preflight-start.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\preflight-start.json",
+            "bytes": 402,
+            "sha256": "f79eb501ea9f8d6fc92c0b384ae51fa59eb9f59a097706869cfdb142d192ecc6"
+          },
+          {
+            "name": "preflight.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\preflight.log",
+            "bytes": 4060,
+            "sha256": "9e1508321ae4113a487bbbc4610a13e92aa4fe3bf7fe9233b5b987d5927d6e90"
+          },
+          {
+            "name": "proof-result.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\proof-result.json",
+            "bytes": 16470,
+            "sha256": "1108c7ee7de4efc0a224f1965c7ca24890c2140647b4b68f896ed31ae5736e61"
+          },
+          {
+            "name": "proof.mjs",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\proof.mjs",
+            "bytes": 10162,
+            "sha256": "86508dadf473861912247e18196977e97dce5a12a099bdb9bd97dfeef1c5e48c"
+          },
+          {
+            "name": "pure-interval-receipt.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\pure-interval-receipt.json",
+            "bytes": 1449,
+            "sha256": "50018c0c284e50c728e2602639c67d4723a2c47f4938eb698095d3f170393a45"
+          },
+          {
+            "name": "pure-proof-a1-exit.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\pure-proof-a1-exit.json",
+            "bytes": 140,
+            "sha256": "f528da8f49a23fee21e7618279a2edf92ba02f901e4bfe5f0179219948fa028d"
+          },
+          {
+            "name": "pure-proof-a1.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\pure-proof-a1.log",
+            "bytes": 1371,
+            "sha256": "feec62b81e2da7e9f97df7166950f267ada81bf0e1e459e630a09b5ed821ed85"
+          },
+          {
+            "name": "pure-suite-a1-exit.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\pure-suite-a1-exit.json",
+            "bytes": 140,
+            "sha256": "58f19404ba1167a4598a5b59ff6ad72b30de6f166d047769aefc26897ce07fb7"
+          },
+          {
+            "name": "pure-suite-a1.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\pure-suite-a1.log",
+            "bytes": 39294,
+            "sha256": "b6cccc313484c1c518d0f77e7e152ba45f1ac04c3e11dc9ccd05f18b9ff5a0c5"
+          },
+          {
+            "name": "record-tools.mjs",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\record-tools.mjs",
+            "bytes": 2322,
+            "sha256": "313a891454e9f33482e8faac398aed225a361165a05700340b917f01e0298423"
+          },
+          {
+            "name": "scoped-checks-a1.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\scoped-checks-a1.json",
+            "bytes": 449,
+            "sha256": "6e28d0ddd36c302b549a7b8d44ab84ef91ab519a8df4047c7d1c7af298b42dbe"
+          },
+          {
+            "name": "source-only.diff",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\source-only.diff",
+            "bytes": 19582,
+            "sha256": "87f4983d769982d3611aedc827ea4600b9908bc00a67ba62eae90d5de5d96c24"
+          },
+          {
+            "name": "syntax-benchmark-exit.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\syntax-benchmark-exit.json",
+            "bytes": 143,
+            "sha256": "9af210665e972ce00f25393bd835fe18626358c26773c1de1d2439df93ef4769"
+          },
+          {
+            "name": "syntax-benchmark.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\syntax-benchmark.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "name": "syntax-observer-exit.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\syntax-observer-exit.json",
+            "bytes": 142,
+            "sha256": "9ff5dbfdf50061109e8cd26300e844ab4575620d03cf7c26bec2ef6251e7cb87"
+          },
+          {
+            "name": "syntax-observer.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\syntax-observer.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "name": "syntax-oracle-exit.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\syntax-oracle-exit.json",
+            "bytes": 140,
+            "sha256": "45777a7a08dd0b0b44235386451558ccfc9012b15b4bde4a52d965965caaf176"
+          },
+          {
+            "name": "syntax-oracle.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\syntax-oracle.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "name": "syntax-proof-exit.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\syntax-proof-exit.json",
+            "bytes": 139,
+            "sha256": "edeb11b87f8f9317450d1384e6b1f743d9910cbf205759915661825a406e8bf4"
+          },
+          {
+            "name": "syntax-proof.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\syntax-proof.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "name": "syntax-record-tools-exit.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\syntax-record-tools-exit.json",
+            "bytes": 146,
+            "sha256": "285b2c7410b77669f3cf4be41bfa829685a3f08dce1455be62d651163a828753"
+          },
+          {
+            "name": "syntax-record-tools.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\syntax-record-tools.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "name": "syntax-watchdog-exit.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\syntax-watchdog-exit.json",
+            "bytes": 142,
+            "sha256": "dde4462403edee5d1aa6ed34de700803fa541409d619e18a52163654afde0e8f"
+          },
+          {
+            "name": "syntax-watchdog.log",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-candidate-20261111-01\\syntax-watchdog.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ],
+        "priorAudit": [
+          {
+            "name": "AUDIT.md",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-audit-20261111-01\\AUDIT.md",
+            "bytes": 16076,
+            "sha256": "825f72b66b5dc4ce7b697e02a528b7e20c13f4b2b22d1fe00c6efa2181ff3bef"
+          },
+          {
+            "name": "benchmark.mjs",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-audit-20261111-01\\benchmark.mjs",
+            "bytes": 14663,
+            "sha256": "543ea79b5acef57295d2df6310831e50ac51121289de306b2bad26519f43f858"
+          },
+          {
+            "name": "audit-result.json",
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\pure-observer-audit-20261111-01\\audit-result.json",
+            "bytes": 23153,
+            "sha256": "5ef9445930dbce532a2beab7ad5a97ce5ff76175349e3b3a4dbf8447d944a48e"
+          }
+        ]
+      },
+      "preregistrationProposal": {
+        "status": "PROPOSED_NOT_REGISTERED",
+        "expectedGitHeadIfUnchanged": "aaf8427f29f213c2320a72d8f8bed592e784c550",
+        "sourceIdentity": "base_commit_plus_dirty_source_snapshot",
+        "fixtureSha256": "28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb",
+        "sourceManifest": {
+          "newInputs": {
+            "tools/robotics-field-core/mujoco-contact-observer.mjs": "63f57d38502dfb7f1d0a4fd4899c4112888a0040855932f6f6fdd922b8d914b0",
+            "tools/robotics-field-core/mujoco-cylinder.mjs": "d9748052ca54987aa5ed42f909d0c1f8e21587c0e6ca60c6b5f0b4c3c86ea24b",
+            "tools/robotics-field-core/run-mujoco-cylinder.mjs": "9729d2f48a51db51a09962e412c41c76912d8719ce864ff93f89a10cc59418e9",
+            "tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json": "28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb",
+            "tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts": "a591d2189d8ea24d27706245965a3fbf2b9b9b8bf2533f0d5e10681bb8346a01"
+          },
+          "immutableParents": {
+            "package.json": "c2f5a1421e86b7dd37022eda8a37cf25cded373d986c31dc8f8e1beb435c7492",
+            "pnpm-lock.yaml": "448b5a8faa0f8497c3efe1bdc63959b381fad5577bfb5734261e9578ee5a93e1",
+            "tools/robotics-field-core/mujoco-artifact.json": "1c353e3593f1fcd730c6e97f9549d3b6fdff7ce1fff7b9c45755edd7cd1ca1c3",
+            "tools/robotics-field-core/MUJOCO-LICENSE.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+            "tools/robotics-field-core/MUJOCO-THIRD-PARTY-NOTICES.txt": "6f681117208684ef2ab3ad03a9f928ae8c6dffb4f765eeab59fb2d8b189e1540",
+            "tools/robotics-field-core/mujoco-phy01.mjs": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+            "tools/robotics-field-core/run-mujoco-phy01.mjs": "5b2179f0ff1b6c759b63757dd881242aee6c9fb4b258243a08a7b50dfefb12ad",
+            "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c",
+            "tests/robotics/field-core-qualification/mujoco-phy01.spec.ts": "1266b4c420baea08fd4448beb9d96a908d039bc3ddcbfc89a67b911aef893cb4"
+          },
+          "specification": {
+            "docs/product/robotics/FIELD_CORE_SPEC.md": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e"
+          },
+          "parentExecution": "Only readFixture, artifact validation, hashes and nativeTimeBudget helpers are imported; prior PHY01 physics is not rerun."
+        },
+        "nextNativeAdmissionIfSeparatelyAuthorized": {
+          "worlds": 8,
+          "nativeAdvances": 40200,
+          "maxConcurrentWorlds": 2,
+          "profile": "unchanged registered fixture",
+          "currentlyAuthorized": false
+        },
+        "futureNativeEquivalence": [
+          "Exact completeTrajectoryDigest and all per-world full/parity/endpoint chains.",
+          "All retained physical record bytes exact.",
+          "Compare all journal content, allowing only the explicitly identified invocation.sourceManifest difference for the changed source inputs.",
+          "Do not require an identical whole-journal SHA between different source snapshots; the current PURE proof re-encodes all original frames byte-exact with no exclusions."
+        ],
+        "actualPreregistrationInvocations": 0,
+        "actualCandidateNativeInvocations": 0
+      },
+      "nextAction": "STOP for independent delta review/controller decision. No native admission, MAIN, replay, preregistration, commit, push, PR or main convergence authorized."
+    }
+  ],
+  "currentSourceCandidateStatus": "NEW_ADMISSION_NOT_RUN"
 }

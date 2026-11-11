@@ -11,6 +11,8 @@ import {
   assessWindow,
   canonicalBytes,
   canonicalEqual,
+  canonicalKeyCacheUsage,
+  numberVectorEqual,
   contactWorldForce,
   effectiveTorque,
   floorFrame,
@@ -1331,5 +1333,369 @@ describe('Static observer phase labels', () => {
     expect(controlAt(fixture, rest, boundary).phase).toBe('REST_MEASUREMENT');
     const probe = cylinderPlan(fixture, 'admission')[0];
     expect(controlAt(fixture, probe, 0).phase).toBe('ADMISSION_A');
+  });
+});
+
+// Frozen aaf8427f canonical byte oracle. Only TypeScript annotations and the
+// local function names differ; the encoding algorithm and error order remain.
+// The external pure proof also imports the entire original module byte-exact
+// (SHA256 dd22ed00fc47a68cce8c27f4c1e82145b0f6d26b2924908a9f42317115726a8c).
+function baselineDemand(value: unknown, message: string): asserts value {
+  if (!value) throw new Error(message);
+}
+
+function baselineCanonicalBytes(value: unknown): Buffer {
+  let out = Buffer.allocUnsafe(4096);
+  let at = 0;
+  const room = (n: number) => {
+    if (at + n <= out.length) return;
+    const next = Buffer.allocUnsafe(Math.max(out.length * 2, at + n));
+    out.copy(next, 0, 0, at);
+    out = next;
+  };
+  const tag = (n: number) => {
+    room(1);
+    out[at++] = n;
+  };
+  const u32 = (n: number) => {
+    baselineDemand(Number.isSafeInteger(n) && n >= 0 && n <= 0xffffffff, 'RAW_LENGTH');
+    room(4);
+    out.writeUInt32LE(n, at);
+    at += 4;
+  };
+  const write = (v: unknown): void => {
+    if (v === null) return tag(0);
+    if (v === false) return tag(1);
+    if (v === true) return tag(2);
+    if (typeof v === 'number') {
+      tag(3);
+      room(8);
+      if (Number.isNaN(v)) out.writeBigUInt64LE(0x7ff8000000000000n, at);
+      else out.writeDoubleLE(v, at);
+      at += 8;
+      return;
+    }
+    if (typeof v === 'string' || Buffer.isBuffer(v)) {
+      tag(typeof v === 'string' ? 4 : 7);
+      const bytes = typeof v === 'string' ? Buffer.from(v, 'utf8') : v;
+      u32(bytes.length);
+      room(bytes.length);
+      bytes.copy(out, at);
+      at += bytes.length;
+      return;
+    }
+    if (Array.isArray(v) || ArrayBuffer.isView(v)) {
+      tag(5);
+      const sequence = v as { length: number } & Iterable<unknown>;
+      u32(sequence.length);
+      for (const x of sequence) write(x);
+      return;
+    }
+    baselineDemand(v && typeof v === 'object', 'RAW_UNSUPPORTED_TYPE ' + typeof v);
+    const keys = Object.keys(v).sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
+    tag(6);
+    u32(keys.length);
+    for (const key of keys) {
+      write(key);
+      write((v as Record<string, unknown>)[key]);
+    }
+  };
+  write(value);
+  // Ring bytes own exactly their payload allocation, not an oversized backing
+  // buffer retained by subarray. This makes the registered RAM bound literal.
+  return Buffer.from(out.subarray(0, at));
+}
+
+type EqualityInput = (trace: string[]) => [unknown, unknown];
+
+function equalityObservation(compare: (a: unknown, b: unknown) => boolean, make: EqualityInput) {
+  const trace: string[] = [];
+  const [a, b] = make(trace);
+  try {
+    return { result: compare(a, b), trace };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? { name: error.name, message: error.message } : String(error),
+      trace,
+    };
+  }
+}
+
+describe('Bounded observer candidate preserves the aaf8427f byte contract', () => {
+  const baselineEqual = (a: unknown, b: unknown) =>
+    baselineCanonicalBytes(a).equals(baselineCanonicalBytes(b));
+
+  it.each([
+    { name: 'two numbers', a: [1, 2], b: [1, 2] },
+    { name: 'three numbers', a: [1, 2, 3], b: [1, 2, 4] },
+    { name: 'five numbers', a: [1, 2, 3, 4, 5], b: [1, 2, 3, 4, 5] },
+    { name: 'positive and negative zero', a: [0, 2], b: [-0, 2] },
+    { name: 'equal signed zeros', a: [-0, 0], b: [-0, 0] },
+    { name: 'canonical NaNs', a: [NaN, 2], b: [NaN, 2] },
+    { name: 'infinities', a: [Infinity, -Infinity], b: [Infinity, -Infinity] },
+    { name: 'different infinities', a: [Infinity, 2], b: [-Infinity, 2] },
+    { name: 'subnormal', a: [Number.MIN_VALUE, -Number.MIN_VALUE], b: [0, -0] },
+    { name: 'different eligible lengths', a: [1, 2], b: [1, 2, 3] },
+    { name: 'empty fallback', a: [], b: [] },
+    { name: 'four-number fallback', a: [1, 2, 3, 4], b: [1, 2, 3, 4] },
+  ])('number vectors: $name', ({ a, b }) => {
+    expect(numberVectorEqual(a, b)).toBe(baselineEqual(a, b));
+  });
+
+  const fallbackCases: Array<{ name: string; make: EqualityInput }> = [
+    {
+      name: 'later unsupported left value',
+      make: () => [
+        [0, undefined],
+        [1, 2],
+      ],
+    },
+    {
+      name: 'later unsupported right value and different length',
+      make: () => [
+        [0, 1],
+        [2, 3, 1n],
+      ],
+    },
+    { name: 'sparse array', make: () => [new Array(2), [0, 0]] },
+    { name: 'bytes versus numbers', make: () => [Buffer.from([1, 2]), [1, 2]] },
+    { name: 'numeric typed arrays', make: () => [new Float64Array([NaN, -0]), [NaN, -0]] },
+    { name: 'bigint typed array', make: () => [new BigInt64Array([1n, 2n]), [1, 2]] },
+    { name: 'DataView error', make: () => [new DataView(new ArrayBuffer(8)), []] },
+    { name: 'string UTF8 collision', make: () => ['\uD800', '\uFFFD'] },
+    {
+      name: 'array subclass',
+      make: () => {
+        class NumericArray extends Array<number> {}
+        return [new NumericArray(1, 2), [1, 2]];
+      },
+    },
+    {
+      name: 'index getter order',
+      make: (trace) => {
+        const a = [1, 2];
+        const b = [1, 2];
+        Object.defineProperty(a, '1', {
+          get: () => {
+            trace.push('a1');
+            return 2;
+          },
+        });
+        Object.defineProperty(b, '0', {
+          get: () => {
+            trace.push('b0');
+            return 1;
+          },
+        });
+        return [a, b];
+      },
+    },
+    {
+      name: 'throwing late getter',
+      make: (trace) => {
+        const a = [0, 2];
+        Object.defineProperty(a, '1', {
+          get: () => {
+            trace.push('throw');
+            throw new Error('late getter');
+          },
+        });
+        return [a, [1, 2]];
+      },
+    },
+    {
+      name: 'ignored extra getter',
+      make: (trace) => {
+        const a = [1, 2];
+        Object.defineProperty(a, 'extra', {
+          get: () => {
+            trace.push('must not read');
+            return 9;
+          },
+        });
+        return [a, [1, 2]];
+      },
+    },
+    {
+      name: 'custom iterator',
+      make: (trace) => {
+        const a = [1, 2];
+        a[Symbol.iterator] = function* () {
+          trace.push('iterate');
+          yield 9;
+          yield 8;
+        };
+        return [a, [9, 8]];
+      },
+    },
+    {
+      name: 'iterator getter',
+      make: (trace) => {
+        const a = [1, 2];
+        Object.defineProperty(a, Symbol.iterator, {
+          get: () => {
+            trace.push('iterator getter');
+            return function* () {
+              yield 4;
+              yield 5;
+            };
+          },
+        });
+        return [a, [4, 5]];
+      },
+    },
+    {
+      name: 'proxy trap order',
+      make: (trace) => [
+        new Proxy([1, 2], {
+          get: (target, key, receiver) => {
+            trace.push('get:' + String(key));
+            return Reflect.get(target, key, receiver);
+          },
+          ownKeys: (target) => {
+            trace.push('ownKeys');
+            return Reflect.ownKeys(target);
+          },
+          getPrototypeOf: (target) => {
+            trace.push('prototype');
+            return Reflect.getPrototypeOf(target);
+          },
+          getOwnPropertyDescriptor: (target, key) => {
+            trace.push('descriptor:' + String(key));
+            return Reflect.getOwnPropertyDescriptor(target, key);
+          },
+        }),
+        [1, 2],
+      ],
+    },
+    {
+      name: 'revoked proxy',
+      make: () => {
+        const value = Proxy.revocable([1, 2], {});
+        value.revoke();
+        return [value.proxy, [1, 2]];
+      },
+    },
+  ];
+
+  it.each(fallbackCases)('original fallback and error trace: $name', ({ make }) => {
+    expect(equalityObservation(numberVectorEqual, make)).toEqual(
+      equalityObservation(baselineEqual, make),
+    );
+  });
+
+  it('falls back when the ordinary array iterator is replaced', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator)!;
+    let actual: boolean | undefined;
+    let expected: boolean | undefined;
+    try {
+      Object.defineProperty(Array.prototype, Symbol.iterator, {
+        ...descriptor,
+        value: function (this: unknown[]) {
+          let i = 0;
+          const length = this.length;
+          return {
+            next: () =>
+              i++ < length ? { done: false, value: 0 } : { done: true, value: undefined },
+          };
+        },
+      });
+      actual = numberVectorEqual([1, 2], [3, 4]);
+      expected = baselineEqual([1, 2], [3, 4]);
+    } finally {
+      Object.defineProperty(Array.prototype, Symbol.iterator, descriptor);
+    }
+    expect(actual).toBe(true);
+    expect(actual).toBe(expected);
+  });
+
+  it('falls back when the array iterator next method is replaced', () => {
+    const prototype = Object.getPrototypeOf([][Symbol.iterator]());
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, 'next')!;
+    const next = descriptor.value as (this: unknown) => IteratorResult<unknown>;
+    let actual: boolean | undefined;
+    let expected: boolean | undefined;
+    try {
+      Object.defineProperty(prototype, 'next', {
+        ...descriptor,
+        value: function (this: unknown) {
+          const result = Reflect.apply(next, this, []);
+          return result.done ? result : { done: false, value: 0 };
+        },
+      });
+      actual = numberVectorEqual([1, 2], [3, 4]);
+      expected = baselineEqual([1, 2], [3, 4]);
+    } finally {
+      Object.defineProperty(prototype, 'next', descriptor);
+    }
+    expect(actual).toBe(true);
+    expect(actual).toBe(expected);
+  });
+
+  it('retains stable UTF8 ordering ties for malformed surrogate keys', () => {
+    for (const keys of [
+      ['\uD800', '\uD801', '\uFFFD', 'a', 'é', '😀'],
+      ['\uFFFD', '\uD801', '\uD800', '😀', 'é', 'a'],
+    ]) {
+      const value: Record<string, unknown> = Object.create(null);
+      keys.forEach((key, i) => {
+        value[key] = { value: i, nested: [NaN, -0] };
+      });
+      expect(canonicalBytes(value)).toEqual(baselineCanonicalBytes(value));
+    }
+    const a = { ['\uD800']: 1, ['\uD801']: 2 };
+    const b = { ['\uD801']: 2, ['\uD800']: 1 };
+    expect(canonicalEqual(a, b)).toBe(false);
+    expect(canonicalEqual(a, b)).toBe(baselineEqual(a, b));
+  });
+
+  it('preserves object getters and key/value framing', () => {
+    const make = (trace: string[]) => ({
+      get z() {
+        trace.push('z');
+        return ['ab', 'c'];
+      },
+      get a() {
+        trace.push('a');
+        return Buffer.from([0, 255]);
+      },
+      ['\uD800']: 'value',
+    });
+    const trace: string[] = [];
+    const oldTrace: string[] = [];
+    expect(canonicalBytes(make(trace))).toEqual(baselineCanonicalBytes(make(oldTrace)));
+    expect(trace).toEqual(oldTrace);
+    expect(canonicalBytes({ a: 'bc' })).not.toEqual(canonicalBytes({ ab: 'c' }));
+  });
+
+  it('keeps a saturated cache bounded and all uncached bytes exact', () => {
+    for (let i = 0; i < 768; i += 1) {
+      const key = 'candidate-cache-' + i + '-'.repeat(i % 90);
+      const value = { [key]: [i, -0, NaN], ['\uD800']: i, ['\uD801']: -i };
+      expect(canonicalBytes(value)).toEqual(baselineCanonicalBytes(value));
+    }
+    const before = canonicalKeyCacheUsage();
+    const oversized = { ['x'.repeat(257)]: 1, ['\uD800'.repeat(257)]: 2 };
+    expect(canonicalBytes(oversized)).toEqual(baselineCanonicalBytes(oversized));
+    const usage = canonicalKeyCacheUsage();
+    expect(usage).toEqual(before);
+    expect(usage.entries).toBeLessThanOrEqual(256);
+    expect(usage.payloadBytes).toBeLessThanOrEqual(16384);
+    expect(usage.retainedBackingBytes).toBe(usage.payloadBytes);
+    expect(usage.stringCodeUnits).toBeLessThanOrEqual(usage.payloadBytes);
+    expect(usage.unpooled).toBe(true);
+    expect(Object.isFrozen(usage)).toBe(true);
+  });
+
+  it('never exposes cached bytes through returned canonical payloads', () => {
+    const value = { 'private-key-payload': [1, -0, NaN] };
+    const bytes = canonicalBytes(value);
+    bytes.fill(0);
+    expect(canonicalBytes(value)).toEqual(baselineCanonicalBytes(value));
+    expect(
+      Object.values(canonicalKeyCacheUsage()).every(
+        (v) => typeof v === 'number' || typeof v === 'boolean',
+      ),
+    ).toBe(true);
   });
 });

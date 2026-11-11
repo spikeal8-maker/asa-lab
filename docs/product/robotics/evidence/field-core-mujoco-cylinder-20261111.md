@@ -1,5 +1,7 @@
 # MuJoCo cylinder rest/tip qualification — 2026-11-11
 
+> **Working-tree optimization candidate: NEW_ADMISSION_NOT_RUN.** The historical a1 PASS below belongs to the original source at aaf8427f. The two changed source/spec files have pure proof only; no new registration or native run has occurred.
+
 ## Current outcome
 
 **Admission a1 PASS**: one authorized invocation, 8 model/data pairs created and freed, 40,200 native advances, and four exact split/full phase-parity pairs. The controller reviewed and accepted this bounded admission. Its journal, frozen sources, receipts and logs are **ARCHIVED_VERIFIED** in an unpublished evidence draft. MAIN rest/tip, independent replay, browser/Worker and E1/D01 closure remain NOT_RUN/open. This report accompanies the authorized seven-path checkpoint.
@@ -183,10 +185,11 @@ receipt and records its actual counts. Native CLI is the physics gate. Later
 isolated GitHub qualification CI must run the same commands; pure CI alone is
 not a repeat of PHY03/PHY06. Workflow changes belong to a later controller slice.
 
-Final source hashes, raw fixture hash, pure/static logs, preregistration time,
-and actual physics outcomes are recorded in the companion JSON. At this draft
-stage physics, browser/Worker, school performance, all-six-test closure,
-independent source review, and E1/D01 remain NOT_RUN/open.
+Source hashes, fixture hash, logs, registration and actual outcomes are recorded
+in the companion JSON. Admission a1 passed for the original aaf8427f source.
+MAIN rest/tip, independent replay, browser/Worker, school performance,
+all-six-test closure and E1/D01 remain NOT_RUN/open. The optimized working-tree
+candidate below has status NEW_ADMISSION_NOT_RUN.
 
 ## Replay immutability and hash timing
 
@@ -281,3 +284,67 @@ This archive/checkpoint step created zero models and executed zero native advanc
 The next allowed action after this checkpoint is controller review. Any MAIN run, independent replay or source/profile change requires a separate recorded decision.
 
 Checkpoint preparation retained one external reader failure before git add: the verify-plan log had a UTF-8 BEGIN line followed by UTF-16LE PowerShell Tee-Object output. The original gate was PLAN_VALID, exit 0, at 2026-11-11T18:22:47.6006369Z. Decoding the existing bytes resolved the reader failure; the raw log and its SHA256 were preserved. No source input, gate, model or native trajectory was changed or rerun.
+
+## Pure observer optimization candidate - not natively admitted
+
+Base: aaf8427f29f213c2320a72d8f8bed592e784c550. Only the observer and pure spec changed; executor, CLI, fixture, nine parents, specification, all physical tolerances and existing resource thresholds remain byte-identical. There is no parity reuse or general structural equality.
+
+The numeric helper is used at exactly five assessContacts call sites. It admits only non-proxy plain dense arrays of length 2/3/5, with own numeric data properties, no extra keys, and ordinary unchanged array-iterator/next methods. Both complete domains are checked before returning false. All other inputs retain canonicalEqual and its byte/error behavior.
+
+The private object-key cache keeps at most 256 keys and 16 KiB of exact, unpooled owned byte payload, with a 256-byte per-key maximum. Full/oversized misses bypass the cache. Stable Buffer.compare ordering and UTF8 collision ties remain intact. A frozen usage snapshot exposes only numbers/booleans. Map/string/Buffer metadata is bounded by entry count, but is not presented as an exact measured heap total.
+
+### Proof and checks
+
+**136/136 pure tests PASS** (102 existing + 34 added); syntax, scoped formatting and ESLint PASS. The external proof imported the entire unchanged aaf observer, SHA256 dd22ed00fc47a68cce8c27f4c1e82145b0f6d26b2924908a9f42317115726a8c, alongside the candidate; both modules import Node builtins only.
+
+All **171 saved frames / 55,231 decoded nodes** were re-encoded by both implementations without exclusions. The reconstructed original journal SHA256 is 933203436f9ac360ca3d61f3ff790f2f887cfe72a24b0a4d648196ccc87516a1. The proof also compared all eight saved final physical observations, 240 contact-vector comparisons, 16 additional edge/error/trap traces and 320 cold-cache fill records. Direct compareBytes counts were 520 per encoder; vector/error comparisons are counted separately.
+
+Independent cold modules reached both bounds: 256 entries / 914 owned bytes, and 64 entries / 16,384 owned bytes. Saturated/oversized misses did not grow the cache. Every retained key buffer had exact backing ownership. Malformed-surrogate stable ties, signed zero, canonical NaNs, sparse/accessor/proxy/custom-iterator fallbacks and late unsupported errors were preserved.
+
+The 171-frame retained-data chain matched exactly (53cdf0146a390ed804ec6431008136aad9c88c3af694fcc7eeb6bf6ae0c25033). It is not a reconstruction of every native state in the 40,200-step admission. Native initialization, Model/Data creation and native advances for this candidate are all **0**.
+
+### Single paired component benchmark
+
+One explicit ABBA invocation ran from 2026-11-11T19:04:10.361Z through 2026-11-11T19:04:11.503Z: wall 1141.5472 ms, process CPU 1406 ms, exit 0. The 30-second watchdog did not fire; soft wall/CPU limits were 27 seconds. Actual counts exactly matched the plan: 2,828 full-record encodings, 8,596 non-small encodings and 48,000 small comparisons. The candidate numeric helper was called 20,000 times; the other 28,000 small comparisons used generic canonicalEqual.
+
+| Pure case | Baseline us/call | Candidate us/call | Baseline / candidate |
+| --- | ---: | ---: | ---: |
+| A8.full.decoded | 226.809 | 169.892 | 1.335 |
+| A8.full.permuted | 395.227 | 217.533 | 1.817 |
+| A8.parity.permuted | 276.924 | 160.773 | 1.722 |
+| A8.endpoint.permuted | 6.002 | 5.023 | 1.195 |
+| A8.contactIdentity | 172.117 | 87.677 | 1.963 |
+| A8.preEqual | 9.382 | 8.045 | 1.166 |
+| A8.endpointEqual | 29.575 | 16.118 | 1.835 |
+| B4.full.decoded | 158.567 | 109.129 | 1.453 |
+| B4.full.permuted | 235.741 | 122.857 | 1.919 |
+| B4.parity.permuted | 143.205 | 70.288 | 2.037 |
+| B4.endpoint.permuted | 4.295 | 2.819 | 1.524 |
+| B4.contactIdentity | 89.666 | 37.579 | 2.386 |
+| B4.preEqual | 4.159 | 8.182 | 0.508 |
+| B4.endpointEqual | 6.014 | 4.502 | 1.336 |
+| small.friction | 5.017 | 4.510 | 1.112 |
+| small.solref | 3.463 | 1.516 | 2.284 |
+| small.solreffriction | 2.990 | 2.013 | 1.485 |
+| small.solimp | 2.852 | 1.678 | 1.700 |
+| small.efcForce | 2.915 | 1.925 | 1.514 |
+| small.observedFriction | 2.556 | 4.410 | 0.580 |
+
+All five targeted numeric comparisons were faster in this invocation. Both slower controls are retained: B4.preEqual and unchanged observedFriction. This single invocation does not establish confidence intervals or explain those timing differences. The benchmark measures pure component cost; it does not show native engine speed, runtime dominance, whole-run speedup or school performance. No benchmark rerun or tuning followed the measurements.
+
+The timed cache held 115 keys / 964 exact owned bytes. Before/after source and original raw hashes matched. All 43 completed candidate proof/benchmark/oracle/check/authoring artifacts are listed, with absolute paths, sizes and SHA256, in the companion JSON and external manifest C:\Users\spike\Projects\asa-lab-robotics-field-core-evidence\mujoco-cylinder-20261111\pure-observer-candidate-20261111-01\candidate-artifacts-manifest.json (SHA256 2e30efa93f5fd2b679d1dfc3104cf8c9f18323ae480c87550fa54f1ffbc95e4b).
+
+### Final source snapshot and proposed registration
+
+| Input | Bytes | SHA256 |
+| --- | ---: | --- |
+| tools/robotics-field-core/mujoco-contact-observer.mjs | 32750 | 63f57d38502dfb7f1d0a4fd4899c4112888a0040855932f6f6fdd922b8d914b0 |
+| tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts | 63906 | a591d2189d8ea24d27706245965a3fbf2b9b9b8bf2533f0d5e10681bb8346a01 |
+
+The exact two-source-file diff is source-only.diff: 19582 bytes, SHA256 87f4983d769982d3611aedc827ea4600b9908bc00a67ba62eae90d5de5d96c24. It contains 487 insertions and seven deletions. The original registration, a1 attempt, admission totals and verified draft archive are unchanged.
+
+The proposed registration is **PROPOSED_NOT_REGISTERED**, based on aaf8427f plus this dirty source snapshot. Fixture SHA256 remains 28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb. A future admission would retain the same eight worlds / 40,200 native advances and requires separate controller authorization.
+
+Future native equivalence must compare exact completeTrajectoryDigest, all per-world full/parity/endpoint chains and retained physical record bytes. The only allowed journal-content difference is the explicitly identified invocation.sourceManifest. A different-source invocation naturally has a different whole-journal SHA; the present PURE proof nevertheless re-encoded every old frame byte-exact without exclusions.
+
+**STOP for independent delta review.** Candidate native admission, MAIN, replay, preregistration, commit, push, PR and convergence with main have not occurred.
