@@ -322,3 +322,104 @@ test('late clipboard completion cannot notify the next route', async ({ page }) 
   await expect(toast(page)).toHaveCount(0);
   expect(state.errors).toEqual([]);
 });
+
+async function createSyntheticTeacherInvitation(page: Page) {
+  let requests = 0;
+  await page.route('**/api/classrooms/' + classId + '/teacher-invitations', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    requests += 1;
+    await route.fulfill({
+      status: 201,
+      json: {
+        invitation: {
+          id: '11111111-1111-4111-8111-111111111111',
+          classroomId: classId,
+          invitePath: '/classroom-teacher-invite/synthetic-e2e-token',
+          createdAt: '2026-11-11T09:00:00.000Z',
+          expiresAt: '2026-11-18T09:00:00.000Z',
+          acceptedAt: null,
+          revokedAt: null,
+        },
+      },
+    });
+  });
+  await page
+    .locator('.classroom-tabbar')
+    .getByRole('button', { name: 'Преподаватели', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Пригласить коллегу', exact: true }).click();
+  await expect.poll(() => requests).toBe(1);
+  await expect(
+    page.getByRole('textbox', { name: 'Ссылка для приглашения преподавателя', exact: true }),
+  ).toHaveValue(origin + '/classroom-teacher-invite/synthetic-e2e-token');
+  await expect(toast(page)).toContainText('Ссылка для коллеги создана и действует 7 дней.');
+  await settle(page);
+}
+
+async function teacherPaneGeometry(page: Page) {
+  await settle(page);
+  return page.locator('.classroom-teacher-panel').evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.x + scrollX, y: rect.y + scrollY, width: rect.width, height: rect.height };
+  });
+}
+
+test('teacher invitation clipboard rejection shows a safe ribbon without shifting the teachers pane', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async () => {
+          throw new DOMException('Denied', 'NotAllowedError');
+        },
+      },
+    });
+  });
+  const state = await open(page);
+  await createSyntheticTeacherInvitation(page);
+  const before = await teacherPaneGeometry(page);
+  await page
+    .locator('.classroom-teacher-invite-link')
+    .getByRole('button', { name: 'Копировать', exact: true })
+    .click();
+  await expect(toast(page)).toBeVisible();
+  await expect(toast(page)).toContainText('Не удалось скопировать ссылку.');
+  await expect(toast(page)).not.toContainText('Ссылка для коллеги скопирована.');
+  await expect(toast(page)).not.toContainText('Ссылка для коллеги создана');
+  await expect(toast(page)).not.toContainText('synthetic-e2e-token');
+  await expect(toast(page)).not.toContainText('/classroom-teacher-invite/');
+  await fitsHeader(page);
+  const after = await teacherPaneGeometry(page);
+  for (const key of ['x', 'y', 'width', 'height'] as const) {
+    expect(Math.abs(after[key] - before[key]), 'teachers pane ' + key).toBeLessThanOrEqual(0.5);
+  }
+  expect(state.errors).toEqual([]);
+});
+
+test('teacher invitation copy writes the complete link to the granted clipboard', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
+  const state = await open(page);
+  await createSyntheticTeacherInvitation(page);
+  const before = await teacherPaneGeometry(page);
+  await page
+    .locator('.classroom-teacher-invite-link')
+    .getByRole('button', { name: 'Копировать', exact: true })
+    .click();
+  await expect(toast(page)).toContainText('Ссылка для коллеги скопирована.');
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe(origin + '/classroom-teacher-invite/synthetic-e2e-token');
+  await expect(toast(page)).not.toContainText('Не удалось');
+  await expect(toast(page)).not.toContainText('synthetic-e2e-token');
+  await expect(toast(page)).not.toContainText('/classroom-teacher-invite/');
+  const after = await teacherPaneGeometry(page);
+  for (const key of ['x', 'y', 'width', 'height'] as const) {
+    expect(Math.abs(after[key] - before[key]), 'teachers pane ' + key).toBeLessThanOrEqual(0.5);
+  }
+  expect(state.errors).toEqual([]);
+});

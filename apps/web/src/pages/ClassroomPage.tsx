@@ -615,9 +615,17 @@ function ClassroomPageContent({
     if (tab === 'teachers' && teacherTeam.kind === 'idle') void reloadTeacherTeam();
   }, [reloadTeacherTeam, tab, teacherTeam.kind]);
 
-  async function copy(value: string, message: string): Promise<void> {
+  async function copy(
+    value: string,
+    message: string,
+    surface: 'page' | 'sharing' = 'page',
+  ): Promise<void> {
     const identity = shareIdentity.current;
-    setShareError(null);
+    if (surface === 'sharing') {
+      setShareError(null);
+    } else {
+      feedback.clear();
+    }
     const view = profileView.current;
     const scope = loadScope.current;
     const request = scope.request;
@@ -626,14 +634,18 @@ function ClassroomPageContent({
       scope.active &&
       scope.request === request &&
       profileView.current === view &&
-      shareIdentity.current === identity;
+      (surface !== 'sharing' || shareIdentity.current === identity);
     try {
       await navigator.clipboard.writeText(value);
       if (!current()) return;
       setNotice(message);
     } catch {
       if (!current()) return;
-      setShareError('Не удалось скопировать код. Выделите и скопируйте его вручную.');
+      if (surface === 'sharing') {
+        setShareError('Не удалось скопировать код. Выделите и скопируйте его вручную.');
+      } else {
+        feedback.error('Не удалось скопировать ссылку. Выделите и скопируйте её вручную.');
+      }
     }
   }
 
@@ -1717,8 +1729,8 @@ function ClassroomPageContent({
             joinUrl={classLink}
             busy={busy === 'code'}
             error={shareError}
-            onCopyCode={() => void copy(classroom.joinCode as string, 'Код скопирован.')}
-            onCopyLink={() => void copy(classLink as string, 'Ссылка скопирована.')}
+            onCopyCode={() => void copy(classroom.joinCode as string, 'Код скопирован.', 'sharing')}
+            onCopyLink={() => void copy(classLink as string, 'Ссылка скопирована.', 'sharing')}
             onRotate={async () => {
               const identity = shareIdentity.current;
               const view = profileView.current;
