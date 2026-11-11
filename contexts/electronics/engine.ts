@@ -385,12 +385,18 @@ export function createElectronicsAdvanceSession(
   options: {
     readonly observeLedTemporal?: boolean;
     readonly observeSevenSegmentTemporal?: boolean;
+    /** Worker opt-in for effect-free loop accounting between canonical barriers. */
+    readonly coalesceStableLiteralInstructions?: boolean;
   } = {},
 ) {
   // The caller can change its document/state while the Worker yields; own this request snapshot.
   const ownedDocument = structuredClone(document);
   const ownedRequest = structuredClone(request);
-  const ownership = createOwnedArduinoCircuitClockRequest(ownedDocument, ownedRequest);
+  const ownership = createOwnedArduinoCircuitClockRequest(
+    ownedDocument,
+    ownedRequest,
+    options.coalesceStableLiteralInstructions === true,
+  );
   const iterator = advanceElectronicsRequest(
     ownedDocument,
     ownedRequest,

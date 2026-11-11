@@ -714,8 +714,9 @@ describe('event execution request ownership and physical barriers', () => {
   const finish = (
     document: ElectronicsEngineDocument,
     request: Parameters<typeof advanceElectronicsToHorizon>[1],
+    options?: Parameters<typeof createElectronicsAdvanceSession>[2],
   ) => {
-    const session = createElectronicsAdvanceSession(document, request);
+    const session = createElectronicsAdvanceSession(document, request, options);
     let steps = 0;
     let result;
     do {
@@ -1726,6 +1727,66 @@ describe('event execution request ownership and physical barriers', () => {
       session.dispose();
       solve.mockRestore();
     }
+  });
+
+  it('coalesces latched literal loops with the same continuation and thermal checkpoints', () => {
+    const document = eventCircuit(
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}',
+    );
+    const solve = vi.spyOn(solver, 'solveRcCircuitWithHeldArduino');
+    try {
+      const request = { requestedHorizonMicroseconds: 3_333 };
+      const optical = { observeLedTemporal: true, observeSevenSegmentTemporal: true };
+      const before = finish(document, request, optical);
+      const solveTimes = solve.mock.calls.map(([, time]) => time);
+      expect(solveTimes).toEqual(expect.arrayContaining([0, 1, 2, 3, 3.333]));
+      solve.mockClear();
+      const worker = { ...optical, coalesceStableLiteralInstructions: true };
+      const after = finish(document, request, worker);
+      expect(after.result).toStrictEqual(before.result);
+      expect(after.steps).toBeLessThan(before.steps);
+      expect(solve.mock.calls.map(([, time]) => time)).toEqual(solveTimes);
+
+      const explicitBudget = { ...request, maxEvents: 256 };
+      expect(finish(document, explicitBudget, worker)).toStrictEqual(
+        finish(document, explicitBudget, optical),
+      );
+
+      const withInput = {
+        ...request,
+        inputEvents: [
+          { atMicroseconds: 1_000, targetId: 'uno', operation: 'serialRx', payload: 'A' },
+        ],
+      };
+      const inputResult = finish(document, withInput, worker);
+      expect(inputResult.result.executionStatus).toBe('ready');
+      expect(inputResult).toStrictEqual(finish(document, withInput, optical));
+      const continued = { requestedHorizonMicroseconds: 5_000, state: inputResult.result.state };
+      expect(finish(document, continued, worker)).toStrictEqual(
+        finish(document, continued, optical),
+      );
+    } finally {
+      solve.mockRestore();
+    }
+  });
+
+  it.each([5, -0])('executes a literal write with an unlatched output %s', (voltage) => {
+    const source = 'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,LOW);}';
+    const initial = arduinoRuntime.advanceClockedArduinoRuntime(source, {}, 0.05).state;
+    const unlatched = { ...initial, outputVoltages: { ...initial.outputVoltages, d13: voltage } };
+    const reference = arduinoRuntime.createOwnedClockedArduinoRuntime(source, unlatched, {
+      accountForStableLoops: true,
+    })!;
+    const candidate = arduinoRuntime.createOwnedClockedArduinoRuntime(source, unlatched, {
+      accountForStableLoops: true,
+    })!;
+    const result = candidate.advance(0.9, 256, true, 1_000);
+    expect(result).toStrictEqual(reference.advance(0.9, 1024, true));
+    expect(result.loopActions).toContainEqual({ kind: 'write', terminal: 'd13', targetVoltage: 0 });
+    expect(result.events).toHaveLength(voltage === 5 ? 1 : 0);
+    expect(Object.is(result.state.outputVoltages.d13, 0)).toBe(true);
+    reference.dispose();
+    candidate.dispose();
   });
   it.each([1, 7, 256, 1024])(
     'preserves every instruction and full public result with budget %i',
