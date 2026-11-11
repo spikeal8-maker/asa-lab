@@ -324,6 +324,52 @@ describe('focused diagnostic compatibility projection', () => {
   }
 });
 
+const shardMatrix = `\${{ fromJSON(
+    (inputs.qualification_profile == 'classroom-d13-v2' ||
+    inputs.qualification_profile == 'classroom-d13-v3' ||
+    inputs.qualification_profile == 'arduino-editor-error') &&
+    '[{"label":"whole","shard":""}]' ||
+    '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"}]'
+  ) }}`;
+const shardSuffix = '-${{ matrix.browser_case.label }}';
+const shardCli =
+  ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}';
+
+function withoutFocusedSharding<T extends BrowserJob>(original: T): T {
+  const browser = structuredClone(original);
+  expect(browser.name).toBe(
+    'Actual editor live simulation journey (${{ matrix.browser_case.label }})',
+  );
+  expect(browser.strategy).toEqual({ 'fail-fast': false, matrix: { browser_case: shardMatrix } });
+  expect(browser['continue-on-error']).toBeUndefined();
+  expect(browser.if).toBeUndefined();
+  expect(browser.env.ASA_ELECTRONICS_BROWSER_SHARD).toBe('${{ matrix.browser_case.shard }}');
+  const wholeProject = 'asa-lab-electronics-${{ github.run_id }}';
+  expect(browser.env.COMPOSE_PROJECT_NAME).toBe(wholeProject + shardSuffix);
+
+  const gates = browser.steps.filter((step) => step.name === focusedGateName);
+  expect(gates).toHaveLength(1);
+  const gate = gates[0]!;
+  expect(gate.run?.endsWith(shardCli)).toBe(true);
+  gate.run = gate.run!.slice(0, -shardCli.length);
+
+  for (const [name, originalArtifact] of [
+    [failureUpload.name, failureUpload.with.name],
+    ['Upload browser evidence', 'electronics-r4-m1-browser-${{ github.run_id }}'],
+  ] as const) {
+    const uploads = browser.steps.filter((step) => step.name === name);
+    expect(uploads).toHaveLength(1);
+    const options = uploads[0]!.with!;
+    expect(options['name']).toBe(originalArtifact + shardSuffix);
+    options['name'] = originalArtifact;
+  }
+
+  delete browser.strategy;
+  delete browser.env.ASA_ELECTRONICS_BROWSER_SHARD;
+  browser.env.COMPOSE_PROJECT_NAME = wholeProject;
+  return browser;
+}
+
 describe('additive workflow retains existing execution protections', () => {
   it('copies focused, benchmark, pinned transport and runtime commands without weakening', () => {
     const original = parse(readFileSync('.github/workflows/electronics-r4-m1-focused.yml', 'utf8'));
@@ -334,7 +380,7 @@ describe('additive workflow retains existing execution protections', () => {
     expect(Object.keys(scoped.jobs)).toEqual(['focused', 'benchmark', 'browser']);
     for (const job of ['focused', 'benchmark'])
       expect(scoped.jobs[job]).toEqual(original.jobs[job]);
-    const browser = withoutFocusedFailureEvidence(original.jobs.browser);
+    const browser = withoutFocusedFailureEvidence(withoutFocusedSharding(original.jobs.browser));
     browser.name = 'Scoped six-case UI qualification (not full Electronics)';
     browser.env.ASA_ELECTRONICS_QUALIFICATION_PROFILE = 'strict-real-time';
     browser.env.ASA_ELECTRONICS_BROWSER_GATE = 'gate:electronics-ui-679-557:browser';
