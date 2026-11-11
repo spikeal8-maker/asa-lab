@@ -2735,9 +2735,9 @@ for (const width of [1440, 1024, 390, 320]) {
     const openWorkspaceMenu = async () => {
       const box = await background.boundingBox();
       if (!box) throw new Error('Arduino workspace has no visible background');
-      // The flyout overlays the left side of this full-width SVG background.
-      // Send a real pointer gesture to its uncovered top-right workspace area.
-      await page.mouse.click(box.x + box.width - 25, box.y + 35, { button: 'right' });
+      // The flyout covers the left side of the SVG. Click the uncovered area
+      // relative to the background so Playwright waits for the panel to settle.
+      await background.click({ button: 'right', position: { x: box.width - 25, y: 35 } });
     };
     const readProgram = async () => {
       const doc = await readEditorDocument();
