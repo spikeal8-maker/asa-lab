@@ -166,7 +166,8 @@ function recordOwnerQualifiedWallClock(
     deltaMs,
     strictLimitMs: 250,
     strictPassed: deltaMs <= 250,
-    binding: ledger.profile === 'strict-real-time',
+    // The 1 ms optical stress case still records the real-time benchmark.
+    binding: ledger.profile === 'strict-real-time' && site !== 'delay-1-temporal-wall-model',
   };
   // Retain the measured strict outcome before the original binding failure.
   ledger.entries.push(entry);

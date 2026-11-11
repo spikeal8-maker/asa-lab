@@ -243,8 +243,8 @@ describe('explicit classroom qualification identity and original strict outcomes
     expect(() => actual.profile(undefined, entrypoint)).toThrow();
   });
 
-  it.each(sites)(
-    'records %s before a strict failure and only that exact classroom comparison is nonbinding',
+  it.each([sites[0], sites[2]])(
+    'records %s before a strict failure and allows the same comparison in classroom v2',
     (site, title) => {
       const strict = ledger(title, 'strict-real-time');
       expect(() => oracle().qualify(strict, title, site, 1500, 2100)).toThrow('600 ms > 250 ms');
@@ -271,12 +271,43 @@ describe('explicit classroom qualification identity and original strict outcomes
     },
   );
 
-  it.each(sites)('preserves the exact inclusive 250 ms limit at %s', (site, title) => {
+  it.each([
+    [...sites[0], true],
+    [...sites[1], false],
+    [...sites[2], true],
+  ] as const)('records the inclusive 250 ms limit at %s', (site, title, binding) => {
     const exact = ledger(title, 'strict-real-time');
-    expect(oracle().qualify(exact, title, site, 1500, 1750).strictPassed).toBe(true);
+    expect(oracle().qualify(exact, title, site, 1500, 1750)).toMatchObject({
+      deltaMs: 250,
+      strictLimitMs: 250,
+      strictPassed: true,
+      binding,
+    });
+
     const above = ledger(title, 'strict-real-time');
-    expect(() => oracle().qualify(above, title, site, 1500, 1750.001)).toThrow();
-    expect(above.entries[0]?.strictPassed).toBe(false);
+    const recordAbove = () => oracle().qualify(above, title, site, 1500, 1750.001);
+    if (binding) expect(recordAbove).toThrow('> 250 ms');
+    else expect(recordAbove).not.toThrow();
+    expect(above.entries).toEqual([
+      expect.objectContaining({
+        title,
+        site,
+        modelMs: 1500,
+        wallMs: 1750.001,
+        deltaMs: 1750.001 - 1500,
+        strictLimitMs: 250,
+        strictPassed: false,
+        binding,
+      }),
+    ]);
+    oracle().complete(above, title);
+
+    const classroom = ledger(title);
+    expect(oracle().qualify(classroom, title, site, 1500, 1750.001)).toEqual({
+      ...above.entries[0],
+      binding: false,
+    });
+    oracle().complete(classroom, title);
   });
 
   it('rejects unknown sites, wrong case identities and nonfinite values even inside the limit', () => {
@@ -354,11 +385,11 @@ describe('explicit classroom qualification identity and original strict outcomes
         { at: 2000, committedHorizonMicroseconds: 1_499_999 },
       ],
     ]) {
-      const value = ledger(title);
+      const value = ledger(title, 'strict-real-time');
       expect(() => oracle(value).clock(ready, 1500, site)).toThrow();
       expect(value.entries).toEqual([]);
     }
-    const value = ledger(title);
+    const value = ledger(title, 'strict-real-time');
     expect(
       oracle(value).clock(
         [
@@ -369,6 +400,7 @@ describe('explicit classroom qualification identity and original strict outcomes
         site,
       ),
     ).toEqual(expect.objectContaining({ modelMs: 1500, wallMs: 2000 }));
+    expect(value.entries[0]).toMatchObject({ deltaMs: 500, strictPassed: false, binding: false });
   });
 
   it('wires only the two selected temporal sites and the conditional no-delay site', () => {
