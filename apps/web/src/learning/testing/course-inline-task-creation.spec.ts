@@ -231,7 +231,7 @@ it('creates a written response without an environment and inserts its exact publ
     [...document.querySelectorAll('[aria-label="Тип задания"] option')].map((item) =>
       item.getAttribute('value'),
     ),
-  ).toEqual(['project', 'essay', 'quiz']);
+  ).toEqual(['project', 'essay', 'quiz', 'file']);
   await fill('Название задания', 'Объясните решение');
   await fill('Содержание', 'Напишите ответ своими словами.');
   expect(button('Добавить в урок').disabled).toBe(false);
@@ -246,6 +246,24 @@ it('creates a written response without an environment and inserts its exact publ
     { id: 'practice', type: 'activity', learningActivityVersionId: versionId },
   ]);
   expect(container.querySelector('[data-testid="saved-pin"]')?.textContent).toBe(versionId);
+  expect(parentSubmit).not.toHaveBeenCalled();
+});
+
+it('publishes a file assignment from the same editor and pins its exact version', async () => {
+  await mount();
+  await fill('Тип задания', 'file');
+  expect(document.querySelector('[aria-label="Среда задания"]')).toBeNull();
+  await fill('Название задания', 'Отчёт о работе');
+  await fill('Содержание', 'Прикрепите отчёт.');
+  await click('Добавить в урок');
+  expect(api.createActivityDraft).toHaveBeenCalledWith(
+    expect.objectContaining({ kind: 'file', moduleKey: null }),
+    expect.any(String),
+  );
+  expect(api.previewAuthoredActivityVersion).toHaveBeenCalledWith(rootId, versionId);
+  expect(pinChange).toHaveBeenCalledWith([
+    { id: 'practice', type: 'activity', learningActivityVersionId: versionId },
+  ]);
   expect(parentSubmit).not.toHaveBeenCalled();
 });
 

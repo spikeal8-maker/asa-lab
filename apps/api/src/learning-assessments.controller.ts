@@ -830,6 +830,20 @@ export class LearningAssessmentsController {
       );
       const response = essay.rows[0];
       if (!response || typeof response['response_text'] !== 'string') {
+        const file = await this.requirePool().query(
+          'SELECT * FROM learning_teacher_exact_file_submission($1,$2,$3)',
+          [context.accountId, classroomId, attemptId],
+        );
+        const answer = file.rows[0];
+        if (answer) {
+          return {
+            kind: 'file' as const,
+            submissionId: String(answer['submission_id']),
+            digest: String(answer['payload_digest']),
+            sourceRevision: Number(answer['draft_revision']),
+            file: answer['file_descriptor'],
+          };
+        }
         throw new HttpException(error('submission_not_found', 'Сдача не найдена.'), 404);
       }
       return {

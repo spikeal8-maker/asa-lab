@@ -185,6 +185,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0313', // OpenAI Responses catalog admission.
         '0314', // Polza video catalog category.
         '0315', // Polza catalog selections and dates.
+        '0316', // Immutable learner file answers in class and Course assignments.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -529,6 +530,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0313', // OpenAI Responses catalog admission.
           '0314', // Polza video catalog category.
           '0315', // Polza catalog selections and dates.
+          '0316', // Immutable learner file answers in class and Course assignments.
         ]);
         expect(
           await applyIsolatedTestPlan(

@@ -95,6 +95,7 @@ import { ClassroomParticipantsController } from './classroom-participants.contro
 import { ClassroomObservationController } from './classroom-observation.controller.js';
 import { LearningWorkContextController } from './learning-work-context.controller.js';
 import { LearningStartController } from './learning-start.controller.js';
+import { LearningFileAnswersController } from './learning-file-answers.controller.js';
 import { LearningEssayAttemptsController } from './learning-essay-attempts.controller.js';
 import { LearningContentController } from './learning-content.controller.js';
 import { LearningQuizAttemptsController } from './learning-quiz-attempts.controller.js';
@@ -301,6 +302,7 @@ export class AppModule {
         LearningWorkContextController,
         LearningStartController,
         LearningEssayAttemptsController,
+        LearningFileAnswersController,
         LearningQuizAttemptsController,
         LearningContentController,
         GalleryController,

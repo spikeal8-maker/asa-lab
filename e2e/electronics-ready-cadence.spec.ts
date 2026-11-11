@@ -4139,16 +4139,37 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
     expect(properties['arduinoSource']).toBe(source);
     expect(properties['arduinoCodeMode']).toBe('blocks-text');
     const workspaceJson = String(properties['arduinoWorkspace']);
-    const waitFields: Array<{ TIME: unknown; UNIT: unknown }> = [];
+    const savedWaits: Array<[number, unknown]> = [];
     const inspect = (value: unknown): void => {
       if (!value || typeof value !== 'object') return;
       const row = value as Record<string, unknown>;
-      if (row['type'] === 'asa_wait')
-        waitFields.push(row['fields'] as { TIME: unknown; UNIT: unknown });
+      if (row['type'] === 'asa_wait') {
+        const { fields, inputs } = row as {
+          fields?: { TIME?: unknown; UNIT?: unknown };
+          inputs?: {
+            TIME?: { block?: unknown; shadow?: { type?: unknown; fields?: { VALUE?: unknown } } };
+          };
+        };
+        const time = inputs?.TIME;
+        const duration = time?.shadow?.fields?.VALUE;
+        expect(fields?.TIME, 'saved asa_wait has no legacy TIME field').toBeUndefined();
+        expect(time?.block, 'edited default TIME is still a shadow').toBeUndefined();
+        expect(time?.shadow?.type).toBe('asa_number');
+        const numericDuration =
+          typeof duration === 'number' ||
+          (typeof duration === 'string' &&
+            /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(duration))
+            ? Number(duration)
+            : Number.NaN;
+        if (!Number.isFinite(numericDuration)) {
+          throw new Error('Saved asa_wait TIME shadow must contain a finite numeric field VALUE');
+        }
+        savedWaits.push([numericDuration, fields?.UNIT]);
+      }
       Object.values(row).forEach(inspect);
     };
     inspect(JSON.parse(workspaceJson));
-    expect(waitFields.map((fields) => [Number(fields.TIME), fields.UNIT])).toEqual([
+    expect(savedWaits).toEqual([
       [half, 'MILLISECONDS'],
       [half, 'MILLISECONDS'],
     ]);
