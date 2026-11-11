@@ -14,7 +14,6 @@ jobs:
     timeout-minutes: 15
     env:
       ASA_E1_PG_PLAN_PROBE: ci1093-isolated-read-only
-      ASA_CI1093_EVIDENCE_DIR: ${{ runner.temp }}/ci1093-pg-jit
       ASA_CI1093_PG_IMAGE: mirror.gcr.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854
       NX_SKIP_NX_CACHE: 'true'
       NX_DAEMON: 'false'
@@ -41,7 +40,7 @@ jobs:
           if (git('rev-parse','HEAD') !== process.env.GITHUB_SHA || git('status','--porcelain=v1')) {
             throw new Error('Exact clean event source required');
           }
-          const dir = process.env.ASA_CI1093_EVIDENCE_DIR;
+          const dir = join(process.env.RUNNER_TEMP,'ci1093-pg-jit');
           mkdirSync(dir, {recursive:true, mode:0o700});
           for (const [name,value] of Object.entries({
             'receipt.json': {schema_version:1,status:'initialized',source:{sha:process.env.GITHUB_SHA,tree:git('rev-parse','HEAD^{tree}')}},
@@ -54,6 +53,7 @@ jobs:
           process.stdout.write(`::add-mask::${admin}\n::add-mask::${runtime}\n`);
           const adminUrl = `postgresql://asalab_admin:${admin}@127.0.0.1:5432/asa_ci1093_test`;
           appendFileSync(process.env.GITHUB_ENV,[
+            `ASA_CI1093_EVIDENCE_DIR=${dir}`,
             'POSTGRES_DB=asa_ci1093_test','POSTGRES_USER=asalab_admin',`POSTGRES_PASSWORD=${admin}`,
             `DATABASE_URL=${adminUrl}`,`TEST_DATABASE_URL=${adminUrl}`,`ASA_APP_DB_PASSWORD=${runtime}`,
             `APP_TEST_DATABASE_URL=postgresql://asalab_app:${runtime}@127.0.0.1:5432/asa_ci1093_test`,

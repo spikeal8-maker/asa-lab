@@ -517,3 +517,78 @@ test('temporary workflow uses only its branch, exact source, frozen dependencies
   assert.equal(upload.with.name, 'ci1093-pg-jit-${{ github.sha }}-${{ github.run_attempt }}');
   assert.equal(upload.with.path.trim().split('\n').length, 5);
 });
+
+test('job-level env context availability rejects runner before a runner is assigned', () => {
+  // GitHub's Context availability table, not YAML syntax, defines these scopes:
+  // https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability
+  const jobEnvContexts = new Set([
+    'github',
+    'needs',
+    'strategy',
+    'matrix',
+    'vars',
+    'secrets',
+    'inputs',
+  ]);
+  const stepContexts = new Set([...jobEnvContexts, 'job', 'runner', 'env', 'steps']);
+  const knownContexts = new Set([...stepContexts, 'jobs']);
+  function unavailableContexts(values, allowed) {
+    const unavailable = new Set();
+    for (const value of Object.values(values)) {
+      for (const expression of String(value).matchAll(/\$\{\{([\s\S]*?)\}\}/g)) {
+        // Single-quoted expression literals are not context references. A root
+        // after a dot is a property, whereas bare roots and index syntax count.
+        const source = expression[1].replace(/'(?:[^']|'')*'/g, "''");
+        for (const reference of source.matchAll(/(?<![.\w-])([A-Za-z_][\w-]*)(?![\w-])/g)) {
+          if (knownContexts.has(reference[1]) && !allowed.has(reference[1]))
+            unavailable.add(reference[1]);
+        }
+      }
+    }
+    return [...unavailable].sort();
+  }
+  assert.deepEqual(
+    unavailableContexts({ DIRECTORY: '${{ runner.temp }}/ci1093-pg-jit' }, jobEnvContexts),
+    ['runner'],
+  );
+  assert.deepEqual(
+    unavailableContexts(
+      { DIRECTORY: "${{ runner['temp'] }}", SNAPSHOT: '${{ toJSON(runner) }}' },
+      jobEnvContexts,
+    ),
+    ['runner'],
+  );
+  assert.deepEqual(
+    unavailableContexts(
+      {
+        SOURCE: '${{ github.sha }}',
+        INPUT: '${{ needs.prepare.outputs.directory }}',
+        LITERAL: "${{ format('runner.temp', github.sha) }}",
+      },
+      jobEnvContexts,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    unavailableContexts({ DIRECTORY: '${{ runner.temp }}/ci1093-pg-jit' }, stepContexts),
+    [],
+  );
+
+  const workflow = parse(
+    readFileSync(
+      new URL('../../.github/workflows/ci1093-pg-jit-probe.yml', import.meta.url),
+      'utf8',
+    ),
+  );
+  for (const [id, job] of Object.entries(workflow.jobs)) {
+    assert.deepEqual(
+      unavailableContexts(job.env ?? {}, jobEnvContexts),
+      [],
+      `Unavailable context in jobs.${id}.env`,
+    );
+    for (const step of job.steps) {
+      assert.deepEqual(unavailableContexts(step.env ?? {}, stepContexts), []);
+      assert.deepEqual(unavailableContexts(step.with ?? {}, stepContexts), []);
+    }
+  }
+});
