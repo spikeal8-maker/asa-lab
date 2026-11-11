@@ -131,7 +131,7 @@ documents:
   - id: TEACHER-STUDENT-PROFILE-UI-DOMAIN-CONTRACT
     path: docs/agent/contracts/teacher-student-profile-ui.yaml
     scope: teacher-student-profile-ui
-    lanes: [teacher-student-profile-ui]
+    lanes: [teacher-student-profile-ui, classroom-visual-20261111]
     kind: domain_contract
     status: canonical
     authority: teacher_student_profile_ui_invariants
@@ -141,7 +141,7 @@ documents:
   - id: TEACHER-STUDENT-PROFILE-UI-589
     path: docs/product/ASA_TEACHER_STUDENT_PROFILE_UI_589.md
     scope: teacher-student-profile-ui
-    lanes: [teacher-student-profile-ui]
+    lanes: [teacher-student-profile-ui, classroom-visual-20261111]
     kind: implementation_spec
     status: canonical
     authority: owner_issue_589_and_independent_audit
