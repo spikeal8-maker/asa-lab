@@ -6577,6 +6577,172 @@ function d2ClassifyNativePng(png: D2Png, references: D2NativeReferences) {
   };
 }
 
+type D2NativeFrame = { at: number; data: string };
+type D2NativeWitnesses = { paint: PaintReceipt[]; l: D2LReceipt[] };
+
+async function d2AcquireNativeFrames(
+  page: Page,
+  capture: CDPSession,
+  requested: readonly string[],
+) {
+  const timeOrigin = await page.evaluate(() => performance.timeOrigin);
+  const frames: D2NativeFrame[] = [];
+  const pending = new Set<Promise<void>>();
+  let encodedBytes = 0;
+  let failure: Error | undefined;
+  const onFrame = ({
+    data,
+    metadata,
+    sessionId,
+  }: {
+    data: string;
+    metadata: { timestamp?: number };
+    sessionId: number;
+  }) => {
+    const ack = capture.send('Page.screencastFrameAck', { sessionId }).then(
+      () => {
+        pending.delete(ack);
+      },
+      (cause: unknown) => {
+        pending.delete(ack);
+        failure ??= new Error('D2 native compositor frame acknowledgement failed', { cause });
+      },
+    );
+    pending.add(ack);
+    if (failure) return;
+    const at = (metadata.timestamp ?? NaN) * 1000 - timeOrigin;
+    if (!Number.isFinite(at) || at <= (frames.at(-1)?.at ?? -Infinity)) {
+      failure = new Error('D2 compositor timestamps must be finite and strictly increasing');
+      return;
+    }
+    encodedBytes += data.length;
+    if (frames.length >= 512 || encodedBytes > 128 * 1024 * 1024) {
+      failure = new Error('D2 native PNG stream exceeded its bounded retention');
+      return;
+    }
+    frames.push({ at, data });
+  };
+  capture.on('Page.screencastFrame', onFrame);
+  try {
+    await capture.send('Page.startScreencast', { format: 'png', everyNthFrame: 1 });
+    let edges: D2PaintEdge[];
+    try {
+      const seekFrom = await page.evaluate(() => performance.now());
+      const handle = await page.waitForFunction(
+        ({ seekFrom, firstVector, count }) => {
+          const runs = (window as D2Window).__ownerTemporal!.paintRuns;
+          const edges: D2PaintEdge[] = [];
+          for (const run of runs) {
+            const { first } = run;
+            if (
+              first.previousFrameAt === null ||
+              first.previousFrameAt < seekFrom ||
+              first.brightness.length !== 3 ||
+              first.images.length !== 3 ||
+              !first.images.every(
+                (image, led) =>
+                  image.decoded &&
+                  image.visible &&
+                  image.unoccluded &&
+                  image.opacity === 1 &&
+                  image.lit === first.brightness[led]! > 0,
+              )
+            )
+              continue;
+            const vector = first.brightness.map((value) => (value > 0 ? '1' : '0')).join('');
+            if (edges.length === 0 ? vector !== firstVector : vector === edges.at(-1)!.vector)
+              continue;
+            edges.push({ at: first.previousFrameAt, vector });
+            // The following phase closes the seventh bracket without a test clock.
+            if (edges.length === count + 1) return edges;
+          }
+          return false;
+        },
+        { seekFrom, firstVector: requested[0]!, count: requested.length },
+        { timeout: 20_000 },
+      );
+      try {
+        const observed = await handle.jsonValue();
+        if (!observed) throw new Error('D2 native phase brackets missing');
+        edges = observed;
+      } finally {
+        await handle.dispose();
+      }
+      expect(
+        edges.slice(0, -1).map(({ vector }) => vector),
+        'first adjacent native phase brackets',
+      ).toEqual(requested);
+      // The PNG may be encoded later than its swap. Wait for the stream to
+      // reach the end of the selected brackets before stopping it.
+      await expect
+        .poll(
+          () => {
+            if (failure) throw failure;
+            return frames.at(-1)?.at ?? -Infinity;
+          },
+          { timeout: 20_000 },
+        )
+        .toBeGreaterThanOrEqual(edges.at(-1)!.at);
+    } finally {
+      await capture.send('Page.stopScreencast');
+      await Promise.all(pending);
+    }
+    if (failure) throw failure;
+    const witnesses = JSON.parse(
+      await page.evaluate(
+        ({ from, to }) => {
+          const probe = window as D2Window;
+          return JSON.stringify({
+            paint: probe.__ownerPaint!.filter((row) => row.at >= from && row.at < to),
+            l: probe.__d2L!.filter((row) => row.at >= from && row.at < to),
+          });
+        },
+        { from: edges[0]!.at, to: edges.at(-1)!.at },
+      ),
+    ) as D2NativeWitnesses;
+    return { edges, frames, witnesses };
+  } finally {
+    capture.off('Page.screencastFrame', onFrame);
+  }
+}
+
+function d2NativeFrameInPhase(
+  frames: readonly D2NativeFrame[],
+  witnesses: D2NativeWitnesses,
+  from: number,
+  to: number,
+  vector: string,
+) {
+  const paint = witnesses.paint.filter((row) => row.at >= from && row.at < to);
+  const l = witnesses.l.filter((row) => row.at >= from && row.at < to);
+  const firstWitness = Math.max(paint[0]?.at ?? Infinity, l[0]?.at ?? Infinity);
+  const lastWitness = Math.min(paint.at(-1)?.at ?? -Infinity, l.at(-1)?.at ?? -Infinity);
+  // Pick once, by compositor time, before looking at a single pixel.
+  const frame = frames.find((row) => row.at >= firstWitness && row.at < lastWitness);
+  if (!frame) throw new Error('D2 native phase has no PNG bracketed by paint and Uno L witnesses');
+  const beforePaint = paint.findLast((row) => row.at <= frame.at)!;
+  const beforeL = l.findLast((row) => row.at <= frame.at)!;
+  const afterPaint = paint.find((row) => row.at > frame.at)!;
+  const afterL = l.find((row) => row.at > frame.at)!;
+  if (
+    !afterPaint.stablePreviousFrame ||
+    afterPaint.previousFrameAt !== beforePaint.at ||
+    d2Vector(beforePaint.brightness) !== vector ||
+    d2Vector(afterPaint.brightness) !== vector
+  )
+    throw new Error('D2 native PNG lacks consecutive stable paint witnesses');
+  const at = Math.max(afterPaint.at, afterL.at);
+  return {
+    frame,
+    beforeShot: { paint: beforePaint, l: beforeL },
+    during: {
+      paint: paint.filter((row) => row.at >= beforePaint.at && row.at <= at),
+      l: l.filter((row) => row.at >= beforeL.at && row.at <= at),
+      at,
+    },
+  };
+}
+
 async function d2NativeSamples(
   page: Page,
   stage: D2Stage,
@@ -6651,67 +6817,24 @@ async function d2NativeSamples(
   }> = [];
   let previousShotAt: number | null = null;
   let previousRequested: string | null = null;
-  let seekFrom = await page.evaluate(() => performance.now());
+  const { edges, frames, witnesses } = await d2AcquireNativeFrames(page, capture, requested);
   for (let index = 0; index < requested.length; index++) {
     const vector = requested[index]!;
-    // Wait for a fresh actually painted phase. Do not rename an ambiguous PNG,
-    // retry a failed image or advance the simulation with a separate timer.
-    await page.waitForFunction(
-      ({ vector, seekFrom }) => {
-        const probe = window as D2Window;
-        const run = probe.__ownerTemporal!.paintRuns.at(-1);
-        const l = probe.__d2L!.at(-1);
-        return (
-          !!run &&
-          run.first.previousFrameAt !== null &&
-          run.first.previousFrameAt >= seekFrom &&
-          run.first.brightness.map((value) => (value > 0 ? '1' : '0')).join('') === vector &&
-          run.first.images.length === 3 &&
-          run.first.images.every(
-            (image, led) =>
-              image.decoded &&
-              image.visible &&
-              image.unoccluded &&
-              image.opacity === 1 &&
-              image.lit === run.first.brightness[led]! > 0,
-          ) &&
-          !!l &&
-          l.activeAttribute === 'false' &&
-          l.opacity === 0 &&
-          l.visible
-        );
-      },
-      { vector, seekFrom },
-      { timeout: 20_000 },
+    const { frame, beforeShot, during } = d2NativeFrameInPhase(
+      frames,
+      witnesses,
+      edges[index]!.at,
+      edges[index + 1]!.at,
+      vector,
     );
-    const beforeShot = JSON.parse(
-      await page.evaluate(() => {
-        const probe = window as D2Window;
-        return JSON.stringify({ paint: probe.__ownerPaint!.at(-1)!, l: probe.__d2L!.at(-1)! });
-      }),
-    ) as { paint: PaintReceipt; l: D2LReceipt };
     const name = `d2-d4-native-${index}-${vector}`;
     const path = resolve(artifactRoot, name + '.png');
-    // Read the actual viewport directly from Chromium's compositor.
-    const { data } = await capture.send('Page.captureScreenshot', {
-      format: 'png',
-      fromSurface: true,
-      captureBeyondViewport: false,
-      optimizeForSpeed: true,
-    });
-    const bytes = Buffer.from(data, 'base64');
+    const bytes = Buffer.from(frame.data, 'base64');
     writeFileSync(path, bytes);
-    const during = JSON.parse(
-      await page.evaluate((from) => {
-        const probe = window as D2Window;
-        return JSON.stringify({
-          paint: probe.__ownerPaint!.filter((row) => row.at >= from),
-          l: probe.__d2L!.filter((row) => row.at >= from),
-          at: performance.now(),
-        });
-      }, beforeShot.paint.at),
-    ) as { paint: PaintReceipt[]; l: D2LReceipt[]; at: number };
     const png = PNG.sync.read(bytes);
+    expect({ width: png.width, height: png.height }, 'full native compositor viewport').toEqual(
+      page.viewportSize(),
+    );
     const references = await Promise.all(
       bases.map((basis, led) =>
         d2NativeReferences(
@@ -6777,6 +6900,7 @@ async function d2NativeSamples(
       name,
       path,
       requestedVector: vector,
+      compositorAt: frame.at,
       observedVector,
       generationId,
       sourceSha256: createHash('sha256').update(stage.source).digest('hex'),
@@ -6800,7 +6924,6 @@ async function d2NativeSamples(
     nativeWindows.push({ previousShotAt, previousRequested, shotAt: beforeShot.paint.at, vector });
     previousShotAt = beforeShot.paint.at;
     previousRequested = vector;
-    seekFrom = during.at;
   }
   const completedAt = await page.evaluate(() => performance.now());
   // Only compact shot boundaries are retained here. Complete native causality,
