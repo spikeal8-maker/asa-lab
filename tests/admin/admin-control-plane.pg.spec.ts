@@ -191,10 +191,10 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
         ordinaryAccount.principalId,
       ],
     );
-    const dashboard = (from: string, actor = schoolAdmin.principalId) =>
+    const dashboard = (from: string, actor = schoolAdmin.principalId, bucketSeconds = 3600) =>
       runtime.query<{ payload: Record<string, unknown> }>(
-        `SELECT admin_get_product_dashboard_v3($1,'organization',$2,$3,'2026-06-01T23:00:00Z',3600) AS payload`,
-        [actor, schoolAdmin.workspaceId, from],
+        `SELECT admin_get_product_dashboard_v3($1,'organization',$2,$3,'2026-06-01T23:00:00Z',$4) AS payload`,
+        [actor, schoolAdmin.workspaceId, from, bucketSeconds],
       );
     const full = (await dashboard('2026-06-01T20:00:00Z')).rows[0]?.payload;
     const today = {
@@ -216,6 +216,20 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
       todayMsk: today,
       summary: { activeAccounts: 1, activeStudents: 1, studentLogins: 1, newStudents: 0 },
     });
+    const year = (await dashboard('2025-06-01T23:00:00Z', schoolAdmin.principalId, 7 * 86400))
+      .rows[0]?.payload;
+    const lastDay = { at: '2026-05-31T23:00:00+00:00' };
+    expect(year?.['timeline']).toHaveLength(53);
+    expect((year?.['timeline'] as Array<unknown>).at(-1)).toMatchObject({
+      ...lastDay,
+      activeAccounts: 2,
+      activeStudents: 1,
+      studentLogins: 2,
+      newStudents: 2,
+    });
+    for (const series of ['modules', 'loginMethods', 'actions']) {
+      expect(year?.[series]).toEqual(expect.arrayContaining([expect.objectContaining(lastDay)]));
+    }
     await expect(
       dashboard('2026-06-01T20:00:00Z', otherSchoolAdmin.principalId),
     ).rejects.toMatchObject({

@@ -562,7 +562,7 @@ function DashboardContent({
         />
         <MultiLineChart
           title="Создание ученических мест"
-          description="Число созданных ученических мест за интервал."
+          description="Места, созданные за интервал и оставшиеся в списках классов."
           labels={labels}
           series={[
             {

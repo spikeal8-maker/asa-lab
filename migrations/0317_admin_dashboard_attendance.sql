@@ -11,12 +11,29 @@ DECLARE
     v_payload jsonb;
     v_attendance jsonb;
     v_tenant_id uuid;
+    v_tail jsonb;
+    v_tail_from timestamptz;
+    v_tail_seconds integer;
     v_today_from timestamptz := date_trunc('day', p_to AT TIME ZONE 'Europe/Moscow') AT TIME ZONE 'Europe/Moscow';
 BEGIN
     -- The previous dashboard validates the time window and the actor's exact scope.
     v_payload := public.admin_get_product_dashboard_v2(
         p_actor_principal_id, p_scope_kind, p_scope_id, p_from, p_to, p_bucket_seconds
     );
+    -- The yearly window ends with a one-day partial bucket. Preserve it in each series.
+    v_tail_from := date_bin(make_interval(secs => p_bucket_seconds), p_to, p_from);
+    v_tail_seconds := floor(extract(epoch FROM p_to - v_tail_from));
+    IF v_tail_seconds >= 60 THEN
+        v_tail := public.admin_get_product_dashboard_v2(
+            p_actor_principal_id, p_scope_kind, p_scope_id, v_tail_from, p_to, v_tail_seconds
+        );
+        v_payload := v_payload || jsonb_build_object(
+            'timeline', (v_payload -> 'timeline') || (v_tail -> 'timeline'),
+            'modules', (v_payload -> 'modules') || (v_tail -> 'modules'),
+            'loginMethods', (v_payload -> 'loginMethods') || (v_tail -> 'loginMethods'),
+            'actions', (v_payload -> 'actions') || (v_tail -> 'actions')
+        );
+    END IF;
     IF p_scope_kind = 'organization' THEN
         SELECT tenant_id INTO v_tenant_id FROM public.workspaces WHERE id = p_scope_id;
     END IF;
