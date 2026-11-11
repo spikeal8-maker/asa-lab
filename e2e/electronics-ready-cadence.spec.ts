@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import type pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
 import type { ElectronicsTimedState } from '../contexts/electronics/engine';
@@ -5986,7 +5986,14 @@ async function d2Capture(page: Page, stage: D2Stage, action: 'start' | 'reset' =
   );
   const native =
     stage.name === '300-300'
-      ? d2NativeSamples(page, stage, actionAt).then(
+      ? (async () => {
+          const capture = await page.context().newCDPSession(page);
+          try {
+            await d2NativeSamples(page, stage, actionAt, capture);
+          } finally {
+            await capture.detach();
+          }
+        })().then(
           () => ({ error: null }),
           (error: unknown) => ({ error }),
         )
@@ -6570,7 +6577,12 @@ function d2ClassifyNativePng(png: D2Png, references: D2NativeReferences) {
   };
 }
 
-async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Promise<void> {
+async function d2NativeSamples(
+  page: Page,
+  stage: D2Stage,
+  actionAt: number,
+  capture: CDPSession,
+): Promise<void> {
   // Wait only for real solved LOW/HIGH references, concurrently with acquisition.
   // The later archive validates EVERY frame; this small projection is not raw evidence.
   await page.waitForFunction(
@@ -6680,7 +6692,15 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
     ) as { paint: PaintReceipt; l: D2LReceipt };
     const name = `d2-d4-native-${index}-${vector}`;
     const path = resolve(artifactRoot, name + '.png');
-    const bytes = await page.screenshot({ path });
+    // Read the actual viewport directly from Chromium's compositor.
+    const { data } = await capture.send('Page.captureScreenshot', {
+      format: 'png',
+      fromSurface: true,
+      captureBeyondViewport: false,
+      optimizeForSpeed: true,
+    });
+    const bytes = Buffer.from(data, 'base64');
+    writeFileSync(path, bytes);
     const during = JSON.parse(
       await page.evaluate((from) => {
         const probe = window as D2Window;
