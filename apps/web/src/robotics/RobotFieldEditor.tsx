@@ -39,6 +39,8 @@ import {
   type RoboticsWorldState,
 } from './world';
 import { RobotField } from './RobotField';
+import { useFieldCamera } from './use-field-camera';
+import { FIELD_CAMERA_MIN_SCALE, FIELD_CAMERA_MAX_SCALE, fitFieldCamera } from './field-camera';
 import { RobotFieldSettings } from './RobotFieldSettings';
 import {
   createImageVisual,
@@ -78,7 +80,6 @@ const STAMPS: readonly { id: RoboticsTileStampKind; label: string }[] = [
   { id: 't-junction', label: 'Т-развилка' },
   { id: 'cross', label: 'Перекрёсток' },
 ];
-const ZOOM_LEVELS = [1, 1.25, 1.5, 2, 3] as const;
 const rounded = (value: number) => Math.round(value * 10000) / 10000;
 
 function sceneAt(
@@ -170,32 +171,6 @@ function sceneAt(
       },
     },
   };
-}
-
-/** SVG's own transform handles zoom, scrolling, margins and letterboxing. */
-function pointOnField(
-  svg: SVGSVGElement,
-  clientX: number,
-  clientY: number,
-  world: RoboticsWorldDocument,
-): RoboticsPoint | null {
-  const matrix = svg.getScreenCTM();
-  if (!matrix) return null;
-  const point = svg.createSVGPoint();
-  point.x = clientX;
-  point.y = clientY;
-  const local = point.matrixTransform(matrix.inverse());
-  const value = {
-    xMeters: rounded(local.x / 1000),
-    yMeters: rounded(world.field.heightMeters - local.y / 1000),
-  };
-  return Number.isFinite(value.xMeters) && Number.isFinite(value.yMeters) ? value : null;
-}
-function pointerPosition(
-  event: PointerEvent<SVGSVGElement>,
-  world: RoboticsWorldDocument,
-): RoboticsPoint | null {
-  return pointOnField(event.currentTarget, event.clientX, event.clientY, world);
 }
 
 const PALETTE_GROUPS: readonly { title: string; tools: readonly Tool[] }[] = [
@@ -384,8 +359,6 @@ export function RobotFieldEditor({
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [snap, setSnap] = useState(false);
   const [pan, setPan] = useState(false);
-  const [zoomIndex, setZoomIndex] = useState(0);
-  const [fitAll, setFitAll] = useState(false);
   const [dropHover, setDropHover] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const suppressNextCanvasClick = useRef(false);
@@ -417,9 +390,42 @@ export function RobotFieldEditor({
     next: RoboticsWorldDocument;
   } | null>(null);
   const extended = isRoboticsWorldV3(world);
-  // At 5×5 m keep approximately the same visible robot size as the original 2×2 m field.
-  const baseScale = Math.max(1, world.field.widthMeters / 2.4, world.field.heightMeters / 2);
-  const zoom = ZOOM_LEVELS[zoomIndex]! * (fitAll ? 1 : baseScale);
+  const pendingTouch = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+  const fieldBounds = {
+    minX: 0,
+    minY: 0,
+    maxX: world.field.widthMeters,
+    maxY: world.field.heightMeters,
+  };
+  const cameraControl = useFieldCamera(canvasRef, fieldBounds, {
+    onStart: (keepPointerCapture) => {
+      releaseDrag(!keepPointerCapture);
+      pendingTouch.current = null;
+      suppressNextCanvasClick.current = true;
+    },
+    onCancel: () => {
+      releaseDrag();
+      pendingTouch.current = null;
+      setTracePoints([]);
+      setTraceCursor(null);
+      setTool('select');
+      setPan(false);
+      suppressNextCanvasClick.current = true;
+    },
+    isEditing: () => Boolean(drag.current || resizeDrag.current),
+  });
+  const projection = cameraControl.camera
+    ? { camera: cameraControl.camera, viewport: cameraControl.viewport }
+    : undefined;
+  const fitScale = fitFieldCamera(fieldBounds, cameraControl.viewport).pixelsPerMeter;
+  const zoom = (cameraControl.camera?.pixelsPerMeter ?? fitScale) / fitScale;
+  function pointAt(clientX: number, clientY: number): RoboticsPoint | null {
+    const point = cameraControl.point(clientX, clientY);
+    return point ? { xMeters: rounded(point.xMeters), yMeters: rounded(point.yMeters) } : null;
+  }
+  function pointerPosition(event: PointerEvent<SVGSVGElement>) {
+    return pointAt(event.clientX, event.clientY);
+  }
   const selectedTool = TOOLS.find((item) => item.id === tool)!;
 
   useEffect(() => {
@@ -459,25 +465,23 @@ export function RobotFieldEditor({
     };
     const frame = requestAnimationFrame(position);
     window.addEventListener('resize', position);
-    canvasRef.current?.addEventListener('scroll', position, { passive: true });
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(position);
     observer?.observe(root);
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener('resize', position);
-      canvasRef.current?.removeEventListener('scroll', position);
       observer?.disconnect();
     };
-  }, [selection, objectEditorOpen, world, zoom]);
+  }, [selection, objectEditorOpen, world, cameraControl.camera]);
 
-  function releaseDrag() {
+  function releaseDrag(releaseCapture = true) {
     const current = drag.current;
     const resizing = resizeDrag.current;
     drag.current = null;
     resizeDrag.current = null;
-    if (current?.svg.hasPointerCapture?.(current.pointerId))
+    if (releaseCapture && current?.svg.hasPointerCapture?.(current.pointerId))
       current.svg.releasePointerCapture(current.pointerId);
-    if (resizing?.svg.hasPointerCapture?.(resizing.pointerId))
+    if (releaseCapture && resizing?.svg.hasPointerCapture?.(resizing.pointerId))
       resizing.svg.releasePointerCapture(resizing.pointerId);
     setDraft(null);
   }
@@ -611,7 +615,7 @@ export function RobotFieldEditor({
     const selected = TOOLS.find((item) => item.id === draggedKind);
     const svg = canvasRef.current?.querySelector<SVGSVGElement>('svg.robotics-field');
     if (!selected || !svg) return;
-    const position = pointOnField(svg, event.clientX, event.clientY, world);
+    const position = pointAt(event.clientX, event.clientY);
     if (position) {
       if (selected.id === 'line' || selected.id === 'curve') {
         setTool(selected.id);
@@ -818,8 +822,18 @@ export function RobotFieldEditor({
     );
   }
   function pointerDown(event: PointerEvent<SVGSVGElement>) {
+    suppressNextCanvasClick.current = false;
+    const object = (event.target as Element).closest('[data-scene-key]');
+    const requestPan =
+      event.button === 0 &&
+      event.pointerType !== 'touch' &&
+      (pan || (tool === 'select' && !object));
+    if (cameraControl.pointerDown(event, requestPan)) {
+      suppressNextCanvasClick.current = true;
+      return;
+    }
     if (running || pan || event.button !== 0 || !event.isPrimary) return;
-    const point = pointerPosition(event, world);
+    const point = pointerPosition(event);
     if (!point) return;
     const handle = (event.target as Element).closest('[data-vector-handle]');
     if (handle && tool === 'select') {
@@ -844,6 +858,12 @@ export function RobotFieldEditor({
     }
     if (tool !== 'select') {
       event.preventDefault();
+      if (event.pointerType === 'touch') {
+        // A first touch can still become a two-finger camera gesture. Place or
+        // add a trace point only after a completed single-finger tap.
+        pendingTouch.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+        return;
+      }
       // The browser dispatches click after pointerDown/pointerUp. A completed
       // curve can already have switched to Select by then; do not reselect an
       // underlying robot instead of the freshly authored object.
@@ -874,9 +894,14 @@ export function RobotFieldEditor({
     event.currentTarget.setPointerCapture(event.pointerId);
   }
   function pointerMove(event: PointerEvent<SVGSVGElement>) {
+    if (cameraControl.pointerMove(event)) {
+      suppressNextCanvasClick.current = true;
+      return;
+    }
+    if (pendingTouch.current?.pointerId === event.pointerId) return;
     const resizing = resizeDrag.current;
     if (resizing && resizing.pointerId === event.pointerId && !running) {
-      const point = pointerPosition(event, resizing.world);
+      const point = pointerPosition(event);
       if (!point) return;
       try {
         resizing.next = resizeRoboticsFieldHandle(
@@ -894,12 +919,12 @@ export function RobotFieldEditor({
       return;
     }
     if (!running && (tool === 'line' || tool === 'curve') && tracePoints.length) {
-      setTraceCursor(pointerPosition(event, world));
+      setTraceCursor(pointerPosition(event));
       return;
     }
     const current = drag.current;
     if (!current || current.pointerId !== event.pointerId || running) return;
-    const point = pointerPosition(event, current.world);
+    const point = pointerPosition(event);
     if (!point) return;
     try {
       current.next = moved(current, point);
@@ -910,9 +935,27 @@ export function RobotFieldEditor({
     }
   }
   function pointerUp(event: PointerEvent<SVGSVGElement>) {
+    if (cameraControl.pointerUp(event)) {
+      pendingTouch.current = null;
+      suppressNextCanvasClick.current = true;
+      return;
+    }
+    const touch = pendingTouch.current;
+    if (touch?.pointerId === event.pointerId) {
+      pendingTouch.current = null;
+      suppressNextCanvasClick.current = true;
+      if (!running && Math.hypot(event.clientX - touch.x, event.clientY - touch.y) < 6) {
+        const point = pointerPosition(event);
+        if (point) {
+          if (tool === 'line' || tool === 'curve') handleTracePoint(point);
+          else add(point);
+        }
+      }
+      return;
+    }
     const resizing = resizeDrag.current;
     if (resizing && resizing.pointerId === event.pointerId) {
-      const point = pointerPosition(event, resizing.world);
+      const point = pointerPosition(event);
       releaseDrag();
       if (!point || running || resizing.world !== world) return;
       try {
@@ -931,7 +974,7 @@ export function RobotFieldEditor({
     }
     const current = drag.current;
     if (!current || current.pointerId !== event.pointerId) return;
-    const point = pointerPosition(event, current.world);
+    const point = pointerPosition(event);
     releaseDrag();
     if (current.world !== world || running) return;
     if (
@@ -997,28 +1040,47 @@ export function RobotFieldEditor({
     fail(lastError);
   }
   function fit() {
-    setFitAll(true);
-    setZoomIndex(0);
-    if (canvasRef.current) {
-      canvasRef.current.scrollTop = 0;
-      canvasRef.current.scrollLeft = 0;
-    }
+    cameraControl.fit(fieldBounds);
   }
-  useEffect(() => {
-    if (baseScale <= 1 || fitAll) return;
-    const handle = requestAnimationFrame(() => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const x = (world.initialPose.xMeters / world.field.widthMeters) * canvas.scrollWidth;
-      const y =
-        ((world.field.heightMeters - world.initialPose.yMeters) / world.field.heightMeters) *
-        canvas.scrollHeight;
-      canvas.scrollLeft = Math.max(0, x - canvas.clientWidth * 0.35);
-      canvas.scrollTop = Math.max(0, y - canvas.clientHeight * 0.5);
+  function focusRobot() {
+    const pose = state.pose;
+    const radius = Math.max(
+      world.robot.bodyLengthMeters,
+      world.robot.bodyWidthMeters,
+      world.robot.wheelTrackMeters,
+      0.5,
+    );
+    cameraControl.fit({
+      minX: pose.xMeters - radius,
+      minY: pose.yMeters - radius,
+      maxX: pose.xMeters + radius,
+      maxY: pose.yMeters + radius,
     });
-    return () => cancelAnimationFrame(handle);
-    // Only initial field size / zoom changes reframe; object edits never re-scroll the user.
-  }, [world.field.widthMeters, world.field.heightMeters, baseScale, fitAll]);
+  }
+  function focusSelection() {
+    if (!selection) return;
+    if (selection === 'robot') return focusRobot();
+    const nodes = canvasRef.current?.querySelectorAll<SVGGraphicsElement>(
+      '[data-scene-key]:not([data-vector-handle])',
+    );
+    const points: RoboticsPoint[] = [];
+    for (const node of nodes ?? []) {
+      const key = node.getAttribute('data-scene-key') as RoboticsObjectKey;
+      if (canonicalRoboticsObjectKey(world, key) !== selection) continue;
+      const rect = node.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) continue;
+      const a = cameraControl.point(rect.left, rect.top);
+      const b = cameraControl.point(rect.right, rect.bottom);
+      if (a && b) points.push(a, b);
+    }
+    if (!points.length) return;
+    cameraControl.fit({
+      minX: Math.min(...points.map((p) => p.xMeters)),
+      maxX: Math.max(...points.map((p) => p.xMeters)),
+      minY: Math.min(...points.map((p) => p.yMeters)),
+      maxY: Math.max(...points.map((p) => p.yMeters)),
+    });
+  }
 
   function closeProperties() {
     setPropertiesOpen(false);
@@ -1149,8 +1211,8 @@ export function RobotFieldEditor({
               <button
                 type="button"
                 aria-label="Отдалить поле"
-                disabled={zoomIndex === 0}
-                onClick={() => setZoomIndex((value) => Math.max(0, value - 1))}
+                disabled={(cameraControl.camera?.pixelsPerMeter ?? 1) <= FIELD_CAMERA_MIN_SCALE}
+                onClick={() => cameraControl.zoom(1 / 1.2)}
               >
                 −
               </button>
@@ -1158,13 +1220,30 @@ export function RobotFieldEditor({
               <button
                 type="button"
                 aria-label="Приблизить поле"
-                disabled={zoomIndex === ZOOM_LEVELS.length - 1}
-                onClick={() => setZoomIndex((value) => Math.min(ZOOM_LEVELS.length - 1, value + 1))}
+                disabled={(cameraControl.camera?.pixelsPerMeter ?? 1) >= FIELD_CAMERA_MAX_SCALE}
+                onClick={() => cameraControl.zoom(1.2)}
               >
                 +
               </button>
-              <button type="button" aria-label="Показать поле целиком" onClick={fit}>
+              <button
+                type="button"
+                aria-label="Показать поле целиком"
+                title="Показать всё (Home)"
+                onClick={fit}
+              >
                 Всё
+              </button>
+              <button type="button" aria-label="К роботу" title="К роботу" onClick={focusRobot}>
+                Робот
+              </button>
+              <button
+                type="button"
+                aria-label="К выделенному"
+                title="К выделенному"
+                disabled={!selection}
+                onClick={focusSelection}
+              >
+                Выбор
               </button>
             </div>
           </div>
@@ -1183,7 +1262,10 @@ export function RobotFieldEditor({
           tabIndex={0}
           role="group"
           aria-label="Полотно поля"
-          data-pan={pan}
+          data-pan={pan || cameraControl.spacePressed}
+          data-camera-gesturing={cameraControl.gesturing}
+          onPointerEnter={cameraControl.enter}
+          onPointerLeave={cameraControl.leave}
           data-drawing={tracePoints.length > 0}
           data-drop-hover={dropHover}
           onClick={(event) => {
@@ -1191,7 +1273,7 @@ export function RobotFieldEditor({
               suppressNextCanvasClick.current = false;
               return;
             }
-            if (running || pan || tool !== 'select') return;
+            if (running || pan || cameraControl.spacePressed || tool !== 'select') return;
             const target = (event.target as Element).closest('[data-scene-key]');
             const key = target?.getAttribute('data-scene-key') as RoboticsObjectKey | null;
             if (key) {
@@ -1205,6 +1287,11 @@ export function RobotFieldEditor({
           onKeyDown={(event) => {
             if (event.target !== event.currentTarget) return;
             if (event.key === 'Escape') {
+              event.preventDefault();
+              event.stopPropagation();
+              cameraControl.cancel();
+              pendingTouch.current = null;
+              suppressNextCanvasClick.current = true;
               clearTrace();
               releaseDrag();
               setTool('select');
@@ -1221,11 +1308,11 @@ export function RobotFieldEditor({
             }
             if (event.key === '+' || event.key === '=') {
               event.preventDefault();
-              setZoomIndex((value) => Math.min(ZOOM_LEVELS.length - 1, value + 1));
+              cameraControl.zoom(1.2);
             }
             if (event.key === '-') {
               event.preventDefault();
-              setZoomIndex((value) => Math.max(0, value - 1));
+              cameraControl.zoom(1 / 1.2);
             }
             if (event.key === 'Delete' || event.key === 'Backspace') {
               event.preventDefault();
@@ -1233,12 +1320,10 @@ export function RobotFieldEditor({
             }
           }}
         >
-          <div
-            className="robotics-field-zoom-surface"
-            style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }}
-          >
+          <div className="robotics-field-camera-surface">
             <RobotField
               world={scene}
+              projection={projection}
               state={previewState}
               distance={previewDistance}
               showGrid={showGrid}
@@ -1247,8 +1332,21 @@ export function RobotFieldEditor({
               onPointerDown={pointerDown}
               onPointerMove={pointerMove}
               onPointerUp={pointerUp}
-              onPointerCancel={releaseDrag}
-              onLostPointerCapture={releaseDrag}
+              onPointerCancel={() => {
+                cameraControl.cancel();
+                pendingTouch.current = null;
+                releaseDrag();
+                clearTrace();
+                suppressNextCanvasClick.current = true;
+              }}
+              onLostPointerCapture={(event) => {
+                cameraControl.lostPointerCapture(event);
+                if (
+                  drag.current?.pointerId === event.pointerId ||
+                  resizeDrag.current?.pointerId === event.pointerId
+                )
+                  releaseDrag();
+              }}
               onContextMenu={(event) => {
                 if (tool !== 'line' && tool !== 'curve') return;
                 event.preventDefault();

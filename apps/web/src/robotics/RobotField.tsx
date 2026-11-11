@@ -1,4 +1,5 @@
 import { useId, type MouseEventHandler, type PointerEventHandler } from 'react';
+import { fieldCameraViewBox, type FieldCamera, type FieldViewport } from './field-camera';
 import type {
   RoboticsDistanceMeasurement,
   RoboticsWorldDocument,
@@ -48,8 +49,10 @@ export function RobotField({
   onLostPointerCapture,
   onContextMenu,
   draftStroke,
+  projection,
 }: {
   world: RoboticsFieldGeometry;
+  projection?: { camera: FieldCamera; viewport: FieldViewport } | undefined;
   state?: RoboticsWorldState;
   distance?: RoboticsDistanceMeasurement;
   showGrid: boolean;
@@ -95,9 +98,11 @@ export function RobotField({
       halfTrack * 2 + wheelWidth,
     ) * 0.8;
   const viewBox =
-    view === 'robot'
-      ? `${pose.xMeters * 1000 - robotViewRadius} ${height - pose.yMeters * 1000 - robotViewRadius} ${robotViewRadius * 2} ${robotViewRadius * 2}`
-      : `-65 -65 ${width + 130} ${height + 130}`;
+    projection && view === 'field'
+      ? fieldCameraViewBox(projection.camera, projection.viewport, world.field.heightMeters)
+      : view === 'robot'
+        ? `${pose.xMeters * 1000 - robotViewRadius} ${height - pose.yMeters * 1000 - robotViewRadius} ${robotViewRadius * 2} ${robotViewRadius * 2}`
+        : `-65 -65 ${width + 130} ${height + 130}`;
 
   const vectorHandle = (
     kind: 'mark' | 'wall' | 'ball' | 'body' | 'decoration',
@@ -116,9 +121,9 @@ export function RobotField({
       aria-label={'Изменить ' + which + ': ' + kind}
       cx={point.xMeters * 1000}
       cy={height - point.yMeters * 1000}
-      r="16"
+      r={projection ? 7_000 / projection.camera.pixelsPerMeter : 16}
       stroke="#066c90"
-      strokeWidth="6"
+      strokeWidth={projection ? 2_000 / projection.camera.pixelsPerMeter : 6}
       fill="#ffffff"
       role="presentation"
     />
@@ -153,7 +158,7 @@ export function RobotField({
       role="img"
       aria-labelledby={`robotics-field-title-${id} robotics-field-description-${id}`}
       viewBox={viewBox}
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio={projection ? 'none' : 'xMidYMid meet'}
     >
       <title id={`robotics-field-title-${id}`}>
         {view === 'robot' ? 'Шасси и крепление датчика, вид сверху' : 'Поле робота, вид сверху'}

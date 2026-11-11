@@ -1284,23 +1284,30 @@
 }
 .robotics-field-scroll {
   display: block;
-  overflow: auto;
+  position: relative;
+  overflow: hidden;
   padding: 0;
   overscroll-behavior: contain;
   background: #f3f6f8;
 }
-.robotics-field-zoom-surface {
-  min-width: 100%;
-  min-height: 100%;
-  padding: 10px;
-  box-sizing: border-box;
+.robotics-field-camera-surface {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
 }
-.robotics-field-zoom-surface .robotics-field {
+.robotics-field-camera-surface .robotics-field {
   display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
 }
 .robotics-field-scroll[data-pan='true'] .robotics-field {
-  touch-action: pan-x pan-y;
   cursor: grab;
+}
+.robotics-field-scroll[data-camera-gesturing='true'] .robotics-field {
+  cursor: grabbing;
 }
 .robotics-stamp-tools {
   display: flex;
