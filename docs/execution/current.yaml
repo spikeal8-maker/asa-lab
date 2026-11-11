@@ -17356,6 +17356,73 @@ parallel_lanes:
       preserved_source_pr: 1044
       preserved_source_sha: 47ac27e9cca6cb1e28b99637453cc935cba071b5
 
+  - id: student-progress
+    worktree_id: student-progress-1090
+    owned_paths:
+      - docs/product/student-progress/**
+      - docs/agent/contracts/student-progress.yaml
+    task:
+      id: TASK-STUDENT-PROGRESS-SPEC-001
+      issue: 1090
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: specification_registration_and_independent_review
+      owner_acceptance: pending
+      program: ASA-STUDENT-PROGRESS-001
+      normative_refs:
+        - document: STUDENT-PROGRESS-MASTER-V1
+          revision: '1.0'
+        - document: STUDENT-PROGRESS-PLAN-V1
+          revision: '1.0'
+      owner_authorization: >-
+        On 2026-11-11 the owner accepted the compact progress concept and requested a system of specifications
+        for its implementation without scope drift, including the demonstrated layout. This authorizes this
+        documentation registration and subsequent bounded implementation of the accepted programme after
+        canonical selection is accepted on main. It does not authorize deployment, live database operations,
+        a new global leaderboard, arbitrary rating coefficients, shell redesign or automatic owner acceptance.
+      scope: >-
+        SP-00 only: master/UI/data/access contracts, acceptance matrix, dependent task cards, original visual
+        reference, document routing and a separate execution lane. Preserve every other lane, current product
+        semantics, classroom rating formula, games/AI admission and all server/data boundaries.
+      constraints:
+        - No product branch may select its own task; subsequent code inherits the accepted main selection.
+        - Controller chooses one ready task; each author and reviewer completes one bounded slice then stops.
+        - No production/runtime/database changes are part of specification registration.
+        - Current general/learning acceptance blockers are not cleared by this new programme or documentation.
+        - Exact source/CI/layout evidence is required before product acceptance; a synthetic HTML is only a reference.
+        - Global score does not grant permissions; new thresholds use only the authoritative group's existing rating.
+      context_hints:
+        - docs/product/student-progress/README.md
+        - docs/product/student-progress/MASTER_SPEC.md
+        - docs/product/student-progress/IMPLEMENTATION_PLAN.md
+        - docs/product/student-progress/tasks/SP-00-SPECIFICATION.md
+      next_dependency: SP-01-PUBLICATION-CARDS after SP-00 registration is accepted on main.
+      deployment: not_requested
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: e90d555d4cf494746ba933c4b1a03ddbaeb6df76
+      head_sha: null
+      observed_at: '2026-11-11T19:19:30Z'
+      main:
+        branch: main
+        sha: e90d555d4cf494746ba933c4b1a03ddbaeb6df76
+      observation_note: >-
+        Dated source audit snapshot and fresh scoped preflight only. Fetch main and exact task/CI state
+        before writes. This observation is neither implementation evidence nor deployment authority.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
 integration:
   owner_lane: visual-programming
   shared_paths:
