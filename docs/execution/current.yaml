@@ -81,6 +81,83 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: classroom-visual-20261111
+    worktree_id: classroom-visual-20261111
+    owned_paths:
+      - apps/web/src/pages/DashboardPage.tsx
+      - apps/web/src/components/SystemToastViewport.tsx
+      - apps/web/src/components/system-feedback.ts
+      - apps/web/src/components/system-feedback.css
+      - apps/web/src/components/testing/system-feedback.spec.ts
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: f767e1271e7128daf64f31c79d21fccf80e85ab4
+      head_sha: null
+      observed_at: '2026-11-11T18:17:00Z'
+      main:
+        branch: main
+        sha: f767e1271e7128daf64f31c79d21fccf80e85ab4
+      observation_note: >-
+        Read-only baseline for owner-selected classroom visual programme. No
+        product implementation, CI approval, deployment or owner acceptance yet.
+        Fetch main before each selected slice; shared path ownership is advisory.
+    task:
+      id: TASK-CLASSROOM-FEEDBACK-001
+      issue: 1087
+      programme_issue: 715
+      branch: main
+      base_branch: main
+      pr: null
+      status: ready
+      checkpoint: owner_selected_no_shift_notification_ribbon
+      owner_acceptance: pending
+      owner_authorization: >-
+        Direct owner instruction on 2026-11-11 authorizes a multi-slice classroom
+        UI programme, implementation by subagents, independent review/testing,
+        verified GitHub integration and evidence-based reconciliation of legacy
+        PR577/605/712/818/827. Preserve the accepted My classes top toolbar/search;
+        do not enlarge or move it. No live data or deployment authorization.
+      selected_slice:
+        id: CLASSROOM-FEEDBACK-001
+        status: ready
+        change_class: L1_UI_BEHAVIOR
+        scope: >-
+          Action notification ribbon directly below the actual global header on
+          desktop and mobile; outside document flow, no reserved gap or layout
+          shifts. Migrate classroom list/class/student action feedback without
+          duplicate local/global alerts, false success or student-code leakage.
+          Preserve field validation/retry UI and all existing business semantics.
+        acceptance: >-
+          Exact-source focused unit tests, independent review, browser before/
+          during/after geometry assertions and 1920/1440/1366/1024/390/320 evidence.
+          Success/error/repeated/long notifications must not move existing top
+          controls, rows or page content. Source tests do not equal visual approval.
+      programme_sequence:
+        - CLASSROOM-FEEDBACK-001
+        - CLASSROOM-ROWS-002
+        - CLASSROOM-NAV-003
+        - CLASSROOM-LEGACY-004
+      exclusions:
+        - No accepted My classes header, search, toolbar or tab redesign.
+        - No database, API, authorization, deployment, production or network changes.
+        - No blanket PR closure, branch deletion, PR29 changes or force-push.
+        - No unrelated module repairs or claims of owner visual acceptance.
+      normative_refs:
+        - document: TEACHER-STUDENT-PROFILE-UI-589
+          revision: '1.0'
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:code
+      browser:
+        workflow: Classroom Owner Real Scenarios
+        commands:
+          - pnpm e2e:access-a
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: devex-engine
     worktree_id: devex-engine-20261030
     owned_paths:
