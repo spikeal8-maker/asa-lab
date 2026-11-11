@@ -605,11 +605,39 @@ parallel_lanes:
         Owner #452/#703/#718 expressly commissioned bounded CI-only browser
         gate repair, preserving all cases, physics, and foreign ongoing tasks.
         No deployment, school data, server, Docker host or network operations.
-      shared_path_coordination: >-
-        Only the exact Electronics R4-M1 CI workflow is touched by bounded
-        #722 maintenance. It belongs to integration.shared_paths, not an
-        exclusive Electronics owned_path; single writer, exact before/after
-        diff, no change to other shared workflow files or gate semantics.
+        On 2026-11-11 the owner explicitly approved the isolated checkout
+        below for the two exact overlapping CI paths while preserving the
+        stopped D13 worktree and its files.
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/.codex/worktrees/electronics-strict-browser-shards/ASA-lab
+          branch: codex/electronics-strict-browser-shards
+        peer:
+          worktree: E:/ASA-previews/electronics-classroom-d13-candidate-20261019
+          branch: codex/electronics-classroom-d2-d4-649
+          head: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+          path_sha256:
+            .github/workflows/electronics-r4-m1-focused.yml: 8cd0642e6bbec032a39d88541fc976c563d5a3816e537df6f40857898bffd34f
+            tools/test_ci_image_transport.py: ced65c7414d4283a546cad5aef843365d8d0efcbc5a67c350f0c0063cb5314a9
+        paths:
+          - .github/workflows/electronics-r4-m1-focused.yml
+          - tools/test_ci_image_transport.py
+      current_partition_selection:
+        previous_candidate_pr: 724
+        previous_candidate_sha: cbc060242450de116a8deb914a36b0dff06a8bd8
+        strict_browser_run: 43020909117
+        observed: 227 passed, 20 failed, 2 timed out, 21 unfinished of 270
+        write_paths:
+          - .github/workflows/electronics-r4-m1-focused.yml
+          - tools/test_ci_image_transport.py
+          - tests/electronics/ui-679-557-qualification.spec.ts
+        evidence: Preserve all current browser scenarios and assertions. Prove
+          both strict shards finish, exactly cover the full list and propagate
+          any failure. Keep the other profiles unsharded and current transport
+          checks intact. No product, test threshold, server or data changes.
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-PARTITION-001.md
         - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md
