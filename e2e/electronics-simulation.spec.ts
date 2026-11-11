@@ -10153,7 +10153,15 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   await meter.locator('.workbench-part').press('Enter');
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('dc-voltage');
+  const resistanceButton = meter.locator(
+    '.workbench-multimeter-mode-button.workbench-multimeter-mode-resistance',
+  );
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  // The first result adds the unpowered-circuit notice above the stage.
+  await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
+    'data-simulation-code',
+    'no_source',
+  );
   await page.evaluate(() => {
     document
       .querySelector('[data-testid="schematic-component"][data-component-id="meter"]')
@@ -10166,7 +10174,7 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
         { capture: true, once: true },
       );
   });
-  await meter.locator('.workbench-multimeter-mode-resistance').first().click();
+  await resistanceButton.click();
   expect(
     await page.evaluate(
       () => (window as Window & { __meterPointerTargetClass?: string }).__meterPointerTargetClass,
@@ -10175,7 +10183,7 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('resistance');
   await expect(meter.getByTestId('multimeter-runtime-display')).toContainText('1.000 kΩ');
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
-  await meter.locator('.workbench-multimeter-mode-resistance').first().click();
+  await resistanceButton.click();
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('resistance');
   await page.getByRole('button', { name: 'Сохранить проект' }).click();
   await expect
