@@ -1,6 +1,6 @@
 # Temporary diagnostic branch. Keep the canonical workflow in main.
-name: Electronics timing diagnostic
-run-name: Electronics timing diagnostic (one browser worker) ${{ github.sha }}
+name: Electronics D2 PNG capture diagnostic
+run-name: Electronics D2 PNG capture diagnostic (one browser worker) ${{ github.sha }}
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ env:
 
 jobs:
   browser:
-    name: Actual timing cases in one browser worker
+    name: Actual D2-D4 native PNG capture
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
@@ -73,13 +73,13 @@ jobs:
       # Identical to the command registered in docs/testing/active-task-tests.yaml.
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
-      - name: Timing diagnostic with original assertions
+      - name: D2 PNG capture with original assertions
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
-          pnpm exec playwright test e2e/electronics-interactions.spec.ts e2e/electronics-ready-cadence.spec.ts
+          pnpm exec playwright test e2e/electronics-ready-cadence.spec.ts
           --workers=1 --grep
-          'strict real time and acknowledged native evidence|Owner Arduino timing: blink delay 50 ms|Owner Arduino execution: no-delay realtime|Owner Arduino Blockly: visible default wait edits|Owner Arduino temporal: delay 1 ms|Owner Arduino temporal: independent millis|Owner Arduino temporal: real Arduino Reset|Classroom D2-D4: ordered joint LEDs'
+          'Classroom D2-D4: ordered joint LEDs'
 
       - name: Show isolated stack state
         if: always()
