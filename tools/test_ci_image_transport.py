@@ -375,6 +375,54 @@ def d2_classroom_budget_contract(contract):
     return contract
 
 
+QUALIFICATION_SHARD_MATRIX = """${{ fromJSON(
+    (inputs.qualification_profile == 'classroom-d13-v2' ||
+    inputs.qualification_profile == 'classroom-d13-v3' ||
+    inputs.qualification_profile == 'arduino-editor-error') &&
+    '[{"label":"whole","shard":""}]' ||
+    '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"}]'
+  ) }}"""
+
+QUALIFICATION_SHARD_CLI = ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}'
+QUALIFICATION_SHARD_SUFFIX = "-${{ matrix.browser_case.label }}"
+BROWSER_REPORT_NAME = "electronics-r4-m1-browser-${{ github.run_id }}"
+SHARDED_FAILURE_REPORT_UPLOAD = deepcopy(FAILURE_REPORT_UPLOAD)
+SHARDED_FAILURE_REPORT_UPLOAD["with"]["name"] += QUALIFICATION_SHARD_SUFFIX
+
+
+def strict_shard_contract(contract):
+    """Split only strict qualification, with both original evidence uploads per child."""
+    contract = deepcopy(contract)
+    browser = contract["jobs"]["browser"]
+    browser["controls"]["name"] = "Actual editor live simulation journey (${{ matrix.browser_case.label }})"
+    browser["controls"]["strategy"] = {
+        "fail-fast": False,
+        "matrix": {"browser_case": QUALIFICATION_SHARD_MATRIX},
+    }
+    env = browser["controls"]["env"]
+    env["ASA_ELECTRONICS_BROWSER_SHARD"] = "${{ matrix.browser_case.shard }}"
+    env["COMPOSE_PROJECT_NAME"] += QUALIFICATION_SHARD_SUFFIX
+    upload_names = {
+        FAILURE_REPORT_UPLOAD["with"]["name"]: SHARDED_FAILURE_REPORT_UPLOAD["with"]["name"],
+        BROWSER_REPORT_NAME: BROWSER_REPORT_NAME + QUALIFICATION_SHARD_SUFFIX,
+    }
+    gate_count = 0
+    uploads = set()
+    for step in browser["required_steps"]:
+        if step.get("run", "").endswith('test-runner pnpm "$ASA_ELECTRONICS_BROWSER_GATE"'):
+            step["run"] += QUALIFICATION_SHARD_CLI
+            gate_count += 1
+        if step.get("uses") == "actions/upload-artifact@v4":
+            name = step.get("with", {}).get("name")
+            if name in upload_names:
+                require(name not in uploads, "Duplicate original browser evidence upload")
+                uploads.add(name)
+                step["with"]["name"] = upload_names[name]
+    require(gate_count == 1 and uploads == set(upload_names),
+            "Sharding must extend one browser gate and both evidence uploads")
+    return contract
+
+
 def check_qualification_package(package):
     scripts = package.get("scripts", {})
     for entrypoint in ["gate:electronics-classroom-d13:browser", "gate:electronics-classroom-d13-v3:browser"]:
@@ -480,6 +528,12 @@ def check_workflow(path, contract, receipt, general_node, electronics):
     for job_id, expected in contract["jobs"].items():
         job = workflow.get("jobs", {}).get(job_id)
         require(isinstance(job, dict), "Missing required job: " + path + ":" + job_id)
+        if path == FOCUSED and job_id == "browser":
+            require("continue-on-error" not in job and "if" not in job,
+                    "Browser shards cannot be skipped or have failures ignored")
+            require(sum("ASA_ELECTRONICS_BROWSER_GATE" in step.get("run", "")
+                        for step in job.get("steps", [])) == 1,
+                    "Exactly one mandatory browser gate step is required per shard")
         for key, value in expected["controls"].items():
             require(job.get(key) == value, "Job control drift: " + job_id + ":" + key)
         # Required semantic steps must remain in order, with their actual gates,
@@ -586,7 +640,7 @@ def check_offline(receipt):
         elif path == FOCUSED:
             expected = qualification_contract(electronics_contract(expected, receipt, classroom))
             expected = failure_evidence_contract(expected)
-            expected = d2_classroom_budget_contract(expected)
+            expected = strict_shard_contract(d2_classroom_budget_contract(expected))
         check_workflow(path, expected, receipt, effective, classroom)
     from devex_ci_contract import check_bounded_wiring
     check_bounded_wiring(parse_yaml(read(".github/workflows/devex-changed.yml")))
@@ -1318,6 +1372,25 @@ def check_qualification_challenges(receipt):
         ("runner path must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove(QUALIFICATION_RUNNER)),
         ("D13 observer must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove("e2e/electronics-classroom-timing.spec.ts")),
         ("profile cannot move to benchmark job", lambda w: w["jobs"]["benchmark"]["env"].update({"ASA_ELECTRONICS_QUALIFICATION_PROFILE": "classroom-d13-v2"})),
+        ("strict cannot omit s2 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s2","shard":"2/4"}', "")})),
+        ("strict cannot omit s4 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s4","shard":"4/4"}', "")})),
+        ("strict cannot duplicate s1 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/4"', '"shard":"1/4"')})),
+        ("strict cannot use empty second shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/4"', '"shard":""')})),
+        ("classroom v2 cannot be sharded", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"label":"whole","shard":""', '"label":"whole","shard":"1/4"')})),
+        ("classroom v3 cannot lose whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'classroom-d13-v3'", "'unapproved-classroom'")})),
+        ("editor must keep whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'arduino-editor-error'", "'unknown'")})),
+        ("matrix cannot be removed", lambda w: w["jobs"]["browser"].pop("strategy")),
+        ("matrix cannot add unexpected child", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"include": [{"label": "bypass", "shard": ""}]})),
+        ("matrix cannot fail fast", lambda w: w["jobs"]["browser"]["strategy"].update({"fail-fast": True})),
+        ("browser cannot skip a shard", lambda w: w["jobs"]["browser"].update({"if": False})),
+        ("browser cannot ignore failed job", lambda w: w["jobs"]["browser"].update({"continue-on-error": True})),
+        ("browser shard must reach runner env", lambda w: w["jobs"]["browser"]["env"].pop("ASA_ELECTRONICS_BROWSER_SHARD")),
+        ("browser shard cannot be hardcoded", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_SHARD": "1/4"})),
+        ("Compose project must isolate all children", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics-${{ github.run_id }}"})),
+        ("Compose project cannot be static", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics"})),
+        ("large archive cannot share a name", lambda w: [step["with"].update({"name": BROWSER_REPORT_NAME})
+            for step in w["jobs"]["browser"]["steps"]
+            if step.get("with", {}).get("name") == BROWSER_REPORT_NAME + QUALIFICATION_SHARD_SUFFIX]),
     ]:
         changed = deepcopy(workflow)
         mutate(changed)
@@ -1326,6 +1399,17 @@ def check_qualification_challenges(receipt):
         ("profile reaches real test container", " -e ASA_ELECTRONICS_QUALIFICATION_PROFILE", ""),
         ("selected gate cannot ignore failure", 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE" || true'),
         ("selected gate cannot become strict-only", 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', "pnpm gate:electronics-m1:browser"),
+        ("shard CLI must reach Playwright", QUALIFICATION_SHARD_CLI, ""),
+        ("shard CLI cannot be fixed at s1", QUALIFICATION_SHARD_CLI, " --shard=1/4"),
+        ("strict shards cannot use default workers", QUALIFICATION_SHARD_CLI,
+            QUALIFICATION_SHARD_CLI.replace(" --workers=1", "")),
+        ("strict shards cannot run two workers", QUALIFICATION_SHARD_CLI,
+            QUALIFICATION_SHARD_CLI.replace("--workers=1", "--workers=2")),
+        ("whole profiles cannot inherit a strict worker limit", QUALIFICATION_SHARD_CLI,
+            QUALIFICATION_SHARD_CLI.replace(" --workers=1", "") + " --workers=1"),
+        ("browser CLI cannot grep away cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --grep LED"),
+        ("browser CLI cannot skip cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --grep-invert E11"),
+        ("browser CLI cannot retry failed cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --retries=3"),
         ("qualification tests cannot be conditional", "      - name: Mandatory classroom qualification adversarial tests", "      - name: Mandatory classroom qualification adversarial tests\n        if: false"),
         ("qualification tests cannot ignore failure", "      - name: Mandatory classroom qualification adversarial tests", "      - name: Mandatory classroom qualification adversarial tests\n        continue-on-error: true"),
     ]:
@@ -1413,7 +1497,7 @@ def check_failure_evidence_challenges(receipt):
         challenge(name, {FOCUSED: source[FOCUSED].replace(forwarding, replacement)})
     steps = workflow["jobs"]["browser"]["steps"]
     uploads = [index for index, step in enumerate(steps)
-               if semantic_step(step) == FAILURE_REPORT_UPLOAD]
+               if semantic_step(step) == SHARDED_FAILURE_REPORT_UPLOAD]
     require(len(uploads) == 1, "Expected exactly one diagnostic artifact upload")
     upload_index = uploads[0]
     without_upload = deepcopy(workflow)
@@ -1427,7 +1511,9 @@ def check_failure_evidence_challenges(receipt):
         ("missing diagnostic file ignored", ["with", "if-no-files-found"], "ignore"),
         ("changed diagnostic retention", ["with", "retention-days"], 1),
         ("diagnostic artifact loses attempt identity", ["with", "name"],
-            "electronics-r4-m1-failures-${{ github.run_id }}"),
+            "electronics-r4-m1-failures-${{ github.run_id }}" + QUALIFICATION_SHARD_SUFFIX),
+        ("diagnostic artifact loses shard identity", ["with", "name"],
+            FAILURE_REPORT_UPLOAD["with"]["name"]),
     ]:
         changed = deepcopy(workflow)
         target = changed["jobs"]["browser"]["steps"][upload_index]
@@ -1439,7 +1525,7 @@ def check_failure_evidence_challenges(receipt):
     reordered_steps = reordered["jobs"]["browser"]["steps"]
     small_upload = reordered_steps.pop(upload_index)
     large_index = next(index for index, step in enumerate(reordered_steps)
-        if step.get("with", {}).get("name") == "electronics-r4-m1-browser-${{ github.run_id }}")
+        if step.get("with", {}).get("name") == BROWSER_REPORT_NAME + QUALIFICATION_SHARD_SUFFIX)
     reordered_steps.insert(large_index + 1, small_upload)
     challenge("small diagnostic artifact after large archive", {FOCUSED: json.dumps(reordered)})
     general = parse_yaml(source[GENERAL])
