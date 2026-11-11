@@ -2011,6 +2011,62 @@ describe('ordinary LED native readiness and the shared host publication barrier'
 });
 
 describe('owner repeated short optical phases', () => {
+  it('keeps both complete 20ms phases when a frame misses their transitions', () => {
+    const presentation = new LedTemporalPresentation();
+    const accept = (wall: number, samples: Array<[number, number]>) => {
+      const observation = window(samples[0]![0], samples.at(-1)![0], [
+        channel(
+          'led',
+          samples.map(([time, brightness]) => point(time, brightness)),
+        ),
+      ]);
+      presentation.accept(electrical(observation), observation, wall);
+    };
+
+    // Initial receipts and frame times from the short20 qualification run.
+    accept(0, [[0, 0]]);
+    drawFrame(presentation, 0);
+    accept(24_500, [
+      [0, 0],
+      [2, 70],
+      [700, 70],
+    ]);
+    expect(drawFrame(presentation, 28_300).get('led')).toBe(70);
+    accept(46_800, [
+      [700, 70],
+      [20_004, 0],
+      [25_500, 0],
+    ]);
+    accept(58_700, [
+      [25_500, 0],
+      [40_007, 70],
+      [46_100, 70],
+    ]);
+
+    expect(presentation.nextNativeAssetFrameAt(60_600)?.atMicroseconds).toBe(20_004);
+    expect(presentation.presentedMicroseconds).toBe(700);
+    const low = presentation.prepareFrame(60_600)!;
+    expect([low.atMicroseconds, low.brightness.get('led')]).toEqual([20_004, 0]);
+    accept(66_200, [
+      [46_100, 70],
+      [50_700, 70],
+    ]);
+    accept(76_300, [
+      [50_700, 70],
+      [60_009, 0],
+      [65_800, 0],
+    ]);
+    expect(presentation.preparedFrame).toBe(low);
+    expect(presentation.presentedMicroseconds).toBe(700);
+    expect(presentation.acknowledgeFrame(low, 76_300)).toBe(true);
+
+    expect(drawFrame(presentation, 78_600).get('led')).toBe(70);
+    expect(presentation.presentedMicroseconds).toBe(40_007);
+    expect(drawFrame(presentation, 92_100).get('led')).toBe(0);
+    expect(presentation.presentedMicroseconds).toBe(65_800);
+    expect(presentation.reanchorCount).toBe(0);
+  });
+
   it.each([16_667, 20_000, 24_999, 30_000, 50_000, 100_000])(
     'keeps every complete %i us phase binary over twelve cycles',
     (phase) => {

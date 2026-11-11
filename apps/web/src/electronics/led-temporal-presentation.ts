@@ -301,7 +301,7 @@ export class LedTemporalPresentation {
   /** Resource demand can follow wall time without preparing or acknowledging a frame. */
   nextNativeAssetFrameAt(wallMicroseconds?: number): LedNativeAssetFrame | null {
     if (this.d === null || this.a === null) return null;
-    const target =
+    const due =
       wallMicroseconds === undefined || this.e === null
         ? this.d
         : Math.min(
@@ -311,6 +311,9 @@ export class LedTemporalPresentation {
               this.e.m + Math.floor(Math.max(0, wallMicroseconds - this.e.w) * this.playbackRate),
             ),
           );
+    const current = this.sampleDueFrame(due);
+    if (!current) return null;
+    const target = current.atMicroseconds;
     const times = new Set([target, this.a]);
     if (!this.l) {
       for (const { samples } of this.b.values()) {
@@ -327,7 +330,7 @@ export class LedTemporalPresentation {
     }
     let last: LedNativeAssetFrame | null = null;
     for (const time of [...times].sort((left, right) => left - right)) {
-      const frame = this.o(time);
+      const frame = time === target ? current : this.o(time);
       if (!frame) return null;
       last = { ...frame, generation: this.g };
       if (!this.j || !sameLedBrightness(frame.brightness, this.j.brightness)) return last;
@@ -677,7 +680,7 @@ export class LedTemporalPresentation {
               ? Math.max(this.d, (this.e?.m ?? this.d) + Math.floor(elapsed * this.playbackRate))
               : (this.e?.m ?? this.d) + Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE),
           );
-    const values = this.o(target);
+    const values = this.sampleDueFrame(target);
     if (!values) {
       // Missing/truncated coverage cannot establish a displayable frame. Report
       // the discontinuity and forget it; never jump across unpresented phases.
@@ -692,6 +695,60 @@ export class LedTemporalPresentation {
     if (this.j && !sameOpticalFrame(this.j, frame) && !this.canPublishDistinctFrame) return null;
     this.k = frame;
     return frame;
+  }
+
+  private sampleDueFrame(target: number): Omit<LedPresentationFrame, 'token'> | null {
+    const cursor = this.d;
+    const displayed = this.j;
+    if (
+      cursor === null ||
+      !displayed ||
+      this.l ||
+      this.pacingChanged ||
+      this.displays.size > 0 ||
+      displayed.brightness.size !== this.b.size ||
+      target - cursor < FAST_PHASE_MICROSECONDS
+    )
+      return this.o(target);
+
+    // Two accepted edges can arrive between frames. Keep a complete, visibly
+    // distinct phase instead of sampling past both edges. The wall target stays
+    // fixed and only the existing native ACK can advance the displayed cursor.
+    let earliest = target;
+    for (const [id, { samples }] of this.b) {
+      const shown = displayed.brightness.get(id);
+      if (shown === undefined) return this.o(target);
+      let phase = samples[0]!;
+      let phaseHigh = phase.brightness > 0;
+      for (const sample of samples) {
+        if (sample.atMicroseconds > target) break;
+        const high = sample.brightness > 0;
+        if (high === phaseHigh) continue;
+        const start = phase.atMicroseconds;
+        if (
+          start > cursor &&
+          start < earliest &&
+          sample.atMicroseconds - start >= FAST_PHASE_MICROSECONDS &&
+          Math.round(phase.brightness) !== Math.round(shown)
+        ) {
+          earliest = start;
+          break;
+        }
+        phase = sample;
+        phaseHigh = high;
+      }
+    }
+    if (earliest === target) return this.o(target);
+    // A skipped held phase must not replace a real fast-cycle integral or an
+    // uncovered joint vector. In both cases keep the ordinary wall sample.
+    for (const { samples } of this.b.values()) {
+      if (
+        fastCycleBrightness(this.n(samples, target), target) !== undefined ||
+        fastCycleBrightness(this.n(samples, earliest), earliest) !== undefined
+      )
+        return this.o(target);
+    }
+    return this.o(earliest) ?? this.o(target);
   }
 
   /** The only cursor commit. A native load callback alone must never call this. */
