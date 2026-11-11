@@ -459,6 +459,11 @@ const upgradeArtifacts = [
     '0316_learning_file_answers.sql',
     '4e63b37b20a09b4e0b2eba6e96140de1b2372febae7490cbf21ee505c7ec78c9',
   ],
+  [
+    '0317',
+    '0317_admin_dashboard_attendance.sql',
+    '722dbf2eab4414f7f9143e54996df39599b8a9788cb0b1492465cb5828d3fc0f',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
