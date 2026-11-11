@@ -131,7 +131,7 @@ documents:
   - id: TEACHER-STUDENT-PROFILE-UI-DOMAIN-CONTRACT
     path: docs/agent/contracts/teacher-student-profile-ui.yaml
     scope: teacher-student-profile-ui
-    lanes: [teacher-student-profile-ui, classroom-visual-20261111]
+    lanes: [teacher-student-profile-ui]
     kind: domain_contract
     status: canonical
     authority: teacher_student_profile_ui_invariants
