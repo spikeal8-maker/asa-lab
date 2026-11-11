@@ -186,6 +186,7 @@
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
     "@axe-core/playwright": "4.10.2",
+    "@dimforge/rapier3d-compat": "0.19.3",
     "@electric-sql/pglite": "0.2.17",
     "@eslint/js": "^10.0.1",
     "@nx/eslint": "23.1.2",
