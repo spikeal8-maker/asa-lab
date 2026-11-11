@@ -137,6 +137,21 @@ afterAll(async () => {
 
 describe('Administrative Control Plane PostgreSQL isolation', () => {
   it('counts event-time attendance across Moscow midnight and separates logins from created seats', async () => {
+    const attendanceAdmin = await seedPrincipal({
+      label: 'attendance-school-admin',
+      workspaceKind: 'organization',
+      role: 'school_admin',
+    });
+    const otherAttendanceAdmin = await seedPrincipal({
+      label: 'attendance-other-school-admin',
+      workspaceKind: 'organization',
+      role: 'school_admin',
+    });
+    const attendanceAccount = await seedPrincipal({
+      label: 'attendance-account',
+      workspaceKind: 'personal',
+      role: 'owner',
+    });
     const occupied = randomUUID();
     const createdOnly = randomUUID();
     const seatPrincipal = randomUUID();
@@ -159,7 +174,7 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
        SELECT seat.id,$1,room.id,seat.label,replace(seat.id::text,'-',''),replace(seat.id::text,'-',''),
               'active',teacher.id,'2026-06-01T21:05:00Z'
        FROM room,teacher,(VALUES ($3::uuid,'Used'),($4::uuid,'Created only')) seat(id,label)`,
-      [schoolAdmin.tenantId, `${randomUUID()}@attendance.test`, occupied, createdOnly],
+      [attendanceAdmin.tenantId, `${randomUUID()}@attendance.test`, occupied, createdOnly],
     );
     await admin.query("INSERT INTO principals(id,kind,seat_id) VALUES($1,'student_seat',$2)", [
       seatPrincipal,
@@ -177,24 +192,24 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
          ('2026-06-01T21:20:00Z','student',NULL,$4,NULL,$3,'auth.class_join','failed','class_code',$10),
          ('2026-06-01T22:10:00Z','student',NULL,$4,NULL,$3,'auth.class_join','succeeded','class_code',$10)`,
       [
-        schoolAdmin.accountId,
-        schoolAdmin.workspaceId,
-        schoolAdmin.tenantId,
+        attendanceAdmin.accountId,
+        attendanceAdmin.workspaceId,
+        attendanceAdmin.tenantId,
         occupied,
-        otherSchoolAdmin.accountId,
-        otherSchoolAdmin.workspaceId,
-        otherSchoolAdmin.tenantId,
-        schoolAdmin.principalId,
-        otherSchoolAdmin.principalId,
+        otherAttendanceAdmin.accountId,
+        otherAttendanceAdmin.workspaceId,
+        otherAttendanceAdmin.tenantId,
+        attendanceAdmin.principalId,
+        otherAttendanceAdmin.principalId,
         seatPrincipal,
-        ordinaryAccount.accountId,
-        ordinaryAccount.principalId,
+        attendanceAccount.accountId,
+        attendanceAccount.principalId,
       ],
     );
-    const dashboard = (from: string, actor = schoolAdmin.principalId, bucketSeconds = 3600) =>
+    const dashboard = (from: string, actor = attendanceAdmin.principalId, bucketSeconds = 3600) =>
       runtime.query<{ payload: Record<string, unknown> }>(
         `SELECT admin_get_product_dashboard_v3($1,'organization',$2,$3,'2026-06-01T23:00:00Z',$4) AS payload`,
-        [actor, schoolAdmin.workspaceId, from, bucketSeconds],
+        [actor, attendanceAdmin.workspaceId, from, bucketSeconds],
       );
     const full = (await dashboard('2026-06-01T20:00:00Z')).rows[0]?.payload;
     const today = {
@@ -216,7 +231,7 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
       todayMsk: today,
       summary: { activeAccounts: 1, activeStudents: 1, studentLogins: 1, newStudents: 0 },
     });
-    const year = (await dashboard('2025-06-01T23:00:00Z', schoolAdmin.principalId, 7 * 86400))
+    const year = (await dashboard('2025-06-01T23:00:00Z', attendanceAdmin.principalId, 7 * 86400))
       .rows[0]?.payload;
     const lastDay = { at: '2026-05-31T23:00:00+00:00' };
     expect(year?.['timeline']).toHaveLength(53);
@@ -231,7 +246,7 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
       expect(year?.[series]).toEqual(expect.arrayContaining([expect.objectContaining(lastDay)]));
     }
     await expect(
-      dashboard('2026-06-01T20:00:00Z', otherSchoolAdmin.principalId),
+      dashboard('2026-06-01T20:00:00Z', otherAttendanceAdmin.principalId),
     ).rejects.toMatchObject({
       code: '42501',
     });
@@ -244,10 +259,10 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
          ('2026-06-01T22:58:00Z','account',$1,$2,$3,'auth.telegram','succeeded','telegram',$4,'192.0.2.1','public'),
          ('2026-06-01T23:01:00Z','account',$1,$2,$3,'auth.login','succeeded','password',$4,'192.0.2.2','public')`,
       [
-        schoolAdmin.accountId,
-        schoolAdmin.workspaceId,
-        schoolAdmin.tenantId,
-        schoolAdmin.principalId,
+        attendanceAdmin.accountId,
+        attendanceAdmin.workspaceId,
+        attendanceAdmin.tenantId,
+        attendanceAdmin.principalId,
       ],
     );
     const electronics = randomUUID();
@@ -259,7 +274,7 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
          (id, tenant_id, module_key, title, status, owner_principal_id, project_scope)
        VALUES ($1,$3,'electronics','Activity tab 1','active',$4,'personal'),
               ($2,$3,'checkers','Activity tab 2','active',$4,'personal')`,
-      [electronics, checkers, schoolAdmin.tenantId, schoolAdmin.principalId],
+      [electronics, checkers, attendanceAdmin.tenantId, attendanceAdmin.principalId],
     );
     await admin.query(
       `INSERT INTO product_module_sessions
@@ -270,10 +285,10 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
       [
         electronicsTab,
         checkersTab,
-        schoolAdmin.accountId,
-        schoolAdmin.principalId,
-        schoolAdmin.workspaceId,
-        schoolAdmin.tenantId,
+        attendanceAdmin.accountId,
+        attendanceAdmin.principalId,
+        attendanceAdmin.workspaceId,
+        attendanceAdmin.tenantId,
         electronics,
         checkers,
       ],
@@ -287,9 +302,9 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     const operational = (actor: string) =>
       runtime.query<{ payload: Record<string, unknown> }>(
         `SELECT admin_get_operational_overview($1,'organization',$2,'2026-06-01T20:15:00Z','2026-06-01T23:05:00Z',3600)->'overview' AS payload`,
-        [actor, schoolAdmin.workspaceId],
+        [actor, attendanceAdmin.workspaceId],
       );
-    expect((await operational(schoolAdmin.principalId)).rows[0]?.payload).toMatchObject({
+    expect((await operational(attendanceAdmin.principalId)).rows[0]?.payload).toMatchObject({
       points: [
         { at: '2026-06-01T20:00:00+00:00', from: '2026-06-01T20:15:00+00:00', accountLogins: 0 },
         { at: '2026-06-01T21:00:00+00:00', newStudents: 2, studentLogins: 1, studentSeconds: null },
@@ -313,7 +328,7 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
       recentStudents: 0,
       network: { addresses: 2, resolvedEvents: 2, peopleWithMultipleAddresses: 1 },
     });
-    await expect(operational(otherSchoolAdmin.principalId)).rejects.toMatchObject({
+    await expect(operational(otherAttendanceAdmin.principalId)).rejects.toMatchObject({
       code: '42501',
     });
   });
