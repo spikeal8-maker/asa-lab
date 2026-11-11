@@ -193,10 +193,11 @@ describe('system feedback viewport', () => {
   });
 
   it('portals one ribbon and retains both announcement nodes without duplicating live text', async () => {
-    const status = document.querySelector('[role="status"]');
-    const alert = document.querySelector('[role="alert"]');
+    const status = document.querySelector('.system-feedback-announcement[aria-live="polite"]');
+    const alert = document.querySelector('.system-feedback-announcement[aria-live="assertive"]');
     expect(status).not.toBeNull();
     expect(alert).not.toBeNull();
+    expect(document.querySelectorAll('[role="status"], [role="alert"]')).toHaveLength(0);
     await notify('<img src=x onerror=alert(1)>');
     expect(host.querySelector('.system-feedback-viewport')).toBeNull();
     expect(document.body.querySelectorAll('.system-feedback-ribbon')).toHaveLength(1);
@@ -206,13 +207,46 @@ describe('system feedback viewport', () => {
     expect(ribbon()!.closest('[aria-live], [role="status"], [role="alert"]')).toBeNull();
     expect(ribbon()!.querySelector('[aria-live], [role="status"], [role="alert"]')).toBeNull();
     expect(status!.textContent).toContain('<img src=x onerror=alert(1)>');
-    await notify('Ошибка', 'error');
     expect(document.querySelector('[role="status"]')).toBe(status);
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(status!.hasAttribute('aria-live')).toBe(false);
+    await notify('Ошибка', 'error');
+    expect(document.querySelector('[role="status"]')).toBeNull();
     expect(document.querySelector('[role="alert"]')).toBe(alert);
     expect(alert!.textContent).toContain('Ошибка');
+    expect(alert!.hasAttribute('aria-live')).toBe(false);
+    expect(status!.textContent).toBe('');
+    expect(status!.getAttribute('aria-live')).toBe('polite');
+    expect(document.querySelectorAll('[role="status"], [role="alert"]')).toHaveLength(1);
     await act(async () => close().click());
-    expect(document.querySelector('[role="status"]')).toBe(status);
-    expect(document.querySelector('[role="alert"]')).toBe(alert);
+    expect(document.querySelectorAll('[role="status"], [role="alert"]')).toHaveLength(0);
+    expect(document.querySelectorAll('.system-feedback-announcement')).toHaveLength(2);
+    expect(status!.isConnected).toBe(true);
+    expect(alert!.isConnected).toBe(true);
+    expect(status!.textContent).toBe('');
+    expect(alert!.textContent).toBe('');
+    expect(status!.getAttribute('aria-live')).toBe('polite');
+    expect(alert!.getAttribute('aria-live')).toBe('assertive');
+  });
+
+  it('clears the previous announcement synchronously on replacement and scope change', async () => {
+    const nodes = Array.from(document.querySelectorAll('.system-feedback-announcement'));
+    await notify('Предыдущая ошибка', 'error');
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain('Предыдущая ошибка');
+    await act(async () => {
+      scope.notify('Новое сообщение', 'info');
+    });
+    expect(document.querySelectorAll('[role="alert"], [role="status"]')).toHaveLength(0);
+    expect(nodes.every((node) => node.textContent === '')).toBe(true);
+    await tick(0);
+    expect(document.querySelector('[role="status"]')?.textContent).toContain('Новое сообщение');
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    await render('class:b');
+    expect(document.querySelectorAll('[role="alert"], [role="status"]')).toHaveLength(0);
+    expect(Array.from(document.querySelectorAll('.system-feedback-announcement'))).toEqual(nodes);
+    expect(nodes.every((node) => node.textContent === '')).toBe(true);
+    await tick(0);
+    expect(document.querySelectorAll('[role="alert"], [role="status"]')).toHaveLength(0);
   });
 
   it('renders no ribbon when no visible portal header exists', async () => {

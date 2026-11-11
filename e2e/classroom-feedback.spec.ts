@@ -398,6 +398,141 @@ test('teacher invitation clipboard rejection shows a safe ribbon without shiftin
   expect(state.errors).toEqual([]);
 });
 
+for (const failure of ['classroom', 'participants'] as const) {
+  test(`${failure} GET failure exposes only its local retry alert`, async ({ page }) => {
+    const state = await fixture(page, 24);
+    const message = 'Сервер недоступен';
+    const path = '/api/classrooms/' + classId + (failure === 'participants' ? '/participants' : '');
+    let requests = 0;
+    let fail = true;
+    await page.route('**' + path, async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      requests += 1;
+      if (!fail) return route.fallback();
+      await route.fulfill({
+        status: 503,
+        json: { error: { code: 'unavailable', message } },
+      });
+    });
+    await page.goto(origin + '/#/classrooms/' + classId);
+    await expect.poll(() => requests).toBe(1);
+    const alert = page.getByRole('alert');
+    await expect(alert).toHaveCount(1);
+    await expect(alert).toContainText(
+      failure === 'classroom' ? 'Не удалось открыть класс. Повторите попытку.' : message,
+    );
+    await expect(alert.getByRole('button', { name: /Повтор/ })).toHaveCount(1);
+    await expect(toast(page)).toHaveCount(0);
+    await expect(page.locator('.system-feedback-announcement')).toHaveText(['', '']);
+    if (failure === 'classroom') {
+      await expect(page.locator('.classroom-roster-row')).toHaveCount(0);
+      await expect(page.getByText(state.students()[0]!.studentCode, { exact: true })).toHaveCount(
+        0,
+      );
+    }
+    fail = false;
+    await alert.getByRole('button', { name: /Повтор/ }).click();
+    await expect.poll(() => requests).toBe(2);
+    await expect(page.locator('.classroom-roster-row')).toHaveCount(24);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await settle(page);
+    await expect(toast(page)).toHaveCount(0);
+    await expect(page.locator('.system-feedback-announcement')).toHaveText(['', '']);
+    expect(requests).toBe(2);
+    expect(state.errors).toEqual([]);
+  });
+}
+
+for (const delayed of [false, true]) {
+  test(`student-code access revocation clears clipboard feedback, delayed=${delayed}`, async ({
+    page,
+  }) => {
+    await page.addInitScript((pending) => {
+      const probe = window as unknown as {
+        copyPending: boolean;
+        rejectCopy: () => void;
+        copyFinished: boolean;
+      };
+      probe.copyPending = false;
+      probe.copyFinished = false;
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText: async () => {
+            try {
+              if (pending) {
+                await new Promise<void>((_resolve, reject) => {
+                  probe.copyPending = true;
+                  probe.rejectCopy = () => reject(new DOMException('Denied', 'NotAllowedError'));
+                });
+              }
+              throw new DOMException('Denied', 'NotAllowedError');
+            } finally {
+              probe.copyFinished = true;
+            }
+          },
+        },
+      });
+    }, delayed);
+    const state = await open(page);
+    const oldCode = state.students()[0]!.studentCode;
+    let denied = 0;
+    let retries = 0;
+    await page.route('**/api/classrooms/' + classId, async (route) => {
+      if (route.request().method() === 'GET') retries += 1;
+      return route.fallback();
+    });
+    await page.route('**/api/classrooms/' + classId + '/seats/seat-0/code', async (route) => {
+      expect(route.request().method()).toBe('POST');
+      denied += 1;
+      await route.fulfill({
+        status: 403,
+        json: { error: { code: 'forbidden', message: 'Доступ к классу закрыт.' } },
+      });
+    });
+    await codeButton(page).click();
+    if (delayed) {
+      await expect
+        .poll(() =>
+          page.evaluate(() => (window as unknown as { copyPending: boolean }).copyPending),
+        )
+        .toBe(true);
+    } else {
+      await expect(page.getByRole('alert')).toHaveCount(1);
+      await expect(page.getByRole('alert')).toContainText('Не удалось скопировать код');
+    }
+    await codeButton(page).focus();
+    await page.keyboard.press('F2');
+    await page.getByRole('button', { name: 'Сгенерировать новый', exact: true }).click();
+    await expect.poll(() => denied).toBe(1);
+    await expect(page.getByRole('alert')).toHaveCount(1);
+    await expect(page.getByRole('alert')).toContainText('Доступ к классу закрыт.');
+    await expect(toast(page)).toHaveCount(0);
+    await expect(page.locator('.classroom-roster-row')).toHaveCount(0);
+    await expect(page.locator('body')).not.toContainText(oldCode);
+    expect(await page.locator('body').innerHTML()).not.toContain(oldCode);
+    await expect(page.locator('.system-feedback-announcement')).toHaveText(['', '']);
+    await page.getByRole('alert').getByRole('button', { name: 'Повторить', exact: true }).click();
+    await expect.poll(() => retries).toBe(1);
+    await expect(page.locator('.classroom-roster-row')).toHaveCount(24);
+    if (delayed) {
+      await page.evaluate(() => (window as unknown as { rejectCopy: () => void }).rejectCopy());
+      await expect
+        .poll(() =>
+          page.evaluate(() => (window as unknown as { copyFinished: boolean }).copyFinished),
+        )
+        .toBe(true);
+    }
+    await settle(page);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(toast(page)).toHaveCount(0);
+    await expect(page.locator('.system-feedback-announcement')).toHaveText(['', '']);
+    expect(denied).toBe(1);
+    expect(retries).toBe(1);
+    expect(state.errors).toEqual([]);
+  });
+}
+
 test('teacher invitation copy writes the complete link to the granted clipboard', async ({
   page,
   context,

@@ -473,7 +473,9 @@ function ClassroomPageContent({
   // Which learner is being looked at. A class page and a learner's page are the
   // same place at two depths, so this is state rather than another route.
   const [openStudent, setOpenStudent] = useState<string | null>(openSeatId ?? null);
-  const feedback = useClassroomFeedback(JSON.stringify([classroomId, openStudent]));
+  const feedback = useClassroomFeedback(
+    JSON.stringify([classroomId, openStudent, page.kind, loadError]),
+  );
   const setNotice = feedback.success;
   const setActionError = feedback.error;
   const [profileRevisions, setProfileRevisions] = useState<Record<string, number>>({});

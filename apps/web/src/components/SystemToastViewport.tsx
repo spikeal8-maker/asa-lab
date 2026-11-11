@@ -247,13 +247,29 @@ function Ribbon({ item }: { item: SystemFeedbackMessage | null }) {
     return () => window.clearTimeout(timer);
   }, [item, placement !== null, visible]);
 
+  const currentAnnouncement =
+    positioned && visible && announcement?.id === item?.id ? announcement : null;
+  const politeText =
+    currentAnnouncement && currentAnnouncement.tone !== 'error' ? currentAnnouncement.text : '';
+  const assertiveText = currentAnnouncement?.tone === 'error' ? currentAnnouncement.text : '';
+
   return (
     <>
-      <div className="system-feedback-announcement" role="status" aria-atomic="true">
-        {announcement && announcement.tone !== 'error' ? announcement.text : ''}
+      <div
+        className="system-feedback-announcement"
+        role={politeText ? 'status' : undefined}
+        aria-live={politeText ? undefined : 'polite'}
+        aria-atomic="true"
+      >
+        {politeText}
       </div>
-      <div className="system-feedback-announcement" role="alert" aria-atomic="true">
-        {announcement?.tone === 'error' ? announcement.text : ''}
+      <div
+        className="system-feedback-announcement"
+        role={assertiveText ? 'alert' : undefined}
+        aria-live={assertiveText ? undefined : 'assertive'}
+        aria-atomic="true"
+      >
+        {assertiveText}
       </div>
       <div
         ref={root}
