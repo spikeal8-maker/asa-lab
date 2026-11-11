@@ -92,8 +92,8 @@ async function invokeWithoutCallerLeaks(client: pg.PoolClient, unknownId: string
   return payloads;
 }
 
-describe('0317 function-local canonical read JIT forward upgrade', () => {
-  it('preserves function identity, metadata, privileges, history and caller settings across 0316 -> 0317', async () => {
+describe('0319 function-local canonical read JIT forward upgrade', () => {
+  it('preserves function identity, metadata, privileges, history and caller settings across 0318 -> 0319', async () => {
     const source = process.env['TEST_DATABASE_URL'];
     if (!source || !decodeURIComponent(new URL(source).pathname).endsWith('_test'))
       throw new Error('Disposable TEST_DATABASE_URL required');
@@ -112,11 +112,11 @@ describe('0317 function-local canonical read JIT forward upgrade', () => {
       pool = new pg.Pool({ connectionString: target.href, max: 1 });
       const client = await pool.connect();
       try {
-        const plan = planMigrations().filter((migration) => Number(migration.version) <= 317);
-        const prefix = plan.filter((migration) => Number(migration.version) <= 316);
-        expect(prefix.at(-1)?.file).toBe('0316_learning_file_answers.sql');
+        const plan = planMigrations().filter((migration) => Number(migration.version) <= 319);
+        const prefix = plan.filter((migration) => Number(migration.version) <= 318);
+        expect(prefix.at(-1)?.file).toBe('0318_admin_operational_overview.sql');
         const migration = plan.at(-1)!;
-        expect(migration.file).toBe('0317_canonical_read_boundaries_jit.sql');
+        expect(migration.file).toBe('0319_canonical_read_boundaries_jit.sql');
         expect(await applyIsolatedTestPlan(client, prefix)).toBe(prefix.length);
         const history = (
           await client.query(
@@ -135,7 +135,7 @@ describe('0317 function-local canonical read JIT forward upgrade', () => {
         const unknownId = randomUUID();
         const beforeReads = await invokeWithoutCallerLeaks(client, unknownId);
         expect((await inspectPlan(client, plan)).map((pending) => pending.version)).toEqual([
-          '0317',
+          '0319',
         ]);
         expect(await applyIsolatedTestPlan(client, plan)).toBe(1);
 
@@ -170,7 +170,7 @@ describe('0317 function-local canonical read JIT forward upgrade', () => {
         expect(upgradedHistory).toHaveLength(history.length + 1);
         expect(upgradedHistory.slice(0, -1)).toEqual(history);
         expect(upgradedHistory.at(-1)?.value).toMatchObject({
-          version: '0317',
+          version: '0319',
           name: migration.name,
           checksum: migration.checksum,
         });

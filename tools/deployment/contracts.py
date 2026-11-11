@@ -47,8 +47,8 @@ def exact_origin(value):
     return value
 
 
-def attest_proxy_policy(env):
-    """Two distinct trust boundaries; values never become application identity."""
+def attest_proxy_policy(env, *, profile=None):
+    """Validate the API, direct web, and 1Panel proxy trust boundaries."""
     for key, default, separator in (
         ('ASA_TRUSTED_PROXY_CIDRS', '172.16.0.0/12', ','),
         ('ASA_INGRESS_TRUSTED_PROXY_CIDRS', '127.0.0.1/32 ::1/128', None),
@@ -64,6 +64,26 @@ def attest_proxy_policy(env):
                 require(network.prefixlen > 0 and not network.is_multicast, 'PROXY_POLICY', f'Unsafe CIDR in {key}.')
             except ValueError as failure:
                 raise Blocked('PROXY_POLICY', f'Invalid CIDR in {key}.', 'Configure only the actual trusted proxy hops; never trust all sources.') from failure
+    peer = env.get('ASA_PANEL_INGRESS_PEER', '127.0.0.1')
+    try:
+        address = ipaddress.IPv4Address(peer) if isinstance(peer, str) else None
+    except ValueError:
+        address = None
+    require(address is not None and not address.is_unspecified and not address.is_multicast
+            and not address.is_reserved, 'PROXY_POLICY', 'ASA_PANEL_INGRESS_PEER must be one usable IPv4 address.')
+    configured_port = env.get('ASA_PANEL_INGRESS_PORT')
+    require(address.is_loopback or configured_port is not None, 'PROXY_POLICY',
+            'A non-loopback 1Panel peer needs an explicitly configured loopback port.')
+    port = '4615' if configured_port is None and profile == 'production' else configured_port
+    if port is None:
+        return
+    require(isinstance(port, str) and bool(re.fullmatch(r'[0-9]{1,5}', port))
+            and 1024 <= int(port) <= 65535, 'PROXY_POLICY', 'ASA_PANEL_INGRESS_PORT must be a port from 1024 to 65535.')
+    for key, default in (('ASA_WEB_PORT', '4610'), ('ASA_API_PORT', '4611'), ('ASA_BLOCKS_PORT', '4613')):
+        other = env.get(key, default)
+        require(isinstance(other, str) and re.fullmatch(r'[0-9]{1,5}', other)
+                and int(port) != int(other),
+                'PROXY_POLICY', f'ASA_PANEL_INGRESS_PORT must be distinct from {key}.')
 
 
 def proxy_provenance_diagnostic(env):
@@ -71,11 +91,14 @@ def proxy_provenance_diagnostic(env):
     attest_proxy_policy(env)
     ingress = env.get('ASA_INGRESS_TRUSTED_PROXY_CIDRS', '127.0.0.1/32 ::1/128')
     networks = [ipaddress.ip_network(value, strict=False) for value in ingress.split()]
-    loopback_only = all(network.is_loopback for network in networks)
+    panel_peer = env.get('ASA_PANEL_INGRESS_PEER', '127.0.0.1')
+    loopback_only = all(network.is_loopback for network in networks) and ipaddress.IPv4Address(panel_peer).is_loopback
     return {
         'state': 'loopback_only' if loopback_only else 'external_policy_unverified',
         'verifiedVisitorIp': False,
         'ingressPolicy': ingress,
+        'panelIngressPeer': panel_peer,
+        'configuredPanelIngressPort': env.get('ASA_PANEL_INGRESS_PORT'),
         'apiPolicy': env.get('ASA_TRUSTED_PROXY_CIDRS', '172.16.0.0/12'),
         'action': 'Compare a controlled external visitor with protected analytics; verify the actual ingress peer and spoof rejection before trusting it. Unknown is not a visitor IP; do not trust all private networks.',
     }
