@@ -2011,6 +2011,17 @@ describe('ordinary LED native readiness and the shared host publication barrier'
 });
 
 describe('owner repeated short optical phases', () => {
+  const held20ms = (from: number, to: number, offset: number) => {
+    const at = (time: number) =>
+      point(time, time >= offset && Math.floor((time - offset) / 20_000) % 2 === 0 ? 70 : 0);
+    const samples = [at(from)];
+    for (let time = offset; time < to; time += 20_000) {
+      if (time > from) samples.push(at(time));
+    }
+    if (to > from) samples.push(at(to));
+    return samples;
+  };
+
   it('keeps both complete 20ms phases when a frame misses their transitions', () => {
     const presentation = new LedTemporalPresentation();
     const accept = (wall: number, samples: Array<[number, number]>) => {
@@ -2072,28 +2083,18 @@ describe('owner repeated short optical phases', () => {
     (outputs) => {
       const presentation = new LedTemporalPresentation();
       const accept = (from: number, to: number, wall: number) => {
-        const held = (offset: number) => {
-          const at = (time: number) =>
-            point(time, time >= offset && Math.floor((time - offset) / 20_000) % 2 === 0 ? 70 : 0);
-          const samples = [at(from)];
-          for (let time = offset; time < to; time += 20_000) {
-            if (time > from) samples.push(at(time));
-          }
-          if (to > from) samples.push(at(to));
-          return samples;
-        };
         const offsets = outputs === 'four LEDs' ? [2, 5_002, 10_002, 15_002] : [2];
         const observation = window(
           from,
           to,
-          offsets.map((offset, index) => channel(`led${index}`, held(offset))),
+          offsets.map((offset, index) => channel(`led${index}`, held20ms(from, to, offset))),
         );
         const result = electrical(observation);
         if (outputs === 'four LEDs') {
           presentation.accept(result, observation, wall);
           return;
         }
-        const samples = held(5_002).map(({ atMicroseconds, brightness }) => ({
+        const samples = held20ms(from, to, 5_002).map(({ atMicroseconds, brightness }) => ({
           atMicroseconds,
           voltage: brightness > 0 ? 5 : 0,
         }));
@@ -2140,6 +2141,41 @@ describe('owner repeated short optical phases', () => {
       expect(firstPresented).toBe(50_000);
     },
   );
+
+  it.each([
+    { name: 'regular 30Hz', period: 33_334, dropFourth: false },
+    { name: '60Hz with every fourth frame missed', period: 16_667, dropFourth: true },
+  ])('expires old 20ms phases over sustained $name', ({ period, dropFourth }) => {
+    const presentation = new LedTemporalPresentation();
+    const accept = (from: number, to: number, wall: number) => {
+      const observation = window(from, to, [channel('led', held20ms(from, to, 2))]);
+      presentation.accept(electrical(observation), observation, wall);
+    };
+    accept(0, 0, 0);
+    expect(presentation.acknowledgeFrame(presentation.prepareInitialFrame()!, 0, true)).toBe(true);
+
+    let committed = 0;
+    let nextReceipt = 10_000;
+    let lastFrame = 0;
+    let greatestDebt = 0;
+    for (let wall = 50_001, index = 1; wall <= 10_000_000; wall += period, index++) {
+      for (; nextReceipt <= wall; nextReceipt += 10_000) {
+        const to = classroomRequestedHorizon(0, nextReceipt, presentation.presentedMicroseconds);
+        if (to <= committed) continue;
+        accept(committed, to, nextReceipt);
+        committed = to;
+      }
+      if (dropFourth && index % 4 === 0) continue;
+      drawFrame(presentation, wall);
+      lastFrame = wall;
+      greatestDebt = Math.max(greatestDebt, wall - presentation.presentedMicroseconds);
+    }
+
+    const retainedHistory = 5 * LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
+    expect(committed).toBeGreaterThanOrEqual(lastFrame - retainedHistory);
+    expect(greatestDebt).toBeLessThanOrEqual(retainedHistory);
+    expect(presentation.reanchorCount).toBe(0);
+  });
 
   it.each([16_667, 20_000, 24_999, 30_000, 50_000, 100_000])(
     'keeps every complete %i us phase binary over twelve cycles',

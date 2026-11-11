@@ -324,14 +324,11 @@ export class LedTemporalPresentation {
     const due =
       wallMicroseconds === undefined || this.e === null
         ? this.d
-        : Math.min(
-            this.a,
-            Math.max(
-              this.d,
-              this.e.m + Math.floor(Math.max(0, wallMicroseconds - this.e.w) * this.playbackRate),
-            ),
+        : Math.max(
+            this.d,
+            this.e.m + Math.floor(Math.max(0, wallMicroseconds - this.e.w) * this.playbackRate),
           );
-    const current = this.sampleDueFrame(due);
+    const current = this.sampleDueFrame(Math.min(this.a, due), due);
     if (!current) return null;
     const target = current.atMicroseconds;
     const times = new Set([target, this.a]);
@@ -690,17 +687,11 @@ export class LedTemporalPresentation {
     if (this.k) return this.k;
     if (this.playbackRate === 0 && this.j !== null) return null;
     if (this.d === null || this.a === null) return null;
-    const target = this.l
-      ? this.l.atMicroseconds
-      : this.j === null
-        ? this.d
-        : Math.min(
-            this.a,
-            this.pacingChanged
-              ? Math.max(this.d, (this.e?.m ?? this.d) + Math.floor(elapsed * this.playbackRate))
-              : (this.e?.m ?? this.d) + Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE),
-          );
-    const values = this.sampleDueFrame(target);
+    const due = this.pacingChanged
+      ? Math.max(this.d, (this.e?.m ?? this.d) + Math.floor(elapsed * this.playbackRate))
+      : (this.e?.m ?? this.d) + Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE);
+    const target = this.l?.atMicroseconds ?? (this.j === null ? this.d : Math.min(this.a, due));
+    const values = this.sampleDueFrame(target, due);
     if (!values) {
       // Missing/truncated coverage cannot establish a displayable frame. Report
       // the discontinuity and forget it; never jump across unpresented phases.
@@ -717,9 +708,14 @@ export class LedTemporalPresentation {
     return frame;
   }
 
-  private sampleDueFrame(target: number): Omit<LedPresentationFrame, 'token'> | null {
+  private sampleDueFrame(
+    target: number,
+    wallDue: number,
+  ): Omit<LedPresentationFrame, 'token'> | null {
     const cursor = this.d;
     const displayed = this.j;
+    // The accepted horizon is capped by the cursor. Use the uncapped wall time
+    // to expire replay when the browser can no longer keep up with the phases.
     if (
       cursor === null ||
       !displayed ||
@@ -727,6 +723,7 @@ export class LedTemporalPresentation {
       this.pacingChanged ||
       this.displays.size > 0 ||
       displayed.brightness.size !== this.b.size ||
+      wallDue - cursor > HISTORY_MICROSECONDS ||
       target - cursor < FAST_PHASE_MICROSECONDS
     )
       return this.o(target);
