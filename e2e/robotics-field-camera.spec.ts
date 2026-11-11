@@ -1,60 +1,121 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { test, expect, type Page, type BrowserContext, type TestInfo } from '@playwright/test';
+import { createInitialRoboticsProject } from '../contexts/robotics/domain/default-project';
 
-// Runs the real portal editor against the already-running owner-authorized
-// server. Source reads and simulation are real; test-only source mutations are
-// acknowledged in this isolated browser context and never sent to the database.
-const authFile = process.env['ASA_FIELD_CAMERA_LOGIN_FILE'];
+// UI_ONLY acceptance uses the existing frontend-fixture pattern from
+// access-account-ui.spec.ts: every API request is fulfilled in this browser
+// context with synthetic data. No credentials, human-verification interaction,
+// protected source reads, real authentication, backend or save acceptance.
+// The portal editor, render/gesture code and simulation Worker are served by
+// the existing owner-authorized 4630 process without a separate test server.
+const uiOnly = process.env['ASA_FIELD_CAMERA_UI_ONLY'] === 'true';
 const sourceSha = process.env['ASA_FIELD_CAMERA_SHA'] ?? 'not-recorded';
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const projectId = '30000000-0000-4000-8000-000000001071';
+const accountId = '20000000-0000-4000-8000-000000001071';
+const workspaceId = '10000000-0000-4000-8000-000000001071';
+const now = '2026-11-11T00:00:00.000Z';
 
 async function openEditor(page: Page, context: BrowserContext) {
-  if (!authFile)
-    throw new Error('ASA_FIELD_CAMERA_LOGIN_FILE is required for this actual-editor acceptance');
-  const login = Object.fromEntries(
-    readFileSync(authFile, 'utf8')
-      .split(/\r?\n/)
-      .filter((line) => line.includes('='))
-      .map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]),
-  );
-  const url = new URL(login['URL']!);
-  if (url.origin !== 'http://127.0.0.1:4630' || !url.hash.startsWith('#/home/')) {
-    throw new Error('FIELD-CAMERA-001 only accepts the existing private D2-R2:4630 portal editor');
+  if (
+    !uiOnly ||
+    process.env['ASA_E2E_EXTERNAL'] !== 'true' ||
+    process.env['ASA_E2E_BASE_URL'] !== 'http://127.0.0.1:4630'
+  ) {
+    throw new Error('UI_ONLY camera acceptance requires the existing external D2-R2:4630 editor');
   }
-  const projectId = url.hash.slice('#/home/'.length).split('?')[0]!;
-  await page.goto(url.origin + '/#/', { waitUntil: 'domcontentloaded' });
-  await page
-    .locator('.public-home-header-actions')
-    .getByRole('button', { name: 'Войти', exact: true })
-    .click();
-  await page.getByLabel('Почта или логин', { exact: true }).fill(login['EMAIL']!);
-  await page.getByLabel('Пароль', { exact: true }).fill(login['PASSWORD']!);
-  const checkbox = page.getByRole('checkbox', { name: 'Я не робот' });
-  if (await checkbox.isVisible()) await checkbox.check();
-  await page.getByRole('button', { name: 'Войти', exact: true }).click();
-  await expect(page).toHaveURL(/#\/home$/, { timeout: 30_000 });
-
-  const endpoint = url.origin + '/api/projects/' + encodeURIComponent(projectId);
-  const response = await context.request.get(endpoint);
-  expect(response.ok()).toBe(true);
-  const fixture = await response.json();
+  const url = new URL('http://127.0.0.1:4630/#/home/' + projectId + '?module=robotics');
+  const fixture = {
+    project: {
+      id: projectId,
+      scope: 'personal',
+      classroomId: null,
+      moduleKey: 'robotics',
+      title: 'FIELD-CAMERA-001 · UI_ONLY fixture',
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+      preview: null,
+      snapshotRevision: null,
+      description: null,
+      tags: [],
+      license: 'private',
+      copiedFrom: null,
+    },
+    draft: {
+      projectId,
+      document: createInitialRoboticsProject(),
+      revision: 0,
+      updatedAt: now,
+      preview: null,
+    },
+    versions: [],
+  };
   const originalHash = hash(fixture.draft.document);
   const sourceWrites: unknown[] = [];
+  const interceptedRequests: string[] = [];
   const preventedWrites: string[] = [];
-  await context.route(new RegExp('/api/projects/' + projectId + '(?:[/?]|$)'), async (route) => {
+  const unexpectedMutations: string[] = [];
+  // This handler has no continue/fetch path: synthetic identities never reach
+  // a protected backend, including unknown GETs or mutations.
+  await context.route('**/api/**', async (route) => {
     const request = route.request();
-    const requestUrl = new URL(request.url());
-    if (request.method() === 'GET' && requestUrl.pathname === '/api/projects/' + projectId) {
-      await route.fulfill({ status: 200, json: fixture });
-      return;
+    const path = new URL(request.url()).pathname;
+    const method = request.method();
+    interceptedRequests.push(method + ' ' + path);
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+      preventedWrites.push(method + ' ' + path);
     }
-    if (['GET', 'HEAD', 'OPTIONS'].includes(request.method())) {
-      await route.continue();
-      return;
+    const reply = (json: unknown, status = 200) => route.fulfill({ status, json });
+    if (path === '/api/auth/me') {
+      return reply({
+        authenticated: true,
+        user: { id: accountId, displayName: 'UI_ONLY fixture', email: 'camera@example.test' },
+        account: { id: accountId, displayName: 'UI_ONLY fixture', email: 'camera@example.test' },
+        capabilities: [],
+        workspaces: [{ workspaceId, kind: 'personal', title: 'Личное', role: 'owner' }],
+        activeWorkspace: { workspaceId, kind: 'personal' },
+        navigation: { classes: false, classroomManagement: false, contentAuthoring: false },
+        timeZone: 'Europe/Moscow',
+      });
     }
-    preventedWrites.push(request.method() + ' ' + requestUrl.pathname);
-    if (requestUrl.pathname.endsWith('/draft')) {
+    if (path === '/api/account/presentation') {
+      return reply({ motion: 'system', sidebar: 'expanded', revision: 0 });
+    }
+    if (path === '/api/account/avatar') return reply({ avatarDataUrl: null });
+    if (path === '/api/auth/max/status') {
+      return reply({
+        linked: false,
+        verifiedAt: null,
+        firstAuthenticatedAt: null,
+        promptDue: false,
+        promptDismissedUntil: null,
+        available: false,
+      });
+    }
+    if (path === '/api/auth/max/config') return reply({ enabled: false, launchUrl: null });
+    if (path === '/api/class-join/me') return reply({ authenticated: false });
+    if (
+      method === 'POST' &&
+      [
+        '/api/analytics/v2/events',
+        '/api/analytics/v2/module-session',
+        '/api/analytics/v2/quality',
+        '/api/diagnostics/client',
+        '/api/diagnostics/quality',
+      ].includes(path)
+    ) {
+      return route.fulfill({ status: 204 });
+    }
+    if (path === '/api/learning/notifications') {
+      return reply({ items: [], snapshot: now, unread: 0 });
+    }
+    if (method === 'GET' && path === '/api/learning/projects/' + projectId + '/context') {
+      return reply({ state: 'not_learning', projectId });
+    }
+    if (method === 'GET' && path === '/api/projects/' + projectId) return reply(fixture);
+    if (method === 'PUT' && path === '/api/projects/' + projectId + '/draft') {
       const body = request.postDataJSON();
       sourceWrites.push(body.document);
       fixture.draft = {
@@ -62,18 +123,11 @@ async function openEditor(page: Page, context: BrowserContext) {
         document: body.document,
         revision: body.baseRevision + 1,
       };
-      await route.fulfill({ status: 200, json: { draft: fixture.draft, result: fixture.result } });
-      return;
+      return reply({ draft: fixture.draft });
     }
-    await route.fulfill({
-      status: 200,
-      json: {
-        ok: true,
-        project: fixture.project,
-        draft: fixture.draft,
-        result: fixture.result,
-      },
-    });
+    if (method === 'GET') return reply({ items: [], meta: { total: 0 } });
+    unexpectedMutations.push(method + ' ' + path);
+    return reply({ error: { code: 'unexpected_mutation', message: path } }, 400);
   });
   await page.addInitScript(() => {
     const host = window as typeof window & {
@@ -103,13 +157,9 @@ async function openEditor(page: Page, context: BrowserContext) {
     originalHash,
     sourceWrites,
     preventedWrites,
-    endpoint,
     url: url.href,
-    checkServerUnchanged: async () => {
-      const current = await context.request.get(endpoint);
-      expect(current.ok()).toBe(true);
-      expect(hash((await current.json()).draft.document)).toBe(originalHash);
-    },
+    interceptedRequests,
+    unexpectedMutations,
   };
 }
 
@@ -428,7 +478,7 @@ async function checkCamera(
 
   await fit(page);
   await closeObjectPanel(page);
-  await evidence.checkServerUnchanged();
+  expect(evidence.unexpectedMutations).toEqual([]);
   expect(errors).toEqual([]);
   await page.screenshot({
     path: testInfo.outputPath('field-camera-' + testInfo.project.name + '.png'),
@@ -444,10 +494,13 @@ async function checkCamera(
     realWorker: workers,
     modelTimeBefore: beforeTime,
     modelTimeSamples,
-    serverSourceSha256: evidence.originalHash,
-    serverSourceUnchanged: true,
+    syntheticInitialSourceSha256: evidence.originalHash,
+    interceptedApiRequests: evidence.interceptedRequests,
+    protectedDataAccess: false,
+    authenticationAcceptance: false,
+    backendAndSaveAcceptance: false,
     isolation:
-      'Actual portal editor and real Worker; browser-context-only mutation acknowledgements; no database save acceptance',
+      'UI_ONLY synthetic session/project with all API requests fulfilled in an isolated browser context; actual 4630 portal editor and real Worker; no authentication, backend or database save acceptance',
     preventedMutationCount: evidence.preventedWrites.length,
     errors,
   };
@@ -460,8 +513,8 @@ async function checkCamera(
 
 test.describe('FIELD-CAMERA-001 existing portal editor', () => {
   test.skip(
-    !authFile,
-    'Actual-editor acceptance requires explicit private test login file and existing4630',
+    !uiOnly,
+    'UI_ONLY acceptance requires explicit ASA_FIELD_CAMERA_UI_ONLY=true and existing4630',
   );
   for (const [width, height] of [
     [1440, 900],
@@ -475,6 +528,7 @@ test.describe('FIELD-CAMERA-001 existing portal editor', () => {
         locale: 'ru-RU',
         hasTouch: width === 390,
         isMobile: width === 390,
+        serviceWorkers: 'block',
       });
       const page = await context.newPage();
       try {
