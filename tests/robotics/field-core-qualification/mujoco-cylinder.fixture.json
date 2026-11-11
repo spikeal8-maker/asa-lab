@@ -1,0 +1,327 @@
+{
+  "schemaVersion": 1,
+  "id": "PHY-03-PHY-06-MUJOCO-CYLINDER-v1",
+  "scope": "TEST_ONLY",
+  "task": "TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001",
+  "specification": {
+    "path": "docs/product/robotics/FIELD_CORE_SPEC.md",
+    "version": "1.1",
+    "sha256": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e",
+    "sections": ["16.2", "19.7"],
+    "stepSelectionRequirement": "REQ-PHY-04"
+  },
+  "parent": {
+    "baseCommit": "5d2f9585546983926de2f72fe5c427f13ae56513",
+    "phy01Commit": "5c2b8126af49c9cbf7595152d97f32ce61caed8b",
+    "fixture": "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json",
+    "sourceSha256": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+    "priorPhysicsReexecuted": false
+  },
+  "engine": {
+    "package": "@mujoco/mujoco",
+    "version": "4.0.0",
+    "gitHead": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+    "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de",
+    "moduleSha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2",
+    "loading": "offline_single_thread_explicit_local_wasm_bytes"
+  },
+  "gravity": [0, 0, -9.81],
+  "macroStepUs": 5000,
+  "nativeStepUs": [500, 250],
+  "nativeStepsPerMacro": [10, 20],
+  "repeats": 2,
+  "initialGapM": 0.0001,
+  "bodies": {
+    "cylinder": {
+      "massKg": 0.5,
+      "radiusM": 0.033,
+      "heightM": 0.115,
+      "com": [0, 0, 0],
+      "inertiaKgM2": [0.0006871666666666667, 0.0006871666666666667, 0.00027225],
+      "restX": -0.15
+    },
+    "block": {
+      "massKg": 0.5,
+      "dimensionsM": [0.1, 0.05, 0.03],
+      "com": [0, 0, 0],
+      "inertiaFormula": "m/12 * [dy^2+dz^2, dx^2+dz^2, dx^2+dy^2]",
+      "restX": 0.15
+    },
+    "floor": {
+      "halfExtentsM": [0.5, 0.5, 0.025],
+      "topZ": 0,
+      "fixedCenterZ": -0.025
+    },
+    "massSource": "explicit_inertial_only",
+    "inertiaFromGeom": false
+  },
+  "solver": {
+    "integrator": "implicitfast",
+    "integratorValue": 3,
+    "solver": "Newton",
+    "solverValue": 2,
+    "jacobian": "dense",
+    "jacobianValue": 0,
+    "cone": "elliptic",
+    "coneValue": 1,
+    "iterations": 100,
+    "tolerance": 1e-10,
+    "lsIterations": 50,
+    "lsTolerance": 0.01,
+    "noSlipIterations": 20,
+    "noSlipTolerance": 1e-12,
+    "impratio": 1,
+    "ccdIterations": 100,
+    "ccdTolerance": 1e-8,
+    "disableFlags": 65536,
+    "enableFlags": 32,
+    "warmstart": true,
+    "islands": true,
+    "refsafe": true,
+    "nativeccd": true,
+    "multiccd": true,
+    "speculative": false,
+    "sleep": false,
+    "autoreset": false,
+    "override": false,
+    "ipc": false,
+    "fwdinv": false,
+    "maxCombinedSolverIterationsPerIsland": 120,
+    "diagexact": true
+  },
+  "contact": {
+    "condim": 3,
+    "geomFriction": [1, 0, 0],
+    "pairFriction": [1, 1, 0, 0, 0],
+    "solref": [0.004, 1],
+    "solimp": [0.99, 0.99, 0.001, 0.5, 2],
+    "solreffriction": [0, 0],
+    "margin": 0,
+    "gap": 0,
+    "adhesion": 0,
+    "surfaceVelocity": 0,
+    "spinRoll": "authored_zero_native_floor_readback_condim3_no_extra_DOF",
+    "normalConvention": "geom0_to_geom1",
+    "witnessConvention": "p_geom0=pos-dist*n/2; p_geom1=pos+dist*n/2; margin=0; admitted face/convex domain only",
+    "blockSupportDomain": "bottom_top_face_only; edge_edge_unsupported_UNKNOWN",
+    "cylinderNativeContactCap": 4,
+    "frameOrthonormalTolerance": 1e-12,
+    "velocityReconstructionToleranceMps": 1e-9,
+    "forceAggregationBudget": "gamma_(4*N+64)*sum_abs_products + 64*EPSILON*m*g",
+    "basePlaneToleranceM": 0.0001,
+    "floorPlaneToleranceM": 0.0001,
+    "floorInteriorMarginM": 0.01,
+    "cylinderRadiusAllowanceM": 0.0001,
+    "loadedDownhillRimFraction": 0.8,
+    "maxLoadedSlipSpeedMps": 0.001,
+    "maxCumulativeSlipM": 0.0001,
+    "loadedDefinition": "Fn>0 exactly; Fn=0 diagnostic; Fn<0 with adhesion0 UNKNOWN",
+    "requiredSupport": "positive outward aggregate; missing loaded contact UNKNOWN",
+    "slipPoint": "same native con.pos for both body velocities",
+    "nativeMinimumFriction": 0.00001,
+    "effectiveFriction": [1, 1, 0.00001, 0.00001, 0.00001],
+    "nativeMinimumFrictionSource": "ac60 include/mujoco/mjmodel.h mjMINMU; collision driver effective contact friction padding"
+  },
+  "passive": {
+    "damping": 0,
+    "frictionloss": 0,
+    "armature": 0,
+    "stiffness": 0,
+    "gravityCompensation": 0,
+    "fluidDensity": 0,
+    "fluidViscosity": 0,
+    "wind": [0, 0, 0],
+    "callbacks": false,
+    "plugins": 0,
+    "sensors": 0,
+    "forceWrites": false,
+    "poseVelocityWritesDuringEvolution": false
+  },
+  "rest": {
+    "settleUs": 2000000,
+    "measureUs": 60000000,
+    "maxComDriftM": 0.001,
+    "maxRelativeQuaternionAngleDeg": 0.5,
+    "energyGrowth": {
+      "formula": "64 * 2^-23 * m * 9.81 * L",
+      "coefficient": 64,
+      "binaryExponent": -23,
+      "cylinderLengthM": 0.115,
+      "blockLengthM": 0.1,
+      "cylinderBudgetJ": 0.0000043035507202148445,
+      "blockBudgetJ": 0.0000037422180175781254,
+      "reference": "global_running_minimum_entire_60s; never_reset",
+      "interpretation": "inherited physical acceptance floor, not float64 roundoff bound"
+    }
+  },
+  "stand": {
+    "massKg": 5,
+    "com": [0, 0, -0.025],
+    "inertiaKgM2": [0.4177083333333333, 0.4177083333333333, 0.8333333333333333],
+    "hingeInertiaKgM2": 0.4208333333333333,
+    "hingeOrigin": [0, 0, 0],
+    "hingeAxis": [0, 1, 0],
+    "hingeLimited": false,
+    "gear": 1,
+    "kp": 25000,
+    "kv": 210,
+    "forceRangeNm": [-32, 32],
+    "ctrlRangeRad": [0, 0.6283185307179586],
+    "ctrlLimited": true,
+    "forceLimited": true,
+    "forceCapArithmeticAllowanceNm": 9.094947017729282e-13,
+    "saturationDerivativeBranch": "inclusive_native_force_at_or_beyond_either_bound; D=0",
+    "effectiveTorque": "unsaturated: nativeForce-kv*(omegaPost-omegaPre); saturated: nativeForce",
+    "workDiagnostic": "h*tauEffective*(omegaPre+omegaPost)/2",
+    "filter": false,
+    "effectiveFormulaAlgebraBudget": "gamma_12*(abs(kp*u)+abs(kp*thetaPre)+abs(kv*omegaPre)+abs(kv*omegaPost)+abs(nativeForce))+8*EPSILON*32; only validates algebra, never enlarges force cap"
+  },
+  "tilt": {
+    "settleUs": 2000000,
+    "targetCount": 150,
+    "targetStepRad": 0.0041887902047863905,
+    "targetStepDeg": 0.24,
+    "quintic": [0, 0, 0, 10, -15, 6],
+    "controlSample": "left_integer_native_time",
+    "rates": [
+      {
+        "id": "normal",
+        "rampUs": 250000,
+        "holdUs": 1000000,
+        "maxActualSpeedRadps": 0.039269908169872414
+      },
+      {
+        "id": "slow",
+        "rampUs": 500000,
+        "holdUs": 2000000,
+        "maxActualSpeedRadps": 0.019634954084936207
+      }
+    ],
+    "maxPreTipTrackingDeg": 0.05,
+    "maxStageSpanDeg": 0.25,
+    "stationaryWindowUs": 100000,
+    "stable": {
+      "maxTrackingDeg": 0.004,
+      "maxFloorSpeedRadps": 0.0001,
+      "maxFloorAngleRangeDeg": 0.001,
+      "maxFullAxisAngleDeg": 0.1,
+      "maxRelativeOmegaRadps": 0.005
+    },
+    "tip": {
+      "minDownhillBetaDeg": 2,
+      "minRelativeOmegaYRadps": 0.01,
+      "minUphillRimLiftM": 0.001,
+      "minBetaGrowthDeg": 0.25,
+      "criticalAngleRad": 0.5210170194537028,
+      "maxBracketDistanceDeg": 2,
+      "maxRateDtFirstTargetIndexDifference": 1,
+      "uphillRimDefinition": "project -downhill onto cylinder base plane, normalize, add r*direction to baseCenter, then dot with floor normal; degenerate pre-event UNKNOWN; post-event nullable diagnostic"
+    },
+    "frame": "n=Ry(theta)ez; downhill=Ry(theta)ex; positiveTipAxis=n_cross_downhill=+Y",
+    "beta": "atan2(axisCylinder_dot_downhill,axisCylinder_dot_n)",
+    "relativeOmegaY": "dot(omegaCylinder-omegaFloor,n_cross_downhill)",
+    "window": "N=100000/dtUs consecutive intervals; contact predicates at pre; last endpoint state-only; betaGrowth=lastEndpoint-firstPre; event at last endpoint",
+    "stageSpan": "union previous accepted stable100ms and ALL current-stage pre/post angles through accepted stable window or firstConfirmed; freeze at event",
+    "event": "firstConfirmed immutable; finish current FULL hold; no next target; remaining POST_EVENT_DIAGNOSTIC",
+    "postEventGuards": [
+      "finite",
+      "warnings",
+      "resources",
+      "native_force_cap",
+      "effective_force_cap"
+    ],
+    "stageEndWithoutStableOrTip": "INDETERMINATE_no_extension"
+  },
+  "admission": {
+    "A": {
+      "worlds": 4,
+      "durationUs": 100000,
+      "cylinderInitialLinearVelocity": [0.01, 0, 0],
+      "cylinderInitialAngularVelocity": [0, 0, 0.2],
+      "blockInitialLinearVelocity": [-0.005, 0, 0],
+      "blockInitialAngularVelocity": [0, 0, -0.1],
+      "initialization": "authored native keyframe; one resetDataKeyframe before warning baseline",
+      "requireEachBodyPositiveFnAndNonzeroTangentialSpeed": true,
+      "physicalSlipGate": false
+    },
+    "B": {
+      "worlds": 4,
+      "settleUs": 2000000,
+      "targetIndex": 1,
+      "rate": "normal",
+      "durationUs": 3250000,
+      "physicalSlipGate": true
+    },
+    "parity": "exact IEEE754 physical state plus pre-forward contact identity/force records every tick; split refresh versus full no-refresh",
+    "refresh": "split only: mj_kinematics,mj_comPos,mj_comVel after force capture; exact qpos/qvel/qacc/qacc_warmstart/time preservation",
+    "noExtraForward": true
+  },
+  "resources": {
+    "maxContacts": 32,
+    "maxConstraintRows": 128,
+    "maxIslands": 2,
+    "warningCount": 7,
+    "warningBaseline": 0,
+    "temporaryOwnership": "contact vector and each contact.get owned; warning vector borrowed, each warning.get owned; DoubleBuffer caller owned; all try/finally; created/deleted counters; not leak test"
+  },
+  "budgets": {
+    "admission": {
+      "worlds": 8,
+      "nativeSteps": 40200,
+      "maxStepsPerWorld": 13000,
+      "maxConcurrentWorlds": 2
+    },
+    "main": {
+      "worlds": 12,
+      "maxNativeSteps": 7542000,
+      "maxStepsPerWorld": 1508000,
+      "maxConcurrentWorlds": 1
+    },
+    "combined": {
+      "worlds": 20,
+      "maxNativeSteps": 7582200
+    },
+    "scope": "one explicit invocation; all replays separately counted; no hidden probes"
+  },
+  "retention": {
+    "schema": "ASA_MUJOCO_CYLINDER_RAW_V1",
+    "numericEncoding": "IEEE754 binary64 little endian, preserve -0, canonical NaN quiet payload 0x7ff8000000000000; finite guards still fail nonfinite",
+    "strings": "UTF8 length-prefixed U32LE; object keys sorted by UTF8 byte order",
+    "recordFraming": "tagged canonical binary payload; journal header then U32LE payload bytes per record",
+    "perTick": "canonical digest every actual tick; rolling SHA256 chain checkpointed at fixed100ms and world/failure end; every guard and cumulative integral computed before sparse retention",
+    "denseStatesSaved": false,
+    "compactCadenceUs": 100000,
+    "preWindowUs": 200000,
+    "postWindowUs": 200000,
+    "maxRingTicks": 800,
+    "maxTickBytes": 24576,
+    "maxJournalBytes": 268435456,
+    "maxCommittedSummaryBytes": 8388608,
+    "eventWindow": "immutable first event; post only within already scheduled full hold; no extra advance",
+    "failureWindow": "pre200ms plus failing tick; preserve prefix on resource error",
+    "excludedFromRawDigest": ["wall_timestamps", "host_paths", "platform_metadata"],
+    "archive": "draft release asset with byte-exact download/hash verification before publication; no public release/tag/Latest change",
+    "reservedFailureTrailerBytes": 41551872,
+    "maxSimultaneouslyLiveWorlds": 2,
+    "emergencyRecordOverheadBytes": 1024,
+    "emergencyTrailerBytes": 65536,
+    "emergencyReserveReason": "two active admission worlds, each max200ms pre-window at24KiB/tick plus one <=256KiB partial failing observation, bounded framing, final64KiB trailer; normal writes stop before reserve; no extra native advance",
+    "maxAdmissionRingBytes": 39321600,
+    "maxMainRingBytes": 19660800,
+    "maxFailureObservationBytes": 262144,
+    "failureOversizePolicy": "full partial observation remains in external attempt receipt; journal retains bounded native state/counts plus full observation digest if partial exceeds256KiB; failure remains FAIL",
+    "rawErrors": "portable fixed classification only; complete host-specific error strings in external receipt",
+    "endpointDerivedState": "endpointBodies is runtime-only; retained parity.endpoint stores all qpos/qvel/qacc/qacc_warmstart/time, and COM0/freejoint frame mapping is admitted and checked every split tick; no native state removed"
+  },
+  "rationale": {
+    "nativeSteps": "REQ-PHY-04 initial 2/4 native-step candidate changed before dynamics to 10/20 under 5ms macro; inherited admitted MuJoCo PHY01 dt500/250us, new contact qualification results do not transfer.",
+    "qualification": "native explicit CLI is sole physics gate; default Vitest is pure/static only; future isolated GitHub qualification CI must execute exact same CLI",
+    "limitations": [
+      "no school performance benchmark",
+      "no browser or Worker qualification",
+      "no full E1/D01 closure",
+      "no normal-direction accuracy claim from CCD tolerance",
+      "no full supply-chain or binary reproducibility claim"
+    ]
+  }
+}

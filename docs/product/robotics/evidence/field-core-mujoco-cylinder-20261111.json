@@ -1,0 +1,6538 @@
+{
+  "schemaVersion": 1,
+  "task": "TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001",
+  "test": "PHY-03-PHY-06-MUJOCO-CYLINDER-v1",
+  "scope": "TEST_ONLY",
+  "status": "ADMISSION_PASS_MAIN_NOT_RUN",
+  "boundary": "One registered contact-observer/finite-stand admission invocation PASS: 8 worlds and 40,200 native advances. All 12 main rest/tip worlds are NOT_RUN. Admission is not PHY03/PHY06 acceptance, browser/Worker qualification, school performance, or E1/D01 closure.",
+  "sourceBase": "5d2f9585546983926de2f72fe5c427f13ae56513",
+  "authorCheckout": "C:\\Users\\spike\\Projects\\asa-lab-robotics-mujoco-cylinder-001",
+  "authorBranch": "codex/robotics-field-core-mujoco-cylinder-001",
+  "preflight": {
+    "utc": "2026-11-11T16:59:12.104Z",
+    "verdict": "SAFE_TO_START",
+    "main": "8c58667208202de22b7b8d36851bbcf4a979e3f3",
+    "ahead": 2,
+    "behind": 0,
+    "plannedNewPaths": 7,
+    "dirtyBeforeEdits": 0,
+    "overlap": [],
+    "indexEmpty": true
+  },
+  "preservation": {
+    "utc": "2026-11-11T17:01:09.453Z",
+    "e0Files": 149,
+    "e0Bytes": 13672812,
+    "e0Unchanged": true,
+    "liveHead": "d4ed560647e9f7f38724f202168d88a6ad29ec42",
+    "remoteCheckpoint": "92fb87c2490cdeac97d291de4080765cf0ca7443",
+    "rapierHead": "dc3731c67e4c1cdf74cafc324dc3521486d5910e",
+    "rapierDirtyPaths": 7,
+    "rapierIndexSha256": "e7d2b737979eedbecffdf27090bb21d7ff039f66a33f01bacce7454642801e36",
+    "rapierPackageSha256": "ff110c1e30522d14aa51853128fac92c2ff032fc92d5ed734216adbf4367e533",
+    "livePorts": [
+      4630,
+      4631,
+      4632
+    ],
+    "liveMutations": 0,
+    "physicalCheckoutIsolation": true,
+    "pr1044": "UNTOUCHED"
+  },
+  "artifact": {
+    "frozenInstall": "PASS; 855 reused, 0 downloads",
+    "package": "@mujoco/mujoco",
+    "version": "4.0.0",
+    "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de",
+    "moduleSha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2",
+    "parentNineSourceHashes": "MATCH",
+    "zeroModelExportReadback": "PASS; official4.0.0 offline module, DoubleBuffer(6).GetView() Float64Array(6), required APIs exported",
+    "modelCreations": 0,
+    "dataCreations": 0,
+    "nativeAdvances": 0,
+    "packageOrLockEdits": 0,
+    "log": "mujoco-cylinder-20261111/zero-model-api.log",
+    "stage": "PRE_ADMISSION_ZERO_MODEL_ARTIFACT_CHECK"
+  },
+  "sourceProvenance": {
+    "upstreamCommit": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+    "witnesses": [
+      {
+        "path": "src/engine/engine_collision_convex.c",
+        "lines": "118-128; 909-976",
+        "fact": "native CCD contact midpoint, per-contact signed dist and normal; box-cylinder contact cap4 with direct return before perturbation"
+      },
+      {
+        "path": "src/engine/engine_collision_gjk.c",
+        "lines": "witnessOnFace, polygonClip, inflate, mjc_ccd",
+        "fact": "matched witness pairs with per-pair dist; max_contacts is a cap"
+      },
+      {
+        "path": "src/engine/engine_collision_box.c",
+        "lines": "899-942; 1040-1062",
+        "fact": "box-box face branch signed half-distance midpoint construction; generic edge-edge is outside admitted witness interpretation"
+      },
+      {
+        "path": "include/mujoco/mjdata.h",
+        "lines": "mjContact",
+        "fact": "contact normal points from geom0 to geom1"
+      }
+    ],
+    "ownership": [
+      {
+        "path": "wasm/codegen/generated/bindings.cc",
+        "lines": "1147-1149; 4670",
+        "fact": "contact returns owned vector by value; get creates owned contact copy"
+      },
+      {
+        "path": "wasm/unpack.h",
+        "lines": "WasmBuffer, UnpackedParam",
+        "fact": "out parameters borrow WASM buffer; DoubleBuffer caller-owned"
+      },
+      {
+        "path": "wasm/codegen/generated/bindings.cc",
+        "lines": "1527; 1872",
+        "fact": "mj_contactForce/mj_objectVelocity borrow caller buffer; all numeric output copied before release"
+      }
+    ],
+    "actuator": [
+      {
+        "path": "src/user/user_api.cc",
+        "lines": "mjs_setToPosition",
+        "fact": "position gain kp and affine bias -kp, -kv"
+      },
+      {
+        "path": "src/engine/engine_derivative.c",
+        "lines": "3611-3625; 3779-3783; 3879-3894",
+        "fact": "force limit comparison inclusive for actuator derivative skip"
+      },
+      {
+        "path": "src/engine/engine_forward.c",
+        "lines": "919-941; 980-982; 2461-2491; 2525-2562; 2750-2777",
+        "fact": "actuation before implicit integration; no post-integration actuation refresh; stored qfrc_actuator is pre-forward RHS"
+      }
+    ],
+    "contactInitialization": {
+      "path": "src/engine/engine_collision_driver.c",
+      "lines": "1969-1972",
+      "fact": "mj_setContact initializes efc_address=-1, mu=0 and H[36]=0; H/mu only compared in solved phase"
+    },
+    "geometryLimitation": "Candidate witnesses admitted by registered plane/footprint tolerances; no normal-direction accuracy claim from CCD tolerance; block bottom/top face subset only.",
+    "priorPhy01Results": "Immutable parent dependency/helpers and provenance only; prior physics not re-executed by this slice."
+  },
+  "checks": {
+    "syntax": "PASS",
+    "pureVitest": {
+      "verdict": "PASS",
+      "files": 1,
+      "tests": 102,
+      "durationMs": 599,
+      "models": 0,
+      "data": 0,
+      "nativeAdvances": 0
+    },
+    "format": "PASS; five source inputs; LF",
+    "lint": "PASS; full targeted lint and final CLI lint, no disabled rules",
+    "governance": {
+      "verdict": "PASS",
+      "invocations": 1,
+      "durationSeconds": 372.44,
+      "logCreatedAtUtc": "2026-11-11T17:39:32.029Z"
+    },
+    "syntheticWorstEligibleTick": {
+      "verdict": "PASS",
+      "contacts": 8,
+      "cylinderContacts": 4,
+      "blockContacts": 4,
+      "bytes": 24042,
+      "capBytes": 24576,
+      "spareBytes": 534,
+      "limitScope": "Independent byte cap; not every ncon<=32/nefc<=128 record is promised to fit"
+    }
+  },
+  "preregistrations": [
+    {
+      "registeredAtUtc": "2026-11-11T17:51:19.108Z",
+      "gitHead": "5d2f9585546983926de2f72fe5c427f13ae56513",
+      "sourceIdentity": "base_commit_plus_dirty_source_snapshot",
+      "dirty": [
+        "?? docs/product/robotics/evidence/field-core-mujoco-cylinder-20261111.json",
+        "?? docs/product/robotics/evidence/field-core-mujoco-cylinder-20261111.md",
+        "?? tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json",
+        "?? tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts",
+        "?? tools/robotics-field-core/mujoco-contact-observer.mjs",
+        "?? tools/robotics-field-core/mujoco-cylinder.mjs",
+        "?? tools/robotics-field-core/run-mujoco-cylinder.mjs"
+      ],
+      "fixtureSha256": "28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb",
+      "sourceManifest": {
+        "newInputs": {
+          "tools/robotics-field-core/mujoco-contact-observer.mjs": "dd22ed00fc47a68cce8c27f4c1e82145b0f6d26b2924908a9f42317115726a8c",
+          "tools/robotics-field-core/mujoco-cylinder.mjs": "d9748052ca54987aa5ed42f909d0c1f8e21587c0e6ca60c6b5f0b4c3c86ea24b",
+          "tools/robotics-field-core/run-mujoco-cylinder.mjs": "9729d2f48a51db51a09962e412c41c76912d8719ce864ff93f89a10cc59418e9",
+          "tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json": "28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb",
+          "tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts": "4bc8a30abc7c309ecb2bb43ede162c44fc3019d0016371dae56a1cebe2a6f2f8"
+        },
+        "immutableParents": {
+          "package.json": "c2f5a1421e86b7dd37022eda8a37cf25cded373d986c31dc8f8e1beb435c7492",
+          "pnpm-lock.yaml": "448b5a8faa0f8497c3efe1bdc63959b381fad5577bfb5734261e9578ee5a93e1",
+          "tools/robotics-field-core/mujoco-artifact.json": "1c353e3593f1fcd730c6e97f9549d3b6fdff7ce1fff7b9c45755edd7cd1ca1c3",
+          "tools/robotics-field-core/MUJOCO-LICENSE.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "tools/robotics-field-core/MUJOCO-THIRD-PARTY-NOTICES.txt": "6f681117208684ef2ab3ad03a9f928ae8c6dffb4f765eeab59fb2d8b189e1540",
+          "tools/robotics-field-core/mujoco-phy01.mjs": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+          "tools/robotics-field-core/run-mujoco-phy01.mjs": "5b2179f0ff1b6c759b63757dd881242aee6c9fb4b258243a08a7b50dfefb12ad",
+          "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c",
+          "tests/robotics/field-core-qualification/mujoco-phy01.spec.ts": "1266b4c420baea08fd4448beb9d96a908d039bc3ddcbfc89a67b911aef893cb4"
+        },
+        "specification": {
+          "docs/product/robotics/FIELD_CORE_SPEC.md": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e"
+        },
+        "parentExecution": "Only readFixture, artifact validation, hashes and nativeTimeBudget helpers are imported; prior PHY01 physics is not rerun."
+      },
+      "inputs": {
+        "schemaVersion": 1,
+        "id": "PHY-03-PHY-06-MUJOCO-CYLINDER-v1",
+        "scope": "TEST_ONLY",
+        "task": "TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001",
+        "specification": {
+          "path": "docs/product/robotics/FIELD_CORE_SPEC.md",
+          "version": "1.1",
+          "sha256": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e",
+          "sections": [
+            "16.2",
+            "19.7"
+          ],
+          "stepSelectionRequirement": "REQ-PHY-04"
+        },
+        "parent": {
+          "baseCommit": "5d2f9585546983926de2f72fe5c427f13ae56513",
+          "phy01Commit": "5c2b8126af49c9cbf7595152d97f32ce61caed8b",
+          "fixture": "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json",
+          "sourceSha256": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+          "priorPhysicsReexecuted": false
+        },
+        "engine": {
+          "package": "@mujoco/mujoco",
+          "version": "4.0.0",
+          "gitHead": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+          "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de",
+          "moduleSha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2",
+          "loading": "offline_single_thread_explicit_local_wasm_bytes"
+        },
+        "gravity": [
+          0,
+          0,
+          -9.81
+        ],
+        "macroStepUs": 5000,
+        "nativeStepUs": [
+          500,
+          250
+        ],
+        "nativeStepsPerMacro": [
+          10,
+          20
+        ],
+        "repeats": 2,
+        "initialGapM": 0.0001,
+        "bodies": {
+          "cylinder": {
+            "massKg": 0.5,
+            "radiusM": 0.033,
+            "heightM": 0.115,
+            "com": [
+              0,
+              0,
+              0
+            ],
+            "inertiaKgM2": [
+              0.0006871666666666667,
+              0.0006871666666666667,
+              0.00027225
+            ],
+            "restX": -0.15
+          },
+          "block": {
+            "massKg": 0.5,
+            "dimensionsM": [
+              0.1,
+              0.05,
+              0.03
+            ],
+            "com": [
+              0,
+              0,
+              0
+            ],
+            "inertiaFormula": "m/12 * [dy^2+dz^2, dx^2+dz^2, dx^2+dy^2]",
+            "restX": 0.15
+          },
+          "floor": {
+            "halfExtentsM": [
+              0.5,
+              0.5,
+              0.025
+            ],
+            "topZ": 0,
+            "fixedCenterZ": -0.025
+          },
+          "massSource": "explicit_inertial_only",
+          "inertiaFromGeom": false
+        },
+        "solver": {
+          "integrator": "implicitfast",
+          "integratorValue": 3,
+          "solver": "Newton",
+          "solverValue": 2,
+          "jacobian": "dense",
+          "jacobianValue": 0,
+          "cone": "elliptic",
+          "coneValue": 1,
+          "iterations": 100,
+          "tolerance": 1e-10,
+          "lsIterations": 50,
+          "lsTolerance": 0.01,
+          "noSlipIterations": 20,
+          "noSlipTolerance": 1e-12,
+          "impratio": 1,
+          "ccdIterations": 100,
+          "ccdTolerance": 1e-8,
+          "disableFlags": 65536,
+          "enableFlags": 32,
+          "warmstart": true,
+          "islands": true,
+          "refsafe": true,
+          "nativeccd": true,
+          "multiccd": true,
+          "speculative": false,
+          "sleep": false,
+          "autoreset": false,
+          "override": false,
+          "ipc": false,
+          "fwdinv": false,
+          "maxCombinedSolverIterationsPerIsland": 120,
+          "diagexact": true
+        },
+        "contact": {
+          "condim": 3,
+          "geomFriction": [
+            1,
+            0,
+            0
+          ],
+          "pairFriction": [
+            1,
+            1,
+            0,
+            0,
+            0
+          ],
+          "solref": [
+            0.004,
+            1
+          ],
+          "solimp": [
+            0.99,
+            0.99,
+            0.001,
+            0.5,
+            2
+          ],
+          "solreffriction": [
+            0,
+            0
+          ],
+          "margin": 0,
+          "gap": 0,
+          "adhesion": 0,
+          "surfaceVelocity": 0,
+          "spinRoll": "authored_zero_native_floor_readback_condim3_no_extra_DOF",
+          "normalConvention": "geom0_to_geom1",
+          "witnessConvention": "p_geom0=pos-dist*n/2; p_geom1=pos+dist*n/2; margin=0; admitted face/convex domain only",
+          "blockSupportDomain": "bottom_top_face_only; edge_edge_unsupported_UNKNOWN",
+          "cylinderNativeContactCap": 4,
+          "frameOrthonormalTolerance": 1e-12,
+          "velocityReconstructionToleranceMps": 1e-9,
+          "forceAggregationBudget": "gamma_(4*N+64)*sum_abs_products + 64*EPSILON*m*g",
+          "basePlaneToleranceM": 0.0001,
+          "floorPlaneToleranceM": 0.0001,
+          "floorInteriorMarginM": 0.01,
+          "cylinderRadiusAllowanceM": 0.0001,
+          "loadedDownhillRimFraction": 0.8,
+          "maxLoadedSlipSpeedMps": 0.001,
+          "maxCumulativeSlipM": 0.0001,
+          "loadedDefinition": "Fn>0 exactly; Fn=0 diagnostic; Fn<0 with adhesion0 UNKNOWN",
+          "requiredSupport": "positive outward aggregate; missing loaded contact UNKNOWN",
+          "slipPoint": "same native con.pos for both body velocities",
+          "nativeMinimumFriction": 0.00001,
+          "effectiveFriction": [
+            1,
+            1,
+            0.00001,
+            0.00001,
+            0.00001
+          ],
+          "nativeMinimumFrictionSource": "ac60 include/mujoco/mjmodel.h mjMINMU; collision driver effective contact friction padding"
+        },
+        "passive": {
+          "damping": 0,
+          "frictionloss": 0,
+          "armature": 0,
+          "stiffness": 0,
+          "gravityCompensation": 0,
+          "fluidDensity": 0,
+          "fluidViscosity": 0,
+          "wind": [
+            0,
+            0,
+            0
+          ],
+          "callbacks": false,
+          "plugins": 0,
+          "sensors": 0,
+          "forceWrites": false,
+          "poseVelocityWritesDuringEvolution": false
+        },
+        "rest": {
+          "settleUs": 2000000,
+          "measureUs": 60000000,
+          "maxComDriftM": 0.001,
+          "maxRelativeQuaternionAngleDeg": 0.5,
+          "energyGrowth": {
+            "formula": "64 * 2^-23 * m * 9.81 * L",
+            "coefficient": 64,
+            "binaryExponent": -23,
+            "cylinderLengthM": 0.115,
+            "blockLengthM": 0.1,
+            "cylinderBudgetJ": 0.0000043035507202148445,
+            "blockBudgetJ": 0.0000037422180175781254,
+            "reference": "global_running_minimum_entire_60s; never_reset",
+            "interpretation": "inherited physical acceptance floor, not float64 roundoff bound"
+          }
+        },
+        "stand": {
+          "massKg": 5,
+          "com": [
+            0,
+            0,
+            -0.025
+          ],
+          "inertiaKgM2": [
+            0.4177083333333333,
+            0.4177083333333333,
+            0.8333333333333333
+          ],
+          "hingeInertiaKgM2": 0.4208333333333333,
+          "hingeOrigin": [
+            0,
+            0,
+            0
+          ],
+          "hingeAxis": [
+            0,
+            1,
+            0
+          ],
+          "hingeLimited": false,
+          "gear": 1,
+          "kp": 25000,
+          "kv": 210,
+          "forceRangeNm": [
+            -32,
+            32
+          ],
+          "ctrlRangeRad": [
+            0,
+            0.6283185307179586
+          ],
+          "ctrlLimited": true,
+          "forceLimited": true,
+          "forceCapArithmeticAllowanceNm": 9.094947017729282e-13,
+          "saturationDerivativeBranch": "inclusive_native_force_at_or_beyond_either_bound; D=0",
+          "effectiveTorque": "unsaturated: nativeForce-kv*(omegaPost-omegaPre); saturated: nativeForce",
+          "workDiagnostic": "h*tauEffective*(omegaPre+omegaPost)/2",
+          "filter": false,
+          "effectiveFormulaAlgebraBudget": "gamma_12*(abs(kp*u)+abs(kp*thetaPre)+abs(kv*omegaPre)+abs(kv*omegaPost)+abs(nativeForce))+8*EPSILON*32; only validates algebra, never enlarges force cap"
+        },
+        "tilt": {
+          "settleUs": 2000000,
+          "targetCount": 150,
+          "targetStepRad": 0.0041887902047863905,
+          "targetStepDeg": 0.24,
+          "quintic": [
+            0,
+            0,
+            0,
+            10,
+            -15,
+            6
+          ],
+          "controlSample": "left_integer_native_time",
+          "rates": [
+            {
+              "id": "normal",
+              "rampUs": 250000,
+              "holdUs": 1000000,
+              "maxActualSpeedRadps": 0.039269908169872414
+            },
+            {
+              "id": "slow",
+              "rampUs": 500000,
+              "holdUs": 2000000,
+              "maxActualSpeedRadps": 0.019634954084936207
+            }
+          ],
+          "maxPreTipTrackingDeg": 0.05,
+          "maxStageSpanDeg": 0.25,
+          "stationaryWindowUs": 100000,
+          "stable": {
+            "maxTrackingDeg": 0.004,
+            "maxFloorSpeedRadps": 0.0001,
+            "maxFloorAngleRangeDeg": 0.001,
+            "maxFullAxisAngleDeg": 0.1,
+            "maxRelativeOmegaRadps": 0.005
+          },
+          "tip": {
+            "minDownhillBetaDeg": 2,
+            "minRelativeOmegaYRadps": 0.01,
+            "minUphillRimLiftM": 0.001,
+            "minBetaGrowthDeg": 0.25,
+            "criticalAngleRad": 0.5210170194537028,
+            "maxBracketDistanceDeg": 2,
+            "maxRateDtFirstTargetIndexDifference": 1,
+            "uphillRimDefinition": "project -downhill onto cylinder base plane, normalize, add r*direction to baseCenter, then dot with floor normal; degenerate pre-event UNKNOWN; post-event nullable diagnostic"
+          },
+          "frame": "n=Ry(theta)ez; downhill=Ry(theta)ex; positiveTipAxis=n_cross_downhill=+Y",
+          "beta": "atan2(axisCylinder_dot_downhill,axisCylinder_dot_n)",
+          "relativeOmegaY": "dot(omegaCylinder-omegaFloor,n_cross_downhill)",
+          "window": "N=100000/dtUs consecutive intervals; contact predicates at pre; last endpoint state-only; betaGrowth=lastEndpoint-firstPre; event at last endpoint",
+          "stageSpan": "union previous accepted stable100ms and ALL current-stage pre/post angles through accepted stable window or firstConfirmed; freeze at event",
+          "event": "firstConfirmed immutable; finish current FULL hold; no next target; remaining POST_EVENT_DIAGNOSTIC",
+          "postEventGuards": [
+            "finite",
+            "warnings",
+            "resources",
+            "native_force_cap",
+            "effective_force_cap"
+          ],
+          "stageEndWithoutStableOrTip": "INDETERMINATE_no_extension"
+        },
+        "admission": {
+          "A": {
+            "worlds": 4,
+            "durationUs": 100000,
+            "cylinderInitialLinearVelocity": [
+              0.01,
+              0,
+              0
+            ],
+            "cylinderInitialAngularVelocity": [
+              0,
+              0,
+              0.2
+            ],
+            "blockInitialLinearVelocity": [
+              -0.005,
+              0,
+              0
+            ],
+            "blockInitialAngularVelocity": [
+              0,
+              0,
+              -0.1
+            ],
+            "initialization": "authored native keyframe; one resetDataKeyframe before warning baseline",
+            "requireEachBodyPositiveFnAndNonzeroTangentialSpeed": true,
+            "physicalSlipGate": false
+          },
+          "B": {
+            "worlds": 4,
+            "settleUs": 2000000,
+            "targetIndex": 1,
+            "rate": "normal",
+            "durationUs": 3250000,
+            "physicalSlipGate": true
+          },
+          "parity": "exact IEEE754 physical state plus pre-forward contact identity/force records every tick; split refresh versus full no-refresh",
+          "refresh": "split only: mj_kinematics,mj_comPos,mj_comVel after force capture; exact qpos/qvel/qacc/qacc_warmstart/time preservation",
+          "noExtraForward": true
+        },
+        "resources": {
+          "maxContacts": 32,
+          "maxConstraintRows": 128,
+          "maxIslands": 2,
+          "warningCount": 7,
+          "warningBaseline": 0,
+          "temporaryOwnership": "contact vector and each contact.get owned; warning vector borrowed, each warning.get owned; DoubleBuffer caller owned; all try/finally; created/deleted counters; not leak test"
+        },
+        "budgets": {
+          "admission": {
+            "worlds": 8,
+            "nativeSteps": 40200,
+            "maxStepsPerWorld": 13000,
+            "maxConcurrentWorlds": 2
+          },
+          "main": {
+            "worlds": 12,
+            "maxNativeSteps": 7542000,
+            "maxStepsPerWorld": 1508000,
+            "maxConcurrentWorlds": 1
+          },
+          "combined": {
+            "worlds": 20,
+            "maxNativeSteps": 7582200
+          },
+          "scope": "one explicit invocation; all replays separately counted; no hidden probes"
+        },
+        "retention": {
+          "schema": "ASA_MUJOCO_CYLINDER_RAW_V1",
+          "numericEncoding": "IEEE754 binary64 little endian, preserve -0, canonical NaN quiet payload 0x7ff8000000000000; finite guards still fail nonfinite",
+          "strings": "UTF8 length-prefixed U32LE; object keys sorted by UTF8 byte order",
+          "recordFraming": "tagged canonical binary payload; journal header then U32LE payload bytes per record",
+          "perTick": "canonical digest every actual tick; rolling SHA256 chain checkpointed at fixed100ms and world/failure end; every guard and cumulative integral computed before sparse retention",
+          "denseStatesSaved": false,
+          "compactCadenceUs": 100000,
+          "preWindowUs": 200000,
+          "postWindowUs": 200000,
+          "maxRingTicks": 800,
+          "maxTickBytes": 24576,
+          "maxJournalBytes": 268435456,
+          "maxCommittedSummaryBytes": 8388608,
+          "eventWindow": "immutable first event; post only within already scheduled full hold; no extra advance",
+          "failureWindow": "pre200ms plus failing tick; preserve prefix on resource error",
+          "excludedFromRawDigest": [
+            "wall_timestamps",
+            "host_paths",
+            "platform_metadata"
+          ],
+          "archive": "draft release asset with byte-exact download/hash verification before publication; no public release/tag/Latest change",
+          "reservedFailureTrailerBytes": 41551872,
+          "maxSimultaneouslyLiveWorlds": 2,
+          "emergencyRecordOverheadBytes": 1024,
+          "emergencyTrailerBytes": 65536,
+          "emergencyReserveReason": "two active admission worlds, each max200ms pre-window at24KiB/tick plus one <=256KiB partial failing observation, bounded framing, final64KiB trailer; normal writes stop before reserve; no extra native advance",
+          "maxAdmissionRingBytes": 39321600,
+          "maxMainRingBytes": 19660800,
+          "maxFailureObservationBytes": 262144,
+          "failureOversizePolicy": "full partial observation remains in external attempt receipt; journal retains bounded native state/counts plus full observation digest if partial exceeds256KiB; failure remains FAIL",
+          "rawErrors": "portable fixed classification only; complete host-specific error strings in external receipt",
+          "endpointDerivedState": "endpointBodies is runtime-only; retained parity.endpoint stores all qpos/qvel/qacc/qacc_warmstart/time, and COM0/freejoint frame mapping is admitted and checked every split tick; no native state removed"
+        },
+        "rationale": {
+          "nativeSteps": "REQ-PHY-04 initial 2/4 native-step candidate changed before dynamics to 10/20 under 5ms macro; inherited admitted MuJoCo PHY01 dt500/250us, new contact qualification results do not transfer.",
+          "qualification": "native explicit CLI is sole physics gate; default Vitest is pure/static only; future isolated GitHub qualification CI must execute exact same CLI",
+          "limitations": [
+            "no school performance benchmark",
+            "no browser or Worker qualification",
+            "no full E1/D01 closure",
+            "no normal-direction accuracy claim from CCD tolerance",
+            "no full supply-chain or binary reproducibility claim"
+          ]
+        }
+      },
+      "admissionPlan": [
+        {
+          "id": "admission-A-500-split",
+          "mode": "admission",
+          "probe": "A",
+          "kind": "static",
+          "dtUs": 500,
+          "phase": "split",
+          "repeat": 1,
+          "rate": null,
+          "maxSteps": 200,
+          "targets": 0
+        },
+        {
+          "id": "admission-A-500-full",
+          "mode": "admission",
+          "probe": "A",
+          "kind": "static",
+          "dtUs": 500,
+          "phase": "full",
+          "repeat": 1,
+          "rate": null,
+          "maxSteps": 200,
+          "targets": 0
+        },
+        {
+          "id": "admission-A-250-split",
+          "mode": "admission",
+          "probe": "A",
+          "kind": "static",
+          "dtUs": 250,
+          "phase": "split",
+          "repeat": 1,
+          "rate": null,
+          "maxSteps": 400,
+          "targets": 0
+        },
+        {
+          "id": "admission-A-250-full",
+          "mode": "admission",
+          "probe": "A",
+          "kind": "static",
+          "dtUs": 250,
+          "phase": "full",
+          "repeat": 1,
+          "rate": null,
+          "maxSteps": 400,
+          "targets": 0
+        },
+        {
+          "id": "admission-B-500-split",
+          "mode": "admission",
+          "probe": "B",
+          "kind": "tilt",
+          "dtUs": 500,
+          "phase": "split",
+          "repeat": 1,
+          "rate": "normal",
+          "maxSteps": 6500,
+          "targets": 1
+        },
+        {
+          "id": "admission-B-500-full",
+          "mode": "admission",
+          "probe": "B",
+          "kind": "tilt",
+          "dtUs": 500,
+          "phase": "full",
+          "repeat": 1,
+          "rate": "normal",
+          "maxSteps": 6500,
+          "targets": 1
+        },
+        {
+          "id": "admission-B-250-split",
+          "mode": "admission",
+          "probe": "B",
+          "kind": "tilt",
+          "dtUs": 250,
+          "phase": "split",
+          "repeat": 1,
+          "rate": "normal",
+          "maxSteps": 13000,
+          "targets": 1
+        },
+        {
+          "id": "admission-B-250-full",
+          "mode": "admission",
+          "probe": "B",
+          "kind": "tilt",
+          "dtUs": 250,
+          "phase": "full",
+          "repeat": 1,
+          "rate": "normal",
+          "maxSteps": 13000,
+          "targets": 1
+        }
+      ],
+      "mainPlan": [
+        {
+          "id": "rest-500-r1",
+          "mode": "main",
+          "probe": null,
+          "kind": "static",
+          "dtUs": 500,
+          "phase": "split",
+          "repeat": 1,
+          "rate": null,
+          "maxSteps": 124000,
+          "targets": 0
+        },
+        {
+          "id": "rest-500-r2",
+          "mode": "main",
+          "probe": null,
+          "kind": "static",
+          "dtUs": 500,
+          "phase": "split",
+          "repeat": 2,
+          "rate": null,
+          "maxSteps": 124000,
+          "targets": 0
+        },
+        {
+          "id": "rest-250-r1",
+          "mode": "main",
+          "probe": null,
+          "kind": "static",
+          "dtUs": 250,
+          "phase": "split",
+          "repeat": 1,
+          "rate": null,
+          "maxSteps": 248000,
+          "targets": 0
+        },
+        {
+          "id": "rest-250-r2",
+          "mode": "main",
+          "probe": null,
+          "kind": "static",
+          "dtUs": 250,
+          "phase": "split",
+          "repeat": 2,
+          "rate": null,
+          "maxSteps": 248000,
+          "targets": 0
+        },
+        {
+          "id": "tilt-normal-500-r1",
+          "mode": "main",
+          "probe": null,
+          "kind": "tilt",
+          "dtUs": 500,
+          "phase": "split",
+          "repeat": 1,
+          "rate": "normal",
+          "targets": 150,
+          "maxSteps": 379000
+        },
+        {
+          "id": "tilt-normal-500-r2",
+          "mode": "main",
+          "probe": null,
+          "kind": "tilt",
+          "dtUs": 500,
+          "phase": "split",
+          "repeat": 2,
+          "rate": "normal",
+          "targets": 150,
+          "maxSteps": 379000
+        },
+        {
+          "id": "tilt-normal-250-r1",
+          "mode": "main",
+          "probe": null,
+          "kind": "tilt",
+          "dtUs": 250,
+          "phase": "split",
+          "repeat": 1,
+          "rate": "normal",
+          "targets": 150,
+          "maxSteps": 758000
+        },
+        {
+          "id": "tilt-normal-250-r2",
+          "mode": "main",
+          "probe": null,
+          "kind": "tilt",
+          "dtUs": 250,
+          "phase": "split",
+          "repeat": 2,
+          "rate": "normal",
+          "targets": 150,
+          "maxSteps": 758000
+        },
+        {
+          "id": "tilt-slow-500-r1",
+          "mode": "main",
+          "probe": null,
+          "kind": "tilt",
+          "dtUs": 500,
+          "phase": "split",
+          "repeat": 1,
+          "rate": "slow",
+          "targets": 150,
+          "maxSteps": 754000
+        },
+        {
+          "id": "tilt-slow-500-r2",
+          "mode": "main",
+          "probe": null,
+          "kind": "tilt",
+          "dtUs": 500,
+          "phase": "split",
+          "repeat": 2,
+          "rate": "slow",
+          "targets": 150,
+          "maxSteps": 754000
+        },
+        {
+          "id": "tilt-slow-250-r1",
+          "mode": "main",
+          "probe": null,
+          "kind": "tilt",
+          "dtUs": 250,
+          "phase": "split",
+          "repeat": 1,
+          "rate": "slow",
+          "targets": 150,
+          "maxSteps": 1508000
+        },
+        {
+          "id": "tilt-slow-250-r2",
+          "mode": "main",
+          "probe": null,
+          "kind": "tilt",
+          "dtUs": 250,
+          "phase": "split",
+          "repeat": 2,
+          "rate": "slow",
+          "targets": 150,
+          "maxSteps": 1508000
+        }
+      ],
+      "artifact": {
+        "package": "@mujoco/mujoco",
+        "version": "4.0.0",
+        "manifestSha256": "1c353e3593f1fcd730c6e97f9549d3b6fdff7ce1fff7b9c45755edd7cd1ca1c3",
+        "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de",
+        "moduleSha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2",
+        "companionNoticesSha256": "6f681117208684ef2ab3ad03a9f928ae8c6dffb4f765eeab59fb2d8b189e1540",
+        "verdict": "PASS",
+        "physics": "NOT_RUN"
+      },
+      "moduleInitializations": 0,
+      "modelCreations": 0,
+      "dataCreations": 0,
+      "nativeAdvances": 0,
+      "controllerGate": "Await separate frozen-source ADMISSION GO; MAIN requires admission PASS and separate MAIN GO."
+    }
+  ],
+  "attempts": [
+    {
+      "attemptId": "mujoco-cylinder-admission-a1",
+      "mode": "admission",
+      "operation": "qualification",
+      "status": "FINISHED",
+      "startedAtUtc": "2026-11-11T17:56:17.773Z",
+      "gitHead": "5d2f9585546983926de2f72fe5c427f13ae56513",
+      "dirty": [
+        "?? docs/product/robotics/evidence/field-core-mujoco-cylinder-20261111.json",
+        "?? docs/product/robotics/evidence/field-core-mujoco-cylinder-20261111.md",
+        "?? tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json",
+        "?? tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts",
+        "?? tools/robotics-field-core/mujoco-contact-observer.mjs",
+        "?? tools/robotics-field-core/mujoco-cylinder.mjs",
+        "?? tools/robotics-field-core/run-mujoco-cylinder.mjs"
+      ],
+      "fixtureSha256": "28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb",
+      "sourceManifest": {
+        "newInputs": {
+          "tools/robotics-field-core/mujoco-contact-observer.mjs": "dd22ed00fc47a68cce8c27f4c1e82145b0f6d26b2924908a9f42317115726a8c",
+          "tools/robotics-field-core/mujoco-cylinder.mjs": "d9748052ca54987aa5ed42f909d0c1f8e21587c0e6ca60c6b5f0b4c3c86ea24b",
+          "tools/robotics-field-core/run-mujoco-cylinder.mjs": "9729d2f48a51db51a09962e412c41c76912d8719ce864ff93f89a10cc59418e9",
+          "tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json": "28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb",
+          "tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts": "4bc8a30abc7c309ecb2bb43ede162c44fc3019d0016371dae56a1cebe2a6f2f8"
+        },
+        "immutableParents": {
+          "package.json": "c2f5a1421e86b7dd37022eda8a37cf25cded373d986c31dc8f8e1beb435c7492",
+          "pnpm-lock.yaml": "448b5a8faa0f8497c3efe1bdc63959b381fad5577bfb5734261e9578ee5a93e1",
+          "tools/robotics-field-core/mujoco-artifact.json": "1c353e3593f1fcd730c6e97f9549d3b6fdff7ce1fff7b9c45755edd7cd1ca1c3",
+          "tools/robotics-field-core/MUJOCO-LICENSE.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "tools/robotics-field-core/MUJOCO-THIRD-PARTY-NOTICES.txt": "6f681117208684ef2ab3ad03a9f928ae8c6dffb4f765eeab59fb2d8b189e1540",
+          "tools/robotics-field-core/mujoco-phy01.mjs": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+          "tools/robotics-field-core/run-mujoco-phy01.mjs": "5b2179f0ff1b6c759b63757dd881242aee6c9fb4b258243a08a7b50dfefb12ad",
+          "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c",
+          "tests/robotics/field-core-qualification/mujoco-phy01.spec.ts": "1266b4c420baea08fd4448beb9d96a908d039bc3ddcbfc89a67b911aef893cb4"
+        },
+        "specification": {
+          "docs/product/robotics/FIELD_CORE_SPEC.md": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e"
+        },
+        "parentExecution": "Only readFixture, artifact validation, hashes and nativeTimeBudget helpers are imported; prior PHY01 physics is not rerun."
+      },
+      "registeredAtUtc": "2026-11-11T17:51:19.108Z",
+      "evidenceWritten": true,
+      "beforeHashes": {
+        "sourceManifest": {
+          "newInputs": {
+            "tools/robotics-field-core/mujoco-contact-observer.mjs": "dd22ed00fc47a68cce8c27f4c1e82145b0f6d26b2924908a9f42317115726a8c",
+            "tools/robotics-field-core/mujoco-cylinder.mjs": "d9748052ca54987aa5ed42f909d0c1f8e21587c0e6ca60c6b5f0b4c3c86ea24b",
+            "tools/robotics-field-core/run-mujoco-cylinder.mjs": "9729d2f48a51db51a09962e412c41c76912d8719ce864ff93f89a10cc59418e9",
+            "tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json": "28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb",
+            "tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts": "4bc8a30abc7c309ecb2bb43ede162c44fc3019d0016371dae56a1cebe2a6f2f8"
+          },
+          "immutableParents": {
+            "package.json": "c2f5a1421e86b7dd37022eda8a37cf25cded373d986c31dc8f8e1beb435c7492",
+            "pnpm-lock.yaml": "448b5a8faa0f8497c3efe1bdc63959b381fad5577bfb5734261e9578ee5a93e1",
+            "tools/robotics-field-core/mujoco-artifact.json": "1c353e3593f1fcd730c6e97f9549d3b6fdff7ce1fff7b9c45755edd7cd1ca1c3",
+            "tools/robotics-field-core/MUJOCO-LICENSE.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+            "tools/robotics-field-core/MUJOCO-THIRD-PARTY-NOTICES.txt": "6f681117208684ef2ab3ad03a9f928ae8c6dffb4f765eeab59fb2d8b189e1540",
+            "tools/robotics-field-core/mujoco-phy01.mjs": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+            "tools/robotics-field-core/run-mujoco-phy01.mjs": "5b2179f0ff1b6c759b63757dd881242aee6c9fb4b258243a08a7b50dfefb12ad",
+            "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c",
+            "tests/robotics/field-core-qualification/mujoco-phy01.spec.ts": "1266b4c420baea08fd4448beb9d96a908d039bc3ddcbfc89a67b911aef893cb4"
+          },
+          "specification": {
+            "docs/product/robotics/FIELD_CORE_SPEC.md": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e"
+          },
+          "parentExecution": "Only readFixture, artifact validation, hashes and nativeTimeBudget helpers are imported; prior PHY01 physics is not rerun."
+        },
+        "reports": {
+          "json": "05bee08d21986f2a2584da45d306c65164b4319cc6310e97798fc92c2303d1b8",
+          "markdown": "2c1e97aff5fd4dcb2d89c01486fa9f6696abebbeeb5a872c5a721ef16f438b51"
+        }
+      },
+      "environment": {
+        "host": "D2-R2",
+        "platform": "win32",
+        "arch": "x64",
+        "node": "v22.23.3",
+        "cpu": "13th Gen Intel(R) Core(TM) i5-13400",
+        "logicalCpus": 16,
+        "totalMemoryBytes": 68384935936
+      },
+      "journal": {
+        "localPath": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\mujoco-cylinder-admission-a1-2026-11-11T175617772Z.asacylraw",
+        "status": "CLOSED",
+        "archive": {
+          "status": "NOT_ARCHIVED",
+          "required": "draft release asset with byte-exact download/hash verification before publication"
+        },
+        "bytes": 578671,
+        "sha256": "933203436f9ac360ca3d61f3ff790f2f887cfe72a24b0a4d648196ccc87516a1",
+        "trailerError": null,
+        "closeError": null,
+        "diskBytes": 578671,
+        "diskSha256": "933203436f9ac360ca3d61f3ff790f2f887cfe72a24b0a4d648196ccc87516a1"
+      },
+      "budget": {
+        "allowedWorlds": 8,
+        "allowedNativeSteps": 40200,
+        "allowedConcurrentWorlds": 2,
+        "maxConcurrentWorlds": 2,
+        "moduleInitializationDispatched": 1,
+        "moduleInitializations": 1,
+        "modelCreationDispatched": 8,
+        "modelsCreated": 8,
+        "modelsFreed": 8,
+        "dataCreationDispatched": 8,
+        "dataCreated": 8,
+        "dataFreed": 8,
+        "keyframeResets": 4,
+        "step1Dispatched": 20100,
+        "step1Returned": 20100,
+        "advanceDispatched": 40200,
+        "advanceReturned": 40200,
+        "scheduleConfirmedAdvances": 40200
+      },
+      "worlds": [
+        {
+          "id": "admission-A-500-split",
+          "condition": {
+            "id": "admission-A-500-split",
+            "mode": "admission",
+            "probe": "A",
+            "kind": "static",
+            "dtUs": 500,
+            "phase": "split",
+            "repeat": 1,
+            "rate": null,
+            "maxSteps": 200,
+            "targets": 0
+          },
+          "status": "PASS",
+          "ticks": 200,
+          "modelCreationAttempted": true,
+          "modelCreated": true,
+          "dataCreated": true,
+          "peakSlipMps": {
+            "cylinder": 0,
+            "block": 0
+          },
+          "cumulativeSlipM": {
+            "cylinder": 0,
+            "block": 0
+          },
+          "rest": {},
+          "probeWitness": {
+            "cylinder": true,
+            "block": true
+          },
+          "stages": [],
+          "event": null,
+          "maxima": {
+            "contacts": 8,
+            "rows": 24,
+            "islands": 2,
+            "solverIterations": 10,
+            "velocityError": 6.938893903907228e-18,
+            "frameError": 0,
+            "forceAggregationError": 0,
+            "forceAggregationBudget": 3.5935737414100655e-13,
+            "nativeTorque": 0,
+            "effectiveTorque": 0
+          },
+          "nativeContactFrictionObserved": [
+            [
+              1,
+              1,
+              0.00001,
+              0.00001,
+              0.00001
+            ]
+          ],
+          "workDiagnosticJ": 0,
+          "resources": {
+            "temporaryCreated": 4864,
+            "temporaryDeleted": 4864,
+            "velocityCalls": 1000,
+            "contactForceCalls": 1528,
+            "step1Dispatched": 200,
+            "step1Returned": 200,
+            "advanceDispatched": 200,
+            "advanceReturned": 200,
+            "scheduleConfirmedAdvances": 200,
+            "endpointRefreshes": 200,
+            "preservedRefreshes": 200,
+            "warningObservations": 200
+          },
+          "xmlSha256": "6de8dcd79683cf8e0f5d336554cef88649c71613845b607c9cc2f40245af3ea0",
+          "warningBaseline": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "modelReadback": {
+            "options": {
+              "timestep": 0.0005,
+              "integrator": 3,
+              "solver": 2,
+              "jacobian": 0,
+              "cone": 1,
+              "iterations": 100,
+              "tolerance": 1e-10,
+              "ls_iterations": 50,
+              "ls_tolerance": 0.01,
+              "noslip_iterations": 20,
+              "noslip_tolerance": 1e-12,
+              "impratio": 1,
+              "ccd_iterations": 100,
+              "ccd_tolerance": 1e-8,
+              "disableflags": 65536,
+              "enableflags": 32,
+              "density": 0,
+              "viscosity": 0,
+              "disableactuator": 0,
+              "gravity": [
+                0,
+                0,
+                -9.81
+              ],
+              "wind": [
+                0,
+                0,
+                0
+              ]
+            },
+            "nq": 14,
+            "nv": 12,
+            "na": 0,
+            "nu": 0,
+            "nbody": 3,
+            "ngeom": 3,
+            "njnt": 2,
+            "ntree": 2,
+            "npair": 2,
+            "nkey": 1,
+            "nplugin": 0,
+            "nsensor": 0,
+            "body_mass": [
+              0,
+              0.5,
+              0.5
+            ],
+            "body_inertia": [
+              0,
+              0,
+              0,
+              0.0006871666666666667,
+              0.0006871666666666667,
+              0.00027225,
+              0.00014166666666666668,
+              0.00045416666666666674,
+              0.0005208333333333334
+            ],
+            "body_ipos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "body_iquat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "body_gravcomp": [
+              0,
+              0,
+              0
+            ],
+            "body_parentid": [
+              0,
+              0,
+              0
+            ],
+            "body_dofadr": [
+              -1,
+              0,
+              6
+            ],
+            "body_dofnum": [
+              0,
+              6,
+              6
+            ],
+            "body_pos": [
+              0,
+              0,
+              0,
+              -0.15,
+              0,
+              0.057600000000000005,
+              0.15,
+              0,
+              0.015099999999999999
+            ],
+            "body_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_bodyid": [
+              0,
+              1,
+              2
+            ],
+            "geom_type": [
+              6,
+              5,
+              6
+            ],
+            "geom_size": [
+              0.5,
+              0.5,
+              0.025,
+              0.033,
+              0.0575,
+              0,
+              0.05,
+              0.025,
+              0.015
+            ],
+            "geom_pos": [
+              0,
+              0,
+              -0.025,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "geom_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_friction": [
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            "geom_condim": [
+              3,
+              3,
+              3
+            ],
+            "geom_margin": [
+              0,
+              0,
+              0
+            ],
+            "geom_gap": [
+              0,
+              0,
+              0
+            ],
+            "geom_solref": [
+              0.004,
+              1,
+              0.004,
+              1,
+              0.004,
+              1
+            ],
+            "geom_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "geom_adhesion": [
+              0,
+              0,
+              0
+            ],
+            "geom_surfacevel": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_adhesion": [
+              0,
+              0
+            ],
+            "jnt_type": [
+              0,
+              0
+            ],
+            "jnt_bodyid": [
+              1,
+              2
+            ],
+            "jnt_qposadr": [
+              0,
+              7
+            ],
+            "jnt_dofadr": [
+              0,
+              6
+            ],
+            "jnt_pos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "jnt_axis": [
+              0,
+              0,
+              1,
+              0,
+              0,
+              1
+            ],
+            "jnt_limited": [
+              0,
+              0
+            ],
+            "jnt_stiffness": [
+              0,
+              0
+            ],
+            "dof_damping": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_dampingpoly": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_frictionloss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_armature": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_dim": [
+              3,
+              3
+            ],
+            "pair_geom1": [
+              0,
+              0
+            ],
+            "pair_geom2": [
+              1,
+              2
+            ],
+            "pair_friction": [
+              1,
+              1,
+              0,
+              0,
+              0,
+              1,
+              1,
+              0,
+              0,
+              0
+            ],
+            "pair_margin": [
+              0,
+              0
+            ],
+            "pair_gap": [
+              0,
+              0
+            ],
+            "pair_solref": [
+              0.004,
+              1,
+              0.004,
+              1
+            ],
+            "pair_solreffriction": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "actuator_gear": [],
+            "actuator_gainprm": [],
+            "actuator_biasprm": [],
+            "actuator_dynprm": [],
+            "actuator_dyntype": [],
+            "actuator_gaintype": [],
+            "actuator_biastype": [],
+            "actuator_ctrllimited": [],
+            "actuator_forcelimited": [],
+            "actuator_ctrlrange": [],
+            "actuator_forcerange": [],
+            "actuator_trnid": [],
+            "actuator_trntype": [],
+            "actuator_damping": [],
+            "actuator_dampingpoly": [],
+            "actuator_delay": [],
+            "actuator_armature": []
+          },
+          "rawChain": {
+            "ticks": 200,
+            "sha256": "ee8ada588f003f6d4090f35e15d5b320b109fc7121bf7c5c11545d471955f056"
+          },
+          "parityChain": {
+            "ticks": 200,
+            "sha256": "5d3e77c688aca896f5e2db4064a285e8d49bda7aab5f636af22654d18f882c2a"
+          },
+          "physicalChain": {
+            "ticks": 200,
+            "sha256": "1871e7282cf20c96a25d76200de82f4e5221655db67a18023c465c7368b9b045"
+          },
+          "cleanupErrors": []
+        },
+        {
+          "id": "admission-A-500-full",
+          "condition": {
+            "id": "admission-A-500-full",
+            "mode": "admission",
+            "probe": "A",
+            "kind": "static",
+            "dtUs": 500,
+            "phase": "full",
+            "repeat": 1,
+            "rate": null,
+            "maxSteps": 200,
+            "targets": 0
+          },
+          "status": "PASS",
+          "ticks": 200,
+          "modelCreationAttempted": true,
+          "modelCreated": true,
+          "dataCreated": true,
+          "peakSlipMps": {
+            "cylinder": 0,
+            "block": 0
+          },
+          "cumulativeSlipM": {
+            "cylinder": 0,
+            "block": 0
+          },
+          "rest": {},
+          "probeWitness": {
+            "cylinder": true,
+            "block": true
+          },
+          "stages": [],
+          "event": null,
+          "maxima": {
+            "contacts": 8,
+            "rows": 24,
+            "islands": 2,
+            "solverIterations": 10,
+            "velocityError": 6.938893903907228e-18,
+            "frameError": 0,
+            "forceAggregationError": 0,
+            "forceAggregationBudget": 3.5935737414100655e-13,
+            "nativeTorque": 0,
+            "effectiveTorque": 0
+          },
+          "nativeContactFrictionObserved": [
+            [
+              1,
+              1,
+              0.00001,
+              0.00001,
+              0.00001
+            ]
+          ],
+          "workDiagnosticJ": 0,
+          "resources": {
+            "temporaryCreated": 4864,
+            "temporaryDeleted": 4864,
+            "velocityCalls": 600,
+            "contactForceCalls": 1528,
+            "step1Dispatched": 0,
+            "step1Returned": 0,
+            "advanceDispatched": 200,
+            "advanceReturned": 200,
+            "scheduleConfirmedAdvances": 200,
+            "endpointRefreshes": 0,
+            "preservedRefreshes": 0,
+            "warningObservations": 200
+          },
+          "xmlSha256": "6de8dcd79683cf8e0f5d336554cef88649c71613845b607c9cc2f40245af3ea0",
+          "warningBaseline": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "modelReadback": {
+            "options": {
+              "timestep": 0.0005,
+              "integrator": 3,
+              "solver": 2,
+              "jacobian": 0,
+              "cone": 1,
+              "iterations": 100,
+              "tolerance": 1e-10,
+              "ls_iterations": 50,
+              "ls_tolerance": 0.01,
+              "noslip_iterations": 20,
+              "noslip_tolerance": 1e-12,
+              "impratio": 1,
+              "ccd_iterations": 100,
+              "ccd_tolerance": 1e-8,
+              "disableflags": 65536,
+              "enableflags": 32,
+              "density": 0,
+              "viscosity": 0,
+              "disableactuator": 0,
+              "gravity": [
+                0,
+                0,
+                -9.81
+              ],
+              "wind": [
+                0,
+                0,
+                0
+              ]
+            },
+            "nq": 14,
+            "nv": 12,
+            "na": 0,
+            "nu": 0,
+            "nbody": 3,
+            "ngeom": 3,
+            "njnt": 2,
+            "ntree": 2,
+            "npair": 2,
+            "nkey": 1,
+            "nplugin": 0,
+            "nsensor": 0,
+            "body_mass": [
+              0,
+              0.5,
+              0.5
+            ],
+            "body_inertia": [
+              0,
+              0,
+              0,
+              0.0006871666666666667,
+              0.0006871666666666667,
+              0.00027225,
+              0.00014166666666666668,
+              0.00045416666666666674,
+              0.0005208333333333334
+            ],
+            "body_ipos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "body_iquat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "body_gravcomp": [
+              0,
+              0,
+              0
+            ],
+            "body_parentid": [
+              0,
+              0,
+              0
+            ],
+            "body_dofadr": [
+              -1,
+              0,
+              6
+            ],
+            "body_dofnum": [
+              0,
+              6,
+              6
+            ],
+            "body_pos": [
+              0,
+              0,
+              0,
+              -0.15,
+              0,
+              0.057600000000000005,
+              0.15,
+              0,
+              0.015099999999999999
+            ],
+            "body_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_bodyid": [
+              0,
+              1,
+              2
+            ],
+            "geom_type": [
+              6,
+              5,
+              6
+            ],
+            "geom_size": [
+              0.5,
+              0.5,
+              0.025,
+              0.033,
+              0.0575,
+              0,
+              0.05,
+              0.025,
+              0.015
+            ],
+            "geom_pos": [
+              0,
+              0,
+              -0.025,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "geom_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_friction": [
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            "geom_condim": [
+              3,
+              3,
+              3
+            ],
+            "geom_margin": [
+              0,
+              0,
+              0
+            ],
+            "geom_gap": [
+              0,
+              0,
+              0
+            ],
+            "geom_solref": [
+              0.004,
+              1,
+              0.004,
+              1,
+              0.004,
+              1
+            ],
+            "geom_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "geom_adhesion": [
+              0,
+              0,
+              0
+            ],
+            "geom_surfacevel": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_adhesion": [
+              0,
+              0
+            ],
+            "jnt_type": [
+              0,
+              0
+            ],
+            "jnt_bodyid": [
+              1,
+              2
+            ],
+            "jnt_qposadr": [
+              0,
+              7
+            ],
+            "jnt_dofadr": [
+              0,
+              6
+            ],
+            "jnt_pos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "jnt_axis": [
+              0,
+              0,
+              1,
+              0,
+              0,
+              1
+            ],
+            "jnt_limited": [
+              0,
+              0
+            ],
+            "jnt_stiffness": [
+              0,
+              0
+            ],
+            "dof_damping": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_dampingpoly": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_frictionloss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_armature": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_dim": [
+              3,
+              3
+            ],
+            "pair_geom1": [
+              0,
+              0
+            ],
+            "pair_geom2": [
+              1,
+              2
+            ],
+            "pair_friction": [
+              1,
+              1,
+              0,
+              0,
+              0,
+              1,
+              1,
+              0,
+              0,
+              0
+            ],
+            "pair_margin": [
+              0,
+              0
+            ],
+            "pair_gap": [
+              0,
+              0
+            ],
+            "pair_solref": [
+              0.004,
+              1,
+              0.004,
+              1
+            ],
+            "pair_solreffriction": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "actuator_gear": [],
+            "actuator_gainprm": [],
+            "actuator_biasprm": [],
+            "actuator_dynprm": [],
+            "actuator_dyntype": [],
+            "actuator_gaintype": [],
+            "actuator_biastype": [],
+            "actuator_ctrllimited": [],
+            "actuator_forcelimited": [],
+            "actuator_ctrlrange": [],
+            "actuator_forcerange": [],
+            "actuator_trnid": [],
+            "actuator_trntype": [],
+            "actuator_damping": [],
+            "actuator_dampingpoly": [],
+            "actuator_delay": [],
+            "actuator_armature": []
+          },
+          "rawChain": {
+            "ticks": 200,
+            "sha256": "ee8ada588f003f6d4090f35e15d5b320b109fc7121bf7c5c11545d471955f056"
+          },
+          "parityChain": {
+            "ticks": 200,
+            "sha256": "5d3e77c688aca896f5e2db4064a285e8d49bda7aab5f636af22654d18f882c2a"
+          },
+          "physicalChain": {
+            "ticks": 200,
+            "sha256": "1871e7282cf20c96a25d76200de82f4e5221655db67a18023c465c7368b9b045"
+          },
+          "cleanupErrors": []
+        },
+        {
+          "id": "admission-A-250-split",
+          "condition": {
+            "id": "admission-A-250-split",
+            "mode": "admission",
+            "probe": "A",
+            "kind": "static",
+            "dtUs": 250,
+            "phase": "split",
+            "repeat": 1,
+            "rate": null,
+            "maxSteps": 400,
+            "targets": 0
+          },
+          "status": "PASS",
+          "ticks": 400,
+          "modelCreationAttempted": true,
+          "modelCreated": true,
+          "dataCreated": true,
+          "peakSlipMps": {
+            "cylinder": 0,
+            "block": 0
+          },
+          "cumulativeSlipM": {
+            "cylinder": 0,
+            "block": 0
+          },
+          "rest": {},
+          "probeWitness": {
+            "cylinder": true,
+            "block": true
+          },
+          "stages": [],
+          "event": null,
+          "maxima": {
+            "contacts": 8,
+            "rows": 24,
+            "islands": 2,
+            "solverIterations": 9,
+            "velocityError": 6.938893903907228e-18,
+            "frameError": 0,
+            "forceAggregationError": 0,
+            "forceAggregationBudget": 3.5630840149591566e-13,
+            "nativeTorque": 0,
+            "effectiveTorque": 0
+          },
+          "nativeContactFrictionObserved": [
+            [
+              1,
+              1,
+              0.00001,
+              0.00001,
+              0.00001
+            ]
+          ],
+          "workDiagnosticJ": 0,
+          "resources": {
+            "temporaryCreated": 9720,
+            "temporaryDeleted": 9720,
+            "velocityCalls": 2000,
+            "contactForceCalls": 3056,
+            "step1Dispatched": 400,
+            "step1Returned": 400,
+            "advanceDispatched": 400,
+            "advanceReturned": 400,
+            "scheduleConfirmedAdvances": 400,
+            "endpointRefreshes": 400,
+            "preservedRefreshes": 400,
+            "warningObservations": 400
+          },
+          "xmlSha256": "60ff27c886d69a437fa53c0b2449aeed265556cc08fc8e41efc8c510c3ca1498",
+          "warningBaseline": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "modelReadback": {
+            "options": {
+              "timestep": 0.00025,
+              "integrator": 3,
+              "solver": 2,
+              "jacobian": 0,
+              "cone": 1,
+              "iterations": 100,
+              "tolerance": 1e-10,
+              "ls_iterations": 50,
+              "ls_tolerance": 0.01,
+              "noslip_iterations": 20,
+              "noslip_tolerance": 1e-12,
+              "impratio": 1,
+              "ccd_iterations": 100,
+              "ccd_tolerance": 1e-8,
+              "disableflags": 65536,
+              "enableflags": 32,
+              "density": 0,
+              "viscosity": 0,
+              "disableactuator": 0,
+              "gravity": [
+                0,
+                0,
+                -9.81
+              ],
+              "wind": [
+                0,
+                0,
+                0
+              ]
+            },
+            "nq": 14,
+            "nv": 12,
+            "na": 0,
+            "nu": 0,
+            "nbody": 3,
+            "ngeom": 3,
+            "njnt": 2,
+            "ntree": 2,
+            "npair": 2,
+            "nkey": 1,
+            "nplugin": 0,
+            "nsensor": 0,
+            "body_mass": [
+              0,
+              0.5,
+              0.5
+            ],
+            "body_inertia": [
+              0,
+              0,
+              0,
+              0.0006871666666666667,
+              0.0006871666666666667,
+              0.00027225,
+              0.00014166666666666668,
+              0.00045416666666666674,
+              0.0005208333333333334
+            ],
+            "body_ipos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "body_iquat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "body_gravcomp": [
+              0,
+              0,
+              0
+            ],
+            "body_parentid": [
+              0,
+              0,
+              0
+            ],
+            "body_dofadr": [
+              -1,
+              0,
+              6
+            ],
+            "body_dofnum": [
+              0,
+              6,
+              6
+            ],
+            "body_pos": [
+              0,
+              0,
+              0,
+              -0.15,
+              0,
+              0.057600000000000005,
+              0.15,
+              0,
+              0.015099999999999999
+            ],
+            "body_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_bodyid": [
+              0,
+              1,
+              2
+            ],
+            "geom_type": [
+              6,
+              5,
+              6
+            ],
+            "geom_size": [
+              0.5,
+              0.5,
+              0.025,
+              0.033,
+              0.0575,
+              0,
+              0.05,
+              0.025,
+              0.015
+            ],
+            "geom_pos": [
+              0,
+              0,
+              -0.025,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "geom_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_friction": [
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            "geom_condim": [
+              3,
+              3,
+              3
+            ],
+            "geom_margin": [
+              0,
+              0,
+              0
+            ],
+            "geom_gap": [
+              0,
+              0,
+              0
+            ],
+            "geom_solref": [
+              0.004,
+              1,
+              0.004,
+              1,
+              0.004,
+              1
+            ],
+            "geom_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "geom_adhesion": [
+              0,
+              0,
+              0
+            ],
+            "geom_surfacevel": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_adhesion": [
+              0,
+              0
+            ],
+            "jnt_type": [
+              0,
+              0
+            ],
+            "jnt_bodyid": [
+              1,
+              2
+            ],
+            "jnt_qposadr": [
+              0,
+              7
+            ],
+            "jnt_dofadr": [
+              0,
+              6
+            ],
+            "jnt_pos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "jnt_axis": [
+              0,
+              0,
+              1,
+              0,
+              0,
+              1
+            ],
+            "jnt_limited": [
+              0,
+              0
+            ],
+            "jnt_stiffness": [
+              0,
+              0
+            ],
+            "dof_damping": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_dampingpoly": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_frictionloss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_armature": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_dim": [
+              3,
+              3
+            ],
+            "pair_geom1": [
+              0,
+              0
+            ],
+            "pair_geom2": [
+              1,
+              2
+            ],
+            "pair_friction": [
+              1,
+              1,
+              0,
+              0,
+              0,
+              1,
+              1,
+              0,
+              0,
+              0
+            ],
+            "pair_margin": [
+              0,
+              0
+            ],
+            "pair_gap": [
+              0,
+              0
+            ],
+            "pair_solref": [
+              0.004,
+              1,
+              0.004,
+              1
+            ],
+            "pair_solreffriction": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "actuator_gear": [],
+            "actuator_gainprm": [],
+            "actuator_biasprm": [],
+            "actuator_dynprm": [],
+            "actuator_dyntype": [],
+            "actuator_gaintype": [],
+            "actuator_biastype": [],
+            "actuator_ctrllimited": [],
+            "actuator_forcelimited": [],
+            "actuator_ctrlrange": [],
+            "actuator_forcerange": [],
+            "actuator_trnid": [],
+            "actuator_trntype": [],
+            "actuator_damping": [],
+            "actuator_dampingpoly": [],
+            "actuator_delay": [],
+            "actuator_armature": []
+          },
+          "rawChain": {
+            "ticks": 400,
+            "sha256": "6beac85224060a1e75fa9ebc2e7367b0cb64d1676ae19aa3aca09f85c7fa66ce"
+          },
+          "parityChain": {
+            "ticks": 400,
+            "sha256": "2ad53c6ed5481fecefc90ab0182a63bab281102a8d38dd471dc010fd11603675"
+          },
+          "physicalChain": {
+            "ticks": 400,
+            "sha256": "48503101c11b8b620283380c3bfe3d87223e517109d579187837fba9368d5117"
+          },
+          "cleanupErrors": []
+        },
+        {
+          "id": "admission-A-250-full",
+          "condition": {
+            "id": "admission-A-250-full",
+            "mode": "admission",
+            "probe": "A",
+            "kind": "static",
+            "dtUs": 250,
+            "phase": "full",
+            "repeat": 1,
+            "rate": null,
+            "maxSteps": 400,
+            "targets": 0
+          },
+          "status": "PASS",
+          "ticks": 400,
+          "modelCreationAttempted": true,
+          "modelCreated": true,
+          "dataCreated": true,
+          "peakSlipMps": {
+            "cylinder": 0,
+            "block": 0
+          },
+          "cumulativeSlipM": {
+            "cylinder": 0,
+            "block": 0
+          },
+          "rest": {},
+          "probeWitness": {
+            "cylinder": true,
+            "block": true
+          },
+          "stages": [],
+          "event": null,
+          "maxima": {
+            "contacts": 8,
+            "rows": 24,
+            "islands": 2,
+            "solverIterations": 9,
+            "velocityError": 6.938893903907228e-18,
+            "frameError": 0,
+            "forceAggregationError": 0,
+            "forceAggregationBudget": 3.5630840149591566e-13,
+            "nativeTorque": 0,
+            "effectiveTorque": 0
+          },
+          "nativeContactFrictionObserved": [
+            [
+              1,
+              1,
+              0.00001,
+              0.00001,
+              0.00001
+            ]
+          ],
+          "workDiagnosticJ": 0,
+          "resources": {
+            "temporaryCreated": 9720,
+            "temporaryDeleted": 9720,
+            "velocityCalls": 1200,
+            "contactForceCalls": 3056,
+            "step1Dispatched": 0,
+            "step1Returned": 0,
+            "advanceDispatched": 400,
+            "advanceReturned": 400,
+            "scheduleConfirmedAdvances": 400,
+            "endpointRefreshes": 0,
+            "preservedRefreshes": 0,
+            "warningObservations": 400
+          },
+          "xmlSha256": "60ff27c886d69a437fa53c0b2449aeed265556cc08fc8e41efc8c510c3ca1498",
+          "warningBaseline": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "modelReadback": {
+            "options": {
+              "timestep": 0.00025,
+              "integrator": 3,
+              "solver": 2,
+              "jacobian": 0,
+              "cone": 1,
+              "iterations": 100,
+              "tolerance": 1e-10,
+              "ls_iterations": 50,
+              "ls_tolerance": 0.01,
+              "noslip_iterations": 20,
+              "noslip_tolerance": 1e-12,
+              "impratio": 1,
+              "ccd_iterations": 100,
+              "ccd_tolerance": 1e-8,
+              "disableflags": 65536,
+              "enableflags": 32,
+              "density": 0,
+              "viscosity": 0,
+              "disableactuator": 0,
+              "gravity": [
+                0,
+                0,
+                -9.81
+              ],
+              "wind": [
+                0,
+                0,
+                0
+              ]
+            },
+            "nq": 14,
+            "nv": 12,
+            "na": 0,
+            "nu": 0,
+            "nbody": 3,
+            "ngeom": 3,
+            "njnt": 2,
+            "ntree": 2,
+            "npair": 2,
+            "nkey": 1,
+            "nplugin": 0,
+            "nsensor": 0,
+            "body_mass": [
+              0,
+              0.5,
+              0.5
+            ],
+            "body_inertia": [
+              0,
+              0,
+              0,
+              0.0006871666666666667,
+              0.0006871666666666667,
+              0.00027225,
+              0.00014166666666666668,
+              0.00045416666666666674,
+              0.0005208333333333334
+            ],
+            "body_ipos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "body_iquat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "body_gravcomp": [
+              0,
+              0,
+              0
+            ],
+            "body_parentid": [
+              0,
+              0,
+              0
+            ],
+            "body_dofadr": [
+              -1,
+              0,
+              6
+            ],
+            "body_dofnum": [
+              0,
+              6,
+              6
+            ],
+            "body_pos": [
+              0,
+              0,
+              0,
+              -0.15,
+              0,
+              0.057600000000000005,
+              0.15,
+              0,
+              0.015099999999999999
+            ],
+            "body_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_bodyid": [
+              0,
+              1,
+              2
+            ],
+            "geom_type": [
+              6,
+              5,
+              6
+            ],
+            "geom_size": [
+              0.5,
+              0.5,
+              0.025,
+              0.033,
+              0.0575,
+              0,
+              0.05,
+              0.025,
+              0.015
+            ],
+            "geom_pos": [
+              0,
+              0,
+              -0.025,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "geom_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_friction": [
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            "geom_condim": [
+              3,
+              3,
+              3
+            ],
+            "geom_margin": [
+              0,
+              0,
+              0
+            ],
+            "geom_gap": [
+              0,
+              0,
+              0
+            ],
+            "geom_solref": [
+              0.004,
+              1,
+              0.004,
+              1,
+              0.004,
+              1
+            ],
+            "geom_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "geom_adhesion": [
+              0,
+              0,
+              0
+            ],
+            "geom_surfacevel": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_adhesion": [
+              0,
+              0
+            ],
+            "jnt_type": [
+              0,
+              0
+            ],
+            "jnt_bodyid": [
+              1,
+              2
+            ],
+            "jnt_qposadr": [
+              0,
+              7
+            ],
+            "jnt_dofadr": [
+              0,
+              6
+            ],
+            "jnt_pos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "jnt_axis": [
+              0,
+              0,
+              1,
+              0,
+              0,
+              1
+            ],
+            "jnt_limited": [
+              0,
+              0
+            ],
+            "jnt_stiffness": [
+              0,
+              0
+            ],
+            "dof_damping": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_dampingpoly": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_frictionloss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_armature": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_dim": [
+              3,
+              3
+            ],
+            "pair_geom1": [
+              0,
+              0
+            ],
+            "pair_geom2": [
+              1,
+              2
+            ],
+            "pair_friction": [
+              1,
+              1,
+              0,
+              0,
+              0,
+              1,
+              1,
+              0,
+              0,
+              0
+            ],
+            "pair_margin": [
+              0,
+              0
+            ],
+            "pair_gap": [
+              0,
+              0
+            ],
+            "pair_solref": [
+              0.004,
+              1,
+              0.004,
+              1
+            ],
+            "pair_solreffriction": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "actuator_gear": [],
+            "actuator_gainprm": [],
+            "actuator_biasprm": [],
+            "actuator_dynprm": [],
+            "actuator_dyntype": [],
+            "actuator_gaintype": [],
+            "actuator_biastype": [],
+            "actuator_ctrllimited": [],
+            "actuator_forcelimited": [],
+            "actuator_ctrlrange": [],
+            "actuator_forcerange": [],
+            "actuator_trnid": [],
+            "actuator_trntype": [],
+            "actuator_damping": [],
+            "actuator_dampingpoly": [],
+            "actuator_delay": [],
+            "actuator_armature": []
+          },
+          "rawChain": {
+            "ticks": 400,
+            "sha256": "6beac85224060a1e75fa9ebc2e7367b0cb64d1676ae19aa3aca09f85c7fa66ce"
+          },
+          "parityChain": {
+            "ticks": 400,
+            "sha256": "2ad53c6ed5481fecefc90ab0182a63bab281102a8d38dd471dc010fd11603675"
+          },
+          "physicalChain": {
+            "ticks": 400,
+            "sha256": "48503101c11b8b620283380c3bfe3d87223e517109d579187837fba9368d5117"
+          },
+          "cleanupErrors": []
+        },
+        {
+          "id": "admission-B-500-split",
+          "condition": {
+            "id": "admission-B-500-split",
+            "mode": "admission",
+            "probe": "B",
+            "kind": "tilt",
+            "dtUs": 500,
+            "phase": "split",
+            "repeat": 1,
+            "rate": "normal",
+            "maxSteps": 6500,
+            "targets": 1
+          },
+          "status": "PASS",
+          "ticks": 6500,
+          "modelCreationAttempted": true,
+          "modelCreated": true,
+          "dataCreated": true,
+          "peakSlipMps": {
+            "cylinder": 1.619051095099134e-9
+          },
+          "cumulativeSlipM": {
+            "cylinder": 1.271592879473593e-9
+          },
+          "rest": {
+            "cylinder": {
+              "baseline": {
+                "com": [
+                  -9.577836838089402e-8,
+                  -1.4129906264915857e-7,
+                  0.05749928522035197
+                ],
+                "quaternion": [
+                  0.9999999999988991,
+                  0.000001227867777758776,
+                  -8.329073137596466e-7,
+                  -3.464541094153131e-11
+                ],
+                "rotation": [
+                  0.9999999999986126,
+                  6.724542177813617e-11,
+                  -0.0000016658146276025394,
+                  -7.133622198783652e-11,
+                  0.9999999999969846,
+                  -0.0000024557355554571356,
+                  0.0000016658146274323794,
+                  0.0000024557355555725616,
+                  0.9999999999955972
+                ],
+                "velocity": [
+                  -0.000002268154734151807,
+                  0.000001782226408792391,
+                  -1.061457818631616e-7
+                ],
+                "omega": [
+                  -0.00003099596604669035,
+                  -0.00003944557385187149,
+                  1.2357872438995222e-9
+                ]
+              },
+              "minimumEnergyJ": 0.28203399400877416,
+              "maxEnergyGrowthJ": 0,
+              "maxComDriftM": 0,
+              "maxQuaternionAngleRad": 0
+            }
+          },
+          "probeWitness": {
+            "cylinder": true
+          },
+          "stages": [
+            {
+              "index": 1,
+              "target": 0.0041887902047863905,
+              "minAngle": -1.3293137300668444e-9,
+              "maxAngle": 0.004188633677800096,
+              "maxTracking": 0.0002630356702144317,
+              "maxSpeed": 0.03128383126520083,
+              "stable": {
+                "accepted": true,
+                "range": 2.6759977220236486e-9,
+                "intervals": 200,
+                "durationUs": 100000,
+                "firstTick": 6301,
+                "lastTick": 6500
+              },
+              "result": "STABLE"
+            }
+          ],
+          "event": null,
+          "maxima": {
+            "contacts": 4,
+            "rows": 12,
+            "islands": 1,
+            "solverIterations": 5,
+            "velocityError": 3.469446951953614e-18,
+            "frameError": 4.440892098500626e-16,
+            "forceAggregationError": 1.7763568394002505e-15,
+            "forceAggregationBudget": 3.5933173013112325e-13,
+            "nativeTorque": 0.2026901905669991,
+            "effectiveTorque": 0.1624939310860175
+          },
+          "nativeContactFrictionObserved": [
+            [
+              1,
+              1,
+              0.00001,
+              0.00001,
+              0.00001
+            ]
+          ],
+          "workDiagnosticJ": 0.000008283664448658502,
+          "resources": {
+            "temporaryCreated": 110436,
+            "temporaryDeleted": 110436,
+            "velocityCalls": 26000,
+            "contactForceCalls": 25964,
+            "step1Dispatched": 6500,
+            "step1Returned": 6500,
+            "advanceDispatched": 6500,
+            "advanceReturned": 6500,
+            "scheduleConfirmedAdvances": 6500,
+            "endpointRefreshes": 6500,
+            "preservedRefreshes": 6500,
+            "warningObservations": 6500
+          },
+          "xmlSha256": "68293b0bf4c9137216f4372b4ecdb8c91a9e30b3c04f76ce6ad96d859020fa43",
+          "warningBaseline": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "modelReadback": {
+            "options": {
+              "timestep": 0.0005,
+              "integrator": 3,
+              "solver": 2,
+              "jacobian": 0,
+              "cone": 1,
+              "iterations": 100,
+              "tolerance": 1e-10,
+              "ls_iterations": 50,
+              "ls_tolerance": 0.01,
+              "noslip_iterations": 20,
+              "noslip_tolerance": 1e-12,
+              "impratio": 1,
+              "ccd_iterations": 100,
+              "ccd_tolerance": 1e-8,
+              "disableflags": 65536,
+              "enableflags": 32,
+              "density": 0,
+              "viscosity": 0,
+              "disableactuator": 0,
+              "gravity": [
+                0,
+                0,
+                -9.81
+              ],
+              "wind": [
+                0,
+                0,
+                0
+              ]
+            },
+            "nq": 8,
+            "nv": 7,
+            "na": 0,
+            "nu": 1,
+            "nbody": 3,
+            "ngeom": 2,
+            "njnt": 2,
+            "ntree": 2,
+            "npair": 1,
+            "nkey": 0,
+            "nplugin": 0,
+            "nsensor": 0,
+            "body_mass": [
+              0,
+              5,
+              0.5
+            ],
+            "body_inertia": [
+              0,
+              0,
+              0,
+              0.4177083333333333,
+              0.4177083333333333,
+              0.8333333333333333,
+              0.0006871666666666667,
+              0.0006871666666666667,
+              0.00027225
+            ],
+            "body_ipos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              -0.025,
+              0,
+              0,
+              0
+            ],
+            "body_iquat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "body_gravcomp": [
+              0,
+              0,
+              0
+            ],
+            "body_parentid": [
+              0,
+              0,
+              0
+            ],
+            "body_dofadr": [
+              -1,
+              0,
+              1
+            ],
+            "body_dofnum": [
+              0,
+              1,
+              6
+            ],
+            "body_pos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0.057600000000000005
+            ],
+            "body_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_bodyid": [
+              1,
+              2
+            ],
+            "geom_type": [
+              6,
+              5
+            ],
+            "geom_size": [
+              0.5,
+              0.5,
+              0.025,
+              0.033,
+              0.0575,
+              0
+            ],
+            "geom_pos": [
+              0,
+              0,
+              -0.025,
+              0,
+              0,
+              0
+            ],
+            "geom_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_friction": [
+              1,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            "geom_condim": [
+              3,
+              3
+            ],
+            "geom_margin": [
+              0,
+              0
+            ],
+            "geom_gap": [
+              0,
+              0
+            ],
+            "geom_solref": [
+              0.004,
+              1,
+              0.004,
+              1
+            ],
+            "geom_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "geom_adhesion": [
+              0,
+              0
+            ],
+            "geom_surfacevel": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_adhesion": [
+              0
+            ],
+            "jnt_type": [
+              3,
+              0
+            ],
+            "jnt_bodyid": [
+              1,
+              2
+            ],
+            "jnt_qposadr": [
+              0,
+              1
+            ],
+            "jnt_dofadr": [
+              0,
+              1
+            ],
+            "jnt_pos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "jnt_axis": [
+              0,
+              1,
+              0,
+              0,
+              0,
+              1
+            ],
+            "jnt_limited": [
+              0,
+              0
+            ],
+            "jnt_stiffness": [
+              0,
+              0
+            ],
+            "dof_damping": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_dampingpoly": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_frictionloss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_armature": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_dim": [
+              3
+            ],
+            "pair_geom1": [
+              0
+            ],
+            "pair_geom2": [
+              1
+            ],
+            "pair_friction": [
+              1,
+              1,
+              0,
+              0,
+              0
+            ],
+            "pair_margin": [
+              0
+            ],
+            "pair_gap": [
+              0
+            ],
+            "pair_solref": [
+              0.004,
+              1
+            ],
+            "pair_solreffriction": [
+              0,
+              0
+            ],
+            "pair_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "actuator_gear": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_gainprm": [
+              25000,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_biasprm": [
+              0,
+              -25000,
+              -210,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_dynprm": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_dyntype": [
+              0
+            ],
+            "actuator_gaintype": [
+              0
+            ],
+            "actuator_biastype": [
+              1
+            ],
+            "actuator_ctrllimited": [
+              1
+            ],
+            "actuator_forcelimited": [
+              1
+            ],
+            "actuator_ctrlrange": [
+              0,
+              0.6283185307179586
+            ],
+            "actuator_forcerange": [
+              -32,
+              32
+            ],
+            "actuator_trnid": [
+              0,
+              -1
+            ],
+            "actuator_trntype": [
+              0
+            ],
+            "actuator_damping": [
+              0
+            ],
+            "actuator_dampingpoly": [
+              0,
+              0
+            ],
+            "actuator_delay": [
+              0
+            ],
+            "actuator_armature": [
+              0
+            ]
+          },
+          "initialStable": {
+            "accepted": true,
+            "range": 2.9080086586262048e-9,
+            "intervals": 200,
+            "durationUs": 100000,
+            "firstTick": 3801,
+            "lastTick": 4000
+          },
+          "rawChain": {
+            "ticks": 6500,
+            "sha256": "18ddf4000d3a64efddfd60ab6b58f965be5b1a3cbbaa95061facc74291dca46b"
+          },
+          "parityChain": {
+            "ticks": 6500,
+            "sha256": "f6fca1ebc103658ac1f366d29363e1fdad5f6b85a98ec25ffe99e2e0ea1a2910"
+          },
+          "physicalChain": {
+            "ticks": 6500,
+            "sha256": "927583be01c58195cc66a391b9588363e2a14c82690f10293141752fec017838"
+          },
+          "cleanupErrors": []
+        },
+        {
+          "id": "admission-B-500-full",
+          "condition": {
+            "id": "admission-B-500-full",
+            "mode": "admission",
+            "probe": "B",
+            "kind": "tilt",
+            "dtUs": 500,
+            "phase": "full",
+            "repeat": 1,
+            "rate": "normal",
+            "maxSteps": 6500,
+            "targets": 1
+          },
+          "status": "PASS",
+          "ticks": 6500,
+          "modelCreationAttempted": true,
+          "modelCreated": true,
+          "dataCreated": true,
+          "peakSlipMps": {
+            "cylinder": 1.619051095099134e-9
+          },
+          "cumulativeSlipM": {
+            "cylinder": 1.271592879473593e-9
+          },
+          "rest": {
+            "cylinder": {
+              "baseline": {
+                "com": [
+                  -9.577836838089402e-8,
+                  -1.4129906264915857e-7,
+                  0.05749928522035197
+                ],
+                "quaternion": [
+                  0.9999999999988991,
+                  0.000001227867777758776,
+                  -8.329073137596466e-7,
+                  -3.464541094153131e-11
+                ],
+                "rotation": [
+                  0.9999999999986126,
+                  6.724542177813617e-11,
+                  -0.0000016658146276025394,
+                  -7.133622198783652e-11,
+                  0.9999999999969846,
+                  -0.0000024557355554571356,
+                  0.0000016658146274323794,
+                  0.0000024557355555725616,
+                  0.9999999999955972
+                ],
+                "velocity": [
+                  -0.000002268154734151807,
+                  0.000001782226408792391,
+                  -1.061457818631616e-7
+                ],
+                "omega": [
+                  -0.00003099596604669035,
+                  -0.00003944557385187149,
+                  1.2357872438995222e-9
+                ]
+              },
+              "minimumEnergyJ": 0.28203399400877416,
+              "maxEnergyGrowthJ": 0,
+              "maxComDriftM": 0,
+              "maxQuaternionAngleRad": 0
+            }
+          },
+          "probeWitness": {
+            "cylinder": true
+          },
+          "stages": [
+            {
+              "index": 1,
+              "target": 0.0041887902047863905,
+              "minAngle": -1.3293137300668444e-9,
+              "maxAngle": 0.004188633677800096,
+              "maxTracking": 0.0002630356702144317,
+              "maxSpeed": 0.03128383126520083,
+              "stable": {
+                "accepted": true,
+                "range": 2.6759977220236486e-9,
+                "intervals": 200,
+                "durationUs": 100000,
+                "firstTick": 6301,
+                "lastTick": 6500
+              },
+              "result": "STABLE"
+            }
+          ],
+          "event": null,
+          "maxima": {
+            "contacts": 4,
+            "rows": 12,
+            "islands": 1,
+            "solverIterations": 5,
+            "velocityError": 3.469446951953614e-18,
+            "frameError": 4.440892098500626e-16,
+            "forceAggregationError": 1.7763568394002505e-15,
+            "forceAggregationBudget": 3.5933173013112325e-13,
+            "nativeTorque": 0.2026901905669991,
+            "effectiveTorque": 0.1624939310860175
+          },
+          "nativeContactFrictionObserved": [
+            [
+              1,
+              1,
+              0.00001,
+              0.00001,
+              0.00001
+            ]
+          ],
+          "workDiagnosticJ": 0.000008283664448658502,
+          "resources": {
+            "temporaryCreated": 110436,
+            "temporaryDeleted": 110436,
+            "velocityCalls": 19500,
+            "contactForceCalls": 25964,
+            "step1Dispatched": 0,
+            "step1Returned": 0,
+            "advanceDispatched": 6500,
+            "advanceReturned": 6500,
+            "scheduleConfirmedAdvances": 6500,
+            "endpointRefreshes": 0,
+            "preservedRefreshes": 0,
+            "warningObservations": 6500
+          },
+          "xmlSha256": "68293b0bf4c9137216f4372b4ecdb8c91a9e30b3c04f76ce6ad96d859020fa43",
+          "warningBaseline": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "modelReadback": {
+            "options": {
+              "timestep": 0.0005,
+              "integrator": 3,
+              "solver": 2,
+              "jacobian": 0,
+              "cone": 1,
+              "iterations": 100,
+              "tolerance": 1e-10,
+              "ls_iterations": 50,
+              "ls_tolerance": 0.01,
+              "noslip_iterations": 20,
+              "noslip_tolerance": 1e-12,
+              "impratio": 1,
+              "ccd_iterations": 100,
+              "ccd_tolerance": 1e-8,
+              "disableflags": 65536,
+              "enableflags": 32,
+              "density": 0,
+              "viscosity": 0,
+              "disableactuator": 0,
+              "gravity": [
+                0,
+                0,
+                -9.81
+              ],
+              "wind": [
+                0,
+                0,
+                0
+              ]
+            },
+            "nq": 8,
+            "nv": 7,
+            "na": 0,
+            "nu": 1,
+            "nbody": 3,
+            "ngeom": 2,
+            "njnt": 2,
+            "ntree": 2,
+            "npair": 1,
+            "nkey": 0,
+            "nplugin": 0,
+            "nsensor": 0,
+            "body_mass": [
+              0,
+              5,
+              0.5
+            ],
+            "body_inertia": [
+              0,
+              0,
+              0,
+              0.4177083333333333,
+              0.4177083333333333,
+              0.8333333333333333,
+              0.0006871666666666667,
+              0.0006871666666666667,
+              0.00027225
+            ],
+            "body_ipos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              -0.025,
+              0,
+              0,
+              0
+            ],
+            "body_iquat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "body_gravcomp": [
+              0,
+              0,
+              0
+            ],
+            "body_parentid": [
+              0,
+              0,
+              0
+            ],
+            "body_dofadr": [
+              -1,
+              0,
+              1
+            ],
+            "body_dofnum": [
+              0,
+              1,
+              6
+            ],
+            "body_pos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0.057600000000000005
+            ],
+            "body_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_bodyid": [
+              1,
+              2
+            ],
+            "geom_type": [
+              6,
+              5
+            ],
+            "geom_size": [
+              0.5,
+              0.5,
+              0.025,
+              0.033,
+              0.0575,
+              0
+            ],
+            "geom_pos": [
+              0,
+              0,
+              -0.025,
+              0,
+              0,
+              0
+            ],
+            "geom_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_friction": [
+              1,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            "geom_condim": [
+              3,
+              3
+            ],
+            "geom_margin": [
+              0,
+              0
+            ],
+            "geom_gap": [
+              0,
+              0
+            ],
+            "geom_solref": [
+              0.004,
+              1,
+              0.004,
+              1
+            ],
+            "geom_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "geom_adhesion": [
+              0,
+              0
+            ],
+            "geom_surfacevel": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_adhesion": [
+              0
+            ],
+            "jnt_type": [
+              3,
+              0
+            ],
+            "jnt_bodyid": [
+              1,
+              2
+            ],
+            "jnt_qposadr": [
+              0,
+              1
+            ],
+            "jnt_dofadr": [
+              0,
+              1
+            ],
+            "jnt_pos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "jnt_axis": [
+              0,
+              1,
+              0,
+              0,
+              0,
+              1
+            ],
+            "jnt_limited": [
+              0,
+              0
+            ],
+            "jnt_stiffness": [
+              0,
+              0
+            ],
+            "dof_damping": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_dampingpoly": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_frictionloss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_armature": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_dim": [
+              3
+            ],
+            "pair_geom1": [
+              0
+            ],
+            "pair_geom2": [
+              1
+            ],
+            "pair_friction": [
+              1,
+              1,
+              0,
+              0,
+              0
+            ],
+            "pair_margin": [
+              0
+            ],
+            "pair_gap": [
+              0
+            ],
+            "pair_solref": [
+              0.004,
+              1
+            ],
+            "pair_solreffriction": [
+              0,
+              0
+            ],
+            "pair_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "actuator_gear": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_gainprm": [
+              25000,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_biasprm": [
+              0,
+              -25000,
+              -210,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_dynprm": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_dyntype": [
+              0
+            ],
+            "actuator_gaintype": [
+              0
+            ],
+            "actuator_biastype": [
+              1
+            ],
+            "actuator_ctrllimited": [
+              1
+            ],
+            "actuator_forcelimited": [
+              1
+            ],
+            "actuator_ctrlrange": [
+              0,
+              0.6283185307179586
+            ],
+            "actuator_forcerange": [
+              -32,
+              32
+            ],
+            "actuator_trnid": [
+              0,
+              -1
+            ],
+            "actuator_trntype": [
+              0
+            ],
+            "actuator_damping": [
+              0
+            ],
+            "actuator_dampingpoly": [
+              0,
+              0
+            ],
+            "actuator_delay": [
+              0
+            ],
+            "actuator_armature": [
+              0
+            ]
+          },
+          "initialStable": {
+            "accepted": true,
+            "range": 2.9080086586262048e-9,
+            "intervals": 200,
+            "durationUs": 100000,
+            "firstTick": 3801,
+            "lastTick": 4000
+          },
+          "rawChain": {
+            "ticks": 6500,
+            "sha256": "18ddf4000d3a64efddfd60ab6b58f965be5b1a3cbbaa95061facc74291dca46b"
+          },
+          "parityChain": {
+            "ticks": 6500,
+            "sha256": "f6fca1ebc103658ac1f366d29363e1fdad5f6b85a98ec25ffe99e2e0ea1a2910"
+          },
+          "physicalChain": {
+            "ticks": 6500,
+            "sha256": "927583be01c58195cc66a391b9588363e2a14c82690f10293141752fec017838"
+          },
+          "cleanupErrors": []
+        },
+        {
+          "id": "admission-B-250-split",
+          "condition": {
+            "id": "admission-B-250-split",
+            "mode": "admission",
+            "probe": "B",
+            "kind": "tilt",
+            "dtUs": 250,
+            "phase": "split",
+            "repeat": 1,
+            "rate": "normal",
+            "maxSteps": 13000,
+            "targets": 1
+          },
+          "status": "PASS",
+          "ticks": 13000,
+          "modelCreationAttempted": true,
+          "modelCreated": true,
+          "dataCreated": true,
+          "peakSlipMps": {
+            "cylinder": 1.5490760263002255e-9
+          },
+          "cumulativeSlipM": {
+            "cylinder": 1.3212465114119654e-9
+          },
+          "rest": {
+            "cylinder": {
+              "baseline": {
+                "com": [
+                  -6.700943842849241e-8,
+                  -1.4291327836352016e-7,
+                  0.05749928691457921
+                ],
+                "quaternion": [
+                  0.9999999999990595,
+                  0.000001242024496977462,
+                  -5.827626103913444e-7,
+                  -2.0974316885277248e-10
+                ],
+                "rotation": [
+                  0.9999999999993208,
+                  4.180387268290933e-10,
+                  -0.000001165525221302605,
+                  -4.209339485812076e-10,
+                  0.9999999999969148,
+                  -0.000002484048993708127,
+                  0.0000011655252202605805,
+                  0.000002484048994197049,
+                  0.9999999999962356
+                ],
+                "velocity": [
+                  0.0000010241468852601926,
+                  -7.910809382830937e-7,
+                  4.5097049623615556e-8
+                ],
+                "omega": [
+                  0.000013757726469954079,
+                  0.000017815560495104263,
+                  7.252389000989679e-9
+                ]
+              },
+              "minimumEnergyJ": 0.28203400231660425,
+              "maxEnergyGrowthJ": 0,
+              "maxComDriftM": 0,
+              "maxQuaternionAngleRad": 0
+            }
+          },
+          "probeWitness": {
+            "cylinder": true
+          },
+          "stages": [
+            {
+              "index": 1,
+              "target": 0.0041887902047863905,
+              "minAngle": -9.861758933170874e-10,
+              "maxAngle": 0.004188633194018532,
+              "maxTracking": 0.0002629523473306945,
+              "maxSpeed": 0.03127679744859536,
+              "stable": {
+                "accepted": true,
+                "range": 1.8140396060295494e-9,
+                "intervals": 400,
+                "durationUs": 100000,
+                "firstTick": 12601,
+                "lastTick": 13000
+              },
+              "result": "STABLE"
+            }
+          ],
+          "event": null,
+          "maxima": {
+            "contacts": 4,
+            "rows": 12,
+            "islands": 1,
+            "solverIterations": 6,
+            "velocityError": 6.938893903907228e-18,
+            "frameError": 4.440892098500626e-16,
+            "forceAggregationError": 3.552713678800501e-15,
+            "forceAggregationBudget": 3.5625182858070075e-13,
+            "nativeTorque": 0.18246872733412545,
+            "effectiveTorque": 0.16234688889447188
+          },
+          "nativeContactFrictionObserved": [
+            [
+              1,
+              1,
+              0.00001,
+              0.00001,
+              0.00001
+            ]
+          ],
+          "workDiagnosticJ": 0.000008283697783339509,
+          "resources": {
+            "temporaryCreated": 220864,
+            "temporaryDeleted": 220864,
+            "velocityCalls": 52000,
+            "contactForceCalls": 51928,
+            "step1Dispatched": 13000,
+            "step1Returned": 13000,
+            "advanceDispatched": 13000,
+            "advanceReturned": 13000,
+            "scheduleConfirmedAdvances": 13000,
+            "endpointRefreshes": 13000,
+            "preservedRefreshes": 13000,
+            "warningObservations": 13000
+          },
+          "xmlSha256": "e6da24ef8b2e8a31124aeb92c75da03730aee9db4f96b09e8d07664736d6d205",
+          "warningBaseline": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "modelReadback": {
+            "options": {
+              "timestep": 0.00025,
+              "integrator": 3,
+              "solver": 2,
+              "jacobian": 0,
+              "cone": 1,
+              "iterations": 100,
+              "tolerance": 1e-10,
+              "ls_iterations": 50,
+              "ls_tolerance": 0.01,
+              "noslip_iterations": 20,
+              "noslip_tolerance": 1e-12,
+              "impratio": 1,
+              "ccd_iterations": 100,
+              "ccd_tolerance": 1e-8,
+              "disableflags": 65536,
+              "enableflags": 32,
+              "density": 0,
+              "viscosity": 0,
+              "disableactuator": 0,
+              "gravity": [
+                0,
+                0,
+                -9.81
+              ],
+              "wind": [
+                0,
+                0,
+                0
+              ]
+            },
+            "nq": 8,
+            "nv": 7,
+            "na": 0,
+            "nu": 1,
+            "nbody": 3,
+            "ngeom": 2,
+            "njnt": 2,
+            "ntree": 2,
+            "npair": 1,
+            "nkey": 0,
+            "nplugin": 0,
+            "nsensor": 0,
+            "body_mass": [
+              0,
+              5,
+              0.5
+            ],
+            "body_inertia": [
+              0,
+              0,
+              0,
+              0.4177083333333333,
+              0.4177083333333333,
+              0.8333333333333333,
+              0.0006871666666666667,
+              0.0006871666666666667,
+              0.00027225
+            ],
+            "body_ipos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              -0.025,
+              0,
+              0,
+              0
+            ],
+            "body_iquat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "body_gravcomp": [
+              0,
+              0,
+              0
+            ],
+            "body_parentid": [
+              0,
+              0,
+              0
+            ],
+            "body_dofadr": [
+              -1,
+              0,
+              1
+            ],
+            "body_dofnum": [
+              0,
+              1,
+              6
+            ],
+            "body_pos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0.057600000000000005
+            ],
+            "body_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_bodyid": [
+              1,
+              2
+            ],
+            "geom_type": [
+              6,
+              5
+            ],
+            "geom_size": [
+              0.5,
+              0.5,
+              0.025,
+              0.033,
+              0.0575,
+              0
+            ],
+            "geom_pos": [
+              0,
+              0,
+              -0.025,
+              0,
+              0,
+              0
+            ],
+            "geom_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_friction": [
+              1,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            "geom_condim": [
+              3,
+              3
+            ],
+            "geom_margin": [
+              0,
+              0
+            ],
+            "geom_gap": [
+              0,
+              0
+            ],
+            "geom_solref": [
+              0.004,
+              1,
+              0.004,
+              1
+            ],
+            "geom_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "geom_adhesion": [
+              0,
+              0
+            ],
+            "geom_surfacevel": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_adhesion": [
+              0
+            ],
+            "jnt_type": [
+              3,
+              0
+            ],
+            "jnt_bodyid": [
+              1,
+              2
+            ],
+            "jnt_qposadr": [
+              0,
+              1
+            ],
+            "jnt_dofadr": [
+              0,
+              1
+            ],
+            "jnt_pos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "jnt_axis": [
+              0,
+              1,
+              0,
+              0,
+              0,
+              1
+            ],
+            "jnt_limited": [
+              0,
+              0
+            ],
+            "jnt_stiffness": [
+              0,
+              0
+            ],
+            "dof_damping": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_dampingpoly": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_frictionloss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_armature": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_dim": [
+              3
+            ],
+            "pair_geom1": [
+              0
+            ],
+            "pair_geom2": [
+              1
+            ],
+            "pair_friction": [
+              1,
+              1,
+              0,
+              0,
+              0
+            ],
+            "pair_margin": [
+              0
+            ],
+            "pair_gap": [
+              0
+            ],
+            "pair_solref": [
+              0.004,
+              1
+            ],
+            "pair_solreffriction": [
+              0,
+              0
+            ],
+            "pair_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "actuator_gear": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_gainprm": [
+              25000,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_biasprm": [
+              0,
+              -25000,
+              -210,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_dynprm": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_dyntype": [
+              0
+            ],
+            "actuator_gaintype": [
+              0
+            ],
+            "actuator_biastype": [
+              1
+            ],
+            "actuator_ctrllimited": [
+              1
+            ],
+            "actuator_forcelimited": [
+              1
+            ],
+            "actuator_ctrlrange": [
+              0,
+              0.6283185307179586
+            ],
+            "actuator_forcerange": [
+              -32,
+              32
+            ],
+            "actuator_trnid": [
+              0,
+              -1
+            ],
+            "actuator_trntype": [
+              0
+            ],
+            "actuator_damping": [
+              0
+            ],
+            "actuator_dampingpoly": [
+              0,
+              0
+            ],
+            "actuator_delay": [
+              0
+            ],
+            "actuator_armature": [
+              0
+            ]
+          },
+          "initialStable": {
+            "accepted": true,
+            "range": 2.237892480189004e-9,
+            "intervals": 400,
+            "durationUs": 100000,
+            "firstTick": 7601,
+            "lastTick": 8000
+          },
+          "rawChain": {
+            "ticks": 13000,
+            "sha256": "ae6de72c93e63e33beb990fc225f5238109a1ce8e6ae789b7a34c29701e8a705"
+          },
+          "parityChain": {
+            "ticks": 13000,
+            "sha256": "95d49e2172fcc044364ade4eada2d87ab0a12b7d8fa69cc655bf380d2be6ac92"
+          },
+          "physicalChain": {
+            "ticks": 13000,
+            "sha256": "917f8b912b04b8e49ce28235c22d12a62120a7f1992c00d26ed63626f57f8c14"
+          },
+          "cleanupErrors": []
+        },
+        {
+          "id": "admission-B-250-full",
+          "condition": {
+            "id": "admission-B-250-full",
+            "mode": "admission",
+            "probe": "B",
+            "kind": "tilt",
+            "dtUs": 250,
+            "phase": "full",
+            "repeat": 1,
+            "rate": "normal",
+            "maxSteps": 13000,
+            "targets": 1
+          },
+          "status": "PASS",
+          "ticks": 13000,
+          "modelCreationAttempted": true,
+          "modelCreated": true,
+          "dataCreated": true,
+          "peakSlipMps": {
+            "cylinder": 1.5490760263002255e-9
+          },
+          "cumulativeSlipM": {
+            "cylinder": 1.3212465114119654e-9
+          },
+          "rest": {
+            "cylinder": {
+              "baseline": {
+                "com": [
+                  -6.700943842849241e-8,
+                  -1.4291327836352016e-7,
+                  0.05749928691457921
+                ],
+                "quaternion": [
+                  0.9999999999990595,
+                  0.000001242024496977462,
+                  -5.827626103913444e-7,
+                  -2.0974316885277248e-10
+                ],
+                "rotation": [
+                  0.9999999999993208,
+                  4.180387268290933e-10,
+                  -0.000001165525221302605,
+                  -4.209339485812076e-10,
+                  0.9999999999969148,
+                  -0.000002484048993708127,
+                  0.0000011655252202605805,
+                  0.000002484048994197049,
+                  0.9999999999962356
+                ],
+                "velocity": [
+                  0.0000010241468852601926,
+                  -7.910809382830937e-7,
+                  4.5097049623615556e-8
+                ],
+                "omega": [
+                  0.000013757726469954079,
+                  0.000017815560495104263,
+                  7.252389000989679e-9
+                ]
+              },
+              "minimumEnergyJ": 0.28203400231660425,
+              "maxEnergyGrowthJ": 0,
+              "maxComDriftM": 0,
+              "maxQuaternionAngleRad": 0
+            }
+          },
+          "probeWitness": {
+            "cylinder": true
+          },
+          "stages": [
+            {
+              "index": 1,
+              "target": 0.0041887902047863905,
+              "minAngle": -9.861758933170874e-10,
+              "maxAngle": 0.004188633194018532,
+              "maxTracking": 0.0002629523473306945,
+              "maxSpeed": 0.03127679744859536,
+              "stable": {
+                "accepted": true,
+                "range": 1.8140396060295494e-9,
+                "intervals": 400,
+                "durationUs": 100000,
+                "firstTick": 12601,
+                "lastTick": 13000
+              },
+              "result": "STABLE"
+            }
+          ],
+          "event": null,
+          "maxima": {
+            "contacts": 4,
+            "rows": 12,
+            "islands": 1,
+            "solverIterations": 6,
+            "velocityError": 6.938893903907228e-18,
+            "frameError": 4.440892098500626e-16,
+            "forceAggregationError": 3.552713678800501e-15,
+            "forceAggregationBudget": 3.5625182858070075e-13,
+            "nativeTorque": 0.18246872733412545,
+            "effectiveTorque": 0.16234688889447188
+          },
+          "nativeContactFrictionObserved": [
+            [
+              1,
+              1,
+              0.00001,
+              0.00001,
+              0.00001
+            ]
+          ],
+          "workDiagnosticJ": 0.000008283697783339509,
+          "resources": {
+            "temporaryCreated": 220864,
+            "temporaryDeleted": 220864,
+            "velocityCalls": 39000,
+            "contactForceCalls": 51928,
+            "step1Dispatched": 0,
+            "step1Returned": 0,
+            "advanceDispatched": 13000,
+            "advanceReturned": 13000,
+            "scheduleConfirmedAdvances": 13000,
+            "endpointRefreshes": 0,
+            "preservedRefreshes": 0,
+            "warningObservations": 13000
+          },
+          "xmlSha256": "e6da24ef8b2e8a31124aeb92c75da03730aee9db4f96b09e8d07664736d6d205",
+          "warningBaseline": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "modelReadback": {
+            "options": {
+              "timestep": 0.00025,
+              "integrator": 3,
+              "solver": 2,
+              "jacobian": 0,
+              "cone": 1,
+              "iterations": 100,
+              "tolerance": 1e-10,
+              "ls_iterations": 50,
+              "ls_tolerance": 0.01,
+              "noslip_iterations": 20,
+              "noslip_tolerance": 1e-12,
+              "impratio": 1,
+              "ccd_iterations": 100,
+              "ccd_tolerance": 1e-8,
+              "disableflags": 65536,
+              "enableflags": 32,
+              "density": 0,
+              "viscosity": 0,
+              "disableactuator": 0,
+              "gravity": [
+                0,
+                0,
+                -9.81
+              ],
+              "wind": [
+                0,
+                0,
+                0
+              ]
+            },
+            "nq": 8,
+            "nv": 7,
+            "na": 0,
+            "nu": 1,
+            "nbody": 3,
+            "ngeom": 2,
+            "njnt": 2,
+            "ntree": 2,
+            "npair": 1,
+            "nkey": 0,
+            "nplugin": 0,
+            "nsensor": 0,
+            "body_mass": [
+              0,
+              5,
+              0.5
+            ],
+            "body_inertia": [
+              0,
+              0,
+              0,
+              0.4177083333333333,
+              0.4177083333333333,
+              0.8333333333333333,
+              0.0006871666666666667,
+              0.0006871666666666667,
+              0.00027225
+            ],
+            "body_ipos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              -0.025,
+              0,
+              0,
+              0
+            ],
+            "body_iquat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "body_gravcomp": [
+              0,
+              0,
+              0
+            ],
+            "body_parentid": [
+              0,
+              0,
+              0
+            ],
+            "body_dofadr": [
+              -1,
+              0,
+              1
+            ],
+            "body_dofnum": [
+              0,
+              1,
+              6
+            ],
+            "body_pos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0.057600000000000005
+            ],
+            "body_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_bodyid": [
+              1,
+              2
+            ],
+            "geom_type": [
+              6,
+              5
+            ],
+            "geom_size": [
+              0.5,
+              0.5,
+              0.025,
+              0.033,
+              0.0575,
+              0
+            ],
+            "geom_pos": [
+              0,
+              0,
+              -0.025,
+              0,
+              0,
+              0
+            ],
+            "geom_quat": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "geom_friction": [
+              1,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            "geom_condim": [
+              3,
+              3
+            ],
+            "geom_margin": [
+              0,
+              0
+            ],
+            "geom_gap": [
+              0,
+              0
+            ],
+            "geom_solref": [
+              0.004,
+              1,
+              0.004,
+              1
+            ],
+            "geom_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2,
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "geom_adhesion": [
+              0,
+              0
+            ],
+            "geom_surfacevel": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_adhesion": [
+              0
+            ],
+            "jnt_type": [
+              3,
+              0
+            ],
+            "jnt_bodyid": [
+              1,
+              2
+            ],
+            "jnt_qposadr": [
+              0,
+              1
+            ],
+            "jnt_dofadr": [
+              0,
+              1
+            ],
+            "jnt_pos": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "jnt_axis": [
+              0,
+              1,
+              0,
+              0,
+              0,
+              1
+            ],
+            "jnt_limited": [
+              0,
+              0
+            ],
+            "jnt_stiffness": [
+              0,
+              0
+            ],
+            "dof_damping": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_dampingpoly": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_frictionloss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "dof_armature": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pair_dim": [
+              3
+            ],
+            "pair_geom1": [
+              0
+            ],
+            "pair_geom2": [
+              1
+            ],
+            "pair_friction": [
+              1,
+              1,
+              0,
+              0,
+              0
+            ],
+            "pair_margin": [
+              0
+            ],
+            "pair_gap": [
+              0
+            ],
+            "pair_solref": [
+              0.004,
+              1
+            ],
+            "pair_solreffriction": [
+              0,
+              0
+            ],
+            "pair_solimp": [
+              0.99,
+              0.99,
+              0.001,
+              0.5,
+              2
+            ],
+            "actuator_gear": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_gainprm": [
+              25000,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_biasprm": [
+              0,
+              -25000,
+              -210,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_dynprm": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "actuator_dyntype": [
+              0
+            ],
+            "actuator_gaintype": [
+              0
+            ],
+            "actuator_biastype": [
+              1
+            ],
+            "actuator_ctrllimited": [
+              1
+            ],
+            "actuator_forcelimited": [
+              1
+            ],
+            "actuator_ctrlrange": [
+              0,
+              0.6283185307179586
+            ],
+            "actuator_forcerange": [
+              -32,
+              32
+            ],
+            "actuator_trnid": [
+              0,
+              -1
+            ],
+            "actuator_trntype": [
+              0
+            ],
+            "actuator_damping": [
+              0
+            ],
+            "actuator_dampingpoly": [
+              0,
+              0
+            ],
+            "actuator_delay": [
+              0
+            ],
+            "actuator_armature": [
+              0
+            ]
+          },
+          "initialStable": {
+            "accepted": true,
+            "range": 2.237892480189004e-9,
+            "intervals": 400,
+            "durationUs": 100000,
+            "firstTick": 7601,
+            "lastTick": 8000
+          },
+          "rawChain": {
+            "ticks": 13000,
+            "sha256": "ae6de72c93e63e33beb990fc225f5238109a1ce8e6ae789b7a34c29701e8a705"
+          },
+          "parityChain": {
+            "ticks": 13000,
+            "sha256": "95d49e2172fcc044364ade4eada2d87ab0a12b7d8fa69cc655bf380d2be6ac92"
+          },
+          "physicalChain": {
+            "ticks": 13000,
+            "sha256": "917f8b912b04b8e49ce28235c22d12a62120a7f1992c00d26ed63626f57f8c14"
+          },
+          "cleanupErrors": []
+        }
+      ],
+      "comparisons": [
+        {
+          "kind": "phase-refresh-exact-parity",
+          "worlds": [
+            "admission-A-500-split",
+            "admission-A-500-full"
+          ],
+          "nativeIntervals": 200,
+          "verdict": "PASS"
+        },
+        {
+          "kind": "phase-refresh-exact-parity",
+          "worlds": [
+            "admission-A-250-split",
+            "admission-A-250-full"
+          ],
+          "nativeIntervals": 400,
+          "verdict": "PASS"
+        },
+        {
+          "kind": "phase-refresh-exact-parity",
+          "worlds": [
+            "admission-B-500-split",
+            "admission-B-500-full"
+          ],
+          "nativeIntervals": 6500,
+          "verdict": "PASS"
+        },
+        {
+          "kind": "phase-refresh-exact-parity",
+          "worlds": [
+            "admission-B-250-split",
+            "admission-B-250-full"
+          ],
+          "nativeIntervals": 13000,
+          "verdict": "PASS"
+        }
+      ],
+      "assessment": {
+        "verdict": "PASS",
+        "failures": []
+      },
+      "engine": {
+        "version": "4.0.0",
+        "moduleSha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2",
+        "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de",
+        "singleThread": true,
+        "explicitLocalWasm": true
+      },
+      "worldDisposition": {
+        "planned": [
+          {
+            "id": "admission-A-500-split",
+            "maxNativeAdvances": 200
+          },
+          {
+            "id": "admission-A-500-full",
+            "maxNativeAdvances": 200
+          },
+          {
+            "id": "admission-A-250-split",
+            "maxNativeAdvances": 400
+          },
+          {
+            "id": "admission-A-250-full",
+            "maxNativeAdvances": 400
+          },
+          {
+            "id": "admission-B-500-split",
+            "maxNativeAdvances": 6500
+          },
+          {
+            "id": "admission-B-500-full",
+            "maxNativeAdvances": 6500
+          },
+          {
+            "id": "admission-B-250-split",
+            "maxNativeAdvances": 13000
+          },
+          {
+            "id": "admission-B-250-full",
+            "maxNativeAdvances": 13000
+          }
+        ],
+        "creationAttempted": [
+          "admission-A-500-split",
+          "admission-A-500-full",
+          "admission-A-250-split",
+          "admission-A-250-full",
+          "admission-B-500-split",
+          "admission-B-500-full",
+          "admission-B-250-split",
+          "admission-B-250-full"
+        ],
+        "created": [
+          "admission-A-500-split",
+          "admission-A-500-full",
+          "admission-A-250-split",
+          "admission-A-250-full",
+          "admission-B-500-split",
+          "admission-B-500-full",
+          "admission-B-250-split",
+          "admission-B-250-full"
+        ],
+        "notCreated": [],
+        "noReturnedNativeAdvance": [],
+        "undispatchedNativeAdvances": 0
+      },
+      "completeTrajectoryDigest": "cf3390d1252bb709bde85d185af8e98dadedee946796c4eba780c3d8ea76ade9",
+      "afterHashes": {
+        "sourceManifest": {
+          "newInputs": {
+            "tools/robotics-field-core/mujoco-contact-observer.mjs": "dd22ed00fc47a68cce8c27f4c1e82145b0f6d26b2924908a9f42317115726a8c",
+            "tools/robotics-field-core/mujoco-cylinder.mjs": "d9748052ca54987aa5ed42f909d0c1f8e21587c0e6ca60c6b5f0b4c3c86ea24b",
+            "tools/robotics-field-core/run-mujoco-cylinder.mjs": "9729d2f48a51db51a09962e412c41c76912d8719ce864ff93f89a10cc59418e9",
+            "tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json": "28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb",
+            "tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts": "4bc8a30abc7c309ecb2bb43ede162c44fc3019d0016371dae56a1cebe2a6f2f8"
+          },
+          "immutableParents": {
+            "package.json": "c2f5a1421e86b7dd37022eda8a37cf25cded373d986c31dc8f8e1beb435c7492",
+            "pnpm-lock.yaml": "448b5a8faa0f8497c3efe1bdc63959b381fad5577bfb5734261e9578ee5a93e1",
+            "tools/robotics-field-core/mujoco-artifact.json": "1c353e3593f1fcd730c6e97f9549d3b6fdff7ce1fff7b9c45755edd7cd1ca1c3",
+            "tools/robotics-field-core/MUJOCO-LICENSE.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+            "tools/robotics-field-core/MUJOCO-THIRD-PARTY-NOTICES.txt": "6f681117208684ef2ab3ad03a9f928ae8c6dffb4f765eeab59fb2d8b189e1540",
+            "tools/robotics-field-core/mujoco-phy01.mjs": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+            "tools/robotics-field-core/run-mujoco-phy01.mjs": "5b2179f0ff1b6c759b63757dd881242aee6c9fb4b258243a08a7b50dfefb12ad",
+            "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c",
+            "tests/robotics/field-core-qualification/mujoco-phy01.spec.ts": "1266b4c420baea08fd4448beb9d96a908d039bc3ddcbfc89a67b911aef893cb4"
+          },
+          "specification": {
+            "docs/product/robotics/FIELD_CORE_SPEC.md": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e"
+          },
+          "parentExecution": "Only readFixture, artifact validation, hashes and nativeTimeBudget helpers are imported; prior PHY01 physics is not rerun."
+        },
+        "reports": {
+          "json": "c227036c85bfbb8135e9867edc1e82e30e95dcaad91840f4a38b6744b9f9a784",
+          "markdown": "2c1e97aff5fd4dcb2d89c01486fa9f6696abebbeeb5a872c5a721ef16f438b51"
+        },
+        "reportsCapturedBeforeFinalQualificationSave": true
+      },
+      "finishedAtUtc": "2026-11-11T17:57:16.748Z"
+    }
+  ],
+  "governance": {
+    "status": "PASS",
+    "independentReview": "NOT_RUN",
+    "githubQualificationCI": "NOT_RUN",
+    "nativeGate": "Explicit native CLI only; pure Vitest is not PHY03/PHY06 execution"
+  },
+  "logs": [
+    {
+      "name": "zero-model-api.log",
+      "present": true,
+      "bytes": 35694,
+      "sha256": "8c09916884735c6bfc8ad192d6450f0487c6237d339edee444b94376b06719cd"
+    },
+    {
+      "name": "format-final.log",
+      "present": true,
+      "bytes": 138,
+      "sha256": "fbdd37869c73ce85afb11ffefa058e0181874c073fdfee7d7a4b5086b7ea3b1b"
+    },
+    {
+      "name": "pure-suite-a1.log",
+      "present": true,
+      "bytes": 1172,
+      "sha256": "55c49fb3f3f0fe679418f9bf5c4900c9a5a8e86d9f012dbffff0d3fc6c45b134"
+    },
+    {
+      "name": "pure-suite-a2.log",
+      "present": true,
+      "bytes": 1168,
+      "sha256": "0379bfa44b15ae31b3fcc9014c6225f46f729864f51d8039580253cd6ea44e05"
+    },
+    {
+      "name": "pure-suite-final.log",
+      "present": true,
+      "bytes": 1168,
+      "sha256": "2e2c1699de9c6628e6da47bf7856d26c94eed4044aede440eda1492239b0d9e9"
+    },
+    {
+      "name": "lint-a1.log",
+      "present": true,
+      "bytes": 1096,
+      "sha256": "cbc42da966effb57feacf5d0bbac01724081e1aa517f71aa4999cff7aeb0b159"
+    },
+    {
+      "name": "lint-a2.log",
+      "present": false,
+      "reason": "Quiet successful ESLint produced no Tee-Object file; exit recorded separately"
+    },
+    {
+      "name": "lint-final.log",
+      "present": false,
+      "reason": "Quiet successful ESLint produced no Tee-Object file; exit recorded separately"
+    },
+    {
+      "name": "cli-final-lint.log",
+      "present": false,
+      "reason": "Quiet successful ESLint produced no Tee-Object file; exit recorded separately"
+    },
+    {
+      "name": "synthetic-retained-size-final.log",
+      "present": true,
+      "bytes": 1166,
+      "sha256": "987376d9d33afc6cb6d560923e6d87426090b0c1ddd03c3ee9f2c39ebbb32b42"
+    },
+    {
+      "name": "governance-static.log",
+      "present": true,
+      "bytes": 79860,
+      "sha256": "587f3610ddfb3aebe8dc7277b79203cf9e59d27d323af16f72fc80d1f568ce1c"
+    },
+    {
+      "name": "preflight-final.log",
+      "present": true,
+      "bytes": 10422,
+      "sha256": "d3fb0295e9027c52eb2ca1b95ae1650d51e5ab99714d9a64847c091255ad8b54"
+    },
+    {
+      "name": "owned-diff-classification.log",
+      "present": true,
+      "bytes": 5594,
+      "sha256": "d20e6dbda7b049773d1904716a0224be0e769f2199ba6578ad99f29bb5dda895"
+    },
+    {
+      "name": "owned-diff-recovery.log",
+      "present": true,
+      "bytes": 1798,
+      "sha256": "dd4f80facd00506e954f6135f8444f681fb8cfdbf9def24ee8b4c6a9a9f78e04"
+    },
+    {
+      "name": "owned-diff-recovery-python313.log",
+      "present": true,
+      "bytes": 3228,
+      "sha256": "99623e837c96f9abbabccc0ae336f655227690f29a14827a0e7ca15d241b4703"
+    },
+    {
+      "name": "static-complete-receipt.log",
+      "present": true,
+      "bytes": 2788,
+      "sha256": "7d5ff62d01a8a975ff0b574939c52b6293fb99925b693597b64457526ce117cd"
+    },
+    {
+      "name": "preregistration-frozen.log",
+      "present": true,
+      "bytes": 35014,
+      "sha256": "e3d60ac4be47c919d78c955441c8336a95762b1b1b1a74f5c5a9d1d086f5bdf3"
+    }
+  ],
+  "logDirectory": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111",
+  "staticExitReceipt": {
+    "schemaVersion": 1,
+    "recordedAtUtc": "2026-11-11T17:53:37.403Z",
+    "frozenRegisteredAtUtc": "2026-11-11T17:51:19.108Z",
+    "sourceManifest": {
+      "newInputs": {
+        "tools/robotics-field-core/mujoco-contact-observer.mjs": "dd22ed00fc47a68cce8c27f4c1e82145b0f6d26b2924908a9f42317115726a8c",
+        "tools/robotics-field-core/mujoco-cylinder.mjs": "d9748052ca54987aa5ed42f909d0c1f8e21587c0e6ca60c6b5f0b4c3c86ea24b",
+        "tools/robotics-field-core/run-mujoco-cylinder.mjs": "9729d2f48a51db51a09962e412c41c76912d8719ce864ff93f89a10cc59418e9",
+        "tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json": "28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb",
+        "tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts": "4bc8a30abc7c309ecb2bb43ede162c44fc3019d0016371dae56a1cebe2a6f2f8"
+      },
+      "immutableParents": {
+        "package.json": "c2f5a1421e86b7dd37022eda8a37cf25cded373d986c31dc8f8e1beb435c7492",
+        "pnpm-lock.yaml": "448b5a8faa0f8497c3efe1bdc63959b381fad5577bfb5734261e9578ee5a93e1",
+        "tools/robotics-field-core/mujoco-artifact.json": "1c353e3593f1fcd730c6e97f9549d3b6fdff7ce1fff7b9c45755edd7cd1ca1c3",
+        "tools/robotics-field-core/MUJOCO-LICENSE.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "tools/robotics-field-core/MUJOCO-THIRD-PARTY-NOTICES.txt": "6f681117208684ef2ab3ad03a9f928ae8c6dffb4f765eeab59fb2d8b189e1540",
+        "tools/robotics-field-core/mujoco-phy01.mjs": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+        "tools/robotics-field-core/run-mujoco-phy01.mjs": "5b2179f0ff1b6c759b63757dd881242aee6c9fb4b258243a08a7b50dfefb12ad",
+        "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c",
+        "tests/robotics/field-core-qualification/mujoco-phy01.spec.ts": "1266b4c420baea08fd4448beb9d96a908d039bc3ddcbfc89a67b911aef893cb4"
+      },
+      "specification": {
+        "docs/product/robotics/FIELD_CORE_SPEC.md": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e"
+      },
+      "parentExecution": "Only readFixture, artifact validation, hashes and nativeTimeBudget helpers are imported; prior PHY01 physics is not rerun."
+    },
+    "fixtures": {
+      "rawSha256": "28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb"
+    },
+    "checks": [
+      {
+        "command": "pnpm.cmd exec vitest run tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts --maxWorkers=1",
+        "exitCode": 0,
+        "tests": 102,
+        "durationMs": 599,
+        "processId": 40412,
+        "log": "pure-suite-final.log"
+      },
+      {
+        "command": "node --check three new mjs sources",
+        "exitCode": 0,
+        "processId": 40412
+      },
+      {
+        "command": "pnpm.cmd exec prettier --check five new source inputs",
+        "exitCode": 0,
+        "processId": 40412,
+        "log": "format-final.log"
+      },
+      {
+        "command": "pnpm.cmd exec eslint three new mjs and one spec",
+        "exitCode": 0,
+        "durationSeconds": 3.64,
+        "processId": 41748,
+        "stdout": "empty"
+      },
+      {
+        "command": "pnpm.cmd exec eslint run-mujoco-cylinder.mjs after hash-timing metadata change",
+        "exitCode": 0,
+        "durationSeconds": 4.51,
+        "processId": 43944,
+        "stdout": "empty"
+      },
+      {
+        "command": "pnpm.cmd gate:governance",
+        "exitCode": 0,
+        "processId": 14124,
+        "invocations": 1,
+        "durationSeconds": 372.44,
+        "logCreatedAtUtc": "2026-11-11T17:39:32.029Z",
+        "log": "governance-static.log"
+      },
+      {
+        "command": "node tools/robotics-field-core/run-mujoco-cylinder.mjs --preregister",
+        "exitCode": 0,
+        "processId": 32100,
+        "registeredAtUtc": "2026-11-11T17:51:19.108Z",
+        "log": "preregistration-frozen.log"
+      }
+    ],
+    "modelCreations": 0,
+    "dataCreations": 0,
+    "nativeAdvances": 0,
+    "retainedFailures": [
+      {
+        "phase": "initial lint",
+        "reason": "preserve-caught-error; repaired by cause without suppression",
+        "log": "lint-a1.log"
+      },
+      {
+        "phase": "package recovery wrapper",
+        "reason": "default Python lacked PyYAML; exact Python3.13 read-only recovery succeeded in classifying own dirty files",
+        "log": "owned-diff-recovery.log"
+      },
+      {
+        "phase": "initial static report writer",
+        "reason": "ENOENT on absent quiet ESLint log; no frozen source change, report-only repair",
+        "log": "static-complete-receipt.log"
+      }
+    ],
+    "logs": [
+      {
+        "name": "zero-model-api.log",
+        "present": true,
+        "bytes": 35694,
+        "sha256": "8c09916884735c6bfc8ad192d6450f0487c6237d339edee444b94376b06719cd"
+      },
+      {
+        "name": "format-final.log",
+        "present": true,
+        "bytes": 138,
+        "sha256": "fbdd37869c73ce85afb11ffefa058e0181874c073fdfee7d7a4b5086b7ea3b1b"
+      },
+      {
+        "name": "pure-suite-a1.log",
+        "present": true,
+        "bytes": 1172,
+        "sha256": "55c49fb3f3f0fe679418f9bf5c4900c9a5a8e86d9f012dbffff0d3fc6c45b134"
+      },
+      {
+        "name": "pure-suite-a2.log",
+        "present": true,
+        "bytes": 1168,
+        "sha256": "0379bfa44b15ae31b3fcc9014c6225f46f729864f51d8039580253cd6ea44e05"
+      },
+      {
+        "name": "pure-suite-final.log",
+        "present": true,
+        "bytes": 1168,
+        "sha256": "2e2c1699de9c6628e6da47bf7856d26c94eed4044aede440eda1492239b0d9e9"
+      },
+      {
+        "name": "lint-a1.log",
+        "present": true,
+        "bytes": 1096,
+        "sha256": "cbc42da966effb57feacf5d0bbac01724081e1aa517f71aa4999cff7aeb0b159"
+      },
+      {
+        "name": "lint-a2.log",
+        "present": false,
+        "reason": "Quiet successful ESLint produced no Tee-Object file; exit recorded separately"
+      },
+      {
+        "name": "lint-final.log",
+        "present": false,
+        "reason": "Quiet successful ESLint produced no Tee-Object file; exit recorded separately"
+      },
+      {
+        "name": "cli-final-lint.log",
+        "present": false,
+        "reason": "Quiet successful ESLint produced no Tee-Object file; exit recorded separately"
+      },
+      {
+        "name": "synthetic-retained-size-final.log",
+        "present": true,
+        "bytes": 1166,
+        "sha256": "987376d9d33afc6cb6d560923e6d87426090b0c1ddd03c3ee9f2c39ebbb32b42"
+      },
+      {
+        "name": "governance-static.log",
+        "present": true,
+        "bytes": 79860,
+        "sha256": "587f3610ddfb3aebe8dc7277b79203cf9e59d27d323af16f72fc80d1f568ce1c"
+      },
+      {
+        "name": "preflight-final.log",
+        "present": true,
+        "bytes": 10422,
+        "sha256": "d3fb0295e9027c52eb2ca1b95ae1650d51e5ab99714d9a64847c091255ad8b54"
+      },
+      {
+        "name": "owned-diff-classification.log",
+        "present": true,
+        "bytes": 5594,
+        "sha256": "d20e6dbda7b049773d1904716a0224be0e769f2199ba6578ad99f29bb5dda895"
+      },
+      {
+        "name": "owned-diff-recovery.log",
+        "present": true,
+        "bytes": 1798,
+        "sha256": "dd4f80facd00506e954f6135f8444f681fb8cfdbf9def24ee8b4c6a9a9f78e04"
+      },
+      {
+        "name": "owned-diff-recovery-python313.log",
+        "present": true,
+        "bytes": 3228,
+        "sha256": "99623e837c96f9abbabccc0ae336f655227690f29a14827a0e7ca15d241b4703"
+      },
+      {
+        "name": "static-complete-receipt.log",
+        "present": true,
+        "bytes": 2788,
+        "sha256": "7d5ff62d01a8a975ff0b574939c52b6293fb99925b693597b64457526ce117cd"
+      },
+      {
+        "name": "preregistration-frozen.log",
+        "present": true,
+        "bytes": 35014,
+        "sha256": "e3d60ac4be47c919d78c955441c8336a95762b1b1b1a74f5c5a9d1d086f5bdf3"
+      }
+    ]
+  },
+  "currentPreflight": {
+    "main": "58735ee04981bc6ba7a22d1b5deb1ef20587e324",
+    "result": "RECOVERY_REQUIRED_OWN_AUTHOR_DIRTY",
+    "plan": "PASS",
+    "controlPlane": "PASS",
+    "executionBlockers": 0,
+    "worktreeOverlaps": 0,
+    "mainOverlap": [],
+    "mainChangedPaths": [
+      "docs/execution/current.yaml",
+      "e2e/electronics-interactions.spec.ts"
+    ],
+    "classification": "All seven new paths are the root-authorized slice, owned and reviewed. Preserve all; no convergence or canonical state edits.",
+    "indexEmpty": true
+  },
+  "preAdmission": {
+    "registrations": 1,
+    "attempts": 0,
+    "modelCreations": 0,
+    "dataCreations": 0,
+    "nativeAdvances": 0,
+    "plannedAdmissionWorlds": [
+      "admission-A-500-split",
+      "admission-A-500-full",
+      "admission-A-250-split",
+      "admission-A-250-full",
+      "admission-B-500-split",
+      "admission-B-500-full",
+      "admission-B-250-split",
+      "admission-B-250-full"
+    ],
+    "plannedMainWorlds": [
+      "rest-500-r1",
+      "rest-500-r2",
+      "rest-250-r1",
+      "rest-250-r2",
+      "tilt-normal-500-r1",
+      "tilt-normal-500-r2",
+      "tilt-normal-250-r1",
+      "tilt-normal-250-r2",
+      "tilt-slow-500-r1",
+      "tilt-slow-500-r2",
+      "tilt-slow-250-r1",
+      "tilt-slow-250-r2"
+    ],
+    "allPlannedWorldsNotRun": true
+  },
+  "actualTotals": {
+    "invocations": 1,
+    "admissionInvocations": 1,
+    "mainInvocations": 0,
+    "replayInvocations": 0,
+    "modelsCreated": 8,
+    "modelsFreed": 8,
+    "dataCreated": 8,
+    "dataFreed": 8,
+    "advanceDispatched": 40200,
+    "advanceReturned": 40200,
+    "scheduleConfirmedAdvances": 40200
+  },
+  "admissionOutcome": {
+    "attemptId": "mujoco-cylinder-admission-a1",
+    "verdict": "PASS",
+    "startedAtUtc": "2026-11-11T17:56:17.773Z",
+    "finishedAtUtc": "2026-11-11T17:57:16.748Z",
+    "processEndUtc": "2026-11-11T17:57:16.7714602Z",
+    "processExitCode": 0,
+    "processRuntimeSeconds": 60.71,
+    "raw": {
+      "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\mujoco-cylinder-admission-a1-2026-11-11T175617772Z.asacylraw",
+      "bytes": 578671,
+      "sha256": "933203436f9ac360ca3d61f3ff790f2f887cfe72a24b0a4d648196ccc87516a1",
+      "matchesCli": true
+    },
+    "externalReceipt": {
+      "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\mujoco-cylinder-20261111\\mujoco-cylinder-admission-a1-2026-11-11T175617772Z.receipt.json",
+      "bytes": 97386,
+      "sameBudget": true,
+      "sameVerdict": true
+    },
+    "sourceBeforeAfterEqual": true,
+    "sourceStillMatchesFrozen": true,
+    "phaseParity": [
+      {
+        "kind": "phase-refresh-exact-parity",
+        "worlds": [
+          "admission-A-500-split",
+          "admission-A-500-full"
+        ],
+        "nativeIntervals": 200,
+        "verdict": "PASS"
+      },
+      {
+        "kind": "phase-refresh-exact-parity",
+        "worlds": [
+          "admission-A-250-split",
+          "admission-A-250-full"
+        ],
+        "nativeIntervals": 400,
+        "verdict": "PASS"
+      },
+      {
+        "kind": "phase-refresh-exact-parity",
+        "worlds": [
+          "admission-B-500-split",
+          "admission-B-500-full"
+        ],
+        "nativeIntervals": 6500,
+        "verdict": "PASS"
+      },
+      {
+        "kind": "phase-refresh-exact-parity",
+        "worlds": [
+          "admission-B-250-split",
+          "admission-B-250-full"
+        ],
+        "nativeIntervals": 13000,
+        "verdict": "PASS"
+      }
+    ],
+    "maxima": {
+      "contacts": 8,
+      "rows": 24,
+      "islands": 2,
+      "solverIterations": 10,
+      "velocityError": 6.938893903907228e-18,
+      "frameError": 4.440892098500626e-16,
+      "forceAggregationError": 3.552713678800501e-15,
+      "forceAggregationBudget": 3.5935737414100655e-13,
+      "nativeTorque": 0.2026901905669991,
+      "effectiveTorque": 0.1624939310860175
+    },
+    "temporaryOwnership": {
+      "created": 691768,
+      "deleted": 691768,
+      "interpretation": "owned wrapper accounting, not a leak test"
+    },
+    "worldDisposition": {
+      "planned": [
+        {
+          "id": "admission-A-500-split",
+          "maxNativeAdvances": 200
+        },
+        {
+          "id": "admission-A-500-full",
+          "maxNativeAdvances": 200
+        },
+        {
+          "id": "admission-A-250-split",
+          "maxNativeAdvances": 400
+        },
+        {
+          "id": "admission-A-250-full",
+          "maxNativeAdvances": 400
+        },
+        {
+          "id": "admission-B-500-split",
+          "maxNativeAdvances": 6500
+        },
+        {
+          "id": "admission-B-500-full",
+          "maxNativeAdvances": 6500
+        },
+        {
+          "id": "admission-B-250-split",
+          "maxNativeAdvances": 13000
+        },
+        {
+          "id": "admission-B-250-full",
+          "maxNativeAdvances": 13000
+        }
+      ],
+      "creationAttempted": [
+        "admission-A-500-split",
+        "admission-A-500-full",
+        "admission-A-250-split",
+        "admission-A-250-full",
+        "admission-B-500-split",
+        "admission-B-500-full",
+        "admission-B-250-split",
+        "admission-B-250-full"
+      ],
+      "created": [
+        "admission-A-500-split",
+        "admission-A-500-full",
+        "admission-A-250-split",
+        "admission-A-250-full",
+        "admission-B-500-split",
+        "admission-B-500-full",
+        "admission-B-250-split",
+        "admission-B-250-full"
+      ],
+      "notCreated": [],
+      "noReturnedNativeAdvance": [],
+      "undispatchedNativeAdvances": 0
+    },
+    "mainWorldsNotRun": [
+      "rest-500-r1",
+      "rest-500-r2",
+      "rest-250-r1",
+      "rest-250-r2",
+      "tilt-normal-500-r1",
+      "tilt-normal-500-r2",
+      "tilt-normal-250-r1",
+      "tilt-normal-250-r2",
+      "tilt-slow-500-r1",
+      "tilt-slow-500-r2",
+      "tilt-slow-250-r1",
+      "tilt-slow-250-r2"
+    ],
+    "archive": {
+      "status": "ARCHIVED_VERIFIED",
+      "releaseId": 442053227,
+      "releaseHtmlUrl": "https://github.com/spikeal8-maker/asa-lab/releases/tag/untagged-70f29156a619fa757ba5",
+      "verifiedAtUtc": "2026-11-11T18:19:57.884158+00:00",
+      "rawAssetId": 736479180
+    },
+    "schoolPerformance": "NOT_QUALIFIED",
+    "scope": "A intentional tangential slip and contact observer; B settle+first0.24degree target only",
+    "observerAVelocityWitnesses": "All four A worlds have positive-load and nonzero tangential-velocity witnesses for both cylinder and block. A peakSlipMps and cumulativeSlipM zero values are inactive gate accumulators because its physical slip gate is disabled; they are not measured zero slip.",
+    "bMetrics": [
+      {
+        "id": "admission-B-500-split",
+        "peakSlipMps": 1.619051095099134e-9,
+        "cumulativeSlipM": 1.271592879473593e-9,
+        "maxTrackingDeg": 0.015070833764681914,
+        "maxActualSpeedRadps": 0.03128383126520083,
+        "stageSpanDeg": 0.23999110782837182,
+        "stationaryFloorRangeDeg": 1.5332337545857754e-7,
+        "stageResult": "STABLE"
+      },
+      {
+        "id": "admission-B-250-split",
+        "peakSlipMps": 1.5490760263002255e-9,
+        "cumulativeSlipM": 1.3212465114119654e-9,
+        "maxTrackingDeg": 0.015066059715106911,
+        "maxActualSpeedRadps": 0.03127679744859536,
+        "stageSpanDeg": 0.23999106044938015,
+        "stationaryFloorRangeDeg": 1.0393681329506779e-7,
+        "stageResult": "STABLE"
+      }
+    ],
+    "nextGate": "Controller accepted bounded admission. Archive verified; authorized seven-path checkpoint publication only. STOP after checkpoint for controller review. MAIN, replay, profile/source optimization and further dynamics require separate GO."
+  },
+  "archive": {
+    "schemaVersion": 1,
+    "status": "ARCHIVED_VERIFIED",
+    "verifiedAtUtc": "2026-11-11T18:19:57.884158+00:00",
+    "repository": "spikeal8-maker/asa-lab",
+    "releaseId": 442053227,
+    "releaseTag": "evidence-mujoco-cylinder-d2-20261111-93320343",
+    "draft": true,
+    "releaseApiUrl": "https://api.github.com/repos/spikeal8-maker/asa-lab/releases/442053227",
+    "releaseHtmlUrl": "https://github.com/spikeal8-maker/asa-lab/releases/tag/untagged-70f29156a619fa757ba5",
+    "releaseTargetCommit": "5d2f9585546983926de2f72fe5c427f13ae56513",
+    "historicalTargetIsNotFullSourceSnapshot": true,
+    "before": {
+      "observedAtUtc": "2026-11-11T18:16:08.504864+00:00",
+      "latest": {
+        "status": 404,
+        "latestRelease": null
+      },
+      "tag": {
+        "tag": "evidence-mujoco-cylinder-d2-20261111-93320343",
+        "actualTagRefExists": false
+      }
+    },
+    "after": {
+      "observedAtUtc": "2026-11-11T18:18:39.712630+00:00",
+      "latest": {
+        "status": 404,
+        "latestRelease": null
+      },
+      "tag": {
+        "tag": "evidence-mujoco-cylinder-d2-20261111-93320343",
+        "actualTagRefExists": false
+      }
+    },
+    "latestUnchanged": true,
+    "actualTagRefExists": false,
+    "assets": [
+      {
+        "name": "mujoco-cylinder-admission-a1-2026-11-11T175617772Z.asacylraw",
+        "bytes": 578671,
+        "sha256": "933203436f9ac360ca3d61f3ff790f2f887cfe72a24b0a4d648196ccc87516a1",
+        "assetId": 736479180,
+        "apiUrl": "https://api.github.com/repos/spikeal8-maker/asa-lab/releases/assets/736479180",
+        "downloadUrl": "https://github.com/spikeal8-maker/asa-lab/releases/download/untagged-70f29156a619fa757ba5/mujoco-cylinder-admission-a1-2026-11-11T175617772Z.asacylraw",
+        "githubDigest": "sha256:933203436f9ac360ca3d61f3ff790f2f887cfe72a24b0a4d648196ccc87516a1",
+        "downloadedBytes": 578671,
+        "downloadedSha256": "933203436f9ac360ca3d61f3ff790f2f887cfe72a24b0a4d648196ccc87516a1",
+        "byteExact": true,
+        "checkedAtUtc": "2026-11-11T18:18:02.425762+00:00"
+      },
+      {
+        "name": "mujoco-cylinder-admission-a1-frozen-source.zip",
+        "bytes": 230967,
+        "sha256": "2ec898e305b7fcc22814fb35a464dea5a5943f1e7a6c8109d40c379fb950db73",
+        "assetId": 736480385,
+        "apiUrl": "https://api.github.com/repos/spikeal8-maker/asa-lab/releases/assets/736480385",
+        "downloadUrl": "https://github.com/spikeal8-maker/asa-lab/releases/download/untagged-70f29156a619fa757ba5/mujoco-cylinder-admission-a1-frozen-source.zip",
+        "githubDigest": "sha256:2ec898e305b7fcc22814fb35a464dea5a5943f1e7a6c8109d40c379fb950db73",
+        "downloadedBytes": 230967,
+        "downloadedSha256": "2ec898e305b7fcc22814fb35a464dea5a5943f1e7a6c8109d40c379fb950db73",
+        "byteExact": true,
+        "checkedAtUtc": "2026-11-11T18:18:10.260441+00:00"
+      },
+      {
+        "name": "mujoco-cylinder-admission-a1-receipts-logs.zip",
+        "bytes": 99211,
+        "sha256": "b92c5e3173a6b32104403f2187b16cfbacfe3568546442cf97f7cf7e4f65afc5",
+        "assetId": 736481382,
+        "apiUrl": "https://api.github.com/repos/spikeal8-maker/asa-lab/releases/assets/736481382",
+        "downloadUrl": "https://github.com/spikeal8-maker/asa-lab/releases/download/untagged-70f29156a619fa757ba5/mujoco-cylinder-admission-a1-receipts-logs.zip",
+        "githubDigest": "sha256:b92c5e3173a6b32104403f2187b16cfbacfe3568546442cf97f7cf7e4f65afc5",
+        "downloadedBytes": 99211,
+        "downloadedSha256": "b92c5e3173a6b32104403f2187b16cfbacfe3568546442cf97f7cf7e4f65afc5",
+        "byteExact": true,
+        "checkedAtUtc": "2026-11-11T18:18:24.125667+00:00"
+      },
+      {
+        "name": "mujoco-cylinder-admission-a1-archive-manifest.json",
+        "bytes": 16975,
+        "sha256": "9699f14d4ef7d2eb21d791db200ad420c9e7fe6697a17211d3f755fa080a7187",
+        "assetId": 736481848,
+        "apiUrl": "https://api.github.com/repos/spikeal8-maker/asa-lab/releases/assets/736481848",
+        "downloadUrl": "https://github.com/spikeal8-maker/asa-lab/releases/download/untagged-70f29156a619fa757ba5/mujoco-cylinder-admission-a1-archive-manifest.json",
+        "githubDigest": "sha256:9699f14d4ef7d2eb21d791db200ad420c9e7fe6697a17211d3f755fa080a7187",
+        "downloadedBytes": 16975,
+        "downloadedSha256": "9699f14d4ef7d2eb21d791db200ad420c9e7fe6697a17211d3f755fa080a7187",
+        "byteExact": true,
+        "checkedAtUtc": "2026-11-11T18:18:39.701492+00:00"
+      }
+    ],
+    "downloadedZipEntries": [
+      {
+        "name": "mujoco-cylinder-admission-a1-frozen-source.zip",
+        "entries": 16,
+        "allEntryBytesAndHashesMatch": true
+      },
+      {
+        "name": "mujoco-cylinder-admission-a1-receipts-logs.zip",
+        "entries": 33,
+        "allEntryBytesAndHashesMatch": true
+      }
+    ],
+    "modelCreationsDuringArchive": 0,
+    "nativeAdvancesDuringArchive": 0,
+    "mainStatus": "NOT_RUN",
+    "replayInvocations": 0,
+    "finalRemoteState": {
+      "observedAtUtc": "2026-11-11T18:19:38.879827+00:00",
+      "latest": {
+        "status": 404,
+        "latestRelease": null
+      },
+      "tag": {
+        "tag": "evidence-mujoco-cylinder-d2-20261111-93320343",
+        "actualTagRefExists": false
+      }
+    },
+    "verificationReceiptAsset": {
+      "name": "mujoco-cylinder-admission-a1-download-verification.json",
+      "assetId": 736486020,
+      "bytes": 4758,
+      "sha256": "198fa0a4c8891dcc4e5e3b30739fccb28a246981280e0152bc6e024a5c9d8d9b",
+      "apiUrl": "https://api.github.com/repos/spikeal8-maker/asa-lab/releases/assets/736486020",
+      "downloadUrl": "https://github.com/spikeal8-maker/asa-lab/releases/download/untagged-70f29156a619fa757ba5/mujoco-cylinder-admission-a1-download-verification.json",
+      "githubDigest": "sha256:198fa0a4c8891dcc4e5e3b30739fccb28a246981280e0152bc6e024a5c9d8d9b",
+      "downloadedBytes": 4758,
+      "downloadedSha256": "198fa0a4c8891dcc4e5e3b30739fccb28a246981280e0152bc6e024a5c9d8d9b",
+      "byteExact": true
+    },
+    "reportSnapshotTiming": "Receipts/logs ZIP contains the exact prearchive report snapshots. Current Git reports add verified asset links after download checks; original preregistration and actual attempt objects are unchanged."
+  },
+  "archiveCheckpoint": {
+    "preparedAtUtc": "2026-11-11T18:21:34.177983+00:00",
+    "controllerAuthorization": "Archive a1 in unpublished draft, then ordinary checkpoint commit/push of exactly seven paths; no source changes, merge/rebase, PR, public release/tag, Latest change or further dynamics.",
+    "headBeforeCheckpoint": "5d2f9585546983926de2f72fe5c427f13ae56513",
+    "historicalSourceIdentityPreserved": true,
+    "sourceInputsFrozen": true,
+    "preflight": {
+      "observedAtUtc": "2026-11-11T18:12:14.683Z",
+      "originMain": "f767e1271e7128daf64f31c79d21fccf80e85ab4",
+      "plan": "PASS",
+      "controlPlane": "PASS",
+      "executionBlockers": 0,
+      "worktreeOverlaps": 0,
+      "recovery": "RECOVERY_REQUIRED: exactly seven author-owned untracked paths, independently classified and preserved",
+      "indexBeforeStaging": "EMPTY",
+      "mainDeltaOverlap": [],
+      "immutableParentOverlap": []
+    },
+    "publicationIdentity": "The ordinary commit and remote SHA are reported externally after commit/push; this report does not invent its future containing commit SHA.",
+    "main": "NOT_RUN",
+    "independentReplay": "NOT_RUN",
+    "nativeAdvancesDuringArchive": 0,
+    "modelCreationsDuringArchive": 0,
+    "preparationDiagnostics": [
+      {
+        "phase": "checkpoint_preparation",
+        "failedCommand": "external stage-checkpoint-a1.cjs reader, before git add",
+        "failedAtUtc": "2026-11-11T18:24:31.9257613Z",
+        "exitCode": 1,
+        "message": "Verify-plan has not completed PASS",
+        "cause": "External reader expected UTF-8; PowerShell wrote a UTF-8 BEGIN line followed by UTF-16LE Tee-Object output. The gate itself had already completed PLAN_VALID exit 0.",
+        "resolution": "Decode the original byte framing, preserve its SHA256 and the failed log; do not rerun gates or dynamics.",
+        "verifyPlanLogSha256": "cb9fad6b9c606c4133d8968749799a77aa226b32816321f102c6beb70c45182f",
+        "verifyPlanEndedAtUtc": "2026-11-11T18:22:47.6006369Z",
+        "verifyPlanExitCode": 0,
+        "failureLogSha256": "8327716937747fbd1cdb062ceefa6e70878decc7f39344bb338c84cda76b244d",
+        "sourceEdits": 0,
+        "gitAddHadRun": false,
+        "modelsCreated": 0,
+        "nativeAdvances": 0
+      }
+    ]
+  }
+}
