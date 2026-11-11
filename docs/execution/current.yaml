@@ -16371,23 +16371,34 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-GMIN-POWER-001
+      id: TASK-ELECTRONICS-STRICT-RUNTIME-THROUGHPUT-001
       issue: 539
+      program_issue: 836
       branch: main
       base_branch: main
       pr: null
       status: in_progress
       kind: repair
       risk: high
-      semantic_change: 'yes'
-      checkpoint: gmin_power_accounting_selected
+      semantic_change: 'no'
+      checkpoint: stable_loop_throughput_selected
       owner_acceptance: pending
-      owner_authorization: Owner requests fixing the confirmed kernel defects starting with power accounting, preserving every physical step and quality check, verifying in the browser and integrating verified slices in main; then continue the next errors. Server and foreign changes remain prohibited.
-      programme_sequence:
-        - GMIN power accounting with unchanged tolerances
+      owner_authorization: Owner requests fixing every strict Electronics browser failure and integrating verified repairs in main. Preserve physical steps, thresholds, and foreign changes. No server, deployment, or live database actions.
+      strict_baseline:
+        sha: 2057c5169515458ce0658fe0024aacdc4d37cf64
+        run: 43011307328
+        observed: 241 passed, 17 failed, 12 unfinished
+      previous_gmin_power_slice:
+        task_id: TASK-ELECTRONICS-GMIN-POWER-001
+        integrated_sha: ca4f4c8095a2a660dc5e0172ccd1b030c8ba5dab
+        pr: 1068
+        browser_run: 43011307328
+        required_run: 43011307255
+        result: GMIN focused and browser Save/reopen passed; strict suite still open.
+      follow_up_boundaries:
+        - Independently measured visible phase delivery, including short100 and D2-D4
         - Consistent lamp electrical and thermal endpoint
         - FET nonlinear convergence and transient validation
-        - short100 end-to-end phase delivery with unchanged physical steps and deadlines
       previous_residual_candidate:
         task_id: TASK-ELECTRONICS-WORKER-RESIDUAL-001
         pr: 1064
@@ -16395,7 +16406,7 @@ parallel_lanes:
         status: not_integrated
         result: General failed own size gate and strict browser timing remains open; no timing closure claimed.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-GMIN-POWER-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-STRICT-RUNTIME-THROUGHPUT-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
       previous_browser_wait_contract_slice:
