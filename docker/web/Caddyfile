@@ -1,9 +1,15 @@
 {
 	admin off
 	auto_https off
-	servers {
+	servers :8080 {
 		# Explicit deployment ingress policy; never trust all private networks.
 		trusted_proxies static {$ASA_INGRESS_TRUSTED_PROXY_CIDRS:127.0.0.1/32 ::1/128}
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+	servers :8081 {
+		# This listener is published on host loopback for the 1Panel proxy.
+		trusted_proxies static {$ASA_PANEL_INGRESS_PEER:127.0.0.1}/32
 		trusted_proxies_strict
 		client_ip_headers X-Forwarded-For
 	}
@@ -21,7 +27,7 @@
 	}
 }
 
-:8080 {
+(asa-site) {
 	# Headers, query strings and bodies never enter the access log.
 	log {
 		output stdout
@@ -116,4 +122,12 @@
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
 	}
+}
+
+:8080 {
+	import asa-site
+}
+
+:8081 {
+	import asa-site
 }

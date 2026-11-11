@@ -237,6 +237,14 @@ async function fixture(page: Page) {
         promptDismissedUntil: null,
         available: false,
       });
+    if (path === '/api/admin/v1/logs/trend') {
+      return reply({
+        coverage: 'partial',
+        from: '2026-10-25T08:00:00Z',
+        to: '2026-10-25T23:10:00Z',
+        points: [{ at: '2026-10-25T10:00:00Z', counts: { robotics: 2, ai: 3 } }],
+      });
+    }
     if (path === '/api/admin/v1/me') {
       accessCalls++;
       const permissions = [
@@ -519,7 +527,7 @@ async function fixture(page: Page) {
   };
 }
 const learning = (page: Page) =>
-  page.getByRole('heading', { name: 'Учебные инструменты — запуски', exact: true });
+  page.getByRole('heading', { name: 'Учебные инструменты', exact: true });
 async function noPageOverflow(page: Page) {
   const dimensions = await page.evaluate(() => ({
     page: {
@@ -553,15 +561,44 @@ async function noPageOverflow(page: Page) {
 }
 
 for (const width of [1440, 1024, 390, 320]) {
-  test(`admin overview readable time axis and local scrolling at ${width}`, async ({ page }) => {
+  test(`admin overview shows today's attendance and charts without scrolling at ${width}`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width, height: 900 });
     await fixture(page);
     await page.goto('/#/admin');
     await expect(learning(page)).toBeVisible();
     await noPageOverflow(page);
+    const attendance = page.getByRole('region', { name: 'Посещаемость сегодня' });
+    await expect(attendance).toBeInViewport();
+    await expect(attendance).toContainText('00:00 — 02:10 МСК');
+    await expect(
+      attendance.getByRole('article').filter({ hasText: 'Входы по коду класса' }),
+    ).toContainText('24');
+    await expect(
+      attendance.getByRole('article').filter({ hasText: 'Созданные ученические места' }),
+    ).toContainText('32');
+    await expect(page.locator('.admin-chart-card').first().getByRole('heading')).toHaveText(
+      'Активные пользователи',
+    );
+    await expect(page.getByRole('heading', { name: 'Активные пользователи' })).toBeInViewport();
+    await expect(page.getByRole('heading', { name: 'Созданные ученические места' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Период дашборда' })).toHaveValue('24h');
+    await expect(page.locator('.admin-range-interval')).toHaveText(
+      '25.10.2026, 03:00 — 26.10.2026, 02:10 МСК',
+    );
     const learningCard = page.locator('.admin-chart-card').filter({ has: learning(page) });
-    await expect(learningCard.locator('.admin-chart-time-label')).toHaveCount(12);
-    const timeAxes = await page.locator('.admin-chart-canvas svg').evaluateAll((charts) =>
+    const plot = learningCard.locator('.admin-chart-canvas');
+    await expect
+      .poll(() =>
+        plot.evaluate((node) =>
+          Math.abs(node.clientWidth - (node.querySelector('svg')?.viewBox.baseVal.width ?? 0)),
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+    await expect(learningCard.locator('.admin-chart-time-label').first()).toHaveText('03:00');
+    await expect(learningCard.locator('.admin-chart-time-label').last()).toHaveText('02:00');
+    const timeAxes = await page.locator('.admin-chart-canvas:visible svg').evaluateAll((charts) =>
       charts.map((chart) => {
         const bounds = chart.getBoundingClientRect();
         return {
@@ -575,7 +612,7 @@ for (const width of [1440, 1024, 390, 320]) {
       }),
     );
     for (const axis of timeAxes) {
-      // Compare the whole logical plot, including labels reached by local scrolling.
+      expect(axis.labels.length).toBeGreaterThanOrEqual(2);
       for (const [index, label] of axis.labels.entries()) {
         expect(label.left, label.text ?? '').toBeGreaterThanOrEqual(axis.left);
         expect(label.right, label.text ?? '').toBeLessThanOrEqual(axis.right);
@@ -586,6 +623,9 @@ for (const width of [1440, 1024, 390, 320]) {
       }
     }
     await expect(learningCard.getByRole('button', { name: 'Scratch', exact: true })).toBeVisible();
+    await expect(
+      learningCard.getByRole('button', { name: 'Робототехника', exact: true }),
+    ).toBeVisible();
     const chips = await learningCard.locator('.admin-chart-legend button').evaluateAll((buttons) =>
       buttons.map((button) => ({
         top: button.getBoundingClientRect().top,
@@ -593,15 +633,19 @@ for (const width of [1440, 1024, 390, 320]) {
       })),
     );
     expect(chips.every((chip) => chip.width < 150)).toBe(true);
-    if (width >= 1024) {
+    if (width >= 1440) {
       expect(new Set(chips.map((chip) => Math.round(chip.top))).size).toBe(1);
-      const cards = page.locator('.admin-dashboard-grid > .admin-chart-card');
-      expect((await cards.nth(0).boundingBox())!.y).toBe((await cards.nth(1).boundingBox())!.y);
+      const first = page.locator('.admin-chart-card').first();
+      const title = await first.getByRole('heading').boundingBox();
+      const controls = await first.getByRole('combobox').boundingBox();
+      expect(
+        Math.abs(title!.y + title!.height / 2 - controls!.y - controls!.height / 2),
+      ).toBeLessThanOrEqual(4);
     }
     await expect(learningCard.getByRole('button', { name: 'Шахматы', exact: true })).toHaveCount(0);
     const games = page
       .locator('.admin-chart-card')
-      .filter({ has: page.getByRole('heading', { name: 'Игры — запуски', exact: true }) });
+      .filter({ has: page.getByRole('heading', { name: 'Игры', exact: true }) });
     await expect(games.getByRole('button', { name: 'Шахматы', exact: true })).toBeVisible();
     expect(
       await page
@@ -610,25 +654,39 @@ for (const width of [1440, 1024, 390, 320]) {
           paths.every((path) => /^#[0-9a-f]{6}$/.test(path.getAttribute('stroke') ?? '')),
         ),
     ).toBe(true);
-    const plot = learningCard.getByRole('region');
-    await plot.focus();
-    await page.keyboard.press('ArrowRight');
-    if (await plot.evaluate((element) => element.scrollWidth > element.clientWidth))
-      await expect.poll(() => plot.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
-    else await expect(learningCard.locator('.admin-chart-time-label').last()).toBeInViewport();
+    expect(
+      await page
+        .locator('.admin-chart-canvas, .admin-range-picker')
+        .evaluateAll((nodes) => nodes.every((node) => node.scrollWidth <= node.clientWidth)),
+    ).toBe(true);
     expect(
       await plot
         .locator('.admin-chart-time-label')
         .first()
         .evaluate((node) => parseFloat(getComputedStyle(node).fontSize)),
     ).toBeGreaterThanOrEqual(12);
-    // Long chart titles get their own row instead of squeezing between legend buttons.
-    expect(
-      await learning(page).evaluate((node) => node.getBoundingClientRect().width),
-    ).toBeGreaterThan(180);
-    await plot.blur();
+    await expect(page.getByRole('heading', { name: 'Ошибки по системам' })).toBeVisible();
+    await expect(page.getByText('Доступная часть журнала:', { exact: false })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'IP-адреса пользователей' })).toBeVisible();
+    await expect(
+      page.locator('.admin-dashboard-network article').filter({ hasText: 'Разные IP' }),
+    ).toContainText('—');
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/overview-${width}.png`, fullPage: true });
+    if (width === 1440) {
+      const users = page.locator('.admin-chart-card').first();
+      await users.getByRole('button', { name: 'Как считается «Активные пользователи»' }).hover();
+      await expect(users.getByText('В каждом интервале', { exact: false })).toBeVisible();
+      await users.getByRole('combobox', { name: 'Показатель пользователей' }).selectOption('time');
+      await users.locator('.admin-chart-canvas').press('ArrowRight');
+      await expect(users.locator('.admin-chart-readout')).toContainText('Аккаунты 2');
+      await games.getByRole('combobox', { name: 'Показатель «Игры»' }).selectOption('both');
+      await expect(games.locator('svg path[stroke-dasharray]')).toHaveCount(2);
+      await page.getByRole('combobox', { name: 'Система в журнале ошибок' }).selectOption('ai');
+      await expect(page.getByRole('combobox', { name: 'Система в журнале ошибок' })).toHaveValue(
+        'ai',
+      );
+    }
     if (width === 390 || width === 320) {
       await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
       await expect(page.getByRole('dialog', { name: 'Основная навигация' })).toBeVisible();
@@ -884,7 +942,7 @@ test('admin overview keeps matching refresh charts, then shows clear error/retry
   await noPageOverflow(page);
   // An actual range change has no matching previous data and must show loading/error.
   f.holdDashboard(true);
-  await page.getByRole('button', { name: '7 дней', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Период дашборда' }).selectOption('7d');
   await expect(page.getByText('Собираем реальные показатели', { exact: true })).toBeVisible();
   await expect(learning(page)).toHaveCount(0);
   await expect.poll(() => f.pendingDashboard()).toBe(1);
@@ -892,7 +950,7 @@ test('admin overview keeps matching refresh charts, then shows clear error/retry
   await expect(learning(page)).toBeVisible();
   f.error(true);
   f.holdDashboard(false);
-  await page.getByRole('button', { name: '1 год', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Период дашборда' }).selectOption('1y');
   await expect(page.getByRole('alert')).toContainText('Дашборд не загрузился');
   f.error(false);
   await page.getByRole('button', { name: 'Повторить', exact: true }).click();
