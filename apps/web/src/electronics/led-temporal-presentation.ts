@@ -15,6 +15,7 @@ export const LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS = 25_000;
 // A 20 ms held phase is visible at 60 Hz; genuinely sub-frame cycles retain
 // their integrated brightness from actual complete electrical history.
 const FAST_PHASE_MICROSECONDS = 16_667;
+const ARDUINO_INDICATOR_ON_VOLTS = 2.5;
 // Two complete cycles plus the current phase, including near the cadence limit.
 const HISTORY_MICROSECONDS = 5 * LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
 const MAX_HISTORY_SAMPLES = 513;
@@ -86,6 +87,25 @@ interface HeldHistory<T extends HeldPresentationSample> {
 
 function heldValue(sample: HeldPresentationSample): number {
   return 'voltage' in sample ? sample.voltage : sample.brightness;
+}
+
+function holdsVisibleValue(
+  { samples, completeSince }: HeldHistory<HeldPresentationSample>,
+  start: number,
+  end: number,
+): boolean {
+  if (completeSince > start || samples.at(-1)!.atMicroseconds < end) return false;
+  let initial: number | boolean | undefined;
+  for (const sample of samples) {
+    if (sample.atMicroseconds >= end) break;
+    const value =
+      'voltage' in sample
+        ? sample.voltage >= ARDUINO_INDICATOR_ON_VOLTS
+        : Math.round(sample.brightness);
+    if (sample.atMicroseconds <= start) initial = value;
+    else if (value !== initial) return false;
+  }
+  return initial !== undefined;
 }
 
 function sameState(left: HeldPresentationSample, right: HeldPresentationSample) {
@@ -719,10 +739,10 @@ export class LedTemporalPresentation {
       const shown = displayed.brightness.get(id);
       if (shown === undefined) return this.o(target);
       let phase = samples[0]!;
-      let phaseHigh = phase.brightness > 0;
+      let phaseHigh = Math.round(phase.brightness) > 0;
       for (const sample of samples) {
         if (sample.atMicroseconds > target) break;
-        const high = sample.brightness > 0;
+        const high = Math.round(sample.brightness) > 0;
         if (high === phaseHigh) continue;
         const start = phase.atMicroseconds;
         if (
@@ -739,14 +759,20 @@ export class LedTemporalPresentation {
       }
     }
     if (earliest === target) return this.o(target);
-    // A skipped held phase must not replace a real fast-cycle integral or an
-    // uncovered joint vector. In both cases keep the ordinary wall sample.
-    for (const { samples } of this.b.values()) {
+    // Individually slow channels can change the joint vector faster than a
+    // frame. Only retain a jointly held phase with complete optical history.
+    const end = earliest + FAST_PHASE_MICROSECONDS;
+    for (const history of this.b.values()) {
+      const { samples } = history;
       if (
+        !holdsVisibleValue(history, earliest, end) ||
         fastCycleBrightness(this.n(samples, target), target) !== undefined ||
         fastCycleBrightness(this.n(samples, earliest), earliest) !== undefined
       )
         return this.o(target);
+    }
+    for (const history of this.c.values()) {
+      if (!holdsVisibleValue(history, earliest, end)) return this.o(target);
     }
     return this.o(earliest) ?? this.o(target);
   }
@@ -816,7 +842,9 @@ export class LedTemporalPresentation {
       atMicroseconds,
       brightness,
       ...(sevenSegmentBrightness.size ? { sevenSegmentBrightness } : {}),
-      arduinoLStates: new Map([...voltages].map(([id, voltage]) => [id, voltage >= 2.5])),
+      arduinoLStates: new Map(
+        [...voltages].map(([id, voltage]) => [id, voltage >= ARDUINO_INDICATOR_ON_VOLTS]),
+      ),
     };
   }
 

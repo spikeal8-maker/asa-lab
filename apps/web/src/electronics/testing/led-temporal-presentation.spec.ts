@@ -2067,6 +2067,80 @@ describe('owner repeated short optical phases', () => {
     expect(presentation.reanchorCount).toBe(0);
   });
 
+  it.each(['four LEDs', 'LED and Uno L'])(
+    'keeps wall pace after missed frames with staggered %s transitions',
+    (outputs) => {
+      const presentation = new LedTemporalPresentation();
+      const accept = (from: number, to: number, wall: number) => {
+        const held = (offset: number) => {
+          const at = (time: number) =>
+            point(time, time >= offset && Math.floor((time - offset) / 20_000) % 2 === 0 ? 70 : 0);
+          const samples = [at(from)];
+          for (let time = offset; time < to; time += 20_000) {
+            if (time > from) samples.push(at(time));
+          }
+          if (to > from) samples.push(at(to));
+          return samples;
+        };
+        const offsets = outputs === 'four LEDs' ? [2, 5_002, 10_002, 15_002] : [2];
+        const observation = window(
+          from,
+          to,
+          offsets.map((offset, index) => channel(`led${index}`, held(offset))),
+        );
+        const result = electrical(observation);
+        if (outputs === 'four LEDs') {
+          presentation.accept(result, observation, wall);
+          return;
+        }
+        const samples = held(5_002).map(({ atMicroseconds, brightness }) => ({
+          atMicroseconds,
+          voltage: brightness > 0 ? 5 : 0,
+        }));
+        presentation.accept(
+          {
+            ...result,
+            components: [
+              ...result.components,
+              {
+                componentId: 'uno',
+                current: 0,
+                voltageDrop: 5,
+                terminalVoltages: { d13: samples.at(-1)!.voltage },
+              },
+            ],
+          },
+          {
+            ...observation,
+            arduinoIndicators: [{ componentId: 'uno', truncated: false, samples }],
+          },
+          wall,
+        );
+      };
+
+      accept(0, 0, 0);
+      const initial = presentation.prepareInitialFrame()!;
+      expect(presentation.acknowledgeFrame(initial, 0, true)).toBe(true);
+      let committed = 0;
+      let nextReceipt = 10_000;
+      let firstPresented: number | undefined;
+      // Two missed RAFs, followed by regular frames and the real demand cap.
+      for (let wall = 50_001; wall <= 1_000_020; wall += 16_667) {
+        for (; nextReceipt <= wall; nextReceipt += 10_000) {
+          const to = classroomRequestedHorizon(0, nextReceipt, presentation.presentedMicroseconds);
+          if (to <= committed) continue;
+          accept(committed, to, nextReceipt);
+          committed = to;
+        }
+        drawFrame(presentation, wall);
+        firstPresented ??= presentation.presentedMicroseconds;
+      }
+      expect(committed).toBe(1_000_000);
+      expect(presentation.presentedMicroseconds).toBe(1_000_000);
+      expect(firstPresented).toBe(50_000);
+    },
+  );
+
   it.each([16_667, 20_000, 24_999, 30_000, 50_000, 100_000])(
     'keeps every complete %i us phase binary over twelve cycles',
     (phase) => {
