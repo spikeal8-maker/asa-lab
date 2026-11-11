@@ -74,6 +74,9 @@ importers:
       '@axe-core/playwright':
         specifier: 4.10.2
         version: 4.10.2(playwright-core@1.55.1)
+      '@dimforge/rapier3d-compat':
+        specifier: 0.19.3
+        version: 0.19.3
       '@electric-sql/pglite':
         specifier: 0.2.17
         version: 0.2.17
@@ -1152,6 +1155,9 @@ packages:
 
   '@dimforge/rapier3d-compat@0.12.0':
     resolution: {integrity: sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow==}
+
+  '@dimforge/rapier3d-compat@0.19.3':
+    resolution: {integrity: sha512-mMVdSj1PRTT108s9Swbu2GQOmHbn8kbJANRV5xfczL3s0T4vkgZAuoMRgvBzQcHanpKusbC0ZJj6z3mC3aj3vg==}
 
   '@electric-sql/pglite@0.2.17':
     resolution: {integrity: sha512-qEpKRT2oUaWDH6tjRxLHjdzMqRUGYDnGZlKrnL4dJ77JVMcP2Hpo3NYnOSPKdZdeec57B6QPprCUFg0picx5Pw==}
@@ -5309,6 +5315,8 @@ snapshots:
   '@csstools/css-tokenizer@3.0.4': {}
 
   '@dimforge/rapier3d-compat@0.12.0': {}
+
+  '@dimforge/rapier3d-compat@0.19.3': {}
 
   '@electric-sql/pglite@0.2.17': {}
 
