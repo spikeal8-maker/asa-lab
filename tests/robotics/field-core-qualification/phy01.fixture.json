@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "id": "PHY-01-v1",
+  "scope": "TEST_ONLY",
+  "specification": "ROBOTICS-FIELD-CORE-001 v1.1 sections 16.2 and 19.7",
+  "specSha256": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e",
+  "registration": "All numerical inputs and acceptance rules were fixed before the first dynamics run; do not tune tolerances from measured output.",
+  "engine": {
+    "package": "@dimforge/rapier3d-compat",
+    "version": "0.19.3",
+    "repositoryCommit": "0fd32c1cbbc7018af36f09b190c16ce72fbb9301",
+    "tarball": "https://registry.npmjs.org/@dimforge/rapier3d-compat/-/rapier3d-compat-0.19.3.tgz",
+    "integrity": "sha512-mMVdSj1PRTT108s9Swbu2GQOmHbn8kbJANRV5xfczL3s0T4vkgZAuoMRgvBzQcHanpKusbC0ZJj6z3mC3aj3vg==",
+    "tarballSha1": "b7092f4c75e696750c817c9ff6046a8d13015864",
+    "wasmSha256": "1ce1c8c4036b4dcd3bde86c6efdb0f270cf5e274979b1de6ab8052947ef166c5",
+    "moduleSha256": "bce2c762b440101ebf8cbff038a71fe1884488becd0a53b9a7c0a7e3daf13a2b",
+    "packageJsonSha256": "0e0b00bc0e8d0dd7afed4da18831a5bc416fce03637c64b48329898dfd9e3320",
+    "license": "Apache-2.0",
+    "licenseSource": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+    "licenseSha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  "coordinates": "right-handed; X/Y horizontal; Z up; SI metres, kilograms, seconds, radians",
+  "gravity": {
+    "x": 0,
+    "y": 0,
+    "z": -9.81
+  },
+  "initialPosition": {
+    "x": 0,
+    "y": 0,
+    "z": 2
+  },
+  "initialVelocity": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "initialAngularVelocity": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "massesKg": [0.02, 0.5, 2],
+  "sphereRadiusM": 0.02,
+  "floorTopZ": 0,
+  "floorHalfExtentsM": [5, 5, 0.01],
+  "linearDamping": 0,
+  "angularDamping": 0,
+  "friction": 0,
+  "restitution": 0,
+  "canSleep": false,
+  "ccdEnabled": true,
+  "macroStepUs": 5000,
+  "substeps": [4, 8],
+  "sampleTimesUs": [100000, 200000, 300000, 400000],
+  "repeats": 3,
+  "seed": 0,
+  "maxStepsPerWorld": 640,
+  "solver": {
+    "numSolverIterations": 4,
+    "numInternalPgsIterations": 1,
+    "minIslandSize": 128,
+    "maxCcdSubsteps": 1,
+    "lengthUnit": 1,
+    "normalizedAllowedLinearError": 0.001,
+    "normalizedPredictionDistance": 0.002
+  },
+  "tolerance": {
+    "positionAbsoluteM": 0.0001,
+    "velocityAbsoluteMps": 0.001,
+    "relative": 0.01,
+    "massReadbackRelative": 0.000001
+  },
+  "oracle": {
+    "position": "p0 + v0*t + gravity*t*t/2; compare full displacement vector, scale=norm(gravity)*t*t/2",
+    "velocity": "v0 + gravity*t; compare full velocity vector, scale=norm(gravity)*t",
+    "convergence": "For each mass/repeat: coarse/refined displacement distance <= max(0.0001 m, 0.01*analytic displacement); refined displacement L2 error must not exceed coarse L2 error. Velocity remains within its analytical tolerance in both regimes.",
+    "massIndependence": "At each time, substep regime and repeat, compare all masses using the same analytical displacement/velocity tolerance, never a scale taken from measured output.",
+    "repeatability": "All raw samples for repeated identical worlds must match exactly at the same timestep.",
+    "roundoff": "Engine uses float32. No rounding of states. Readback mass relative tolerance 1e-6 only checks configuration representation."
+  },
+  "rationale": "Nominal 5 ms macrostep / 4 substeps is the initial candidate from REQ-PHY-04; repeat with 8 substeps to halve dt. No FPS or wall-clock input. Three complete repetitions, deterministic construction order, no RNG/noise (seed 0). Contact-free window ends at 0.4 s; floor collider verifies separation. Collider owns the entire mass; rigid body additional mass remains zero."
+}
