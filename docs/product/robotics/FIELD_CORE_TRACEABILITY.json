@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "specification": "ROBOTICS-FIELD-CORE-001",
-  "spec_version": "1.1",
+  "spec_version": "1.2",
   "spec_file": "FIELD_CORE_SPEC.md",
-  "spec_sha256": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e",
+  "spec_sha256": "64a5701b1c4aba4b18e63cb20b181df0da2fb52057bbbb8b9785819105acbb71",
   "original_v1_0_sha256": "9b65d4a8ffdf41a79d01c637dec2a6c5e71d168c09a14306783b4fa4d36212ac",
   "source_requirements": 118,
-  "current_requirements": 149,
-  "test_count": 55,
+  "current_requirements": 171,
+  "test_count": 67,
   "notice": "Traceability only. This file defines required evidence, not completed implementation. Group test mappings are acceptance obligations, not a claim that automated tests exist. Conditional STATE-01 and future sensor capabilities must remain disabled until qualified. Historical source architecture is not overridden by documentation alone.",
   "phase_dependencies": {
     "E0": [],
@@ -57,278 +57,338 @@
   },
   "tests": {
     "UI-01": {
-      "definition_line": 463,
+      "definition_line": 479,
       "criterion": "Масштабирование 20 раз вокруг контрольной точки | Уход точки не более 1 CSS px; физические координаты неизменны",
       "execution_status": "NOT_RUN"
     },
     "UI-02": {
-      "definition_line": 464,
+      "definition_line": 480,
       "criterion": "Панорамирование всеми поддержанными жестами | Нет scrollbar-навигации; предметы не перемещаются",
       "execution_status": "NOT_RUN"
     },
     "UI-03": {
-      "definition_line": 465,
+      "definition_line": 481,
       "criterion": "Drag-preview и отпускание при разных масштабах | Совпадение показанной и размещённой позы до 1 CSS px; физическая погрешность отдельно измеряется",
       "execution_status": "NOT_RUN"
     },
     "UI-04": {
-      "definition_line": 466,
+      "definition_line": 482,
       "criterion": "Выбор/форма свойств на всех ширинах | На desktop форма только в dock; контролы доступны; нет перекрытия выбранного предмета",
       "execution_status": "NOT_RUN"
     },
     "UI-05": {
-      "definition_line": 467,
+      "definition_line": 483,
       "criterion": "Стена под 0°, 37°, 90°: длина, толщина, поворот | Изменяются локальные параметры; одна операция Undo; ошибка геометрии не более 0,1 мм",
       "execution_status": "NOT_RUN"
     },
     "UI-06": {
-      "definition_line": 468,
+      "definition_line": 484,
       "criterion": "Трасса: узлы, касательные, скругление, Undo/Redo | Нет разрывов и потери ширины; сохранение/открытие сохраняет контур",
       "execution_status": "NOT_RUN"
     },
     "UI-07": {
-      "definition_line": 469,
+      "definition_line": 485,
       "criterion": "Открытие кода/смена вкладок во время опыта | Один Worker-эксперимент и один документ кода; время и программа не сбрасываются",
       "execution_status": "NOT_RUN"
     },
     "UI-08": {
-      "definition_line": 470,
+      "definition_line": 486,
       "criterion": "Стартовая зона и полный габарит | 300×300 мм; робот не принимается в строгом режиме при выступающей части",
       "execution_status": "NOT_RUN"
     },
     "UI-09": {
-      "definition_line": 471,
+      "definition_line": 487,
       "criterion": "Пропорции контрольных моделей | Один метр мира отображается одинаково для всех предметов; расхождение габаритов SVG и паспорта ≤1% или 1 мм, берётся большее",
       "execution_status": "NOT_RUN"
     },
     "UI-10": {
-      "definition_line": 472,
+      "definition_line": 488,
       "criterion": "Вид сверху/сбоку: наклон и падение | Одинаковый tickId; пространственная ориентация согласована, не просто смена иконки",
       "execution_status": "NOT_RUN"
     },
     "PHY-01": {
-      "definition_line": 480,
+      "definition_line": 496,
       "criterion": "Свободное падение без сопротивления до первого контакта | По норме и окнам измерений §19.7: ошибка ≤1% с абсолютным floor; разные массы дают одинаковое ускорение",
       "execution_status": "NOT_RUN"
     },
     "PHY-02": {
-      "definition_line": 481,
+      "definition_line": 497,
       "criterion": "Горизонтальный импульс свободному телу | Изменение скорости J/m с ошибкой ≤1%; нет лишней силы",
       "execution_status": "NOT_RUN"
     },
     "PHY-03": {
-      "definition_line": 482,
+      "definition_line": 498,
       "criterion": "Покой на горизонтальной опоре, 60 с | Дрейф центра ≤1 мм; угловой дрейф ≤0,5°; нет самопроизвольного роста энергии",
       "execution_status": "NOT_RUN"
     },
     "PHY-04": {
-      "definition_line": 483,
+      "definition_line": 499,
       "criterion": "Наклонный пол и блок без опрокидывания | В явно заданном режиме скольжения ускорение соответствует g(sinθ−μ cosθ) с ошибкой ≤5%; модель трения указана",
       "execution_status": "NOT_RUN"
     },
     "PHY-05": {
-      "definition_line": 484,
+      "definition_line": 500,
       "criterion": "Идеальная сфера на наклонной плоскости | Для заданной инерции и чистого качения сравнение с a=g sinθ/(1+I/(m r²)); ошибка ≤5%",
       "execution_status": "NOT_RUN"
     },
     "PHY-06": {
-      "definition_line": 485,
+      "definition_line": 501,
       "criterion": "Банка: устойчивость на наклоняемой опоре без скольжения | Для заданной идеализированной модели граница опрокидывания в пределах ±2° аналитической; масса сама по себе не подменяет положение центра масс",
       "execution_status": "NOT_RUN"
     },
     "PHY-07": {
-      "definition_line": 486,
+      "definition_line": 502,
       "criterion": "Вертикальный отскок изолированного мяча | Отношение высот относительно e² с допуском 10% при отключённых иных потерях; на малых скоростях действует документированный порог",
       "execution_status": "NOT_RUN"
     },
     "PHY-08": {
-      "definition_line": 487,
+      "definition_line": 503,
       "criterion": "Удар и падение банки, пустой/полной/частично заполненной | Угловое движение рождается от контактов; нет сценарной анимации; параметры содержимого соответствуют паспорту",
       "execution_status": "NOT_RUN"
     },
     "PHY-09": {
-      "definition_line": 488,
+      "definition_line": 504,
       "criterion": "Тонкая стенка и быстрый предмет | Нет сквозного пролёта в диапазоне профиля; CCD проверен и на вращении",
       "execution_status": "NOT_RUN"
     },
     "PHY-10": {
-      "definition_line": 489,
+      "definition_line": 505,
       "criterion": "Робот едет прямо и поворачивает на плоскости | Контрольные скорости/радиусы в пределах 5% заявленного калиброванного профиля",
       "execution_status": "NOT_RUN"
     },
     "PHY-11": {
-      "definition_line": 490,
+      "definition_line": 506,
       "criterion": "Робот поднимается на рампу 5°, 10°, 15° | Результат соответствует достаточности тяги и сцепления; не требуется успех на любом уклоне",
       "execution_status": "NOT_RUN"
     },
     "PHY-12": {
-      "definition_line": 491,
+      "definition_line": 507,
       "criterion": "Препятствие блокирует колесо/корпус | Ограниченный момент, изменение скорости и тока; нет бесконечной тяги или проникновения",
       "execution_status": "NOT_RUN"
     },
     "PHY-13": {
-      "definition_line": 492,
+      "definition_line": 508,
       "criterion": "Трёхзвенный механизм с ограниченным приводом | Сохранение связей, пределов и бюджета усилий; ошибка якоря ≤1 мм в профиле EDU",
       "execution_status": "NOT_RUN"
     },
     "PHY-14": {
-      "definition_line": 493,
+      "definition_line": 509,
       "criterion": "Сходимость при уменьшении подшага вдвое | В бесконтактном сценарии ≤max(0,1 мм; 1% пути); в одиночном контакте время события ≤2 макрошагов и конечная поза ≤max(1 мм; 1% габарита), угол ≤1°; хаотические сцены оцениваются отдельно",
       "execution_status": "NOT_RUN"
     },
     "PHY-15": {
-      "definition_line": 494,
+      "definition_line": 510,
       "criterion": "Разный FPS, размер окна и открытые панели | На одинаковом tick при одном build состояние повторяется; UI не меняет историю входов",
       "execution_status": "NOT_RUN"
     },
     "CT-01": {
-      "definition_line": 631,
+      "definition_line": 649,
       "criterion": "Round-trip схем сцены/DTO; неправильные units, NaN, неизвестный feature и разная generation отклоняются; текущая пользовательская сцена не меняется",
       "execution_status": "NOT_RUN"
     },
     "CT-02": {
-      "definition_line": 632,
+      "definition_line": 650,
       "criterion": "Оси, quaternion, tensor/COM и масса: обратные преобразования, перестановка frame, запрещённая инерция и двойное добавление collider mass обнаруживаются",
       "execution_status": "NOT_RUN"
     },
     "CT-03": {
-      "definition_line": 633,
+      "definition_line": 651,
       "criterion": "Три привода, произвольные ID/порядок и механизм иной топологии; отсутствие скрытого требования left/right; diagnostic ≠ electronic acceptance",
       "execution_status": "NOT_RUN"
     },
     "CT-04": {
-      "definition_line": 634,
+      "definition_line": 652,
       "criterion": "MechanicalSnapshot и RenderSnapshot не принимаются как CoupledCheckpoint; compatibility mismatch даёт отказ без изменения мира",
       "execution_status": "NOT_RUN"
     },
     "TIME-01": {
-      "definition_line": 635,
+      "definition_line": 653,
       "criterion": "Trig 10 мкс и Echo/timeout на границе/между 5-мс интервалами: нет округления до интервала; регрессия штатного HC и запоздалый input",
       "execution_status": "NOT_RUN"
     },
     "TIME-02": {
-      "definition_line": 636,
+      "definition_line": 654,
       "criterion": "Барьеры на границах контакта/паузы/сброса: никакого future pose, сообщения предыдущего поколения и события с t<committed отклонены",
       "execution_status": "NOT_RUN"
     },
     "TIME-03": {
-      "definition_line": 637,
+      "definition_line": 655,
       "criterion": "PWM/момент за интервал, no-load, coast и stall: единственное интегрирование RPM и энергии; PHY-12 и REQ-DRV-07 сохранены",
       "execution_status": "NOT_RUN"
     },
     "STATE-01": {
-      "definition_line": 638,
+      "definition_line": 656,
       "criterion": "Только при включённой capability: checkpoint во время pulseIn, контакта и случайного шума → restore → равный последующий журнал в точном build; иначе NOT_APPLICABLE_FEATURE_DISABLED",
       "execution_status": "NOT_RUN"
     },
     "STATE-02": {
-      "definition_line": 639,
+      "definition_line": 657,
       "criterion": "Обычная Pause/Continue, hidden tab, авария Worker, reload: либо согласованное продолжение живого runtime, либо честное восстановление только source и новый runId",
       "execution_status": "NOT_RUN"
     },
     "PLACE-01": {
-      "definition_line": 640,
+      "definition_line": 658,
       "criterion": "Одна X/Y, мост и пол: явный выбор surfaceId; ghost/drop совпадают в Z, нормали и визуальном положении; под мостом не выбирается верх автоматически",
       "execution_status": "NOT_RUN"
     },
     "ROB-01": {
-      "definition_line": 641,
+      "definition_line": 659,
       "criterion": "Две пользовательские конфигурации и штатная схема: замена модели сохраняет сцену/программу, ошибочные binding блокируют запуск, не выбирают первый мотор",
       "execution_status": "NOT_RUN"
     },
     "DATA-01": {
-      "definition_line": 642,
+      "definition_line": 660,
       "criterion": "Save/reopen нового проекта другим browser context: канонические source и asset hashes совпадают; runtime poses не записаны вместо initialPose",
       "execution_status": "NOT_RUN"
     },
     "DATA-02": {
-      "definition_line": 643,
+      "definition_line": 661,
       "criterion": "Исторические fixtures/публикации остаются в прежних schema/profile; исходные bytes/ревизия в БД не меняются от просмотра",
       "execution_status": "NOT_RUN"
     },
     "DATA-03": {
-      "definition_line": 644,
+      "definition_line": 662,
       "criterion": "Явная 3D-копия получает новый projectId/revision; отмена/ошибка миграции не меняет оригинал; старый клиент не выполняет downgrade",
       "execution_status": "NOT_RUN"
     },
     "DATA-04": {
-      "definition_line": 645,
+      "definition_line": 663,
       "criterion": "Второй пользователь: viewer доступен, private source/asset/VM/checkpoint не доступны через API/Worker/network/экспорт; прежние decoder и права сохранены",
       "execution_status": "NOT_RUN"
     },
     "DATA-05": {
-      "definition_line": 646,
+      "definition_line": 664,
       "criterion": "Две вкладки редактируют одну ревизию: ожидаемый CAS conflict, локальные изменения сохранены, нет last-write-wins без решения пользователя",
       "execution_status": "NOT_RUN"
     },
     "DATA-06": {
-      "definition_line": 647,
+      "definition_line": 665,
       "criterion": "Offline и восстановление: source не теряется, неподтверждённый запрос идемпотентен, устаревший upload не заменяет новые изменения; не заявляется runtime resume",
       "execution_status": "NOT_RUN"
     },
     "DATA-07": {
-      "definition_line": 648,
+      "definition_line": 666,
       "criterion": "SVG/JSON/архив с malicious payload, чрезмерной глубиной/размером и traversal отклоняется до исполнения; нет внешнего запроса/изменения source",
       "execution_status": "NOT_RUN"
     },
     "DATA-08": {
-      "definition_line": 649,
+      "definition_line": 667,
       "criterion": "10 минут model time, 50 resets, hidden tab и отказ Worker: bounded buffers, корректное освобождение, no UI hang; STOP/ERROR не превращаются в RUNNING",
       "execution_status": "NOT_RUN"
     },
     "PERF-01": {
-      "definition_line": 650,
+      "definition_line": 668,
       "criterion": "Три EDU-прогона по §19.6 на зафиксированном reference machine; одновременные electrical/mechanical/render timings и hashes",
       "execution_status": "NOT_RUN"
     },
     "PERF-02": {
-      "definition_line": 651,
+      "definition_line": 669,
       "criterion": "FIELD и STRESS отдельны; отсутствие заявленного real-time не выдаётся за отказ EDU или за PASS STRESS",
       "execution_status": "NOT_RUN"
     },
     "PERF-03": {
-      "definition_line": 652,
+      "definition_line": 670,
       "criterion": "Idle/save budgets, lazy bundle, WASM/network/offline и память по сериям; нет случайных запросов на физический шаг",
       "execution_status": "NOT_RUN"
     },
     "ART-01": {
-      "definition_line": 653,
+      "definition_line": 671,
       "criterion": "Исходные owner SVG hashes неизменны, лицензии/происхождение и физические размеры заданы, вредоносные/неподдержанные ресурсы не включены",
       "execution_status": "NOT_RUN"
     },
     "COMP-01": {
-      "definition_line": 654,
+      "definition_line": 672,
       "criterion": "Шаблон сохраняет версии правил/ресурсов/единиц; события зон и опрокидывания с debounce/time не зависят от FPS; учебный не маркируется официальным",
       "execution_status": "NOT_RUN"
     },
     "DOC-01": {
-      "definition_line": 655,
+      "definition_line": 673,
       "criterion": "Уникальные IDs, сохранность исходных 118 IDs, каждое требование имеет этап и тест; нет dangling ID, цикл зависимостей этапов и ложного implementation PASS",
       "execution_status": "NOT_RUN"
     },
     "SAFE-01": {
-      "definition_line": 656,
+      "definition_line": 674,
       "criterion": "Перед началом и после доставки сравнение HEAD/незакоммиченных файлов/owner assets и серверов; только разрешённые пути; GitHub commit не объявляется deploy",
       "execution_status": "NOT_RUN"
     },
     "DEL-01": {
-      "definition_line": 657,
+      "definition_line": 675,
       "criterion": "По завершённому этапу доступны exact SHA, scope, gates, evidence и native editor demonstration; существующие blockers не закрыты документацией",
       "execution_status": "NOT_RUN"
     },
     "CAL-01": {
-      "definition_line": 502,
+      "definition_line": 518,
       "criterion": "Измерить колесо, колею, массу и положение основных компонентов выбранной реальной тележки; сохранить протокол и погрешность измерения.",
       "execution_status": "NOT_RUN"
     },
     "CAL-02": {
-      "definition_line": 504,
+      "definition_line": 520,
       "criterion": "Снять скорость без нагрузки, выбег, разворот, движение с известным грузом и поведение на двух известных уклонах. Сравнить время, путь и ток при поддержанном измерении. Цель для учебного профиля — отклонение пути/времени до 10% на отдельной контрольной выборке в диапазоне модели; не менее 20% измеренных сценариев и минимум два режима заранее резервируются и не участвуют в настройке. Учитываются погрешности измерений; за пределами диапазона точность не заявляется.",
       "execution_status": "NOT_RUN"
     },
     "CAL-03": {
-      "definition_line": 506,
+      "definition_line": 522,
       "criterion": "Для банки и мяча использовать взвешенные экземпляры и документированные размеры. Без этих испытаний выпуск может называться проверенной учебной моделью, но не цифровым двойником конкретного оборудования.",
+      "execution_status": "NOT_RUN"
+    },
+    "MODE-01": {
+      "definition_line": 755,
+      "criterion": "Независимый выбор доступа, blocks/text и legacy «Учебный»; UI_ONLY не объявляет runtime готовым; имя/размещение согласуется на E4",
+      "execution_status": "NOT_RUN"
+    },
+    "MODE-02": {
+      "definition_line": 756,
+      "criterion": "Фиксированный kit дважды инстанцируется с collision-free IDs и одинаковой топологией/пинами; reopen/update сохраняет resolved circuit и версии",
+      "execution_status": "NOT_RUN"
+    },
+    "MODE-03": {
+      "definition_line": 757,
+      "criterion": "Canvas/hotkeys/inspector/undo/import не меняют закрытую конструкцию; чтение, выделение, zoom и программа доступны; прежние права доступа сохранены",
+      "execution_status": "NOT_RUN"
+    },
+    "MODE-04": {
+      "definition_line": 758,
+      "criterion": "Совместимый модуль атомарно добавляет mount/component/wires/binding/code/capability и undo; занятый pin, unsupported или cancel оставляют исходный документ",
+      "execution_status": "NOT_RUN"
+    },
+    "MODE-05": {
+      "definition_line": 759,
+      "criterion": "Одинаковые входы в обоих режимах дают одинаковые controller/electrical/sensor/mechanical traces; D02 проверен, UI не создаёт второй runtime",
+      "execution_status": "NOT_RUN"
+    },
+    "MODE-06": {
+      "definition_line": 760,
+      "criterion": "Вперёд/назад/поворот/stop проходят library и схему; отсутствие питания, обрыв, stall, low-side без H-моста отражены честно; coast/brake без мгновенного сброса скорости",
+      "execution_status": "NOT_RUN"
+    },
+    "MODE-07": {
+      "definition_line": 761,
+      "criterion": "Timed и measured distance/angle различимы; физический датчик либо маркированная калиброванная оценка; scene truth недоступна программе, no-echo/timeout сохраняются",
+      "execution_status": "NOT_RUN"
+    },
+    "MODE-08": {
+      "definition_line": 762,
+      "criterion": "Wait, pause, cancel, stop, reset и конфликт команд согласованы на общих часах; start/completion/timeout/failure наблюдаемы без скачка времени",
+      "execution_status": "NOT_RUN"
+    },
+    "MODE-09": {
+      "definition_line": 763,
+      "criterion": "Замена robot сохраняет поле/блоки; несовместимость отмечена; иная топология без native left/right проверена; переходы сохраняют revision и не сбрасывают схему",
+      "execution_status": "NOT_RUN"
+    },
+    "MODE-10": {
+      "definition_line": 764,
+      "criterion": "Save/reopen сохраняет mode/kit/circuit/bindings/library/generator/source; manual fork сохраняет blocks, явное восстановление; legacy и private/public projection сохранены",
+      "execution_status": "NOT_RUN"
+    },
+    "MODE-11": {
+      "definition_line": 765,
+      "criterion": "Manifest доказывает capabilities конкретного kit; BOM/pins/build/provenance и диапазон claims проверены; unsupported command не мутирует проект",
+      "execution_status": "NOT_RUN"
+    },
+    "MODE-12": {
+      "definition_line": 766,
+      "criterion": "Replay записанных version/hash разрешает точный архив 1.1 либо immutable commit; frozen manifests неизменны; canonical-path mismatch классифицирован отдельно от физики",
       "execution_status": "NOT_RUN"
     }
   },
@@ -337,7 +397,7 @@
       "requirement_id": "REQ-CORE-01",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 24,
+      "spec_line": 26,
       "requirement_sha256": "e81558d8a5b3eff065824264aafcfd16d47a12316c9293dadaad071a82f8a153",
       "acceptance_tests": [
         "CT-01",
@@ -353,7 +413,7 @@
       "requirement_id": "REQ-CORE-02",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 26,
+      "spec_line": 28,
       "requirement_sha256": "c1e424c55acb6be6fd4f1c1ca593adebf7fe8e5b77cc438bda10f782045f606f",
       "acceptance_tests": [
         "CT-01",
@@ -369,7 +429,7 @@
       "requirement_id": "REQ-CORE-03",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 28,
+      "spec_line": 30,
       "requirement_sha256": "93e6e10a730ad2d142a6c3fb7998abebed54308f9ec45edbac09b6c87dd61b39",
       "acceptance_tests": [
         "CT-01",
@@ -385,7 +445,7 @@
       "requirement_id": "REQ-CORE-04",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 30,
+      "spec_line": 32,
       "requirement_sha256": "394d86dc0426f137872d09adb055e65763af1eb9c06eab9a39ee5ca1130a1244",
       "acceptance_tests": [
         "CT-01",
@@ -401,7 +461,7 @@
       "requirement_id": "REQ-CORE-05",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 32,
+      "spec_line": 34,
       "requirement_sha256": "b4d55a94a457cf9fd191f67380d69162e3c25b0b862eb931e9be65eb800e9262",
       "acceptance_tests": [
         "CT-01",
@@ -417,7 +477,7 @@
       "requirement_id": "REQ-SAFE-01",
       "phase": "E0",
       "priority": "P0",
-      "spec_line": 62,
+      "spec_line": 64,
       "requirement_sha256": "df262d9e8ce106c5f49335d551180d1fc4e9dc58b07f78b83a01619a63f916a8",
       "acceptance_tests": [
         "SAFE-01",
@@ -431,7 +491,7 @@
       "requirement_id": "REQ-SAFE-02",
       "phase": "E0",
       "priority": "P0",
-      "spec_line": 64,
+      "spec_line": 66,
       "requirement_sha256": "aff28174e9ccb22c4870feff62e7d546aff608c483c2fe067ac23dc719412765",
       "acceptance_tests": [
         "SAFE-01",
@@ -445,7 +505,7 @@
       "requirement_id": "REQ-SAFE-03",
       "phase": "E0",
       "priority": "P0",
-      "spec_line": 66,
+      "spec_line": 68,
       "requirement_sha256": "ad7f107e509848ecf517a31c00ccfe68681c05d846dc818302a67d9311975908",
       "acceptance_tests": [
         "SAFE-01",
@@ -459,7 +519,7 @@
       "requirement_id": "REQ-SAFE-04",
       "phase": "E0",
       "priority": "P0",
-      "spec_line": 68,
+      "spec_line": 70,
       "requirement_sha256": "c9f74cce3f04a923885b2f4d3eb1126c7bfdf8e536a2ce8b50dba783b3b64692",
       "acceptance_tests": [
         "PERF-03",
@@ -473,7 +533,7 @@
       "requirement_id": "REQ-SAFE-05",
       "phase": "E0",
       "priority": "P0",
-      "spec_line": 70,
+      "spec_line": 72,
       "requirement_sha256": "6f9de6b1b4f5aed5777807e08c1c4ede2e9f1f5f318c44250cafb102232245c5",
       "acceptance_tests": [
         "SAFE-01",
@@ -487,7 +547,7 @@
       "requirement_id": "REQ-ENG-01",
       "phase": "E1",
       "priority": "P1",
-      "spec_line": 91,
+      "spec_line": 93,
       "requirement_sha256": "39af95c83605a1d92c284766122efedfdfca27f37a81fbb903e099005bcb21be",
       "acceptance_tests": [
         "PHY-01",
@@ -504,7 +564,7 @@
       "requirement_id": "REQ-ENG-02",
       "phase": "E1",
       "priority": "P1",
-      "spec_line": 93,
+      "spec_line": 95,
       "requirement_sha256": "5d364ee868444f84b8ac400d5e261c77d251c11559be498927f3da8211310753",
       "acceptance_tests": [
         "PHY-01",
@@ -521,7 +581,7 @@
       "requirement_id": "REQ-ENG-03",
       "phase": "E1",
       "priority": "P1",
-      "spec_line": 95,
+      "spec_line": 97,
       "requirement_sha256": "55ac1b5319c14c1086d8eacc67e365ec7f5e3f1a497f17803a6a9181f2c41c36",
       "acceptance_tests": [
         "ART-01",
@@ -534,7 +594,7 @@
       "requirement_id": "REQ-ENG-04",
       "phase": "E1",
       "priority": "P1",
-      "spec_line": 97,
+      "spec_line": 99,
       "requirement_sha256": "8b2f1ed7d3658d59688abccfda0c46e38e4ec74a6df4f1cac1694c6cb6a1cafb",
       "acceptance_tests": [
         "PHY-01",
@@ -551,7 +611,7 @@
       "requirement_id": "REQ-ARCH-01",
       "phase": "E2",
       "priority": "P0",
-      "spec_line": 113,
+      "spec_line": 115,
       "requirement_sha256": "f7fe950fdb4c1e86382139302c131ea95a01d104f1129c9d9b15b175edbfaf68",
       "acceptance_tests": [
         "CT-01",
@@ -566,7 +626,7 @@
       "requirement_id": "REQ-ARCH-02",
       "phase": "E2",
       "priority": "P0",
-      "spec_line": 115,
+      "spec_line": 117,
       "requirement_sha256": "4f0697a37916f5ec68eb097c4b0f09873bfb276e91520fcce1074fcfd3ff7c36",
       "acceptance_tests": [
         "CT-01",
@@ -581,7 +641,7 @@
       "requirement_id": "REQ-ARCH-03",
       "phase": "E2",
       "priority": "P0",
-      "spec_line": 117,
+      "spec_line": 119,
       "requirement_sha256": "a0e35e211ee4771a16088b868ab976c940dee5d42e139b899f26075a756c5f90",
       "acceptance_tests": [
         "CT-01",
@@ -596,7 +656,7 @@
       "requirement_id": "REQ-ARCH-04",
       "phase": "E2",
       "priority": "P0",
-      "spec_line": 119,
+      "spec_line": 121,
       "requirement_sha256": "8ca0b272015a7b8f1b306ffe32d52ac5722749fb4630f238e65adb3a45310114",
       "acceptance_tests": [
         "CT-01",
@@ -611,7 +671,7 @@
       "requirement_id": "REQ-GEO-01",
       "phase": "E2",
       "priority": "P1",
-      "spec_line": 123,
+      "spec_line": 125,
       "requirement_sha256": "5576729264bfa80da5f46893df5433075f7a0e1c77c5ccf49db8fb06621512e8",
       "acceptance_tests": [
         "CT-02",
@@ -625,7 +685,7 @@
       "requirement_id": "REQ-GEO-02",
       "phase": "E2",
       "priority": "P1",
-      "spec_line": 125,
+      "spec_line": 127,
       "requirement_sha256": "d374dbcf3f41f1a9ae1ebdf7b1b9f8d8d3b4b79f984b042b34af5e5170b51bca",
       "acceptance_tests": [
         "CT-02",
@@ -639,7 +699,7 @@
       "requirement_id": "REQ-GEO-03",
       "phase": "E2",
       "priority": "P1",
-      "spec_line": 127,
+      "spec_line": 129,
       "requirement_sha256": "5b56bd4237cdb8f0ca544c84cf5f48f05f750a79a4c62b690887c23acf885998",
       "acceptance_tests": [
         "CT-02",
@@ -653,7 +713,7 @@
       "requirement_id": "REQ-GEO-04",
       "phase": "E2",
       "priority": "P1",
-      "spec_line": 129,
+      "spec_line": 131,
       "requirement_sha256": "888f51fabc4ee9f60e32e7dc46e1dc20ce21ff14d0ea3229955f81d70187e5fe",
       "acceptance_tests": [
         "CT-02",
@@ -667,7 +727,7 @@
       "requirement_id": "REQ-UI-01",
       "phase": "E4",
       "priority": "P1",
-      "spec_line": 135,
+      "spec_line": 137,
       "requirement_sha256": "003cbc2741e733e2ef4a60dbe518213f38e045b096ff9cf7e12ec498b1ab3078",
       "acceptance_tests": [
         "UI-02",
@@ -680,7 +740,7 @@
       "requirement_id": "REQ-UI-02",
       "phase": "E4",
       "priority": "P1",
-      "spec_line": 137,
+      "spec_line": 139,
       "requirement_sha256": "91db6ed81e56ecafa85538b82ed8bafa63e2038ddbfd0df71eefd833b914a2ee",
       "acceptance_tests": [
         "UI-04",
@@ -693,7 +753,7 @@
       "requirement_id": "REQ-UI-03",
       "phase": "E4",
       "priority": "P1",
-      "spec_line": 139,
+      "spec_line": 141,
       "requirement_sha256": "8f426c92548afa6673d5712600b93729a4ade9066aa474ec1173bad58d63fabd",
       "acceptance_tests": [
         "UI-04"
@@ -705,7 +765,7 @@
       "requirement_id": "REQ-UI-04",
       "phase": "E4",
       "priority": "P1",
-      "spec_line": 141,
+      "spec_line": 143,
       "requirement_sha256": "41595d3b929e98e69df73c8b6ba750172d51c434b35e14aa6c8d38c538b45cb5",
       "acceptance_tests": [
         "UI-04",
@@ -719,7 +779,7 @@
       "requirement_id": "REQ-UI-05",
       "phase": "E4",
       "priority": "P1",
-      "spec_line": 143,
+      "spec_line": 145,
       "requirement_sha256": "aae64514245cec4f4d201a9402d0d6bd6fb0fc1647fab14475e0d4331c1eba4f",
       "acceptance_tests": [
         "UI-04",
@@ -733,7 +793,7 @@
       "requirement_id": "REQ-UI-06",
       "phase": "E4",
       "priority": "P1",
-      "spec_line": 147,
+      "spec_line": 151,
       "requirement_sha256": "f7f6536021c12c4a0db28cff00417d81a145a6c13a606c68f78d20cd7a2ed68d",
       "acceptance_tests": [
         "UI-04",
@@ -746,7 +806,7 @@
       "requirement_id": "REQ-UI-07",
       "phase": "E4",
       "priority": "P1",
-      "spec_line": 149,
+      "spec_line": 153,
       "requirement_sha256": "189c49d1bff92fe777f8510d01b2a982617217f3679779ce0458f7a01a2a6812",
       "acceptance_tests": [
         "UI-04",
@@ -760,7 +820,7 @@
       "requirement_id": "REQ-UI-08",
       "phase": "E4",
       "priority": "P1",
-      "spec_line": 151,
+      "spec_line": 155,
       "requirement_sha256": "98bdbae19e33c14b9b477eaea2ff1f9ef957428337bdddfedfda989d8dff676b",
       "acceptance_tests": [
         "UI-07",
@@ -773,7 +833,7 @@
       "requirement_id": "REQ-UI-09",
       "phase": "E4",
       "priority": "P1",
-      "spec_line": 153,
+      "spec_line": 157,
       "requirement_sha256": "67cb9ea5f931b03f6b932851052000769cc40306484a6ab96b99b40c6e72247f",
       "acceptance_tests": [
         "UI-07",
@@ -786,7 +846,7 @@
       "requirement_id": "REQ-CAM-01",
       "phase": "E3",
       "priority": "P1",
-      "spec_line": 165,
+      "spec_line": 169,
       "requirement_sha256": "a39835dca5a63fd90fa6646c2a12cad8868603bccb91cbb1dcec5ff7a7f2afcc",
       "acceptance_tests": [
         "UI-01",
@@ -799,7 +859,7 @@
       "requirement_id": "REQ-CAM-02",
       "phase": "E3",
       "priority": "P1",
-      "spec_line": 167,
+      "spec_line": 171,
       "requirement_sha256": "9eb161ed9ec41672094ee56e864bfae1c07bc9a857e4cc70d8019f493e4b8786",
       "acceptance_tests": [
         "UI-01",
@@ -812,7 +872,7 @@
       "requirement_id": "REQ-CAM-03",
       "phase": "E3",
       "priority": "P1",
-      "spec_line": 169,
+      "spec_line": 173,
       "requirement_sha256": "24291d529c4c3d396f625464beff59a5f2b4d3ffabdf24912bbd420cde49e4e9",
       "acceptance_tests": [
         "UI-01",
@@ -825,7 +885,7 @@
       "requirement_id": "REQ-CAM-04",
       "phase": "E3",
       "priority": "P1",
-      "spec_line": 171,
+      "spec_line": 175,
       "requirement_sha256": "a919cfb221a35f4da2d5d275e8902c7d3e04e08244bb3cd1fe5e7f8fe342011d",
       "acceptance_tests": [
         "UI-01",
@@ -838,7 +898,7 @@
       "requirement_id": "REQ-CAM-05",
       "phase": "E3",
       "priority": "P1",
-      "spec_line": 173,
+      "spec_line": 177,
       "requirement_sha256": "64caa1a7cbfd2b8be8511179f085d02bf50ae93c1a09add9cbab5d717dd4bb31",
       "acceptance_tests": [
         "UI-01",
@@ -851,7 +911,7 @@
       "requirement_id": "REQ-EDIT-01",
       "phase": "E5",
       "priority": "P1",
-      "spec_line": 183,
+      "spec_line": 187,
       "requirement_sha256": "3b0b7e4d628ce17130f491f9219e1e8806e9811337104d69c67bf2fc8f796842",
       "acceptance_tests": [
         "UI-03",
@@ -865,7 +925,7 @@
       "requirement_id": "REQ-EDIT-02",
       "phase": "E5",
       "priority": "P1",
-      "spec_line": 185,
+      "spec_line": 189,
       "requirement_sha256": "ae7a810f954e2d4e96f787c02946ab983b6c26c93b057f00b45e4b0675a0152e",
       "acceptance_tests": [
         "UI-03",
@@ -879,7 +939,7 @@
       "requirement_id": "REQ-EDIT-03",
       "phase": "E5",
       "priority": "P1",
-      "spec_line": 187,
+      "spec_line": 191,
       "requirement_sha256": "2a16fc34c9a1879be12db9d73f158e1878f17d3fe0aa108f98176d379777cefd",
       "acceptance_tests": [
         "UI-03",
@@ -893,7 +953,7 @@
       "requirement_id": "REQ-EDIT-04",
       "phase": "E5",
       "priority": "P1",
-      "spec_line": 189,
+      "spec_line": 193,
       "requirement_sha256": "007201fa5a0262cb2f8710ce4a100b9a592f52906e89f7be5f780d1bc5f259ce",
       "acceptance_tests": [
         "UI-03",
@@ -907,7 +967,7 @@
       "requirement_id": "REQ-CAT-01",
       "phase": "E5",
       "priority": "P1",
-      "spec_line": 195,
+      "spec_line": 199,
       "requirement_sha256": "ae5f69f947b3f73af0b8991ea64e700a3acf43336dbd5fbb20b1a3e4826fc811",
       "acceptance_tests": [
         "UI-03",
@@ -922,7 +982,7 @@
       "requirement_id": "REQ-CAT-02",
       "phase": "E5",
       "priority": "P1",
-      "spec_line": 197,
+      "spec_line": 201,
       "requirement_sha256": "c35b1063aac3d2274c9c07e7552c62240830c0ee482cffd6cab2398184ba2c6c",
       "acceptance_tests": [
         "UI-03",
@@ -937,7 +997,7 @@
       "requirement_id": "REQ-CAT-03",
       "phase": "E5",
       "priority": "P1",
-      "spec_line": 199,
+      "spec_line": 203,
       "requirement_sha256": "37ce2b3fb618ab5619f69bbae4d2ffda47700c28f1e3c70ed0535a4a0b280873",
       "acceptance_tests": [
         "UI-03",
@@ -952,7 +1012,7 @@
       "requirement_id": "REQ-CAT-04",
       "phase": "E5",
       "priority": "P1",
-      "spec_line": 205,
+      "spec_line": 209,
       "requirement_sha256": "dfba14a1248ede425e7f77bd4fd55f61eaf39c3769ba365f9675fa084f26e4e5",
       "acceptance_tests": [
         "UI-03",
@@ -967,7 +1027,7 @@
       "requirement_id": "REQ-CAT-05",
       "phase": "E5",
       "priority": "P1",
-      "spec_line": 207,
+      "spec_line": 211,
       "requirement_sha256": "e22ee6e8728cdc6fe62377cdade5db59d17a0e279c1bc22948a8622d4763e191",
       "acceptance_tests": [
         "UI-03",
@@ -982,7 +1042,7 @@
       "requirement_id": "REQ-FLD-01",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 228,
+      "spec_line": 232,
       "requirement_sha256": "612b11022caf72c6c1e958a38707e82c5d688965a573e9aa1b913edba49f4277",
       "acceptance_tests": [
         "PLACE-01",
@@ -996,7 +1056,7 @@
       "requirement_id": "REQ-FLD-02",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 230,
+      "spec_line": 234,
       "requirement_sha256": "35a6f871c95eb92f33813bb7660e592a2c539ece72414a40fe819c06f9e963a9",
       "acceptance_tests": [
         "PLACE-01",
@@ -1010,7 +1070,7 @@
       "requirement_id": "REQ-FLD-03",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 232,
+      "spec_line": 236,
       "requirement_sha256": "1b5e2115bde0a6e60819a096ab8654c0a2d353bf35f0effd1e1f3e5843370422",
       "acceptance_tests": [
         "PLACE-01",
@@ -1024,7 +1084,7 @@
       "requirement_id": "REQ-START-01",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 236,
+      "spec_line": 240,
       "requirement_sha256": "7dab9e13c9c53fca4371241ee20b1adfdc3598e795d5791d1bda50c013990257",
       "acceptance_tests": [
         "UI-08",
@@ -1038,7 +1098,7 @@
       "requirement_id": "REQ-START-02",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 238,
+      "spec_line": 242,
       "requirement_sha256": "0d11af34931e4afe4fb07e28a3c867094c99cd8223c79ba935b3b68e4f2d884e",
       "acceptance_tests": [
         "UI-08",
@@ -1052,7 +1112,7 @@
       "requirement_id": "REQ-START-03",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 240,
+      "spec_line": 244,
       "requirement_sha256": "e3fbca48926702e716948d0441327977b91c5a0e4af072d1efd58a75e72f72e0",
       "acceptance_tests": [
         "UI-08",
@@ -1066,7 +1126,7 @@
       "requirement_id": "REQ-TERR-01",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 244,
+      "spec_line": 248,
       "requirement_sha256": "c0dda13af7a87e3eebc1eb3931ee9a1e859dbff7a543b754eee561d55c005303",
       "acceptance_tests": [
         "PLACE-01",
@@ -1080,7 +1140,7 @@
       "requirement_id": "REQ-TERR-02",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 246,
+      "spec_line": 250,
       "requirement_sha256": "a6df27d317b4e452ed4253258486116533327132084ed36c735d4da793565100",
       "acceptance_tests": [
         "PLACE-01",
@@ -1094,7 +1154,7 @@
       "requirement_id": "REQ-TERR-03",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 248,
+      "spec_line": 252,
       "requirement_sha256": "0096e39aa08188a5cff37efa70ec8fb75fe6ab80e306c8b0a63ffa3507f9af95",
       "acceptance_tests": [
         "PLACE-01",
@@ -1108,7 +1168,7 @@
       "requirement_id": "REQ-TERR-04",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 250,
+      "spec_line": 254,
       "requirement_sha256": "8ecf591d2fe093fc1de251b45c0f01f7bb1c665dfedc6fb7a05463dd9770e183",
       "acceptance_tests": [
         "PLACE-01",
@@ -1122,7 +1182,7 @@
       "requirement_id": "REQ-ROB-01",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 256,
+      "spec_line": 262,
       "requirement_sha256": "1b4e4dc799bb374f8e1cdc1b4d33bc6c78df0e877cb47da786614446d54e6a37",
       "acceptance_tests": [
         "CT-03",
@@ -1136,7 +1196,7 @@
       "requirement_id": "REQ-ROB-02",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 258,
+      "spec_line": 264,
       "requirement_sha256": "d2bcf0c9b3402e50f9ea88ad5bb06078e5958fcedcfc4882e233e390708d0478",
       "acceptance_tests": [
         "CT-03",
@@ -1150,7 +1210,7 @@
       "requirement_id": "REQ-ROB-03",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 260,
+      "spec_line": 266,
       "requirement_sha256": "facb0b9dabd1e9a932fac293190a7c44889baa066fbcad4d53d60e496a6c0700",
       "acceptance_tests": [
         "CT-03",
@@ -1164,7 +1224,7 @@
       "requirement_id": "REQ-ROB-04",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 262,
+      "spec_line": 268,
       "requirement_sha256": "b96d5c9adb3ad6ab89ccb423e8624bdf2476ee1f58a012f3296989ec08df87ff",
       "acceptance_tests": [
         "CT-03",
@@ -1178,7 +1238,7 @@
       "requirement_id": "REQ-SVG-01",
       "phase": "E8",
       "priority": "P1",
-      "spec_line": 266,
+      "spec_line": 272,
       "requirement_sha256": "6f69ab2fe835c64f82936bfa3f2ddb09132b5481257420efcce111cd03b8127e",
       "acceptance_tests": [
         "UI-09",
@@ -1193,7 +1253,7 @@
       "requirement_id": "REQ-SVG-02",
       "phase": "E8",
       "priority": "P1",
-      "spec_line": 268,
+      "spec_line": 274,
       "requirement_sha256": "a6f16c13220c76d02283207066cd27197eacc4ffa83a2dfa74e0e67114d71449",
       "acceptance_tests": [
         "UI-09",
@@ -1208,7 +1268,7 @@
       "requirement_id": "REQ-SVG-03",
       "phase": "E8",
       "priority": "P1",
-      "spec_line": 270,
+      "spec_line": 276,
       "requirement_sha256": "515e3c036dc0f4ff56a6c25a92651c739e0f0a6e1447d812505d0bb7db87d2bc",
       "acceptance_tests": [
         "UI-09",
@@ -1223,7 +1283,7 @@
       "requirement_id": "REQ-SVG-04",
       "phase": "E8",
       "priority": "P1",
-      "spec_line": 272,
+      "spec_line": 278,
       "requirement_sha256": "97af83b9787826a90fd00850d43062e90bb24424c3a5b96f94d4f042d8088b90",
       "acceptance_tests": [
         "UI-09",
@@ -1238,7 +1298,7 @@
       "requirement_id": "REQ-SVG-05",
       "phase": "E8",
       "priority": "P1",
-      "spec_line": 280,
+      "spec_line": 286,
       "requirement_sha256": "3a924ee7fb287b745f8d1aaf5aeff505a8c9180f73a2aea8cf48c23c623694cc",
       "acceptance_tests": [
         "UI-09",
@@ -1253,7 +1313,7 @@
       "requirement_id": "REQ-PHY-01",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 286,
+      "spec_line": 292,
       "requirement_sha256": "d7eb54a1dd36d77b8a335b198567683e8218cf4e8db9af9b94c55d92e97278dd",
       "acceptance_tests": [
         "PHY-01",
@@ -1270,7 +1330,7 @@
       "requirement_id": "REQ-PHY-02",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 288,
+      "spec_line": 294,
       "requirement_sha256": "a3a4c7b31c1918282a4dc56b01b69d7dedb628dd780f9c1c6d40de1c00e15c3a",
       "acceptance_tests": [
         "PHY-01",
@@ -1287,7 +1347,7 @@
       "requirement_id": "REQ-PHY-03",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 290,
+      "spec_line": 296,
       "requirement_sha256": "50a434a4a632651ac1dbb72edd4c85195e6853bd9310a740a043ba43b8e6b775",
       "acceptance_tests": [
         "PHY-01",
@@ -1304,7 +1364,7 @@
       "requirement_id": "REQ-PHY-04",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 292,
+      "spec_line": 298,
       "requirement_sha256": "1376ed76e57c04169faf6f54588b628456312f4918fc8ec0e58b5f8568cb97a9",
       "acceptance_tests": [
         "PHY-01",
@@ -1321,7 +1381,7 @@
       "requirement_id": "REQ-MAT-01",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 298,
+      "spec_line": 304,
       "requirement_sha256": "7e51386bdca0833d7d6634dcf4d02e1d909c92416d5336473aeca309855e9f42",
       "acceptance_tests": [
         "PHY-03",
@@ -1337,7 +1397,7 @@
       "requirement_id": "REQ-MAT-02",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 300,
+      "spec_line": 306,
       "requirement_sha256": "71b8f633889d8e5b36350648b27038e398914deebea57475179189fd572a5a81",
       "acceptance_tests": [
         "PHY-03",
@@ -1353,7 +1413,7 @@
       "requirement_id": "REQ-MAT-03",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 302,
+      "spec_line": 308,
       "requirement_sha256": "69b0ec535ea7d3a1ad9bbcdf51a726bdf5150897b6726a59c796d5ec6d0a06ce",
       "acceptance_tests": [
         "PHY-03",
@@ -1369,7 +1429,7 @@
       "requirement_id": "REQ-CAN-01",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 308,
+      "spec_line": 314,
       "requirement_sha256": "1f6d100730530969e1152bc9e828fd04fd770901cfc239831344f94491036357",
       "acceptance_tests": [
         "PHY-06",
@@ -1383,7 +1443,7 @@
       "requirement_id": "REQ-CAN-02",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 310,
+      "spec_line": 316,
       "requirement_sha256": "37952c57c15046cba5cb2346c311680172c7e970d8308120e3c2c0cced04daff",
       "acceptance_tests": [
         "PHY-06",
@@ -1397,7 +1457,7 @@
       "requirement_id": "REQ-CAN-03",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 312,
+      "spec_line": 318,
       "requirement_sha256": "7c1aebda04f2883928a46aaa0df9044af2cee69254efaed794f984b502f80100",
       "acceptance_tests": [
         "PHY-06",
@@ -1411,7 +1471,7 @@
       "requirement_id": "REQ-DRV-01",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 320,
+      "spec_line": 328,
       "requirement_sha256": "a26d73b08006a90e56864483c23ba1d7418cb39461be9867906752a8b34c53bc",
       "acceptance_tests": [
         "PHY-10",
@@ -1427,7 +1487,7 @@
       "requirement_id": "REQ-DRV-02",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 322,
+      "spec_line": 330,
       "requirement_sha256": "2ca959b4ab8f3d61e8bea93e9815421869dff26ba79a6443b9e567c5070657e6",
       "acceptance_tests": [
         "PHY-10",
@@ -1443,7 +1503,7 @@
       "requirement_id": "REQ-DRV-03",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 326,
+      "spec_line": 334,
       "requirement_sha256": "3b2b733e14c63247544b1b3c587a76666ef1f0ecd2924bc8c10f0ecc05f06bbc",
       "acceptance_tests": [
         "PHY-10",
@@ -1459,7 +1519,7 @@
       "requirement_id": "REQ-DRV-04",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 328,
+      "spec_line": 336,
       "requirement_sha256": "1d6b0cc2a3a781c33633a89bb2be1598424fe67dfb98db2722451847eda52a7a",
       "acceptance_tests": [
         "PHY-10",
@@ -1475,7 +1535,7 @@
       "requirement_id": "REQ-DRV-05",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 330,
+      "spec_line": 338,
       "requirement_sha256": "a604484af8ed0d4298c0fc7a3a0efb2db31a33b3f442d154c42be4958fbb02e9",
       "acceptance_tests": [
         "PHY-10",
@@ -1491,7 +1551,7 @@
       "requirement_id": "REQ-TIME-01",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 336,
+      "spec_line": 344,
       "requirement_sha256": "3f563e08237904241bdc61564157034cf1632dcd7276036d4325209454fa9b2d",
       "acceptance_tests": [
         "TIME-01",
@@ -1507,7 +1567,7 @@
       "requirement_id": "REQ-TIME-02",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 338,
+      "spec_line": 346,
       "requirement_sha256": "97471586d52969aaa83f248a8147ab7fa9814e332ceff1f99d851133db601e67",
       "acceptance_tests": [
         "TIME-01",
@@ -1523,7 +1583,7 @@
       "requirement_id": "REQ-TIME-03",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 340,
+      "spec_line": 348,
       "requirement_sha256": "ee69dcff97d8331fda43d286656e09ee29ae507a5dc2e93ca573aabde937635a",
       "acceptance_tests": [
         "TIME-01",
@@ -1539,7 +1599,7 @@
       "requirement_id": "REQ-SENS-01",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 344,
+      "spec_line": 354,
       "requirement_sha256": "5f8b879b5f3b7eb3145837828cd0a67b04450b7a1ebaca4d2108601bd6538a2a",
       "acceptance_tests": [
         "TIME-01",
@@ -1553,7 +1613,7 @@
       "requirement_id": "REQ-SENS-02",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 346,
+      "spec_line": 356,
       "requirement_sha256": "7809c62ab6640360857ff90e02eb2304355988b7f626b0e49fb19f423a38fead",
       "acceptance_tests": [
         "CT-01",
@@ -1566,7 +1626,7 @@
       "requirement_id": "REQ-SENS-03",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 348,
+      "spec_line": 358,
       "requirement_sha256": "049e68aefdcdf7c6bdbac26c9265a963b2bead3d96f93f3c86d69aa6987bd1c8",
       "acceptance_tests": [
         "CT-01",
@@ -1579,7 +1639,7 @@
       "requirement_id": "REQ-SENS-04",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 350,
+      "spec_line": 360,
       "requirement_sha256": "be1bfe29f227e21017297bac33c0495cd9f1d133fe425f097d8c6dc427a3546d",
       "acceptance_tests": [
         "TIME-01",
@@ -1593,7 +1653,7 @@
       "requirement_id": "REQ-VIEW-01",
       "phase": "E8",
       "priority": "P1",
-      "spec_line": 356,
+      "spec_line": 366,
       "requirement_sha256": "5eae288a8547402547f3b05555d669e8480defe3ce15baa1e22acfeaee71e359",
       "acceptance_tests": [
         "UI-10",
@@ -1606,7 +1666,7 @@
       "requirement_id": "REQ-VIEW-02",
       "phase": "E8",
       "priority": "P1",
-      "spec_line": 358,
+      "spec_line": 368,
       "requirement_sha256": "42fa1e2dda83afd05e14ae7280b4d33c724680354db6a0e7827691ce8e1da551",
       "acceptance_tests": [
         "UI-10",
@@ -1619,7 +1679,7 @@
       "requirement_id": "REQ-VIEW-03",
       "phase": "E8",
       "priority": "P1",
-      "spec_line": 360,
+      "spec_line": 370,
       "requirement_sha256": "42a1dd8b694cf9df8bbaa05f48a6090c914980e91e496ca148e86100c2c18388",
       "acceptance_tests": [
         "UI-10",
@@ -1632,7 +1692,7 @@
       "requirement_id": "REQ-RUN-01",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 364,
+      "spec_line": 376,
       "requirement_sha256": "f3282c5e7cd50bcdbb9af6dd155371566e5845751466441168c753a237fe317c",
       "acceptance_tests": [
         "STATE-02",
@@ -1646,7 +1706,7 @@
       "requirement_id": "REQ-RUN-02",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 366,
+      "spec_line": 378,
       "requirement_sha256": "191c71a12c4081dadc05e4b40c68a4b2d1236dbbbfa179f77ab9bec4723e8e8b",
       "acceptance_tests": [
         "STATE-02",
@@ -1660,7 +1720,7 @@
       "requirement_id": "REQ-RUN-03",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 368,
+      "spec_line": 380,
       "requirement_sha256": "f1312fd318b158e5007e0014a14054e78fcb8a1eb7b3180a63ef660df7f726fb",
       "acceptance_tests": [
         "STATE-02",
@@ -1674,7 +1734,7 @@
       "requirement_id": "REQ-RUN-04",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 370,
+      "spec_line": 382,
       "requirement_sha256": "b584db086868e74aec473a00e3afeda227b5867dfc8b58390f49939b2a49bff2",
       "acceptance_tests": [
         "STATE-02",
@@ -1688,7 +1748,7 @@
       "requirement_id": "REQ-PATH-01",
       "phase": "E9",
       "priority": "P1",
-      "spec_line": 376,
+      "spec_line": 388,
       "requirement_sha256": "0a9b4375a6bdd32d2d0e9fe4033b9618cbddbddc1acf2b5e8e549650965615c3",
       "acceptance_tests": [
         "UI-06",
@@ -1702,7 +1762,7 @@
       "requirement_id": "REQ-PATH-02",
       "phase": "E9",
       "priority": "P1",
-      "spec_line": 378,
+      "spec_line": 390,
       "requirement_sha256": "d12876fa40f9193e1823e3e0a5036ebbfe98520642d62588cf9a143f3dc83d67",
       "acceptance_tests": [
         "UI-06",
@@ -1716,7 +1776,7 @@
       "requirement_id": "REQ-PATH-03",
       "phase": "E9",
       "priority": "P1",
-      "spec_line": 380,
+      "spec_line": 392,
       "requirement_sha256": "6e10c4a4807ac18d6a6f7c761a10e5f2368f4cec52fc047ea14974cdfeaaffa7",
       "acceptance_tests": [
         "UI-06",
@@ -1730,7 +1790,7 @@
       "requirement_id": "REQ-PATH-04",
       "phase": "E9",
       "priority": "P1",
-      "spec_line": 382,
+      "spec_line": 394,
       "requirement_sha256": "f5dc70b9068a106de9e9837229e0166ff08d2960864ea3b427950e52f9b3a410",
       "acceptance_tests": [
         "UI-06",
@@ -1744,7 +1804,7 @@
       "requirement_id": "REQ-COMP-01",
       "phase": "E9",
       "priority": "P1",
-      "spec_line": 386,
+      "spec_line": 398,
       "requirement_sha256": "73739ac2911e0bfb59ce20e345c4cd6a5ab2f360d29b0fe19d5933bff52c3278",
       "acceptance_tests": [
         "COMP-01",
@@ -1757,7 +1817,7 @@
       "requirement_id": "REQ-COMP-02",
       "phase": "E9",
       "priority": "P1",
-      "spec_line": 388,
+      "spec_line": 400,
       "requirement_sha256": "38f95b673bdb73055eb3b1d66b884a55a35b0b813ac8c7b162a3283b9d5a8c7d",
       "acceptance_tests": [
         "COMP-01",
@@ -1770,7 +1830,7 @@
       "requirement_id": "REQ-COMP-03",
       "phase": "E9",
       "priority": "P1",
-      "spec_line": 390,
+      "spec_line": 402,
       "requirement_sha256": "bd4a130645ae2c0f52adee25d027cf18fd554390f3a64b454a9c2046f1023ae7",
       "acceptance_tests": [
         "COMP-01",
@@ -1783,7 +1843,7 @@
       "requirement_id": "REQ-DATA-01",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 415,
+      "spec_line": 431,
       "requirement_sha256": "58a6632b253fdd8d429165201c708b2357032dd1082993222cc343f461cda921",
       "acceptance_tests": [
         "DATA-01",
@@ -1800,7 +1860,7 @@
       "requirement_id": "REQ-DATA-02",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 417,
+      "spec_line": 433,
       "requirement_sha256": "dcd9a56f3bbfb1a3775d54a178b124a690cff8f1495f77f4908d78bbfec5c42f",
       "acceptance_tests": [
         "DATA-01",
@@ -1817,7 +1877,7 @@
       "requirement_id": "REQ-DATA-03",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 419,
+      "spec_line": 435,
       "requirement_sha256": "01873737e26280dbc63b0d502b24e610bee78aed3d35ea81e7cc181cf3972401",
       "acceptance_tests": [
         "DATA-01",
@@ -1834,7 +1894,7 @@
       "requirement_id": "REQ-DATA-04",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 421,
+      "spec_line": 437,
       "requirement_sha256": "24b1664f7d4ce93c284a5d845e3052668c8d6918c6eced170d79f96235799c6a",
       "acceptance_tests": [
         "DATA-01",
@@ -1851,7 +1911,7 @@
       "requirement_id": "REQ-DATA-05",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 423,
+      "spec_line": 439,
       "requirement_sha256": "454609ef770baf09de92e7dc87cc915ccbf4e164e1992424bee5ea784b51a8a0",
       "acceptance_tests": [
         "DATA-01",
@@ -1868,7 +1928,7 @@
       "requirement_id": "REQ-SEC-01",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 427,
+      "spec_line": 443,
       "requirement_sha256": "442d20415495e9681af9eff9e100461b4771520ab11111dca996071577bd2ccf",
       "acceptance_tests": [
         "DATA-04",
@@ -1883,7 +1943,7 @@
       "requirement_id": "REQ-SEC-02",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 429,
+      "spec_line": 445,
       "requirement_sha256": "856d2a32e2db2beadbc1846b90216aa648bcde49950446e7f14f59e2a02d11b8",
       "acceptance_tests": [
         "DATA-04",
@@ -1898,7 +1958,7 @@
       "requirement_id": "REQ-SEC-03",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 431,
+      "spec_line": 447,
       "requirement_sha256": "ee8fe81009fcace54c302924ac84170eff5be3cf546929ace231206babc5a630",
       "acceptance_tests": [
         "DATA-04",
@@ -1913,7 +1973,7 @@
       "requirement_id": "REQ-SEC-04",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 433,
+      "spec_line": 449,
       "requirement_sha256": "cd25940dbe690db8e515994966d1ae709602ac684d98f0f3e3f9f0220cfa61bd",
       "acceptance_tests": [
         "DATA-04",
@@ -1928,7 +1988,7 @@
       "requirement_id": "REQ-PERF-01",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 447,
+      "spec_line": 463,
       "requirement_sha256": "167d0b51432e36cd5c282e514f61dabd5f4ee481e5e812854412cf7d867a8bda",
       "acceptance_tests": [
         "PERF-01",
@@ -1943,7 +2003,7 @@
       "requirement_id": "REQ-PERF-02",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 449,
+      "spec_line": 465,
       "requirement_sha256": "4345797e9c662bd9af521b3c252497acf382c8e93ad3c51588b282e15d7ff495",
       "acceptance_tests": [
         "PERF-01",
@@ -1958,7 +2018,7 @@
       "requirement_id": "REQ-PERF-03",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 451,
+      "spec_line": 467,
       "requirement_sha256": "2912ae920d33aaa8f57544a550dc74b680185f58d152ee05ec2c4585fb1fa7fd",
       "acceptance_tests": [
         "PERF-01",
@@ -1973,7 +2033,7 @@
       "requirement_id": "REQ-PERF-04",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 453,
+      "spec_line": 469,
       "requirement_sha256": "b0bb9ce2a830a2a8bef162700a482d98966036b7d8172cf1f596af81a361b379",
       "acceptance_tests": [
         "PERF-01",
@@ -1988,7 +2048,7 @@
       "requirement_id": "REQ-PERF-05",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 455,
+      "spec_line": 471,
       "requirement_sha256": "be58bf4ddca72e016898d675583513a11eaabb4dc0946792395e308c967296dd",
       "acceptance_tests": [
         "PERF-01",
@@ -2003,7 +2063,7 @@
       "requirement_id": "REQ-DEL-01",
       "phase": "E11",
       "priority": "P1",
-      "spec_line": 529,
+      "spec_line": 545,
       "requirement_sha256": "86fec90769d73299ca9cce2b882c598a6949d2179f15f996294605544a13219d",
       "acceptance_tests": [
         "DOC-01",
@@ -2017,7 +2077,7 @@
       "requirement_id": "REQ-DEL-02",
       "phase": "E11",
       "priority": "P1",
-      "spec_line": 531,
+      "spec_line": 547,
       "requirement_sha256": "92de6ee47f92b8bc4d22351768e4f2edda46324b002b30b373405a164131cba2",
       "acceptance_tests": [
         "DOC-01",
@@ -2031,7 +2091,7 @@
       "requirement_id": "REQ-DEL-03",
       "phase": "E11",
       "priority": "P1",
-      "spec_line": 533,
+      "spec_line": 549,
       "requirement_sha256": "fecc8cf9ffd1d8439baebee2d982a1465324c1a5e122a9c7dd364b2eae5f83c8",
       "acceptance_tests": [
         "DOC-01",
@@ -2045,7 +2105,7 @@
       "requirement_id": "REQ-DEL-04",
       "phase": "E11",
       "priority": "P1",
-      "spec_line": 535,
+      "spec_line": 551,
       "requirement_sha256": "9bd964a20a633f667bfc21d8463d08555b4ff76ab0c2dc120eced9d1ab0a1d5a",
       "acceptance_tests": [
         "DOC-01",
@@ -2059,7 +2119,7 @@
       "requirement_id": "REQ-TIME-04",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 555,
+      "spec_line": 573,
       "requirement_sha256": "add2bfb58ce64d6509c8eb96c99ed5c8f492cfa3d2d8a478c08a52136b0551ac",
       "acceptance_tests": [
         "TIME-01"
@@ -2071,7 +2131,7 @@
       "requirement_id": "REQ-TIME-05",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 557,
+      "spec_line": 575,
       "requirement_sha256": "247640bfb2483027e4901ff9c18a798079d2fca5bca1533a83b4e21c62754478",
       "acceptance_tests": [
         "TIME-01",
@@ -2084,7 +2144,7 @@
       "requirement_id": "REQ-TIME-06",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 559,
+      "spec_line": 577,
       "requirement_sha256": "c02a9c2306b26ae715c2c47e92d9c16431954293c2b88eb676cff0cf52254473",
       "acceptance_tests": [
         "TIME-01",
@@ -2098,7 +2158,7 @@
       "requirement_id": "REQ-DRV-06",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 561,
+      "spec_line": 579,
       "requirement_sha256": "83de9a8d71ba25c4d7d0929847033bb9f9a432f291e94fd2b7446a853ae7cfa7",
       "acceptance_tests": [
         "TIME-03",
@@ -2111,7 +2171,7 @@
       "requirement_id": "REQ-DRV-07",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 563,
+      "spec_line": 581,
       "requirement_sha256": "75aeac707ef5481fc4697d68373c906022b96e0a7465fa8f14d747eb4b890e0c",
       "acceptance_tests": [
         "TIME-03",
@@ -2124,7 +2184,7 @@
       "requirement_id": "REQ-STATE-01",
       "phase": "E2",
       "priority": "P0",
-      "spec_line": 567,
+      "spec_line": 585,
       "requirement_sha256": "af546d9c5ce9309c3bdcf60c2e12b9377b2bef6554b0c36af2a9de21d248849e",
       "acceptance_tests": [
         "CT-04",
@@ -2137,7 +2197,7 @@
       "requirement_id": "REQ-STATE-02",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 569,
+      "spec_line": 587,
       "requirement_sha256": "5ca3fa9ec797ae2aa840e302e1f9715cf0bcb74c610c397f8295639ff32e0a27",
       "acceptance_tests": [
         "STATE-01",
@@ -2151,7 +2211,7 @@
       "requirement_id": "REQ-STATE-03",
       "phase": "E7",
       "priority": "P0",
-      "spec_line": 571,
+      "spec_line": 589,
       "requirement_sha256": "fd19916b2097e7032ed51eab42fbb2d7578776c64b2e2b034d3b206b9d0cc519",
       "acceptance_tests": [
         "CT-04",
@@ -2165,7 +2225,7 @@
       "requirement_id": "REQ-PLACE-01",
       "phase": "E5",
       "priority": "P1",
-      "spec_line": 575,
+      "spec_line": 593,
       "requirement_sha256": "89bb3799fc0f46872728a8293b06bd194e8c695de0a376938b190e7b5ad65c22",
       "acceptance_tests": [
         "PLACE-01",
@@ -2179,7 +2239,7 @@
       "requirement_id": "REQ-PLACE-02",
       "phase": "E5",
       "priority": "P1",
-      "spec_line": 577,
+      "spec_line": 595,
       "requirement_sha256": "44ad7083d31a6594d9abea48a1253203eaccd6ba538e99c5cd75ed8285093cad",
       "acceptance_tests": [
         "PLACE-01",
@@ -2193,7 +2253,7 @@
       "requirement_id": "REQ-MODEL-01",
       "phase": "E2",
       "priority": "P1",
-      "spec_line": 579,
+      "spec_line": 597,
       "requirement_sha256": "4819ad95eba2c936ded7a7d16a0330c6d393865e41c0a57b236f8183ebc224c6",
       "acceptance_tests": [
         "CT-02",
@@ -2208,7 +2268,7 @@
       "requirement_id": "REQ-MODEL-02",
       "phase": "E2",
       "priority": "P1",
-      "spec_line": 581,
+      "spec_line": 599,
       "requirement_sha256": "bcfd8bb98cb3e63c0834a9c07c5f6b245407d05d0e1d4c02e04bc49116cd8718",
       "acceptance_tests": [
         "CT-02",
@@ -2223,7 +2283,7 @@
       "requirement_id": "REQ-ROB-05",
       "phase": "E7",
       "priority": "P1",
-      "spec_line": 583,
+      "spec_line": 601,
       "requirement_sha256": "62025ac9549f61d07e52adcc80b068b5bec49f14759e2db6ba2c665e33ebf612",
       "acceptance_tests": [
         "CT-03",
@@ -2237,7 +2297,7 @@
       "requirement_id": "REQ-PUB-01",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 587,
+      "spec_line": 605,
       "requirement_sha256": "01eb3c564c57d59c2bc3a34d0af48bf41b324374e9763268d36e8847ac5ffd42",
       "acceptance_tests": [
         "DATA-04",
@@ -2250,7 +2310,7 @@
       "requirement_id": "REQ-PUB-02",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 589,
+      "spec_line": 607,
       "requirement_sha256": "2c434212c8d042dbef237b09a9eef19cc58e979bcd1bf935c892f6eae7194fcc",
       "acceptance_tests": [
         "DATA-04",
@@ -2263,7 +2323,7 @@
       "requirement_id": "REQ-IMPORT-01",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 591,
+      "spec_line": 609,
       "requirement_sha256": "cecfd688fc0cba07cb0cb9bb658ad5a5cd0c3d5926191264072a4544578b208f",
       "acceptance_tests": [
         "DATA-07",
@@ -2276,7 +2336,7 @@
       "requirement_id": "REQ-IMPORT-02",
       "phase": "E10",
       "priority": "P0",
-      "spec_line": 593,
+      "spec_line": 611,
       "requirement_sha256": "e6592a75f7329b0a31773ceedde7c30b1abff3ea1e933b2924ec1d323ba7e77b",
       "acceptance_tests": [
         "DATA-07",
@@ -2289,7 +2349,7 @@
       "requirement_id": "REQ-CONTRACT-01",
       "phase": "E2",
       "priority": "P0",
-      "spec_line": 597,
+      "spec_line": 615,
       "requirement_sha256": "a9e2e0ea9cb6c00c3d51a38a21f32003922b6ae7cdd75f7c317d5cdba4beccc7",
       "acceptance_tests": [
         "CT-01",
@@ -2304,7 +2364,7 @@
       "requirement_id": "REQ-CONTRACT-02",
       "phase": "E2",
       "priority": "P0",
-      "spec_line": 599,
+      "spec_line": 617,
       "requirement_sha256": "f9a1e43fcec2dde9a2cc5cc16a1c7e4b8c35dcfbbf8471b877f3356b9628583a",
       "acceptance_tests": [
         "CT-01",
@@ -2319,7 +2379,7 @@
       "requirement_id": "REQ-LAYOUT-01",
       "phase": "E4",
       "priority": "P1",
-      "spec_line": 601,
+      "spec_line": 619,
       "requirement_sha256": "93e4099227f02c3df526be1dccb7ce84bcd5631ac8eac5c7ed859ce502c79e68",
       "acceptance_tests": [
         "UI-04",
@@ -2332,7 +2392,7 @@
       "requirement_id": "REQ-MEASURE-01",
       "phase": "E1",
       "priority": "P1",
-      "spec_line": 605,
+      "spec_line": 623,
       "requirement_sha256": "b6af66e09ca5ba2e109d4976fd11698f7a46841ae6db9e7c54cc808d7116c99e",
       "acceptance_tests": [
         "PERF-01"
@@ -2344,7 +2404,7 @@
       "requirement_id": "REQ-MEASURE-02",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 607,
+      "spec_line": 625,
       "requirement_sha256": "e3ac9c81228a9b471ba6c3fc7b8c1b391674261b2a538a90f5d038d864139ddd",
       "acceptance_tests": [
         "PERF-01",
@@ -2359,7 +2419,7 @@
       "requirement_id": "REQ-MEASURE-03",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 609,
+      "spec_line": 627,
       "requirement_sha256": "edc98606c881871e62920af0bac819d185d56803a8f788da15a525535529e322",
       "acceptance_tests": [
         "PERF-01",
@@ -2374,7 +2434,7 @@
       "requirement_id": "REQ-MEASURE-04",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 611,
+      "spec_line": 629,
       "requirement_sha256": "4825b0a826e9406f8474dbc8d5e0d369e060943f9f9baac1d1ab31e378c24b8a",
       "acceptance_tests": [
         "PERF-01",
@@ -2389,7 +2449,7 @@
       "requirement_id": "REQ-VERIFY-01",
       "phase": "E1",
       "priority": "P1",
-      "spec_line": 615,
+      "spec_line": 633,
       "requirement_sha256": "4e24fee2a4e8d4581ce8a9d1132577a1d3843613ed38a78f7659400b566db402",
       "acceptance_tests": [
         "DOC-01",
@@ -2403,7 +2463,7 @@
       "requirement_id": "REQ-VERIFY-02",
       "phase": "E1",
       "priority": "P1",
-      "spec_line": 617,
+      "spec_line": 635,
       "requirement_sha256": "91b9de71344813ed3f7e8d722588cc7d9241d1ae8104c670fd94654853f0b558",
       "acceptance_tests": [
         "PHY-01",
@@ -2419,7 +2479,7 @@
       "requirement_id": "REQ-VERIFY-03",
       "phase": "E1",
       "priority": "P1",
-      "spec_line": 619,
+      "spec_line": 637,
       "requirement_sha256": "dc782ab9a37a9bd95de2b23acf62653836aae8a3758beb61859ede2c096adddd",
       "acceptance_tests": [
         "PHY-06",
@@ -2433,7 +2493,7 @@
       "requirement_id": "REQ-VERIFY-04",
       "phase": "E6",
       "priority": "P1",
-      "spec_line": 621,
+      "spec_line": 639,
       "requirement_sha256": "6b4625ab3c63736f214673067c80b09586d300e8acfcea0cff64109d5301ffe7",
       "acceptance_tests": [
         "PHY-09",
@@ -2446,7 +2506,7 @@
       "requirement_id": "REQ-VERIFY-05",
       "phase": "E10",
       "priority": "P1",
-      "spec_line": 623,
+      "spec_line": 641,
       "requirement_sha256": "60081c48e86f15d111e6d25a5875ec3c0257a922de244dae1900571332f9c4ff",
       "acceptance_tests": [
         "CAL-01",
@@ -2460,7 +2520,7 @@
       "requirement_id": "REQ-DEL-05",
       "phase": "E11",
       "priority": "P1",
-      "spec_line": 661,
+      "spec_line": 679,
       "requirement_sha256": "48597a88e9101e6dce2aeaab3c87192ab4bca85052185abdb1f354b7c88d37c6",
       "acceptance_tests": [
         "DOC-01",
@@ -2474,7 +2534,7 @@
       "requirement_id": "REQ-TRACE-01",
       "phase": "E11",
       "priority": "P1",
-      "spec_line": 663,
+      "spec_line": 681,
       "requirement_sha256": "29a356f8e567da54bb2ca9d7e7acb6e3cc27e0d47c6263a67a5d6d13662d5e6e",
       "acceptance_tests": [
         "DOC-01",
@@ -2482,6 +2542,291 @@
       ],
       "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
       "evidence": []
+    },
+    {
+      "requirement_id": "REQ-MODE-01",
+      "phase": "E4",
+      "priority": "P1",
+      "spec_line": 701,
+      "requirement_sha256": "1d464106315dd19b9bb08aaa2041654aa665cbec027458366b50afb6878dc507",
+      "acceptance_tests": [
+        "MODE-01"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-MODE-02",
+      "phase": "E4",
+      "priority": "P1",
+      "spec_line": 703,
+      "requirement_sha256": "3a32cb243b9b56d12b2c5ded0f6e453ff3cad8e8080dc13905c92822ddb0936c",
+      "acceptance_tests": [
+        "MODE-03"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-MODE-03",
+      "phase": "E10",
+      "priority": "P1",
+      "spec_line": 705,
+      "requirement_sha256": "9d54bca095a6bb1f48daf9055f1d4cf6c29ec62188daa344021b59d62adecfe8",
+      "acceptance_tests": [
+        "MODE-09"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-MODE-04",
+      "phase": "E10",
+      "priority": "P1",
+      "spec_line": 707,
+      "requirement_sha256": "fee608c9f26cd009d5242873f7eed3e563424266dc9dd8d2d096f188d851fbca",
+      "acceptance_tests": [
+        "MODE-09"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-MODE-05",
+      "phase": "E10",
+      "priority": "P1",
+      "spec_line": 709,
+      "requirement_sha256": "24d5ea6f53b4807b7ed56f80e128ebea79d8d3d8b9c06eb85db9409a02b45a63",
+      "acceptance_tests": [
+        "MODE-05"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-MODE-06",
+      "phase": "E2",
+      "priority": "P1",
+      "spec_line": 711,
+      "requirement_sha256": "40557aca956020de51fc9a164d3fb1861d06230d9ee53aba3c45d2ae04c27260",
+      "acceptance_tests": [
+        "MODE-10"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-MODE-07",
+      "phase": "E10",
+      "priority": "P1",
+      "spec_line": 713,
+      "requirement_sha256": "2f1918b87a13864cebb64ddec6449857b6fbb58cb7e972ecc3fbdf5a7605ceb4",
+      "acceptance_tests": [
+        "MODE-10"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-MODE-08",
+      "phase": "E2",
+      "priority": "P1",
+      "spec_line": 715,
+      "requirement_sha256": "6e04eefb89d005fe4b5680a9fd3c2f40c7c342fd9fee1ea5ef42808e1811c5a0",
+      "acceptance_tests": [
+        "MODE-12"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-KIT-01",
+      "phase": "E7",
+      "priority": "P1",
+      "spec_line": 719,
+      "requirement_sha256": "6dc7554e0ddfff2f632c7bfc276fe62edc2798a048dd4f841d7081633cd8f19f",
+      "acceptance_tests": [
+        "MODE-02",
+        "MODE-05",
+        "MODE-11"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-KIT-02",
+      "phase": "E2",
+      "priority": "P1",
+      "spec_line": 721,
+      "requirement_sha256": "11d48807092adab2c3b959cbaa5166ff52b730dd5f4e3206b55e78bbffcba730",
+      "acceptance_tests": [
+        "MODE-02",
+        "MODE-10"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-KIT-03",
+      "phase": "E7",
+      "priority": "P1",
+      "spec_line": 723,
+      "requirement_sha256": "1b294af463e2f7deac4fa8168e70b242b57131c0afc4245e00c87ad86b9f5c94",
+      "acceptance_tests": [
+        "MODE-04"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-KIT-04",
+      "phase": "E7",
+      "priority": "P1",
+      "spec_line": 725,
+      "requirement_sha256": "8d5b8adb55388beb2e470ecc582e09ee0b60bf467484ee732449b4315f348bf0",
+      "acceptance_tests": [
+        "MODE-09",
+        "CT-03"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-KIT-05",
+      "phase": "E7",
+      "priority": "P1",
+      "spec_line": 727,
+      "requirement_sha256": "442ec9645ec2bf7b543328dea44732f33ca4ffb93cd16354be02471a9153f0a5",
+      "acceptance_tests": [
+        "MODE-11",
+        "ART-01"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-KIT-06",
+      "phase": "E10",
+      "priority": "P1",
+      "spec_line": 729,
+      "requirement_sha256": "ad609e5f145cc29a771b33e19d8a0e5b4d3c961a2cff8756505521213870d58a",
+      "acceptance_tests": [
+        "MODE-01",
+        "MODE-05",
+        "MODE-10",
+        "MODE-12"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-CMD-01",
+      "phase": "E7",
+      "priority": "P1",
+      "spec_line": 733,
+      "requirement_sha256": "9cba27a2e6b2f1c4fc1197574adac09835d4e5e940d1756000be817722ece425",
+      "acceptance_tests": [
+        "MODE-06"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-CMD-02",
+      "phase": "E7",
+      "priority": "P1",
+      "spec_line": 735,
+      "requirement_sha256": "7ce1cf70de267622cfe78e6e36f9fb0d078b68d434c30717baa66a29d98c1a4f",
+      "acceptance_tests": [
+        "MODE-07"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-CMD-03",
+      "phase": "E7",
+      "priority": "P1",
+      "spec_line": 737,
+      "requirement_sha256": "3f7cfd0ebe5fee260850d82c4761bfbe569912761b6be91b5ac062e0d77e8f63",
+      "acceptance_tests": [
+        "MODE-07",
+        "TIME-01"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-CMD-04",
+      "phase": "E7",
+      "priority": "P1",
+      "spec_line": 739,
+      "requirement_sha256": "0f20f9db05c4ce012e61efb304935d19a5bb1bc7791e0e4be13ed776b06564f3",
+      "acceptance_tests": [
+        "MODE-06"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-CMD-05",
+      "phase": "E7",
+      "priority": "P1",
+      "spec_line": 741,
+      "requirement_sha256": "142f9c167b214d88808f3cea806da41f9dc27d41086be5b39e9aa004714f1ec4",
+      "acceptance_tests": [
+        "MODE-08",
+        "TIME-02"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-CMD-06",
+      "phase": "E7",
+      "priority": "P1",
+      "spec_line": 743,
+      "requirement_sha256": "e92bdb40cdcf76ac1fc53e9fddf299292eb40c46c6463621145cac4685a40175",
+      "acceptance_tests": [
+        "MODE-08"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-CMD-07",
+      "phase": "E7",
+      "priority": "P1",
+      "spec_line": 745,
+      "requirement_sha256": "a94abcababecdeed4fd6f39c3d0b8dd6f518a05658cfd055e7613047edea641c",
+      "acceptance_tests": [
+        "MODE-11"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
+    },
+    {
+      "requirement_id": "REQ-CMD-08",
+      "phase": "E10",
+      "priority": "P1",
+      "spec_line": 747,
+      "requirement_sha256": "5dc7f682569f22b36a892eee8dbc673bf0e3a6e9e8d3fe73a79c7e083df8fc9b",
+      "acceptance_tests": [
+        "MODE-05",
+        "MODE-06",
+        "PHY-12"
+      ],
+      "status": "NOT_IMPLEMENTED_NOT_VERIFIED",
+      "evidence": []
     }
-  ]
+  ],
+  "history_v1_1": {
+    "spec_version": "1.1",
+    "spec_file": "history/FIELD_CORE_SPEC_v1_1.md",
+    "spec_sha256": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e",
+    "original_commit": "f72154f0f97dbe59535532e97d72ed9bcd7e3b22",
+    "original_path": "docs/product/robotics/FIELD_CORE_SPEC.md",
+    "relative_link_base": "https://github.com/spikeal8-maker/asa-lab/blob/f72154f0f97dbe59535532e97d72ed9bcd7e3b22/docs/product/robotics/",
+    "replay_policy": "Resolve recorded version and hash via archive or original commit. Never replace frozen hash with latest. Canonical-path mismatch is specification-resolution compatibility, requiring a separate bounded adapter, not physical FAIL."
+  }
 }
