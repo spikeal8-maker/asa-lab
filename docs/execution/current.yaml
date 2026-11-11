@@ -8129,6 +8129,26 @@ parallel_lanes:
       semantic_change: 'yes'
       checkpoint: owner_approved_source_integration_full_strict_open
       prepared_candidate_sha: 6a23c93e9880653c64856f32ea6a1dd92f315c83
+      wait_field_oracle:
+        source_run: 42970243068
+        observed: The reopened wait selector read a nested LED dropdown instead of the actual wait unit.
+        owner_authorization: Owner explicitly approves this exact test path in the named isolated checkout. Preserve the peer tree, real native edits and reopen, and every threshold.
+        repair: Select only fields owned by the wait block. Keep model-time failures and acceptance open.
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/.codex/worktrees/strict-blockly-wait/ASA-lab
+          branch: codex/electronics-strict-blockly-wait-field
+        peer:
+          worktree: E:/ASA-previews/electronics-classroom-d13-candidate-20261019
+          branch: codex/electronics-classroom-d2-d4-649
+          head: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+          path_sha256:
+            e2e/electronics-ready-cadence.spec.ts: ad12f9652bb1bcba8aaaa69f7540780a28b6b833149c9397034695753476ad2c
+        paths:
+          - e2e/electronics-ready-cadence.spec.ts
       source_integration_boundary:
         decision_date: '2026-11-02'
         authorization: explicit_owner_source_only_remaining_failures_open
