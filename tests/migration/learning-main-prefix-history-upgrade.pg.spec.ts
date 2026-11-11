@@ -462,7 +462,7 @@ const upgradeArtifacts = [
   [
     '0317',
     '0317_admin_dashboard_attendance.sql',
-    '722dbf2eab4414f7f9143e54996df39599b8a9788cb0b1492465cb5828d3fc0f',
+    'c7efd322f7acf5567b85f1035b2e55a27842134fa3d487ff20be2d06ad90b99e',
   ],
   [
     '0318',

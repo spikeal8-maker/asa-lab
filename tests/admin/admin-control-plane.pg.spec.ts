@@ -206,10 +206,15 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
         attendanceAccount.principalId,
       ],
     );
-    const dashboard = (from: string, actor = attendanceAdmin.principalId, bucketSeconds = 3600) =>
+    const dashboard = (
+      from: string,
+      actor = attendanceAdmin.principalId,
+      bucketSeconds = 3600,
+      to = '2026-06-01T23:00:00Z',
+    ) =>
       runtime.query<{ payload: Record<string, unknown> }>(
-        `SELECT admin_get_product_dashboard_v3($1,'organization',$2,$3,'2026-06-01T23:00:00Z',$4) AS payload`,
-        [actor, attendanceAdmin.workspaceId, from, bucketSeconds],
+        `SELECT admin_get_product_dashboard_v3($1,'organization',$2,$3,$4,$5) AS payload`,
+        [actor, attendanceAdmin.workspaceId, from, to, bucketSeconds],
       );
     const full = (await dashboard('2026-06-01T20:00:00Z')).rows[0]?.payload;
     const today = {
@@ -330,6 +335,77 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     });
     await expect(operational(otherAttendanceAdmin.principalId)).rejects.toMatchObject({
       code: '42501',
+    });
+
+    const activitySeatPrincipal = randomUUID();
+    const activityAccountSession = randomUUID();
+    const activitySeatSession = randomUUID();
+    const boundarySeatSession = randomUUID();
+    await admin.query("INSERT INTO principals(id,kind,seat_id) VALUES($1,'student_seat',$2)", [
+      activitySeatPrincipal,
+      createdOnly,
+    ]);
+    await admin.query(
+      `INSERT INTO product_module_sessions
+         (id,actor_kind,account_id,principal_id,seat_id,workspace_id,tenant_id,project_id,module_key,network_kind,started_at,last_seen_at)
+       VALUES
+         ($1,'account',$4,$5,NULL,$6,$7,$8,'electronics','proxy','2026-06-01T20:59:20Z','2026-06-01T23:00:30Z'),
+         ($2,'student',NULL,$9,$10,NULL,$7,$8,'electronics','proxy','2026-06-01T20:59:45Z','2026-06-01T23:00:15Z'),
+         ($3,'student',NULL,$11,$12,NULL,$7,$8,'electronics','proxy','2026-06-01T22:59:00Z','2026-06-01T23:00:00Z')`,
+      [
+        activityAccountSession,
+        activitySeatSession,
+        boundarySeatSession,
+        attendanceAccount.accountId,
+        attendanceAccount.principalId,
+        attendanceAdmin.workspaceId,
+        attendanceAdmin.tenantId,
+        electronics,
+        activitySeatPrincipal,
+        createdOnly,
+        seatPrincipal,
+        occupied,
+      ],
+    );
+    await admin.query(
+      `INSERT INTO product_module_activity_slices(session_id,started_at,ended_at,active_seconds)
+       VALUES ($1,'2026-06-01T20:59:20Z','2026-06-01T21:00:20Z',60),
+              ($1,'2026-06-01T22:59:30Z','2026-06-01T23:00:30Z',60),
+              ($2,'2026-06-01T20:59:45Z','2026-06-01T21:00:15Z',30),
+              ($2,'2026-06-01T22:59:45Z','2026-06-01T23:00:15Z',30),
+              ($3,'2026-06-01T22:59:00Z','2026-06-01T23:00:00Z',60)`,
+      [activityAccountSession, activitySeatSession, boundarySeatSession],
+    );
+    const withOngoingActivity = await dashboard(
+      '2026-06-01T22:00:00Z',
+      attendanceAdmin.principalId,
+      3600,
+      '2026-06-01T23:05:00Z',
+    );
+    expect(withOngoingActivity.rows[0]?.payload).toMatchObject({
+      todayMsk: { ...today, activeAccounts: 2, activeStudents: 2 },
+      summary: { activeAccounts: 2, activeStudents: 2, studentLogins: 1, newStudents: 0 },
+      timeline: [
+        { activeAccounts: 2, activeStudents: 2, studentLogins: 1 },
+        { activeAccounts: 2, activeStudents: 1, studentLogins: 0 },
+      ],
+    });
+    const atMoscowMidnight = await dashboard(
+      '2026-06-01T20:00:00Z',
+      attendanceAdmin.principalId,
+      3600,
+      '2026-06-01T21:00:00Z',
+    );
+    expect(atMoscowMidnight.rows[0]?.payload).toMatchObject({
+      todayMsk: {
+        from: today.from,
+        to: today.from,
+        activeAccounts: 0,
+        activeStudents: 0,
+        studentLogins: 0,
+        newStudents: 0,
+      },
+      summary: { activeAccounts: 2, activeStudents: 1, studentLogins: 0 },
     });
   });
 
