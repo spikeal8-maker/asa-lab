@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 import databaseContract from './database-diagnostic-contract.json';
 import {
   queryLogs,
+  errorTrend,
   exportLogs,
   readLogCatalog,
   type LogFilter,
@@ -42,6 +43,79 @@ function zipMembers(zip: Buffer): Map<string, Buffer> {
 }
 
 describe('retained log reader and archive', () => {
+  it('aligns error counts with Moscow hours, groups AI and robotics, and reports partial retention', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-error-trend-'));
+    try {
+      const row = (id: number, time: string, path: string, level = 'error') => ({
+        id: id.toString(16).padStart(64, '0'),
+        time,
+        source: 'api',
+        module: 'portal',
+        level,
+        message: JSON.stringify({ path }),
+        requestId: null,
+        revision: null,
+        origin: 'stdout',
+        truncated: false,
+      });
+      const robotics = row(2, '2026-11-11T17:12:00.000Z', '/api/robotics/projects');
+      const rows = [
+        row(1, '2026-11-11T16:35:00.000Z', '/api/ai/chat'),
+        robotics,
+        robotics,
+        {
+          ...row(4, '2026-11-11T17:13:00.000Z', '/'),
+          source: 'metrics',
+          origin: 'provider:comfyui',
+        },
+        row(3, '2026-11-11T17:15:00.000Z', '/api/robotics/projects', 'warn'),
+      ];
+      const raw = rows.map((event) => JSON.stringify(event)).join('\n') + '\n';
+      const file = 'seg-0000000000000001-0000000000000004.jsonl';
+      await writeFile(join(root, file), raw);
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({
+          version: 1,
+          sources: [],
+          collectedAt: '2026-11-11T17:20:00.000Z',
+          segments: [
+            {
+              file,
+              bytes: Buffer.byteLength(raw),
+              count: rows.length,
+              first: rows[0]!.time,
+              last: rows.at(-1)!.time,
+            },
+          ],
+        }),
+      );
+      expect(
+        await errorTrend(root, {
+          from: '2026-11-11T16:15:00.000Z',
+          to: '2026-11-11T18:15:00.000Z',
+          bucketSeconds: 3600,
+        }),
+      ).toEqual({
+        coverage: 'partial',
+        from: rows[0]!.time,
+        to: '2026-11-11T17:20:00.000Z',
+        points: [
+          { at: '2026-11-11T16:00:00.000Z', counts: { ai: 1 } },
+          { at: '2026-11-11T17:00:00.000Z', counts: { robotics: 1, ai: 1 } },
+        ],
+      });
+      expect(
+        await errorTrend(root, {
+          from: rows[0]!.time,
+          to: '2026-11-11T17:20:00.000Z',
+          bucketSeconds: 3600,
+        }),
+      ).toMatchObject({ coverage: 'partial' });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it('leaves unknown optional required-coverage metadata unknown without breaking legacy queries', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-required-reader-'));
     try {

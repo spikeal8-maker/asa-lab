@@ -483,7 +483,7 @@ export interface AdminModulePoint {
 
 export interface AdminLoginMethodPoint {
   readonly at: string;
-  readonly method: 'password' | 'organization' | 'max' | 'class_code' | 'registration';
+  readonly method: 'password' | 'organization' | 'max' | 'telegram' | 'class_code' | 'registration';
   readonly successfulLogins: number;
 }
 
@@ -530,6 +530,31 @@ export interface AdminProductDashboard {
   readonly modules: readonly AdminModulePoint[];
   readonly loginMethods: readonly AdminLoginMethodPoint[];
   readonly actions: readonly AdminActionPoint[];
+  readonly overview?: {
+    readonly points: readonly {
+      readonly at: string;
+      readonly from: string;
+      readonly to: string;
+      readonly activeAccounts: number;
+      readonly activeStudents: number;
+      readonly accountSeconds: number | null;
+      readonly studentSeconds: number | null;
+      readonly accountLogins: number;
+      readonly studentLogins: number;
+      readonly newStudents: number;
+    }[];
+    readonly modules: readonly Omit<AdminModulePoint, 'activePeople'>[];
+    readonly loginMethods: readonly AdminLoginMethodPoint[];
+    readonly actions: readonly Omit<AdminActionPoint, 'passwordRecoveryAvailable'>[];
+    readonly recentAccounts: number;
+    readonly recentStudents: number;
+    readonly network: {
+      readonly addresses: number;
+      readonly resolvedEvents: number;
+      readonly unresolvedEvents: number;
+      readonly peopleWithMultipleAddresses: number;
+    };
+  };
   readonly max: {
     readonly configured: boolean;
     readonly featureEnabled: boolean;
@@ -547,6 +572,16 @@ export interface AdminProductDashboard {
     readonly linkedAccounts: number;
     readonly promptDueAccounts: number;
   };
+}
+
+export interface AdminErrorTrend {
+  readonly coverage: 'available' | 'partial' | 'unavailable';
+  readonly from: string | null;
+  readonly to: string | null;
+  readonly points: readonly {
+    readonly at: string;
+    readonly counts: Readonly<Record<string, number>>;
+  }[];
 }
 
 export interface AdminIpActivity {
@@ -686,6 +721,14 @@ export const adminApi = {
     const query = new URLSearchParams({ scopeKind: input.scope.kind, range: input.range });
     if (input.scope.id !== null) query.set('scopeId', input.scope.id);
     return call<AdminProductDashboard>(`/api/admin/v1/dashboard?${query.toString()}`);
+  },
+  errorTrend: (input: { from: string; to: string; bucketSeconds: number }, signal: AbortSignal) => {
+    const query = new URLSearchParams({
+      from: input.from,
+      to: input.to,
+      bucketSeconds: String(input.bucketSeconds),
+    });
+    return call<AdminErrorTrend>(`/api/admin/v1/logs/trend?${query.toString()}`, { signal });
   },
   ipActivity: (input: {
     readonly scope: Pick<AdminScope, 'kind' | 'id'>;

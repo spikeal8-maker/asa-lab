@@ -235,6 +235,87 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     ).rejects.toMatchObject({
       code: '42501',
     });
+
+    await admin.query(
+      `INSERT INTO product_analytics_events
+         (occurred_at,actor_kind,account_id,workspace_id,tenant_id,event_type,outcome,auth_method,principal_id,ip_address,network_kind)
+       VALUES
+         ('2026-06-01T20:10:00Z','account',$1,$2,$3,'auth.login','succeeded','password',$4,'192.0.2.9','public'),
+         ('2026-06-01T22:58:00Z','account',$1,$2,$3,'auth.telegram','succeeded','telegram',$4,'192.0.2.1','public'),
+         ('2026-06-01T23:01:00Z','account',$1,$2,$3,'auth.login','succeeded','password',$4,'192.0.2.2','public')`,
+      [
+        schoolAdmin.accountId,
+        schoolAdmin.workspaceId,
+        schoolAdmin.tenantId,
+        schoolAdmin.principalId,
+      ],
+    );
+    const electronics = randomUUID();
+    const checkers = randomUUID();
+    const electronicsTab = randomUUID();
+    const checkersTab = randomUUID();
+    await admin.query(
+      `INSERT INTO projects
+         (id, tenant_id, module_key, title, status, owner_principal_id, project_scope)
+       VALUES ($1,$3,'electronics','Activity tab 1','active',$4,'personal'),
+              ($2,$3,'checkers','Activity tab 2','active',$4,'personal')`,
+      [electronics, checkers, schoolAdmin.tenantId, schoolAdmin.principalId],
+    );
+    await admin.query(
+      `INSERT INTO product_module_sessions
+         (id,actor_kind,account_id,principal_id,workspace_id,tenant_id,project_id,module_key,network_kind,started_at,last_seen_at)
+       VALUES
+         ($1,'account',$3,$4,$5,$6,$7,'electronics','proxy','2026-06-01T22:58:30Z','2026-06-01T23:00:00Z'),
+         ($2,'account',$3,$4,$5,$6,$8,'checkers','proxy','2026-06-01T22:59:30Z','2026-06-01T23:01:00Z')`,
+      [
+        electronicsTab,
+        checkersTab,
+        schoolAdmin.accountId,
+        schoolAdmin.principalId,
+        schoolAdmin.workspaceId,
+        schoolAdmin.tenantId,
+        electronics,
+        checkers,
+      ],
+    );
+    await admin.query(
+      `INSERT INTO product_module_activity_slices(session_id,started_at,ended_at,active_seconds)
+       VALUES ($1,'2026-06-01T22:58:30Z','2026-06-01T23:00:00Z',90),
+              ($2,'2026-06-01T22:59:30Z','2026-06-01T23:01:00Z',90)`,
+      [electronicsTab, checkersTab],
+    );
+    const operational = (actor: string) =>
+      runtime.query<{ payload: Record<string, unknown> }>(
+        `SELECT admin_get_operational_overview($1,'organization',$2,'2026-06-01T20:15:00Z','2026-06-01T23:05:00Z',3600)->'overview' AS payload`,
+        [actor, schoolAdmin.workspaceId],
+      );
+    expect((await operational(schoolAdmin.principalId)).rows[0]?.payload).toMatchObject({
+      points: [
+        { at: '2026-06-01T20:00:00+00:00', from: '2026-06-01T20:15:00+00:00', accountLogins: 0 },
+        { at: '2026-06-01T21:00:00+00:00', newStudents: 2, studentLogins: 1, studentSeconds: null },
+        { at: '2026-06-01T22:00:00+00:00', accountLogins: 1, accountSeconds: 90 },
+        {
+          at: '2026-06-01T23:00:00+00:00',
+          to: '2026-06-01T23:05:00+00:00',
+          accountLogins: 1,
+          accountSeconds: 60,
+        },
+      ],
+      loginMethods: expect.arrayContaining([
+        expect.objectContaining({ method: 'telegram', successfulLogins: 1 }),
+      ]),
+      modules: expect.arrayContaining([
+        expect.objectContaining({ moduleKey: 'electronics', launches: 1, activeSeconds: 90 }),
+        expect.objectContaining({ moduleKey: 'checkers', launches: 1, activeSeconds: 30 }),
+        expect.objectContaining({ moduleKey: 'checkers', launches: 0, activeSeconds: 60 }),
+      ]),
+      recentAccounts: 1,
+      recentStudents: 0,
+      network: { addresses: 2, resolvedEvents: 2, peopleWithMultipleAddresses: 1 },
+    });
+    await expect(operational(otherSchoolAdmin.principalId)).rejects.toMatchObject({
+      code: '42501',
+    });
   });
 
   it('exposes only server-owned administrator scopes through the API', async () => {

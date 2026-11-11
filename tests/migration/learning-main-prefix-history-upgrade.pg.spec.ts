@@ -464,6 +464,11 @@ const upgradeArtifacts = [
     '0317_admin_dashboard_attendance.sql',
     '722dbf2eab4414f7f9143e54996df39599b8a9788cb0b1492465cb5828d3fc0f',
   ],
+  [
+    '0318',
+    '0318_admin_operational_overview.sql',
+    'e834b0e84327aaf2d53951bc54e2fb0a628abc31cc332af9926f2d0c966c3d5d',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

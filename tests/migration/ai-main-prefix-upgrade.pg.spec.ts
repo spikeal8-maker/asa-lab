@@ -96,6 +96,7 @@ const expectedPending = [
   '0315', // Polza catalog selections and dates.
   '0316', // Immutable learner file answers in class and Course assignments.
   '0317', // Event-based admin attendance and Moscow calendar day.
+  '0318', // Operational overview with aligned Moscow intervals and measured activity.
 ];
 
 interface Identity {
