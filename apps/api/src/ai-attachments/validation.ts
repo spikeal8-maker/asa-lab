@@ -622,6 +622,17 @@ function validateWebp(bytes: Buffer): { width: number; height: number } {
   return frame;
 }
 
+/** Verify the bounded encoded image container without decoding its pixels. */
+export function validateAttachmentImageStructure(
+  bytes: Uint8Array,
+  extension: 'png' | 'jpg' | 'webp',
+): { width: number; height: number } {
+  const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (extension === 'png') return validatePng(buffer);
+  if (extension === 'jpg') return validateJpeg(buffer);
+  return validateWebp(buffer);
+}
+
 /**
  * Synchronous, linear, byte-bounded validation of an already captured upload.
  * Image validation covers signatures, container structure and encoded dimensions.
@@ -658,15 +669,7 @@ export function validateAiAttachment(bytes: Uint8Array, filename: string): Valid
       text,
     };
   }
-  // A view, not a rewrite/copy of the captured bytes. The synchronous parsers do
-  // not retain this view or write to it.
-  const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const size =
-    file.extension === 'png'
-      ? validatePng(buffer)
-      : file.extension === 'jpg'
-        ? validateJpeg(buffer)
-        : validateWebp(buffer);
+  const size = validateAttachmentImageStructure(bytes, file.extension as 'png' | 'jpg' | 'webp');
   return {
     kind: 'image',
     mediaType: file.mediaType,

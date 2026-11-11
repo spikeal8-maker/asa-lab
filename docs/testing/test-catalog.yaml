@@ -26,6 +26,16 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-LRN-FILE-COURSE-BROWSER-001
+    title: Teacher and learner complete the immutable file-answer journey in a mixed Course with real private object storage
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/testing/learning-e1-browser.mjs
+    timeout_seconds: 1800
+    owner: learning
+    artifacts: [playwright-report, learning-file-course-screenshots]
   - id: TST-LEARNING-ESSAY-COURSE-001
     title: Written Course responses preserve exact publication, learner authority, revisions, immutable evidence, rework and canonical journal results
     suite: integration

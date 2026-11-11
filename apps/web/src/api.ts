@@ -87,7 +87,33 @@ export interface EssayLearningResponse {
   } | null;
 }
 
+export interface LearningAnswerFile {
+  id: string;
+  name: string;
+  sizeBytes: number;
+  contentType: string;
+  sha256: string;
+}
+
+export interface FileLearningResponse extends Omit<EssayLearningResponse, 'attempt'> {
+  attempt:
+    | (Omit<NonNullable<EssayLearningResponse['attempt']>, 'text'> & {
+        file: LearningAnswerFile | null;
+      })
+    | null;
+}
+
+export const fileLearningPath = (runId: string) =>
+  `/api/learning/file/runs/${encodeURIComponent(runId)}`;
+
 export type ExactLearningSubmission =
+  | {
+      kind: 'file';
+      submissionId: string;
+      sourceRevision: number;
+      digest: string;
+      file: LearningAnswerFile;
+    }
   | {
       kind: 'quiz';
       submissionId: string;
@@ -649,7 +675,7 @@ export interface CourseActivityOccurrence {
   title: string;
   goal: string | null;
   blocks?: SafeTaskBlock[] | null | undefined;
-  activityKind?: 'project' | 'essay' | 'quiz';
+  activityKind?: 'project' | 'essay' | 'quiz' | 'file';
   moduleKey: string | null;
   sampleImage: string | null;
   projectId: string | null;
@@ -901,7 +927,7 @@ export interface LearningAssignableActivity {
   versionId: string;
   title: string;
   instructions: string | null;
-  kind: 'project' | 'quiz';
+  kind: 'project' | 'quiz' | 'file';
   moduleKey: string | null;
 }
 
@@ -1088,7 +1114,7 @@ export interface LearnerResult {
 
 /** The same assignment as the learner sees it: theirs, and where they are. */
 export interface SeatAssignment {
-  activityKind?: 'project' | 'essay' | 'quiz';
+  activityKind?: 'project' | 'essay' | 'quiz' | 'file';
   id: string;
   /** Exact Direct or lesson-level Course ActivityRun for atomic Start. */
   activityRunId?: string | null;
@@ -3294,6 +3320,35 @@ export const api = {
       `/api/learning/work/runs/${encodeURIComponent(activityRunId)}/start`,
       { method: 'POST', body: JSON.stringify({ requestId }) },
     ),
+  readFileLearning: (runId: string) => call<FileLearningResponse>(fileLearningPath(runId)),
+  startFileLearning: (runId: string, requestId: string) =>
+    call<FileLearningResponse>(`${fileLearningPath(runId)}/start`, {
+      method: 'POST',
+      body: JSON.stringify({ requestId }),
+    }),
+  saveFileLearning: (
+    runId: string,
+    input: { requestId: string; attemptId: string; expectedRevision: number; file: File },
+  ) =>
+    call<FileLearningResponse>(
+      `${fileLearningPath(runId)}/draft/${encodeURIComponent(input.attemptId)}/${input.expectedRevision}/${encodeURIComponent(input.requestId)}`,
+      {
+        method: 'PUT',
+        body: input.file,
+        headers: {
+          'Content-Type': 'application/vnd.asa.learning-file',
+          'X-Asa-File-Name': encodeURIComponent(input.file.name),
+        },
+      },
+    ),
+  submitFileLearning: (
+    runId: string,
+    input: { requestId: string; attemptId: string; expectedRevision: number },
+  ) =>
+    call<FileLearningResponse>(`${fileLearningPath(runId)}/submit`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   readEssayLearning: (activityRunId: string) =>
     call<EssayLearningResponse>(`/api/learning/essay/runs/${encodeURIComponent(activityRunId)}`),
   startEssayLearning: (activityRunId: string, requestId: string) =>

@@ -2120,3 +2120,100 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     );
   });
 });
+
+describe('direct File assignment list', () => {
+  it('uses the exact File Run projection for both learner identities without inventing a project', async () => {
+    const seatId = 'seat-id';
+    const assignmentId = 'assignment-id';
+    const submittedAt = '2026-09-29T11:00:00.000Z';
+    const runId = 'authorized-file-run';
+    const row = {
+      id: assignmentId,
+      seat_id: seatId,
+      status: 'closed',
+      project_id: 'unrelated-project',
+      file_assignment: { activityRunId: runId, submittedAt } as Record<string, unknown>,
+      legacy_provenance: { legacyDirect: true, legacyProjectReadable: true, submitAllowed: true },
+    };
+    const evidence = {
+      tenantId: 'tenant-id',
+      schoolId: 'school-id',
+      classroomId: 'class-id',
+      classroomAssignmentId: assignmentId,
+      kind: 'file',
+      dueAt: null,
+      assignmentStatus: 'closed',
+      seatId,
+      accountId: 'account-id',
+      principalId: 'principal-id',
+      learnerId: 'learner-id',
+      identityResolution: 'learner_identity',
+      seatStatus: 'active',
+      classroomAccess: 'active',
+      legacyWork: null,
+      courseProgressPresent: false,
+      activityRunId: runId,
+      participation: { applicable: true, status: 'active', excused: false },
+      attempt: {
+        id: 'attempt-id',
+        attemptNumber: 1,
+        revisionOfAttemptId: null,
+        state: 'submitted',
+        reviewDecision: null as string | null,
+        startedAt: '2026-09-29T10:00:00.000Z',
+        submittedAt,
+        lateState: 'on_time',
+      },
+      selectedAttemptExists: false,
+      resultSelectionSource: 'canonical',
+      selectedAttemptId: null,
+      selectedResult: null,
+      selectionConflict: null,
+      validUnselectedResultCount: 0,
+    };
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context')) return { rows: [{ seat_id: seatId }] };
+      if (sql.includes('classroom_assignments_for_')) return { rows: [row] };
+      if (sql.includes('learning_canonical_evidence_for_')) {
+        // Keep a sibling last to detect accidental handout-keyed lookup.
+        return {
+          rows: [
+            { evidence },
+            { evidence: { ...evidence, activityRunId: 'other-run', attempt: null } },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+    const activeContext = {
+      resolve: vi.fn(async () => ({ accountId: 'account-id', principalId: 'account-principal' })),
+    } as unknown as ActiveContextUseCase;
+    const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
+    const accountRequest = request('203.0.113.40');
+    accountRequest.cookies['asa_session'] = 'account-session';
+    const reads = [
+      () => controller.assignments(seatRequest()),
+      () => controller.accountAssignments(accountRequest),
+    ];
+    for (const [state, decision, workflowState] of [
+      ['submitted', null, 'submitted'],
+      ['closed', 'changes_requested', 'changes_requested'],
+      ['closed', 'accepted', 'completed'],
+    ] as const) {
+      evidence.attempt.state = state;
+      evidence.attempt.reviewDecision = decision;
+      for (const read of reads) {
+        expect((await read()).items[0]).toMatchObject({
+          activityKind: 'file',
+          activityRunId: runId,
+          submittedAt,
+          projectId: null,
+          legacySubmitAllowed: false,
+          canonicalState: { activityRunId: runId, workflowState },
+        });
+      }
+    }
+    row.file_assignment = {};
+    for (const read of reads) expect((await read()).items).toEqual([]);
+  });
+});
