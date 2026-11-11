@@ -81,6 +81,83 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: classroom-visual-20261111
+    worktree_id: classroom-visual-20261111
+    owned_paths:
+      - apps/web/src/pages/DashboardPage.tsx
+      - apps/web/src/components/SystemToastViewport.tsx
+      - apps/web/src/components/system-feedback.ts
+      - apps/web/src/components/system-feedback.css
+      - apps/web/src/components/testing/system-feedback.spec.ts
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: f767e1271e7128daf64f31c79d21fccf80e85ab4
+      head_sha: null
+      observed_at: '2026-11-11T18:17:00Z'
+      main:
+        branch: main
+        sha: f767e1271e7128daf64f31c79d21fccf80e85ab4
+      observation_note: >-
+        Read-only baseline for owner-selected classroom visual programme. No
+        product implementation, CI approval, deployment or owner acceptance yet.
+        Fetch main before each selected slice; shared path ownership is advisory.
+    task:
+      id: TASK-CLASSROOM-FEEDBACK-001
+      issue: 1087
+      programme_issue: 715
+      branch: main
+      base_branch: main
+      pr: null
+      status: ready
+      checkpoint: owner_selected_no_shift_notification_ribbon
+      owner_acceptance: pending
+      owner_authorization: >-
+        Direct owner instruction on 2026-11-11 authorizes a multi-slice classroom
+        UI programme, implementation by subagents, independent review/testing,
+        verified GitHub integration and evidence-based reconciliation of legacy
+        PR577/605/712/818/827. Preserve the accepted My classes top toolbar/search;
+        do not enlarge or move it. No live data or deployment authorization.
+      selected_slice:
+        id: CLASSROOM-FEEDBACK-001
+        status: ready
+        change_class: L1_UI_BEHAVIOR
+        scope: >-
+          Action notification ribbon directly below the actual global header on
+          desktop and mobile; outside document flow, no reserved gap or layout
+          shifts. Migrate classroom list/class/student action feedback without
+          duplicate local/global alerts, false success or student-code leakage.
+          Preserve field validation/retry UI and all existing business semantics.
+        acceptance: >-
+          Exact-source focused unit tests, independent review, browser before/
+          during/after geometry assertions and 1920/1440/1366/1024/390/320 evidence.
+          Success/error/repeated/long notifications must not move existing top
+          controls, rows or page content. Source tests do not equal visual approval.
+      programme_sequence:
+        - CLASSROOM-FEEDBACK-001
+        - CLASSROOM-ROWS-002
+        - CLASSROOM-NAV-003
+        - CLASSROOM-LEGACY-004
+      exclusions:
+        - No accepted My classes header, search, toolbar or tab redesign.
+        - No database, API, authorization, deployment, production or network changes.
+        - No blanket PR closure, branch deletion, PR29 changes or force-push.
+        - No unrelated module repairs or claims of owner visual acceptance.
+      normative_refs:
+        - document: TEACHER-STUDENT-PROFILE-UI-589
+          revision: '1.0'
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:code
+      browser:
+        workflow: Classroom Owner Real Scenarios
+        commands:
+          - pnpm e2e:access-a
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: devex-engine
     worktree_id: devex-engine-20261030
     owned_paths:
@@ -17362,62 +17439,90 @@ parallel_lanes:
       - docs/product/student-progress/**
       - docs/agent/contracts/student-progress.yaml
     task:
-      id: TASK-STUDENT-PROGRESS-SPEC-001
+      id: TASK-STUDENT-PROGRESS-CARDS-001
       issue: 1090
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: specification_registration_and_independent_review
+      status: ready
+      checkpoint: owner_selected_sp01_after_specification_registration
       owner_acceptance: pending
       program: ASA-STUDENT-PROGRESS-001
+      selected_step: SP-01
       normative_refs:
         - document: STUDENT-PROGRESS-MASTER-V1
           revision: '1.0'
         - document: STUDENT-PROGRESS-PLAN-V1
           revision: '1.0'
+        - document: STUDENT-PROGRESS-UI-V1
+          revision: '1.0'
       owner_authorization: >-
-        On 2026-11-11 the owner accepted the compact progress concept and requested a system of specifications
-        for its implementation without scope drift, including the demonstrated layout. This authorizes this
-        documentation registration and subsequent bounded implementation of the accepted programme after
-        canonical selection is accepted on main. It does not authorize deployment, live database operations,
-        a new global leaderboard, arbitrary rating coefficients, shell redesign or automatic owner acceptance.
+        On 2026-11-11 the owner accepted the prepared student-progress specification package and instructed
+        the controller to proceed: separately address CI blocker1093, integrate specification PR1091 and
+        implement the first publication-card step. This authorizes tested source integration of those bounded
+        steps. It does not grant deployment, live database operations or owner acceptance of unbuilt UI.
       scope: >-
-        SP-00 only: master/UI/data/access contracts, acceptance matrix, dependent task cards, original visual
-        reference, document routing and a separate execution lane. Preserve every other lane, current product
-        semantics, classroom rating formula, games/AI admission and all server/data boundaries.
+        SP-01 only: extract the existing public catalog card as one shared PublicProjectCard and reuse it in
+        Creator Home. Add the secondary community subtitle. Preserve the accepted shell, catalog behavior,
+        knowledge cards, public data meanings, on-demand preview lifecycle and all authorization semantics.
+      planned_paths:
+        - apps/web/src/projects-public/PublicProjectCard.tsx
+        - apps/web/src/projects-public/PublicProjectsPage.tsx
+        - apps/web/src/creator-portal/HomePublicShelves.tsx
+        - apps/web/src/projects-public/public-projects.css
+        - apps/web/src/creator-portal/home-workspace.css
+        - apps/web/src/projects-public/PublicProjectsPage.spec.ts
+        - apps/web/src/creator-portal/HomePublicShelves.spec.ts
+        - e2e/public-projects.spec.ts
       constraints:
-        - No product branch may select its own task; subsequent code inherits the accepted main selection.
-        - Controller chooses one ready task; each author and reviewer completes one bounded slice then stops.
-        - No production/runtime/database changes are part of specification registration.
-        - Current general/learning acceptance blockers are not cleared by this new programme or documentation.
-        - Exact source/CI/layout evidence is required before product acceptance; a synthetic HTML is only a reference.
-        - Global score does not grant permissions; new thresholds use only the authoritative group's existing rating.
+        - This is a governance-only selection proposal; product code may start only after acceptance on main.
+        - Inherit this canonical selection; do not select or expand the product task from its own branch.
+        - One author implements only SP-01; independent review verifies the final candidate before integration.
+        - No API, migration, rating calculation, permission, header, sidebar or preview-runtime redesign.
+        - Preserve KnowledgeCard consumers of home-public-card and lazy loading of the existing shelf.
+        - Keep actual zero counts distinct from unavailable copyCount; use the existing meaning Added to own projects.
+        - Verify one real publication on Home and catalog at 1440,1024,390,320 against built API and Web.
+        - No product acceptance by static reference, source tests or conditional mock data alone.
+        - General and focused checks apply to the actual final source; CI1093 is not cleared by this selection text.
+        - Existing unrelated acceptance and deployment blockers remain unchanged.
+      registration_predecessor:
+        task_id: TASK-STUDENT-PROGRESS-SPEC-001
+        step: SP-00
+        specification_pr: 1091
+        reviewed_source_sha: 46eb00c081ec5560a7464b32e574b8a6cbe2325c
+        source_review: approved
+        design_decision: owner_accepted_specification_and_requested_implementation
+        integration_boundary: This selection takes effect only when the specification proposal is accepted on main.
       context_hints:
         - docs/product/student-progress/README.md
-        - docs/product/student-progress/MASTER_SPEC.md
-        - docs/product/student-progress/IMPLEMENTATION_PLAN.md
-        - docs/product/student-progress/tasks/SP-00-SPECIFICATION.md
-      next_dependency: SP-01-PUBLICATION-CARDS after SP-00 registration is accepted on main.
+        - docs/product/student-progress/tasks/SP-01-PUBLICATION-CARDS.md
+        - docs/product/student-progress/UI_CONTRACT.md
+        - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
+      next_dependency: SP-02 requires a new controller selection after the applicable SP-01 checkpoint.
       deployment: not_requested
-      database_actions: none
+      database_actions: isolated_tests_only
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: e90d555d4cf494746ba933c4b1a03ddbaeb6df76
+      convergence_baseline_sha: f72154f0f97dbe59535532e97d72ed9bcd7e3b22
       head_sha: null
-      observed_at: '2026-11-11T19:19:30Z'
+      observed_at: '2026-11-11T20:58:39Z'
       main:
         branch: main
-        sha: e90d555d4cf494746ba933c4b1a03ddbaeb6df76
+        sha: f72154f0f97dbe59535532e97d72ed9bcd7e3b22
       observation_note: >-
-        Dated source audit snapshot and fresh scoped preflight only. Fetch main and exact task/CI state
-        before writes. This observation is neither implementation evidence nor deployment authority.
+        Dated governance composition preserves the accepted classroom programme from main and selects only
+        SP-01 after registration. This is not source integration, successful CI, visual acceptance or deployment.
+        Fetch main and the exact task/CI state; run planned-path preflight before product writes.
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Public Projects Publication
         commands:
-          - pnpm gate:governance
+          - pnpm gate:projects-publication
+      browser:
+        workflow: Public Projects Publication
+        commands:
+          - pnpm gate:projects-publication:browser
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:

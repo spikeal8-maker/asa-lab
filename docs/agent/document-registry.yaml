@@ -228,7 +228,7 @@ documents:
   - id: TEACHER-STUDENT-PROFILE-UI-589
     path: docs/product/ASA_TEACHER_STUDENT_PROFILE_UI_589.md
     scope: teacher-student-profile-ui
-    lanes: [teacher-student-profile-ui]
+    lanes: [teacher-student-profile-ui, classroom-visual-20261111]
     kind: implementation_spec
     status: canonical
     authority: owner_issue_589_and_independent_audit
