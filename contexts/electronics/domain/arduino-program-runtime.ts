@@ -3347,7 +3347,7 @@ export function createOwnedClockedArduinoRuntime(
       time: number,
       instructionBudget: number,
       stopAtElectricalBoundary = false,
-      stableLiteralWindowMicroseconds = 0,
+      stableLoopWindowMicroseconds = 0,
     ) {
       if (!memory) throw new Error('Disposed Arduino request.');
       const advanced = advanceRuntime(
@@ -3361,7 +3361,7 @@ export function createOwnedClockedArduinoRuntime(
         false,
         stopAtElectricalBoundary,
         memory,
-        stableLiteralWindowMicroseconds,
+        stableLoopWindowMicroseconds,
       );
       previous = advanced.state;
       return advanced;
@@ -3384,7 +3384,7 @@ function advanceRuntime(
   pulseInputSample = false,
   stopAtElectricalBoundary = false,
   owned?: OwnedRuntimeMemory,
-  stableLiteralWindowMicroseconds = 0,
+  stableLoopWindowMicroseconds = 0,
 ): ArduinoRuntimeAdvance {
   const clocked = clockProfile === 'instruction-us-v1';
   const compilation = owned?.compilation ?? compileArduinoProgram(source);
@@ -3738,7 +3738,7 @@ function advanceRuntime(
           // scheduler's target stops before the next physical or input event.
           if (
             remaining >= stride &&
-            remaining <= stableLiteralWindowMicroseconds &&
+            remaining <= stableLoopWindowMicroseconds &&
             loopIterations <= Number.MAX_SAFE_INTEGER - remaining
           )
             allowedInstructions = Math.max(allowedInstructions, executedInstructions + remaining);
@@ -3757,7 +3757,19 @@ function advanceRuntime(
             sameRuntimeEntries(outputVoltages, loopProof.outputVoltages);
           loopProof = undefined;
           const end = Math.min((millisecond + 1) * 1000, targetMicroseconds + 1);
-          if (unchanged && accountForCompleteLoops(first, end, stride)) continue;
+          if (unchanged) {
+            const remaining = end - first;
+            // Only complete proven iterations add to the private budget. Any
+            // partial iteration at the end must fit the original budget.
+            if (
+              remaining >= stride &&
+              remaining <= stableLoopWindowMicroseconds &&
+              remaining % stride <= instructionBudget - executedInstructions &&
+              loopIterations <= Number.MAX_SAFE_INTEGER - remaining
+            )
+              allowedInstructions = Math.max(allowedInstructions, executedInstructions + remaining);
+            if (accountForCompleteLoops(first, end, stride)) continue;
+          }
         } else if (attemptedMillisecond !== millisecond) {
           attemptedMillisecond = millisecond;
           loopProof = {

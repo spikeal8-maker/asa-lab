@@ -222,7 +222,7 @@ export async function evaluateSimulationWorkerRequestBatched(
       {
         observeLedTemporal: true,
         observeSevenSegmentTemporal: true,
-        coalesceStableLiteralInstructions: true,
+        coalesceStableLoopInstructions: true,
       },
     );
     let computeMs = globalThis.performance.now() - prepareStarted;

@@ -1741,7 +1741,7 @@ describe('event execution request ownership and physical barriers', () => {
       const solveTimes = solve.mock.calls.map(([, time]) => time);
       expect(solveTimes).toEqual(expect.arrayContaining([0, 1, 2, 3, 3.333]));
       solve.mockClear();
-      const worker = { ...optical, coalesceStableLiteralInstructions: true };
+      const worker = { ...optical, coalesceStableLoopInstructions: true };
       const after = finish(document, request, worker);
       expect(after.result).toStrictEqual(before.result);
       expect(after.steps).toBeLessThan(before.steps);
@@ -1767,6 +1767,72 @@ describe('event execution request ownership and physical barriers', () => {
       );
     } finally {
       solve.mockRestore();
+    }
+  });
+
+  it('coalesces stable millis loops without crossing GPIO or thermal boundaries', () => {
+    const document = eventCircuit(`
+      unsigned long nextChange = 1;
+      bool high = LOW;
+      void setup() { pinMode(13, OUTPUT); }
+      void loop() {
+        unsigned long now = millis();
+        if (now >= nextChange) {
+          nextChange += 2;
+          high = !high;
+          digitalWrite(13, high);
+        }
+      }
+    `);
+    const solve = vi.spyOn(solver, 'solveRcCircuitWithHeldArduino');
+    try {
+      const request = { requestedHorizonMicroseconds: 3_333 };
+      const optical = { observeLedTemporal: true, observeSevenSegmentTemporal: true };
+      const before = finish(document, request, optical);
+      expect(before.result.executionStatus).toBe('ready');
+      const solveTimes = solve.mock.calls.map(([, time]) => time);
+      solve.mockClear();
+      const worker = { ...optical, coalesceStableLoopInstructions: true };
+      const after = finish(document, request, worker);
+      expect(after.result).toStrictEqual(before.result);
+      expect(after.steps).toBeLessThan(before.steps);
+      expect(solve.mock.calls.map(([, time]) => time)).toEqual(solveTimes);
+      const samples = after.result.observation?.ledTemporal?.arduinoIndicators?.[0]?.samples;
+      expect(
+        samples?.map(({ atMicroseconds, voltage }) => [atMicroseconds, voltage >= 2.5]),
+      ).toEqual([
+        [0, false],
+        [1_006, true],
+        [3_006, false],
+        [3_333, false],
+      ]);
+      const explicitBudget = { ...request, maxEvents: 256 };
+      expect(finish(document, explicitBudget, worker)).toStrictEqual(
+        finish(document, explicitBudget, optical),
+      );
+    } finally {
+      solve.mockRestore();
+    }
+  });
+
+  it('keeps a millis partial iteration within the ordinary instruction budget', () => {
+    const source = `void setup(){}void loop(){unsigned long now=millis();${'now += 0;'.repeat(178)}}`;
+    const initial = arduinoRuntime.advanceClockedArduinoRuntime(source, {}, 0).state;
+    const runtime = () =>
+      arduinoRuntime.createOwnedClockedArduinoRuntime(source, initial, {
+        accountForStableLoops: true,
+      })!;
+    const reference = runtime();
+    const candidate = runtime();
+    try {
+      const before = reference.advance(0.999, 256, true);
+      const after = candidate.advance(0.999, 256, true, 1_000);
+      expect(after).toStrictEqual(before);
+      expect(after.executionStatus).toBe('yielded');
+      expect(after.executedInstructions).toBe(256);
+    } finally {
+      reference.dispose();
+      candidate.dispose();
     }
   });
 
