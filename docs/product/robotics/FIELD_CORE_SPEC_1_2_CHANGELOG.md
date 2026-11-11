@@ -17,7 +17,7 @@ ROBOTICS-FIELD-CORE-001. Реализация и приёмка остаются
 Обновлены FIELD_CORE_SPEC.md, FIELD_CORE_TRACEABILITY.json, FIELD_CORE_START.md,
 README.md, карточка TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md и только ссылки/
 ограничения robotics.task в current.yaml. Добавлены этот changelog и точный
-history/FIELD_CORE_SPEC_v1_1.md. FIELD_CORE_SPEC_REVIEW.md сохраняет аудит 1.0 → 1.1.
+FIELD_CORE_SPEC_v1_1.md. FIELD_CORE_SPEC_REVIEW.md сохраняет аудит 1.0 → 1.1.
 
 Сохранены все 149 прежних REQ IDs, их статусы/evidence и 55 приёмочных определений.
 Добавлены REQ-MODE-01…08, REQ-KIT-01…06, REQ-CMD-01…08 и planned NOT_RUN
@@ -51,3 +51,7 @@ commit. Frozen hash нельзя заменять текущим. Старый h
 D02 проверяется ограниченным прототипом до продуктового E7; парная MODE-05
 выполняется затем на E7/E10, поэтому цикл зависимостей не создаётся.
 Архив 1.1 доступен из истории и не включён в обязательный current context.
+
+Исправление CI: точная копия 1.1 размещена рядом с прежними документами,
+а не в подкаталоге history; обе её исходные относительные ссылки существуют.
+Байты архива и его SHA-256 не менялись, валидатор ссылок не ослаблялся.

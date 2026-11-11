@@ -3,7 +3,7 @@
   "specification": "ROBOTICS-FIELD-CORE-001",
   "spec_version": "1.2",
   "spec_file": "FIELD_CORE_SPEC.md",
-  "spec_sha256": "64a5701b1c4aba4b18e63cb20b181df0da2fb52057bbbb8b9785819105acbb71",
+  "spec_sha256": "0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3",
   "original_v1_0_sha256": "9b65d4a8ffdf41a79d01c637dec2a6c5e71d168c09a14306783b4fa4d36212ac",
   "source_requirements": 118,
   "current_requirements": 171,
@@ -2822,7 +2822,7 @@
   ],
   "history_v1_1": {
     "spec_version": "1.1",
-    "spec_file": "history/FIELD_CORE_SPEC_v1_1.md",
+    "spec_file": "FIELD_CORE_SPEC_v1_1.md",
     "spec_sha256": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e",
     "original_commit": "f72154f0f97dbe59535532e97d72ed9bcd7e3b22",
     "original_path": "docs/product/robotics/FIELD_CORE_SPEC.md",

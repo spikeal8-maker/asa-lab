@@ -47,7 +47,7 @@ Arduino, solver, механику и часы; blocks/text и legacy 2D «Уче
 не выбирается; E1 сохраняет шесть TEST_ONLY сцен без mode integration.
 
 [Изменения 1.2](FIELD_CORE_SPEC_1_2_CHANGELOG.md) задают будущие обязательства.
-[Архив 1.1](history/FIELD_CORE_SPEC_v1_1.md) сохраняет точные bytes и hash старого
+[Архив 1.1](FIELD_CORE_SPEC_v1_1.md) сохраняет точные bytes и hash старого
 контракта. Исторический replay разрешает записанные version/hash через архив
 или immutable base commit/path из §20.4. Frozen manifests, raw и fixtures
 сохраняются. При жёстком canonical path ошибка разрешения спецификации требует

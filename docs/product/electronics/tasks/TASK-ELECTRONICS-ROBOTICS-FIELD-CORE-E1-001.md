@@ -84,7 +84,7 @@ publication committed motor observations, принятие механическ�
 относятся к будущей интеграции E2/E4/E7/E10 и не доказываются E1.
 
 Исторический replay использует recorded spec version/hash. Точная 1.1 сохранена
-в [архиве](../../robotics/history/FIELD_CORE_SPEC_v1_1.md); immutable commit/path
+в [архиве](../../robotics/FIELD_CORE_SPEC_v1_1.md); immutable commit/path
 для её относительных ссылок указан в §20.4 актуального ТЗ. Frozen fixtures,
 raw и hash manifests сохраняются. Если старый harness жёстко проверяет canonical
 path, несовместимость разрешения спецификации фиксируется отдельно от физического
