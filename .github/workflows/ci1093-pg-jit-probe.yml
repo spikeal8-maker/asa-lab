@@ -1,0 +1,178 @@
+name: Temporary CI1093 PostgreSQL JIT screening
+
+on:
+  push:
+    branches: [work/ci1093-pg-jit-probe-20261112]
+
+permissions:
+  contents: read
+
+jobs:
+  pg-jit-probe:
+    if: github.repository == 'spikeal8-maker/asa-lab' && github.ref == 'refs/heads/work/ci1093-pg-jit-probe-20261112'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ASA_E1_PG_PLAN_PROBE: ci1093-isolated-read-only
+      ASA_CI1093_EVIDENCE_DIR: ${{ runner.temp }}/ci1093-pg-jit
+      ASA_CI1093_PG_IMAGE: mirror.gcr.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+    steps:
+      - name: Checkout exact event source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Attest clean source and initialize evidence
+        id: initialize
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { randomBytes } from 'node:crypto';
+          import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          const git = (...args) => execFileSync('git', args, {encoding:'utf8'}).trim();
+          if (git('rev-parse','HEAD') !== process.env.GITHUB_SHA || git('status','--porcelain=v1')) {
+            throw new Error('Exact clean event source required');
+          }
+          const dir = process.env.ASA_CI1093_EVIDENCE_DIR;
+          mkdirSync(dir, {recursive:true, mode:0o700});
+          for (const [name,value] of Object.entries({
+            'receipt.json': {schema_version:1,status:'initialized',source:{sha:process.env.GITHUB_SHA,tree:git('rev-parse','HEAD^{tree}')}},
+            'plans.json': [],
+            'summary.json': {schema_version:1,status:'prerequisites',samples:0,plans:0,expected_samples:28,expected_plans:14,integration_gate:'NOT_RUN',historical_timeout_cause:'NOT_ESTABLISHED'},
+          })) writeFileSync(join(dir,name),JSON.stringify(value,null,2)+'\n',{mode:0o600});
+          for (const name of ['fixture-timings.jsonl','samples.jsonl']) writeFileSync(join(dir,name),'',{mode:0o600});
+          const admin = randomBytes(24).toString('hex');
+          const runtime = randomBytes(24).toString('hex');
+          process.stdout.write(`::add-mask::${admin}\n::add-mask::${runtime}\n`);
+          const adminUrl = `postgresql://asalab_admin:${admin}@127.0.0.1:5432/asa_ci1093_test`;
+          appendFileSync(process.env.GITHUB_ENV,[
+            'POSTGRES_DB=asa_ci1093_test','POSTGRES_USER=asalab_admin',`POSTGRES_PASSWORD=${admin}`,
+            `DATABASE_URL=${adminUrl}`,`TEST_DATABASE_URL=${adminUrl}`,`ASA_APP_DB_PASSWORD=${runtime}`,
+            `APP_TEST_DATABASE_URL=postgresql://asalab_app:${runtime}@127.0.0.1:5432/asa_ci1093_test`,
+          ].join('\n')+'\n');
+          NODE
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Install frozen dependencies
+        id: dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Offline probe safety checks
+        id: selftests
+        run: |
+          corepack pnpm exec prettier --check tools/testing/ci1093-pg-latency-fixtures.mjs tools/testing/learning-e1-pg-plan-probe.mjs tools/testing/learning-e1-pg-plan-probe.test.mjs
+          corepack pnpm exec eslint tools/testing/ci1093-pg-latency-fixtures.mjs tools/testing/learning-e1-pg-plan-probe.mjs tools/testing/learning-e1-pg-plan-probe.test.mjs
+          node --test tools/testing/learning-e1-pg-plan-probe.test.mjs
+
+      # The single disposable PostgreSQL service starts after generated passwords
+      # are masked. It is not a second Compose installation or a General rerun.
+      - name: Start isolated pinned PostgreSQL service
+        id: postgres
+        run: |
+          service_id=$(docker create --name "ci1093-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --publish 127.0.0.1:5432:5432 \
+            --label org.asalab.ci1093.purpose=pg-jit-probe \
+            --label "org.asalab.ci1093.source=$GITHUB_SHA" \
+            --label "org.asalab.ci1093.run=$GITHUB_RUN_ID" \
+            --label "org.asalab.ci1093.attempt=$GITHUB_RUN_ATTEMPT" \
+            --env POSTGRES_DB --env POSTGRES_USER --env POSTGRES_PASSWORD \
+            --health-cmd 'pg_isready -U asalab_admin -d asa_ci1093_test' \
+            --health-interval 2s --health-timeout 3s --health-retries 20 \
+            "$ASA_CI1093_PG_IMAGE")
+          echo "container_id=$service_id" >> "$GITHUB_OUTPUT"
+          echo "ASA_CI1093_PG_CONTAINER_ID=$service_id" >> "$GITHUB_ENV"
+          docker start "$service_id" > /dev/null
+          for attempt in $(seq 1 30); do
+            health=$(docker inspect --format '{{.State.Health.Status}}' "$service_id")
+            if [ "$health" = healthy ]; then exit 0; fi
+            if [ "$health" = unhealthy ]; then exit 1; fi
+            sleep 1
+          done
+          echo '::error::Isolated PostgreSQL service did not become healthy'
+          exit 1
+
+      - name: Apply existing migrations and restricted runtime role
+        id: provision
+        run: |
+          # The existing runner creates only this _test target and provisions
+          # asalab_app. Raw unexpected database errors are not public evidence.
+          if ! node tools/provision-test-db.mjs > "$RUNNER_TEMP/ci1093-provision-private.log" 2>&1; then
+            echo '::error::Disposable database provisioning failed'
+            exit 1
+          fi
+
+      - name: Seed semantic fixtures and measure ON OFF ON OFF
+        id: probe
+        run: node tools/testing/learning-e1-pg-plan-probe.mjs
+
+      - name: Cleanup only this job's disposable PostgreSQL service
+        id: cleanup
+        if: always() && steps.postgres.outputs.container_id != ''
+        env:
+          PROBE_CONTAINER_ID: ${{ steps.postgres.outputs.container_id }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          const id = process.env.PROBE_CONTAINER_ID;
+          if (!/^[a-f0-9]{64}$/.test(id ?? '')) throw new Error('Invalid owned service ID');
+          const item = JSON.parse(execFileSync('docker',['inspect',id],{encoding:'utf8',stdio:['ignore','pipe','pipe']}))[0];
+          const labels = item?.Config?.Labels;
+          if (item?.Id !== id || item.Config.Image !== process.env.ASA_CI1093_PG_IMAGE ||
+            labels?.['org.asalab.ci1093.purpose'] !== 'pg-jit-probe' ||
+            labels?.['org.asalab.ci1093.source'] !== process.env.GITHUB_SHA ||
+            labels?.['org.asalab.ci1093.run'] !== process.env.GITHUB_RUN_ID ||
+            labels?.['org.asalab.ci1093.attempt'] !== process.env.GITHUB_RUN_ATTEMPT) {
+            throw new Error('Disposable service ownership mismatch');
+          }
+          execFileSync('docker',['rm','--force','--volumes',id],{stdio:['ignore','pipe','pipe']});
+          NODE
+
+      - name: Finalize workflow outcome without raw errors
+        if: always() && steps.initialize.outcome == 'success'
+        env:
+          DEPENDENCIES_OUTCOME: ${{ steps.dependencies.outcome }}
+          SELFTESTS_OUTCOME: ${{ steps.selftests.outcome }}
+          POSTGRES_OUTCOME: ${{ steps.postgres.outcome }}
+          PROVISION_OUTCOME: ${{ steps.provision.outcome }}
+          PROBE_OUTCOME: ${{ steps.probe.outcome }}
+          CLEANUP_OUTCOME: ${{ steps.cleanup.outcome }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          const path = join(process.env.ASA_CI1093_EVIDENCE_DIR,'summary.json');
+          const summary = JSON.parse(readFileSync(path,'utf8'));
+          summary.workflow = Object.fromEntries(['dependencies','selftests','postgres','provision','probe','cleanup'].map(name => [name,process.env[name.toUpperCase()+'_OUTCOME']]));
+          if (summary.status !== 'complete' || Object.values(summary.workflow).some(value => value !== 'success')) {
+            summary.status = 'failed';
+            summary.error ??= {reason:'workflow_step_incomplete',sqlState:null};
+          }
+          writeFileSync(path,JSON.stringify(summary,null,2)+'\n',{mode:0o600});
+          console.log('[CI1093 workflow] '+JSON.stringify(summary));
+          NODE
+
+      - name: Preserve sanitized exact-source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci1093-pg-jit-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ci1093-pg-jit/receipt.json
+            ${{ runner.temp }}/ci1093-pg-jit/fixture-timings.jsonl
+            ${{ runner.temp }}/ci1093-pg-jit/samples.jsonl
+            ${{ runner.temp }}/ci1093-pg-jit/plans.json
+            ${{ runner.temp }}/ci1093-pg-jit/summary.json
+          if-no-files-found: error
+          retention-days: 14
