@@ -470,11 +470,12 @@ export interface AdminDashboardPoint {
   readonly rejectedAuthAttempts: number;
   readonly newStudents: number;
   readonly activeStudents: number;
+  readonly studentLogins?: number;
 }
 
 export interface AdminModulePoint {
   readonly at: string;
-  readonly moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
+  readonly moduleKey: 'electronics' | 'robotics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
   readonly activePeople: number;
   readonly launches: number;
   readonly activeSeconds: number;
@@ -501,6 +502,14 @@ export interface AdminProductDashboard {
   readonly to: string;
   readonly bucketSeconds: number;
   readonly range: AdminDashboardRange;
+  readonly todayMsk?: {
+    readonly from: string;
+    readonly to: string;
+    readonly activeAccounts: number;
+    readonly activeStudents: number;
+    readonly studentLogins: number;
+    readonly newStudents: number;
+  };
   readonly summary: {
     readonly newAccounts: number;
     readonly activeAccounts: number;
@@ -511,6 +520,7 @@ export interface AdminProductDashboard {
     readonly rejectedAuthAttempts: number;
     readonly newStudents: number;
     readonly activeStudents: number;
+    readonly studentLogins?: number;
     readonly distinctIpAddresses: number;
     readonly accountsWithMultipleIps: number;
     readonly localNetworkAccounts: number;

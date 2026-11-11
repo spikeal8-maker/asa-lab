@@ -553,14 +553,36 @@ async function noPageOverflow(page: Page) {
 }
 
 for (const width of [1440, 1024, 390, 320]) {
-  test(`admin overview readable time axis and local scrolling at ${width}`, async ({ page }) => {
+  test(`admin overview shows today's attendance and charts without scrolling at ${width}`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width, height: 900 });
     await fixture(page);
     await page.goto('/#/admin');
     await expect(learning(page)).toBeVisible();
     await noPageOverflow(page);
+    const attendance = page.getByRole('region', { name: 'Посещаемость сегодня' });
+    await expect(attendance).toBeInViewport();
+    await expect(attendance).toContainText('С полуночи до 02:10 МСК');
+    await expect(
+      attendance.getByRole('article').filter({ hasText: 'Входы по коду класса' }),
+    ).toContainText('24');
+    await expect(
+      attendance.getByRole('article').filter({ hasText: 'Созданные ученические места' }),
+    ).toContainText('32');
+    await expect(page.getByRole('heading', { name: 'Посещаемость по коду класса' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Создание ученических мест' })).toBeVisible();
     const learningCard = page.locator('.admin-chart-card').filter({ has: learning(page) });
-    await expect(learningCard.locator('.admin-chart-time-label')).toHaveCount(12);
+    const plot = learningCard.locator('.admin-chart-canvas');
+    await expect
+      .poll(() =>
+        plot.evaluate((node) =>
+          Math.abs(node.clientWidth - (node.querySelector('svg')?.viewBox.baseVal.width ?? 0)),
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+    await expect(learningCard.locator('.admin-chart-time-label').first()).toHaveText('03:00');
+    await expect(learningCard.locator('.admin-chart-time-label').last()).toHaveText('02:00');
     const timeAxes = await page.locator('.admin-chart-canvas svg').evaluateAll((charts) =>
       charts.map((chart) => {
         const bounds = chart.getBoundingClientRect();
@@ -575,7 +597,7 @@ for (const width of [1440, 1024, 390, 320]) {
       }),
     );
     for (const axis of timeAxes) {
-      // Compare the whole logical plot, including labels reached by local scrolling.
+      expect(axis.labels.length).toBeGreaterThanOrEqual(2);
       for (const [index, label] of axis.labels.entries()) {
         expect(label.left, label.text ?? '').toBeGreaterThanOrEqual(axis.left);
         expect(label.right, label.text ?? '').toBeLessThanOrEqual(axis.right);
@@ -586,6 +608,9 @@ for (const width of [1440, 1024, 390, 320]) {
       }
     }
     await expect(learningCard.getByRole('button', { name: 'Scratch', exact: true })).toBeVisible();
+    await expect(
+      learningCard.getByRole('button', { name: 'Робототехника', exact: true }),
+    ).toBeVisible();
     const chips = await learningCard.locator('.admin-chart-legend button').evaluateAll((buttons) =>
       buttons.map((button) => ({
         top: button.getBoundingClientRect().top,
@@ -593,7 +618,7 @@ for (const width of [1440, 1024, 390, 320]) {
       })),
     );
     expect(chips.every((chip) => chip.width < 150)).toBe(true);
-    if (width >= 1024) {
+    if (width >= 1440) {
       expect(new Set(chips.map((chip) => Math.round(chip.top))).size).toBe(1);
       const cards = page.locator('.admin-dashboard-grid > .admin-chart-card');
       expect((await cards.nth(0).boundingBox())!.y).toBe((await cards.nth(1).boundingBox())!.y);
@@ -610,12 +635,11 @@ for (const width of [1440, 1024, 390, 320]) {
           paths.every((path) => /^#[0-9a-f]{6}$/.test(path.getAttribute('stroke') ?? '')),
         ),
     ).toBe(true);
-    const plot = learningCard.getByRole('region');
-    await plot.focus();
-    await page.keyboard.press('ArrowRight');
-    if (await plot.evaluate((element) => element.scrollWidth > element.clientWidth))
-      await expect.poll(() => plot.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
-    else await expect(learningCard.locator('.admin-chart-time-label').last()).toBeInViewport();
+    expect(
+      await page
+        .locator('.admin-chart-canvas, .admin-range-picker')
+        .evaluateAll((nodes) => nodes.every((node) => node.scrollWidth <= node.clientWidth)),
+    ).toBe(true);
     expect(
       await plot
         .locator('.admin-chart-time-label')
@@ -626,7 +650,6 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(
       await learning(page).evaluate((node) => node.getBoundingClientRect().width),
     ).toBeGreaterThan(180);
-    await plot.blur();
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/overview-${width}.png`, fullPage: true });
     if (width === 390 || width === 320) {

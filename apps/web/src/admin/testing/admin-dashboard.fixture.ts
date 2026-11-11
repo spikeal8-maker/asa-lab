@@ -17,6 +17,7 @@ export function adminDashboardFixture(
     rejectedAuthAttempts: 0,
     newStudents: amount,
     activeStudents: amount,
+    studentLogins: amount * 2,
   }));
   return {
     generatedAt: '2026-10-25T23:10:00Z',
@@ -25,6 +26,14 @@ export function adminDashboardFixture(
     to: timeline[23]!.at,
     bucketSeconds: 3600,
     range,
+    todayMsk: {
+      from: '2026-10-25T21:00:00Z',
+      to: '2026-10-25T23:10:00Z',
+      activeAccounts: amount,
+      activeStudents: amount * 2,
+      studentLogins: amount * 3,
+      newStudents: amount * 4,
+    },
     summary: {
       newAccounts: amount,
       activeAccounts: amount,
@@ -35,6 +44,7 @@ export function adminDashboardFixture(
       rejectedAuthAttempts: 0,
       newStudents: amount,
       activeStudents: amount,
+      studentLogins: amount * 2,
       distinctIpAddresses: amount,
       accountsWithMultipleIps: 0,
       localNetworkAccounts: 0,
@@ -42,7 +52,7 @@ export function adminDashboardFixture(
     },
     timeline,
     modules: timeline.flatMap((point, index) =>
-      (['electronics', 'three-d', 'blocks', 'chess', 'checkers'] as const).map(
+      (['electronics', 'robotics', 'three-d', 'blocks', 'chess', 'checkers'] as const).map(
         (moduleKey, moduleIndex) => ({
           at: point.at,
           moduleKey,

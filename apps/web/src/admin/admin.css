@@ -1335,8 +1335,6 @@
   gap: 10px;
 }
 
-/* The ready-state wrapper is a grid item too. Its automatic min-content
-   width must not promote the intentionally wide, locally scrollable plot. */
 .admin-dashboard > * {
   min-width: 0;
 }
@@ -1344,7 +1342,8 @@
 .admin-dashboard-toolbar {
   display: flex;
   min-width: 0;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
 }
@@ -1352,11 +1351,10 @@
 .admin-range-picker {
   display: flex;
   min-width: 0;
-  flex: 1;
-  flex-wrap: nowrap;
+  flex: 1 1 260px;
+  flex-wrap: wrap;
   gap: 5px;
   padding: 5px;
-  overflow-x: auto;
   border: 1px solid var(--admin-line);
   border-radius: 12px;
   background: #edf3f6;
@@ -1437,6 +1435,43 @@
   font-size: 21px;
 }
 
+.admin-dashboard-today {
+  min-width: 0;
+  margin-bottom: 16px;
+}
+
+.admin-dashboard-today h3,
+.admin-dashboard-period-title {
+  margin: 0 0 6px;
+  color: var(--admin-ink);
+  font-size: 16px;
+}
+
+.admin-dashboard-today > p {
+  margin: 0 0 10px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.admin-dashboard-today .admin-dashboard-kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-dashboard-today .admin-dashboard-kpis span {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.admin-dashboard-today .admin-dashboard-kpis article {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.admin-dashboard-today .admin-dashboard-kpis strong {
+  font-size: 25px;
+}
+
 .admin-dashboard-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1512,20 +1547,12 @@
   max-width: 100%;
   min-width: 0;
   margin-top: 2px;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-}
-
-.admin-chart-canvas:focus-visible {
-  outline: 2px solid #0877b3;
-  outline-offset: 3px;
 }
 
 .admin-chart-canvas svg {
   display: block;
   width: 100%;
-  min-width: 600px;
-  overflow: visible;
+  height: auto;
 }
 
 .admin-dashboard-grid > .admin-chart-card:last-child:nth-child(odd) {
@@ -1974,6 +2001,10 @@
   .admin-range-picker button {
     padding: 0 8px;
     font-size: 11px;
+  }
+
+  .admin-dashboard-today .admin-dashboard-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-dashboard-grid {

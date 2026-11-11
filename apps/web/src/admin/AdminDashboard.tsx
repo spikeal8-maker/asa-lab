@@ -24,6 +24,7 @@ const RANGE_OPTIONS: readonly { readonly value: AdminDashboardRange; readonly la
 
 const MODULE_LABELS = {
   electronics: 'Электроника',
+  robotics: 'Робототехника',
   'three-d': '3D',
   chess: 'Шахматы',
   checkers: 'Шашки',
@@ -31,17 +32,28 @@ const MODULE_LABELS = {
 } as const;
 const MODULE_COLORS = {
   electronics: '#0877b3',
+  robotics: '#16776f',
   'three-d': '#8257c7',
   blocks: '#c54b83',
   chess: '#d4841c',
   checkers: '#16835f',
 } as const;
-const LEARNING_MODULES = ['electronics', 'three-d', 'blocks'] as const;
+const LEARNING_MODULES = ['electronics', 'robotics', 'three-d', 'blocks'] as const;
 const GAME_MODULES = ['chess', 'checkers'] as const;
 
 const DATE_TIME = new Intl.DateTimeFormat('ru-RU', {
   dateStyle: 'short',
   timeStyle: 'short',
+});
+const MOSCOW_TIME = new Intl.DateTimeFormat('ru-RU', {
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'Europe/Moscow',
+});
+const MOSCOW_DAY = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'long',
+  timeZone: 'Europe/Moscow',
 });
 
 type DashboardState =
@@ -55,8 +67,8 @@ type DashboardState =
       readonly refreshError: string | null;
     };
 
-export function chartLabelIndexes(length: number): number[] {
-  const count = Math.min(Math.max(0, length), 12);
+export function chartLabelIndexes(length: number, limit = 12): number[] {
+  const count = Math.min(Math.max(0, length), limit);
   return Array.from({ length: count }, (_, index) =>
     Math.round((index * (length - 1)) / Math.max(1, count - 1)),
   );
@@ -94,6 +106,8 @@ function MultiLineChart({
   readonly series: readonly ChartSeries[];
   readonly emptyMessage?: string;
 }): JSX.Element {
+  const canvas = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(600);
   const [visible, setVisible] = useState<ReadonlySet<string>>(
     () => new Set(series.map((item) => item.id)),
   );
@@ -105,14 +119,21 @@ function MultiLineChart({
       return next;
     });
   }, [series]);
+  useEffect(() => {
+    if (!canvas.current || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(Math.max(120, Math.floor(entry.contentRect.width)));
+    });
+    observer.observe(canvas.current);
+    return () => observer.disconnect();
+  }, []);
 
   const active = series.filter((item) => visible.has(item.id));
   const axis = chartCountAxis(Math.max(0, ...active.flatMap((item) => item.values)));
   const maximum = axis.maximum;
-  const width = 600;
   const height = 220;
-  const left = 42;
-  const right = 24;
+  const left = 44;
+  const right = 36;
   const top = 18;
   const bottom = 34;
   const plotWidth = width - left - right;
@@ -126,7 +147,10 @@ function MultiLineChart({
       })
       .join(' ');
   const empty = active.every((item) => item.values.every((value) => value === 0));
-  const labelIndexes = chartLabelIndexes(labels.length);
+  const labelIndexes = chartLabelIndexes(
+    labels.length,
+    Math.min(12, Math.floor(plotWidth / 56) + 1),
+  );
 
   return (
     <article className="admin-chart-card">
@@ -158,12 +182,7 @@ function MultiLineChart({
           })}
         </div>
       </header>
-      <div
-        className="admin-chart-canvas"
-        tabIndex={0}
-        role="region"
-        aria-label={`Прокручиваемый график «${title}»`}
-      >
+      <div className="admin-chart-canvas" ref={canvas}>
         <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}. ${description}`}>
           {axis.ticks.map((value) => {
             const y = top + plotHeight - (value / maximum) * plotHeight;
@@ -222,14 +241,13 @@ function timeLabels(
   points: readonly { readonly at: string }[],
   range: AdminDashboardRange,
 ): string[] {
-  const formatter = new Intl.DateTimeFormat(
-    'ru-RU',
+  const formatter =
     range === '1h' || range === '6h' || range === '12h' || range === '24h'
-      ? { hour: '2-digit', minute: '2-digit' }
-      : range === '1y'
-        ? { month: 'short' }
-        : { day: '2-digit', month: 'short' },
-  );
+      ? MOSCOW_TIME
+      : new Intl.DateTimeFormat('ru-RU', {
+          ...(range === '1y' ? { month: 'short' } : { day: '2-digit', month: 'short' }),
+          timeZone: 'Europe/Moscow',
+        });
   return points.map((point) => formatter.format(new Date(point.at)));
 }
 
@@ -306,6 +324,7 @@ export function AdminDashboard({
       <h2 id="admin-dashboard-title" className="sr-only">
         Обзор
       </h2>
+      {state.kind === 'ready' ? <TodayAttendance dashboard={state.dashboard} /> : null}
       <div className="admin-dashboard-toolbar">
         <div className="admin-range-picker" aria-label="Период дашборда">
           {RANGE_OPTIONS.map((option) => (
@@ -361,6 +380,42 @@ export function AdminDashboard({
           </div>
         </>
       ) : null}
+    </section>
+  );
+}
+
+function TodayAttendance({
+  dashboard,
+}: {
+  readonly dashboard: AdminProductDashboard;
+}): JSX.Element {
+  const today = dashboard.todayMsk;
+  return (
+    <section className="admin-dashboard-today" aria-labelledby="admin-dashboard-today-title">
+      <h3 id="admin-dashboard-today-title">Посещаемость сегодня</h3>
+      {today ? (
+        <>
+          <p>
+            <time dateTime={today.from}>{MOSCOW_DAY.format(new Date(today.from))}</time>
+            {' · '}С полуночи до {MOSCOW_TIME.format(new Date(today.to))} МСК
+          </p>
+          <div className="admin-dashboard-kpis">
+            {[
+              ['Активные аккаунты', today.activeAccounts],
+              ['Активные ученические места', today.activeStudents],
+              ['Входы по коду класса', today.studentLogins],
+              ['Созданные ученические места', today.newStudents],
+            ].map(([label, value]) => (
+              <article key={label}>
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </article>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p>Сводка за сегодня недоступна.</p>
+      )}
     </section>
   );
 }
@@ -424,6 +479,7 @@ function DashboardContent({
 
   return (
     <>
+      <h3 className="admin-dashboard-period-title">Сводка за выбранный период</h3>
       <div className="admin-dashboard-kpis">
         {[
           ['Новые аккаунты', dashboard.summary.newAccounts],
@@ -433,7 +489,10 @@ function DashboardContent({
           ['Отклонено попыток', dashboard.summary.rejectedAuthAttempts],
           ['Незавершённые входы', dashboard.summary.failedLogins],
           ['Активные ученические места', dashboard.summary.activeStudents],
-          ['Новые ученические места', dashboard.summary.newStudents],
+          ...(dashboard.summary.studentLogins === undefined
+            ? []
+            : [['Входы по коду класса', dashboard.summary.studentLogins] as const]),
+          ['Созданные ученические места', dashboard.summary.newStudents],
           ['Разные IP', dashboard.summary.distinctIpAddresses],
           ['Несколько IP', dashboard.summary.accountsWithMultipleIps],
           ['Локальная сеть', dashboard.summary.localNetworkAccounts],
@@ -448,20 +507,8 @@ function DashboardContent({
 
       <div className="admin-dashboard-grid">
         <MultiLineChart
-          title="Учебные инструменты — запуски"
-          description="Фактические открытия рабочих сред. Повторная загрузка считается новым запуском."
-          labels={labels}
-          series={modules.filter((item) => LEARNING_MODULES.some((key) => key === item.id))}
-        />
-        <MultiLineChart
-          title="Игры — запуски"
-          description="Фактические открытия шахмат и шашек за выбранный период."
-          labels={labels}
-          series={modules.filter((item) => GAME_MODULES.some((key) => key === item.id))}
-        />
-        <MultiLineChart
           title="Пользователи и входы"
-          description="Люди и завершённые сценарии входа на одной временной шкале."
+          description="Активность аккаунтов и завершённые сценарии входа по времени события."
           labels={labels}
           series={[
             {
@@ -491,6 +538,54 @@ function DashboardContent({
           ]}
         />
         <MultiLineChart
+          title="Посещаемость по коду класса"
+          description="Уникальные активные места и число успешных входов по коду класса."
+          labels={labels}
+          series={[
+            {
+              id: 'activeStudents',
+              label: 'Активные места',
+              color: '#0877b3',
+              values: dashboard.timeline.map((point) => point.activeStudents),
+            },
+            ...(dashboard.summary.studentLogins === undefined
+              ? []
+              : [
+                  {
+                    id: 'studentLogins',
+                    label: 'Успешные входы по коду',
+                    color: '#16835f',
+                    values: dashboard.timeline.map((point) => number(point.studentLogins)),
+                  },
+                ]),
+          ]}
+        />
+        <MultiLineChart
+          title="Создание ученических мест"
+          description="Число созданных ученических мест за интервал."
+          labels={labels}
+          series={[
+            {
+              id: 'newStudents',
+              label: 'Созданные места',
+              color: '#d4841c',
+              values: dashboard.timeline.map((point) => point.newStudents),
+            },
+          ]}
+        />
+        <MultiLineChart
+          title="Учебные инструменты — запуски"
+          description="Фактические открытия рабочих сред. Повторная загрузка считается новым запуском."
+          labels={labels}
+          series={modules.filter((item) => LEARNING_MODULES.some((key) => key === item.id))}
+        />
+        <MultiLineChart
+          title="Игры — запуски"
+          description="Фактические открытия шахмат и шашек за выбранный период."
+          labels={labels}
+          series={modules.filter((item) => GAME_MODULES.some((key) => key === item.id))}
+        />
+        <MultiLineChart
           title="Учебные инструменты — активное время"
           description="Минуты подтверждённой активности. Долгий простой и скрытая вкладка не засчитываются."
           labels={labels}
@@ -507,25 +602,6 @@ function DashboardContent({
           description="Только успешно завершённые входы; продление сессии не учитывается."
           labels={labels}
           series={methods}
-        />
-        <MultiLineChart
-          title="Ученические места"
-          description="Активные StudentSeat по коду класса учитываются отдельно от аккаунтов. Эти показатели нельзя складывать как число уникальных людей."
-          labels={labels}
-          series={[
-            {
-              id: 'activeStudents',
-              label: 'Активные места',
-              color: '#0877b3',
-              values: dashboard.timeline.map((point) => point.activeStudents),
-            },
-            {
-              id: 'newStudents',
-              label: 'Новые места',
-              color: '#d4841c',
-              values: dashboard.timeline.map((point) => point.newStudents),
-            },
-          ]}
         />
         <MultiLineChart
           title="Ключевые действия"
@@ -554,12 +630,7 @@ function DashboardContent({
         />
       </div>
       <p className="admin-dashboard-updated">
-        Обновлено {DATE_TIME.format(new Date(dashboard.generatedAt))}. События использования и входа
-        собираются
-        {dashboard.analyticsStartedAt
-          ? ` с ${DATE_TIME.format(new Date(dashboard.analyticsStartedAt))}`
-          : ' с момента установки этого обновления'}
-        ; более ранняя история для этих линий недоступна.
+        Графики обновлены в {MOSCOW_TIME.format(new Date(dashboard.generatedAt))} МСК.
       </p>
     </>
   );

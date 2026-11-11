@@ -136,6 +136,93 @@ afterAll(async () => {
 });
 
 describe('Administrative Control Plane PostgreSQL isolation', () => {
+  it('counts event-time attendance across Moscow midnight and separates logins from created seats', async () => {
+    const occupied = randomUUID();
+    const createdOnly = randomUUID();
+    const seatPrincipal = randomUUID();
+    await admin.query(
+      `WITH school AS (
+         INSERT INTO schools(tenant_id,title) VALUES ($1,'Attendance fixture') RETURNING id
+       ), period AS (
+         INSERT INTO academic_periods(tenant_id,school_id,title,starts_on,ends_on)
+         SELECT $1,id,'Attendance period','2026-01-01','2026-12-31' FROM school RETURNING id
+       ), teacher AS (
+         INSERT INTO users(tenant_id,school_id,role,email,display_name,password_hash)
+         SELECT $1,id,'teacher',$2,'Attendance teacher','fixture' FROM school RETURNING id
+       ), room AS (
+         INSERT INTO classrooms(tenant_id,school_id,academic_period_id,title,created_by)
+         SELECT $1,school.id,period.id,'Attendance class',teacher.id
+         FROM school,period,teacher RETURNING id
+       )
+       INSERT INTO classroom_student_seats
+         (id,tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,status,created_by,created_at)
+       SELECT seat.id,$1,room.id,seat.label,replace(seat.id::text,'-',''),replace(seat.id::text,'-',''),
+              'active',teacher.id,'2026-06-01T21:05:00Z'
+       FROM room,teacher,(VALUES ($3::uuid,'Used'),($4::uuid,'Created only')) seat(id,label)`,
+      [schoolAdmin.tenantId, `${randomUUID()}@attendance.test`, occupied, createdOnly],
+    );
+    await admin.query("INSERT INTO principals(id,kind,seat_id) VALUES($1,'student_seat',$2)", [
+      seatPrincipal,
+      occupied,
+    ]);
+    await admin.query(
+      `INSERT INTO product_analytics_events
+         (occurred_at,actor_kind,account_id,seat_id,workspace_id,tenant_id,event_type,outcome,auth_method,principal_id)
+       VALUES
+         ('2026-06-01T20:55:00Z','account',$11,NULL,$2,$3,'visit.observed','succeeded',NULL,$12),
+         ('2026-06-01T21:15:00Z','account',$1,NULL,$2,$3,'session.observed','succeeded',NULL,$8),
+         ('2026-06-01T22:15:00Z','account',$1,NULL,$2,$3,'visit.observed','succeeded',NULL,$8),
+         ('2026-06-01T21:30:00Z','account',$5,NULL,$6,$7,'visit.observed','succeeded',NULL,$9),
+         ('2026-06-01T21:10:00Z','student',NULL,$4,NULL,$3,'auth.class_join','succeeded','class_code',$10),
+         ('2026-06-01T21:20:00Z','student',NULL,$4,NULL,$3,'auth.class_join','failed','class_code',$10),
+         ('2026-06-01T22:10:00Z','student',NULL,$4,NULL,$3,'auth.class_join','succeeded','class_code',$10)`,
+      [
+        schoolAdmin.accountId,
+        schoolAdmin.workspaceId,
+        schoolAdmin.tenantId,
+        occupied,
+        otherSchoolAdmin.accountId,
+        otherSchoolAdmin.workspaceId,
+        otherSchoolAdmin.tenantId,
+        schoolAdmin.principalId,
+        otherSchoolAdmin.principalId,
+        seatPrincipal,
+        ordinaryAccount.accountId,
+        ordinaryAccount.principalId,
+      ],
+    );
+    const dashboard = (from: string, actor = schoolAdmin.principalId) =>
+      runtime.query<{ payload: Record<string, unknown> }>(
+        `SELECT admin_get_product_dashboard_v3($1,'organization',$2,$3,'2026-06-01T23:00:00Z',3600) AS payload`,
+        [actor, schoolAdmin.workspaceId, from],
+      );
+    const full = (await dashboard('2026-06-01T20:00:00Z')).rows[0]?.payload;
+    const today = {
+      from: '2026-06-01T21:00:00+00:00',
+      activeAccounts: 1,
+      activeStudents: 1,
+      studentLogins: 2,
+      newStudents: 2,
+    };
+    expect(full).toMatchObject({
+      todayMsk: today,
+      timeline: [
+        { activeAccounts: 1, activeStudents: 0, studentLogins: 0, newStudents: 0 },
+        { activeAccounts: 1, activeStudents: 1, studentLogins: 1, newStudents: 2 },
+        { activeAccounts: 1, activeStudents: 1, studentLogins: 1, newStudents: 0 },
+      ],
+    });
+    expect((await dashboard('2026-06-01T22:00:00Z')).rows[0]?.payload).toMatchObject({
+      todayMsk: today,
+      summary: { activeAccounts: 1, activeStudents: 1, studentLogins: 1, newStudents: 0 },
+    });
+    await expect(
+      dashboard('2026-06-01T20:00:00Z', otherSchoolAdmin.principalId),
+    ).rejects.toMatchObject({
+      code: '42501',
+    });
+  });
+
   it('exposes only server-owned administrator scopes through the API', async () => {
     const granted = await inject(app, {
       method: 'GET',
