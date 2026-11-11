@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { InfoHint } from '../components/InfoHint';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AiPromptGuide } from './AiPromptGuide';
@@ -13,7 +14,7 @@ const PROVIDERS = [
   { id: 'ollama', label: 'Ollama · локально' },
 ] as const;
 
-function policyShape(value: unknown): value is AiGenerationPolicy {
+export function policyShape(value: unknown): value is AiGenerationPolicy {
   if (!value || typeof value !== 'object') return false;
   const data = value as Partial<AiGenerationPolicy>;
   return (
@@ -54,13 +55,13 @@ export function AdminAiGenerationPolicy({
   onAccessDenied,
   provider,
   onDirtyChange,
-  onEligibleModels,
   onCatalogSaved,
+  budgetFor,
 }: {
   readonly section: 'prompt' | 'settings' | 'connections';
   readonly provider?: string;
   readonly onDirtyChange?: (dirty: boolean) => void;
-  readonly onEligibleModels?: (ids: readonly string[]) => void;
+  readonly budgetFor?: (model: string) => ReactNode;
   readonly onCatalogSaved?: () => void;
   readonly onAccessDenied: () => void;
 }) {
@@ -248,22 +249,6 @@ export function AdminAiGenerationPolicy({
         config?.models.find((m) => m.id === id)?.adapterCompatible !== false,
       order: 0,
     };
-  useEffect(() => {
-    if (config)
-      onEligibleModels?.(
-        config.models
-          .filter(
-            (m) =>
-              m.connectionSelected !== false &&
-              (section !== 'settings' || (m.ready && m.adapterCompatible !== false)) &&
-              (modelPreferences.find((p) => p.id === m.id)?.eligible ??
-                m.eligible ??
-                m.adapterCompatible !== false),
-          )
-          .map((m) => m.id),
-      );
-    else onEligibleModels?.([]);
-  }, [config, modelPreferences, onEligibleModels, section]);
   const changePreference = (id: string, patch: Partial<{ eligible: boolean; order: number }>) => {
     setModelPreferences((previous) => [
       ...previous.filter((p) => p.id !== id),
@@ -278,7 +263,11 @@ export function AdminAiGenerationPolicy({
           model.provider === id &&
           model.connectionSelected !== false &&
           (section === 'connections' ||
-            (model.ready && model.adapterCompatible !== false && preference(model.id).eligible)),
+            (model.ready &&
+              model.adapterCompatible !== false &&
+              (model.provider === 'ollama' ||
+                model.provider === 'ollama-cloud' ||
+                preference(model.id).eligible))),
       )
       .sort(
         (a, b) =>
@@ -695,17 +684,30 @@ export function AdminAiGenerationPolicy({
                                 <input
                                   type="checkbox"
                                   aria-label={'Показывать пользователям: ' + model.label}
-                                  checked={allowedModels.includes(model.id)}
+                                  checked={
+                                    allowedModels.includes(model.id) &&
+                                    preference(model.id).eligible
+                                  }
                                   disabled={
                                     busy ||
-                                    ((!model.selectable || !preference(model.id).eligible) &&
+                                    ((!model.selectable ||
+                                      (model.provider !== 'ollama' &&
+                                        model.provider !== 'ollama-cloud' &&
+                                        !preference(model.id).eligible)) &&
                                       !allowedModels.includes(model.id))
                                   }
                                   onChange={(event) => {
                                     const checked = event.target.checked;
+                                    if (
+                                      checked &&
+                                      (model.provider === 'ollama' ||
+                                        model.provider === 'ollama-cloud') &&
+                                      !preference(model.id).eligible
+                                    )
+                                      changePreference(model.id, { eligible: true });
                                     setAllowedModels((previous) =>
                                       checked
-                                        ? [...previous, model.id]
+                                        ? [...new Set([...previous, model.id])]
                                         : previous.filter((id) => id !== model.id),
                                     );
                                     if (!checked && defaultModel === model.id)
@@ -744,6 +746,7 @@ export function AdminAiGenerationPolicy({
                                   </small>
                                 </div>
                               </InfoHint>
+                              {budgetFor?.(model.id)}
                             </>
                           ) : null}
                         </div>

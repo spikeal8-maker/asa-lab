@@ -167,7 +167,7 @@
     "assets:test": "python tools/test_validate_electronics_assets.py",
     "validate:electronics-agent-docs": "node --test tools/test_validate_electronics_agent_docs.mjs && node tools/validate-electronics-agent-docs.mjs",
     "test:learning-e1": "vitest run tests/courses contexts/learning/testing contexts/identity/testing tests/account apps/api/src/learning-activities.controller.spec.ts apps/api/src/learning-canonical-projection.service.spec.ts apps/api/src/learning-origin-list.spec.ts apps/api/src/learning-work-context.spec.ts apps/api/src/learning-work-context.controller.spec.ts apps/api/src/learning-direct-assignment.controller.spec.ts apps/api/src/classroom-join.controller.spec.ts apps/api/src/courses.controller.spec.ts apps/api/src/student-code-protection.spec.ts apps/api/src/classroom-code-secret.spec.ts apps/api/src/credential-configuration.spec.ts apps/api/src/health.spec.ts tests/production/credential-readiness.spec.ts apps/web/src/components/lesson-informational-blocks.spec.ts apps/web/src/learning apps/web/src/session-fetch.spec.ts apps/web/src/three-d/testing/project-save-evidence.spec.ts",
-    "e2e:learning-e1": "playwright test e2e/learning-author-preview.spec.ts e2e/learning-course-01.spec.ts e2e/courses-sharing.spec.ts --workers=1 && playwright test e2e/learning-learner-submits-project-assignment.spec.ts e2e/learning-quiz-course.spec.ts e2e/learning-surface-convergence.spec.ts e2e/learning-teacher-assigns-activity.spec.ts --workers=1",
+    "e2e:learning-e1": "playwright test e2e/learning-author-preview.spec.ts e2e/learning-course-01.spec.ts e2e/courses-sharing.spec.ts --workers=1 && playwright test e2e/learning-learner-submits-project-assignment.spec.ts e2e/learning-quiz-course.spec.ts e2e/learning-surface-convergence.spec.ts e2e/learning-teacher-assigns-activity.spec.ts --workers=1 && playwright test e2e/learning-file-course.spec.ts --workers=1",
     "gate:blocks": "node tools/blocks/gate.mjs",
     "test:auth-confirmation:installation": "python -m unittest tools.deployment.test_auth_installer",
     "test:email-verification:pg": "vitest run tests/account/email-verification.pg.spec.ts",
@@ -181,11 +181,14 @@
     "test:checkers-network": "vitest run contexts/games/testing/checkers-network.spec.ts apps/api/src/checkers-network.controller.spec.ts tests/games-network/checkers-network.embedded.spec.ts apps/web/src/games/game-notifications.spec.ts",
     "test:checkers-network:pg": "vitest run tests/games-network/checkers-network.pg.spec.ts",
     "gate:checkers-network": "corepack pnpm gate:chess-r1 && corepack pnpm test:checkers && corepack pnpm test:checkers-network && corepack pnpm test:games",
-    "gate:checkers-network:browser": "node tools/checkers-browser-gate.mjs"
+    "gate:checkers-network:browser": "node tools/checkers-browser-gate.mjs",
+    "test:robotics-field-core": "vitest run tests/robotics/field-core-qualification/phy01.spec.ts --maxWorkers=1",
+    "qualify:robotics-field-core:phy01": "node tools/robotics-field-core/run-phy01.mjs"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
     "@axe-core/playwright": "4.10.2",
+    "@dimforge/rapier3d-compat": "0.19.3",
     "@electric-sql/pglite": "0.2.17",
     "@eslint/js": "^10.0.1",
     "@nx/eslint": "23.1.2",

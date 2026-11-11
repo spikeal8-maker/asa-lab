@@ -81,6 +81,83 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: classroom-visual-20261111
+    worktree_id: classroom-visual-20261111
+    owned_paths:
+      - apps/web/src/pages/DashboardPage.tsx
+      - apps/web/src/components/SystemToastViewport.tsx
+      - apps/web/src/components/system-feedback.ts
+      - apps/web/src/components/system-feedback.css
+      - apps/web/src/components/testing/system-feedback.spec.ts
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: f767e1271e7128daf64f31c79d21fccf80e85ab4
+      head_sha: null
+      observed_at: '2026-11-11T18:17:00Z'
+      main:
+        branch: main
+        sha: f767e1271e7128daf64f31c79d21fccf80e85ab4
+      observation_note: >-
+        Read-only baseline for owner-selected classroom visual programme. No
+        product implementation, CI approval, deployment or owner acceptance yet.
+        Fetch main before each selected slice; shared path ownership is advisory.
+    task:
+      id: TASK-CLASSROOM-FEEDBACK-001
+      issue: 1087
+      programme_issue: 715
+      branch: main
+      base_branch: main
+      pr: null
+      status: ready
+      checkpoint: owner_selected_no_shift_notification_ribbon
+      owner_acceptance: pending
+      owner_authorization: >-
+        Direct owner instruction on 2026-11-11 authorizes a multi-slice classroom
+        UI programme, implementation by subagents, independent review/testing,
+        verified GitHub integration and evidence-based reconciliation of legacy
+        PR577/605/712/818/827. Preserve the accepted My classes top toolbar/search;
+        do not enlarge or move it. No live data or deployment authorization.
+      selected_slice:
+        id: CLASSROOM-FEEDBACK-001
+        status: ready
+        change_class: L1_UI_BEHAVIOR
+        scope: >-
+          Action notification ribbon directly below the actual global header on
+          desktop and mobile; outside document flow, no reserved gap or layout
+          shifts. Migrate classroom list/class/student action feedback without
+          duplicate local/global alerts, false success or student-code leakage.
+          Preserve field validation/retry UI and all existing business semantics.
+        acceptance: >-
+          Exact-source focused unit tests, independent review, browser before/
+          during/after geometry assertions and 1920/1440/1366/1024/390/320 evidence.
+          Success/error/repeated/long notifications must not move existing top
+          controls, rows or page content. Source tests do not equal visual approval.
+      programme_sequence:
+        - CLASSROOM-FEEDBACK-001
+        - CLASSROOM-ROWS-002
+        - CLASSROOM-NAV-003
+        - CLASSROOM-LEGACY-004
+      exclusions:
+        - No accepted My classes header, search, toolbar or tab redesign.
+        - No database, API, authorization, deployment, production or network changes.
+        - No blanket PR closure, branch deletion, PR29 changes or force-push.
+        - No unrelated module repairs or claims of owner visual acceptance.
+      normative_refs:
+        - document: TEACHER-STUDENT-PROFILE-UI-589
+          revision: '1.0'
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:code
+      browser:
+        workflow: Classroom Owner Real Scenarios
+        commands:
+          - pnpm e2e:access-a
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: devex-engine
     worktree_id: devex-engine-20261030
     owned_paths:
@@ -605,11 +682,46 @@ parallel_lanes:
         Owner #452/#703/#718 expressly commissioned bounded CI-only browser
         gate repair, preserving all cases, physics, and foreign ongoing tasks.
         No deployment, school data, server, Docker host or network operations.
-      shared_path_coordination: >-
-        Only the exact Electronics R4-M1 CI workflow is touched by bounded
-        #722 maintenance. It belongs to integration.shared_paths, not an
-        exclusive Electronics owned_path; single writer, exact before/after
-        diff, no change to other shared workflow files or gate semantics.
+        On 2026-11-11 the owner explicitly approved the isolated checkout
+        below for the two exact overlapping CI paths while preserving the
+        stopped D13 worktree and its files.
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/.codex/worktrees/electronics-strict-browser-shards/ASA-lab
+          branch: codex/electronics-strict-browser-shards
+        peer:
+          worktree: E:/ASA-previews/electronics-classroom-d13-candidate-20261019
+          branch: codex/electronics-classroom-d2-d4-649
+          head: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+          path_sha256:
+            .github/workflows/electronics-r4-m1-focused.yml: 8cd0642e6bbec032a39d88541fc976c563d5a3816e537df6f40857898bffd34f
+            tools/test_ci_image_transport.py: ced65c7414d4283a546cad5aef843365d8d0efcbc5a67c350f0c0063cb5314a9
+        paths:
+          - .github/workflows/electronics-r4-m1-focused.yml
+          - tools/test_ci_image_transport.py
+      current_partition_selection:
+        previous_candidate_pr: 724
+        previous_candidate_sha: cbc060242450de116a8deb914a36b0dff06a8bd8
+        initial_strict_browser_run: 43020909117
+        initial_observed: 227 passed, 20 failed, 2 timed out, 21 unfinished of 270
+        strict_browser_run: 43060901122
+        observed: 242 passed, 23 failed, 5 timed out, all 270 recorded
+        strict_shard_cases: [123, 13, 119, 15]
+        strict_workers_per_shard: 1
+        write_paths:
+          - .github/workflows/electronics-r4-m1-focused.yml
+          - docs/execution/current.yaml
+          - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-PARTITION-001.md
+          - tools/test_ci_image_transport.py
+          - tests/electronics/ui-679-557-qualification.spec.ts
+        evidence: Prove all four single-worker strict shards finish, exactly
+          cover the full list and propagate any failure. Preserve browser
+          scenarios, product behavior, assertion thresholds, zero retries and
+          the 50-minute job budget. Keep classroom and Arduino editor profiles
+          whole and retain current transport and evidence checks.
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-PARTITION-001.md
         - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md
@@ -8101,6 +8213,26 @@ parallel_lanes:
       semantic_change: 'yes'
       checkpoint: owner_approved_source_integration_full_strict_open
       prepared_candidate_sha: 6a23c93e9880653c64856f32ea6a1dd92f315c83
+      wait_field_oracle:
+        source_run: 42970243068
+        observed: The reopened wait selector read a nested LED dropdown instead of the actual wait unit.
+        owner_authorization: Owner explicitly approves this exact test path in the named isolated checkout. Preserve the peer tree, real native edits and reopen, and every threshold.
+        repair: Select only fields owned by the wait block. Keep model-time failures and acceptance open.
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/.codex/worktrees/strict-blockly-wait/ASA-lab
+          branch: codex/electronics-strict-blockly-wait-field
+        peer:
+          worktree: E:/ASA-previews/electronics-classroom-d13-candidate-20261019
+          branch: codex/electronics-classroom-d2-d4-649
+          head: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+          path_sha256:
+            e2e/electronics-ready-cadence.spec.ts: ad12f9652bb1bcba8aaaa69f7540780a28b6b833149c9397034695753476ad2c
+        paths:
+          - e2e/electronics-ready-cadence.spec.ts
       source_integration_boundary:
         decision_date: '2026-11-02'
         authorization: explicit_owner_source_only_remaining_failures_open
@@ -9490,38 +9622,32 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: complete_quiz_vertical_with_verified_parent_integration_repairs
-      selected_slice:
+      checkpoint: immutable_learner_file_answers
+      accepted_previous_slice:
         id: LRN-QUIZ-COMPLETE-COURSE-VERTICAL
+        pr: 1039
+        source_sha: 9accb6856ecf5290a477720f2681d3270e232ffd
+        merge_sha: 28a39f4cf8d17181a44832c008dd2bdbf0660bf3
+        general_run: 42732132770
+        learning_run: 42732132516
+        browser_journeys_passed: 48
+        status: merged
+      selected_slice:
+        id: LRN-IMMUTABLE-FILE-ANSWERS
         status: in_progress
         kind: implementation
-        owner_authorization: Owner renewed the complete compact assignment and Course authoring programme and explicitly authorized verified source integration into main on2026-11-03. Reuse the existing core; deliver visible desktop and phone functionality.
-        scope: One complete Quiz vertical across author question and Quiz drafts, publication and exact Course composition, class delivery, persisted learner player, immutable submission, automatic and manual assessment and the existing journal. All eight normative question types are included.
-        source_inputs:
-        - pr: 966
-          sha: 2d97266087b1cd11d8388cbfe02804e35eb8cb83
-        - pr: 939
-          sha: 4cc9938224a89a4cbfd556fd9b42dada3ca0bd46
-          use: Unfinished design provenance only; never apply its SQL wholesale.
+        owner_authorization: Owner explicitly requested completing learner file answers after PR 1039 merges and verifying the whole course on desktop and phone.
+        scope: File-answer assignment authoring in the shared class and Course editor, exact published version, authenticated learner upload and immutable submission, teacher authorized download and review, canonical result and journal.
         expected_write_areas:
-        - Existing Learning authoring, Question bank and Quiz controllers, contracts and compact web editor.
-        - Existing Quiz attempt state, submission, assessment, reminders expiry sweep and canonical journal review.
-        - Additive forward SQL and strict migration-prefix fixtures, focused HTTP, mounted, PostgreSQL and real browser evidence.
-        - docs/product/learning/execution/LRN-QUIZ-COURSE-VERTICAL_EXECUTION_SPEC.md and relevant API/test contracts.
+        - Existing Learning authoring, learner player, teacher review and OpenAPI.
+        - Existing private object-storage transport and additive tenant-scoped attachment metadata if necessary.
+        - Focused real PostgreSQL and browser scenarios with desktop and mobile evidence.
         acceptance:
-        - Write DB-000 physical schema reuse proof and exact required SQL, constraints, indexes, FK actions and RLS in the execution spec before new physical implementation. No second academic runtime or general core refactor.
-        - Persist incomplete Question and Quiz author drafts and reopen them without fake publication. Publish immutable exact QuestionVersion and QuizVersion pins atomically; author-only draft references cannot enter published content.
-        - Support single_choice, multiple_choice, boolean, numeric, short_text, matching, ordering and long_text_manual through creation, learner interaction and assessment. Keep answer keys private until the pinned feedback policy permits release.
-        - Reuse the same compact assignment creator and Course composition. Native keyboard-accessible controls, compact grouped actions and usable320,390,1024,1440 layouts; no expanded decorative panels.
-        - Preserve existing stable Account and StudentSeat identity, activation, immutable policies, dense attempt ordinals, saved server answers, revision conflicts, replay and server-authoritative deadlines.
-        - Submit the existing attempt idempotently using confirmed answers. Extend the existing bounded lifecycle-managed expiry sweep for auto_submit or expire_without_submission; no duplicate attempts, new timer service or fabricated grades.
-        - Reuse existing five-type grading rules and extend matching and ordering deterministically. Manual pending work cannot produce final selected grades or course completion; teacher review uses the existing ClassroomGradebook seam.
-        - Prove the complete authored Course to class to learner to review and journal journey in isolated actual PostgreSQL and browser runs, plus full required exact-head gates and independent review.
-        dependencies: Essay957 and foundation2d have successful General and Learning workflows and independent source approval. Their final integration candidates Essay045dbcc and foundation2e3e002 are also source-approved; Essay045 has fresh47 browser passes and General governance, code and data success while Access is finishing. Full Quiz inherits both candidates. Integrate these dependencies together with the complete Quiz in one joint candidate after its own final exact-head repository, focused, browser and independent-review evidence; separate parent merges are no longer prerequisites. Do not infer acceptance from inherited receipts alone.
-        integration_strategy: Published publication0303 intersected the provisional private Essay303 after its final convergence. One controlled additional convergence is selected for the joint candidate against actual main01b6cc2fc, preserving all published SQL and foreign product changes. Renumber only private dependency files and update strict current-prefix fixtures, then test the joint result once rather than repeating equivalent parent-only cycles. Do not integrate conflicting parent PRs separately. If another published ordinal intersection invalidates this final convergence, stop integration for an owner integration window instead of chasing main indefinitely; independent development may continue.
-        migration_allocation: Actual published main01b6cc2fc ends at0303_publication_owner_editor.sql. Provisional joint order is Essay304, Quiz policy305, Quiz attempt state306 and complete Quiz307. Verify the actual published frontier before convergence; private claims are not reservations. Preserve every published byte and historical checksum, and attest byte identity of private dependency SQL across renames.
-        constraints: Expected areas are forecasts, not per-file permission leases. Inspect real unfinished overlaps before writing and preserve foreign drafts, especially owner ClassroomPage and related classroom WIP. No learner-file feature, Python runner, tenant or RLS model change, unrelated repair, new dependency or workflow, deployment, owner database or protected assets in this slice. Preserve existing tests, limits, retries and timeouts.
-        programme_next: After accepted Quiz integration complete immutable learner-file answers, then the combined four-kind Course authoring, composition and class journey acceptance. The programme does not end at this slice.
+        - Document physical schema reuse, exact additive SQL, immutable lineage and authorization before implementation.
+        - Reuse existing private object storage, bound uploads, validate configured formats and sizes, safely serve original bytes to authorized viewers.
+        - Preserve stable Account and StudentSeat identity, exact assignment version, idempotent submission and existing result semantics.
+        - Verify teacher creation from both class and Course, learner upload, submission, review and journal, including practice, Essay and Quiz regressions at 320, 390, 1024 and 1440 widths.
+        constraints: Preserve all published SQL, existing RLS model, owner work and unrelated code. No live database actions, deployment, new infrastructure, external scanning service or second authoring/runtime system.
       pending_validation_slices:
       - id: LRN-E1-ESSAY-COURSE-VERTICAL
         source_pr: 964
@@ -16353,7 +16479,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-realtime-compute-cause
     owned_paths:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-GMIN-POWER-001.md
     previous_task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
       issue: 539
@@ -16377,8 +16503,9 @@ parallel_lanes:
       measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     task:
-      id: TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001
+      id: TASK-ELECTRONICS-STRICT-RUNTIME-THROUGHPUT-001
       issue: 539
+      program_issue: 836
       branch: main
       base_branch: main
       pr: null
@@ -16386,13 +16513,42 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'no'
-      checkpoint: owned_stable_loop_stride_selected
+      checkpoint: stable_loop_throughput_selected
       owner_acceptance: pending
-      owner_authorization: Owner requests fixing remaining Electronics timing failures, verifying the work in the browser, and publishing the verified changes in main.
+      owner_authorization: Owner requests fixing every strict Electronics browser failure and integrating verified repairs in main. Preserve physical steps, thresholds, and foreign changes. No server, deployment, or live database actions.
+      strict_baseline:
+        sha: 2057c5169515458ce0658fe0024aacdc4d37cf64
+        run: 43011307328
+        observed: 241 passed, 17 failed, 12 unfinished
+      previous_gmin_power_slice:
+        task_id: TASK-ELECTRONICS-GMIN-POWER-001
+        integrated_sha: ca4f4c8095a2a660dc5e0172ccd1b030c8ba5dab
+        pr: 1068
+        browser_run: 43011307328
+        required_run: 43011307255
+        result: GMIN focused and browser Save/reopen passed; strict suite still open.
+      follow_up_boundaries:
+        - Independently measured visible phase delivery, including short100 and D2-D4
+        - Consistent lamp electrical and thermal endpoint
+        - FET nonlinear convergence and transient validation
+      previous_residual_candidate:
+        task_id: TASK-ELECTRONICS-WORKER-RESIDUAL-001
+        pr: 1064
+        candidate_sha: 963038993170ef1b3fcbe8483ffca19913dca9d4
+        status: not_integrated
+        result: General failed own size gate and strict browser timing remains open; no timing closure claimed.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-STRICT-RUNTIME-THROUGHPUT-001.md
       deployment: prohibited_by_owner
       database_actions: none_live
+      previous_browser_wait_contract_slice:
+        task_id: TASK-ELECTRONICS-BROWSER-WAIT-CONTRACT-001
+        integrated_sha: ab8d857a225538c42cb8614c41391f62ae755a09
+        pr: 1057
+      previous_owned_stable_loops_slice:
+        task_id: TASK-ELECTRONICS-OWNED-STABLE-LOOPS-001
+        integrated_sha: 39656d38b55bd6b3aca4c31be0da78a68f4e8699
+        pr: 1052
       previous_spdt_evidence_budget_slice:
         task_id: TASK-ELECTRONICS-SPDT-EVIDENCE-BUDGET-001
         integrated_sha: bbff6866aa9f6779031f006aa179c864c88e5d6e
@@ -16478,7 +16634,7 @@ parallel_lanes:
         branch: main
         sha: eacb9fa9a1e6bfacd22d10c16ae017a5d551ef6f
       observed_at: '2026-11-01T22:29:00Z'
-      observation_note: Fresh fetch main before edits and integration. Recorded baseline remains historical. Main 6e57e0ae6 had successful General run 42613626991 at selection. Existing timing thresholds and browser test remain intact.
+      observation_note: Fresh fetch main before edits and integration. This recorded baseline remains historical. Browser timing and electrical acceptance thresholds stay unchanged.
 
   - id: electronics-compact-toolbar-hit
     parent_lane: electronics
@@ -17116,18 +17272,96 @@ parallel_lanes:
 
   - id: robotics
     parent_lane: electronics
-    worktree_id: robotics-field-v2-20261106
+    worktree_id: robotics-field-core-e1-001
     owned_paths:
-    - apps/web/robotics-dev.html
-    - apps/web/src/robotics/**
-    - contexts/robotics/**
-    - modules/robotics/**
-    - docs/product/robotics/**
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
+      - apps/web/robotics-dev.html
+      - apps/web/src/robotics/**
+      - contexts/robotics/**
+      - modules/robotics/**
+      - docs/product/robotics/**
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M0-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-M1-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      checkpoint: e0_preserved_e1_qualification_ready
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      owner_authorization: "Owner on 2026-11-11 explicitly instructed: «Сделай всё это и подготовь», after
+        readiness review identifying spec adoption, new canonical selection, E0 preservation and bounded
+        E1 qualification. Authorizes this documentation-only registration, ordinary protected
+        integration of PR1069, preservation of D2-R2:4630 work and subsequent bounded E1 after this
+        record is accepted on main. Does not authorize production deployment, working database writes,
+        replacement of live checkout, wholesale editor rewrite or owner acceptance of physics."
+      scope: "E1 only: qualify a pinned 3D physics candidate with six TEST_ONLY mechanical scenes and
+        inspect existing electrical/Arduino timed API; produce D01 ADR and D02 feasibility/seam report.
+        Preserve all v1.1 requirements; no product 3D activation until dependencies pass."
+      constraints:
+        - Canonical selection takes effect only after this documentation proposal is accepted on main.
+          Product branches inherit it; do not edit current.yaml to self-authorize.
+        - E0 safety checkpoint and hash-verified archive preserve the original 4630 source, one modified
+          test and 148 untracked evidence files; live checkout/index/HEAD remain unchanged. Archive
+          branch is preservation-only, not an integration candidate.
+        - Use a clean isolated source checkout for E1; no new persistent server, Docker project, port or
+          database. Existing owner-authorized 4630/4631/4632 remain unchanged.
+        - Permit a pinned 3D WASM dependency only inside the bounded qualification harness after
+          current-main convergence, license/hash/lock/build checks. No CDN latest or runtime downloads.
+        - "Six TEST_ONLY scenes: free fall; cylinder rest/tip; sphere rolling; wheel chassis flat; ramp
+          ascent; three-link limited-drive mechanism. Diagnostic torques are not a production motor
+          model."
+        - Read and probe only existing public electrical/Arduino APIs; no copied solver, fake sensor,
+          invented reverse or electrical load/stall claim. Report unsupported barriers/state ownership
+          as D02 gaps.
+        - D01 and D02 remain open until actual exact-SHA evidence. Full CoupledCheckpoint/persistent
+          resume remains disabled; no snapshot equivalence claim.
+        - No mutation of old project schemas, public artifacts, owner SVG, RLS or working DB. Historical
+          FIELD-002 constraints continue to describe its old 2D profile, not this new bounded
+          qualification.
+        - E3/E4 UI-only work requires a separately selected bounded slice after E0; do not mix
+          camera/editor source changes into E1.
+        - Focused self-review is not independent review. No physical precision, weak-school-PC
+          performance or deployment acceptance without corresponding evidence.
+      context_hints:
+        - docs/product/robotics/FIELD_CORE_START.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
+        - docs/product/robotics/FIELD_CORE_SPEC.md
+        - docs/product/robotics/FIELD_CORE_SPEC_REVIEW.md
+        - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
+      gate_boundary: "Registration: scoped preflight, exact doc/trace hashes, control-plane and
+        governance, applicable protected CI. E1: reproduce exact qualification commands and raw
+        measurements on pinned candidate, required General/build/dependency checks and independent
+        review before D01 acceptance. Existing pnpm test:robotics is regression, not proof of new
+        physics."
+      deployment: not_authorized
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: f02b9b350bc630ccafefa2fec7d4beb7e1e53953
+      head_sha: null
+      observed_at: '2026-11-10T21:11:26.637Z'
+      main:
+        branch: main
+        sha: f02b9b350bc630ccafefa2fec7d4beb7e1e53953
+      observation_note: Dated GitHub observation only. Fetch main and the immutable recovery branch before
+        writes; this record is not current HEAD, implementation acceptance or deployment authority.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    previous_task:
       id: TASK-ELECTRONICS-ROBOTICS-FIELD-002
       issue: 1001
       branch: codex/robotics-field-v2-20261106
@@ -17139,64 +17373,65 @@ parallel_lanes:
       owner_acceptance: pending
       source_pr: 991
       source_head_sha: 9b14fb92e85c83636e9146da68597020d0885f55
-      owner_authorization: 'Owner explicitly requests continued Robotics field development: freely editable
-        field and strips, real-life ball, metal can and other elements, 30 cm modular tiles, more realistic
-        robot contacts and selectable physics levels. Prior explicit instruction to send completed Robotics
-        work into main persists. This authorizes canonical registration and bounded implementation/review/normal
-        protected source integration, not deployment, working database changes or owner acceptance. Portal
-        source integration PR991 and its post-merge General/Publications succeeded; unrelated acceptance
-        risks remain open.'
-      scope: 'Deliver one coherent Field v2 result in the existing Robotics portal: metric modular field,
-        editable lines/curves and tile stamps, ball/can/box catalogue, legacy-compatible educational mode
-        and finite-mass planar dynamics, independent numerical accuracy, authored save/reopen and immutable
-        public geometry.'
+      owner_authorization: "Owner explicitly requests continued Robotics field development: freely
+        editable field and strips, real-life ball, metal can and other elements, 30 cm modular tiles,
+        more realistic robot contacts and selectable physics levels. Prior explicit instruction to send
+        completed Robotics work into main persists. This authorizes canonical registration and bounded
+        implementation/review/normal protected source integration, not deployment, working database
+        changes or owner acceptance. Portal source integration PR991 and its post-merge
+        General/Publications succeeded; unrelated acceptance risks remain open."
+      scope: "Deliver one coherent Field v2 result in the existing Robotics portal: metric modular field,
+        editable lines/curves and tile stamps, ball/can/box catalogue, legacy-compatible educational
+        mode and finite-mass planar dynamics, independent numerical accuracy, authored save/reopen and
+        immutable public geometry."
       constraints:
-      - Reuse the existing electronics solver, Arduino/Blockly, catalog and committed motor/source-time
-        contracts; no copied motor equations, electrical load/stall claims or fake sensors.
-      - Preserve legacy world behaviour and source schema during server validation. New scene schemas have
-        explicit editor upgrade and reject downgrade/replacement data loss; old immutable publication schemas
-        stay readable.
-      - Finite-mass dynamic robot and objects react mutually to contacts. Mechanical traction limit and
-        floor resistance are explicit parameters; rolling and sliding are distinct. No vertical/tipping/deformation
-        claims.
-      - Field extent, tile size, grid/snap and screen zoom are distinct. Marks are authored geometry, not
-        walls or a fabricated color sensor. Invalid resize/placement preserves the valid source.
-      - Runtime pose/velocity stays outside authored saves, history and public artifacts. Pause/Reset and
-        deterministic committed-clock stepping remain authoritative.
-      - Public artifacts allowlist geometry only and exclude code/circuit/bindings/runtime/physics-private
-        fields. Account/StudentSeat, ACL/RLS, CAS/idempotency and publication immutability remain unchanged.
-      - One bounded mature 2D physics dependency is allowed if necessary, with exact pin, license and lockfile/build/bundle
-        validation. No new backend/service or runtime installation.
-      - Controller coordinates canonically registered work; domain and UI authors own explicitly disjoint
-        paths in one checkout. Independent final-SHA review covers mechanics/clock/rollout/layout.
-      - Built Web/API, real isolated PostgreSQL and main-site browser evidence cover 1440/1024/390/320.
-        Focused tests do not replace applicable General or owner acceptance.
-      - No deployment, working database, owner asset changes, 3D, line/color sensor runtime, noise model
-        or unrelated module repair. Inherited FAIL/UNKNOWN is retained until separately resolved.
-      - The necessary existing HC-SR04 no-echo timed-input seam is allowed as a separate bounded dependency for larger fields. Preserve legacy defaults, accepted Trig/Echo and pulseIn timeout; no range clamp, stale echo, alternate sensor or clock rewrite.
+        - Reuse the existing electronics solver, Arduino/Blockly, catalog and committed
+          motor/source-time contracts; no copied motor equations, electrical load/stall claims or fake
+          sensors.
+        - Preserve legacy world behaviour and source schema during server validation. New scene schemas
+          have explicit editor upgrade and reject downgrade/replacement data loss; old immutable
+          publication schemas stay readable.
+        - Finite-mass dynamic robot and objects react mutually to contacts. Mechanical traction limit
+          and floor resistance are explicit parameters; rolling and sliding are distinct. No
+          vertical/tipping/deformation claims.
+        - Field extent, tile size, grid/snap and screen zoom are distinct. Marks are authored geometry,
+          not walls or a fabricated color sensor. Invalid resize/placement preserves the valid source.
+        - Runtime pose/velocity stays outside authored saves, history and public artifacts. Pause/Reset
+          and deterministic committed-clock stepping remain authoritative.
+        - Public artifacts allowlist geometry only and exclude
+          code/circuit/bindings/runtime/physics-private fields. Account/StudentSeat, ACL/RLS,
+          CAS/idempotency and publication immutability remain unchanged.
+        - One bounded mature 2D physics dependency is allowed if necessary, with exact pin, license and
+          lockfile/build/bundle validation. No new backend/service or runtime installation.
+        - Controller coordinates canonically registered work; domain and UI authors own explicitly
+          disjoint paths in one checkout. Independent final-SHA review covers
+          mechanics/clock/rollout/layout.
+        - Built Web/API, real isolated PostgreSQL and main-site browser evidence cover
+          1440/1024/390/320. Focused tests do not replace applicable General or owner acceptance.
+        - No deployment, working database, owner asset changes, 3D, line/color sensor runtime, noise
+          model or unrelated module repair. Inherited FAIL/UNKNOWN is retained until separately
+          resolved.
+        - The necessary existing HC-SR04 no-echo timed-input seam is allowed as a separate bounded
+          dependency for larger fields. Preserve legacy defaults, accepted Trig/Echo and pulseIn
+          timeout; no range clamp, stale echo, alternate sensor or clock rewrite.
       context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
-      - docs/product/robotics/FIELD_V2_PLAN.md
-      - docs/product/robotics/README.md
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
+        - docs/product/robotics/FIELD_V2_PLAN.md
+        - docs/product/robotics/README.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       gate_boundary: Registration uses governance only. Product uses test:robotics, projects-publication
         code/PG and built-browser gates, types/build/bundle, required General and independent final-SHA
-        review. Local ephemeral formatting/unit checks are allowed; real browser/PostgreSQL evidence uses
-        isolated CI.
+        review. Local ephemeral formatting/unit checks are allowed; real browser/PostgreSQL evidence
+        uses isolated CI.
       deployment: not_authorized
       database_actions: isolated_tests_only
-    revisions:
-      convergence_baseline_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
-      head_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
-    gates:
-      focused:
-        workflow: ASA Lab Governance and Code Gates
-        commands:
-        - pnpm gate:governance
-      general:
-        workflow: ASA Lab Governance and Code Gates
-        commands:
-        - pnpm gate:repository
+      revisions:
+        convergence_baseline_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
+        head_sha: a9f26d69a597dcf26f31efc6c235683a8c5ad47c
+      transition_reason: Superseded as selected work by owner-requested field-core E1 preparation. This is
+        not technical or owner acceptance of FIELD-002 or PR1044.
+      preserved_source_pr: 1044
+      preserved_source_sha: 47ac27e9cca6cb1e28b99637453cc935cba071b5
 
 integration:
   owner_lane: visual-programming
@@ -17577,5 +17812,27 @@ blocking:
     - independent_product_review
     reason: D2-D4 is selected only after the external actual D13 controller acceptance receipt, new independent review and normal tested-source main integration recorded in previous_task. The five-file source-only review does not grant actual browser acceptance. Require the existing physical/source/native joint-frame, seven acquisitions/eight cycles/49 ordered vectors, five programmes, Reset/cookies-reopen, relative periods/duty, startup5s/Stop1s/raw50ms/backlog2 criteria; D2-local Save R2 requires matching finished PUT200, the whole independently intended circuit and exact request/response/GET revisions without forced dirty or Save clicks. Require existing exact source/CI gates and actual discovery of all170 prior cases plus1 D2 case. Selected150s acquisition/20s native-vector/840s case budgets and browser50 with review-images35 add no exceptions or command changes. Clear only this new slice's evidenced cause before its integration and release claims; full-realtime Issue546 and all other blockers remain unchanged.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D2-D4-001.md
+  - id: ROBOTICS-FIELD-CORE-D01-D02
+    kind: acceptance_blocker
+    lane: robotics
+    task_id: TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001
+    blocks:
+      - spatial_product_integration
+      - full_physics_acceptance
+      - release_claim
+      - deployment
+    allows:
+      - documentation_update
+      - source_preservation
+      - bounded_e1_qualification
+      - focused_verification
+      - independent_source_review
+    reason: D01 engine qualification and D02 causal electromechanical/timed-sensor coupling are not
+      proved. E1 may use diagnostic TEST_ONLY forces, not replace product electrical truth. UI-only work
+      must be separately selected; no vertical physics acceptance by document publication.
+    unblock_requires: Exact pinned engine fixtures and D01 ADR; explicit D02 feasibility and before
+      dependent E7 actual TIME-01..03 coupling evidence with single state ownership; independent review
+      on actual final candidate.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/1071
 
 next_task: null

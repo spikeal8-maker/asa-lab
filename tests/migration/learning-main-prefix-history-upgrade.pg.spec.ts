@@ -439,6 +439,26 @@ const upgradeArtifacts = [
     '0312_learning_quiz_complete_course.sql',
     'fb93b9453e0127d94843feb45abf8371437eee0b0421ceb34323171bc5a1825b',
   ],
+  [
+    '0313',
+    '0313_ai_openai_chat_catalog.sql',
+    'e16505c4be32c1bb8996f349a946d4aa5db469746781385c8fa029ac29c4dc13',
+  ],
+  [
+    '0314',
+    '0314_ai_polza_video_catalog.sql',
+    '0a72cf57049ff31c89950609ffec5d6d9918eeff9f73b68057346c4fdf951f81',
+  ],
+  [
+    '0315',
+    '0315_ai_polza_catalog_selection.sql',
+    'd2225933b2d5bc146d82262d7073ea5fabae47bcdb20581f2ff01c788bd5d311',
+  ],
+  [
+    '0316',
+    '0316_learning_file_answers.sql',
+    '4e63b37b20a09b4e0b2eba6e96140de1b2372febae7490cbf21ee505c7ec78c9',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

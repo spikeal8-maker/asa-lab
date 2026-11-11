@@ -182,6 +182,7 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
   let lastHorizon = 0,
     lastReadyAt = 0,
     readyCount = 0;
+  let seventhNativeRecordAt: number | null = null;
   let acknowledgement: {
     sent: number;
     acknowledged: number;
@@ -190,6 +191,7 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
   } | null = null;
   const physical: ShortCycleEdge[] = [],
     native: ShortCycleEdge[] = [];
+  const nativeFronts = () => Math.max(0, native.length - (native[0]?.high === false ? 1 : 0));
   const fail = (reason: string) => {
     errorCount++;
     if (errors.length < 64) errors.push(reason);
@@ -341,7 +343,10 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
       const high = led.brightness > 0;
       if (high && led.brightness !== onBrightness) fail('incorrect-native-brightness');
       if (high !== priorNative) {
-        if (native.length < 9) native.push({ at: Number(row.witnessAt), high });
+        if (native.length < 9) {
+          native.push({ at: Number(row.witnessAt), high });
+          if (nativeFronts() === 7) seventhNativeRecordAt = row.at;
+        }
         priorNative = high;
       }
     }
@@ -356,7 +361,7 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
   };
   const state = () => ({
     h0,
-    nativeFronts: Math.max(0, native.length - (native[0]?.high === false ? 1 : 0)),
+    nativeFronts: nativeFronts(),
     retainedEdges: physical.length + native.length,
     sequence,
   });
@@ -395,7 +400,9 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
       acknowledgement,
     };
   };
-  return { accept, envelope, state, finish };
+  const hasSevenNativeFrontsBefore = (deadline: number) =>
+    seventhNativeRecordAt !== null && seventhNativeRecordAt < deadline;
+  return { accept, envelope, state, finish, hasSevenNativeFrontsBefore };
 }
 
 async function readRealtime682LongAudit(path: string, phaseMs: number, source: string) {
@@ -422,6 +429,26 @@ async function realtime682Journal(
   const records: Realtime682Record[] = [];
   const errors: string[] = [];
   let acknowledged = 0;
+  let onAcknowledgedBatch: ((batch: Realtime682Record[]) => void) | undefined;
+  const waitForAcknowledgedRecord = (
+    predicate: (record: Realtime682Record) => boolean,
+    timeout: number,
+  ) =>
+    new Promise<void>((resolve, reject) => {
+      const deadline = performance.now() + timeout;
+      const finish = (matched: boolean) => {
+        clearTimeout(timer);
+        onAcknowledgedBatch = undefined;
+        if (matched) resolve();
+        else reject(new Error(`No matching browser evidence acknowledged within ${timeout} ms`));
+      };
+      const timer = setTimeout(() => finish(false), timeout);
+      onAcknowledgedBatch = (batch) => {
+        if (performance.now() >= deadline) finish(false);
+        else if (batch.some(predicate)) finish(true);
+      };
+      onAcknowledgedBatch(records);
+    });
   const retain = (kind: string, data: unknown) => {
     try {
       appendFileSync(path, `${JSON.stringify({ kind, nodeAt: Date.now(), data })}\n`, {
@@ -462,6 +489,7 @@ async function realtime682Journal(
         }
       }
       acknowledged = batch.at(-1)!.sequence;
+      onAcknowledgedBatch?.(batch);
       return acknowledged;
     } catch (error) {
       errors.push(String(error));
@@ -837,7 +865,7 @@ async function realtime682Journal(
     );
     await barrier();
   };
-  return { records, retain, barrier, finish, errors };
+  return { records, retain, barrier, finish, errors, waitForAcknowledgedRecord };
 }
 
 function realtime682Fixture(source: string, button: boolean): SchematicDocument {
@@ -1089,14 +1117,16 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
           // cannot end acquisition; seven following-RAF native witnesses must arrive.
           await expect.poll(() => longAudit.state().h0, { timeout: 5000 }).not.toBeNull();
           const h0 = longAudit.state().h0!;
+          const deadline = h0 + 6 * longMs + 1000;
           const remaining = await page.evaluate(
-            ({ h0, phaseMs }) => h0 + 6 * phaseMs + 1000 - performance.now(),
-            { h0, phaseMs: longMs },
+            (deadline) => deadline - performance.now(),
+            deadline,
           );
           expect(remaining).toBeGreaterThan(0);
-          await expect
-            .poll(() => longAudit.state().nativeFronts, { timeout: remaining })
-            .toBeGreaterThanOrEqual(7);
+          await journal.waitForAcknowledgedRecord(
+            () => longAudit.hasSevenNativeFrontsBefore(deadline),
+            remaining,
+          );
           await journal.barrier();
           journal.retain('long-stop-action', { at: await page.evaluate(() => performance.now()) });
           await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
@@ -1126,14 +1156,37 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
               )
               .toBeGreaterThanOrEqual(shortMs * 22_000 + 1000);
           } else if (mode === 'delays') {
-            await expect
-              .poll(
-                () =>
-                  (responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined)
-                    ?.committedHorizonMicroseconds ?? 0,
-                { timeout: 22_000 },
+            let finalLowResponseAt: number | undefined;
+            await journal.waitForAcknowledgedRecord((row) => {
+              if (
+                finalLowResponseAt === undefined &&
+                row.kind === 'response' &&
+                row.source === source
+              ) {
+                const advance = row.advance as SimulationTimedAdvancePayload | null;
+                if (
+                  advance?.executionStatus === 'ready' &&
+                  advance.committedHorizonMicroseconds >= 21_031_000 &&
+                  advance.result?.components.find((led) => led.componentId === 'led0')
+                    ?.brightness === 0
+                )
+                  finalLowResponseAt = row.at;
+              }
+              if (
+                row.kind !== 'paint' ||
+                finalLowResponseAt === undefined ||
+                typeof row.witnessAt !== 'number' ||
+                !Number.isFinite(row.witnessAt) ||
+                row.witnessAt < finalLowResponseAt
               )
-              .toBeGreaterThanOrEqual(21_031_000);
+                return false;
+              const [led] = row.leds as Array<{
+                brightness: number | null;
+                loadedAt: number | null;
+                visible: boolean;
+              }>;
+              return led?.visible === true && Number.isFinite(led.loadedAt) && led.brightness === 0;
+            }, 22_000);
           } else {
             await expect.poll(() => latest('led0')).toBe(0);
             const box = await part(page, 'button-682').boundingBox();
@@ -2691,9 +2744,9 @@ for (const width of [1440, 1024, 390, 320]) {
     const openWorkspaceMenu = async () => {
       const box = await background.boundingBox();
       if (!box) throw new Error('Arduino workspace has no visible background');
-      // The flyout overlays the left side of this full-width SVG background.
-      // Send a real pointer gesture to its uncovered top-right workspace area.
-      await page.mouse.click(box.x + box.width - 25, box.y + 35, { button: 'right' });
+      // The flyout covers the left side of the SVG. Click the uncovered area
+      // relative to the background so Playwright waits for the panel to settle.
+      await background.click({ button: 'right', position: { x: box.width - 25, y: 35 } });
     };
     const readProgram = async () => {
       const doc = await readEditorDocument();

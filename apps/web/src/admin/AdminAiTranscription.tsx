@@ -1,4 +1,5 @@
 import { AdminAiSpeechTest } from './AdminAiSpeechTest';
+import { AdminPolzaCatalog } from './AdminPolzaCatalog';
 import { useEffect, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import { isPolzaConfig, type AiPolzaAdminConfig } from './ai-polza-admin';
@@ -218,6 +219,13 @@ export function AdminAiTranscription({
             </p>
           </details>
         </form>
+      ) : null}
+      {config ? (
+        <AdminPolzaCatalog
+          kind="stt"
+          connected={config.apiKeyConfigured}
+          onAccessDenied={onAccessDenied}
+        />
       ) : null}
       {config ? (
         <AdminAiSpeechTest

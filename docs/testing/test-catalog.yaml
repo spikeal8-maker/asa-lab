@@ -26,6 +26,16 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-LRN-FILE-COURSE-BROWSER-001
+    title: Teacher and learner complete the immutable file-answer journey in a mixed Course with real private object storage
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/testing/learning-e1-browser.mjs
+    timeout_seconds: 1800
+    owner: learning
+    artifacts: [playwright-report, learning-file-course-screenshots]
   - id: TST-LEARNING-ESSAY-COURSE-001
     title: Written Course responses preserve exact publication, learner authority, revisions, immutable evidence, rework and canonical journal results
     suite: integration
@@ -1607,6 +1617,28 @@ tests:
     phase_available: PHASE-12
     required_for: []
     command: python tools/test_ci_required.py
+    timeout_seconds: 180
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-CI-CONTRACT-001
+    title: Versioned General accepted-base selection and actual applicable exact-source results fail closed
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: python tools/test_devex_ci_contract.py
+    timeout_seconds: 180
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-CI-EFFECT-INTEGRATION-001
+    title: General contract reuses the installed AST helper for an actual accepted CSS effect and unsupported effect rejection
+    suite: contracts
+    level: integration
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-python.mjs tools/test_devex_ci_contract.py --helper-integration
     timeout_seconds: 60
     owner: devex-engine
     artifacts: [test-report]

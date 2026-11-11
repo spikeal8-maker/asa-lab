@@ -14,6 +14,7 @@ import { courseCompletion, lessonComplete, lessonExcused } from '../learning/cou
 import { AssignmentView } from './AssignmentView';
 import { TaskBlocks } from './TaskBlocks';
 import { AssignmentGoal } from './BriefText';
+import { FileResponseEditor } from './FileResponseEditor';
 import { EssayResponseEditor } from './EssayResponseEditor';
 import { LessonBlocks } from './LessonBlocks';
 import { useSchoolTime } from './school-time';
@@ -102,8 +103,13 @@ export function courseActivityAssignmentShape(
   };
 }
 
-function courseActivityModuleLabel(moduleKey: string | null): string {
-  if (moduleKey === null) return 'Письменный ответ';
+function courseActivityTypeLabel(
+  moduleKey: string | null,
+  kind?: CourseActivityOccurrence['activityKind'],
+): string {
+  if (kind === 'quiz') return 'Тест';
+  if (kind === 'file') return 'Файловый ответ';
+  if (kind === 'essay' || moduleKey === null) return 'Письменный ответ';
   if (moduleKey === 'electronics') return 'Electronics';
   if (moduleKey === 'three-d') return '3D';
   return moduleKey;
@@ -430,8 +436,11 @@ export function SeatCourses({
                               >
                                 <span>{occurrence.title}</span>
                                 <small>
-                                  {courseActivityModuleLabel(occurrence.moduleKey)} ·{' '}
-                                  {courseActivityStatus(occurrence)}
+                                  {courseActivityTypeLabel(
+                                    occurrence.moduleKey,
+                                    occurrence.activityKind,
+                                  )}{' '}
+                                  · {courseActivityStatus(occurrence)}
                                 </small>
                               </button>
                             </li>
@@ -474,7 +483,11 @@ export function SeatCourses({
                     </>
                   );
                 }
-                if (occurrence.activityKind === 'essay' || occurrence.activityKind === 'quiz') {
+                if (
+                  occurrence.activityKind === 'essay' ||
+                  occurrence.activityKind === 'quiz' ||
+                  occurrence.activityKind === 'file'
+                ) {
                   return (
                     <div
                       className="seat-course-activity"
@@ -491,7 +504,7 @@ export function SeatCourses({
                     >
                       <div className="seat-course-activity-main">
                         <span className="course-eyebrow">
-                          {occurrence.activityKind === 'quiz' ? 'Тест' : 'Письменный ответ'}
+                          {courseActivityTypeLabel(occurrence.moduleKey, occurrence.activityKind)}
                         </span>
                         <strong>{occurrence.title}</strong>
                         <small>{courseActivityStatus(occurrence)}</small>
@@ -503,6 +516,13 @@ export function SeatCourses({
                           key={occurrence.activityRunId}
                           activityRunId={occurrence.activityRunId}
                           renderedTaskBlocks={occurrence.blocks ?? null}
+                          onChanged={reload}
+                          onRegisterLeaveGuard={registerResponseGuard}
+                        />
+                      ) : occurrence.activityKind === 'file' ? (
+                        <FileResponseEditor
+                          activityRunId={occurrence.activityRunId}
+                          activityVersionId={occurrence.learningActivityVersionId}
                           onChanged={reload}
                           onRegisterLeaveGuard={registerResponseGuard}
                         />
@@ -539,7 +559,7 @@ export function SeatCourses({
                       <span className="course-eyebrow">Практика</span>
                       <strong>{activityAssignment.title}</strong>
                       <small>
-                        {courseActivityModuleLabel(activityAssignment.moduleKey)} · {activityStatus}
+                        {courseActivityTypeLabel(activityAssignment.moduleKey)} · {activityStatus}
                       </small>
                     </div>
                     <AssignmentGoal goal={activityAssignment.goal} />
