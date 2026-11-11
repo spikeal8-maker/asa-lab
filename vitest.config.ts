@@ -87,10 +87,11 @@ const allSpecs = [
 ];
 const excludedSpecs = ['**/node_modules/**', '**/dist/**', 'e2e/**'];
 const timedOwnershipSpecs = ['contexts/electronics/testing/engine-timed-api.spec.ts'];
-const submissionLockSpecs = [
+const sharedDdlSpecs = [
   'tests/courses/activity-participations.pg.spec.ts',
   'tests/courses/learning-direct-project-attempts.pg.spec.ts',
   'tests/portal/public-projects.pg.spec.ts',
+  'tests/courses/classroom-manual-journal.pg.spec.ts',
 ];
 
 export default defineConfig({
@@ -101,9 +102,10 @@ export default defineConfig({
     include: allSpecs,
     exclude: excludedSpecs,
     reporters: ['default'],
-    // The three shared-lock suites retain their original beforeAll/afterAll
-    // advisory lock, exact 60/90-second limits and failure-trigger assertions.
-    // Keep their group unchanged. The CPU-heavy ownership oracle below runs
+    // The original three shared-lock suites retain their advisory locks,
+    // exact limits and failure-trigger assertions. Journal trigger DDL also
+    // locks a shared table, so it must not overlap ordinary learner writes.
+    // The CPU-heavy ownership oracle below runs
     // afterwards so unrelated parallel files cannot consume its five-second budget.
     projects: [
       {
@@ -113,7 +115,7 @@ export default defineConfig({
           globals: false,
           environment: 'node',
           include: allSpecs,
-          exclude: [...excludedSpecs, ...submissionLockSpecs, ...timedOwnershipSpecs],
+          exclude: [...excludedSpecs, ...sharedDdlSpecs, ...timedOwnershipSpecs],
           sequence: { groupOrder: 0 },
         },
       },
@@ -123,7 +125,7 @@ export default defineConfig({
           name: 'serialized-submissions',
           globals: false,
           environment: 'node',
-          include: submissionLockSpecs,
+          include: sharedDdlSpecs,
           exclude: excludedSpecs,
           fileParallelism: false,
           sequence: { groupOrder: 1 },
