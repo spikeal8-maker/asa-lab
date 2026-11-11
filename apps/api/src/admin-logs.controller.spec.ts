@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { AdminLogsController, logFilter } from './admin-logs.controller.js';
+import { AdminLogsController, logFilter, logTrendWindow } from './admin-logs.controller.js';
 import type { AdminControlPlaneService } from './admin-control-plane.service.js';
 import type { AdminLogsService } from './admin-logs.service.js';
 const request = { cookies: {}, id: 'request' } as FastifyRequest;
@@ -9,6 +9,7 @@ const reply = { header: vi.fn().mockReturnThis() } as unknown as FastifyReply;
 const logs = {
   status: vi.fn(),
   query: vi.fn(),
+  trend: vi.fn(),
   createExport: vi.fn(),
   exportStatus: vi.fn(),
   download: vi.fn(),
@@ -31,6 +32,7 @@ describe('technical log authorization', () => {
       for (const call of [
         () => controller.status(request, reply),
         () => controller.query(request, {}, reply),
+        () => controller.trend(request, {}, reply),
         () => controller.create(request, {}, reply),
         () => controller.progress(request, 'id', reply),
         () => controller.download(request, 'id', reply),
@@ -38,6 +40,7 @@ describe('technical log authorization', () => {
         await expect(call()).rejects.toMatchObject({ status: context ? 403 : 401 });
       }
       expect(logs.status).not.toHaveBeenCalled();
+      expect(logs.trend).not.toHaveBeenCalled();
       expect(logs.createExport).not.toHaveBeenCalled();
       expect(logs.download).not.toHaveBeenCalled();
     },
@@ -73,5 +76,13 @@ describe('technical log authorization', () => {
   });
   it('accepts bounded subsystem filters', () => {
     expect(logFilter({ subsystem: 'projects' })).toMatchObject({ subsystem: 'projects' });
+  });
+  it('bounds the number of error intervals while allowing an aligned yearly overview', () => {
+    const range = { from: '2025-11-11T16:32:00Z', to: '2026-11-11T16:32:00Z' };
+    expect(logTrendWindow({ ...range, bucketSeconds: '604800' })).toMatchObject({
+      bucketSeconds: 604800,
+    });
+    expect(() => logTrendWindow({ ...range, bucketSeconds: '300' })).toThrow();
+    expect(() => logTrendWindow({ ...range, bucketSeconds: '0' })).toThrow();
   });
 });

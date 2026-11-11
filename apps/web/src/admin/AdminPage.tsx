@@ -1687,7 +1687,11 @@ function AdminWorkspace({
     selectedScope.permissions.includes('administration.security.manage');
 
   return (
-    <main id="main-content" className="portal-content admin-page" tabIndex={-1}>
+    <main
+      id="main-content"
+      className={`portal-content admin-page${visibleSection === 'overview' ? ' admin-overview-page' : ''}`}
+      tabIndex={-1}
+    >
       <header className="admin-heading admin-heading-compact">
         <div className="admin-title-line">
           <h1>
