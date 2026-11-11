@@ -12,23 +12,23 @@
     },
     "dc-series-1": {
       "status": "solved",
-      "fingerprint": "257bbe7362b0db8a33f1cbac7187abadf8409c59850789c754790120e1b02a3b"
+      "fingerprint": "ae794bc37ecf5d782dc2110492741a90e4e9992a603fef9084d2f2f3912e6f71"
     },
     "dc-series-10": {
       "status": "solved",
-      "fingerprint": "5a188439570559de6f11970286e0d01708f6b1ae297c6f043770a7ad4f74f84e"
+      "fingerprint": "1099f764f55657fe1db1a688dde622fe038a7b20dbe79600fcd8ad690a314530"
     },
     "dc-series-50": {
       "status": "solved",
-      "fingerprint": "7995cc8731464b32da2d800bac2242f7766bd5da0238ecdc50f190c164c1f2e3"
+      "fingerprint": "9092bdf955eed0f0b9f130f90ca48006cdd2cf3a0d1b337a870fe67c6e048c8b"
     },
     "dc-parallel-4": {
       "status": "solved",
-      "fingerprint": "1e642b095de7cd33a792387effdbfd7d54f2f616a1a1be2456e7a76e25059816"
+      "fingerprint": "73f0c7d2d9d3620a4fd9d2f07425e4ad67e0692432c05f64c64d4559e015f586"
     },
     "dc-parallel-20": {
       "status": "solved",
-      "fingerprint": "c7851919f5587170de56090fa8617dd33589cffea0ac9df3a18da195783fc8e7"
+      "fingerprint": "b1f0860e3e12567ac2d88e303fb379f6b09ea9b7ce3ef7d77a20c47ba9a59f69"
     },
     "dc-led-series": {
       "status": "solved",
@@ -60,7 +60,7 @@
     },
     "dc-transistor-npn-active": {
       "status": "solved",
-      "fingerprint": "ecb64c8ffcb9a999327a4c96bf480af939611b054aa7502b878e32a3ec7427ed"
+      "fingerprint": "1a0f9769c3e6b12541c18b2e48ef7c2c131e3ce74683576f531e6899308f34da"
     },
     "dc-transistor-npn-nonconvergent": {
       "status": "nonconvergent",
@@ -92,59 +92,59 @@
     },
     "dc-tmp36-25c": {
       "status": "solved",
-      "fingerprint": "2a86f57fd9a18659332833fcb5190b57b3dbda7e5d884c4343acf8cb6d499419"
+      "fingerprint": "5429eaea065bcc26705fbc56a3b75d456fed800fa73087a273b4a5f449e2414a"
     },
     "dc-tmp36-100c": {
       "status": "solved",
-      "fingerprint": "d86aeb820c91e7c430af17b1b71e6f9ebeab6289bd8ca32ad99ee39cd741b5a7"
+      "fingerprint": "69da4cb9423b06b14641853855a35a889829f9851e03e4859807fc67ffcd1b5a"
     },
     "dc-soil-0": {
       "status": "solved",
-      "fingerprint": "3b9246569fb9e186567c9946413366384da3a491b0dfd562fa42a09ee87e26d8"
+      "fingerprint": "9c60a750ed5dd9fb43e253b513faf582bc2c22248fea3bd171c948521cffabcc"
     },
     "dc-soil-50": {
       "status": "solved",
-      "fingerprint": "c34e1628b07055ae11e829ba9f895a1fe9c857e94273fb149473d089d1a9b66b"
+      "fingerprint": "1cb7e20c5f2723e184de41af44df60c39451e4a830a4f38f88115712101f9d8e"
     },
     "dc-soil-100": {
       "status": "solved",
-      "fingerprint": "b9cb1a4391eeb67c59fae4e461a094c78da11e8a3a679351515a207efdbba499"
+      "fingerprint": "3935495e9c5636eadefc5cb64c7ad33966da40098320d92e6b4d9d9eda29a19d"
     },
     "dc-bench-supply-cv": {
       "status": "solved",
-      "fingerprint": "9a71c1b72e876fc7b4aaa9c7b9b949116077122f5bc1ff4623c41b42f834eb02"
+      "fingerprint": "b93dc80b33091a86c47e972ee5cbc05edd3d4d1d85455fd65d13425189a166ba"
     },
     "dc-bench-supply-cc": {
       "status": "solved",
-      "fingerprint": "6ad0e96756f8ff4721607dbb0549dfbbb9b00a74385bf67af269c582061c0642"
+      "fingerprint": "92874ead694dac41dbac302d714b9be821951f04a5cc92e2fc4ea7d6a2a2eb3e"
     },
     "transient-capacitor-1ms": {
       "status": "solved",
-      "fingerprint": "24c8068d28e7e353afa57925a7bf75e3b99675dcd7a8c8c9bfefbb02b44bdf25"
+      "fingerprint": "4db4e3d4cb7e18fa930625d13bb3e9b02f49e79caf0c459d4d8f92f9bebb65ef"
     },
     "transient-capacitor-100ms": {
       "status": "solved",
-      "fingerprint": "7e1b0960185b3bd413924984a0c9fa46879244be4b4fe489e725566b7929cbaa"
+      "fingerprint": "39a031ad8f3f42d818f9de4f78b67c92968d8d8d3c0a4c23d6268cf4f1df260f"
     },
     "transient-capacitor-5000ms": {
       "status": "solved",
-      "fingerprint": "8266e8ecd2d90b6e5056ee6578c97fe2918696675c8dfdbca3b2f649113313ed"
+      "fingerprint": "517b1a812eec4e25f4e79b8914465c69cffc875b107c80857df7e81a85f4c442"
     },
     "transient-dc-motor-10ms": {
       "status": "solved",
-      "fingerprint": "d907c2d6c27714bbef8f11cc66178db070b0d8b98107f52c550f235c96466d48"
+      "fingerprint": "180045156cbcf39e76ef47acdba1599790569c3b3dd4d1e436b6a625ffc84dd5"
     },
     "transient-dc-motor-1000ms": {
       "status": "solved",
-      "fingerprint": "eff2953ac7f6d8a9f64217990ffe41294144a05f3053029187e3041072f17f2c"
+      "fingerprint": "72990d479374273ea1f8ad6c9cc320b17d216e22fc430717bcfff637e06fb282"
     },
     "transient-gearmotor-1000ms": {
       "status": "solved",
-      "fingerprint": "89439a237d67efb2d24ede8b6cc4542b4eb881f43c4b711cfaec7b65379f17ff"
+      "fingerprint": "6b6d0025f4e59fd19606447aba1772b461ecc31726adadf0705c27d3b1bf1ec2"
     },
     "transient-vibration-motor-1000ms": {
       "status": "solved",
-      "fingerprint": "3f592c699fad2cd23fa0b69e4e174353cbcba2fda9dfd8c71f1d10634a6d1cca"
+      "fingerprint": "8668b502f917057ff4cb45d6bc5d1fba1416dabafa81a71240091d06be6e9300"
     },
     "instrument-generator-scope": {
       "status": "solved",
@@ -152,7 +152,7 @@
     },
     "instrument-multimeter-voltage": {
       "status": "solved",
-      "fingerprint": "983c83f26454f82e934e40aeb80298d9d88a3d2955f98c27689b205251457bde"
+      "fingerprint": "51bec62ddc02ab4a4443c62527d6284739c41df1db6a6fe894aee96656041087"
     },
     "unsupported-future-device": {
       "status": "unsupported",
