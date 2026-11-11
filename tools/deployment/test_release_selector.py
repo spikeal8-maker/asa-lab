@@ -14,7 +14,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import asa_manager as manager
 from deployment import releases
-from deployment.contracts import Blocked, REGISTRY, SERVICES
+from deployment.contracts import Blocked, REGISTRY, REPOSITORY, SERVICES
 
 DIGEST = 'sha256:' + 'c' * 64
 REFERENCE = REGISTRY + '/deployment@' + DIGEST
@@ -58,6 +58,80 @@ class OffsitePolicyTests(unittest.TestCase):
                     path.write_text(json.dumps({**receipt, **change}), encoding='utf-8')
                     manager.verify_offsite_backup(policy, current)
                 self.assertEqual(error.exception.code, 'OFFSITE_BACKUP')
+
+
+class UpdateQualificationTests(unittest.TestCase):
+    def test_school_check_reports_a_failed_browser_run_in_plain_language(self):
+        root = Path.cwd()
+        install = SimpleNamespace(root=root, settings={'profile': 'production'})
+        reason = 'Браузерная проверка электроники завершилась без успешного результата.'
+        error = Blocked('ELECTRONICS_CHECK', reason, 'retry after qualification')
+        output = io.StringIO()
+        with patch.object(manager, 'Installation', return_value=install), \
+                patch.object(manager.application_rollback, 'attest_private_state'), \
+                patch.object(manager, 'resolve_selection', return_value=(None, None)), \
+                patch.object(manager, 'run_operator', side_effect=error), contextlib.redirect_stderr(output):
+            status = manager.main(['check', '--root', str(root), '--profile', 'production', '--operator'])
+        self.assertEqual(status, 2)
+        self.assertEqual(output.getvalue().splitlines()[:2], ['Устанавливать пока нельзя.', reason])
+
+    def test_only_the_current_transition_and_storage_preservation_can_use_electronics_evidence(self):
+        current = {'revision': 'b' * 40, 'schema': 286}
+        release = manifest()
+        target = {key: release[key] for key in ('revision', 'schema')}
+        receipt = {
+            'format': 'asa-update-qualification-v1', 'base': current, 'target': target,
+            'deploymentDigest': DIGEST, 'status': 'passed', 'syntheticOnly': True,
+            'samePgSystemAndDatabase': True, 'samePostgresAndMinioVolumes': True,
+            'backupFilesVerified': 25, 'electronicsRunId': 12345,
+        }
+        with patch.object(manager, 'read_operator_receipt', return_value=receipt), \
+                patch.object(releases, 'assert_electronics_ci') as electronics:
+            manager.verify_update_qualification('/receipt', current, release, DIGEST)
+            electronics.assert_called_once_with(release['revision'], 12345)
+        for change in (
+            {'base': {**current, 'schema': 285}}, {'target': {**target, 'revision': 'f' * 40}},
+            {'deploymentDigest': 'sha256:' + 'f' * 64}, {'status': 'failed'},
+            {'syntheticOnly': False}, {'samePgSystemAndDatabase': False},
+            {'samePostgresAndMinioVolumes': False}, {'backupFilesVerified': 0},
+        ):
+            with self.subTest(change=change), \
+                    patch.object(manager, 'read_operator_receipt', return_value={**receipt, **change}), \
+                    patch.object(releases, 'assert_electronics_ci') as electronics, \
+                    self.assertRaises(Blocked) as error:
+                manager.verify_update_qualification('/receipt', current, release, DIGEST)
+            self.assertEqual(error.exception.code, 'UPDATE_QUALIFICATION')
+            electronics.assert_not_called()
+
+    def test_exact_full_browser_run_must_have_a_successful_executed_job(self):
+        revision = manifest()['revision']
+        result = {
+            'id': 12345, 'head_sha': revision, 'run_attempt': 1, 'event': 'workflow_dispatch',
+            'head_repository': {'full_name': REPOSITORY},
+            'path': '.github/workflows/electronics-r4-m1-focused.yml',
+            'display_title': f'Electronics R4-M1 strict-real-time {revision}',
+            'status': 'completed', 'conclusion': 'success',
+        }
+        job = {
+            'name': 'Actual editor live simulation journey', 'run_id': result['id'], 'run_attempt': 1,
+            'head_sha': revision, 'status': 'completed', 'conclusion': 'success', 'runner_id': 23,
+            'started_at': '2026-11-11T08:00:00Z', 'completed_at': '2026-11-11T09:00:00Z',
+        }
+        with patch.object(releases, '_ci_get', return_value=result), \
+                patch.object(releases, '_ci_pages', return_value=[job]):
+            releases.assert_electronics_ci(revision, result['id'])
+        for change in ({'conclusion': 'skipped'}, {'runner_id': None}):
+            with self.subTest(change=change), patch.object(releases, '_ci_get', return_value=result), \
+                    patch.object(releases, '_ci_pages', return_value=[{**job, **change}]), self.assertRaises(Blocked):
+                releases.assert_electronics_ci(revision, result['id'])
+        for change in (
+            {'head_sha': 'f' * 40}, {'display_title': f'Electronics R4-M1 classroom-d13-v3 {revision}'},
+            {'status': 'in_progress', 'conclusion': None}, {'conclusion': 'failure'},
+        ):
+            with self.subTest(change=change), patch.object(releases, '_ci_get', return_value={**result, **change}), \
+                    patch.object(releases, '_ci_pages') as jobs, self.assertRaises(Blocked):
+                releases.assert_electronics_ci(revision, result['id'])
+            jobs.assert_not_called()
 
 
 class Transport:
@@ -206,6 +280,33 @@ class ContinuationTests(unittest.TestCase):
             self.checked_update(Transport(), deployment_digest=DIGEST, operator=True)
         backup.assert_called_once_with(policy, self.install.readiness.return_value)
         recovery.assert_not_called()
+
+    def test_operator_only_says_can_install_after_qualification_for_the_selected_digest(self):
+        self.install.settings['updatePolicy'] = {'receipt': '/backup', 'qualificationReceipt': '/qualification'}
+        output = io.StringIO()
+        with patch.object(manager, 'doctor'), patch.object(manager, 'backup_directory'), \
+                patch.object(manager, 'attest_editor_env'), patch.object(manager, 'assert_ci'), \
+                patch.object(manager, 'verify_offsite_backup'), patch.object(manager, 'verify_update_qualification') as qualify, \
+                patch.object(releases, 'run', side_effect=Transport()), contextlib.redirect_stdout(output):
+            manager.update(self.install, check=True, deployment_digest=DIGEST, operator=True)
+        qualify.assert_called_once_with('/qualification', self.install.readiness.return_value, manifest(), DIGEST)
+        self.assertIn('Можно устанавливать.', output.getvalue())
+
+    def test_production_update_stops_before_downloading_or_switching_on_unqualified_release(self):
+        self.install.settings['updatePolicy'] = {'receipt': '/backup', 'qualificationReceipt': '/qualification'}
+        missing = Blocked('UPDATE_QUALIFICATION', 'missing', 'retry after qualification')
+        with patch.object(manager, 'doctor'), patch.object(manager, 'backup_directory'), \
+                patch.object(manager, 'attest_editor_env'), patch.object(manager, 'assert_ci'), \
+                patch.object(manager, 'verify_offsite_backup'), \
+                patch.object(manager, 'verify_update_qualification', side_effect=missing), \
+                patch.object(releases, 'run', side_effect=Transport()), patch.object(manager, 'fetch_images') as fetch, \
+                patch.object(manager, 'selected_source') as switch, patch.object(manager, 'export_backup') as backup, \
+                contextlib.redirect_stdout(io.StringIO()), self.assertRaises(Blocked) as error:
+            manager.update(self.install, deployment_digest=DIGEST, operator=True)
+        self.assertEqual(error.exception.code, 'UPDATE_QUALIFICATION')
+        fetch.assert_not_called()
+        switch.assert_not_called()
+        backup.assert_not_called()
 
     def test_retry_checkpoint_written_before_switch_and_reused_with_fresh_ci(self):
         with patch.object(manager,'recovery_configuration',return_value={'synthetic':'old runtime'}), self.assertRaises(Blocked) as stopped:

@@ -220,23 +220,34 @@ def verify_running_release(install, release):
     verify_embedded_entry_http(install.env['ASA_UPDATE_ENTRY_ORIGIN'], release['revision'])
 
 
-def verify_offsite_backup(policy, current):
-    message = 'Нет подтверждённой полной облачной копии текущего выпуска за последние 36 часов.'
-    require(isinstance(policy, dict) and set(policy) == {'receipt'} and isinstance(policy['receipt'], str),
-            'OFFSITE_POLICY', 'Проверьте настройки облачного резервирования установки.')
-    path = Path(policy['receipt'])
-    require(os.name == 'posix' and path.is_absolute(), 'OFFSITE_POLICY',
-            'Проверка облачной копии требует абсолютный путь на Linux.')
+def read_operator_receipt(path, code, message):
+    path = Path(path)
+    require(os.name == 'posix' and path.is_absolute(), code, message)
     try:
         plain_paths(path.parent, (path.name,))
         for parent in path.parents:
             info = parent.lstat()
             require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
-                    'OFFSITE_BACKUP', message)
+                    code, message)
         info = path.lstat()
         require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o077
-                and info.st_size <= 65536, 'OFFSITE_BACKUP', message)
+                and info.st_size <= 65536, code, message)
         receipt = json.loads(path.read_text(encoding='utf-8'))
+        require(isinstance(receipt, dict), code, message)
+        return receipt
+    except (OSError, ValueError) as exc:
+        raise Blocked(code, message, 'Проверьте квитанцию и повторите проверку.') from exc
+
+
+def verify_offsite_backup(policy, current):
+    message = 'Нет подтверждённой полной облачной копии текущего выпуска за последние 36 часов.'
+    require(isinstance(policy, dict) and set(policy) in ({'receipt'}, {'receipt', 'qualificationReceipt'})
+            and isinstance(policy['receipt'], str),
+            'OFFSITE_POLICY', 'Проверьте настройки облачного резервирования установки.')
+    require(os.name == 'posix' and Path(policy['receipt']).is_absolute(), 'OFFSITE_POLICY',
+            'Проверка облачной копии требует абсолютный путь на Linux.')
+    try:
+        receipt = read_operator_receipt(policy['receipt'], 'OFFSITE_BACKUP', message)
         age = dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(receipt['createdAt'])
         require(receipt['format'] == 'asa-school-gfs-receipt-v1' and receipt['kind'] == 'full'
                 and receipt.get('runtimeSource') == 'verified-manifest'
@@ -248,11 +259,29 @@ def verify_offsite_backup(policy, current):
         raise Blocked('OFFSITE_BACKUP', message, 'Проверьте состояние копий и при необходимости сделайте полную копию.') from exc
 
 
+def verify_update_qualification(path, current, release, digest):
+    code = 'UPDATE_QUALIFICATION'
+    message = 'Пробное обновление с установленной версии до выбранного выпуска на стенде пока не подтверждено.'
+    require(isinstance(path, str), code, message)
+    receipt = read_operator_receipt(path, code, message)
+    target = {key: release[key] for key in ('revision', 'schema')}
+    require(receipt.get('format') == 'asa-update-qualification-v1'
+            and receipt.get('base') == current and receipt.get('target') == target
+            and receipt.get('deploymentDigest') == digest and receipt.get('status') == 'passed'
+            and receipt.get('syntheticOnly') is True and receipt.get('samePgSystemAndDatabase') is True
+            and receipt.get('samePostgresAndMinioVolumes') is True
+            and type(receipt.get('backupFilesVerified')) is int and receipt['backupFilesVerified'] > 0,
+            code, message)
+    release_transport.assert_electronics_ci(release['revision'], receipt.get('electronicsRunId'))
+
+
 def update(install, *, check=False, scheduled=False, fresh=False, deployment_digest=None,
            require_application_rollback=False, operator=False):
     require(not require_application_rollback or not (fresh or scheduled),
             'ROLLBACK_ARGUMENT', 'Application return preparation belongs only to a manual existing P0 update.')
     offsite_policy = 'updatePolicy' in install.settings and not fresh
+    policy = install.settings.get('updatePolicy') if offsite_policy else None
+    qualification_required = isinstance(policy, dict) and 'qualificationReceipt' in policy
     application_rollback.guard_update(install)
     if scheduled:
         require(install.settings.get("automaticUpdates") is True, "SCHEDULE_DISABLED", "Automatic updates are disabled.")
@@ -263,6 +292,8 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
     require(not (install.state / "failed-switch.json").exists(), "FAILED_SWITCH", "A prior service switch failed.",
             "Inspect logs and readiness, repair the cause, then explicitly acknowledge the failure.")
     deployment_digest, pending = resolve_selection(install, deployment_digest)
+    if qualification_required and deployment_digest is None:
+        deployment_digest, pending = resolve_selection(install, release_transport.published_deployment_digest())
     doctor(install, existing=not fresh)
     clean_checkout(install)
     backup_directory(install)
@@ -290,7 +321,7 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
         print('Этот выпуск уже установлен и отвечает. Обновление не требуется.')
         return
     if offsite_policy and not same_release:
-        verify_offsite_backup(install.settings['updatePolicy'], before)
+        verify_offsite_backup(policy, before)
     # An already accepted, identical release needs no new GitHub CI query for a
     # no-op update. The local release identity, images and entry are still checked
     # below. All real updates, checks, rollback preparation and collector repairs
@@ -314,6 +345,8 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
         finish_selection(install, deployment_digest, release)
         return
     assert_ci(release)
+    if qualification_required and not same_release:
+        verify_update_qualification(policy['qualificationReceipt'], before, release, deployment_digest)
     if before and release['revision'] != before['revision']:
         install.git('fetch', 'origin', 'main:refs/remotes/origin/main')
         install.git('merge-base', '--is-ancestor', before['revision'], release['revision'])
@@ -332,7 +365,10 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
         if os.name != 'nt' and not install.env.get('ASA_LOG_READER_GID'):
             print('COLLECTOR_PLAN diagnostic reader group must be prepared during an authorized update')
         if operator:
-            print('Обновление доступно. Выполните asa update. Менеджер проверит план миграций и сделает резервную копию.')
+            if qualification_required:
+                print('Можно устанавливать. Облачная копия, пробное обновление и проверка электроники подтверждены.')
+            else:
+                print('Предварительная проверка пройдена. Допуск по результатам проверки на стенде для этой установки не настроен.')
         return
     preparation = {'readerGroupChanged': False}
     if same_release:
@@ -485,6 +521,7 @@ def main(argv=None):
     parser.add_argument("--collector-reader-gid", type=int, help="Nonzero API read-only diagnostic group for explicit system-root mode")
     parser.add_argument("--backup", type=Path)
     parser.add_argument("--offsite-receipt", type=Path)
+    parser.add_argument("--qualification-receipt", type=Path, help="Root-owned staging and Electronics evidence for the exact release")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--database")
     parser.add_argument("--install-project", help="Unique Compose project for first installation only")
@@ -495,6 +532,8 @@ def main(argv=None):
     try:
         require((args.offsite_receipt is not None) == (args.action == 'configure-offsite'),
                 'OFFSITE_POLICY', 'Путь --offsite-receipt задаётся один раз командой configure-offsite.')
+        require(args.qualification_receipt is None or (args.action == 'configure-offsite' and args.qualification_receipt.is_absolute()),
+                'UPDATE_QUALIFICATION', 'Абсолютный путь --qualification-receipt задаётся командой configure-offsite.')
         if args.operator:
             require(args.action in ('check', 'update') and not args.scheduled and args.profile == 'production'
                     and not args.enable_auto_update and args.collector_mode is None and not args.require_application_rollback,
@@ -579,6 +618,11 @@ def main(argv=None):
                         and install.settings.get('profile') == 'production', 'OFFSITE_POLICY',
                         'Настройка облачной копии требует root и действующую production установку.')
                 policy = {'receipt': str(args.offsite_receipt)}
+                previous_policy = install.settings.get('updatePolicy')
+                if args.qualification_receipt is not None:
+                    policy['qualificationReceipt'] = str(args.qualification_receipt)
+                elif isinstance(previous_policy, dict) and 'qualificationReceipt' in previous_policy:
+                    policy['qualificationReceipt'] = previous_policy['qualificationReceipt']
                 verify_offsite_backup(policy, install.readiness())
                 private_atomic_json(install.state / 'installation.json', {**install.settings, 'updatePolicy': policy})
                 print('Подключена проверка полной облачной копии перед обновлением.')
@@ -644,7 +688,9 @@ def main(argv=None):
                 "SEARCH_SECRET_INVALID" if isinstance(exc, InvalidSearchSecret) else "IO_OR_CONFIGURATION")
         action = exc.action if isinstance(exc, Blocked) else "Inspect the configuration and completed stages; do not discard data."
         if args.operator:
-            print(operator_failure(code), file=sys.stderr)
+            if args.action == 'check':
+                print('Устанавливать пока нельзя.', file=sys.stderr)
+            print(str(exc) if code in ('UPDATE_QUALIFICATION', 'ELECTRONICS_CHECK') else operator_failure(code), file=sys.stderr)
         print(f"BLOCKED {code}: {exc}\nSAFE_ACTION: {action}", file=sys.stderr)
         return 2
 
