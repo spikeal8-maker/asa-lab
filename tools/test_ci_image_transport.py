@@ -380,10 +380,10 @@ QUALIFICATION_SHARD_MATRIX = """${{ fromJSON(
     inputs.qualification_profile == 'classroom-d13-v3' ||
     inputs.qualification_profile == 'arduino-editor-error') &&
     '[{"label":"whole","shard":""}]' ||
-    '[{"label":"s1","shard":"1/2"},{"label":"s2","shard":"2/2"}]'
+    '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"}]'
   ) }}"""
 
-QUALIFICATION_SHARD_CLI = ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD}'
+QUALIFICATION_SHARD_CLI = ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}'
 QUALIFICATION_SHARD_SUFFIX = "-${{ matrix.browser_case.label }}"
 BROWSER_REPORT_NAME = "electronics-r4-m1-browser-${{ github.run_id }}"
 SHARDED_FAILURE_REPORT_UPLOAD = deepcopy(FAILURE_REPORT_UPLOAD)
@@ -1372,10 +1372,11 @@ def check_qualification_challenges(receipt):
         ("runner path must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove(QUALIFICATION_RUNNER)),
         ("D13 observer must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove("e2e/electronics-classroom-timing.spec.ts")),
         ("profile cannot move to benchmark job", lambda w: w["jobs"]["benchmark"]["env"].update({"ASA_ELECTRONICS_QUALIFICATION_PROFILE": "classroom-d13-v2"})),
-        ("strict cannot omit s2 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s2","shard":"2/2"}', "")})),
-        ("strict cannot duplicate s1 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/2"', '"shard":"1/2"')})),
-        ("strict cannot use empty second shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/2"', '"shard":""')})),
-        ("classroom v2 cannot be sharded", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"label":"whole","shard":""', '"label":"whole","shard":"1/2"')})),
+        ("strict cannot omit s2 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s2","shard":"2/4"}', "")})),
+        ("strict cannot omit s4 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s4","shard":"4/4"}', "")})),
+        ("strict cannot duplicate s1 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/4"', '"shard":"1/4"')})),
+        ("strict cannot use empty second shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/4"', '"shard":""')})),
+        ("classroom v2 cannot be sharded", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"label":"whole","shard":""', '"label":"whole","shard":"1/4"')})),
         ("classroom v3 cannot lose whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'classroom-d13-v3'", "'unapproved-classroom'")})),
         ("editor must keep whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'arduino-editor-error'", "'unknown'")})),
         ("matrix cannot be removed", lambda w: w["jobs"]["browser"].pop("strategy")),
@@ -1384,7 +1385,7 @@ def check_qualification_challenges(receipt):
         ("browser cannot skip a shard", lambda w: w["jobs"]["browser"].update({"if": False})),
         ("browser cannot ignore failed job", lambda w: w["jobs"]["browser"].update({"continue-on-error": True})),
         ("browser shard must reach runner env", lambda w: w["jobs"]["browser"]["env"].pop("ASA_ELECTRONICS_BROWSER_SHARD")),
-        ("browser shard cannot be hardcoded", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_SHARD": "1/2"})),
+        ("browser shard cannot be hardcoded", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_SHARD": "1/4"})),
         ("Compose project must isolate all children", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics-${{ github.run_id }}"})),
         ("Compose project cannot be static", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics"})),
         ("large archive cannot share a name", lambda w: [step["with"].update({"name": BROWSER_REPORT_NAME})
@@ -1399,7 +1400,13 @@ def check_qualification_challenges(receipt):
         ("selected gate cannot ignore failure", 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE" || true'),
         ("selected gate cannot become strict-only", 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', "pnpm gate:electronics-m1:browser"),
         ("shard CLI must reach Playwright", QUALIFICATION_SHARD_CLI, ""),
-        ("shard CLI cannot be fixed at s1", QUALIFICATION_SHARD_CLI, " --shard=1/2"),
+        ("shard CLI cannot be fixed at s1", QUALIFICATION_SHARD_CLI, " --shard=1/4"),
+        ("strict shards cannot use default workers", QUALIFICATION_SHARD_CLI,
+            QUALIFICATION_SHARD_CLI.replace(" --workers=1", "")),
+        ("strict shards cannot run two workers", QUALIFICATION_SHARD_CLI,
+            QUALIFICATION_SHARD_CLI.replace("--workers=1", "--workers=2")),
+        ("whole profiles cannot inherit a strict worker limit", QUALIFICATION_SHARD_CLI,
+            QUALIFICATION_SHARD_CLI.replace(" --workers=1", "") + " --workers=1"),
         ("browser CLI cannot grep away cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --grep LED"),
         ("browser CLI cannot skip cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --grep-invert E11"),
         ("browser CLI cannot retry failed cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --retries=3"),

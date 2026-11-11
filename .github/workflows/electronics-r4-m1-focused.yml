@@ -158,14 +158,14 @@ jobs:
       fail-fast: false
       matrix:
         # Keep the two classroom qualifications whole and preserve the
-        # arduino-editor-error dispatch. Default CI runs both required shards.
+        # arduino-editor-error dispatch. Strict CI runs four required shards.
         browser_case: >-
           ${{ fromJSON(
               (inputs.qualification_profile == 'classroom-d13-v2' ||
               inputs.qualification_profile == 'classroom-d13-v3' ||
               inputs.qualification_profile == 'arduino-editor-error') &&
               '[{"label":"whole","shard":""}]' ||
-              '[{"label":"s1","shard":"1/2"},{"label":"s2","shard":"2/2"}]'
+              '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"}]'
             ) }}
     env:
       CI: 'true'
@@ -230,7 +230,7 @@ jobs:
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
-          pnpm "$ASA_ELECTRONICS_BROWSER_GATE" ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD}
+          pnpm "$ASA_ELECTRONICS_BROWSER_GATE" ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}
 
       - name: Show isolated stack state
         if: always()

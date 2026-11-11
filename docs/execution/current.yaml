@@ -628,16 +628,23 @@ parallel_lanes:
       current_partition_selection:
         previous_candidate_pr: 724
         previous_candidate_sha: cbc060242450de116a8deb914a36b0dff06a8bd8
-        strict_browser_run: 43020909117
-        observed: 227 passed, 20 failed, 2 timed out, 21 unfinished of 270
+        initial_strict_browser_run: 43020909117
+        initial_observed: 227 passed, 20 failed, 2 timed out, 21 unfinished of 270
+        strict_browser_run: 43060901122
+        observed: 242 passed, 23 failed, 5 timed out, all 270 recorded
+        strict_shard_cases: [123, 13, 119, 15]
+        strict_workers_per_shard: 1
         write_paths:
           - .github/workflows/electronics-r4-m1-focused.yml
+          - docs/execution/current.yaml
+          - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-PARTITION-001.md
           - tools/test_ci_image_transport.py
           - tests/electronics/ui-679-557-qualification.spec.ts
-        evidence: Preserve all current browser scenarios and assertions. Prove
-          both strict shards finish, exactly cover the full list and propagate
-          any failure. Keep the other profiles unsharded and current transport
-          checks intact. No product, test threshold, server or data changes.
+        evidence: Prove all four single-worker strict shards finish, exactly
+          cover the full list and propagate any failure. Preserve browser
+          scenarios, product behavior, assertion thresholds, zero retries and
+          the 50-minute job budget. Keep classroom and Arduino editor profiles
+          whole and retain current transport and evidence checks.
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-PARTITION-001.md
         - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md

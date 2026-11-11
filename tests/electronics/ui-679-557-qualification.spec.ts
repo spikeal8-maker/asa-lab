@@ -329,10 +329,11 @@ const shardMatrix = `\${{ fromJSON(
     inputs.qualification_profile == 'classroom-d13-v3' ||
     inputs.qualification_profile == 'arduino-editor-error') &&
     '[{"label":"whole","shard":""}]' ||
-    '[{"label":"s1","shard":"1/2"},{"label":"s2","shard":"2/2"}]'
+    '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"}]'
   ) }}`;
 const shardSuffix = '-${{ matrix.browser_case.label }}';
-const shardCli = ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD}';
+const shardCli =
+  ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}';
 
 function withoutFocusedSharding<T extends BrowserJob>(original: T): T {
   const browser = structuredClone(original);
