@@ -380,6 +380,13 @@ jobs:
           Path('/etc/apt/apt.conf.d/80-asa-browser-network').write_text(
               'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "1";\n')
           PY
+      - name: Use the Ubuntu archive in the runner mirror list
+        run: |
+          # APT mirror+file sources load the real URIs from this separate list.
+          ubuntu_mirror_list=/etc/apt/apt-mirrors.txt
+          if [ -f "$ubuntu_mirror_list" ]; then
+            sudo sed -E -i --follow-symlinks 's#^([[:space:]]*)https?://azure\.archive\.ubuntu\.com/ubuntu([/[:space:]]|$)#\1https://archive.ubuntu.com/ubuntu\2#' "$ubuntu_mirror_list"
+          fi
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
       - name: Migrate isolated database and provision restricted runtime
