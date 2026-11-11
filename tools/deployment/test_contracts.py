@@ -61,6 +61,15 @@ class ProxyPolicyTests(unittest.TestCase):
                 attest_proxy_policy(panel | overrides)
             self.assertEqual(failure.exception.code, 'PROXY_POLICY')
 
+    def test_only_production_reserves_the_default_panel_ingress_port(self):
+        env = {'ASA_WEB_PORT': '4615'}
+        attest_proxy_policy(env, profile='dev')
+        with self.assertRaises(Blocked):
+            attest_proxy_policy(env, profile='production')
+        attest_proxy_policy(env | {'ASA_PANEL_INGRESS_PORT': '4616'}, profile='production')
+        with self.assertRaises(Blocked):
+            attest_proxy_policy({'ASA_PANEL_INGRESS_PEER': '172.19.0.1'}, profile='production')
+
     def test_malformed_unbounded_and_injected_policies_block_before_operations(self):
         for key in ('ASA_TRUSTED_PROXY_CIDRS', 'ASA_INGRESS_TRUSTED_PROXY_CIDRS'):
             for raw in ('', '0.0.0.0/0', '::/0', '172.16.0.0/99', 'private_ranges',

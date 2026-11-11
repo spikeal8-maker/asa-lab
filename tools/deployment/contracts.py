@@ -47,7 +47,7 @@ def exact_origin(value):
     return value
 
 
-def attest_proxy_policy(env):
+def attest_proxy_policy(env, *, profile=None):
     """Validate the API, direct web, and 1Panel proxy trust boundaries."""
     for key, default, separator in (
         ('ASA_TRUSTED_PROXY_CIDRS', '172.16.0.0/12', ','),
@@ -71,18 +71,19 @@ def attest_proxy_policy(env):
         address = None
     require(address is not None and not address.is_unspecified and not address.is_multicast
             and not address.is_reserved, 'PROXY_POLICY', 'ASA_PANEL_INGRESS_PEER must be one usable IPv4 address.')
-    port = env.get('ASA_PANEL_INGRESS_PORT', '0')
+    configured_port = env.get('ASA_PANEL_INGRESS_PORT')
+    require(address.is_loopback or configured_port is not None, 'PROXY_POLICY',
+            'A non-loopback 1Panel peer needs an explicitly configured loopback port.')
+    port = '4615' if configured_port is None and profile == 'production' else configured_port
+    if port is None:
+        return
     require(isinstance(port, str) and bool(re.fullmatch(r'[0-9]{1,5}', port))
-            and (port == '0' or 1024 <= int(port) <= 65535),
-            'PROXY_POLICY', 'ASA_PANEL_INGRESS_PORT must be 0 or a port from 1024 to 65535.')
-    require(address.is_loopback or port != '0', 'PROXY_POLICY',
-            'A non-loopback 1Panel peer needs a fixed loopback port.')
-    if port != '0':
-        for key, default in (('ASA_WEB_PORT', '4610'), ('ASA_API_PORT', '4611'), ('ASA_BLOCKS_PORT', '4613')):
-            other = env.get(key, default)
-            require(isinstance(other, str) and re.fullmatch(r'[0-9]{1,5}', other)
-                    and int(port) != int(other),
-                    'PROXY_POLICY', f'ASA_PANEL_INGRESS_PORT must be distinct from {key}.')
+            and 1024 <= int(port) <= 65535, 'PROXY_POLICY', 'ASA_PANEL_INGRESS_PORT must be a port from 1024 to 65535.')
+    for key, default in (('ASA_WEB_PORT', '4610'), ('ASA_API_PORT', '4611'), ('ASA_BLOCKS_PORT', '4613')):
+        other = env.get(key, default)
+        require(isinstance(other, str) and re.fullmatch(r'[0-9]{1,5}', other)
+                and int(port) != int(other),
+                'PROXY_POLICY', f'ASA_PANEL_INGRESS_PORT must be distinct from {key}.')
 
 
 def proxy_provenance_diagnostic(env):
@@ -97,7 +98,7 @@ def proxy_provenance_diagnostic(env):
         'verifiedVisitorIp': False,
         'ingressPolicy': ingress,
         'panelIngressPeer': panel_peer,
-        'panelIngressPort': env.get('ASA_PANEL_INGRESS_PORT', '0'),
+        'configuredPanelIngressPort': env.get('ASA_PANEL_INGRESS_PORT'),
         'apiPolicy': env.get('ASA_TRUSTED_PROXY_CIDRS', '172.16.0.0/12'),
         'action': 'Compare a controlled external visitor with protected analytics; verify the actual ingress peer and spoof rejection before trusting it. Unknown is not a visitor IP; do not trust all private networks.',
     }

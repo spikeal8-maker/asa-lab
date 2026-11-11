@@ -195,21 +195,29 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         metadata = json.loads(run(['docker', 'inspect', web], capture=True))[0]['NetworkSettings']['Networks']
         gateway = metadata[network]['Gateway']
         require(bool(gateway), 'CLIENT_PROVENANCE', 'Disposable ingress gateway is missing.')
-        ingress = {'ASA_PANEL_INGRESS_PEER': gateway, 'ASA_PANEL_INGRESS_PORT': '14615'}
-        previous_ingress = {key: install.process_env.get(key) for key in ingress}
+        panel_web = install.project + '-panel-proof-' + uuid.uuid4().hex[:8]
+        # The dev profile keeps its original ports. Run the same Web image
+        # with the production listener mapping in this disposable fixture.
         try:
-            install.process_env.update(ingress)
-            install.compose('up', '-d', '--no-build', '--no-deps', '--wait', '--wait-timeout', '120', 'web')
+            install.compose('run', '-T', '-d', '--no-deps', '--name', panel_web,
+                            '-p', '127.0.0.1:14615:8081', '-e', 'ASA_PANEL_INGRESS_PEER=' + gateway, 'web')
+            for _ in range(50):
+                try:
+                    with urllib.request.urlopen('http://127.0.0.1:14615/health/live', timeout=3) as response:
+                        if response.status == 200:
+                            break
+                except OSError:
+                    time.sleep(.2)
+            else:
+                raise RuntimeError('The disposable 1Panel listener did not become ready.')
             login_provenance(4610, '192.0.2.200, 198.51.100.23', 'unknown|proxy')
             login_provenance(14615, '192.0.2.200, 198.51.100.23', '198.51.100.23|public')
             login_provenance(14615, '192.0.2.200, 192.168.20.7', '192.168.20.7|local_network')
         finally:
-            for key, value in previous_ingress.items():
-                if value is None:
-                    install.process_env.pop(key, None)
-                else:
-                    install.process_env[key] = value
-            install.compose('up', '-d', '--no-build', '--no-deps', '--wait', '--wait-timeout', '120', 'web')
+            owned = run(['docker', 'ps', '-aq', '--filter', 'name=^/' + panel_web + '$',
+                         '--filter', 'label=com.docker.compose.project=' + install.project], capture=True)
+            if owned:
+                run(['docker', 'rm', '-f', owned], capture=True)
         print('CLIENT_PROVENANCE PASS: the direct port rejects spoofing while the private 1Panel port resolves the rightmost public or LAN visitor')
         with urllib.request.urlopen("http://127.0.0.1:4610/runtime-config.js") as response:
             require(b"http://127.0.0.1:4610" in response.read(), "SMOKE", "ASA origin configuration is missing.")

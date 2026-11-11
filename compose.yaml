@@ -317,7 +317,6 @@ services:
         condition: service_healthy
     ports:
       - '127.0.0.1:${ASA_WEB_PORT:-4610}:8080'
-      - '127.0.0.1:${ASA_PANEL_INGRESS_PORT:-0}:8081'
     tmpfs:
       - /tmp
     read_only: true
