@@ -182,6 +182,7 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
   let lastHorizon = 0,
     lastReadyAt = 0,
     readyCount = 0;
+  let seventhNativeRecordAt: number | null = null;
   let acknowledgement: {
     sent: number;
     acknowledged: number;
@@ -190,6 +191,7 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
   } | null = null;
   const physical: ShortCycleEdge[] = [],
     native: ShortCycleEdge[] = [];
+  const nativeFronts = () => Math.max(0, native.length - (native[0]?.high === false ? 1 : 0));
   const fail = (reason: string) => {
     errorCount++;
     if (errors.length < 64) errors.push(reason);
@@ -341,7 +343,10 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
       const high = led.brightness > 0;
       if (high && led.brightness !== onBrightness) fail('incorrect-native-brightness');
       if (high !== priorNative) {
-        if (native.length < 9) native.push({ at: Number(row.witnessAt), high });
+        if (native.length < 9) {
+          native.push({ at: Number(row.witnessAt), high });
+          if (nativeFronts() === 7) seventhNativeRecordAt = row.at;
+        }
         priorNative = high;
       }
     }
@@ -356,7 +361,7 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
   };
   const state = () => ({
     h0,
-    nativeFronts: Math.max(0, native.length - (native[0]?.high === false ? 1 : 0)),
+    nativeFronts: nativeFronts(),
     retainedEdges: physical.length + native.length,
     sequence,
   });
@@ -395,7 +400,9 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
       acknowledgement,
     };
   };
-  return { accept, envelope, state, finish };
+  const hasSevenNativeFrontsBefore = (deadline: number) =>
+    seventhNativeRecordAt !== null && seventhNativeRecordAt < deadline;
+  return { accept, envelope, state, finish, hasSevenNativeFrontsBefore };
 }
 
 async function readRealtime682LongAudit(path: string, phaseMs: number, source: string) {
@@ -1110,14 +1117,16 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
           // cannot end acquisition; seven following-RAF native witnesses must arrive.
           await expect.poll(() => longAudit.state().h0, { timeout: 5000 }).not.toBeNull();
           const h0 = longAudit.state().h0!;
+          const deadline = h0 + 6 * longMs + 1000;
           const remaining = await page.evaluate(
-            ({ h0, phaseMs }) => h0 + 6 * phaseMs + 1000 - performance.now(),
-            { h0, phaseMs: longMs },
+            (deadline) => deadline - performance.now(),
+            deadline,
           );
           expect(remaining).toBeGreaterThan(0);
-          await expect
-            .poll(() => longAudit.state().nativeFronts, { timeout: remaining })
-            .toBeGreaterThanOrEqual(7);
+          await journal.waitForAcknowledgedRecord(
+            () => longAudit.hasSevenNativeFrontsBefore(deadline),
+            remaining,
+          );
           await journal.barrier();
           journal.retain('long-stop-action', { at: await page.evaluate(() => performance.now()) });
           await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
