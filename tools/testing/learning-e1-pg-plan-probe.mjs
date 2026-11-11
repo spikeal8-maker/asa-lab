@@ -391,12 +391,12 @@ export async function measureCases({ clients, cases, onSample, onPlan, onContext
       const settings = (await client.query(jitSettings)).rows[0];
       requireCondition(
         settings.jit === jit &&
-          [
-            'jit_available',
-            'jit_above_cost',
-            'jit_inline_above_cost',
-            'jit_optimize_above_cost',
-          ].every((key) => settings[key] === baseline[role][key]),
+          // pg_jit_available() includes the current jit setting. OFF=false is
+          // expected even after this backend has successfully loaded a provider.
+          settings.jit_available === (jit === 'on') &&
+          ['jit_above_cost', 'jit_inline_above_cost', 'jit_optimize_above_cost'].every(
+            (key) => settings[key] === baseline[role][key],
+          ),
         'jit_settings_changed_unexpectedly',
       );
       const current = (await client.query(snapshotIdentity)).rows[0];

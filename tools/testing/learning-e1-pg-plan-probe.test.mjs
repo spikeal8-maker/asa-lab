@@ -256,10 +256,14 @@ function fakeProtocol({
   changedPayload = false,
   jitAvailable = true,
   ignoreJit = false,
+  thresholdDrift = null,
+  loseProviderOnRepeat = false,
+  offReportsAvailable = false,
 } = {}) {
   const calls = [];
   const samples = [];
   const plans = [];
+  const settingsObserved = [];
   const cases = caseLabels.map((label, index) => ({
     label,
     role: index === 0 ? 'admin' : 'runtime',
@@ -272,27 +276,34 @@ function fakeProtocol({
     let jit = 'on';
     let snapshotReads = 0;
     let samplesRead = 0;
+    let onSets = 0;
     return {
       async query(sql, args) {
         calls.push({ role, sql, args });
         if (sql.startsWith('SET LOCAL jit')) {
           if (!ignoreJit) jit = sql.endsWith('on') ? 'on' : 'off';
+          if (sql.endsWith('on')) onSets++;
           return { rows: [] };
         }
-        if (sql.includes('AS server_version_num'))
-          return {
-            rows: [
-              {
-                server_version_num: 170007,
-                server_version: '17.7',
-                jit,
-                jit_available: jitAvailable,
-                jit_above_cost: 100000,
-                jit_inline_above_cost: 500000,
-                jit_optimize_above_cost: 500000,
-              },
-            ],
+        if (sql.includes('AS server_version_num')) {
+          const settings = {
+            server_version_num: 170007,
+            server_version: '17.7',
+            jit,
+            // PostgreSQL 17 reports provider availability AND jit=on. The
+            // previous constant-true fake concealed the first OFF guard error.
+            jit_available:
+              jit === 'on'
+                ? jitAvailable && !(loseProviderOnRepeat && onSets > 1)
+                : offReportsAvailable,
+            jit_above_cost: 100000,
+            jit_inline_above_cost: 500000,
+            jit_optimize_above_cost: 500000,
           };
+          if (thresholdDrift && jit === 'off') settings[thresholdDrift] += 1;
+          settingsObserved.push({ role, ...settings });
+          return { rows: [settings] };
+        }
         if (sql.includes('pg_current_snapshot'))
           return {
             rows: [
@@ -321,7 +332,7 @@ function fakeProtocol({
     onPlan: (plan) => plans.push(plan),
     onContext: () => {},
   };
-  return { inputs, calls, samples, plans };
+  return { inputs, calls, samples, plans, settingsObserved };
 }
 
 test('protocol performs exactly 28 unchanged-payload reads plus 14 plans using fixed clients/args', async () => {
@@ -335,6 +346,22 @@ test('protocol performs exactly 28 unchanged-payload reads plus 14 plans using f
   });
   assert.equal(f.samples.length, 28);
   assert.equal(f.plans.length, 14);
+  for (const role of ['admin', 'runtime']) {
+    assert.deepEqual(
+      f.settingsObserved
+        .filter((setting) => setting.role === role)
+        .map((setting) => [setting.jit, setting.jit_available]),
+      [
+        ['on', true],
+        ['on', true],
+        ['off', false],
+        ['on', true],
+        ['off', false],
+        ['on', true],
+        ['off', false],
+      ],
+    );
+  }
   for (const entry of f.inputs.cases) {
     assert.deepEqual(
       f.samples.filter((sample) => sample.label === entry.label).map((sample) => sample.jit),
@@ -367,6 +394,27 @@ test('protocol fails on payload drift, snapshot change, ignored jit or unavailab
     measureCases({ ...f.inputs, cases: f.inputs.cases.slice(1) }),
     /seven_reader_protocol_required/,
   );
+});
+
+test('mode-aware JIT guard rejects each threshold drift, false ON availability and true OFF availability', async () => {
+  for (const thresholdDrift of [
+    'jit_above_cost',
+    'jit_inline_above_cost',
+    'jit_optimize_above_cost',
+  ]) {
+    const f = fakeProtocol({ thresholdDrift });
+    await assert.rejects(measureCases(f.inputs), /jit_settings_changed_unexpectedly/);
+    assert.equal(f.samples.length, 7);
+    assert.equal(f.plans.length, 0);
+  }
+  const lost = fakeProtocol({ loseProviderOnRepeat: true });
+  await assert.rejects(measureCases(lost.inputs), /jit_settings_changed_unexpectedly/);
+  assert.equal(lost.samples.length, 14);
+  assert.equal(lost.settingsObserved.at(-1).jit, 'on');
+  assert.equal(lost.settingsObserved.at(-1).jit_available, false);
+  const inconsistent = fakeProtocol({ offReportsAvailable: true });
+  await assert.rejects(measureCases(inconsistent.inputs), /jit_settings_changed_unexpectedly/);
+  assert.equal(inconsistent.samples.length, 7);
 });
 
 function fixturesForValidation() {
