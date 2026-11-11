@@ -39,6 +39,28 @@ class ProxyPolicyTests(unittest.TestCase):
         attest_proxy_policy({'ASA_TRUSTED_PROXY_CIDRS': '172.16.0.0/12,fd00::/64',
                              'ASA_INGRESS_TRUSTED_PROXY_CIDRS': '192.0.2.7/32 2001:db8::7/128'})
 
+    def test_panel_ingress_requires_one_host_and_its_own_port(self):
+        panel = {'ASA_PANEL_INGRESS_PEER': '172.19.0.1', 'ASA_PANEL_INGRESS_PORT': '4615'}
+        attest_proxy_policy(panel)
+        diagnostic = proxy_provenance_diagnostic(panel)
+        self.assertEqual(diagnostic['state'], 'external_policy_unverified')
+        self.assertEqual(diagnostic['panelIngressPeer'], '172.19.0.1')
+        for overrides in (
+            {'ASA_PANEL_INGRESS_PEER': '172.19.0.0/16'},
+            {'ASA_PANEL_INGRESS_PEER': '127.0.0.1\nservers'},
+            {'ASA_PANEL_INGRESS_PEER': '0.0.0.0'},
+            {'ASA_PANEL_INGRESS_PEER': '224.0.0.1'},
+            {'ASA_PANEL_INGRESS_PORT': '0'},
+            {'ASA_PANEL_INGRESS_PORT': '04610'},
+            {'ASA_PANEL_INGRESS_PEER': '127.0.0.1', 'ASA_PANEL_INGRESS_PORT': '4610'},
+            {'ASA_BLOCKS_PORT': '4615'},
+            {'ASA_API_PORT': '4615'},
+            {'ASA_PANEL_INGRESS_PORT': '65536'},
+        ):
+            with self.subTest(overrides=overrides), self.assertRaises(Blocked) as failure:
+                attest_proxy_policy(panel | overrides)
+            self.assertEqual(failure.exception.code, 'PROXY_POLICY')
+
     def test_malformed_unbounded_and_injected_policies_block_before_operations(self):
         for key in ('ASA_TRUSTED_PROXY_CIDRS', 'ASA_INGRESS_TRUSTED_PROXY_CIDRS'):
             for raw in ('', '0.0.0.0/0', '::/0', '172.16.0.0/99', 'private_ranges',
