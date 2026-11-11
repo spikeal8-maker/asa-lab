@@ -387,6 +387,7 @@ function recoverOwnerImage(asset: string): Promise<string> {
 
 function useOwnerImageHref(asset: string): {
   readonly href: string;
+  readonly mountHref: (element: SVGImageElement | null) => void;
   readonly failed: boolean;
   readonly onError: () => void;
   readonly onLoad: () => void;
@@ -548,8 +549,17 @@ function useOwnerImageHref(asset: string): {
     if (handlers.current?.asset === asset) handlers.current[kind]();
     else earlyEvent.current = { asset, kind };
   };
+  const href = loaded.asset === asset ? loaded.href : asset;
+  const mountHref = useCallback(
+    (element: SVGImageElement | null) => {
+      // A detached SVG image can fail before its error reaches the React root.
+      if (element && element.getAttribute('href') !== href) element.setAttribute('href', href);
+    },
+    [href],
+  );
   return {
-    href: loaded.asset === asset ? loaded.href : asset,
+    href,
+    mountHref,
     failed: loaded.asset === asset && loaded.failed,
     onError: () => notify('error'),
     onLoad: () => notify('load'),
@@ -2082,7 +2092,7 @@ export function ProductionComponentVisual({
             </g>
           ) : (
             <image
-              href={ownerImage.href}
+              ref={ownerImage.mountHref}
               onError={ownerImage.onError}
               onLoad={ownerImage.onLoad}
               y={ownerAssetY}
@@ -2393,7 +2403,7 @@ export function ProductionComponentVisual({
             <>
               <image
                 className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
-                href={ownerImage.href}
+                ref={ownerImage.mountHref}
                 onError={ownerImage.onError}
                 onLoad={ownerImage.onLoad}
                 data-owner-image-status={ownerImage.failed ? 'failed' : undefined}
