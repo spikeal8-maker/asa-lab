@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
+import { performance } from 'node:perf_hooks';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL, URL } from 'node:url';
 import {
@@ -34,11 +36,18 @@ import {
   quaternionAngle,
   effectiveTorque,
   assessWindow,
+  boundedNativeArray,
+  captureGeometry,
+  copyGeometryWarnings,
+  frameError,
+  quaternionMatrix,
+  rotate,
+  supportWitness,
 } from './mujoco-contact-observer.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const fixturePath = 'tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json';
-const fixtureContractSha256 = '2344cf5ca0cc162370e2715aec9e68a543834f203a838570dabf2b3e87212f09';
+const fixtureContractSha256 = '05c69ee69a797fca063b6b81cbaffd6db01656fac60ea32f704c027540d08ff1';
 export const cylinderSourcePaths = [
   'tools/robotics-field-core/mujoco-contact-observer.mjs',
   'tools/robotics-field-core/mujoco-cylinder.mjs',
@@ -165,6 +174,44 @@ export function cylinderPlan(f, mode) {
   return result;
 }
 
+export function cylinderScenarioLimits(f, condition) {
+  demand(['static', 'tilt'].includes(condition.kind), 'CYLINDER_SCENARIO');
+  const limits = { ...f.resources, ...f.resources.scenarios[condition.kind] };
+  limits.pairCaps = [{ geom: [0, 1], maxContacts: f.contact.cylinderNativeContactCap }];
+  if (condition.kind === 'static')
+    limits.pairCaps.push({ geom: [0, 2], maxContacts: f.contact.boxBoxNativeContactCap });
+  return limits;
+}
+
+/** Encoded live records, including schedule-limited unfilled admission A rings. */
+export function cylinderRetentionProof(f) {
+  const r = f.retention;
+  const minDt = Math.min(...f.nativeStepUs);
+  const ringTicks = r.preWindowUs / minDt;
+  const aTicks = Math.min(ringTicks, f.admission.A.durationUs / minDt);
+  demand(Number.isSafeInteger(ringTicks) && ringTicks <= r.maxRingTicks, 'RESOURCE_RING_COUNT');
+  const live = {
+    admissionA: 2 * aTicks * r.scenarioTickBytes.static,
+    admissionB: 2 * ringTicks * r.scenarioTickBytes.tilt,
+    mainStatic: ringTicks * r.scenarioTickBytes.static,
+    mainTilt: ringTicks * r.scenarioTickBytes.tilt,
+  };
+  const maxLiveRing = Math.max(...Object.values(live));
+  const overhead = 2 * ringTicks * r.emergencyRecordOverheadBytes;
+  const partial = 2 * r.maxFailureObservationBytes;
+  const total = maxLiveRing + overhead + partial + r.emergencyTrailerBytes;
+  demand(
+    maxLiveRing <= r.maxLiveRingBytes &&
+      maxLiveRing < r.formerGlobalRingBudgetBytes &&
+      Math.max(live.admissionA, live.admissionB) <= r.maxAdmissionRingBytes &&
+      Math.max(live.mainStatic, live.mainTilt) <= r.maxMainRingBytes &&
+      total <= r.reservedFailureTrailerBytes &&
+      r.reservedFailureTrailerBytes < r.maxJournalBytes,
+    'RESOURCE_SCHEDULE_RING_OR_RESERVE',
+  );
+  return { live, maxLiveRing, overhead, partial, trailer: r.emergencyTrailerBytes, total };
+}
+
 export function blockInertia(f) {
   const b = f.bodies.block;
   const [x, y, z] = b.dimensionsM;
@@ -268,7 +315,7 @@ export function makeCylinderXml(f, condition) {
         attr('wind', [0, 0, 0]),
       ].join(' ') +
       '>',
-    '<flag warmstart="enable" island="enable" refsafe="enable" nativeccd="enable" multiccd="enable" ' +
+    '<flag warmstart="enable" island="enable" refsafe="enable" nativeccd="disable" multiccd="enable" ' +
       'diagexact="enable" autoreset="disable" sleep="disable" override="disable" fwdinv="disable" ' +
       'invdiscrete="disable" energy="disable" ipc="disable" speculative="disable"/>',
     '</option>',
@@ -486,6 +533,10 @@ export function readModel(model) {
     'nkey',
     'nplugin',
     'nsensor',
+    'neq',
+    'nflex',
+    'ntendon',
+    'nmocap',
   ])
     r[k] = model[k];
   for (const k of modelArrays) r[k] = Array.from(model[k]);
@@ -559,7 +610,10 @@ export function validateModel(f, condition, r, initial) {
   for (const [k, v] of Object.entries(expectedCounts)) demand(r[k] === v, 'MODEL_COUNT ' + k);
   validateGeometryReadback(f, condition, r);
   demand(
-    r.nsensor === 0 && r.nplugin === 0 && r.nkey === (condition.probe === 'A' ? 1 : 0),
+    r.nsensor === 0 &&
+      r.nplugin === 0 &&
+      ['neq', 'nflex', 'ntendon', 'nmocap'].every((key) => r[key] === 0) &&
+      r.nkey === (condition.probe === 'A' ? 1 : 0),
     'MODEL_EXTRA_CAPABILITY',
   );
   const expectedOptions = {
@@ -577,7 +631,7 @@ export function validateModel(f, condition, r, initial) {
     impratio: s.impratio,
     ccd_iterations: s.ccdIterations,
     ccd_tolerance: s.ccdTolerance,
-    disableflags: 65536,
+    disableflags: 196608,
     enableflags: 32,
     density: 0,
     viscosity: 0,
@@ -806,7 +860,14 @@ class World {
       preservedRefreshes: 0,
       warningObservations: 0,
     };
-    this.retention = new TickRetention(journal, f, condition.id, condition.dtUs);
+    this.limits = cylinderScenarioLimits(f, condition);
+    this.retention = new TickRetention(
+      journal,
+      f,
+      condition.id,
+      condition.dtUs,
+      f.retention.scenarioTickBytes[condition.kind],
+    );
     this.parity = new StepChain();
     this.physical = new StepChain();
     this.lastObservation = null;
@@ -923,7 +984,7 @@ class World {
         canonicalEqual(phaseState(pre), phaseState(copyState(data))),
         'STEP1_PHYSICAL_STATE_CHANGED',
       );
-      forward = captureForward(M, model, data, pre, this.ids, res, this.buffer, f.resources);
+      forward = captureForward(M, model, data, pre, this.ids, res, this.buffer, this.limits);
       this.lastObservation = { tick, phase: 'before-step2', pre, control, forward };
       res.advanceDispatched += 1;
       total.advanceDispatched += 1;
@@ -947,8 +1008,8 @@ class World {
     // mj_step leaves forward position/velocity caches from n while qpos/qvel
     // are n+1. Reference captures them now and deliberately NEVER refreshes.
     if (c.phase === 'full')
-      forward = captureForward(M, model, data, pre, this.ids, res, this.buffer, f.resources);
-    const force = captureForces(M, model, data, forward, res, this.buffer, f.resources);
+      forward = captureForward(M, model, data, pre, this.ids, res, this.buffer, this.limits);
+    const force = captureForces(M, model, data, forward, res, this.buffer, this.limits);
     this.lastObservation = {
       tick,
       phase: 'force-captured-before-refresh',
@@ -1491,6 +1552,7 @@ export function assessComparisons(f, summaries, mode) {
 export async function executeCylinder(f, mode, journal) {
   validateCylinderFixture(f);
   const plan = cylinderPlan(f, mode);
+  cylinderRetentionProof(f);
   const b = f.budgets[mode];
   const total = {
     allowedWorlds: b.worlds,
@@ -1631,6 +1693,584 @@ export async function executeCylinder(f, mode, journal) {
         cumulativeSlipM: w.cumulativeSlipM,
       })),
     ),
+  );
+  return report;
+}
+
+/** Float64 words are authoritative. JSON's spelling cannot preserve signed zero. */
+export function float64Words(values) {
+  const bytes = Buffer.alloc(values.length * 8);
+  values.forEach((value, i) => bytes.writeDoubleLE(value, i * 8));
+  return bytes.toString('hex');
+}
+export function decodeFloat64Words(hex, count, label) {
+  demand(
+    typeof hex === 'string' && hex.length === count * 16 && /^[0-9a-f]+$/.test(hex),
+    'GEOMETRY_INPUT_FLOAT64_WORDS ' + label,
+  );
+  const bytes = Buffer.from(hex, 'hex');
+  const values = Array.from({ length: count }, (_, i) => bytes.readDoubleLE(i * 8));
+  demand(finite(values), 'GEOMETRY_INPUT_NONFINITE ' + label);
+  return values;
+}
+
+/** Pure decoder accepts an explicit binding so synthetic unit inputs stay labelled.
+ * The native entry point always supplies the immutable fixture binding. */
+export function decodeRetainedGeometryInput(bytes, binding) {
+  demand(
+    Buffer.isBuffer(bytes) &&
+      bytes.length === binding.inputBytes &&
+      digest(bytes) === binding.inputSha256,
+    'GEOMETRY_INPUT_IDENTITY',
+  );
+  const input = JSON.parse(bytes.toString('utf8'));
+  demand(
+    input.schema === binding.inputSchema &&
+      input.world === binding.world &&
+      input.count === binding.poseCount &&
+      input.first === binding.firstTick &&
+      input.last === binding.lastTick &&
+      Array.isArray(input.records) &&
+      input.records.length === binding.poseCount &&
+      binding.lastTick - binding.firstTick + 1 === binding.poseCount,
+    'GEOMETRY_INPUT_SHAPE',
+  );
+  const poses = input.records.map((record, i) => {
+    demand(
+      record.tick === binding.firstTick + i && record.intervalStartUs === (record.tick - 1) * 500,
+      'GEOMETRY_INPUT_ORDER_OR_TIME',
+    );
+    demand(
+      record.preState &&
+        record.preStateFloat64LE &&
+        canonicalEqual(Object.keys(record.preState).sort(), ['qpos', 'qvel', 'time']) &&
+        canonicalEqual(Object.keys(record.preStateFloat64LE).sort(), ['qpos', 'qvel', 'time']),
+      'GEOMETRY_INPUT_PRE_FIELDS',
+    );
+    demand(
+      Number.isSafeInteger(record.recordBytes) &&
+        record.recordBytes > 0 &&
+        /^[0-9a-f]{64}$/.test(record.recordSha256),
+      'GEOMETRY_INPUT_RECORD_IDENTITY',
+    );
+    const qpos = decodeFloat64Words(record.preStateFloat64LE.qpos, 8, 'qpos');
+    const qvel = decodeFloat64Words(record.preStateFloat64LE.qvel, 7, 'qvel');
+    const [time] = decodeFloat64Words(record.preStateFloat64LE.time, 1, 'time');
+    demand(
+      Array.isArray(record.preState.qpos) &&
+        record.preState.qpos.length === 8 &&
+        Array.isArray(record.preState.qvel) &&
+        record.preState.qvel.length === 7 &&
+        qpos.every((v, j) => v === record.preState.qpos[j]) &&
+        qvel.every((v, j) => v === record.preState.qvel[j]) &&
+        time === record.preState.time,
+      'GEOMETRY_INPUT_JSON_WORD_MISMATCH',
+    );
+    return {
+      tick: record.tick,
+      intervalStartUs: record.intervalStartUs,
+      sourceRecordSha256: record.recordSha256,
+      qpos,
+      time,
+      words: { qpos: record.preStateFloat64LE.qpos, time: record.preStateFloat64LE.time },
+    };
+  });
+  return { inputSha256: binding.inputSha256, poses };
+}
+
+export function geometryStateWords(data) {
+  demand(data.qpos instanceof Float64Array && data.qpos.length === 8, 'GEOMETRY_QPOS_SHAPE');
+  return { qpos: float64Words(Array.from(data.qpos)), time: float64Words([data.time]) };
+}
+
+export function assessCylinderGeometry(f, qpos, observation) {
+  demand(qpos.length === 8 && finite(qpos) && finite(observation), 'GEOMETRY_NONFINITE');
+  demand(
+    observation.ncon >= 1 &&
+      observation.ncon <= 5 &&
+      observation.nefc <= 15 &&
+      observation.nisland <= 2,
+    'GEOMETRY_NATIVE_BOUNDS',
+  );
+  const floor = floorFrame(qpos[0]);
+  const cylR = quaternionMatrix(qpos.slice(4));
+  const com = qpos.slice(1, 4);
+  const identity = quaternionMatrix([1, 0, 0, 0]);
+  const floorCom = rotate(floor.rotation, f.stand.com);
+  const expected = {
+    xpos: [0, 0, 0, 0, 0, 0, ...com],
+    xipos: [0, 0, 0, ...floorCom, ...com],
+    xmat: [...identity, ...floor.rotation, ...cylR],
+    xquat: [1, 0, 0, 0, Math.cos(qpos[0] / 2), 0, Math.sin(qpos[0] / 2), 0, ...qpos.slice(4)],
+    geom_xpos: [...rotate(floor.rotation, [0, 0, f.bodies.floor.fixedCenterZ]), ...com],
+    geom_xmat: [...floor.rotation, ...cylR],
+  };
+  let maxPoseError = 0;
+  for (const [key, values] of Object.entries(expected)) {
+    const actual = observation.poses[key];
+    demand(Array.isArray(actual) && actual.length === values.length, 'GEOMETRY_POSE_SHAPE ' + key);
+    const error = Math.max(...values.map((v, i) => Math.abs(v - actual[i])));
+    maxPoseError = Math.max(maxPoseError, error);
+    demand(error <= 1e-12, 'GEOMETRY_ORIGINAL_POSE_RECONSTRUCTION ' + key);
+  }
+  warningGuard(observation.warnings, f);
+  const shape = worldIds(f, { kind: 'tilt' }).freeBodies[0];
+  const body = {
+    com: observation.poses.xipos.slice(6, 9),
+    rotation: observation.poses.xmat.slice(18, 27),
+  };
+  const usedRows = new Set();
+  const candidates = observation.contacts.map((c, i) => {
+    demand(
+      c.index === i &&
+        c.dim === 3 &&
+        ((c.geom[0] === 0 && c.geom[1] === 1) || (c.geom[0] === 1 && c.geom[1] === 0)) &&
+        c.geom1 === c.geom[0] &&
+        c.geom2 === c.geom[1],
+      'GEOMETRY_PAIR_OR_DIM',
+    );
+    demand(
+      c.dist < 0 && c.exclude === 0 && c.includemargin === 0,
+      'GEOMETRY_STRICT_PENETRATION_ONLY',
+    );
+    demand(frameError(c.frame) <= f.contact.frameOrthonormalTolerance, 'GEOMETRY_CONTACT_FRAME');
+    demand(
+      canonicalEqual(c.friction, f.contact.effectiveFriction) &&
+        canonicalEqual(c.solref, f.contact.solref) &&
+        canonicalEqual(c.solreffriction, f.contact.solreffriction) &&
+        canonicalEqual(c.solimp, f.contact.solimp) &&
+        c.adhesion === 0 &&
+        c.surfacevel.every((v) => v === 0) &&
+        ['flex', 'elem', 'vert'].every((key) => c[key].every((v) => v === -1)),
+      'GEOMETRY_EFFECTIVE_CONTACT_PARAMETERS',
+    );
+    demand(
+      Number.isSafeInteger(c.efc_address) &&
+        c.efc_address >= 0 &&
+        c.efc_address + 3 <= observation.nefc,
+      'GEOMETRY_CONTACT_ROWS',
+    );
+    for (let j = 0; j < 3; j += 1) {
+      const row = c.efc_address + j;
+      demand(
+        !usedRows.has(row) && observation.efcType[row] === 7 && observation.efcId[row] === i,
+        'GEOMETRY_UNREGISTERED_CONSTRAINT_ROW',
+      );
+      usedRows.add(row);
+    }
+    // Legacy perturbations do not prove unperturbed witnesses. Check the
+    // original-pose support candidates verbatim with the unchanged domain.
+    const candidate = supportWitness(c, 1, body, floor, shape, f);
+    demand(candidate.supported, 'GEOMETRY_SUPPORT_CANDIDATE_OUTSIDE_DOMAIN');
+    return candidate;
+  });
+  demand(
+    observation.contacts.length === observation.ncon &&
+      usedRows.size === observation.nefc &&
+      observation.efcType.length === observation.nefc &&
+      observation.efcId.length === observation.nefc,
+    'GEOMETRY_EXTRA_CONSTRAINT_ROWS',
+  );
+  return { maxPoseError, candidates };
+}
+
+export function geometryJournalRetention(f) {
+  return {
+    schema: f.geometryOnly.schema,
+    numericEncoding: f.retention.numericEncoding,
+    recordFraming: f.retention.recordFraming,
+    strings: f.retention.strings,
+    perTick: 'all401 saved-pose position observations; no velocity, force or trajectory claim',
+    maxJournalBytes: f.geometryOnly.maxJournalBytes,
+    reservedFailureTrailerBytes: f.geometryOnly.maxFinalTrailerBytes + 4,
+  };
+}
+
+export function createGeometryReport(f) {
+  return {
+    schema: f.geometryOnly.schema,
+    profile: f.candidateProfile.id,
+    status: 'RUNNING',
+    assessment: { verdict: 'NOT_RUN', failures: [] },
+    unqualified: [...f.geometryOnly.unqualified],
+    inputSha256: f.geometryOnly.inputSha256,
+    counts: {
+      nativeImportsDispatched: 0,
+      nativeImportsReturned: 0,
+      factoriesDispatched: 0,
+      factoriesReturned: 0,
+      modelCreationDispatched: 0,
+      modelsCreated: 0,
+      modelDeletionDispatched: 0,
+      modelsFreed: 0,
+      dataCreationDispatched: 0,
+      dataCreated: 0,
+      dataDeletionDispatched: 0,
+      dataFreed: 0,
+      positionDispatched: 0,
+      positionReturned: 0,
+      poseRecordsAppended: 0,
+      retainedPoseRecords: 0,
+      otherDirectMjCalls: 0,
+      nativeAdvances: 0,
+      resets: 0,
+      doubleBuffers: 0,
+    },
+    resources: {
+      temporaryCreated: 0,
+      temporaryDeleted: 0,
+      contactVectorsCreated: 0,
+      contactGetsCreated: 0,
+      warningGetsCreated: 0,
+      warningObservations: 0,
+      cleanupErrors: [],
+    },
+    maxContacts: 0,
+    maxRows: 0,
+    maxIslands: 0,
+    maxPoseRecordBytes: 0,
+    lastObservation: null,
+    failures: [],
+  };
+}
+
+function geometryFailure(report, stage, error) {
+  report.failures.push({ stage, classification: portableError(error), error: String(error) });
+}
+
+/** Pure injectable session: M must be supplied; this function cannot import or
+ * initialize an engine. The explicit CLI is the only real native entry point. */
+export function runCylinderGeometrySession(
+  M,
+  f,
+  input,
+  journal,
+  report = createGeometryReport(f),
+  now = () => performance.now(),
+  started = now(),
+) {
+  const g = f.geometryOnly;
+  const counts = report.counts;
+  const resources = report.resources;
+  const condition = cylinderPlan(f, 'main').find((c) => c.id === g.world);
+  const limits = {
+    ...cylinderScenarioLimits(f, condition),
+    nbody: 3,
+    ngeom: 2,
+    maxContactVectors: g.maxContactVectors,
+    maxContactGets: g.maxContactGets,
+    maxWarningGets: g.maxWarningGets,
+    maxWarningObservations: g.maxWarningObservations,
+  };
+  let model = null;
+  let data = null;
+  let stage = 'input';
+  const wallGuard = () =>
+    demand(now() - started <= g.wallTimeoutSeconds * 1000, 'GEOMETRY_WALL_TIMEOUT');
+  try {
+    demand(
+      input.inputSha256 === g.inputSha256 && input.poses.length === g.poseCount,
+      'GEOMETRY_SESSION_INPUT_BINDING',
+    );
+    demand(
+      counts.positionDispatched === 0 &&
+        counts.modelCreationDispatched === 0 &&
+        counts.dataCreationDispatched === 0,
+      'GEOMETRY_SESSION_ALREADY_STARTED',
+    );
+    wallGuard();
+    const xml = makeCylinderXml(f, condition);
+    report.xmlSha256 = digest(xml);
+    stage = 'model-create';
+    counts.modelCreationDispatched += 1;
+    model = M.MjModel.from_xml_string(xml);
+    demand(model, 'NATIVE_MODEL_CREATE_EMPTY');
+    counts.modelsCreated += 1;
+    stage = 'data-create';
+    counts.dataCreationDispatched += 1;
+    data = new M.MjData(model);
+    demand(data, 'NATIVE_DATA_CREATE_EMPTY');
+    counts.dataCreated += 1;
+    stage = 'initial-readback';
+    for (const [key, value] of Object.entries({
+      nq: 8,
+      nv: 7,
+      na: 0,
+      nu: 1,
+      nbody: 3,
+      ngeom: 2,
+      njnt: 2,
+      ntree: 2,
+      npair: 1,
+      nkey: 0,
+      nplugin: 0,
+      nsensor: 0,
+      neq: 0,
+      nflex: 0,
+      ntendon: 0,
+      nmocap: 0,
+    }))
+      demand(model[key] === value, 'GEOMETRY_INITIAL_MODEL_COUNT ' + key);
+    const readback = readModel(model);
+    const initial = {
+      time: data.time,
+      qpos: boundedNativeArray(data.qpos, 8, 'qpos', true),
+      qvel: boundedNativeArray(data.qvel, 7, 'qvel', true),
+    };
+    validateModel(f, condition, readback, initial);
+    const factoryInputs = {};
+    for (const [key, length] of Object.entries({
+      qfrc_applied: 7,
+      xfrc_applied: 18,
+      act: 0,
+      ctrl: 1,
+      mocap_pos: 0,
+      mocap_quat: 0,
+    })) {
+      factoryInputs[key] = boundedNativeArray(data[key], length, key, true);
+      demand(
+        factoryInputs[key].every((v) => v === 0),
+        'GEOMETRY_FACTORY_NONZERO ' + key,
+      );
+    }
+    const baselineWarnings = copyGeometryWarnings(data, resources, limits);
+    warningGuard(baselineWarnings, f);
+    const initialization = {
+      kind: 'geometry-initialization',
+      xmlSha256: report.xmlSha256,
+      profile: f.candidateProfile.id,
+      inputSha256: input.inputSha256,
+      readback,
+      initial,
+      factoryInputs,
+      warnings: baselineWarnings,
+      restoredFields: g.restoredFields,
+      absentPreFields: g.absentPreFields,
+      unqualified: g.unqualified,
+    };
+    demand(
+      canonicalBytes(initialization).length <= g.maxInitializationBytes,
+      'GEOMETRY_INITIALIZATION_BYTE_CAP',
+    );
+    journal.append(initialization);
+    journal.checkpoint();
+    wallGuard();
+    for (let i = 0; i < input.poses.length; i += 1) {
+      const pose = input.poses[i];
+      stage = 'restore-pose';
+      report.lastObservation = {
+        index: i,
+        tick: pose.tick,
+        stage,
+        sourceRecordSha256: pose.sourceRecordSha256,
+        expectedWords: pose.words,
+      };
+      demand(
+        pose.tick === g.firstTick + i &&
+          pose.qpos.length === 8 &&
+          finite(pose.qpos) &&
+          Number.isFinite(pose.time) &&
+          canonicalEqual(
+            { qpos: float64Words(pose.qpos), time: float64Words([pose.time]) },
+            pose.words,
+          ),
+        'GEOMETRY_SESSION_POSE_ORDER_OR_WORDS',
+      );
+      wallGuard();
+      demand(
+        counts.positionDispatched < g.maxPositionCalls &&
+          counts.positionDispatched === counts.positionReturned,
+        'GEOMETRY_POSITION_DISPATCH_BUDGET',
+      );
+      data.qpos.set(pose.qpos);
+      data.time = pose.time;
+      const before = geometryStateWords(data);
+      demand(canonicalEqual(before, pose.words), 'GEOMETRY_RESTORE_WORDS');
+      report.lastObservation.before = before;
+      stage = 'position-dispatch';
+      report.lastObservation.stage = stage;
+      counts.positionDispatched += 1;
+      M.mj_fwdPosition(model, data);
+      counts.positionReturned += 1;
+      stage = 'position-readback';
+      report.lastObservation.stage = stage;
+      const after = geometryStateWords(data);
+      report.lastObservation.after = after;
+      demand(canonicalEqual(before, after), 'GEOMETRY_QPOS_OR_TIME_MUTATION');
+      wallGuard();
+      const observation = captureGeometry(data, resources, limits);
+      report.lastObservation.observation = observation;
+      const geometry = assessCylinderGeometry(f, pose.qpos, observation);
+      report.lastObservation.geometry = geometry;
+      const record = {
+        kind: 'geometry-pose',
+        index: i,
+        tick: pose.tick,
+        intervalStartUs: pose.intervalStartUs,
+        sourceRecordSha256: pose.sourceRecordSha256,
+        before,
+        after,
+        observation,
+        geometry,
+        positionDispatched: counts.positionDispatched,
+        positionReturned: counts.positionReturned,
+      };
+      const recordBytes = canonicalBytes(record).length;
+      demand(recordBytes <= g.maxPoseRecordBytes, 'GEOMETRY_POSE_RECORD_BYTE_CAP');
+      report.maxPoseRecordBytes = Math.max(report.maxPoseRecordBytes, recordBytes);
+      stage = 'pose-journal-write';
+      report.lastObservation.stage = stage;
+      journal.append(record);
+      counts.poseRecordsAppended += 1;
+      journal.checkpoint();
+      counts.retainedPoseRecords += 1;
+      report.maxContacts = Math.max(report.maxContacts, observation.ncon);
+      report.maxRows = Math.max(report.maxRows, observation.nefc);
+      report.maxIslands = Math.max(report.maxIslands, observation.nisland);
+      wallGuard();
+    }
+    stage = 'complete-counts';
+    demand(
+      counts.positionDispatched === g.poseCount &&
+        counts.positionReturned === g.poseCount &&
+        counts.retainedPoseRecords === g.poseCount &&
+        counts.poseRecordsAppended === g.poseCount,
+      'GEOMETRY_INCOMPLETE_401',
+    );
+  } catch (error) {
+    geometryFailure(report, stage, error);
+    if (data) {
+      try {
+        report.partialStateWords = geometryStateWords(data);
+      } catch (readError) {
+        geometryFailure(report, 'partial-state-read', readError);
+      }
+      try {
+        report.partialNativeCounts = { ncon: data.ncon, nefc: data.nefc, nisland: data.nisland };
+      } catch (readError) {
+        geometryFailure(report, 'partial-count-read', readError);
+      }
+    }
+  } finally {
+    for (const [label, value] of [
+      ['data', data],
+      ['model', model],
+    ]) {
+      if (!value) continue;
+      const dispatched = label === 'data' ? 'dataDeletionDispatched' : 'modelDeletionDispatched';
+      const freed = label === 'data' ? 'dataFreed' : 'modelsFreed';
+      counts[dispatched] += 1;
+      try {
+        value.delete();
+        counts[freed] += 1;
+      } catch (error) {
+        geometryFailure(report, label + '-cleanup', error);
+      }
+    }
+  }
+  if (
+    resources.temporaryCreated !== resources.temporaryDeleted ||
+    resources.temporaryCreated > g.maxOwnedWrappers ||
+    resources.cleanupErrors.length ||
+    counts.modelsCreated !== counts.modelsFreed ||
+    counts.dataCreated !== counts.dataFreed
+  )
+    geometryFailure(report, 'ownership', new Error('GEOMETRY_OWNERSHIP_NOT_BALANCED'));
+  report.elapsedMs = now() - started;
+  if (report.elapsedMs > g.wallTimeoutSeconds * 1000)
+    geometryFailure(report, 'wall', new Error('GEOMETRY_WALL_TIMEOUT'));
+  report.status = report.failures.length ? 'FAILED' : 'OBSERVATIONS_COMPLETE';
+  report.assessment = {
+    verdict: report.failures.length ? 'FAIL' : 'PENDING_DURABLE_FINALIZATION',
+    failures: report.failures.map((v) => v.classification),
+  };
+  return report;
+}
+
+/** Native import/factory occur only after CLI's external review/preregistration
+ * validation. No mj_version, warmup, reset, force, velocity or stepping call. */
+export async function executeCylinderGeometry(f, inputBytes, journal) {
+  validateCylinderFixture(f);
+  const input = decodeRetainedGeometryInput(inputBytes, f.geometryOnly);
+  const report = createGeometryReport(f);
+  const started = performance.now();
+  try {
+    const artifact = verifyCylinderArtifacts(f);
+    report.counts.nativeImportsDispatched += 1;
+    const { default: initialize } = await import(
+      pathToFileURL(resolve(artifact.packageRoot, 'mujoco.js')).href
+    );
+    report.counts.nativeImportsReturned += 1;
+    report.counts.factoriesDispatched += 1;
+    const M = await initialize({
+      wasmBinary: readFileSync(resolve(artifact.packageRoot, 'mujoco.wasm')),
+    });
+    report.counts.factoriesReturned += 1;
+    runCylinderGeometrySession(M, f, input, journal, report, () => performance.now(), started);
+  } catch (error) {
+    geometryFailure(report, 'native-import-or-factory', error);
+    report.status = 'FAILED';
+    report.assessment = { verdict: 'FAIL', failures: report.failures.map((v) => v.classification) };
+  }
+  return report;
+}
+
+/** Admission verdict is possible only after observed raw fsync/close succeeds. */
+export function finalizeCylinderGeometry(f, report, journal) {
+  const c = report.counts;
+  if (
+    report.status === 'OBSERVATIONS_COMPLETE' &&
+    !(
+      c.nativeImportsDispatched === 1 &&
+      c.nativeImportsReturned === 1 &&
+      c.factoriesDispatched === 1 &&
+      c.factoriesReturned === 1 &&
+      c.modelCreationDispatched === 1 &&
+      c.modelsCreated === 1 &&
+      c.modelsFreed === 1 &&
+      c.dataCreationDispatched === 1 &&
+      c.dataCreated === 1 &&
+      c.dataFreed === 1 &&
+      c.positionDispatched === 401 &&
+      c.positionReturned === 401 &&
+      c.retainedPoseRecords === 401 &&
+      c.otherDirectMjCalls === 0 &&
+      c.nativeAdvances === 0
+    )
+  )
+    geometryFailure(report, 'final-native-budget', new Error('GEOMETRY_FINAL_NATIVE_BUDGET'));
+  const eligible = report.status === 'OBSERVATIONS_COMPLETE' && report.failures.length === 0;
+  const trailer = {
+    kind: 'geometry-final',
+    status: report.status,
+    counts: report.counts,
+    resources: report.resources,
+    lastObservation: report.lastObservation,
+    failures: report.failures,
+    verdict: eligible ? 'PENDING_DURABLE_FINALIZATION' : 'FAIL',
+  };
+  if (canonicalBytes(trailer).length > f.geometryOnly.maxFinalTrailerBytes) {
+    geometryFailure(report, 'trailer-size', new Error('GEOMETRY_TRAILER_BYTE_CAP'));
+    // Close the existing prefix; do not enlarge a cap or retry a native call.
+    report.journal = journal.finish({
+      kind: 'geometry-final',
+      verdict: 'FAIL',
+      reason: 'GEOMETRY_TRAILER_BYTE_CAP',
+      counts: report.counts,
+      fullTrailerBytes: canonicalBytes(trailer).length,
+      fullTrailerSha256: digest(canonicalBytes(trailer)),
+    });
+  } else report.journal = journal.finish(trailer);
+  if (report.journal.trailerError || report.journal.closeError)
+    geometryFailure(report, 'journal-finalization', new Error('GEOMETRY_JOURNAL_FINALIZATION'));
+  report.status = report.failures.length ? 'FAILED' : 'COMPLETED';
+  report.assessment = {
+    verdict: eligible && report.failures.length === 0 ? f.geometryOnly.verdict : 'FAIL',
+    failures: report.failures.map((v) => v.classification),
+  };
+  demand(
+    Buffer.byteLength(JSON.stringify(report), 'utf8') <= f.geometryOnly.maxSummaryBytes,
+    'GEOMETRY_SUMMARY_BYTE_CAP',
   );
   return report;
 }

@@ -24,6 +24,12 @@ import {
   supportWitness,
   tiltState,
   witnessPoints,
+  boundedNativeArray,
+  captureGeometry,
+  copyContacts,
+  copyGeometryWarnings,
+  quaternionMatrix,
+  rotate,
 } from '../../../tools/robotics-field-core/mujoco-contact-observer.mjs';
 import {
   blockInertia,
@@ -35,7 +41,23 @@ import {
   validateCylinderFixture,
   validateGeometryReadback,
   worldIds,
+  assessCylinderGeometry,
+  createGeometryReport,
+  cylinderRetentionProof,
+  cylinderScenarioLimits,
+  decodeFloat64Words,
+  decodeRetainedGeometryInput,
+  finalizeCylinderGeometry,
+  float64Words,
+  geometryJournalRetention,
+  runCylinderGeometrySession,
+  validateModel,
 } from '../../../tools/robotics-field-core/mujoco-cylinder.mjs';
+import {
+  parseGeometryCli,
+  runCylinderCli,
+  validateGeometryAuthorization,
+} from '../../../tools/robotics-field-core/run-mujoco-cylinder.mjs';
 
 // Pure observer contracts only: synthetic records and temporary journal bytes.
 // This spec does not load a physics engine or call the explicit qualification runner.
@@ -158,7 +180,7 @@ function syntheticContact(reverse = false) {
     solref: [...fixture.contact.solref],
     solreffriction: [...fixture.contact.solreffriction],
     solimp: [...fixture.contact.solimp],
-    surfacevel: [0, 0, 0, 0, 0, 0],
+    surfacevel: [0, 0, 0],
   };
   const normalForce = 4.905;
   const forward = {
@@ -393,7 +415,7 @@ function eightContactTick() {
         flex: [-1, -1],
         elem: [-1, -1],
         vert: [-1, -1],
-        surfacevel: [0, 0, 0, 0, 0, 0],
+        surfacevel: [0, 0, 0],
         H: Array(36).fill(0),
       };
       contacts.push(contact);
@@ -1199,7 +1221,7 @@ describe('Cylinder registered plans and authored model text without native initi
       });
       expect(xmlElements(xml, 'flag')[0]).toMatchObject({
         diagexact: 'enable',
-        nativeccd: 'enable',
+        nativeccd: 'disable',
         multiccd: 'enable',
         sleep: 'disable',
         autoreset: 'disable',
@@ -1309,7 +1331,7 @@ describe('Cylinder registered plans and authored model text without native initi
     expect(record.contact.bodies.cylinder.loaded).toBe(4);
     expect(record.contact.bodies.block.loaded).toBe(4);
     for (const contact of record.parity.contacts) {
-      expect(contact.surfacevel).toHaveLength(6);
+      expect(contact.surfacevel).toHaveLength(3);
       expect(contact).not.toHaveProperty('H');
       expect(contact).not.toHaveProperty('mu');
     }
@@ -1698,4 +1720,1293 @@ describe('Bounded observer candidate preserves the aaf8427f byte contract', () =
       ),
     ).toBe(true);
   });
+});
+
+// All inputs below are SYNTHETIC_GEOMETRY_UNIT_INPUT. They are neither native
+// contacts nor the sealed401 history. The real CLI accepts only the sealed hash.
+function syntheticGeometryInputs(count = fixture.geometryOnly.poseCount) {
+  const poses = Array.from({ length: count }, (_, index) => {
+    const qpos = [0, 0, -0, fixture.bodies.cylinder.heightM / 2 - 0.00001, 1, 0, 0, 0];
+    const tick = fixture.geometryOnly.firstTick + index;
+    const time = (tick - 1) * 0.0005;
+    return {
+      tick,
+      intervalStartUs: (tick - 1) * 500,
+      qpos,
+      time,
+      sourceRecordSha256: '1'.repeat(64),
+      words: { qpos: float64Words(qpos), time: float64Words([time]) },
+    };
+  });
+  return { inputSha256: fixture.geometryOnly.inputSha256, poses };
+}
+
+function syntheticGeometryDocument() {
+  const input = syntheticGeometryInputs();
+  const g = fixture.geometryOnly;
+  const document = {
+    schema: g.inputSchema,
+    world: g.world,
+    first: g.firstTick,
+    last: g.lastTick,
+    count: g.poseCount,
+    origin: 'SYNTHETIC_GEOMETRY_UNIT_INPUT',
+    records: input.poses.map((pose) => ({
+      tick: pose.tick,
+      intervalStartUs: pose.intervalStartUs,
+      recordBytes: 1000,
+      recordSha256: pose.sourceRecordSha256,
+      preState: { qpos: pose.qpos, qvel: new Array(7).fill(0), time: pose.time },
+      preStateFloat64LE: { ...pose.words, qvel: float64Words(new Array(7).fill(0)) },
+    })),
+  };
+  const bind = (value = document) => {
+    const bytes = Buffer.from(JSON.stringify(value));
+    return {
+      bytes,
+      binding: {
+        ...g,
+        inputBytes: bytes.length,
+        inputSha256: createHash('sha256').update(bytes).digest('hex'),
+      },
+    };
+  };
+  return { document, bind };
+}
+
+function syntheticGeometryModel() {
+  const f = fixture;
+  const s = f.solver;
+  const zeros = (n: number) => new Array(n).fill(0);
+  return {
+    ...geometryReadback('tilt'),
+    nq: 8,
+    nv: 7,
+    na: 0,
+    nu: 1,
+    nbody: 3,
+    ngeom: 2,
+    njnt: 2,
+    ntree: 2,
+    npair: 1,
+    nkey: 0,
+    nsensor: 0,
+    nplugin: 0,
+    neq: 0,
+    nflex: 0,
+    ntendon: 0,
+    nmocap: 0,
+    body_mass: [0, f.stand.massKg, f.bodies.cylinder.massKg],
+    body_inertia: [...zeros(3), ...f.stand.inertiaKgM2, ...f.bodies.cylinder.inertiaKgM2],
+    body_gravcomp: zeros(3),
+    geom_type: [6, 5],
+    geom_friction: [...f.contact.geomFriction, ...f.contact.geomFriction],
+    geom_condim: [3, 3],
+    geom_margin: zeros(2),
+    geom_gap: zeros(2),
+    geom_solref: [...f.contact.solref, ...f.contact.solref],
+    geom_solimp: [...f.contact.solimp, ...f.contact.solimp],
+    geom_adhesion: zeros(2),
+    geom_surfacevel: zeros(12),
+    pair_adhesion: [0],
+    jnt_type: [3, 0],
+    jnt_axis: [0, 1, 0, 0, 0, 1],
+    jnt_limited: [0, 0],
+    jnt_stiffness: [0, 0],
+    dof_damping: zeros(7),
+    dof_dampingpoly: zeros(14),
+    dof_frictionloss: zeros(7),
+    dof_armature: zeros(7),
+    pair_dim: [3],
+    pair_geom1: [0],
+    pair_geom2: [1],
+    pair_friction: [...f.contact.pairFriction],
+    pair_margin: [0],
+    pair_gap: [0],
+    pair_solref: [...f.contact.solref],
+    pair_solreffriction: [...f.contact.solreffriction],
+    pair_solimp: [...f.contact.solimp],
+    actuator_gear: [1, 0, 0, 0, 0, 0],
+    actuator_gainprm: [f.stand.kp, ...zeros(9)],
+    actuator_biasprm: [0, -f.stand.kp, -f.stand.kv, ...zeros(7)],
+    actuator_dynprm: zeros(10),
+    actuator_dyntype: [0],
+    actuator_gaintype: [0],
+    actuator_biastype: [1],
+    actuator_ctrllimited: [1],
+    actuator_forcelimited: [1],
+    actuator_ctrlrange: [...f.stand.ctrlRangeRad],
+    actuator_forcerange: [...f.stand.forceRangeNm],
+    actuator_trnid: [0, -1],
+    actuator_trntype: [0],
+    actuator_damping: [0],
+    actuator_dampingpoly: [0, 0],
+    actuator_delay: [0],
+    actuator_armature: [0],
+    opt: {
+      timestep: 0.0005,
+      integrator: 3,
+      solver: 2,
+      jacobian: 0,
+      cone: 1,
+      iterations: s.iterations,
+      tolerance: s.tolerance,
+      ls_iterations: s.lsIterations,
+      ls_tolerance: s.lsTolerance,
+      noslip_iterations: s.noSlipIterations,
+      noslip_tolerance: s.noSlipTolerance,
+      impratio: s.impratio,
+      ccd_iterations: s.ccdIterations,
+      ccd_tolerance: s.ccdTolerance,
+      disableflags: 196608,
+      enableflags: 32,
+      density: 0,
+      viscosity: 0,
+      disableactuator: 0,
+      gravity: [...f.gravity],
+      wind: [0, 0, 0],
+    },
+    delete() {
+      /* synthetic ownership spy replaces this method */
+    },
+  };
+}
+
+function syntheticGeometryObservation(qpos: number[], count = 5) {
+  const floor = floorFrame(qpos[0]);
+  const rotation = quaternionMatrix(qpos.slice(4));
+  const com = qpos.slice(1, 4);
+  const center = rotate(floor.rotation, fixture.stand.com);
+  const depth = 0.00001;
+  const contacts = Array.from({ length: count }, (_, index) => ({
+    index,
+    dist: -depth,
+    includemargin: 0,
+    dim: 3,
+    geom1: 0,
+    geom2: 1,
+    exclude: 0,
+    efc_address: index * 3,
+    adhesion: 0,
+    pos: [
+      0.02 * Math.cos((index * 2 * Math.PI) / count),
+      0.02 * Math.sin((index * 2 * Math.PI) / count),
+      -depth / 2,
+    ],
+    frame: [0, 0, 1, 1, 0, 0, 0, 1, 0],
+    friction: [...fixture.contact.effectiveFriction],
+    solref: [...fixture.contact.solref],
+    solreffriction: [...fixture.contact.solreffriction],
+    solimp: [...fixture.contact.solimp],
+    geom: [0, 1],
+    flex: [-1, -1],
+    elem: [-1, -1],
+    vert: [-1, -1],
+    surfacevel: new Array(3).fill(0),
+  }));
+  return {
+    contacts,
+    ncon: count,
+    nefc: count * 3,
+    nisland: 2,
+    poses: {
+      xpos: [0, 0, 0, 0, 0, 0, ...com],
+      xipos: [0, 0, 0, ...center, ...com],
+      xmat: [...identity, ...floor.rotation, ...rotation],
+      xquat: [1, 0, 0, 0, Math.cos(qpos[0] / 2), 0, Math.sin(qpos[0] / 2), 0, ...qpos.slice(4)],
+      geom_xpos: [...center, ...com],
+      geom_xmat: [...floor.rotation, ...rotation],
+    },
+    efcType: new Array(count * 3).fill(7),
+    efcId: contacts.flatMap((c) => [c.index, c.index, c.index]),
+    warnings: Array.from({ length: 7 }, () => [0, 0]),
+  };
+}
+
+function syntheticNativeGeometry(failure = '') {
+  const calls = {
+    position: 0,
+    modelCreates: 0,
+    dataCreates: 0,
+    modelDeletes: 0,
+    dataDeletes: 0,
+    vectorDeletes: 0,
+    contactGets: 0,
+    contactDeletes: 0,
+    warningGets: 0,
+    warningDeletes: 0,
+    arrayReads: 0,
+    journalWrites: 0,
+    checkpoints: 0,
+    forbidden: [] as string[],
+  };
+  const model = syntheticGeometryModel();
+  if (failure === 'before-dispatch') model.body_mass[2] += 1;
+  model.delete = () => {
+    calls.modelDeletes += 1;
+    if (failure === 'model-cleanup') throw new Error('SYNTHETIC_MODEL_CLEANUP');
+  };
+  let current = syntheticGeometryObservation(syntheticGeometryInputs().poses[0].qpos);
+  const data = {
+    qpos: new Float64Array([
+      0,
+      0,
+      0,
+      fixture.bodies.cylinder.heightM / 2 + fixture.initialGapM,
+      1,
+      0,
+      0,
+      0,
+    ]),
+    qvel: new Float64Array(7),
+    time: 0,
+    qfrc_applied: new Float64Array(7),
+    xfrc_applied: new Float64Array(18),
+    act: new Float64Array(0),
+    ctrl: new Float64Array(1),
+    mocap_pos: new Float64Array(0),
+    mocap_quat: new Float64Array(0),
+    get ncon() {
+      return current.ncon;
+    },
+    get nefc() {
+      return current.nefc;
+    },
+    get nisland() {
+      return current.nisland;
+    },
+    get efc_type() {
+      return new Int32Array(current.efcType);
+    },
+    get efc_id() {
+      return new Int32Array(current.efcId);
+    },
+    get contact() {
+      return {
+        size: () => current.contacts.length,
+        get(index: number) {
+          calls.contactGets += 1;
+          if (failure === 'contact-get' && index === 1) throw new Error('SYNTHETIC_CONTACT_GET');
+          const saved = current.contacts[index];
+          const wrapped: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(saved)) {
+            if (!Array.isArray(value)) {
+              wrapped[key] = value;
+              continue;
+            }
+            Object.defineProperty(wrapped, key, {
+              get() {
+                calls.arrayReads += 1;
+                if (failure === 'contact-array' && key === 'pos')
+                  throw new Error('SYNTHETIC_CONTACT_ARRAY');
+                return new Float64Array(value);
+              },
+            });
+          }
+          for (const key of ['H', 'mu'])
+            Object.defineProperty(wrapped, key, {
+              get() {
+                calls.forbidden.push(key);
+                throw new Error('FORBIDDEN_' + key);
+              },
+            });
+          wrapped.delete = () => {
+            calls.contactDeletes += 1;
+            if (failure === 'contact-cleanup' && index === 0)
+              throw new Error('SYNTHETIC_CONTACT_CLEANUP');
+          };
+          return wrapped;
+        },
+        delete() {
+          calls.vectorDeletes += 1;
+        },
+      };
+    },
+    get warning() {
+      return {
+        size: () => 7,
+        get(index: number) {
+          calls.warningGets += 1;
+          if (failure === 'warning-get' && index === 3) throw new Error('SYNTHETIC_WARNING_GET');
+          return {
+            number: 0,
+            lastinfo: 0,
+            delete() {
+              calls.warningDeletes += 1;
+            },
+          };
+        },
+      };
+    },
+    delete() {
+      calls.dataDeletes += 1;
+      if (failure === 'data-cleanup') throw new Error('SYNTHETIC_DATA_CLEANUP');
+    },
+  };
+  for (const key of Object.keys(current.poses))
+    Object.defineProperty(data, key, {
+      get() {
+        return new Float64Array(current.poses[key as keyof typeof current.poses]);
+      },
+    });
+  for (const key of [
+    'efc_force',
+    'efc_vel',
+    'qfrc_constraint',
+    'qacc',
+    'qacc_warmstart',
+    'qfrc_passive',
+  ])
+    Object.defineProperty(data, key, {
+      get() {
+        calls.forbidden.push(key);
+        throw new Error('FORBIDDEN_' + key);
+      },
+    });
+  const M = new Proxy(
+    {
+      MjModel: {
+        from_xml_string() {
+          calls.modelCreates += 1;
+          if (failure === 'model-create') throw new Error('SYNTHETIC_MODEL_CREATE');
+          return model;
+        },
+      },
+      MjData: class {
+        constructor() {
+          calls.dataCreates += 1;
+          if (failure === 'data-create') throw new Error('SYNTHETIC_DATA_CREATE');
+          return data;
+        }
+      },
+      mj_fwdPosition() {
+        calls.position += 1;
+        if (failure === 'dispatch') throw new Error('SYNTHETIC_POSITION_DISPATCH');
+        current = syntheticGeometryObservation(Array.from(data.qpos));
+        if (failure === 'after-dispatch') data.time += 1;
+        if (failure === 'bad-contact') current.contacts[0].dist = 0;
+        if (failure === 'extra-row-type') current.efcType[0] = 8;
+      },
+    },
+    {
+      get(target, key, receiver) {
+        if (typeof key === 'string' && key.startsWith('mj_') && key !== 'mj_fwdPosition') {
+          calls.forbidden.push(key);
+          throw new Error('FORBIDDEN_' + key);
+        }
+        return Reflect.get(target, key, receiver);
+      },
+    },
+  );
+  const records: Record<string, unknown>[] = [];
+  const journal = {
+    append(record: Record<string, unknown>) {
+      calls.journalWrites += 1;
+      if (failure === 'journal-write' && record.kind === 'geometry-pose')
+        throw new Error('SYNTHETIC_JOURNAL_WRITE');
+      records.push(structuredClone(record));
+    },
+    checkpoint() {
+      calls.checkpoints += 1;
+      if (failure === 'journal-checkpoint' && calls.checkpoints === 2)
+        throw new Error('SYNTHETIC_JOURNAL_CHECKPOINT');
+    },
+    finish(record: Record<string, unknown>) {
+      records.push(record);
+      return {
+        bytes: 1,
+        sha256: '2'.repeat(64),
+        trailerError: failure === 'journal-finish' ? 'SYNTHETIC_FINISH' : null,
+        closeError: null,
+      };
+    },
+  };
+  return { calls, model, data, M, journal, records };
+}
+
+function geometryLimits() {
+  return {
+    ...cylinderScenarioLimits(fixture, { kind: 'tilt' }),
+    nbody: 3,
+    ngeom: 2,
+    maxContactVectors: 401,
+    maxContactGets: 2005,
+    maxWarningGets: 2814,
+    maxWarningObservations: 402,
+  };
+}
+
+function resourceCounters() {
+  return { temporaryCreated: 0, temporaryDeleted: 0, warningObservations: 0, cleanupErrors: [] };
+}
+
+function approvalInputs() {
+  const f = fixture;
+  const sourceManifest = { newInputs: { source: '3'.repeat(64) } };
+  const actual = {
+    fixtureSha256: '4'.repeat(64),
+    sourceHead: '5'.repeat(40),
+    sourceManifest,
+    engineArtifacts: { synthetic: { bytes: 10, sha256: '6'.repeat(64) } },
+    inputPath: '/synthetic/saved.json',
+    outputDirectory: '/synthetic/external',
+    preregistrationSha256: '7'.repeat(64),
+    sourceReviewSha256: '8'.repeat(64),
+  };
+  const registration = {
+    schema: 'CYLINDER_G0_PREREGISTRATION_V1',
+    decision: 'ROOT_PREREGISTERED_AWAIT_SEPARATE_GO',
+    operation: f.geometryOnly.id,
+    profile: f.candidateProfile.id,
+    fixtureSha256: actual.fixtureSha256,
+    sourceHead: actual.sourceHead,
+    sourceManifest,
+    engineArtifacts: actual.engineArtifacts,
+    budget: f.geometryOnly,
+    input: {
+      path: actual.inputPath,
+      sha256: f.geometryOnly.inputSha256,
+      bytes: f.geometryOnly.inputBytes,
+    },
+    outputDirectory: actual.outputDirectory,
+    sourceReviewSha256: actual.sourceReviewSha256,
+  };
+  const review = {
+    schema: 'CYLINDER_G0_SOURCE_REVIEW_V1',
+    decision: 'NO_BLOCKING_SOURCE_FINDINGS',
+    profile: f.candidateProfile.id,
+    fixtureSha256: actual.fixtureSha256,
+    sourceManifest,
+    engineArtifacts: actual.engineArtifacts,
+    inputSha256: f.geometryOnly.inputSha256,
+  };
+  const go = {
+    schema: 'CYLINDER_G0_EXECUTION_GO_V1',
+    decision: 'ROOT_EXECUTION_GO',
+    operation: f.geometryOnly.id,
+    preregistrationSha256: actual.preregistrationSha256,
+    sourceReviewSha256: actual.sourceReviewSha256,
+    oneInvocation: true,
+    noRetry: true,
+    outputDirectory: actual.outputDirectory,
+    budget: f.geometryOnly,
+    invocationId: 'synthetic-unit',
+  };
+  return { actual, registration, review, go };
+}
+
+describe('LEGACY_CCD_MULTI5 S0 group 1: immutable physical profile', () => {
+  it('changes only the collision option in authored physical XML', () => {
+    const condition = cylinderPlan(fixture, 'main').find(
+      (c) => c.id === fixture.geometryOnly.world,
+    )!;
+    const xml = makeCylinderXml(fixture, condition);
+    expect(xml).toContain('nativeccd="disable" multiccd="enable"');
+    expect(fixture.solver.disableFlags).toBe(196608);
+    expect(fixture.solver.enableFlags).toBe(32);
+    expect(fixture.contact.cylinderNativeContactCap).toBe(5);
+    expect(fixture.contact.boxBoxNativeContactCap).toBe(8);
+    expect(fixture.engine.moduleSha256).toBe(
+      '85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2',
+    );
+  });
+  it.each(['mass', 'inertia', 'material', 'stand-pd', 'dt', 'hold', 'stable-gate'])(
+    'rejects unrelated physical delta: %s',
+    (delta) => {
+      const changed = structuredClone(fixture);
+      if (delta === 'mass') changed.bodies.cylinder.massKg += 0.001;
+      if (delta === 'inertia') changed.bodies.cylinder.inertiaKgM2[0] += 1e-9;
+      if (delta === 'material') changed.contact.solref[0] += 1e-6;
+      if (delta === 'stand-pd') changed.stand.kp += 1;
+      if (delta === 'dt') changed.nativeStepUs[0] += 1;
+      if (delta === 'hold') changed.tilt.rates[0].holdUs += 500;
+      if (delta === 'stable-gate') changed.tilt.stable.maxRelativeOmegaRadps += 1e-6;
+      expect(() => validateCylinderFixture(changed)).toThrow(
+        'CYLINDER_REGISTERED_CONTRACT_MISMATCH',
+      );
+    },
+  );
+  it('requires compiled legacy196608/32 and zero geometry dependencies before position dispatch', () => {
+    const fake = syntheticNativeGeometry();
+    const model = fake.model;
+    const readback = { ...model, options: model.opt };
+    const initial = { time: 0, qpos: Array.from(fake.data.qpos), qvel: Array.from(fake.data.qvel) };
+    const condition = cylinderPlan(fixture, 'main').find(
+      (c) => c.id === fixture.geometryOnly.world,
+    )!;
+    expect(() => validateModel(fixture, condition, readback, initial)).not.toThrow();
+    for (const key of ['neq', 'nflex', 'ntendon', 'nmocap', 'nplugin', 'nsensor']) {
+      expect(() => validateModel(fixture, condition, { ...readback, [key]: 1 }, initial)).toThrow(
+        'MODEL_EXTRA_CAPABILITY',
+      );
+    }
+    expect(() =>
+      validateModel(
+        fixture,
+        condition,
+        { ...readback, options: { ...readback.options, disableflags: 65536 } },
+        initial,
+      ),
+    ).toThrow('MODEL_OPTION disableflags');
+  });
+});
+
+describe('LEGACY_CCD_MULTI5 S0 group 2: source bounds before array copies', () => {
+  it('admits exact static13/39 and tilt5/15 limits with islands2', () => {
+    expect(cylinderScenarioLimits(fixture, { kind: 'static' })).toMatchObject({
+      maxContacts: 13,
+      maxConstraintRows: 39,
+      maxIslands: 2,
+      pairCaps: [
+        { geom: [0, 1], maxContacts: 5 },
+        { geom: [0, 2], maxContacts: 8 },
+      ],
+    });
+    expect(geometryLimits()).toMatchObject({
+      maxContacts: 5,
+      maxConstraintRows: 15,
+      maxIslands: 2,
+    });
+  });
+  it.each(['sixth-cylinder', 'ninth-box', 'fourteenth-static', 'extra-row', 'extra-island'])(
+    'rejects %s before reading any contact arrays',
+    (bad) => {
+      let arrays = 0;
+      let vectors = 0;
+      let deleted = 0;
+      const count = bad === 'fourteenth-static' ? 14 : bad === 'ninth-box' ? 9 : 6;
+      const data = {
+        ncon: count,
+        nefc: bad === 'extra-row' ? 40 : count * 3,
+        nisland: bad === 'extra-island' ? 3 : 2,
+        efc_type: new Int32Array(count * 3).fill(7),
+        efc_id: Int32Array.from({ length: count * 3 }, (_, row) => Math.floor(row / 3)),
+        get contact() {
+          vectors += 1;
+          return {
+            size: () => count,
+            get() {
+              return {
+                geom1: 0,
+                geom2: bad === 'ninth-box' ? 2 : 1,
+                dim: 3,
+                get pos() {
+                  arrays += 1;
+                  throw new Error('ARRAY_READ_BEFORE_BOUNDS');
+                },
+                delete() {
+                  deleted += 1;
+                },
+              };
+            },
+            delete() {
+              deleted += 1;
+            },
+          };
+        },
+      };
+      const resources = resourceCounters();
+      expect(() =>
+        copyContacts(data, resources, cylinderScenarioLimits(fixture, { kind: 'static' })),
+      ).toThrow(/RESOURCE/);
+      expect(arrays).toBe(0);
+      expect(resources.temporaryCreated).toBe(resources.temporaryDeleted);
+      expect(deleted).toBe(resources.temporaryDeleted);
+      if (['fourteenth-static', 'extra-row', 'extra-island'].includes(bad)) expect(vectors).toBe(0);
+    },
+  );
+  it('rejects extra constraint types and mismatched array lengths', () => {
+    const fake = syntheticNativeGeometry('extra-row-type');
+    fake.data.qpos.set(syntheticGeometryInputs().poses[0].qpos);
+    fake.M.mj_fwdPosition();
+    expect(() => captureGeometry(fake.data, resourceCounters(), geometryLimits())).toThrow(
+      'RESOURCE_SCENARIO_CONSTRAINT_TYPE_OR_ID',
+    );
+    expect(() => boundedNativeArray(new Float64Array(10), 9, 'frame')).toThrow(
+      'NATIVE_ARRAY_SHAPE',
+    );
+  });
+  it('bounds the borrowed warning vector before acquiring owned get values', () => {
+    let gets = 0;
+    const data = {
+      warning: {
+        size: () => 8,
+        get() {
+          gets += 1;
+        },
+      },
+    };
+    expect(() => copyGeometryWarnings(data, resourceCounters(), geometryLimits())).toThrow(
+      'NATIVE_WARNING_COUNT',
+    );
+    expect(gets).toBe(0);
+  });
+});
+
+describe('Contact surface velocity ABI contract', () => {
+  function replaceSurfaceVelocity(fake: ReturnType<typeof syntheticNativeGeometry>, view: unknown) {
+    const vector = fake.data.contact;
+    Object.defineProperty(fake.data, 'contact', {
+      get() {
+        return {
+          size: () => vector.size(),
+          get(index: number) {
+            const wrapped = Object.create(vector.get(index));
+            Object.defineProperty(wrapped, 'surfacevel', { value: view });
+            return wrapped;
+          },
+          delete: () => vector.delete(),
+        };
+      },
+    });
+  }
+
+  it('copies exactly the three declared contact components and keeps model surface velocity at six per geom', () => {
+    const fake = syntheticNativeGeometry();
+    const view = new Float64Array([0.125, -0, -0.25]);
+    replaceSurfaceVelocity(fake, view);
+    const resources = resourceCounters();
+    const observed = captureGeometry(fake.data, resources, geometryLimits());
+    expect(observed.contacts).toHaveLength(5);
+    for (const contact of observed.contacts) {
+      expect(contact.surfacevel).toEqual([0.125, -0, -0.25]);
+      expect(Object.is(contact.surfacevel[1], -0)).toBe(true);
+    }
+    expect(view).toEqual(new Float64Array([0.125, -0, -0.25]));
+    expect(fake.model.geom_surfacevel).toHaveLength(fake.model.ngeom * 6);
+    expect(fake.model.geom_surfacevel).toHaveLength(12);
+    expect(resources).toMatchObject({
+      temporaryCreated: 13,
+      temporaryDeleted: 13,
+      cleanupErrors: [],
+    });
+    expect(fake.calls.contactGets).toBe(5);
+    expect(fake.calls.contactDeletes).toBe(5);
+    expect(fake.calls.vectorDeletes).toBe(1);
+    expect(fake.calls.forbidden).toEqual([]);
+  });
+
+  it.each(['six-components', 'two-components', 'plain-array', 'data-view', 'null'])(
+    'rejects %s before copying and releases every acquired contact',
+    (bad) => {
+      const fake = syntheticNativeGeometry();
+      const views: Record<string, unknown> = {
+        'six-components': new Float64Array(6),
+        'two-components': new Float64Array(2),
+        'plain-array': [0, 0, 0],
+        'data-view': new DataView(new ArrayBuffer(24)),
+        null: null,
+      };
+      const view = views[bad];
+      let copied = 0;
+      if (view !== null && typeof view === 'object')
+        Object.defineProperty(view, Symbol.iterator, {
+          value() {
+            copied += 1;
+            throw new Error('INVALID_SURFACEVEL_COPIED');
+          },
+        });
+      replaceSurfaceVelocity(fake, view);
+      const resources = resourceCounters();
+      expect(() => captureGeometry(fake.data, resources, geometryLimits())).toThrow(
+        'NATIVE_ARRAY_SHAPE surfacevel',
+      );
+      expect(copied).toBe(0);
+      expect(resources).toMatchObject({
+        temporaryCreated: 6,
+        temporaryDeleted: 6,
+        cleanupErrors: [],
+      });
+      expect(fake.calls.contactGets).toBe(5);
+      expect(fake.calls.contactDeletes).toBe(5);
+      expect(fake.calls.vectorDeletes).toBe(1);
+      expect(fake.calls.warningGets).toBe(0);
+      expect(fake.calls.forbidden).toEqual([]);
+    },
+  );
+
+  it.each([NaN, Infinity])('rejects a nonfinite component %s and preserves cleanup', (value) => {
+    const fake = syntheticNativeGeometry();
+    replaceSurfaceVelocity(fake, new Float64Array([0, value, 0]));
+    const resources = resourceCounters();
+    expect(() => captureGeometry(fake.data, resources, geometryLimits())).toThrow(
+      'NONFINITE_NATIVE_ARRAY surfacevel',
+    );
+    expect(resources).toMatchObject({
+      temporaryCreated: 6,
+      temporaryDeleted: 6,
+      cleanupErrors: [],
+    });
+    expect(fake.calls.contactDeletes).toBe(5);
+    expect(fake.calls.vectorDeletes).toBe(1);
+    expect(fake.calls.warningGets).toBe(0);
+  });
+});
+
+describe('LEGACY_CCD_MULTI5 S0 group 3: position-only call and observation boundary', () => {
+  it('retains401 complete synthetic poses with one permitted call each and all5220 owned wrappers deleted', () => {
+    const fake = syntheticNativeGeometry();
+    const report = runCylinderGeometrySession(
+      fake.M,
+      fixture,
+      syntheticGeometryInputs(),
+      fake.journal,
+    );
+    expect(report.status).toBe('OBSERVATIONS_COMPLETE');
+    expect(report.counts).toMatchObject({
+      modelCreationDispatched: 1,
+      modelsCreated: 1,
+      dataCreationDispatched: 1,
+      dataCreated: 1,
+      positionDispatched: 401,
+      positionReturned: 401,
+      poseRecordsAppended: 401,
+      retainedPoseRecords: 401,
+      modelsFreed: 1,
+      dataFreed: 1,
+      nativeAdvances: 0,
+      otherDirectMjCalls: 0,
+      resets: 0,
+      doubleBuffers: 0,
+    });
+    expect(fake.calls.forbidden).toEqual([]);
+    expect(fake.calls.position).toBe(401);
+    expect(report.resources).toMatchObject({
+      temporaryCreated: 5220,
+      temporaryDeleted: 5220,
+      contactVectorsCreated: 401,
+      contactGetsCreated: 2005,
+      warningGetsCreated: 2814,
+      warningObservations: 402,
+      cleanupErrors: [],
+    });
+    expect(report.assessment.verdict).toBe('PENDING_DURABLE_FINALIZATION');
+    expect(fake.data.qvel).toEqual(new Float64Array(7));
+    expect(Object.is(fake.data.qpos[2], -0)).toBe(true);
+    const record = fake.records[1] as { observation: { contacts: Record<string, unknown>[] } };
+    expect(record.observation.contacts[0]).not.toHaveProperty('H');
+    expect(record.observation.contacts[0]).not.toHaveProperty('mu');
+    expect(record.observation).not.toHaveProperty('efcVel');
+    expect(record.observation).not.toHaveProperty('efcForce');
+  });
+  it('makes importing the CLI inert and rejects old candidate dynamic modes before writing reports', async () => {
+    await expect(runCylinderCli(['--preregister'])).rejects.toThrow(
+      'LEGACY_CANDIDATE_DYNAMIC_MODES_REQUIRE_SEPARATE_ROOT_PATH_AND_STAGE_PLAN',
+    );
+  });
+});
+
+describe('LEGACY_CCD_MULTI5 S0 group 4: actual input words and ordered history', () => {
+  it('decodes synthetic401 Float64LE inputs with signed zero and does not invent absent PRE caches', () => {
+    const sample = syntheticGeometryDocument();
+    const { bytes, binding } = sample.bind();
+    const result = decodeRetainedGeometryInput(bytes, binding);
+    expect(result.poses).toHaveLength(401);
+    expect(Object.is(result.poses[0].qpos[2], -0)).toBe(true);
+    expect(result.poses[0]).not.toHaveProperty('qvel');
+    expect(result.poses[0]).not.toHaveProperty('qacc');
+    expect(result.poses[0]).not.toHaveProperty('qacc_warmstart');
+    expect(decodeFloat64Words('0000000000000080', 1, 'signed-zero')).toEqual([-0]);
+  });
+  it.each(['missing', 'duplicate', 'out-of-order', 'invented-cache', 'json-mismatch', 'word-nan'])(
+    'rejects malformed saved input: %s',
+    (bad) => {
+      const sample = syntheticGeometryDocument();
+      const d = sample.document;
+      if (bad === 'missing') d.records.pop();
+      if (bad === 'duplicate') d.records[1] = d.records[0];
+      if (bad === 'out-of-order') [d.records[0], d.records[1]] = [d.records[1], d.records[0]];
+      if (bad === 'invented-cache') Object.assign(d.records[0].preState, { qacc_warmstart: [] });
+      if (bad === 'json-mismatch') d.records[0].preState.qpos[1] += 1;
+      if (bad === 'word-nan') d.records[0].preStateFloat64LE.time = '000000000000f87f';
+      const { bytes, binding } = sample.bind(d);
+      expect(() => decodeRetainedGeometryInput(bytes, binding)).toThrow(/GEOMETRY_INPUT/);
+    },
+  );
+  it('rejects any byte/hash mismatch, including a synthetic document passed to the real fixture binding', () => {
+    const sample = syntheticGeometryDocument().bind();
+    expect(() => decodeRetainedGeometryInput(sample.bytes, fixture.geometryOnly)).toThrow(
+      'GEOMETRY_INPUT_IDENTITY',
+    );
+    const altered = Buffer.from(sample.bytes);
+    altered[100] ^= 1;
+    expect(() => decodeRetainedGeometryInput(altered, sample.binding)).toThrow(
+      'GEOMETRY_INPUT_IDENTITY',
+    );
+  });
+});
+
+describe('LEGACY_CCD_MULTI5 S0 group 5: unchanged support geometry', () => {
+  it('admits negative penetration with authored zero margin and handles both geom slots without repair', () => {
+    const qpos = syntheticGeometryInputs().poses[0].qpos;
+    for (const reversed of [false, true]) {
+      const observed = syntheticGeometryObservation(qpos);
+      if (reversed)
+        for (const contact of observed.contacts) {
+          contact.geom = [1, 0];
+          contact.geom1 = 1;
+          contact.geom2 = 0;
+          contact.frame = [0, 0, -1, 1, 0, 0, 0, -1, 0];
+        }
+      const before = canonicalBytes(observed);
+      const result = assessCylinderGeometry(fixture, qpos, observed);
+      expect(result.candidates).toHaveLength(5);
+      expect(result.candidates.every((candidate) => candidate.supported)).toBe(true);
+      expect(canonicalBytes(observed)).toEqual(before);
+    }
+  });
+  it.each([
+    'base',
+    'floor',
+    'radius',
+    'interior',
+    'frame',
+    'zero-distance',
+    'positive-distance',
+    'excluded',
+    'material',
+    'pose',
+  ])('fails an invalid original contact: %s', (bad) => {
+    const qpos = syntheticGeometryInputs().poses[0].qpos;
+    const observed = syntheticGeometryObservation(qpos);
+    const c = observed.contacts[0];
+    if (bad === 'base') c.dist = -0.001;
+    if (bad === 'floor') c.pos[2] += 0.001;
+    if (bad === 'radius') c.pos[0] = fixture.bodies.cylinder.radiusM + 0.000101;
+    if (bad === 'interior') c.pos[0] = 0.491;
+    if (bad === 'frame') c.frame[2] += 1e-9;
+    if (bad === 'zero-distance') c.dist = 0;
+    if (bad === 'positive-distance') c.dist = 1e-9;
+    if (bad === 'excluded') c.exclude = 1;
+    if (bad === 'material') c.solref[0] += 0.001;
+    if (bad === 'pose') observed.poses.geom_xpos[3] += 1e-10;
+    const before = canonicalBytes(observed);
+    expect(() => assessCylinderGeometry(fixture, qpos, observed)).toThrow(/GEOMETRY/);
+    expect(canonicalBytes(observed)).toEqual(before);
+  });
+});
+
+describe('LEGACY_CCD_MULTI5 S0 group 6: partial dispatch, wrappers and cleanup', () => {
+  it.each([
+    'model-create',
+    'data-create',
+    'before-dispatch',
+    'dispatch',
+    'after-dispatch',
+    'contact-get',
+    'contact-array',
+    'contact-cleanup',
+    'warning-get',
+    'journal-write',
+    'journal-checkpoint',
+    'data-cleanup',
+    'model-cleanup',
+  ])('keeps real partial counts and cannot pass after %s', (failure) => {
+    const fake = syntheticNativeGeometry(failure);
+    const report = runCylinderGeometrySession(
+      fake.M,
+      fixture,
+      syntheticGeometryInputs(),
+      fake.journal,
+    );
+    expect(report.assessment.verdict).toBe('FAIL');
+    expect(report.failures.length).toBeGreaterThan(0);
+    expect(report.counts.positionDispatched).toBe(fake.calls.position);
+    expect(report.counts.positionReturned).toBe(
+      fake.calls.position - (failure === 'dispatch' ? 1 : 0),
+    );
+    expect(report.counts.retainedPoseRecords).toBeLessThanOrEqual(report.counts.positionReturned);
+    expect(fake.calls.forbidden).toEqual([]);
+    if (!['model-create'].includes(failure)) expect(fake.calls.modelDeletes).toBe(1);
+    if (!['model-create', 'data-create'].includes(failure)) expect(fake.calls.dataDeletes).toBe(1);
+    if (failure === 'contact-cleanup') {
+      expect(fake.calls.contactDeletes).toBe(5);
+      expect(fake.calls.vectorDeletes).toBe(1);
+      expect(report.resources.temporaryCreated - report.resources.temporaryDeleted).toBe(1);
+      expect(report.resources.cleanupErrors).toHaveLength(1);
+    } else expect(report.resources.temporaryCreated).toBe(report.resources.temporaryDeleted);
+    if (failure === 'journal-checkpoint')
+      expect(report.counts).toMatchObject({ poseRecordsAppended: 1, retainedPoseRecords: 0 });
+  });
+  it('halts before the first dispatch when the bounded wall deadline expires', () => {
+    const fake = syntheticNativeGeometry();
+    const report = runCylinderGeometrySession(
+      fake.M,
+      fixture,
+      syntheticGeometryInputs(),
+      fake.journal,
+      createGeometryReport(fixture),
+      () => 120001,
+      0,
+    );
+    expect(report.counts.positionDispatched).toBe(0);
+    expect(report.counts.modelCreationDispatched).toBe(0);
+    expect(report.assessment.verdict).toBe('FAIL');
+  });
+  it('does not grant a geometry verdict when journal finalization failed', () => {
+    const fake = syntheticNativeGeometry('journal-finish');
+    const report = runCylinderGeometrySession(
+      fake.M,
+      fixture,
+      syntheticGeometryInputs(),
+      fake.journal,
+    );
+    const final = finalizeCylinderGeometry(fixture, report, fake.journal);
+    expect(final.assessment.verdict).toBe('FAIL');
+    expect(final.journal.trailerError).toBe('SYNTHETIC_FINISH');
+  });
+  it('finalizes only the narrow geometry verdict after exact synthetic native-budget accounting and durable close', () => {
+    const fake = syntheticNativeGeometry();
+    const report = runCylinderGeometrySession(
+      fake.M,
+      fixture,
+      syntheticGeometryInputs(),
+      fake.journal,
+    );
+    // Synthetic counters exercise finalization only; no real import/factory occurs.
+    Object.assign(report.counts, {
+      nativeImportsDispatched: 1,
+      nativeImportsReturned: 1,
+      factoriesDispatched: 1,
+      factoriesReturned: 1,
+    });
+    const final = finalizeCylinderGeometry(fixture, report, fake.journal);
+    expect(final.assessment.verdict).toBe('GEOMETRY_ADMITTED_ON_SAVED_POSES');
+    expect(final.unqualified).toEqual([
+      'force',
+      'velocity',
+      'phase',
+      'stability',
+      'tip',
+      'slip',
+      'energy',
+      'dt',
+      'rate',
+    ]);
+  });
+});
+
+describe('LEGACY_CCD_MULTI5 S0 group 7: complete schema and hard resource caps', () => {
+  it('proves schedule-aware32768000B live rings and34996224B emergency ledger within unchanged budgets', () => {
+    expect(cylinderRetentionProof(fixture)).toEqual({
+      live: {
+        admissionA: 32768000,
+        admissionB: 26214400,
+        mainStatic: 32768000,
+        mainTilt: 13107200,
+      },
+      maxLiveRing: 32768000,
+      overhead: 1638400,
+      partial: 524288,
+      trailer: 65536,
+      total: 34996224,
+    });
+    expect(fixture.retention.maxJournalBytes).toBe(268435456);
+    expect(fixture.retention.reservedFailureTrailerBytes).toBe(41551872);
+    const changed = structuredClone(fixture);
+    changed.retention.scenarioTickBytes.static += 1;
+    expect(() => cylinderRetentionProof(changed)).toThrow('RESOURCE_SCHEDULE_RING_OR_RESERVE');
+  });
+  it('keeps existing TickRetention defaults and explicitly bounds the candidate scenario record', () => {
+    const memory = memoryRetention(1024);
+    const ordinary = new TickRetention(memory.journal, memory.mini, 'synthetic-default', 500);
+    const tighter = new TickRetention(memory.journal, memory.mini, 'synthetic-override', 500, 128);
+    const record = { tick: 1, payload: 'x'.repeat(200) };
+    expect(ordinary.prepare(record).length).toBeLessThan(1024);
+    expect(() => tighter.prepare(record)).toThrow('RESOURCE_TICK_BYTE_CAP');
+    expect(ordinary.chain.checkpoint().ticks).toBe(1);
+    expect(tighter.chain.checkpoint().ticks).toBe(0);
+    expect(memory.mini.retention.maxTickBytes).toBe(1024);
+  });
+  it('fits the full401 maximum-contact geometry schema within16KiB per pose and8MiB raw', () => {
+    const fake = syntheticNativeGeometry();
+    const report = runCylinderGeometrySession(
+      fake.M,
+      fixture,
+      syntheticGeometryInputs(),
+      fake.journal,
+    );
+    expect(report.status).toBe('OBSERVATIONS_COMPLETE');
+    const poseRecords = fake.records.filter((record) => record.kind === 'geometry-pose');
+    expect(poseRecords).toHaveLength(401);
+    expect(poseRecords.every((record) => canonicalBytes(record).length <= 16384)).toBe(true);
+    const framed = fake.records.reduce((sum, record) => sum + 4 + canonicalBytes(record).length, 0);
+    expect(framed + 65540).toBeLessThan(8388608);
+    expect(1048576 + 4 + 401 * (16384 + 4) + 65536 + 4).toBe(7685708);
+    expect(geometryJournalRetention(fixture).maxJournalBytes).toBe(8388608);
+  });
+  it('rejects exactly one byte over a prepared record cap without advancing its chain or retaining a field-stripped substitute', () => {
+    const memory = memoryRetention(1024);
+    const record = eightContactTick();
+    const bytes = canonicalBytes(record);
+    const retention = new TickRetention(
+      memory.journal,
+      memory.mini,
+      'synthetic-overflow',
+      500,
+      bytes.length - 1,
+    );
+    expect(() => retention.retain(record)).toThrow('RESOURCE_TICK_BYTE_CAP');
+    expect(retention.chain.checkpoint().ticks).toBe(0);
+    expect(retention.size).toBe(0);
+    expect(canonicalBytes(record)).toEqual(bytes);
+  });
+});
+
+describe('LEGACY_CCD_MULTI5 S0 group 8: external authorization and preserved failure', () => {
+  it('requires separate source review, registration, exact binding and explicit execution GO', () => {
+    const a = approvalInputs();
+    expect(validateGeometryAuthorization(fixture, a.registration, a.review, a.go, a.actual)).toBe(
+      true,
+    );
+    expect(() =>
+      validateGeometryAuthorization(
+        fixture,
+        a.registration,
+        a.review,
+        { ...a.go, decision: 'NOT_GRANTED' },
+        a.actual,
+      ),
+    ).toThrow('GEOMETRY_SEPARATE_EXECUTION_GO_REQUIRED');
+    expect(() =>
+      validateGeometryAuthorization(
+        fixture,
+        a.registration,
+        { ...a.review, decision: 'SELF_REVIEW' },
+        a.go,
+        a.actual,
+      ),
+    ).toThrow('GEOMETRY_INDEPENDENT_SOURCE_REVIEW_BINDING');
+    expect(() =>
+      validateGeometryAuthorization(fixture, a.registration, a.review, a.go, {
+        ...a.actual,
+        sourceHead: '9'.repeat(40),
+      }),
+    ).toThrow('GEOMETRY_PREREGISTRATION_BINDING');
+    expect(() =>
+      validateGeometryAuthorization(
+        fixture,
+        { ...a.registration, budget: { ...fixture.geometryOnly, maxPositionCalls: 402 } },
+        a.review,
+        a.go,
+        a.actual,
+      ),
+    ).toThrow('GEOMETRY_PREREGISTRATION_BINDING');
+  });
+  it('rejects implicit paths, missing authorization and automatic next-stage arguments', () => {
+    expect(() => parseGeometryCli(['--geometry-only'])).toThrow('Usage:');
+    const absolute = join(tmpdir(), 'synthetic');
+    const args = [
+      '--geometry-only',
+      '--input',
+      absolute,
+      '--preregistration',
+      absolute,
+      '--source-review',
+      absolute,
+      '--execution-go',
+      absolute,
+      '--journal-dir',
+      absolute,
+    ];
+    expect(parseGeometryCli(args)['--input']).toBe(absolute);
+    expect(() => parseGeometryCli([...args, '--admission'])).toThrow('Usage:');
+    args[2] = 'relative.json';
+    expect(() => parseGeometryCli(args)).toThrow('GEOMETRY_EXPLICIT_CLI_PATH');
+  });
+  it('retains a3 speed violation under the original0.005rad/s stable threshold', () => {
+    expect(fixture.tilt.stable.maxRelativeOmegaRadps).toBe(0.005);
+    expect(0.007719689221037876).toBeGreaterThan(fixture.tilt.stable.maxRelativeOmegaRadps);
+    const retainedFailureExample = windowRecords();
+    retainedFailureExample[retainedFailureExample.length - 1].post.relativeOmega =
+      0.007719689221037876;
+    expect(assessWindow(retainedFailureExample, fixture, 500, target, 'stable').accepted).toBe(
+      false,
+    );
+    expect(fixture.candidateProfile.nativeQualification).toBe('NOT_RUN');
+    expect(fixture.geometryOnly.unqualified).toContain('stability');
+  });
+});
+
+function maximumRetainedScenarioTick(kind: 'static' | 'tilt') {
+  const condition = cylinderPlan(fixture, 'main').find((c) => c.kind === kind)!;
+  const ids = worldIds(fixture, condition);
+  const depth = 0.00001;
+  const qpos = kind === 'tilt' ? [0] : [];
+  const qvel = new Array(kind === 'tilt' ? 7 : 12).fill(0);
+  const bodies: Record<number, Body & { quaternion: number[] }> = {
+    0: { ...body(), quaternion: [1, 0, 0, 0] },
+  };
+  if (kind === 'tilt')
+    bodies[1] = { ...body({ com: [...fixture.stand.com] }), quaternion: [1, 0, 0, 0] };
+  const contacts: ReturnType<typeof eightContactTick>['parity']['solved'] = [];
+  const efcForce: number[] = [];
+  const qfrcConstraint = [...qvel];
+  for (const shape of ids.freeBodies) {
+    const count = shape.kind === 'cylinder' ? 5 : 8;
+    const x = kind === 'tilt' ? 0 : shape.kind === 'cylinder' ? -0.15 : 0.15;
+    const half = shape.kind === 'cylinder' ? shape.height / 2 : shape.dimensions[2] / 2;
+    const observed = { ...body({ com: [x, 0, half - depth] }), quaternion: [1, 0, 0, 0] };
+    bodies[shape.bodyId] = observed;
+    qpos.push(...observed.com, ...observed.quaternion);
+    qfrcConstraint[shape.dofAdr + 2] = shape.mass * 9.81;
+    for (let j = 0; j < count; j += 1) {
+      const index = contacts.length;
+      const contact = {
+        ...structuredClone(eightContactTick().parity.solved[0]),
+        index,
+        geom1: 0,
+        geom2: shape.geomId,
+        geom: [0, shape.geomId],
+        pos: [
+          x + 0.02 * Math.cos((j * Math.PI * 2) / count),
+          0.02 * Math.sin((j * Math.PI * 2) / count),
+          -depth / 2,
+        ],
+        efc_address: index * 3,
+        force: [(shape.mass * 9.81) / count, 0, 0, 0, 0, 0],
+      };
+      contacts.push(contact);
+      efcForce.push(...contact.force.slice(0, 3));
+    }
+  }
+  const ncon = contacts.length;
+  const endpoint = {
+    time: 0.0005,
+    qpos,
+    qvel,
+    qacc: new Array(qvel.length).fill(0),
+    qacc_warmstart: new Array(qvel.length).fill(0),
+  };
+  const forward = {
+    state: { time: 0, qpos, qvel },
+    bodies,
+    contacts: contacts.map((contact) => {
+      const saved = { ...contact };
+      Reflect.deleteProperty(saved, 'force');
+      return saved;
+    }),
+    efcVel: new Array(3 * ncon).fill(0),
+    efcType: new Array(3 * ncon).fill(7),
+    efcId: contacts.flatMap((contact) => [contact.index, contact.index, contact.index]),
+    ncon,
+    nefc: ncon * 3,
+  };
+  const force = {
+    contacts,
+    efcForce,
+    qfrcConstraint,
+    qfrcActuator: new Array(qvel.length).fill(0),
+    actuatorForce: kind === 'tilt' ? [0] : [],
+    endpoint,
+    warnings: Array.from({ length: 7 }, () => [0, 0]),
+    islands: 2,
+  };
+  const contact = assessContacts(fixture, forward, force, ids, floorFrame(0));
+  const control = controlAt(
+    fixture,
+    condition,
+    kind === 'static' ? fixture.rest.settleUs / condition.dtUs : 0,
+  );
+  const tilt = kind === 'tilt' ? tiltState(bodies[2], 0, 0, fixture) : null;
+  const torque =
+    kind === 'tilt' ? { ...effectiveTorque(0, 0, 0, 0, 0, fixture.stand), qfrcActuator: 0 } : null;
+  return makeTickRecord({
+    tick: 1,
+    dtUs: condition.dtUs,
+    phase: kind === 'static' ? 'REST_MEASUREMENT' : 'POST_EVENT_DIAGNOSTIC',
+    control,
+    forward,
+    force,
+    contact,
+    torque,
+    preTilt: tilt,
+    postTilt: tilt,
+    activeIterations: [120, 120],
+  });
+}
+
+describe('LEGACY_CCD_MULTI5 S0 group 7 complete dynamic retained schemas', () => {
+  it('copies all13 native-shaped contacts with legacy caller parity and balanced wrapper ownership', () => {
+    const record = maximumRetainedScenarioTick('static');
+    const data = {
+      ncon: 13,
+      nefc: 39,
+      nisland: 2,
+      efc_type: new Int32Array(39).fill(7),
+      efc_id: Int32Array.from({ length: 39 }, (_, row) => Math.floor(row / 3)),
+      get contact() {
+        return {
+          size: () => 13,
+          get(index: number) {
+            return {
+              ...Object.fromEntries(
+                Object.entries(record.parity.solved[index]).map(([key, value]) => [
+                  key,
+                  Array.isArray(value) ? new Float64Array(value) : value,
+                ]),
+              ),
+              delete() {
+                return undefined;
+              },
+            };
+          },
+          delete() {
+            return undefined;
+          },
+        };
+      },
+    };
+    const oldResources = resourceCounters();
+    const scenarioResources = resourceCounters();
+    const oldValues = copyContacts(data, oldResources);
+    const boundedValues = copyContacts(
+      data,
+      scenarioResources,
+      cylinderScenarioLimits(fixture, { kind: 'static' }),
+    );
+    expect(canonicalBytes(boundedValues)).toEqual(canonicalBytes(oldValues));
+    expect(boundedValues).toHaveLength(13);
+    expect(oldResources.temporaryCreated).toBe(14);
+    expect(oldResources.temporaryDeleted).toBe(14);
+    expect(scenarioResources.temporaryCreated).toBe(14);
+    expect(scenarioResources.temporaryDeleted).toBe(14);
+  });
+  it.each(['static', 'tilt'] as const)(
+    'fits complete maximum %s contact/row schema and longest strings',
+    (kind) => {
+      const record = maximumRetainedScenarioTick(kind);
+      const count = kind === 'static' ? 13 : 5;
+      expect(record.parity.contacts).toHaveLength(count);
+      expect(record.parity.solved).toHaveLength(count);
+      expect(record.contact.contacts).toHaveLength(count);
+      expect(record.parity.efcVel).toHaveLength(count * 3);
+      expect(record.parity.efcForce).toHaveLength(count * 3);
+      expect(record.parity.solved.every((contact) => contact.H.length === 36)).toBe(true);
+      expect(record.contact.contacts.every((contact) => contact.witness !== null)).toBe(true);
+      expect(record.parity.endpoint.qacc_warmstart).toHaveLength(kind === 'static' ? 12 : 7);
+      expect(record.nativeCounts.solverIterations).toHaveLength(2);
+      expect(record.phase.length).toBe(kind === 'static' ? 16 : 21);
+      expect(record.control.phase.length).toBe(kind === 'static' ? 16 : 8);
+      const bytes = canonicalBytes(record);
+      expect(bytes.length).toBeLessThanOrEqual(fixture.retention.scenarioTickBytes[kind]);
+      const memory = memoryRetention(1024);
+      const retention = new TickRetention(
+        memory.journal,
+        memory.mini,
+        'synthetic-max-schema',
+        500,
+        fixture.retention.scenarioTickBytes[kind],
+      );
+      expect(retention.prepare(record)).toEqual(bytes);
+      const oneByteOver = new TickRetention(
+        memory.journal,
+        memory.mini,
+        'synthetic-hard-cap',
+        500,
+        bytes.length - 1,
+      );
+      expect(() => oneByteOver.prepare(record)).toThrow('RESOURCE_TICK_BYTE_CAP');
+    },
+  );
 });

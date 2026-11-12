@@ -309,10 +309,12 @@ export class RawJournal {
 }
 
 export class TickRetention {
-  constructor(journal, fixture, world, dtUs) {
+  constructor(journal, fixture, world, dtUs, tickByteCap = fixture.retention.maxTickBytes) {
     this.journal = journal;
     this.r = fixture.retention;
     this.world = world;
+    demand(Number.isSafeInteger(tickByteCap) && tickByteCap > 0, 'RESOURCE_TICK_CAP');
+    this.tickByteCap = tickByteCap;
     this.count = this.r.preWindowUs / dtUs;
     demand(
       Number.isInteger(this.count) && this.count <= this.r.maxRingTicks,
@@ -330,7 +332,7 @@ export class TickRetention {
   }
   prepare(record) {
     const bytes = canonicalBytes(record);
-    demand(bytes.length <= this.r.maxTickBytes, 'RESOURCE_TICK_BYTE_CAP');
+    demand(bytes.length <= this.tickByteCap, 'RESOURCE_TICK_BYTE_CAP');
     this.lastTickDigest = this.chain.push(bytes);
     return bytes;
   }
@@ -526,7 +528,8 @@ const contactArrays = [
   'surfacevel',
   'H',
 ];
-export function copyContacts(data, resources) {
+export function copyContacts(data, resources, limits = null) {
+  if (limits?.pairCaps) return boundedContactCopies(data, resources, limits, false);
   // Unlike warning, contact() RETURNS std::vector<MjContact> BY VALUE.
   const vector = data.contact;
   resources.temporaryCreated += 1;
@@ -565,6 +568,188 @@ export function contactIdentity(c) {
   return v;
 }
 
+const boundedContactLengths = {
+  pos: 3,
+  frame: 9,
+  friction: 5,
+  solref: 2,
+  solreffriction: 2,
+  solimp: 5,
+  geom: 2,
+  flex: 2,
+  elem: 2,
+  vert: 2,
+  surfacevel: 3,
+  H: 36,
+};
+
+/** Check shape before allocation/copy; never truncate a native observation. */
+export function boundedNativeArray(view, length, label, float64 = false) {
+  demand(
+    ArrayBuffer.isView(view) &&
+      !(view instanceof DataView) &&
+      view.length === length &&
+      (!float64 || view instanceof Float64Array),
+    'NATIVE_ARRAY_SHAPE ' + label,
+  );
+  const copied = Array.from(view);
+  demand(finite(copied), 'NONFINITE_NATIVE_ARRAY ' + label);
+  return copied;
+}
+
+function noteOwned(resources, kind, limit) {
+  resources.temporaryCreated += 1;
+  resources[kind] = (resources[kind] ?? 0) + 1;
+  if (limit !== undefined) demand(resources[kind] <= limit, 'RESOURCE_OWNED_WRAPPER ' + kind);
+}
+
+function deleteOwned(value, resources, label) {
+  try {
+    value.delete();
+    resources.temporaryDeleted += 1;
+    return null;
+  } catch (error) {
+    const failure = { label, error: String(error) };
+    (resources.cleanupErrors ??= []).push(failure);
+    return error;
+  }
+}
+
+/** Single acquisition per contact. Validate ALL pair counts before reading any
+ * contact arrays. Limits are opt-in, so prior observer callers retain their path. */
+function boundedContactCopies(data, resources, limits, geometryOnly) {
+  nativeObservationBounds(data, limits);
+  resources.contactVectorDispatched = (resources.contactVectorDispatched ?? 0) + 1;
+  const vector = data.contact;
+  resources.contactVectorReturned = (resources.contactVectorReturned ?? 0) + 1;
+  const held = [];
+  let primary = null;
+  let cleanup = null;
+  let values;
+  try {
+    noteOwned(resources, 'contactVectorsCreated', limits.maxContactVectors);
+    demand(vector && vector.size() === data.ncon, 'CONTACT_VECTOR_COUNT');
+    const counts = new Array(limits.pairCaps.length).fill(0);
+    for (let i = 0; i < data.ncon; i += 1) {
+      resources.contactGetDispatched = (resources.contactGetDispatched ?? 0) + 1;
+      const contact = vector.get(i);
+      resources.contactGetReturned = (resources.contactGetReturned ?? 0) + 1;
+      demand(contact, 'CONTACT_COPY_MISSING');
+      held.push(contact);
+      noteOwned(resources, 'contactGetsCreated', limits.maxContactGets);
+      const g0 = contact.geom1;
+      const g1 = contact.geom2;
+      const pair = limits.pairCaps.findIndex(
+        (p) => (p.geom[0] === g0 && p.geom[1] === g1) || (p.geom[1] === g0 && p.geom[0] === g1),
+      );
+      demand(pair >= 0 && contact.dim === 3, 'UNREGISTERED_CONTACT_PAIR_OR_DIM');
+      counts[pair] += 1;
+      demand(counts[pair] <= limits.pairCaps[pair].maxContacts, 'RESOURCE_CONTACT_PAIR_CAP');
+    }
+    values = held.map((contact, index) => {
+      const saved = { index };
+      for (const key of contactScalars) {
+        if (geometryOnly && key === 'mu') continue;
+        saved[key] = contact[key];
+      }
+      for (const key of contactArrays) {
+        if (geometryOnly && key === 'H') continue;
+        saved[key] = boundedNativeArray(contact[key], boundedContactLengths[key], key);
+      }
+      demand(
+        canonicalEqual(saved.geom, [saved.geom1, saved.geom2]),
+        'CONTACT_GEOM_SCALAR_ARRAY_MISMATCH',
+      );
+      demand(finite(saved), 'NONFINITE_NATIVE_CONTACT');
+      return saved;
+    });
+  } catch (error) {
+    primary = error;
+  } finally {
+    for (const contact of held) {
+      const error = deleteOwned(contact, resources, 'contact');
+      cleanup ??= error;
+    }
+    // Do not short-circuit deletion after an earlier cleanup failure.
+    const vectorError = deleteOwned(vector, resources, 'contact-vector');
+    cleanup ??= vectorError;
+  }
+  if (primary) throw primary;
+  if (cleanup) throw new Error('NATIVE_WRAPPER_CLEANUP', { cause: cleanup });
+  return values;
+}
+
+export function copyGeometryWarnings(data, resources, limits) {
+  const vector = data.warning; // borrowed vector; its get() values are owned
+  let primary = null;
+  let cleanup = null;
+  const values = [];
+  resources.warningObservations = (resources.warningObservations ?? 0) + 1;
+  demand(
+    resources.warningObservations <= limits.maxWarningObservations,
+    'RESOURCE_WARNING_OBSERVATIONS',
+  );
+  demand(vector.size() === limits.warningCount, 'NATIVE_WARNING_COUNT');
+  for (let i = 0; i < limits.warningCount; i += 1) {
+    let stat = null;
+    try {
+      resources.warningGetDispatched = (resources.warningGetDispatched ?? 0) + 1;
+      stat = vector.get(i);
+      resources.warningGetReturned = (resources.warningGetReturned ?? 0) + 1;
+      demand(stat, 'NATIVE_WARNING_COPY_MISSING');
+      noteOwned(resources, 'warningGetsCreated', limits.maxWarningGets);
+      const value = [stat.number, stat.lastinfo];
+      demand(value.every(Number.isSafeInteger), 'NATIVE_WARNING_VALUE');
+      values.push(value);
+    } catch (error) {
+      primary = error;
+    } finally {
+      if (stat) {
+        const error = deleteOwned(stat, resources, 'warning');
+        cleanup ??= error;
+      }
+    }
+    if (primary || cleanup) break;
+  }
+  if (primary) throw primary;
+  if (cleanup) throw new Error('NATIVE_WRAPPER_CLEANUP', { cause: cleanup });
+  return values;
+}
+
+/** Position-stage only: no velocity/force routines, H, mu, or solved caches. */
+export function captureGeometry(data, resources, limits) {
+  nativeObservationBounds(data, limits);
+  const contacts = boundedContactCopies(data, resources, limits, true);
+  const nbody = limits.nbody;
+  const ngeom = limits.ngeom;
+  const poses = {};
+  for (const [key, length] of Object.entries({
+    xpos: nbody * 3,
+    xipos: nbody * 3,
+    xmat: nbody * 9,
+    xquat: nbody * 4,
+    geom_xpos: ngeom * 3,
+    geom_xmat: ngeom * 9,
+  }))
+    poses[key] = boundedNativeArray(data[key], length, key, true);
+  const efcType = boundedNativeArray(data.efc_type, data.nefc, 'efc_type');
+  const efcId = boundedNativeArray(data.efc_id, data.nefc, 'efc_id');
+  demand(
+    efcType.every((type) => type === 7),
+    'GEOMETRY_UNREGISTERED_CONSTRAINT_TYPE',
+  );
+  return {
+    contacts,
+    poses,
+    efcType,
+    efcId,
+    ncon: data.ncon,
+    nefc: data.nefc,
+    nisland: data.nisland,
+    warnings: copyGeometryWarnings(data, resources, limits),
+  };
+}
+
 export function nativeBodyKinematics(M, model, data, bodyIds, resources, buffer) {
   const result = {};
   for (const id of bodyIds) {
@@ -593,24 +778,48 @@ export function nativeObservationBounds(data, limits) {
       Number.isSafeInteger(data[key]) && data[key] >= 0 && data[key] <= cap,
       'RESOURCE_BEFORE_NATIVE_OBSERVATION ' + key,
     );
+  if (limits.pairCaps) {
+    // Scenario constraints can only be rows of the registered elliptic contacts.
+    // Inspect bounded views before copying any variable contact/constraint array.
+    const types = data.efc_type;
+    const ids = data.efc_id;
+    demand(
+      ArrayBuffer.isView(types) &&
+        ArrayBuffer.isView(ids) &&
+        types.length === data.nefc &&
+        ids.length === data.nefc,
+      'RESOURCE_SCENARIO_CONSTRAINT_ARRAY',
+    );
+    for (let row = 0; row < data.nefc; row += 1)
+      demand(
+        types[row] === 7 && Number.isSafeInteger(ids[row]) && ids[row] >= 0 && ids[row] < data.ncon,
+        'RESOURCE_SCENARIO_CONSTRAINT_TYPE_OR_ID',
+      );
+  }
 }
 export function captureForward(M, model, data, preState, ids, resources, buffer, limits) {
   nativeObservationBounds(data, limits);
-  const contacts = copyContacts(data, resources);
+  const contacts = copyContacts(data, resources, limits);
   return {
     state: phaseState(preState),
     bodies: nativeBodyKinematics(M, model, data, ids.bodyIds, resources, buffer),
     contacts,
-    efcVel: Array.from(data.efc_vel),
-    efcType: Array.from(data.efc_type),
-    efcId: Array.from(data.efc_id),
+    efcVel: limits.pairCaps
+      ? boundedNativeArray(data.efc_vel, data.nefc, 'efc_vel', true)
+      : Array.from(data.efc_vel),
+    efcType: limits.pairCaps
+      ? boundedNativeArray(data.efc_type, data.nefc, 'efc_type')
+      : Array.from(data.efc_type),
+    efcId: limits.pairCaps
+      ? boundedNativeArray(data.efc_id, data.nefc, 'efc_id')
+      : Array.from(data.efc_id),
     ncon: data.ncon,
     nefc: data.nefc,
   };
 }
 export function captureForces(M, model, data, forward, resources, buffer, limits) {
   nativeObservationBounds(data, limits);
-  const after = copyContacts(data, resources);
+  const after = copyContacts(data, resources, limits);
   demand(
     canonicalEqual(forward.contacts.map(contactIdentity), after.map(contactIdentity)),
     'CONTACT_GEOMETRY_CHANGED_DURING_STEP2',
@@ -622,7 +831,9 @@ export function captureForces(M, model, data, forward, resources, buffer, limits
   });
   return {
     contacts,
-    efcForce: Array.from(data.efc_force),
+    efcForce: limits.pairCaps
+      ? boundedNativeArray(data.efc_force, data.nefc, 'efc_force', true)
+      : Array.from(data.efc_force),
     qfrcConstraint: Array.from(data.qfrc_constraint),
     qfrcActuator: Array.from(data.qfrc_actuator),
     actuatorForce: Array.from(data.actuator_force),

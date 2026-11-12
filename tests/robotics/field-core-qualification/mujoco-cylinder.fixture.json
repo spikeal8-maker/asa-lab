@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "PHY-03-PHY-06-MUJOCO-CYLINDER-v1",
+  "id": "PHY-03-PHY-06-MUJOCO-CYLINDER-v2-LEGACY-CCD-MULTI5",
   "scope": "TEST_ONLY",
   "task": "TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001",
   "specification": {
@@ -23,7 +23,9 @@
     "gitHead": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
     "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de",
     "moduleSha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2",
-    "loading": "offline_single_thread_explicit_local_wasm_bytes"
+    "loading": "offline_single_thread_explicit_local_wasm_bytes",
+    "dtsSha256": "ffc8245f0c9b565b35fbe17cfbaac180d66c86be3d733743f63cf579e6d3a2e4",
+    "packageSha256": "a7d2c0108c77aa9826a2df5aa40f79e4812339b218fe237e478f73eb586fc0d9"
   },
   "gravity": [0, 0, -9.81],
   "macroStepUs": 5000,
@@ -73,12 +75,12 @@
     "impratio": 1,
     "ccdIterations": 100,
     "ccdTolerance": 1e-8,
-    "disableFlags": 65536,
+    "disableFlags": 196608,
     "enableFlags": 32,
     "warmstart": true,
     "islands": true,
     "refsafe": true,
-    "nativeccd": true,
+    "nativeccd": false,
     "multiccd": true,
     "speculative": false,
     "sleep": false,
@@ -102,9 +104,9 @@
     "surfaceVelocity": 0,
     "spinRoll": "authored_zero_native_floor_readback_condim3_no_extra_DOF",
     "normalConvention": "geom0_to_geom1",
-    "witnessConvention": "p_geom0=pos-dist*n/2; p_geom1=pos+dist*n/2; margin=0; admitted face/convex domain only",
+    "witnessConvention": "p_geom0=pos-dist*n/2; p_geom1=pos+dist*n/2; checked support candidates on original poses; legacy multiCCD perturbs both geoms by +/-0.001 rad and copies first dist; no exact unperturbed witness theorem",
     "blockSupportDomain": "bottom_top_face_only; edge_edge_unsupported_UNKNOWN",
-    "cylinderNativeContactCap": 4,
+    "cylinderNativeContactCap": 5,
     "frameOrthonormalTolerance": 1e-12,
     "velocityReconstructionToleranceMps": 1e-9,
     "forceAggregationBudget": "gamma_(4*N+64)*sum_abs_products + 64*EPSILON*m*g",
@@ -118,9 +120,10 @@
     "loadedDefinition": "Fn>0 exactly; Fn=0 diagnostic; Fn<0 with adhesion0 UNKNOWN",
     "requiredSupport": "positive outward aggregate; missing loaded contact UNKNOWN",
     "slipPoint": "same native con.pos for both body velocities",
-    "nativeMinimumFriction": 0.00001,
-    "effectiveFriction": [1, 1, 0.00001, 0.00001, 0.00001],
-    "nativeMinimumFrictionSource": "ac60 include/mujoco/mjmodel.h mjMINMU; collision driver effective contact friction padding"
+    "nativeMinimumFriction": 1e-5,
+    "effectiveFriction": [1, 1, 1e-5, 1e-5, 1e-5],
+    "nativeMinimumFrictionSource": "ac60 include/mujoco/mjmodel.h mjMINMU; collision driver effective contact friction padding",
+    "boxBoxNativeContactCap": 8
   },
   "passive": {
     "damping": 0,
@@ -148,8 +151,8 @@
       "binaryExponent": -23,
       "cylinderLengthM": 0.115,
       "blockLengthM": 0.1,
-      "cylinderBudgetJ": 0.0000043035507202148445,
-      "blockBudgetJ": 0.0000037422180175781254,
+      "cylinderBudgetJ": 4.3035507202148445e-6,
+      "blockBudgetJ": 3.7422180175781254e-6,
       "reference": "global_running_minimum_entire_60s; never_reset",
       "interpretation": "inherited physical acceptance floor, not float64 roundoff bound"
     }
@@ -257,12 +260,22 @@
     "noExtraForward": true
   },
   "resources": {
-    "maxContacts": 32,
-    "maxConstraintRows": 128,
+    "maxContacts": 13,
+    "maxConstraintRows": 39,
     "maxIslands": 2,
     "warningCount": 7,
     "warningBaseline": 0,
-    "temporaryOwnership": "contact vector and each contact.get owned; warning vector borrowed, each warning.get owned; DoubleBuffer caller owned; all try/finally; created/deleted counters; not leak test"
+    "temporaryOwnership": "contact vector and each contact.get owned; warning vector borrowed, each warning.get owned; DoubleBuffer caller owned; all try/finally; created/deleted counters; not leak test",
+    "scenarios": {
+      "static": {
+        "maxContacts": 13,
+        "maxConstraintRows": 39
+      },
+      "tilt": {
+        "maxContacts": 5,
+        "maxConstraintRows": 15
+      }
+    }
   },
   "budgets": {
     "admission": {
@@ -305,13 +318,20 @@
     "maxSimultaneouslyLiveWorlds": 2,
     "emergencyRecordOverheadBytes": 1024,
     "emergencyTrailerBytes": 65536,
-    "emergencyReserveReason": "two active admission worlds, each max200ms pre-window at24KiB/tick plus one <=256KiB partial failing observation, bounded framing, final64KiB trailer; normal writes stop before reserve; no extra native advance",
-    "maxAdmissionRingBytes": 39321600,
-    "maxMainRingBytes": 19660800,
+    "emergencyReserveReason": "schedule-aware: admission A two <=400-tick static rings; B two800-tick tilt rings; MAIN one800-tick ring; global encoded32768000 plus overhead1638400, two partial524288, trailer65536 =34996224 <= unchanged41551872; runtime overflow fails closed",
+    "maxAdmissionRingBytes": 32768000,
+    "maxMainRingBytes": 32768000,
     "maxFailureObservationBytes": 262144,
     "failureOversizePolicy": "full partial observation remains in external attempt receipt; journal retains bounded native state/counts plus full observation digest if partial exceeds256KiB; failure remains FAIL",
     "rawErrors": "portable fixed classification only; complete host-specific error strings in external receipt",
-    "endpointDerivedState": "endpointBodies is runtime-only; retained parity.endpoint stores all qpos/qvel/qacc/qacc_warmstart/time, and COM0/freejoint frame mapping is admitted and checked every split tick; no native state removed"
+    "endpointDerivedState": "endpointBodies is runtime-only; retained parity.endpoint stores all qpos/qvel/qacc/qacc_warmstart/time, and COM0/freejoint frame mapping is admitted and checked every split tick; no native state removed",
+    "scenarioTickBytes": {
+      "static": 40960,
+      "tilt": 16384
+    },
+    "maxLiveRingBytes": 32768000,
+    "formerGlobalRingBudgetBytes": 39321600,
+    "defaultTickBytesMeaning": "24576 retained only for existing observer callers; this candidate explicitly selects scenarioTickBytes for every world"
   },
   "rationale": {
     "nativeSteps": "REQ-PHY-04 initial 2/4 native-step candidate changed before dynamics to 10/20 under 5ms macro; inherited admitted MuJoCo PHY01 dt500/250us, new contact qualification results do not transfer.",
@@ -323,5 +343,56 @@
       "no normal-direction accuracy claim from CCD tolerance",
       "no full supply-chain or binary reproducibility claim"
     ]
+  },
+  "candidateProfile": {
+    "id": "LEGACY_CCD_MULTI5",
+    "previousPhysicalSource": "306c80f03a55f70fd7d71d7311ac8396ed8325cc",
+    "nativeQualification": "NOT_RUN",
+    "scope": "global per-model legacy libccd MPR plus stock multiCCD; no qualification transfer from nativeCCD rolling or old cylinder results",
+    "physicalDelta": "nativeccd true to false; disableFlags 65536 to 196608 only"
+  },
+  "geometryOnly": {
+    "id": "G0_SAVED_401_GEOMETRY_ONLY",
+    "schema": "ASA_MUJOCO_CYLINDER_GEOMETRY_V1",
+    "inputSchema": "CYLINDER_RETAINED_PRE_INPUTS_V1",
+    "inputSha256": "6c1002a30a20c238587d9b39cb3253d36fc295d91f069b1e3dc7743de075e54c",
+    "inputBytes": 462612,
+    "world": "tilt-normal-500-r1",
+    "firstTick": 291100,
+    "lastTick": 291500,
+    "poseCount": 401,
+    "restoredFields": ["qpos", "time"],
+    "absentPreFields": ["qacc", "qacc_warmstart"],
+    "nativeAllowlist": ["mj_fwdPosition"],
+    "maxPositionCalls": 401,
+    "maxModuleFactories": 1,
+    "maxModels": 1,
+    "maxData": 1,
+    "nativeAdvances": 0,
+    "maxContactVectors": 401,
+    "maxContactGets": 2005,
+    "maxWarningGets": 2814,
+    "maxWarningObservations": 402,
+    "maxOwnedWrappers": 5220,
+    "maxDoubleBuffers": 0,
+    "maxPoseRecordBytes": 16384,
+    "maxInitializationBytes": 1048576,
+    "maxFinalTrailerBytes": 65536,
+    "maxJournalBytes": 8388608,
+    "maxSummaryBytes": 65536,
+    "wallTimeoutSeconds": 120,
+    "verdict": "GEOMETRY_ADMITTED_ON_SAVED_POSES",
+    "unqualified": [
+      "force",
+      "velocity",
+      "phase",
+      "stability",
+      "tip",
+      "slip",
+      "energy",
+      "dt",
+      "rate"
+    ],
+    "registration": "Separate ROOT-reviewed source/input/engine/output binding and independent review; explicit execution GO required; no auto-chain"
   }
 }
