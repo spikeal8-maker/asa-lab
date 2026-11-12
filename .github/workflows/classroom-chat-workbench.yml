@@ -13,57 +13,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  source-and-preflight:
-    name: Read-only source handoff and canonical preflight
+  preflight:
+    name: Exact FB-06 planned-path preflight
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    env:
-      SOURCE_SHA: 59dfe06e2467e694e765157d9831efeb33c44927
-      MAIN_SHA: cb15c700253f26bf276ad69d5e45ca27c2306787
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 59dfe06e2467e694e765157d9831efeb33c44927
+          ref: d77b709c346702c0329a8ffbfbd384b619c9ea51
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Prepare read-only validation dependencies
-        run: python -m pip install 'PyYAML==6.0.3'
-      - name: Verify source and preserve a portable repository snapshot
+      - run: python -m pip install 'PyYAML==6.0.3'
+      - name: Check exact scope before editing the identical chat checkout
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          test "$(git rev-parse refs/remotes/origin/main)" = "$MAIN_SHA"
-          test -z "$(git status --porcelain)"
-          out="$RUNNER_TEMP/classroom-chat-source"
-          mkdir -p "$out/comments"
-          git bundle create "$out/source.bundle" HEAD refs/remotes/origin/main
-          git bundle verify "$out/source.bundle"
-          git rev-parse HEAD refs/remotes/origin/main HEAD^{tree} > "$out/revisions.txt"
-          git ls-tree -r HEAD > "$out/source-tree.txt"
-          sha256sum "$out/source.bundle" > "$out/source.bundle.sha256"
-      - name: Preserve existing author material without executing it
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          out="$RUNNER_TEMP/classroom-chat-source/comments"
-          for id in 6806668066 6806668840 6808493696 6808494107 6808494477 6808532426 6816059237 6816059601 6816060018 6837369261; do
-            gh api "repos/spikeal8-maker/asa-lab/issues/comments/$id" > "$out/$id.json"
-          done
-          gh api repos/spikeal8-maker/asa-lab/issues/1087 > "$RUNNER_TEMP/classroom-chat-source/specification.json"
-      - name: Canonical classroom preflight on the exact published source
-        run: |
-          set -o pipefail
-          python tools/agent_preflight.py --scope classroom-visual-20261111 --check 2>&1 | tee "$RUNNER_TEMP/classroom-chat-source/preflight.log"
-      - name: Preserve source and preflight evidence
+          test "$(git rev-parse HEAD)" = d77b709c346702c0329a8ffbfbd384b619c9ea51
+          mkdir -p "$RUNNER_TEMP/classroom-chat-preflight"
+          python tools/agent_preflight.py --scope classroom-visual-20261111 --check \
+            --planned-path apps/web/src/components/ClassroomActionFeedback.tsx \
+            --planned-path apps/web/src/components/ClassroomAiAccess.tsx \
+            --planned-path apps/web/src/components/ClassroomGamesSettings.tsx \
+            --planned-path apps/web/src/components/ClassroomProjectSettings.tsx \
+            --planned-path apps/web/src/components/ClassroomParticipantPanels.tsx \
+            --planned-path apps/web/src/components/ClassroomLearning.tsx \
+            --planned-path apps/web/src/pages/ClassroomPage.tsx \
+            --planned-path apps/web/src/components/testing/classroom-action-feedback.spec.ts \
+            --planned-path apps/web/src/components/testing/classroom-action-flows.spec.ts \
+            --planned-path e2e/classroom-nested-feedback.spec.ts \
+            --planned-path .github/workflows/classroom-owner.yml \
+            2>&1 | tee "$RUNNER_TEMP/classroom-chat-preflight/preflight.log"
+          git rev-parse HEAD refs/remotes/origin/main HEAD^{tree} > "$RUNNER_TEMP/classroom-chat-preflight/revisions.txt"
+      - name: Preserve the exact source permission check
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: classroom-chat-source-59dfe06e-${{ github.run_id }}
-          path: ${{ runner.temp }}/classroom-chat-source
+          name: classroom-chat-fb06-preflight-${{ github.run_id }}
+          path: ${{ runner.temp }}/classroom-chat-preflight
           if-no-files-found: error
           retention-days: 3
-          compression-level: 0
