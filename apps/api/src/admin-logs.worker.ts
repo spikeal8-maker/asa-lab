@@ -11,7 +11,11 @@ import {
   logModule,
 } from './log-subsystems.js';
 import { projectDatabaseEntry } from './database-diagnostics.js';
-import { readRequiredSources, type RequiredSourcesDeclaration } from './required-log-coverage.js';
+import {
+  hostRequiredCoverage,
+  readRequiredSources,
+  type RequiredSourcesDeclaration,
+} from './required-log-coverage.js';
 
 export const LOG_STORE_FORMAT = 2;
 // A 30-day store can contain tens of thousands of small immutable segments.
@@ -48,6 +52,19 @@ export interface LogFilter {
   readonly level: string;
   readonly search: string;
   readonly before: { readonly time: string; readonly id: string } | null;
+}
+
+export interface LogTrendWindow {
+  readonly from: string;
+  readonly to: string;
+  readonly bucketSeconds: number;
+}
+
+export interface LogErrorTrend {
+  readonly coverage: 'available' | 'partial' | 'unavailable';
+  readonly from: string | null;
+  readonly to: string | null;
+  readonly points: readonly { readonly at: string; readonly counts: Record<string, number> }[];
 }
 
 export interface LogScanState {
@@ -282,6 +299,95 @@ async function* entries(root: string, segment: Segment): AsyncGenerator<LogEntry
   for (const line of raw.toString('utf8').split('\n')) {
     if (line) yield parseEntry(line);
   }
+}
+
+function errorSystem(event: LogEntry): string {
+  if (
+    event.origin === 'ai_image_jobs' ||
+    event.origin === 'ai_usage_journal' ||
+    (event.source === 'metrics' && /^provider:(?:ollama|comfyui)$/.test(event.origin))
+  )
+    return 'ai';
+  if (event.source === 'api' && event.message.startsWith('{')) {
+    try {
+      const value = JSON.parse(event.message);
+      if (typeof value?.path === 'string' && /^\/api\/ai(?:\/|$)/.test(value.path)) return 'ai';
+    } catch {
+      // Keep the normal subsystem for historical plain messages.
+    }
+  }
+  return event.subsystem ?? 'api';
+}
+
+async function trendHealth(root: string): Promise<{ state: string; checkedAt: string } | null> {
+  const file = join(root, 'collector-health.json');
+  try {
+    if ((await stat(file)).size > 64 * 1024) return null;
+    const value = JSON.parse(await readFile(file, 'utf8'));
+    return typeof value?.state === 'string' && typeof value.checkedAt === 'string'
+      ? { state: value.state, checkedAt: value.checkedAt }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function errorTrend(root: string, window: LogTrendWindow): Promise<LogErrorTrend> {
+  const catalog = await readLogCatalog(root);
+  const unavailable = { coverage: 'unavailable', from: null, to: null, points: [] } as const;
+  if (!catalog?.segments.length) return unavailable;
+
+  const requestedFrom = Date.parse(window.from);
+  const requestedTo = Date.parse(window.to);
+  const step = window.bucketSeconds * 1000;
+  const origin = Date.parse('2000-01-02T21:00:00Z'); // Moscow Monday midnight, as in the dashboard.
+  const oldest = catalog.segments.reduce(
+    (start, part) => Math.min(start, Date.parse(part.first)),
+    Infinity,
+  );
+  const to = Math.min(requestedTo, Date.parse(catalog.collectedAt));
+  let from = Math.max(requestedFrom, oldest);
+  if (!(from < to)) return unavailable;
+
+  const selected = catalog.segments
+    .filter((part) => Date.parse(part.last) >= from && Date.parse(part.first) < to)
+    .sort((a, b) => b.last.localeCompare(a.last));
+  const seen = new Set<string>();
+  const buckets = new Map<number, Record<string, number>>();
+  const started = performance.now();
+  let scanned = 0;
+  for (const part of selected) {
+    if (scanned >= 160_000 || performance.now() - started > 5_000) {
+      // An unread segment can overlap any preceding bucket. Do not show a partial count as its total.
+      from = Math.max(from, origin + Math.ceil((Date.parse(part.last) + 1 - origin) / step) * step);
+      break;
+    }
+    for await (const event of entries(root, part)) {
+      scanned++;
+      const time = Date.parse(event.time);
+      if (event.level !== 'error' || time < from || time >= to || seen.has(event.id)) continue;
+      seen.add(event.id);
+      const system = errorSystem(event);
+      const at = origin + Math.floor((time - origin) / step) * step;
+      const point = buckets.get(at) ?? (Object.create(null) as Record<string, number>);
+      point[system] = (point[system] ?? 0) + 1;
+      buckets.set(at, point);
+    }
+  }
+  if (!(from < to)) return unavailable;
+  const coverage = hostRequiredCoverage(catalog, await trendHealth(root));
+  return {
+    coverage:
+      from === requestedFrom && to === requestedTo && coverage.state === 'ok'
+        ? 'available'
+        : 'partial',
+    from: new Date(from).toISOString(),
+    to: new Date(to).toISOString(),
+    points: [...buckets]
+      .filter(([at]) => at + step > from)
+      .sort(([a], [b]) => a - b)
+      .map(([at, counts]) => ({ at: new Date(at).toISOString(), counts })),
+  };
 }
 
 export async function queryLogs(
@@ -574,15 +680,18 @@ if (parentPort) {
   const task = workerData as {
     root: string;
     filter: LogFilter;
-    kind: 'query' | 'export';
+    kind: 'query' | 'export' | 'trend';
     limit: number;
     output: string;
     scanState?: LogScanState;
+    window?: LogTrendWindow;
   };
   const run =
-    task.kind === 'query'
-      ? queryLogs(task.root, task.filter, task.limit, task.scanState)
-      : exportLogs(task.root, task.filter, task.output);
+    task.kind === 'trend' && task.window
+      ? errorTrend(task.root, task.window)
+      : task.kind === 'query'
+        ? queryLogs(task.root, task.filter, task.limit, task.scanState)
+        : exportLogs(task.root, task.filter, task.output);
   void run
     .then((result) => parentPort!.postMessage({ ok: true, result }))
     .catch((failure: unknown) => {
