@@ -298,6 +298,25 @@
   border-top: 1px solid #dbe6ee;
   padding-top: 6px;
 }
+.creator-home .home-community-shelf > .creator-module-heading {
+  flex-wrap: nowrap;
+}
+.home-community-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  min-width: 0;
+}
+.home-community-heading p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.home-community-shelf > .creator-module-heading > a {
+  flex-shrink: 0;
+}
 .home-public-card {
   min-width: 0;
   overflow: hidden;
@@ -453,6 +472,10 @@
     grid-auto-columns: calc((100% - 20px) / 3.45);
     gap: 8px;
     padding-bottom: 3px;
+  }
+  /* Publication overlays need room for both real counters and a readable title. */
+  .creator-home .home-community-shelf .home-shelf-track {
+    grid-auto-columns: clamp(220px, 72%, 280px);
   }
   .home-shelf-track .project-card-body {
     padding: 7px 6px;

@@ -1,6 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync } from 'node:fs';
-import { expect, test, type APIResponse, type Browser, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Browser,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import type pg from 'pg';
 import { e2eAdminPool, seedTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
@@ -202,6 +209,8 @@ interface Publication {
   license: string;
   authorLabel: string;
   moduleKey: string;
+  likeCount: number;
+  copyCount: number;
   preview: { url: string; contentType: string; width: number; height: number };
 }
 
@@ -497,6 +506,271 @@ function assertPublicDto(value: unknown, privateValues: string[]): void {
   inspect(value);
 }
 
+test('SP-01 shared publication cards keep real counts, navigation and readable Home rails at four widths', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const authorLabel = 'Автор учебных проектов с очень длинным именем для проверки карточки';
+  await register(page, authorLabel);
+  await ok(
+    await page.request.patch('/api/account/avatar', {
+      headers: { origin: origin(page) },
+      data: {
+        avatarDataUrl:
+          'data:image/webp;base64,' +
+          readFileSync('apps/web/public/assets/avatars/default/avatar-01.webp').toString('base64'),
+      },
+    }),
+  );
+  const readerContext = await browser.newContext({ baseURL: origin(page) });
+  const reader = await readerContext.newPage();
+  const sources: string[] = [];
+  const acquisitionBefore = await admin.query<{ enabled: boolean }>(
+    'SELECT enabled FROM publication_acquisition_settings WHERE singleton_key',
+  );
+  expect(acquisitionBefore.rows).toHaveLength(1);
+  const errors: string[] = [];
+  reader.on('pageerror', (error) => errors.push(error.message));
+  try {
+    await register(reader, 'Читатель общей карточки');
+    const prefix = `SP-01 ${randomUUID().slice(0, 8)}`;
+    const title = `${prefix} — ${'Оченьдлинноеназвание'.repeat(6)}`;
+    const zeroTitle = `${prefix} — работа без отклика`;
+    const image = await raster(page, 'SP-01');
+    const zeroProjectId = await createProject(page, zeroTitle, image);
+    sources.push(zeroProjectId);
+    const zero = await publish(page, zeroProjectId);
+    const projectId = await createProject(page, title, image, 'three-d');
+    sources.push(projectId);
+    const published = await publish(page, projectId, { license: 'public-domain' });
+    // The fixture configures the existing isolated-platform gate; counts still
+    // come only from successful public like/copy operations through the API.
+    await admin.query(
+      'UPDATE publication_acquisition_settings SET enabled=true WHERE singleton_key',
+    );
+    await ok(
+      await page.request.post(`/api/projects/${projectId}/publication/acquisition`, {
+        headers: { origin: origin(page) },
+        data: {
+          allowed: true,
+          expectedVersion: 0,
+          expectedRevisionId: published.revisionId,
+        },
+      }),
+    );
+    await ok(
+      await reader.request.put(`/api/public-projects/${published.publicationId}/like`, {
+        headers: { origin: origin(reader) },
+        data: { revisionId: published.revisionId, on: true },
+      }),
+    );
+    const copied = await reader.request.post(
+      `/api/public-projects/${published.publicationId}/copy`,
+      {
+        headers: { origin: origin(reader), 'idempotency-key': randomUUID() },
+        data: { revisionId: published.revisionId },
+      },
+    );
+    expect([200, 201]).toContain(copied.status());
+    expect(await copied.json()).toMatchObject({ moduleKey: 'three-d', created: true });
+    const expected = await publication(reader, published.publicationId);
+    const untouched = await publication(reader, zero.publicationId);
+    expect(expected).toMatchObject({ authorLabel, likeCount: 1, copyCount: 1 });
+    expect(untouched).toMatchObject({ likeCount: 0, copyCount: 0 });
+    const href = `/#/public-projects/${published.publicationId}`;
+    const cardFor = (publicationId: string) =>
+      reader.getByTestId('public-project-card').filter({
+        has: reader.locator(`a[href="/#/public-projects/${publicationId}"]`),
+      });
+    const checkCard = async (card: Locator, heading: 'H2' | 'H3') => {
+      await expect(card).toBeVisible();
+      await expect(card.locator('.public-project-card-link')).toHaveAttribute('href', href);
+      await expect(card.locator('.public-project-card-link')).toHaveAttribute(
+        'aria-label',
+        `Открыть проект «${title}»`,
+      );
+      await expect(card.locator('a')).toHaveCount(1);
+      await expect(card.locator('a a, a button')).toHaveCount(0);
+      await expect(card.getByTestId('public-project-card-title')).toHaveText(title);
+      await expect(card.getByTestId('public-project-card-title')).toHaveAttribute('title', title);
+      expect(
+        await card.getByTestId('public-project-card-title').evaluate((node) => node.tagName),
+      ).toBe(heading);
+      await expect(card.locator('.public-project-author')).toHaveText(expected.authorLabel);
+      await expect(card.locator('.public-project-card-identity')).toHaveAttribute(
+        'title',
+        authorLabel,
+      );
+      await expect(card.locator('.public-project-avatar img')).toHaveAttribute(
+        'src',
+        `/api/public-projects/${published.publicationId}/author-avatar`,
+      );
+      await expect
+        .poll(() =>
+          card
+            .locator('.public-project-avatar img, [data-testid="public-project-card-preview"]')
+            .evaluateAll(
+              (images) =>
+                images.length === 2 &&
+                images.every((image) => {
+                  const picture = image as HTMLImageElement;
+                  return picture.complete && picture.naturalWidth > 0;
+                }),
+            ),
+        )
+        .toBe(true);
+      await expect(card.locator('.publication-module')).toHaveAttribute('data-module', 'three-d');
+      await expect(
+        card.getByLabel(`${expected.likeCount} нравится`, { exact: true }),
+      ).toBeVisible();
+      await expect(
+        card.getByLabel(`${expected.copyCount} добавлений в свои проекты`, { exact: true }),
+      ).toHaveAttribute('title', 'Добавили к себе');
+      const layout = await card.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const title = element
+          .querySelector('[data-testid="public-project-card-title"]')!
+          .getBoundingClientRect();
+        const counts = element.querySelector('.public-project-card-meta')!.getBoundingClientRect();
+        const identity = element
+          .querySelector('.public-project-card-identity')!
+          .getBoundingClientRect();
+        const module = element.querySelector('.publication-module')!.getBoundingClientRect();
+        return {
+          square: Math.abs(bounds.width / bounds.height - 1),
+          titleWidth: title.width,
+          titleClearance: counts.left - title.right,
+          identityClearance: module.left - identity.right,
+          countsInside: counts.right <= bounds.right && counts.bottom <= bounds.bottom,
+        };
+      });
+      expect(layout.square).toBeLessThan(0.025);
+      expect(layout.titleWidth).toBeGreaterThan(20);
+      expect(layout.titleClearance).toBeGreaterThanOrEqual(-1);
+      expect(layout.identityClearance).toBeGreaterThanOrEqual(-1);
+      expect(layout.countsInside).toBe(true);
+    };
+
+    for (const width of [1440, 1024, 390, 320]) {
+      await reader.setViewportSize({ width, height: 900 });
+      await reader.mouse.move(0, 0);
+      await reader.goto('/#/home');
+      const header = reader.locator('.portal-header');
+      await expect(header).toBeVisible();
+      const headerBefore = (await header.boundingBox())!;
+      const community = reader.locator('.home-community-shelf');
+      await community
+        .getByRole('heading', { name: 'Проекты сообщества', level: 2 })
+        .scrollIntoViewIfNeeded();
+      await expect(
+        community.getByText('Работы пользователей платформы', { exact: true }),
+      ).toBeVisible();
+      const homeCard = cardFor(published.publicationId);
+      await homeCard.scrollIntoViewIfNeeded();
+      await checkCard(homeCard, 'H3');
+      await expect(
+        cardFor(zero.publicationId).getByLabel('0 нравится', { exact: true }),
+      ).toBeVisible();
+      await expect(
+        cardFor(zero.publicationId).getByLabel('0 добавлений в свои проекты', { exact: true }),
+      ).toHaveAttribute('title', 'Добавили к себе');
+      await expectNoOverflow(reader);
+      const headerAfter = (await header.boundingBox())!;
+      expect(headerAfter.width).toBeCloseTo(headerBefore.width, 1);
+      expect(headerAfter.height).toBeCloseTo(headerBefore.height, 1);
+      expect(headerAfter.x).toBeCloseTo(headerBefore.x, 1);
+      if (width <= 390) {
+        const rail = community.locator('.home-shelf-track');
+        expect((await homeCard.boundingBox())!.width).toBeGreaterThanOrEqual(220);
+        await expect(rail).toHaveCSS('overflow-x', 'auto');
+        await rail.evaluate((element) => {
+          element.scrollLeft = 0;
+        });
+        expect(
+          await rail.evaluate((element) => {
+            const bounds = element.getBoundingClientRect();
+            return [...element.children].some((child) => {
+              const card = child.getBoundingClientRect();
+              return card.left < bounds.right - 8 && card.right > bounds.right + 8;
+            });
+          }),
+        ).toBe(true);
+        await rail.focus();
+        await reader.keyboard.press('ArrowRight');
+        await expect.poll(() => rail.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+        await rail.evaluate((element) => {
+          element.scrollLeft = 0;
+        });
+        await expect.poll(() => rail.evaluate((element) => element.scrollLeft)).toBe(0);
+        await rail.hover({ position: { x: 60, y: 50 } });
+        const scrollY = await reader.evaluate(() => window.scrollY);
+        await reader.mouse.wheel(0, 160);
+        await expect.poll(() => rail.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+        expect(await reader.evaluate(() => window.scrollY)).toBe(scrollY);
+        await reader.mouse.move(0, 0);
+        await rail.evaluate((element) => {
+          element.scrollLeft = 0;
+        });
+        await expect.poll(() => rail.evaluate((element) => element.scrollLeft)).toBe(0);
+      }
+      await reader.screenshot({ path: `${EVIDENCE}/sp01-home-${width}.png`, fullPage: true });
+      await community.screenshot({ path: `${EVIDENCE}/sp01-home-community-${width}.png` });
+      await homeCard.locator('.public-project-card-link').click();
+      await expect(reader).toHaveURL(new RegExp(`#/public-projects/${published.publicationId}$`));
+      await expect(reader.getByTestId('public-project-title')).toHaveText(title);
+
+      await reader.goto(`/#/explore?search=${encodeURIComponent(prefix)}`);
+      const catalogCard = cardFor(published.publicationId);
+      await checkCard(catalogCard, 'H2');
+      await expect(
+        cardFor(zero.publicationId).getByLabel('0 нравится', { exact: true }),
+      ).toBeVisible();
+      await expectNoOverflow(reader);
+      const catalogHeader = (await reader.locator('.portal-header').boundingBox())!;
+      expect(catalogHeader.width).toBeCloseTo(headerBefore.width, 1);
+      expect(catalogHeader.height).toBeCloseTo(headerBefore.height, 1);
+      await reader.screenshot({ path: `${EVIDENCE}/sp01-catalogue-${width}.png`, fullPage: true });
+    }
+
+    // A missing preview cannot be published (preview_required). Exercise the
+    // real image-error path instead of fabricating a successful preview:null DTO.
+    const coverUrl = new URL(expected.preview.url, origin(reader)).href;
+    const failedCover = (url: URL) => url.href === coverUrl;
+    await reader.route(failedCover, (route) => route.abort('failed'));
+    for (const surface of ['home', `explore?search=${encodeURIComponent(prefix)}`]) {
+      await reader.mouse.move(0, 0);
+      await reader.goto(`/#/${surface}`);
+      if (surface === 'home')
+        await reader.locator('.home-community-shelf').scrollIntoViewIfNeeded();
+      const card = cardFor(published.publicationId);
+      await card.scrollIntoViewIfNeeded();
+      await expect(card.getByTestId('public-project-preview-unavailable')).toHaveText(
+        'Изображение не загрузилось',
+      );
+      await expect(card.getByTestId('public-project-card-title')).toHaveText(title);
+      await expectNoOverflow(reader);
+      await reader.screenshot({
+        path: `${EVIDENCE}/sp01-${surface === 'home' ? 'home' : 'catalogue'}-image-error.png`,
+        fullPage: true,
+      });
+    }
+    await reader.unroute(failedCover);
+    expect(errors).toEqual([]);
+  } finally {
+    await admin.query(
+      'UPDATE publication_acquisition_settings SET enabled=$1 WHERE singleton_key',
+      [acquisitionBefore.rows[0]!.enabled],
+    );
+    for (const source of sources) {
+      await page.request.delete(`/api/projects/${source}/publication`, {
+        headers: { origin: origin(page) },
+      });
+    }
+    await readerContext.close();
+  }
+});
+
 test('real 3D editor creates the Project and its raster, then UI publication shows the same image anonymously', async ({
   page,
   browser,
@@ -709,6 +983,53 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
     )
       writes.push(request.url());
   });
+  const frozenPublication = await publication(page, publicationId);
+  const artifactPath = `/api/public-projects/${publicationId}/artifact`;
+  const publicArtifactReads: string[] = [];
+  const recordPublicArtifact = (request: import('@playwright/test').Request) => {
+    if (new URL(request.url()).pathname === artifactPath) publicArtifactReads.push(request.url());
+  };
+  page.on('request', recordPublicArtifact);
+  await page.mouse.move(0, 0);
+  await page.goto('/#/home');
+  await page.locator('.home-community-shelf').scrollIntoViewIfNeeded();
+  const homePublicCard = page
+    .locator('.home-community-shelf')
+    .getByTestId('public-project-card')
+    .filter({
+      has: page.locator(`a[href="/#/public-projects/${publicationId}"]`),
+    });
+  await homePublicCard.scrollIntoViewIfNeeded();
+  await expect(homePublicCard).toBeVisible();
+  await page.waitForTimeout(250);
+  expect(publicArtifactReads).toEqual([]);
+  await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(0);
+  const publicArtifactResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname === artifactPath &&
+      url.searchParams.get('revisionId') === frozenPublication.revisionId
+    );
+  });
+  await homePublicCard.hover();
+  const artifactResponse = await publicArtifactResponse;
+  expect(artifactResponse.status()).toBe(200);
+  expect((await artifactResponse.json()).artifact.provenance).toMatchObject({
+    publicationId,
+    revisionNumber: frozenPublication.revisionNo,
+  });
+  await expect(homePublicCard.locator('.three-d-hover-live')).toHaveClass(/is-ready/);
+  await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(1);
+  expect(publicArtifactReads).toHaveLength(1);
+  await page.screenshot({ path: `${EVIDENCE}/sp01-home-public-3d-active.png`, fullPage: true });
+  await page.mouse.move(0, 0);
+  await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(0);
+  await homePublicCard.hover();
+  await expect(homePublicCard.locator('.three-d-hover-live')).toHaveClass(/is-ready/);
+  await homePublicCard.locator('.public-project-card-link').click();
+  await expect(page).toHaveURL(new RegExp(`#/public-projects/${publicationId}$`));
+  await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(0);
+  page.off('request', recordPublicArtifact);
   for (const route of ['home', 'projects']) {
     await page.goto(`/#/${route}`);
     const card = page.getByTestId('project-card').filter({ hasText: title });

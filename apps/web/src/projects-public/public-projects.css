@@ -445,7 +445,7 @@
   align-items: center;
   gap: 8px;
 }
-.public-project-card-body h2 {
+.public-project-card-body :is(h2, h3) {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -492,7 +492,7 @@
     .publication-module,
     .public-project-card-date,
     .public-project-card-marks > span,
-    .public-project-card-body h2,
+    .public-project-card-body :is(h2, h3),
     .public-project-card-meta
   ) {
   text-shadow: none;
@@ -500,7 +500,7 @@
 }
 .public-project-card .public-project-card-identity,
 .public-project-card .public-project-card-topline > .publication-module,
-.public-project-card .public-project-card-body h2,
+.public-project-card .public-project-card-body :is(h2, h3),
 .public-project-card .public-project-card-meta,
 .public-project-card .public-project-card-date,
 .public-project-card .public-project-card-marks > span {
@@ -945,7 +945,7 @@
   .public-projects-heading p {
     font-size: 13px;
   }
-  .public-project-card-body h2 {
+  .public-project-card-body :is(h2, h3) {
     font-size: 9px;
   }
   .publication-module {
@@ -2759,7 +2759,7 @@
     max-width: 40%;
     font-size: 9px;
   }
-  .public-project-card .public-project-card-body h2 {
+  .public-project-card .public-project-card-body :is(h2, h3) {
     font-size: 11px;
   }
   .public-project-card .public-project-card-meta {
