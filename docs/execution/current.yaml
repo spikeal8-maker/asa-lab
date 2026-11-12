@@ -17370,6 +17370,7 @@ parallel_lanes:
         - apps/web/src/robotics/use-field-camera.ts
         - apps/web/src/robotics/testing/robotics-field-camera.spec.ts
         - e2e/robotics-field-camera.spec.ts
+        - tools/public-electronics-worker-modules.json
       issue: 1096
       branch: main
       base_branch: main
@@ -17392,9 +17393,20 @@ parallel_lanes:
         isolated coordination for the reviewed camera candidate
         d9aebf0e4d17a15d898f582ae86c05069cd98055 and its verified live overlay.
         The peer checkout, index and all 149 protected files remain read-only.
-        Coordination is usable only after acceptance on canonical main and does
-        not authorize live writes, PR1044 dependency integration or presentation
-        of a different main adapter; those integration choices remain undecided.
+        Owner subsequently explicitly authorized merging the existing dependency
+        and camera into main: "Да разрешаю, нужно всё это дело слить в майн".
+        Authorization receipt: https://github.com/spikeal8-maker/asa-lab/issues/1071#issuecomment-6828395736.
+        After this extension is accepted on canonical main, prepare one ordinary
+        protected integration candidate preserving existing PR1044 at
+        47ac27e9cca6cb1e28b99637453cc935cba071b5 and camera PR1098 at
+        d9aebf0e4d17a15d898f582ae86c05069cd98055 with current main.
+        While RDC is unavailable, Git composition may use the isolated cloud clone
+        /workspace/scratch/2ab66a8f1e68/field-camera-integration-20261112.
+        This permits no D2-R2 checkout, index, ref, runtime or protected-file writes.
+        Existing D2-R2 shared_path_coordination remains unchanged as a dated record;
+        cloud checks do not revalidate its peer state or the 149 protected hashes.
+        Exact combined-candidate checks and independent review remain mandatory;
+        this is neither deployment authorization nor E1 or physics acceptance.
       shared_path_coordination:
         status: owner_approved
         purpose: isolated_development_only
@@ -17422,11 +17434,15 @@ parallel_lanes:
         FIELD_CORE_SPEC.md sections 6.1-6.2, REQ-CAM-01 through REQ-CAM-05 and
         UI-01/UI-02 only: finite cursor-anchored zoom, mouse and two-touch pan,
         pinch, fit/focus, one world/screen transform and gesture cleanup.
+        Source integration additionally preserves the existing PR1044 dependency
+        without adding features. The only new composition repair is removal of
+        the duplicate arduino-stable-loop.ts entry from
+        tools/public-electronics-worker-modules.json, preserving the admitted set.
       constraints:
         - E1 remains selected in the robotics lane with all its unfinished evidence and blockers.
-        - No physics engine, electrical, schema, motor, sensor or program edits; no new engine experiments.
+        - No new physics engine, electrical, schema, motor, sensor or program edits beyond preserving the frozen existing PR1044 dependency; no new engine experiments.
         - Preserve live checkout branch and HEAD, PR1044 work, modified robotics-projects.spec.ts and 148 evidence files.
-        - Inspect actual 4630 process, exact paths and byte hashes before writes; conflicting concurrent writes stop only that operation.
+        - Before any D2-R2 write, inspect actual 4630 process, exact paths and byte hashes; cloud composition grants no such write and conflicting concurrent writes stop only that operation.
         - Use only existing 4630 HMR for narrow camera delivery; no new server, port, database or Docker restart.
         - Camera is UI state; do not dirty projects, add object history or reset Worker, code or model time.
         - Preserve header, save/avatar, right inspector, catalogue, robot artwork and side view.
