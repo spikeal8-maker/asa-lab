@@ -27,6 +27,8 @@ import {
   boundedNativeArray,
   captureGeometry,
   copyContacts,
+  copyState,
+  copyWarnings,
   copyGeometryWarnings,
   quaternionMatrix,
   rotate,
@@ -52,9 +54,19 @@ import {
   geometryJournalRetention,
   runCylinderGeometrySession,
   validateModel,
+  acceptedCylinderGeometry,
+  cylinderDynamicBudget,
+  cylinderPhysicsTransition,
+  CylinderNativeLedger,
+  executeCylinderStage,
+  finalizeCylinderDynamic,
+  validateCylinderDynamicAuthorization,
+  World,
 } from '../../../tools/robotics-field-core/mujoco-cylinder.mjs';
 import {
   parseGeometryCli,
+  parseCylinderDynamicCli,
+  encodeCylinderDynamicReceipt,
   runCylinderCli,
   validateGeometryAuthorization,
 } from '../../../tools/robotics-field-core/run-mujoco-cylinder.mjs';
@@ -3009,4 +3021,958 @@ describe('LEGACY_CCD_MULTI5 S0 group 7 complete dynamic retained schemas', () =>
       expect(() => oneByteOver.prepare(record)).toThrow('RESOURCE_TICK_BYTE_CAP');
     },
   );
+});
+
+function dynamicApprovalInputs(stage: 'ADMISSION' | 'MAIN' = 'ADMISSION') {
+  const geometry = acceptedCylinderGeometry();
+  const sourceManifest = {
+    newInputs: { ...geometry.sourceInputs },
+    immutableParents: { synthetic: '1'.repeat(64) },
+  };
+  const outputDirectory = join(tmpdir(), 'synthetic-cylinder-dynamic-controls');
+  const actual = {
+    fixtureSha256:
+      geometry.sourceInputs['tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json'],
+    sourceHead: 'a'.repeat(40),
+    sourceManifest,
+    geometry,
+    engineArtifacts: { synthetic: { bytes: 1, sha256: '2'.repeat(64) } },
+    outputDirectory,
+    outputs: {
+      claim: join(outputDirectory, 'claim.json'),
+      raw: join(outputDirectory, 'raw'),
+      receipt: join(outputDirectory, 'receipt.json'),
+    },
+    preregistrationSha256: '3'.repeat(64),
+    sourceReviewSha256: '4'.repeat(64),
+    supervisorReviewSha256: '5'.repeat(64),
+    executionGoSha256: '6'.repeat(64),
+    supervisorHelper: {
+      path: join(tmpdir(), 'synthetic-supervisor.py'),
+      bytes: 1,
+      sha256: '7'.repeat(64),
+    },
+    admissionReviewSha256: stage === 'MAIN' ? '8'.repeat(64) : null,
+    admissionRaw: {
+      path: join(tmpdir(), 'synthetic-admission.raw'),
+      bytes: 1,
+      sha256: '9'.repeat(64),
+    },
+    admissionReceipt: {
+      path: join(tmpdir(), 'synthetic-admission.json'),
+      bytes: 1,
+      sha256: 'b'.repeat(64),
+    },
+    admissionReceiptValue: {
+      schema: 'CYLINDER_DYNAMIC_RECEIPT_V1',
+      stage: 'ADMISSION',
+      invocationId: 'synthetic_A',
+      sourceHead: 'a'.repeat(40),
+      executionGoSha256: 'c'.repeat(64),
+      report: {
+        assessment: { verdict: 'PASS' },
+        budget: { advanceDispatched: 40200, advanceReturned: 40200 },
+        worlds: Array.from({ length: 8 }, () => ({ status: 'PASS' })),
+        nativeLedger: {
+          knowledge: 'ACTUAL_DISPATCHED_AND_RETURNED',
+          firstFailure: null,
+          outstanding: [],
+          acquisitionUnknown: [],
+          cleanupUnknown: [],
+          calls: Object.fromEntries(
+            Object.entries(cylinderDynamicBudget(fixture, 'ADMISSION').calls).map(([api, cap]) => [
+              api,
+              { dispatched: cap, returned: cap },
+            ]),
+          ),
+        },
+        journal: { bytes: 1, sha256: '9'.repeat(64), trailerError: null, closeError: null },
+      },
+    },
+  };
+  const budget = cylinderDynamicBudget(fixture, stage);
+  const transition = cylinderPhysicsTransition(fixture, actual.sourceHead, sourceManifest);
+  // Synthetic parser value only: this is not an operational deadline selection.
+  const operationalBudget = {
+    wallTimeoutSeconds: 1,
+    anchor: 'ORIGINAL_OWNED_JOB_CREATEPROCESS_DISPATCH',
+    noGrace: true,
+    terminateOnDeadline: true,
+    maxCreateProcess: 1,
+    maxResumeThread: 1,
+  };
+  const registration = {
+    schema: 'CYLINDER_DYNAMIC_PREREGISTRATION_V1',
+    status: 'PREPARED_AWAIT_SEPARATE_ROOT_GO',
+    stage,
+    profile: fixture.candidateProfile.id,
+    sourceHead: actual.sourceHead,
+    sourceManifest,
+    fixtureSha256: actual.fixtureSha256,
+    engineArtifacts: actual.engineArtifacts,
+    geometry,
+    transition,
+    budget,
+    retention: fixture.retention,
+    outputs: actual.outputs,
+    outputDirectory,
+    sourceReviewSha256: actual.sourceReviewSha256,
+    supervisorReviewSha256: actual.supervisorReviewSha256,
+    operationalBudget,
+    admissionReviewSha256: actual.admissionReviewSha256,
+  };
+  const review = {
+    schema: 'CYLINDER_DYNAMIC_SOURCE_PHYSICS_REVIEW_V1',
+    decision: 'NO_BLOCKING_SOURCE_AND_PHYSICS_TRANSITION_FINDINGS',
+    independentReviewPerformed: true,
+    blockingFindings: [],
+    transition,
+    budget,
+    engineArtifacts: actual.engineArtifacts,
+    geometry,
+  };
+  const supervision = {
+    schema: 'CYLINDER_DYNAMIC_SUPERVISION_REVIEW_V1',
+    decision: 'NO_BLOCKING_DYNAMIC_OWNED_JOB_FINDINGS',
+    independentReviewPerformed: true,
+    blockingFindings: [],
+    stage,
+    sourceHead: actual.sourceHead,
+    sourceManifest,
+    operationalBudget,
+    helper: actual.supervisorHelper,
+    atomicOwnedJobCreation: true,
+    unknownNeverPromoted: true,
+    originalDeadlineThroughRootExitAndDrain: true,
+  };
+  const go = {
+    schema: 'CYLINDER_DYNAMIC_EXECUTION_GO_V1',
+    decision: 'ROOT_EXECUTION_GO',
+    selectedBy: 'ROOT',
+    stage,
+    oneInvocation: true,
+    noRetry: true,
+    noAutoChain: true,
+    invocationId: 'synthetic_' + stage,
+    preregistrationSha256: actual.preregistrationSha256,
+    sourceReviewSha256: actual.sourceReviewSha256,
+    supervisorReviewSha256: actual.supervisorReviewSha256,
+    sourceHead: actual.sourceHead,
+    sourceManifest,
+    geometry,
+    transition,
+    budget,
+    operationalBudget,
+    outputs: actual.outputs,
+    outputDirectory,
+    nativeResourceReservation: {
+      owner: 'CYLINDER_DYNAMIC_' + stage,
+      exclusive: true,
+      confirmedBy: 'ROOT',
+      otherNativeStopped: true,
+    },
+    admissionReviewSha256: actual.admissionReviewSha256,
+  };
+  const admission =
+    stage === 'MAIN'
+      ? {
+          schema: 'CYLINDER_ADMISSION_RESULT_REVIEW_V1',
+          decision: 'ADMISSION_ADMITTED_ON_CURRENT_SOURCE',
+          independentReviewPerformed: true,
+          blockingFindings: [],
+          stage: 'ADMISSION',
+          sourceHead: actual.sourceHead,
+          sourceManifest,
+          engineArtifacts: actual.engineArtifacts,
+          geometry,
+          transition,
+          observedWorlds: 8,
+          observedNativeAdvances: 40200,
+          allPhysicalChecksPassed: true,
+          ledgerClosed: true,
+          journalClosed: true,
+          invocationId: 'synthetic_A',
+          receipt: actual.admissionReceipt,
+          raw: actual.admissionRaw,
+        }
+      : null;
+  const validate = () =>
+    validateCylinderDynamicAuthorization(
+      fixture,
+      stage,
+      registration,
+      review,
+      supervision,
+      go,
+      actual,
+      admission,
+    );
+  return { actual, registration, review, supervision, go, admission, validate };
+}
+
+function dynamicWorldHarness(failure = '', phase: 'split' | 'full' = 'split') {
+  const condition = cylinderPlan(fixture, 'admission').find(
+    (c: PlanEntry) => c.probe === 'B' && c.dtUs === 500 && c.phase === phase,
+  )!;
+  const ledger = new CylinderNativeLedger(cylinderDynamicBudget(fixture, 'ADMISSION'));
+  const hooks = ledger.forWorld(condition.id);
+  const calls = {
+    model: 0,
+    data: 0,
+    buffer: 0,
+    modelDelete: 0,
+    dataDelete: 0,
+    bufferDelete: 0,
+    warningGets: 0,
+    warningDeletes: 0,
+    warningVectors: 0,
+    steps: 0,
+    extraReads: 0,
+  };
+  const model = syntheticGeometryModel();
+  for (const [key, value] of Object.entries(model))
+    if (Array.isArray(value)) Reflect.set(model, key, new Float64Array(value));
+  Reflect.set(model.opt, 'gravity', new Float64Array(model.opt.gravity));
+  Reflect.set(model.opt, 'wind', new Float64Array(model.opt.wind));
+  model.delete = () => {
+    calls.modelDelete += 1;
+    if (failure === 'model-delete') throw new Error('SYNTHETIC_MODEL_DELETE');
+  };
+  const qpos = new Float64Array([
+    0,
+    0,
+    0,
+    fixture.bodies.cylinder.heightM / 2 + fixture.initialGapM,
+    1,
+    0,
+    0,
+    0,
+  ]);
+  const observation = syntheticGeometryObservation(Array.from(qpos));
+  const data = {
+    time: 0,
+    qpos,
+    qvel: new Float64Array(7),
+    qacc: new Float64Array(7),
+    qacc_warmstart: new Float64Array(7),
+    qfrc_applied: new Float64Array(7),
+    xfrc_applied: new Float64Array(18),
+    qfrc_passive: new Float64Array(7),
+    act: new Float64Array(0),
+    ctrl: new Float64Array(1),
+    ncon: 5,
+    nefc: 15,
+    nisland: 2,
+    efc_type: new Int32Array(observation.efcType),
+    efc_id: new Int32Array(observation.efcId),
+    efc_vel: new Float64Array(15),
+    ...Object.fromEntries(
+      Object.entries(observation.poses).map(([key, value]) => [key, new Float64Array(value)]),
+    ),
+    get warning() {
+      calls.warningVectors += 1;
+      return {
+        size: () => (failure === 'warning-size' ? 8 : 7),
+        get(index: number) {
+          calls.warningGets += 1;
+          if (failure === 'warning-get' && index === 2) throw new Error('SYNTHETIC_WARNING_GET');
+          return {
+            number: 0,
+            lastinfo: 0,
+            delete() {
+              calls.warningDeletes += 1;
+              if (failure === 'warning-delete') throw new Error('SYNTHETIC_WARNING_DELETE');
+            },
+          };
+        },
+      };
+    },
+    get contact() {
+      return {
+        size: () => 5,
+        get(index: number) {
+          return {
+            ...Object.fromEntries(
+              Object.entries(observation.contacts[index]).map(([key, value]) => [
+                key,
+                Array.isArray(value) ? new Float64Array(value) : value,
+              ]),
+            ),
+            H: new Float64Array(36),
+            mu: 1,
+            delete() {
+              return undefined;
+            },
+          };
+        },
+        delete() {
+          return undefined;
+        },
+      };
+    },
+    delete() {
+      calls.dataDelete += 1;
+      if (failure === 'data-delete') throw new Error('SYNTHETIC_DATA_DELETE');
+    },
+  };
+  const M = {
+    MjModel: {
+      from_xml_string() {
+        calls.model += 1;
+        if (failure === 'model-create') throw new Error('SYNTHETIC_MODEL_CREATE');
+        return model;
+      },
+    },
+    MjData: class {
+      constructor() {
+        calls.data += 1;
+        if (failure === 'data-create') throw new Error('SYNTHETIC_DATA_CREATE');
+        return data;
+      }
+    },
+    DoubleBuffer: class {
+      constructor() {
+        calls.buffer += 1;
+        if (failure === 'buffer-create') throw new Error('SYNTHETIC_BUFFER_CREATE');
+      }
+      GetView() {
+        if (failure === 'get-view') throw new Error('SYNTHETIC_GET_VIEW');
+        return new Float64Array(6);
+      }
+      delete() {
+        calls.bufferDelete += 1;
+        if (failure === 'buffer-delete') throw new Error('SYNTHETIC_BUFFER_DELETE');
+      }
+    },
+    mj_step1() {
+      calls.steps += 1;
+      if (failure === 'step1') throw new Error('SYNTHETIC_STEP1');
+    },
+    mj_step2() {
+      calls.steps += 1;
+      throw new Error('SYNTHETIC_STEP2');
+    },
+    mj_step() {
+      calls.steps += 1;
+      throw new Error('SYNTHETIC_FULL_STEP');
+    },
+    mj_objectVelocity() {
+      return undefined;
+    },
+  };
+  const total = {
+    allowedWorlds: 8,
+    allowedNativeSteps: 40200,
+    allowedConcurrentWorlds: 2,
+    maxConcurrentWorlds: 0,
+    modelCreationDispatched: 0,
+    modelsCreated: 0,
+    modelsFreed: 0,
+    dataCreationDispatched: 0,
+    dataCreated: 0,
+    dataFreed: 0,
+    keyframeResets: 0,
+    step1Dispatched: 0,
+    step1Returned: 0,
+    advanceDispatched: 0,
+    advanceReturned: 0,
+    scheduleConfirmedAdvances: 0,
+  };
+  const records: Record<string, unknown>[] = [];
+  const journal = {
+    append(record: Record<string, unknown>) {
+      records.push(structuredClone(record));
+    },
+    checkpoint() {
+      return undefined;
+    },
+  };
+  const world = new World(M, fixture, condition, total, journal, hooks);
+  const forbidFailureReads = () => {
+    for (const key of Object.keys(data)) {
+      if (key === 'delete') continue;
+      Object.defineProperty(data, key, {
+        configurable: true,
+        get() {
+          calls.extraReads += 1;
+          throw new Error('FORBIDDEN_FAILURE_QUERY');
+        },
+      });
+    }
+  };
+  return { world, ledger, hooks, calls, total, data, model, journal, records, forbidFailureReads };
+}
+
+describe('external cylinder dynamic stage source contracts (PURE; no engine)', () => {
+  it.each(['ADMISSION', 'MAIN'] as const)(
+    'derives unchanged %s operation and retention ceilings',
+    (stage) => {
+      const b = cylinderDynamicBudget(fixture, stage);
+      expect(b.classification).toBe('PLANNED_CAPS_NOT_OBSERVED_RESULTS');
+      expect(b.retention).toEqual(fixture.retention);
+      expect(b.worlds).toBe(stage === 'ADMISSION' ? 8 : 12);
+      expect(b.maxNativeAdvances).toBe(stage === 'ADMISSION' ? 40200 : 7542000);
+      expect(b.maxStepsPerWorld).toBe(stage === 'ADMISSION' ? 13000 : 1508000);
+      expect(b.maxConcurrentWorlds).toBe(stage === 'ADMISSION' ? 2 : 1);
+      expect(b.calls.mj_step1).toBe(stage === 'ADMISSION' ? 20100 : 7542000);
+      expect(b.calls.mj_step2).toBe(b.calls.mj_step1);
+      for (const api of ['mj_kinematics', 'mj_comPos', 'mj_comVel'])
+        expect(b.calls[api]).toBe(b.calls.mj_step1);
+      expect(b.calls.mj_step).toBe(stage === 'ADMISSION' ? 20100 : 0);
+      expect(b.calls.mj_resetDataKeyframe).toBe(stage === 'ADMISSION' ? 4 : 0);
+      expect(b.calls.mj_objectVelocity).toBe(stage === 'ADMISSION' ? 141300 : 30912000);
+      expect(b.calls.mj_contactForce).toBe(stage === 'ADMISSION' ? 210600 : 43662000);
+      expect(b.calls['data.contact']).toBe(2 * b.maxNativeAdvances);
+      expect(b.calls['contact.get']).toBe(2 * b.calls.mj_contactForce);
+      expect(b.calls['warning.get']).toBe(7 * (b.maxNativeAdvances + b.worlds));
+      expect(b.calls['DoubleBuffer.GetView']).toBe(
+        2 * b.worlds + b.calls.mj_objectVelocity + b.calls.mj_contactForce,
+      );
+      expect(b.byWorld.every((w) => w.shape.solverSlots === 20)).toBe(true);
+      expect(b.coverage).toContain('not a claim about every internal WASM call');
+    },
+  );
+
+  it.each(['ADMISSION', 'MAIN'] as const)(
+    'requires separate complete %s typed bindings',
+    (stage) => {
+      expect(dynamicApprovalInputs(stage).validate()).toMatchObject({
+        stage,
+        schema: 'CYLINDER_DYNAMIC_VALIDATED_PERMIT_V1',
+      });
+    },
+  );
+
+  it.each([
+    ['stage', 'go.stage', 'MAIN'],
+    ['old G0 schema', 'go.schema', 'CYLINDER_G0_EXECUTION_GO_V1'],
+    ['consumed ID', 'go.invocationId', 'cylinder_legacy_g0_saved401_20261112'],
+    ['no GO', 'go.decision', 'PREPARED_AWAIT_REVIEW'],
+    ['autochain', 'go.noAutoChain', false],
+    ['source transition', 'review.transition.fromSourceHead', '0'.repeat(40)],
+    ['source review independence', 'review.independentReviewPerformed', false],
+    ['geometry outcome', 'actual.geometry.verdict', 'INCOMPLETE'],
+    ['geometry raw', 'actual.geometry.raw.sha256', '0'.repeat(64)],
+    ['world cap', 'registration.budget.worlds', 9],
+    ['retention cap', 'registration.retention.maxJournalBytes', 268435457],
+    ['deadline missing', 'registration.operationalBudget.wallTimeoutSeconds', null],
+    ['deadline zero', 'registration.operationalBudget.wallTimeoutSeconds', 0],
+    ['deadline reanchor', 'registration.operationalBudget.anchor', 'ROOT_EXIT'],
+    ['grace', 'registration.operationalBudget.noGrace', false],
+    ['job fallback', 'supervision.atomicOwnedJobCreation', false],
+    ['late promotion', 'supervision.unknownNeverPromoted', false],
+    ['reservation', 'go.nativeResourceReservation.otherNativeStopped', false],
+    ['output binding', 'go.outputs.raw', '/different/raw'],
+  ] as const)('rejects %s before an execution permit exists', (_label, path, value) => {
+    const input = dynamicApprovalInputs();
+    // Sever shared synthetic object references, as separate JSON files would.
+    const copy = JSON.parse(JSON.stringify(input));
+    const parts = path.split('.');
+    let object: Record<string, unknown> = copy;
+    for (const key of parts.slice(0, -1)) object = object[key] as Record<string, unknown>;
+    object[parts[parts.length - 1]] = value;
+    expect(() =>
+      validateCylinderDynamicAuthorization(
+        fixture,
+        'ADMISSION',
+        copy.registration,
+        copy.review,
+        copy.supervision,
+        copy.go,
+        copy.actual,
+        null,
+      ),
+    ).toThrow();
+  });
+
+  it.each([
+    'missing',
+    'wrong-source',
+    'incomplete',
+    'zero-advances',
+    'open-ledger',
+    'partial-ledger',
+    'raw-mismatch',
+    'same-go',
+    'failed-world',
+  ])('does not infer MAIN admission from G0: %s', (failure) => {
+    const input = dynamicApprovalInputs('MAIN');
+    if (failure === 'missing') input.admission = null;
+    if (failure === 'wrong-source') input.admission!.sourceHead = '0'.repeat(40);
+    if (failure === 'incomplete') input.admission!.decision = 'INCOMPLETE';
+    if (failure === 'zero-advances') input.admission!.observedNativeAdvances = 0;
+    if (failure === 'open-ledger')
+      input.actual.admissionReceiptValue.report.nativeLedger.knowledge =
+        'UNKNOWN_NATIVE_CALL_OR_OWNERSHIP';
+    if (failure === 'partial-ledger')
+      Reflect.set(input.actual.admissionReceiptValue.report.nativeLedger, 'calls', {});
+    if (failure === 'raw-mismatch')
+      input.actual.admissionReceiptValue.report.journal.sha256 = '0'.repeat(64);
+    if (failure === 'same-go')
+      input.actual.admissionReceiptValue.executionGoSha256 = input.actual.executionGoSha256;
+    if (failure === 'failed-world')
+      input.actual.admissionReceiptValue.report.worlds[0].status = 'FAIL';
+    expect(() =>
+      validateCylinderDynamicAuthorization(
+        fixture,
+        'MAIN',
+        input.registration,
+        input.review,
+        input.supervision,
+        input.go,
+        input.actual,
+        input.admission,
+      ),
+    ).toThrow('DYNAMIC_MAIN_REQUIRES_ACTUAL_INDEPENDENT_ADMISSION');
+  });
+
+  it('requires the new route, a distinct stage and every absolute control path', async () => {
+    const path = join(tmpdir(), 'synthetic-control.json');
+    const args = [
+      '--dynamic-stage',
+      'ADMISSION',
+      '--preregistration',
+      path,
+      '--source-review',
+      path,
+      '--supervisor-review',
+      path,
+      '--execution-go',
+      path,
+      '--journal-dir',
+      tmpdir(),
+    ];
+    expect(parseCylinderDynamicCli(args).stage).toBe('ADMISSION');
+    expect(() => parseCylinderDynamicCli(args.slice(0, -2))).toThrow(
+      'DYNAMIC_EXPLICIT_CLI_ARGUMENTS',
+    );
+    expect(() =>
+      parseCylinderDynamicCli(args.map((x) => (x === path ? 'relative.json' : x))),
+    ).toThrow('DYNAMIC_EXPLICIT_ABSOLUTE_PATH');
+    expect(() =>
+      parseCylinderDynamicCli(args.map((x) => (x === 'ADMISSION' ? 'MAIN' : x))),
+    ).toThrow('DYNAMIC_EXPLICIT_CLI_ARGUMENTS');
+    await expect(runCylinderCli(['--main', '--write-evidence'])).rejects.toThrow(
+      'LEGACY_CANDIDATE_DYNAMIC_MODES_REQUIRE_SEPARATE_ROOT_PATH_AND_STAGE_PLAN',
+    );
+  });
+
+  it('rejects a fabricated permit before creating/importing any engine', async () => {
+    await expect(
+      executeCylinderStage(fixture, 'ADMISSION', null, { stage: 'ADMISSION' }),
+    ).rejects.toThrow('DYNAMIC_VALIDATED_SINGLE_USE_PERMIT');
+  });
+});
+
+describe('dynamic native dispatch and ownership ledger (PURE)', () => {
+  const cappedApis = Object.keys(cylinderDynamicBudget(fixture, 'ADMISSION').calls).filter(
+    (api) => !api.endsWith('.delete'),
+  );
+  it.each(cappedApis)('blocks %s at its cap before the supplied operation', (api) => {
+    const budget = cylinderDynamicBudget(fixture, 'ADMISSION');
+    budget.calls[api] = 0;
+    const ledger = new CylinderNativeLedger(budget);
+    let observed = 0;
+    expect(() =>
+      ledger.invoke(api, () => {
+        observed += 1;
+        return {};
+      }),
+    ).toThrow('DYNAMIC_API_CAP_BEFORE_DISPATCH');
+    expect(observed).toBe(0);
+    expect(ledger.snapshot().calls[api]).toEqual({ dispatched: 0, returned: 0 });
+  });
+
+  it('caps live owned worlds before creation and rejects foreign/repeated deletion', () => {
+    const b = cylinderDynamicBudget(fixture, 'MAIN');
+    const ledger = new CylinderNativeLedger(b);
+    const handle = ledger.invoke('MjModel.create', () => ({}));
+    let creates = 0;
+    expect(() =>
+      ledger.invoke('MjModel.create', () => {
+        creates += 1;
+        return {};
+      }),
+    ).toThrow('DYNAMIC_LIVE_CAP_BEFORE_DISPATCH');
+    expect(creates).toBe(0);
+    let deletes = 0;
+    expect(() =>
+      ledger.invoke(
+        'MjModel.delete',
+        () => {
+          deletes += 1;
+        },
+        {},
+      ),
+    ).toThrow('DYNAMIC_CLEANUP_NOT_OWNED');
+    ledger.invoke(
+      'MjModel.delete',
+      () => {
+        deletes += 1;
+      },
+      handle,
+    );
+    expect(() =>
+      ledger.invoke(
+        'MjModel.delete',
+        () => {
+          deletes += 1;
+        },
+        handle,
+      ),
+    ).toThrow('DYNAMIC_CLEANUP_NOT_OWNED');
+    expect(deletes).toBe(1);
+  });
+
+  it('charges a throwing acquisition and never fabricates a returned handle', () => {
+    const ledger = new CylinderNativeLedger(cylinderDynamicBudget(fixture, 'ADMISSION'));
+    expect(() =>
+      ledger.invoke('MjData.create', () => {
+        throw new Error('SYNTHETIC_ALLOCATION');
+      }),
+    ).toThrow('SYNTHETIC_ALLOCATION');
+    const saved = ledger.snapshot();
+    expect(saved.calls['MjData.create']).toEqual({ dispatched: 1, returned: 0 });
+    expect(saved.acquisitionUnknown).toEqual([
+      { api: 'MjData.create', world: null, returnObserved: false, usableOwnedHandle: false },
+    ]);
+    expect(saved.ownership.data.confirmedCreated).toBe(0);
+    expect(saved.knowledge).toBe('UNKNOWN_NATIVE_CALL_OR_OWNERSHIP');
+    expect(() => ledger.assertClosed()).toThrow('DYNAMIC_LEDGER_NOT_CLOSED');
+  });
+
+  it('keeps an invalid returned acquisition unknown while counting its actual return', () => {
+    const ledger = new CylinderNativeLedger(cylinderDynamicBudget(fixture, 'ADMISSION'));
+    expect(() => ledger.invoke('MjModel.create', () => null)).toThrow(
+      'DYNAMIC_OWNED_HANDLE_MISSING',
+    );
+    const saved = ledger.snapshot();
+    expect(saved.calls['MjModel.create']).toEqual({ dispatched: 1, returned: 1 });
+    expect(saved.acquisitionUnknown[0].returnObserved).toBe(true);
+    expect(saved.knowledge).toBe('UNKNOWN_NATIVE_CALL_OR_OWNERSHIP');
+  });
+
+  it('allows only known cleanup after a native throw, with no cleanup retry', () => {
+    const ledger = new CylinderNativeLedger(cylinderDynamicBudget(fixture, 'ADMISSION'));
+    const model = ledger.invoke('MjModel.create', () => ({}));
+    const data = ledger.invoke('MjData.create', () => ({}));
+    let deletes = 0;
+    expect(() =>
+      ledger.invoke(
+        'MjData.delete',
+        () => {
+          deletes += 1;
+          throw new Error('UNKNOWN_DELETE');
+        },
+        data,
+      ),
+    ).toThrow('UNKNOWN_DELETE');
+    expect(() =>
+      ledger.invoke('mj_step2', () => {
+        throw new Error('MUST_NOT_RUN');
+      }),
+    ).toThrow('DYNAMIC_STOPPED_BEFORE_DISPATCH');
+    ledger.invoke(
+      'MjModel.delete',
+      () => {
+        deletes += 1;
+      },
+      model,
+    );
+    expect(() =>
+      ledger.invoke(
+        'MjData.delete',
+        () => {
+          deletes += 1;
+        },
+        data,
+      ),
+    ).toThrow('DYNAMIC_CLEANUP_NOT_OWNED');
+    expect(deletes).toBe(2);
+    expect(ledger.snapshot().cleanupUnknown).toHaveLength(1);
+    expect(ledger.snapshot().outstanding).toHaveLength(1);
+  });
+
+  it('records asynchronous factory rejection once with no follow-on module calls', async () => {
+    const ledger = new CylinderNativeLedger(cylinderDynamicBudget(fixture, 'ADMISSION'));
+    await expect(
+      ledger.invokeAsync('module.factory', async () => {
+        throw new Error('SYNTHETIC_FACTORY');
+      }),
+    ).rejects.toThrow('SYNTHETIC_FACTORY');
+    expect(ledger.snapshot().calls['module.factory']).toEqual({ dispatched: 1, returned: 0 });
+    expect(() => ledger.invoke('mj_version', () => 4000000)).toThrow(
+      'DYNAMIC_STOPPED_BEFORE_DISPATCH',
+    );
+  });
+
+  it('enforces each world cap independently of the larger invocation cap', () => {
+    const budget = cylinderDynamicBudget(fixture, 'ADMISSION');
+    budget.byWorld[0].calls.mj_step1 = 1;
+    const ledger = new CylinderNativeLedger(budget);
+    const hooks = ledger.forWorld(budget.byWorld[0].id);
+    let calls = 0;
+    hooks.invoke('mj_step1', () => {
+      calls += 1;
+    });
+    expect(() =>
+      hooks.invoke('mj_step1', () => {
+        calls += 1;
+      }),
+    ).toThrow('DYNAMIC_API_CAP_BEFORE_DISPATCH');
+    expect(calls).toBe(1);
+  });
+});
+
+describe('dynamic World cleanup and bounded observations (PURE injected objects)', () => {
+  it('checks the warning count before any of the seven owned copies', () => {
+    const mock = dynamicWorldHarness('warning-size');
+    expect(() => mock.world.create()).toThrow('NATIVE_WARNING_COUNT_BEFORE_COPY');
+    mock.forbidFailureReads();
+    mock.world.fail(new Error('SYNTHETIC_BOUND_FAILURE'));
+    mock.world.dispose();
+    expect(mock.calls.warningGets).toBe(0);
+    expect(mock.calls.extraReads).toBe(0);
+    expect(mock.calls.bufferDelete).toBe(1);
+    expect(mock.calls.dataDelete).toBe(1);
+    expect(mock.calls.modelDelete).toBe(1);
+  });
+
+  it.each([
+    'model-create',
+    'data-create',
+    'buffer-create',
+    'get-view',
+    'warning-get',
+    'warning-delete',
+  ])('preserves actual %s failure and cleans only known handles', (failure) => {
+    const mock = dynamicWorldHarness(failure);
+    expect(() => mock.world.create()).toThrow();
+    mock.forbidFailureReads();
+    mock.world.fail(new Error('SYNTHETIC_CREATION_FAILED'));
+    try {
+      mock.world.dispose();
+    } catch (error) {
+      expect(String(error)).toContain('RESOURCE_OWNED_WRAPPER_CLEANUP');
+    }
+    mock.world.dispose();
+    expect(mock.calls.extraReads).toBe(0);
+    expect(mock.calls.modelDelete).toBe(failure === 'model-create' ? 0 : 1);
+    expect(mock.calls.dataDelete).toBe(['model-create', 'data-create'].includes(failure) ? 0 : 1);
+    expect(mock.calls.bufferDelete).toBe(
+      ['model-create', 'data-create', 'buffer-create'].includes(failure) ? 0 : 1,
+    );
+    expect(mock.ledger.snapshot().knowledge).toBe('UNKNOWN_NATIVE_CALL_OR_OWNERSHIP');
+    expect(() => mock.ledger.assertClosed()).toThrow('DYNAMIC_LEDGER_NOT_CLOSED');
+    if (failure === 'warning-get') {
+      expect(mock.calls.warningGets).toBe(3);
+      expect(mock.calls.warningDeletes).toBe(2);
+    }
+    if (failure === 'warning-delete') {
+      expect(mock.calls.warningGets).toBe(1);
+      expect(mock.calls.warningDeletes).toBe(1);
+    }
+  });
+
+  it.each(['buffer-delete', 'data-delete', 'model-delete'])(
+    'continues known cleanup after %s and never retries',
+    (failure) => {
+      const mock = dynamicWorldHarness(failure);
+      mock.world.create();
+      mock.forbidFailureReads();
+      expect(() => mock.world.dispose()).toThrow('RESOURCE_OWNED_WRAPPER_CLEANUP');
+      mock.world.dispose();
+      expect([mock.calls.bufferDelete, mock.calls.dataDelete, mock.calls.modelDelete]).toEqual([
+        1, 1, 1,
+      ]);
+      expect(mock.calls.extraReads).toBe(0);
+      expect(mock.ledger.snapshot().cleanupUnknown).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    ['step1', 'split', 'mj_step1'],
+    ['step2', 'split', 'mj_step2'],
+    ['step', 'full', 'mj_step'],
+  ] as const)(
+    'retains the actual %s prefix with no failure-path getters',
+    (failure, phase, api) => {
+      const mock = dynamicWorldHarness(failure, phase);
+      mock.world.create();
+      expect(() => mock.world.advance()).toThrow('SYNTHETIC_');
+      const prior = structuredClone(mock.world.lastObservation);
+      mock.forbidFailureReads();
+      const failed = mock.world.fail(new Error('SYNTHETIC_STOP'));
+      mock.world.dispose();
+      expect(failed.partial.lastObservation).toEqual(prior);
+      expect(failed.partial.native.knowledge).toBe('PRIOR_PLAIN_OBSERVATIONS_ONLY');
+      expect(mock.calls.extraReads).toBe(0);
+      expect(mock.ledger.snapshot().calls[api]).toEqual({ dispatched: 1, returned: 0 });
+      expect(failed.status).toBe('FAIL');
+    },
+  );
+
+  it('keeps the same bounded contact values and accounts every owned copy/size/deletion', () => {
+    const mock = dynamicWorldHarness();
+    const before = resourceCounters();
+    const after = resourceCounters();
+    const limits = cylinderScenarioLimits(fixture, { kind: 'tilt' });
+    expect(copyContacts(mock.data, after, limits, mock.hooks)).toEqual(
+      copyContacts(mock.data, before, limits),
+    );
+    const calls = mock.ledger.snapshot().calls;
+    expect(calls['data.contact']).toEqual({ dispatched: 1, returned: 1 });
+    expect(calls['contact.size']).toEqual({ dispatched: 1, returned: 1 });
+    expect(calls['contact.get']).toEqual({ dispatched: 5, returned: 5 });
+    expect(calls['contact.delete']).toEqual({ dispatched: 5, returned: 5 });
+    expect(calls['contactVector.delete']).toEqual({ dispatched: 1, returned: 1 });
+    expect(after.temporaryCreated).toBe(6);
+    expect(after.temporaryDeleted).toBe(6);
+    mock.ledger.assertClosed();
+  });
+
+  it('retains contact cleanup knowledge and releases the remaining known copies after a delete throw', () => {
+    const mock = dynamicWorldHarness();
+    const vector = mock.data.contact;
+    let deletes = 0;
+    const data = {
+      ...mock.data,
+      contact: {
+        size: () => vector.size(),
+        get(index: number) {
+          const contact = vector.get(index);
+          contact.delete = () => {
+            deletes += 1;
+            if (index === 0) throw new Error('SYNTHETIC_CONTACT_DELETE');
+          };
+          return contact;
+        },
+        delete: () => vector.delete(),
+      },
+    };
+    expect(() =>
+      copyContacts(
+        data,
+        resourceCounters(),
+        cylinderScenarioLimits(fixture, { kind: 'tilt' }),
+        mock.hooks,
+      ),
+    ).toThrow('NATIVE_WRAPPER_CLEANUP');
+    expect(deletes).toBe(5);
+    expect(mock.ledger.snapshot().calls['contactVector.delete']).toEqual({
+      dispatched: 1,
+      returned: 1,
+    });
+    expect(mock.ledger.snapshot().cleanupUnknown).toHaveLength(1);
+    expect(mock.ledger.snapshot().outstanding).toHaveLength(1);
+  });
+
+  it('bounds Float64 state shape before copy and leaves historical callers opt-out', () => {
+    const mock = dynamicWorldHarness();
+    const bad = new Float64Array(9);
+    Object.defineProperty(bad, Symbol.iterator, {
+      value() {
+        throw new Error('COPIED_BEFORE_SHAPE');
+      },
+    });
+    const data = { ...mock.data, qpos: bad };
+    expect(() => copyState(data, mock.hooks)).toThrow('NATIVE_ARRAY_SHAPE qpos');
+    expect(copyState(mock.data, mock.hooks)).toEqual(copyState(mock.data));
+    const resources = resourceCounters();
+    expect(copyWarnings(mock.data, resources, mock.hooks)).toEqual(new Array(7).fill([0, 0]));
+    expect(resources.temporaryCreated).toBe(7);
+    expect(resources.temporaryDeleted).toBe(7);
+  });
+
+  it('does not change physical functions in the generated stage contract', () => {
+    const input = dynamicApprovalInputs();
+    expect(input.registration.transition.preserved).toContain('evaluate');
+    expect(input.registration.transition.preserved).toContain('controlAt');
+    expect(input.registration.transition.preserved).toContain('assessComparisons');
+    expect(input.registration.transition.geometryDoesNotQualify).toEqual(
+      fixture.geometryOnly.unqualified,
+    );
+  });
+});
+
+describe('dynamic durable finalization and retained failure caps (PURE)', () => {
+  it.each(['trailerError', 'closeError', 'open', 'bytes'])(
+    'does not promote %s to PASS',
+    (failure) => {
+      const report = { assessment: { verdict: 'PASS', failures: [] as string[] } };
+      const journal = {
+        closed: failure !== 'open',
+        finish() {
+          return {
+            bytes: failure === 'bytes' ? fixture.retention.maxJournalBytes + 1 : 1,
+            sha256: 'd'.repeat(64),
+            trailerError: failure === 'trailerError' ? 'SYNTHETIC' : null,
+            closeError: failure === 'closeError' ? 'SYNTHETIC' : null,
+          };
+        },
+      };
+      expect(finalizeCylinderDynamic(fixture, report, journal).assessment.verdict).toBe('FAIL');
+    },
+  );
+
+  it('fails an oversized final trailer without enlarging its fixed cap', () => {
+    const report = {
+      assessment: { verdict: 'PASS', failures: [] as string[] },
+      nativeLedger: { oversized: 'x'.repeat(fixture.retention.emergencyTrailerBytes) },
+    };
+    let saved: Record<string, unknown> = {};
+    const journal = {
+      closed: true,
+      finish(record: Record<string, unknown>) {
+        saved = record;
+        return { bytes: 1, sha256: 'e'.repeat(64), trailerError: null, closeError: null };
+      },
+    };
+    expect(finalizeCylinderDynamic(fixture, report, journal).assessment.verdict).toBe('FAIL');
+    expect(saved.status).toBe('FAIL');
+    expect(canonicalBytes(saved).length).toBeLessThan(fixture.retention.emergencyTrailerBytes);
+  });
+
+  it('retains a compact FAIL, never a truncated PASS, when MAIN summary fit is unproved', () => {
+    const receipt = {
+      schema: 'CYLINDER_DYNAMIC_RECEIPT_V1',
+      stage: 'MAIN',
+      report: {
+        assessment: { verdict: 'PASS', failures: [] },
+        worlds: [{ oversized: 'x'.repeat(fixture.retention.maxCommittedSummaryBytes) }],
+        budget: { advanceReturned: 1 },
+        nativeLedger: { knowledge: 'ACTUAL_DISPATCHED_AND_RETURNED' },
+        journal: { bytes: 42, sha256: 'f'.repeat(64) },
+        worldDisposition: {},
+      },
+    };
+    const encoded = encodeCylinderDynamicReceipt(fixture, receipt);
+    expect(Buffer.byteLength(encoded.text, 'utf8')).toBeLessThanOrEqual(
+      fixture.retention.maxCommittedSummaryBytes,
+    );
+    expect(encoded.receipt.report.assessment.verdict).toBe('FAIL');
+    expect(encoded.receipt.report.journal).toEqual(receipt.report.journal);
+    expect(encoded.receipt.report.oversizedSummary.bytes).toBeGreaterThan(
+      fixture.retention.maxCommittedSummaryBytes,
+    );
+  });
+});
+
+describe('strict dynamic contact fallback exclusion (PURE)', () => {
+  it('rejects absent registered pair limits before any contact acquisition', () => {
+    const ledger = new CylinderNativeLedger(cylinderDynamicBudget(fixture, 'ADMISSION'));
+    const hooks = ledger.forWorld(cylinderPlan(fixture, 'admission')[0].id);
+    let acquisitions = 0;
+    const data = {
+      get contact() {
+        acquisitions += 1;
+        throw new Error('MUST_NOT_ACQUIRE');
+      },
+    };
+    expect(() => copyContacts(data, resourceCounters(), null, hooks)).toThrow(
+      'DYNAMIC_REGISTERED_CONTACT_LIMITS_REQUIRED',
+    );
+    expect(acquisitions).toBe(0);
+    expect(ledger.snapshot().calls['data.contact']).toEqual({ dispatched: 0, returned: 0 });
+  });
 });

@@ -473,19 +473,56 @@ export function frameError(frame) {
   return Math.max(...e);
 }
 
-export function copyState(data) {
+/** Explicit opt-in dispatch hook. Historical callers, including G0, omit it. */
+export function nativeBoundary(hooks, api, operation, owned = null) {
+  return hooks ? hooks.invoke(api, operation, owned) : operation();
+}
+
+export function copyState(data, hooks = null) {
   const state = { time: data.time };
   for (const key of ['qpos', 'qvel', 'qacc', 'qacc_warmstart']) {
     const view = data[key];
     demand(view instanceof Float64Array, 'NATIVE_FLOAT64 ' + key);
-    state[key] = Array.from(view);
+    state[key] = hooks?.strictDynamic
+      ? boundedNativeArray(view, key === 'qpos' ? hooks.shape.nq : hooks.shape.nv, key, true)
+      : Array.from(view);
   }
+  if (hooks?.strictDynamic) demand(finite(state), 'NONFINITE_NATIVE_STATE');
   return state;
 }
 export function phaseState(state) {
   return { qpos: state.qpos, qvel: state.qvel, time: state.time };
 }
-export function copyWarnings(data, resources) {
+export function copyWarnings(data, resources, hooks = null) {
+  if (hooks?.strictDynamic) {
+    // The embedded vector is borrowed; each get() result is owned.
+    const vector = nativeBoundary(hooks, 'data.warning', () => data.warning);
+    demand(
+      nativeBoundary(hooks, 'warning.size', () => vector.size()) === hooks.warningCount,
+      'NATIVE_WARNING_COUNT_BEFORE_COPY',
+    );
+    const values = [];
+    for (let i = 0; i < hooks.warningCount; i += 1) {
+      let stat = null;
+      let primary = null;
+      let cleanup = null;
+      try {
+        stat = nativeBoundary(hooks, 'warning.get', () => vector.get(i));
+        noteOwned(resources, 'warningGetsCreated');
+        const value = [stat.number, stat.lastinfo];
+        demand(value.every(Number.isSafeInteger), 'NATIVE_WARNING_VALUE');
+        values.push(value);
+      } catch (error) {
+        primary = error;
+        hooks.stop(error);
+      } finally {
+        if (stat) cleanup = deleteOwned(stat, resources, 'warning', hooks);
+      }
+      if (primary) throw primary;
+      if (cleanup) throw new Error('NATIVE_WRAPPER_CLEANUP', { cause: cleanup });
+    }
+    return values;
+  }
   // data.warning and model.opt are borrowed embedded references: never delete them.
   const vector = data.warning;
   const values = [];
@@ -528,8 +565,9 @@ const contactArrays = [
   'surfacevel',
   'H',
 ];
-export function copyContacts(data, resources, limits = null) {
-  if (limits?.pairCaps) return boundedContactCopies(data, resources, limits, false);
+export function copyContacts(data, resources, limits = null, hooks = null) {
+  if (hooks?.strictDynamic) demand(limits?.pairCaps, 'DYNAMIC_REGISTERED_CONTACT_LIMITS_REQUIRED');
+  if (limits?.pairCaps) return boundedContactCopies(data, resources, limits, false, hooks);
   // Unlike warning, contact() RETURNS std::vector<MjContact> BY VALUE.
   const vector = data.contact;
   resources.temporaryCreated += 1;
@@ -603,9 +641,10 @@ function noteOwned(resources, kind, limit) {
   if (limit !== undefined) demand(resources[kind] <= limit, 'RESOURCE_OWNED_WRAPPER ' + kind);
 }
 
-function deleteOwned(value, resources, label) {
+function deleteOwned(value, resources, label, hooks = null) {
   try {
-    value.delete();
+    const api = label === 'contact-vector' ? 'contactVector.delete' : label + '.delete';
+    nativeBoundary(hooks, api, () => value.delete(), value);
     resources.temporaryDeleted += 1;
     return null;
   } catch (error) {
@@ -617,10 +656,12 @@ function deleteOwned(value, resources, label) {
 
 /** Single acquisition per contact. Validate ALL pair counts before reading any
  * contact arrays. Limits are opt-in, so prior observer callers retain their path. */
-function boundedContactCopies(data, resources, limits, geometryOnly) {
+function boundedContactCopies(data, resources, limits, geometryOnly, hooks = null) {
   nativeObservationBounds(data, limits);
-  resources.contactVectorDispatched = (resources.contactVectorDispatched ?? 0) + 1;
-  const vector = data.contact;
+  const vector = nativeBoundary(hooks, 'data.contact', () => {
+    resources.contactVectorDispatched = (resources.contactVectorDispatched ?? 0) + 1;
+    return data.contact;
+  });
   resources.contactVectorReturned = (resources.contactVectorReturned ?? 0) + 1;
   const held = [];
   let primary = null;
@@ -628,11 +669,16 @@ function boundedContactCopies(data, resources, limits, geometryOnly) {
   let values;
   try {
     noteOwned(resources, 'contactVectorsCreated', limits.maxContactVectors);
-    demand(vector && vector.size() === data.ncon, 'CONTACT_VECTOR_COUNT');
+    demand(
+      vector && nativeBoundary(hooks, 'contact.size', () => vector.size()) === data.ncon,
+      'CONTACT_VECTOR_COUNT',
+    );
     const counts = new Array(limits.pairCaps.length).fill(0);
     for (let i = 0; i < data.ncon; i += 1) {
-      resources.contactGetDispatched = (resources.contactGetDispatched ?? 0) + 1;
-      const contact = vector.get(i);
+      const contact = nativeBoundary(hooks, 'contact.get', () => {
+        resources.contactGetDispatched = (resources.contactGetDispatched ?? 0) + 1;
+        return vector.get(i);
+      });
       resources.contactGetReturned = (resources.contactGetReturned ?? 0) + 1;
       demand(contact, 'CONTACT_COPY_MISSING');
       held.push(contact);
@@ -665,13 +711,14 @@ function boundedContactCopies(data, resources, limits, geometryOnly) {
     });
   } catch (error) {
     primary = error;
+    hooks?.stop(error);
   } finally {
     for (const contact of held) {
-      const error = deleteOwned(contact, resources, 'contact');
+      const error = deleteOwned(contact, resources, 'contact', hooks);
       cleanup ??= error;
     }
     // Do not short-circuit deletion after an earlier cleanup failure.
-    const vectorError = deleteOwned(vector, resources, 'contact-vector');
+    const vectorError = deleteOwned(vector, resources, 'contact-vector', hooks);
     cleanup ??= vectorError;
   }
   if (primary) throw primary;
@@ -750,16 +797,30 @@ export function captureGeometry(data, resources, limits) {
   };
 }
 
-export function nativeBodyKinematics(M, model, data, bodyIds, resources, buffer) {
+export function nativeBodyKinematics(M, model, data, bodyIds, resources, buffer, hooks = null) {
   const result = {};
   for (const id of bodyIds) {
-    M.mj_objectVelocity(model, data, 1, id, buffer, 0);
-    const velocity = Array.from(buffer.GetView());
+    nativeBoundary(hooks, 'mj_objectVelocity', () =>
+      M.mj_objectVelocity(model, data, 1, id, buffer, 0),
+    );
+    const view = nativeBoundary(hooks, 'DoubleBuffer.GetView', () => buffer.GetView());
+    const velocity = hooks?.strictDynamic
+      ? boundedNativeArray(view, 6, 'body-velocity', true)
+      : Array.from(view);
     demand(velocity.length === 6 && finite(velocity), 'BODY_VELOCITY_BUFFER');
     result[id] = {
-      com: Array.from(data.xipos).slice(id * 3, id * 3 + 3),
-      rotation: Array.from(data.xmat).slice(id * 9, id * 9 + 9),
-      quaternion: Array.from(data.xquat).slice(id * 4, id * 4 + 4),
+      com: (hooks?.strictDynamic
+        ? boundedNativeArray(data.xipos, hooks.shape.nbody * 3, 'xipos', true)
+        : Array.from(data.xipos)
+      ).slice(id * 3, id * 3 + 3),
+      rotation: (hooks?.strictDynamic
+        ? boundedNativeArray(data.xmat, hooks.shape.nbody * 9, 'xmat', true)
+        : Array.from(data.xmat)
+      ).slice(id * 9, id * 9 + 9),
+      quaternion: (hooks?.strictDynamic
+        ? boundedNativeArray(data.xquat, hooks.shape.nbody * 4, 'xquat', true)
+        : Array.from(data.xquat)
+      ).slice(id * 4, id * 4 + 4),
       omega: velocity.slice(0, 3),
       velocity: velocity.slice(3, 6),
     };
@@ -797,12 +858,22 @@ export function nativeObservationBounds(data, limits) {
       );
   }
 }
-export function captureForward(M, model, data, preState, ids, resources, buffer, limits) {
+export function captureForward(
+  M,
+  model,
+  data,
+  preState,
+  ids,
+  resources,
+  buffer,
+  limits,
+  hooks = null,
+) {
   nativeObservationBounds(data, limits);
-  const contacts = copyContacts(data, resources, limits);
+  const contacts = copyContacts(data, resources, limits, hooks);
   return {
     state: phaseState(preState),
-    bodies: nativeBodyKinematics(M, model, data, ids.bodyIds, resources, buffer),
+    bodies: nativeBodyKinematics(M, model, data, ids.bodyIds, resources, buffer, hooks),
     contacts,
     efcVel: limits.pairCaps
       ? boundedNativeArray(data.efc_vel, data.nefc, 'efc_vel', true)
@@ -817,31 +888,47 @@ export function captureForward(M, model, data, preState, ids, resources, buffer,
     nefc: data.nefc,
   };
 }
-export function captureForces(M, model, data, forward, resources, buffer, limits) {
+export function captureForces(M, model, data, forward, resources, buffer, limits, hooks = null) {
   nativeObservationBounds(data, limits);
-  const after = copyContacts(data, resources, limits);
+  const after = copyContacts(data, resources, limits, hooks);
   demand(
     canonicalEqual(forward.contacts.map(contactIdentity), after.map(contactIdentity)),
     'CONTACT_GEOMETRY_CHANGED_DURING_STEP2',
   );
   const contacts = after.map((contact, i) => {
-    M.mj_contactForce(model, data, i, buffer);
+    nativeBoundary(hooks, 'mj_contactForce', () => M.mj_contactForce(model, data, i, buffer));
     resources.contactForceCalls += 1;
-    return { ...contact, force: Array.from(buffer.GetView()) };
+    const view = nativeBoundary(hooks, 'DoubleBuffer.GetView', () => buffer.GetView());
+    return {
+      ...contact,
+      force: hooks?.strictDynamic
+        ? boundedNativeArray(view, 6, 'contact-force', true)
+        : Array.from(view),
+    };
   });
   return {
     contacts,
     efcForce: limits.pairCaps
       ? boundedNativeArray(data.efc_force, data.nefc, 'efc_force', true)
       : Array.from(data.efc_force),
-    qfrcConstraint: Array.from(data.qfrc_constraint),
-    qfrcActuator: Array.from(data.qfrc_actuator),
-    actuatorForce: Array.from(data.actuator_force),
-    qacc: Array.from(data.qacc),
-    solverIterations: Array.from(data.solver_niter),
+    qfrcConstraint: hooks?.strictDynamic
+      ? boundedNativeArray(data.qfrc_constraint, hooks.shape.nv, 'qfrc_constraint', true)
+      : Array.from(data.qfrc_constraint),
+    qfrcActuator: hooks?.strictDynamic
+      ? boundedNativeArray(data.qfrc_actuator, hooks.shape.nv, 'qfrc_actuator', true)
+      : Array.from(data.qfrc_actuator),
+    actuatorForce: hooks?.strictDynamic
+      ? boundedNativeArray(data.actuator_force, hooks.shape.nu, 'actuator_force', true)
+      : Array.from(data.actuator_force),
+    qacc: hooks?.strictDynamic
+      ? boundedNativeArray(data.qacc, hooks.shape.nv, 'qacc', true)
+      : Array.from(data.qacc),
+    solverIterations: hooks?.strictDynamic
+      ? boundedNativeArray(data.solver_niter, hooks.shape.solverSlots, 'solver_niter')
+      : Array.from(data.solver_niter),
     islands: data.nisland,
-    warnings: copyWarnings(data, resources),
-    endpoint: copyState(data),
+    warnings: copyWarnings(data, resources, hooks),
+    endpoint: copyState(data, hooks),
   };
 }
 

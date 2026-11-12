@@ -37,6 +37,7 @@ import {
   effectiveTorque,
   assessWindow,
   boundedNativeArray,
+  nativeBoundary,
   captureGeometry,
   copyGeometryWarnings,
   frameError,
@@ -181,6 +182,335 @@ export function cylinderScenarioLimits(f, condition) {
   if (condition.kind === 'static')
     limits.pairCaps.push({ geom: [0, 2], maxContacts: f.contact.boxBoxNativeContactCap });
   return limits;
+}
+
+/** Planned upper bounds only. Derive every observer/allocation cap from the
+ * unchanged world schedule and scenario shapes; no native result is implied. */
+export function cylinderDynamicBudget(f, stage) {
+  demand(['ADMISSION', 'MAIN'].includes(stage), 'DYNAMIC_EXPLICIT_STAGE');
+  const mode = stage.toLowerCase();
+  const plan = cylinderPlan(f, mode);
+  const byWorld = plan.map((condition) => {
+    const ids = worldIds(f, condition);
+    const limits = cylinderScenarioLimits(f, condition);
+    const advances = condition.maxSteps;
+    const split = condition.phase === 'split' ? advances : 0;
+    const force = advances * limits.maxContacts;
+    const velocity = advances * ids.bodyIds.length + split * ids.freeBodies.length;
+    const warnings = advances + 1;
+    const calls = {
+      'module.import': 0,
+      'module.factory': 0,
+      mj_versionString: 0,
+      mj_version: 0,
+      'MjModel.create': 1,
+      'model.opt': 1,
+      'MjModel.delete': 1,
+      'MjData.create': 1,
+      'MjData.delete': 1,
+      'DoubleBuffer.create': 1,
+      'DoubleBuffer.GetView': 2 + velocity + force,
+      'DoubleBuffer.delete': 1,
+      mj_resetDataKeyframe: condition.probe === 'A' ? 1 : 0,
+      mj_step1: split,
+      mj_step2: split,
+      mj_step: advances - split,
+      mj_kinematics: split,
+      mj_comPos: split,
+      mj_comVel: split,
+      mj_objectVelocity: velocity,
+      mj_contactForce: force,
+      'data.contact': 2 * advances,
+      'contact.size': 2 * advances,
+      'contact.get': 2 * force,
+      'contact.delete': 2 * force,
+      'contactVector.delete': 2 * advances,
+      'data.warning': warnings,
+      'warning.size': warnings,
+      'warning.get': f.resources.warningCount * warnings,
+      'warning.delete': f.resources.warningCount * warnings,
+    };
+    return {
+      id: condition.id,
+      maxNativeAdvances: advances,
+      calls,
+      shape: {
+        nq: Math.max(...ids.freeBodies.map((body) => body.qposAdr + 7)),
+        nv: Math.max(...ids.freeBodies.map((body) => body.dofAdr + 6)),
+        nbody: ids.bodyIds.length,
+        ngeom: ids.geomBodies.length,
+        nu: condition.kind === 'tilt' ? 1 : 0,
+        // Pinned ac60 include/mujoco/mjmodel.h mjNISLAND; not active-island count.
+        solverSlots: 20,
+      },
+    };
+  });
+  const calls = Object.fromEntries(
+    Object.keys(byWorld[0].calls).map((api) => [
+      api,
+      byWorld.reduce((sum, world) => sum + world.calls[api], 0),
+    ]),
+  );
+  Object.assign(calls, {
+    'module.import': 1,
+    'module.factory': 1,
+    mj_versionString: 2,
+    mj_version: 1,
+  });
+  const planned = f.budgets[mode];
+  const maxNativeAdvances = planned.nativeSteps ?? planned.maxNativeSteps;
+  demand(
+    byWorld.length === planned.worlds &&
+      byWorld.reduce((sum, world) => sum + world.maxNativeAdvances, 0) === maxNativeAdvances &&
+      Math.max(...byWorld.map((world) => world.maxNativeAdvances)) === planned.maxStepsPerWorld &&
+      Object.values(calls).every((cap) => Number.isSafeInteger(cap) && cap >= 0),
+    'DYNAMIC_DERIVED_BUDGET',
+  );
+  return {
+    schema: 'CYLINDER_DYNAMIC_CALL_BUDGET_V1',
+    stage,
+    worlds: planned.worlds,
+    maxNativeAdvances,
+    maxStepsPerWorld: planned.maxStepsPerWorld,
+    maxConcurrentWorlds: planned.maxConcurrentWorlds,
+    calls,
+    byWorld,
+    maxTemporaryWrappers:
+      calls['DoubleBuffer.create'] +
+      calls['data.contact'] +
+      calls['contact.get'] +
+      calls['warning.get'],
+    maxLiveByKind: {
+      model: planned.maxConcurrentWorlds,
+      data: planned.maxConcurrentWorlds,
+      buffer: planned.maxConcurrentWorlds,
+      contactVector: 1,
+      contact: f.resources.maxContacts,
+      warning: 1,
+    },
+    warningCount: f.resources.warningCount,
+    retention: f.retention,
+    coverage:
+      'Explicit native functions and owned/borrowed vector acquisition, size, GetView and deletion; typed property observations are shape/finite checked, not a claim about every internal WASM call.',
+    classification: 'PLANNED_CAPS_NOT_OBSERVED_RESULTS',
+  };
+}
+
+const dynamicOwnedApis = {
+  'MjModel.create': ['model', 'MjModel.delete'],
+  'MjData.create': ['data', 'MjData.delete'],
+  'DoubleBuffer.create': ['buffer', 'DoubleBuffer.delete'],
+  'data.contact': ['contactVector', 'contactVector.delete'],
+  'contact.get': ['contact', 'contact.delete'],
+  'warning.get': ['warning', 'warning.delete'],
+};
+const dynamicDeletionApis = new Set(Object.values(dynamicOwnedApis).map((entry) => entry[1]));
+
+/** Bounded plain-data accounting. Throws never prove acquisition/deletion failed
+ * before native work occurred. Cleanup gets one reserved attempt per known handle. */
+export class CylinderNativeLedger {
+  #budget;
+  #calls;
+  #worlds;
+  #owned;
+  #seen;
+  #nextOwnedId;
+  #firstFailure;
+  #cleanupUnknown;
+  #acquisitionUnknown;
+  #blocked;
+  #maxLive;
+  #ownership;
+  constructor(budget) {
+    this.#budget = globalThis.structuredClone(budget);
+    for (const cap of Object.values(this.#budget.calls))
+      demand(Number.isSafeInteger(cap) && cap >= 0, 'DYNAMIC_LEDGER_CAP');
+    this.#calls = Object.fromEntries(
+      Object.keys(budget.calls).map((api) => [api, { dispatched: 0, returned: 0 }]),
+    );
+    this.#worlds = Object.fromEntries(
+      budget.byWorld.map((world) => [
+        world.id,
+        Object.fromEntries(
+          Object.keys(budget.calls).map((api) => [api, { dispatched: 0, returned: 0 }]),
+        ),
+      ]),
+    );
+    this.#owned = new Map();
+    this.#seen = new WeakSet();
+    this.#nextOwnedId = 0;
+    this.#firstFailure = null;
+    this.#cleanupUnknown = [];
+    this.#acquisitionUnknown = [];
+    this.#blocked = false;
+    this.#maxLive = Object.fromEntries(Object.keys(budget.maxLiveByKind).map((kind) => [kind, 0]));
+    this.#ownership = Object.fromEntries(
+      Object.keys(budget.maxLiveByKind).map((kind) => [
+        kind,
+        { confirmedCreated: 0, deletionDispatched: 0, confirmedDeleted: 0 },
+      ]),
+    );
+  }
+  stop(error, api = 'OBSERVATION_OR_PHYSICS', world = null) {
+    this.#blocked = true;
+    this.#firstFailure ??= { api, world, error: portableError(error) };
+  }
+  begin(api, world, value) {
+    const cleanup = dynamicDeletionApis.has(api);
+    const row = this.#calls[api];
+    demand(row && typeof row === 'object', 'DYNAMIC_UNREGISTERED_API ' + api);
+    demand(cleanup || !this.#blocked, 'DYNAMIC_STOPPED_BEFORE_DISPATCH');
+    const owner = cleanup ? this.#owned.get(value) : null;
+    if (cleanup)
+      demand(
+        owner && owner.deleteApi === api && owner.world === world && owner.state === 'OWNED',
+        'DYNAMIC_CLEANUP_NOT_OWNED_OR_ALREADY_ATTEMPTED',
+      );
+    const worldBudget =
+      world === null ? null : this.#budget.byWorld.find((entry) => entry.id === world);
+    demand(world === null || worldBudget, 'DYNAMIC_UNKNOWN_WORLD');
+    demand(
+      row.dispatched < this.#budget.calls[api] &&
+        (world === null || this.#worlds[world][api].dispatched < worldBudget.calls[api]),
+      'DYNAMIC_API_CAP_BEFORE_DISPATCH ' + api,
+    );
+    const acquisition = dynamicOwnedApis[api];
+    if (acquisition) {
+      const [kind] = acquisition;
+      const live = [...this.#owned.values()].filter((item) => item.kind === kind).length;
+      demand(live < this.#budget.maxLiveByKind[kind], 'DYNAMIC_LIVE_CAP_BEFORE_DISPATCH ' + kind);
+    }
+    row.dispatched += 1;
+    if (world !== null) this.#worlds[world][api].dispatched += 1;
+    if (owner) {
+      owner.state = 'DELETE_DISPATCHED';
+      this.#ownership[owner.kind].deletionDispatched += 1;
+    }
+    return { api, world, row, owner, acquisition };
+  }
+  returned(ticket, value) {
+    ticket.returnObserved = true;
+    ticket.row.returned += 1;
+    if (ticket.world !== null) this.#worlds[ticket.world][ticket.api].returned += 1;
+    if (ticket.owner) {
+      this.#ownership[ticket.owner.kind].confirmedDeleted += 1;
+      this.#owned.delete(value);
+    }
+  }
+  acquired(ticket, value) {
+    if (!ticket.acquisition) return;
+    demand(
+      value !== null && (typeof value === 'object' || typeof value === 'function'),
+      'DYNAMIC_OWNED_HANDLE_MISSING',
+    );
+    demand(!this.#seen.has(value), 'DYNAMIC_OWNED_HANDLE_REUSED');
+    this.#seen.add(value);
+    const [kind, deleteApi] = ticket.acquisition;
+    this.#owned.set(value, {
+      id: ++this.#nextOwnedId,
+      kind,
+      deleteApi,
+      world: ticket.world,
+      state: 'OWNED',
+    });
+    ticket.ownedRecorded = true;
+    this.#ownership[kind].confirmedCreated += 1;
+    const live = [...this.#owned.values()].filter((item) => item.kind === kind).length;
+    this.#maxLive[kind] = Math.max(this.#maxLive[kind], live);
+  }
+  failed(ticket, error) {
+    this.stop(error, ticket.api, ticket.world);
+    if (ticket.owner) {
+      ticket.owner.state = 'UNKNOWN_AFTER_DELETE_THROW';
+      this.#cleanupUnknown.push({
+        id: ticket.owner.id,
+        kind: ticket.owner.kind,
+        world: ticket.world,
+      });
+    } else if (ticket.acquisition && !ticket.ownedRecorded)
+      this.#acquisitionUnknown.push({
+        api: ticket.api,
+        world: ticket.world,
+        returnObserved: ticket.returnObserved === true,
+        usableOwnedHandle: false,
+      });
+  }
+  invoke(api, operation, value = null, world = null) {
+    let ticket;
+    try {
+      ticket = this.begin(api, world, value);
+      const result = operation();
+      this.returned(ticket, value);
+      this.acquired(ticket, result);
+      return result;
+    } catch (error) {
+      if (ticket) this.failed(ticket, error);
+      else this.stop(error, api, world);
+      throw error;
+    }
+  }
+  async invokeAsync(api, operation) {
+    let ticket;
+    try {
+      ticket = this.begin(api, null, null);
+      const result = await operation();
+      this.returned(ticket, null);
+      this.acquired(ticket, result);
+      return result;
+    } catch (error) {
+      if (ticket) this.failed(ticket, error);
+      else this.stop(error, api);
+      throw error;
+    }
+  }
+  forWorld(id) {
+    const world = this.#budget.byWorld.find((entry) => entry.id === id);
+    demand(world, 'DYNAMIC_UNKNOWN_WORLD');
+    return {
+      strictDynamic: true,
+      warningCount: this.#budget.warningCount,
+      keyframes: world.calls.mj_resetDataKeyframe,
+      shape: Object.freeze({ ...world.shape }),
+      invoke: (api, operation, value = null) => this.invoke(api, operation, value, id),
+      stop: (error) => this.stop(error, 'OBSERVATION_OR_PHYSICS', id),
+      snapshot: () => this.snapshot(id),
+    };
+  }
+  snapshot(world = null) {
+    return globalThis.structuredClone({
+      schema: 'CYLINDER_DYNAMIC_ACTUAL_CALL_LEDGER_V1',
+      calls: world === null ? this.#calls : this.#worlds[world],
+      ownership: this.#ownership,
+      maxLive: this.#maxLive,
+      firstFailure: this.#firstFailure,
+      acquisitionUnknown: this.#acquisitionUnknown,
+      cleanupUnknown: this.#cleanupUnknown,
+      outstanding: [...this.#owned.values()],
+      unreturnedCalls: Object.entries(this.#calls)
+        .filter(([, row]) => row.dispatched !== row.returned)
+        .map(([api, row]) => ({ api, ...row })),
+      knowledge:
+        this.#acquisitionUnknown.length ||
+        this.#cleanupUnknown.length ||
+        Object.values(this.#calls).some((row) => row.dispatched !== row.returned)
+          ? 'UNKNOWN_NATIVE_CALL_OR_OWNERSHIP'
+          : 'ACTUAL_DISPATCHED_AND_RETURNED',
+      coverage: this.#budget.coverage,
+    });
+  }
+  assertClosed() {
+    demand(
+      !this.#firstFailure &&
+        this.#owned.size === 0 &&
+        this.#acquisitionUnknown.length === 0 &&
+        this.#cleanupUnknown.length === 0 &&
+        Object.values(this.#calls).every((row) => row.dispatched === row.returned) &&
+        Object.values(this.#ownership).every(
+          (row) => row.confirmedCreated === row.confirmedDeleted,
+        ),
+      'DYNAMIC_LEDGER_NOT_CLOSED',
+    );
+  }
 }
 
 /** Encoded live records, including schedule-limited unfilled admission A rings. */
@@ -518,7 +848,7 @@ const optionScalars = [
   'viscosity',
   'disableactuator',
 ];
-export function readModel(model) {
+export function readModel(model, hooks = null) {
   const r = { options: {} };
   for (const k of [
     'nq',
@@ -539,11 +869,75 @@ export function readModel(model) {
     'nmocap',
   ])
     r[k] = model[k];
-  for (const k of modelArrays) r[k] = Array.from(model[k]);
+  if (hooks?.strictDynamic) {
+    const expected = {
+      ...hooks.shape,
+      na: 0,
+      njnt: 2,
+      ntree: 2,
+      npair: hooks.shape.ngeom - 1,
+      nkey: hooks.keyframes,
+      nplugin: 0,
+      nsensor: 0,
+      neq: 0,
+      nflex: 0,
+      ntendon: 0,
+      nmocap: 0,
+    };
+    delete expected.solverSlots;
+    for (const [key, value] of Object.entries(expected))
+      demand(r[key] === value, 'DYNAMIC_MODEL_COUNT_BEFORE_COPY ' + key);
+  }
+  // Pinned mjmodel.h widths. Scalar actuator/control/output counts all equal nu
+  // in these unchanged zero/one-actuator worlds; mjNPOLY=2, mjN{DYN,GAIN,BIAS}=10.
+  const widths = {
+    body_inertia: 3,
+    body_ipos: 3,
+    body_iquat: 4,
+    body_pos: 3,
+    body_quat: 4,
+    geom_size: 3,
+    geom_pos: 3,
+    geom_quat: 4,
+    geom_friction: 3,
+    geom_solref: 2,
+    geom_solimp: 5,
+    geom_surfacevel: 6,
+    jnt_pos: 3,
+    jnt_axis: 3,
+    dof_dampingpoly: 2,
+    pair_friction: 5,
+    pair_solref: 2,
+    pair_solreffriction: 2,
+    pair_solimp: 5,
+    actuator_gear: 6,
+    actuator_gainprm: 10,
+    actuator_biasprm: 10,
+    actuator_dynprm: 10,
+    actuator_ctrlrange: 2,
+    actuator_forcerange: 2,
+    actuator_trnid: 2,
+    actuator_dampingpoly: 2,
+  };
+  const counts = {
+    body: r.nbody,
+    geom: r.ngeom,
+    jnt: r.njnt,
+    dof: r.nv,
+    pair: r.npair,
+    actuator: r.nu,
+  };
+  for (const k of modelArrays)
+    r[k] = hooks?.strictDynamic
+      ? boundedNativeArray(model[k], counts[k.split('_')[0]] * (widths[k] ?? 1), 'model.' + k)
+      : Array.from(model[k]);
   // opt is a borrowed reference. No delete and no model mutation.
-  const option = model.opt;
+  const option = nativeBoundary(hooks, 'model.opt', () => model.opt);
   for (const k of optionScalars) r.options[k] = option[k];
-  for (const k of ['gravity', 'wind']) r.options[k] = Array.from(option[k]);
+  for (const k of ['gravity', 'wind'])
+    r.options[k] = hooks?.strictDynamic
+      ? boundedNativeArray(option[k], 3, 'option.' + k, true)
+      : Array.from(option[k]);
   return r;
 }
 export function validateGeometryReadback(f, condition, r) {
@@ -778,10 +1172,18 @@ function warningGuard(warnings, f) {
     'NATIVE_WARNING_NONZERO',
   );
 }
-function zeroNativeForces(data) {
+function zeroNativeForces(data, hooks = null) {
   for (const key of ['qfrc_applied', 'xfrc_applied', 'qfrc_passive', 'act'])
     demand(
-      Array.from(data[key]).every((x) => x === 0),
+      (hooks?.strictDynamic
+        ? boundedNativeArray(
+            data[key],
+            key === 'act' ? 0 : key === 'xfrc_applied' ? hooks.shape.nbody * 6 : hooks.shape.nv,
+            key,
+            true,
+          )
+        : Array.from(data[key])
+      ).every((x) => x === 0),
       'UNREGISTERED_NATIVE_FORCE_OR_ACT ' + key,
     );
 }
@@ -835,8 +1237,10 @@ export function makeTickRecord({
   };
 }
 
-class World {
-  constructor(M, f, condition, total, journal) {
+/** Injected module only: construction never imports or initializes an engine. */
+export class World {
+  constructor(M, f, condition, total, journal, hooks = null) {
+    this.hooks = hooks;
     this.M = M;
     this.f = f;
     this.c = condition;
@@ -909,9 +1313,11 @@ class World {
     const { M, f, c, total } = this;
     const xml = makeCylinderXml(f, c);
     this.summary.xmlSha256 = sha256(xml);
-    total.modelCreationDispatched += 1;
-    this.summary.modelCreationAttempted = true;
-    this.model = M.MjModel.from_xml_string(xml);
+    this.model = nativeBoundary(this.hooks, 'MjModel.create', () => {
+      total.modelCreationDispatched += 1;
+      this.summary.modelCreationAttempted = true;
+      return M.MjModel.from_xml_string(xml);
+    });
     demand(this.model, 'NATIVE_MODEL_CREATE_EMPTY');
     total.modelsCreated += 1;
     this.summary.modelCreated = true;
@@ -923,26 +1329,33 @@ class World {
       total.maxConcurrentWorlds <= total.allowedConcurrentWorlds,
       'RESOURCE_CONCURRENT_WORLDS',
     );
-    total.dataCreationDispatched += 1;
-    this.data = new M.MjData(this.model);
+    this.data = nativeBoundary(this.hooks, 'MjData.create', () => {
+      total.dataCreationDispatched += 1;
+      return new M.MjData(this.model);
+    });
     total.dataCreated += 1;
     this.summary.dataCreated = true;
     if (c.probe === 'A') {
-      M.mj_resetDataKeyframe(this.model, this.data, 0);
+      nativeBoundary(this.hooks, 'mj_resetDataKeyframe', () =>
+        M.mj_resetDataKeyframe(this.model, this.data, 0),
+      );
       total.keyframeResets += 1;
     }
-    this.buffer = new M.DoubleBuffer(6);
+    this.buffer = nativeBoundary(this.hooks, 'DoubleBuffer.create', () => new M.DoubleBuffer(6));
     this.res.temporaryCreated += 1;
     demand(
-      this.buffer.GetView() instanceof Float64Array && this.buffer.GetView().length === 6,
+      nativeBoundary(this.hooks, 'DoubleBuffer.GetView', () => this.buffer.GetView()) instanceof
+        Float64Array &&
+        nativeBoundary(this.hooks, 'DoubleBuffer.GetView', () => this.buffer.GetView()).length ===
+          6,
       'NATIVE_OUTPUT_BUFFER_SHAPE',
     );
-    const readback = readModel(this.model);
-    const initial = copyState(this.data);
+    const readback = readModel(this.model, this.hooks);
+    const initial = copyState(this.data, this.hooks);
     this.ids = validateModel(f, c, readback, initial);
-    const warnings = copyWarnings(this.data, this.res);
+    const warnings = copyWarnings(this.data, this.res, this.hooks);
     warningGuard(warnings, f);
-    zeroNativeForces(this.data);
+    zeroNativeForces(this.data, this.hooks);
     this.summary.warningBaseline = warnings;
     this.summary.modelReadback = readback;
     this.journal.append({
@@ -970,29 +1383,49 @@ class World {
       'RESOURCE_NATIVE_STEP_BUDGET',
     );
     const control = controlAt(f, c, tickBefore);
-    if (c.kind === 'tilt') data.ctrl[0] = control.u;
-    const pre = copyState(data);
+    if (c.kind === 'tilt') {
+      if (this.hooks?.strictDynamic)
+        boundedNativeArray(data.ctrl, this.hooks.shape.nu, 'ctrl', true);
+      data.ctrl[0] = control.u;
+    }
+    const pre = copyState(data, this.hooks);
     this.lastObservation = { tick, phase: 'before-native', pre, control };
     let forward;
     if (c.phase === 'split') {
-      res.step1Dispatched += 1;
-      total.step1Dispatched += 1;
-      M.mj_step1(model, data);
+      nativeBoundary(this.hooks, 'mj_step1', () => {
+        res.step1Dispatched += 1;
+        total.step1Dispatched += 1;
+        M.mj_step1(model, data);
+      });
       res.step1Returned += 1;
       total.step1Returned += 1;
       demand(
-        canonicalEqual(phaseState(pre), phaseState(copyState(data))),
+        canonicalEqual(phaseState(pre), phaseState(copyState(data, this.hooks))),
         'STEP1_PHYSICAL_STATE_CHANGED',
       );
-      forward = captureForward(M, model, data, pre, this.ids, res, this.buffer, this.limits);
+      forward = captureForward(
+        M,
+        model,
+        data,
+        pre,
+        this.ids,
+        res,
+        this.buffer,
+        this.limits,
+        this.hooks,
+      );
       this.lastObservation = { tick, phase: 'before-step2', pre, control, forward };
-      res.advanceDispatched += 1;
-      total.advanceDispatched += 1;
-      M.mj_step2(model, data);
+      nativeBoundary(this.hooks, 'mj_step2', () => {
+        res.advanceDispatched += 1;
+        total.advanceDispatched += 1;
+        M.mj_step2(model, data);
+      });
     } else {
-      res.advanceDispatched += 1;
-      total.advanceDispatched += 1;
-      M.mj_step(model, data);
+      nativeBoundary(this.hooks, 'mj_step', () => {
+        res.advanceDispatched += 1;
+        total.advanceDispatched += 1;
+        M.mj_step(model, data);
+      });
     }
     res.advanceReturned += 1;
     total.advanceReturned += 1;
@@ -1003,13 +1436,23 @@ class World {
       phase: 'advance-returned',
       pre,
       control,
-      endpoint: copyState(data),
+      endpoint: copyState(data, this.hooks),
     };
     // mj_step leaves forward position/velocity caches from n while qpos/qvel
     // are n+1. Reference captures them now and deliberately NEVER refreshes.
     if (c.phase === 'full')
-      forward = captureForward(M, model, data, pre, this.ids, res, this.buffer, this.limits);
-    const force = captureForces(M, model, data, forward, res, this.buffer, this.limits);
+      forward = captureForward(
+        M,
+        model,
+        data,
+        pre,
+        this.ids,
+        res,
+        this.buffer,
+        this.limits,
+        this.hooks,
+      );
+    const force = captureForces(M, model, data, forward, res, this.buffer, this.limits, this.hooks);
     this.lastObservation = {
       tick,
       phase: 'force-captured-before-refresh',
@@ -1020,7 +1463,7 @@ class World {
     demand(finite(force.endpoint), 'NONFINITE_ENDPOINT');
     warningGuard(force.warnings, f);
     res.warningObservations += 1;
-    zeroNativeForces(data);
+    zeroNativeForces(data, this.hooks);
     const scheduled = (tick * c.dtUs) / 1e6;
     demand(
       force.endpoint.time > pre.time &&
@@ -1090,28 +1533,43 @@ class World {
       this.ids.freeBodies.map((shape) => [shape.name, bodyEndpoint(force.endpoint, shape)]),
     );
     if (c.phase === 'split') {
-      const beforeRefresh = copyState(data);
-      M.mj_kinematics(model, data);
-      M.mj_comPos(model, data);
-      M.mj_comVel(model, data);
+      const beforeRefresh = copyState(data, this.hooks);
+      nativeBoundary(this.hooks, 'mj_kinematics', () => M.mj_kinematics(model, data));
+      nativeBoundary(this.hooks, 'mj_comPos', () => M.mj_comPos(model, data));
+      nativeBoundary(this.hooks, 'mj_comVel', () => M.mj_comVel(model, data));
       res.endpointRefreshes += 1;
       demand(
-        canonicalEqual(beforeRefresh, copyState(data)),
+        canonicalEqual(beforeRefresh, copyState(data, this.hooks)),
         'ENDPOINT_REFRESH_CHANGED_PHYSICAL_STATE',
       );
       res.preservedRefreshes += 1;
       for (const shape of this.ids.freeBodies) {
-        const nativePosition = Array.from(data.xipos).slice(3 * shape.bodyId, 3 * shape.bodyId + 3);
-        const nativeRotation = Array.from(data.xmat).slice(9 * shape.bodyId, 9 * shape.bodyId + 9);
+        const nativePosition = (
+          this.hooks?.strictDynamic
+            ? boundedNativeArray(data.xipos, this.hooks.shape.nbody * 3, 'xipos', true)
+            : Array.from(data.xipos)
+        ).slice(3 * shape.bodyId, 3 * shape.bodyId + 3);
+        const nativeRotation = (
+          this.hooks?.strictDynamic
+            ? boundedNativeArray(data.xmat, this.hooks.shape.nbody * 9, 'xmat', true)
+            : Array.from(data.xmat)
+        ).slice(9 * shape.bodyId, 9 * shape.bodyId + 9);
         const body = endpointBodies[shape.name];
         demand(
           norm(sub(nativePosition, body.com)) <= 1e-12 &&
             Math.max(...nativeRotation.map((v, i) => Math.abs(v - body.rotation[i]))) <= 1e-12,
           'ENDPOINT_COM0_FRAME_RECONSTRUCTION',
         );
-        M.mj_objectVelocity(model, data, 1, shape.bodyId, this.buffer, 0);
+        nativeBoundary(this.hooks, 'mj_objectVelocity', () =>
+          M.mj_objectVelocity(model, data, 1, shape.bodyId, this.buffer, 0),
+        );
         res.velocityCalls += 1;
-        const v = Array.from(this.buffer.GetView());
+        const view = nativeBoundary(this.hooks, 'DoubleBuffer.GetView', () =>
+          this.buffer.GetView(),
+        );
+        const v = this.hooks?.strictDynamic
+          ? boundedNativeArray(view, 6, 'endpoint-velocity', true)
+          : Array.from(view);
         demand(
           norm(sub(v.slice(0, 3), body.omega)) <= 1e-12 &&
             norm(sub(v.slice(3), body.velocity)) <= 1e-12,
@@ -1433,7 +1891,10 @@ class World {
       nativeReadErrors: [],
       unreturnedNativeAdvancePossible: this.res.advanceDispatched > this.res.advanceReturned,
     };
-    if (this.data) {
+    if (this.hooks?.strictDynamic) {
+      this.hooks.stop(error);
+      partial.native = { knowledge: 'PRIOR_PLAIN_OBSERVATIONS_ONLY', calls: this.hooks.snapshot() };
+    } else if (this.data) {
       try {
         partial.native.state = copyState(this.data);
       } catch (e) {
@@ -1475,7 +1936,12 @@ class World {
     ]) {
       if (!this[key]) continue;
       try {
-        this[key].delete();
+        const api = {
+          buffer: 'DoubleBuffer.delete',
+          data: 'MjData.delete',
+          model: 'MjModel.delete',
+        }[key];
+        nativeBoundary(this.hooks, api, () => this[key].delete(), this[key]);
         if (key === 'buffer') this.res[counter] += 1;
         else this.total[counter] += 1;
       } catch (error) {
@@ -1484,6 +1950,7 @@ class World {
       this[key] = null;
     }
     this.summary.cleanupErrors = errors;
+    if (this.hooks) this.summary.nativeLedger = this.hooks.snapshot();
     try {
       this.journal.append(
         {
@@ -1493,6 +1960,7 @@ class World {
           modelsFreed: this.total.modelsFreed,
           dataFreed: this.total.dataFreed,
           errors: errors.map(portableError),
+          ...(this.hooks ? { nativeLedger: this.summary.nativeLedger } : {}),
         },
         this.summary.status === 'FAIL',
       );
@@ -1547,9 +2015,312 @@ export function assessComparisons(f, summaries, mode) {
   return comparisons;
 }
 
+/** Historical anchor only: these reviewed saved poses made zero advances. */
+export function acceptedCylinderGeometry() {
+  return {
+    sourceHead: 'a561a343ee5fac764ca0f9772aa4613e6b5655e8',
+    sourceInputs: {
+      'tools/robotics-field-core/mujoco-contact-observer.mjs':
+        '164681bba4955edfa499c08e1159066211377fbb8ca3da8654f884d29c5e305e',
+      'tools/robotics-field-core/mujoco-cylinder.mjs':
+        '66cd4c7cdf1c08ec7dca444aa1232f659cde8b5212d1e31a034e48ce244ba393',
+      'tools/robotics-field-core/run-mujoco-cylinder.mjs':
+        'b5191c943e0db10d1a25fa46b3c679dc1043c95e58d81f86493fb9de03fe4839',
+      'tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json':
+        'fea819890c357f7d6cc6cccc1b8ff84ab3e60c8910d33f7ab02c4ed0614a1cf5',
+      'tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts':
+        '71e1c8d113489b6af19be6ca2acdec584764cadd429842888b2b0ea054771c72',
+    },
+    raw: {
+      bytes: 2898523,
+      sha256: '7348d445be76f7c80502ff0a318a63146fecf97ece86ea217b86f74acdd70aa7',
+    },
+    review: {
+      bytes: 32577,
+      sha256: '81fbb7f54c561a2ae5de8a29b50eeb05bee69959104900a90833dc5f5422a4c4',
+    },
+    binding: {
+      bytes: 2662,
+      sha256: 'c39c72b93acf9f644d680f262733720e0f37e96a77ec77c1f104ab79643dbba3',
+    },
+    completion: {
+      bytes: 4106,
+      sha256: '43193cd30a4cfa584bd2dc4469c09894d3dfb73a31295b728bf5eea4c7b92b6d',
+    },
+    verdict: 'GEOMETRY_ADMITTED_ON_SAVED_POSES',
+    nativeAdvances: 0,
+  };
+}
+
+export function cylinderPhysicsTransition(f, sourceHead, sourceManifest) {
+  const geometry = acceptedCylinderGeometry();
+  return {
+    schema: 'CYLINDER_PHYSICS_PRESERVING_SOURCE_TRANSITION_V1',
+    fromSourceHead: geometry.sourceHead,
+    fromSourceInputs: geometry.sourceInputs,
+    toSourceHead: sourceHead,
+    toSourceManifest: sourceManifest,
+    fixtureSha256: geometry.sourceInputs[fixturePath],
+    engine: f.engine,
+    preserved: [
+      'fixture',
+      'engine',
+      'XML',
+      'geometric-predicates',
+      'material',
+      'frames',
+      'tolerances',
+      'dt',
+      'settle',
+      'hold',
+      'ramp',
+      'windows',
+      'firstConfirmed',
+      'controlAt',
+      'evaluate',
+      'assessComparisons',
+      'retention-caps',
+    ],
+    scope: 'External stage entry, predispatch accounting, bounded observations and cleanup only',
+    geometryDoesNotQualify: f.geometryOnly.unqualified,
+  };
+}
+
+const dynamicPermits = new WeakSet();
+function consumeDynamicPermit(permit, stage) {
+  demand(
+    dynamicPermits.has(permit) && permit.stage === stage,
+    'DYNAMIC_VALIDATED_SINGLE_USE_PERMIT',
+  );
+  dynamicPermits.delete(permit);
+}
+
+/** Pure binding only. Future external controls supply actual independent review
+ * documents and a separate ROOT GO. This validator writes no authority. */
+export function validateCylinderDynamicAuthorization(
+  f,
+  stage,
+  registration,
+  review,
+  supervision,
+  go,
+  actual,
+  admission = null,
+) {
+  const geometry = acceptedCylinderGeometry();
+  const budget = cylinderDynamicBudget(f, stage);
+  const admissionBudget = cylinderDynamicBudget(f, 'ADMISSION');
+  const transition = cylinderPhysicsTransition(f, actual.sourceHead, actual.sourceManifest);
+  const sha = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+  demand(
+    /^[a-f0-9]{40}$/.test(actual.sourceHead) &&
+      actual.fixtureSha256 === geometry.sourceInputs[fixturePath] &&
+      actual.sourceManifest.newInputs[fixturePath] === actual.fixtureSha256 &&
+      canonicalEqual(actual.geometry, geometry) &&
+      sha(actual.preregistrationSha256) &&
+      sha(actual.sourceReviewSha256) &&
+      sha(actual.supervisorReviewSha256) &&
+      sha(actual.executionGoSha256),
+    'DYNAMIC_ACTUAL_SOURCE_OR_GEOMETRY_BINDING',
+  );
+  demand(
+    registration.schema === 'CYLINDER_DYNAMIC_PREREGISTRATION_V1' &&
+      registration.status === 'PREPARED_AWAIT_SEPARATE_ROOT_GO' &&
+      registration.stage === stage &&
+      registration.profile === f.candidateProfile.id &&
+      registration.sourceHead === actual.sourceHead &&
+      canonicalEqual(registration.sourceManifest, actual.sourceManifest) &&
+      registration.fixtureSha256 === actual.fixtureSha256 &&
+      canonicalEqual(registration.engineArtifacts, actual.engineArtifacts) &&
+      canonicalEqual(registration.geometry, geometry) &&
+      canonicalEqual(registration.transition, transition) &&
+      canonicalEqual(registration.budget, budget) &&
+      canonicalEqual(registration.retention, f.retention) &&
+      canonicalEqual(registration.outputs, actual.outputs) &&
+      registration.outputDirectory === actual.outputDirectory &&
+      registration.sourceReviewSha256 === actual.sourceReviewSha256 &&
+      registration.supervisorReviewSha256 === actual.supervisorReviewSha256,
+    'DYNAMIC_PREREGISTRATION_BINDING',
+  );
+  demand(
+    review.schema === 'CYLINDER_DYNAMIC_SOURCE_PHYSICS_REVIEW_V1' &&
+      review.decision === 'NO_BLOCKING_SOURCE_AND_PHYSICS_TRANSITION_FINDINGS' &&
+      review.independentReviewPerformed === true &&
+      Array.isArray(review.blockingFindings) &&
+      review.blockingFindings.length === 0 &&
+      canonicalEqual(review.transition, transition) &&
+      canonicalEqual(review.budget, budget) &&
+      canonicalEqual(review.engineArtifacts, actual.engineArtifacts) &&
+      canonicalEqual(review.geometry, geometry),
+    'DYNAMIC_INDEPENDENT_SOURCE_PHYSICS_REVIEW_REQUIRED',
+  );
+  const operational = registration.operationalBudget;
+  demand(
+    Number.isSafeInteger(operational?.wallTimeoutSeconds) &&
+      operational.wallTimeoutSeconds > 0 &&
+      operational.anchor === 'ORIGINAL_OWNED_JOB_CREATEPROCESS_DISPATCH' &&
+      operational.noGrace === true &&
+      operational.terminateOnDeadline === true &&
+      operational.maxCreateProcess === 1 &&
+      operational.maxResumeThread === 1 &&
+      supervision.schema === 'CYLINDER_DYNAMIC_SUPERVISION_REVIEW_V1' &&
+      supervision.decision === 'NO_BLOCKING_DYNAMIC_OWNED_JOB_FINDINGS' &&
+      supervision.independentReviewPerformed === true &&
+      Array.isArray(supervision.blockingFindings) &&
+      supervision.blockingFindings.length === 0 &&
+      supervision.stage === stage &&
+      supervision.sourceHead === actual.sourceHead &&
+      canonicalEqual(supervision.sourceManifest, actual.sourceManifest) &&
+      canonicalEqual(supervision.operationalBudget, operational) &&
+      canonicalEqual(supervision.helper, actual.supervisorHelper) &&
+      sha(actual.supervisorHelper?.sha256) &&
+      Number.isSafeInteger(actual.supervisorHelper.bytes) &&
+      actual.supervisorHelper.bytes > 0 &&
+      supervision.atomicOwnedJobCreation === true &&
+      supervision.unknownNeverPromoted === true &&
+      supervision.originalDeadlineThroughRootExitAndDrain === true,
+    'DYNAMIC_SEPARATE_HARD_SUPERVISION_REVIEW_REQUIRED',
+  );
+  demand(
+    go.schema === 'CYLINDER_DYNAMIC_EXECUTION_GO_V1' &&
+      go.decision === 'ROOT_EXECUTION_GO' &&
+      go.selectedBy === 'ROOT' &&
+      go.stage === stage &&
+      go.oneInvocation === true &&
+      go.noRetry === true &&
+      go.noAutoChain === true &&
+      typeof go.invocationId === 'string' &&
+      /^[a-zA-Z0-9_-]{1,80}$/.test(go.invocationId) &&
+      !go.invocationId.startsWith('cylinder_legacy_g0_') &&
+      go.preregistrationSha256 === actual.preregistrationSha256 &&
+      go.sourceReviewSha256 === actual.sourceReviewSha256 &&
+      go.supervisorReviewSha256 === actual.supervisorReviewSha256 &&
+      go.sourceHead === actual.sourceHead &&
+      canonicalEqual(go.sourceManifest, actual.sourceManifest) &&
+      canonicalEqual(go.geometry, geometry) &&
+      canonicalEqual(go.transition, transition) &&
+      canonicalEqual(go.budget, budget) &&
+      canonicalEqual(go.operationalBudget, operational) &&
+      canonicalEqual(go.outputs, actual.outputs) &&
+      go.outputDirectory === actual.outputDirectory &&
+      canonicalEqual(go.nativeResourceReservation, {
+        owner: 'CYLINDER_DYNAMIC_' + stage,
+        exclusive: true,
+        confirmedBy: 'ROOT',
+        otherNativeStopped: true,
+      }),
+    'DYNAMIC_SEPARATE_ROOT_STAGE_GO_REQUIRED',
+  );
+  if (stage === 'MAIN') {
+    demand(
+      admission?.schema === 'CYLINDER_ADMISSION_RESULT_REVIEW_V1' &&
+        admission.decision === 'ADMISSION_ADMITTED_ON_CURRENT_SOURCE' &&
+        admission.independentReviewPerformed === true &&
+        Array.isArray(admission.blockingFindings) &&
+        admission.blockingFindings.length === 0 &&
+        admission.stage === 'ADMISSION' &&
+        admission.sourceHead === actual.sourceHead &&
+        canonicalEqual(admission.sourceManifest, actual.sourceManifest) &&
+        canonicalEqual(admission.engineArtifacts, actual.engineArtifacts) &&
+        canonicalEqual(admission.geometry, geometry) &&
+        canonicalEqual(admission.transition, transition) &&
+        admission.observedWorlds === f.budgets.admission.worlds &&
+        admission.observedNativeAdvances === f.budgets.admission.nativeSteps &&
+        admission.allPhysicalChecksPassed === true &&
+        admission.ledgerClosed === true &&
+        admission.journalClosed === true &&
+        typeof admission.invocationId === 'string' &&
+        admission.invocationId !== go.invocationId &&
+        canonicalEqual(admission.receipt, actual.admissionReceipt) &&
+        canonicalEqual(admission.raw, actual.admissionRaw) &&
+        sha(actual.admissionReviewSha256) &&
+        registration.admissionReviewSha256 === actual.admissionReviewSha256 &&
+        go.admissionReviewSha256 === actual.admissionReviewSha256 &&
+        actual.admissionReceiptValue?.schema === 'CYLINDER_DYNAMIC_RECEIPT_V1' &&
+        actual.admissionReceiptValue.stage === 'ADMISSION' &&
+        actual.admissionReceiptValue.invocationId === admission.invocationId &&
+        actual.admissionReceiptValue.sourceHead === actual.sourceHead &&
+        actual.admissionReceiptValue.report?.assessment?.verdict === 'PASS' &&
+        actual.admissionReceiptValue.report?.budget?.advanceReturned ===
+          f.budgets.admission.nativeSteps &&
+        actual.admissionReceiptValue.report?.worlds?.length === f.budgets.admission.worlds &&
+        actual.admissionReceiptValue.report.worlds.every((world) => world.status === 'PASS') &&
+        actual.admissionReceiptValue.report.budget.advanceDispatched ===
+          f.budgets.admission.nativeSteps &&
+        actual.admissionReceiptValue.report?.nativeLedger?.knowledge ===
+          'ACTUAL_DISPATCHED_AND_RETURNED' &&
+        actual.admissionReceiptValue.report.nativeLedger.firstFailure === null &&
+        actual.admissionReceiptValue.report.nativeLedger.outstanding.length === 0 &&
+        actual.admissionReceiptValue.report.nativeLedger.acquisitionUnknown.length === 0 &&
+        actual.admissionReceiptValue.report.nativeLedger.cleanupUnknown.length === 0 &&
+        canonicalEqual(
+          Object.keys(actual.admissionReceiptValue.report.nativeLedger.calls).sort(),
+          Object.keys(admissionBudget.calls).sort(),
+        ) &&
+        Object.entries(actual.admissionReceiptValue.report.nativeLedger.calls).every(
+          ([api, row]) =>
+            Number.isSafeInteger(row.dispatched) &&
+            row.dispatched >= 0 &&
+            row.dispatched <= admissionBudget.calls[api],
+        ) &&
+        Object.entries(admissionBudget.calls).every(
+          ([api, cap]) =>
+            ['mj_contactForce', 'DoubleBuffer.GetView', 'contact.get', 'contact.delete'].includes(
+              api,
+            ) || actual.admissionReceiptValue.report.nativeLedger.calls[api].dispatched === cap,
+        ) &&
+        actual.admissionReceiptValue.report.nativeLedger.calls['contact.get'].dispatched ===
+          2 * actual.admissionReceiptValue.report.nativeLedger.calls.mj_contactForce.dispatched &&
+        actual.admissionReceiptValue.report.nativeLedger.calls['contact.delete'].dispatched ===
+          actual.admissionReceiptValue.report.nativeLedger.calls['contact.get'].dispatched &&
+        actual.admissionReceiptValue.report.nativeLedger.calls['DoubleBuffer.GetView']
+          .dispatched ===
+          2 * admissionBudget.worlds +
+            admissionBudget.calls.mj_objectVelocity +
+            actual.admissionReceiptValue.report.nativeLedger.calls.mj_contactForce.dispatched &&
+        Object.values(actual.admissionReceiptValue.report.nativeLedger.calls).every(
+          (row) => row.dispatched === row.returned,
+        ) &&
+        sha(actual.admissionReceiptValue.executionGoSha256) &&
+        actual.admissionReceiptValue.executionGoSha256 !== actual.executionGoSha256 &&
+        actual.admissionReceiptValue.report.journal.trailerError === null &&
+        actual.admissionReceiptValue.report.journal.closeError === null &&
+        actual.admissionReceiptValue.report?.journal?.sha256 === actual.admissionRaw.sha256 &&
+        actual.admissionReceiptValue.report?.journal?.bytes === actual.admissionRaw.bytes,
+      'DYNAMIC_MAIN_REQUIRES_ACTUAL_INDEPENDENT_ADMISSION',
+    );
+  } else {
+    demand(
+      admission === null &&
+        actual.admissionReviewSha256 === null &&
+        registration.admissionReviewSha256 === null &&
+        go.admissionReviewSha256 === null,
+      'DYNAMIC_ADMISSION_HAS_NO_MAIN_OR_AUTOCHAIN',
+    );
+  }
+  const permit = Object.freeze({
+    schema: 'CYLINDER_DYNAMIC_VALIDATED_PERMIT_V1',
+    stage,
+    invocationId: go.invocationId,
+  });
+  dynamicPermits.add(permit);
+  return permit;
+}
+
 /** Called only by the explicit preregistration-checked CLI. Importing this file
  * never creates a module, model, data, world, or native step. */
 export async function executeCylinder(f, mode, journal) {
+  return executeCylinderSession(f, mode, journal);
+}
+
+/** Consumes a typed single-use permit before importing the engine. */
+export async function executeCylinderStage(f, stage, journal, permit) {
+  consumeDynamicPermit(permit, stage);
+  const ledger = new CylinderNativeLedger(cylinderDynamicBudget(f, stage));
+  return executeCylinderSession(f, stage.toLowerCase(), journal, ledger);
+}
+
+async function executeCylinderSession(f, mode, journal, ledger = null) {
   validateCylinderFixture(f);
   const plan = cylinderPlan(f, mode);
   cylinderRetentionProof(f);
@@ -1584,20 +2355,25 @@ export async function executeCylinder(f, mode, journal) {
   const live = [];
   try {
     const artifact = verifyCylinderArtifacts(f);
-    const { default: initialize } = await import(
-      pathToFileURL(resolve(artifact.packageRoot, 'mujoco.js')).href
-    );
-    total.moduleInitializationDispatched += 1;
-    const M = await initialize({
-      wasmBinary: readFileSync(resolve(artifact.packageRoot, 'mujoco.wasm')),
-    });
+    const load = () => import(pathToFileURL(resolve(artifact.packageRoot, 'mujoco.js')).href);
+    const { default: initialize } = ledger
+      ? await ledger.invokeAsync('module.import', load)
+      : await load();
+    const factory = () => {
+      total.moduleInitializationDispatched += 1;
+      return initialize({
+        wasmBinary: readFileSync(resolve(artifact.packageRoot, 'mujoco.wasm')),
+      });
+    };
+    const M = ledger ? await ledger.invokeAsync('module.factory', factory) : await factory();
     total.moduleInitializations += 1;
     demand(
-      M.mj_versionString() === f.engine.version && M.mj_version() === 4000000,
+      nativeBoundary(ledger, 'mj_versionString', () => M.mj_versionString()) === f.engine.version &&
+        nativeBoundary(ledger, 'mj_version', () => M.mj_version()) === 4000000,
       'NATIVE_ENGINE_VERSION',
     );
     report.engine = {
-      version: M.mj_versionString(),
+      version: nativeBoundary(ledger, 'mj_versionString', () => M.mj_versionString()),
       moduleSha256: artifact.moduleSha256,
       wasmSha256: artifact.wasmSha256,
       singleThread: true,
@@ -1608,7 +2384,7 @@ export async function executeCylinder(f, mode, journal) {
       live.length = 0;
       for (const condition of plan.slice(i, i + groupSize)) {
         demand(total.modelCreationDispatched < total.allowedWorlds, 'RESOURCE_WORLD_BUDGET');
-        const world = new World(M, f, condition, total, journal);
+        const world = new World(M, f, condition, total, journal, ledger?.forWorld(condition.id));
         live.push(world);
         world.create();
       }
@@ -1651,8 +2427,10 @@ export async function executeCylinder(f, mode, journal) {
     );
     if (mode === 'admission')
       demand(total.advanceReturned === b.nativeSteps, 'ADMISSION_EXACT_STEP_COUNT');
+    ledger?.assertClosed();
     report.assessment.verdict = 'PASS';
   } catch (error) {
+    ledger?.stop(error);
     report.assessment.failures.push(String(error));
     for (const world of live) {
       if (!report.worlds.some((x) => x.id === world.c.id)) report.worlds.push(world.fail(error));
@@ -1666,6 +2444,13 @@ export async function executeCylinder(f, mode, journal) {
         report.assessment.failures.push(String(error));
       }
     }
+  }
+  if (ledger) {
+    report.nativeLedger = ledger.snapshot();
+    report.plannedCallBudget = cylinderDynamicBudget(f, mode.toUpperCase());
+    report.dynamicScope = 'ONLY_THIS_EXPLICIT_STAGE; STOP_FOR_INDEPENDENT_RESULT_REVIEW';
+    report.operationalDeadlineEnforcement =
+      'External reviewed owned-job supervisor; nativeTimeBudget is model-time tolerance only';
   }
   report.worldDisposition = {
     planned: plan.map((p) => ({ id: p.id, maxNativeAdvances: p.maxSteps })),
@@ -1694,6 +2479,43 @@ export async function executeCylinder(f, mode, journal) {
       })),
     ),
   );
+  return report;
+}
+
+/** Durable closure is required even after every physical check returned. */
+export function finalizeCylinderDynamic(f, report, journal) {
+  const trailer = {
+    kind: 'dynamic-invocation-end',
+    status:
+      report.assessment.verdict === 'PASS' ? 'OBSERVATIONS_COMPLETE_AWAIT_DURABLE_RECEIPT' : 'FAIL',
+    budget: report.budget ?? null,
+    nativeLedger: report.nativeLedger ?? null,
+    completeTrajectoryDigest: report.completeTrajectoryDigest ?? null,
+    nextStage: 'STOP_FOR_INDEPENDENT_RESULT_REVIEW',
+  };
+  let final = trailer;
+  if (canonicalBytes(trailer).length > f.retention.emergencyTrailerBytes) {
+    report.assessment.verdict = 'FAIL';
+    report.assessment.failures.push('RESOURCE_DYNAMIC_FINAL_TRAILER_BYTE_CAP');
+    final = {
+      kind: 'dynamic-invocation-end',
+      status: 'FAIL',
+      error: 'RESOURCE_DYNAMIC_FINAL_TRAILER_BYTE_CAP',
+      oversizedTrailerSha256: digest(canonicalBytes(trailer)),
+    };
+  }
+  report.journal = journal.finish(final);
+  if (
+    !journal.closed ||
+    report.journal.trailerError ||
+    report.journal.closeError ||
+    !Number.isSafeInteger(report.journal.bytes) ||
+    report.journal.bytes < 1 ||
+    report.journal.bytes > f.retention.maxJournalBytes
+  ) {
+    report.assessment.verdict = 'FAIL';
+    report.assessment.failures.push('DYNAMIC_JOURNAL_NOT_DURABLY_CLOSED');
+  }
   return report;
 }
 

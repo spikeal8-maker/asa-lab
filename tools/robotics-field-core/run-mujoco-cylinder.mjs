@@ -34,6 +34,10 @@ import {
   decodeRetainedGeometryInput,
   geometryJournalRetention,
   createGeometryReport,
+  acceptedCylinderGeometry,
+  executeCylinderStage,
+  finalizeCylinderDynamic,
+  validateCylinderDynamicAuthorization,
 } from './mujoco-cylinder.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -615,7 +619,303 @@ async function runGeometryCli(args) {
   return report;
 }
 
+export function parseCylinderDynamicCli(args) {
+  demand(
+    args[0] === '--dynamic-stage' && ['ADMISSION', 'MAIN'].includes(args[1]),
+    'DYNAMIC_EXPLICIT_STAGE_CLI',
+  );
+  const keys = [
+    '--preregistration',
+    '--source-review',
+    '--supervisor-review',
+    '--execution-go',
+    '--journal-dir',
+  ];
+  if (args[1] === 'MAIN') keys.push('--admission-review');
+  demand(args.length === 2 + 2 * keys.length, 'DYNAMIC_EXPLICIT_CLI_ARGUMENTS');
+  const paths = {};
+  for (let i = 2; i < args.length; i += 2) {
+    demand(
+      keys.includes(args[i]) &&
+        !(args[i] in paths) &&
+        typeof args[i + 1] === 'string' &&
+        isAbsolute(args[i + 1]),
+      'DYNAMIC_EXPLICIT_ABSOLUTE_PATH',
+    );
+    paths[args[i]] = args[i + 1];
+  }
+  demand(
+    keys.every((key) => key in paths),
+    'DYNAMIC_MISSING_CLI_PATH',
+  );
+  return { stage: args[1], paths };
+}
+
+function readDynamicDocument(path, cap = 1048576) {
+  demand(
+    isAbsolute(path) && statSync(path).isFile() && statSync(path).size <= cap,
+    'DYNAMIC_DOCUMENT_BYTE_CAP',
+  );
+  const bytes = readFileSync(path);
+  demand(bytes.length <= cap, 'DYNAMIC_DOCUMENT_BYTE_CAP');
+  return {
+    value: JSON.parse(bytes.toString('utf8')),
+    bytes: bytes.length,
+    sha256: digest(bytes),
+    path: realpathSync(path),
+  };
+}
+
+async function bindDynamicFile(descriptor, cap) {
+  demand(
+    descriptor &&
+      isAbsolute(descriptor.path) &&
+      Number.isSafeInteger(descriptor.bytes) &&
+      descriptor.bytes > 0 &&
+      descriptor.bytes <= cap &&
+      /^[a-f0-9]{64}$/.test(descriptor.sha256) &&
+      statSync(descriptor.path).isFile() &&
+      statSync(descriptor.path).size === descriptor.bytes,
+    'DYNAMIC_BOUND_FILE_SIZE',
+  );
+  const hash = createHash('sha256');
+  let bytes = 0;
+  for await (const chunk of createReadStream(descriptor.path)) {
+    bytes += chunk.length;
+    demand(bytes <= descriptor.bytes, 'DYNAMIC_BOUND_FILE_GREW');
+    hash.update(chunk);
+  }
+  demand(
+    bytes === descriptor.bytes && hash.digest('hex') === descriptor.sha256,
+    'DYNAMIC_BOUND_FILE_BYTES',
+  );
+  return { path: realpathSync(descriptor.path), bytes, sha256: descriptor.sha256 };
+}
+
+/** Only a compact FAIL may replace an oversized summary. Raw bytes stay intact. */
+export function encodeCylinderDynamicReceipt(f, receipt) {
+  let text = JSON.stringify(receipt, null, 2) + '\n';
+  if (Buffer.byteLength(text, 'utf8') > f.retention.maxCommittedSummaryBytes) {
+    const report = receipt.report;
+    receipt = {
+      ...receipt,
+      report: {
+        assessment: { verdict: 'FAIL', failures: ['RESOURCE_DYNAMIC_SUMMARY_BYTE_CAP'] },
+        budget: report.budget,
+        nativeLedger: report.nativeLedger,
+        journal: report.journal,
+        worldDisposition: report.worldDisposition,
+        oversizedSummary: {
+          bytes: Buffer.byteLength(text, 'utf8'),
+          sha256: digest(Buffer.from(text, 'utf8')),
+        },
+        prefixPolicy: 'Raw bounded failure prefix retained; oversized summary cannot become PASS',
+      },
+    };
+    text = JSON.stringify(receipt, null, 2) + '\n';
+  }
+  demand(
+    Buffer.byteLength(text, 'utf8') <= f.retention.maxCommittedSummaryBytes,
+    'DYNAMIC_FAILURE_SUMMARY_BYTE_CAP',
+  );
+  return { text, receipt };
+}
+
+async function runBoundCylinderDynamicCli(args) {
+  const { stage, paths } = parseCylinderDynamicCli(args);
+  const { fixture: f, fixtureSha256 } = readCylinderFixture();
+  validateCylinderFixture(f);
+  const outputDirectory = realpathSync(paths['--journal-dir']);
+  const realRoot = realpathSync(root);
+  const pathKey = (path) => (process.platform === 'win32' ? path.toLowerCase() : path);
+  demand(
+    statSync(outputDirectory).isDirectory() &&
+      pathKey(outputDirectory) !== pathKey(realRoot) &&
+      !pathKey(outputDirectory).startsWith(pathKey(realRoot) + sep) &&
+      readdirSync(outputDirectory).length === 0,
+    'DYNAMIC_NEW_EMPTY_EXTERNAL_DIRECTORY_REQUIRED',
+  );
+  const prefix = resolve(outputDirectory, 'cylinder-' + stage.toLowerCase() + '-native-invocation');
+  const outputs = {
+    claim: prefix + '.claim.json',
+    raw: prefix + '.asacylraw',
+    receipt: prefix + '.receipt.json',
+  };
+  const registration = readDynamicDocument(paths['--preregistration']);
+  const review = readDynamicDocument(paths['--source-review']);
+  const supervision = readDynamicDocument(paths['--supervisor-review']);
+  const go = readDynamicDocument(paths['--execution-go']);
+  const geometry = acceptedCylinderGeometry();
+  const geometryFiles = registration.value.geometryFiles;
+  demand(geometryFiles && Object.keys(geometryFiles).length === 4, 'DYNAMIC_G0_EVIDENCE_FILES');
+  for (const key of ['raw', 'review', 'binding', 'completion']) {
+    demand(
+      geometryFiles[key]?.bytes === geometry[key].bytes &&
+        geometryFiles[key]?.sha256 === geometry[key].sha256,
+      'DYNAMIC_G0_ACCEPTED_EVIDENCE_PIN ' + key,
+    );
+    await bindDynamicFile(geometryFiles[key], geometry[key].bytes);
+  }
+  const artifact = verifyCylinderArtifacts(f);
+  const engineArtifacts = Object.fromEntries(
+    [
+      ['mujoco.js', f.engine.moduleSha256],
+      ['mujoco.wasm', f.engine.wasmSha256],
+      ['mujoco.d.ts', f.engine.dtsSha256],
+      ['package.json', f.engine.packageSha256],
+    ].map(([name, expected]) => {
+      const bytes = readFileSync(resolve(artifact.packageRoot, name));
+      demand(digest(bytes) === expected, 'DYNAMIC_ENGINE_ARTIFACT_IDENTITY ' + name);
+      return [name, { bytes: bytes.length, sha256: expected }];
+    }),
+  );
+  const git = (args) =>
+    execFileSync('git', args, {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', GIT_NO_LAZY_FETCH: '1' },
+    }).trim();
+  demand(
+    git(['status', '--porcelain=v1', '--untracked-files=all']) === '',
+    'DYNAMIC_REVIEWED_CLEAN_SOURCE_REQUIRED',
+  );
+  const actual = {
+    fixtureSha256,
+    sourceManifest: cylinderSourceManifest(),
+    sourceHead: git(['rev-parse', 'HEAD']),
+    engineArtifacts,
+    geometry,
+    outputDirectory,
+    outputs,
+    preregistrationSha256: registration.sha256,
+    sourceReviewSha256: review.sha256,
+    supervisorReviewSha256: supervision.sha256,
+    executionGoSha256: go.sha256,
+    supervisorHelper: await bindDynamicFile(supervision.value.helper, 1048576),
+    admissionReviewSha256: null,
+  };
+  let admission = null;
+  if (stage === 'MAIN') {
+    const document = readDynamicDocument(paths['--admission-review']);
+    admission = document.value;
+    actual.admissionReviewSha256 = document.sha256;
+    actual.admissionRaw = await bindDynamicFile(admission.raw, f.retention.maxJournalBytes);
+    actual.admissionReceipt = await bindDynamicFile(
+      admission.receipt,
+      f.retention.maxCommittedSummaryBytes,
+    );
+    const receipt = readDynamicDocument(
+      admission.receipt.path,
+      f.retention.maxCommittedSummaryBytes,
+    );
+    demand(receipt.sha256 === actual.admissionReceipt.sha256, 'DYNAMIC_ADMISSION_RECEIPT_READBACK');
+    actual.admissionReceiptValue = receipt.value;
+  }
+  const permit = validateCylinderDynamicAuthorization(
+    f,
+    stage,
+    registration.value,
+    review.value,
+    supervision.value,
+    go.value,
+    actual,
+    admission,
+  );
+  const historicalReportsBefore = reportHashes();
+  // A fixed exclusive claim prevents a retry after a partial/fatal invocation.
+  writeFileSync(
+    outputs.claim,
+    JSON.stringify(
+      {
+        schema: 'CYLINDER_DYNAMIC_DISPATCH_CLAIM_V1',
+        stage,
+        invocationId: go.value.invocationId,
+        claimedAtUtc: new Date().toISOString(),
+        executionGoSha256: go.sha256,
+        sourceHead: actual.sourceHead,
+        sourceManifest: actual.sourceManifest,
+        preregistrationSha256: registration.sha256,
+        outputs,
+        status: 'CLAIMED_BEFORE_ENGINE_IMPORT',
+        nextStage: 'NONE',
+      },
+      null,
+      2,
+    ) + '\n',
+    { flag: 'wx' },
+  );
+  let journal = null;
+  let report = { assessment: { verdict: 'FAIL', failures: [] } };
+  try {
+    journal = new RawJournal(outputs.raw, f.retention);
+    report = await executeCylinderStage(f, stage, journal, permit);
+    report = finalizeCylinderDynamic(f, report, journal);
+    const raw = await bindDynamicFile(
+      { path: outputs.raw, ...report.journal },
+      f.retention.maxJournalBytes,
+    );
+    demand(raw.sha256 === report.journal.sha256, 'DYNAMIC_RAW_READBACK');
+  } catch (error) {
+    report.assessment.verdict = 'FAIL';
+    report.assessment.failures.push(portableError(error));
+    if (journal && !journal.closed) {
+      try {
+        report = finalizeCylinderDynamic(f, report, journal);
+      } catch (closeError) {
+        report.finalizationError = portableError(closeError);
+      }
+    }
+  }
+  let historicalReportsAfter = null;
+  try {
+    historicalReportsAfter = reportHashes();
+    demand(
+      canonicalEqual(historicalReportsBefore, historicalReportsAfter),
+      'HISTORICAL_REPORT_BYTES_CHANGED',
+    );
+    demand(
+      canonicalEqual(actual.sourceManifest, cylinderSourceManifest()),
+      'DYNAMIC_SOURCE_CHANGED_DURING_INVOCATION',
+    );
+  } catch (error) {
+    report.assessment.verdict = 'FAIL';
+    report.assessment.failures.push(portableError(error));
+  }
+  const encoded = encodeCylinderDynamicReceipt(f, {
+    schema: 'CYLINDER_DYNAMIC_RECEIPT_V1',
+    stage,
+    invocationId: go.value.invocationId,
+    sourceHead: actual.sourceHead,
+    sourceManifest: actual.sourceManifest,
+    finishedAtUtc: new Date().toISOString(),
+    executionGoSha256: go.sha256,
+    preregistrationSha256: registration.sha256,
+    sourceReviewSha256: review.sha256,
+    supervisorReviewSha256: supervision.sha256,
+    admissionReviewSha256: actual.admissionReviewSha256,
+    geometry,
+    historicalReportsBefore,
+    historicalReportsAfter,
+    report,
+    nextStage: 'STOP_FOR_INDEPENDENT_RESULT_REVIEW',
+  });
+  writeFileSync(outputs.receipt, encoded.text, { flag: 'wx' });
+  demand(readFileSync(outputs.receipt, 'utf8') === encoded.text, 'DYNAMIC_RECEIPT_READBACK');
+  process.stdout.write(
+    JSON.stringify({
+      event: 'CYLINDER_DYNAMIC_STOP',
+      stage,
+      receipt: outputs.receipt,
+      verdict: encoded.receipt.report.assessment.verdict,
+      nextStage: 'STOP_FOR_INDEPENDENT_RESULT_REVIEW',
+    }) + '\n',
+  );
+  if (encoded.receipt.report.assessment.verdict !== 'PASS') process.exitCode = 1;
+  return encoded.receipt.report;
+}
+
 export async function runCylinderCli(args) {
+  if (args[0] === '--dynamic-stage') return runBoundCylinderDynamicCli(args);
   if (args[0] === '--geometry-only') return runGeometryCli(args);
   const { fixture } = readCylinderFixture();
   demand(
