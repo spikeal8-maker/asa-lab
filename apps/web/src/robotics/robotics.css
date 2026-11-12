@@ -10,6 +10,10 @@
 .robotics-portal-editor .robotics-lab {
   grid-template-rows: 48px 48px auto minmax(0, 1fr) 30px;
 }
+.robotics-portal-editor > .robotics-lab {
+  /* Keep editor tool/menu layers below sibling account project dialogs. */
+  isolation: isolate;
+}
 .robotics-project-snapshot {
   position: fixed;
   left: -10000px;

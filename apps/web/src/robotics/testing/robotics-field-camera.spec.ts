@@ -260,6 +260,86 @@ describe('FIELD-CAMERA-001 actual field editor integration', () => {
     });
   }
 
+  const zoomLabel = () => container.querySelector('output[aria-label="Масштаб поля"]')!.textContent;
+  const cameraMetrics = () => {
+    const [left, top, width, height] = box().split(' ').map(Number);
+    return {
+      centerX: left! + width! / 2,
+      centerY: top! + height! / 2,
+      pixelsPerMeter: (dimensions.width * 1000) / width!,
+    };
+  };
+
+  it('restores legacy zoom levels for buttons and keyboard without committing the project', async () => {
+    const original = cameraMetrics();
+    expect(zoomLabel()).toBe('100%');
+    for (const label of ['125%', '150%', '200%', '300%']) {
+      await act(async () => button('Приблизить поле').click());
+      expect(zoomLabel()).toBe(label);
+      expect(cameraMetrics().centerX).toBeCloseTo(original.centerX, 8);
+      expect(cameraMetrics().centerY).toBeCloseTo(original.centerY, 8);
+    }
+    for (const label of ['200%', '150%', '125%', '100%']) {
+      await act(async () => button('Отдалить поле').click());
+      expect(zoomLabel()).toBe(label);
+    }
+    for (const [key, label] of [
+      ['+', '125%'],
+      ['=', '150%'],
+      ['-', '125%'],
+    ] as const) {
+      await act(async () => {
+        canvas().dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+      });
+      expect(zoomLabel()).toBe(label);
+    }
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('keeps button direction after continuous wheel zoom below and above legacy levels', async () => {
+    for (const delta of [600, -600]) {
+      await act(async () => button('Показать поле целиком').click());
+      await wheel(370, 280, delta);
+      await wheel(370, 280, delta);
+      const before = cameraMetrics().pixelsPerMeter;
+      await act(async () => button('Приблизить поле').click());
+      const nearer = cameraMetrics().pixelsPerMeter;
+      expect(nearer).toBeGreaterThan(before);
+      await act(async () => button('Отдалить поле').click());
+      expect(cameraMetrics().pixelsPerMeter).toBeLessThan(nearer);
+      expect(Number.isFinite(cameraMetrics().pixelsPerMeter)).toBe(true);
+    }
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('keeps fit at 100% through the responsive resize and zoom sequence', async () => {
+    await act(async () => button('Показать поле целиком').click());
+    for (const width of [390, 320, 700, 900]) {
+      dimensions = { width, height: 600 };
+      await act(async () => window.dispatchEvent(new Event('resize')));
+      expect(zoomLabel()).toBe('100%');
+      await act(async () => button('Приблизить поле').click());
+      expect(zoomLabel()).toBe('125%');
+      await act(async () => button('Показать поле целиком').click());
+      expect(zoomLabel()).toBe('100%');
+    }
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('preserves a manually panned and zoomed camera through resize instead of fitting it', async () => {
+    await pointer(field(), 'pointerdown', 270, 220);
+    await pointer(field(), 'pointermove', 350, 240);
+    await pointer(field(), 'pointerup', 350, 240);
+    await wheel();
+    const manual = cameraMetrics();
+    dimensions = { width: 390, height: 700 };
+    await act(async () => window.dispatchEvent(new Event('resize')));
+    expect(cameraMetrics().centerX).toBeCloseTo(manual.centerX, 8);
+    expect(cameraMetrics().centerY).toBeCloseTo(manual.centerY, 8);
+    expect(cameraMetrics().pixelsPerMeter).toBeCloseTo(manual.pixelsPerMeter, 8);
+    expect(commit).not.toHaveBeenCalled();
+  });
+
   it('pans blank space and navigates/zooms without any project commit or field DOM enlargement', async () => {
     const original = box();
     await pointer(field(), 'pointerdown', 270, 220);

@@ -17,7 +17,7 @@ const accountId = '20000000-0000-4000-8000-000000001071';
 const workspaceId = '10000000-0000-4000-8000-000000001071';
 const now = '2026-11-11T00:00:00.000Z';
 
-async function openEditor(page: Page, context: BrowserContext) {
+async function openEditor(page: Page, context: BrowserContext, publicationFixture = false) {
   if (
     !uiOnly ||
     process.env['ASA_E2E_EXTERNAL'] !== 'true' ||
@@ -32,7 +32,9 @@ async function openEditor(page: Page, context: BrowserContext) {
       scope: 'personal',
       classroomId: null,
       moduleKey: 'robotics',
-      title: 'FIELD-CAMERA-001 · UI_ONLY fixture',
+      title: publicationFixture
+        ? 'Робот для исследования движения, датчика расстояния и собственного высокого поля · UI_ONLY'
+        : 'FIELD-CAMERA-001 · UI_ONLY fixture',
       status: 'active',
       createdAt: now,
       updatedAt: now,
@@ -46,7 +48,7 @@ async function openEditor(page: Page, context: BrowserContext) {
     draft: {
       projectId,
       document: createInitialRoboticsProject(),
-      revision: 0,
+      revision: publicationFixture ? 1 : 0,
       updatedAt: now,
       preview: null,
     },
@@ -115,6 +117,46 @@ async function openEditor(page: Page, context: BrowserContext) {
       return reply({ state: 'not_learning', projectId });
     }
     if (method === 'GET' && path === '/api/projects/' + projectId) return reply(fixture);
+    // Only the modal regression needs these UI acknowledgements. The real
+    // snapshot capture and ProjectProperties component run in the browser;
+    // neither endpoint is forwarded to a backend or a real publication.
+    if (
+      publicationFixture &&
+      method === 'PUT' &&
+      path === '/api/projects/' + projectId + '/snapshot'
+    ) {
+      const body = request.postDataJSON();
+      return reply({
+        snapshot: {
+          projectId,
+          contentType: 'image/png',
+          width: 480,
+          height: 360,
+          sourceRevision: body.sourceRevision,
+          capturedAt: now,
+        },
+      });
+    }
+    if (
+      publicationFixture &&
+      method === 'GET' &&
+      path === '/api/projects/' + projectId + '/publication'
+    ) {
+      return reply({
+        canPublish: true,
+        reasonCode: null,
+        acquisition: { allowed: false, version: 0 },
+        publication: {
+          publicationId: '40000000-0000-4000-8000-000000001071',
+          revisionId: '50000000-0000-4000-8000-000000001071',
+          revisionNo: 1,
+          versionNo: 1,
+          state: 'public',
+          publishedAt: now,
+          publicPath: '/public-projects/40000000-0000-4000-8000-000000001071',
+        },
+      });
+    }
     if (method === 'PUT' && path === '/api/projects/' + projectId + '/draft') {
       const body = request.postDataJSON();
       sourceWrites.push(body.document);
@@ -516,6 +558,89 @@ test.describe('FIELD-CAMERA-001 existing portal editor', () => {
     !uiOnly,
     'UI_ONLY acceptance requires explicit ASA_FIELD_CAMERA_UI_ONLY=true and existing4630',
   );
+  test('regression: legacy zoom and fit survive the full responsive width sequence', async ({
+    page,
+    context,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const evidence = await openEditor(page, context);
+    const writes = evidence.sourceWrites.length;
+    const measurements: { width: number; afterPlus: string | null; afterFit: string | null }[] = [];
+    await fit(page);
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      const label = page.getByLabel('Масштаб поля', { exact: true });
+      await expect(label).toHaveText('100%');
+      await page.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
+      await expect(label).toHaveText('125%');
+      const afterPlus = await label.textContent();
+      await fit(page);
+      await expect(label).toHaveText('100%');
+      measurements.push({ width, afterPlus, afterFit: await label.textContent() });
+    }
+    expect(evidence.sourceWrites.length).toBe(writes);
+    expect(evidence.unexpectedMutations).toEqual([]);
+    await testInfo.attach('responsive zoom levels', {
+      body: JSON.stringify(measurements),
+      contentType: 'application/json',
+    });
+  });
+
+  test('regression: real publication modal closes above Robotics navigation at narrow widths', async ({
+    page,
+    context,
+  }, testInfo) => {
+    test.setTimeout(45_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const evidence = await openEditor(page, context, true);
+    const writes = evidence.sourceWrites.length;
+    const openPublication = async () => {
+      const header = page.locator('.robotics-unified-header');
+      const inline = header.locator('.robotics-header-publish');
+      if (await inline.isVisible()) await inline.click();
+      else {
+        await header.locator('.robotics-header-menu > summary').click();
+        await header
+          .locator('.robotics-header-menu-panel')
+          .getByRole('button', { name: 'Публикация', exact: true })
+          .click();
+      }
+    };
+    const modal = page.getByRole('dialog', { name: 'Публикация проекта', exact: true });
+    await openPublication();
+    await expect(modal.getByTestId('publication-status')).toContainText('Опубликовано');
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(modal).toBeVisible();
+    }
+    for (const width of [320, 390]) {
+      if (width === 390) {
+        await page.setViewportSize({ width, height: 900 });
+        await openPublication();
+        await expect(modal.getByTestId('publication-status')).toContainText('Опубликовано');
+      }
+      await page.screenshot({ path: testInfo.outputPath('publication-modal-' + width + '.png') });
+      await modal
+        .locator('.project-properties-head')
+        .getByRole('button', { name: 'Закрыть', exact: true })
+        .click({ timeout: 6_000 });
+      await expect(modal).toBeHidden();
+      await expect(page).toHaveURL(evidence.url);
+      await expect(page.getByTestId('robotics-account-editor')).toBeVisible();
+    }
+    expect(evidence.sourceWrites.length).toBe(writes);
+    expect(evidence.unexpectedMutations).toEqual([]);
+    await testInfo.attach('modal isolation', {
+      body: JSON.stringify({
+        widths: [1440, 1024, 390, 320],
+        closedNormallyAt: [320, 390],
+        sourceWrites: evidence.sourceWrites.length - writes,
+        sourceSha,
+        backendAndSaveAcceptance: false,
+      }),
+      contentType: 'application/json',
+    });
+  });
   for (const [width, height] of [
     [1440, 900],
     [1366, 768],

@@ -80,6 +80,7 @@ const STAMPS: readonly { id: RoboticsTileStampKind; label: string }[] = [
   { id: 't-junction', label: 'Т-развилка' },
   { id: 'cross', label: 'Перекрёсток' },
 ];
+const ZOOM_LEVELS = [1, 1.25, 1.5, 2, 3] as const;
 const rounded = (value: number) => Math.round(value * 10000) / 10000;
 
 function sceneAt(
@@ -419,6 +420,16 @@ export function RobotFieldEditor({
     : undefined;
   const fitScale = fitFieldCamera(fieldBounds, cameraControl.viewport).pixelsPerMeter;
   const zoom = (cameraControl.camera?.pixelsPerMeter ?? fitScale) / fitScale;
+  function stepZoom(direction: 1 | -1) {
+    const level =
+      direction === 1
+        ? ZOOM_LEVELS.find((value) => value > zoom + 1e-6)
+        : [...ZOOM_LEVELS].reverse().find((value) => value < zoom - 1e-6);
+    // Wheel/pinch can leave the legacy button levels. Keep moving in the
+    // requested direction there; the shared transform still clamps the scale.
+    const next = level ?? zoom * (direction === 1 ? 1.25 : 1 / 1.25);
+    cameraControl.zoom(next / zoom);
+  }
   function pointAt(clientX: number, clientY: number): RoboticsPoint | null {
     const point = cameraControl.point(clientX, clientY);
     return point ? { xMeters: rounded(point.xMeters), yMeters: rounded(point.yMeters) } : null;
@@ -1212,7 +1223,7 @@ export function RobotFieldEditor({
                 type="button"
                 aria-label="Отдалить поле"
                 disabled={(cameraControl.camera?.pixelsPerMeter ?? 1) <= FIELD_CAMERA_MIN_SCALE}
-                onClick={() => cameraControl.zoom(1 / 1.2)}
+                onClick={() => stepZoom(-1)}
               >
                 −
               </button>
@@ -1221,7 +1232,7 @@ export function RobotFieldEditor({
                 type="button"
                 aria-label="Приблизить поле"
                 disabled={(cameraControl.camera?.pixelsPerMeter ?? 1) >= FIELD_CAMERA_MAX_SCALE}
-                onClick={() => cameraControl.zoom(1.2)}
+                onClick={() => stepZoom(1)}
               >
                 +
               </button>
@@ -1308,11 +1319,11 @@ export function RobotFieldEditor({
             }
             if (event.key === '+' || event.key === '=') {
               event.preventDefault();
-              cameraControl.zoom(1.2);
+              stepZoom(1);
             }
             if (event.key === '-') {
               event.preventDefault();
-              cameraControl.zoom(1 / 1.2);
+              stepZoom(-1);
             }
             if (event.key === 'Delete' || event.key === 'Backspace') {
               event.preventDefault();

@@ -47,6 +47,7 @@ export function useFieldCamera(
   const viewRef = useRef(view);
   const optionsRef = useRef(options);
   const boundsRef = useRef(bounds);
+  const fitTarget = useRef<FieldBounds | 'field' | null>('field');
   const spaceRef = useRef(false);
   const insideRef = useRef(false);
   const gesture = useRef(new FieldCameraGesture());
@@ -61,6 +62,7 @@ export function useFieldCamera(
       current.camera.pixelsPerMeter === camera.pixelsPerMeter
     )
       return;
+    fitTarget.current = null;
     const next = { ...current, camera };
     viewRef.current = next;
     setView(next);
@@ -92,9 +94,18 @@ export function useFieldCamera(
         Math.abs(viewport.height - current.viewport.height) < 0.01
       )
         return;
+      const target = fitTarget.current;
       const next = {
         viewport,
-        camera: current.camera ?? fitFieldCamera(boundsRef.current, viewport),
+        // A requested fit follows the viewport. Manual pan/zoom retains its
+        // physical scale and centre instead of being reset on a layout change.
+        camera:
+          current.camera && target === null
+            ? current.camera
+            : fitFieldCamera(
+                target === 'field' || target === null ? boundsRef.current : target,
+                viewport,
+              ),
       };
       viewRef.current = next;
       setView(next);
@@ -258,6 +269,7 @@ export function useFieldCamera(
     optionsRef.current.onStart(false);
     cancel();
     update(fitFieldCamera(nextBounds, viewRef.current.viewport));
+    fitTarget.current = nextBounds === boundsRef.current ? 'field' : { ...nextBounds };
   }
 
   function zoom(factor: number) {
