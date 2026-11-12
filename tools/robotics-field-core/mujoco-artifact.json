@@ -1,0 +1,296 @@
+{
+  "schema": "mujoco-artifact-admission-v1",
+  "scope": "TEST_ONLY",
+  "package": "@mujoco/mujoco",
+  "version": "4.0.0",
+  "build": "single-thread-root-export",
+  "gitHead": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+  "license": "Apache-2.0",
+  "tarball": {
+    "url": "https://registry.npmjs.org/@mujoco/mujoco/-/mujoco-4.0.0.tgz",
+    "integrity": "sha512-eVeej96ZW68ERuXQBiZtHFsX9jKHn+0FPJd3vJjBIgn5oQPLJXOrKI7d61dO3P4s22JC5wch3boojgUWyxi1TQ==",
+    "sha1": "dcf78bbbd3ea0a162c273a48132f46e2c4bc24c8",
+    "sha256": "66b97038b28d323dee676cf6c696074ef57e5e6f62521a5f48045ebaebdd27a0",
+    "bytes": 5990516
+  },
+  "files": [
+    {
+      "path": "mt/mujoco.d.ts",
+      "bytes": 147615,
+      "sha256": "ffc8245f0c9b565b35fbe17cfbaac180d66c86be3d733743f63cf579e6d3a2e4"
+    },
+    {
+      "path": "mt/mujoco.js",
+      "bytes": 311433,
+      "sha256": "c5f3876c426823b45cbdfae2abb4b2339d2c6c29b3993555fb420d57fb31fe4b"
+    },
+    {
+      "path": "mt/mujoco.wasm",
+      "bytes": 11298295,
+      "sha256": "d66f85d9bf944afa61f3ce25886b7b7295cc78f497579fe584a248ab24892e25"
+    },
+    {
+      "path": "mt/mujoco.wasm.map",
+      "bytes": 237392,
+      "sha256": "bbb3681a2d1a87f0d4c34c4bca14a993190f7bf616eda1c51173d21fb8a06ab4"
+    },
+    {
+      "path": "mujoco.d.ts",
+      "bytes": 147615,
+      "sha256": "ffc8245f0c9b565b35fbe17cfbaac180d66c86be3d733743f63cf579e6d3a2e4"
+    },
+    {
+      "path": "mujoco.js",
+      "bytes": 294200,
+      "sha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2"
+    },
+    {
+      "path": "mujoco.wasm",
+      "bytes": 11200612,
+      "sha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de"
+    },
+    {
+      "path": "mujoco.wasm.map",
+      "bytes": 221588,
+      "sha256": "58220bf305435a6e60d9ea83dd1eaabcc282270faaaf92a0a83785e9cb62b6a8"
+    },
+    {
+      "path": "package.json",
+      "bytes": 1290,
+      "sha256": "a7d2c0108c77aa9826a2df5aa40f79e4812339b218fe237e478f73eb586fc0d9"
+    },
+    {
+      "path": "README.md",
+      "bytes": 20260,
+      "sha256": "8aac6a48315d961e9f5d06b1df254f6033ce541e4e8b7ba8d376859d6ad6b570"
+    }
+  ],
+  "exports": {
+    ".": {
+      "types": "./mujoco.d.ts",
+      "import": "./mujoco.js",
+      "default": "./mujoco.js"
+    },
+    "./mt": {
+      "types": "./mt/mujoco.d.ts",
+      "import": "./mt/mujoco.js",
+      "default": "./mt/mujoco.js"
+    },
+    "./mujoco.wasm": "./mujoco.wasm",
+    "./mujoco.wasm.map": "./mujoco.wasm.map",
+    "./mt/mujoco.wasm": "./mt/mujoco.wasm",
+    "./mt/mujoco.wasm.map": "./mt/mujoco.wasm.map"
+  },
+  "npmDependencies": [],
+  "licenses": [
+    {
+      "name": "mujoco",
+      "url": "https://raw.githubusercontent.com/google-deepmind/mujoco/ac60eae30fa7e0d31315c38d9476752fb81be67e/LICENSE",
+      "status": 200,
+      "filename": "mujoco.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "excerpt": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      "
+    },
+    {
+      "name": "libccd",
+      "url": "https://raw.githubusercontent.com/danfis/libccd/7931e764a19ef6b21b443376c699bbc9c6d4fba8/BSD-LICENSE",
+      "status": 200,
+      "filename": "libccd.txt",
+      "bytes": 2070,
+      "sha256": "b175a981bfccf7e1e6c2f6fbda3fde0827aaa51808a983b10c8c7e6183c44a11",
+      "excerpt": "libccd\n-------\n\nCopyright (c)2010-2012 Daniel Fiser <danfis@danfis.cz>,\nIntelligent and Mobile Robotics Group, Department of Cybernetics,\nFaculty of Electrical Engineering, Czech Technical University in Prague.\nAll rights reserved.\n\n\nThis work was su",
+      "normalizedSha256": "b175a981bfccf7e1e6c2f6fbda3fde0827aaa51808a983b10c8c7e6183c44a11"
+    },
+    {
+      "name": "tinyxml2",
+      "url": "https://raw.githubusercontent.com/leethomason/tinyxml2/e6caeae85799003f4ca74ff26ee16a789bc2af48/LICENSE.txt",
+      "status": 200,
+      "filename": "tinyxml2.txt",
+      "bytes": 808,
+      "sha256": "9332252e9b9e46db8285d4a3f0bf25f139bf1dca6781b956d57f2302efca6432",
+      "excerpt": "This software is provided 'as-is', without any express or implied\nwarranty. In no event will the authors be held liable for any\ndamages arising from the use of this software.\n\nPermission is granted to anyone to use this software for any\npurpose, incl",
+      "normalizedSha256": "9332252e9b9e46db8285d4a3f0bf25f139bf1dca6781b956d57f2302efca6432"
+    },
+    {
+      "name": "tinyobjloader",
+      "url": "https://raw.githubusercontent.com/tinyobjloader/tinyobjloader/2945a967c5303b2c8c14174117c45f3302591150/LICENSE",
+      "status": 200,
+      "filename": "tinyobjloader.txt",
+      "bytes": 1902,
+      "sha256": "19e1b0242709694c6671369609544993a2dfcef8477f1aa19bd30de35ec58caa",
+      "excerpt": "The MIT License (MIT)\n\nCopyright (c) 2012-2019 Syoyo Fujita and many contributors.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Soft",
+      "normalizedSha256": "fd6b93e2ea86e70beeca1071333720669b3f7fa8a389aff7cb6de90a944eeac8"
+    },
+    {
+      "name": "qhull",
+      "url": "https://raw.githubusercontent.com/qhull/qhull/d1c2fc0caa5f644f3a0f220290d4a868c68ed4f6/COPYING.txt",
+      "status": 200,
+      "filename": "qhull.txt",
+      "bytes": 1720,
+      "sha256": "106d55c931fd6a84822e5345d900273d059f1c27310d02567ccb313c5d18c55d",
+      "excerpt": "                    Qhull, Copyright (c) 1993-2020\n                    \n                            C.B. Barber\n                           Arlington, MA \n                          \n                               and\n\n       The National Science and T",
+      "normalizedSha256": "46b43a287296f766e1a7ba6f643c61a1cbc07325b60317f9e2edefa716a642c2"
+    },
+    {
+      "name": "lodepng",
+      "url": "https://raw.githubusercontent.com/lvandeve/lodepng/22561883dd63fd1850f18e1f6adac321e4f609b0/LICENSE",
+      "status": 200,
+      "filename": "lodepng.txt",
+      "bytes": 886,
+      "sha256": "bdafa318b8e637d600ca1b60545e894881977a16a16b74809c95e805701621e3",
+      "excerpt": "Copyright (c) 2005-2018 Lode Vandevenne\n\nThis software is provided 'as-is', without any express or implied\nwarranty. In no event will the authors be held liable for any damages\narising from the use of this software.\n\nPermission is granted to anyone t",
+      "normalizedSha256": "a028aa09e123883fe77af8fb8bee41b40616daa035fdd1b7d8baf1584ecb0787"
+    },
+    {
+      "name": "miniz",
+      "url": "https://raw.githubusercontent.com/richgel999/miniz/77d0dce8627735138c51770d1799a1ef48f2117d/LICENSE",
+      "status": 200,
+      "filename": "miniz.txt",
+      "bytes": 1184,
+      "sha256": "0115478d567121238cf6cc1c0c361926cf07a49d9e4c9e66da97fac6a01646b3",
+      "excerpt": "Copyright 2013-2014 RAD Game Tools and Valve Software\r\nCopyright 2010-2014 Rich Geldreich and Tenacious Software LLC\r\n\r\nAll Rights Reserved.\r\n\r\nPermission is hereby granted, free of charge, to any person obtaining a copy\r\nof this software and associa",
+      "normalizedSha256": "6f20fa7672b00e2e975c291df737cf227addf3ad32e36fef3fe0f416e4664d3d"
+    },
+    {
+      "name": "emscripten",
+      "url": "https://raw.githubusercontent.com/emscripten-core/emscripten/4.0.10/LICENSE",
+      "status": 200,
+      "filename": "emscripten.txt",
+      "bytes": 5093,
+      "sha256": "620a78084fc7ca97c0b5dea9abf891f3ffcadfdbf305276f099c9c4e12fc1d86",
+      "excerpt": "Emscripten is available under 2 licenses, the MIT license and the\nUniversity of Illinois/NCSA Open Source License.\n\nBoth are permissive open source licenses, with little if any\npractical difference between them.\n\nThe reason for offering both is that ",
+      "normalizedSha256": "2fd38dc06e484cdd7a3f1e2f6577f5d53062052a2fd85131b56b89fbd673731c"
+    },
+    {
+      "name": "musl",
+      "url": "https://raw.githubusercontent.com/emscripten-core/emscripten/4.0.10/system/lib/libc/musl/COPYRIGHT",
+      "status": 200,
+      "filename": "musl.txt",
+      "bytes": 6204,
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+      "excerpt": "musl as a whole is licensed under the following standard MIT license:\n\n----------------------------------------------------------------------\nCopyright © 2005-2020 Rich Felker, et al.\n\nPermission is hereby granted, free of charge, to any person obtai",
+      "normalizedSha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+    },
+    {
+      "name": "libcxx",
+      "url": "https://raw.githubusercontent.com/emscripten-core/emscripten/4.0.10/system/lib/libcxx/LICENSE.TXT",
+      "status": 200,
+      "filename": "libcxx.txt",
+      "bytes": 16703,
+      "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b",
+      "excerpt": "==============================================================================\nThe LLVM Project is under the Apache License v2.0 with LLVM Exceptions:\n==============================================================================\n\n                   ",
+      "normalizedSha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+    },
+    {
+      "name": "libcxxabi",
+      "url": "https://raw.githubusercontent.com/emscripten-core/emscripten/4.0.10/system/lib/libcxxabi/LICENSE.TXT",
+      "status": 200,
+      "filename": "libcxxabi.txt",
+      "bytes": 16706,
+      "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c",
+      "excerpt": "==============================================================================\nThe LLVM Project is under the Apache License v2.0 with LLVM Exceptions:\n==============================================================================\n\n                   ",
+      "normalizedSha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c"
+    },
+    {
+      "name": "compiler-rt",
+      "url": "https://raw.githubusercontent.com/emscripten-core/emscripten/4.0.10/system/lib/compiler-rt/LICENSE.TXT",
+      "status": 200,
+      "filename": "compiler-rt.txt",
+      "bytes": 16708,
+      "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+      "excerpt": "==============================================================================\nThe LLVM Project is under the Apache License v2.0 with LLVM Exceptions:\n==============================================================================\n\n                   ",
+      "normalizedSha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+    },
+    {
+      "name": "MarchingCubeCpp",
+      "url": "https://raw.githubusercontent.com/aparis69/MarchingCubeCpp/f03a1b3ec29b1d7d865691ca8aea4f1eb2c2873d/README.md",
+      "status": 200,
+      "filename": "MarchingCubeCpp.txt",
+      "bytes": 1899,
+      "sha256": "ffeb6411f3030f8fcdf8ac11d3cd957f129bfab35ef624f5566e84e4d0172285",
+      "notice": "Pinned upstream README declares public domain or MIT; complete README retained, no invented MIT license text.",
+      "normalizedSha256": "195607f586d2bd908ca63a2dc6271d201b9d72b3cd4f9832828e27c5805ec7d1"
+    },
+    {
+      "name": "dlmalloc",
+      "url": "https://raw.githubusercontent.com/emscripten-core/emscripten/4.0.10/system/lib/dlmalloc.c",
+      "filename": "dlmalloc.txt",
+      "bytes": 454,
+      "sha256": "8defa334f869217fe9d8eaa3fd91621d076ca66ca7fc7453419e286e3dabab72",
+      "sourceFileSha256": "c008dc3c2b005ba822efb1bf6187a9d7a6aecd096826c6f28c6f5ee62885053d",
+      "notice": "Unmodified license declaration excerpt before Quickstart; full original source retained in admission staging.",
+      "normalizedSha256": "7e8c789e1b643218ad3e8814bbd9e049dfee2b1ff7d31f0edcd79b8dff0ea330"
+    }
+  ],
+  "companionLicense": {
+    "path": "tools/robotics-field-core/MUJOCO-LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  "companionNotices": {
+    "path": "tools/robotics-field-core/MUJOCO-THIRD-PARTY-NOTICES.txt",
+    "sha256": "6f681117208684ef2ab3ad03a9f928ae8c6dffb4f765eeab59fb2d8b189e1540"
+  },
+  "declaredBuildSources": [
+    "https://github.com/google-deepmind/mujoco/blob/ac60eae30fa7e0d31315c38d9476752fb81be67e/CMakeLists.txt",
+    "https://github.com/google-deepmind/mujoco/blob/ac60eae30fa7e0d31315c38d9476752fb81be67e/wasm/CMakeLists.txt",
+    "https://github.com/google-deepmind/mujoco/blob/ac60eae30fa7e0d31315c38d9476752fb81be67e/cmake/MujocoDependencies.cmake",
+    "https://github.com/google-deepmind/mujoco/blob/ac60eae30fa7e0d31315c38d9476752fb81be67e/cmake/third_party_deps/lodepng.cmake",
+    "https://github.com/google-deepmind/mujoco/blob/ac60eae30fa7e0d31315c38d9476752fb81be67e/.github/workflows/publish-wasm.yml",
+    "https://github.com/google-deepmind/mujoco/blob/ac60eae30fa7e0d31315c38d9476752fb81be67e/.github/workflows/build_steps.sh",
+    "https://github.com/google-deepmind/mujoco/blob/ac60eae30fa7e0d31315c38d9476752fb81be67e/src/user/user_mesh.cc"
+  ],
+  "declaredEmscriptenVersion": "4.0.10",
+  "packageLicenseFilesAbsent": true,
+  "provenanceAttestationVerification": "NOT_RUN",
+  "binaryReproducibleBuild": "NOT_RUN",
+  "nodeInitialization": {
+    "checkedAt": "2026-11-11T15:37:32.545Z",
+    "node": "v22.23.3",
+    "platform": "win32",
+    "arch": "x64",
+    "version": 4000000,
+    "versionString": "4.0.0",
+    "exports": {
+      "mj_step": "function",
+      "mj_step1": "function",
+      "mj_step2": "function",
+      "mj_kinematics": "function",
+      "mj_comPos": "function",
+      "mj_comVel": "function",
+      "mj_contactForce": "function",
+      "mj_objectVelocity": "function",
+      "mj_geomDistance": "function",
+      "MjModel": "function",
+      "MjData": "function",
+      "DoubleBuffer": "function",
+      "FloatBuffer": "function"
+    },
+    "modelFactoryType": "function",
+    "doubleBufferFromArrayType": "function",
+    "floatBufferFromArrayType": "function",
+    "locateCalls": ["mujoco.wasm"],
+    "instantiateCalls": [
+      {
+        "bytes": 11200612,
+        "sha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de"
+      }
+    ],
+    "networkRequests": [],
+    "modelCreations": 0,
+    "dataCreations": 0,
+    "steps": 0
+  },
+  "priorInitializationFailure": {
+    "attempt": "a1",
+    "kind": "HARNESS_ADMISSION_ERROR",
+    "reason": "locateFile was incorrectly made fatal; generated Emscripten calls it before using supplied wasmBinary",
+    "modelCreations": 0,
+    "dataCreations": 0,
+    "steps": 0
+  },
+  "physics": "NOT_RUN",
+  "browser": "NOT_RUN",
+  "worker": "NOT_RUN",
+  "schoolPcPerformance": "NOT_RUN"
+}

@@ -83,6 +83,9 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.8.0)
+      '@mujoco/mujoco':
+        specifier: 4.0.0
+        version: 4.0.0
       '@nx/eslint':
         specifier: 23.1.2
         version: 23.1.2(@babel/traverse@7.29.7)(@zkochan/js-yaml@0.0.7)(eslint@10.8.0)(nx@23.1.2)
@@ -1479,6 +1482,9 @@ packages:
   '@lukeed/ms@2.0.2':
     resolution: {integrity: sha512-9I2Zn6+NJLfaGoz9jN3lpwDgAYvfGeNYdbAIjJOqzs4Tpc+VU3Jqq4IofSUBKajiDS8k9fZIg18/z13mpk1bsA==}
     engines: {node: '>=8'}
+
+  '@mujoco/mujoco@4.0.0':
+    resolution: {integrity: sha512-eVeej96ZW68ERuXQBiZtHFsX9jKHn+0FPJd3vJjBIgn5oQPLJXOrKI7d61dO3P4s22JC5wch3boojgUWyxi1TQ==}
 
   '@napi-rs/wasm-runtime@0.2.4':
     resolution: {integrity: sha512-9zESzOO5aDByvhIAsOy9TbpZ0Ur2AJbUI7UT73kcUTS2mxAMHOBaa1st/jAymNoCtvrit99kkzT1FZuXVcgfIQ==}
@@ -5588,6 +5594,8 @@ snapshots:
   '@lukeed/csprng@1.1.0': {}
 
   '@lukeed/ms@2.0.2': {}
+
+  '@mujoco/mujoco@4.0.0': {}
 
   '@napi-rs/wasm-runtime@0.2.4':
     dependencies:

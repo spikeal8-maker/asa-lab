@@ -183,7 +183,9 @@
     "gate:checkers-network": "corepack pnpm gate:chess-r1 && corepack pnpm test:checkers && corepack pnpm test:checkers-network && corepack pnpm test:games",
     "gate:checkers-network:browser": "node tools/checkers-browser-gate.mjs",
     "test:robotics-field-core": "vitest run tests/robotics/field-core-qualification/phy01.spec.ts --maxWorkers=1",
-    "qualify:robotics-field-core:phy01": "node tools/robotics-field-core/run-phy01.mjs"
+    "qualify:robotics-field-core:phy01": "node tools/robotics-field-core/run-phy01.mjs",
+    "test:robotics-field-core:mujoco": "vitest run tests/robotics/field-core-qualification/mujoco-phy01.spec.ts --maxWorkers=1",
+    "qualify:robotics-field-core:mujoco-phy01": "node tools/robotics-field-core/run-mujoco-phy01.mjs"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
@@ -191,6 +193,7 @@
     "@dimforge/rapier3d-compat": "0.19.3",
     "@electric-sql/pglite": "0.2.17",
     "@eslint/js": "^10.0.1",
+    "@mujoco/mujoco": "4.0.0",
     "@nx/eslint": "23.1.2",
     "@nx/eslint-plugin": "23.1.2",
     "@nx/js": "23.1.2",
