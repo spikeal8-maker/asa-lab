@@ -7966,11 +7966,11 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: ready
+      status: done
       kind: repair
       risk: medium
       semantic_change: 'no'
-      checkpoint: controller_proposed_owner_geometry_ci_baseline
+      checkpoint: proposed_technical_completion_effective_only_on_accepted_main
       owner_acceptance: pending
       parent_issue: 168
       integration_dependency_for_issue: 1090
@@ -7996,8 +7996,27 @@ parallel_lanes:
         runtime_boundary: Local Node24 differs from CI Node22. The probe supports a scheduling hypothesis only; the proposed checked-in group is not implemented or validated and must pass fresh full CI.
         detailed_evidence: https://github.com/spikeal8-maker/asa-lab/issues/1105
       gate_boundary: Registration requires current-only preflight, preservation, full governance, independent review and required GitHub checks. The later source candidate must preserve the resolved test inventory, pass all seven cases through its checked-in configuration without masking CLI worker or timeout overrides, and pass full General/Data plus standalone RLS on the exact source before independent runtime acceptance and ordinary protected integration.
-      source_implementation: not_started
-      scheduling_hypothesis: not_validated
+      source_implementation: independently_reviewed_candidate
+      scheduling_hypothesis: exact_source_ci_is_a_merge_precondition
+      completion_proposal:
+        proposed_at_utc: "2026-11-12T14:53:56Z"
+        effective_condition: "This done status is a proposed post-merge state only. It becomes canonical only when this exact combined candidate is accepted on main after all required checks, full General/Data and actually executed standalone RLS, all seven unchanged owner geometry cases through the checked-in configuration, and independent exact-source runtime review. Until then accepted main has no completed repair claim."
+        history_boundary: "The preserved evidence_snapshot and revisions describe the earlier registration proposal. Their pre-implementation and NOT_RUN statements remain dated history; they do not replace the completion conditions or prove runtime acceptance."
+        accepted_registration_pr: 1106
+        accepted_registration_main_sha: "97e9bcff4d340b0b488e46153cbfbb78ff9bbc10"
+        reviewed_local_source_sha: "d5cb5844aadb601590de19547867e5423e1007cb"
+        reviewed_source_tree_sha: "ebad08a4cc998a0852361749c7f930b6f0360b24"
+        reviewed_source_parent_sha: "97e9bcff4d340b0b488e46153cbfbb78ff9bbc10"
+        reviewed_config_blob: "cf414d1ad7b869e037fc10126a594c60a6827e41"
+        source_manifest_sha256: "fb2f5df75d4bc66e1c60b23185ed49ea253ae1dc71c44ead0eb1e1c1b4095396"
+        source_review: "Independent SOURCE APPROVE for the exact local source, confirmed by the programme controller."
+        local_inventory: "PASS: 811 before and 811 after, identical path multiset without duplicates; only the owner geometry file moves from parallel to serialized-owner-geometry."
+        local_cpu: "PASS 7/7 on Node24.22.1 using the checked-in configuration without CLI worker or deadline overrides; boxes 27.682s, bus 16.170s, tests 43.895s, Vitest 46.72s, wrapper 69.584s. Local timing does not qualify CI Node22."
+        local_static: "Format and config typecheck PASS. ESLint exit 0, but @nx/enforce-module-boundaries was SKIPPED because no cached ProjectGraph was available; this is not a full lint qualification."
+        combined_ci: "pending_NOT_RUN_at_proposal_time"
+        independent_runtime_review: "pending_for_final_combined_source"
+        accepted_repair_main_sha: null
+        controller_boundary: "The author source plan remains vitest.config.ts only. This separate controller delta changes only this lane; owner acceptance, deployment and every other task remain outside this technical completion."
       deployment: not_authorized
       database_actions: isolated_ci_tests_only
     revisions:
