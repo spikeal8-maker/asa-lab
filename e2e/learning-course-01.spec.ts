@@ -2231,6 +2231,9 @@ test('Course Builder persists informational block structural controls into futur
     .click();
   await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v1' });
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  await expect(
+    page.getByText(`Курс «${courseTitle}» · v1 назначен классу.`, { exact: true }),
+  ).toBeVisible();
 
   await oldLearner.page.reload();
   await oldLearner.page
@@ -2344,6 +2347,9 @@ test('Course Builder persists informational block structural controls into futur
     .click();
   await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v2' });
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  await expect(
+    page.getByText(`Курс «${courseTitle}» · v2 назначен классу.`, { exact: true }),
+  ).toBeVisible();
 
   await newLearner.page.reload();
   await newLearner.page
