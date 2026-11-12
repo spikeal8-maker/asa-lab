@@ -7955,6 +7955,89 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
+  - id: three-d-ci-baseline
+    worktree_id: three-d-owner-geometry-ci
+    owned_paths:
+      - vitest.config.ts
+    task:
+      id: TASK-3D-OWNER-GEOMETRY-CI-001
+      issue: 1105
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: done
+      kind: repair
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: proposed_technical_completion_effective_only_on_accepted_main
+      owner_acceptance: pending
+      parent_issue: 168
+      integration_dependency_for_issue: 1090
+      classification: C_independent_baseline
+      scope: Only vitest.config.ts. Move the existing seven-case owner-geometry-regressions.spec.ts file out of the parallel project into one subsequent project with sequence.groupOrder 3, fileParallelism false and maxWorkers 1. Preserve the remaining suite and existing groups 0, 1 and 2.
+      planned_paths:
+        - vitest.config.ts
+      owner_authorization: On 2026-11-12 the programme controller selected this separate bounded Class C prerequisite for the owner-authorized student-progress delivery programme. This controller-owned registration does not replace TASK-3D-OPT-1-001 or any existing task, and does not authorize geometry/runtime changes, deployment or live database operations.
+      activation_condition: This proposed lane has no execution authority while it exists only on a registration branch. Begin the one-file scheduler repair only after this registration is accepted on main with required checks and independent review. Product branches inherit the accepted selection and must not select themselves.
+      constraints:
+        - Exclude only apps/web/src/three-d/testing/owner-geometry-regressions.spec.ts from parallel and include that exact existing file once in the subsequent single-worker project. Preserve aliases, globals, environment, every other discovered test file, shared-DDL group 1 and engine-ownership group 2; do not change global worker limits.
+        - Keep the test file, all seven cases, assertions, 30000ms deadlines, fingerprints and owner assets byte-identical. No geometry algorithms, production API/frontend source, retry, skip, snapshot, workflow, dependency or lockfile changes.
+        - Keep this repair separate from PR1104 and its Class A copy fixture. Exact-source independent review and fresh General/ASA required with the whole suite and actually executed standalone RLS are mandatory before baseline integration; historical or targeted PASS cannot replace them.
+        - If registration or source CI is blocked, report the exact classification and evidence. Do not bypass guards, weaken checks, automatically expand scope or chase unrelated main movement. No server, container, port or live database actions.
+      evidence_snapshot:
+        observed_at_utc: '2026-11-12T13:47:32Z'
+        source_sha: 233e1c55ad322a0b10daa3923a1101f5d8a3bde6
+        general_run_id: 43223570300
+        data_job_id: 131206438964
+        ci_result: Seven owner geometry cases have five PASS and two 30000ms timeouts; boxes 48451ms and bus 49115ms. Standalone test:rls was not reached.
+        source_boundary: Independent diagnosis found the 3D trees, test file, Vitest configuration and dependencies unchanged from accepted main f19. Class C is the selected baseline classification; infrastructure Class D and a geometry algorithm defect are not established.
+        local_probe: One actual unchanged-code single-worker run passed all seven cases; boxes 19.394s, bus 20.036s, file 39.478s and runner 40.45s. A preceding missing-three attempt ran zero tests and is not PASS.
+        runtime_boundary: Local Node24 differs from CI Node22. The probe supports a scheduling hypothesis only; the proposed checked-in group is not implemented or validated and must pass fresh full CI.
+        detailed_evidence: https://github.com/spikeal8-maker/asa-lab/issues/1105
+      gate_boundary: Registration requires current-only preflight, preservation, full governance, independent review and required GitHub checks. The later source candidate must preserve the resolved test inventory, pass all seven cases through its checked-in configuration without masking CLI worker or timeout overrides, and pass full General/Data plus standalone RLS on the exact source before independent runtime acceptance and ordinary protected integration.
+      source_implementation: independently_reviewed_candidate
+      scheduling_hypothesis: exact_source_ci_is_a_merge_precondition
+      completion_proposal:
+        proposed_at_utc: "2026-11-12T14:53:56Z"
+        effective_condition: "This done status is a proposed post-merge state only. It becomes canonical only when this exact combined candidate is accepted on main after all required checks, full General/Data and actually executed standalone RLS, all seven unchanged owner geometry cases through the checked-in configuration, and independent exact-source runtime review. Until then accepted main has no completed repair claim."
+        history_boundary: "The preserved evidence_snapshot and revisions describe the earlier registration proposal. Their pre-implementation and NOT_RUN statements remain dated history; they do not replace the completion conditions or prove runtime acceptance."
+        accepted_registration_pr: 1106
+        accepted_registration_main_sha: "97e9bcff4d340b0b488e46153cbfbb78ff9bbc10"
+        reviewed_local_source_sha: "d5cb5844aadb601590de19547867e5423e1007cb"
+        reviewed_source_tree_sha: "ebad08a4cc998a0852361749c7f930b6f0360b24"
+        reviewed_source_parent_sha: "97e9bcff4d340b0b488e46153cbfbb78ff9bbc10"
+        reviewed_config_blob: "cf414d1ad7b869e037fc10126a594c60a6827e41"
+        source_manifest_sha256: "fb2f5df75d4bc66e1c60b23185ed49ea253ae1dc71c44ead0eb1e1c1b4095396"
+        source_review: "Independent SOURCE APPROVE for the exact local source, confirmed by the programme controller."
+        local_inventory: "PASS: 811 before and 811 after, identical path multiset without duplicates; only the owner geometry file moves from parallel to serialized-owner-geometry."
+        local_cpu: "PASS 7/7 on Node24.22.1 using the checked-in configuration without CLI worker or deadline overrides; boxes 27.682s, bus 16.170s, tests 43.895s, Vitest 46.72s, wrapper 69.584s. Local timing does not qualify CI Node22."
+        local_static: "Format and config typecheck PASS. ESLint exit 0, but @nx/enforce-module-boundaries was SKIPPED because no cached ProjectGraph was available; this is not a full lint qualification."
+        combined_ci: "pending_NOT_RUN_at_proposal_time"
+        independent_runtime_review: "pending_for_final_combined_source"
+        accepted_repair_main_sha: null
+        controller_boundary: "The author source plan remains vitest.config.ts only. This separate controller delta changes only this lane; owner acceptance, deployment and every other task remain outside this technical completion."
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: f19f5d47541e9006a5d96281e7af1b1ea960615f
+      head_sha: null
+      observed_at: '2026-11-12T13:47:32Z'
+      main:
+        branch: main
+        sha: f19f5d47541e9006a5d96281e7af1b1ea960615f
+      observation_note: Dated controller registration proposal only, not scheduler implementation or acceptance. Fetch main and the exact task, PR, CI and overlap snapshot before writes. Preserve every existing lane, task, blocker, history and gate; SP02 remains separate and SP03 is not activated by this registration.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:data
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
   - id: electronics-report-baseline
     parent_lane: electronics
     worktree_id: electronics-report-baseline
