@@ -17573,7 +17573,7 @@ parallel_lanes:
         - document: STUDENT-PROGRESS-DATA-V1
           revision: '1.0'
       owner_authorization: The owner requested continued delivery of programme ASA-STUDENT-PROGRESS-001 and explicitly instructed that reviewed results be integrated into main. On 2026-11-12 the controller authorized this bounded conditional SP-03 selection proposal separately from the SP-02 product author. It authorizes SP-03 execution only after the genuine SP-02 plus governance candidate satisfies required exact-source CI and independent reviews and is accepted on main. It does not authorize deployment, live database operations or owner acceptance.
-      activation_condition: This selection has no execution authority while it exists only on the integration branch. Begin SP-03 only after acceptance of the combined SP-02 candidate on main with required General and ASA / required, successful new application-role PostgreSQL and genuine HTTP tests including resolver failures, bounded query counts and nested query-plan evidence, Publication regression with real built-browser coverage, AI Image Durable Queue with ASA_IMAGE_QUEUE_TEST=1 and its actual forward upgrade, applicable routing and independent composition/runtime review. No SP-03 product file is part of this proposal.
+      activation_condition: This selection has no execution authority while it exists only on the integration branch. Begin SP-03 only after acceptance of the combined SP-02 candidate on main with required General and ASA / required, successful new application-role PostgreSQL and genuine HTTP tests, separate controller-unit coverage of resolver failures, bounded query counts and nested query-plan evidence, Publication regression with real built-browser coverage, AI Image Durable Queue with ASA_IMAGE_QUEUE_TEST=1 and its actual forward upgrade, applicable routing and independent composition/runtime review. No SP-03 product file is part of this proposal.
       scope: 'SP-03 only: connect the accepted PersonalProgressSummaryV1 API to the existing personal Home and Learning surfaces. Show the actor own avatar, genuine publication statistics and bounded own group progress, while keeping the accepted shared shell, authoring actions and module availability behavior.'
       planned_paths:
         - apps/web/src/App.tsx
@@ -18314,6 +18314,50 @@ parallel_lanes:
         owner_acceptance: pending
         deployment: not_requested
         live_database_actions: not_performed
+      fixture_repair_snapshot:
+        observed_at_utc: '2026-11-12T12:48:29Z'
+        accepted_main_sha: f19f5d47541e9006a5d96281e7af1b1ea960615f
+        historical_published_source_sha: 231e115d99a38bb9e01c4a9efadfc01f11a55905
+        historical_published_tree_sha: aafb1b0e25b3590d1ad4945e511b0d73ba3d3b33
+        historical_ci:
+          general_run_id: 43167445863
+          classroom_run_id: 43167445739
+          result: failed_fixture_setup
+          summary_postgresql_cases: 4 passed, 5 failed
+          failure: Five cases fail in personal-progress.pg.spec.ts attach at line 186 because the Account link lacks persisted Seat evidence in learner school scope. A production defect is not established by this fixture failure.
+          sql_baseline_and_nested_plan_evidence: not_run
+          separate_test_rls: not_run
+          detailed_results: https://github.com/spikeal8-maker/asa-lab/pull/1104
+        reviewed_fixture_repair:
+          local_source_sha: 659e11de4fcecde16a5663acf48ec5bb33e4e001
+          tree_sha: 862288da44a2704c09e26c6dc7d24d808fde2b2f
+          parent_sha: 231e115d99a38bb9e01c4a9efadfc01f11a55905
+          changed_path: tests/portal/personal-progress.pg.spec.ts
+          source_review: approved
+          independent_reviewer: review_student_data_plan
+          review_origin: Controller GO confirms independent exact-source APPROVE after root verification of the one-file delta and restored receipts.
+          scope: Prepare canonical persisted Seat Account evidence before link materialization, preserve immutable lineage and unique classroom/account constraints in the ambiguity fixture. Existing cases, assertions, query-plan measurements and timeouts are unchanged.
+          local_checks: Fresh identity, database and module-sdk declaration type builds, focused strict types and Prettier passed. ESLint exited 0 with the Nx module-boundaries rule skipped because no cached ProjectGraph was available. The one-file repair verify-plan is PLAN_VALID.
+          nx_skip_nx_cache: 'true'
+          nx_daemon: 'false'
+          checks_receipt_file: sp02-fixture-repair-checks.json
+          checks_receipt_sha256: a75bae1158adde58fc6ab9a41159a911f6edcf399d1df1c2b660ddbe86a8c377
+          frozen_receipt_file: sp02-fixture-repair-frozen.json
+          frozen_receipt_sha256: ab58459f87fb4a470d3c8a5a2b49f0b5061065f3d75a94fd4fd41a615797f729
+          real_postgresql_runtime: not_run
+          remote_publication: not_performed
+        new_combined_acceptance:
+          final_published_source_sha: null
+          general_and_required: pending
+          real_postgresql_http_and_query_plan_evidence: not_run
+          separate_test_rls: not_run
+          publication_queue_and_other_applicable_workflows: pending
+          independent_composition_review: pending
+          independent_runtime_review: pending
+          source_integration: pending
+          owner_acceptance: pending
+        preservation_boundary: This controller descendant preserves all 13 product blobs and modes from the reviewed fixture repair. Only student-progress metadata changes; previous dated history, all other lanes, blockers, gate declarations and the conditional eleven-path SP-03 selection remain intact.
+        snapshot_boundary: This new dated observation records the historical 231e failure and reviewed local fixture repair without relabeling old outcomes or transferring previous PASS to a future source. Local execution was restored; no product runtime tests were rerun in this controller slice. Fetch main and the exact task, PR and CI snapshot before publication. SP-03 remains inactive until the corrected combined candidate meets its required evidence and is accepted on main; deployment and live database actions remain unauthorized.
 
 integration:
   owner_lane: visual-programming
