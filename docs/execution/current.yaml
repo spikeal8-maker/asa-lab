@@ -97,7 +97,7 @@ parallel_lanes:
       observation_note: Read-only controller snapshot for the mandatory documentation dependency; fresh fetch main and exact-source CI remain required before authoring or acceptance.
     task:
       id: TASK-ELECTRONICS-GOVERNANCE-015
-      issue: 1111
+      issue: 1115
       programme_issue: 452
       branch: main
       base_branch: main

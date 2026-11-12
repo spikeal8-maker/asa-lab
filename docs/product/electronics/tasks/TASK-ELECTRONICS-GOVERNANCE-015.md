@@ -15,6 +15,8 @@ review: independent
 
 Programme [#452](https://github.com/spikeal8-maker/asa-lab/issues/452), bounded
 owner assignment [#1111](https://github.com/spikeal8-maker/asa-lab/issues/1111).
+Dependency issue [#1115](https://github.com/spikeal8-maker/asa-lab/issues/1115)
+is the unique child-lane issue required by the execution schema.
 This is a required documentation dependency of the already requested first R10
 repair. It does not extend the task into a catalogue audit or product cleanup.
 Selection lives only in `docs/execution/current.yaml` on accepted main.
