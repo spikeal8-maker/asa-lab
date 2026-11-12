@@ -17433,6 +17433,101 @@ parallel_lanes:
       preserved_source_pr: 1044
       preserved_source_sha: 47ac27e9cca6cb1e28b99637453cc935cba071b5
 
+  - id: student-progress
+    worktree_id: student-progress-1090
+    owned_paths:
+      - docs/product/student-progress/**
+      - docs/agent/contracts/student-progress.yaml
+    task:
+      id: TASK-STUDENT-PROGRESS-CARDS-001
+      issue: 1090
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      checkpoint: owner_selected_sp01_after_specification_registration
+      owner_acceptance: pending
+      program: ASA-STUDENT-PROGRESS-001
+      selected_step: SP-01
+      normative_refs:
+        - document: STUDENT-PROGRESS-MASTER-V1
+          revision: '1.0'
+        - document: STUDENT-PROGRESS-PLAN-V1
+          revision: '1.0'
+        - document: STUDENT-PROGRESS-UI-V1
+          revision: '1.0'
+      owner_authorization: >-
+        On 2026-11-11 the owner accepted the prepared student-progress specification package and instructed
+        the controller to proceed: separately address CI blocker1093, integrate specification PR1091 and
+        implement the first publication-card step. This authorizes tested source integration of those bounded
+        steps. It does not grant deployment, live database operations or owner acceptance of unbuilt UI.
+      scope: >-
+        SP-01 only: extract the existing public catalog card as one shared PublicProjectCard and reuse it in
+        Creator Home. Add the secondary community subtitle. Preserve the accepted shell, catalog behavior,
+        knowledge cards, public data meanings, on-demand preview lifecycle and all authorization semantics.
+      planned_paths:
+        - apps/web/src/projects-public/PublicProjectCard.tsx
+        - apps/web/src/projects-public/PublicProjectsPage.tsx
+        - apps/web/src/creator-portal/HomePublicShelves.tsx
+        - apps/web/src/projects-public/public-projects.css
+        - apps/web/src/creator-portal/home-workspace.css
+        - apps/web/src/projects-public/PublicProjectsPage.spec.ts
+        - apps/web/src/creator-portal/HomePublicShelves.spec.ts
+        - e2e/public-projects.spec.ts
+      constraints:
+        - This is a governance-only selection proposal; product code may start only after acceptance on main.
+        - Inherit this canonical selection; do not select or expand the product task from its own branch.
+        - One author implements only SP-01; independent review verifies the final candidate before integration.
+        - No API, migration, rating calculation, permission, header, sidebar or preview-runtime redesign.
+        - Preserve KnowledgeCard consumers of home-public-card and lazy loading of the existing shelf.
+        - Keep actual zero counts distinct from unavailable copyCount; use the existing meaning Added to own projects.
+        - Verify one real publication on Home and catalog at 1440,1024,390,320 against built API and Web.
+        - No product acceptance by static reference, source tests or conditional mock data alone.
+        - General and focused checks apply to the actual final source; CI1093 is not cleared by this selection text.
+        - Existing unrelated acceptance and deployment blockers remain unchanged.
+      registration_predecessor:
+        task_id: TASK-STUDENT-PROGRESS-SPEC-001
+        step: SP-00
+        specification_pr: 1091
+        reviewed_source_sha: 46eb00c081ec5560a7464b32e574b8a6cbe2325c
+        source_review: approved
+        design_decision: owner_accepted_specification_and_requested_implementation
+        integration_boundary: This selection takes effect only when the specification proposal is accepted on main.
+      context_hints:
+        - docs/product/student-progress/README.md
+        - docs/product/student-progress/tasks/SP-01-PUBLICATION-CARDS.md
+        - docs/product/student-progress/UI_CONTRACT.md
+        - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
+      next_dependency: SP-02 requires a new controller selection after the applicable SP-01 checkpoint.
+      deployment: not_requested
+      database_actions: isolated_tests_only
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: f72154f0f97dbe59535532e97d72ed9bcd7e3b22
+      head_sha: null
+      observed_at: '2026-11-11T20:58:39Z'
+      main:
+        branch: main
+        sha: f72154f0f97dbe59535532e97d72ed9bcd7e3b22
+      observation_note: >-
+        Dated governance composition preserves the accepted classroom programme from main and selects only
+        SP-01 after registration. This is not source integration, successful CI, visual acceptance or deployment.
+        Fetch main and the exact task/CI state; run planned-path preflight before product writes.
+    gates:
+      focused:
+        workflow: Public Projects Publication
+        commands:
+          - pnpm gate:projects-publication
+      browser:
+        workflow: Public Projects Publication
+        commands:
+          - pnpm gate:projects-publication:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
 integration:
   owner_lane: visual-programming
   shared_paths:
