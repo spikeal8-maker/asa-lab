@@ -171,25 +171,32 @@ function copyInput(source: Source, recipient: Identity, key = randomUUID()) {
 }
 
 async function attach(owner: Identity, seat: string, organization = owner.teacher) {
-  const existing = (
-    await admin.query(
-      "SELECT learner_identity_id FROM learner_identity_links WHERE account_id=$1 AND school_id=$2 AND link_kind='account'",
-      [owner.account, organization.schoolId],
-    )
-  ).rows[0];
-  if (existing) {
-    await admin.query(
-      "UPDATE learner_identity_links SET learner_identity_id=$2 WHERE seat_id=$1 AND link_kind='student_seat'",
-      [seat, existing.learner_identity_id],
-    );
-  } else {
-    await admin.query(
-      `INSERT INTO learner_identity_links(id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
-      SELECT gen_random_uuid(),tenant_id,school_id,learner_identity_id,'account',$2
-      FROM learner_identity_links WHERE seat_id=$1 AND link_kind='student_seat'`,
-      [seat, owner.account],
-    );
-  }
+  // The Account link guard requires persisted Seat evidence in this school.
+  // Let the canonical helper create/reuse links; their lineage is immutable.
+  const persisted = await admin.query(
+    `UPDATE classroom_student_seats seat SET account_id=$2
+     FROM classrooms classroom
+     WHERE seat.id=$1 AND classroom.id=seat.classroom_id
+      AND classroom.tenant_id=seat.tenant_id AND seat.tenant_id=$3 AND classroom.school_id=$4
+     RETURNING seat.id`,
+    [seat, owner.account, organization.tenantId, organization.schoolId],
+  );
+  expect(persisted.rows).toEqual([{ id: seat }]);
+  const learner = (
+    await admin.query('SELECT learning_audience_ensure_seat_identity($1) AS id', [seat])
+  ).rows[0]!.id as string;
+  expect(typeof learner).toBe('string');
+  expect(
+    (
+      await admin.query(
+        `SELECT count(*)::int n FROM learner_identity_links
+         WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
+          AND status='active' AND disabled_at IS NULL
+          AND ((link_kind='student_seat' AND seat_id=$4) OR (link_kind='account' AND account_id=$5))`,
+        [organization.tenantId, organization.schoolId, learner, seat, owner.account],
+      )
+    ).rows[0]!.n,
+  ).toBe(2);
 }
 
 async function group(
@@ -220,14 +227,68 @@ async function group(
       [organization.tenantId, classroomId, organization.teacherId, educator.account_id],
     );
   }
+  // A dynamic audience could initialize a fresh Seat during INSERT. This
+  // fixture has no audience, so its first canonical identity is intentional.
+  expect(
+    (
+      await admin.query(
+        `SELECT EXISTS(SELECT 1 FROM learning_audience_definitions
+         WHERE classroom_id=$1 AND status='active' AND audience_type='whole_class' AND mode='dynamic') present`,
+        [classroomId],
+      )
+    ).rows[0]!.present,
+  ).toBe(false);
+  // existing=true also creates another pupil. Only a Seat of this same
+  // Account in this classroom calls for the ambiguous canonical-link fixture.
+  const sameClassLearner = (
+    await admin.query<{ learner_identity_id: string }>(
+      `SELECT seat_link.learner_identity_id FROM classroom_student_seats seat
+       JOIN learner_identity_links seat_link ON seat_link.seat_id=seat.id
+        AND seat_link.link_kind='student_seat' AND seat_link.status='active' AND seat_link.disabled_at IS NULL
+       JOIN learner_identity_links account_link ON account_link.learner_identity_id=seat_link.learner_identity_id
+        AND account_link.tenant_id=seat_link.tenant_id AND account_link.school_id=seat_link.school_id
+        AND account_link.link_kind='account' AND account_link.account_id=$2
+        AND account_link.status='active' AND account_link.disabled_at IS NULL
+       JOIN learner_identities learner ON learner.id=seat_link.learner_identity_id
+        AND learner.tenant_id=seat_link.tenant_id AND learner.school_id=seat_link.school_id AND learner.state='active'
+       WHERE seat.classroom_id=$1 AND seat.account_id=$2 AND seat.status='active'`,
+      [classroomId, owner.account],
+    )
+  ).rows[0]?.learner_identity_id;
+  const handle = randomUUID().slice(0, 8);
   const seat = (
     await admin.query(
-      "SELECT id FROM classroom_management_add_seat($1,$2,'Isolated learner',$3,true)",
-      [educator.account_id, classroomId, randomUUID().slice(0, 8)],
+      `INSERT INTO classroom_student_seats
+       (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by,account_id)
+       VALUES($1,$2,'Isolated learner',$3,$3,true,'active',$4,$5) RETURNING id`,
+      [
+        organization.tenantId,
+        classroomId,
+        handle,
+        organization.teacherId,
+        sameClassLearner ? null : owner.account,
+      ],
     )
   ).rows[0]!.id as string;
-  await admin.query("UPDATE classroom_student_seats SET status='active' WHERE id=$1", [seat]);
-  await attach(owner, seat, organization);
+  if (sameClassLearner) {
+    // Keep UNIQUE(classroom_id, account_id) and the first Seat's immutable
+    // proof. This second, genuinely new Seat gets a new link, never a rewrite.
+    await admin.query(
+      `INSERT INTO learner_identity_links
+       (id,tenant_id,school_id,learner_identity_id,link_kind,seat_id)
+       VALUES(gen_random_uuid(),$1,$2,$3,'student_seat',$4)`,
+      [organization.tenantId, organization.schoolId, sameClassLearner, seat],
+    );
+    expect(
+      (await admin.query('SELECT learning_audience_ensure_seat_identity($1) AS id', [seat]))
+        .rows[0]!.id,
+    ).toBe(sameClassLearner);
+  } else {
+    await attach(owner, seat, organization);
+  }
+  expect(
+    (await admin.query('SELECT principal_id FROM student_seat_principal($1)', [seat])).rows,
+  ).toHaveLength(1);
   return { classroomId, seat };
 }
 
