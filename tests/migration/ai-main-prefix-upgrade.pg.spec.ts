@@ -97,6 +97,7 @@ const expectedPending = [
   '0316', // Immutable learner file answers in class and Course assignments.
   '0317', // Event-based admin attendance and Moscow calendar day.
   '0318', // Operational overview with aligned Moscow intervals and measured activity.
+  '0319', // Function-local JIT at the measured canonical read boundaries.
 ];
 
 interface Identity {

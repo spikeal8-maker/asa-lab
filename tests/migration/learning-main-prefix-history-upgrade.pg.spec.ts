@@ -469,6 +469,11 @@ const upgradeArtifacts = [
     '0318_admin_operational_overview.sql',
     'e834b0e84327aaf2d53951bc54e2fb0a628abc31cc332af9926f2d0c966c3d5d',
   ],
+  [
+    '0319',
+    '0319_canonical_read_boundaries_jit.sql',
+    '6b11096babc26c47d0b408c956e1d98ecd47b89d441b1a58e66d180ae0bce571',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
