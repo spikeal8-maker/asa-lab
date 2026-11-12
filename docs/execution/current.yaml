@@ -17270,6 +17270,119 @@ parallel_lanes:
           - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-RUNTIME-RESPONSIBILITY-001
           - pnpm control-plane:check
 
+  - id: robotics-camera
+    parent_lane: robotics
+    worktree_id: field-camera-001
+    owned_paths:
+      - e2e/robotics-field-camera.spec.ts
+    task:
+      id: TASK-ROBOTICS-FIELD-CAMERA-001
+      owner_task: FIELD-CAMERA-001
+      parent_issue: 1071
+      planned_paths:
+        - apps/web/src/robotics/RobotFieldEditor.tsx
+        - apps/web/src/robotics/RobotField.tsx
+        - apps/web/src/robotics/robotics.css
+        - apps/web/src/robotics/field-camera.ts
+        - apps/web/src/robotics/use-field-camera.ts
+        - apps/web/src/robotics/testing/robotics-field-camera.spec.ts
+        - e2e/robotics-field-camera.spec.ts
+      issue: 1096
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: true
+      status: ready
+      checkpoint: ui_only_e3_camera_authorized
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E3
+      profile: UI_ONLY
+      owner_authorization: >-
+        Owner explicitly selected FIELD-CAMERA-001 on 2026-11-12: implement only the
+        existing Robotics Field camera, with an author and an independent reviewer
+        in sequence, save source in GitHub and show the same candidate in the
+        existing D2-R2 editor at http://127.0.0.1:4630. Register this separate UI
+        slice without replacing or closing E1. Ordinary protected integration is
+        allowed only after applicable checks and review.
+        Owner continuation on 2026-11-12 authorizes this minimal registration of
+        isolated coordination for the reviewed camera candidate
+        d9aebf0e4d17a15d898f582ae86c05069cd98055 and its verified live overlay.
+        The peer checkout, index and all 149 protected files remain read-only.
+        Coordination is usable only after acceptance on canonical main and does
+        not authorize live writes, PR1044 dependency integration or presentation
+        of a different main adapter; those integration choices remain undecided.
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/Projects/asa-lab-field-camera-001
+          branch: codex/field-camera-001
+        peer:
+          worktree: C:/Users/spike/Projects/asa-lab-robotics-fast-dev-001
+          branch: codex/robotics-fast-dev-001
+          head: d4ed560647e9f7f38724f202168d88a6ad29ec42
+          path_sha256:
+            apps/web/src/robotics/RobotFieldEditor.tsx: 567dea0f163f6eeec18edfb9cb48ac364f66fa7105c76d5901a4d4372c54ff60
+            apps/web/src/robotics/RobotField.tsx: 87b1f55bc606c2b5009c3985763606a20cc36ab720cdbaabc72256e2fcc08a17
+            apps/web/src/robotics/robotics.css: 82be3efd93d398ce14f9d50b81c7389efc8f747b6db7eedd2b656b914c7e2a9b
+            apps/web/src/robotics/field-camera.ts: ff1d853f11986ecda4915101f75267ffdcd4408664790d7f4a96bb02d1d4d83d
+            apps/web/src/robotics/use-field-camera.ts: cf5028d37fa229ce653a294cb87ccd1e09c64580aebb22a69dc6241d6c980f50
+        paths:
+          - apps/web/src/robotics/RobotFieldEditor.tsx
+          - apps/web/src/robotics/RobotField.tsx
+          - apps/web/src/robotics/robotics.css
+          - apps/web/src/robotics/field-camera.ts
+          - apps/web/src/robotics/use-field-camera.ts
+      scope: >-
+        FIELD_CORE_SPEC.md sections 6.1-6.2, REQ-CAM-01 through REQ-CAM-05 and
+        UI-01/UI-02 only: finite cursor-anchored zoom, mouse and two-touch pan,
+        pinch, fit/focus, one world/screen transform and gesture cleanup.
+      constraints:
+        - E1 remains selected in the robotics lane with all its unfinished evidence and blockers.
+        - No physics engine, electrical, schema, motor, sensor or program edits; no new engine experiments.
+        - Preserve live checkout branch and HEAD, PR1044 work, modified robotics-projects.spec.ts and 148 evidence files.
+        - Inspect actual 4630 process, exact paths and byte hashes before writes; conflicting concurrent writes stop only that operation.
+        - Use only existing 4630 HMR for narrow camera delivery; no new server, port, database or Docker restart.
+        - Camera is UI state; do not dirty projects, add object history or reset Worker, code or model time.
+        - Preserve header, save/avatar, right inspector, catalogue, robot artwork and side view.
+        - Commit and push, verify remote SHA, then independent exact-SHA review and browser evidence at 1440x900, 1366x768 and 390x844.
+        - Main merge and local presentation are separate; blocked dependencies remain reported and never auto-integrated.
+        - After the camera result and report stop; do not start another scene, inspector or programming mode.
+      context_hints:
+        - docs/product/robotics/FIELD_CORE_SPEC.md
+        - docs/product/robotics/FIELD_CORE_START.md
+      gate_boundary: >-
+        Registration uses exact-path preflight, governance and applicable protected checks.
+        Product uses transform/gesture tests, existing test:robotics regression,
+        changed-file format/lint/type checks and actual portal-editor browser
+        actions including 20 zooms with at most 1 CSS pixel drift and two-touch
+        gestures; applicable required CI and independent review precede integration.
+      deployment: existing_4630_ui_hmr_only
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: f72154f0f97dbe59535532e97d72ed9bcd7e3b22
+      head_sha: null
+      observed_at: '2026-11-11T21:35:29.348Z'
+      main:
+        branch: main
+        sha: f72154f0f97dbe59535532e97d72ed9bcd7e3b22
+      observation_note: >-
+        Source baseline only; fetch main and current refs before edits. Preserved live
+        checkout is d4ed560647e9f7f38724f202168d88a6ad29ec42, PR1044 source
+        is 47ac27e9cca6cb1e28b99637453cc935cba071b5. These are not camera
+        implementation, integration, review or owner acceptance evidence.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm test:robotics
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: robotics
     parent_lane: electronics
     worktree_id: robotics-field-core-e1-001
