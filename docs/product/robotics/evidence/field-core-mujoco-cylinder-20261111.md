@@ -1,3 +1,204 @@
+# MuJoCo cylinder rest/tip — current publication, 2026-11-12
+
+**a2 admission PASS; a3 MAIN FAIL/INDETERMINATE. Full cylinder qualification: NOT_PASSED.**
+
+This is a report-only publication of already completed TEST_ONLY work under
+`TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001` / Issue #1071. It adds no native
+execution. The current summary is this section and `publicationCurrent` in the
+companion JSON. The dated historical material below keeps its original
+NOT_RUN/NOT_ARCHIVED statements; those statements are not current acceptance.
+
+## Recorded results
+
+| Attempt | Actual worlds / native advances | Result |
+| --- | --- | --- |
+| a1 admission, historical source | 8 / 40,200 | PASS; preserved earlier baseline |
+| a2 admission, exact source `306c80f0` | 8 / 40,200 | PASS; all four split/full phase pairs match exactly |
+| a3 MAIN, exact source `306c80f0` | 5 / 1,035,500 | FAIL: `INDETERMINATE_STAGE_END_NO_STABLE_OR_TIP` |
+
+Across these three historical invocations: 3 module initializations, 21 Model
+and 21 Data objects created and freed, and 1,115,900 native advances. These are
+historical totals, not publication work.
+
+a2 ran from 2026-11-11 19:43:20.753 to 19:44:11.345 UTC. Its complete trajectory
+digest is `cf3390d1252bb709bde85d185af8e98dadedee946796c4eba780c3d8ea76ade9`. The separately preserved
+a1/a2 equivalence proof compared 171 retained frames: 170 non-invocation frames
+are byte-exact; the invocation frame differs in two identified source-manifest
+hash strings. All 24 per-world chains and the complete trajectory digest agree.
+This publication does not rerun that comparison or the physical experiment.
+
+a3 ran from 2026-11-11 19:55:51.613 to 20:25:59.156 UTC. Four rest worlds passed.
+The first tilt world, `tilt-normal-500-r1`, stopped at tick 291500, model time
+145.75 s, at the end of stage 115, target 27.6°. Stage 114 (27.36°) was the last
+accepted stable stage. No tip event was confirmed. The registered full hold
+ended without either a stable window or a tip, and the remaining seven tilt
+worlds were not created. No hold extension, threshold relaxation or retry is
+represented as a PASS.
+
+### Rest measurements retained in a3
+
+All rows below passed their original rest criteria. Drift is in metres,
+quaternion angle in radians and energy growth in joules, relative to the
+registered global running-minimum rule.
+
+| World | Cylinder max COM drift (m) | Cylinder max angle (rad) | Cylinder max energy growth (J) |
+| --- | --- | --- | --- |
+| rest-500-r1 | 9.742560136598982e-8 | 0.0000017200355566154146 | 6.377315303618403e-8 |
+| rest-500-r2 | 9.742560136598982e-8 | 0.0000017200355566154146 | 6.377315303618403e-8 |
+| rest-250-r1 | 7.664313043870065e-8 | 0.0000012880672684296776 | 4.396905622927605e-8 |
+| rest-250-r2 | 7.664313043870065e-8 | 0.0000012880672684296776 | 4.396905622927605e-8 |
+
+The block also passed in each world; its energy growth was zero, and its
+maximum COM drift was below `8e-14 m`. This partial rest result does not
+qualify the interrupted tilt matrix.
+
+a2 created/deleted 691,768 temporary wrappers. a3 created/deleted 23,554,519.
+All created Model/Data objects were freed and recorded cleanup-error lists
+were empty. These counters describe the measured invocations; they are not a
+general leak or school-performance qualification.
+
+## Preserved cause analysis and its limits
+
+The independent saved-data review is
+**PASS_SAVED_DATA_CAUSAL_VERIFICATION**, while native qualification remains
+**FAIL**. Its 401 retained records cover ticks 291100–291500: 400 preceding
+intervals and the failing interval. The final 100 ms had a maximum relative
+angular-speed norm of `0.007719689221037876 rad/s`, above the registered
+`0.005 rad/s` stable-window limit.
+
+Recorded contact forces and points reconstruct native generalized force and
+acceleration: maximum torque-mapping residual `2.990454099228144e-17 N·m`,
+angular-acceleration residual `4.717284624139337e-14 rad/s²`, translation
+residual `3.554447978966673e-15 m/s²`, and frame residual zero. The retained
+trajectory shows native micro-rocking, not a stale force sample or a wrong
+angular frame.
+
+There were 222 selected-contact-set changes across 400 adjacent retained
+intervals, including 200 changes with the same geometrically eligible set,
+but only 5 changes in contact count. The recovered contact-face witnesses
+match a 16-gon rim construction; the engine support function remains an
+analytic cylinder. Near ticks 291474–291476, the selected three-contact patch
+places the static vertical-force centre about 0.418 mm outside its hull.
+Negative contact torque precedes the observed angular-speed increase; later
+contact redistribution reverses torque and reduces that speed.
+
+This establishes the force-to-motion chain in the saved window. It does not
+prove a general upstream bug, a single cause, or a sufficient repair. Soft
+normal response, no-slip postprocessing, timestep and stand coupling were not
+separated by counterfactual experiments. The initial cause before the retained
+window and the full dense native trajectory were not reconstructed.
+
+The original geometry-analysis r1 remains preserved and explicitly superseded:
+it assumed the wrong cylinder geom slot when deriving witness signs.
+`manifold-lag-analysis-r2.json` is authoritative. The product observer and
+the independent force-balance analysis already used the correct sign; this
+was not a product defect and did not cause a new native run.
+
+The next boundary is **BLOCKED_NEEDS_MANIFOLD_REPAIR_DESIGN**: a separately
+bounded design with geometry, frame, material and resource evidence is needed
+before any new candidate or native execution. No engine/profile/geometry
+replacement is qualified by this report.
+
+## Exact source and evidence
+
+All 15 declared physics inputs still match the published physical-source
+commit [306c80f03a55f70fd7d71d7311ac8396ed8325cc](https://github.com/spikeal8-maker/asa-lab/commit/306c80f03a55f70fd7d71d7311ac8396ed8325cc).
+Only this JSON/Markdown publication layer changes. The old JSON root-level
+status, totals, source-candidate labels, registrations, attempts and archive
+fields remain historical values. Both semantic equality and exact UTF-8
+serialized-value bytes are checked separately. The original reports remain
+available with these prepublication hashes:
+
+| Original report | Bytes | SHA256 |
+| --- | ---: | --- |
+| JSON | 567,747 | `b6325548c8a313d215430596db1abf8255711507195f6d8ca56cb16ad083ef75` |
+| Markdown | 30,477 | `643f42be222e1746a1ad72b641d7bca64affa9514fab133432d3eb0e21f9514c` |
+
+The previously recorded 136 pure/source tests remain a separate PASS on the
+unchanged inputs. They were not repeated for this report-only update and do
+not convert a3 into a physical PASS. The initial preflight/recovery returned
+RECOVERY_REQUIRED because the known as-run JSON was dirty. After exact diff
+classification, the controller explicitly authorised continuation of those
+same two report paths. Execution blockers and overlaps were zero;
+PLAN/REMOTE/CONTROL_PLANE passed. The exit-2 results are preserved and are not
+renamed SAFE_TO_START.
+
+The existing `.prettierignore` excludes both Markdown and `docs`.
+Formatter applicability is therefore recorded as ignored, not as verification
+of historical formatting. No ignore/configuration or execution-state rule
+was changed. JSON parsing, raw-value preservation, source identity,
+publication consistency, scoped plan and governance are the report gates.
+
+## Independently verified archive
+
+[Evidence draft 442308763](https://github.com/spikeal8-maker/asa-lab/releases/tag/untagged-3a60bb98471e0ab90636) remains
+draft/prerelease/unpublished, target `306c80f0`. Nine original assets were
+downloaded once each and verified; the independent proof was then uploaded
+once as the tenth asset and downloaded once for full readback. All 170 ZIP
+entries (27,789,617 uncompressed bytes), metadata, paths and CRC checks
+passed. Both gzip streams restore the original raw files byte-for-byte.
+
+| Raw stream | Bytes | SHA256 |
+| --- | ---: | --- |
+| a2 admission | 578,671 | `c8577a9d63660ed161a077a16563d434586a5d2cd05f532d3a4613719fc66cab` |
+| a3 MAIN | 13,741,369 | `399ce039dca0851b69db9f087f7d8916d1af79e90522e15b41ff6dff343f0787` |
+
+| Asset ID | Name | Bytes | SHA256 |
+| --- | --- | ---: | --- |
+| 737350905 | `INDEPENDENT_ARCHIVE_VERIFICATION-20261111T235518Z.json` | 167,804 | `8480bd139c702e1f33e75a382f8334bdd6628853b459826d22d36cc8f3228be0` |
+| 737310226 | `local-package-receipt.json` | 79,674 | `8a159bdfcad6a0f86c375a39ae491f02ecb665f327dd80d7096432ffb8c74311` |
+| 737310142 | `mujoco-cylinder-a2-a3-assets-manifest.json` | 1,540 | `04ab12fc525c57df61de3fa7a09d0867c2658ec02ccec14b4af5202a6dcae8cc` |
+| 737309286 | `mujoco-cylinder-a2-a3-entries-manifest.json` | 89,687 | `57e15a5eb5e68d3f421e140a2bf4735a018a8ba0a5ff92130f00f8e3c39f17d1` |
+| 737309398 | `mujoco-cylinder-a2-a3-source-evidence-306c80f0.zip` | 5,597,282 | `59e693116ffe824759543f1e7217c500d786863cfb489db3f2e8b03da5e0a6a5` |
+| 737309597 | `mujoco-cylinder-admission-a2-2026-11-11T194320752Z.asacylraw.gz` | 54,259 | `cbfde802fad6a457445643ed847dc6cba23ab1a0f6f1464ca7897872374bbb16` |
+| 737309737 | `mujoco-cylinder-main-a3-2026-11-11T195551612Z.asacylraw.gz` | 1,957,348 | `c772c030079650373acc8e10c20bbd3cbc88d850f70edacbed52462518033327` |
+| 737309904 | `package-local-a2-a3.py` | 34,417 | `527ab14867aad78add9020b41111733c58497a22525e1ccac05c028aef74268c` |
+| 737309146 | `README.md` | 5,438 | `ec7bed0f7467981f7d5bccfd08e1f02a9ebc35a99577ab3c45ceec0ac9096209` |
+| 737310031 | `verify-local-package.py` | 3,370 | `06ed3b17b23923eca2f50ca5149ef3c9dba82de8c257e3f82267c91183580795` |
+
+The ZIP source snapshot contains the exact prepublication JSON/Markdown,
+all 15 frozen source inputs, and three pinned engine artifacts. It does not
+contain this later publication section. The as-run receipts keep their
+original NOT_ARCHIVED status; the original upload body keeps its then-pending
+audit statement. The later independent proof establishes current verified
+archive status without rewriting either historical record.
+
+The audit's 199-file preservation result applies at its recorded time before
+this authorised two-report update. It does not claim that these two mutable
+report paths still have their prepublication hashes. All seven older archives
+and their refs were unchanged by the audit.
+
+No binary was downloaded again for this publication. No release, actual tag,
+Latest, deployment, browser/Worker qualification, D01/D02 closure or full E1
+acceptance is claimed.
+
+### Principal receipts
+
+| Receipt | Bytes | SHA256 |
+| --- | ---: | --- |
+| a2 native receipt | 96,972 | `372f88855a7053ab19a0bb119590d41722dfba102cce010f2dc815e332917b4d` |
+| a3 native receipt | 170,618 | `de793caa5f0b1d9a91141d14bc9dcb40227e91c04f71a11d14a73ad9550604c7` |
+| a1/a2 equivalence | 28,829 | `325296d9df6caaa80f3beb8b562c72a6e8bf6a3802a5fc3b50efed11276adcaf` |
+| a3 postverification | 105,607 | `b16d601a97d044a1988af1097f20592adb9062905bf57a6285cdbdca023e38e6` |
+| Independent causal decision | 33,472 | `0553d6ae3b367feeaa908be791c98e96ccf1c418a6ae4edb14aa26d0d8d7a721` |
+| Independent container audit | 114,805 | `1410bc20d839ae8b747c28ab62416554641311095dc7f7ae925ad9324d078233` |
+| Final archive audit | 8,044 | `b480bc0689254da99b016271cbb70a9fb746d9fd173c261c294de383f68decd2` |
+
+The companion JSON retains exact local paths, archive member provenance,
+asset IDs and source hashes. These records describe measurements and
+inspection already performed; they are not permission to repeat native work.
+
+---
+
+## Historical checkpoint document — 2026-11-11, preserved verbatim
+
+The content between the following markers is the original 30,477-byte
+Markdown from source checkpoint `306c80f0`, SHA256
+`643f42be222e1746a1ad72b641d7bca64affa9514fab133432d3eb0e21f9514c`.
+Its "current" and NOT_RUN statements describe that earlier checkpoint only.
+The current a2/a3 outcome is the publication section above.
+
+<!-- BEGIN HISTORICAL CYLINDER MARKDOWN 643f42be222e1746a1ad72b641d7bca64affa9514fab133432d3eb0e21f9514c -->
 # MuJoCo cylinder rest/tip qualification — 2026-11-11
 
 > **Working-tree optimization candidate: NEW_ADMISSION_NOT_RUN.** The historical a1 PASS below belongs to the original source at aaf8427f. The two changed source/spec files have pure proof only; no new registration or native run has occurred.
@@ -348,3 +549,5 @@ The proposed registration is **PROPOSED_NOT_REGISTERED**, based on aaf8427f plus
 Future native equivalence must compare exact completeTrajectoryDigest, all per-world full/parity/endpoint chains and retained physical record bytes. The only allowed journal-content difference is the explicitly identified invocation.sourceManifest. A different-source invocation naturally has a different whole-journal SHA; the present PURE proof nevertheless re-encoded every old frame byte-exact without exclusions.
 
 **STOP for independent delta review.** Candidate native admission, MAIN, replay, preregistration, commit, push, PR and convergence with main have not occurred.
+
+<!-- END HISTORICAL CYLINDER MARKDOWN 643f42be222e1746a1ad72b641d7bca64affa9514fab133432d3eb0e21f9514c -->
