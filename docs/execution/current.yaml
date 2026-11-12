@@ -17439,14 +17439,100 @@ parallel_lanes:
       - docs/product/student-progress/**
       - docs/agent/contracts/student-progress.yaml
     task:
-      id: TASK-STUDENT-PROGRESS-SUMMARY-001
+      id: TASK-STUDENT-PROGRESS-HOME-001
       issue: 1090
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: controller_proposed_sp02_after_sp01_combined_acceptance
+      checkpoint: controller_proposed_sp03_after_sp02_combined_acceptance
+      owner_acceptance: pending
+      program: ASA-STUDENT-PROGRESS-001
+      selected_step: SP-03
+      normative_refs:
+        - document: STUDENT-PROGRESS-MASTER-V1
+          revision: '1.0'
+        - document: STUDENT-PROGRESS-PLAN-V1
+          revision: '1.0'
+        - document: STUDENT-PROGRESS-UI-V1
+          revision: '1.0'
+        - document: STUDENT-PROGRESS-DATA-V1
+          revision: '1.0'
+      owner_authorization: The owner requested continued delivery of programme ASA-STUDENT-PROGRESS-001 and explicitly instructed that reviewed results be integrated into main. On 2026-11-12 the controller authorized this bounded conditional SP-03 selection proposal separately from the SP-02 product author. It authorizes SP-03 execution only after the genuine SP-02 plus governance candidate satisfies required exact-source CI and independent reviews and is accepted on main. It does not authorize deployment, live database operations or owner acceptance.
+      activation_condition: This selection has no execution authority while it exists only on the integration branch. Begin SP-03 only after acceptance of the combined SP-02 candidate on main with required General and ASA / required, successful new application-role PostgreSQL and genuine HTTP tests including resolver failures, bounded query counts and nested query-plan evidence, Publication regression with real built-browser coverage, AI Image Durable Queue with ASA_IMAGE_QUEUE_TEST=1 and its actual forward upgrade, applicable routing and independent composition/runtime review. No SP-03 product file is part of this proposal.
+      scope: 'SP-03 only: connect the accepted PersonalProgressSummaryV1 API to the existing personal Home and Learning surfaces. Show the actor own avatar, genuine publication statistics and bounded own group progress, while keeping the accepted shared shell, authoring actions and module availability behavior.'
+      planned_paths:
+        - apps/web/src/App.tsx
+        - apps/web/src/pages/CreatorHomePage.tsx
+        - apps/web/src/pages/LearningPage.tsx
+        - apps/web/src/creator-portal/PersonalProgress.tsx
+        - apps/web/src/creator-portal/personal-progress.ts
+        - apps/web/src/creator-portal/personal-progress.css
+        - apps/web/src/creator-portal/home-workspace.css
+        - apps/web/src/creator-portal/PersonalProgress.spec.ts
+        - apps/web/src/pages/testing/CreatorHomePage.spec.ts
+        - apps/web/src/pages/testing/LearningPage.spec.ts
+        - e2e/public-projects.spec.ts
+      constraints:
+        - Inherit this selection from accepted main. The product author must not edit current.yaml, select its own task, expand these 11 paths or begin before the activation condition is met.
+        - Recheck the exact accepted SP-02 DTO exports and endpoint semantics before implementation. Import the accepted DTO through the local adapter; do not duplicate a wire contract, invent counters or aggregate a partially loaded catalogue.
+        - 'App passes only an own presentation descriptor: Account kind/accountId/displayName, or Seat kind/seatId/classroomId/displayName/avatarKey. Preserve RawApp ClassroomStudentSession.student.avatarKey through studentSessionPayload. The descriptor is neither a wire DTO nor authorization proof.'
+        - Account avatars retain existing api.accountAvatar, event and fallback behavior. Seat avatars use seatAvatar(rawSeatId, avatarKey) and never invoke the Account avatar API for a Seat.
+        - The local hook clears, aborts and generation-checks by actor, scope, workspace/class and session continuity. Logout/relogin with the same ID, revocation and late responses must not restore stale counters or groups.
+        - Preserve PresentationProvider, QuickProjectCreator, LearningContext and quiz drafts. Do not edit QuickProjectCreator, the shared PublicProjectCard, PortalHeader or workflows.
+        - Home shows at most two own groups; Все группы uses the existing Learning navigation. Learning uses bounded pagination. No period selector, polling, per-profile loads, peer feed or unbounded group requests.
+        - 'Render canonical group score/rank/period faithfully: unknown or null is not zero, fractional values remain valid, ambiguous own membership is unavailable. Global rating remains not_enabled and that state alone is not partial; no invented global score or new scoring formula.'
+        - Use the agreed compact own-avatar presentation with overlaid place and rating badges and no denominator. Keep the established serious shared shell and separate loading, empty, partial, error, disabled and long-content states.
+        - All four existing module entrypoints remain visible when projects are empty or one request fails. Replace coupled Promise.all error handling with independent states inside the planned page files. Preserve existing confirmed module availability and create/retry behavior in QuickProjectCreator; filtered absence is neutral Сейчас недоступно, with no invented teacher reason.
+        - Limit private-card CSS to .creator-home .creator-module-feed with readable width, wrapping, min-width and natural height. Keep full Копия работы provenance, source and author visible; no clamp or shared-card redesign. Preserve wheel, touch and keyboard behavior.
+        - Label createdCopies with the tooltip Копии ваших работ. These are durable copy events, not file downloads or unique users. Do not add unsupported statistics or unavailable benefit promises.
+        - Use existing actionable state for one next learning action; do not create fictional assignments or promise a precise score increase. No new rating ledger, access thresholds, teacher controls, peers or backend work.
+        - Component tests cover the accepted data states and session lifecycle in the three planned executed .spec.ts files. The existing home-workspace.spec.ts is not an executed CI test and must not be cited as coverage.
+        - 'Add real browser evidence to existing e2e/public-projects.spec.ts, which Publication executes: Seat, Account with at least three groups, independent Account, third-group Learning access, empty and module failures, error/null/zero/fractional/ambiguous data, avatar fallback, auth switches and idempotent creation.'
+        - Verify Home and Learning at 1440/1024/390/320 with independent actual-image review. Compare header/sidebar before and after at confirmed scrollY=0 and verify viewport/focus rectangles; preserve primary actions and keyboard/touch/wheel interaction.
+        - Required General, real Publication PostgreSQL/browser, applicable existing workflow routes and independent source/runtime/image review must bind to the actual final SP-03 source. Source-only or cached results do not grant visual acceptance.
+        - No new migrations, dependencies, workflow changes, local server stacks, deployment, live database operations, owner acceptance or changes to unrelated lanes/blockers. The programme remains sequential; SP-04 requires its own controller selection.
+      context_hints:
+        - docs/product/student-progress/README.md
+        - docs/product/student-progress/tasks/SP-03-PERSONAL-HOME.md
+        - docs/product/student-progress/UI_CONTRACT.md
+        - docs/product/student-progress/DATA_AND_RATING_CONTRACT.md
+        - docs/agent/contracts/student-progress.yaml
+      next_dependency: SP-04 requires a separate controller selection after applicable SP-03 source, runtime and actual-image acceptance. API readiness alone is not an improved personal Home.
+      deployment: not_requested
+      database_actions: isolated_tests_only
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 4de9d20918f30c6598e3c425ed8339da3b85db1f
+      head_sha: null
+      observed_at: '2026-11-12T05:53:06Z'
+      main:
+        branch: main
+        sha: 4de9d20918f30c6598e3c425ed8339da3b85db1f
+      observation_note: Dated genuine controller composition from accepted main 4de9d20918f30c6598e3c425ed8339da3b85db1f and unchanged independently reviewed SP-02 source 9212a331e01591dcdc7b03baba6d3f82a45ea597. The predecessor records actual local checks and source approval, while new real PostgreSQL/HTTP/nested-plan evidence, AI Image Durable Queue opt-in upgrade, Publication and final combined CI/integration remain pending. The actual SP-01 source-to-main receipt and separate successful five-workflow main metadata are retained without relabeling old failures or images. SP-03 is conditional and inactive until the combined candidate is accepted on main after required evidence. All unrelated lanes, blockers, gate declarations and routing remain unchanged. Before further writes, fetch main and read the exact task, source and CI snapshot, then perform the complete planned-path preflight.
+    gates:
+      focused:
+        workflow: Public Projects Publication
+        commands:
+          - pnpm gate:projects-publication
+      browser:
+        workflow: Public Projects Publication
+        commands:
+          - pnpm gate:projects-publication:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    previous_task:
+      id: TASK-STUDENT-PROGRESS-SUMMARY-001
+      issue: 1090
+      branch: work/student-progress-summary-1090
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: source_reviewed_pending_combined_ci
       owner_acceptance: pending
       program: ASA-STUDENT-PROGRESS-001
       selected_step: SP-02
@@ -17488,12 +17574,14 @@ parallel_lanes:
         - Publication focused checks and required General apply to the actual final SP-02 source. Focused controller, PostgreSQL and HTTP cases and migration-tail regressions supplement them; absent PostgreSQL is not a passing data gate.
         - No SP-03 UI, rating ledger, new access thresholds, identity redesign, tenant/RLS redesign, destructive migration, workflow changes, local servers, deployment or live database operations. Existing unrelated blockers remain unchanged.
       migration_frontier_snapshot:
-        observed_at_utc: '2026-11-12T04:03:50Z'
-        accepted_main_sha: c633121afb0992c21799f3c3415f8e8660fad800
+        observed_at_utc: '2026-11-12T05:53:06Z'
+        accepted_main_sha: 4de9d20918f30c6598e3c425ed8339da3b85db1f
         frontier: 0319
         frontier_path: migrations/0319_canonical_read_boundaries_jit.sql
         candidate_path: migrations/0320_personal_progress_summary.sql
         refresh_required: Check fresh main and frontier again before publication of this selection and before SP-02 writes. A collision or changed planned path requires controller reconciliation; the product author must not silently renumber or edit old migrations.
+        candidate_source_sha: 9212a331e01591dcdc7b03baba6d3f82a45ea597
+        boundary: 0319 is the accepted-main frontier at this dated observation. 0320 exists only in the reviewed SP-02 candidate; it is not yet claimed as an accepted migration.
       context_hints:
         - docs/product/student-progress/README.md
         - docs/product/student-progress/tasks/SP-02-PROGRESS-SUMMARY.md
@@ -17502,380 +17590,582 @@ parallel_lanes:
       next_dependency: SP-03 requires its own controller selection after the applicable SP-02 checkpoint; API readiness alone is not acceptance of an improved personal home.
       deployment: not_requested
       database_actions: isolated_tests_only
-    revisions:
-      kind: observed_snapshot
-      convergence_baseline_sha: c633121afb0992c21799f3c3415f8e8660fad800
-      head_sha: null
-      observed_at: '2026-11-12T04:03:50Z'
-      main:
-        branch: main
-        sha: c633121afb0992c21799f3c3415f8e8660fad800
-      observation_note: Dated final controller composition from actual accepted main c633121afb0992c21799f3c3415f8e8660fad800, prior integration head a831716b830e24166b65567d46d12141a251413a and unchanged reviewed fallback product source 53d0f8cf6e4df4a3cfb3fafcb39dc5d38f83b891. Historical a831 CI and visual NEEDS_FIX, the fallback source checks, and the accepted separate Learning repair remain explicitly source-bound in previous_task. Final combined CI, browser, 21 expected PNGs and independent image/integration review are pending. SP-02 remains inactive until this genuine candidate is accepted on main after all required evidence. All unrelated lanes, blockers, gate declarations and routing are preserved. Before further writes, fetch main and the actual exact-SHA task and CI state, then run the complete planned-path preflight.
-    gates:
-      focused:
-        workflow: Public Projects Publication
-        commands:
-          - pnpm gate:projects-publication
-      browser:
-        workflow: Public Projects Publication
-        commands:
-          - pnpm gate:projects-publication:browser
-      general:
-        workflow: ASA Lab Governance and Code Gates
-        commands:
-          - pnpm gate:repository
-    previous_task:
-      id: TASK-STUDENT-PROGRESS-CARDS-001
-      issue: 1090
-      branch: work/student-progress-integration-1090
-      base_branch: main
-      pr: 1100
-      pr_draft: true
-      status: in_progress
-      checkpoint: fallback_source_reviewed_pending_final_combined_ci
-      owner_acceptance: pending
-      program: ASA-STUDENT-PROGRESS-001
-      selected_step: SP-01
-      normative_refs:
-        - document: STUDENT-PROGRESS-MASTER-V1
-          revision: '1.0'
-        - document: STUDENT-PROGRESS-PLAN-V1
-          revision: '1.0'
-        - document: STUDENT-PROGRESS-UI-V1
-          revision: '1.0'
-      owner_authorization: 'On 2026-11-11 the owner accepted the prepared student-progress specification package and instructed the controller to proceed: separately address CI blocker1093, integrate specification PR1091 and implement the first publication-card step. This authorizes tested source integration of those bounded steps. It does not grant deployment, live database operations or owner acceptance of unbuilt UI.'
-      scope: 'SP-01 only: extract the existing public catalog card as one shared PublicProjectCard and reuse it in Creator Home. Add the secondary community subtitle. Preserve the accepted shell, catalog behavior, knowledge cards, public data meanings, on-demand preview lifecycle and all authorization semantics.'
-      planned_paths:
-        - apps/web/src/projects-public/PublicProjectCard.tsx
-        - apps/web/src/projects-public/PublicProjectsPage.tsx
-        - apps/web/src/creator-portal/HomePublicShelves.tsx
-        - apps/web/src/projects-public/public-projects.css
-        - apps/web/src/creator-portal/home-workspace.css
-        - apps/web/src/projects-public/PublicProjectsPage.spec.ts
-        - apps/web/src/creator-portal/HomePublicShelves.spec.ts
-        - e2e/public-projects.spec.ts
-      constraints:
-        - This is a governance-only selection proposal; product code may start only after acceptance on main.
-        - Inherit this canonical selection; do not select or expand the product task from its own branch.
-        - One author implements only SP-01; independent review verifies the final candidate before integration.
-        - No API, migration, rating calculation, permission, header, sidebar or preview-runtime redesign.
-        - Preserve KnowledgeCard consumers of home-public-card and lazy loading of the existing shelf.
-        - Keep actual zero counts distinct from unavailable copyCount; use the existing meaning Added to own projects.
-        - Verify one real publication on Home and catalog at 1440,1024,390,320 against built API and Web.
-        - No product acceptance by static reference, source tests or conditional mock data alone.
-        - General and focused checks apply to the actual final source; CI1093 is not cleared by this selection text.
-        - Existing unrelated acceptance and deployment blockers remain unchanged.
-      registration_predecessor:
-        task_id: TASK-STUDENT-PROGRESS-SPEC-001
-        step: SP-00
-        specification_pr: 1091
-        reviewed_source_sha: 46eb00c081ec5560a7464b32e574b8a6cbe2325c
-        source_review: approved
-        design_decision: owner_accepted_specification_and_requested_implementation
-        integration_boundary: This selection takes effect only when the specification proposal is accepted on main.
-      context_hints:
-        - docs/product/student-progress/README.md
-        - docs/product/student-progress/tasks/SP-01-PUBLICATION-CARDS.md
-        - docs/product/student-progress/UI_CONTRACT.md
-        - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
-      next_dependency: SP-02 requires a new controller selection after the applicable SP-01 checkpoint.
-      deployment: not_requested
-      database_actions: isolated_tests_only
-      observed_at_utc: '2026-11-12T04:03:50Z'
-      local_source_sha: 1208c4493af65aeadb15a12f445b4a973b526d39
-      published_source_sha: 53d0f8cf6e4df4a3cfb3fafcb39dc5d38f83b891
-      source_tree_sha: adcbe43be231558524202710181e9d7c34090f9a
-      source_parent_sha: 3a0074f099c997b8504b9f3c590833e6098ab73c
-      source_preservation: The eight reviewed product blobs and modes are preserved on work/student-progress-card-fallback-1090, with only the approved CSS and existing E2E correction relative to source parent 3a. This source branch has no PR and is not runtime, visual or main acceptance.
+      observed_at_utc: '2026-11-12T05:53:06Z'
+      local_source_sha: 9212a331e01591dcdc7b03baba6d3f82a45ea597
+      source_tree_sha: 94f814df314e075e855a4d2e4b914d771d2a2ee9
+      source_parent_sha: f76d033b28b7a3bd93476b1292b867d6a2c8cd38
+      accepted_base_sha: 4de9d20918f30c6598e3c425ed8339da3b85db1f
+      published_source_sha: null
+      remote_publication: not_performed
       source_review:
         verdict: approved
-        reviewed_local_sha: 1208c4493af65aeadb15a12f445b4a973b526d39
-        reviewed_tree_sha: adcbe43be231558524202710181e9d7c34090f9a
-        published_source_sha: 53d0f8cf6e4df4a3cfb3fafcb39dc5d38f83b891
-        reviewer: independent review_student_cards
-        transfer_condition: All eight product blob SHAs and file modes in the final controller composition must remain identical to published source 53d0f8cf6e4df4a3cfb3fafcb39dc5d38f83b891.
+        reviewer: independent review_student_data_plan
+        reviewed_local_sha: 9212a331e01591dcdc7b03baba6d3f82a45ea597
+        reviewed_tree_sha: 94f814df314e075e855a4d2e4b914d771d2a2ee9
+        reviewed_parent_sha: f76d033b28b7a3bd93476b1292b867d6a2c8cd38
+        evidence_origin: The programme controller confirmed independent exact-source APPROVE in the bounded composition GO after inspecting the correction diff and receipts.
+        closed_source_findings:
+          - HTTP query accounting observes acquired client queries through call-through spies.
+          - Account and Seat resolver failures return explicit unavailable 503 responses.
+          - The real PostgreSQL fixture captures nested auto_explain plans and fails when required plan evidence is absent.
+        runtime_boundary: Source findings are closed; the new real PostgreSQL, HTTP and nested-plan assertions have not run yet.
+        transfer_condition: All 13 reviewed product blob SHAs and file modes must remain identical to the corrected source in the controller composition.
+      source_receipts:
+        frozen_source:
+          path: /workspace/scratch/4d23fca48572/sp02-corrected-frozen-source.json
+          sha256: 4b038902c280c403d79967ab8e7f4dbf3b8abfb1b3e3196e815e8d47f64a3ffc
+        manifest:
+          path: /workspace/scratch/4d23fca48572/sp02-corrected-manifest.json
+          sha256: 24a7b0c2fa3c1984dea21dd04c01165ac98f8698e04d34e1381bb9c9601d16a7
+        preservation:
+          path: /workspace/scratch/4d23fca48572/sp02-correction-preservation.json
+          sha256: cdfd64e3a52b3f47923016d47f8720dd16cd9b408f22e6fff401b956d6cfb632
+        checks:
+          path: /workspace/scratch/4d23fca48572/sp02-corrected-checks.json
+          sha256: f34204f804bb82447f273b2aebc0157f13f6b8d042cdc114786809850ae2dee8
       local_check_receipts:
-        historical_full_focused:
-          source_sha: 03763924a081d639a9944c165a570764a7976697
-          environment:
-            NX_SKIP_NX_CACHE: 'true'
-            NX_DAEMON: 'false'
-          vitest:
-            command: corepack pnpm exec vitest run apps/web/src/projects-public/PublicProjectsPage.spec.ts apps/web/src/creator-portal/HomePublicShelves.spec.ts tests/portal/creator-home.spec.ts
-            result: 20 passed / 20
-          web_typecheck:
-            command: corepack pnpm exec nx run web:typecheck
-            result: 8 tasks actually executed and passed
-            duration_seconds: 34.3
-          identity_build:
-            command: corepack pnpm exec nx run identity:build
-            result: pass
-            duration_seconds: 1.4
-          e2e_typecheck:
-            command: corepack pnpm exec tsc --noEmit --target ES2022 --module esnext --moduleResolution bundler --skipLibCheck --strict --types node --allowSyntheticDefaultImports e2e/public-projects.spec.ts
-            result: pass
-          eslint: pass on five TS/TSX files, as recorded in the verified author handoff
-          prettier: pass on all eight product paths
-          evidence_origin: Exact commands, source and results transmitted by the programme controller from the verified author handoff; no unverified artifact path is asserted.
-          boundary: These results apply to the preceding source only; they are not a fresh full run of the corrected source.
-        corrected_source:
-          source_sha: 0fdab92674fd2819d4d725fb2bf5f740ef95ee2a
-          change_from_previous: Reviewed copy-glyph correction only.
-          format: pass, targeted PublicProjectCard.tsx
-          lint: pass, targeted PublicProjectCard.tsx
-          diff_check: pass
-          verify_plan: pass, full eight-path plan
-          fresh_full_focused_run: not_run
-          evidence_origin: Corrected-source author handoff and independent source approval confirmed by the programme controller; no unverified artifact path is asserted.
-        fallback_correction_source:
-          source_sha: 1208c4493af65aeadb15a12f445b4a973b526d39
-          tree_sha: adcbe43be231558524202710181e9d7c34090f9a
-          pnpm_version: 9.15.9
-          environment:
-            NX_SKIP_NX_CACHE: 'true'
-            NX_DAEMON: 'false'
-          checks:
-            - name: format
-              command:
-                - corepack
-                - pnpm
-                - exec
-                - prettier
-                - --check
-                - apps/web/src/projects-public/public-projects.css
-                - e2e/public-projects.spec.ts
-              started: '2026-11-12T03:02:51.188344+00:00'
-              finished: '2026-11-12T03:02:53.030445+00:00'
-              exit_code: 0
-            - name: lint
-              command:
-                - corepack
-                - pnpm
-                - exec
-                - eslint
-                - e2e/public-projects.spec.ts
-                - --max-warnings
-                - '0'
-              started: '2026-11-12T03:02:51.188672+00:00'
-              finished: '2026-11-12T03:02:54.363824+00:00'
-              exit_code: 0
-            - name: identity-build
-              command:
-                - corepack
-                - pnpm
-                - exec
-                - nx
-                - run
-                - identity:build
-              started: '2026-11-12T03:02:51.189063+00:00'
-              finished: '2026-11-12T03:02:55.202101+00:00'
-              exit_code: 0
-            - name: e2e-typecheck
-              command:
-                - corepack
-                - pnpm
-                - exec
-                - tsc
-                - --noEmit
-                - --target
-                - ES2022
-                - --module
-                - esnext
-                - --moduleResolution
-                - bundler
-                - --skipLibCheck
-                - --strict
-                - --types
-                - node
-                - --allowSyntheticDefaultImports
-                - e2e/public-projects.spec.ts
-              started: '2026-11-12T03:02:55.203068+00:00'
-              finished: '2026-11-12T03:02:57.057235+00:00'
-              exit_code: 0
-          final_verify_plan:
+        source_sha: 9212a331e01591dcdc7b03baba6d3f82a45ea597
+        environment:
+          NX_SKIP_NX_CACHE: 'true'
+          NX_DAEMON: 'false'
+        checks:
+          - name: controller-unit
             command:
               - corepack
               - pnpm
-              - agent:preflight
-              - --scope
-              - student-progress
-              - --verify-plan
-              - --diff-base
-              - 3e14b615961770849144668b961df822c0f4527a
-              - --planned-path
-              - apps/web/src/projects-public/PublicProjectCard.tsx
-              - --planned-path
-              - apps/web/src/projects-public/PublicProjectsPage.tsx
-              - --planned-path
-              - apps/web/src/creator-portal/HomePublicShelves.tsx
-              - --planned-path
-              - apps/web/src/projects-public/public-projects.css
-              - --planned-path
-              - apps/web/src/creator-portal/home-workspace.css
-              - --planned-path
-              - apps/web/src/projects-public/PublicProjectsPage.spec.ts
-              - --planned-path
-              - apps/web/src/creator-portal/HomePublicShelves.spec.ts
-              - --planned-path
-              - e2e/public-projects.spec.ts
-            started: '2026-11-12T03:03:59.009732+00:00'
-            finished: '2026-11-12T03:04:13.040357+00:00'
-            exit_code: 0
-          fresh_full_vitest_and_web_typecheck: not_run
-          browser: not_run
-          ci_at_local_receipt: not_run
-          receipt_sha256: 8d66006441220cc22d6f78afeb2b1d92afcb902835bcd0ed54cb44b0de62058f
-          evidence_origin: Previously executed exact-correction author candidate receipt verified by the controller and integrator. No author checks were rerun for this transfer; older full checks remain bound to their original sources.
+              - exec
+              - vitest
+              - run
+              - apps/api/src/personal-progress.controller.spec.ts
+            exitCode: 0
+            seconds: 2.67
+            log: /workspace/scratch/4d23fca48572/sp02-correction-controller-unit.log
+          - name: api-types
+            command:
+              - corepack
+              - pnpm
+              - exec
+              - tsc
+              - -p
+              - apps/api/tsconfig.json
+              - --noEmit
+            exitCode: 0
+            seconds: 8.91
+            log: /workspace/scratch/4d23fca48572/sp02-correction-api-types.log
+          - name: api-build
+            command:
+              - corepack
+              - pnpm
+              - nx
+              - run
+              - api:build
+            exitCode: 0
+            seconds: 17.72
+            log: /workspace/scratch/4d23fca48572/sp02-correction-api-build.log
+          - name: focused-types
+            command:
+              - node
+              - /workspace/scratch/4d23fca48572/sp02-focused-typecheck.cjs
+            exitCode: 0
+            seconds: 3.3
+            log: /workspace/scratch/4d23fca48572/sp02-correction-final-focused-types.log
+          - name: lint
+            command:
+              - corepack
+              - pnpm
+              - exec
+              - eslint
+              - apps/api/src/personal-progress.controller.ts
+              - apps/api/src/personal-progress.controller.spec.ts
+              - tests/portal/personal-progress.pg.spec.ts
+              - tests/portal/personal-progress.http.pg.spec.ts
+            exitCode: 0
+            seconds: 2.95
+            log: /workspace/scratch/4d23fca48572/sp02-correction-final-lint.log
+          - name: format
+            command:
+              - corepack
+              - pnpm
+              - exec
+              - prettier
+              - --check
+              - apps/api/src/personal-progress.controller.ts
+              - apps/api/src/personal-progress.controller.spec.ts
+              - tests/portal/personal-progress.pg.spec.ts
+              - tests/portal/personal-progress.http.pg.spec.ts
+            exitCode: 0
+            seconds: 1.6
+            log: /workspace/scratch/4d23fca48572/sp02-correction-final-format.log
+        controller_unit_tests:
+          passed: 25
+          failed: 0
+        api_build:
+          target: api:build
+          dependency_tasks: 18
+          fresh_tasks: 19
+          nx_cache: skipped
+        full_13_path_verify_plan:
+          status: PLAN_VALID
+          log: /workspace/scratch/4d23fca48572/sp02-correction-verify-plan.log
+          sha256: 8bec74abd10f9ad8663f03b5149216753ba733a8f1e35be8de9d39e0fe1c848f
+          boundary: Author verification covers the complete 13-path candidate; the controller will separately verify its complete 14-path composition.
+        historical_correction_attempts: The checks receipt retains the initial two exactOptionalPropertyTypes diagnostics in the test-only plan observer and the successful corrected focused typecheck. No failed attempt is relabeled as PASS.
+        real_postgresql_http: not_run
+        nested_plan_execution: not_run
       combined_acceptance_snapshot:
-        observed_at_utc: '2026-11-12T04:03:50Z'
-        integration_pr: 1100
-        previous_pr_head_sha: a831716b830e24166b65567d46d12141a251413a
-        new_combined_source_sha: null
-        general: pending
-        publication_code_and_postgresql: not_run
-        publication_real_browser: not_run
-        applicable_learning_and_other_workflows: pending
-        layout_1440_1024_390_320: not_run
-        expected_png_count: 21
-        actual_png_count: null
-        png_evidence: pending
-        independent_image_review: pending
-        source_transfer_and_governance_review: pending
-        integration_review: pending
+        observed_at_utc: '2026-11-12T05:53:06Z'
+        final_published_source_sha: null
+        general_and_required: pending
+        new_summary_postgresql_and_http: not_run
+        nested_auto_explain_plan_evidence: not_run
+        publication_regression_postgresql_and_real_browser: not_run
+        ai_image_durable_queue_real_upgrade: not_run
+        ai_image_queue_required_environment: ASA_IMAGE_QUEUE_TEST=1
+        scratch_documentation_and_other_applicable_routing: pending
+        independent_composition_review: pending
+        independent_runtime_evidence_review: pending
         source_integration: pending
         owner_acceptance: pending
-        boundary: Dated local final-composition proposal. The 21 PNGs are expected evidence, not captured images. Fresh CI and actual-image review must bind to the final published source; no future SHA, PASS, visual acceptance or main integration is asserted.
-      accepted_registration_receipt:
-        task_id: TASK-STUDENT-PROGRESS-SPEC-001
-        step: SP-00
-        specification_pr: 1091
-        reviewed_published_source_sha: b25a07b17ed0026db7aeb055024ad4fa8a8d29da
-        accepted_main_sha: 3e14b615961770849144668b961df822c0f4527a
-        accepted_tree_sha: 29df90587152f70ec47505e34a29bd163e15946f
-        accepted_main_parent_sha: 18755e175049d5180ffdf84cf1066405cf2bb093
-        integrated_at_utc: '2026-11-12T01:28:41Z'
-        source_general_run: 43130365874
-        source_general_conclusion: success
-        source_required_job: 130905196819
-        source_required_conclusion: success
-        source_routing_run: 43130365924
-        source_routing_conclusion: success
-        source_final_cla_run: 43134708151
-        source_final_cla_conclusion: success
-        independent_integration_review: approved
-        scope: Accepted 25 SP-00 documents and canonical SP-01 selection. This receipt does not claim product UI implementation, visual owner acceptance, deployment or a completed post-merge main workflow.
-      transition_boundary: This genuine controller proposal combines the unchanged reviewed SP-01 source and the conditional SP-02 selection. SP-02 must not start before the combined candidate has required General, real Publication PostgreSQL/browser and independent real-image acceptance and is accepted on main.
-      historical_source_preservation:
-        observed_at_utc: '2026-11-12T02:10:23Z'
-        local_source_sha: 0fdab92674fd2819d4d725fb2bf5f740ef95ee2a
-        published_source_sha: 3a0074f099c997b8504b9f3c590833e6098ab73c
-        source_tree_sha: 41e2d9edba2898f6827397da0ab098f2aebdb7b6
-        source_parent_sha: 3e14b615961770849144668b961df822c0f4527a
-        source_review:
-          verdict: approved
-          reviewed_local_sha: 0fdab92674fd2819d4d725fb2bf5f740ef95ee2a
-          reviewed_tree_sha: 41e2d9edba2898f6827397da0ab098f2aebdb7b6
-          reviewer: independent review_student_cards
-          transfer_condition: All eight product blob SHAs and file modes in the controller composition must remain identical to this reviewed source.
-        boundary: Earlier reviewed product source; its local checks remain separately bound to their original SHAs below.
-      historical_prepublication_snapshot:
-        observed_at_utc: '2026-11-12T02:10:23Z'
-        general: pending
-        publication_code_and_postgresql: not_run
-        publication_real_browser: not_run
-        layout_1440_1024_390_320: not_run
-        independent_image_review: pending
-        integration_review: pending
-        source_integration: pending
-        owner_acceptance: pending
-        boundary: Dated pre-publication snapshot, not a live CI status. Final evidence must refer to the actual combined source in GitHub Actions and its PR. No future candidate SHA, workflow result or image acceptance is asserted here.
-      historical_combined_evidence:
-        observed_at_utc: '2026-11-12T03:03:38.029Z'
-        source_sha: a831716b830e24166b65567d46d12141a251413a
-        source_tree_sha: 886e86f9ea0d0f1c984cbdb2892deb08592b1a8a
+        boundary: Dated local controller proposal only. No future SHA, PostgreSQL/HTTP/plan PASS, General success, browser acceptance or main integration is asserted. General alone does not execute the opt-in real ai-image-queue upgrade case.
+      accepted_predecessor:
+        id: TASK-STUDENT-PROGRESS-CARDS-001
+        issue: 1090
+        branch: work/student-progress-integration-1090
+        base_branch: main
         pr: 1100
-        general:
-          run: 43141829869
-          attempt: 1
-          conclusion: success
-          required_job: 130942131213
-          required_conclusion: success
-        publication:
-          run: 43141829591
-          attempt: 1
-          conclusion: success
-          job: 130930519194
-          browser_passed: 8
-          browser_skipped: 0
-          actual_pngs: 15
-          artifact: 13910063301
-        independent_image_review:
-          verdict: NEEDS_FIX
-          priority: P2
-          finding: At catalogue 320px the image-error text was overlapped by the lower overlay.
-        learning:
-          run: 43141829931
-          first_job: 130930508119
-          conclusion: failure
-          classification: C_INDEPENDENT_EXISTING_LEARNING_TEST_SYNCHRONIZATION_DEFECT
-          cause_observed_at_utc: '2026-11-12T03:06:08.131798+00:00'
-          repair_issue: 1101
-          cause: Learner reload and empty course reads completed before the successful teacher assignment receipt; no later learner GET occurred. Separate accepted baseline repair adds exact V1/V2 teacher-success waits.
-        source_metadata_receipt_sha256: 0ed4a3bf8b3542236e5cab359550ae439acb5d9a1c6adf5e2c070fc68166b1b9
-        publication_test_receipt_sha256: 428d0057d84fa28d777eb892c578a2a64bed65601b03228156b7b4a9968c3139
-        learning_cause_receipt_sha256: 5e75c5c002c16a289d2a00f2e2478e72306ed0737267803ff2477da0242e98c5
-        acceptance: not_accepted
-        boundary: Historical exact-a831 evidence only. Neither the successful workflows nor the 15 images establish acceptance of the fallback correction or the final composition.
-      fallback_preservation_receipt:
-        observed_at_utc: 2026-11-12 03:19:49 UTC
+        pr_draft: true
+        status: in_progress
+        checkpoint: fallback_source_reviewed_pending_final_combined_ci
+        owner_acceptance: pending
+        program: ASA-STUDENT-PROGRESS-001
+        selected_step: SP-01
+        normative_refs:
+          - document: STUDENT-PROGRESS-MASTER-V1
+            revision: '1.0'
+          - document: STUDENT-PROGRESS-PLAN-V1
+            revision: '1.0'
+          - document: STUDENT-PROGRESS-UI-V1
+            revision: '1.0'
+        owner_authorization: 'On 2026-11-11 the owner accepted the prepared student-progress specification package and instructed the controller to proceed: separately address CI blocker1093, integrate specification PR1091 and implement the first publication-card step. This authorizes tested source integration of those bounded steps. It does not grant deployment, live database operations or owner acceptance of unbuilt UI.'
+        scope: 'SP-01 only: extract the existing public catalog card as one shared PublicProjectCard and reuse it in Creator Home. Add the secondary community subtitle. Preserve the accepted shell, catalog behavior, knowledge cards, public data meanings, on-demand preview lifecycle and all authorization semantics.'
+        planned_paths:
+          - apps/web/src/projects-public/PublicProjectCard.tsx
+          - apps/web/src/projects-public/PublicProjectsPage.tsx
+          - apps/web/src/creator-portal/HomePublicShelves.tsx
+          - apps/web/src/projects-public/public-projects.css
+          - apps/web/src/creator-portal/home-workspace.css
+          - apps/web/src/projects-public/PublicProjectsPage.spec.ts
+          - apps/web/src/creator-portal/HomePublicShelves.spec.ts
+          - e2e/public-projects.spec.ts
+        constraints:
+          - This is a governance-only selection proposal; product code may start only after acceptance on main.
+          - Inherit this canonical selection; do not select or expand the product task from its own branch.
+          - One author implements only SP-01; independent review verifies the final candidate before integration.
+          - No API, migration, rating calculation, permission, header, sidebar or preview-runtime redesign.
+          - Preserve KnowledgeCard consumers of home-public-card and lazy loading of the existing shelf.
+          - Keep actual zero counts distinct from unavailable copyCount; use the existing meaning Added to own projects.
+          - Verify one real publication on Home and catalog at 1440,1024,390,320 against built API and Web.
+          - No product acceptance by static reference, source tests or conditional mock data alone.
+          - General and focused checks apply to the actual final source; CI1093 is not cleared by this selection text.
+          - Existing unrelated acceptance and deployment blockers remain unchanged.
+        registration_predecessor:
+          task_id: TASK-STUDENT-PROGRESS-SPEC-001
+          step: SP-00
+          specification_pr: 1091
+          reviewed_source_sha: 46eb00c081ec5560a7464b32e574b8a6cbe2325c
+          source_review: approved
+          design_decision: owner_accepted_specification_and_requested_implementation
+          integration_boundary: This selection takes effect only when the specification proposal is accepted on main.
+        context_hints:
+          - docs/product/student-progress/README.md
+          - docs/product/student-progress/tasks/SP-01-PUBLICATION-CARDS.md
+          - docs/product/student-progress/UI_CONTRACT.md
+          - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
+        next_dependency: SP-02 requires a new controller selection after the applicable SP-01 checkpoint.
+        deployment: not_requested
+        database_actions: isolated_tests_only
+        observed_at_utc: '2026-11-12T04:03:50Z'
         local_source_sha: 1208c4493af65aeadb15a12f445b4a973b526d39
         published_source_sha: 53d0f8cf6e4df4a3cfb3fafcb39dc5d38f83b891
-        exact_tree_and_parent_verified: true
-        publication_preflight: PLAN_VALID
-        source_branch_automatic_runs_at_snapshot: 0
-        runtime: not_run
-        visual: not_run
-        receipt_sha256: 80bf8ec9d6f3643cbff7c77b453817a04d167f692958b92735d0ebf1fcb07853
-      accepted_learning_repair_receipt:
-        issue: 1101
-        parent_issue: 179
-        pr: 1102
-        source_sha: 506fe83e43f0a0fc61442ec2ab8924b53dad27e7
-        accepted_main_sha: c633121afb0992c21799f3c3415f8e8660fad800
-        accepted_tree_sha: e97512a1efbe9ba93eba8a271c7160ecd2b07f4d
-        accepted_main_parent_sha: 3e14b615961770849144668b961df822c0f4527a
-        merged_at_utc: '2026-11-12T03:56:55Z'
-        scope: Only e2e/learning-course-01.spec.ts, six additions and zero deletions; exact teacher success for selected course and V1/V2 before learner reload. Existing assertions, deadlines and retries preserved.
-        source_general:
-          run: 43148237047
-          conclusion: success
-          required_job: 130960617472
-          required_conclusion: success
-        source_learning:
-          run: 43148237104
-          conclusion: success
-          target_case: Course Builder persists informational block structural controls into future versions only
-          target_case_result: pass
-          target_case_seconds: 13.8
-          first_browser_passed: 32
-          first_browser_skipped: 0
-        source_latest_cla:
-          run: 43151457989
-          job: 130961354545
-          conclusion: success
-        source_and_runtime_review: approved
-        integration_receipt_sha256: 1f0511ec5c4374fac5a0b5166e38565e0531588caef344de9912a67c87446ed8
-        post_merge_main_snapshot:
+        source_tree_sha: adcbe43be231558524202710181e9d7c34090f9a
+        source_parent_sha: 3a0074f099c997b8504b9f3c590833e6098ab73c
+        source_preservation: The eight reviewed product blobs and modes are preserved on work/student-progress-card-fallback-1090, with only the approved CSS and existing E2E correction relative to source parent 3a. This source branch has no PR and is not runtime, visual or main acceptance.
+        source_review:
+          verdict: approved
+          reviewed_local_sha: 1208c4493af65aeadb15a12f445b4a973b526d39
+          reviewed_tree_sha: adcbe43be231558524202710181e9d7c34090f9a
+          published_source_sha: 53d0f8cf6e4df4a3cfb3fafcb39dc5d38f83b891
+          reviewer: independent review_student_cards
+          transfer_condition: All eight product blob SHAs and file modes in the final controller composition must remain identical to published source 53d0f8cf6e4df4a3cfb3fafcb39dc5d38f83b891.
+        local_check_receipts:
+          historical_full_focused:
+            source_sha: 03763924a081d639a9944c165a570764a7976697
+            environment:
+              NX_SKIP_NX_CACHE: 'true'
+              NX_DAEMON: 'false'
+            vitest:
+              command: corepack pnpm exec vitest run apps/web/src/projects-public/PublicProjectsPage.spec.ts apps/web/src/creator-portal/HomePublicShelves.spec.ts tests/portal/creator-home.spec.ts
+              result: 20 passed / 20
+            web_typecheck:
+              command: corepack pnpm exec nx run web:typecheck
+              result: 8 tasks actually executed and passed
+              duration_seconds: 34.3
+            identity_build:
+              command: corepack pnpm exec nx run identity:build
+              result: pass
+              duration_seconds: 1.4
+            e2e_typecheck:
+              command: corepack pnpm exec tsc --noEmit --target ES2022 --module esnext --moduleResolution bundler --skipLibCheck --strict --types node --allowSyntheticDefaultImports e2e/public-projects.spec.ts
+              result: pass
+            eslint: pass on five TS/TSX files, as recorded in the verified author handoff
+            prettier: pass on all eight product paths
+            evidence_origin: Exact commands, source and results transmitted by the programme controller from the verified author handoff; no unverified artifact path is asserted.
+            boundary: These results apply to the preceding source only; they are not a fresh full run of the corrected source.
+          corrected_source:
+            source_sha: 0fdab92674fd2819d4d725fb2bf5f740ef95ee2a
+            change_from_previous: Reviewed copy-glyph correction only.
+            format: pass, targeted PublicProjectCard.tsx
+            lint: pass, targeted PublicProjectCard.tsx
+            diff_check: pass
+            verify_plan: pass, full eight-path plan
+            fresh_full_focused_run: not_run
+            evidence_origin: Corrected-source author handoff and independent source approval confirmed by the programme controller; no unverified artifact path is asserted.
+          fallback_correction_source:
+            source_sha: 1208c4493af65aeadb15a12f445b4a973b526d39
+            tree_sha: adcbe43be231558524202710181e9d7c34090f9a
+            pnpm_version: 9.15.9
+            environment:
+              NX_SKIP_NX_CACHE: 'true'
+              NX_DAEMON: 'false'
+            checks:
+              - name: format
+                command:
+                  - corepack
+                  - pnpm
+                  - exec
+                  - prettier
+                  - --check
+                  - apps/web/src/projects-public/public-projects.css
+                  - e2e/public-projects.spec.ts
+                started: '2026-11-12T03:02:51.188344+00:00'
+                finished: '2026-11-12T03:02:53.030445+00:00'
+                exit_code: 0
+              - name: lint
+                command:
+                  - corepack
+                  - pnpm
+                  - exec
+                  - eslint
+                  - e2e/public-projects.spec.ts
+                  - --max-warnings
+                  - '0'
+                started: '2026-11-12T03:02:51.188672+00:00'
+                finished: '2026-11-12T03:02:54.363824+00:00'
+                exit_code: 0
+              - name: identity-build
+                command:
+                  - corepack
+                  - pnpm
+                  - exec
+                  - nx
+                  - run
+                  - identity:build
+                started: '2026-11-12T03:02:51.189063+00:00'
+                finished: '2026-11-12T03:02:55.202101+00:00'
+                exit_code: 0
+              - name: e2e-typecheck
+                command:
+                  - corepack
+                  - pnpm
+                  - exec
+                  - tsc
+                  - --noEmit
+                  - --target
+                  - ES2022
+                  - --module
+                  - esnext
+                  - --moduleResolution
+                  - bundler
+                  - --skipLibCheck
+                  - --strict
+                  - --types
+                  - node
+                  - --allowSyntheticDefaultImports
+                  - e2e/public-projects.spec.ts
+                started: '2026-11-12T03:02:55.203068+00:00'
+                finished: '2026-11-12T03:02:57.057235+00:00'
+                exit_code: 0
+            final_verify_plan:
+              command:
+                - corepack
+                - pnpm
+                - agent:preflight
+                - --scope
+                - student-progress
+                - --verify-plan
+                - --diff-base
+                - 3e14b615961770849144668b961df822c0f4527a
+                - --planned-path
+                - apps/web/src/projects-public/PublicProjectCard.tsx
+                - --planned-path
+                - apps/web/src/projects-public/PublicProjectsPage.tsx
+                - --planned-path
+                - apps/web/src/creator-portal/HomePublicShelves.tsx
+                - --planned-path
+                - apps/web/src/projects-public/public-projects.css
+                - --planned-path
+                - apps/web/src/creator-portal/home-workspace.css
+                - --planned-path
+                - apps/web/src/projects-public/PublicProjectsPage.spec.ts
+                - --planned-path
+                - apps/web/src/creator-portal/HomePublicShelves.spec.ts
+                - --planned-path
+                - e2e/public-projects.spec.ts
+              started: '2026-11-12T03:03:59.009732+00:00'
+              finished: '2026-11-12T03:04:13.040357+00:00'
+              exit_code: 0
+            fresh_full_vitest_and_web_typecheck: not_run
+            browser: not_run
+            ci_at_local_receipt: not_run
+            receipt_sha256: 8d66006441220cc22d6f78afeb2b1d92afcb902835bcd0ed54cb44b0de62058f
+            evidence_origin: Previously executed exact-correction author candidate receipt verified by the controller and integrator. No author checks were rerun for this transfer; older full checks remain bound to their original sources.
+        combined_acceptance_snapshot:
           observed_at_utc: '2026-11-12T04:03:50Z'
-          runs:
-            - id: 43151545880
-              name: ASA Lab Governance and Code Gates
-              head_sha: c633121afb0992c21799f3c3415f8e8660fad800
-              attempt: 1
-              status: in_progress
-              conclusion: null
-          boundary: Dated pending main snapshot, separate from completed source evidence. No post-merge main PASS is claimed here.
-        boundary: Learning bytes are inherited exclusively from accepted main and are outside the final SP-01 diff. This repair does not close parent task179, the student-progress programme or LRN-E1-CORRECTIONS.
+          integration_pr: 1100
+          previous_pr_head_sha: a831716b830e24166b65567d46d12141a251413a
+          new_combined_source_sha: null
+          general: pending
+          publication_code_and_postgresql: not_run
+          publication_real_browser: not_run
+          applicable_learning_and_other_workflows: pending
+          layout_1440_1024_390_320: not_run
+          expected_png_count: 21
+          actual_png_count: null
+          png_evidence: pending
+          independent_image_review: pending
+          source_transfer_and_governance_review: pending
+          integration_review: pending
+          source_integration: pending
+          owner_acceptance: pending
+          boundary: Dated local final-composition proposal. The 21 PNGs are expected evidence, not captured images. Fresh CI and actual-image review must bind to the final published source; no future SHA, PASS, visual acceptance or main integration is asserted.
+        accepted_registration_receipt:
+          task_id: TASK-STUDENT-PROGRESS-SPEC-001
+          step: SP-00
+          specification_pr: 1091
+          reviewed_published_source_sha: b25a07b17ed0026db7aeb055024ad4fa8a8d29da
+          accepted_main_sha: 3e14b615961770849144668b961df822c0f4527a
+          accepted_tree_sha: 29df90587152f70ec47505e34a29bd163e15946f
+          accepted_main_parent_sha: 18755e175049d5180ffdf84cf1066405cf2bb093
+          integrated_at_utc: '2026-11-12T01:28:41Z'
+          source_general_run: 43130365874
+          source_general_conclusion: success
+          source_required_job: 130905196819
+          source_required_conclusion: success
+          source_routing_run: 43130365924
+          source_routing_conclusion: success
+          source_final_cla_run: 43134708151
+          source_final_cla_conclusion: success
+          independent_integration_review: approved
+          scope: Accepted 25 SP-00 documents and canonical SP-01 selection. This receipt does not claim product UI implementation, visual owner acceptance, deployment or a completed post-merge main workflow.
+        transition_boundary: This genuine controller proposal combines the unchanged reviewed SP-01 source and the conditional SP-02 selection. SP-02 must not start before the combined candidate has required General, real Publication PostgreSQL/browser and independent real-image acceptance and is accepted on main.
+        historical_source_preservation:
+          observed_at_utc: '2026-11-12T02:10:23Z'
+          local_source_sha: 0fdab92674fd2819d4d725fb2bf5f740ef95ee2a
+          published_source_sha: 3a0074f099c997b8504b9f3c590833e6098ab73c
+          source_tree_sha: 41e2d9edba2898f6827397da0ab098f2aebdb7b6
+          source_parent_sha: 3e14b615961770849144668b961df822c0f4527a
+          source_review:
+            verdict: approved
+            reviewed_local_sha: 0fdab92674fd2819d4d725fb2bf5f740ef95ee2a
+            reviewed_tree_sha: 41e2d9edba2898f6827397da0ab098f2aebdb7b6
+            reviewer: independent review_student_cards
+            transfer_condition: All eight product blob SHAs and file modes in the controller composition must remain identical to this reviewed source.
+          boundary: Earlier reviewed product source; its local checks remain separately bound to their original SHAs below.
+        historical_prepublication_snapshot:
+          observed_at_utc: '2026-11-12T02:10:23Z'
+          general: pending
+          publication_code_and_postgresql: not_run
+          publication_real_browser: not_run
+          layout_1440_1024_390_320: not_run
+          independent_image_review: pending
+          integration_review: pending
+          source_integration: pending
+          owner_acceptance: pending
+          boundary: Dated pre-publication snapshot, not a live CI status. Final evidence must refer to the actual combined source in GitHub Actions and its PR. No future candidate SHA, workflow result or image acceptance is asserted here.
+        historical_combined_evidence:
+          observed_at_utc: '2026-11-12T03:03:38.029Z'
+          source_sha: a831716b830e24166b65567d46d12141a251413a
+          source_tree_sha: 886e86f9ea0d0f1c984cbdb2892deb08592b1a8a
+          pr: 1100
+          general:
+            run: 43141829869
+            attempt: 1
+            conclusion: success
+            required_job: 130942131213
+            required_conclusion: success
+          publication:
+            run: 43141829591
+            attempt: 1
+            conclusion: success
+            job: 130930519194
+            browser_passed: 8
+            browser_skipped: 0
+            actual_pngs: 15
+            artifact: 13910063301
+          independent_image_review:
+            verdict: NEEDS_FIX
+            priority: P2
+            finding: At catalogue 320px the image-error text was overlapped by the lower overlay.
+          learning:
+            run: 43141829931
+            first_job: 130930508119
+            conclusion: failure
+            classification: C_INDEPENDENT_EXISTING_LEARNING_TEST_SYNCHRONIZATION_DEFECT
+            cause_observed_at_utc: '2026-11-12T03:06:08.131798+00:00'
+            repair_issue: 1101
+            cause: Learner reload and empty course reads completed before the successful teacher assignment receipt; no later learner GET occurred. Separate accepted baseline repair adds exact V1/V2 teacher-success waits.
+          source_metadata_receipt_sha256: 0ed4a3bf8b3542236e5cab359550ae439acb5d9a1c6adf5e2c070fc68166b1b9
+          publication_test_receipt_sha256: 428d0057d84fa28d777eb892c578a2a64bed65601b03228156b7b4a9968c3139
+          learning_cause_receipt_sha256: 5e75c5c002c16a289d2a00f2e2478e72306ed0737267803ff2477da0242e98c5
+          acceptance: not_accepted
+          boundary: Historical exact-a831 evidence only. Neither the successful workflows nor the 15 images establish acceptance of the fallback correction or the final composition.
+        fallback_preservation_receipt:
+          observed_at_utc: 2026-11-12 03:19:49 UTC
+          local_source_sha: 1208c4493af65aeadb15a12f445b4a973b526d39
+          published_source_sha: 53d0f8cf6e4df4a3cfb3fafcb39dc5d38f83b891
+          exact_tree_and_parent_verified: true
+          publication_preflight: PLAN_VALID
+          source_branch_automatic_runs_at_snapshot: 0
+          runtime: not_run
+          visual: not_run
+          receipt_sha256: 80bf8ec9d6f3643cbff7c77b453817a04d167f692958b92735d0ebf1fcb07853
+        accepted_learning_repair_receipt:
+          issue: 1101
+          parent_issue: 179
+          pr: 1102
+          source_sha: 506fe83e43f0a0fc61442ec2ab8924b53dad27e7
+          accepted_main_sha: c633121afb0992c21799f3c3415f8e8660fad800
+          accepted_tree_sha: e97512a1efbe9ba93eba8a271c7160ecd2b07f4d
+          accepted_main_parent_sha: 3e14b615961770849144668b961df822c0f4527a
+          merged_at_utc: '2026-11-12T03:56:55Z'
+          scope: Only e2e/learning-course-01.spec.ts, six additions and zero deletions; exact teacher success for selected course and V1/V2 before learner reload. Existing assertions, deadlines and retries preserved.
+          source_general:
+            run: 43148237047
+            conclusion: success
+            required_job: 130960617472
+            required_conclusion: success
+          source_learning:
+            run: 43148237104
+            conclusion: success
+            target_case: Course Builder persists informational block structural controls into future versions only
+            target_case_result: pass
+            target_case_seconds: 13.8
+            first_browser_passed: 32
+            first_browser_skipped: 0
+          source_latest_cla:
+            run: 43151457989
+            job: 130961354545
+            conclusion: success
+          source_and_runtime_review: approved
+          integration_receipt_sha256: 1f0511ec5c4374fac5a0b5166e38565e0531588caef344de9912a67c87446ed8
+          post_merge_main_snapshot:
+            observed_at_utc: '2026-11-12T04:03:50Z'
+            runs:
+              - id: 43151545880
+                name: ASA Lab Governance and Code Gates
+                head_sha: c633121afb0992c21799f3c3415f8e8660fad800
+                attempt: 1
+                status: in_progress
+                conclusion: null
+            boundary: Dated pending main snapshot, separate from completed source evidence. No post-merge main PASS is claimed here.
+          boundary: Learning bytes are inherited exclusively from accepted main and are outside the final SP-01 diff. This repair does not close parent task179, the student-progress programme or LRN-E1-CORRECTIONS.
+        snapshot_boundary: The prepublication fields above remain the dated 2026-11-12T04:03:50Z history. The later factual integration and post-main metadata below supersede that snapshot for source acceptance only; they do not relabel historical a831 failure evidence or grant deployment or owner acceptance.
+        accepted_source_integration_receipt:
+          recorded_at_utc: '2026-11-12T05:53:06Z'
+          pr: 1100
+          merged_at_utc: '2026-11-12T04:54:27Z'
+          source_sha: c608b3421efdefa517232a9da66666e6970eec6f
+          accepted_main_sha: 4de9d20918f30c6598e3c425ed8339da3b85db1f
+          accepted_tree_sha: 4d419159dc39df8b037e916925d70b0ab2d91490
+          accepted_parent_sha: c633121afb0992c21799f3c3415f8e8660fad800
+          integration:
+            path: /workspace/scratch/4d23fca48572/sp01-integration-1100-evidence/integration-receipt.json
+            sha256: 30f9b95c5de5eb157244d7738901e50c1a65b4f39e90cd372e52c4c50dae47c3
+          source_required:
+            id: 130979343279
+            name: ASA / required
+            conclusion: success
+          source_publication:
+            run: 43153534080
+            job: 130968186349
+            real_postgresql: true
+            real_built_browser: true
+            passed: 8
+            failed: 0
+            skipped: 0
+            retries: 0
+            shared_cards_seconds: 11.3
+            three_d_seconds: 34.5
+            verified_pngs: 21
+            artifact: 13915611713
+            archive_sha256: 8fbf96037f417eb0156e1d1fae141f582e321626825f6fbb59c572a43c325264
+            build_revision_matches_source: true
+          independent_source_image_review:
+            source_sha: c608b3421efdefa517232a9da66666e6970eec6f
+            reviewer: /root/review_student_cards
+            verdict: APPROVE
+            runtime: APPROVE
+            reviewed_pngs: 21
+            former_p2: closed
+            evidence_origin: Independent reviewer verdict explicitly confirmed by the programme controller in the merge GO and follow-up; the CI observer did not issue a visual verdict.
+          post_main_metadata:
+            path: /workspace/scratch/4d23fca48572/ci-sp01-main-4de9d209/final-metadata-receipt.json
+            sha256: ffd09f200571bf7827e54645df74a92a364eae84d158b91b5d173847edc5e0c3
+            observed_at_utc: '2026-11-12T05:26:47.381Z'
+            source_sha: 4de9d20918f30c6598e3c425ed8339da3b85db1f
+            workflows:
+              - id: 43157818346
+                name: Public Projects Publication
+                url: https://github.com/spikeal8-maker/asa-lab/actions/runs/43157818346
+                head_sha: 4de9d20918f30c6598e3c425ed8339da3b85db1f
+                run_attempt: 1
+                status: completed
+                conclusion: success
+              - id: 43157818354
+                name: Scratch Documentation Routing
+                url: https://github.com/spikeal8-maker/asa-lab/actions/runs/43157818354
+                head_sha: 4de9d20918f30c6598e3c425ed8339da3b85db1f
+                run_attempt: 1
+                status: completed
+                conclusion: success
+              - id: 43157818429
+                name: Account Confirmation Focused
+                url: https://github.com/spikeal8-maker/asa-lab/actions/runs/43157818429
+                head_sha: 4de9d20918f30c6598e3c425ed8339da3b85db1f
+                run_attempt: 1
+                status: completed
+                conclusion: success
+              - id: 43157818433
+                name: Scratch Focused
+                url: https://github.com/spikeal8-maker/asa-lab/actions/runs/43157818433
+                head_sha: 4de9d20918f30c6598e3c425ed8339da3b85db1f
+                run_attempt: 1
+                status: completed
+                conclusion: success
+              - id: 43157818475
+                name: ASA Lab Governance and Code Gates
+                url: https://github.com/spikeal8-maker/asa-lab/actions/runs/43157818475
+                head_sha: 4de9d20918f30c6598e3c425ed8339da3b85db1f
+                run_attempt: 1
+                status: completed
+                conclusion: success
+            required_job: 130990301947
+            required_conclusion: success
+            boundary: Five natural main workflows and ASA / required succeeded on exact 4de9, attempt 1. Main metadata only; no new main image review or individual test counts are inferred from it.
+          owner_acceptance: pending
+          deployment: not_requested
+          live_database_actions: not_performed
+      transition_boundary: This genuine controller proposal combines unchanged independently reviewed SP-02 source with the conditional SP-03 selection. SP-03 remains inactive until exact combined source satisfies required General, new real PostgreSQL/HTTP/plan evidence, Publication regression, AI Image Durable Queue opt-in upgrade and applicable routing, receives independent composition/runtime approval, and is accepted on main.
 
 integration:
   owner_lane: visual-programming
