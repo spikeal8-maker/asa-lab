@@ -56,7 +56,14 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
 
   const card = page.getByTestId('classroom-card').filter({ hasText: '8А Робототехника' });
   await expect(card).toBeVisible();
-  await expect(page.getByText('Класс «8А Робототехника» создан.')).toBeVisible();
+  const successRibbon = page
+    .locator('.system-feedback-ribbon.system-feedback-success')
+    .filter({ hasText: 'Класс «8А Робототехника» создан.' });
+  await expect(successRibbon).toHaveCount(1);
+  await expect(successRibbon).toBeVisible();
+  const statusAnnouncement = page.locator('.system-feedback-announcement[role="status"]');
+  await expect(statusAnnouncement).toHaveCount(1);
+  await expect(statusAnnouncement).toContainText('Успех. Класс «8А Робототехника» создан.');
   // The empty-state button the dialog was opened from is gone once a class
   // exists, so focus returns to the create control that remains.
   await expect(page.getByRole('button', { name: 'Создать новый класс' })).toBeFocused();
