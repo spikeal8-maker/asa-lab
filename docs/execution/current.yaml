@@ -4587,6 +4587,72 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
+  - id: crm-acquisition-ci-baseline
+    parent_lane: admin-auth
+    worktree_id: crm-acquisition-fixture-isolation
+    owned_paths:
+      - docs/execution/CRM_ACQUISITION_FIXTURE_ISOLATION.md
+    task:
+      id: TASK-CRM-ACQUISITION-FIXTURE-ISOLATION-001
+      issue: 1110
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      kind: repair
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: controller_registration_before_one_file_fixture_repair
+      owner_acceptance: pending
+      classification: C_independent_baseline
+      related_issues: [808, 1090]
+      context_hints:
+        - docs/execution/CRM_ACQUISITION_FIXTURE_ISOLATION.md
+      scope: Isolate the existing platform-catalog assertion to the target Account in tests/admin/crm-acquisition.pg.spec.ts. Preserve every existing case and lineage assertion; no production or database contract changes.
+      planned_paths:
+        - tests/admin/crm-acquisition.pg.spec.ts
+      path_coordination: Preserve existing admin-auth tests/admin/** ownership. This lane owns only its task note for compatibility; its explicit one-file source plan above remains the full repair scope under AGENTS direct_main. Before source writes, preflight that exact test path and verify actual worktree overlap; no other checkout or task is transferred.
+      owner_authorization: On 2026-11-12 the programme controller selected this separate Class C prerequisite under the owner's instruction to fix the programme and integrate reviewed results into main. This controller registration preserves the active student-progress SP03 selection and every existing task; it grants no deployment or live database authority.
+      activation_condition: This proposal has no source execution authority while present only on the registration branch. Begin the one-file fixture repair only after this registration is accepted on main with required checks and independent review. Product branches inherit the accepted selection and must not select themselves.
+      constraints:
+        - Resolve the target Account row before the platform query, strictly guard its nonempty unique fixture email, call catalog(owner.principal_id, 'platform', null, {}, row.email), and assert the exact returned Account identity while retaining private-account visibility coverage.
+        - Preserve all five cases, the 5000ms deadline, organization/class positive and negative lineage assertions, private-account visibility, scalar CSV facts, registration-source semantics, teacher 403, wrong-class 403 and archived-class 403.
+        - No SQL, migration, production API/frontend, test configuration, workflow, dependency, lockfile, timeout, retry, skip or other-test changes. Keep this separate from student-progress source and do not select its next stage.
+        - Require independent exact-source review and fresh natural General/ASA required with all five CRM cases, full Data and actually executed standalone RLS before source integration. Classify any other failure without expanding scope or blindly rerunning unchanged code.
+      evidence_snapshot:
+        observed_at_utc: '2026-11-12T22:28:59Z'
+        source_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+        general_run_id: 43313764162
+        data_job_id: 131521411013
+        ci_result: General FAILURE; the case at tests/admin/crm-acquisition.pg.spec.ts:154 timed out at 5007ms against 5000ms. CRM has 4 PASS and 1 FAIL; full Data has 10876 PASS, 1 FAIL and 22 SKIP. Standalone test:rls was NOT_RUN.
+        source_boundary: Independent read-only diagnosis found identical CRM test, configuration and helper blobs on accepted cb15 and green source 4dc1de45b13cb8f7e1d78cabccb080bf84710bda, where this case passed in 943ms. Historical query phase, JIT, locks and infrastructure cause were not measured.
+        fixture_dependency: The existing unfiltered catalog(owner.principal_id) depends on shared platform fixture population while the assertion needs one newly created target Account. A filtered target query is the bounded isolation repair; its runtime result remains unverified.
+        historical_boundary: Issue808 reports an earlier timeout in the same case; no common historical cause or resolution is claimed.
+        detailed_evidence: https://github.com/spikeal8-maker/asa-lab/issues/1110
+      gate_boundary: Registration requires the complete two-file metadata plan, preservation of all prior state, full governance, independent review and required GitHub checks before main. Registration acceptance is not repair completion; keep Issue1110 active for the later source repair and its actual evidence.
+      source_implementation: not_started
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+      head_sha: null
+      observed_at: '2026-11-12T22:28:59Z'
+      main:
+        branch: main
+        sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+      observation_note: Dated controller registration proposal only, not fixture implementation or acceptance. Fetch main and inspect exact task, branch, CI and overlaps before writes. Preserve every previous lane, blocker, history and gate, including active SP03 and completed geometry baseline. Issue808 remains historical context with unknown root cause.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:data
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
   - id: admin-auth
     worktree_id: admin-auth-main
     owned_paths:
