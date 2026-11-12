@@ -231,6 +231,192 @@ async function group(
   return { classroomId, seat };
 }
 
+interface MeasuredPlanNode {
+  index: number;
+  parent: number;
+  type: string;
+  relation?: string | undefined;
+  alias?: string | undefined;
+  functionName?: string | undefined;
+  subplan?: string | undefined;
+  estimatedRows: number;
+  actualRows: number;
+  actualLoops: number;
+  sharedHitBlocks: number;
+  sharedReadBlocks: number;
+}
+
+function measuredPlanNodes(plan: unknown): MeasuredPlanNode[] {
+  const nodes: MeasuredPlanNode[] = [];
+  const visit = (value: unknown, parent: number) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || nodes.length >= 256)
+      throw new Error('Invalid or unbounded nested summary plan');
+    const node = value as Record<string, unknown>;
+    const name = (key: string) =>
+      typeof node[key] === 'string' && /^[A-Za-z_][A-Za-z_ 0-9]*$/.test(node[key])
+        ? node[key]
+        : undefined;
+    const number = (key: string, optional = false) => {
+      const result = node[key];
+      if (optional && result === undefined) return 0;
+      if (typeof result !== 'number' || !Number.isFinite(result) || result < 0)
+        throw new Error('Missing actual nested plan measurement');
+      return result;
+    };
+    const type = name('Node Type');
+    if (!type) throw new Error('Missing nested plan node type');
+    const index = nodes.length;
+    // Deliberately omit Query Text, Output, conditions, parameters and identifiers
+    // embedded in expressions. CI evidence contains shape and measurements only.
+    nodes.push({
+      index,
+      parent,
+      type,
+      relation: name('Relation Name'),
+      alias: name('Alias'),
+      functionName: name('Function Name'),
+      subplan: name('Subplan Name'),
+      estimatedRows: number('Plan Rows'),
+      actualRows: number('Actual Rows'),
+      actualLoops: number('Actual Loops'),
+      sharedHitBlocks: number('Shared Hit Blocks', true),
+      sharedReadBlocks: number('Shared Read Blocks', true),
+    });
+    if (node.Plans !== undefined) {
+      if (!Array.isArray(node.Plans)) throw new Error('Invalid nested child plans');
+      for (const child of node.Plans) visit(child, index);
+    }
+  };
+  visit(plan, -1);
+  return nodes;
+}
+
+async function instrumentedSummaryPlan(diagnostic: pg.PoolClient, owner: Identity) {
+  // PostgreSQL's supplied module is loaded only in this disposable diagnostic
+  // backend, after all latency samples. Missing module/notices are a failure.
+  await diagnostic.query("LOAD 'auto_explain'");
+  const settings = [
+    'client_min_messages',
+    'log_min_messages',
+    'auto_explain.log_min_duration',
+    'auto_explain.log_analyze',
+    'auto_explain.log_buffers',
+    'auto_explain.log_timing',
+    'auto_explain.log_verbose',
+    'auto_explain.log_format',
+    'auto_explain.log_level',
+    'auto_explain.log_nested_statements',
+    'auto_explain.log_parameter_max_length',
+    'auto_explain.sample_rate',
+  ];
+  const configuration = async () =>
+    (
+      await diagnostic.query(
+        'SELECT name,setting FROM pg_settings WHERE name=ANY($1::text[]) ORDER BY name',
+        [settings],
+      )
+    ).rows;
+  const before = await configuration();
+  expect(before).toHaveLength(settings.length);
+  const plans: MeasuredPlanNode[][] = [];
+  let malformed = 0;
+  const notice = (message: { message?: string | undefined }) => {
+    const json = message.message?.match(/plan:\s*([\s\S]+)$/)?.[1];
+    if (!json) return;
+    try {
+      const parsed: unknown = JSON.parse(json);
+      for (const value of Array.isArray(parsed) ? parsed : [parsed]) {
+        if (!value || typeof value !== 'object') continue;
+        const statement = value as Record<string, unknown>;
+        if (
+          typeof statement['Query Text'] === 'string' &&
+          statement['Query Text'].includes('WITH account_seats AS MATERIALIZED')
+        )
+          plans.push(measuredPlanNodes(statement.Plan));
+      }
+    } catch {
+      // Never throw from a pg event listener or print a raw notice containing
+      // bind values. Fail the diagnostic after the query has safely completed.
+      malformed += 1;
+    }
+  };
+  let transaction = false;
+  diagnostic.on('notice', notice);
+  try {
+    await diagnostic.query('BEGIN READ ONLY');
+    transaction = true;
+    await diagnostic.query(`
+      SET LOCAL client_min_messages='notice';
+      SET LOCAL log_min_messages='warning';
+      SET LOCAL auto_explain.log_analyze=true;
+      SET LOCAL auto_explain.log_buffers=true;
+      SET LOCAL auto_explain.log_timing=false;
+      SET LOCAL auto_explain.log_verbose=true;
+      SET LOCAL auto_explain.log_format='json';
+      SET LOCAL auto_explain.log_level='notice';
+      SET LOCAL auto_explain.log_nested_statements=true;
+      SET LOCAL auto_explain.log_parameter_max_length=0;
+      SET LOCAL auto_explain.sample_rate=1;
+      SET LOCAL auto_explain.log_min_duration=0;
+    `);
+    const summary = (
+      await diagnostic.query(
+        "SELECT public.personal_progress_summary('account',$1,$2,$3,NULL) result",
+        [owner.account, owner.principal, owner.hash],
+      )
+    ).rows[0]!.result as SqlSummary;
+    expect(summary.groups.items).toHaveLength(3);
+    expect(summary.metrics).toMatchObject({
+      everPublishedWorks: { value: 1 },
+      currentLikes: { value: 2 },
+      createdCopies: { value: 3 },
+      activePublicWorks: { value: 1 },
+    });
+  } finally {
+    try {
+      if (transaction) await diagnostic.query('ROLLBACK');
+    } finally {
+      diagnostic.removeListener('notice', notice);
+    }
+  }
+  expect(await configuration()).toEqual(before);
+  expect(malformed).toBe(0);
+  expect(plans).toHaveLength(1);
+  const nodes = plans[0]!;
+  const relations = new Set(nodes.map((node) => node.relation));
+  for (const relation of [
+    'project_publication_state',
+    'project_publication_revisions',
+    'project_reactions',
+    'publication_copy_events',
+    'project_versions',
+  ])
+    expect(relations.has(relation), `nested summary reads ${relation}`).toBe(true);
+  expect(
+    nodes.filter((node) => node.type === 'Aggregate' && node.actualLoops > 0).length,
+  ).toBeGreaterThanOrEqual(3);
+  const metrics = nodes.filter(
+    (node) =>
+      node.functionName === 'classroom_participant_metrics' ||
+      node.alias === 'classroom_participant_metrics',
+  );
+  expect(metrics).toHaveLength(1);
+  expect(metrics[0]!.actualLoops).toBe(3);
+  const page = nodes.filter((node) => node.subplan === 'CTE page');
+  expect(page).toHaveLength(1);
+  expect(page[0]!.actualRows).toBe(3);
+  console.info(
+    JSON.stringify({
+      evidence: 'personal-progress-nested-summary-plan',
+      boundary:
+        'instrumented diagnostic of the actual nested aggregate statement; excluded from latency samples',
+      fixture: { groups: 3, publications: 1, likes: 2, copies: 3 },
+      nestedSummaryStatements: plans.length,
+      nodes,
+    }),
+  );
+}
+
 describe('authorized own progress on real application-role PostgreSQL', () => {
   it('resolves modern and verified legacy Account with true zero and unknown historical coverage', async () => {
     const owner = await identity();
@@ -571,7 +757,13 @@ describe('authorized own progress on real application-role PostgreSQL', () => {
   it('records bounded SQL baseline and summary p50/p95 on the same real fixtures without inventing an HTTP speedup', async () => {
     const owner = await identity();
     const groups = [await group(owner), await group(owner), await group(owner)];
-    await source(owner);
+    const publication = await source(owner);
+    const firstRecipient = await identity(),
+      secondRecipient = await identity();
+    await like(publication, firstRecipient);
+    await like(publication, secondRecipient);
+    for (const recipient of [firstRecipient, secondRecipient, firstRecipient])
+      expect((await repo.createWithDraft(copyInput(publication, recipient))).kind).toBe('created');
     const baseline: number[] = [],
       summary: number[] = [];
     // The old metrics helper is deliberately not executable by asalab_app.
@@ -579,6 +771,15 @@ describe('authorized own progress on real application-role PostgreSQL', () => {
     // all functional summary cases above still use the restricted runtime role.
     const diagnostic = await admin.connect();
     try {
+      expect(
+        [null, '-1'].includes(
+          (
+            await diagnostic.query(
+              "SELECT current_setting('auto_explain.log_min_duration',true) duration",
+            )
+          ).rows[0]!.duration,
+        ),
+      ).toBe(true);
       for (let round = 0; round < 6; round++) {
         let start = performance.now();
         const previous = [];
@@ -615,8 +816,11 @@ describe('authorized own progress on real application-role PostgreSQL', () => {
           summary.push(newMs);
         }
       }
+      await instrumentedSummaryPlan(diagnostic, owner);
     } finally {
-      diagnostic.release();
+      // Unload the session-only module by closing this physical backend rather
+      // than returning a diagnostic connection to the fixture pool.
+      diagnostic.release(true);
     }
     const quantiles = (values: number[]) => {
       const ordered = values.slice().sort((a, b) => a - b);
@@ -635,7 +839,7 @@ describe('authorized own progress on real application-role PostgreSQL', () => {
         baseline: quantiles(baseline),
         summary: quantiles(summary),
         boundary:
-          'SQL only, same physical admin connection for both paths; HTTP application-role guard/resolver round trips are measured separately; no new SLA',
+          'Non-equivalent workloads on one physical admin connection: baseline is three canonical group-metrics calls; candidate is full authorized publication/group summary. Uninstrumented latency samples; HTTP application-role guard/resolver round trips measured separately. No old HTTP endpoint, speedup or SLA claim.',
       }),
     );
   });

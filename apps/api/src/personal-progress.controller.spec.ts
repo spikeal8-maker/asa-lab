@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { HttpException } from '@nestjs/common';
 import type pg from 'pg';
 import type { FastifyRequest } from 'fastify';
 import { hashSessionToken, type ActiveContextUseCase } from '@asa-lab/identity';
@@ -148,6 +149,32 @@ describe('own progress authorization and explicit transport', () => {
       });
       expect(f.resolve).not.toHaveBeenCalled();
       expect(f.resolveExistingState).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['account', 'seat'] as const)(
+    'sanitizes an infrastructure rejection from the %s resolver as unavailable',
+    async (route) => {
+      const f = fixture();
+      const resolver = route === 'account' ? f.resolve : f.resolveExistingState;
+      resolver.mockRejectedValue(new Error('PRIVATE SQL owner@example.test connection failed'));
+      await expect(f.controller[route](REQUEST)).rejects.toMatchObject({
+        status: 503,
+        response: { error: { code: 'progress_unavailable', message: 'Сводка сейчас недоступна.' } },
+      });
+      expect(f.query).not.toHaveBeenCalled();
+      expect(route === 'account' ? f.resolveExistingState : f.resolve).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['account', 'seat'] as const)(
+    'preserves an intentional HttpException from the %s resolver',
+    async (route) => {
+      const f = fixture();
+      const failure = new HttpException({ error: { code: 'unauthorized' } }, 401);
+      (route === 'account' ? f.resolve : f.resolveExistingState).mockRejectedValue(failure);
+      await expect(f.controller[route](REQUEST)).rejects.toBe(failure);
+      expect(f.query).not.toHaveBeenCalled();
     },
   );
 

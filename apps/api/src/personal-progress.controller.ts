@@ -38,6 +38,15 @@ function unavailable(): never {
   throw failure('progress_unavailable', 503, 'Сводка сейчас недоступна.');
 }
 
+async function resolveContext<T>(resolve: () => Promise<T>): Promise<T> {
+  try {
+    return await resolve();
+  } catch (cause) {
+    if (cause instanceof HttpException) throw cause;
+    return unavailable();
+  }
+}
+
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return unavailable();
   return value as Record<string, unknown>;
@@ -313,7 +322,7 @@ export class PersonalProgressController {
   async account(@Req() request: FastifyRequest, @Query() query: Record<string, unknown> = {}) {
     const pool = this.requirePool();
     const token = request.cookies[SESSION_COOKIE];
-    const context = await this.accounts.resolve(token);
+    const context = await resolveContext(() => this.accounts.resolve(token));
     if (!token || !context) throw failure('unauthorized', 401, 'Войдите в аккаунт.');
     return this.read(
       pool,
@@ -329,7 +338,7 @@ export class PersonalProgressController {
   async seat(@Req() request: FastifyRequest, @Query() query: Record<string, unknown> = {}) {
     const pool = this.requirePool();
     const token = request.cookies[STUDENT_SESSION_COOKIE];
-    const resolved = await this.seats.resolveExistingState(token);
+    const resolved = await resolveContext(() => this.seats.resolveExistingState(token));
     if (!token || resolved.state === 'invalid_session')
       throw failure('unauthorized', 401, 'Войдите в класс заново.');
     if (resolved.state === 'unavailable_owner')

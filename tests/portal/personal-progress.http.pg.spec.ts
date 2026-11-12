@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi, type MockInstance } from 'vitest';
 import type pg from 'pg';
 import type { PersonalProgressSummaryV1 } from '@asa-lab/contracts';
 import { hashSessionToken } from '../../contexts/identity/dist/index.js';
@@ -250,19 +250,27 @@ async function seatIdentity(materialized = true) {
 }
 
 async function measuredRead(path: string, cookies: Record<string, string>, label: string) {
-  // A call-through spy counts this API instance's real SQL roundtrips, including
-  // guards/resolvers. It does not stub PostgreSQL or invent an old HTTP baseline.
-  const spy = vi.spyOn(runtime, 'query');
+  // pg-pool emits acquire before handing the client to either pool.query or
+  // explicit connect callers. Observe this API pool's client SQL during one
+  // real HTTP read, including guards/resolvers, without counting a query twice.
+  // Call-through spies retain both callback and Promise overloads unchanged.
+  const spies = new Map<pg.PoolClient, MockInstance<pg.PoolClient['query']>>();
+  const observeClient = (client: pg.PoolClient) => {
+    if (!spies.has(client)) spies.set(client, vi.spyOn(client, 'query'));
+  };
+  runtime.on('acquire', observeClient);
   try {
     const result = await request(path, cookies);
-    const statements = spy.mock.calls.map(([query]) => {
-      const argument: unknown = query;
-      return typeof argument === 'string'
-        ? argument
-        : typeof argument === 'object' && argument !== null && 'text' in argument
-          ? String(argument.text)
-          : '';
-    });
+    const statements = [...spies.values()].flatMap((spy) =>
+      spy.mock.calls.map(([query]) => {
+        const argument: unknown = query;
+        return typeof argument === 'string'
+          ? argument
+          : typeof argument === 'object' && argument !== null && 'text' in argument
+            ? String(argument.text)
+            : '';
+      }),
+    );
     const summaryReads = statements.filter((sql) =>
       sql.includes('personal_progress_summary'),
     ).length;
@@ -282,7 +290,8 @@ async function measuredRead(path: string, cookies: Record<string, string>, label
     });
     return { result, summaryReads, accountResolutions, seatResolutions };
   } finally {
-    spy.mockRestore();
+    runtime.removeListener('acquire', observeClient);
+    for (const spy of spies.values()) spy.mockRestore();
   }
 }
 
