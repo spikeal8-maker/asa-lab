@@ -17305,6 +17305,36 @@ parallel_lanes:
         existing D2-R2 editor at http://127.0.0.1:4630. Register this separate UI
         slice without replacing or closing E1. Ordinary protected integration is
         allowed only after applicable checks and review.
+        Owner continuation on 2026-11-12 authorizes this minimal registration of
+        isolated coordination for the reviewed camera candidate
+        d9aebf0e4d17a15d898f582ae86c05069cd98055 and its verified live overlay.
+        The peer checkout, index and all 149 protected files remain read-only.
+        Coordination is usable only after acceptance on canonical main and does
+        not authorize live writes, PR1044 dependency integration or presentation
+        of a different main adapter; those integration choices remain undecided.
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/Projects/asa-lab-field-camera-001
+          branch: codex/field-camera-001
+        peer:
+          worktree: C:/Users/spike/Projects/asa-lab-robotics-fast-dev-001
+          branch: codex/robotics-fast-dev-001
+          head: d4ed560647e9f7f38724f202168d88a6ad29ec42
+          path_sha256:
+            apps/web/src/robotics/RobotFieldEditor.tsx: 567dea0f163f6eeec18edfb9cb48ac364f66fa7105c76d5901a4d4372c54ff60
+            apps/web/src/robotics/RobotField.tsx: 87b1f55bc606c2b5009c3985763606a20cc36ab720cdbaabc72256e2fcc08a17
+            apps/web/src/robotics/robotics.css: 82be3efd93d398ce14f9d50b81c7389efc8f747b6db7eedd2b656b914c7e2a9b
+            apps/web/src/robotics/field-camera.ts: ff1d853f11986ecda4915101f75267ffdcd4408664790d7f4a96bb02d1d4d83d
+            apps/web/src/robotics/use-field-camera.ts: cf5028d37fa229ce653a294cb87ccd1e09c64580aebb22a69dc6241d6c980f50
+        paths:
+          - apps/web/src/robotics/RobotFieldEditor.tsx
+          - apps/web/src/robotics/RobotField.tsx
+          - apps/web/src/robotics/robotics.css
+          - apps/web/src/robotics/field-camera.ts
+          - apps/web/src/robotics/use-field-camera.ts
       scope: >-
         FIELD_CORE_SPEC.md sections 6.1-6.2, REQ-CAM-01 through REQ-CAM-05 and
         UI-01/UI-02 only: finite cursor-anchored zoom, mouse and two-touch pan,
