@@ -738,22 +738,79 @@ test('SP-01 shared publication cards keep real counts, navigation and readable H
     const coverUrl = new URL(expected.preview.url, origin(reader)).href;
     const failedCover = (url: URL) => url.href === coverUrl;
     await reader.route(failedCover, (route) => route.abort('failed'));
-    for (const surface of ['home', `explore?search=${encodeURIComponent(prefix)}`]) {
-      await reader.mouse.move(0, 0);
-      await reader.goto(`/#/${surface}`);
-      if (surface === 'home')
-        await reader.locator('.home-community-shelf').scrollIntoViewIfNeeded();
-      const card = cardFor(published.publicationId);
-      await card.scrollIntoViewIfNeeded();
-      await expect(card.getByTestId('public-project-preview-unavailable')).toHaveText(
-        'Изображение не загрузилось',
-      );
-      await expect(card.getByTestId('public-project-card-title')).toHaveText(title);
-      await expectNoOverflow(reader);
-      await reader.screenshot({
-        path: `${EVIDENCE}/sp01-${surface === 'home' ? 'home' : 'catalogue'}-image-error.png`,
-        fullPage: true,
-      });
+    for (const width of [1440, 1024, 390, 320]) {
+      await reader.setViewportSize({ width, height: 900 });
+      for (const surface of ['home', `explore?search=${encodeURIComponent(prefix)}`]) {
+        await reader.mouse.move(0, 0);
+        await reader.goto(`/#/${surface}`);
+        if (surface === 'home')
+          await reader.locator('.home-community-shelf').scrollIntoViewIfNeeded();
+        const card = cardFor(published.publicationId);
+        await card.scrollIntoViewIfNeeded();
+        const fallback = card.getByTestId('public-project-preview-unavailable');
+        await expect(fallback).toHaveText('Изображение не загрузилось');
+        await expect(card.getByTestId('public-project-card-title')).toHaveText(title);
+        const geometry = await fallback.evaluate((element) => {
+          const card = element.closest('.public-project-card')!;
+          const preview = element.closest('.publication-preview')!;
+          const previewBounds = preview.getBoundingClientRect();
+          const previewStyle = getComputedStyle(preview);
+          const top = card.querySelector('.public-project-card-topline')!.getBoundingClientRect();
+          const footer = card.querySelector('.public-project-card-body')!.getBoundingClientRect();
+          const text = document.createRange();
+          text.selectNodeContents(element);
+          const bounds = text.getBoundingClientRect();
+          const textNode = element.firstChild;
+          if (!textNode || textNode.nodeType !== Node.TEXT_NODE)
+            throw new Error('The image error must contain readable text');
+          const words = [...(textNode.textContent ?? '').matchAll(/\S+/gu)].map((match) => {
+            const word = document.createRange();
+            word.setStart(textNode, match.index!);
+            word.setEnd(textNode, match.index! + match[0].length);
+            return { text: match[0], lines: word.getClientRects().length };
+          });
+          return {
+            text: {
+              top: bounds.top,
+              right: bounds.right,
+              bottom: bounds.bottom,
+              left: bounds.left,
+            },
+            content: {
+              top: previewBounds.top + parseFloat(previewStyle.paddingTop),
+              right: previewBounds.right - parseFloat(previewStyle.paddingRight),
+              bottom: previewBounds.bottom - parseFloat(previewStyle.paddingBottom),
+              left: previewBounds.left + parseFloat(previewStyle.paddingLeft),
+            },
+            topOverlayBottom: top.bottom,
+            footerTop: footer.top,
+            words,
+          };
+        });
+        expect(
+          geometry.text.top,
+          `${surface} ${width}: text below avatar/module overlay`,
+        ).toBeGreaterThanOrEqual(geometry.topOverlayBottom + 2);
+        expect(
+          geometry.text.bottom,
+          `${surface} ${width}: text above title/count overlay`,
+        ).toBeLessThanOrEqual(geometry.footerTop - 2);
+        expect(geometry.text.top).toBeGreaterThanOrEqual(geometry.content.top);
+        expect(geometry.text.bottom).toBeLessThanOrEqual(geometry.content.bottom);
+        expect(geometry.text.left).toBeGreaterThanOrEqual(geometry.content.left);
+        expect(geometry.text.right).toBeLessThanOrEqual(geometry.content.right);
+        expect(geometry.words).toEqual([
+          { text: 'Изображение', lines: 1 },
+          { text: 'не', lines: 1 },
+          { text: 'загрузилось', lines: 1 },
+        ]);
+        await expectNoOverflow(reader);
+        const sizeSuffix = width === 320 ? '' : `-${width}`;
+        await reader.screenshot({
+          path: `${EVIDENCE}/sp01-${surface === 'home' ? 'home' : 'catalogue'}-image-error${sizeSuffix}.png`,
+          fullPage: true,
+        });
+      }
     }
     await reader.unroute(failedCover);
     expect(errors).toEqual([]);
