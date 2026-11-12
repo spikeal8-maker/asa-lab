@@ -32,6 +32,11 @@ const ts = require('typescript');
 const prettier = require('prettier');
 const { chromium } = require('@playwright/test');
 const sourceSha = git('rev-parse', 'HEAD');
+const requestedSourceSha = arg('expected-source-sha', null);
+if (requestedSourceSha !== null) {
+  assert.match(requestedSourceSha, /^[0-9a-f]{40}$/);
+  assert.equal(sourceSha, requestedSourceSha, 'exact requested source revision before compilation');
+}
 const catalogPath = 'apps/web/public/assets/electronics/component-database/catalog.json';
 const catalogText = await readFile(resolve(sourceRoot, catalogPath), 'utf8');
 const sketch = await readFile(resolve(fixtureRoot, 'reconstructed-audit.ino'), 'utf8');
@@ -335,6 +340,7 @@ assert.equal(transformReceipts.size, 4, 'all four observational transform bounda
 const receipt = {
   format: 'asa-electronics-recovery-build-v1',
   sourceSha,
+  requestedSourceSha,
   sourceDirty: git('status', '--porcelain', '--untracked-files=no') !== '',
   harnessSha256: sha256(await readFile(fileURLToPath(import.meta.url))),
   runtime:
@@ -429,7 +435,9 @@ function installProbe({ initial, projectId, title, workerSource }) {
                 : Boolean(node);
         if (domMatches) {
           a.commitAt = performance.now();
-          a.documentMutationEpoch = controller.documentMutationEpoch;
+          a.documentMutationEpoch = controller.documentMutationEpoch();
+          if (!Number.isSafeInteger(a.documentMutationEpoch) || a.documentMutationEpoch < 0)
+            throw Error('committed document mutation epoch must be a nonnegative safe integer');
           a.domWitness =
             a.expected.kind === 'position'
               ? { x: node.getAttribute('data-x'), y: node.getAttribute('data-y') }
@@ -659,6 +667,11 @@ async function openFixture(scene, codeOpen, viewport, videoDirectory) {
     if (path === '/recovery-ui.js')
       return route.fulfill({ contentType: 'text/javascript', body: uiCode });
     if (path === '/recovery.css') return route.fulfill({ contentType: 'text/css', body: css });
+    if (path === '/asa-lab-mark.svg') {
+      const body = await readFile(resolve(sourceRoot, 'apps/web/public/asa-lab-mark.svg'));
+      resources.push({ path, sha256: sha256(body) });
+      return route.fulfill({ contentType: 'image/svg+xml', body });
+    }
     if (path.startsWith('/assets/')) {
       try {
         const full = resolve(sourceRoot, 'apps/web/public', '.' + decodeURIComponent(path));
@@ -728,24 +741,6 @@ async function prepareNominal(page, scene, codeOpen, profile) {
   const id = scene === 'S3' ? await addUnmeasured(page) : 'resistor-0';
   await part(page, id).click();
   const input = page.locator('.workbench-value-field input[type="number"]');
-  await page
-    .getByRole('combobox', { name: 'Единица сопротивления', exact: true })
-    .selectOption('Ω');
-  await input.click();
-  await page.keyboard.press('Control+a');
-  await page.keyboard.insertText('220');
-  await canvasFocus(page);
-  await settle(page);
-  await part(page, id).click();
-  await input.click();
-  await page.keyboard.press('Control+a');
-  await page.keyboard.insertText('330');
-  await canvasFocus(page);
-  await settle(page);
-  await page.keyboard.press('Control+z');
-  await settle(page);
-  assert.equal((await snapshot(page)).components.find((c) => c.id === id).value, 220);
-  await part(page, id).click();
   await setCode(page, true);
   const inspectAccess = async () => {
     if (!(await input.count()))
@@ -766,9 +761,25 @@ async function prepareNominal(page, scene, codeOpen, profile) {
     exact: true,
   });
   const originalWidth = Number(await handle.getAttribute('aria-valuenow'));
+  const beforeResize = await snapshot(page);
+  const resizeByPointer = async (deltaX) => {
+    const r = await handle.boundingBox();
+    assert.ok(r, 'visible native code-panel resize handle');
+    await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(r.x + r.width / 2 + deltaX, r.y + r.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await settle(page);
+    const afterResize = await snapshot(page);
+    assert.deepEqual(afterResize, beforeResize, 'panel resize must not mutate the document');
+    assert.equal(
+      domain.simulationInputDigest(afterResize),
+      domain.simulationInputDigest(beforeResize),
+      'panel resize must preserve physical input',
+    );
+  };
   if (!access.original.visibleAtCenter && (await handle.isVisible())) {
-    await handle.focus();
-    for (let i = 0; i < 10; i++) await handle.press('Shift+ArrowRight');
+    await resizeByPointer(480);
     access.narrowed = await inspectAccess();
     access.narrowedWidth = Number(await handle.getAttribute('aria-valuenow'));
   }
@@ -776,17 +787,39 @@ async function prepareNominal(page, scene, codeOpen, profile) {
   await page.screenshot({ path: resolve(output, `${profile.id}-nominal-open-access.png`) });
   const mode =
     access.original.visibleAtCenter || access.narrowed?.visibleAtCenter ? 'typing' : 'history';
-  if (mode === 'history' && access.narrowedWidth !== undefined) {
-    const r = await handle.boundingBox();
-    await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(
-      r.x + r.width / 2 - (originalWidth - access.narrowedWidth),
-      r.y + r.height / 2,
-    );
-    await page.mouse.up();
-  }
-  if (!codeOpen) await setCode(page, false);
+  if (mode === 'history' && access.narrowedWidth !== undefined)
+    await resizeByPointer(-(originalWidth - access.narrowedWidth));
+  profile.nominalPanelWidthPx = Number(await handle.getAttribute('aria-valuenow'));
+  profile.resizeDocumentUnchanged = true;
+  // Establish nominal history only after all panel-access/resize preparation.
+  // Arrow resizing also reaches the existing global nudge shortcut; the probe
+  // uses the real pointer handle and does not repair that product behaviour.
+  await setCode(page, false);
+  await part(page, id).click();
+  await page
+    .getByRole('combobox', { name: 'Единица сопротивления', exact: true })
+    .selectOption('Ω');
+  await input.click();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.insertText('220');
+  await canvasFocus(page);
+  await settle(page);
+  await part(page, id).click();
+  await input.click();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.insertText('330');
+  await canvasFocus(page);
+  await settle(page);
+  await page.keyboard.press('Control+z');
+  await settle(page);
+  assert.equal((await snapshot(page)).components.find((c) => c.id === id).value, 220);
+  assert.equal(
+    await page.evaluate(() => window.__asaRecovery.controller.canRedo),
+    true,
+    'prepared nominal change must be redoable',
+  );
+  if (mode === 'typing') await part(page, id).click();
+  if (codeOpen) await setCode(page, true);
   profile.nominalGesture =
     mode === 'typing'
       ? 'native input of 220↔330 Ω in the visible inspector'
@@ -833,6 +866,17 @@ async function measureAction(page, gesture, index, codeOpen, nominalId, label) {
       eventType = 'input';
       action = () => page.keyboard.insertText(String(expected.value));
     } else {
+      assert.equal(
+        await page.evaluate(
+          (redo) =>
+            redo
+              ? window.__asaRecovery.controller.canRedo
+              : window.__asaRecovery.controller.canUndo,
+          index % 2 === 0,
+        ),
+        true,
+        'nominal history action must remain available before arming',
+      );
       eventType = 'keydown';
       action = () => page.keyboard.press(index % 2 ? 'Control+z' : 'Control+Shift+z');
     }

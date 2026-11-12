@@ -31,7 +31,7 @@ jobs:
     env:
       CI: 'true'
       NX_SKIP_NX_CACHE: 'true'
-      BEFORE_REVISION: ${{ inputs.before_revision || github.sha }}
+      BEFORE_REVISION: ${{ inputs.before_revision || 'cb15c700253f26bf276ad69d5e45ca27c2306787' }}
       AFTER_REVISION: ${{ inputs.after_revision }}
     steps:
       - name: Checkout fixed measurement source and scenes
@@ -66,11 +66,11 @@ jobs:
       - name: Smoke complete editor and all measured gestures — not acceptance
         run: >-
           node control/apps/web/src/electronics/testing/stopped-preflight.browser.mjs
-          --source-root=before --phase=before --smoke --output=reports/smoke
+          --source-root=before --expected-source-sha="$BEFORE_REVISION" --phase=before --smoke --output=reports/smoke
       - name: Baseline — three fixed 30-slot passes and separate visual replay
         run: >-
           node control/apps/web/src/electronics/testing/stopped-preflight.browser.mjs
-          --source-root=before --phase=before --output=reports/before
+          --source-root=before --expected-source-sha="$BEFORE_REVISION" --phase=before --output=reports/before
       - name: Checkout exact after source
         if: env.AFTER_REVISION != ''
         uses: actions/checkout@v4
@@ -89,7 +89,7 @@ jobs:
         if: env.AFTER_REVISION != ''
         run: >-
           node control/apps/web/src/electronics/testing/stopped-preflight.browser.mjs
-          --source-root=after --phase=after --output=reports/after
+          --source-root=after --expected-source-sha="$AFTER_REVISION" --phase=after --output=reports/after
       - name: Verify paired conditions and unchanged numerical results
         if: env.AFTER_REVISION != ''
         shell: bash
@@ -107,7 +107,7 @@ jobs:
           assert.equal(before.profiles.length,after.profiles.length);
           const comparison=before.profiles.map((b,index)=>{
             const a=after.profiles[index];
-            for(const field of ['scene','codeOpen','gesture','nominalMode'])assert.deepEqual(b[field],a[field],field);
+            for(const field of ['scene','codeOpen','gesture','nominalMode','nominalPanelWidthPx'])assert.deepEqual(b[field],a[field],field);
             assert.deepEqual(b.observed,a.observed,'same viewport, zoom, GPU and Stop');
             assert.deepEqual(b.initialDiagnostic,a.initialDiagnostic,'unchanged numerical diagnostic result');
             assert.equal(b.summary.samples,90);assert.equal(a.summary.samples,90);
