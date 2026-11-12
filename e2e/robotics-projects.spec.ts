@@ -851,6 +851,9 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
       const click = async (x: number, y: number, button: 'left' | 'right' = 'left') => {
         const target = await canvas.evaluate(
           (svg, { x, y, widthMeters, heightMeters }) => {
+            if (!(svg instanceof SVGSVGElement)) {
+              throw new Error('Field canvas must be an SVGSVGElement.');
+            }
             const matrix = svg.getScreenCTM();
             if (!matrix) throw new Error('Field SVG screen transform is unavailable.');
             const point = svg.createSVGPoint();
