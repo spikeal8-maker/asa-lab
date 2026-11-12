@@ -5501,25 +5501,46 @@ parallel_lanes:
     owned_paths:
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-GOVERNANCE-014
-      issue: 929
+      id: TASK-ELECTRONICS-RECOVERY-R00-001
+      issue: 1111
       branch: main
       base_branch: main
       pr: null
-      status: done
-      kind: maintenance
-      checkpoint: accepted_static_split_routes_repaired_114_regressions_PASS
+      status: in_progress
+      kind: analysis/inventory
+      checkpoint: owner_selected_r00_reproducible_full_editor_baseline
       owner_acceptance: pending
       context_hints:
-        - docs/product/electronics/components/arduino-peripherals.yaml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-RECOVERY-R00-001.md
         - docs/product/electronics/components/ui-assets-persistence.yaml
-        - docs/product/electronics/evidence/hygiene-baseline.yaml
-      scope: Documentation-only existing Electronics source-route and stale-large-source repair after accepted6e0; no product source, thresholds or foreign-state changes.
-      owner_authorization: Owner asks to repair Electronics errors and publish verified source while preserving foreign changes; current accepted static block split invalidates four routing checks.
-      next_action: STOP; documentation-only baseline repaired. Resume independently checked caption integration and separately selected desktop layout task.
-      routing_result: PASS_30components167cards_114regressiontests_control_plane_require_github_PASS
-      actual_arduino_blocks_bytes: 34881
-      self_review: PASS_documentation_only_all_accepted_product_blobs_and_limits_unchanged
+      scope: R00 only; saved S3 and reconstructed S4, original reconstruction sketch, hashes, frozen source/build provenance, full-editor Stop measurements and two confirmed preflight call sites. Product source is read-only.
+      owner_authorization: Owner explicitly directs the controller to prepare and canonically select cards for the bounded R00 then R10 programme, delegate each slice to a real chat author and independent reviewer, publish tested candidates and demonstrate before/after in permitted browser CI. No production update, new permanent installation, R11 or bulk branch closure.
+      next_action: Author completes only R00 and stops; controller independently accepts sufficient baseline then canonically selects bounded R10. R00 alone does not finish the owner assignment.
+      programme_issue: 452
+      registry_issue: 703
+      source_baseline_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+      measurement_delivery: Isolated GitHub Actions full SchematicEditor fixture with real Worker and assets; instrumented candidate video and raw evidence, not asa-lab.ru deployment.
+      original_project_policy: Read-only; absent export permits explicitly attributed audit reconstruction, never an invented original sketch.
+      accepted_previous_task:
+        id: TASK-ELECTRONICS-GOVERNANCE-014
+        issue: 929
+        branch: main
+        base_branch: main
+        pr: null
+        status: done
+        kind: maintenance
+        checkpoint: accepted_static_split_routes_repaired_114_regressions_PASS
+        owner_acceptance: pending
+        context_hints:
+          - docs/product/electronics/components/arduino-peripherals.yaml
+          - docs/product/electronics/components/ui-assets-persistence.yaml
+          - docs/product/electronics/evidence/hygiene-baseline.yaml
+        scope: Documentation-only existing Electronics source-route and stale-large-source repair after accepted6e0; no product source, thresholds or foreign-state changes.
+        owner_authorization: Owner asks to repair Electronics errors and publish verified source while preserving foreign changes; current accepted static block split invalidates four routing checks.
+        next_action: STOP; documentation-only baseline repaired. Resume independently checked caption integration and separately selected desktop layout task.
+        routing_result: PASS_30components167cards_114regressiontests_control_plane_require_github_PASS
+        actual_arduino_blocks_bytes: 34881
+        self_review: PASS_documentation_only_all_accepted_product_blobs_and_limits_unchanged
     suspended_slices:
     - task_id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
       accepted_task_snapshot:
