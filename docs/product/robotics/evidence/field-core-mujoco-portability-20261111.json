@@ -1,0 +1,2146 @@
+{
+  "schema": "MUJOCO_PORTABILITY_SOURCE_V2",
+  "task": "TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001",
+  "issue": 1071,
+  "scope": "TEST_ONLY_SOURCE_REPAIR_PDR_01_03",
+  "status": "SOURCE_REPAIR_V2_READY_FOR_INDEPENDENT_PREDATA_REVIEW",
+  "baseHead": "7abc72d2f8bf88475fd9b2467603243d7498b336",
+  "observedMain": "18755e175049d5180ffdf84cf1066405cf2bb093",
+  "branch": "codex/robotics-field-core-mujoco-portability-001",
+  "design": {
+    "jsonSha256": "8bb56492a54e3028c9f3c1928da711757df11fa4cffcb17c71506841e1c829c6",
+    "preservationSha256": "152116eac9125799bf89b9ac3eed2ffb04f1e436e1a0d7312674d61a343a77e6"
+  },
+  "sourcePaths": [
+    "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+    "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+    "tools/robotics-field-core/mujoco-portability-worker.mjs",
+    "tools/robotics-field-core/run-mujoco-portability.mjs",
+    "tests/robotics/field-core-qualification/mujoco-portability.fixture.json",
+    "tests/robotics/field-core-qualification/mujoco-portability.spec.ts",
+    "docs/product/robotics/evidence/field-core-mujoco-portability-20261111.json",
+    "docs/product/robotics/evidence/field-core-mujoco-portability-20261111.md"
+  ],
+  "native": {
+    "status": "NOT_RUN",
+    "engineImports": 0,
+    "factoryCalls": 0,
+    "wasmCompileCalls": 0,
+    "wasmInstantiationCalls": 0,
+    "models": 0,
+    "data": 0,
+    "advances": 0,
+    "browserLaunches": 0,
+    "dedicatedWorkers": 0,
+    "listeningServers": 0,
+    "counterScope": "MUJOCO_QUALIFICATION_ONLY; technical parser and package-manager events are separate."
+  },
+  "approvedFutureBudget": {
+    "realms": 3,
+    "positiveWorldsPerRealm": 20,
+    "quotaWorldsPerRealm": 1,
+    "worlds": 63,
+    "factoryCalls": 3,
+    "wasmInstantiationCalls": 3,
+    "models": 63,
+    "data": 63,
+    "positiveAdvances": 72000,
+    "quotaAdvances": 12,
+    "advances": 72012,
+    "positiveSplitCallsPerFunction": 64800,
+    "quotaSplitCallsPerFunction": 12,
+    "mj_step1": 64812,
+    "mj_step2": 64812,
+    "mj_step": 7200,
+    "advanceAttempts": 72015,
+    "quotaRefusals": 3,
+    "initialWarningObservations": 63,
+    "endpointWarningObservations": 72012,
+    "offlineResumeWarningObservations": 2,
+    "quotaRefusalWarningObservations": 3,
+    "negativeCases": 18,
+    "preFactoryNegativeCases": 15,
+    "warningObservations": 72080,
+    "warningCopies": 504560,
+    "warningCopiesIncludingOneEmergency": 504567,
+    "nativeUpdateFunctionCalls": 136824,
+    "wasmInstantiationScope": "PINNED_MUJOCO_REALMS_ONLY; observed exact wasmBinary and realm, not all internal host/Chromium WASM.",
+    "internalCompileCalls": null,
+    "maxLiveWorlds": 1
+  },
+  "journalBudget": {
+    "recordBytes": 352,
+    "recordCount": 72080,
+    "emergencyRecordCap": 1,
+    "dataPackets": {
+      "node": 263,
+      "browserMain": 264,
+      "dedicatedWorker": 264,
+      "total": 791,
+      "headerBytes": 64,
+      "maxRecordsPerPacket": 100
+    },
+    "stateDigestsBytes": 2304384,
+    "fixedCaps": {
+      "worldMetadata": 4128768,
+      "worldSummary": 1032192,
+      "negativeMetadata": 147456,
+      "realmMetadata": 98304,
+      "invocationManifest": 262144,
+      "protocol": 4194304,
+      "network": 524288,
+      "logs": 1048576,
+      "emergencyNonData": 4194304
+    },
+    "recordPayloadBytes": 25372160,
+    "packetHeaderBytes": 50624,
+    "normalDataBytes": 25422784,
+    "maxDataBytes": 25423200,
+    "plannedMaximumBytes": 43357920,
+    "hardEnvelopeBytes": 67108864,
+    "headroomBytes": 23750944,
+    "maxPacketBytes": 35264,
+    "maxBase64Chars": 47020,
+    "maxWorldNormalBytes": 564640,
+    "maxFiles": 261
+  },
+  "runtimeLimits": [
+    "Native paths, browser/Worker, real offline barrier and native cleanup remain NOT_RUN.",
+    "No absent-WebAssembly-API or compiler-rejection claim: corrupt/missing WASM negatives stop at asset admission before factory.",
+    "Internal MuJoCo compile calls are unknown; instantiate calls/returns/errors must be observed and bound to pinned bytes/realm.",
+    "Three expected instantiations cover only measured MuJoCo realms. Unrelated internal host/Chromium WASM is not claimed absent.",
+    "Cold local loading denies external application requests; warm continuation uses a real context offline barrier in the same first world at 200000us. No cold real-offline reload or whole-app offline claim.",
+    "Warning trajectory SHA is bounded metadata; no unbudgeted per-step warning file.",
+    "The 79 tests use pure data and explicit boundary doubles, never a native trajectory or fake runtime exports.",
+    "Actual Chromium process count, memory high-water, school D04/performance and E10 leak qualification remain unmeasured.",
+    "Full app offline/auth/save/draft persistence, persistent runtime resume, CCD and D01 acceptance are excluded."
+  ],
+  "handoff": "STOP before preregistration, native MAIN, product commit or push. Independent source-v2 predata review required.",
+  "frozenAtUtc": "2026-11-12T01:43:51.675758+00:00",
+  "executionInputPaths": [
+    "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+    "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+    "tools/robotics-field-core/mujoco-portability-worker.mjs",
+    "tools/robotics-field-core/run-mujoco-portability.mjs",
+    "tests/robotics/field-core-qualification/mujoco-portability.fixture.json",
+    "tests/robotics/field-core-qualification/mujoco-portability.spec.ts"
+  ],
+  "reportPaths": [
+    "docs/product/robotics/evidence/field-core-mujoco-portability-20261111.json",
+    "docs/product/robotics/evidence/field-core-mujoco-portability-20261111.md"
+  ],
+  "codeHashes": [
+    {
+      "path": "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+      "bytes": 33568,
+      "sha256": "7182b63e86b57e2c7c6f46fb12ae8ca46df5a9360e598fb2862472187ed79fec"
+    },
+    {
+      "path": "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+      "bytes": 39836,
+      "sha256": "cc792c204407f812080d4ce59a00ad6712e5c5cfe4db97acaa5a0a541ad46e81"
+    },
+    {
+      "path": "tools/robotics-field-core/mujoco-portability-worker.mjs",
+      "bytes": 4448,
+      "sha256": "e901423ad61eddd9df010686bc26a1aa11395054e0feeb91aab76d545f39c507"
+    },
+    {
+      "path": "tools/robotics-field-core/run-mujoco-portability.mjs",
+      "bytes": 77339,
+      "sha256": "4dc5b49ce58fb25c5c68dddc96d83511c6c8b1e907d9c09169c5b638ebb34c2a"
+    },
+    {
+      "path": "tests/robotics/field-core-qualification/mujoco-portability.fixture.json",
+      "bytes": 5730,
+      "sha256": "315265228876de2444ab7c9426da25e34b6a8cc42a28209a8ba8e10bbfe68cd6"
+    },
+    {
+      "path": "tests/robotics/field-core-qualification/mujoco-portability.spec.ts",
+      "bytes": 57575,
+      "sha256": "a7fca17fb426ec07cbf8400dc9d3078c7c5dc966d8d819a65fe99751a89aa4bb"
+    }
+  ],
+  "checks": {
+    "status": "PASS_SOURCE_ONLY",
+    "officialVitest": {
+      "version": "4.1.11",
+      "attempt": "pure-tests-official-v7",
+      "files": 1,
+      "tests": 99,
+      "passed": 99,
+      "failed": 0,
+      "exitCode": 0,
+      "receipt": {
+        "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\checks-focused-repair-v3.json",
+        "bytes": 16627,
+        "sha256": "183a0c28334c1bd23d259910ac469e8a1471f9a719d8f8d71fc0c389d82ba2ad"
+      },
+      "stdout": {
+        "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\pure-tests-official-v7.stdout",
+        "bytes": 836,
+        "sha256": "83d8be18117a6346cb3c70f28458060401616af45c139c892f1ec25d118ec57d"
+      },
+      "stderr": {
+        "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\pure-tests-official-v7.stderr",
+        "bytes": 465,
+        "sha256": "7223b38fc19e98f11de6e3e0d65fc95608390f402cd8adb0ffb89c42a8809026"
+      },
+      "stderrMeaning": "465 bytes: three LF-to-CRLF warnings from the isolated temporary Git fixture only"
+    },
+    "projectGraph": {
+      "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\actual-project-graph-repair-v1.json",
+      "bytes": 646835,
+      "sha256": "ede7f960a55befdb060b24c09720476fc0db688420d233e8e134355a5c41c918",
+      "nodes": 28,
+      "dependencies": 2136
+    },
+    "targetedLint": {
+      "files": [
+        "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+        "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+        "tools/robotics-field-core/mujoco-portability-worker.mjs",
+        "tools/robotics-field-core/run-mujoco-portability.mjs",
+        "tests/robotics/field-core-qualification/mujoco-portability.spec.ts"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 0,
+      "stderrBytes": 0,
+      "nxBoundaryRule": "Actual project graph present; no skipped-boundary warning",
+      "receipt": {
+        "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\checks-final-repair-v2.json",
+        "bytes": 5164,
+        "sha256": "3ca0042585ddfa861d1ac8720c10c83950848356e2fa6038ed076f8bac9e8e11"
+      }
+    },
+    "format": {
+      "matchedFiles": [
+        "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+        "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+        "tools/robotics-field-core/mujoco-portability-worker.mjs",
+        "tools/robotics-field-core/run-mujoco-portability.mjs",
+        "tests/robotics/field-core-qualification/mujoco-portability.fixture.json",
+        "tests/robotics/field-core-qualification/mujoco-portability.spec.ts"
+      ],
+      "exitCode": 0,
+      "reports": "Report paths are ignored by repository formatter; no eight-file format claim"
+    },
+    "syntax": {
+      "files": [
+        "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+        "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+        "tools/robotics-field-core/mujoco-portability-worker.mjs",
+        "tools/robotics-field-core/run-mujoco-portability.mjs"
+      ],
+      "exitCode": 0,
+      "sourceReceipt": {
+        "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\checks-focused-repair-v3.json",
+        "bytes": 16627,
+        "sha256": "183a0c28334c1bd23d259910ac469e8a1471f9a719d8f8d71fc0c389d82ba2ad"
+      }
+    },
+    "sourceUnchangedAcrossSuccessfulGates": true
+  },
+  "repair": {
+    "review": {
+      "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\portability-predata-review-20261112T003115Z\\source-review.json",
+      "bytes": 33493,
+      "sha256": "bed7766d8ddbf6365b473e72d0ced89c8594f8f119b3a3286ab6d552fee89962"
+    },
+    "findings": [
+      "PDR-01",
+      "PDR-02",
+      "PDR-03"
+    ],
+    "status": "AUTHOR_REPAIR_COMPLETE_PENDING_INDEPENDENT_V2_REVIEW",
+    "PDR-01": {
+      "inheritedInputs": 11,
+      "removed": "unused absent mujoco-contact-observer prerequisite",
+      "regression": "independent literal eleven paths/hashes, actual files and published 7abc72d Git blobs"
+    },
+    "PDR-02": {
+      "separateDiffs": [
+        "committedChanges",
+        "stagedChanges (git diff --cached)",
+        "workingChanges",
+        "untrackedFiles"
+      ],
+      "regression": "real isolated Git fixture HEAD=A/index=B/worktree=A rejects executable staged drift; staged allowlisted report accepted",
+      "temporaryFixtureCleanup": "COMPLETE",
+      "temporaryWindowsSetting": "core.longpaths=true local to created fixture only",
+      "productIndexUnchanged": true
+    },
+    "PDR-03": {
+      "accounting": [
+        "native calls dispatched/returned",
+        "native advances completed",
+        "validated endpoints",
+        "adapter-dispatched endpoints",
+        "acknowledged endpoints",
+        "host-accepted endpoints",
+        "raw+state-digest fsync durable prefix",
+        "failure frames received/durable"
+      ],
+      "receiptRetention": "module and realm-end payloads persist in bounded protocol chunks before ACK propagation; terminal/disposal receipt persists through independent host binding; last received world is saved before failure returns",
+      "workerRelay": "fatal ACK keeps message listener until actual disposal/failure message or original watchdog; no Worker echo/fake physics",
+      "classification": "watchdog/process loss/forced termination => INCOMPLETE; confirmed native invariant => FAIL; mixed interruption remains INCOMPLETE while original native failure record remains classified FAIL",
+      "assessor": "original PHY01 assessor invoked only for complete successful 21-world realm with all20 positive worlds and exact accepted/durable endpoint equality",
+      "successEquality": "unchanged full-success native/completed/emitted/ACK/accepted/durable equality; failed returned step does not fabricate a successful endpoint",
+      "unknown": "only genuinely unreceived state is UNKNOWN; received counters/module/world/terminal payloads retained"
+    },
+    "boundedReceiptPersistence": {
+      "kindCaps": {
+        "module": 8192,
+        "realm-end": 16384,
+        "terminal": 32768
+      },
+      "maximumReceipts": 9,
+      "rawChunkBytes": 384,
+      "maximumProtocolRowBytes": 1024,
+      "maximumAdditionalRows": 453,
+      "normalProtocolRows": 1886,
+      "maximumNormalRowsWithReceipts": 2339,
+      "protocolRowCap": 4096,
+      "protocolByteCap": 4194304,
+      "newJournalFiles": 0,
+      "maximumJournalFiles": 261,
+      "plannedMaximumBytes": 43357920,
+      "hardEnvelopeBytes": 67108864
+    },
+    "meaningfulTests": {
+      "historicalV1": 79,
+      "currentV2": 99,
+      "added": 20
+    },
+    "repairAttempts": [
+      {
+        "attempt": "pure-tests-official-v5",
+        "tests": 99,
+        "passed": 98,
+        "failed": 1,
+        "cause": "Windows path length in newly created Git fixture; kept as actual failed attempt"
+      },
+      {
+        "attempt": "pure-tests-official-v6",
+        "tests": 99,
+        "passed": 99,
+        "failed": 0,
+        "note": "PASS before targeted lint repair"
+      },
+      {
+        "attempt": "pure-tests-official-v7",
+        "tests": 99,
+        "passed": 99,
+        "failed": 0,
+        "note": "final execution input bytes after actual lint repairs"
+      }
+    ],
+    "lintIncident": {
+      "firstGate": "lint-with-graph-repair-v1",
+      "errors": [
+        "unused test variable",
+        "no-unsafe-finally cleanup throw"
+      ],
+      "repair": "remove unused variable; propagate collected primary error after finally, cleanup error remains separately recorded",
+      "finalGate": "lint-with-graph-repair-v2",
+      "errorsRemaining": 0
+    }
+  },
+  "preflight": {
+    "receipt": {
+      "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\preflight-repair-v1.result.json",
+      "bytes": 1237,
+      "sha256": "50574b32e7be9ea4f29d1bb5b75c2c7b287cd981aa24182391cc7f434b1cf805"
+    },
+    "originalStatus": "RECOVERY_REQUIRED",
+    "originalExitCode": 2,
+    "classification": "CONTINUE_CLASSIFIED_SOURCE_ONLY_REPAIR",
+    "classificationReceipt": {
+      "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\repair-entry-classification.json",
+      "bytes": 6040,
+      "sha256": "24a5903c85db1213ddacc96329970caca6e3f8d5ea593928c9489721f4821114"
+    },
+    "reason": "Eight known owned untracked paths; original preflight status preserved"
+  },
+  "sourceExecution": {
+    "phase": "repair-v2",
+    "packageInstalls": 0,
+    "manualSymlinksCreated": 0,
+    "preregistrationsCreated": 0,
+    "productRepositoryCommits": 0,
+    "pushes": 0,
+    "deployment": 0,
+    "databaseActions": 0,
+    "temporaryGitFixtureCommits": 3,
+    "fixtureCommitScope": "One isolated test-data commit per actual repair test attempt; product index and HEAD unchanged"
+  },
+  "tooling": {
+    "counterScope": "Technical parser WASM, test-runner processes and Git fixture commands are separate from MuJoCo qualification counts",
+    "summary": {
+      "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\repair-validation-summary-v1.json",
+      "bytes": 27277,
+      "sha256": "a38ca482094c36b7ed6709480e686c6906b747857f486c449ffb9e5798e69b0e"
+    },
+    "actualRepairAttempts": [
+      {
+        "attempt": "pure-tests-official-v5",
+        "roles": [
+          {
+            "role": "orchestrator",
+            "pid": 30972,
+            "eventsPath": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\pure-tests-official-v5\\30972.events.ndjson",
+            "eventBytes": 7925,
+            "eventSha256": "113813db7abc6fe201df4458358c40a585bf8496c3ef8206f2335ece9f957da8",
+            "technicalParser": {
+              "technical-compile-dispatched": 3,
+              "technical-compile-returned": 3,
+              "technical-compile-rejected": 0,
+              "technical-compile-threw": 0,
+              "technical-instantiate-dispatched": 3,
+              "technical-instantiate-returned": 3,
+              "technical-instantiate-rejected": 0,
+              "technical-instantiate-threw": 0
+            },
+            "blocked": [
+              {
+                "category": "processes",
+                "api": "spawnSync",
+                "command": "C:\\Users\\spike\\AppData\\Local\\Programs\\nodejs\\node-v22.23.3-win-x64\\node.exe",
+                "args": [
+                  [
+                    "-p",
+                    "const r=require('node:process').report;r.excludeNetwork=true;console.log(JSON.stringify(r.getReport().header));"
+                  ],
+                  {
+                    "encoding": "utf8",
+                    "timeout": 3000,
+                    "windowsHide": true
+                  }
+                ]
+              }
+            ],
+            "processes": [
+              {
+                "kind": "esbuild",
+                "pid": 35288,
+                "args": [
+                  "--service=0.25.12",
+                  "--ping"
+                ],
+                "returned": true,
+                "exit": null
+              },
+              {
+                "kind": "vitest-fork",
+                "pid": 50996,
+                "args": [],
+                "returned": true,
+                "exit": null
+              }
+            ],
+            "exitEvents": [
+              {
+                "kind": "vitest-fork",
+                "pid": 50996,
+                "code": null,
+                "signal": "SIGTERM"
+              },
+              {
+                "code": 1,
+                "observed": {
+                  "blocked": {
+                    "engineImports": 0,
+                    "wasm": 0,
+                    "processes": 1,
+                    "workers": 0,
+                    "listening": 0,
+                    "lazyNetwork": 0,
+                    "network": 0
+                  },
+                  "technicalCompile": {
+                    "dispatched": 3,
+                    "returned": 3,
+                    "rejected": 0
+                  },
+                  "technicalInstantiate": {
+                    "dispatched": 3,
+                    "returned": 3,
+                    "rejected": 0
+                  },
+                  "parserCounts": {
+                    "703eb31ab5a3221bdb7b8f1282392ab51bbaa73a1b90ecbbfe7e8b189769fd68": {
+                      "compile": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      },
+                      "instantiate": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      }
+                    },
+                    "7fefbddc5e08840e5519d747c1ebd5b6c31764d9a8d37ea84f1e475a62db609d": {
+                      "compile": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      },
+                      "instantiate": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      }
+                    },
+                    "b40099ca01477f581bd752acc8ed6d25c14b0e8beb9a00e0dc1744a2b041a104": {
+                      "compile": {
+                        "dispatched": 0,
+                        "returned": 0,
+                        "rejected": 0
+                      },
+                      "instantiate": {
+                        "dispatched": 0,
+                        "returned": 0,
+                        "rejected": 0
+                      }
+                    },
+                    "04270c743e8822ce7f7f797ae127f2f0b88160ca82022559a99cb2b76438067b": {
+                      "compile": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      },
+                      "instantiate": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      }
+                    }
+                  },
+                  "processes": [
+                    {
+                      "kind": "esbuild",
+                      "pid": 35288,
+                      "args": [
+                        "--service=0.25.12",
+                        "--ping"
+                      ],
+                      "returned": true,
+                      "exit": null
+                    },
+                    {
+                      "kind": "vitest-fork",
+                      "pid": 50996,
+                      "args": [],
+                      "returned": true,
+                      "exit": {
+                        "code": null,
+                        "signal": "SIGTERM"
+                      }
+                    }
+                  ],
+                  "technicalGit": {
+                    "dispatched": 0,
+                    "returned": 0,
+                    "errors": 0,
+                    "fixtureInitializations": 0,
+                    "fixtureCommits": 0,
+                    "pidObservation": "NOT_EXPOSED_BY_EXECFILESYNC"
+                  }
+                }
+              }
+            ],
+            "git": {
+              "eventsPath": null,
+              "counts": {},
+              "fixtureCommits": 0,
+              "pidScope": "Not exposed by execFileSync; exact command call/return/error observed, no fabricated child PID"
+            },
+            "exitReceiptPresent": true
+          },
+          {
+            "role": "vitest-fork",
+            "pid": 50996,
+            "eventsPath": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\pure-tests-official-v5\\50996.events.ndjson",
+            "eventBytes": 756,
+            "eventSha256": "ecb50e2d005e8a6919140443c7a1b9f258619ddec6bf8ca700c9ece79cf8a673",
+            "technicalParser": {
+              "technical-compile-dispatched": 0,
+              "technical-compile-returned": 0,
+              "technical-compile-rejected": 0,
+              "technical-compile-threw": 0,
+              "technical-instantiate-dispatched": 0,
+              "technical-instantiate-returned": 0,
+              "technical-instantiate-rejected": 0,
+              "technical-instantiate-threw": 0
+            },
+            "blocked": [],
+            "processes": [],
+            "exitEvents": [],
+            "git": {
+              "eventsPath": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\pure-tests-official-v5\\50996.git.ndjson",
+              "counts": {
+                "dispatch": 23,
+                "returned": 22,
+                "error": 1
+              },
+              "fixtureCommits": 1,
+              "pidScope": "Not exposed by execFileSync; exact command call/return/error observed, no fabricated child PID"
+            },
+            "exitReceiptPresent": false
+          }
+        ]
+      },
+      {
+        "attempt": "pure-tests-official-v6",
+        "roles": [
+          {
+            "role": "orchestrator",
+            "pid": 50032,
+            "eventsPath": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\pure-tests-official-v6\\50032.events.ndjson",
+            "eventBytes": 7925,
+            "eventSha256": "da8fc3999ad84164ac76e194a7e809447fc896839d400385ba2c405c95a3fda8",
+            "technicalParser": {
+              "technical-compile-dispatched": 3,
+              "technical-compile-returned": 3,
+              "technical-compile-rejected": 0,
+              "technical-compile-threw": 0,
+              "technical-instantiate-dispatched": 3,
+              "technical-instantiate-returned": 3,
+              "technical-instantiate-rejected": 0,
+              "technical-instantiate-threw": 0
+            },
+            "blocked": [
+              {
+                "category": "processes",
+                "api": "spawnSync",
+                "command": "C:\\Users\\spike\\AppData\\Local\\Programs\\nodejs\\node-v22.23.3-win-x64\\node.exe",
+                "args": [
+                  [
+                    "-p",
+                    "const r=require('node:process').report;r.excludeNetwork=true;console.log(JSON.stringify(r.getReport().header));"
+                  ],
+                  {
+                    "encoding": "utf8",
+                    "timeout": 3000,
+                    "windowsHide": true
+                  }
+                ]
+              }
+            ],
+            "processes": [
+              {
+                "kind": "esbuild",
+                "pid": 37616,
+                "args": [
+                  "--service=0.25.12",
+                  "--ping"
+                ],
+                "returned": true,
+                "exit": null
+              },
+              {
+                "kind": "vitest-fork",
+                "pid": 51632,
+                "args": [],
+                "returned": true,
+                "exit": null
+              }
+            ],
+            "exitEvents": [
+              {
+                "kind": "vitest-fork",
+                "pid": 51632,
+                "code": null,
+                "signal": "SIGTERM"
+              },
+              {
+                "code": 0,
+                "observed": {
+                  "blocked": {
+                    "engineImports": 0,
+                    "wasm": 0,
+                    "processes": 1,
+                    "workers": 0,
+                    "listening": 0,
+                    "lazyNetwork": 0,
+                    "network": 0
+                  },
+                  "technicalCompile": {
+                    "dispatched": 3,
+                    "returned": 3,
+                    "rejected": 0
+                  },
+                  "technicalInstantiate": {
+                    "dispatched": 3,
+                    "returned": 3,
+                    "rejected": 0
+                  },
+                  "parserCounts": {
+                    "703eb31ab5a3221bdb7b8f1282392ab51bbaa73a1b90ecbbfe7e8b189769fd68": {
+                      "compile": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      },
+                      "instantiate": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      }
+                    },
+                    "7fefbddc5e08840e5519d747c1ebd5b6c31764d9a8d37ea84f1e475a62db609d": {
+                      "compile": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      },
+                      "instantiate": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      }
+                    },
+                    "b40099ca01477f581bd752acc8ed6d25c14b0e8beb9a00e0dc1744a2b041a104": {
+                      "compile": {
+                        "dispatched": 0,
+                        "returned": 0,
+                        "rejected": 0
+                      },
+                      "instantiate": {
+                        "dispatched": 0,
+                        "returned": 0,
+                        "rejected": 0
+                      }
+                    },
+                    "04270c743e8822ce7f7f797ae127f2f0b88160ca82022559a99cb2b76438067b": {
+                      "compile": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      },
+                      "instantiate": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      }
+                    }
+                  },
+                  "processes": [
+                    {
+                      "kind": "esbuild",
+                      "pid": 37616,
+                      "args": [
+                        "--service=0.25.12",
+                        "--ping"
+                      ],
+                      "returned": true,
+                      "exit": null
+                    },
+                    {
+                      "kind": "vitest-fork",
+                      "pid": 51632,
+                      "args": [],
+                      "returned": true,
+                      "exit": {
+                        "code": null,
+                        "signal": "SIGTERM"
+                      }
+                    }
+                  ],
+                  "technicalGit": {
+                    "dispatched": 0,
+                    "returned": 0,
+                    "errors": 0,
+                    "fixtureInitializations": 0,
+                    "fixtureCommits": 0,
+                    "pidObservation": "NOT_EXPOSED_BY_EXECFILESYNC"
+                  }
+                }
+              }
+            ],
+            "git": {
+              "eventsPath": null,
+              "counts": {},
+              "fixtureCommits": 0,
+              "pidScope": "Not exposed by execFileSync; exact command call/return/error observed, no fabricated child PID"
+            },
+            "exitReceiptPresent": true
+          },
+          {
+            "role": "vitest-fork",
+            "pid": 51632,
+            "eventsPath": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\pure-tests-official-v6\\51632.events.ndjson",
+            "eventBytes": 756,
+            "eventSha256": "2ecf027a6ebb72a41cf19f8b4ed767aec81c92cf082a5a401ebf1ec976a2eb4a",
+            "technicalParser": {
+              "technical-compile-dispatched": 0,
+              "technical-compile-returned": 0,
+              "technical-compile-rejected": 0,
+              "technical-compile-threw": 0,
+              "technical-instantiate-dispatched": 0,
+              "technical-instantiate-returned": 0,
+              "technical-instantiate-rejected": 0,
+              "technical-instantiate-threw": 0
+            },
+            "blocked": [],
+            "processes": [],
+            "exitEvents": [],
+            "git": {
+              "eventsPath": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\pure-tests-official-v6\\51632.git.ndjson",
+              "counts": {
+                "dispatch": 91,
+                "returned": 91
+              },
+              "fixtureCommits": 1,
+              "pidScope": "Not exposed by execFileSync; exact command call/return/error observed, no fabricated child PID"
+            },
+            "exitReceiptPresent": false
+          }
+        ]
+      },
+      {
+        "attempt": "pure-tests-official-v7",
+        "roles": [
+          {
+            "role": "orchestrator",
+            "pid": 29992,
+            "eventsPath": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\pure-tests-official-v7\\29992.events.ndjson",
+            "eventBytes": 7925,
+            "eventSha256": "c258e00eef7f6eb048109068740bb753d943ef5e1c23aacfc65d9ecb469f0cd7",
+            "technicalParser": {
+              "technical-compile-dispatched": 3,
+              "technical-compile-returned": 3,
+              "technical-compile-rejected": 0,
+              "technical-compile-threw": 0,
+              "technical-instantiate-dispatched": 3,
+              "technical-instantiate-returned": 3,
+              "technical-instantiate-rejected": 0,
+              "technical-instantiate-threw": 0
+            },
+            "blocked": [
+              {
+                "category": "processes",
+                "api": "spawnSync",
+                "command": "C:\\Users\\spike\\AppData\\Local\\Programs\\nodejs\\node-v22.23.3-win-x64\\node.exe",
+                "args": [
+                  [
+                    "-p",
+                    "const r=require('node:process').report;r.excludeNetwork=true;console.log(JSON.stringify(r.getReport().header));"
+                  ],
+                  {
+                    "encoding": "utf8",
+                    "timeout": 3000,
+                    "windowsHide": true
+                  }
+                ]
+              }
+            ],
+            "processes": [
+              {
+                "kind": "esbuild",
+                "pid": 50600,
+                "args": [
+                  "--service=0.25.12",
+                  "--ping"
+                ],
+                "returned": true,
+                "exit": null
+              },
+              {
+                "kind": "vitest-fork",
+                "pid": 35700,
+                "args": [],
+                "returned": true,
+                "exit": null
+              }
+            ],
+            "exitEvents": [
+              {
+                "kind": "vitest-fork",
+                "pid": 35700,
+                "code": null,
+                "signal": "SIGTERM"
+              },
+              {
+                "code": 0,
+                "observed": {
+                  "blocked": {
+                    "engineImports": 0,
+                    "wasm": 0,
+                    "processes": 1,
+                    "workers": 0,
+                    "listening": 0,
+                    "lazyNetwork": 0,
+                    "network": 0
+                  },
+                  "technicalCompile": {
+                    "dispatched": 3,
+                    "returned": 3,
+                    "rejected": 0
+                  },
+                  "technicalInstantiate": {
+                    "dispatched": 3,
+                    "returned": 3,
+                    "rejected": 0
+                  },
+                  "parserCounts": {
+                    "703eb31ab5a3221bdb7b8f1282392ab51bbaa73a1b90ecbbfe7e8b189769fd68": {
+                      "compile": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      },
+                      "instantiate": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      }
+                    },
+                    "7fefbddc5e08840e5519d747c1ebd5b6c31764d9a8d37ea84f1e475a62db609d": {
+                      "compile": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      },
+                      "instantiate": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      }
+                    },
+                    "b40099ca01477f581bd752acc8ed6d25c14b0e8beb9a00e0dc1744a2b041a104": {
+                      "compile": {
+                        "dispatched": 0,
+                        "returned": 0,
+                        "rejected": 0
+                      },
+                      "instantiate": {
+                        "dispatched": 0,
+                        "returned": 0,
+                        "rejected": 0
+                      }
+                    },
+                    "04270c743e8822ce7f7f797ae127f2f0b88160ca82022559a99cb2b76438067b": {
+                      "compile": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      },
+                      "instantiate": {
+                        "dispatched": 1,
+                        "returned": 1,
+                        "rejected": 0
+                      }
+                    }
+                  },
+                  "processes": [
+                    {
+                      "kind": "esbuild",
+                      "pid": 50600,
+                      "args": [
+                        "--service=0.25.12",
+                        "--ping"
+                      ],
+                      "returned": true,
+                      "exit": null
+                    },
+                    {
+                      "kind": "vitest-fork",
+                      "pid": 35700,
+                      "args": [],
+                      "returned": true,
+                      "exit": {
+                        "code": null,
+                        "signal": "SIGTERM"
+                      }
+                    }
+                  ],
+                  "technicalGit": {
+                    "dispatched": 0,
+                    "returned": 0,
+                    "errors": 0,
+                    "fixtureInitializations": 0,
+                    "fixtureCommits": 0,
+                    "pidObservation": "NOT_EXPOSED_BY_EXECFILESYNC"
+                  }
+                }
+              }
+            ],
+            "git": {
+              "eventsPath": null,
+              "counts": {},
+              "fixtureCommits": 0,
+              "pidScope": "Not exposed by execFileSync; exact command call/return/error observed, no fabricated child PID"
+            },
+            "exitReceiptPresent": true
+          },
+          {
+            "role": "vitest-fork",
+            "pid": 35700,
+            "eventsPath": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\pure-tests-official-v7\\35700.events.ndjson",
+            "eventBytes": 756,
+            "eventSha256": "6b486d39ec2060c5122481acc3704fe1abd582c95157a4ca6e3c51d28bb2658d",
+            "technicalParser": {
+              "technical-compile-dispatched": 0,
+              "technical-compile-returned": 0,
+              "technical-compile-rejected": 0,
+              "technical-compile-threw": 0,
+              "technical-instantiate-dispatched": 0,
+              "technical-instantiate-returned": 0,
+              "technical-instantiate-rejected": 0,
+              "technical-instantiate-threw": 0
+            },
+            "blocked": [],
+            "processes": [],
+            "exitEvents": [],
+            "git": {
+              "eventsPath": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\pure-tests-official-v7\\35700.git.ndjson",
+              "counts": {
+                "dispatch": 91,
+                "returned": 91
+              },
+              "fixtureCommits": 1,
+              "pidScope": "Not exposed by execFileSync; exact command call/return/error observed, no fabricated child PID"
+            },
+            "exitReceiptPresent": false
+          }
+        ]
+      }
+    ],
+    "cleanup": [
+      {
+        "pid": 29992,
+        "utc": "2026-11-12T01:38:27.586068+00:00",
+        "openProcessSucceeded": false,
+        "win32Error": 87,
+        "active": false
+      },
+      {
+        "pid": 30972,
+        "utc": "2026-11-12T01:38:27.586083+00:00",
+        "openProcessSucceeded": false,
+        "win32Error": 87,
+        "active": false
+      },
+      {
+        "pid": 35288,
+        "utc": "2026-11-12T01:38:27.586088+00:00",
+        "openProcessSucceeded": false,
+        "win32Error": 87,
+        "active": false
+      },
+      {
+        "pid": 35700,
+        "utc": "2026-11-12T01:38:27.586091+00:00",
+        "openProcessSucceeded": false,
+        "win32Error": 87,
+        "active": false
+      },
+      {
+        "pid": 37616,
+        "utc": "2026-11-12T01:38:27.586094+00:00",
+        "openProcessSucceeded": false,
+        "win32Error": 87,
+        "active": false
+      },
+      {
+        "pid": 50032,
+        "utc": "2026-11-12T01:38:27.586097+00:00",
+        "openProcessSucceeded": false,
+        "win32Error": 87,
+        "active": false
+      },
+      {
+        "pid": 50600,
+        "utc": "2026-11-12T01:38:27.586100+00:00",
+        "openProcessSucceeded": false,
+        "win32Error": 87,
+        "active": false
+      },
+      {
+        "pid": 50996,
+        "utc": "2026-11-12T01:38:27.586102+00:00",
+        "openProcessSucceeded": false,
+        "win32Error": 87,
+        "active": false
+      },
+      {
+        "pid": 51632,
+        "utc": "2026-11-12T01:38:27.586105+00:00",
+        "openProcessSucceeded": false,
+        "win32Error": 87,
+        "active": false
+      }
+    ],
+    "technicalParserAcrossRepairAttempts": {
+      "compileDispatched": 9,
+      "compileReturned": 9,
+      "instantiateDispatched": 9,
+      "instantiateReturned": 9,
+      "rejections": 0
+    },
+    "temporaryGitAcrossRepairAttempts": {
+      "dispatched": 205,
+      "returned": 204,
+      "errors": 1,
+      "pidObservation": "Not exposed by execFileSync; no fabricated PID"
+    },
+    "earlierAuthorIncidents": "Unchanged in historicalAuthorV1 and source-freeze-v1"
+  },
+  "preservation": {
+    "schema": "MUJOCO_PORTABILITY_REPAIR_PRESERVATION_V2",
+    "receiptPath": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-repair-20261112-01\\preservation-source-v2.json",
+    "currentOwnSchema": {
+      "inheritedPublishedInputs": 11,
+      "ownedSourcePaths": 8,
+      "executionInputs": 6,
+      "reports": 2,
+      "totalInventory": 19
+    },
+    "inherited": [
+      {
+        "path": "docs/product/robotics/FIELD_CORE_SPEC.md",
+        "bytes": 141843,
+        "sha256": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e",
+        "publishedBlobSha256": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e",
+        "equal": true
+      },
+      {
+        "path": "docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md",
+        "bytes": 9071,
+        "sha256": "0ca37747706d04d38d405bdd99186a19616a8cf7187ae91dad5d8162b4061623",
+        "publishedBlobSha256": "0ca37747706d04d38d405bdd99186a19616a8cf7187ae91dad5d8162b4061623",
+        "equal": true
+      },
+      {
+        "path": "tools/robotics-field-core/mujoco-phy01.mjs",
+        "bytes": 34587,
+        "sha256": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+        "publishedBlobSha256": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+        "equal": true
+      },
+      {
+        "path": "tools/robotics-field-core/run-mujoco-phy01.mjs",
+        "bytes": 6441,
+        "sha256": "5b2179f0ff1b6c759b63757dd881242aee6c9fb4b258243a08a7b50dfefb12ad",
+        "publishedBlobSha256": "5b2179f0ff1b6c759b63757dd881242aee6c9fb4b258243a08a7b50dfefb12ad",
+        "equal": true
+      },
+      {
+        "path": "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json",
+        "bytes": 3924,
+        "sha256": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c",
+        "publishedBlobSha256": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c",
+        "equal": true
+      },
+      {
+        "path": "tests/robotics/field-core-qualification/mujoco-phy01.spec.ts",
+        "bytes": 8577,
+        "sha256": "1266b4c420baea08fd4448beb9d96a908d039bc3ddcbfc89a67b911aef893cb4",
+        "publishedBlobSha256": "1266b4c420baea08fd4448beb9d96a908d039bc3ddcbfc89a67b911aef893cb4",
+        "equal": true
+      },
+      {
+        "path": "tools/robotics-field-core/mujoco-artifact.json",
+        "bytes": 14753,
+        "sha256": "1c353e3593f1fcd730c6e97f9549d3b6fdff7ce1fff7b9c45755edd7cd1ca1c3",
+        "publishedBlobSha256": "1c353e3593f1fcd730c6e97f9549d3b6fdff7ce1fff7b9c45755edd7cd1ca1c3",
+        "equal": true
+      },
+      {
+        "path": "tools/robotics-field-core/MUJOCO-LICENSE.txt",
+        "bytes": 11358,
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "publishedBlobSha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "equal": true
+      },
+      {
+        "path": "tools/robotics-field-core/MUJOCO-THIRD-PARTY-NOTICES.txt",
+        "bytes": 77376,
+        "sha256": "6f681117208684ef2ab3ad03a9f928ae8c6dffb4f765eeab59fb2d8b189e1540",
+        "publishedBlobSha256": "6f681117208684ef2ab3ad03a9f928ae8c6dffb4f765eeab59fb2d8b189e1540",
+        "equal": true
+      },
+      {
+        "path": "package.json",
+        "bytes": 27449,
+        "sha256": "c2f5a1421e86b7dd37022eda8a37cf25cded373d986c31dc8f8e1beb435c7492",
+        "publishedBlobSha256": "c2f5a1421e86b7dd37022eda8a37cf25cded373d986c31dc8f8e1beb435c7492",
+        "equal": true
+      },
+      {
+        "path": "pnpm-lock.yaml",
+        "bytes": 309859,
+        "sha256": "448b5a8faa0f8497c3efe1bdc63959b381fad5577bfb5734261e9578ee5a93e1",
+        "publishedBlobSha256": "448b5a8faa0f8497c3efe1bdc63959b381fad5577bfb5734261e9578ee5a93e1",
+        "equal": true
+      }
+    ],
+    "historicalReference19Receipt": {
+      "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\preservation-source-v1.json",
+      "bytes": 15005,
+      "sha256": "db63e9758e2be97e1dccc907daf213352f05b61bd1988b56a93dc1a2147815bd"
+    },
+    "historicalReference19Scope": "Timestamped 2026-11-12T00:21:08Z only; later legitimate cylinder publication ced975f is not portability drift",
+    "frozenV1Receipt": {
+      "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\source-freeze-v1\\freeze-receipt.json",
+      "bytes": 6245,
+      "sha256": "dbfac09d36770118a849fea20b704a7fbe06208870ddbf74e7bf473ac731736b"
+    },
+    "currentYamlAtObservedMain": {
+      "bytes": 1137657,
+      "sha256": "0ddb66ccca01b1df8f1b2c9fbda4a0e28e8d896f7916fbd3d477a0244623e86e"
+    },
+    "ownIndex": {
+      "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-mujoco-portability-001\\.git\\index",
+      "bytes": 839931,
+      "sha256": "4fd64ba64d1058e145085bf4706215ada95edddf31603b30055a431d3157d689"
+    },
+    "trackedAndStagedDiffBytes": 0
+  },
+  "admissionLifecycle": {
+    "executionInputs": 6,
+    "reports": 2,
+    "inheritedInputs": 11,
+    "sourceCheckpoint": "Must be committed before any future approved native run; no checkpoint commit in this phase",
+    "currentHead": "Descendant may change only approved report paths",
+    "reportAllowlist": "Exact two existing report paths plus explicitly allowed bounded future portability report paths",
+    "drift": "Fail-closed committed, cached/index, working-tree and untracked non-report changes; exact six executable hashes and eleven inherited Git-blob/current hashes",
+    "receiptCycle": "Report bytes excluded from execution inputs; no receipt self-hash",
+    "sourceCheckpointCreated": false,
+    "preregistrationCreated": false,
+    "predataReview": "V1 reviewed with three findings; V2 independent review pending"
+  },
+  "historicalAuthorV1": {
+    "schema": "MUJOCO_PORTABILITY_SOURCE_V1",
+    "task": "TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001",
+    "issue": 1071,
+    "scope": "TEST_ONLY_SOURCE_IMPLEMENTATION",
+    "status": "SOURCE_READY_FOR_INDEPENDENT_PREDATA_REVIEW",
+    "baseHead": "7abc72d2f8bf88475fd9b2467603243d7498b336",
+    "observedMain": "92377daf6db834a8fb4670598c55bf41b4fe8d2b",
+    "branch": "codex/robotics-field-core-mujoco-portability-001",
+    "design": {
+      "jsonSha256": "8bb56492a54e3028c9f3c1928da711757df11fa4cffcb17c71506841e1c829c6",
+      "preservationSha256": "152116eac9125799bf89b9ac3eed2ffb04f1e436e1a0d7312674d61a343a77e6"
+    },
+    "sourcePaths": [
+      "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+      "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+      "tools/robotics-field-core/mujoco-portability-worker.mjs",
+      "tools/robotics-field-core/run-mujoco-portability.mjs",
+      "tests/robotics/field-core-qualification/mujoco-portability.fixture.json",
+      "tests/robotics/field-core-qualification/mujoco-portability.spec.ts",
+      "docs/product/robotics/evidence/field-core-mujoco-portability-20261111.json",
+      "docs/product/robotics/evidence/field-core-mujoco-portability-20261111.md"
+    ],
+    "native": {
+      "status": "NOT_RUN",
+      "engineImports": 0,
+      "factoryCalls": 0,
+      "wasmCompileCalls": 0,
+      "wasmInstantiationCalls": 0,
+      "models": 0,
+      "data": 0,
+      "advances": 0,
+      "browserLaunches": 0,
+      "dedicatedWorkers": 0,
+      "listeningServers": 0,
+      "counterScope": "MUJOCO_QUALIFICATION_ONLY; technical parser and package-manager events are separate."
+    },
+    "sourceExecution": {
+      "packageInstalls": 1,
+      "symlinksCreated": null,
+      "preregistrationsCreated": 0,
+      "commits": 0,
+      "pushes": 0,
+      "deployment": "NOT_RUN",
+      "databaseActions": "NONE",
+      "manualSymlinksCreated": 0,
+      "packageManagerLinks": "pnpm-managed own node_modules; link count not measured"
+    },
+    "approvedFutureBudget": {
+      "realms": 3,
+      "positiveWorldsPerRealm": 20,
+      "quotaWorldsPerRealm": 1,
+      "worlds": 63,
+      "factoryCalls": 3,
+      "wasmInstantiationCalls": 3,
+      "models": 63,
+      "data": 63,
+      "positiveAdvances": 72000,
+      "quotaAdvances": 12,
+      "advances": 72012,
+      "positiveSplitCallsPerFunction": 64800,
+      "quotaSplitCallsPerFunction": 12,
+      "mj_step1": 64812,
+      "mj_step2": 64812,
+      "mj_step": 7200,
+      "advanceAttempts": 72015,
+      "quotaRefusals": 3,
+      "initialWarningObservations": 63,
+      "endpointWarningObservations": 72012,
+      "offlineResumeWarningObservations": 2,
+      "quotaRefusalWarningObservations": 3,
+      "negativeCases": 18,
+      "preFactoryNegativeCases": 15,
+      "warningObservations": 72080,
+      "warningCopies": 504560,
+      "warningCopiesIncludingOneEmergency": 504567,
+      "nativeUpdateFunctionCalls": 136824,
+      "wasmInstantiationScope": "PINNED_MUJOCO_REALMS_ONLY; observed exact wasmBinary and realm, not all internal host/Chromium WASM.",
+      "internalCompileCalls": null,
+      "maxLiveWorlds": 1
+    },
+    "journalBudget": {
+      "recordBytes": 352,
+      "recordCount": 72080,
+      "emergencyRecordCap": 1,
+      "dataPackets": {
+        "node": 263,
+        "browserMain": 264,
+        "dedicatedWorker": 264,
+        "total": 791,
+        "headerBytes": 64,
+        "maxRecordsPerPacket": 100
+      },
+      "stateDigestsBytes": 2304384,
+      "fixedCaps": {
+        "worldMetadata": 4128768,
+        "worldSummary": 1032192,
+        "negativeMetadata": 147456,
+        "realmMetadata": 98304,
+        "invocationManifest": 262144,
+        "protocol": 4194304,
+        "network": 524288,
+        "logs": 1048576,
+        "emergencyNonData": 4194304
+      },
+      "recordPayloadBytes": 25372160,
+      "packetHeaderBytes": 50624,
+      "normalDataBytes": 25422784,
+      "maxDataBytes": 25423200,
+      "plannedMaximumBytes": 43357920,
+      "hardEnvelopeBytes": 67108864,
+      "headroomBytes": 23750944,
+      "maxPacketBytes": 35264,
+      "maxBase64Chars": 47020,
+      "maxWorldNormalBytes": 564640,
+      "maxFiles": 261
+    },
+    "preflight": {
+      "status": "SAFE_TO_START",
+      "exitCode": 0,
+      "seconds": 11.492804400011664,
+      "stdoutBytes": 4293,
+      "stderrBytes": 0,
+      "plannedPaths": 8,
+      "dirtyPathsBefore": 0,
+      "executionBlockers": 0,
+      "overlaps": 0
+    },
+    "checks": {
+      "status": "PASS_SOURCE_ONLY",
+      "officialVitest": {
+        "version": "4.1.11",
+        "testFiles": 1,
+        "passed": 79,
+        "failed": 0,
+        "skipped": 0,
+        "pool": "forks",
+        "workers": 1,
+        "wallSeconds": 1.2734358000016073,
+        "exitCode": 0,
+        "stderrBytes": 0,
+        "attempt": "pure-tests-official-v4",
+        "physicalAliases": true,
+        "resolvePreserveSymlinks": true,
+        "config": {
+          "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\vitest-source-only-v3.config.mjs",
+          "bytes": 1576,
+          "sha256": "53fb9eda4646ab539008a4bffa326e9d810ed87b130d8071ee6be9e0b5bd55dc"
+        },
+        "sourceGraphNotSubstituted": true
+      },
+      "projectGraph": {
+        "status": "PASS",
+        "nodes": 28,
+        "dependencyEdges": 2136,
+        "file": {
+          "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\actual-project-graph-v2.json",
+          "bytes": 646835,
+          "sha256": "ede7f960a55befdb060b24c09720476fc0db688420d233e8e134355a5c41c918"
+        }
+      },
+      "targetedLint": {
+        "status": "PASS",
+        "files": [
+          "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+          "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+          "tools/robotics-field-core/mujoco-portability-worker.mjs",
+          "tools/robotics-field-core/run-mujoco-portability.mjs",
+          "tests/robotics/field-core-qualification/mujoco-portability.spec.ts"
+        ],
+        "stdoutBytes": 0,
+        "stderrBytes": 0,
+        "nxSkippedWarning": false
+      },
+      "format": {
+        "status": "PASS",
+        "files": [
+          "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+          "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+          "tools/robotics-field-core/mujoco-portability-worker.mjs",
+          "tools/robotics-field-core/run-mujoco-portability.mjs",
+          "tests/robotics/field-core-qualification/mujoco-portability.fixture.json",
+          "tests/robotics/field-core-qualification/mujoco-portability.spec.ts"
+        ],
+        "reportsIgnoredByExistingConfig": true
+      },
+      "syntax": {
+        "status": "PASS",
+        "files": [
+          "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+          "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+          "tools/robotics-field-core/mujoco-portability-worker.mjs",
+          "tools/robotics-field-core/run-mujoco-portability.mjs"
+        ]
+      },
+      "pureCoverage": [
+        "six exact PHY01 XML documents",
+        "fixture/plan/readback/oracles equivalence",
+        "208-byte native-state representation and signed zero",
+        "352-byte records/791 packets/64MiB arithmetic",
+        "NaN/Infinity/geometry admission before hash/IO",
+        "real cached missing/corrupted asset admission",
+        "source-time integer/quota before dispatch",
+        "instantiate input identity and descriptor restoration with rejection-only boundary doubles",
+        "protocol/ACK/generation/transfer guards",
+        "report-only preregistration admission and source drift rejection",
+        "invalid worker-start cleanup with explicit message-scope double",
+        "durable journal prefix under mocked write failure"
+      ],
+      "commands": [
+        {
+          "label": "syntax-source-guard-v9",
+          "utc": "2026-11-12T00:18:25.968793+00:00",
+          "args": [
+            "C:\\Users\\spike\\AppData\\Local\\Programs\\nodejs\\node-v22.23.3-win-x64\\node.exe",
+            "--check",
+            "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\source-only-preload-v9.mjs"
+          ],
+          "pid": 31300,
+          "exitCode": 0,
+          "elapsedSeconds": 0.06139090000942815,
+          "stdoutBytes": 0,
+          "stderrBytes": 0,
+          "stdout": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\syntax-source-guard-v9.stdout",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\syntax-source-guard-v9.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        {
+          "label": "pure-tests-official-v4",
+          "utc": "2026-11-12T00:18:27.242655+00:00",
+          "args": [
+            "C:\\Users\\spike\\AppData\\Local\\Programs\\nodejs\\node-v22.23.3-win-x64\\node.exe",
+            "C:\\Users\\spike\\Projects\\asa-lab-robotics-mujoco-cylinder-001\\node_modules\\.pnpm\\vitest@4.1.11_@opentelemetry+api@1.9.1_@types+node@22.20.1_jsdom@26.1.0_vite@6.4.4_@types+node@22.20.1_yaml@2.9.0_\\node_modules\\vitest\\vitest.mjs",
+            "run",
+            "--config",
+            "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\vitest-source-only-v3.config.mjs",
+            "--maxWorkers=1",
+            "--no-file-parallelism"
+          ],
+          "pid": 37728,
+          "exitCode": 0,
+          "elapsedSeconds": 1.2734358000016073,
+          "stdoutBytes": 547,
+          "stderrBytes": 0,
+          "stdout": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v4.stdout",
+            "bytes": 547,
+            "sha256": "7f8f21c493697aeff4d52d8db97a47e916d9eef9055a5b0c819ff8176685df31"
+          },
+          "stderr": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v4.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        {
+          "label": "actual-project-graph-v2",
+          "utc": "2026-11-12T00:19:23.668732+00:00",
+          "args": [
+            "C:\\Users\\spike\\AppData\\Local\\Programs\\nodejs\\node-v22.23.3-win-x64\\node.exe",
+            "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\create-actual-project-graph-v2.mjs"
+          ],
+          "pid": 38068,
+          "exitCode": 0,
+          "elapsedSeconds": 3.9053117000003112,
+          "stdoutBytes": 482,
+          "stderrBytes": 0,
+          "stdout": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\actual-project-graph-v2.stdout",
+            "bytes": 482,
+            "sha256": "1230112917edeffb0489f6eaa80ce00c9e60696f1cc9e300ba897e4844439976"
+          },
+          "stderr": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\actual-project-graph-v2.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        {
+          "label": "lint-with-graph-v2",
+          "utc": "2026-11-12T00:19:29.759576+00:00",
+          "args": [
+            "C:\\Users\\spike\\AppData\\Local\\Programs\\nodejs\\node-v22.23.3-win-x64\\node.exe",
+            "C:\\Users\\spike\\Projects\\asa-lab-robotics-mujoco-portability-001\\node_modules\\eslint\\bin\\eslint.js",
+            "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+            "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+            "tools/robotics-field-core/mujoco-portability-worker.mjs",
+            "tools/robotics-field-core/run-mujoco-portability.mjs",
+            "tests/robotics/field-core-qualification/mujoco-portability.spec.ts",
+            "--no-cache"
+          ],
+          "pid": 25156,
+          "exitCode": 0,
+          "elapsedSeconds": 6.0900909999909345,
+          "stdoutBytes": 0,
+          "stderrBytes": 0,
+          "stdout": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\lint-with-graph-v2.stdout",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\lint-with-graph-v2.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        {
+          "label": "format-final-v1",
+          "utc": "2026-11-12T00:19:30.409746+00:00",
+          "args": [
+            "C:\\Users\\spike\\AppData\\Local\\Programs\\nodejs\\node-v22.23.3-win-x64\\node.exe",
+            "C:\\Users\\spike\\Projects\\asa-lab-robotics-mujoco-portability-001\\node_modules\\prettier\\bin\\prettier.cjs",
+            "--check",
+            "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+            "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+            "tools/robotics-field-core/mujoco-portability-worker.mjs",
+            "tools/robotics-field-core/run-mujoco-portability.mjs",
+            "tests/robotics/field-core-qualification/mujoco-portability.fixture.json",
+            "tests/robotics/field-core-qualification/mujoco-portability.spec.ts"
+          ],
+          "pid": 44436,
+          "exitCode": 0,
+          "elapsedSeconds": 0.6494863999978406,
+          "stdoutBytes": 66,
+          "stderrBytes": 0,
+          "stdout": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\format-final-v1.stdout",
+            "bytes": 66,
+            "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+          },
+          "stderr": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\format-final-v1.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        {
+          "label": "syntax-final-1",
+          "utc": "2026-11-12T00:19:30.466539+00:00",
+          "args": [
+            "C:\\Users\\spike\\AppData\\Local\\Programs\\nodejs\\node-v22.23.3-win-x64\\node.exe",
+            "--check",
+            "tools/robotics-field-core/mujoco-portability-sampler.mjs"
+          ],
+          "pid": 37692,
+          "exitCode": 0,
+          "elapsedSeconds": 0.05641090001154225,
+          "stdoutBytes": 0,
+          "stderrBytes": 0,
+          "stdout": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\syntax-final-1.stdout",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\syntax-final-1.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        {
+          "label": "syntax-final-2",
+          "utc": "2026-11-12T00:19:30.524484+00:00",
+          "args": [
+            "C:\\Users\\spike\\AppData\\Local\\Programs\\nodejs\\node-v22.23.3-win-x64\\node.exe",
+            "--check",
+            "tools/robotics-field-core/mujoco-portability-runtime.mjs"
+          ],
+          "pid": 24940,
+          "exitCode": 0,
+          "elapsedSeconds": 0.05722070000774693,
+          "stdoutBytes": 0,
+          "stderrBytes": 0,
+          "stdout": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\syntax-final-2.stdout",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\syntax-final-2.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        {
+          "label": "syntax-final-3",
+          "utc": "2026-11-12T00:19:30.580366+00:00",
+          "args": [
+            "C:\\Users\\spike\\AppData\\Local\\Programs\\nodejs\\node-v22.23.3-win-x64\\node.exe",
+            "--check",
+            "tools/robotics-field-core/mujoco-portability-worker.mjs"
+          ],
+          "pid": 28496,
+          "exitCode": 0,
+          "elapsedSeconds": 0.055521100002806634,
+          "stdoutBytes": 0,
+          "stderrBytes": 0,
+          "stdout": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\syntax-final-3.stdout",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\syntax-final-3.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        {
+          "label": "syntax-final-4",
+          "utc": "2026-11-12T00:19:30.638576+00:00",
+          "args": [
+            "C:\\Users\\spike\\AppData\\Local\\Programs\\nodejs\\node-v22.23.3-win-x64\\node.exe",
+            "--check",
+            "tools/robotics-field-core/run-mujoco-portability.mjs"
+          ],
+          "pid": 49984,
+          "exitCode": 0,
+          "elapsedSeconds": 0.057827199998428114,
+          "stdoutBytes": 0,
+          "stderrBytes": 0,
+          "stdout": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\syntax-final-4.stdout",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\syntax-final-4.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      ],
+      "summary": {
+        "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\source-validation-summary-v1.json",
+        "bytes": 90628,
+        "sha256": "3f0b9e04a8e5c3df8867e6d4778cef6e71967269c42938d7243c7d259ab79e40"
+      },
+      "sourceUnchangedAcrossSuccessfulGates": true,
+      "earlierLintLimitation": "lint-v2 was exit zero with Nx boundary rule skipped. Final coverage comes from actual graph + lint-with-graph-v2; old check is not reclassified."
+    },
+    "codeHashes": [
+      {
+        "path": "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+        "bytes": 28704,
+        "sha256": "1291ee6b62fa9e1612676282057dda35eda0ace9e55044c64f3031e39271e504"
+      },
+      {
+        "path": "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+        "bytes": 28925,
+        "sha256": "3d61c2e70872928ddbc47c72c5effe88913f71ae42c0fe9846861fa1d8810647"
+      },
+      {
+        "path": "tools/robotics-field-core/mujoco-portability-worker.mjs",
+        "bytes": 4269,
+        "sha256": "767bccfa8be39d952bdb4e989038aa9f00abfcd64b280a231aed112e2bf7d385"
+      },
+      {
+        "path": "tools/robotics-field-core/run-mujoco-portability.mjs",
+        "bytes": 57639,
+        "sha256": "8dd19039cb31d1b128eb7623efbabfc7c1141a75a9df615587fdae92a176cd07"
+      },
+      {
+        "path": "tests/robotics/field-core-qualification/mujoco-portability.fixture.json",
+        "bytes": 5730,
+        "sha256": "315265228876de2444ab7c9426da25e34b6a8cc42a28209a8ba8e10bbfe68cd6"
+      },
+      {
+        "path": "tests/robotics/field-core-qualification/mujoco-portability.spec.ts",
+        "bytes": 36697,
+        "sha256": "b20fffcddd910effdcdc2f1241fbda5c9c0695e43a135583251e5392e33cfa98"
+      }
+    ],
+    "runtimeLimits": [
+      "Native paths, browser/Worker, real offline barrier and native cleanup remain NOT_RUN.",
+      "No absent-WebAssembly-API or compiler-rejection claim: corrupt/missing WASM negatives stop at asset admission before factory.",
+      "Internal MuJoCo compile calls are unknown; instantiate calls/returns/errors must be observed and bound to pinned bytes/realm.",
+      "Three expected instantiations cover only measured MuJoCo realms. Unrelated internal host/Chromium WASM is not claimed absent.",
+      "Cold local loading denies external application requests; warm continuation uses a real context offline barrier in the same first world at 200000us. No cold real-offline reload or whole-app offline claim.",
+      "Warning trajectory SHA is bounded metadata; no unbudgeted per-step warning file.",
+      "The 79 tests use pure data and explicit boundary doubles, never a native trajectory or fake runtime exports.",
+      "Actual Chromium process count, memory high-water, school D04/performance and E10 leak qualification remain unmeasured.",
+      "Full app offline/auth/save/draft persistence, persistent runtime resume, CCD and D01 acceptance are excluded."
+    ],
+    "handoff": "SOURCE_READY_FOR_INDEPENDENT_PREDATA_REVIEW; STOP before preregistration, native MAIN, commit or push.",
+    "frozenAtUtc": "2026-11-12T00:26:37.319166+00:00",
+    "executionInputPaths": [
+      "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+      "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+      "tools/robotics-field-core/mujoco-portability-worker.mjs",
+      "tools/robotics-field-core/run-mujoco-portability.mjs",
+      "tests/robotics/field-core-qualification/mujoco-portability.fixture.json",
+      "tests/robotics/field-core-qualification/mujoco-portability.spec.ts"
+    ],
+    "reportPaths": [
+      "docs/product/robotics/evidence/field-core-mujoco-portability-20261111.json",
+      "docs/product/robotics/evidence/field-core-mujoco-portability-20261111.md"
+    ],
+    "preservation": {
+      "schema": "MUJOCO_PORTABILITY_SOURCE_PRESERVATION_V1",
+      "receipt": {
+        "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\preservation-source-v1.json",
+        "bytes": 15005,
+        "sha256": "db63e9758e2be97e1dccc907daf213352f05b61bd1988b56a93dc1a2147815bd"
+      },
+      "referenceRoot": "C:\\Users\\spike\\Projects\\asa-lab-robotics-mujoco-cylinder-001",
+      "referenceHead": "306c80f03a55f70fd7d71d7311ac8396ed8325cc",
+      "referenceStatus": " M docs/product/robotics/evidence/field-core-mujoco-cylinder-20261111.json\n",
+      "unchangedInputCount": 19,
+      "inputs": [
+        {
+          "path": "AGENTS.md",
+          "bytes": 39150,
+          "sha256": "ea1170f5ed787c22a6bfb9b0dc56e221b6a79e9c12dd5798f4c83b18ff9dce93",
+          "unchanged": true
+        },
+        {
+          "path": "docs/execution/current.yaml",
+          "bytes": 1132652,
+          "sha256": "70496348200f3863eb2acec194161617bbf448cf2775b341bb48214fff8fc8ea",
+          "unchanged": true
+        },
+        {
+          "path": "docs/product/robotics/FIELD_CORE_SPEC.md",
+          "bytes": 141843,
+          "sha256": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e",
+          "unchanged": true
+        },
+        {
+          "path": "tools/robotics-field-core/mujoco-contact-observer.mjs",
+          "bytes": 32750,
+          "sha256": "63f57d38502dfb7f1d0a4fd4899c4112888a0040855932f6f6fdd922b8d914b0",
+          "unchanged": true
+        },
+        {
+          "path": "tools/robotics-field-core/mujoco-cylinder.mjs",
+          "bytes": 54832,
+          "sha256": "d9748052ca54987aa5ed42f909d0c1f8e21587c0e6ca60c6b5f0b4c3c86ea24b",
+          "unchanged": true
+        },
+        {
+          "path": "tools/robotics-field-core/run-mujoco-cylinder.mjs",
+          "bytes": 13109,
+          "sha256": "9729d2f48a51db51a09962e412c41c76912d8719ce864ff93f89a10cc59418e9",
+          "unchanged": true
+        },
+        {
+          "path": "tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json",
+          "bytes": 13118,
+          "sha256": "28c24e4692f65c41fec11a5ade73cf0ce25d0e6e6b80a3b2bb5fca36408222eb",
+          "unchanged": true
+        },
+        {
+          "path": "tests/robotics/field-core-qualification/mujoco-cylinder.spec.ts",
+          "bytes": 63906,
+          "sha256": "a591d2189d8ea24d27706245965a3fbf2b9b9b8bf2533f0d5e10681bb8346a01",
+          "unchanged": true
+        },
+        {
+          "path": "package.json",
+          "bytes": 27449,
+          "sha256": "c2f5a1421e86b7dd37022eda8a37cf25cded373d986c31dc8f8e1beb435c7492",
+          "unchanged": true
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "bytes": 309859,
+          "sha256": "448b5a8faa0f8497c3efe1bdc63959b381fad5577bfb5734261e9578ee5a93e1",
+          "unchanged": true
+        },
+        {
+          "path": "tools/robotics-field-core/mujoco-artifact.json",
+          "bytes": 14753,
+          "sha256": "1c353e3593f1fcd730c6e97f9549d3b6fdff7ce1fff7b9c45755edd7cd1ca1c3",
+          "unchanged": true
+        },
+        {
+          "path": "tools/robotics-field-core/MUJOCO-LICENSE.txt",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "unchanged": true
+        },
+        {
+          "path": "tools/robotics-field-core/MUJOCO-THIRD-PARTY-NOTICES.txt",
+          "bytes": 77376,
+          "sha256": "6f681117208684ef2ab3ad03a9f928ae8c6dffb4f765eeab59fb2d8b189e1540",
+          "unchanged": true
+        },
+        {
+          "path": "tools/robotics-field-core/mujoco-phy01.mjs",
+          "bytes": 34587,
+          "sha256": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+          "unchanged": true
+        },
+        {
+          "path": "tools/robotics-field-core/run-mujoco-phy01.mjs",
+          "bytes": 6441,
+          "sha256": "5b2179f0ff1b6c759b63757dd881242aee6c9fb4b258243a08a7b50dfefb12ad",
+          "unchanged": true
+        },
+        {
+          "path": "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json",
+          "bytes": 3924,
+          "sha256": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c",
+          "unchanged": true
+        },
+        {
+          "path": "tests/robotics/field-core-qualification/mujoco-phy01.spec.ts",
+          "bytes": 8577,
+          "sha256": "1266b4c420baea08fd4448beb9d96a908d039bc3ddcbfc89a67b911aef893cb4",
+          "unchanged": true
+        },
+        {
+          "path": "docs/product/robotics/evidence/field-core-mujoco-cylinder-20261111.json",
+          "bytes": 567747,
+          "sha256": "b6325548c8a313d215430596db1abf8255711507195f6d8ca56cb16ad083ef75",
+          "unchanged": true
+        },
+        {
+          "path": "docs/product/robotics/evidence/field-core-mujoco-cylinder-20261111.md",
+          "bytes": 30477,
+          "sha256": "643f42be222e1746a1ad72b641d7bca64affa9514fab133432d3eb0e21f9514c",
+          "unchanged": true
+        }
+      ],
+      "ownHead": "7abc72d2f8bf88475fd9b2467603243d7498b336",
+      "ownBranch": "codex/robotics-field-core-mujoco-portability-001",
+      "trackedDiffBytes": 0,
+      "stagedDiffBytes": 0,
+      "newPaths": [
+        "docs/product/robotics/evidence/field-core-mujoco-portability-20261111.json",
+        "docs/product/robotics/evidence/field-core-mujoco-portability-20261111.md",
+        "tests/robotics/field-core-qualification/mujoco-portability.fixture.json",
+        "tests/robotics/field-core-qualification/mujoco-portability.spec.ts",
+        "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+        "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+        "tools/robotics-field-core/mujoco-portability-worker.mjs",
+        "tools/robotics-field-core/run-mujoco-portability.mjs"
+      ],
+      "engineFiles": [
+        {
+          "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-mujoco-portability-001\\node_modules\\.pnpm\\@mujoco+mujoco@4.0.0\\node_modules\\@mujoco\\mujoco\\mujoco.js",
+          "bytes": 294200,
+          "sha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2"
+        },
+        {
+          "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-mujoco-portability-001\\node_modules\\.pnpm\\@mujoco+mujoco@4.0.0\\node_modules\\@mujoco\\mujoco\\mujoco.wasm",
+          "bytes": 11200612,
+          "sha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de"
+        },
+        {
+          "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-mujoco-portability-001\\node_modules\\.pnpm\\@mujoco+mujoco@4.0.0\\node_modules\\@mujoco\\mujoco\\mujoco.d.ts",
+          "bytes": 147615,
+          "sha256": "ffc8245f0c9b565b35fbe17cfbaac180d66c86be3d733743f63cf579e6d3a2e4"
+        },
+        {
+          "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-mujoco-portability-001\\node_modules\\.pnpm\\@mujoco+mujoco@4.0.0\\node_modules\\@mujoco\\mujoco\\package.json",
+          "bytes": 1290,
+          "sha256": "a7d2c0108c77aa9826a2df5aa40f79e4812339b218fe237e478f73eb586fc0d9"
+        }
+      ],
+      "toolingProcessCleanup": [
+        {
+          "pid": 37728,
+          "observationUtc": "2026-11-12T00:21:08.580492+00:00",
+          "openProcessSucceeded": false,
+          "win32Error": 87,
+          "active": false
+        },
+        {
+          "pid": 48456,
+          "observationUtc": "2026-11-12T00:21:08.580508+00:00",
+          "openProcessSucceeded": false,
+          "win32Error": 87,
+          "active": false
+        },
+        {
+          "pid": 38992,
+          "observationUtc": "2026-11-12T00:21:08.580513+00:00",
+          "openProcessSucceeded": false,
+          "win32Error": 87,
+          "active": false
+        },
+        {
+          "pid": 51332,
+          "observationUtc": "2026-11-12T00:21:08.580516+00:00",
+          "openProcessSucceeded": false,
+          "win32Error": 87,
+          "active": false
+        }
+      ]
+    },
+    "tooling": {
+      "counterScope": "Technical infrastructure only; excluded from the future MuJoCo/DedicatedWorker qualification budget.",
+      "offlineInstall": {
+        "status": "PASS",
+        "version": "pnpm9.15.9",
+        "packagesReused": 855,
+        "packagesDownloaded": 0,
+        "ignoreScripts": true,
+        "ignorePnpmfile": true,
+        "offline": true,
+        "frozenLockfile": true,
+        "elapsedSeconds": 23.164646399993217,
+        "packageLockUnchanged": true,
+        "sourcePathsUnchanged": true,
+        "technicalNodeWorkers": {
+          "dispatched": 1,
+          "returned": 1,
+          "exited": 1,
+          "errors": 0
+        },
+        "actualWasmCalls": 0,
+        "engineImports": 0,
+        "receipt": {
+          "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\offline-install-v1\\receipt.json",
+          "bytes": 3673,
+          "sha256": "184621e98fbc9667e6832c80735f20198a846520129500fda39871338cc76259"
+        }
+      },
+      "successfulOfficialRun": {
+        "orchestratorPid": 37728,
+        "vitestForkPid": 48456,
+        "esbuildPid": 38992,
+        "nodeOrchestrators": 1,
+        "vitestForks": 1,
+        "esbuildServices": 1,
+        "parserCompile": {
+          "dispatched": 3,
+          "returned": 3,
+          "rejected": 0
+        },
+        "parserInstantiate": {
+          "dispatched": 3,
+          "returned": 3,
+          "rejected": 0
+        },
+        "parsers": [
+          {
+            "sha256": "703eb31ab5a3221bdb7b8f1282392ab51bbaa73a1b90ecbbfe7e8b189769fd68",
+            "compileCalls": 1,
+            "instantiateCalls": 1
+          },
+          {
+            "sha256": "7fefbddc5e08840e5519d747c1ebd5b6c31764d9a8d37ea84f1e475a62db609d",
+            "compileCalls": 1,
+            "instantiateCalls": 1
+          },
+          {
+            "sha256": "b40099ca01477f581bd752acc8ed6d25c14b0e8beb9a00e0dc1744a2b041a104",
+            "compileCalls": 0,
+            "instantiateCalls": 0
+          },
+          {
+            "sha256": "04270c743e8822ce7f7f797ae127f2f0b88160ca82022559a99cb2b76438067b",
+            "compileCalls": 1,
+            "instantiateCalls": 1
+          }
+        ],
+        "forkParserDispatchEvents": 0,
+        "forkFinalReceipt": "NOT_EMITTED_AFTER_SIGTERM; synchronous guard-start/event log and parent exit event preserved",
+        "optionalProcessReportProbe": {
+          "blockedBeforeDispatch": 1,
+          "caughtByToolchain": true
+        },
+        "networkAttempts": 0,
+        "engineImportAttempts": 0,
+        "forbiddenWasmAttempts": 0,
+        "qualificationWorkers": 0,
+        "browserLaunches": 0,
+        "serverListens": 0,
+        "orchestratorReceipt": {
+          "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v4\\37728.json",
+          "bytes": 3289,
+          "sha256": "58a2564ddd02e852760c7161b818da40f00a8978c50e6d800a7ee4673ec8ec6e"
+        },
+        "forkEvents": {
+          "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v4\\48456.events.ndjson",
+          "bytes": 756,
+          "sha256": "4e06eaca0ad8c9dd29300dd19203a0bea1b6557a7cf419ef192b84ee0fadc3b1"
+        }
+      },
+      "allOfficialAttemptsObserved": {
+        "attempts": 4,
+        "collectedAttempts": 1,
+        "compile": {
+          "dispatched": 9,
+          "returned": 6,
+          "rejected": 0,
+          "returnNotObservedAtExit": 3
+        },
+        "instantiate": {
+          "dispatched": 6,
+          "returned": 6,
+          "rejected": 0
+        },
+        "noTotalWasmZeroClaim": true
+      },
+      "finalStaticTools": {
+        "nodeInvocations": 7,
+        "strictGuardReceipts": 7,
+        "observedWasmCalls": 0,
+        "observedEngineImports": 0,
+        "allInternalProcessCounts": "NOT_MEASURED; no total-process budget transplanted from Vitest",
+        "nxNativeToolchain": "Permitted project-graph tooling, not MuJoCo."
+      },
+      "ownToolchainIdentity": {
+        "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\post-install-identity-v1.json",
+        "bytes": 8722,
+        "sha256": "885db53e700a5bc54541ae129cddde1d545b15e5c740ac6965212234f9c843e9"
+      },
+      "startupIncidents": [
+        {
+          "attempt": "pure-tests-official-v1",
+          "status": "STARTUP_BLOCKED_NOT_COLLECTED",
+          "stdout": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v1.stdout",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v1.stderr",
+            "bytes": 1398,
+            "sha256": "2f679ab323ecd7222461c2b5ca1c122a6982979510f728e17db8f50c6958a405"
+          },
+          "receiptFiles": [
+            {
+              "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v1\\40228.json",
+              "bytes": 1494,
+              "sha256": "df99592d3692a0e59dd66d55b4be24cc6482457fefb33652469f2a7b809e804b"
+            }
+          ],
+          "eventFiles": [
+            {
+              "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v1\\40228.events.ndjson",
+              "bytes": 1909,
+              "sha256": "2f9337f9d8728f3ffb9822d4010b49f73ecd97592c1f9fa9cadc742d8d66c395"
+            }
+          ]
+        },
+        {
+          "attempt": "pure-tests-official-v2",
+          "status": "STARTUP_BLOCKED_NOT_COLLECTED",
+          "stdout": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v2.stdout",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v2.stderr",
+            "bytes": 1345,
+            "sha256": "132f9582cd13479b4798ffa3579a38cd9c4bff36771ba0f5b4fc130975e991bb"
+          },
+          "receiptFiles": [
+            {
+              "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v2\\40688.json",
+              "bytes": 2434,
+              "sha256": "f6b820abecb192059de87827a6c43dfa3a9dfea4e3f4b33fa3ce7e820d056ce5"
+            }
+          ],
+          "eventFiles": [
+            {
+              "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v2\\40688.events.ndjson",
+              "bytes": 3180,
+              "sha256": "1f17e566408571d90b03de0050532a91f39904761818345dfb8e4e0b4eb3e788"
+            }
+          ]
+        },
+        {
+          "attempt": "pure-tests-official-v3",
+          "status": "STARTUP_BLOCKED_NOT_COLLECTED",
+          "stdout": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v3.stdout",
+            "bytes": 488,
+            "sha256": "2d0784dcd4495f368a7996a5fd3c076b28000e989f5da57447dce1d3db891174"
+          },
+          "stderr": {
+            "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v3.stderr",
+            "bytes": 2487,
+            "sha256": "e3ec282d041a99dd7413679a065b48d63e2575b53b744108f2ddfe82a915da4b"
+          },
+          "receiptFiles": [
+            {
+              "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v3\\47616.json",
+              "bytes": 3131,
+              "sha256": "6eeb84be5b6d08ad99e883a2f96733a3e385447d69f868091da335dccb5a05f0"
+            }
+          ],
+          "eventFiles": [
+            {
+              "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v3\\47616.events.ndjson",
+              "bytes": 7120,
+              "sha256": "c7a29c0139e08ebb60c65bd8e61733fac014ec15ba9f1174fd032c0ff1337673"
+            },
+            {
+              "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\pure-tests-official-v3\\48480.events.ndjson",
+              "bytes": 1826,
+              "sha256": "80685855f3ad602c1eb30657020c8b8733c5471763e15f73845114e4db5c821f"
+            }
+          ]
+        }
+      ],
+      "priorStrictGuardDiagnostics": {
+        "path": "C:\\Users\\spike\\Projects\\asa-lab-robotics-field-core-evidence\\browser-worker-offline-source-20261111-01\\diagnostic-v5.results.json",
+        "bytes": 1037,
+        "sha256": "4abecc0026a813be55cb4992801975ce8983ec1b1e4031dab166c1792d8eee97"
+      },
+      "eventSchemaCorrection": "v9 uses writerPid/event/detail; old child detail keys could overwrite kind/pid. Old final process arrays and independent PID checks are preserved."
+    },
+    "admissionLifecycle": {
+      "executionInputs": 6,
+      "reports": 2,
+      "inheritedInputs": 12,
+      "sourceCheckpoint": "Future committed sourceHead with exact six execution inputs and twelve inherited input blobs.",
+      "currentHead": "Equal to or descendant of checkpoint; every subsequent committed/working/untracked path change must be explicitly allowed report path.",
+      "reportAllowlist": "2..8 unique bounded docs/product/robotics/evidence/field-core-mujoco-portability-*.json or .md paths, including two author reports.",
+      "drift": "Fail closed when current source/inherited bytes differ from checkpoint or predata hashes.",
+      "receiptCycle": "Report-only preregistration changes are allowed. Predata does not hash itself as an execution input; invocation hashes/rechecks its bytes.",
+      "sourceCheckpointCreated": false,
+      "preregistrationCreated": false,
+      "predataReview": "PENDING_INDEPENDENT_REVIEW"
+    }
+  }
+}

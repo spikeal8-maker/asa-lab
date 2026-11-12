@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "id": "E1-MUJOCO-ST-PORTABILITY-v1",
+  "scope": "TEST_ONLY",
+  "engine": {
+    "name": "@mujoco/mujoco",
+    "version": "4.0.0",
+    "rootExport": "./mujoco.js",
+    "integrity": "sha512-eVeej96ZW68ERuXQBiZtHFsX9jKHn+0FPJd3vJjBIgn5oQPLJXOrKI7d61dO3P4s22JC5wch3boojgUWyxi1TQ==",
+    "upstreamCommit": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+    "files": [
+      {
+        "path": "mujoco.js",
+        "bytes": 294200,
+        "sha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2"
+      },
+      {
+        "path": "mujoco.wasm",
+        "bytes": 11200612,
+        "sha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de"
+      },
+      {
+        "path": "mujoco.d.ts",
+        "bytes": 147615,
+        "sha256": "ffc8245f0c9b565b35fbe17cfbaac180d66c86be3d733743f63cf579e6d3a2e4"
+      },
+      {
+        "path": "package.json",
+        "bytes": 1290,
+        "sha256": "a7d2c0108c77aa9826a2df5aa40f79e4812339b218fe237e478f73eb586fc0d9"
+      }
+    ]
+  },
+  "phy01": {
+    "path": "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json",
+    "sha256": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c",
+    "registeredParsedContractSha256": "52562ead409721a49732e9d9f985b230d757edbdd2ecee9b88c13d2115580bea"
+  },
+  "phy01Module": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99",
+  "realms": ["node-child", "browser-main", "dedicated-worker"],
+  "positiveWorldsPerRealm": 20,
+  "quota": {
+    "massKg": 0.5,
+    "dtUs": 500,
+    "mode": "split",
+    "repeat": 0,
+    "limit": 4,
+    "refusedTick": 5
+  },
+  "offline": {
+    "tick": 400,
+    "timeUs": 200000,
+    "positivePlanIndex": 0,
+    "contexts": 2
+  },
+  "negativeCases": [
+    "N1_NAN_MASS",
+    "N2_INFINITY_GRAVITY",
+    "N3_BAD_GEOMETRY",
+    "N4_WASM_UNAVAILABLE",
+    "N5_WASM_CORRUPT",
+    "N6_QUOTA"
+  ],
+  "nativeBudget": {
+    "realms": 3,
+    "positiveWorldsPerRealm": 20,
+    "quotaWorldsPerRealm": 1,
+    "worlds": 63,
+    "factoryCalls": 3,
+    "wasmInstantiationCalls": 3,
+    "models": 63,
+    "data": 63,
+    "positiveAdvances": 72000,
+    "quotaAdvances": 12,
+    "advances": 72012,
+    "positiveSplitCallsPerFunction": 64800,
+    "quotaSplitCallsPerFunction": 12,
+    "mj_step1": 64812,
+    "mj_step2": 64812,
+    "mj_step": 7200,
+    "advanceAttempts": 72015,
+    "quotaRefusals": 3,
+    "initialWarningObservations": 63,
+    "endpointWarningObservations": 72012,
+    "offlineResumeWarningObservations": 2,
+    "quotaRefusalWarningObservations": 3,
+    "negativeCases": 18,
+    "preFactoryNegativeCases": 15,
+    "warningObservations": 72080,
+    "warningCopies": 504560,
+    "warningCopiesIncludingOneEmergency": 504567,
+    "nativeUpdateFunctionCalls": 136824
+  },
+  "journalBudget": {
+    "recordBytes": 352,
+    "recordCount": 72080,
+    "emergencyRecordCap": 1,
+    "dataPackets": {
+      "node": 263,
+      "browserMain": 264,
+      "dedicatedWorker": 264,
+      "total": 791,
+      "headerBytes": 64,
+      "maxRecordsPerPacket": 100
+    },
+    "stateDigestsBytes": 2304384,
+    "fixedCaps": {
+      "worldMetadata": 4128768,
+      "worldSummary": 1032192,
+      "negativeMetadata": 147456,
+      "realmMetadata": 98304,
+      "invocationManifest": 262144,
+      "protocol": 4194304,
+      "network": 524288,
+      "logs": 1048576,
+      "emergencyNonData": 4194304
+    },
+    "recordPayloadBytes": 25372160,
+    "packetHeaderBytes": 50624,
+    "normalDataBytes": 25422784,
+    "maxDataBytes": 25423200,
+    "plannedMaximumBytes": 43357920,
+    "hardEnvelopeBytes": 67108864,
+    "headroomBytes": 23750944,
+    "maxPacketBytes": 35264,
+    "maxBase64Chars": 47020,
+    "maxWorldNormalBytes": 564640
+  },
+  "resources": {
+    "orchestratorNodeProcesses": 1,
+    "baselineNodeChildProcesses": 1,
+    "maxLiveNodeProcesses": 2,
+    "chromiumRootLaunches": 1,
+    "browserContextsCreated": 2,
+    "maxLiveBrowserContexts": 1,
+    "pagesCreated": 2,
+    "maxLivePages": 1,
+    "dedicatedWorkersCreated": 1,
+    "maxLiveDedicatedWorkers": 1,
+    "httpServersCreated": 1,
+    "maxLiveHttpServers": 1,
+    "serverBind": {
+      "host": "127.0.0.1",
+      "port": 0
+    },
+    "maxLiveNativeRealms": 1,
+    "maxLiveModels": 1,
+    "maxLiveData": 1,
+    "maxLiveWarningCopies": 1,
+    "chromiumProcessLimit": "No false single-process claim. Browser root/renderer/GPU/utility PIDs and observed count are recorded through browser CDP and owned process metadata; Chromium internals have no exact predata OS-process count or hard heap quota here.",
+    "sequence": "Await Node-child exit before browser launch; main context close before Worker context creation; Worker shutdown/termination before context close; browser close before server close. A resource-ownership failure stops the suite.",
+    "timeoutsSeconds": {
+      "overall": 300,
+      "moduleInit": 30,
+      "world": 60,
+      "packetAcknowledgement": 10,
+      "offlineAcknowledgement": 10,
+      "cleanup": 5
+    },
+    "timeoutMeaning": "Wall watchdog only; never change dt, skip steps, retry or report a physical FAIL/PASS from a transport timeout."
+  },
+  "sourcePaths": [
+    "tools/robotics-field-core/mujoco-portability-sampler.mjs",
+    "tools/robotics-field-core/mujoco-portability-runtime.mjs",
+    "tools/robotics-field-core/mujoco-portability-worker.mjs",
+    "tools/robotics-field-core/run-mujoco-portability.mjs",
+    "tests/robotics/field-core-qualification/mujoco-portability.fixture.json",
+    "tests/robotics/field-core-qualification/mujoco-portability.spec.ts",
+    "docs/product/robotics/evidence/field-core-mujoco-portability-20261111.json",
+    "docs/product/robotics/evidence/field-core-mujoco-portability-20261111.md"
+  ],
+  "status": "NATIVE_NOT_RUN"
+}
