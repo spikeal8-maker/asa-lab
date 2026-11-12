@@ -55,7 +55,9 @@ async function openEditor(page: Page, context: BrowserContext, publicationFixtur
     versions: [],
   };
   const originalHash = hash(fixture.draft.document);
+  const initialDocument = structuredClone(fixture.draft.document);
   const sourceWrites: unknown[] = [];
+  const snapshotWrites: { imageDataUrl: string; sourceRevision: number }[] = [];
   const interceptedRequests: string[] = [];
   const preventedWrites: string[] = [];
   const unexpectedMutations: string[] = [];
@@ -117,7 +119,7 @@ async function openEditor(page: Page, context: BrowserContext, publicationFixtur
       return reply({ state: 'not_learning', projectId });
     }
     if (method === 'GET' && path === '/api/projects/' + projectId) return reply(fixture);
-    // Only the modal regression needs these UI acknowledgements. The real
+    // Only the Save/modal regressions need these UI acknowledgements. The real
     // snapshot capture and ProjectProperties component run in the browser;
     // neither endpoint is forwarded to a backend or a real publication.
     if (
@@ -126,10 +128,11 @@ async function openEditor(page: Page, context: BrowserContext, publicationFixtur
       path === '/api/projects/' + projectId + '/snapshot'
     ) {
       const body = request.postDataJSON();
+      snapshotWrites.push({ imageDataUrl: body.imageDataUrl, sourceRevision: body.sourceRevision });
       return reply({
         snapshot: {
           projectId,
-          contentType: 'image/png',
+          contentType: body.imageDataUrl.startsWith('data:image/webp') ? 'image/webp' : 'image/png',
           width: 480,
           height: 360,
           sourceRevision: body.sourceRevision,
@@ -197,7 +200,11 @@ async function openEditor(page: Page, context: BrowserContext, publicationFixtur
   await expect(page.locator('.robotics-field-camera-surface')).toBeVisible();
   return {
     originalHash,
+    initialDocument,
     sourceWrites,
+    snapshotWrites,
+    savedDocument: () => structuredClone(fixture.draft.document),
+    savedRevision: () => fixture.draft.revision,
     preventedWrites,
     url: url.href,
     interceptedRequests,
@@ -558,6 +565,105 @@ test.describe('FIELD-CAMERA-001 existing portal editor', () => {
     !uiOnly,
     'UI_ONLY acceptance requires explicit ASA_FIELD_CAMERA_UI_ONLY=true and existing4630',
   );
+  test('regression: explicit Save captures the saved preview without resetting its document or Worker', async ({
+    page,
+    context,
+  }, testInfo) => {
+    test.setTimeout(45_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const evidence = await openEditor(page, context, true);
+    await fit(page);
+    await selectTool(page, 'Прямоугольник');
+    const point = await screenWorld(page, 1, 1);
+    await page.mouse.click(point.x, point.y);
+    const rectangle = page.locator('.robotics-field-canvas [data-object-kind="rectangle"]').last();
+    await expect(rectangle).toBeVisible();
+    await closeObjectPanel(page);
+    expect(evidence.sourceWrites).toHaveLength(0);
+    expect(evidence.snapshotWrites).toHaveLength(0);
+
+    await page.getByRole('button', { name: 'Запустить', exact: true }).click();
+    const time = page.locator('[data-testid="robotics-time"]:visible').first();
+    const readTime = async () => Number(await time.getAttribute('data-microseconds'));
+    await expect.poll(readTime).toBeGreaterThan(300_000);
+    const beforeTime = await readTime();
+    const readWorkers = () =>
+      page.evaluate(
+        () =>
+          (
+            window as typeof window & {
+              __fieldCameraWorkers: { created: string[]; terminated: string[] };
+            }
+          ).__fieldCameraWorkers,
+      );
+    const beforeWorkers = await readWorkers();
+    const beforeView = await viewBox(page);
+    const save = page.getByRole('button', { name: 'Сохранить', exact: true });
+    await save.click();
+    await expect.poll(() => evidence.sourceWrites.length).toBe(1);
+    await expect.poll(() => evidence.snapshotWrites.length).toBe(1);
+    await expect(save).toBeEnabled();
+    expect(evidence.sourceWrites).toHaveLength(1);
+    expect(evidence.snapshotWrites).toHaveLength(1);
+    const snapshot = evidence.snapshotWrites[0]!;
+    expect(snapshot.sourceRevision).toBe(2);
+    expect(snapshot.sourceRevision).toBe(evidence.savedRevision());
+    expect(snapshot.imageDataUrl).toMatch(/^data:image\/(?:webp|png);base64,/);
+    const dimensions = await page.evaluate(async (dataUrl) => {
+      const image = new Image();
+      image.src = dataUrl;
+      await image.decode();
+      return { width: image.naturalWidth, height: image.naturalHeight };
+    }, snapshot.imageDataUrl);
+    expect(dimensions).toEqual({ width: 480, height: 360 });
+    const document = evidence.savedDocument();
+    expect(document).toEqual(evidence.sourceWrites[0]);
+    const visuals = document.world.field.visuals ?? [];
+    const originalVisuals = evidence.initialDocument.world.field.visuals ?? [];
+    expect(visuals).toHaveLength(originalVisuals.length + 1);
+    expect(visuals.slice(0, -1)).toEqual(originalVisuals);
+    expect(visuals.at(-1)).toMatchObject({ kind: 'rectangle', xMeters: 1, yMeters: 1 });
+    expect(document).toEqual({
+      ...evidence.initialDocument,
+      world: {
+        ...evidence.initialDocument.world,
+        field: { ...evidence.initialDocument.world.field, visuals },
+      },
+    });
+    await expect(rectangle).toBeVisible();
+    expect(await viewBox(page)).toBe(beforeView);
+    const afterWorkers = await readWorkers();
+    expect(afterWorkers).toEqual(beforeWorkers);
+    const afterTime = await readTime();
+    expect(afterTime).toBeGreaterThanOrEqual(beforeTime);
+    expect(evidence.unexpectedMutations).toEqual([]);
+    await page.getByRole('button', { name: 'Остановить', exact: true }).click();
+    const imageBytes = Buffer.from(snapshot.imageDataUrl.split(',')[1]!, 'base64');
+    const extension = snapshot.imageDataUrl.startsWith('data:image/webp') ? 'webp' : 'png';
+    writeFileSync(testInfo.outputPath('saved-preview.' + extension), imageBytes);
+    const report = {
+      sourceSha,
+      dimensions,
+      sourceRevision: snapshot.sourceRevision,
+      sourceSaves: evidence.sourceWrites.length,
+      snapshotPuts: evidence.snapshotWrites.length,
+      sourceDocumentSha256: hash(document),
+      savedImageSha256: createHash('sha256').update(imageBytes).digest('hex'),
+      beforeWorkers,
+      afterWorkers,
+      beforeTimeMicroseconds: beforeTime,
+      afterTimeMicroseconds: afterTime,
+      backendAndSaveAcceptance: false,
+    };
+    writeFileSync(
+      testInfo.outputPath('save-preview-report.json'),
+      JSON.stringify(report, null, 2) + '\n',
+    );
+    await testInfo.attach('explicit Save source and preview', {
+      body: JSON.stringify(report),
+      contentType: 'application/json',
+    });
+  });
   test('regression: legacy zoom and fit survive the full responsive width sequence', async ({
     page,
     context,

@@ -91,27 +91,25 @@ function OpenedRoboticsEditor({
     try {
       if (!(await controller.saveAll()) || !active.current) return;
       // Manual Save makes exactly one source request when source is dirty.
-      // Thumbnail capture is needed only for publication or leaving the editor.
-      if (publishing || destination) {
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-        if (!active.current) return;
-        const sourceRevision = controller.getSavedRevision();
-        await sendProjectSnapshot(projectId);
-        if (!active.current) return;
-        if (publishing) {
-          if (
-            sourceRevision === null ||
-            controller.getSavedRevision() !== sourceRevision ||
-            !isProjectSnapshotConfirmed(projectId, sourceRevision)
-          ) {
-            host.setNotice(
-              'Не удалось подготовить изображение сохранённого проекта. Повторите публикацию.',
-            );
-            return;
-          }
-          setPublicationProject(controller.getProject());
-        } else if (!controller.hasUnsavedChanges()) destination?.();
-      }
+      // Explicit actions capture that saved revision without a background timer.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (!active.current) return;
+      const sourceRevision = controller.getSavedRevision();
+      await sendProjectSnapshot(projectId);
+      if (!active.current) return;
+      if (publishing) {
+        if (
+          sourceRevision === null ||
+          controller.getSavedRevision() !== sourceRevision ||
+          !isProjectSnapshotConfirmed(projectId, sourceRevision)
+        ) {
+          host.setNotice(
+            'Не удалось подготовить изображение сохранённого проекта. Повторите публикацию.',
+          );
+          return;
+        }
+        setPublicationProject(controller.getProject());
+      } else if (!controller.hasUnsavedChanges()) destination?.();
     } finally {
       action.current = false;
       if (active.current) setActionPending(false);
