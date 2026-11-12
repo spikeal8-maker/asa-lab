@@ -2011,6 +2011,172 @@ describe('ordinary LED native readiness and the shared host publication barrier'
 });
 
 describe('owner repeated short optical phases', () => {
+  const held20ms = (from: number, to: number, offset: number) => {
+    const at = (time: number) =>
+      point(time, time >= offset && Math.floor((time - offset) / 20_000) % 2 === 0 ? 70 : 0);
+    const samples = [at(from)];
+    for (let time = offset; time < to; time += 20_000) {
+      if (time > from) samples.push(at(time));
+    }
+    if (to > from) samples.push(at(to));
+    return samples;
+  };
+
+  it('keeps both complete 20ms phases when a frame misses their transitions', () => {
+    const presentation = new LedTemporalPresentation();
+    const accept = (wall: number, samples: Array<[number, number]>) => {
+      const observation = window(samples[0]![0], samples.at(-1)![0], [
+        channel(
+          'led',
+          samples.map(([time, brightness]) => point(time, brightness)),
+        ),
+      ]);
+      presentation.accept(electrical(observation), observation, wall);
+    };
+
+    // Initial receipts and frame times from the short20 qualification run.
+    accept(0, [[0, 0]]);
+    drawFrame(presentation, 0);
+    accept(24_500, [
+      [0, 0],
+      [2, 70],
+      [700, 70],
+    ]);
+    expect(drawFrame(presentation, 28_300).get('led')).toBe(70);
+    accept(46_800, [
+      [700, 70],
+      [20_004, 0],
+      [25_500, 0],
+    ]);
+    accept(58_700, [
+      [25_500, 0],
+      [40_007, 70],
+      [46_100, 70],
+    ]);
+
+    expect(presentation.nextNativeAssetFrameAt(60_600)?.atMicroseconds).toBe(20_004);
+    expect(presentation.presentedMicroseconds).toBe(700);
+    const low = presentation.prepareFrame(60_600)!;
+    expect([low.atMicroseconds, low.brightness.get('led')]).toEqual([20_004, 0]);
+    accept(66_200, [
+      [46_100, 70],
+      [50_700, 70],
+    ]);
+    accept(76_300, [
+      [50_700, 70],
+      [60_009, 0],
+      [65_800, 0],
+    ]);
+    expect(presentation.preparedFrame).toBe(low);
+    expect(presentation.presentedMicroseconds).toBe(700);
+    expect(presentation.acknowledgeFrame(low, 76_300)).toBe(true);
+
+    expect(drawFrame(presentation, 78_600).get('led')).toBe(70);
+    expect(presentation.presentedMicroseconds).toBe(40_007);
+    expect(drawFrame(presentation, 92_100).get('led')).toBe(0);
+    expect(presentation.presentedMicroseconds).toBe(65_800);
+    expect(presentation.reanchorCount).toBe(0);
+  });
+
+  it.each(['four LEDs', 'LED and Uno L'])(
+    'keeps wall pace after missed frames with staggered %s transitions',
+    (outputs) => {
+      const presentation = new LedTemporalPresentation();
+      const accept = (from: number, to: number, wall: number) => {
+        const offsets = outputs === 'four LEDs' ? [2, 5_002, 10_002, 15_002] : [2];
+        const observation = window(
+          from,
+          to,
+          offsets.map((offset, index) => channel(`led${index}`, held20ms(from, to, offset))),
+        );
+        const result = electrical(observation);
+        if (outputs === 'four LEDs') {
+          presentation.accept(result, observation, wall);
+          return;
+        }
+        const samples = held20ms(from, to, 5_002).map(({ atMicroseconds, brightness }) => ({
+          atMicroseconds,
+          voltage: brightness > 0 ? 5 : 0,
+        }));
+        presentation.accept(
+          {
+            ...result,
+            components: [
+              ...result.components,
+              {
+                componentId: 'uno',
+                current: 0,
+                voltageDrop: 5,
+                terminalVoltages: { d13: samples.at(-1)!.voltage },
+              },
+            ],
+          },
+          {
+            ...observation,
+            arduinoIndicators: [{ componentId: 'uno', truncated: false, samples }],
+          },
+          wall,
+        );
+      };
+
+      accept(0, 0, 0);
+      const initial = presentation.prepareInitialFrame()!;
+      expect(presentation.acknowledgeFrame(initial, 0, true)).toBe(true);
+      let committed = 0;
+      let nextReceipt = 10_000;
+      let firstPresented: number | undefined;
+      // Two missed RAFs, followed by regular frames and the real demand cap.
+      for (let wall = 50_001; wall <= 1_000_020; wall += 16_667) {
+        for (; nextReceipt <= wall; nextReceipt += 10_000) {
+          const to = classroomRequestedHorizon(0, nextReceipt, presentation.presentedMicroseconds);
+          if (to <= committed) continue;
+          accept(committed, to, nextReceipt);
+          committed = to;
+        }
+        drawFrame(presentation, wall);
+        firstPresented ??= presentation.presentedMicroseconds;
+      }
+      expect(committed).toBe(1_000_000);
+      expect(presentation.presentedMicroseconds).toBe(1_000_000);
+      expect(firstPresented).toBe(50_000);
+    },
+  );
+
+  it.each([
+    { name: 'regular 30Hz', period: 33_334, dropFourth: false },
+    { name: '60Hz with every fourth frame missed', period: 16_667, dropFourth: true },
+  ])('expires old 20ms phases over sustained $name', ({ period, dropFourth }) => {
+    const presentation = new LedTemporalPresentation();
+    const accept = (from: number, to: number, wall: number) => {
+      const observation = window(from, to, [channel('led', held20ms(from, to, 2))]);
+      presentation.accept(electrical(observation), observation, wall);
+    };
+    accept(0, 0, 0);
+    expect(presentation.acknowledgeFrame(presentation.prepareInitialFrame()!, 0, true)).toBe(true);
+
+    let committed = 0;
+    let nextReceipt = 10_000;
+    let lastFrame = 0;
+    let greatestDebt = 0;
+    for (let wall = 50_001, index = 1; wall <= 10_000_000; wall += period, index++) {
+      for (; nextReceipt <= wall; nextReceipt += 10_000) {
+        const to = classroomRequestedHorizon(0, nextReceipt, presentation.presentedMicroseconds);
+        if (to <= committed) continue;
+        accept(committed, to, nextReceipt);
+        committed = to;
+      }
+      if (dropFourth && index % 4 === 0) continue;
+      drawFrame(presentation, wall);
+      lastFrame = wall;
+      greatestDebt = Math.max(greatestDebt, wall - presentation.presentedMicroseconds);
+    }
+
+    const retainedHistory = 5 * LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
+    expect(committed).toBeGreaterThanOrEqual(lastFrame - retainedHistory);
+    expect(greatestDebt).toBeLessThanOrEqual(retainedHistory);
+    expect(presentation.reanchorCount).toBe(0);
+  });
+
   it.each([16_667, 20_000, 24_999, 30_000, 50_000, 100_000])(
     'keeps every complete %i us phase binary over twelve cycles',
     (phase) => {
