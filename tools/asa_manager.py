@@ -386,7 +386,7 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
             install.compose("run", "--rm", "--no-deps", "--entrypoint", "node", "migration", "tools/migrate.mjs", "--plan")
         backup = export_backup(backup_install, trigger='automatic' if scheduled else 'manual')
         if scheduled:
-            require(in_window(install.settings["window"], reserve_minutes=10), "WINDOW_CLOSED", "Backup completed too late to start the update.", "The existing version was restarted; retry next window.")
+            require(in_window(install.settings["window"], reserve_minutes=10), "WINDOW_CLOSED", "Backup completed too late to start the update.", "The existing version is still running; retry next window.")
     if "search" in release["images"]:
         # Authorized mutation only, after the old private.env has been backed up.
         # Existing keys are never rotated, including during a routine update.

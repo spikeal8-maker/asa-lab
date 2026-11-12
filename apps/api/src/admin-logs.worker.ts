@@ -319,6 +319,23 @@ function errorSystem(event: LogEntry): string {
   return event.subsystem ?? 'api';
 }
 
+function isCleanContainerExit(event: LogEntry): boolean {
+  if (!event.message.startsWith('{') || !event.message.includes('"container_state"')) return false;
+  try {
+    const state = JSON.parse(event.message);
+    return (
+      state?.kind === 'container_state' &&
+      state.service === event.source &&
+      state.Status === 'exited' &&
+      state.ExitCode === 0 &&
+      state.OOMKilled === false &&
+      state.health !== 'unhealthy'
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function trendHealth(root: string): Promise<{ state: string; checkedAt: string } | null> {
   const file = join(root, 'collector-health.json');
   try {
@@ -365,7 +382,14 @@ export async function errorTrend(root: string, window: LogTrendWindow): Promise<
     for await (const event of entries(root, part)) {
       scanned++;
       const time = Date.parse(event.time);
-      if (event.level !== 'error' || time < from || time >= to || seen.has(event.id)) continue;
+      if (
+        event.level !== 'error' ||
+        time < from ||
+        time >= to ||
+        seen.has(event.id) ||
+        isCleanContainerExit(event)
+      )
+        continue;
       seen.add(event.id);
       const system = errorSystem(event);
       const at = origin + Math.floor((time - origin) / step) * step;
