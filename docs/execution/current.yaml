@@ -81,6 +81,51 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-recovery-hygiene
+    parent_lane: electronics
+    worktree_id: electronics-recovery-hygiene-1111
+    owned_paths:
+      - docs/product/electronics/evidence/hygiene-checkpoint-stabilization-007.yaml
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+      head_sha: null
+      observed_at: '2026-11-12T22:56:35Z'
+      main:
+        branch: main
+        sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+      observation_note: Read-only controller snapshot for the mandatory documentation dependency; fresh fetch main and exact-source CI remain required before authoring or acceptance.
+    task:
+      id: TASK-ELECTRONICS-GOVERNANCE-015
+      issue: 1111
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: plan/governance
+      checkpoint: selected_compact_mandatory_hygiene_007_before_recovery_r10
+      owner_acceptance: pending
+      full_hygiene_checkpoint: true
+      previous_full_checkpoint_issue: 556
+      counted_accepted_production_issues_minimum: [553, 569, 570, 571]
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-015.md
+        - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
+        - docs/product/electronics/evidence/hygiene-baseline.yaml
+      owner_authorization: Owner directs controller preparation and canonical task selection needed for bounded R00 then R10 under1111. This documentation-only prerequisite resolves the mandatory existing hygiene cadence before any R10 product write; no additional product, catalogue or installation work.
+      scope: Only compact seven-category checkpoint007 on actual accepted source; preserve all existing sizes, thresholds, legacy conditions, historical evidence and foreign state. No product or test edit and no repeated runtime measurements.
+      next_action: Author publishes only checkpoint007 evidence and stops; independent reviewer checks final SHA; controller accepts dependency on main before selecting R10. R00 preparation may proceed independently.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-GOVERNANCE-015
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: classroom-visual-20261111
     worktree_id: classroom-visual-20261111
     owned_paths:
