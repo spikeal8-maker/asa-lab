@@ -3,6 +3,8 @@ import { performance } from 'node:perf_hooks';
 import { PNG } from 'pngjs';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createApiModuleRegistry } from '../../apps/api/src/module-registry';
+import { copyPublicProject } from '../../apps/api/src/public-project-copy';
 import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import { createEmptyThreeDDocument } from '../../contexts/three-d/domain/document';
@@ -576,53 +578,170 @@ describe('authorized own progress on real application-role PostgreSQL', () => {
     expect(second.publication.publicationId).not.toBe(first.publication.publicationId);
   });
 
-  it('separates like/copy aggregates and retains transactional, idempotent receipts after destination deletion', async () => {
-    const owner = await identity(),
-      reader = await identity(),
-      other = await identity();
-    const publication = await source(owner);
-    await Promise.all([like(publication, reader), like(publication, other)]);
-    const input = copyInput(publication, reader);
-    const copies = await Promise.all([repo.createWithDraft(input), repo.createWithDraft(input)]);
-    expect(copies.map((result) => result.kind).sort()).toEqual(['created', 'existing']);
-    const created = copies.find((result) => result.kind === 'created');
-    if (!created || created.kind !== 'created') throw new Error('Copy fixture not created');
-    expect((await repo.createWithDraft(copyInput(publication, other))).kind).toBe('created');
-    expect((await repo.createWithDraft(copyInput(publication, owner))).kind).toBe('created');
-    expect((await read(owner)).metrics).toMatchObject({
-      everPublishedWorks: { value: 1 },
-      currentLikes: { value: 2 },
-      createdCopies: { value: 3 },
-    });
-    const transaction = await admin.connect();
-    try {
-      await transaction.query('BEGIN');
-      await transaction.query(
-        `INSERT INTO projects(id,tenant_id,project_scope,module_key,title,created_by,owner_principal_id,
+  describe('canonical public acquisition', () => {
+    let policyFixtureLock: pg.PoolClient | undefined;
+    let previousEnabled: boolean | undefined;
+    let lockHeld = false;
+
+    async function restorePolicy() {
+      const client = policyFixtureLock;
+      policyFixtureLock = undefined;
+      if (!client) return;
+      try {
+        if (previousEnabled !== undefined)
+          await client.query(
+            'UPDATE publication_acquisition_settings SET enabled=$1 WHERE singleton_key',
+            [previousEnabled],
+          );
+      } finally {
+        try {
+          if (lockHeld)
+            await client.query(
+              "SELECT pg_advisory_unlock(hashtextextended('test-public-acquisition-policy',0))",
+            );
+        } finally {
+          lockHeld = false;
+          client.release(true);
+        }
+      }
+    }
+
+    beforeAll(async () => {
+      const client = await admin.connect();
+      policyFixtureLock = client;
+      try {
+        await client.query(
+          "SELECT pg_advisory_lock(hashtextextended('test-public-acquisition-policy',0))",
+        );
+        lockHeld = true;
+        const settings = await client.query<{ enabled: boolean }>(
+          'SELECT enabled FROM publication_acquisition_settings WHERE singleton_key',
+        );
+        expect(settings.rows).toHaveLength(1);
+        previousEnabled = settings.rows[0]!.enabled;
+        await client.query(
+          'UPDATE publication_acquisition_settings SET enabled=true WHERE singleton_key',
+        );
+      } catch (error) {
+        await restorePolicy();
+        throw error;
+      }
+      // Only shared fixture-lock waiting uses the existing acquisition-suite budget.
+      // The concurrent copy case keeps the default 5s deadline.
+    }, 90_000);
+    afterAll(restorePolicy);
+
+    it('separates like/copy aggregates and retains transactional, idempotent receipts after destination deletion', async () => {
+      const owner = await identity(),
+        reader = await identity(),
+        other = await identity();
+      const personalTenants = await Promise.all(
+        [owner, reader, other].map(async (person) => {
+          // seedTeacher creates only an organization workspace. Use the existing
+          // personal-workspace fixture pattern, without a legacy user in this tenant.
+          const tenantId = randomUUID(),
+            workspaceId = randomUUID();
+          await admin.query('INSERT INTO tenants(id,title,workspace_slug) VALUES($1,$2,$3)', [
+            tenantId,
+            'Progress copy personal workspace',
+            `progress-personal-${tenantId}`,
+          ]);
+          await admin.query(
+            "INSERT INTO tenant_placements(tenant_id,mode) VALUES($1,'SHARED_CLUSTER')",
+            [tenantId],
+          );
+          await admin.query(
+            "INSERT INTO workspaces(id,tenant_id,kind,title,status) VALUES($1,$2,'personal',$3,'active')",
+            [workspaceId, tenantId, 'Progress copy personal workspace'],
+          );
+          await admin.query(
+            "INSERT INTO workspace_memberships(account_id,workspace_id,role,state) VALUES($1,$2,'owner','active')",
+            [person.account, workspaceId],
+          );
+          return tenantId;
+        }),
+      );
+      const publication = await source(owner, 'three-d');
+      await runtime.query('SELECT project_publication_acquisition_write($1,$2,true,0,$3,NULL)', [
+        owner.principal,
+        publication.projectId,
+        publication.publication.revisionId,
+      ]);
+      await Promise.all([like(publication, reader), like(publication, other)]);
+      const registry = createApiModuleRegistry();
+      const input = {
+        pool: runtime,
+        registry,
+        principalId: reader.principal,
+        publicationId: publication.publication.publicationId,
+        revisionId: publication.publication.revisionId,
+        idempotencyKey: randomUUID(),
+      };
+      const copies = await Promise.all([copyPublicProject(input), copyPublicProject(input)]);
+      expect(copies.map((result) => result.created).sort()).toEqual([false, true]);
+      expect(copies[0]!.projectId).toBe(copies[1]!.projectId);
+      const created = copies.find((result) => result.created);
+      if (!created) throw new Error('Copy fixture not created');
+      const destination = await admin.query(
+        'SELECT tenant_id,created_by,owner_principal_id FROM projects WHERE id=$1',
+        [created.projectId],
+      );
+      expect(destination.rows).toEqual([
+        { tenant_id: personalTenants[1], created_by: null, owner_principal_id: reader.principal },
+      ]);
+      expect(
+        (
+          await copyPublicProject({
+            ...input,
+            principalId: other.principal,
+            idempotencyKey: randomUUID(),
+          })
+        ).created,
+      ).toBe(true);
+      expect(
+        (
+          await copyPublicProject({
+            ...input,
+            principalId: owner.principal,
+            idempotencyKey: randomUUID(),
+          })
+        ).created,
+      ).toBe(true);
+      expect((await read(owner)).metrics).toMatchObject({
+        everPublishedWorks: { value: 1 },
+        currentLikes: { value: 2 },
+        createdCopies: { value: 3 },
+      });
+      const transaction = await admin.connect();
+      try {
+        await transaction.query('BEGIN');
+        await transaction.query(
+          `INSERT INTO projects(id,tenant_id,project_scope,module_key,title,created_by,owner_principal_id,
         copied_from_project_id,copied_from_author,copied_from_title,copied_at,copied_from_publication_id,copied_from_revision_id,copied_from_version_id,copied_from_license,license)
         SELECT $2,tenant_id,project_scope,module_key,title,created_by,owner_principal_id,
         copied_from_project_id,copied_from_author,copied_from_title,copied_at,copied_from_publication_id,copied_from_revision_id,copied_from_version_id,copied_from_license,license
         FROM projects WHERE id=$1`,
-        [created.project.id, randomUUID()],
-      );
-      const inside = (
-        await transaction.query(
-          "SELECT personal_progress_summary('account',$1,$2,$3,NULL) result",
-          [owner.account, owner.principal, owner.hash],
-        )
-      ).rows[0]!.result;
-      expect(inside.metrics.createdCopies.value).toBe(4);
+          [created.projectId, randomUUID()],
+        );
+        const inside = (
+          await transaction.query(
+            "SELECT personal_progress_summary('account',$1,$2,$3,NULL) result",
+            [owner.account, owner.principal, owner.hash],
+          )
+        ).rows[0]!.result;
+        expect(inside.metrics.createdCopies.value).toBe(4);
+        expect((await read(owner)).metrics.createdCopies.value).toBe(3);
+        await transaction.query('ROLLBACK');
+      } finally {
+        await transaction.query('ROLLBACK');
+        transaction.release();
+      }
+      await admin.query('DELETE FROM project_drafts WHERE project_id=$1', [created.projectId]);
+      await admin.query('DELETE FROM projects WHERE id=$1', [created.projectId]);
       expect((await read(owner)).metrics.createdCopies.value).toBe(3);
-      await transaction.query('ROLLBACK');
-    } finally {
-      await transaction.query('ROLLBACK');
-      transaction.release();
-    }
-    await admin.query('DELETE FROM project_drafts WHERE project_id=$1', [created.project.id]);
-    await admin.query('DELETE FROM projects WHERE id=$1', [created.project.id]);
-    expect((await read(owner)).metrics.createdCopies.value).toBe(3);
-    await like(publication, reader, false);
-    expect((await read(owner)).metrics.currentLikes.value).toBe(1);
+      await like(publication, reader, false);
+      expect((await read(owner)).metrics.currentLikes.value).toBe(1);
+    });
   });
 
   it('keeps authorized archived/suspended history separate from groups and never gives linked Account history to Seat', async () => {
