@@ -452,13 +452,24 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(header!.querySelector('.robotics-header-save')).toBe(save);
   });
 
-  it('does not upload thumbnails on idle/manual Save; publishes one confirmed thumbnail on demand', async () => {
+  it('keeps idle snapshot uploads off, captures explicit Save once and reuses its confirmation for publication', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     const { project, snapshot, publication } = await mountAccountEditor();
-    await click('Сохранить');
     await act(async () => vi.advanceTimersByTimeAsync(125_000));
     expect(snapshot).not.toHaveBeenCalled();
     expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(false);
+    expect(publication).not.toHaveBeenCalled();
+
+    await click('Сохранить');
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    expect(snapshot.mock.calls[0]?.[0]).toBe(project.id);
+    expect(snapshot.mock.calls[0]?.[2]).toBe(1);
+    expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(true);
+
+    await act(async () => vi.advanceTimersByTimeAsync(125_000));
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(true);
+    expect(publication).not.toHaveBeenCalled();
 
     await click('Публикация');
     expect(snapshot).toHaveBeenCalledTimes(1);
