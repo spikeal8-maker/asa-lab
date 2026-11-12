@@ -164,40 +164,61 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
             require(response.status in (200, 201), "SMOKE", "Login against the restored database failed.")
         # Prove provenance through the real pinned Caddy/API images, not a mock
         # parser. Only this disposable installation's ingress policy is changed.
-        def login_provenance(forwarded, expected):
-            request = urllib.request.Request('http://127.0.0.1:4610/api/auth/login', data=body,
+        def login_provenance(port, forwarded, expected):
+            def latest():
+                return install.compose('exec', '-T', 'postgres', 'psql', '-U', install.env['POSTGRES_USER'],
+                    '-d', 'asalab_delivery_restore_test', '-At', '-c',
+                    "SELECT id::text || '|' || COALESCE(host(ip_address),'unknown') || '|' || network_kind FROM product_analytics_events WHERE event_type='auth.login' ORDER BY occurred_at DESC,id DESC LIMIT 1", capture=True)
+            previous = latest()
+            request = urllib.request.Request(f'http://127.0.0.1:{port}/api/auth/login', data=body,
                 headers={'Content-Type': 'application/json', 'Origin': 'http://127.0.0.1:4610',
                          'X-Forwarded-For': forwarded, 'CF-Connecting-IP': '192.0.2.99'})
             with urllib.request.urlopen(request, timeout=15) as response:
                 require(response.status in (200, 201), 'CLIENT_PROVENANCE', 'Synthetic login failed.')
                 response.read()
-            observed = install.compose('exec', '-T', 'postgres', 'psql', '-U', install.env['POSTGRES_USER'],
-                '-d', 'asalab_delivery_restore_test', '-At', '-c',
-                "SELECT COALESCE(host(ip_address),'unknown') || '|' || network_kind FROM product_analytics_events WHERE event_type='auth.login' ORDER BY occurred_at DESC,id DESC LIMIT 1", capture=True)
-            require(observed == expected, 'CLIENT_PROVENANCE', 'Stored visitor provenance differs from the validated ingress chain.')
+            for _ in range(15):
+                observed = latest()
+                if observed != previous:
+                    break
+                time.sleep(0.2)
+            require(observed != previous and observed.split('|', 1)[-1] == expected,
+                    'CLIENT_PROVENANCE', 'Stored visitor provenance differs from the validated ingress chain.')
 
         # No trusted public ingress by default: forged headers must not turn a
         # Docker gateway into a visitor, nor inject an arbitrary external IP.
-        login_provenance('198.51.100.23', 'unknown|proxy')
+        login_provenance(4610, '198.51.100.23', 'unknown|proxy')
         # records was fully attested before the intentional restored-test DB
         # override. Web was not recreated; a fresh identity() here must reject
         # that API/migration target mismatch, as it would in production.
         web = records['web']['id']
-        gateways = run(['docker', 'inspect', '--format', '{{range .NetworkSettings.Networks}}{{println .Gateway}}{{end}}', web], capture=True).split()
-        require(bool(gateways), 'CLIENT_PROVENANCE', 'Disposable ingress gateway is missing.')
-        previous_ingress = install.process_env.get('ASA_INGRESS_TRUSTED_PROXY_CIDRS')
+        network = install.project + '_application'
+        metadata = json.loads(run(['docker', 'inspect', web], capture=True))[0]['NetworkSettings']['Networks']
+        gateway = metadata[network]['Gateway']
+        require(bool(gateway), 'CLIENT_PROVENANCE', 'Disposable ingress gateway is missing.')
+        panel_web = install.project + '-panel-proof-' + uuid.uuid4().hex[:8]
+        # The dev profile keeps its original ports. Run the same Web image
+        # with the production listener mapping in this disposable fixture.
         try:
-            install.process_env['ASA_INGRESS_TRUSTED_PROXY_CIDRS'] = ' '.join(f'{address}/32' for address in gateways)
-            install.compose('up', '-d', '--no-build', '--no-deps', '--wait', '--wait-timeout', '120', 'web')
-            login_provenance('192.0.2.200, 198.51.100.23', '198.51.100.23|public')
-            login_provenance('192.0.2.200, 192.168.20.7', '192.168.20.7|local_network')
-        finally:
-            if previous_ingress is None:
-                install.process_env.pop('ASA_INGRESS_TRUSTED_PROXY_CIDRS', None)
+            install.compose('run', '-T', '-d', '--no-deps', '--name', panel_web,
+                            '-p', '127.0.0.1:14615:8081', '-e', 'ASA_PANEL_INGRESS_PEER=' + gateway, 'web')
+            for _ in range(50):
+                try:
+                    with urllib.request.urlopen('http://127.0.0.1:14615/health/live', timeout=3) as response:
+                        if response.status == 200:
+                            break
+                except OSError:
+                    time.sleep(.2)
             else:
-                install.process_env['ASA_INGRESS_TRUSTED_PROXY_CIDRS'] = previous_ingress
-            install.compose('up', '-d', '--no-build', '--no-deps', '--wait', '--wait-timeout', '120', 'web')
-        print('CLIENT_PROVENANCE PASS: default spoof rejection, explicit ingress, rightmost visitor, private visitor, stored NULL for unknown')
+                raise RuntimeError('The disposable 1Panel listener did not become ready.')
+            login_provenance(4610, '192.0.2.200, 198.51.100.23', 'unknown|proxy')
+            login_provenance(14615, '192.0.2.200, 198.51.100.23', '198.51.100.23|public')
+            login_provenance(14615, '192.0.2.200, 192.168.20.7', '192.168.20.7|local_network')
+        finally:
+            owned = run(['docker', 'ps', '-aq', '--filter', 'name=^/' + panel_web + '$',
+                         '--filter', 'label=com.docker.compose.project=' + install.project], capture=True)
+            if owned:
+                run(['docker', 'rm', '-f', owned], capture=True)
+        print('CLIENT_PROVENANCE PASS: the direct port rejects spoofing while the private 1Panel port resolves the rightmost public or LAN visitor')
         with urllib.request.urlopen("http://127.0.0.1:4610/runtime-config.js") as response:
             require(b"http://127.0.0.1:4610" in response.read(), "SMOKE", "ASA origin configuration is missing.")
         with urllib.request.urlopen("http://127.0.0.1:4610/internal/blocks/") as response:

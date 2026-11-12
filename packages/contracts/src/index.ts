@@ -154,3 +154,15 @@ export type {
 } from './chess-network.js';
 
 export type { CheckersNetworkMatch, CheckersNetworkPosition } from './checkers-network.js';
+
+export { PERSONAL_PROGRESS_GROUP_LIMIT } from './personal-progress.js';
+export type {
+  ProgressAvailabilityV1,
+  ProgressScopeV1,
+  ProgressMetricNameV1,
+  ProgressCounterV1,
+  ProgressCoverageV1,
+  OwnGroupResultV1,
+  OwnProgressGroupV1,
+  PersonalProgressSummaryV1,
+} from './personal-progress.js';

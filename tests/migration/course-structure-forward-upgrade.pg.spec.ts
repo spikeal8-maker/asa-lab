@@ -186,6 +186,10 @@ describe('Course Builder structure forward upgrade', () => {
         '0314', // Polza video catalog category.
         '0315', // Polza catalog selections and dates.
         '0316', // Immutable learner file answers in class and Course assignments.
+        '0317', // Event-based admin attendance and Moscow calendar day.
+        '0318', // Operational overview with aligned Moscow intervals and measured activity.
+        '0319', // Function-local JIT at the measured canonical read boundaries.
+        '0320', // Authorized own progress summary; no identity or score writes.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -531,6 +535,10 @@ describe('Course Builder structure forward upgrade', () => {
           '0314', // Polza video catalog category.
           '0315', // Polza catalog selections and dates.
           '0316', // Immutable learner file answers in class and Course assignments.
+          '0317', // Event-based admin attendance and Moscow calendar day.
+          '0318', // Operational overview with aligned Moscow intervals and measured activity.
+          '0319', // Function-local JIT at the measured canonical read boundaries.
+          '0320', // Authorized own progress summary; no identity or score writes.
         ]);
         expect(
           await applyIsolatedTestPlan(
