@@ -237,8 +237,8 @@ async function retainedAdmission(
     await admin.query(
       `INSERT INTO classroom_account_join_requests
        (id,tenant_id,classroom_id,account_id,status,code_hash,decided_at,decided_by_principal_id,seat_id)
-       VALUES($1,$2,$3,$4,$5,$6,CASE WHEN $5='pending' THEN NULL ELSE now() END,
-         CASE WHEN $5='pending' THEN NULL ELSE $7::uuid END,$8)`,
+       VALUES($1,$2,$3,$4,$5::varchar,$6,CASE WHEN $5::varchar='pending' THEN NULL ELSE now() END,
+         CASE WHEN $5::varchar='pending' THEN NULL ELSE $7::uuid END,$8)`,
       [requestId, owner.tenantId, group.id, pupil.id, status, group.code, owner.principalId, seat],
     );
     if (options.audit !== 'absent') {
@@ -268,8 +268,8 @@ async function batch(admin: pg.Pool, owner: Teacher, rolledBack = false) {
   await admin.query(
     `INSERT INTO learning_migration_batches
      (id,tenant_id,school_id,batch_key,operation_kind,mode,state,source_snapshot_digest,as_of,disabled_at)
-     VALUES($1,$2,$3,$4,'m0_identity_activity_convergence','automatic',$5,repeat('a',64),now(),
-       CASE WHEN $5='rolled_back' THEN now() ELSE NULL END)`,
+     VALUES($1,$2,$3,$4,'m0_identity_activity_convergence','automatic',$5::varchar,repeat('a',64),now(),
+       CASE WHEN $5::varchar='rolled_back' THEN now() ELSE NULL END)`,
     [id, owner.tenantId, owner.schoolId, id, rolledBack ? 'rolled_back' : 'active'],
   );
   return id;
@@ -305,7 +305,7 @@ async function link(
   await admin.query(
     `INSERT INTO learner_identity_links
      (id,tenant_id,school_id,learner_identity_id,link_kind,seat_id,account_id,status,disabled_at,created_by_batch_id)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,CASE WHEN $8='inactive' THEN now() ELSE NULL END,$9)`,
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8::varchar,CASE WHEN $8::varchar='inactive' THEN now() ELSE NULL END,$9)`,
     [
       id,
       admission.group.owner.tenantId,
