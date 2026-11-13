@@ -186,6 +186,48 @@ export async function createProjectCollectionsFixture(page: Page) {
         return reply({ motion: 'reduce', sidebar: 'expanded', revision: 0 });
       if (path === '/api/account/avatar') return reply({ avatarDataUrl: null });
       if (path === '/api/class-join/account/assignments') return reply({ items: [] });
+      if (path === '/api/class-join/account/quizzes' && url.search === '')
+        return reply({ items: [] });
+      if (path === '/api/progress/summary' && url.search === '')
+        return reply({
+          scope: { kind: 'account', accountId },
+          asOf: timestamp,
+          availability: 'available',
+          metrics: {
+            everPublishedWorks: { availability: 'available', value: 0 },
+            currentLikes: { availability: 'available', value: 0 },
+            createdCopies: { availability: 'available', value: 0 },
+            activePublicWorks: { availability: 'available', value: 0 },
+          },
+          coverage: {
+            everPublishedWorks: {
+              basis: 'confirmed_publication_revisions',
+              completeness: 'partial',
+              knownSince: null,
+              limitations: ['history_before_canonical_records_unknown'],
+            },
+            currentLikes: {
+              basis: 'current_publication_likes',
+              completeness: 'complete',
+              knownSince: null,
+              limitations: [],
+            },
+            createdCopies: {
+              basis: 'durable_publication_copy_receipts',
+              completeness: 'partial',
+              knownSince: null,
+              limitations: ['copies_not_supported_by_all_modules'],
+            },
+            activePublicWorks: {
+              basis: 'current_catalog_visibility',
+              completeness: 'complete',
+              knownSince: null,
+              limitations: [],
+            },
+          },
+          personalRating: { availability: 'not_enabled', value: null },
+          groups: { availability: 'available', items: [], hasMore: false, nextCursor: null },
+        });
       if (path === '/api/projects/feedback') return reply({ items: {} });
       if (path === '/api/modules')
         return reply({

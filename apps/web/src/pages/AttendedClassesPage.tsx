@@ -1,4 +1,5 @@
 import { FileResponseEditor } from '../components/FileResponseEditor';
+import { QuizResponsePlayer } from '../components/QuizResponsePlayer';
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type AttendedClass, type SeatAssignment } from '../api';
@@ -291,7 +292,8 @@ export function AttendedClassesPage({
                 className={openId === assignment.id ? 'is-open' : undefined}
                 onClick={(event) => {
                   const target = event.target as HTMLElement;
-                  if (target.closest('button, a, input, label, .file-response')) return;
+                  if (target.closest('button, a, input, label, .file-response, .quiz-player'))
+                    return;
                   openAssignment(openId === assignment.id ? null : assignment.id);
                 }}
               >
@@ -366,6 +368,15 @@ export function AttendedClassesPage({
                           onRegisterLeaveGuard={registerFileGuard}
                         />
                       ) : null}
+                      {assignment.activityKind === 'quiz' && assignment.activityRunId ? (
+                        <QuizResponsePlayer
+                          key={assignment.activityRunId}
+                          activityRunId={assignment.activityRunId}
+                          renderedTaskBlocks={assignment.blocks ?? null}
+                          onChanged={load}
+                          onRegisterLeaveGuard={registerFileGuard}
+                        />
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -414,6 +425,16 @@ export function AttendedClassesPage({
                             : 'Сдать'}
                       </button>
                     </>
+                  ) : assignment.activityKind === 'quiz' && assignment.activityRunId ? (
+                    openId !== assignment.id ? (
+                      <button
+                        type="button"
+                        className="portal-create-button"
+                        onClick={() => openAssignment(assignment.id)}
+                      >
+                        Открыть тест
+                      </button>
+                    ) : null
                   ) : assignment.activityKind === 'file' && assignment.activityRunId ? (
                     openId !== assignment.id ? (
                       <button
