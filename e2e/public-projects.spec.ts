@@ -2863,56 +2863,83 @@ async function sp03HoldPrivateResponses(page: Page) {
   };
 }
 
-async function sp03HoldOldSummary(page: Page) {
-  // Hold one completed response of the OLD actor at Chromium's response stage.
-  // Subsequent requests remain real and unblocked, including the new actor's.
+async function sp03HoldOldSummary(page: Page, expectedAccountId: string) {
+  // A response-stage event alone is not proof of an available HTTP body:
+  // Chromium may already have aborted the speculative first summary request.
+  // Keep only the first response whose *original intercepted bytes* were read
+  // successfully and whose account scope matches the old logged-in actor.
   const cdp = await page.context().newCDPSession(page);
-  let held: { id: string; networkId: string | undefined; status: number | undefined } | null = null;
-  // Read the genuine paused response immediately: polling before getResponseBody
-  // lets an already-aborted UI request invalidate Chromium's interception ID.
-  let heldBody: Promise<
-    { ok: true; data: PersonalProgressSummaryV1 } | { ok: false; error: unknown }
-  > | null = null;
+  type HeldSummary = {
+    id: string;
+    networkId: string;
+    status: number;
+    body: PersonalProgressSummaryV1;
+  };
+  let held: HeldSummary | null = null;
   const terminal = new Map<string, 'delivered' | 'transport_aborted'>();
   const errors: string[] = [];
+  const bodyFailures: { networkId: string | undefined; message: string }[] = [];
   const continuationFailures: { networkId: string | undefined; message: string }[] = [];
+  const pendingBodies: Promise<void>[] = [];
   const pendingContinuations: Promise<void>[] = [];
+  const invalidInterception =
+    /Invalid InterceptionId|Invalid interception|Invalid requestId|No resource with given identifier/i;
+
+  const continueUnselected = (id: string, networkId: string | undefined) => {
+    const continuation = cdp.send('Fetch.continueResponse', { requestId: id }).then(
+      () => undefined,
+      (error: unknown) => {
+        continuationFailures.push({ networkId, message: String(error) });
+      },
+    );
+    pendingContinuations.push(continuation);
+  };
   cdp.on('Network.loadingFinished', (event) => terminal.set(event.requestId, 'delivered'));
   cdp.on('Network.loadingFailed', (event) => {
     if (event.canceled || event.errorText === 'net::ERR_ABORTED')
       terminal.set(event.requestId, 'transport_aborted');
   });
   cdp.on('Fetch.requestPaused', (event) => {
-    if (!held && event.request.method === 'GET') {
-      held = {
-        id: event.requestId,
-        networkId: event.networkId,
-        status: event.responseStatusCode,
-      };
-      heldBody = cdp.send('Fetch.getResponseBody', { requestId: event.requestId }).then(
-        (body) => {
-          try {
-            return {
-              ok: true as const,
-              data: JSON.parse(
-                body.base64Encoded ? Buffer.from(body.body, 'base64').toString('utf8') : body.body,
-              ) as PersonalProgressSummaryV1,
-            };
-          } catch (error) {
-            return { ok: false as const, error };
-          }
-        },
-        (error: unknown) => ({ ok: false as const, error }),
-      );
-    } else {
-      const continuation = cdp.send('Fetch.continueResponse', { requestId: event.requestId }).then(
-        () => undefined,
-        (error: unknown) => {
-          continuationFailures.push({ networkId: event.networkId, message: String(error) });
-        },
-      );
-      pendingContinuations.push(continuation);
+    if (held || event.request.method !== 'GET' || event.responseStatusCode !== 200) {
+      continueUnselected(event.requestId, event.networkId);
+      return;
     }
+    const id = event.requestId;
+    const networkId = event.networkId;
+    // Multiple real GETs can be in flight at the same time. Read each
+    // response-stage body at once and select only the first valid result.
+    // Do not claim that an already canceled interception was ever held.
+    const bodyAttempt = cdp.send('Fetch.getResponseBody', { requestId: id }).then(
+      (body) => {
+        try {
+          const summary = JSON.parse(
+            body.base64Encoded ? Buffer.from(body.body, 'base64').toString('utf8') : body.body,
+          ) as PersonalProgressSummaryV1;
+          if (
+            !networkId ||
+            summary.scope.kind !== 'account' ||
+            summary.scope.accountId !== expectedAccountId
+          ) {
+            errors.push('An intercepted response did not belong to the verified old Account');
+            continueUnselected(id, networkId);
+            return;
+          }
+          if (held) {
+            continueUnselected(id, networkId);
+          } else {
+            held = { id, networkId, status: event.responseStatusCode!, body: summary };
+          }
+        } catch (error) {
+          errors.push(String(error));
+          continueUnselected(id, networkId);
+        }
+      },
+      (error: unknown) => {
+        bodyFailures.push({ networkId, message: String(error) });
+        continueUnselected(id, networkId);
+      },
+    );
+    pendingBodies.push(bodyAttempt);
   });
   await cdp.send('Network.enable');
   await cdp.send('Fetch.enable', {
@@ -2924,44 +2951,33 @@ async function sp03HoldOldSummary(page: Page) {
       const response = held!;
       expect(response.status).toBe(200);
       expect(response.networkId).toBeTruthy();
-      if (!heldBody) throw new Error('The intercepted response body read was not started');
-      const body = await heldBody;
-      if (!body.ok) throw body.error;
-      return body.data;
+      expect(response.body.scope).toEqual({ kind: 'account', accountId: expectedAccountId });
+      return response.body;
     },
     release: async () => {
       try {
-        if (!held) throw new Error('The old actor summary response was not captured');
+        await Promise.all(pendingBodies);
+        if (!held) throw new Error('No genuine readable old Account response was intercepted');
         const response = held;
         try {
           await cdp.send('Fetch.continueResponse', { requestId: response.id });
         } catch (error) {
           // An invalid interception ID alone is not proof of cancellation.
-          // Require the matching Network event from the actual old request.
-          if (
-            !/Invalid InterceptionId|Invalid interception|Invalid requestId|No resource with given identifier/i.test(
-              String(error),
-            )
-          )
-            throw error;
-          await expect.poll(() => terminal.get(response.networkId!)).toBe('transport_aborted');
+          // Require the *same* Network request's canceled terminal event.
+          if (!invalidInterception.test(String(error))) throw error;
+          await expect.poll(() => terminal.get(response.networkId)).toBe('transport_aborted');
         }
-        await expect.poll(() => terminal.has(response.networkId!)).toBe(true);
+        await expect.poll(() => terminal.has(response.networkId)).toBe(true);
         await Promise.all(pendingContinuations);
-        for (const failure of continuationFailures) {
-          if (
-            failure.message.match(
-              /Invalid InterceptionId|Invalid interception|Invalid requestId|No resource with given identifier/i,
-            ) &&
-            failure.networkId
-          ) {
+        for (const failure of [...bodyFailures, ...continuationFailures]) {
+          if (invalidInterception.test(failure.message) && failure.networkId) {
             await expect.poll(() => terminal.get(failure.networkId!)).toBe('transport_aborted');
           } else {
             errors.push(failure.message);
           }
         }
         expect(errors).toEqual([]);
-        return terminal.get(response.networkId!)!;
+        return terminal.get(response.networkId)!;
       } finally {
         await cdp.send('Fetch.disable');
         await cdp.detach();
@@ -3040,7 +3056,7 @@ test('SP-03 private Home clears across workspace, actor and same-ID logout/relog
     await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('1');
     await expect(page.locator('.creator-module-feed')).toContainText(title);
 
-    oldResponse = await sp03HoldOldSummary(page);
+    oldResponse = await sp03HoldOldSummary(page, account.accountId);
     await page.evaluate(() => {
       location.hash = '#/learning';
     });
