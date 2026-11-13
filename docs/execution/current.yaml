@@ -19119,6 +19119,119 @@ parallel_lanes:
       boundary: Later dated source facts supplement the unchanged historical registration snapshot below. Author checks
         do not establish PostgreSQL/HTTP/upgrade/RLS/browser success. Publication and main merge need separate exact-source
         authorization and evidence.
+    ci_correction_snapshot:
+      observed_at_utc: '2026-11-13T07:15:14Z'
+      classification: A_current_C2_product_and_fixture_defects; bounded corrections within the selected seven C2 source paths
+      fresh_main_sha: 8406be4761006246749aff10d65cc1a0377fce7b
+      fresh_main_tree: a41132c4599066e30fe0180851dc4256c6eee150
+      predecessor_published_source:
+        pr: 1130
+        source_sha: 43435dfaab4618bd3f40c3aa3609b67abaeb4083
+        source_tree: 7eb5507cc576a702071424b71371bef8e58b6e8f
+        disposition: needs_fix; earlier source approval did not establish runtime acceptance
+        natural_ci_attempt: 1
+        ci_observed_at_utc: '2026-11-13T07:06:23.864Z'
+        learning:
+          run: 43379982653
+          failed_jobs: [131735339379, 131735339376]
+          failure: Existing protected Student Code storage test expected approved Account admission HTTP201 but received
+            HTTP409 not_available in both partitions; each had 1330 passed, one failed and one skipped test.
+          browser: First and second partition browser steps were skipped; file partition succeeded.
+          receipt: /workspace/scratch/4d23fca48572/student-progress-baseline-publication-evidence-20261113/learning-failure-receipt.json
+          receipt_sha256: 655fd2314de42f941aab0db5a18ae85cade00f90ba165ac786a3e3b6f7b63109
+        access:
+          run: 43379982662
+          failed_job: 131738712449
+          failure: The same existing approval assertion failed; 1358 tests passed, one failed and one was skipped.
+          receipt: /workspace/scratch/4d23fca48572/student-progress-baseline-publication-evidence-20261113/access-failure-receipt.json
+          receipt_sha256: 9921dd2f25f756e351b06d23dbca7246783cc4421ae727ddbcce38e1d663c061
+        classroom:
+          run: 43379982584
+          failed_job: 131735241832
+          database: Same protected-storage approval failure; 1358 tests passed, one failed and one was skipped.
+          browser: Main journeys partition produced 17 passed, three failed and one not run; the subsequent separate
+            hardening partition passed its one case. The combined browser selector remained failed.
+          classification: Independent audit_student_backend source/callgraph review confirmed the same C2 context-parent
+            defect in the database case and all three native independent-class approval journeys; no additional defect found.
+          source_binding: Root verified published0321 blob8009f40f4b1b705e65b4e7144a9610de36caa393 equals the df417 source
+            inspected by the reviewer, who did not fetch the locally absent43435 object. Corrected-source runtime is pending.
+          receipt: /workspace/scratch/4d23fca48572/student-progress-baseline-publication-evidence-20261113/classroom-failure-receipt-v2.json
+          receipt_sha256: 5bd8a6806e079129f3a0e9f45460f0f96f8c043942d7415436282005f1f3d485
+        data:
+          run: 43379982662
+          failed_job: 131738712441
+          result: Full Vitest produced 10949 passed, three failed and 22 skipped tests across 817 passed, two failed
+            and three skipped files. The existing approval failure and two new upgrade-fixture failures blocked the gate.
+          upgrade_cases: Both new migration regression cases stopped in the shared link fixture before their acceptance
+            assertions with inconsistent types deduced for parameter $8.
+          standalone_rls: not_run; full Vitest exited nonzero before the separate test:rls invocation
+          receipt: /workspace/scratch/4d23fca48572/student-progress-baseline-publication-evidence-20261113/data-failure-receipt.json
+          receipt_sha256: 8a2a2571b0d4954c0b2a02cd52cb5d6ec27c45ef6f9f3df2805ebb3110695a7e
+        terminal_workflows: Seven succeeded and three failed; Learning, Classroom and General failures remain historical
+          evidence for this exact source. No manual rerun or cancellation was performed.
+        successful_historical_workflows: Publication, Chess, Account, AI Chat, AI Image Queue, Docs and CLA succeeded on
+          this predecessor source. Their results do not establish acceptance of the corrected source.
+        manual_reruns: 0
+      diagnosed_contract:
+        canonical_parent: public.learning_contexts is the released0104 parent of classroom school_id, including school
+          and independent_teaching contexts; a native independent context intentionally has no public.schools row.
+        defect: New0321 materialization guards and coherent identity checks incorrectly required public.schools, so a
+          legitimate native independent-context approval was rejected.
+        correction: Use the canonical learning_contexts parent with the same exact tenant and context identity checks;
+          preserve active-state, retained-history, revocation, conflict, authorization and atomicity requirements.
+        future_handoff: SP04 and SP08 must treat school_id as the canonical learning context identifier, not assume a
+          matching physical schools row. This note selects no additional work or paths.
+      diagnosed_fixture_defect:
+        actual_failure: The new upgrade regression helper reused status parameter $8 in varchar storage and text CASE
+          inference contexts; both cases failed during fixture construction before their acceptance assertions.
+        bounded_correction: Seven explicit unbounded ::varchar casts in the link, retainedAdmission and batch helpers
+          give status/state parameters one type. No varchar length modifier, truncation, fixture value, assertion, helper
+          shape, production SQL or additional file was changed by this one-spec correction.
+      corrected_C2:
+        source_sha: 7550e7aff02628b7a2023023a975e38d5f47abea
+        source_tree: 70cf60f72fc1dc6097541b349862abc5d1ac7e10
+        source_parent: a4ea90dd5c460681e1372a01f7e6d90fb9a9ffab
+        source_review: approved; review_personal_home_plan independently verified the exact seven-cast one-spec delta,
+          entire-parent reversal and six-file preservation; root confirmed the final receipt and twelve artifacts.
+        author_receipt: /workspace/scratch/4d23fca48572/c2-fixture-parameter-types-evidence-20261113/final-author-receipt.json
+        author_receipt_sha256: 2ab88115e88076c26e5d07ac169510aec384f6a0c110688e84e18ecc76af5ffe
+        context_parent_correction_checkpoint:
+          source_sha: a4ea90dd5c460681e1372a01f7e6d90fb9a9ffab
+          source_tree: 523a6398089a3a365243bea59245b0e8642d39a3
+          source_parent: df41766b0a6edf4f24b9a8c7142f48d56168b286
+          source_review: approved; independent exact four-file review and full seven-file preservation confirmed by root
+          author_receipt: /workspace/scratch/4d23fca48572/c2-learning-context-correction-evidence-20261113/final-author-receipt.json
+          author_receipt_sha256: b7e1ed09d0150a8ec433a2f19ef3c67a7bfcb08ce661e53b7bbbc5f88b356ffd
+        preserved_author_chain:
+        - 0c0416332099fb313298869d412f47ff6387b262
+        - df41766b0a6edf4f24b9a8c7142f48d56168b286
+        - a4ea90dd5c460681e1372a01f7e6d90fb9a9ffab
+        - 7550e7aff02628b7a2023023a975e38d5f47abea
+        migration_sha256: 82aed3222255d8d8c67bea4525ed4465694511d91c052563198f50df1605d6a5
+        changed_paths:
+        - migrations/0321_account_join_learner_identity.sql
+        - tests/migration/account-join-identity-upgrade.pg.spec.ts
+        - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+        - tests/portal/personal-progress.http.pg.spec.ts
+        regression_coverage: Added real native independent-context HTTP admission and prefix-upgrade independent-context
+          regression coverage; the original protected-storage test remains byte-identical.
+        context_author_checks: Scoped preflight, full seven-path plan, strict targeted TypeScript, edited-TS formatting
+          and lint, migration-file validation and preservation checks passed on the a4 context-parent correction.
+        final_fixture_author_checks: One-path startup, full seven-path plan, one-spec formatting and lint, whitespace
+          and exact seven-cast reversal/six-file preservation passed on7550. New PostgreSQL, HTTP, RLS and browser runtime
+          were not run; earlier or partial runtime results do not establish this corrected source.
+      combined_product_source_sha: 6fac8d6fa33a2db47b94a195dbbe5a1730ed077d
+      combined_product_source_tree: 729652ea3be83c083f610c4ebf2247b5f335a702
+      preserved_local_product_layers:
+      - 95ab4f5df4fd8e65369636b814c8b358d9479ac0
+      - 6fac8d6fa33a2db47b94a195dbbe5a1730ed077d
+      combined_source_ci: pending; a single corrected final source must receive its own natural applicable workflows
+      combined_runtime_review: pending
+      source_integration: pending
+      owner_acceptance: pending
+      boundary: This dated correction supplements the unchanged earlier snapshots. C1, all other C2 bytes, registry,
+        conditional C3 selection, source plans, gates, SP03 acceptance blocker and SP05 source-qualification blocker remain
+        unchanged. No C3 or SP04 execution, deployment, release or successful corrected-source runtime is claimed.
     previous_task:
       id: TASK-PERSONAL-PROGRESS-BASELINE-REPAIR-001
       issue: 1124
