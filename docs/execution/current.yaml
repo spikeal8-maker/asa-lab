@@ -18847,6 +18847,279 @@ parallel_lanes:
     owned_paths:
     - tests/migration/account-join-identity-upgrade.pg.spec.ts
     task:
+      id: TASK-PERSONAL-PROGRESS-COPY-PROVENANCE-001
+      issue: 1127
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: conditional_c3_proposal_pending_baseline_ci_review_and_main_acceptance
+      owner_acceptance: pending
+      program: ASA-STUDENT-PROGRESS-001
+      selected_step: C3
+      classification: C_independent_baseline
+      related_issues:
+      - 1090
+      - 1124
+      - 1128
+      normative_refs:
+      - document: STUDENT-PROGRESS-MASTER-V1
+        revision: '1.0'
+      - document: STUDENT-PROGRESS-DATA-V1
+        revision: '1.0'
+      - document: STUDENT-PROGRESS-PLAN-V1
+        revision: '1.0'
+      - document: STUDENT-PROGRESS-ACCEPTANCE-V1
+        revision: '1.0'
+      - document: IDENTITY-ACCESS-V22
+        revision: '2.2'
+      scope: One separate future baseline repair preserves ordinary-duplicate origin, separates actual public acquisition
+        receipts from lineage inheritance and establishes durable fail-closed platform-writer coverage for the SP-05 source
+        boundary. Only the thirteen planned paths are selected conditionally; C1/C2 remain the nine-file product payload
+        of this predecessor integration.
+      planned_paths:
+      - contexts/projects/infrastructure/pg-project.repository.ts
+      - tests/portal/public-project-copy.pg.spec.ts
+      - migrations/0322_project_duplicate_origin.sql
+      - tests/migration/project-duplicate-origin-upgrade.pg.spec.ts
+      - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
+      - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+      - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+      - tests/admin/ai-image-queue.pg.spec.ts
+      - tests/portal/personal-progress.pg.spec.ts
+      - tests/migration/publication-copy-counts.pg.spec.ts
+      - tests/migration/project-publication-moderation.pg.spec.ts
+      - tests/migration/project-publication-reports.pg.spec.ts
+      - tests/migration/public-project-author-name.pg.spec.ts
+      owner_authorization: On 2026-11-13 the genuine programme controller explicitly authorized this separate two-metadata-file
+        conditional selection within the combined C1/C2 baseline PR, after independent C3 readiness review. The owner
+        has authorized programme implementation and reviewed main integration. This proposed controller selection is not
+        C3 product execution authority before canonical main acceptance and the activation conditions below; it is not
+        deployment or live database authorization.
+      activation_condition: Do not author C3 while this selection exists only on the local or PR branch. First require
+        the exact combined C1/C2 product and this registration accepted on main after applicable exact-source CI, independent
+        source/security/runtime review and root integration authorization. Then read actual main and accepted C1/C2 evidence,
+        confirm migration frontier0321 and availability of proposed0322, classify worktree/path overlaps and scoped blockers,
+        obtain actual SAFE_TO_START for all thirteen paths and a separate root C3 author assignment. A changed frontier
+        or required additional path returns to the controller before writes; no author self-selection, automatic renumbering
+        or automatic next-task execution.
+      predecessor_integration:
+        task_id: TASK-PERSONAL-PROGRESS-BASELINE-REPAIR-001
+        issue: 1124
+        archive: previous_task retains the complete nine-path C1/C2 contract and historical registration evidence; controller_source_snapshot
+          records later source facts separately.
+        combined_product_paths:
+        - contexts/projects/infrastructure/pg-project.repository.ts
+        - tests/portal/public-project-copy.pg.spec.ts
+        - migrations/0321_account_join_learner_identity.sql
+        - tests/portal/personal-progress.http.pg.spec.ts
+        - tests/migration/account-join-identity-upgrade.pg.spec.ts
+        - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
+        - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+        - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+        - tests/admin/ai-image-queue.pg.spec.ts
+        controller_paths:
+        - docs/execution/current.yaml
+        - docs/agent/document-registry.yaml
+        source_ci: pending; no exact combined source CI has run for this candidate
+        runtime_review: pending; neither author-source checks nor registration CI substitutes for real combined runtime
+        main_integration: pending; no future merge SHA or completed baseline acceptance is asserted
+      migration_frontier_snapshot:
+        observed_at_utc: '2026-11-13T06:22:12Z'
+        accepted_main_sha: 8406be4761006246749aff10d65cc1a0377fce7b
+        accepted_main_frontier: 0320_personal_progress_summary.sql
+        prepared_predecessor_forward_migration: 0321_account_join_learner_identity.sql
+        observed_combined_candidate_frontier: 0321_account_join_learner_identity.sql
+        proposed_c3_migration: 0322_project_duplicate_origin.sql
+        binding: 0322 is conditional on the combined predecessor actually containing0321, acceptance of that exact baseline
+          on main, and fresh frontier0321 at C3 start. It is not an active reservation on observed main0320 and gives
+          no permission to rename released migrations or another task proposal.
+      origin_preservation_contract:
+        fields:
+        - copied_from_project_id
+        - copied_from_author
+        - copied_from_title
+        - copied_at
+        - copied_from_publication_id
+        - copied_from_revision_id
+        - copied_from_version_id
+        - copied_from_license
+        ordinary_duplicate: Carry every existing origin value through the private repository duplication path, including
+          exact copied_at microseconds. Do not fabricate a new acquisition, replace the original tuple with an intermediate
+          duplicate or require a currently readable/live original revision merely to retain known lineage.
+        immutable_origin: Preserve immutable origin and license constraints, Project ownership, source privacy and existing
+          authorization. Released migrations remain byte-identical; only the new forward migration may adjust the automatic
+          receipt boundary.
+        receipt_boundary: Only the private server branch that actually creates a new public acquisition invokes the explicit
+          acquisition receipt operation. Ordinary duplication, inheritance, idempotent existing returns and failed/rolled-back
+          creation never add receipts or createdCopies. SQL enforces its narrow authorization, coherent target/source
+          tuple and atomicity; operation kind is trusted server context, never a public flag or a claim inferred solely
+          from row ownership/tuple.
+        receipt_preservation: Existing durable publication_copy_events remain intact and counts survive destination deletion.
+          Keep exact-source eligibility for a new public acquisition, replay/conflicting-key behavior and atomic rollback.
+          No raw private-table grants, public receipt flags or second Project writer.
+      coverage_contract:
+        meaning: A private immutable versioned marker records platform writer and lineage coverage. It never proves human
+          originality, independent creative merit or a new achievement. No universal antiplagiarism, sybil, malicious
+          application-credential or DBA-tamper guarantee is claimed.
+        default_and_old_writers: Database default is unknown. Existing rows and supported old writers that do not explicitly
+          establish the new proof remain unknown even after the migration. A migration/deployment timestamp, absent copy
+          fields, names or document similarity are not proof.
+        native_creation: Only the new trusted repository branch for a genuinely fresh independent native creation may
+          explicitly establish coverage v1. Public API input cannot supply the marker or choose the internal operation
+          kind; preserve current ports/domain DTO and public response shapes.
+        inheritance: Ordinary duplication never promotes unknown to v1. A source already covered by v1 may pass on that
+          same coverage evidence; this is inherited evidence, not a new independent achievement, and must not degrade
+          verified lineage to unknown merely because it was duplicated. All eight origin fields remain exact and known
+          public/Gallery-copy exclusions dominate any coverage marker.
+        replay_and_immutability: The idempotent existing branch never stamps, upgrades or replaces coverage. Coverage
+          is immutable after INSERT; no historical promotions, inferred backfill, read-time repairs or client-controlled
+          setters.
+        numeric_boundary: Inherited coverage does not create publication/base credit or change any numerical rule. SP-05
+          must independently verify source mapping and identity-union duplicate invariants. This C3 repair does not choose
+          coefficients or enable the public rating.
+        historical_unknown: 'Historically erased copy lineage remains unknown and cannot be reconstructed from this marker.
+          Even accepted C3 is only a prerequisite: SP-05 source qualification still requires reviewed coverage semantics,
+          explicit unknown handling and independently accepted rules/fixtures before SP-06 or public activation.'
+        compatibility: Use the three specifically selected historical prefix fixtures to preserve their old SQL writer
+          behavior and frozen schema assertions. Do not move them to latest schema and do not add a production function-exists
+          fallback merely to avoid updating fixtures.
+      required_runtime_evidence:
+      - 'Actual restricted-role public acquisition, private GET and replay: exact source tuple, one destination/receipt,
+        conflicting-key and authorization denials, real rollback and durable createdCopies behavior.'
+      - Known public and Gallery copy -> ordinary duplicate -> further duplicate/publication retains origin, including
+        microseconds; unreadable or unavailable original does not erase exclusion. No duplicate operation adds a public
+        acquisition receipt.
+      - Native fresh writer establishes v1; supported old writer/default and old unmarked rows stay unknown; unknown-source
+        duplicate and replay never promote; covered-source duplicate preserves the same coverage; known-copy exclusion
+        overrides coverage.
+      - Real isolated prior-prefix upgrade preserves existing rows, receipt history, authorization/ACL and released migration
+        checksums; one forward ledger entry and reapply zero. Private coverage is immutable after INSERT and inaccessible
+        to public payload control.
+      - Preserve the legacy direct-INSERT fixture contract in its old prefix, and adapt current-schema receipt assertions
+        in personal-progress.pg.spec.ts and publication-copy-counts.pg.spec.ts to the explicit acquisition boundary with
+        the same rollback/count proof.
+      - All four existing forward-tail fixtures append only the new migration; actual ASA_IMAGE_QUEUE_TEST=1 cases and
+        real full Data plus standalone RLS remain required, never opt-in SKIP as runtime PASS.
+      readiness_review_snapshot:
+        observed_at_utc: '2026-11-13T06:22:12Z'
+        reviewer: review_personal_home_plan
+        result: approved_readiness_only
+        reviewed_main: 46e67cc25c8517f455f6766d32c128678383c9db
+        boundary: Independent thirteen-path readiness approval reported by root at06:07 UTC; not product source, SQL implementation,
+          runtime, numerical choice or acceptance evidence. Accepted main8406 contains fourteen disjoint classroom feedback
+          files and no change to these thirteen paths, current/registry, migrations or dependency manifests.
+      path_coordination: C3 follows C1/C2 acceptance; it does not expand either predecessor author execution. Keep existing
+        projects/admin ownership and all foreign worktree bytes. Check exact physical/logical overlaps at start; any needed
+        isolated overlap consent comes from accepted main under AGENTS, never this unaccepted proposal.
+      constraints:
+      - Only the thirteen explicit C3 source paths after activation. No workflow/package/lock/timeout/skip/retry-policy
+        changes, public API flags, new domain DTO fields, raw private-table grants or separate Project writer.
+      - C1/C2 product payload is still exactly its nine registered paths. This controller slice changes only current.yaml
+        and document-registry.yaml; no C3 source file is created in the baseline integration.
+      - Do not close or weaken the SP-03 two-stage baseline-plus-own-UI-runtime/visual blocker or the SP-05 Issue1127
+        source-qualification blocker. C3 acceptance alone cannot activate SP-06/public ratings or resolve historical unknown
+        lineage.
+      - Do not activate SP-04, rename its future migration proposal, change the group rating, select a numerical formula
+        or start another programme step.
+      - No deployment, live database mutation, local server/PG stack, new ports or dependency changes. Real PostgreSQL
+        and browser evidence uses existing isolated CI workflows; source, CI, runtime, integration and owner acceptance
+        remain separate.
+      source_implementation: not_started
+      source_ci: not_run
+      independent_source_runtime_review: pending
+      source_integration: pending
+      deployment: not_authorized
+      database_actions: isolated_existing_ci_tests_only_after_activation
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 8406be4761006246749aff10d65cc1a0377fce7b
+      head_sha: null
+      observed_at: '2026-11-13T06:22:12Z'
+      main:
+        branch: main
+        sha: 8406be4761006246749aff10d65cc1a0377fce7b
+      observation_note: Dated controller proposal on accepted main8406 after classroom feedback PR1092. Fetch main and
+        inspect exact source/CI, migration frontier and worktree overlaps before writes. The nine-file C1/C2 combined
+        source still needs actual CI/runtime/integration; conditional C3 cannot execute until that baseline and this selection
+        are accepted on main and root separately assigns the author. No static field claims the live HEAD or future merge.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:data
+        - pnpm test:access-a
+      publication:
+        workflow: Public Projects Publication
+        commands:
+        - pnpm gate:projects-publication
+        - pnpm gate:projects-publication:browser
+      learning:
+        workflow: Learning E1 Convergence
+        commands:
+        - pnpm test:learning-e1
+      queue:
+        workflow: AI Image Durable Queue
+        commands:
+        - pnpm gate:ai-image-queue
+        execution_requirement: Actual ASA_IMAGE_QUEUE_TEST=1 forward-upgrade cases, not opt-in SKIP
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+    controller_source_snapshot:
+      observed_at_utc: '2026-11-13T06:22:12Z'
+      task_status: in_progress; predecessor source preparation is not combined acceptance
+      accepted_registration:
+        pr: 1125
+        main_sha: 46e67cc25c8517f455f6766d32c128678383c9db
+        tree: 563687a176c0156bb6abdfc5ad52ec63e6c53139
+      fresh_main_sha: 8406be4761006246749aff10d65cc1a0377fce7b
+      fresh_main_tree: a41132c4599066e30fe0180851dc4256c6eee150
+      C1:
+        source_sha: 3e1b3659abdf8a0ce43736fd93c2c9fd81ae6715
+        source_tree: 44da60788697fc33ea894ed237b4ee4e95331e61
+        source_parent: 46e67cc25c8517f455f6766d32c128678383c9db
+        source_review: approved; independent exact-source review confirmed by root
+        author_receipt: /workspace/scratch/4d23fca48572/c1-project-get-provenance-1124-evidence/frozen-source.receipt.json
+        author_receipt_sha256: 0fcd6604358ae8837b57e985a08c45921dc474e329e619e60cdfbe047284d646
+        runtime: not_run; real PostgreSQL/private GET/replay proof belongs to final combined CI
+      C2:
+        source_sha: df41766b0a6edf4f24b9a8c7142f48d56168b286
+        source_tree: 5ecd91f17ba268dbf8abb303504bbde7aa315033
+        source_parent: 0c0416332099fb313298869d412f47ff6387b262
+        source_review: approved; audit_student_backend independently re-reviewed exact corrected source and root confirmed
+          both bounded findings closed
+        author_receipt: /workspace/scratch/4d23fca48572/c2-account-join-identity-correction-evidence-20261113/final-author-receipt.json
+        author_receipt_sha256: 1509dc895cdb00d67a00b6c9fa24b8f267717cac9a5619126c73456f6e7b7cea
+        migration_sha256: f9b240da4e4ed84d7c4b294abbe8b8b5028ff6b9cdee1ee1859aced52194a3ee
+        previous_review_checkpoint:
+          source_sha: 0c0416332099fb313298869d412f47ff6387b262
+          source_tree: bc809572a1e14c19a3d584b17ad65c19d43b4c5a
+          source_review: needs_fix; historical checkpoint retained
+          author_receipt: /workspace/scratch/4d23fca48572/c2-account-join-identity-evidence-20261113/final-author-receipt.json
+          author_receipt_sha256: 831158bc1c908b626a533ea0b65e22156ebf378fd41e608ff6b10116da2c3d8e
+          findings:
+          - The dynamicAudience fixture supplied a 64-character course_versions.content_hash to released varchar(32).
+          - Historical created_by_batch evidence needed exact tenant/school qualification and a same-tenant wrong-school
+            negative fixture.
+          correction: Author corrected only the selected upgrade regression, new0321 migration and its checksum tail;
+            independent exact-source re-review approved df41766b. No released migration was changed.
+        runtime: not_run; no PostgreSQL, HTTP, RLS, upgrade or concurrency success inferred from source approval
+      combined_product_source_sha: 2a2a54a9067bd7adf454862ad72202f08701ad2d
+      combined_product_source_tree: 2f4094f64656d31479dbfe3720f211ea9ba0c5d1
+      combined_source_ci: pending; no final combined source CI run claimed
+      combined_runtime_review: pending
+      source_integration: pending
+      owner_acceptance: pending
+      boundary: Later dated source facts supplement the unchanged historical registration snapshot below. Author checks
+        do not establish PostgreSQL/HTTP/upgrade/RLS/browser success. Publication and main merge need separate exact-source
+        authorization and evidence.
+    previous_task:
       id: TASK-PERSONAL-PROGRESS-BASELINE-REPAIR-001
       issue: 1124
       branch: main
@@ -19057,7 +19330,7 @@ parallel_lanes:
       source_integration: pending
       deployment: not_authorized
       database_actions: isolated_existing_ci_tests_only
-    revisions:
+    previous_revisions:
       kind: observed_snapshot
       convergence_baseline_sha: b318656e9d80ea8ddb40b06159f7c1352c799c7c
       head_sha: null
@@ -19069,30 +19342,6 @@ parallel_lanes:
         live HEAD. Preserve both accepted electronics lanes and every prior lane, gate, blocker and dated history.
         Fetch main and read exact task/source/CI, migration frontier and worktree overlaps before writes. This proposal
         is not repair, integration, runtime or owner acceptance.
-    gates:
-      focused:
-        workflow: ASA Lab Governance and Code Gates
-        commands:
-        - pnpm gate:data
-        - pnpm test:access-a
-      publication:
-        workflow: Public Projects Publication
-        commands:
-        - pnpm gate:projects-publication
-        - pnpm gate:projects-publication:browser
-      learning:
-        workflow: Learning E1 Convergence
-        commands:
-        - pnpm test:learning-e1
-      queue:
-        workflow: AI Image Durable Queue
-        commands:
-        - pnpm gate:ai-image-queue
-        execution_requirement: Actual ASA_IMAGE_QUEUE_TEST=1 forward-upgrade cases, not opt-in SKIP
-      general:
-        workflow: ASA Lab Governance and Code Gates
-        commands:
-        - pnpm gate:repository
 
   - id: student-progress-rating-rules
     parent_lane: student-progress
