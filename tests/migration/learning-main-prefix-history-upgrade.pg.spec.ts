@@ -482,7 +482,7 @@ const upgradeArtifacts = [
   [
     '0321',
     '0321_account_join_learner_identity.sql',
-    'f9b240da4e4ed84d7c4b294abbe8b8b5028ff6b9cdee1ee1859aced52194a3ee',
+    '82aed3222255d8d8c67bea4525ed4465694511d91c052563198f50df1605d6a5',
   ],
 ] as const;
 

@@ -82,7 +82,10 @@ async function teacher(admin: pg.Pool) {
   ).rows[0]!;
   return { ...result, accountId: actor.account_id, principalId: actor.principal_id };
 }
-type Teacher = Awaited<ReturnType<typeof teacher>>;
+type Teacher = Pick<
+  Awaited<ReturnType<typeof teacher>>,
+  'tenantId' | 'schoolId' | 'periodId' | 'teacherId' | 'accountId' | 'principalId'
+>;
 
 async function account(admin: pg.Pool, principal = true) {
   const id = randomUUID();
@@ -107,6 +110,45 @@ async function account(admin: pg.Pool, principal = true) {
   return { id, principalId };
 }
 type Account = Awaited<ReturnType<typeof account>>;
+
+async function independentTeacher(admin: pg.Pool, runtime: pg.Pool): Promise<Teacher> {
+  const actor = await account(admin);
+  if (!actor.principalId) throw new Error('Independent teacher requires an Account principal');
+  await session(admin, actor);
+  await admin.query(
+    `INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by)
+     VALUES($1,'educator','provisional','retained-prefix','self_attestation')`,
+    [actor.id],
+  );
+  // Exercise the released constructor rather than inventing a school row for
+  // personal teaching. The legacy school_id result is the learning context ID.
+  const context = (
+    await runtime.query<{
+      tenant_id: string;
+      school_id: string;
+      academic_period_id: string;
+      user_id: string;
+    }>('SELECT * FROM classroom_ensure_personal_teacher($1)', [actor.id])
+  ).rows[0]!;
+  expect(
+    (
+      await admin.query(
+        `SELECT context.kind,context.school_id,school.id AS school_row_id
+         FROM learning_contexts context LEFT JOIN schools school ON school.id=context.id
+         WHERE context.id=$1 AND context.tenant_id=$2`,
+        [context.school_id, context.tenant_id],
+      )
+    ).rows,
+  ).toEqual([{ kind: 'independent_teaching', school_id: null, school_row_id: null }]);
+  return {
+    tenantId: context.tenant_id,
+    schoolId: context.school_id,
+    periodId: context.academic_period_id,
+    teacherId: context.user_id,
+    accountId: actor.id,
+    principalId: actor.principalId,
+  };
+}
 
 async function classroom(admin: pg.Pool, owner: Teacher) {
   const id = randomUUID();
@@ -317,6 +359,8 @@ async function deterministic(admin: pg.Pool, owner: Teacher, kind: 'account' | '
 const preservedTables = [
   'accounts',
   'principals',
+  'schools',
+  'learning_contexts',
   'classrooms',
   'classroom_student_seats',
   'classroom_account_join_requests',
@@ -500,6 +544,13 @@ describe.skipIf(!enabled)(
             await legacyApproval(admin, runtime, await classroom(admin, owner), pupil),
           );
         }
+        const independentOwner = await independentTeacher(admin, runtime);
+        const independent = await legacyApproval(
+          admin,
+          runtime,
+          await classroom(admin, independentOwner),
+          pupil,
+        );
         const hash = await session(admin, pupil);
         expect(await groups(runtime, pupil, hash)).toEqual([]);
         expect(
@@ -855,8 +906,10 @@ describe.skipIf(!enabled)(
             oldLearners.some((old) => old.id === row.id),
           ),
         ).toEqual(oldLearners);
-        expect((after['learner_identities'] as unknown[]).length).toBe(oldLearners.length + 1);
-        expect((after['learner_identity_links'] as unknown[]).length).toBe(oldLinks.length + 5);
+        // One new learner per distinct educational context. The independent
+        // context gets its own Seat/Account pair, never the school's learner.
+        expect((after['learner_identities'] as unknown[]).length).toBe(oldLearners.length + 2);
+        expect((after['learner_identity_links'] as unknown[]).length).toBe(oldLinks.length + 7);
         const mapped = (
           await admin.query(
             'SELECT seat_id,learner_identity_id FROM learner_identity_links WHERE seat_id=ANY($1::uuid[]) ORDER BY seat_id',
@@ -865,6 +918,25 @@ describe.skipIf(!enabled)(
         ).rows;
         expect(mapped).toHaveLength(3);
         expect(new Set(mapped.map((row) => row.learner_identity_id)).size).toBe(1);
+        const independentLinks = (
+          await admin.query(
+            `SELECT tenant_id,school_id,learner_identity_id FROM learner_identity_links
+             WHERE seat_id=$1 OR (account_id=$2 AND school_id=$3)`,
+            [independent.seat, pupil.id, independentOwner.schoolId],
+          )
+        ).rows;
+        expect(independentLinks).toHaveLength(2);
+        expect(new Set(independentLinks.map((row) => row.learner_identity_id)).size).toBe(1);
+        expect(independentLinks[0]!.learner_identity_id).not.toBe(mapped[0]!.learner_identity_id);
+        for (const row of independentLinks)
+          expect(row).toMatchObject({
+            tenant_id: independentOwner.tenantId,
+            school_id: independentOwner.schoolId,
+          });
+        expect(
+          (await admin.query('SELECT id FROM schools WHERE id=$1', [independentOwner.schoolId]))
+            .rows,
+        ).toEqual([]);
         expect(
           (
             await admin.query(
@@ -873,14 +945,18 @@ describe.skipIf(!enabled)(
             )
           ).rows,
         ).toEqual([{ learner_identity_id: m0Learner }]);
-        for (const row of [...positives, reuse]) {
+        for (const row of [...positives, reuse, independent]) {
           expect(
             (await admin.query('SELECT id FROM classroom_participant_principals($1)', [row.seat]))
               .rows,
           ).toContainEqual({ id: row.pupil.principalId });
         }
         expect(await groups(runtime, pupil, hash)).toEqual(
-          [...positives.map((row) => row.group.id), otherSchool.group.id].sort(),
+          [
+            ...positives.map((row) => row.group.id),
+            otherSchool.group.id,
+            independent.group.id,
+          ].sort(),
         );
         for (const row of negatives) {
           const before = oldLinks.filter(

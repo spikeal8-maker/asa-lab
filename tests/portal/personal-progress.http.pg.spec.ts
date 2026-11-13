@@ -67,10 +67,16 @@ async function request(path: string, cookies: Record<string, string> = {}) {
   return { status: response.status, headers: response.headers, body, text };
 }
 
-async function post(path: string, body: unknown, cookies: Record<string, string> = {}) {
+async function post(
+  path: string,
+  body: unknown,
+  cookies: Record<string, string> = {},
+  headers: Record<string, string> = {},
+) {
   const response = await fetch(baseUrl + path, {
     method: 'POST',
     headers: {
+      ...headers,
       origin: WEB_ORIGIN,
       'content-type': 'application/json',
       cookie: Object.entries(cookies)
@@ -510,6 +516,160 @@ describe('personal progress genuine HTTP with restricted PostgreSQL', () => {
           [rejectedGroup.id, account.account_id],
         )
       ).rows,
+    ).toEqual([]);
+  }, 30_000);
+
+  it('approves an ordinary Account in native independent teaching without a school row and keeps the summary mapping on replay', async () => {
+    const register = async () => {
+      const unique = randomUUID().replaceAll('-', '');
+      const result = await post('/api/auth/register', {
+        email: `independent-progress-${unique}@isolated.test`,
+        username: `independent_${unique.slice(0, 18)}`,
+        displayName: 'Участник самостоятельного обучения',
+        password: `Independent-${unique}-Password`,
+        birthDate: '1990-01-01',
+        country: 'RU',
+      });
+      expect(result.status, result.text).toBe(201);
+      const token = result.headers
+        .getSetCookie()
+        .find((value) => value.startsWith('asa_session='))
+        ?.match(/^asa_session=([^;]+)/)?.[1];
+      if (!token) throw new Error('Native registration returned no Account session');
+      const cookies = { asa_session: decodeURIComponent(token) };
+      const persisted = (
+        await admin.query<{
+          account_id: string;
+          principal_id: string;
+          tenant_id: string;
+          workspace_kind: string;
+        }>(
+          `SELECT principal.account_id,principal.id principal_id,workspace.tenant_id,
+             workspace.kind workspace_kind
+           FROM sessions_v2 session JOIN principals principal ON principal.id=session.principal_id
+           JOIN workspaces workspace ON workspace.id=session.active_workspace_id
+           WHERE session.token_hash=$1`,
+          [hashSessionToken(cookies.asa_session)],
+        )
+      ).rows[0]!;
+      expect(persisted.workspace_kind).toBe('personal');
+      return { ...persisted, cookies };
+    };
+    const owner = await register();
+    const attested = await post('/api/capabilities/educator/self-attest', {}, owner.cookies);
+    expect(attested.status, attested.text).toBe(201);
+    const created = await post(
+      '/api/classrooms',
+      { title: 'Native independent group', ageBand: 'mixed', topicKeys: [], safeModeDefault: true },
+      owner.cookies,
+      { 'idempotency-key': randomUUID() },
+    );
+    expect(created.status, created.text).toBe(201);
+    const classId = (created.body as { classroom: { id: string } }).classroom.id;
+    const detail = await request(`/api/classrooms/${classId}`, owner.cookies);
+    expect(detail.status, detail.text).toBe(200);
+    const classroom = (
+      detail.body as {
+        classroom: {
+          joinCode: string;
+          learningContext: { id: string; kind: string; schoolId: string | null };
+        };
+      }
+    ).classroom;
+    expect(classroom.learningContext).toMatchObject({
+      kind: 'independent_teaching',
+      schoolId: null,
+    });
+    expect(
+      (
+        await admin.query(
+          `SELECT context.id,context.tenant_id,context.kind,school.id AS school_row_id
+           FROM classrooms classroom JOIN learning_contexts context
+             ON context.id=classroom.school_id AND context.tenant_id=classroom.tenant_id
+           LEFT JOIN schools school ON school.id=context.id WHERE classroom.id=$1`,
+          [classId],
+        )
+      ).rows,
+    ).toEqual([
+      {
+        id: classroom.learningContext.id,
+        tenant_id: owner.tenant_id,
+        kind: 'independent_teaching',
+        school_row_id: null,
+      },
+    ]);
+    expect(
+      (
+        await admin.query('SELECT id FROM learning_audience_definitions WHERE classroom_id=$1', [
+          classId,
+        ])
+      ).rows,
+    ).toEqual([]);
+    const pupil = await register();
+    expect(successful(await request(ACCOUNT_ROUTE, pupil.cookies)).groups.items).toEqual([]);
+    const pending = await post(
+      '/api/class-join/account',
+      { code: classroom.joinCode },
+      pupil.cookies,
+    );
+    expect(pending.status, pending.text).toBe(200);
+    expect(pending.body).toMatchObject({ status: 'pending', seatId: null });
+    const requestId = (pending.body as { requestId: string }).requestId;
+    expect(requestId).toBeTypeOf('string');
+    expect(successful(await request(ACCOUNT_ROUTE, pupil.cookies)).groups.items).toEqual([]);
+    const route = `/api/class-join/requests/${classId}/${requestId}/decision`;
+    const approved = await post(route, { decision: 'approved' }, owner.cookies);
+    expect(approved.status, approved.text).toBe(201);
+    expect(
+      successful(await request(ACCOUNT_ROUTE, pupil.cookies)).groups.items?.map(
+        (item) => item.groupId,
+      ),
+    ).toEqual([classId]);
+    const mapping = async () =>
+      (
+        await admin.query(
+          `SELECT seat.id AS seat_id,seat.tenant_id,sl.id AS seat_link_id,al.id AS account_link_id,
+             sl.school_id,sl.learner_identity_id
+           FROM classroom_student_seats seat
+           JOIN learner_identity_links sl ON sl.seat_id=seat.id AND sl.status='active'
+           JOIN learner_identity_links al ON al.account_id=seat.account_id AND al.status='active'
+             AND al.tenant_id=sl.tenant_id AND al.school_id=sl.school_id
+             AND al.learner_identity_id=sl.learner_identity_id
+           WHERE seat.classroom_id=$1 AND seat.account_id=$2 AND seat.status='active'`,
+          [classId, pupil.account_id],
+        )
+      ).rows;
+    const beforeReplay = await mapping();
+    expect(beforeReplay).toHaveLength(1);
+    expect(beforeReplay[0]).toMatchObject({
+      tenant_id: owner.tenant_id,
+      school_id: classroom.learningContext.id,
+    });
+    expect(
+      (
+        await admin.query('SELECT id FROM classroom_participant_principals($1)', [
+          beforeReplay[0]!.seat_id,
+        ])
+      ).rows,
+    ).toContainEqual({ id: pupil.principal_id });
+    expect((await post(route, { decision: 'approved' }, owner.cookies)).status).toBe(201);
+    expect(await mapping()).toEqual(beforeReplay);
+    expect(
+      successful(await request(ACCOUNT_ROUTE, pupil.cookies)).groups.items?.map(
+        (item) => item.groupId,
+      ),
+    ).toEqual([classId]);
+    expect(
+      (
+        await admin.query(
+          "SELECT id FROM audit_events WHERE entity_id=$1 AND action='classroom.join.decided'",
+          [requestId],
+        )
+      ).rows,
+    ).toHaveLength(1);
+    expect(
+      (await admin.query('SELECT id FROM schools WHERE id=$1', [classroom.learningContext.id]))
+        .rows,
     ).toEqual([]);
   }, 30_000);
 

@@ -1,5 +1,7 @@
--- Ordinary Account admission must establish the same school learner as the
+-- Ordinary Account admission must establish the same context learner as the
 -- StudentCode writer, even when the class has no Learning audience.
+-- Since 0104, legacy school_id columns reference learning_contexts; independent
+-- teaching has a context UUID and deliberately has no schools row.
 -- Supported rollout: quiesced asa_manager update or isolated prefix upgrade.
 -- Do not hot-apply while an old approval function is already executing.
 -- Fail before changing functions/data if a legacy writer holds either table.
@@ -16,25 +18,25 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
    SELECT 1 FROM public.classroom_student_seats seat
    JOIN public.classrooms classroom ON classroom.id=seat.classroom_id
      AND classroom.tenant_id=seat.tenant_id AND classroom.status='active'
-   JOIN public.schools school ON school.id=classroom.school_id
-     AND school.tenant_id=classroom.tenant_id
+   JOIN public.learning_contexts context ON context.id=classroom.school_id
+     AND context.tenant_id=classroom.tenant_id
    JOIN public.accounts account ON account.id=seat.account_id AND account.status='active'
    JOIN public.principals sp ON sp.kind='student_seat' AND sp.seat_id=seat.id
    JOIN public.principals ap ON ap.kind='account' AND ap.account_id=account.id
    JOIN public.learner_identity_links sl ON sl.seat_id=seat.id
      AND sl.link_kind='student_seat' AND sl.tenant_id=seat.tenant_id
-     AND sl.school_id=school.id AND sl.status='active' AND sl.disabled_at IS NULL
+     AND sl.school_id=context.id AND sl.status='active' AND sl.disabled_at IS NULL
    JOIN public.learner_identities learner ON learner.id=sl.learner_identity_id
-     AND learner.tenant_id=seat.tenant_id AND learner.school_id=school.id AND learner.state='active'
+     AND learner.tenant_id=seat.tenant_id AND learner.school_id=context.id AND learner.state='active'
    JOIN public.learner_identity_links al ON al.account_id=account.id
-     AND al.link_kind='account' AND al.tenant_id=seat.tenant_id AND al.school_id=school.id
+     AND al.link_kind='account' AND al.tenant_id=seat.tenant_id AND al.school_id=context.id
      AND al.learner_identity_id=learner.id AND al.status='active' AND al.disabled_at IS NULL
    WHERE seat.id=p_seat AND seat.classroom_id=p_class
      AND seat.account_id=p_account AND seat.status='active'
      AND NOT EXISTS (
        SELECT 1 FROM public.learning_migration_batches batch
        WHERE batch.id IN(sl.created_by_batch_id,al.created_by_batch_id,learner.created_by_batch_id)
-         AND (batch.tenant_id<>seat.tenant_id OR batch.school_id<>school.id
+         AND (batch.tenant_id<>seat.tenant_id OR batch.school_id<>context.id
            OR batch.state<>'active' OR batch.disabled_at IS NOT NULL)
      )
      AND EXISTS(SELECT 1 FROM public.classroom_participant_principals(seat.id) identity
@@ -52,8 +54,8 @@ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS
 DECLARE v_tenant uuid;v_school uuid;v_learner uuid;v_account_link uuid;
 BEGIN
  SELECT classroom.tenant_id,classroom.school_id INTO v_tenant,v_school
- FROM public.classrooms classroom JOIN public.schools school
-   ON school.id=classroom.school_id AND school.tenant_id=classroom.tenant_id
+ FROM public.classrooms classroom JOIN public.learning_contexts context
+   ON context.id=classroom.school_id AND context.tenant_id=classroom.tenant_id
  WHERE classroom.id=p_class AND classroom.status='active';
  IF v_tenant IS NULL OR NOT EXISTS(SELECT 1 FROM public.accounts WHERE id=p_account AND status='active')
    OR NOT EXISTS(SELECT 1 FROM public.principals WHERE kind='account' AND account_id=p_account)
