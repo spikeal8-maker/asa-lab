@@ -17977,11 +17977,11 @@ parallel_lanes:
       issue: 1090
       branch: main
       base_branch: main
-      pr: null
+      pr: 1121
       pr_draft: false
-      status: in_progress
-      checkpoint: sp03_repairs_in_progress_waiting_for_separate_class_c_baseline
-      owner_acceptance: pending
+      status: done
+      checkpoint: sp03_accepted_main_postmerge_ci_success
+      owner_acceptance: accepted
       program: ASA-STUDENT-PROGRESS-001
       selected_step: SP-03
       normative_refs:
@@ -18060,6 +18060,47 @@ parallel_lanes:
       next_dependency: SP-04 requires a separate controller selection after applicable SP-03 source, runtime and actual-image acceptance. API readiness alone is not an improved personal Home.
       deployment: not_requested
       database_actions: isolated_tests_only
+      next_eligible_step: SP-04
+      next_step_selected: false
+      final_acceptance_2026_11_13:
+        status: accepted_on_main_after_postmerge_ci_success
+        product_pr: 1121
+        initial_postmerge_fix_pr: 1132
+        final_qualification_fix_pr: 1133
+        product_candidate_sha: 3efb21d50138229acf70ba23c01d9d6159e8b186
+        product_merge_sha: 1f62246fcd0efbde10a565343bc2a5ed660dcc80
+        first_postmerge_fix_sha: 94f3be3250db49089e3baf8cfd3df13168ece32c
+        followup_fix_sha: dcbd4a902375b45f34dd7f4349103c6393cfb87d
+        accepted_main_sha: 9e70a1980e7a62c4ebe466707f46c4395b61bbfb
+        original_candidate_required: https://github.com/spikeal8-maker/asa-lab/actions/runs/43424399521
+        original_candidate_required_result: success
+        first_postmerge_fix_candidate_general: https://github.com/spikeal8-maker/asa-lab/actions/runs/43431397064
+        first_postmerge_fix_candidate_publication: https://github.com/spikeal8-maker/asa-lab/actions/runs/43431396930
+        followup_candidate_general: https://github.com/spikeal8-maker/asa-lab/actions/runs/43438679827
+        followup_candidate_publication: https://github.com/spikeal8-maker/asa-lab/actions/runs/43438679783
+        postmerge_general: https://github.com/spikeal8-maker/asa-lab/actions/runs/43443491945
+        postmerge_publication: https://github.com/spikeal8-maker/asa-lab/actions/runs/43443491968
+        postmerge_required: success
+        postmerge_publication_result: success
+        historical_postmerge_failure_1: https://github.com/spikeal8-maker/asa-lab/actions/runs/43428879196
+        historical_postmerge_failure_2: https://github.com/spikeal8-maker/asa-lab/actions/runs/43435691146
+        independent_review: https://github.com/spikeal8-maker/asa-lab/pull/1121#issuecomment-6852320170
+        cdp_repair_review: https://github.com/spikeal8-maker/asa-lab/pull/1121#issuecomment-6852741094
+        first_fix_reviewer: https://github.com/spikeal8-maker/asa-lab/pull/1132#issuecomment-6853927597
+        final_fix_reviewer: https://github.com/spikeal8-maker/asa-lab/pull/1133#issuecomment-6855123767
+        review_kind: independent_local_gemma4_read_only_source_and_visual_not_formal_github_review
+        reviewer_verdict: source_approve_visual_approve
+        before_images: https://github.com/spikeal8-maker/asa-lab/actions/runs/43345398279/artifacts/14001678214
+        after_images: https://github.com/spikeal8-maker/asa-lab/actions/runs/43443491968/artifacts/14046564270
+        preserved_product_paths: 17
+        byte_identical_product_paths: 16
+        updated_test_only_path: e2e/public-projects.spec.ts
+        parent_issue: 1090
+        parent_issue_state: open_remaining_sp04_to_sp11
+        production_deployment: not_performed
+        production_database_change: not_performed
+        next_stage_activation: requires_separate_controller_selection
+        history_boundary: 'Historical dated pending, failure and dependency snapshots preserved in prior records; current completion evidence applies only after actual main acceptance and postmerge CI.'
       controller_baseline_dependency_2026_11_13:
         observed_at_utc: '2026-11-13T02:46:46Z'
         accepted_main_sha: b318656e9d80ea8ddb40b06159f7c1352c799c7c
