@@ -37,6 +37,7 @@ on:
       - 'apps/web/vite.config.ts'
       - 'apps/web/tsconfig.json'
       - 'e2e/checkers-module.spec.ts'
+      - 'e2e/checkers-network.spec.ts'
       - 'migrations/**checkers**'
       - 'tools/checkers-browser-gate.mjs'
       - 'package.json'
