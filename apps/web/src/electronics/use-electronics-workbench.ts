@@ -125,6 +125,7 @@ import type {
   LiveSimulationInputBudget,
 } from './live-simulation-worker-controller';
 import { loadSimulationWorkerController } from './load-simulation-worker-controller';
+import { electronicsColdStartBudgetMs } from './simulation-startup-budget';
 import {
   circuitStateMessage,
   SimulationFailure,
@@ -791,6 +792,16 @@ export function useElectronicsWorkbenchHost(
     let latestResultDocument: SchematicDocument | null = null;
     let latestCommittedHorizon = 0;
     let generationConfirmed = false;
+    // Time to the first accepted result includes lazy module loading and Worker startup.
+    // It is deliberately independent of the canonical Arduino clock and Run timing.
+    const startupBudgetMs = electronicsColdStartBudgetMs(
+      import.meta.env.VITE_ASA_ELECTRONICS_STARTUP_PROFILE,
+    );
+    let startupDeadline: number | null = null;
+    const clearStartupDeadline = () => {
+      if (startupDeadline !== null) window.clearTimeout(startupDeadline);
+      startupDeadline = null;
+    };
     let previousSerial: readonly WorkbenchSerialProjection[] = [];
     let lastCircuitMessage: SimulationStatusMessage | null = null;
     let pending: PendingOpticalObservation | null = null;
@@ -1143,6 +1154,7 @@ export function useElectronicsWorkbenchHost(
     simulationCommandRef.current = dispatch;
     const fail = (failure: SimulationFailure) => {
       if (!currentSession()) return;
+      clearStartupDeadline();
       active = false;
       pendingCommands.length = 0;
       if (reportSimulationDiagnostics)
@@ -1159,6 +1171,19 @@ export function useElectronicsWorkbenchHost(
       setLiveObservation(null);
       setArduinoSerialByBoard({});
       setSimulationMessage(simulationFailureMessage(failure));
+    };
+    const armStartupDeadline = () => {
+      clearStartupDeadline();
+      startupDeadline = window.setTimeout(() => {
+        if (!currentSession() || generationConfirmed) return;
+        fail(
+          new SimulationFailure(
+            'technical',
+            'startup-timeout',
+            `Подготовка моделирования не завершилась за ${startupBudgetMs / 1000} секунд. Повторите запуск.`,
+          ),
+        );
+      }, startupBudgetMs);
     };
     const start = (worker: ElectronicsLiveSimulationWorkerController) => {
       if (!currentSession()) return;
@@ -1182,6 +1207,9 @@ export function useElectronicsWorkbenchHost(
         },
         onGenerationPending: () => {
           if (!currentSession()) return;
+          // A real Reset starts a new generation and receives a new budget.
+          // The first generation keeps the deadline armed before module import.
+          if (generationConfirmed) armStartupDeadline();
           simulationStartedAtRef.current = null;
           normalHostClockRef.current = false;
           generationConfirmed = false;
@@ -1261,6 +1289,7 @@ export function useElectronicsWorkbenchHost(
           }
           if (!generationConfirmed) {
             generationConfirmed = true;
+            clearStartupDeadline();
             setGenerationPending(false);
             confirmSimulationStarted();
           }
@@ -1306,6 +1335,9 @@ export function useElectronicsWorkbenchHost(
       }
       pendingCommands.length = 0;
     };
+    // Arm before loading a lazy controller, not after the first Worker response.
+    armStartupDeadline();
+    setGenerationPending(true);
     if (controller) start(controller);
     else {
       void loadSimulationWorkerController()
@@ -1320,6 +1352,7 @@ export function useElectronicsWorkbenchHost(
     }
     return () => {
       active = false;
+      clearStartupDeadline();
       if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
       pendingCommands.length = 0;
       ledPresentation.reset();
