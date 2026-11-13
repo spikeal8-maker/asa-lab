@@ -171,6 +171,13 @@ jobs:
         run: >-
           pnpm exec playwright test --config playwright.config.ts
           e2e/classroom-teacher-dashboard-redesign.spec.ts e2e/classroom-teacher-ultrawide.spec.ts --workers=1 --reporter=list
+      - name: Notification ribbon lifecycle and no-shift browser regressions
+        env:
+          ASA_E2E_EXTERNAL: 'true'
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/reports/playwright/classroom-feedback-summary.json
+        run: |
+          pnpm exec vitest run apps/web/src/components/testing/system-feedback.spec.ts apps/web/src/components/testing/system-toast-viewport.spec.ts apps/web/src/components/testing/use-classroom-feedback.spec.ts
+          pnpm exec playwright test --config playwright.config.ts e2e/classroom-feedback.spec.ts --workers=1 --reporter=list,json
       - name: Preserve all-screen visual evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -178,6 +185,8 @@ jobs:
           name: classroom-layout-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
           path: |
             e2e/artifacts/owner-preview/classroom-layout-final
+            e2e/artifacts/owner-preview/classroom-feedback
+            reports/playwright/classroom-feedback-summary.json
             e2e/artifacts/owner-preview/teacher-dashboard-redesign
             e2e/artifacts/owner-preview/teacher-ultrawide
             reports/playwright/classroom-layout-summary.json

@@ -55,19 +55,18 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   const seatDialog = page.getByRole('dialog');
   await seatDialog.getByLabel('Имя в списке класса').fill('Алина Canonical');
   await seatDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
-  await expect(page.getByText(/Алина Canonical добавлен/)).toBeVisible();
-  await page
-    .getByRole('row')
-    .filter({ hasText: 'Алина Canonical' })
-    .locator('.classroom-login-handle')
-    .click();
-  const studentCode = (
-    await page
-      .getByRole('row')
-      .filter({ hasText: 'Алина Canonical' })
-      .locator('.classroom-login-handle')
-      .innerText()
-  ).trim();
+  const successRibbon = page
+    .locator('.system-feedback-ribbon.system-feedback-success')
+    .filter({ hasText: /Алина Canonical добавлен/ });
+  await expect(successRibbon).toHaveCount(1);
+  await expect(successRibbon).toBeVisible();
+  const statusAnnouncement = page.locator('.system-feedback-announcement[role="status"]');
+  await expect(statusAnnouncement).toHaveCount(1);
+  await expect(statusAnnouncement).toContainText(/Успех\. Алина Canonical добавлен/);
+  const studentRow = page.getByRole('row').filter({ hasText: 'Алина Canonical' });
+  await expect(studentRow).toBeVisible();
+  await studentRow.locator('.classroom-login-handle').click();
+  const studentCode = (await studentRow.locator('.classroom-login-handle').innerText()).trim();
   expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/);
 
   const scope = await admin.query(
