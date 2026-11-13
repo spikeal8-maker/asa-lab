@@ -370,9 +370,440 @@ function withoutFocusedSharding<T extends BrowserJob>(original: T): T {
   return browser;
 }
 
+type QualificationInput = {
+  options?: string[];
+  [key: string]: unknown;
+};
+type QualificationWorkflow = {
+  on: { workflow_dispatch: { inputs: Record<string, QualificationInput> } };
+  jobs: Record<string, BrowserJob>;
+  [key: string]: unknown;
+};
+const pairedProfile = 'r10-paired-regression';
+const pairedOnly = "inputs.qualification_profile == 'r10-paired-regression'";
+const ordinaryOnly = "inputs.qualification_profile != 'r10-paired-regression'";
+const originalFocusedIf = "${{ inputs.qualification_profile != 'arduino-editor-error' }}";
+const pairedFocusedIf =
+  "${{ inputs.qualification_profile != 'arduino-editor-error' && " + ordinaryOnly + ' }}';
+const pairedBrowserIf =
+  "${{ !cancelled() && (needs.focused.result == 'success' || (github.event_name == 'workflow_dispatch' && " +
+  pairedOnly +
+  ')) }}';
+const pairedTimeout = '${{ ' + pairedOnly + ' && 60 || 50 }}';
+const pairedMatrix = shardMatrix.replace(
+  '${{ fromJSON(\n',
+  '${{ fromJSON(\n    ' +
+    pairedOnly +
+    " &&\n    '" +
+    JSON.stringify([{ label: 'paired', shard: '' }]) +
+    "' ||\n",
+);
+const ordinaryQualificationInput = {
+  description: 'Explicit browser qualification; strict real-time remains the default',
+  required: false,
+  type: 'choice',
+  default: 'strict-real-time',
+  options: ['strict-real-time', 'classroom-d13-v2', 'classroom-d13-v3', 'arduino-editor-error'],
+};
+const pairedInputs = {
+  qualification_profile: {
+    ...ordinaryQualificationInput,
+    options: [...ordinaryQualificationInput.options, pairedProfile],
+  },
+  before_revision: {
+    description: 'Immutable baseline SHA for r10-paired-regression only',
+    required: false,
+    type: 'string',
+    default: 'cb15c700253f26bf276ad69d5e45ca27c2306787',
+  },
+  after_revision: {
+    description: 'Immutable candidate SHA for r10-paired-regression only',
+    required: false,
+    type: 'string',
+  },
+};
+const pairedHelper = 'tools/electronics_r10_paired_diagnostic.py';
+const revisionArguments =
+  '--before-revision="$ASA_R10_BEFORE_REVISION" --after-revision="$ASA_R10_AFTER_REVISION"';
+const pairedSteps: BrowserStep[] = [
+  {
+    name: 'Validate paired immutable revisions',
+    if: pairedOnly,
+    run: 'python3 ' + pairedHelper + ' --check-revisions ' + revisionArguments,
+  },
+  ...(['before', 'after'] as const).map((phase) => ({
+    name: 'Checkout paired ' + (phase === 'before' ? 'baseline' : 'candidate'),
+    if: pairedOnly,
+    uses: 'actions/checkout@v4',
+    with: {
+      ref: '${{ env.ASA_R10_' + phase.toUpperCase() + '_REVISION }}',
+      path: 'paired-' + phase,
+      'fetch-depth': 0,
+      'persist-credentials': false,
+    },
+  })),
+  {
+    name: 'Paired original millis and joint-LED cases — one attempt each, not full R4',
+    if: 'always() && ' + pairedOnly,
+    run: 'python3 -u ' + pairedHelper + ' ' + revisionArguments,
+  },
+  {
+    name: 'Remove only paired disposable stacks',
+    if: 'always() && ' + pairedOnly,
+    run: 'python3 -u ' + pairedHelper + ' --cleanup-only ' + revisionArguments,
+  },
+  {
+    name: 'Upload paired status and incremental failures',
+    if: 'always() && ' + pairedOnly,
+    uses: 'actions/upload-artifact@v4',
+    with: {
+      name: 'electronics-r10-paired-failures-${{ github.run_id }}-${{ github.run_attempt }}',
+      path:
+        'reports/r10-paired/paired.json\npaired-before/reports/electronics-failures.ndjson\n' +
+        'paired-after/reports/electronics-failures.ndjson\n',
+      'if-no-files-found': 'error',
+      'retention-days': 14,
+    },
+  },
+  {
+    name: 'Upload complete paired receipts, raw observations, traces and videos',
+    if: 'always() && ' + pairedOnly,
+    uses: 'actions/upload-artifact@v4',
+    with: {
+      name: 'electronics-r10-paired-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}',
+      path:
+        'reports/r10-paired\npaired-before/reports\n' +
+        'paired-before/e2e/artifacts/electronics-simulation\npaired-after/reports\n' +
+        'paired-after/e2e/artifacts/electronics-simulation\n',
+      'if-no-files-found': 'error',
+      'retention-days': 14,
+    },
+  },
+];
+const ordinarySteps = [
+  ['Prepare writable evidence directories', undefined],
+  ['Prepare and verify image-only PostgreSQL transport', undefined],
+  ['Build isolated Electronics browser images', undefined],
+  ['Verify original base layers and exact source revision', undefined],
+  ['Start isolated PostgreSQL', undefined],
+  ['Verify original PostgreSQL image identity', undefined],
+  ['Apply isolated migrations', undefined],
+  ['Start Electronics API and Web without unrelated media services', undefined],
+  [focusedGateName, undefined],
+  ['Show isolated stack state', 'always()'],
+  [failureUpload.name, 'always()'],
+  ['Upload browser evidence', 'always()'],
+  ['Remove isolated test stack', 'always()'],
+] as const;
+
+function withoutR10PairedDiagnostic<T extends QualificationWorkflow>(original: T): T {
+  const workflow = structuredClone(original);
+  const focused = workflow.jobs.focused!;
+  const browser = workflow.jobs.browser!;
+
+  // Project only the exact reviewed paired-v1 schedule. Ordinary commands and
+  // security controls remain intact for the original complete equality checks.
+  // An unknown or partial addition must fail before any normalization occurs.
+  expect(workflow.on.workflow_dispatch).toEqual({ inputs: pairedInputs });
+  expect(focused.if).toBe(pairedFocusedIf);
+  expect(browser.if).toBe(pairedBrowserIf);
+  expect(browser['timeout-minutes']).toBe(pairedTimeout);
+  expect(browser.strategy).toEqual({ 'fail-fast': false, matrix: { browser_case: pairedMatrix } });
+  expect(browser.env.ASA_R10_BEFORE_REVISION).toBe('${{ inputs.before_revision }}');
+  expect(browser.env.ASA_R10_AFTER_REVISION).toBe('${{ inputs.after_revision }}');
+  expect(browser.steps.slice(1, 1 + pairedSteps.length)).toEqual(pairedSteps);
+  const ordinary = browser.steps.slice(1 + pairedSteps.length);
+  expect(ordinary.map((step) => step.name)).toEqual(ordinarySteps.map(([name]) => name));
+  ordinary.forEach((step, index) => {
+    const originalIf = ordinarySteps[index]![1];
+    expect(step.if).toBe((originalIf ? originalIf + ' && ' : '') + ordinaryOnly);
+  });
+
+  workflow.on.workflow_dispatch = {
+    inputs: { qualification_profile: structuredClone(ordinaryQualificationInput) },
+  };
+  focused.if = originalFocusedIf;
+  delete browser.if;
+  browser['timeout-minutes'] = 50;
+  browser.strategy = { 'fail-fast': false, matrix: { browser_case: shardMatrix } };
+  delete browser.env.ASA_R10_BEFORE_REVISION;
+  delete browser.env.ASA_R10_AFTER_REVISION;
+  ordinary.forEach((step, index) => {
+    const originalIf = ordinarySteps[index]![1];
+    if (originalIf) step.if = originalIf;
+    else delete step.if;
+  });
+  browser.steps = [browser.steps[0]!, ...ordinary];
+  return workflow;
+}
+
+describe('paired-v1 diagnostic compatibility projection', () => {
+  function fixture(): QualificationWorkflow {
+    return parse(readFileSync('.github/workflows/electronics-r4-m1-focused.yml', 'utf8'));
+  }
+  const inputs = (workflow: QualificationWorkflow) => workflow.on.workflow_dispatch.inputs;
+  const pairedStep = (workflow: QualificationWorkflow, index: number) =>
+    workflow.jobs.browser!.steps[index + 1]!;
+  const ordinaryStep = (workflow: QualificationWorkflow, name: string) =>
+    workflow.jobs.browser!.steps.find((step) => step.name === name)!;
+  type WorkflowChallenge = [string, (workflow: QualificationWorkflow) => unknown];
+
+  it('projects the reviewed addition without mutating the workflow or its ordinary commands', () => {
+    const original = fixture();
+    const before = structuredClone(original);
+    const projected = withoutR10PairedDiagnostic(original);
+    expect(original).toEqual(before);
+    expect(projected).not.toBe(original);
+    expect(projected.jobs.focused).toEqual({ ...before.jobs.focused, if: originalFocusedIf });
+    expect(projected.jobs.benchmark).toEqual(before.jobs.benchmark);
+    expect(projected.jobs.browser!.steps[0]).toEqual(before.jobs.browser!.steps[0]);
+    expect(projected.on.workflow_dispatch).toEqual({
+      inputs: { qualification_profile: ordinaryQualificationInput },
+    });
+    for (const [name, originalIf] of ordinarySteps) {
+      const expected = structuredClone(ordinaryStep(before, name));
+      if (originalIf) expected.if = originalIf;
+      else delete expected.if;
+      expect(ordinaryStep(projected, name)).toEqual(expected);
+    }
+  });
+
+  for (const [name, mutate] of [
+    [
+      'unknown profile',
+      (workflow) => inputs(workflow).qualification_profile!.options!.push('unknown'),
+    ],
+    [
+      'unreviewed paired version',
+      (workflow) => (inputs(workflow).qualification_profile!.options![4] = 'r10-paired-v2'),
+    ],
+    [
+      'paired default',
+      (workflow) => (inputs(workflow).qualification_profile!.default = pairedProfile),
+    ],
+    [
+      'removed strict profile',
+      (workflow) => inputs(workflow).qualification_profile!.options!.shift(),
+    ],
+    ['missing revision input', (workflow) => delete inputs(workflow).before_revision],
+    [
+      'mutable candidate default',
+      (workflow) => (inputs(workflow).after_revision!.default = 'main'),
+    ],
+    ['unknown dispatch input', (workflow) => (inputs(workflow).unreviewed = { type: 'boolean' })],
+    [
+      'focused strict skip',
+      (workflow) =>
+        (workflow.jobs.focused!.if = "${{ inputs.qualification_profile != 'strict-real-time' }}"),
+    ],
+    [
+      'ordinary browser without focused success',
+      (workflow) =>
+        (workflow.jobs.browser!.if = pairedBrowserIf.replace(
+          "needs.focused.result == 'success'",
+          'true',
+        )),
+    ],
+    [
+      'paired execution outside dispatch',
+      (workflow) =>
+        (workflow.jobs.browser!.if = pairedBrowserIf.replace(
+          "github.event_name == 'workflow_dispatch' && ",
+          '',
+        )),
+    ],
+    [
+      'changed ordinary timeout',
+      (workflow) =>
+        (workflow.jobs.browser!['timeout-minutes'] = pairedTimeout.replace('|| 50', '|| 49')),
+    ],
+    [
+      'changed paired timeout',
+      (workflow) =>
+        (workflow.jobs.browser!['timeout-minutes'] = pairedTimeout.replace('&& 60', '&& 70')),
+    ],
+    [
+      'paired sharding',
+      (workflow) =>
+        (workflow.jobs.browser!.strategy = {
+          'fail-fast': false,
+          matrix: {
+            browser_case: pairedMatrix.replace(
+              '"label":"paired","shard":""',
+              '"label":"paired","shard":"1/2"',
+            ),
+          },
+        }),
+    ],
+    [
+      'ordinary shard removal',
+      (workflow) =>
+        (workflow.jobs.browser!.strategy = {
+          'fail-fast': false,
+          matrix: { browser_case: pairedMatrix.replace(',{"label":"s4","shard":"4/4"}', '') },
+        }),
+    ],
+    [
+      'fail-fast cancellation',
+      (workflow) =>
+        (workflow.jobs.browser!.strategy = {
+          'fail-fast': true,
+          matrix: { browser_case: pairedMatrix },
+        }),
+    ],
+    [
+      'missing candidate environment',
+      (workflow) => delete workflow.jobs.browser!.env.ASA_R10_AFTER_REVISION,
+    ],
+    [
+      'wrong baseline environment',
+      (workflow) =>
+        (workflow.jobs.browser!.env.ASA_R10_BEFORE_REVISION = '${{ inputs.after_revision }}'),
+    ],
+    ['missing paired step', (workflow) => workflow.jobs.browser!.steps.splice(1, 1)],
+    [
+      'duplicate paired step',
+      (workflow) =>
+        workflow.jobs.browser!.steps.splice(1, 0, structuredClone(pairedStep(workflow, 0))),
+    ],
+    [
+      'reordered paired steps',
+      (workflow) =>
+        workflow.jobs.browser!.steps.splice(
+          1,
+          2,
+          ...workflow.jobs.browser!.steps.slice(1, 3).reverse(),
+        ),
+    ],
+    [
+      'unknown paired step',
+      (workflow) => workflow.jobs.browser!.steps.splice(1, 0, { if: pairedOnly, run: 'true' }),
+    ],
+    ['swallowed SHA validation', (workflow) => (pairedStep(workflow, 0).run += ' || true')],
+    ['mutable baseline checkout', (workflow) => (pairedStep(workflow, 1).with!.ref = 'main')],
+    [
+      'persisted checkout credentials',
+      (workflow) => (pairedStep(workflow, 2).with!['persist-credentials'] = true),
+    ],
+    [
+      'shared checkout directory',
+      (workflow) => (pairedStep(workflow, 2).with!.path = 'paired-before'),
+    ],
+    [
+      'ignored comparison failure',
+      (workflow) => (pairedStep(workflow, 3)['continue-on-error'] = true),
+    ],
+    ['comparison skipping setup failures', (workflow) => (pairedStep(workflow, 3).if = pairedOnly)],
+    ['cleanup skipping failures', (workflow) => (pairedStep(workflow, 4).if = pairedOnly)],
+    [
+      'lost incremental failures',
+      (workflow) => (pairedStep(workflow, 5).with!.path = 'reports/r10-paired/paired.json'),
+    ],
+    [
+      'lost candidate raw evidence',
+      (workflow) => (pairedStep(workflow, 6).with!.path = 'paired-before/reports'),
+    ],
+    [
+      'ignored missing evidence',
+      (workflow) => (pairedStep(workflow, 6).with!['if-no-files-found'] = 'ignore'),
+    ],
+    ['unguarded ordinary gate', (workflow) => delete ordinaryStep(workflow, focusedGateName).if],
+    [
+      'ordinary gate also skipping strict',
+      (workflow) =>
+        (ordinaryStep(workflow, focusedGateName).if =
+          ordinaryOnly + " && inputs.qualification_profile != 'strict-real-time'"),
+    ],
+    [
+      'ordinary evidence only on failure',
+      (workflow) =>
+        (ordinaryStep(workflow, 'Upload browser evidence').if = 'failure() && ' + ordinaryOnly),
+    ],
+    [
+      'missing ordinary gate',
+      (workflow) =>
+        workflow.jobs.browser!.steps.splice(
+          workflow.jobs.browser!.steps.indexOf(ordinaryStep(workflow, focusedGateName)),
+          1,
+        ),
+    ],
+    [
+      'unexpected ordinary step',
+      (workflow) =>
+        workflow.jobs.browser!.steps.push({
+          name: 'Unreviewed command',
+          if: ordinaryOnly,
+          run: 'true',
+        }),
+    ],
+  ] as WorkflowChallenge[]) {
+    it('rejects ' + name + ' instead of accepting a partial or changed paired overlay', () => {
+      const original = fixture();
+      mutate(original);
+      expect(() => withoutR10PairedDiagnostic(original)).toThrow();
+    });
+  }
+
+  for (const [name, mutate] of [
+    ['write permission', (workflow) => (workflow.permissions = { contents: 'write' })],
+    [
+      'unrelated browser environment',
+      (workflow) => (workflow.jobs.browser!.env.UNREVIEWED_SETTING = 'true'),
+    ],
+    ['ordinary job dependency', (workflow) => (workflow.jobs.browser!.needs = [])],
+    [
+      'focused failure handling',
+      (workflow) => (workflow.jobs.focused!['continue-on-error'] = true),
+    ],
+    ['benchmark dependency', (workflow) => (workflow.jobs.benchmark!.needs = [])],
+    [
+      'ordinary checkout credentials',
+      (workflow) => (workflow.jobs.browser!.steps[0]!.with!['persist-credentials'] = true),
+    ],
+    [
+      'ordinary gate failure handling',
+      (workflow) => (ordinaryStep(workflow, focusedGateName).run += ' || true'),
+    ],
+    [
+      'ordinary pinned base image',
+      (workflow) => {
+        const step = ordinaryStep(workflow, 'Build isolated Electronics browser images');
+        step.run = step.run!.replace('NODE_IMAGE=mirror.gcr.io/', 'NODE_IMAGE=unreviewed.invalid/');
+      },
+    ],
+    [
+      'mandatory M1 gate',
+      (workflow) =>
+        (workflow.jobs.focused!.steps.find(
+          (step) => step.name === 'Focused Electronics M1 gate',
+        )!.run = 'true'),
+    ],
+  ] as WorkflowChallenge[]) {
+    it('retains changed ' + name + ' for the original full equality checks', () => {
+      const original = fixture();
+      const baseline = withoutR10PairedDiagnostic(fixture());
+      const expected = structuredClone(baseline);
+      mutate(original);
+      mutate(expected);
+      const projected = withoutR10PairedDiagnostic(original);
+      expect(projected).toEqual(expected);
+      expect(projected).not.toEqual(baseline);
+    });
+  }
+
+  it('keeps the original rejection of browser continue-on-error after projection', () => {
+    const original = fixture();
+    original.jobs.browser!['continue-on-error'] = true;
+    const projected = withoutR10PairedDiagnostic(original);
+    expect(() => withoutFocusedSharding(projected.jobs.browser!)).toThrow();
+  });
+});
+
 describe('additive workflow retains existing execution protections', () => {
   it('copies focused, benchmark, pinned transport and runtime commands without weakening', () => {
-    const original = parse(readFileSync('.github/workflows/electronics-r4-m1-focused.yml', 'utf8'));
+    const original = withoutR10PairedDiagnostic(
+      parse(readFileSync('.github/workflows/electronics-r4-m1-focused.yml', 'utf8')),
+    );
     const scoped = parse(readFileSync('.github/workflows/electronics-ui-679-557.yml', 'utf8'));
     expect(scoped.on).toEqual({ workflow_dispatch: null });
     expect(scoped.permissions).toEqual(original.permissions);

@@ -91,6 +91,7 @@ Direct supporting tests and routes:
 - `.github/workflows/electronics-r4-m1-focused.yml`
 - `tools/electronics_r10_paired_diagnostic.py`
 - `tools/test_ci_image_transport.py`
+- `tests/electronics/ui-679-557-qualification.spec.ts`
 - `docs/product/electronics/evidence/recovery-r10-20261113.md`
 - `docs/product/electronics/evidence/recovery-r10-raw.json`
 
@@ -320,3 +321,76 @@ blockers; the owner checkout path check was empty. Repeat the applicable gates
 on the corrected exact source and independently verify B's compiled input
 identity. The running c76-to-B measurement remains valid for its immutable source
 and is not restarted for a generated test-evidence fingerprint.
+
+## Exact scoped-workflow contract follow-up
+
+General run43366387644 on C `2826aa87aea95d21c61b32f05414b3e4ec6589f0`
+failed Data job131695659021 with 10,958 passing tests, 22 skipped tests and one
+failure in `tests/electronics/ui-679-557-qualification.spec.ts`. Its complete
+job comparison still expects the R4 workflow before the reviewed optional
+`r10-paired-regression` overlay. The scoped UI workflow has no qualification
+inputs and must retain its original commands and execution conditions.
+
+The controller authorizes only a test-side compatibility projection of that
+exact paired-v1 overlay before the existing sharding/failure-evidence projections
+and complete job equality assertions. Verify the precise focused condition,
+browser condition, timeout, matrix, two revision variables, paired steps and
+ordinary-step guards before removing the overlay for comparison. Unknown,
+partial or weakened overlays must fail; unrelated job changes must remain
+visible to the original equality check. Preserve every original test and the
+ordinary profiles, image/transport guards, scoped workflow, product code and
+thresholds. Add adversarial cases at this concrete boundary and repeat the
+complete addressed test, existing CI-transport/helper checks and required
+General CI on the final source. An independent reviewer must approve the final
+test-only diff before publication. This directly caused category-B composition
+repair selects no new task. Fresh two-path preflight was SAFE_TO_START at c76,
+and the owner checkout check was empty. The immutable c76-to-B performance run
+continues unchanged; no runtime input is altered by this supporting test repair.
+
+## Controller proposed bounded closure
+
+The final c76→B run43365657820 completed SUCCESS, attempt1: 2,880 measured rows,
+96 pass files, sixteen identical-condition/initial-result pairs, full-editor
+recordings and Rendering/Paint traces. Independent `/root/r10_final_reviewer`
+accepted B source/raw/visual evidence with explicit method limits. Main solver
+calls decrease 2,880→0 and Worker calls 0→720; DOM p95 improves in all sixteen
+profiles. Current-diagnostic p95 for add/source is slower; exact maxima, long
+tasks and deadline overruns remain in the evidence. The shown B SHA is never
+relabeled as C or a later documentation/test commit. Actual B compiled inputs,
+assets, fixtures and locked support files are identical to C; final review must
+confirm the five R10 non-product paths and accepted metadata-only main convergence.
+
+C's actual s3 passed 119 cases, including the targeted technical Worker fault and
+all five compact-controls variants. Full C R4 remains FAIL: s1 six failures and
+s2 five. The two additional long-cycle failures retain UNCLASSIFIED cause; there
+is no whole-Run no-regression claim. Completed D remains two failed original
+cases per phase, with no retry/skips, not a replacement passing qualification.
+
+The final static guard repair received independent exact-blob PASS at
+`287c4ee7249154d6c8a7ad054d9bb5d0202ef721`: 205 focused cases, 14 additional
+independent negative challenges, original assertions preserved. It repairs C's
+directly caused General failure and requires a new actual final-head General.
+The local source/M1, measured B and this narrow guard verdict do not erase the
+failed C workflow.
+
+The controller proposes technical completion of only R00→first R10 in current.yaml.
+That closure becomes canonical only after the exact final source is independently
+reviewed, required General passes, and normal integration succeeds. The actual
+final SHA, CI receipt and merge outcome are recorded on PR1126 before reporting
+completion. Owner acceptance remains pending. STOP after the requested report;
+no R11, deployment, original-project mutation or additional installation.
+
+## One controlled final repeat for accepted shared state
+
+Before final publication, fresh main became
+`46e67cc25c8517f455f6766d32c128678383c9db` through PR1125. Only the shared
+current.yaml and document registry changed; the canonical Electronics R10 lane
+is identical to c76. New blockers apply to the separately named student-progress
+tasks, not R10. The owner checkout's six-path status was empty. Preserve these
+accepted foreign registrations through the single controlled repeat permitted
+by AGENTS2.1: normal checkpoint, normal conflict-free Git merge, exact foreign
+state and runtime-input identity checks, fresh applicable governance/General,
+and final independent review. This consumes the remaining convergence allowance.
+B's immutable timing/recordings remain labelled B. No runtime, model, harness,
+fixture or dependency changes justify a new measurement. If another main move
+again resets acceptance, request an integration window instead of another sync.
