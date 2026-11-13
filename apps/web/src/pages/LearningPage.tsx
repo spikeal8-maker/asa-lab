@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import {
-  api,
-  type ClassroomStudentSession,
-  type LearnerResult,
-  type SeatAssignment,
-  type SeatCourseRun,
-} from '../api';
+import { api, type ClassroomStudentSession, type LearnerResult, type SeatCourseRun } from '../api';
 import { SeatAssignments } from '../components/SeatAssignments';
 import { SeatCourses } from '../components/SeatCourses';
 import {
@@ -18,6 +12,12 @@ import { AttendedClassesPage } from './AttendedClassesPage';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { subscribeTelemetry, telemetryContext } from '../telemetry-context';
+import { PersonalProgress } from '../creator-portal/PersonalProgress';
+import {
+  usePersonalProgress,
+  usePersonalRead,
+  type OwnProgressActor,
+} from '../creator-portal/personal-progress';
 import './my-learning-workspace.css';
 
 const sections = [
@@ -84,9 +84,11 @@ function assignmentHref(assignment: string): string {
 
 export function LearningPage({
   seat,
+  actor,
   onOpenProject,
 }: {
   readonly seat: ClassroomStudentSession | null;
+  readonly actor: OwnProgressActor;
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
   const [hash, setHash] = useState(() => window.location.hash);
@@ -107,6 +109,7 @@ export function LearningPage({
       key={`${continuity}:${seat?.student.seatId ?? 'account'}:${seat?.expiresAt ?? ''}`}
       hash={hash}
       seat={seat}
+      actor={actor}
       onOpenProject={onOpenProject}
     />
   );
@@ -115,10 +118,12 @@ export function LearningPage({
 function LearningContext({
   hash,
   seat,
+  actor,
   onOpenProject,
 }: {
   readonly hash: string;
   readonly seat: ClassroomStudentSession | null;
+  readonly actor: OwnProgressActor;
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
   const [answers, update] = useState<SeatQuizDrafts>({});
@@ -127,6 +132,7 @@ function LearningContext({
     <LearningWorkspace
       key={hash}
       seat={seat}
+      actor={actor}
       onOpenProject={onOpenProject}
       quizDrafts={{ answers, update }}
     />
@@ -135,10 +141,12 @@ function LearningContext({
 
 function LearningWorkspace({
   seat,
+  actor,
   onOpenProject,
   quizDrafts,
 }: {
   readonly seat: ClassroomStudentSession | null;
+  readonly actor: OwnProgressActor;
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
   readonly quizDrafts: SeatQuizDraftStore;
 }): JSX.Element {
@@ -217,7 +225,7 @@ function LearningWorkspace({
             <p role="status">Загружаем задание…</p>
           )
         ) : tab === 'overview' ? (
-          <LearningOverview seat={seat !== null} />
+          <LearningOverview seat={seat !== null} actor={actor} />
         ) : tab === 'self' ? (
           <section className="learning-empty" aria-label="Самостоятельное обучение">
             <h2>Учитесь в своём темпе</h2>
@@ -266,44 +274,46 @@ function LearningWorkspace({
   );
 }
 
-function LearningOverview({ seat }: { readonly seat: boolean }): JSX.Element {
-  const [data, setData] = useState<{
-    assignments: SeatAssignment[] | null;
-    courses: SeatCourseRun[] | null;
-    results: LearnerResult[] | null;
-  } | null>(null);
-  const [retry, setRetry] = useState(0);
-  useEffect(() => {
-    let active = true;
-    setData(null);
-    void Promise.allSettled([
-      seat ? api.seatAssignments() : api.attendedAssignments(),
-      seat ? api.seatCourseRuns() : api.accountCourseRuns(),
-      seat ? api.seatResults() : api.accountResults(),
-    ]).then(([assignments, courses, results]) => {
-      if (!active) return;
-      setData({
-        assignments:
-          assignments.status === 'fulfilled' && assignments.value.ok
-            ? assignments.value.data.items
-            : null,
-        courses:
-          courses.status === 'fulfilled' && courses.value.ok ? courses.value.data.items : null,
-        results:
-          results.status === 'fulfilled' && results.value.ok ? results.value.data.items : null,
-      });
-    });
-    return () => {
-      active = false;
-    };
-  }, [seat, retry]);
+function LearningOverview({
+  seat,
+  actor,
+}: {
+  readonly seat: boolean;
+  readonly actor: OwnProgressActor;
+}): JSX.Element {
+  const progress = usePersonalProgress(actor);
+  const readAssignments = useCallback(
+    (signal: AbortSignal) => (seat ? api.seatAssignments() : api.attendedAssignments(signal)),
+    [seat],
+  );
+  const readCourses = useCallback(
+    () => (seat ? api.seatCourseRuns() : api.accountCourseRuns()),
+    [seat],
+  );
+  const readResults = useCallback(() => (seat ? api.seatResults() : api.accountResults()), [seat]);
+  const assignments = usePersonalRead(progress.lifetime, readAssignments);
+  const courses = usePersonalRead(progress.lifetime, readCourses);
+  const results = usePersonalRead(progress.lifetime, readResults);
+  const data = {
+    assignments: assignments.data?.items ?? null,
+    courses: courses.data?.items ?? null,
+    results: results.data?.items ?? null,
+  };
+  const loading = assignments.loading || courses.loading || results.loading;
+  const failed = assignments.error || courses.error || results.error;
+  const retry = () => {
+    if (assignments.error) assignments.reload();
+    if (courses.error) courses.reload();
+    if (results.error) results.reload();
+  };
   return (
     <>
-      {!data ? <p role="status">Загружаем обзор обучения…</p> : null}
-      {data && Object.values(data).some((items) => items === null) ? (
+      <PersonalProgress actor={actor} progress={progress} mode="learning" />
+      {loading ? <p role="status">Загружаем обзор обучения…</p> : null}
+      {failed ? (
         <p role="alert">
           Часть обзора недоступна.{' '}
-          <button className="btn-secondary" onClick={() => setRetry((value) => value + 1)}>
+          <button className="btn-secondary" onClick={retry}>
             Повторить
           </button>
         </p>
@@ -329,10 +339,8 @@ function LearningOverview({ seat }: { readonly seat: boolean }): JSX.Element {
             <h2 id="learning-overview-work">Ваши задания</h2>
             <a href={sectionHref('assignments')}>Все задания →</a>
           </header>
-          {data?.assignments?.length === 0 ? (
-            <p>Заданий пока нет. Преподаватель выдаст их в вашем классе.</p>
-          ) : null}
-          {data?.assignments === null ? <p>Не удалось загрузить задания.</p> : null}
+          {data?.assignments?.length === 0 ? <p>Заданий пока нет.</p> : null}
+          {assignments.error ? <p>Не удалось загрузить задания.</p> : null}
           <ul>
             {data?.assignments?.slice(0, 3).map((item) => (
               <li key={item.id}>
@@ -354,7 +362,7 @@ function LearningOverview({ seat }: { readonly seat: boolean }): JSX.Element {
           {data?.results?.length === 0 ? (
             <p>Результаты появятся после публикации преподавателем.</p>
           ) : null}
-          {data?.results === null ? <p>Не удалось загрузить результаты.</p> : null}
+          {results.error ? <p>Не удалось загрузить результаты.</p> : null}
           <ul>
             {data?.results?.slice(0, 3).map((item) => (
               <li key={item.assignmentId}>

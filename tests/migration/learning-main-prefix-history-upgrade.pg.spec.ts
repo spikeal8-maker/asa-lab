@@ -479,6 +479,11 @@ const upgradeArtifacts = [
     '0320_personal_progress_summary.sql',
     '8618e796e57a7baf38b94129b09c9574ad8eed3844e9c131cdd7ec93fb345e2a',
   ],
+  [
+    '0321',
+    '0321_account_join_learner_identity.sql',
+    '82aed3222255d8d8c67bea4525ed4465694511d91c052563198f50df1605d6a5',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
