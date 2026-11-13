@@ -1,0 +1,97 @@
+name: Classroom FB06 bounded repair verification
+
+'on':
+  push:
+    branches: ['work/classroom-fb06-verify-20261113']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: classroom-fb06-bounded-repair-20261113
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'spikeal8-maker/asa-lab' && github.ref == 'refs/heads/work/classroom-fb06-verify-20261113'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      PYTHONUTF8: '1'
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: tooling
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: work/classroom-fb06-candidate-20261113
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: source/pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Frozen project dependencies
+        working-directory: source
+        run: |
+          pnpm install --frozen-lockfile
+          python -m pip install PyYAML==6.0.2 jsonschema==4.23.0
+      - name: Canonical preflight and four-path focused repair
+        working-directory: source
+        env:
+          ASA_PYTHON: python
+        run: python "$GITHUB_WORKSPACE/tooling/tools/testing/fb06_repair.py" verify "$RUNNER_TEMP/fb06-repair-evidence"
+      - name: Preserve exact tested source and actual results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fb06-repair-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/fb06-repair-evidence
+          if-no-files-found: warn
+          retention-days: 14
+
+  publish-proof-only:
+    needs: verify
+    if: success()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: tooling
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: work/classroom-fb06-candidate-20261113
+          path: source
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: fb06-repair-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/fb06-repair-evidence
+      - name: Publish verified commit only to a new proof ref
+        working-directory: source
+        run: python3 "$GITHUB_WORKSPACE/tooling/tools/testing/fb06_repair.py" publish-proof "$RUNNER_TEMP/fb06-repair-evidence"
+      - name: Preserve proof publication receipt
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fb06-repair-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/fb06-repair-evidence/proof-receipt.json
+          if-no-files-found: error
+          retention-days: 14
