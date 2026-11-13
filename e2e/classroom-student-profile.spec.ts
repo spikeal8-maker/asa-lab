@@ -133,6 +133,7 @@ async function setup(
     named?: boolean;
     moreWorks?: number;
     firstWorkAwaiting?: boolean;
+    avatars?: ParticipantProfile['avatars'];
   } = {},
 ) {
   const state = await fixture(page, options.count ?? 3, {
@@ -275,7 +276,7 @@ async function setup(
               },
             ]
           : [],
-        avatars: [],
+        avatars: options.avatars ?? [],
         helperClasses: [],
       };
       return route.fulfill({ json: data });
@@ -483,6 +484,176 @@ async function assertPupilHistory(page: Page) {
   );
   await details.getByRole('button', { name: 'История результата', exact: true }).first().click();
   await expect(details.locator('.participant-history')).toContainText('Полный подробный отзыв');
+}
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`UI-05 B2 avatar batch preserves visible metadata and exact replay at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGNwmHDhPwgzwBgAWXQKfeAHO5EAAAAASUVORK5CYII=',
+      'base64',
+    );
+    const image = `data:image/png;base64,${png.toString('base64')}`;
+    const catalogue: ParticipantProfile['avatars'] = Array.from({ length: 22 }, (_, i) => ({
+      id: `existing-avatar-${i}`,
+      title: `Аватар класса ${i + 1}`,
+      url: image,
+      secret: false,
+      available: true,
+      selected: false,
+      permitted: true,
+    }));
+    const state = await setup(page, {
+      long: false,
+      manual: 0,
+      results: 0,
+      populated: true,
+      avatars: catalogue,
+    });
+    const requests: Array<Record<string, unknown>> = [];
+    let release!: () => void;
+    let held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(`**/api/classrooms/${classId}/participants/actions/avatar`, async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      requests.push(body);
+      await held;
+      if (requests.length === 1) {
+        // The first write committed but its acknowledgement was lost. Another
+        // teacher concurrently filled the last slot before the normal GET refresh.
+        catalogue.push(
+          {
+            id: 'committed-avatar',
+            title: String(body.title),
+            url: String(body.dataUrl),
+            secret: true,
+            available: true,
+            selected: false,
+            permitted: true,
+          },
+          { ...catalogue[0]!, id: 'concurrent-avatar', title: 'Добавлен другим преподавателем' },
+        );
+        return route.fulfill({
+          status: 503,
+          json: {
+            error: { code: 'temporary', message: 'Ответ загрузки потерян. Повторите загрузку.' },
+          },
+        });
+      }
+      return route.fulfill({ json: { saved: true } });
+    });
+    await state.open();
+    const settings = await openTeacherSettings(page, 'Данные и роль');
+    await settings.getByRole('button', { name: 'Аватары и заслуги класса' }).click();
+    const region = page.getByRole('region', { name: 'Аватары класса', exact: true });
+    await expect(region).toBeFocused();
+    const upload = region
+      .locator('fieldset')
+      .filter({ hasText: 'Загрузить аватары · до 24 на класс' });
+    const title = upload.getByLabel('Название аватара');
+    const secret = upload.getByLabel('Секретный аватар');
+    const files = upload.getByLabel('Файлы аватаров');
+    await files.setInputFiles([
+      { name: 'первый.png', mimeType: 'image/png', buffer: png },
+      { name: 'второй.png', mimeType: 'image/png', buffer: png },
+    ]);
+    const previews = upload.locator('.participant-avatar-grid > div');
+    await expect(previews).toHaveCount(2);
+    const longTitle = 'Секретный исследователь удивительных научных открытий класса';
+    const expectedTitle = longTitle.slice(0, 55);
+    await title.fill(longTitle);
+    await secret.check();
+    const unlock = upload.getByLabel('Открыть при достижении');
+    await unlock.selectOption('custom:merit');
+    await expect(previews.nth(0).locator('p')).toHaveText(`${expectedTitle} 1`);
+    await expect(previews.nth(1).locator('p')).toHaveText(`${expectedTitle} 2`);
+    await expect(previews.nth(0)).toContainText('Секретный · Исследователь');
+    await expect(previews.nth(1)).toContainText('Секретный · Исследователь');
+    await expect(previews.locator('img')).toHaveCount(2);
+    await expect
+      .poll(() =>
+        previews
+          .locator('img')
+          .evaluateAll((images) =>
+            images.every((image) => (image as HTMLImageElement).naturalWidth > 0),
+          ),
+      )
+      .toBe(true);
+    const submit = upload.getByRole('button', { name: 'Загрузить 2', exact: true });
+    const cancel = upload.getByRole('button', { name: 'Отмена загрузки', exact: true });
+    for (const control of [submit, cancel]) {
+      expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    }
+    await submit.focus();
+    await expect(submit).toBeFocused();
+    await noOverflow(page);
+    await shot(page, `ui05-b2-avatar-draft-${width}`);
+    await submit.click();
+    await expect.poll(() => requests.length).toBe(1);
+    expect(requests[0]).toMatchObject({
+      title: `${expectedTitle} 1`,
+      secret: true,
+      meritId: 'merit',
+      builtinAward: null,
+      requestId: expect.any(String),
+      dataUrl: expect.stringMatching(/^data:image\/png;base64,/),
+    });
+    for (const control of [title, secret, unlock, files, submit, cancel]) {
+      await expect(control).toBeDisabled();
+    }
+    await expect(upload.getByRole('status')).toContainText('Параметры отправлены.');
+    await noOverflow(page);
+    await shot(page, `ui05-b2-avatar-submitting-${width}`);
+    release();
+    await expect(region.getByRole('alert')).toHaveText(
+      'Ответ загрузки потерян. Повторите загрузку.',
+    );
+    await expect(upload).toContainText('В классе уже 24 аватара.');
+    await expect(previews).toHaveCount(2);
+    for (const control of [title, secret, unlock, files]) await expect(control).toBeDisabled();
+    await expect(submit).toBeEnabled();
+    await expect(cancel).toBeEnabled();
+    await noOverflow(page);
+    await shot(page, `ui05-b2-avatar-error-capacity-${width}`);
+    held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await submit.click();
+    await expect.poll(() => requests.length).toBe(2);
+    expect(requests[1]).toEqual(requests[0]);
+    release();
+    await expect(previews).toHaveCount(1);
+    await expect(previews.locator('p')).toHaveText(`${expectedTitle} 2`);
+    await expect(upload.getByRole('button', { name: 'Загрузить 1', exact: true })).toBeDisabled();
+    await expect(cancel).toBeEnabled();
+    expect(requests).toHaveLength(2);
+    expect(catalogue).toHaveLength(24);
+    await cancel.focus();
+    await expect(cancel).toBeFocused();
+    await noOverflow(page);
+    await shot(page, `ui05-b2-avatar-unsent-blocked-${width}`);
+    await cancel.click();
+    await expect(previews).toHaveCount(0);
+    await expect(title).toHaveValue('');
+    await expect(secret).not.toBeChecked();
+    await expect(upload.getByRole('status')).toHaveCount(0);
+    await expect(region.getByRole('alert')).toHaveCount(0);
+    await expect(upload).toHaveAttribute('disabled', '');
+    await expect(files).toBeDisabled();
+    await expect(title).toBeDisabled();
+    await expect(secret).toBeDisabled();
+    await expect(upload.getByRole('button', { name: /^Загрузить \d+$/ })).toHaveCount(0);
+    await expect(
+      region.getByRole('button', { name: `Выбрать ${expectedTitle} 1`, exact: true }),
+    ).toBeVisible();
+    expect(requests).toHaveLength(2);
+    await noOverflow(page);
+    await shot(page, `ui05-b2-avatar-cancelled-${width}`);
+    expect(state.errors).toEqual([]);
+  });
 }
 
 for (const width of [1440, 390, 320]) {
