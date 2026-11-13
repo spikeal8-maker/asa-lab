@@ -33,7 +33,7 @@ async function allSettingsFixture(page: Page, rejected?: NestedSurface) {
         return route.fulfill({ status: 409, json: { error: { code: 'conflict', message: 'Изменение не подтверждено.' } } });
       }
       if (surface === 'ai') {
-        expect(input).toMatchObject({ kind: 'class', mode: 'allow', minimumRating: 0, expectedRevision: 1 });
+        expect(input).toMatchObject({ kind: 'classroom', mode: 'allow', minimumRating: 0, expectedRevision: 1 });
         expect(input.requestId).toEqual(expect.any(String));
         ai = { ...ai, mode: 'allow', revision: 2 };
         return route.fulfill({ json: { saved: true, revision: 2 } });
@@ -72,7 +72,7 @@ async function prepareNestedSave(page: Page, surface: NestedSurface) {
       : surface === 'network' ? 'Сохранить сетевой режим' : 'Сохранить рейтинг';
   const button = group.getByRole('button', { name, exact: true });
   await expect(button).toBeVisible();
-  if (surface === 'ai') await group.getByLabel('Доступ к ИИ', { exact: true }).selectOption('allow');
+  if (surface === 'ai') await group.getByLabel('Правило класса', { exact: true }).selectOption('allow');
   else if (surface === 'games') await group.getByLabel('Доступ к играм', { exact: true }).selectOption('deny');
   else if (surface === 'network') await group.getByLabel('Разрешить сетевую игру', { exact: true }).check();
   else await group.getByLabel('Период рейтинга', { exact: true }).selectOption('7');

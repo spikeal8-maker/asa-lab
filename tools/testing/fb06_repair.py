@@ -19,6 +19,9 @@ BLOBS = {
     'e2e/classroom-student-profile.spec.ts': '57c2ce486ec1e55e01352466bd3e4f825555e410',
     'e2e/publication-comments.spec.ts': '1872813b5df2c3160638997e94eae8fddd009f4d',
     'e2e/classroom-nested-feedback.spec.ts': 'b1eb5e4bb62e3bd476808ed6ae59ef5d1f17e8c4',
+    'e2e/ai-student-access.spec.ts': '0270cc9b55bc440e31c025b52cc82041fd71ddb8',
+    'e2e/chess-network.spec.ts': '694620224af20a8212e63062d6a80e3482436cac',
+    'e2e/classroom-participants.spec.ts': 'af72edc58e0c767aed9a88d36197c2266217c10e',
 }
 
 
@@ -87,6 +90,51 @@ def changes(originals: dict[str, str], appendix: str) -> dict[str, str]:
     old = "  await expect(individual.getByRole('status')).toHaveText('Разрешения проектов сохранены.');"
     require(result[publication].count(old) == 2, 'Expected the two individual permission confirmations')
     result[publication] = result[publication].replace(old, '  await expectProjectFeedback(moderator, individual);')
+    ai = 'e2e/ai-student-access.spec.ts'
+    anchor = "const SEAT = '40000000-0000-4000-8000-000000000001';"
+    helper = '''async function expectAiFeedback(page: Page): Promise<void> {
+  const message = /Доступ к ИИ сохранён/;
+  const ribbon = page.locator('.system-feedback-ribbon.system-feedback-success');
+  await expect(ribbon).toHaveCount(1);
+  await expect(ribbon).toBeVisible();
+  await expect(ribbon).toContainText(message);
+  const announcement = page.locator('.system-feedback-announcement[role="status"]');
+  await expect(announcement).toHaveCount(1);
+  await expect(announcement).toContainText(message);
+  await expect(page.locator('.classroom-ai-access').getByText(message)).toHaveCount(0);
+}
+'''
+    result[ai] = replace_once(result[ai], anchor, helper + anchor, ai)
+    old = "await expect(access.getByText(/Доступ к ИИ сохранён/)).toBeVisible();"
+    require(result[ai].count(old) == 2, 'Expected two AI replay success assertions')
+    result[ai] = result[ai].replace(old, 'await expectAiFeedback(page);')
+    old = "await expect(access.getByText(/Доступ к ИИ сохранён/)).toHaveCount(0);"
+    require(result[ai].count(old) == 2, 'Expected two unconfirmed AI-save assertions')
+    new = '''await expect(page.locator('.system-feedback-ribbon.system-feedback-success').filter({ hasText: /Доступ к ИИ сохранён/ })).toHaveCount(0);
+    await expect(page.locator('.system-feedback-announcement[role="status"]').filter({ hasText: /Доступ к ИИ сохранён/ })).toHaveCount(0);'''
+    result[ai] = result[ai].replace(old, new)
+    chess = 'e2e/chess-network.spec.ts'
+    old = "    await expect(network.getByRole('status')).toHaveText('Настройки сетевой игры сохранены.');"
+    new = '''    const networkFeedback = page.locator('.system-feedback-ribbon.system-feedback-success');
+    await expect(networkFeedback).toHaveCount(1);
+    await expect(networkFeedback).toBeVisible();
+    await expect(networkFeedback).toHaveText(/Настройки сетевой игры сохранены\\./);
+    const networkAnnouncement = page.locator('.system-feedback-announcement[role="status"]');
+    await expect(networkAnnouncement).toHaveCount(1);
+    await expect(networkAnnouncement).toContainText('Настройки сетевой игры сохранены.');
+    await expect(network.getByText('Настройки сетевой игры сохранены.', { exact: true })).toHaveCount(0);'''
+    result[chess] = replace_once(result[chess], old, new, chess)
+    participants = 'e2e/classroom-participants.spec.ts'
+    old = "    await expect(rating.getByText('Рейтинг сохранён')).toBeVisible();"
+    new = '''    const ratingFeedback = page.locator('.system-feedback-ribbon.system-feedback-success');
+    await expect(ratingFeedback).toHaveCount(1);
+    await expect(ratingFeedback).toBeVisible();
+    await expect(ratingFeedback).toContainText('Рейтинг сохранён');
+    const ratingAnnouncement = page.locator('.system-feedback-announcement[role="status"]');
+    await expect(ratingAnnouncement).toHaveCount(1);
+    await expect(ratingAnnouncement).toContainText('Рейтинг сохранён');
+    await expect(rating.getByText('Рейтинг сохранён', { exact: true })).toHaveCount(0);'''
+    result[participants] = replace_once(result[participants], old, new, participants)
     nested = 'e2e/classroom-nested-feedback.spec.ts'
     require('type NestedSurface' not in result[nested], 'Nested coverage already applied')
     require(appendix.startswith('\ntype NestedSurface') and '\x00' not in appendix, 'Unexpected test appendix')
@@ -146,7 +194,7 @@ def verify(evidence: Path) -> None:
         run('stage-source', ['git', 'add', '--', *BLOBS], evidence, 60)
         run('commit-source', ['git', 'commit', '-m', 'fix(classroom): verify nested feedback surfaces and preserve mobile work previews'], evidence, 90)
         final = git('rev-parse', 'HEAD')
-        require(set(git('diff', '--name-only', BASE, final).splitlines()) == set(BLOBS), 'Unexpected changes outside four-path repair')
+        require(set(git('diff', '--name-only', BASE, final).splitlines()) == set(BLOBS), 'Unexpected changes outside the bounded repair')
         receipt.update(source_sha=final, tree_sha=git('rev-parse', 'HEAD^{tree}'))
         os.environ.update(ASA_BUILD_REVISION=final, NX_SKIP_NX_CACHE='true', NX_DAEMON='false', ASA_E2E_EXTERNAL='true')
         run('typecheck', ['pnpm', 'exec', 'nx', 'run', 'web:typecheck'], evidence)
@@ -157,11 +205,20 @@ def verify(evidence: Path) -> None:
         names = ['classroom-assignment-lifetime', 'classroom-assignment-context', 'classroom-average-rating', 'classroom-profile-completion', 'classroom-student-profile', 'system-feedback', 'system-toast-viewport', 'use-classroom-feedback']
         run('focused-components', ['pnpm', 'exec', 'vitest', 'run', *['apps/web/src/components/testing/' + name + '.spec.ts' for name in names]], evidence)
         run('chromium', ['pnpm', 'exec', 'playwright', 'install', '--with-deps', 'chromium'], evidence)
+        browser_command = ['pnpm', 'exec', 'playwright', 'test', '--config', 'playwright.config.ts', 'e2e/classroom-feedback.spec.ts', 'e2e/classroom-nested-feedback.spec.ts', 'e2e/classroom-student-profile.spec.ts', 'e2e/ai-student-access.spec.ts', '--workers=1', '--retries=0']
+        os.environ['PLAYWRIGHT_JSON_OUTPUT_FILE'] = str(evidence / 'browser-discovery.json')
+        run('browser-discovery', browser_command + ['--list', '--reporter=json'], evidence, 120)
+        discovery = json.loads((evidence / 'browser-discovery.json').read_text(encoding='utf-8'))
+        def test_count(node: dict) -> int:
+            return sum(len(spec.get('tests', [])) for spec in node.get('specs', [])) + sum(test_count(suite) for suite in node.get('suites', []))
+        expected = test_count(discovery)
+        require(expected >= 82 and not discovery.get('errors'), 'Expected base, expanded nested, profile and AI cases not discovered')
+        receipt['browser_discovered'] = expected
         os.environ['PLAYWRIGHT_JSON_OUTPUT_FILE'] = str(evidence / 'browser.json')
-        run('built-browser', ['pnpm', 'exec', 'playwright', 'test', '--config', 'playwright.config.ts', 'e2e/classroom-feedback.spec.ts', 'e2e/classroom-nested-feedback.spec.ts', 'e2e/classroom-student-profile.spec.ts', '--workers=1', '--retries=0', '--reporter=list,json'], evidence)
+        run('built-browser', browser_command + ['--reporter=list,json'], evidence)
         report = json.loads((evidence / 'browser.json').read_text(encoding='utf-8'))
         stats = report['stats']
-        require(stats.get('expected') == 76 and not any(stats.get(k) for k in ['unexpected', 'flaky', 'skipped']) and not report.get('errors'), 'Not all 76 real browser cases executed successfully')
+        require(stats.get('expected') == expected and not any(stats.get(k) for k in ['unexpected', 'flaky', 'skipped']) and not report.get('errors'), 'Not all discovered real browser cases executed successfully')
         receipt['browser_stats'] = stats
         require(not git('status', '--porcelain'), 'Checks changed source checkout')
         run('bundle', ['git', 'bundle', 'create', str(evidence / 'candidate.bundle'), 'HEAD', '^' + BASE], evidence, 90)
@@ -206,7 +263,7 @@ def publish_proof(evidence: Path) -> None:
     require(final == r['source_sha'] and git('rev-parse', final + '^{tree}') == r['tree_sha'], 'Tested commit/tree mismatch')
     subprocess.run(['git', 'merge-base', '--is-ancestor', BASE, final], check=True)
     require(set(git('diff', '--name-only', BASE, final).splitlines()) == set(BLOBS), 'Unexpected product paths')
-    require(len(r['files']) == 4 and {x['path'] for x in r['files']} == set(BLOBS), 'Incomplete source manifest')
+    require(len(r['files']) == len(BLOBS) and {x['path'] for x in r['files']} == set(BLOBS), 'Incomplete source manifest')
     for item in r['files']:
         require(git('rev-parse', final + ':' + item['path']) == item['git_blob'], 'Blob differs from verified source')
     proof = 'work/classroom-fb06-proof-20261113-' + os.environ['GITHUB_RUN_ID']
