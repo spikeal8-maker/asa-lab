@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi, type Mock } from 'vitest';
 import { ClassroomNavigator } from '../ClassroomNavigator';
 
 // Only API/session boundaries are mocked; navigation and placement use the implementation.
@@ -17,10 +17,13 @@ vi.mock('../../session-fetch', () => ({
 }));
 const row = (id: string, title: string) =>
   ({ id, title, status: 'active', teacherRole: 'owner' }) as const;
-const response = (...items: ReturnType<typeof row>[]) => ({ items, meta: { total: items.length } });
+const response = (...items: ReturnType<typeof row>[]) => ({
+  ok: true as const,
+  data: { items, meta: { total: items.length } },
+});
 let host: HTMLDivElement;
 let root: Root;
-let navigate: ReturnType<typeof vi.fn>;
+let navigate: Mock<(id: string, title: string) => void>;
 function rect(left: number, top: number, width: number, height: number): DOMRect {
   return {
     x: left,
@@ -113,7 +116,7 @@ beforeEach(() => {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  navigate = vi.fn();
+  navigate = vi.fn<(id: string, title: string) => void>();
 });
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -128,7 +131,7 @@ it('preserves the full heading and fetches once across callback changes', async 
   expect(host.querySelector('h1')?.textContent).toBe('4Б Робототехника⌄');
   expect(opener().querySelector('[aria-hidden="true"]')?.textContent).toBe('⌄');
   expect(host.querySelector('button')?.getAttribute('aria-label')).toBe('Предыдущий класс: 3А');
-  navigate = vi.fn();
+  navigate = vi.fn<(id: string, title: string) => void>();
   await render();
   expect(mocks.list).toHaveBeenCalledTimes(1);
 });
@@ -355,6 +358,23 @@ it('clamps below placement to a narrow visual viewport and dismisses viewport mo
   expect(panel().style.bottom).toBe('');
   await act(async () => viewport.dispatchEvent(new Event('scroll')));
   expect(panel()).toBeNull();
+});
+
+it('handles an HTTP-level failure result without displaying stale class navigation', async () => {
+  mocks.list.mockResolvedValueOnce({
+    ok: false,
+    status: 403,
+    error: { code: 'FORBIDDEN', message: 'Access denied' },
+  });
+  await render();
+  const neighbors = host.querySelectorAll<HTMLButtonElement>('.classroom-nav-neighbor');
+  expect([...neighbors].every((button) => button.disabled)).toBe(true);
+  await click(opener());
+  expect(panel().querySelector('[role="status"]')?.textContent).toContain(
+    'Текущий класс остаётся открытым',
+  );
+  await key(panel(), 'Home');
+  expect(document.activeElement?.textContent).toBe('Повторить');
 });
 
 it('handles rejection locally with disabled neighbor slots', async () => {

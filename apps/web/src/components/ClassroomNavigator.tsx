@@ -101,7 +101,11 @@ export function ClassroomNavigator({
       try {
         const response = await api.listClassrooms();
         if (!isCurrent() || loggedOut.current) return;
-        const result = classroomNavigation(response.items, { id, status, teacherRole });
+        if (!response.ok) {
+          setLoad({ context, kind: 'error', navigation: null });
+          return;
+        }
+        const result = classroomNavigation(response.data.items, { id, status, teacherRole });
         setLoad({ context, kind: result ? 'ready' : 'error', navigation: result });
       } catch {
         if (!isCurrent() || loggedOut.current) return;
