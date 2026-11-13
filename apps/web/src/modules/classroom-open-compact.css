@@ -353,21 +353,25 @@
 }
 
 .teacher-open-compact.classroom-owner-workspace.classroom-workspace .classroom-roster-table {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  border: 0;
-  background: transparent;
+  border: 1px solid var(--teacher-open-line);
+  border-radius: 0;
+  background: #fff;
   overflow: visible;
 }
 
 .teacher-open-compact.classroom-owner-workspace.classroom-workspace
   .classroom-roster-table
   .classroom-roster-head {
+  box-sizing: border-box;
   min-height: 30px;
-  padding: 0 6px;
+  padding: 0 7px;
   border: 0;
-  background: transparent;
+  border-bottom: 1px solid var(--teacher-open-line);
+  background: #f4f8fa;
   font-size: 12px;
 }
 
@@ -414,11 +418,27 @@
   min-width: 0;
   min-height: 37px;
   padding: 0 7px;
-  margin: 0 0 3px;
+  margin: 0;
   gap: 4px;
-  border: 1px solid #e6edf1;
-  border-radius: 7px;
+  border: 0;
+  border-bottom: 1px solid #e6edf1;
+  border-radius: 0;
   background: #fff;
+  overflow: visible;
+}
+
+.teacher-open-compact.classroom-owner-workspace.classroom-workspace
+  .classroom-roster-table
+  .classroom-roster-row:last-child {
+  border-bottom: 0;
+}
+
+@media (hover: hover) {
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row:hover {
+    background: #f7fafc;
+  }
 }
 
 .teacher-open-compact.classroom-owner-workspace.classroom-workspace
@@ -662,7 +682,7 @@
     .classroom-roster-table
     :is(.classroom-roster-head, .classroom-roster-row) {
     display: grid;
-    grid-template-columns: 18px minmax(155px, 1fr) 76px 62px 62px 85px 84px 46px 34px;
+    grid-template-columns: 18px minmax(155px, 1fr) 76px 62px 62px 108px 84px 46px 34px;
     grid-template-rows: minmax(33px, auto);
     align-items: center;
     gap: 4px;
@@ -861,6 +881,76 @@
   }
 }
 
+@container classroom (min-width: 851px) {
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-head
+    .classroom-roster-sortgroup {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-head
+    .classroom-roster-sortgroup
+    > .classroom-roster-sort {
+    flex: 0 0 auto;
+    width: auto;
+  }
+}
+
+@media (pointer: fine) {
+  @container classroom (min-width: 680px) {
+    .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+      .classroom-roster-table
+      :is(.classroom-roster-head, .classroom-roster-row) {
+      grid-template-rows: minmax(28px, auto);
+      row-gap: 0;
+    }
+
+    .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+      .classroom-roster-table
+      .classroom-roster-row {
+      min-height: 30px;
+    }
+
+    .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+      .classroom-roster-table
+      .classroom-student-name {
+      min-height: 28px;
+      height: auto;
+    }
+
+    .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+      .classroom-roster-table
+      .classroom-row-menu
+      > summary {
+      min-height: 28px;
+      height: 28px;
+    }
+
+    .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+      .classroom-roster-table
+      .classroom-row-details
+      > .classroom-seat-safe {
+      min-height: 28px;
+      height: 28px;
+    }
+
+    .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+      .classroom-roster-table
+      .classroom-roster-head
+      .classroom-roster-sort {
+      box-sizing: border-box;
+      min-height: 24px;
+    }
+  }
+}
+
 @container classroom (min-width: 1140px) {
   .teacher-open-compact.classroom-owner-workspace.classroom-workspace .classroom-tabbar {
     flex-wrap: nowrap;
@@ -976,8 +1066,8 @@
     padding: 0 5px;
     gap: 0 5px;
     min-height: 0;
-    margin: 0 0 3px;
-    border-radius: 7px;
+    margin: 0;
+    border-radius: 0;
   }
 
   .teacher-open-compact.classroom-owner-workspace.classroom-workspace
