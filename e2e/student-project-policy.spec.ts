@@ -26,9 +26,8 @@ async function expectProjectPermissionSaved(
   const announcement = page.locator('.system-feedback-announcement[role="status"]');
   await expect(announcement).toHaveCount(1);
   await expect(announcement).toContainText('Разрешения проектов сохранены.');
-  await expect(
-    section.getByText('Разрешения проектов сохранены.', { exact: true }),
-  ).toHaveCount(0);
+  const inlineSuccess = section.getByText('Разрешения проектов сохранены.', { exact: true });
+  await expect(inlineSuccess).toHaveCount(0);
 }
 
 test('teacher policy explicitly permits own Seat publication and preserves public read after disabling', async ({
