@@ -17979,8 +17979,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: ready
-      checkpoint: controller_proposed_sp03_after_sp02_combined_acceptance
+      status: in_progress
+      checkpoint: sp03_repairs_in_progress_waiting_for_separate_class_c_baseline
       owner_acceptance: pending
       program: ASA-STUDENT-PROGRESS-001
       selected_step: SP-03
@@ -18060,6 +18060,43 @@ parallel_lanes:
       next_dependency: SP-04 requires a separate controller selection after applicable SP-03 source, runtime and actual-image acceptance. API readiness alone is not an improved personal Home.
       deployment: not_requested
       database_actions: isolated_tests_only
+      controller_baseline_dependency_2026_11_13:
+        observed_at_utc: '2026-11-13T02:46:46Z'
+        accepted_main_sha: b318656e9d80ea8ddb40b06159f7c1352c799c7c
+        source_pr: 1121
+        source_branch: work/student-progress-home-integration-1090
+        source_sha: e9b7ff40bbb883b458b6e649391a14d584de0ff6
+        source_state: Published draft candidate; final SP-03 acceptance remains pending
+        general:
+          run_id: 43350151065
+          conclusion: failure
+          url: https://github.com/spikeal8-maker/asa-lab/actions/runs/43350151065
+          finding: 600523-byte bundle exceeds unchanged600000 budget; repair inside already selected SP-03 scope
+        publication:
+          run_id: 43350150958
+          conclusion: failure
+          url: https://github.com/spikeal8-maker/asa-lab/actions/runs/43350150958
+          finding: Four failed cases; selected helper repairs stay distinct from independent existing-backend provenance
+            and approved-join identity gaps
+        baseline_dependency:
+          issue: 1124
+          lane: personal-progress-baseline-repair
+          task_id: TASK-PERSONAL-PROGRESS-BASELINE-REPAIR-001
+          classification: C_independent_baseline
+          state: controller_registration_pending_acceptance_on_main
+          source_path_count: 9
+          integration: pending
+        sp03_boundary: Retain thirteen selected product paths and all existing gates. A/B E2E helper and bundle repair,
+          focused verification and independent review remain authorized. New acceptance blocker prevents SP-03 integration/closure
+          until the separate baseline repair is accepted and the final combined SP-03 source obtains its own required
+          CI, runtime and actual-image review.
+        history_boundary: This dated failure/dependency snapshot does not relabel earlier source, BEFORE image, unit,
+          build or CI receipts; older pending statements remain dated history. The unpublished conditional SP-04 proposal
+          is not activated or renamed in this main SP-03 record.
+        new_source_runtime_evidence: not_run
+        final_after_visual_acceptance: pending
+        owner_acceptance: pending
+        deployment: not_authorized
     revisions:
       kind: observed_snapshot
       convergence_baseline_sha: f19f5d47541e9006a5d96281e7af1b1ea960615f
@@ -18804,6 +18841,492 @@ parallel_lanes:
         preservation_boundary: This controller descendant preserves all 13 product blobs and modes from the reviewed fixture repair. Only student-progress metadata changes; previous dated history, all other lanes, blockers, gate declarations and the conditional eleven-path SP-03 selection remain intact.
         snapshot_boundary: This new dated observation records the historical 231e failure and reviewed local fixture repair without relabeling old outcomes or transferring previous PASS to a future source. Local execution was restored; no product runtime tests were rerun in this controller slice. Fetch main and the exact task, PR and CI snapshot before publication. SP-03 remains inactive until the corrected combined candidate meets its required evidence and is accepted on main; deployment and live database actions remain unauthorized.
 
+  - id: personal-progress-baseline-repair
+    parent_lane: student-progress
+    worktree_id: personal-progress-baseline-repair-1124
+    owned_paths:
+    - tests/migration/account-join-identity-upgrade.pg.spec.ts
+    task:
+      id: TASK-PERSONAL-PROGRESS-BASELINE-REPAIR-001
+      issue: 1124
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: controller_registration_before_two_bounded_class_c_backend_repairs
+      owner_acceptance: pending
+      classification: C_independent_baseline
+      related_issues:
+      - 1090
+      dependent_pr: 1121
+      programme_dependency: ASA-STUDENT-PROGRESS-001 / SP-03; separate existing-backend prerequisite, not an additional
+        SP-03 product path
+      normative_refs:
+      - document: IDENTITY-ACCESS-V22
+        revision: '2.2'
+      - document: LEARNING-MASTER-V22
+        revision: '2.2'
+      - document: ADR-LEARNER-IDENTITY-001
+      - document: STUDENT-PROGRESS-DATA-V1
+        revision: '1.0'
+      - document: STUDENT-PROGRESS-PLAN-V1
+        revision: '1.0'
+      scope: 'Two explicitly selected bounded substeps: C1 restores existing private project GET copy provenance;
+        C2 safely materializes canonical learner identity for new and qualified historical approved ordinary Account
+        joins in classes without an audience. Compose only these nine source paths in a separate baseline repair
+        PR after the author results.'
+      planned_paths:
+      - contexts/projects/infrastructure/pg-project.repository.ts
+      - tests/portal/public-project-copy.pg.spec.ts
+      - migrations/0321_account_join_learner_identity.sql
+      - tests/portal/personal-progress.http.pg.spec.ts
+      - tests/migration/account-join-identity-upgrade.pg.spec.ts
+      - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
+      - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+      - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+      - tests/admin/ai-image-queue.pg.spec.ts
+      selected_substeps:
+      - id: C1-PROJECT-GET-PROVENANCE
+        status: ready
+        kind: repair
+        classification: C_independent_baseline
+        planned_paths:
+        - contexts/projects/infrastructure/pg-project.repository.ts
+        - tests/portal/public-project-copy.pg.spec.ts
+        scope: Add only existing copied_from_project_id, copied_from_author, copied_from_title and copied_at columns
+          to PgProjectRepository.load SELECT, restoring the already persisted provenance in private GET. Extend
+          the existing real HTTP/PG copy/replay case with exact GET copiedFrom assertions. Preserve ACCESS_SQL,
+          ownership, privacy denials, idempotency and immutable source evidence. No migration, other-property cleanup
+          or API-shape change.
+        acceptance: Actual copy and replay produce one destination whose authorized private GET returns exact persisted
+          source/author/title/time; unauthorized and noncopied behavior remains covered. The author reports only
+          the two-file result and stops.
+      - id: C2-ACCOUNT-JOIN-LEARNER-IDENTITY
+        status: ready
+        kind: repair
+        risk: high
+        classification: C_independent_baseline
+        planned_paths:
+        - migrations/0321_account_join_learner_identity.sql
+        - tests/portal/personal-progress.http.pg.spec.ts
+        - tests/migration/account-join-identity-upgrade.pg.spec.ts
+        - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
+        - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+        - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+        - tests/admin/ai-image-queue.pg.spec.ts
+        scope: Forward-only safe canonical identity creation inside successful ordinary Account approval without
+          a pre-existing audience, plus only the qualified historical repair below. Preserve authorization, audit
+          and decision flow.
+        approval_function: public.classroom_account_join_decide(p_actor_account uuid, p_actor uuid, p_class uuid,
+          p_request uuid, p_decision varchar, p_reason varchar) RETURNS varchar
+        canonical_helper: public.learning_audience_ensure_seat_identity(p_seat_id uuid) RETURNS uuid; owner-only
+          ACL remains unchanged
+        historical_repair_policy:
+          intent: Repair confirmed ordinary Account admissions never materialized by the supported approval path,
+            including already approved users. A future-approval-only fix is not full completion. Preserve healthy
+            active identity and disabled/revoked history.
+          approved_evidence: Require a persisted approved join request with decided_at, decided_by and exact target
+            Seat S, Account A, classroom C and tenant T, plus the matching classroom.join.decided approved audit
+            for that request, actor, class and tenant. Display name, email, current session or a bare absent row
+            is not approval evidence.
+          current_membership: 'Require active S with exact account_id A, classroom C and tenant T; active class
+            and Account, school belonging to T, and already persisted exact Account and StudentSeat principals.
+            Do not create missing principals. classroom_memberships.student is not required: canonical cross-tenant
+            Account admission may legitimately omit it.'
+          target_seat_link: Require no learner_identity_link for S in any status before historical ensure. Any existing
+            target Seat link stays unchanged; conflicting or partial lineage is skipped and reported, never rebound
+            or updated.
+          account_lineage_branches:
+          - 'Fresh branch: no Account identity link for exact T/school, no other Seat identity links of this Account
+            in that school and no prior identity evidence described below. Only then may the canonical helper create
+            one school learner.'
+          - 'Reuse branch: exactly one active Account link with disabled_at null points to an active learner of
+            exact T/school. Reuse only that learner for the missing target Seat link; do not select or merge another
+            identity.'
+          negative_evidence: Exclude relevant inactive/disabled links or learners, rolled-back
+            batches and conflicting lineage. For target Seat S, always exclude retained identity
+            history, any known M0 learner/tombstone, retained identity artifacts, learner-bound
+            attempts and audience operations with source_seat_id S. In the fresh Account branch
+            also exclude any prior M0 or other retained identity evidence for A in this school,
+            including identity artifacts and known deterministic learner/tombstone. In the
+            reuse branch, a qualified coherent active Account link and active learner of exact
+            T/school are not excluded solely because that learner originated in M0; all target-Seat
+            and relevant inactive/disabled, rolled-back or conflicting-lineage vetoes still
+            apply. Any disqualifying trace means skip/report, never an orphan/replacement
+            identity. Another school alone is not a veto.
+          transaction: Lock the relevant admission/Seat and shared Account-school identity boundary in a consistent
+            order, reread the predicate under lock, then invoke existing owner-only learning_audience_ensure_seat_identity.
+            Before commit verify coherent active Seat and Account links to one learner and Account principal in
+            classroom_participant_principals(S). Prove same-school multi-class concurrency and idempotent retry
+            in real isolated PostgreSQL.
+          preservation: Never call M0 convergence_apply or re-enable an inactive link/learner/artifact. Do not modify
+            historical claims, enrollments, attempts, assessment evidence, Project ownership, sessions, Account
+            policy or summary GET. Healthy existing rows, other-school lineage and revoked/disabled rows remain
+            unchanged.
+          proof_limit: Supported application writers preserve identity links and rollback retains inactive tombstones.
+            Completely erased out-of-band DBA history cannot be distinguished from never-materialized history using
+            these tables; it is outside this qualified backfill and requires separate external evidence or an explicit
+            new decision, not blanket restoration.
+        required_positive_fixtures:
+        - 'Real restricted-application-role HTTP: ordinary Account in a class without an audience follows pending
+          request, authorized teacher approval, active Seat and personal-progress summary containing that group.
+          Preserve teacher authorization and rejected/pending denial boundaries.'
+        - Real prefix0320 fixture creates pre-repair approved empty-class admissions. After one forward upgrade,
+          three classes of one Account in one school are visible and share one learner; a missing target Seat link
+          safely reuses an existing coherent active Account learner.
+        - Concurrent same-school approvals and idempotent retry create no duplicate learner or orphan/partial link.
+          Existing healthy and other-school data are unchanged; migration ledger gains one record and reapply gains
+          none; existing ACL and restricted-role permissions remain intact.
+        required_negative_fixtures:
+        - Pending, rejected or absent approved request/audit; mismatched Account, class, tenant or principal; suspended/removed
+          Seat, inactive Account or archived class.
+        - Inactive Seat link, Account link or learner; rolled-back batch or deterministic tombstone; active but
+          conflicting/partial lineage.
+        - 'Retained identity artifact, learner-bound attempt or audience operation without its link: skip/report
+          and no replacement identity. Healthy links and every negative fixture remain unchanged.'
+        acceptance: Real HTTP and isolated prefix-upgrade, negative and concurrency evidence qualify new and eligible
+          historical admissions; future-only repair cannot complete this substep. The four existing prefix/tail
+          fixtures receive append-only forward0321 coverage. The author reports the seven-file result and stops.
+      path_coordination: Preserve existing projects contexts/projects/** and tests/portal/** and admin-auth tests/admin/**
+        ownership. This new lane owns only its unique new migration regression test for compatibility; the explicit
+        nine-path plan is the full source boundary. Before writes check actual worktree/branch/HEAD/path overlaps
+        and obtain accepted-main shared_path_coordination if a real logical overlap exists. No foreign checkout
+        or index is transferred.
+      owner_authorization: On 2026-11-13 the genuine programme controller selected this separate Class C dependency
+        under the owner's instruction to fix the programme and integrate reviewed results into main. Root explicitly
+        authorized this two-file registration and Issue1124, with local gates and independent review before any
+        separately approved main write. Source authors may start only after canonical acceptance of this registration
+        on main. No product branch selects itself; deployment and live database operations are not authorized.
+      activation_condition: No source execution authority while this registration exists only on its local/preparation
+        branch. Begin an explicitly assigned C1 or C2 bounded execution only after canonical main acceptance with
+        applicable exact-SHA checks and independent review, a fresh frontier/overlap/blocker read and actual SAFE_TO_START
+        for the full assigned plan. C1 and C2 are separate author executions; neither author selects the other.
+        The controller composes their nine-path result for real CI and independent review.
+      constraints:
+      - Separate Class C backend prerequisite only. Do not add these nine paths to the SP-03 UI PR or expand an
+        existing lane. Each author performs one controller-assigned bounded substep, reports exact evidence and
+        stops; only the controller assigns the other substep or integration.
+      - Preserve existing authorization, RLS, Project ownership, Account/Seat boundaries, audit, retry and concurrency.
+        Do not weaken the canonical summary, repair identity on GET or revive disabled/revoked lineage.
+      - Never edit released migrations. Proposed0321 is valid only while fresh main frontier remains0320; stop before
+        source writes on a changed frontier or a required path outside this exact plan. Append only the new forward
+        migration in the four existing tail fixtures.
+      - One isolated combined nine-path baseline repair PR follows both bounded author results. Require independent
+        exact-source/security/runtime review and actual applicable CI on the final combined source. Historical PASS
+        and skipped opt-in suites are not new evidence.
+      - No UI, scoring formula, threshold, API-shape, workflow, dependency, lockfile, timeout, skip, retry-policy
+        or gate changes. No deployment, live DB, new local DB/server stacks or ports; use existing isolated CI PostgreSQL/browser
+        runners only.
+      - Registration does not complete SP-03, activate SP-04 or select SP-05. After actual repaired main, the controller
+        refreshes dependent SP-03 composition and its future SP-04 migration proposal before final CI. Do not rename
+        a future SP-04 path in this main SP-03 selection.
+      evidence_snapshot:
+        observed_at_utc: '2026-11-13T02:46:46Z'
+        accepted_main_sha: b318656e9d80ea8ddb40b06159f7c1352c799c7c
+        accepted_main_tree: 1d7c97476784b95da801cc8b9ccab0e49192c19a
+        source_sha: e9b7ff40bbb883b458b6e649391a14d584de0ff6
+        source_pr: 1121
+        general_run_id: 43350151065
+        general_result: FAILURE; bundle600523 exceeds unchanged600000 budget, handled by separately selected in-scope
+          SP-03 A/B repair
+        publication_run_id: 43350150958
+        publication_result: FAILURE; four cases reported; in-scope helper repair stays separate from the two existing
+          backend Class C defects
+        class_c_provenance: Real copy/replay returned created true/false for one destination; private GET200 copiedFrom
+          was null despite persisted SQL lineage and correct summary counts. Repository.load omits four fields selected
+          by list/create. Inspected backend blobs are unchanged by SP-03.
+        class_c_account_join: Three real pending requests received teacher201 approval and activeSeatId, but Account
+          summary200 returned groups[]. Approval0119/0050 omits canonical ensure;0095 Seat trigger invokes it only
+          with an existing dynamic whole-class audience.0224 eager ensure covers manual add only;0320 correctly
+          requires active canonical links.
+        diagnostic_source: Independent read-only audit_student_backend source/trace diagnosis, exact nine-path plan
+          and conservative historical predicate supplied to controller. No repair source/runtime completion is claimed.
+        migration_frontier: 0320_personal_progress_summary.sql; recheck before authoring
+        detailed_evidence: https://github.com/spikeal8-maker/asa-lab/issues/1124
+      gate_boundary: Registration scope is current.yaml plus document-registry.yaml, with full governance/control-plane,
+        exact-plan/preservation evidence and independent review. Only a separately root-approved ordinary nonforce
+        main write may follow under actual platform permissions; do not invent a mandatory metadata PR or bypass
+        branch protection. Read applicable exact-registration-SHA CI. Registration is not product repair completion.
+      source_implementation: not_started
+      source_ci: not_run
+      independent_source_runtime_review: pending
+      source_integration: pending
+      deployment: not_authorized
+      database_actions: isolated_existing_ci_tests_only
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: b318656e9d80ea8ddb40b06159f7c1352c799c7c
+      head_sha: null
+      observed_at: '2026-11-13T02:46:46Z'
+      main:
+        branch: main
+        sha: b318656e9d80ea8ddb40b06159f7c1352c799c7c
+      observation_note: Dated controller registration on fresh main b318 after PR1120; no static field claims the
+        live HEAD. Preserve both accepted electronics lanes and every prior lane, gate, blocker and dated history.
+        Fetch main and read exact task/source/CI, migration frontier and worktree overlaps before writes. This proposal
+        is not repair, integration, runtime or owner acceptance.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:data
+        - pnpm test:access-a
+      publication:
+        workflow: Public Projects Publication
+        commands:
+        - pnpm gate:projects-publication
+        - pnpm gate:projects-publication:browser
+      learning:
+        workflow: Learning E1 Convergence
+        commands:
+        - pnpm test:learning-e1
+      queue:
+        workflow: AI Image Durable Queue
+        commands:
+        - pnpm gate:ai-image-queue
+        execution_requirement: Actual ASA_IMAGE_QUEUE_TEST=1 forward-upgrade cases, not opt-in SKIP
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+
+  - id: student-progress-rating-rules
+    parent_lane: student-progress
+    worktree_id: student-progress-rating-rules-1128
+    owned_paths:
+    - tests/student-progress/rating-rules.spec.ts
+    task:
+      id: TASK-STUDENT-PROGRESS-RATING-RULES-001
+      issue: 1128
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      kind: implementation
+      risk: medium
+      semantic_change: 'yes'
+      checkpoint: controller_selected_sp05_calibration_pending_canonical_registration
+      owner_acceptance: pending
+      program: ASA-STUDENT-PROGRESS-001
+      selected_step: SP-05
+      normative_refs:
+      - document: STUDENT-PROGRESS-MASTER-V1
+        revision: '1.0'
+      - document: STUDENT-PROGRESS-DATA-V1
+        revision: '1.0'
+      - document: STUDENT-PROGRESS-PLAN-V1
+        revision: '1.0'
+      - document: STUDENT-PROGRESS-ACCEPTANCE-V1
+        revision: '1.0'
+      scope: 'SP-05 only: qualify the finite source dictionary, compare exactly three fully
+        specified machine-readable candidate rule tables on deterministic fixtures, independently
+        fix expected totals, execute a pure dry-run checker, and select exactly one version
+        with a decision report. This is a separate controller-selected bounded lane; SP-03 and
+        its C1/C2 repair retain their complete existing authority and scope. No product source
+        is created by this registration.'
+      planned_paths:
+      - docs/product/student-progress/rating-rules/candidate-a.json
+      - docs/product/student-progress/rating-rules/candidate-b.json
+      - docs/product/student-progress/rating-rules/candidate-c.json
+      - docs/product/student-progress/rating-rules/fixtures.json
+      - docs/product/student-progress/rating-rules/expected-totals.json
+      - docs/product/student-progress/rating-rules/selected-rule.json
+      - docs/product/student-progress/rating-rules/source-mapping.json
+      - docs/product/student-progress/rating-rules/DECISION.md
+      - tools/student-progress-rating-rules.mjs
+      - tests/student-progress/rating-rules.spec.ts
+      owner_authorization: On 2026-11-13 the genuine programme controller explicitly selected
+        this separate SP-05 registration after independently accepting the bounded nonsemantic
+        convergence 9ebf41c52a38fe35f168118cbe933872c3a5c852. The owner authorized implementation
+        and reviewed integration into main. Root authorized exactly two metadata paths, Issue1128
+        and tracking-only Issue1127. This is a separate meaningful controller commit, not an
+        amendment to the completed convergence. Independent final review precedes any separate
+        publication GO; source authors do not select themselves.
+      activation_condition: No SP-05 source execution authority while this registration exists
+        only on a preparation or PR branch. After canonical acceptance on main with applicable
+        exact-source checks and independent review, the controller may assign one bounded SP-05
+        author after a fresh full-ten-path preflight, blocker and actual worktree-overlap read.
+        SP-02 is already accepted; SP-03 and SP-04 are not prerequisites for this calculation
+        stage. Acceptance blocker Issue1127 permits calibration and source/tool review but does
+        not permit SP-05 integration/closure, readiness for SP-06 or public activation.
+      dependency_snapshot:
+        observed_at_utc: '2026-11-13T03:56:43.211Z'
+        accepted_sp02:
+          pr: 1104
+          url: https://github.com/spikeal8-maker/asa-lab/pull/1104
+          merged_at_utc: '2026-11-12T21:47:51Z'
+          source_sha: 4dc1de45b13cb8f7e1d78cabccb080bf84710bda
+          accepted_main_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+          accepted_tree_sha: cf94342492d50b0cc17e34f6fce5422a4e43c3be
+          integration_receipt:
+            path: /workspace/scratch/4d23fca48572/sp02-integration-1104-evidence/integration-receipt.json
+            sha256: 6098eee229e224210237b74b6c5b61bc380ec7e1c40a5e904481cd886152462a
+          runtime_receipt:
+            path: /workspace/scratch/4d23fca48572/ci-sp02-window-4dc1de45/final-metadata-receipt.json
+            sha256: 53fa8b483dd9fb1392bbfef383b09b2d907549e06f87db2f5a078c9d1fdb6e3e
+          independent_composition_and_runtime: FINAL APPROVE; exact recorded SP-02 source only
+          boundary: This new dated fact does not rewrite any historical pending snapshot. SP-02
+            acceptance is not owner UI acceptance, future global-rating acceptance or SP-DATA10
+            paired Home/Learning page performance evidence; the latter remains a programme gap
+            before SP-11.
+        readiness: Only the accepted SP-02 prerequisite and controller selection are established.
+          Coefficients, selected rule, SP-05 source CI and source qualification are not accepted.
+      source_qualification_dependency:
+        issue: 1127
+        url: https://github.com/spikeal8-maker/asa-lab/issues/1127
+        classification: C_existing_backend_source_gap
+        status: tracking_only_not_selected
+        finding: A known public/Gallery copy Q is excluded from independent authorship, but
+          ordinary duplicateWithDraft creates D without origin; publishing D and reacting as
+          the same external actor can make the copied work eligible. Independent source qualification
+          is NEEDS_FIX. Numeric calibration cannot repair missing provenance.
+        receipt_boundary: 0287 AFTER INSERT creates a receipt for any non-null copied_from_publication_id
+          and validates the live source revision. Naive propagation would increase createdCopies
+          for an ordinary duplicate; 0235 also forbids changing exact publication-origin fields
+          after insertion, including null-to-value.
+        repair_boundary: Separate future controller selection must preserve existing origin
+          internally and the explicit new-public-copy receipt boundary with strict authorization
+          and atomic rollback. Issue1127 grants no source plan, migration number or execution
+          authority, and does not expand the existing C1/C2 nine paths.
+        unblock_evidence: Separate provenance-preservation repair accepted on main with independent
+          real PostgreSQL upgrade, public/Gallery copy-chain, repeated ordinary duplicate, replay/rollback
+          and no-extra-copy-receipt evidence. Then qualify SP-05 source mapping and obtain independent
+          exact-source rule review before integration/closure or SP-06 readiness.
+        history_boundary: Do not guess erased historical lineage or treat unknown coverage as
+          original authorship evidence. No universal plagiarism or unproven physical-person/sybil
+          guarantee.
+      calibration_contract:
+        learning_source: L means proven canonical Learning completion/result on a stable obligation/participation
+          source; no second completion model, duplicate group credit, attempts-as-completions
+          or raw-save credit.
+        reaction_source: U is a deduplicated union of proven external reaction identities on
+          eligible authored publications. Use confirmed identity links only, current valid reactions
+          and explicit source qualification; technical duplicates or repeated delivery must
+          not multiply the same recognition.
+        disabled_sources: Copies have zero rating weight in this v1 slice; their real createdCopies
+          statistic is unchanged. Publication base and arbitrary custom merits remain zero without
+          a demonstrated canonical qualifying source. No weight is inferred from counters, login,
+          idle time, clicks or comment volume.
+        candidate_count: 3
+        numerical_choice: No candidate, coefficient, hard cap or smooth alternative is selected
+          by this registration. Fully specify all three configurations and compare per-publication
+          limits, total-author saturation and technical-duplicate behavior; select exactly one
+          version only through dry-run and independent review.
+        fixed_oracle: expected-totals.json contains independently fixed answers for every candidate
+          and deterministic fixture. The checker must not generate its own oracle. Explicit
+          rounding order, precision, stable credit keys, reversal/correction behavior and historical
+          import are mandatory.
+        selected_version: selected-rule.json must identify exactly one chosen version and bind
+          its config/checksum; DECISION.md explains the tradeoffs and rejected alternatives.
+          A numeric decision does not waive Issue1127 source qualification.
+        data_basis: No approved anonymized dataset is attached to this registration. Use deterministic
+          synthetic fixtures and report synthetic-only calibration unless permitted aggregates
+          are separately supplied; do not represent synthetic profiles as observed user distributions.
+      required_fixtures:
+      - True zero with no qualified source; weekly learner; learner without publication permission;
+        adult author without a group.
+      - One substantive work versus repeated revisions, technical duplicates and repeated publication;
+        same canonical learning source through multiple groups and links.
+      - Scratch/robotics without copy acquisition and three-d/electronics with it; own and repeated
+        copies remain zero-weight.
+      - Self-reactions, replay, like removal/return, late confirmed identity merge, revoked
+        links, corrected learning results and withdrawn/hidden publication.
+      - Known public/Gallery copy through ordinary duplicate and republication; missing historical
+        origin stays explicit unknown, not an invented proof.
+      - Reject malformed configs, invalid/non-finite values, wrong fixed totals, version/checksum
+        mismatch, multiple/no selected candidates and invariant violations.
+      ci_execution_contract:
+        required_route: General .github/workflows/spec-validation.yml postgres-tests -> pnpm
+          gate:data -> pnpm test -> vitest run -> tests/**/*.spec.ts
+        actual_entrypoint: tests/student-progress/rating-rules.spec.ts must spawn process.execPath
+          with tools/student-progress-rating-rules.mjs --check on checked-in configurations/fixtures
+          and assert exit status and results; import-only tests are insufficient.
+        local_command: node tools/student-progress-rating-rules.mjs --check
+        focused_command: pnpm exec vitest run tests/student-progress/rating-rules.spec.ts
+        negative_execution: Run the same checker against deterministic invalid inputs and prove
+          nonzero exit for bad totals, schema, selection/checksum and failed invariants. No
+          generator-based expected-output refresh may silently make a failure pass.
+        boundary: The canonical General/data gate, package scripts, Vitest include and workflows
+          are unchanged. This is the verified execution route for future source; neither the
+          absent test nor CLI has run at registration time.
+      path_coordination: Preserve the student-progress parent's docs namespace and every existing
+        ownership/selection. This lane owns only its unique new test path for compatibility;
+        its full exact source plan is the ten new paths above. Check actual foreign worktree,
+        branch, HEAD, index and planned paths before writing. If real logical overlap is found,
+        obtain accepted-main shared_path_coordination; this registration transfers no foreign
+        checkout.
+      constraints:
+      - One explicitly assigned bounded rules author implements SP-05 only after canonical main
+        acceptance. Independent source/numeric review remains separate; the author may not self-select
+        SP-06 or repair Issue1127.
+      - Preserve all existing 125 lanes, 17 blockers, root fields, dated history, SP-03 gates
+        and C1/C2 nine-path plan. Do not activate SP-04 or reserve/rename any migration.
+      - Do not change MASTER, DATA or ACCESS norms, group rating, rights/thresholds, identity
+        policies, APIs/DTOs, publication counters, UI, ledger or user balances. Do not add levels,
+        currencies or ranks.
+      - Known copied origin is not evidence of independent authorship. Preserve honest historical
+        coverage and proven identity scope; no matching by name/email/avatar and no universal
+        anti-plagiarism or sybil promise.
+      - Keep the no-decay personal contribution model, stable credit units and explicit reversals.
+        Different group memberships and repeated identities do not generate new credit.
+      - Do not weaken existing gates, edit package.json/workflows/Vitest config, create a second
+        CI-only checker, or claim imports as CLI execution. Registering the command is not test
+        evidence.
+      - No live database writes, local PostgreSQL, servers, ports, deployment or new dependencies
+        are authorized in this calculation stage.
+      context_hints:
+      - docs/product/student-progress/tasks/SP-05-RATING-RULES.md
+      - docs/product/student-progress/README.md
+      - docs/product/student-progress/DATA_AND_RATING_CONTRACT.md
+      next_dependency: SP-06 requires one independently accepted numerical version and qualified
+        canonical source mapping, Issue1127 repair/evidence, completion of this selected stage
+        and a separate explicit controller selection. SP-07 public activation has its own prerequisites.
+      source_implementation: not_started
+      source_ci: not_run
+      selected_rule: not_selected
+      independent_source_review: pending
+      source_integration: pending
+      deployment: not_requested
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: b2e0e93a4ae31cce1b9cf286fe14eb62efdd9627
+      head_sha: null
+      observed_at: '2026-11-13T03:56:43.211Z'
+      main:
+        branch: main
+        sha: b2e0e93a4ae31cce1b9cf286fe14eb62efdd9627
+      observation_note: Dated separate SP-05 controller registration on the unpublished descendant
+        of independently approved convergence 9ebf41c52a38fe35f168118cbe933872c3a5c852. Fresh
+        main is b2e0e93a4ae31cce1b9cf286fe14eb62efdd9627. No static field claims the live HEAD.
+        Fetch main and read exact task/source/CI, blockers and worktree overlaps before writes.
+        This proposal is not canonical activation, numerical/source acceptance, CI success or
+        product implementation; historical records remain unchanged.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm test tests/student-progress/rating-rules.spec.ts
+      data:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:data
+        execution_requirement: The ordinary full Vitest suite must actually execute the CLI-spawning
+          regression; no import-only substitute.
+      governance:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+
 integration:
   owner_lane: visual-programming
   shared_paths:
@@ -19205,5 +19728,72 @@ blocking:
       dependent E7 actual TIME-01..03 coupling evidence with single state ownership; independent review
       on actual final candidate.
     evidence: https://github.com/spikeal8-maker/asa-lab/issues/1071
+
+  - id: STUDENT-PROGRESS-1090-CLASS-C-BASELINE-1124
+    kind: acceptance_blocker
+    lane: student-progress
+    task_id: TASK-STUDENT-PROGRESS-HOME-001
+    blocks:
+    - source_integration
+    - integration
+    - technical_acceptance
+    - owner_acceptance
+    - release_claim
+    - close_issue
+    allows:
+    - readonly_diagnostics
+    - selected_sp03_class_a_b_repair
+    - selected_sp03_e2e_helper_repair
+    - selected_sp03_bundle_repair
+    - focused_verification
+    - independent_source_review
+    - controller_dependency_coordination
+    reason: Exact draft PR1121/e9b7 failed Publication43350150958 and General43350151065. Separate Class C Issue1124
+      owns existing-backend private GET provenance and safe canonical identity for approved ordinary Account admissions
+      without an audience. Do not expand SP-03 UI source to repair them. This blocker applies only to SP-03 integration/closure;
+      selected A/B E2E/bundle repair continues and the separately selected baseline lane is outside its scope.
+    unblock_requires: Independently reviewed nine-path baseline repair accepted on main after exact-source required
+      General/Data/standalone RLS, Access, Publication/browser, Learning admission and actual opt-in AI Image Queue
+      evidence. Then controller composes repaired baseline with bounded SP-03 result, records truthful evidence
+      before final CI and obtains exact combined-source required CI, independent runtime and actual BEFORE/AFTER
+      image review plus integration authorization. Text changes or registration alone cannot close this blocker.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/1124
+
+  - id: STUDENT-PROGRESS-RATING-RULES-1128-COPY-PROVENANCE-1127
+    kind: acceptance_blocker
+    lane: student-progress-rating-rules
+    task_id: TASK-STUDENT-PROGRESS-RATING-RULES-001
+    blocks:
+    - source_qualification_acceptance
+    - source_integration
+    - integration
+    - technical_acceptance
+    - owner_acceptance
+    - sp06_readiness
+    - public_activation
+    - release_claim
+    - close_issue
+    allows:
+    - readonly_diagnostics
+    - selected_sp05_numeric_calibration
+    - selected_sp05_three_candidate_configs
+    - selected_sp05_synthetic_fixtures
+    - selected_sp05_source_mapping
+    - selected_sp05_invariant_tool
+    - focused_verification
+    - independent_source_review
+    - independent_numeric_review
+    - controller_dependency_coordination
+    reason: Independent source qualification found known copied-origin work can become eligible
+      after ordinary duplicateWithDraft drops provenance. Separate C3 Issue1127 tracks the backend
+      gap; numeric calibration and review may proceed, but this SP-05 lane cannot integrate/close
+      or authorize SP-06/public activation until the real source boundary is repaired. No C1/C2
+      scope extension or new migration is selected here.
+    unblock_requires: A separately controller-selected provenance-preservation repair accepted
+      on main with independent real PostgreSQL upgrade/copy-chain/replay/rollback/no-extra-receipt
+      evidence, followed by qualified SP-05 source mapping and independent review of one selected
+      numerical version and its fixed expected totals. Historical unknown lineage remains explicit.
+      Registration text or synthetic dry-run alone cannot close this blocker.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/1127
 
 next_task: null
