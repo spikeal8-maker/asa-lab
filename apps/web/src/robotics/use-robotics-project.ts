@@ -8,6 +8,7 @@ import {
   type SchematicDocument,
 } from '../api';
 import type { EditorPersistenceIssue } from '../components/editor-chrome/EditorPersistenceIndicator';
+import { WorkbenchAutosaveScheduler } from '../electronics/workbench-autosave';
 import { readArduinoProgramState } from '../electronics/arduino-program-state';
 import { cloneJson } from '../electronics/workbench-geometry';
 import { retainAnnotationVersion } from '../electronics/workbench-annotations';
@@ -30,7 +31,6 @@ import {
 import type { RoboticsWorldDocument } from './world';
 
 const HISTORY_LIMIT = 80;
-const AUTOSAVE_DELAY_MS = 700;
 // PostgreSQL JSONB may return object keys in a different order. Only comparisons
 // use canonical keys; the attempted API payload stays byte-for-byte retryable.
 const bytes = (value: unknown): string =>
@@ -421,7 +421,20 @@ export function useRoboticsProject(
   }).current;
   const [project, setProject] = useState(opened.project);
   const projectRef = useRef(project);
-  const [projectTitle, setTitleState] = useState(project.title);
+  const titleDraftKey = `asa-lab:robotics:pending-title:${identityKind}:${userId}:${projectId}`;
+  const [projectTitle, setTitleState] = useState(() => {
+    try {
+      const raw = storage().getItem(titleDraftKey);
+      if (raw) {
+        const draft = JSON.parse(raw) as { baseTitle?: unknown; title?: unknown };
+        if (draft.baseTitle === project.title && typeof draft.title === 'string')
+          return draft.title;
+      }
+    } catch {
+      // Browsers may disable storage. Keep the editor available in memory.
+    }
+    return project.title;
+  });
   const titleRef = useRef(projectTitle);
   const [saving, setSaving] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -447,6 +460,8 @@ export function useRoboticsProject(
     [storage, projectId, userId, identityKind, scope],
   );
   const source = useRoboticsSource(opening.source, { onChange: persistRecovery });
+  const autosaveSchedulerRef = useRef<WorkbenchAutosaveScheduler<string> | null>(null);
+  const autoPersistRef = useRef<() => void>(() => {});
   const getCurrentProject = source.getCurrentProject;
   const flushProgram = source.flushProgram;
   const setNotice = source.workbench.setNotice;
@@ -488,12 +503,17 @@ export function useRoboticsProject(
   );
 
   const persist = useCallback(
-    (unloading = false): Promise<boolean> => {
+    (unloading = false, automatic = false): Promise<boolean> => {
       flushProgram();
       if (!scope.active) return Promise.resolve(false);
       if (bytes(getCurrentProject()) !== scope.savedBytes) persistRecovery(getCurrentProject());
       if (scope.conflict) return Promise.resolve(false);
-      if (scope.promise) return scope.promise;
+      if (scope.promise) {
+        // A manual Save must still include newer edits made during an automatic request.
+        return automatic
+          ? scope.promise
+          : scope.promise.then((saved) => (saved ? persist(unloading, false) : false));
+      }
       if (!scope.pending && bytes(getCurrentProject()) === scope.savedBytes)
         return Promise.resolve(true);
       setSaving(true);
@@ -583,8 +603,9 @@ export function useRoboticsProject(
             return true;
           }
           persistRecovery(getCurrentProject());
-          // Edits made during the request follow it at the newly confirmed base.
-          // The same awaitable Save does not finish while newer source is unsaved.
+          // A timed save sends one snapshot only. New edits wait for the next minute;
+          // explicit Save still drains its current source before returning success.
+          if (automatic) return true;
         }
         return false;
       };
@@ -609,11 +630,24 @@ export function useRoboticsProject(
     ],
   );
 
-  const setProjectTitle = useCallback((update: SetStateAction<string>): void => {
-    const next = typeof update === 'function' ? update(titleRef.current) : update;
-    titleRef.current = next;
-    setTitleState(next);
-  }, []);
+  const setProjectTitle = useCallback(
+    (update: SetStateAction<string>): void => {
+      const next = typeof update === 'function' ? update(titleRef.current) : update;
+      titleRef.current = next;
+      setTitleState(next);
+      try {
+        if (next === projectRef.current.title) storage().removeItem(titleDraftKey);
+        else
+          storage().setItem(
+            titleDraftKey,
+            JSON.stringify({ baseTitle: projectRef.current.title, title: next }),
+          );
+      } catch {
+        // The in-memory draft remains editable if storage is unavailable.
+      }
+    },
+    [storage, titleDraftKey],
+  );
   const rename = useCallback((): Promise<boolean> => {
     if (!scope.active) return Promise.resolve(false);
     if (renamePending.current) return renamePending.current;
@@ -635,7 +669,10 @@ export function useRoboticsProject(
         }
         projectRef.current = response.data.project;
         setProject(projectRef.current);
-        if (titleRef.current.trim() === title) setProjectTitle(projectRef.current.title);
+        // Preserve the newest in-browser title if it changed during this request.
+        setProjectTitle(
+          titleRef.current.trim() === title ? projectRef.current.title : titleRef.current,
+        );
       }
       return scope.active;
     };
@@ -705,19 +742,39 @@ export function useRoboticsProject(
     else if (opening.invalid)
       setNotice('Локальная копия повреждена. Открыта сохранённая серверная версия.');
   }, [opening, scope, setNotice]);
+  // The same one-minute, first-dirty-edit scheduler used by Electronics.
+  // Constant simulation frames and continued edits never restart the deadline.
+  autoPersistRef.current = () => {
+    void (async () => {
+      if (!(await persist(false, true))) return;
+      if (titleRef.current !== projectRef.current.title) await rename();
+    })();
+  };
   useEffect(() => {
-    if (
-      scope.error ||
-      scope.conflict ||
-      scope.pending ||
-      bytes(source.robotProject) === scope.savedBytes
-    )
-      return;
-    const timer = window.setTimeout(() => {
-      void persist();
-    }, AUTOSAVE_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [source.robotProject, scope, revision, persist]);
+    const scheduler = new WorkbenchAutosaveScheduler<string>(
+      () => {
+        const current = `${bytes(getCurrentProject())}\u0000${titleRef.current}`;
+        const saved = `${scope.savedBytes}\u0000${projectRef.current.title}`;
+        return {
+          document: current,
+          savedDocument: saved,
+          savingDocument: scope.promise || renamePending.current ? current : null,
+          failed: Boolean(scope.error) || scope.conflict,
+          paused: false,
+        };
+      },
+      () => autoPersistRef.current(),
+    );
+    autosaveSchedulerRef.current = scheduler;
+    scheduler.update();
+    return () => {
+      scheduler.dispose();
+      if (autosaveSchedulerRef.current === scheduler) autosaveSchedulerRef.current = null;
+    };
+  }, [scope, getCurrentProject]);
+  useEffect(() => {
+    autosaveSchedulerRef.current?.update();
+  }, [source.robotProject, projectTitle, scope, revision, saving, renaming, saveError]);
   useEffect(() => {
     scope.active = true;
     const recover = (): void => {
@@ -725,8 +782,9 @@ export function useRoboticsProject(
       if (bytes(getCurrentProject()) !== scope.savedBytes) persistRecovery(getCurrentProject());
     };
     const hide = (): void => {
+      // A browser tab becoming hidden is not permission to bypass the minute.
+      // The last edit is already cached locally, so no network write is needed.
       recover();
-      if (!scope.error) void persist(true);
     };
     const visibility = (): void => {
       if (document.visibilityState === 'hidden') hide();
@@ -739,7 +797,10 @@ export function useRoboticsProject(
       }
     };
     const online = (): void => {
-      if (scope.issue === 'offline') void persist();
+      if (scope.issue !== 'offline') return;
+      // Reconnect re-arms the normal minute, never an immediate retry burst.
+      clearError();
+      autosaveSchedulerRef.current?.update();
     };
     const loggedOut = onSessionLoggedOut(() => {
       recover();
@@ -758,7 +819,7 @@ export function useRoboticsProject(
       window.removeEventListener('online', online);
       document.removeEventListener('visibilitychange', visibility);
     };
-  }, [scope, flushProgram, getCurrentProject, persistRecovery, persist, hasUnsavedChanges]);
+  }, [scope, flushProgram, getCurrentProject, persistRecovery, hasUnsavedChanges, clearError]);
 
   const saveStatus: SaveStatus = saveError
     ? 'error'

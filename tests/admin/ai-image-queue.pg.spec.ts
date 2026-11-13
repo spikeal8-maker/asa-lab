@@ -42,6 +42,11 @@ const schoolPendingFiles = [
   '0314_ai_polza_video_catalog.sql',
   '0315_ai_polza_catalog_selection.sql',
   '0316_learning_file_answers.sql',
+  '0317_admin_dashboard_attendance.sql',
+  '0318_admin_operational_overview.sql',
+  '0319_canonical_read_boundaries_jit.sql',
+  '0320_personal_progress_summary.sql',
+  '0321_account_join_learner_identity.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
@@ -71,6 +76,8 @@ const canonicalSqlDigests = {
   '0311': '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
   '0312': 'fb93b9453e0127d94843feb45abf8371437eee0b0421ceb34323171bc5a1825b',
   '0316': '4e63b37b20a09b4e0b2eba6e96140de1b2372febae7490cbf21ee505c7ec78c9',
+  '0317': 'c7efd322f7acf5567b85f1035b2e55a27842134fa3d487ff20be2d06ad90b99e',
+  '0318': 'e834b0e84327aaf2d53951bc54e2fb0a628abc31cc332af9926f2d0c966c3d5d',
 };
 const beginSql = 'SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,$6,$7,$8) AS value';
 const transport = {
@@ -189,7 +196,7 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
       try {
         // Prove a forward upgrade from the actual school schema, not only an empty DB.
         const migrations = planMigrations('migrations');
-        expect(migrations.at(-1)?.version).toBe('0316');
+        expect(migrations.at(-1)?.version).toBe('0321');
         await applyPlan(
           client,
           migrations.filter((m: { version: string }) => m.version <= '0286'),

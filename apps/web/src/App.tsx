@@ -35,6 +35,7 @@ const OrganizationLoginPage = lazy(() =>
 );
 import { JoinClassPage } from './pages/JoinClassPage';
 import { studentSessionPayload } from './creator-portal/student-session';
+import type { OwnProgressActor } from './creator-portal/personal-progress';
 import type { PublicIntent } from './pages/PublicEntryPage';
 const PublicEntryPage = lazy(() =>
   import('./pages/PublicEntryPage').then((module) => ({ default: module.PublicEntryPage })),
@@ -157,7 +158,7 @@ import {
 } from './creator-portal/portal-navigation-guard';
 import './creator-portal/creator-portal.css';
 import './creator-portal/portal-workspace.css';
-import './creator-portal/home-workspace.css';
+import './creator-portal/portal-home-shared.css';
 import './creator-portal/portal-header-adaptive.css';
 import './projects-public/public-projects.css';
 
@@ -200,9 +201,6 @@ function publicViewFromHash(): PublicView {
 export function App(): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
   const portalScope = portalSessionKey(session);
-  usePortalGameNotifications(
-    session.kind === 'authenticated' || session.kind === 'student' ? portalScope : '',
-  );
   usePresentationSessionLifetime(
     session.kind === 'checking'
       ? undefined
@@ -291,6 +289,14 @@ export function App(): JSX.Element {
 
   const [view, setViewState] = useState<CreatorPortalView>(() =>
     creatorViewFromLocation(window.location),
+  );
+  // Robotics runs locally; polling unrelated game invitations inside its editor
+  // creates needless 5-second requests and wastes shared server capacity.
+  usePortalGameNotifications(
+    (session.kind === 'authenticated' || session.kind === 'student') &&
+      !(view.kind === 'editor' && view.moduleKey === 'robotics')
+      ? portalScope
+      : '',
   );
   const actor = telemetryActor(session);
   const actorIdentity =
@@ -1089,6 +1095,20 @@ export function App(): JSX.Element {
   // What a seat cannot do is expressed as capabilities it does not hold, so
   // nothing below this line has to ask which kind of person is signed in.
   const isSeatLearner = session.kind === 'student';
+  const progressActor: OwnProgressActor =
+    session.kind === 'student'
+      ? {
+          kind: 'seat',
+          seatId: session.session.student.seatId,
+          classroomId: session.session.classroom.id,
+          displayName: session.session.student.displayName,
+          avatarKey: session.session.student.avatarKey,
+        }
+      : {
+          kind: 'account',
+          accountId: session.session.account.id,
+          displayName: session.session.account.displayName,
+        };
   const portalSession: SessionPayload =
     session.kind === 'student' ? studentSessionPayload(session.session) : session.session;
 
@@ -1316,6 +1336,7 @@ export function App(): JSX.Element {
                   >
                     <CreatorHomePage
                       session={portalSession}
+                      actor={progressActor}
                       onNavigate={navigate}
                       onAllProjects={(module) =>
                         setView({ kind: 'my-projects', ...(module ? { module } : {}) })
@@ -1394,6 +1415,7 @@ export function App(): JSX.Element {
                 {view.kind === 'learning' ? (
                   <LearningPage
                     seat={session.kind === 'student' ? session.session : null}
+                    actor={progressActor}
                     onOpenProject={(projectId, moduleKey) =>
                       setView({
                         kind: 'editor',

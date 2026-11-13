@@ -1,0 +1,69 @@
+{
+  "projectId": "7d40204f-e62d-4cde-9159-044862df493d",
+  "revisionBeforePublication": 3,
+  "revisionAfterPrivateEdit": 4,
+  "publicationId": "f0d2a24e-82c5-4537-9ace-8ce521ddee31",
+  "publicationRevisionId": "37d40fd9-3823-41a5-9b4e-fa8641e65a07",
+  "sourceDigest": "e6c57649c1f04b404f637b7c044927e8465ade897fefd080260653cfa12a96e8",
+  "artifactDigest": "5375c41331ab8cf37019ab88d0abee25e0570b33d829e176c066f561d112d5bb",
+  "freshBrowserContextRestored": true,
+  "secondAccountPrivateAccess": 404,
+  "viewportWidths": [
+    1440,
+    1024,
+    390,
+    320
+  ],
+  "serverWrites": [
+    {
+      "method": "POST",
+      "path": "/api/projects",
+      "status": 201
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d/draft",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d/snapshot",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d/draft",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d/snapshot",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d/snapshot",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d/publication",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d/draft",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d/snapshot",
+      "status": 200
+    }
+  ]
+}

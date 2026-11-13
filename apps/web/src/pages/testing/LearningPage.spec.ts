@@ -12,17 +12,36 @@ import {
   type SeatAssignment,
   type LearnerQuiz,
   type LearnerResult,
+  type LearningQuizAttempt,
 } from '../../api';
 import { setTelemetryContext } from '../../telemetry-context';
+import * as apiCall from '../../api-call';
+import type { PersonalProgressSummaryV1 } from '@asa-lab/contracts';
+import type { OwnProgressActor } from '../../creator-portal/personal-progress';
 import { AttendedClassesPage } from '../AttendedClassesPage';
 
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 
 const retrySeat = {
-  student: { seatId: 'seat-2' },
-  classroom: { title: 'Класс 2' },
+  authenticated: true,
+  student: { seatId: 'seat-2', displayName: 'Ученик', safeMode: true, avatarKey: null },
+  classroom: { id: 'class-2', title: 'Класс 2', teacherDisplayName: 'Преподаватель' },
   expiresAt: '2099-01-01',
 } as ClassroomStudentSession;
+const accountActor: OwnProgressActor = {
+  kind: 'account',
+  accountId: 'account-learning',
+  displayName: 'Ученик',
+};
+function progressActor(seat: ClassroomStudentSession): OwnProgressActor {
+  return {
+    kind: 'seat',
+    seatId: seat.student.seatId,
+    classroomId: seat.classroom.id ?? 'class-learning',
+    displayName: seat.student.displayName ?? 'Ученик',
+    avatarKey: seat.student.avatarKey ?? null,
+  };
+}
 const retryWork = {
   id: 'work',
   title: 'Доступная работа',
@@ -86,6 +105,7 @@ describe('Seat work load retry', () => {
         root.render(
           createElement(LearningPage, {
             seat: { ...retrySeat, expiresAt },
+            actor: progressActor(retrySeat),
             onOpenProject: vi.fn(),
           }),
         );
@@ -142,7 +162,13 @@ describe('Seat work load retry', () => {
       try {
         window.history.replaceState(null, '', '#/learning?view=assignments');
         await act(async () =>
-          root.render(createElement(LearningPage, { seat: retrySeat, onOpenProject: open })),
+          root.render(
+            createElement(LearningPage, {
+              seat: retrySeat,
+              actor: progressActor(retrySeat),
+              onOpenProject: open,
+            }),
+          ),
         );
         expect(container.querySelector('[role="alert"]')?.textContent).toContain('Часть заданий');
         expect(container.textContent).not.toContain('Заданий и тестов пока нет');
@@ -204,7 +230,13 @@ describe('Seat work load retry', () => {
     try {
       window.history.replaceState(null, '', '#/learning?view=assignments');
       await act(async () =>
-        root.render(createElement(LearningPage, { seat: retrySeat, onOpenProject: vi.fn() })),
+        root.render(
+          createElement(LearningPage, {
+            seat: retrySeat,
+            actor: progressActor(retrySeat),
+            onOpenProject: vi.fn(),
+          }),
+        ),
       );
       expect(container.querySelector('[role="alert"]')).not.toBeNull();
       expect(container.textContent).not.toContain('Заданий и тестов пока нет');
@@ -240,7 +272,9 @@ describe('Seat quiz draft lifetime', () => {
       const submit = vi.spyOn(api, 'submitSeatQuiz');
       const actor = { kind: 'student' as const, seatId: 'seat-2', classId: 'class-2' };
       const render = (seat = retrySeat) =>
-        root.render(createElement(LearningPage, { seat, onOpenProject: vi.fn() }));
+        root.render(
+          createElement(LearningPage, { seat, actor: progressActor(seat), onOpenProject: vi.fn() }),
+        );
       const navigate = async (view: string) => {
         await act(async () => {
           window.history.replaceState(null, '', `#/learning?view=${view}`);
@@ -308,7 +342,13 @@ describe('Seat quiz draft lifetime', () => {
     try {
       window.history.replaceState(null, '', '#/learning?view=assignments');
       await act(async () =>
-        root.render(createElement(LearningPage, { seat: retrySeat, onOpenProject: vi.fn() })),
+        root.render(
+          createElement(LearningPage, {
+            seat: retrySeat,
+            actor: progressActor(retrySeat),
+            onOpenProject: vi.fn(),
+          }),
+        ),
       );
       const quizzes = container.querySelectorAll<HTMLButtonElement>('.seat-quiz-summary');
       await act(async () => quizzes[0]!.click());
@@ -335,6 +375,254 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe('Account Direct quiz destination', () => {
+  function mockDirectQuiz(attempt: LearningQuizAttempt | null = null) {
+    const quizWire = {
+      id: 'account-direct-quiz',
+      activityKind: 'quiz',
+      activityRunId: 'account-direct-quiz-run',
+      title: 'Проверка электрической цепи',
+      brief: null,
+      goal: null,
+      blocks: [],
+      moduleKey: null,
+      dueAt: null,
+      status: 'open',
+      sampleImage: null,
+      projectId: null,
+      submittedAt: null,
+      snapshotRevision: null,
+      updatedAt: null,
+      canonicalState: null,
+      classroomTitle: 'Электроника',
+    } satisfies Omit<SeatAssignment, 'moduleKey'> & {
+      moduleKey: null;
+      classroomTitle: string;
+    };
+    // Modern Direct quiz DTOs have no project/module, including after Start.
+    // The older shared SeatAssignment type still declares moduleKey as string.
+    const quiz = quizWire as unknown as SeatAssignment & { classroomTitle: string };
+    const other: SeatAssignment & { classroomTitle: string } = {
+      ...quiz,
+      id: 'account-other-work',
+      activityKind: 'project',
+      activityRunId: 'account-other-run',
+      moduleKey: 'electronics',
+      title: 'Соберите электрическую цепь',
+    };
+    const assignments = vi.spyOn(api, 'attendedAssignments').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [quiz, other] },
+    });
+    vi.spyOn(api, 'attendedClasses').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        items: [
+          {
+            seatId: 'account-linked-seat',
+            classroomId: 'account-classroom',
+            classroomTitle: 'Электроника',
+            teacherDisplayName: 'Преподаватель',
+            openCount: 2,
+            unfinishedCount: 2,
+          },
+        ],
+      },
+    });
+    const courses = vi.spyOn(api, 'accountCourseRuns').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    const read = vi.spyOn(api, 'readQuizLearning').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        participationId: 'account-quiz-participation',
+        attempt,
+        title: quiz.title,
+        instructions: 'Выберите верное утверждение.',
+        canStart: true,
+      },
+    });
+    const started: LearningQuizAttempt = {
+      attemptId: 'account-quiz-attempt',
+      version: 1,
+      answers: {},
+      questions: [
+        {
+          id: 'account-quiz-question',
+          type: 'boolean',
+          promptBlocks: [{ type: 'text', text: 'Замкнутая цепь проводит ток.' }],
+          maxPoints: 1,
+        },
+      ],
+      questionOrder: ['account-quiz-question'],
+      state: 'in_progress',
+      expiresAt: null,
+      serverNow: new Date().toISOString(),
+      lastSavedAt: null,
+    };
+    const start = vi.spyOn(api, 'startQuizLearning').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { attempt: started, reused: false },
+    });
+    const failure = {
+      ok: false as const,
+      status: 409,
+      error: { code: 'unexpected_mutation', message: 'Неожиданная команда' },
+    };
+    const projectStart = vi.spyOn(api, 'startLearningWork').mockResolvedValue(failure);
+    const save = vi.spyOn(api, 'saveQuizAnswers').mockResolvedValue(failure);
+    const submit = vi.spyOn(api, 'submitQuizAttempt').mockResolvedValue(failure);
+    return { quiz, other, assignments, courses, read, started, start, projectStart, save, submit };
+  }
+
+  it.each(['assignment link', 'closed card'] as const)(
+    'reads the real player from an Account %s and starts only on explicit action',
+    async (entry) => {
+      reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+      const container = document.createElement('div');
+      document.body.append(container);
+      const root = createRoot(container);
+      const fixture = mockDirectQuiz();
+      const open = vi.fn();
+      try {
+        setTelemetryContext(
+          { kind: 'account', accountId: accountActor.accountId, workspaceId: 'personal' },
+          true,
+          'learning',
+        );
+        window.history.replaceState(
+          null,
+          '',
+          entry === 'assignment link'
+            ? `#/learning?assignment=${fixture.quiz.id}`
+            : '#/learning?view=assignments',
+        );
+        await act(async () =>
+          root.render(
+            createElement(LearningPage, { seat: null, actor: accountActor, onOpenProject: open }),
+          ),
+        );
+        const row = container.querySelector('[data-testid="attended-assignments"] > li')!;
+        expect(row.textContent).toContain(fixture.quiz.title);
+        expect(fixture.courses).toHaveBeenCalledTimes(entry === 'assignment link' ? 1 : 0);
+        if (entry === 'closed card') {
+          expect(fixture.read).not.toHaveBeenCalled();
+          const action = row.querySelector<HTMLButtonElement>('.seat-assignment-actions button')!;
+          expect(action.textContent).toBe('Открыть тест');
+          await act(async () => action.click());
+        }
+        expect(row.querySelector('.quiz-player')).not.toBeNull();
+        expect(fixture.read).toHaveBeenCalledExactlyOnceWith(fixture.quiz.activityRunId);
+        expect(fixture.start).not.toHaveBeenCalled();
+        expect(fixture.projectStart).not.toHaveBeenCalled();
+        expect(open).not.toHaveBeenCalled();
+        const start = [...row.querySelectorAll<HTMLButtonElement>('.quiz-player button')].find(
+          (button) => button.textContent === 'Начать тест',
+        )!;
+        expect(start).toBeDefined();
+        await act(async () => start.click());
+        expect(fixture.start).toHaveBeenCalledExactlyOnceWith(
+          'account-quiz-participation',
+          expect.any(String),
+        );
+        expect(fixture.assignments).toHaveBeenCalledTimes(2);
+        const legend = row.querySelector<HTMLElement>('.quiz-player legend')!;
+        expect(legend.textContent).toContain('Замкнутая цепь проводит ток.');
+        // A non-control click bubbles to the assignment row unless the real
+        // player is excluded from that row's expand/collapse handler.
+        await act(async () => legend.click());
+        expect(row.classList.contains('is-open')).toBe(true);
+        expect(row.querySelector('.quiz-player legend')).toBe(legend);
+        expect(fixture.read).toHaveBeenCalledTimes(1);
+        expect(fixture.projectStart).not.toHaveBeenCalled();
+        expect(fixture.save).not.toHaveBeenCalled();
+        expect(fixture.submit).not.toHaveBeenCalled();
+        expect(open).not.toHaveBeenCalled();
+      } finally {
+        await act(async () => root.unmount());
+        container.remove();
+        setTelemetryContext(null, false, 'unknown');
+        reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+      }
+    },
+  );
+
+  it('keeps an unsaved Account Direct quiz answer when the learner refuses an assignment switch', async () => {
+    reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+    vi.useFakeTimers();
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const fixture = mockDirectQuiz();
+    fixture.read.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        participationId: 'account-quiz-participation',
+        attempt: fixture.started,
+        title: fixture.quiz.title,
+        instructions: 'Выберите верное утверждение.',
+        canStart: true,
+      },
+    });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const open = vi.fn();
+    try {
+      setTelemetryContext(
+        { kind: 'account', accountId: accountActor.accountId, workspaceId: 'personal' },
+        true,
+        'learning',
+      );
+      window.history.replaceState(null, '', `#/learning?assignment=${fixture.quiz.id}`);
+      await act(async () =>
+        root.render(
+          createElement(LearningPage, { seat: null, actor: accountActor, onOpenProject: open }),
+        ),
+      );
+      const rows = container.querySelectorAll('[data-testid="attended-assignments"] > li');
+      const quizRow = rows[0]!;
+      const otherRow = rows[1]!;
+      expect(quizRow.querySelector('.quiz-player')).not.toBeNull();
+      const answer = quizRow.querySelector<HTMLInputElement>('.quiz-player input[type="radio"]')!;
+      await act(async () => answer.click());
+      expect(answer.checked).toBe(true);
+      expect(quizRow.textContent).toContain('Есть несохранённые ответы');
+      const other = otherRow.querySelector<HTMLButtonElement>('.seat-assignment-open')!;
+      await act(async () => other.click());
+      expect(confirm).toHaveBeenCalledExactlyOnceWith(
+        'Ответы ещё не сохранены. Выйти? Ответы останутся в этой учебной сессии.',
+      );
+      expect(quizRow.classList.contains('is-open')).toBe(true);
+      expect(other.getAttribute('aria-expanded')).toBe('false');
+      expect(quizRow.querySelector('.quiz-player input')).toBe(answer);
+      expect(answer.checked).toBe(true);
+      expect(fixture.read).toHaveBeenCalledExactlyOnceWith(fixture.quiz.activityRunId);
+      expect(fixture.start).not.toHaveBeenCalled();
+      expect(fixture.projectStart).not.toHaveBeenCalled();
+      expect(fixture.save).not.toHaveBeenCalled();
+      expect(fixture.submit).not.toHaveBeenCalled();
+      expect(open).not.toHaveBeenCalled();
+      confirm.mockReturnValue(true);
+      await act(async () => other.click());
+      expect(quizRow.classList.contains('is-open')).toBe(false);
+      expect(other.getAttribute('aria-expanded')).toBe('true');
+      expect(container.querySelector('.quiz-player')).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      vi.useRealTimers();
+      setTelemetryContext(null, false, 'unknown');
+      reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+    }
+  });
+});
+
 it('retires pending target reads on hashchange, identity change and unmount', async () => {
   reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
   const container = document.createElement('div');
@@ -358,7 +646,9 @@ it('retires pending target reads on hashchange, identity change and unmount', as
   try {
     window.history.replaceState(null, '', '#/learning?assignment=course-work');
     await act(async () =>
-      root.render(createElement(LearningPage, { seat: null, onOpenProject: vi.fn() })),
+      root.render(
+        createElement(LearningPage, { seat: null, actor: accountActor, onOpenProject: vi.fn() }),
+      ),
     );
     expect(pending).toHaveLength(1);
     await navigate('#/learning?view=self');
@@ -469,7 +759,13 @@ describe('learning workspace destinations', () => {
       try {
         window.history.replaceState(null, '', completedHash);
         await act(async () =>
-          root.render(createElement(LearningPage, { seat: retrySeat, onOpenProject: vi.fn() })),
+          root.render(
+            createElement(LearningPage, {
+              seat: retrySeat,
+              actor: progressActor(retrySeat),
+              onOpenProject: vi.fn(),
+            }),
+          ),
         );
         const link = container.querySelector(
           '[aria-labelledby="learning-completed-results"] li a',
@@ -574,6 +870,7 @@ describe('learning workspace destinations', () => {
             root.render(
               createElement(LearningPage, {
                 seat: identity === 'seat' ? retrySeat : null,
+                actor: identity === 'seat' ? progressActor(retrySeat) : accountActor,
                 onOpenProject: vi.fn(),
               }),
             ),
@@ -649,7 +946,7 @@ describe('learning workspace destinations', () => {
   it('embeds Account with one main, one page heading and one navigation', () => {
     vi.stubGlobal('window', { location: { hash: '#/learning?view=classes&learner=seat' } });
     const html = renderToStaticMarkup(
-      createElement(LearningPage, { seat: null, onOpenProject: vi.fn() }),
+      createElement(LearningPage, { seat: null, actor: accountActor, onOpenProject: vi.fn() }),
     );
     expect(html.match(/<main\b/g)).toHaveLength(1);
     expect(html.match(/id="main-content"/g)).toHaveLength(1);
@@ -669,5 +966,223 @@ describe('learning workspace destinations', () => {
     expect(html).toContain('>Я учусь</h1>');
     expect(html).toContain('attend-code');
     expect(html).toContain('Мои оценки по датам');
+  });
+});
+
+function ownProgressSummary(actor: OwnProgressActor, groups = 3): PersonalProgressSummaryV1 {
+  return {
+    scope:
+      actor.kind === 'account'
+        ? { kind: 'account', accountId: actor.accountId }
+        : { kind: 'seat', seatId: actor.seatId, classroomId: actor.classroomId },
+    asOf: '2026-11-12',
+    availability: 'available',
+    metrics: {
+      everPublishedWorks: { availability: 'available', value: 0 },
+      currentLikes: { availability: 'available', value: 0 },
+      createdCopies: { availability: 'available', value: 0 },
+      activePublicWorks: { availability: 'available', value: 0 },
+    },
+    coverage: {
+      everPublishedWorks: {
+        basis: 'confirmed_publication_revisions',
+        completeness: 'complete',
+        knownSince: null,
+        limitations: [],
+      },
+      currentLikes: {
+        basis: 'current_publication_likes',
+        completeness: 'complete',
+        knownSince: null,
+        limitations: [],
+      },
+      createdCopies: {
+        basis: 'durable_publication_copy_receipts',
+        completeness: 'complete',
+        knownSince: null,
+        limitations: [],
+      },
+      activePublicWorks: {
+        basis: 'current_catalog_visibility',
+        completeness: 'complete',
+        knownSince: null,
+        limitations: [],
+      },
+    },
+    personalRating: { availability: 'not_enabled', value: null },
+    groups: {
+      availability: 'available',
+      hasMore: false,
+      nextCursor: null,
+      items: Array.from({ length: groups }, (_, index) => ({
+        groupId: `group-${index}`,
+        title: `Моя группа ${index}`,
+        periodDays: 30,
+        own: { availability: 'available', score: index === 0 ? 0 : 68.25, rank: index + 1 },
+      })),
+    },
+  };
+}
+
+describe('Personal Learning overview', () => {
+  it('renders all own groups and available sections while another read is pending or failed', async () => {
+    reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    let finishAssignments!: (value: Awaited<ReturnType<typeof api.attendedAssignments>>) => void;
+    const assignments = vi.spyOn(api, 'attendedAssignments').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishAssignments = resolve;
+        }),
+    );
+    const courses = vi
+      .spyOn(api, 'accountCourseRuns')
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        error: { code: 'unavailable', message: 'Ошибка' },
+      })
+      .mockResolvedValueOnce({ ok: true, status: 200, data: { items: [] } });
+    const results = vi
+      .spyOn(api, 'accountResults')
+      .mockResolvedValue({ ok: true, status: 200, data: { items: [] } });
+    vi.spyOn(api, 'accountAvatar').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { avatarDataUrl: null },
+    });
+    const summary = vi
+      .spyOn(apiCall, 'call')
+      .mockResolvedValue({ ok: true, status: 200, data: ownProgressSummary(accountActor) });
+    try {
+      window.history.replaceState(null, '', '#/learning');
+      setTelemetryContext(
+        { kind: 'account', accountId: accountActor.accountId, workspaceId: 'personal' },
+        true,
+        'learning',
+      );
+      await act(async () =>
+        root.render(
+          createElement(LearningPage, { seat: null, actor: accountActor, onOpenProject: vi.fn() }),
+        ),
+      );
+      expect(container.querySelectorAll('[data-testid="own-progress-group"]')).toHaveLength(3);
+      expect(container.querySelector('[data-testid="own-progress-score"]')?.textContent).toBe('0');
+      expect(
+        container.querySelector('.learning-overview-metrics a[href*="view=results"] strong')
+          ?.textContent,
+      ).toBe('0');
+      expect(
+        container.querySelector('.learning-overview-metrics a[href*="view=assignments"] strong')
+          ?.textContent,
+      ).toBe('—');
+      expect(container.textContent).toContain('Часть обзора недоступна');
+      expect(container.textContent).not.toContain('Не удалось загрузить задания');
+      expect(
+        container.querySelector('.personal-progress a[href="#/learning?view=results"]')
+          ?.textContent,
+      ).toBe('Результаты и заслуги');
+      const retry = [...container.querySelectorAll('button')].find(
+        (node) => node.textContent === 'Повторить',
+      )!;
+      await act(async () => retry.click());
+      expect(courses).toHaveBeenCalledTimes(2);
+      expect(assignments).toHaveBeenCalledTimes(1);
+      expect(results).toHaveBeenCalledTimes(1);
+      expect(summary).toHaveBeenCalledTimes(1);
+      await act(async () =>
+        finishAssignments({
+          ok: true,
+          status: 200,
+          data: { items: [{ ...retryWork, classroomTitle: 'Класс' }] },
+        }),
+      );
+      expect(container.textContent).toContain('Доступная работа');
+      expect(
+        container.querySelector('.learning-overview-metrics a[href*="view=assignments"] strong')
+          ?.textContent,
+      ).toBe('1');
+      expect(container.textContent).not.toContain('Загружаем обзор');
+    } finally {
+      await act(async () => root.unmount());
+      setTelemetryContext(null, false, 'unknown');
+      reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+    }
+  });
+
+  it('loads the next group cursor only on demand and preserves results navigation', async () => {
+    reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const first = ownProgressSummary(accountActor, 20);
+    const last = ownProgressSummary(accountActor, 1);
+    const read = vi
+      .spyOn(apiCall, 'call')
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: { ...first, groups: { ...first.groups, hasMore: true, nextCursor: 'next20' } },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: {
+          ...last,
+          groups: {
+            ...last.groups,
+            items: [{ ...last.groups.items![0]!, groupId: 'group-20', title: 'Последняя группа' }],
+          },
+        },
+      });
+    vi.spyOn(api, 'accountAvatar').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { avatarDataUrl: null },
+    });
+    vi.spyOn(api, 'attendedAssignments').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'accountCourseRuns').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'accountResults').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    try {
+      window.history.replaceState(null, '', '#/learning');
+      setTelemetryContext(
+        { kind: 'account', accountId: accountActor.accountId, workspaceId: 'personal' },
+        true,
+        'learning',
+      );
+      await act(async () =>
+        root.render(
+          createElement(LearningPage, { seat: null, actor: accountActor, onOpenProject: vi.fn() }),
+        ),
+      );
+      expect(container.querySelectorAll('[data-testid="own-progress-group"]')).toHaveLength(20);
+      expect(read).toHaveBeenCalledTimes(1);
+      const button = [...container.querySelectorAll('button')].find(
+        (node) => node.textContent === 'Показать ещё группы',
+      )!;
+      await act(async () => button.click());
+      expect(container.querySelectorAll('[data-testid="own-progress-group"]')).toHaveLength(21);
+      expect(read.mock.calls[1]![0]).toBe('/api/progress/summary?cursor=next20');
+      expect(container.textContent).not.toContain('Показать ещё группы');
+      expect(
+        container.querySelector('.personal-progress a[href="#/learning?view=results"]'),
+      ).not.toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      setTelemetryContext(null, false, 'unknown');
+      reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+    }
   });
 });

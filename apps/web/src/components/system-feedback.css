@@ -1,0 +1,113 @@
+.system-feedback-viewport {
+  position: fixed;
+  z-index: 80;
+  pointer-events: none;
+  box-sizing: border-box;
+  display: flex;
+}
+.system-feedback-ribbon {
+  --feedback-accent: #2456a6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: inherit;
+  box-sizing: border-box;
+  padding: 2px 4px 2px 12px;
+  border: 1px solid #cbd5e1;
+  border-top: 3px solid var(--feedback-accent);
+  border-radius: 0 0 9px 9px;
+  background: #eef4ff;
+  color: #172334;
+  box-shadow: 0 5px 16px rgb(15 23 42 / 14%);
+  pointer-events: auto;
+  font:
+    400 15px/1.45 system-ui,
+    sans-serif;
+  overflow: hidden;
+  animation: system-feedback-enter 160ms ease-out;
+}
+.system-feedback-success {
+  --feedback-accent: #166534;
+  background: #e8f7ef;
+}
+.system-feedback-error {
+  --feedback-accent: #b42318;
+  background: #fff0ee;
+}
+.system-feedback-warning {
+  --feedback-accent: #8a4b08;
+  background: #fff8dc;
+}
+.system-feedback-icon {
+  flex: 0 0 22px;
+  color: var(--feedback-accent);
+  text-align: center;
+  font-size: 21px;
+  font-weight: 700;
+}
+.system-feedback-copy {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+  padding: 7px 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.system-feedback-copy strong {
+  margin-right: 8px;
+}
+.system-feedback-close {
+  align-self: flex-start;
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 25px;
+  cursor: pointer;
+}
+.system-feedback-close:hover {
+  background: rgb(15 23 42 / 7%);
+}
+.system-feedback-close:focus-visible,
+.system-feedback-copy:focus-visible {
+  outline: 2px solid #2456a6;
+  outline-offset: -3px;
+}
+.system-feedback-announcement {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+  pointer-events: none;
+}
+@keyframes system-feedback-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .system-feedback-ribbon {
+    animation: none;
+  }
+}

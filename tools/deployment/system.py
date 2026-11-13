@@ -59,11 +59,11 @@ class Installation:
         self.root = Path(root).resolve()
         self.state = self.root / ".asa"
         self.env = read_env(self.root / ".env") if (self.root / ".env").exists() else {}
-        attest_proxy_policy(self.env)
         pool_configuration(self.env)
         self.settings = json.loads((self.state / "installation.json").read_text(encoding="utf-8")) if (self.state / "installation.json").exists() else {}
         self.profile = profile or self.settings.get("profile", "production")
         require(self.profile in ("dev", "production", "staging", "base"), "PROFILE", "Unsupported profile.")
+        attest_proxy_policy(self.env, profile=self.profile)
         self.project = self.env.get("COMPOSE_PROJECT_NAME", "asa-lab-dev")
         import re
         require(re.fullmatch(r"[a-z0-9][a-z0-9_-]*", self.project), "PROJECT", "Invalid project name.")

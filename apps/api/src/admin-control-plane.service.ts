@@ -208,6 +208,14 @@ export interface AdminProductDashboardView {
   readonly to: string;
   readonly bucketSeconds: number;
   readonly range: AdminDashboardRange;
+  readonly todayMsk: {
+    readonly from: string;
+    readonly to: string;
+    readonly activeAccounts: number;
+    readonly activeStudents: number;
+    readonly studentLogins: number;
+    readonly newStudents: number;
+  };
   readonly summary: {
     readonly newAccounts: number;
     readonly activeAccounts: number;
@@ -218,6 +226,7 @@ export interface AdminProductDashboardView {
     readonly rejectedAuthAttempts: number;
     readonly newStudents: number;
     readonly activeStudents: number;
+    readonly studentLogins: number;
     readonly distinctIpAddresses: number;
     readonly accountsWithMultipleIps: number;
     readonly localNetworkAccounts: number;
@@ -227,6 +236,20 @@ export interface AdminProductDashboardView {
   readonly modules: readonly Record<string, unknown>[];
   readonly loginMethods: readonly Record<string, unknown>[];
   readonly actions: readonly Record<string, unknown>[];
+  readonly overview: {
+    readonly points: readonly Record<string, unknown>[];
+    readonly modules: readonly Record<string, unknown>[];
+    readonly loginMethods: readonly Record<string, unknown>[];
+    readonly actions: readonly Record<string, unknown>[];
+    readonly recentAccounts: number;
+    readonly recentStudents: number;
+    readonly network: {
+      readonly addresses: number;
+      readonly resolvedEvents: number;
+      readonly unresolvedEvents: number;
+      readonly peopleWithMultipleAddresses: number;
+    };
+  };
   readonly max: {
     readonly configured: boolean;
     readonly featureEnabled: boolean;
@@ -1018,7 +1041,7 @@ export class AdminControlPlaneService {
     this.requirePermission(access, 'administration.open', input.scope);
     const range = dashboardWindow(input.range);
     const result = await this.pool.query<{ payload: Record<string, unknown> }>(
-      `SELECT admin_get_product_dashboard_v2($1,$2,$3,$4,$5,$6) AS payload`,
+      `SELECT admin_get_operational_overview($1,$2,$3,$4,$5,$6) AS payload`,
       [
         access.subject.principalId,
         input.scope.kind,

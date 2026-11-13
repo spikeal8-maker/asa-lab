@@ -4,6 +4,7 @@ import {
   createRoboticsBall,
   createRoboticsFloorMark,
   createRoboticsWorldDocument,
+  createRoboticsWorldV3Document,
   createRoboticsWorldState,
   findRoboticsCollision,
   measureRoboticsDistance,
@@ -433,16 +434,32 @@ describe('M1 source clock, runtime scene and geometric sensor feedback', () => {
 
 describe('Robotics field validation and HC-SR04 geometric environment', () => {
   it.each(ROBOTICS_FIELD_PRESETS)(
-    'validates the $id preset with an initial distance beyond the safe stopping threshold',
+    'places the robot in the exact center of the $id field and measures a real forward obstacle',
     (preset) => {
-      const world = createRoboticsWorldDocument(preset.id);
+      // The 5m arena uses the v3 source contract; v2 remains limited to 2.4m.
+      const world =
+        preset.id === 'arena'
+          ? createRoboticsWorldV3Document(preset.id)
+          : createRoboticsWorldDocument(preset.id);
+      expect(world.initialPose).toEqual({
+        xMeters: preset.widthMeters / 2,
+        yMeters: preset.heightMeters / 2,
+        headingRadians: 0,
+      });
       expect(parseRoboticsWorldDocument(world)).toEqual({ ok: true, world });
+      const wall = world.field.obstacles[0]!;
+      expect(wall.xMeters).toBeGreaterThan(world.initialPose.xMeters + 0.2);
       const measured = measureRoboticsDistance(world, world.initialPose);
       expect(measured.status).toBe('ok');
       if (measured.status !== 'ok') throw new Error(measured.message);
-      expect(measured.distanceMeters).toBeCloseTo(preset.widthMeters - 0.555, 12);
-      expect(measured.distanceMeters).toBeGreaterThan(0.6);
+      expect(measured.distanceMeters).toBeCloseTo(
+        wall.xMeters - world.initialPose.xMeters - world.robot.sensorForwardMeters,
+        12,
+      );
+      expect(measured.distanceMeters).toBeGreaterThan(0.2);
       expect(measured.distanceMeters).toBeLessThan(4);
+      // The 1.2 m compact field cannot fit 0.6 m of forward clearance from its center.
+      if (preset.id !== 'compact') expect(measured.distanceMeters).toBeGreaterThan(0.6);
     },
   );
 

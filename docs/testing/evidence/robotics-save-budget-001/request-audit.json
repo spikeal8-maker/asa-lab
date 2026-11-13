@@ -1,0 +1,162 @@
+{
+  "checks": [
+    "idle",
+    "simulation",
+    "typing",
+    "manual-save",
+    "restoring-title"
+  ],
+  "requests": [
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/auth/me"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/class-join/me"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/auth/providers"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/auth/local-preview/config"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/auth/providers"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/auth/local-preview/config"
+    },
+    {
+      "phase": "loading",
+      "method": "POST",
+      "path": "/api/diagnostics/client"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/auth/bot-challenge"
+    },
+    {
+      "phase": "loading",
+      "method": "POST",
+      "path": "/api/auth/login"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/account/avatar"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/modules"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/account/presentation"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/class-join/account/assignments"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/account/avatar"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/account/presentation"
+    },
+    {
+      "phase": "loading",
+      "method": "POST",
+      "path": "/api/diagnostics/client"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/games/chess/notifications"
+    },
+    {
+      "phase": "loading",
+      "method": "POST",
+      "path": "/api/analytics/v2/events"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/learning/projects/7d40204f-e62d-4cde-9159-044862df493d/context"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/learning/projects/7d40204f-e62d-4cde-9159-044862df493d/context"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d"
+    },
+    {
+      "phase": "loading",
+      "method": "POST",
+      "path": "/api/diagnostics/client"
+    },
+    {
+      "phase": "loading",
+      "method": "POST",
+      "path": "/api/analytics/v2/module-session"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/account/avatar"
+    },
+    {
+      "phase": "loading",
+      "method": "GET",
+      "path": "/api/account/avatar"
+    },
+    {
+      "phase": "loading",
+      "method": "POST",
+      "path": "/api/diagnostics/quality"
+    },
+    {
+      "phase": "loading",
+      "method": "POST",
+      "path": "/api/analytics/v2/quality"
+    },
+    {
+      "phase": "manual-save",
+      "method": "PATCH",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d"
+    },
+    {
+      "phase": "restoring-title",
+      "method": "PATCH",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d"
+    }
+  ],
+  "pageErrors": []
+}

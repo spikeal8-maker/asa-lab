@@ -1,9 +1,27 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync } from 'node:fs';
-import { expect, test, type APIResponse, type Browser, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Browser,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import type pg from 'pg';
-import { e2eAdminPool, seedTeacher } from './seed';
+import type {
+  OwnProgressGroupV1,
+  PersonalProgressSummaryV1,
+} from '../packages/contracts/src/personal-progress';
+import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
+import {
+  accountMenu,
+  openAccountMenu,
+  openPortalSection,
+  switchWorkspace,
+  PERSONAL_WORKSPACE,
+} from './portal-navigation';
 
 // All identities, projects, metadata, images and refusals go through the built
 // API backed by a real isolated PostgreSQL. There are no route.fulfill mocks.
@@ -202,6 +220,8 @@ interface Publication {
   license: string;
   authorLabel: string;
   moduleKey: string;
+  likeCount: number;
+  copyCount: number;
   preview: { url: string; contentType: string; width: number; height: number };
 }
 
@@ -221,17 +241,21 @@ async function ok(response: APIResponse, status = 200): Promise<void> {
   expect(response.status(), new URL(response.url()).pathname).toBe(status);
 }
 
-async function register(page: Page, label: string): Promise<{ accountId: string; email: string }> {
+async function register(
+  page: Page,
+  label: string,
+): Promise<{ accountId: string; email: string; password: string }> {
   await page.goto('/#/explore');
   const id = randomUUID().replaceAll('-', '');
   const email = `publication-${id}@isolated.test`;
+  const password = `Publication-${id}-Password`;
   const response = await page.request.post('/api/auth/register', {
     headers: { origin: origin(page) },
     data: {
       email,
       username: `pub_${id.slice(0, 24)}`,
       displayName: label,
-      password: `Publication-${id}-Password`,
+      password,
       birthDate: '1990-04-12',
       country: 'RU',
     },
@@ -242,7 +266,7 @@ async function register(page: Page, label: string): Promise<{ accountId: string;
   await page.goto('/#/projects');
   await page.reload();
   await expect(page.getByRole('banner').getByLabel(/^Меню аккаунта /)).toBeVisible();
-  return { accountId: session.user.id as string, email };
+  return { accountId: session.user.id as string, email, password };
 }
 
 async function raster(page: Page, version: string, color = '#2464bd'): Promise<string> {
@@ -497,6 +521,328 @@ function assertPublicDto(value: unknown, privateValues: string[]): void {
   inspect(value);
 }
 
+test('SP-01 shared publication cards keep real counts, navigation and readable Home rails at four widths', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const authorLabel = 'Автор учебных проектов с очень длинным именем для проверки карточки';
+  await register(page, authorLabel);
+  await ok(
+    await page.request.patch('/api/account/avatar', {
+      headers: { origin: origin(page) },
+      data: {
+        avatarDataUrl:
+          'data:image/webp;base64,' +
+          readFileSync('apps/web/public/assets/avatars/default/avatar-01.webp').toString('base64'),
+      },
+    }),
+  );
+  const readerContext = await browser.newContext({ baseURL: origin(page) });
+  const reader = await readerContext.newPage();
+  const sources: string[] = [];
+  const acquisitionBefore = await admin.query<{ enabled: boolean }>(
+    'SELECT enabled FROM publication_acquisition_settings WHERE singleton_key',
+  );
+  expect(acquisitionBefore.rows).toHaveLength(1);
+  const errors: string[] = [];
+  reader.on('pageerror', (error) => errors.push(error.message));
+  try {
+    await register(reader, 'Читатель общей карточки');
+    const prefix = `SP-01 ${randomUUID().slice(0, 8)}`;
+    const title = `${prefix} — ${'Оченьдлинноеназвание'.repeat(6)}`;
+    const zeroTitle = `${prefix} — работа без отклика`;
+    const image = await raster(page, 'SP-01');
+    const zeroProjectId = await createProject(page, zeroTitle, image);
+    sources.push(zeroProjectId);
+    const zero = await publish(page, zeroProjectId);
+    const projectId = await createProject(page, title, image, 'three-d');
+    sources.push(projectId);
+    const published = await publish(page, projectId, { license: 'public-domain' });
+    // The fixture configures the existing isolated-platform gate; counts still
+    // come only from successful public like/copy operations through the API.
+    await admin.query(
+      'UPDATE publication_acquisition_settings SET enabled=true WHERE singleton_key',
+    );
+    await ok(
+      await page.request.post(`/api/projects/${projectId}/publication/acquisition`, {
+        headers: { origin: origin(page) },
+        data: {
+          allowed: true,
+          expectedVersion: 0,
+          expectedRevisionId: published.revisionId,
+        },
+      }),
+    );
+    await ok(
+      await reader.request.put(`/api/public-projects/${published.publicationId}/like`, {
+        headers: { origin: origin(reader) },
+        data: { revisionId: published.revisionId, on: true },
+      }),
+    );
+    const copied = await reader.request.post(
+      `/api/public-projects/${published.publicationId}/copy`,
+      {
+        headers: { origin: origin(reader), 'idempotency-key': randomUUID() },
+        data: { revisionId: published.revisionId },
+      },
+    );
+    expect([200, 201]).toContain(copied.status());
+    expect(await copied.json()).toMatchObject({ moduleKey: 'three-d', created: true });
+    const expected = await publication(reader, published.publicationId);
+    const untouched = await publication(reader, zero.publicationId);
+    expect(expected).toMatchObject({ authorLabel, likeCount: 1, copyCount: 1 });
+    expect(untouched).toMatchObject({ likeCount: 0, copyCount: 0 });
+    const href = `/#/public-projects/${published.publicationId}`;
+    const cardFor = (publicationId: string) =>
+      reader.getByTestId('public-project-card').filter({
+        has: reader.locator(`a[href="/#/public-projects/${publicationId}"]`),
+      });
+    const checkCard = async (card: Locator, heading: 'H2' | 'H3') => {
+      await expect(card).toBeVisible();
+      await expect(card.locator('.public-project-card-link')).toHaveAttribute('href', href);
+      await expect(card.locator('.public-project-card-link')).toHaveAttribute(
+        'aria-label',
+        `Открыть проект «${title}»`,
+      );
+      await expect(card.locator('a')).toHaveCount(1);
+      await expect(card.locator('a a, a button')).toHaveCount(0);
+      await expect(card.getByTestId('public-project-card-title')).toHaveText(title);
+      await expect(card.getByTestId('public-project-card-title')).toHaveAttribute('title', title);
+      expect(
+        await card.getByTestId('public-project-card-title').evaluate((node) => node.tagName),
+      ).toBe(heading);
+      await expect(card.locator('.public-project-author')).toHaveText(expected.authorLabel);
+      await expect(card.locator('.public-project-card-identity')).toHaveAttribute(
+        'title',
+        authorLabel,
+      );
+      await expect(card.locator('.public-project-avatar img')).toHaveAttribute(
+        'src',
+        `/api/public-projects/${published.publicationId}/author-avatar`,
+      );
+      await expect
+        .poll(() =>
+          card
+            .locator('.public-project-avatar img, [data-testid="public-project-card-preview"]')
+            .evaluateAll(
+              (images) =>
+                images.length === 2 &&
+                images.every((image) => {
+                  const picture = image as HTMLImageElement;
+                  return picture.complete && picture.naturalWidth > 0;
+                }),
+            ),
+        )
+        .toBe(true);
+      await expect(card.locator('.publication-module')).toHaveAttribute('data-module', 'three-d');
+      await expect(
+        card.getByLabel(`${expected.likeCount} нравится`, { exact: true }),
+      ).toBeVisible();
+      await expect(
+        card.getByLabel(`${expected.copyCount} добавлений в свои проекты`, { exact: true }),
+      ).toHaveAttribute('title', 'Добавили к себе');
+      const layout = await card.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const title = element
+          .querySelector('[data-testid="public-project-card-title"]')!
+          .getBoundingClientRect();
+        const counts = element.querySelector('.public-project-card-meta')!.getBoundingClientRect();
+        const identity = element
+          .querySelector('.public-project-card-identity')!
+          .getBoundingClientRect();
+        const module = element.querySelector('.publication-module')!.getBoundingClientRect();
+        return {
+          square: Math.abs(bounds.width / bounds.height - 1),
+          titleWidth: title.width,
+          titleClearance: counts.left - title.right,
+          identityClearance: module.left - identity.right,
+          countsInside: counts.right <= bounds.right && counts.bottom <= bounds.bottom,
+        };
+      });
+      expect(layout.square).toBeLessThan(0.025);
+      expect(layout.titleWidth).toBeGreaterThan(20);
+      expect(layout.titleClearance).toBeGreaterThanOrEqual(-1);
+      expect(layout.identityClearance).toBeGreaterThanOrEqual(-1);
+      expect(layout.countsInside).toBe(true);
+    };
+
+    for (const width of [1440, 1024, 390, 320]) {
+      await reader.setViewportSize({ width, height: 900 });
+      await reader.mouse.move(0, 0);
+      await reader.goto('/#/home');
+      const header = reader.locator('.portal-header');
+      await expect(header).toBeVisible();
+      const headerBefore = (await header.boundingBox())!;
+      const community = reader.locator('.home-community-shelf');
+      await community
+        .getByRole('heading', { name: 'Проекты сообщества', level: 2 })
+        .scrollIntoViewIfNeeded();
+      await expect(
+        community.getByText('Работы пользователей платформы', { exact: true }),
+      ).toBeVisible();
+      const homeCard = cardFor(published.publicationId);
+      await homeCard.scrollIntoViewIfNeeded();
+      await checkCard(homeCard, 'H3');
+      await expect(
+        cardFor(zero.publicationId).getByLabel('0 нравится', { exact: true }),
+      ).toBeVisible();
+      await expect(
+        cardFor(zero.publicationId).getByLabel('0 добавлений в свои проекты', { exact: true }),
+      ).toHaveAttribute('title', 'Добавили к себе');
+      await expectNoOverflow(reader);
+      const headerAfter = (await header.boundingBox())!;
+      expect(headerAfter.width).toBeCloseTo(headerBefore.width, 1);
+      expect(headerAfter.height).toBeCloseTo(headerBefore.height, 1);
+      expect(headerAfter.x).toBeCloseTo(headerBefore.x, 1);
+      if (width <= 390) {
+        const rail = community.locator('.home-shelf-track');
+        expect((await homeCard.boundingBox())!.width).toBeGreaterThanOrEqual(220);
+        await expect(rail).toHaveCSS('overflow-x', 'auto');
+        await rail.evaluate((element) => {
+          element.scrollLeft = 0;
+        });
+        expect(
+          await rail.evaluate((element) => {
+            const bounds = element.getBoundingClientRect();
+            return [...element.children].some((child) => {
+              const card = child.getBoundingClientRect();
+              return card.left < bounds.right - 8 && card.right > bounds.right + 8;
+            });
+          }),
+        ).toBe(true);
+        await rail.focus();
+        await reader.keyboard.press('ArrowRight');
+        await expect.poll(() => rail.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+        await rail.evaluate((element) => {
+          element.scrollLeft = 0;
+        });
+        await expect.poll(() => rail.evaluate((element) => element.scrollLeft)).toBe(0);
+        await rail.hover({ position: { x: 60, y: 50 } });
+        const scrollY = await reader.evaluate(() => window.scrollY);
+        await reader.mouse.wheel(0, 160);
+        await expect.poll(() => rail.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+        expect(await reader.evaluate(() => window.scrollY)).toBe(scrollY);
+        await reader.mouse.move(0, 0);
+        await rail.evaluate((element) => {
+          element.scrollLeft = 0;
+        });
+        await expect.poll(() => rail.evaluate((element) => element.scrollLeft)).toBe(0);
+      }
+      await reader.screenshot({ path: `${EVIDENCE}/sp01-home-${width}.png`, fullPage: true });
+      await community.screenshot({ path: `${EVIDENCE}/sp01-home-community-${width}.png` });
+      await homeCard.locator('.public-project-card-link').click();
+      await expect(reader).toHaveURL(new RegExp(`#/public-projects/${published.publicationId}$`));
+      await expect(reader.getByTestId('public-project-title')).toHaveText(title);
+
+      await reader.goto(`/#/explore?search=${encodeURIComponent(prefix)}`);
+      const catalogCard = cardFor(published.publicationId);
+      await checkCard(catalogCard, 'H2');
+      await expect(
+        cardFor(zero.publicationId).getByLabel('0 нравится', { exact: true }),
+      ).toBeVisible();
+      await expectNoOverflow(reader);
+      const catalogHeader = (await reader.locator('.portal-header').boundingBox())!;
+      expect(catalogHeader.width).toBeCloseTo(headerBefore.width, 1);
+      expect(catalogHeader.height).toBeCloseTo(headerBefore.height, 1);
+      await reader.screenshot({ path: `${EVIDENCE}/sp01-catalogue-${width}.png`, fullPage: true });
+    }
+
+    // A missing preview cannot be published (preview_required). Exercise the
+    // real image-error path instead of fabricating a successful preview:null DTO.
+    const coverUrl = new URL(expected.preview.url, origin(reader)).href;
+    const failedCover = (url: URL) => url.href === coverUrl;
+    await reader.route(failedCover, (route) => route.abort('failed'));
+    for (const width of [1440, 1024, 390, 320]) {
+      await reader.setViewportSize({ width, height: 900 });
+      for (const surface of ['home', `explore?search=${encodeURIComponent(prefix)}`]) {
+        await reader.mouse.move(0, 0);
+        await reader.goto(`/#/${surface}`);
+        if (surface === 'home')
+          await reader.locator('.home-community-shelf').scrollIntoViewIfNeeded();
+        const card = cardFor(published.publicationId);
+        await card.scrollIntoViewIfNeeded();
+        const fallback = card.getByTestId('public-project-preview-unavailable');
+        await expect(fallback).toHaveText('Изображение не загрузилось');
+        await expect(card.getByTestId('public-project-card-title')).toHaveText(title);
+        const geometry = await fallback.evaluate((element) => {
+          const card = element.closest('.public-project-card')!;
+          const preview = element.closest('.publication-preview')!;
+          const previewBounds = preview.getBoundingClientRect();
+          const previewStyle = getComputedStyle(preview);
+          const top = card.querySelector('.public-project-card-topline')!.getBoundingClientRect();
+          const footer = card.querySelector('.public-project-card-body')!.getBoundingClientRect();
+          const text = document.createRange();
+          text.selectNodeContents(element);
+          const bounds = text.getBoundingClientRect();
+          const textNode = element.firstChild;
+          if (!textNode || textNode.nodeType !== Node.TEXT_NODE)
+            throw new Error('The image error must contain readable text');
+          const words = [...(textNode.textContent ?? '').matchAll(/\S+/gu)].map((match) => {
+            const word = document.createRange();
+            word.setStart(textNode, match.index!);
+            word.setEnd(textNode, match.index! + match[0].length);
+            return { text: match[0], lines: word.getClientRects().length };
+          });
+          return {
+            text: {
+              top: bounds.top,
+              right: bounds.right,
+              bottom: bounds.bottom,
+              left: bounds.left,
+            },
+            content: {
+              top: previewBounds.top + parseFloat(previewStyle.paddingTop),
+              right: previewBounds.right - parseFloat(previewStyle.paddingRight),
+              bottom: previewBounds.bottom - parseFloat(previewStyle.paddingBottom),
+              left: previewBounds.left + parseFloat(previewStyle.paddingLeft),
+            },
+            topOverlayBottom: top.bottom,
+            footerTop: footer.top,
+            words,
+          };
+        });
+        expect(
+          geometry.text.top,
+          `${surface} ${width}: text below avatar/module overlay`,
+        ).toBeGreaterThanOrEqual(geometry.topOverlayBottom + 2);
+        expect(
+          geometry.text.bottom,
+          `${surface} ${width}: text above title/count overlay`,
+        ).toBeLessThanOrEqual(geometry.footerTop - 2);
+        expect(geometry.text.top).toBeGreaterThanOrEqual(geometry.content.top);
+        expect(geometry.text.bottom).toBeLessThanOrEqual(geometry.content.bottom);
+        expect(geometry.text.left).toBeGreaterThanOrEqual(geometry.content.left);
+        expect(geometry.text.right).toBeLessThanOrEqual(geometry.content.right);
+        expect(geometry.words).toEqual([
+          { text: 'Изображение', lines: 1 },
+          { text: 'не', lines: 1 },
+          { text: 'загрузилось', lines: 1 },
+        ]);
+        await expectNoOverflow(reader);
+        const sizeSuffix = width === 320 ? '' : `-${width}`;
+        await reader.screenshot({
+          path: `${EVIDENCE}/sp01-${surface === 'home' ? 'home' : 'catalogue'}-image-error${sizeSuffix}.png`,
+          fullPage: true,
+        });
+      }
+    }
+    await reader.unroute(failedCover);
+    expect(errors).toEqual([]);
+  } finally {
+    await admin.query(
+      'UPDATE publication_acquisition_settings SET enabled=$1 WHERE singleton_key',
+      [acquisitionBefore.rows[0]!.enabled],
+    );
+    for (const source of sources) {
+      await page.request.delete(`/api/projects/${source}/publication`, {
+        headers: { origin: origin(page) },
+      });
+    }
+    await readerContext.close();
+  }
+});
+
 test('real 3D editor creates the Project and its raster, then UI publication shows the same image anonymously', async ({
   page,
   browser,
@@ -709,10 +1055,60 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
     )
       writes.push(request.url());
   });
+  const frozenPublication = await publication(page, publicationId);
+  const artifactPath = `/api/public-projects/${publicationId}/artifact`;
+  const publicArtifactReads: string[] = [];
+  const recordPublicArtifact = (request: import('@playwright/test').Request) => {
+    if (new URL(request.url()).pathname === artifactPath) publicArtifactReads.push(request.url());
+  };
+  page.on('request', recordPublicArtifact);
+  await page.mouse.move(0, 0);
+  await page.goto('/#/home');
+  await page.locator('.home-community-shelf').scrollIntoViewIfNeeded();
+  const homePublicCard = page
+    .locator('.home-community-shelf')
+    .getByTestId('public-project-card')
+    .filter({
+      has: page.locator(`a[href="/#/public-projects/${publicationId}"]`),
+    });
+  await homePublicCard.scrollIntoViewIfNeeded();
+  await expect(homePublicCard).toBeVisible();
+  await page.waitForTimeout(250);
+  expect(publicArtifactReads).toEqual([]);
+  await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(0);
+  const publicArtifactResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname === artifactPath &&
+      url.searchParams.get('revisionId') === frozenPublication.revisionId
+    );
+  });
+  await homePublicCard.hover();
+  const artifactResponse = await publicArtifactResponse;
+  expect(artifactResponse.status()).toBe(200);
+  expect((await artifactResponse.json()).artifact.provenance).toMatchObject({
+    publicationId,
+    revisionNumber: frozenPublication.revisionNo,
+  });
+  await expect(homePublicCard.locator('.three-d-hover-live')).toHaveClass(/is-ready/);
+  await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(1);
+  expect(publicArtifactReads).toHaveLength(1);
+  await page.screenshot({ path: `${EVIDENCE}/sp01-home-public-3d-active.png`, fullPage: true });
+  await page.mouse.move(0, 0);
+  await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(0);
+  await homePublicCard.hover();
+  await expect(homePublicCard.locator('.three-d-hover-live')).toHaveClass(/is-ready/);
+  await homePublicCard.locator('.public-project-card-link').click();
+  await expect(page).toHaveURL(new RegExp(`#/public-projects/${publicationId}$`));
+  await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(0);
+  page.off('request', recordPublicArtifact);
   for (const route of ['home', 'projects']) {
     await page.goto(`/#/${route}`);
     const card = page.getByTestId('project-card').filter({ hasText: title });
     await expect(card).toBeVisible();
+    // A hash navigation may mount the next card beneath the existing cursor;
+    // leave it first so this hover necessarily generates a real pointerenter.
+    await page.mouse.move(0, 0);
     await card.hover();
     await expect(card.locator('.three-d-hover-live')).toHaveClass(/is-ready/);
     const canvas = card.locator('.three-d-hover-live canvas');
@@ -1550,5 +1946,1548 @@ test('archiving a previously public source closes metadata and images through th
     await guest.page.screenshot({ path: `${EVIDENCE}/source-policy-change.png`, fullPage: true });
   } finally {
     await guest.context.close();
+  }
+});
+
+// SP-03 uses the built application and the same isolated PostgreSQL database as
+// the publication gate. Account learners register normally; only educators use
+// seedTeacher. Successful summary/auth/learning responses are never replaced.
+const SP03_WIDTHS = [1440, 1024, 390, 320] as const;
+const SP03_MODULES = ['three-d', 'electronics', 'blocks', 'robotics'] as const;
+type Sp03Class = { id: string; title: string; joinCode: string };
+type Sp03Account = Awaited<ReturnType<typeof register>>;
+
+async function sp03Teacher(browser: Browser) {
+  const identity = await seedTeacher(admin, `sp03-${randomUUID().slice(0, 8)}`);
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await loginWithOrganization(page, identity);
+  return { identity, context, page };
+}
+
+async function sp03Class(teacher: Page, title: string): Promise<Sp03Class> {
+  const response = await teacher.request.post('/api/classrooms', {
+    headers: { origin: origin(teacher), 'idempotency-key': `sp03-${randomUUID()}` },
+    data: { title, ageBand: 'mixed', topicKeys: [], safeModeDefault: false },
+  });
+  await ok(response, 201);
+  const id = (await response.json()).classroom.id as string;
+  const detail = await teacher.request.get(`/api/classrooms/${id}`);
+  await ok(detail);
+  const classroom = (await detail.json()).classroom;
+  return { id, title, joinCode: classroom.joinCode as string };
+}
+
+async function sp03Join(learner: Page, teacher: Page, group: Sp03Class): Promise<string> {
+  const request = await learner.request.post('/api/class-join/account', {
+    headers: { origin: origin(learner) },
+    data: { code: group.joinCode },
+  });
+  await ok(request);
+  const pending = await request.json();
+  expect(pending).toMatchObject({ status: 'pending', classroom: { id: group.id } });
+  expect(pending.requestId).toMatch(UUID);
+  const decision = await teacher.request.post(
+    `/api/class-join/requests/${group.id}/${pending.requestId}/decision`,
+    { headers: { origin: origin(teacher) }, data: { decision: 'approved' } },
+  );
+  await ok(decision, 201);
+  // Read the committed membership only after the real teacher decision receipt.
+  const joined = await learner.request.post('/api/class-join/account', {
+    headers: { origin: origin(learner) },
+    data: { code: group.joinCode },
+  });
+  await ok(joined);
+  const active = await joined.json();
+  expect(active).toMatchObject({ status: 'active', classroom: { id: group.id } });
+  expect(active.seatId).toMatch(UUID);
+  return active.seatId as string;
+}
+
+async function sp03Rating(
+  teacher: Page,
+  groupId: string,
+  periodDays: 7 | 30 | 90,
+  factor: 'projects' | 'grades' | null,
+): Promise<void> {
+  const roster = await teacher.request.get(`/api/classrooms/${groupId}/participants`);
+  await ok(roster);
+  const settings = (await roster.json()).settings;
+  await ok(
+    await teacher.request.post(`/api/classrooms/${groupId}/participants/actions/settings`, {
+      headers: { origin: origin(teacher) },
+      data: {
+        expectedRevision: settings.revision,
+        periodDays,
+        requestId: randomUUID(),
+        factors: {
+          projects: factor === 'projects',
+          logins: false,
+          days: false,
+          time: false,
+          grades: factor === 'grades',
+        },
+      },
+    }),
+    201,
+  );
+}
+
+async function sp03Summary(page: Page, kind: 'account' | 'seat' = 'account') {
+  const response = await page.request.get(
+    kind === 'account' ? '/api/progress/summary' : '/api/class-join/progress/summary',
+  );
+  await ok(response);
+  expect(response.headers()['cache-control']).toContain('no-store');
+  return (await response.json()) as PersonalProgressSummaryV1;
+}
+
+function sp03Number(value: number): string {
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(value);
+}
+
+async function sp03AssertGroup(page: Page, expected: OwnProgressGroupV1) {
+  // Use the UUID on the article itself; no learner roster names are selectors.
+  const article = page.locator(
+    `[data-testid="own-progress-group"][data-group-id="${expected.groupId}"]`,
+  );
+  await expect(article).toBeVisible();
+  await expect(article.getByRole('heading', { level: 3 })).toHaveText(expected.title);
+  await expect(article.locator('header > span')).toHaveText(`${expected.periodDays} дней`);
+  for (const [field, testId] of [
+    ['rank', 'own-progress-rank'],
+    ['score', 'own-progress-score'],
+  ] as const) {
+    if (expected.own[field] === null) await expect(article.getByTestId(testId)).toHaveCount(0);
+    else await expect(article.getByTestId(testId)).toHaveText(sp03Number(expected.own[field]));
+  }
+  if (expected.own.availability === 'unavailable')
+    await expect(article).toContainText('Учебный профиль нужно уточнить у преподавателя.');
+  else if (expected.own.score === null && expected.own.rank === null)
+    await expect(article).toContainText('Рейтинг выключен');
+}
+
+async function sp03Geometry(page: Page): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  const progress = page.getByTestId('personal-progress');
+  await expect(progress).not.toContainText(/из\s+\d|\/\s*100|99\+/);
+  const results = await progress.locator('.personal-progress-group').evaluateAll((groups) =>
+    groups.map((group) => {
+      const avatar = group.querySelector<HTMLElement>('.personal-progress-group-avatar')!;
+      const a = avatar.getBoundingClientRect();
+      const g = group.getBoundingClientRect();
+      const styles = getComputedStyle(avatar);
+      const rankRect = group
+        .querySelector('[data-testid="own-progress-rank"]')
+        ?.getBoundingClientRect();
+      const scoreRect = group
+        .querySelector('[data-testid="own-progress-score"]')
+        ?.getBoundingClientRect();
+      // Both badges intentionally overlap the avatar, but never each other.
+      const badgesDisjoint =
+        !rankRect ||
+        !scoreRect ||
+        rankRect.right <= scoreRect.left ||
+        scoreRect.right <= rankRect.left ||
+        rankRect.bottom <= scoreRect.top ||
+        scoreRect.bottom <= rankRect.top;
+      const badges = ['rank', 'score']
+        .map((kind) => {
+          const badge = group.querySelector<HTMLElement>(`[data-testid="own-progress-${kind}"]`);
+          if (!badge) return null;
+          const r = badge.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(badge);
+          const text = range.getBoundingClientRect();
+          return {
+            kind,
+            correctCorner:
+              kind === 'rank'
+                ? r.left + r.width / 2 < a.left + a.width / 2 &&
+                  r.top + r.height / 2 < a.top + a.height / 2
+                : r.left + r.width / 2 > a.left + a.width / 2 &&
+                  r.top + r.height / 2 > a.top + a.height / 2,
+            textInside:
+              text.left >= r.left - 1 &&
+              text.right <= r.right + 1 &&
+              text.top >= r.top - 1 &&
+              text.bottom <= r.bottom + 1,
+            insideGroup:
+              r.left >= g.left && r.right <= g.right && r.top >= g.top && r.bottom <= g.bottom,
+            fontSize: Number.parseFloat(getComputedStyle(badge).fontSize),
+          };
+        })
+        .filter((badge) => badge !== null);
+      const unclipped = [
+        ...group.querySelectorAll('h3,.personal-progress-group-note,.personal-progress-you'),
+      ].every((node) => {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        return [...range.getClientRects()].every(
+          (r) =>
+            r.left >= g.left - 1 &&
+            r.right <= g.right + 1 &&
+            r.top >= g.top - 1 &&
+            r.bottom <= g.bottom + 1,
+        );
+      });
+      return {
+        badges,
+        badgesDisjoint,
+        unclipped,
+        circle: Math.abs(a.width - a.height) < 1,
+        ring:
+          styles.borderTopColor === 'rgb(8, 119, 179)' &&
+          Number.parseFloat(styles.borderTopWidth) >= 2 &&
+          styles.boxShadow !== 'none',
+      };
+    }),
+  );
+  for (const result of results) {
+    expect(result.circle).toBe(true);
+    expect(result.ring).toBe(true);
+    expect(result.badgesDisjoint).toBe(true);
+    expect(result.unclipped).toBe(true);
+    for (const badge of result.badges) {
+      expect(badge.correctCorner).toBe(true);
+      expect(badge.textInside).toBe(true);
+      expect(badge.insideGroup).toBe(true);
+      expect(badge.fontSize).toBeGreaterThanOrEqual(11);
+    }
+  }
+  await expectNoOverflow(page);
+}
+
+async function sp03Shell(page: Page) {
+  await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  return page.evaluate(() => {
+    const rect = (element: Element | null) => {
+      if (!element) return null;
+      const r = element.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    };
+    return {
+      header: rect(document.querySelector('.portal-header')),
+      sidebar: rect(document.querySelector('[aria-label="Основная навигация"]')),
+      search: rect(document.querySelector('.portal-header input[type="search"]')),
+    };
+  });
+}
+
+async function sp03Directions(page: Page) {
+  for (const module of SP03_MODULES) {
+    const section = page.locator(`.creator-module-section[data-module="${module}"]`);
+    await expect(section).toBeVisible();
+    await expect(section.locator(`h2#creator-module-${module}`)).toBeVisible();
+    await expect(section.locator('.home-create-button')).toBeVisible();
+  }
+}
+
+async function sp03SeatLogin(page: Page, teacher: Page, group: Sp03Class, existingSeatId?: string) {
+  let seatId = existingSeatId;
+  if (!seatId) {
+    const response = await teacher.request.post(`/api/classrooms/${group.id}/seats`, {
+      headers: { origin: origin(teacher) },
+      data: { displayLabel: 'Ученик по коду SP03', safeMode: false },
+    });
+    await ok(response, 201);
+    seatId = (await response.json()).student.id as string;
+  }
+  const issued = await teacher.request.post(`/api/classrooms/${group.id}/seats/${seatId}/code`, {
+    headers: { origin: origin(teacher) },
+    data: { requestId: randomUUID() },
+  });
+  await ok(issued, 201);
+  const { studentCode } = await issued.json();
+  await page.goto(`/#/join-class?code=${encodeURIComponent(group.joinCode)}`);
+  await page.getByLabel('Код ученика', { exact: true }).fill(studentCode);
+  const loggedIn = page.waitForResponse(
+    (r) =>
+      new URL(r.url()).pathname === '/api/class-join/studentseat' &&
+      r.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  expect((await loggedIn).status()).toBe(200);
+  await openPortalSection(page, 'Главная');
+  return seatId;
+}
+
+test('SP-03 ordinary Account joins three real groups and sees canonical own ranks, periods and responsive Home/Learning geometry', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  const account = await register(
+    page,
+    'Александра — самостоятельный участник нескольких учебных групп',
+  );
+  const teacher = await sp03Teacher(browser);
+  try {
+    const groups: Sp03Class[] = [];
+    const seats = new Map<string, string>();
+    for (let index = 0; index < 3; index++) {
+      const group = await sp03Class(
+        teacher.page,
+        `${index + 1}. Исследовательская группа ${'Длинноеназвание'.repeat(5)}`,
+      );
+      groups.push(group);
+      seats.set(group.id, await sp03Join(page, teacher.page, group));
+    }
+    const initial = await sp03Summary(page);
+    expect(initial.scope).toEqual({ kind: 'account', accountId: account.accountId });
+    expect(initial.groups.items).toHaveLength(3);
+    // Follow the server's bounded ordering; the selected UI tab is never a score context.
+    const ordered = initial.groups.items!.map((item) =>
+      groups.find((group) => group.id === item.groupId)!,
+    );
+    const fractionalGroup = ordered[0]!;
+    await sp03Rating(teacher.page, fractionalGroup.id, 90, 'grades');
+    await sp03Rating(teacher.page, ordered[1]!.id, 7, 'grades');
+    await sp03Rating(teacher.page, ordered[2]!.id, 30, null);
+    // Real journal inputs produce a five-character 68,25 score and SQL rank()
+    // produces place 101. New isolated peers have a single hundred-scale grade;
+    // canonical journal commands preserve revisions, links and notifications.
+    // No rank/score DTO, existing lineage, or scoring function is overwritten.
+    const peers = await admin.query<{ id: string }>(
+      `INSERT INTO classroom_student_seats
+       (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by)
+       SELECT $1,$2,'Скрытое имя одногруппника '||n,'sp03peer'||n,'sp03peer'||n,false,'active',$3
+       FROM generate_series(1,100) n RETURNING id`,
+      [teacher.identity.tenantId, fractionalGroup.id, teacher.identity.teacherId],
+    );
+    expect(peers.rows).toHaveLength(100);
+    await admin.query(
+      'SELECT learning_audience_ensure_seat_identity(id) FROM unnest($1::uuid[]) id',
+      [peers.rows.map((row) => row.id)],
+    );
+    await admin.query('SELECT student_seat_principal(id) FROM unnest($1::uuid[]) id', [
+      peers.rows.map((row) => row.id),
+    ]);
+    const journalActor = await admin.query<{ principal_id: string; today: string }>(
+      "SELECT principal_id,to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD') today FROM legacy_user_account_links WHERE user_id=$1",
+      [teacher.identity.teacherId],
+    );
+    expect(journalActor.rows).toHaveLength(1);
+    const journalWrite = async (action: string, input: Record<string, unknown>) => {
+      const result = await admin.query<{ value: Record<string, unknown> }>(
+        'SELECT classroom_journal_write($1,$2,$3,$4::jsonb) AS value',
+        [
+          journalActor.rows[0]!.principal_id,
+          fractionalGroup.id,
+          action,
+          JSON.stringify({ requestId: randomUUID(), ...input }),
+        ],
+      );
+      expect(result.rows).toHaveLength(1);
+      expect(result.rows[0]!.value).not.toHaveProperty('error');
+      return result.rows[0]!.value;
+    };
+    expect(await journalWrite('scale', { preset: 'hundred', expectedRevision: 0 })).toEqual({
+      preset: 'hundred',
+      version: 1,
+    });
+    const gradeColumns: string[] = [];
+    for (const [index, value] of [68, 68, 68, 69].entries()) {
+      const column = await journalWrite('column', {
+        expectedRevision: 1,
+        date: journalActor.rows[0]!.today,
+        category: `Проверка учебного результата SP03 ${index + 1}`,
+      });
+      expect(column.id).toMatch(UUID);
+      gradeColumns.push(String(column.id));
+      expect(
+        await journalWrite('grade', {
+          expectedRevision: 0,
+          columnId: column.id,
+          seatId: seats.get(fractionalGroup.id),
+          value,
+          reason: null,
+        }),
+      ).toMatchObject({ value, revision: 1, seatId: seats.get(fractionalGroup.id) });
+    }
+    const peerGrades = await admin.query<{ value: { value: number; revision: number } }>(
+      `SELECT classroom_journal_write($1,$2,'grade',jsonb_build_object(
+         'requestId',gen_random_uuid()::text,'expectedRevision',0,'columnId',$3::text,
+         'seatId',seat_id::text,'value',100,'reason',NULL)) AS value
+       FROM unnest($4::uuid[]) seat_id`,
+      [
+        journalActor.rows[0]!.principal_id,
+        fractionalGroup.id,
+        gradeColumns[0],
+        peers.rows.map((row) => row.id),
+      ],
+    );
+    expect(peerGrades.rows).toHaveLength(100);
+    for (const grade of peerGrades.rows)
+      expect(grade.value).toMatchObject({ value: 100, revision: 1 });
+    const summary = await sp03Summary(page);
+    const items = summary.groups.items!;
+    expect(items[0]!.own).toEqual({ availability: 'available', score: 68.25, rank: 101 });
+    expect(sp03Number(items[0]!.own.score!)).toBe('68,25');
+    expect(items[1]!.own).toEqual({ availability: 'available', score: 0, rank: 1 });
+    expect(items[2]!.own).toEqual({ availability: 'available', score: null, rank: null });
+    for (const group of items) {
+      const canonical = await admin.query<{ item: { score: number | null; rank: number | null } }>(
+        "SELECT item FROM classroom_participant_metrics($1) WHERE item->>'seatId'=$2",
+        [group.groupId, seats.get(group.groupId)],
+      );
+      expect(group.own).toMatchObject({
+        score: canonical.rows[0]!.item.score,
+        rank: canonical.rows[0]!.item.rank,
+      });
+    }
+    for (const width of SP03_WIDTHS) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/#/home');
+      await expect(page.getByTestId('own-progress-group')).toHaveCount(2);
+      for (const group of items.slice(0, 2)) await sp03AssertGroup(page, group);
+      await expect(page.getByTestId('personal-progress')).not.toContainText(
+        'Скрытое имя одногруппника',
+      );
+      await sp03Geometry(page);
+      const shell = await sp03Shell(page);
+      const allGroups = page
+        .getByTestId('personal-progress')
+        .getByRole('link', { name: 'Все группы', exact: true });
+      await allGroups.focus();
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('Shift+Tab');
+      await expect(allGroups).toBeFocused();
+      const focus = await allGroups.evaluate((element) => {
+        const r = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          inside: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight,
+          visible:
+            (style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0) ||
+            style.boxShadow !== 'none',
+        };
+      });
+      expect(focus).toEqual({ inside: true, visible: true });
+      await page.screenshot({ path: `${EVIDENCE}/sp03-account-home-${width}.png`, fullPage: true });
+      await allGroups.click();
+      await expect(page).toHaveURL(/#\/learning$/);
+      await expect(page.getByTestId('own-progress-group')).toHaveCount(3);
+      for (const group of items) await sp03AssertGroup(page, group);
+      await sp03Geometry(page);
+      expect(await sp03Shell(page)).toEqual(shell);
+      await page.screenshot({
+        path: `${EVIDENCE}/sp03-account-learning-${width}.png`,
+        fullPage: true,
+      });
+    }
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await page.goto('/#/home');
+    await expect(page.getByTestId('own-progress-rank').first()).toHaveText('101');
+    await expect(page.getByTestId('own-progress-score').first()).toHaveText('68,25');
+    for (const width of [380, 381, 520, 521]) {
+      await page.getByTestId('personal-progress').evaluate((element, size) => {
+        (element as HTMLElement).style.width = `${size}px`;
+      }, width);
+      await expect
+        .poll(
+          async () =>
+            (await page.locator('.personal-progress-group-avatar').first().boundingBox())?.width,
+        )
+        .toBe(width <= 380 ? 44 : width <= 520 ? 54 : 68);
+      await sp03Geometry(page);
+      await page
+        .getByTestId('personal-progress')
+        .screenshot({ path: `${EVIDENCE}/sp03-progress-container-${width}.png` });
+    }
+    await page.getByTestId('personal-progress').evaluate((element) => {
+      (element as HTMLElement).style.removeProperty('width');
+    });
+    // Real Chromium layout at 200% CSS zoom, explicitly not a native browser-toolbar claim.
+    await page.evaluate(() => {
+      document.documentElement.style.zoom = '2';
+    });
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).zoom)).toBe('2');
+    await sp03Geometry(page);
+    await sp03Shell(page);
+    await page.screenshot({ path: `${EVIDENCE}/sp03-account-css-zoom-200.png`, fullPage: true });
+    await page.evaluate(() => {
+      document.documentElement.style.removeProperty('zoom');
+    });
+
+    const learner = await admin.query<{ learner_identity_id: string }>(
+      "SELECT learner_identity_id FROM learner_identity_links WHERE link_kind='student_seat' AND seat_id=$1 AND status='active' AND disabled_at IS NULL",
+      [seats.get(fractionalGroup.id)],
+    );
+    expect(learner.rows).toHaveLength(1);
+    const handle = randomUUID().slice(0, 8);
+    const ambiguousSeat = await admin.query<{ id: string }>(
+      `INSERT INTO classroom_student_seats
+       (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by,account_id)
+       VALUES($1,$2,'Дополнительное учебное место',$3,$3,false,'active',$4,NULL) RETURNING id`,
+      [teacher.identity.tenantId, fractionalGroup.id, handle, teacher.identity.teacherId],
+    );
+    await admin.query(
+      `INSERT INTO learner_identity_links(id,tenant_id,school_id,learner_identity_id,link_kind,seat_id)
+       VALUES(gen_random_uuid(),$1,$2,$3,'student_seat',$4)`,
+      [
+        teacher.identity.tenantId,
+        teacher.identity.schoolId,
+        learner.rows[0]!.learner_identity_id,
+        ambiguousSeat.rows[0]!.id,
+      ],
+    );
+    const partial = await sp03Summary(page);
+    expect(partial.availability).toBe('partial');
+    expect(partial.groups.items![0]!.own).toEqual({
+      availability: 'unavailable',
+      score: null,
+      rank: null,
+      reason: 'ambiguous_self_participant',
+    });
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.reload();
+    await sp03AssertGroup(page, partial.groups.items![0]!);
+    await sp03AssertGroup(page, partial.groups.items![1]!);
+    await sp03Geometry(page);
+    await page.screenshot({ path: `${EVIDENCE}/sp03-account-ambiguous-320.png`, fullPage: true });
+  } finally {
+    await teacher.context.close();
+  }
+});
+
+test('SP-03 school-free Account sees durable publication feedback, complete copy provenance and four independent creation directions', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  const authorLabel = 'Автор инженерной работы с полным длинным именем';
+  const account = await register(page, authorLabel);
+  const reader = await contextPage(browser, 'Читатель и самостоятельный создатель SP03');
+  const sourceIds: string[] = [];
+  const acquisition = await admin.query<{ enabled: boolean }>(
+    'SELECT enabled FROM publication_acquisition_settings WHERE singleton_key',
+  );
+  expect(acquisition.rows).toHaveLength(1);
+  try {
+    await page.goto('/#/home');
+    const empty = await sp03Summary(page);
+    expect(empty.scope).toEqual({ kind: 'account', accountId: account.accountId });
+    expect(empty.groups.items).toEqual([]);
+    for (const name of ['everPublishedWorks', 'currentLikes', 'createdCopies'] as const) {
+      expect(empty.metrics[name]).toEqual({ availability: 'available', value: 0 });
+      await expect(page.getByTestId(`progress-${name}`).locator('dd')).toHaveText('0');
+    }
+    await expect(page.getByTestId('own-progress-group')).toHaveCount(0);
+    await expect(
+      page.getByTestId('personal-progress').getByRole('link', { name: 'Все группы' }),
+    ).toHaveCount(0);
+    await sp03Directions(page);
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.screenshot({ path: `${EVIDENCE}/sp03-school-free-empty-320.png`, fullPage: true });
+
+    // Drop only the first *real* committed creation response. The existing QPC
+    // retry must use the same key and return the same project, not add a second.
+    let lostProject: string | null = null;
+    const creationKeys: string[] = [];
+    let dropCreation = true;
+    const creationRoute = async (route: import('@playwright/test').Route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      creationKeys.push(route.request().headers()['idempotency-key'] ?? '');
+      if (!dropCreation) return route.continue();
+      dropCreation = false;
+      const committed = await route.fetch();
+      expect(committed.status()).toBe(201);
+      lostProject = (await committed.json()).project.id as string;
+      await route.abort('failed');
+    };
+    await page.route('**/api/projects', creationRoute);
+    await page
+      .locator('.creator-module-section[data-module="electronics"] .home-create-button')
+      .click();
+    await expect(page.locator('.portal-create-notice')).toContainText('Ответ сервера не получен');
+    const retry = page.waitForResponse(
+      (r) => new URL(r.url()).pathname === '/api/projects' && r.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Продолжить создание', exact: true }).click();
+    const replay = await retry;
+    expect([200, 201]).toContain(replay.status());
+    expect((await replay.json()).project.id).toBe(lostProject);
+    expect(creationKeys).toHaveLength(2);
+    expect(creationKeys[0]).toMatch(UUID);
+    expect(creationKeys[1]).toBe(creationKeys[0]);
+    await page.unroute('**/api/projects', creationRoute);
+    const oneProject = await page.request.get(
+      '/api/projects?scope=personal&module=electronics&limit=10',
+    );
+    await ok(oneProject);
+    expect((await oneProject.json()).items).toHaveLength(1);
+    await page.goto('/#/home');
+    const image = await raster(page, 'SP03');
+    const sourceTitle = `Исследование ${'длинноеназваниеисточника'.repeat(6)}`;
+    const source = await createProject(page, sourceTitle, image, 'three-d');
+    sourceIds.push(source);
+    const published = await publish(page, source, { license: 'public-domain' });
+    const historical = await createProject(
+      page,
+      'Работа с сохранённой историей публикации SP03',
+      image,
+    );
+    sourceIds.push(historical);
+    await publish(page, historical);
+    await ok(
+      await page.request.delete(`/api/projects/${historical}/publication`, {
+        headers: { origin: origin(page) },
+      }),
+    );
+    await admin.query(
+      'UPDATE publication_acquisition_settings SET enabled=true WHERE singleton_key',
+    );
+    await ok(
+      await page.request.post(`/api/projects/${source}/publication/acquisition`, {
+        headers: { origin: origin(page) },
+        data: { allowed: true, expectedVersion: 0, expectedRevisionId: published.revisionId },
+      }),
+    );
+    await ok(
+      await reader.page.request.put(`/api/public-projects/${published.publicationId}/like`, {
+        headers: { origin: origin(reader.page) },
+        data: { revisionId: published.revisionId, on: true },
+      }),
+    );
+    const copyKey = randomUUID();
+    const copy = () =>
+      reader.page.request.post(`/api/public-projects/${published.publicationId}/copy`, {
+        headers: { origin: origin(reader.page), 'idempotency-key': copyKey },
+        data: { revisionId: published.revisionId },
+      });
+    const first = await copy();
+    expect([200, 201]).toContain(first.status());
+    const copied = await first.json();
+    expect(copied).toMatchObject({ moduleKey: 'three-d', created: true });
+    const second = await copy();
+    expect([200, 201]).toContain(second.status());
+    expect(await second.json()).toMatchObject({ projectId: copied.projectId, created: false });
+    const actual = await sp03Summary(page);
+    expect(actual.metrics.everPublishedWorks).toEqual({ availability: 'available', value: 2 });
+    expect(actual.metrics.currentLikes).toEqual({ availability: 'available', value: 1 });
+    expect(actual.metrics.createdCopies).toEqual({ availability: 'available', value: 1 });
+    expect(actual.metrics.activePublicWorks).toEqual({ availability: 'available', value: 1 });
+    await page.reload();
+    for (const [metric, value] of [
+      ['everPublishedWorks', '2'],
+      ['currentLikes', '1'],
+      ['createdCopies', '1'],
+    ] as const)
+      await expect(page.getByTestId(`progress-${metric}`).locator('dd')).toHaveText(value);
+    await expect(page.getByTestId('progress-createdCopies').locator('dd')).toHaveAttribute(
+      'aria-label',
+      'Копии ваших работ: 1',
+    );
+    await expect(page.getByTestId('personal-progress')).not.toContainText(/скачиван/i);
+    await page.getByTestId('personal-progress').getByText('О показателях', { exact: true }).click();
+    await expect(page.getByTestId('personal-progress')).toContainText(
+      'Общий рейтинг ещё не рассчитывается.',
+    );
+    await page.screenshot({
+      path: `${EVIDENCE}/sp03-real-publication-metrics-320.png`,
+      fullPage: true,
+    });
+    const privateCopy = await reader.page.request.get(`/api/projects/${copied.projectId}`);
+    await ok(privateCopy);
+    expect((await privateCopy.json()).project.copiedFrom).toMatchObject({
+      title: sourceTitle,
+      author: authorLabel,
+    });
+    for (const width of [1440, 320]) {
+      await reader.page.setViewportSize({ width, height: 900 });
+      await reader.page.goto('/#/home');
+      const provenance = reader.page.locator(
+        '.creator-module-section[data-module="three-d"] .project-card-origin',
+      );
+      await expect(provenance).toHaveText(`Копия работы «${sourceTitle}», автор ${authorLabel}`);
+      expect(
+        await provenance.evaluate((element) => {
+          const r = element.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          return [...range.getClientRects()].every(
+            (text) =>
+              text.left >= r.left - 1 &&
+              text.right <= r.right + 1 &&
+              text.top >= r.top - 1 &&
+              text.bottom <= r.bottom + 1,
+          );
+        }),
+      ).toBe(true);
+      await expectNoOverflow(reader.page);
+      await reader.page.screenshot({
+        path: `${EVIDENCE}/sp03-copy-provenance-${width}.png`,
+        fullPage: true,
+      });
+    }
+
+    // Negative network faults only: the app must retain four directions and
+    // distinguish an unavailable count from the genuine zero checked above.
+    const fail = (route: import('@playwright/test').Route) => route.abort('failed');
+    await page.route('**/api/progress/summary*', fail);
+    await page.route('**/api/account/avatar', fail);
+    await page.route('**/api/modules', fail);
+    await page.route('**/api/projects?*', fail);
+    await page.reload();
+    await expect(page.getByTestId('personal-progress')).toContainText(
+      'Не удалось загрузить прогресс.',
+    );
+    for (const metric of ['everPublishedWorks', 'currentLikes', 'createdCopies'])
+      await expect(page.getByTestId(`progress-${metric}`).locator('dd')).toHaveText('—');
+    await sp03Directions(page);
+    await expect(page.locator('.creator-module-section .home-module-error')).toHaveCount(4);
+    await expect(page.locator('.creator-module-section .home-create-button:disabled')).toHaveCount(
+      4,
+    );
+    const fallback = page.locator('.personal-progress-hero-avatar img');
+    await expect(fallback).toHaveAttribute('src', /^\/assets\/avatars\/default\/avatar-\d+\.webp$/);
+    await expect
+      .poll(() =>
+        fallback.evaluate(
+          (image) =>
+            (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0,
+        ),
+      )
+      .toBe(true);
+    await page.screenshot({
+      path: `${EVIDENCE}/sp03-independent-errors-avatar-fallback-320.png`,
+      fullPage: true,
+    });
+    await page.unroute('**/api/projects?*', fail);
+    for (const section of await page.locator('.creator-module-section').all())
+      await section.locator('.home-module-error button').click();
+    await expect(page.locator('.creator-module-section .home-module-error')).toHaveCount(0);
+    await expect(page.locator('.creator-module-section[data-module="three-d"]')).toContainText(
+      sourceTitle,
+    );
+    await expect(page.locator('.creator-module-section .home-create-button:disabled')).toHaveCount(
+      4,
+    );
+    await page.screenshot({
+      path: `${EVIDENCE}/sp03-own-projects-creation-unavailable-320.png`,
+      fullPage: true,
+    });
+    await page.unroute('**/api/progress/summary*', fail);
+    await page.unroute('**/api/account/avatar', fail);
+    await page.unroute('**/api/modules', fail);
+    await page.getByRole('button', { name: 'Повторить загрузку прогресса', exact: true }).click();
+    await page
+      .locator('.portal-create-notice')
+      .getByRole('button', { name: 'Повторить', exact: true })
+      .click();
+    await expect(page.getByTestId('progress-createdCopies').locator('dd')).toHaveText('1');
+    await expect(
+      page.locator('.creator-module-section[data-module="electronics"] .home-create-button'),
+    ).toBeEnabled();
+    await sp03Directions(page);
+  } finally {
+    for (const id of sourceIds)
+      await page.request.delete(`/api/projects/${id}/publication`, {
+        headers: { origin: origin(page) },
+      });
+    await admin.query(
+      'UPDATE publication_acquisition_settings SET enabled=$1 WHERE singleton_key',
+      [acquisition.rows[0]!.enabled],
+    );
+    await reader.context.close();
+  }
+});
+
+test('SP-03 StudentSeat code login shows only Seat progress and preserves existing work when creation availability fails', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const teacher = await sp03Teacher(browser);
+  const linked = await contextPage(browser, 'Личный аккаунт с отдельной публичной работой');
+  let accountSource: string | null = null;
+  try {
+    const group = await sp03Class(teacher.page, 'Учебная группа входа по коду SP03');
+    const seatId = await sp03Join(linked.page, teacher.page, group);
+    await sp03Rating(teacher.page, group.id, 7, 'grades');
+    accountSource = await createProject(
+      linked.page,
+      'Работа только личного аккаунта',
+      await raster(linked.page, 'PRIVATE ACCOUNT'),
+    );
+    await publish(linked.page, accountSource);
+    expect((await sp03Summary(linked.page)).metrics.everPublishedWorks).toEqual({
+      availability: 'available',
+      value: 1,
+    });
+    const forbiddenAccountReads: string[] = [];
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/api/progress/summary')
+        forbiddenAccountReads.push(request.method());
+    });
+    expect(await sp03SeatLogin(page, teacher.page, group, seatId)).toBe(seatId);
+    const summary = await sp03Summary(page, 'seat');
+    expect(summary.scope).toEqual({ kind: 'seat', seatId, classroomId: group.id });
+    expect(summary.groups.items).toHaveLength(1);
+    expect(summary.groups.items![0]!.own).toEqual({ availability: 'available', score: 0, rank: 1 });
+    for (const name of ['everPublishedWorks', 'currentLikes', 'createdCopies'] as const)
+      expect(summary.metrics[name]).toEqual({ availability: 'available', value: 0 });
+    for (const width of SP03_WIDTHS) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/#/home');
+      await sp03AssertGroup(page, summary.groups.items![0]!);
+      await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('0');
+      await expect(page.locator('.creator-module-feed')).not.toContainText(
+        'Работа только личного аккаунта',
+      );
+      await sp03Directions(page);
+      await sp03Geometry(page);
+      await sp03Shell(page);
+      await page.screenshot({ path: `${EVIDENCE}/sp03-seat-home-${width}.png`, fullPage: true });
+      await page.goto('/#/learning');
+      await expect(page.getByTestId('own-progress-group')).toHaveCount(1);
+      await sp03AssertGroup(page, summary.groups.items![0]!);
+      await expect(page.getByTestId('personal-progress')).toHaveAccessibleName(
+        'Прогресс в группах',
+      );
+      await sp03Geometry(page);
+      await sp03Shell(page);
+      await page.screenshot({
+        path: `${EVIDENCE}/sp03-seat-learning-${width}.png`,
+        fullPage: true,
+      });
+    }
+    await page.goto('/#/home');
+    const seatTitle = 'Сохранённая собственная схема ученика SP03';
+    await createProject(page, seatTitle, await raster(page, 'SEAT'));
+    await sp03Rating(teacher.page, group.id, 30, null);
+    const disabled = await sp03Summary(page, 'seat');
+    expect(disabled.groups.items![0]!.own).toEqual({
+      availability: 'available',
+      score: null,
+      rank: null,
+    });
+    await page.route('**/api/modules', (route) => route.abort('failed'));
+    await page.reload();
+    await sp03AssertGroup(page, disabled.groups.items![0]!);
+    await expect(page.locator('.creator-module-section[data-module="electronics"]')).toContainText(
+      seatTitle,
+    );
+    await expect(page.locator('.creator-module-section .home-create-button:disabled')).toHaveCount(
+      4,
+    );
+    await expect(page.locator('.creator-module-feed')).not.toContainText(
+      'Работа только личного аккаунта',
+    );
+    await sp03Directions(page);
+    expect(forbiddenAccountReads).toEqual([]);
+    await page.screenshot({
+      path: `${EVIDENCE}/sp03-seat-disabled-rating-existing-work-320.png`,
+      fullPage: true,
+    });
+  } finally {
+    if (accountSource)
+      await linked.page.request.delete(`/api/projects/${accountSource}/publication`, {
+        headers: { origin: origin(linked.page) },
+      });
+    await linked.context.close();
+    await teacher.context.close();
+  }
+});
+
+async function sp03SignIn(page: Page, account: Sp03Account) {
+  // Hash navigation preserves the mounted document and its retired caches.
+  await page.evaluate(() => {
+    location.hash = '#/sign-in';
+  });
+  await page.getByLabel('Почта или логин').fill(account.email);
+  await page.getByLabel('Пароль', { exact: true }).fill(account.password);
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  const login = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === '/api/auth/login' && r.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  expect((await login).status()).toBe(200);
+  expect((await (await page.request.get('/api/auth/me')).json()).user.id).toBe(account.accountId);
+}
+
+async function sp03Logout(page: Page) {
+  await openAccountMenu(page);
+  await accountMenu(page).getByRole('button', { name: 'Выход', exact: true }).click();
+  await expect(page.getByTestId('personal-progress')).toHaveCount(0);
+  await expect(page.locator('.creator-module-feed')).toHaveCount(0);
+}
+
+async function sp03HoldPrivateResponses(page: Page) {
+  // CDP pauses the existing server response; continueResponse forwards the
+  // exact original bytes. This never manufactures a successful DTO or auth.
+  const cdp = await page.context().newCDPSession(page);
+  const held: Array<{ id: string; path: string }> = [];
+  let holding = true;
+  const errors: string[] = [];
+  const resume = async (id: string) => {
+    try {
+      await cdp.send('Fetch.continueResponse', { requestId: id });
+    } catch (error) {
+      // A retired AbortController can legitimately cancel a paused response.
+      if (
+        !/Invalid InterceptionId|Invalid interception|Invalid requestId|No resource with given identifier/i.test(
+          String(error),
+        )
+      )
+        errors.push(String(error));
+    }
+  };
+  cdp.on('Fetch.requestPaused', (event) => {
+    if (holding && event.request.method === 'GET')
+      held.push({ id: event.requestId, path: new URL(event.request.url).pathname });
+    else void resume(event.requestId);
+  });
+  await cdp.send('Fetch.enable', {
+    patterns: [
+      { urlPattern: '*/api/progress/summary*', requestStage: 'Response' },
+      { urlPattern: '*/api/projects?*', requestStage: 'Response' },
+      { urlPattern: '*/api/account/avatar', requestStage: 'Response' },
+    ],
+  });
+  return {
+    ready: async () => {
+      await expect
+        .poll(() => held.some((item) => item.path === '/api/progress/summary'))
+        .toBe(true);
+    },
+    release: async () => {
+      holding = false;
+      for (const item of held) await resume(item.id);
+      await cdp.send('Fetch.disable');
+      await cdp.detach();
+      expect(errors).toEqual([]);
+    },
+  };
+}
+
+async function sp03HoldOldSummary(page: Page, expectedAccountId: string) {
+  // A response-stage event alone is not proof of an available HTTP body:
+  // Chromium may already have aborted the speculative first summary request.
+  // Keep only the first response whose *original intercepted bytes* were read
+  // successfully and whose account scope matches the old logged-in actor.
+  const cdp = await page.context().newCDPSession(page);
+  type HeldSummary = {
+    id: string;
+    networkId: string;
+    status: number;
+    body: PersonalProgressSummaryV1;
+  };
+  let held: HeldSummary | null = null;
+  const terminal = new Map<string, 'delivered' | 'transport_aborted'>();
+  const errors: string[] = [];
+  const bodyFailures: { networkId: string | undefined; message: string }[] = [];
+  const continuationFailures: { networkId: string | undefined; message: string }[] = [];
+  const pendingBodies: Promise<void>[] = [];
+  const pendingContinuations: Promise<void>[] = [];
+  const invalidInterception =
+    /Invalid InterceptionId|Invalid interception|Invalid requestId|No resource with given identifier/i;
+
+  const continueUnselected = (id: string, networkId: string | undefined) => {
+    const continuation = cdp.send('Fetch.continueResponse', { requestId: id }).then(
+      () => undefined,
+      (error: unknown) => {
+        continuationFailures.push({ networkId, message: String(error) });
+      },
+    );
+    pendingContinuations.push(continuation);
+  };
+  cdp.on('Network.loadingFinished', (event) => terminal.set(event.requestId, 'delivered'));
+  cdp.on('Network.loadingFailed', (event) => {
+    if (event.canceled || event.errorText === 'net::ERR_ABORTED')
+      terminal.set(event.requestId, 'transport_aborted');
+  });
+  cdp.on('Fetch.requestPaused', (event) => {
+    if (held || event.request.method !== 'GET' || event.responseStatusCode !== 200) {
+      continueUnselected(event.requestId, event.networkId);
+      return;
+    }
+    const id = event.requestId;
+    const networkId = event.networkId;
+    // Multiple real GETs can be in flight at the same time. Read each
+    // response-stage body at once and select only the first valid result.
+    // Do not claim that an already canceled interception was ever held.
+    const bodyAttempt = cdp.send('Fetch.getResponseBody', { requestId: id }).then(
+      (body) => {
+        try {
+          const summary = JSON.parse(
+            body.base64Encoded ? Buffer.from(body.body, 'base64').toString('utf8') : body.body,
+          ) as PersonalProgressSummaryV1;
+          if (
+            !networkId ||
+            summary.scope.kind !== 'account' ||
+            summary.scope.accountId !== expectedAccountId
+          ) {
+            errors.push('An intercepted response did not belong to the verified old Account');
+            continueUnselected(id, networkId);
+            return;
+          }
+          if (held) {
+            continueUnselected(id, networkId);
+          } else {
+            held = { id, networkId, status: event.responseStatusCode!, body: summary };
+          }
+        } catch (error) {
+          errors.push(String(error));
+          continueUnselected(id, networkId);
+        }
+      },
+      (error: unknown) => {
+        bodyFailures.push({ networkId, message: String(error) });
+        continueUnselected(id, networkId);
+      },
+    );
+    pendingBodies.push(bodyAttempt);
+  });
+  await cdp.send('Network.enable');
+  await cdp.send('Fetch.enable', {
+    patterns: [{ urlPattern: '*/api/progress/summary*', requestStage: 'Response' }],
+  });
+  return {
+    ready: async () => {
+      await expect.poll(() => held !== null).toBe(true);
+      const response = held!;
+      expect(response.status).toBe(200);
+      expect(response.networkId).toBeTruthy();
+      expect(response.body.scope).toEqual({ kind: 'account', accountId: expectedAccountId });
+      return response.body;
+    },
+    release: async () => {
+      try {
+        await Promise.all(pendingBodies);
+        if (!held) throw new Error('No genuine readable old Account response was intercepted');
+        const response = held;
+        try {
+          await cdp.send('Fetch.continueResponse', { requestId: response.id });
+        } catch (error) {
+          // An invalid interception ID alone is not proof of cancellation.
+          // Require the *same* Network request's canceled terminal event.
+          if (!invalidInterception.test(String(error))) throw error;
+          await expect.poll(() => terminal.get(response.networkId)).toBe('transport_aborted');
+        }
+        await expect.poll(() => terminal.has(response.networkId)).toBe(true);
+        await Promise.all(pendingContinuations);
+        for (const failure of [...bodyFailures, ...continuationFailures]) {
+          if (invalidInterception.test(failure.message) && failure.networkId) {
+            await expect.poll(() => terminal.get(failure.networkId!)).toBe('transport_aborted');
+          } else {
+            errors.push(failure.message);
+          }
+        }
+        expect(errors).toEqual([]);
+        return terminal.get(response.networkId)!;
+      } finally {
+        await cdp.send('Fetch.disable');
+        await cdp.detach();
+      }
+    },
+  };
+}
+
+test('SP-03 private Home clears across workspace, actor and same-ID logout/relogin before real fresh responses arrive', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const account = await register(page, 'Первый личный автор SP03');
+  const other = await contextPage(browser, 'Второй личный автор SP03');
+  const title = `Личная работа первого автора ${randomUUID().slice(0, 8)}`;
+  const source = await createProject(page, title, await raster(page, 'FIRST'));
+  await publish(page, source);
+  let pending: Awaited<ReturnType<typeof sp03HoldPrivateResponses>> | null = null;
+  let oldResponse: Awaited<ReturnType<typeof sp03HoldOldSummary>> | null = null;
+  try {
+    // A real second workspace uses the existing account-c1 fixture shape.
+    const tenant = await admin.query<{ id: string }>(
+      'INSERT INTO tenants(title,workspace_slug) VALUES($1,$2) RETURNING id',
+      ['Организация SP03', `sp03-${randomUUID()}`],
+    );
+    const workspace = await admin.query<{ id: string }>(
+      "INSERT INTO workspaces(tenant_id,kind,title) VALUES($1,'organization','Рабочая группа SP03') RETURNING id",
+      [tenant.rows[0]!.id],
+    );
+    await admin.query(
+      "INSERT INTO workspace_memberships(account_id,workspace_id,role) VALUES($1,$2,'educator')",
+      [account.accountId, workspace.rows[0]!.id],
+    );
+    await page.goto('/#/home');
+    await page.reload();
+    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('1');
+    await expect(page.locator('.creator-module-feed')).toContainText(title);
+    const stamp = randomUUID();
+    await page.evaluate((value) => {
+      (window as Window & { sp03Document?: string }).sp03Document = value;
+    }, stamp);
+    pending = await sp03HoldPrivateResponses(page);
+    await switchWorkspace(page, 'Рабочая группа SP03');
+    await pending.ready();
+    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('—');
+    await expect(page.locator('.creator-module-feed')).not.toContainText(title);
+    await page.screenshot({
+      path: `${EVIDENCE}/sp03-workspace-private-pending-1440.png`,
+      fullPage: true,
+    });
+    await pending.release();
+    pending = null;
+    // Account-wide publication history may legitimately survive a workspace
+    // switch, but only from a fresh, verified response; project lists may not.
+    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('1');
+    await expect(page.locator('.creator-module-feed')).not.toContainText(title);
+    await switchWorkspace(page, PERSONAL_WORKSPACE);
+    await expect(page.locator('.creator-module-feed')).toContainText(title);
+    await sp03Logout(page);
+    pending = await sp03HoldPrivateResponses(page);
+    await sp03SignIn(page, account);
+    await pending.ready();
+    expect(
+      await page.evaluate(() => (window as Window & { sp03Document?: string }).sp03Document),
+    ).toBe(stamp);
+    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('—');
+    await expect(page.locator('.creator-module-feed')).not.toContainText(title);
+    await page.screenshot({
+      path: `${EVIDENCE}/sp03-same-account-new-lifetime-pending-1440.png`,
+      fullPage: true,
+    });
+    await pending.release();
+    pending = null;
+    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('1');
+    await expect(page.locator('.creator-module-feed')).toContainText(title);
+
+    oldResponse = await sp03HoldOldSummary(page, account.accountId);
+    await page.evaluate(() => {
+      location.hash = '#/learning';
+    });
+    const oldSummary = await oldResponse.ready();
+    expect(oldSummary.scope).toEqual({ kind: 'account', accountId: account.accountId });
+    expect(oldSummary.metrics.everPublishedWorks).toEqual({
+      availability: 'available',
+      value: 1,
+    });
+    // Logout happens only after the old response exists. New login responses
+    // pass unchanged while those actual old bytes remain paused (or are aborted).
+    await sp03Logout(page);
+    await sp03SignIn(page, other.account!);
+    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('0');
+    await expect(page.locator('.creator-module-feed')).not.toContainText(title);
+    await expect(page.locator('.personal-progress-person')).toHaveText('Второй личный автор SP03');
+    const freshSummary = await sp03Summary(page);
+    expect(freshSummary.scope).toEqual({ kind: 'account', accountId: other.account!.accountId });
+    expect(freshSummary.metrics.everPublishedWorks).toEqual({
+      availability: 'available',
+      value: 0,
+    });
+    const retiringResponse = oldResponse;
+    oldResponse = null;
+    const retirement = await retiringResponse.release();
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('0');
+    await expect(page.locator('.creator-module-feed')).not.toContainText(title);
+    await expect(page.locator('.personal-progress-person')).toHaveText('Второй личный автор SP03');
+    await test.info().attach('sp03-old-summary-retirement', {
+      contentType: 'application/json',
+      body: Buffer.from(
+        JSON.stringify({
+          oldActorVerifiedBeforeLogout: true,
+          newActorVerifiedBeforeRelease: true,
+          retirement,
+        }),
+      ),
+    });
+    await page.screenshot({
+      path: `${EVIDENCE}/sp03-old-response-retired-1440.png`,
+      fullPage: true,
+    });
+    expect(
+      await page.evaluate(() => (window as Window & { sp03Document?: string }).sp03Document),
+    ).toBe(stamp);
+  } finally {
+    if (pending) await pending.release();
+    if (oldResponse) await oldResponse.release();
+    await admin.query(
+      "UPDATE project_publication_state SET state='revoked',revoked_at=now() WHERE project_id=$1",
+      [source],
+    );
+    await other.context.close();
+  }
+});
+
+async function sp03Activity(
+  teacher: Page,
+  group: Sp03Class,
+  seatId: string,
+  title: string,
+  quizVersionId?: string,
+) {
+  const policies = {
+    attemptPolicy: { maxAttempts: 2 },
+    resultSelectionPolicy: { mode: 'latest' },
+    completionPolicy: { mode: 'submission' },
+    latePolicy: { mode: 'allow_mark_late' },
+    assessmentPolicy: quizVersionId
+      ? { mode: 'automatic', passThresholdBasisPoints: 6000 }
+      : { mode: 'manual' },
+    feedbackReleasePolicy: { mode: quizVersionId ? 'score_only' : 'after_review' },
+  };
+  const created = await teacher.request.post('/api/learning/activities', {
+    headers: { origin: origin(teacher) },
+    data: {
+      scope: 'school',
+      visibility: 'private',
+      kind: quizVersionId ? 'quiz' : 'project',
+      title,
+      instructions: 'Выполните назначенную учебную работу.',
+      resultMode: quizVersionId ? 'graded' : 'completion',
+      maxPoints: quizVersionId ? 3 : null,
+      policies,
+      moduleKey: quizVersionId ? null : 'electronics',
+      quizVersionId: quizVersionId ?? null,
+      requestId: randomUUID(),
+    },
+  });
+  await ok(created, 201);
+  const draft = await created.json();
+  const published = await teacher.request.post(`/api/learning/activities/${draft.id}/publish`, {
+    headers: { origin: origin(teacher) },
+    data: { expectedRevision: draft.draftRevision, requestId: randomUUID() },
+  });
+  await ok(published, 201);
+  const assigned = await teacher.request.post(
+    `/api/classrooms/${group.id}/learning/activity-runs`,
+    {
+      headers: { origin: origin(teacher) },
+      data: {
+        activityVersionId: (await published.json()).id,
+        audienceType: 'named_learners',
+        seatIds: [seatId],
+        dueAt: null,
+        requestId: randomUUID(),
+      },
+    },
+  );
+  await ok(assigned, 201);
+  const run = await assigned.json();
+  expect(run.assignedCount).toBe(1);
+  return run as { assignmentId: string; activityRunId: string };
+}
+
+async function sp03QuizVersion(teacher: SeededTeacher): Promise<string> {
+  const identity = await admin.query<{ principal_id: string }>(
+    'SELECT principal_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+    [teacher.tenantId, teacher.teacherId],
+  );
+  const principal = identity.rows[0]!.principal_id;
+  // Existing canonical authoring functions, same fixture as the convergence PG
+  // test. Browser readers still receive only real server projections.
+  const question = await admin.query<{ question_version_id: string }>(
+    `SELECT * FROM question_version_create($1,$2,'school','boolean',
+     '[{"type":"paragraph","text":"Замкнутая цепь проводит ток?"}]'::jsonb,
+     '{}'::jsonb,'{"value":true}'::jsonb,3,'Science','10-12',ARRAY['m1'])`,
+    [principal, teacher.tenantId],
+  );
+  const quiz = await admin.query<{ quiz_version_id: string }>(
+    "SELECT * FROM quiz_version_create($1,$2,'Самостоятельный учебный тест SP03','Проверка следующего действия',$3::jsonb,2,15,6000,'score_only')",
+    [principal, teacher.tenantId, JSON.stringify([question.rows[0]!.question_version_id])],
+  );
+  expect(quiz.rows[0]!.quiz_version_id).toMatch(UUID);
+  return quiz.rows[0]!.quiz_version_id;
+}
+
+test('SP-03 next learning action follows real canonical project and quiz states without automatically starting an attempt', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(150_000);
+  await register(page, 'Участник учебного маршрута SP03');
+  const teacher = await sp03Teacher(browser);
+  try {
+    const group = await sp03Class(teacher.page, 'Самостоятельный учебный маршрут SP03');
+    const seatId = await sp03Join(page, teacher.page, group);
+    const title = 'Исследовать электрическую цепь SP03';
+    const run = await sp03Activity(teacher.page, group, seatId, title);
+    const assignments = async () => {
+      const response = await page.request.get('/api/class-join/account/assignments');
+      await ok(response);
+      return (await response.json()).items as Array<{
+        id: string;
+        status: string;
+        activityKind: string;
+        activityRunId: string | null;
+        projectId: string | null;
+        submittedAt: string | null;
+        canonicalState: { workflowState: string } | null;
+      }>;
+    };
+    const attempts = async (assignmentId: string) =>
+      (
+        await admin.query<{ n: number }>(
+          'SELECT count(*)::int n FROM learning_attempts WHERE classroom_assignment_id=$1 AND seat_id=$2',
+          [assignmentId, seatId],
+        )
+      ).rows[0]!.n;
+    expect((await assignments()).find((item) => item.id === run.assignmentId)).toMatchObject({
+      status: 'open',
+      moduleKey: 'electronics',
+      activityRunId: run.activityRunId,
+      projectId: null,
+      submittedAt: null,
+      canonicalState: null,
+    });
+    await page.goto('/#/home');
+    const next = page.locator('.personal-progress-next');
+    await expect(next.getByRole('link')).toHaveText(`Начать: ${title}`);
+    await expect(next.getByRole('link')).toHaveAttribute(
+      'href',
+      `/#/learning?assignment=${run.assignmentId}`,
+    );
+    expect(await attempts(run.assignmentId)).toBe(0);
+    await next.getByRole('link').click();
+    await expect(page).toHaveURL(
+      new URL(`/#/learning?assignment=${run.assignmentId}`, origin(page)).href,
+    );
+    await expect(page.getByRole('heading', { name: 'Моё обучение', exact: true })).toBeVisible();
+    await expect(
+      page.getByTestId('attended-assignments').getByRole('button', { name: title, exact: true }),
+    ).toHaveAttribute('aria-expanded', 'true');
+    // Resolving the suggested destination is a read, not consent to create work.
+    expect(await attempts(run.assignmentId)).toBe(0);
+
+    const started = await page.request.post(`/api/learning/work/runs/${run.activityRunId}/start`, {
+      headers: { origin: origin(page) },
+      data: { requestId: randomUUID() },
+    });
+    await ok(started);
+    const work = await started.json();
+    expect(work).toMatchObject({ state: 'in_progress', reused: false });
+    expect(
+      (await assignments()).find((item) => item.id === run.assignmentId)?.canonicalState
+        ?.workflowState,
+    ).toBe('in_progress');
+    await page.goto('/#/home');
+    await expect(next.getByRole('link')).toHaveText(`Продолжить: ${title}`);
+    expect(await attempts(run.assignmentId)).toBe(1);
+    const opened = await page.request.get(`/api/projects/${work.projectId}`);
+    await ok(opened);
+    const document = await opened.json();
+    const changed = structuredClone(document.draft.document);
+    changed.viewport = { ...(changed.viewport ?? {}), x: 17, y: 23, zoom: 1.2 };
+    const saved = await page.request.put(`/api/projects/${work.projectId}/draft`, {
+      headers: { origin: origin(page) },
+      data: { document: changed, baseRevision: document.draft.revision, mutationId: randomUUID() },
+    });
+    await ok(saved);
+    const submitted = await page.request.post(`/api/learning/projects/${work.projectId}/submit`, {
+      headers: { origin: origin(page) },
+      data: {
+        clientRequestId: randomUUID(),
+        expectedRevision: (await saved.json()).draft.revision,
+      },
+    });
+    await ok(submitted);
+    const submission = await submitted.json();
+    expect(submission.state).toBe('submitted');
+    expect(
+      (await assignments()).find((item) => item.id === run.assignmentId)?.canonicalState
+        ?.workflowState,
+    ).toBe('submitted');
+    await page.reload();
+    await expect(next.getByRole('link')).toHaveText('Открыть обучение');
+    await expect(next).not.toContainText(title);
+    const reviewed = await teacher.page.request.post(
+      `/api/classrooms/${group.id}/attempts/${submission.attemptId}/review`,
+      {
+        headers: { origin: origin(teacher.page) },
+        data: {
+          decision: 'accepted',
+          points: null,
+          feedback: 'Учебная работа принята.',
+          reason: 'Проверка завершена.',
+          expectedResultId: null,
+          requestId: randomUUID(),
+        },
+      },
+    );
+    await ok(reviewed, 201);
+    expect(
+      (await assignments()).find((item) => item.id === run.assignmentId)?.canonicalState
+        ?.workflowState,
+    ).toBe('completed');
+    await page.reload();
+    await expect(next.getByRole('link')).toHaveText('Открыть обучение');
+    expect(await attempts(run.assignmentId)).toBe(1);
+
+    const quizTitle = 'Ответить на учебный вопрос SP03';
+    const quizRun = await sp03Activity(
+      teacher.page,
+      group,
+      seatId,
+      quizTitle,
+      await sp03QuizVersion(teacher.identity),
+    );
+    const quizzes = await page.request.get('/api/class-join/account/quizzes');
+    await ok(quizzes);
+    const legacyQuiz = (await quizzes.json()).items.find(
+      (item: { assignmentId: string }) => item.assignmentId === quizRun.assignmentId,
+    );
+    expect(legacyQuiz).toBeUndefined();
+    const directQuizShape = {
+      status: 'open',
+      activityKind: 'quiz',
+      activityRunId: quizRun.activityRunId,
+      projectId: null,
+      submittedAt: null,
+      canonicalState: null,
+    };
+    expect((await assignments()).find((item) => item.id === quizRun.assignmentId)).toMatchObject(
+      directQuizShape,
+    );
+    const readQuiz = async () => {
+      const response = await page.request.get(`/api/learning/quiz/runs/${quizRun.activityRunId}`);
+      await ok(response);
+      return response.json();
+    };
+    const freshQuiz = await readQuiz();
+    expect(freshQuiz).toMatchObject({ attempt: null, canStart: true });
+    expect(freshQuiz.participationId).toMatch(UUID);
+    await page.reload();
+    await expect(next.getByRole('link')).toHaveText(`Начать: ${quizTitle}`);
+    await expect(next.getByRole('link')).toHaveAttribute(
+      'href',
+      `/#/learning?assignment=${quizRun.assignmentId}`,
+    );
+    expect(await attempts(quizRun.assignmentId)).toBe(0);
+    await page.setViewportSize({ width: 320, height: 900 });
+    await sp03Shell(page);
+    await page.screenshot({
+      path: `${EVIDENCE}/sp03-canonical-quiz-next-action-320.png`,
+      fullPage: true,
+    });
+    await next.getByRole('link').click();
+    await expect(page).toHaveURL(
+      new URL(`/#/learning?assignment=${quizRun.assignmentId}`, origin(page)).href,
+    );
+    await expect(
+      page
+        .getByTestId('attended-assignments')
+        .getByRole('button', { name: quizTitle, exact: true }),
+    ).toHaveAttribute('aria-expanded', 'true');
+    // This positive assertion deliberately requires the real Direct Quiz
+    // player for ordinary Accounts, not just a successful Learning navigation.
+    // The existing Seat player starts only after its explicit Start control.
+    const player = page.getByRole('region', { name: 'Прохождение теста', exact: true });
+    await expect(player.getByRole('button', { name: 'Начать тест', exact: true })).toBeVisible();
+    expect(await attempts(quizRun.assignmentId)).toBe(0);
+    const explicitStart = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname ===
+          `/api/learning/activity-participations/${freshQuiz.participationId}/attempts`,
+    );
+    await player.getByRole('button', { name: 'Начать тест', exact: true }).click();
+    const startedQuiz = await explicitStart;
+    expect(startedQuiz.status()).toBe(200);
+    const quizStart = await startedQuiz.json();
+    expect(quizStart).toMatchObject({ reused: false, attempt: { state: 'in_progress' } });
+    const quizAttemptId = quizStart.attempt.attemptId as string;
+    expect(quizAttemptId).toMatch(UUID);
+    expect(await attempts(quizRun.assignmentId)).toBe(1);
+    await expect(player).toContainText('Замкнутая цепь проводит ток?');
+    expect((await assignments()).find((item) => item.id === quizRun.assignmentId)).toMatchObject(
+      directQuizShape,
+    );
+    expect(await readQuiz()).toMatchObject({
+      attempt: { attemptId: quizAttemptId, state: 'in_progress' },
+    });
+    await page.screenshot({
+      path: `${EVIDENCE}/sp03-account-direct-quiz-player-320.png`,
+      fullPage: true,
+    });
+    await openPortalSection(page, 'Главная');
+    await expect(next.getByRole('link')).toHaveText(`Продолжить: ${quizTitle}`);
+    await expect(next.getByRole('link')).toHaveAttribute(
+      'href',
+      `/#/learning?assignment=${quizRun.assignmentId}`,
+    );
+    expect(await attempts(quizRun.assignmentId)).toBe(1);
+    await next.getByRole('link').click();
+    await expect(player).toContainText('Замкнутая цепь проводит ток?');
+    expect((await readQuiz()).attempt.attemptId).toBe(quizAttemptId);
+    expect(await attempts(quizRun.assignmentId)).toBe(1);
+
+    // The real player's existing autosave submits the selected boolean answer.
+    // Await its actual PATCH instead of racing the 700ms autosave with a click
+    // on a Save button that correctly disables after that save completes.
+    const answerSaved = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        new URL(response.url()).pathname === `/api/learning/attempts/${quizAttemptId}/quiz-answers`,
+    );
+    await player.getByRole('radio', { name: 'Верно', exact: true }).check();
+    const savedAnswer = await answerSaved;
+    expect(savedAnswer.status()).toBe(200);
+    const savedRevision = (await savedAnswer.json()).version as number;
+    const answered = await readQuiz();
+    expect(answered.attempt).toMatchObject({
+      attemptId: quizAttemptId,
+      state: 'in_progress',
+      version: savedRevision,
+    });
+    expect(answered.attempt.answers).toEqual({
+      [answered.attempt.questions[0].id]: { value: true },
+    });
+    const quizSubmitted = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === `/api/learning/attempts/${quizAttemptId}/submit`,
+    );
+    await player.getByRole('button', { name: 'Сдать тест', exact: true }).click();
+    const submittedQuiz = await quizSubmitted;
+    expect(submittedQuiz.status()).toBe(200);
+    expect(await submittedQuiz.json()).toMatchObject({
+      attempt: {
+        attemptId: quizAttemptId,
+        state: 'closed',
+        result: { points: 3, maxPoints: 3, provisional: false },
+      },
+    });
+    await expect(player).toContainText('Попытка завершена');
+    expect(await readQuiz()).toMatchObject({
+      attempt: { attemptId: quizAttemptId, state: 'closed' },
+    });
+    // The assignment projection remains null: the quiz read is authoritative.
+    // canStart may still describe another allowed attempt, never a next action.
+    expect((await assignments()).find((item) => item.id === quizRun.assignmentId)).toMatchObject(
+      directQuizShape,
+    );
+    const completedHomeProof = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === `/api/learning/quiz/runs/${quizRun.activityRunId}`,
+    );
+    await openPortalSection(page, 'Главная');
+    const completedRead = await completedHomeProof;
+    expect(completedRead.status()).toBe(200);
+    expect(await completedRead.json()).toMatchObject({
+      attempt: { attemptId: quizAttemptId, state: 'closed' },
+    });
+    await expect(next.getByRole('status')).toHaveCount(0);
+    await expect(next.getByRole('link')).toHaveText('Открыть обучение');
+    await expect(next).not.toContainText(quizTitle);
+    expect(await attempts(quizRun.assignmentId)).toBe(1);
+    await page.screenshot({
+      path: `${EVIDENCE}/sp03-completed-quiz-no-repeat-320.png`,
+      fullPage: true,
+    });
+    // waiting_review/invalidated exclusions are exhaustively covered by the
+    // adapter tests; no unsupported invalidation command or row rewrite here.
+  } finally {
+    await teacher.context.close();
   }
 });

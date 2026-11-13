@@ -11,6 +11,8 @@ import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 import { ClassroomAiAccess } from '../components/ClassroomAiAccess';
 import { ClassroomMetrics, useClassroomMetrics } from '../components/ClassroomMetrics';
 import { StudentCodeButton } from '../components/StudentCodeButton';
+import { useClassroomFeedback } from '../components/useClassroomFeedback';
+import { SystemToastViewport } from '../components/SystemToastViewport';
 import { ClassroomStudentProjects } from '../components/ClassroomStudentProjects';
 import { ClassroomStudentHistory } from '../components/ClassroomStudentHistory';
 import { ClassroomLearning } from '../components/ClassroomLearning';
@@ -430,9 +432,8 @@ function ClassroomPageContent({
   const [dialog, setDialog] = useState<'single' | 'batch' | null>(null);
   const [editing, setEditing] = useState<ClassroomStudentSeat | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   // null = closed; [] = all active learners; non-empty = selected learner cards.
   const [accessCardIds, setAccessCardIds] = useState<string[] | null>(null);
   const [codeEditor, setCodeEditor] = useState<ClassroomStudentSeat | null>(null);
@@ -440,13 +441,20 @@ function ClassroomPageContent({
   const [teacherInviteLink, setTeacherInviteLink] = useState<string | null>(null);
   const [showAllCodes, setShowAllCodes] = useState(false);
   const [codeEpoch, setCodeEpoch] = useState(0);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const shareIdentity = useRef<object>({});
+  const closeSharing = useCallback(() => {
+    shareIdentity.current = {};
+    setShareError(null);
+    setSharing(false);
+  }, []);
   const maskCodes = useCallback(() => {
     setShowAllCodes(false);
     setCodeEpoch((value) => value + 1);
     setCodeEditor(null);
     setAccessCardIds(null);
-    setSharing(false);
-  }, []);
+    closeSharing();
+  }, [closeSharing]);
   const reloadParticipants = useCallback(async () => {
     const token = ++participantGeneration.current;
     setParticipants(null);
@@ -465,6 +473,11 @@ function ClassroomPageContent({
   // Which learner is being looked at. A class page and a learner's page are the
   // same place at two depths, so this is state rather than another route.
   const [openStudent, setOpenStudent] = useState<string | null>(openSeatId ?? null);
+  const feedback = useClassroomFeedback(
+    JSON.stringify([classroomId, openStudent, page.kind, loadError]),
+  );
+  const setNotice = feedback.success;
+  const setActionError = feedback.error;
   const [profileRevisions, setProfileRevisions] = useState<Record<string, number>>({});
   const profileView = useRef({ classroomId, seatId: openStudent });
   if (profileView.current.classroomId !== classroomId || profileView.current.seatId !== openStudent)
@@ -552,7 +565,7 @@ function ClassroomPageContent({
       if (!classroom.ok || !roster.ok) throw new Error('load failed');
       if (classroom.data.classroom.id !== classroomId) throw new Error('classroom mismatch');
       setPage({ kind: 'ready', classroom: classroom.data.classroom, students: roster.data.items });
-      setActionError(null);
+      setLoadError(null);
       void reloadParticipants();
     } catch {
       if (!currentRequest()) return;
@@ -565,7 +578,7 @@ function ClassroomPageContent({
               message: 'Не удалось открыть класс. Повторите попытку.',
             },
       );
-      setActionError('Не удалось обновить данные класса. Повторите загрузку.');
+      setLoadError('Не удалось обновить данные класса. Повторите загрузку.');
     }
   }, [classroomId, reloadParticipants, maskCodes]);
 
@@ -604,13 +617,37 @@ function ClassroomPageContent({
     if (tab === 'teachers' && teacherTeam.kind === 'idle') void reloadTeacherTeam();
   }, [reloadTeacherTeam, tab, teacherTeam.kind]);
 
-  async function copy(value: string, message: string): Promise<void> {
+  async function copy(
+    value: string,
+    message: string,
+    surface: 'page' | 'sharing' = 'page',
+  ): Promise<void> {
+    const identity = shareIdentity.current;
+    if (surface === 'sharing') {
+      setShareError(null);
+    } else {
+      feedback.clear();
+    }
+    const view = profileView.current;
+    const scope = loadScope.current;
+    const request = scope.request;
+    const current = () =>
+      loadScope.current === scope &&
+      scope.active &&
+      scope.request === request &&
+      profileView.current === view &&
+      (surface !== 'sharing' || shareIdentity.current === identity);
     try {
       await navigator.clipboard.writeText(value);
-      setActionError(null);
+      if (!current()) return;
       setNotice(message);
     } catch {
-      setActionError('Не удалось скопировать код. Выделите и скопируйте его вручную.');
+      if (!current()) return;
+      if (surface === 'sharing') {
+        setShareError('Не удалось скопировать код. Выделите и скопируйте его вручную.');
+      } else {
+        feedback.error('Не удалось скопировать ссылку. Выделите и скопируйте её вручную.');
+      }
     }
   }
 
@@ -618,16 +655,24 @@ function ClassroomPageContent({
     key: string,
     fallback: string,
     work: () => Promise<void>,
+    inlineError = false,
+    shareAction = false,
   ): Promise<string | null> {
     const view = profileView.current;
+    const identity = shareIdentity.current;
     return runClassroomAction(work, fallback, {
       start: () => {
         setBusy(key);
-        setActionError(null);
+        if (shareAction) setShareError(null);
+        else setActionError(null);
         setNotice(null);
       },
       fail: (error) => {
-        if (profileView.current === view) setActionError(error);
+        if (!inlineError && loadScope.current.active && profileView.current === view) {
+          if (shareAction) {
+            if (shareIdentity.current === identity) setShareError(error);
+          } else setActionError(error);
+        }
       },
       finish: () => setBusy((current) => (current === key ? null : current)),
     });
@@ -637,75 +682,92 @@ function ClassroomPageContent({
     setPage((current) => (current.kind === 'ready' ? { ...current, classroom } : current));
   }
 
-  async function updateStudent(student: ClassroomStudentSeat): Promise<string | null> {
+  async function updateStudent(
+    student: ClassroomStudentSeat,
+    inlineError = false,
+  ): Promise<string | null> {
     if (page.kind !== 'ready' || page.classroom.status !== 'active')
       return 'Класс недоступен для изменений.';
     const view = profileView.current;
-    return action(`seat:${student.id}`, 'Не удалось сохранить настройки ученика.', async () => {
-      const response = await api.updateClassroomSeat(classroomId, student);
-      if (!loadScope.current.active || profileView.current.classroomId !== classroomId) return;
-      if (!response.ok && [401, 403].includes(response.status) && profileView.current === view) {
-        maskCodes();
-        setEditing(null);
-        setPage({ kind: 'error', message: 'Доступ к классу закрыт.' });
-      }
-      const result = confirmedClassroomResult(response, 'Не удалось сохранить настройки ученика.');
-      setPage((current) =>
-        current.kind === 'ready'
-          ? {
-              ...current,
-              students: current.students.map((row) =>
-                row.id === student.id
-                  ? {
-                      ...result.student,
-                      // Settings responses do not carry the canonical learning counters.
-                      assignedCount: row.assignedCount ?? 0,
-                      submittedCount: row.submittedCount ?? 0,
-                      awaitingReview: row.awaitingReview ?? 0,
-                    }
-                  : row,
-              ),
-            }
-          : current,
-      );
-      setProfileRevisions((current) => ({
-        ...current,
-        [student.id]: (current[student.id] ?? 0) + 1,
-      }));
-      if (profileView.current === view)
-        setEditing((current) => (current?.id === student.id ? null : current));
-      if (profileView.current === view)
-        setNotice(`Настройки «${result.student.displayLabel}» сохранены.`);
-      await reload();
-    });
+    return action(
+      `seat:${student.id}`,
+      'Не удалось сохранить настройки ученика.',
+      async () => {
+        const response = await api.updateClassroomSeat(classroomId, student);
+        if (!loadScope.current.active || profileView.current.classroomId !== classroomId) return;
+        if (!response.ok && [401, 403].includes(response.status) && profileView.current === view) {
+          maskCodes();
+          setEditing(null);
+          setPage({ kind: 'error', message: 'Доступ к классу закрыт.' });
+        }
+        const result = confirmedClassroomResult(
+          response,
+          'Не удалось сохранить настройки ученика.',
+        );
+        setPage((current) =>
+          current.kind === 'ready'
+            ? {
+                ...current,
+                students: current.students.map((row) =>
+                  row.id === student.id
+                    ? {
+                        ...result.student,
+                        // Settings responses do not carry the canonical learning counters.
+                        assignedCount: row.assignedCount ?? 0,
+                        submittedCount: row.submittedCount ?? 0,
+                        awaitingReview: row.awaitingReview ?? 0,
+                      }
+                    : row,
+                ),
+              }
+            : current,
+        );
+        setProfileRevisions((current) => ({
+          ...current,
+          [student.id]: (current[student.id] ?? 0) + 1,
+        }));
+        if (profileView.current === view)
+          setEditing((current) => (current?.id === student.id ? null : current));
+        if (profileView.current === view)
+          setNotice(`Настройки «${result.student.displayLabel}» сохранены.`);
+        await reload();
+      },
+      inlineError,
+    );
   }
 
   if (page.kind === 'loading')
     return (
-      <main
-        id="main-content"
-        className="portal-content classroom-workspace classroom-owner-workspace teacher-open-compact"
-        role="status"
-      >
-        Загрузка класса…
-      </main>
+      <>
+        <SystemToastViewport scopeKey={feedback.scopeKey} />
+        <main
+          id="main-content"
+          className="portal-content classroom-workspace classroom-owner-workspace teacher-open-compact"
+          role="status"
+        >
+          Загрузка класса…
+        </main>
+      </>
     );
   if (page.kind === 'error')
     return (
-      <main
-        id="main-content"
-        className="portal-content classroom-workspace classroom-owner-workspace teacher-open-compact"
-      >
-        <button type="button" className="btn-ghost" onClick={onBack}>
-          ← Мои классы
-        </button>
-        <div className="portal-empty" role="alert">
-          <p>{page.message}</p>
-          <button type="button" className="btn-secondary" onClick={() => void reload()}>
-            Повторить
+      <>
+        <SystemToastViewport scopeKey={feedback.scopeKey} />
+        <main
+          id="main-content"
+          className="portal-content classroom-workspace classroom-owner-workspace teacher-open-compact"
+        >
+          <button type="button" className="btn-ghost" onClick={onBack}>
+            ← Мои классы
           </button>
-        </div>
-      </main>
+          <div className="portal-empty" role="alert">
+            <p>{page.message}</p>
+            <button type="button" className="btn-secondary" onClick={() => void reload()}>
+              Повторить
+            </button>
+          </div>
+        </main>
+      </>
     );
 
   const { classroom, students } = page;
@@ -763,6 +825,7 @@ function ClassroomPageContent({
 
   return (
     <>
+      <SystemToastViewport scopeKey={feedback.scopeKey} />
       <main
         id={openStudent === null ? 'main-content' : undefined}
         className="portal-content classroom-workspace classroom-owner-workspace teacher-open-compact"
@@ -832,7 +895,11 @@ function ClassroomPageContent({
                   <button
                     type="button"
                     className="portal-create-button"
-                    onClick={() => setSharing(true)}
+                    onClick={() => {
+                      shareIdentity.current = {};
+                      setShareError(null);
+                      setSharing(true);
+                    }}
                     aria-label="Поделиться классом"
                   >
                     <span>Поделиться</span>
@@ -978,21 +1045,15 @@ function ClassroomPageContent({
           ) : null}
         </div>
 
-        {notice ? (
-          <p className="notice-success" role="status">
-            {notice}
-          </p>
-        ) : null}
-
-        {actionError ? (
+        {loadError ? (
           <p className="form-error" role="alert">
-            {actionError}
+            {loadError}
             <button
               type="button"
               className="btn-ghost"
               disabled={Boolean(busy)}
               onClick={() => {
-                setActionError(null);
+                setLoadError(null);
                 void reload();
               }}
             >
@@ -1669,34 +1730,56 @@ function ClassroomPageContent({
             joinCode={classroom.joinCode}
             joinUrl={classLink}
             busy={busy === 'code'}
-            error={actionError}
-            onCopyCode={() => void copy(classroom.joinCode as string, 'Код скопирован.')}
-            onCopyLink={() => void copy(classLink as string, 'Ссылка скопирована.')}
+            error={shareError}
+            onCopyCode={() => void copy(classroom.joinCode as string, 'Код скопирован.', 'sharing')}
+            onCopyLink={() => void copy(classLink as string, 'Ссылка скопирована.', 'sharing')}
             onRotate={async () => {
-              await action('code', 'Не удалось сменить код класса.', async () => {
-                const result = confirmedClassroomResult(
-                  await api.rotateClassroomJoinCode(classroomId),
-                  'Не удалось сменить код класса.',
-                );
-                confirmClassroom(result.classroom);
-                setNotice(
-                  'Код класса обновлён. Старые карточки больше не подходят — распечатайте новые.',
-                );
-                setSharing(false);
-                setAccessCardIds([]);
-              });
+              const identity = shareIdentity.current;
+              const view = profileView.current;
+              await action(
+                'code',
+                'Не удалось сменить код класса.',
+                async () => {
+                  const result = confirmedClassroomResult(
+                    await api.rotateClassroomJoinCode(classroomId),
+                    'Не удалось сменить код класса.',
+                  );
+                  if (!loadScope.current.active || profileView.current.classroomId !== classroomId)
+                    return;
+                  confirmClassroom(result.classroom);
+                  if (profileView.current !== view || shareIdentity.current !== identity) return;
+                  setNotice(
+                    'Код класса обновлён. Старые карточки больше не подходят — распечатайте новые.',
+                  );
+                  closeSharing();
+                  setAccessCardIds([]);
+                },
+                false,
+                true,
+              );
             }}
             onRevoke={async () => {
-              await action('code', 'Не удалось закрыть вход.', async () => {
-                const result = confirmedClassroomResult(
-                  await api.revokeClassroomJoinCode(classroomId),
-                  'Не удалось закрыть вход.',
-                );
-                confirmClassroom(result.classroom);
-                setNotice('Вход по коду закрыт.');
-              });
+              const identity = shareIdentity.current;
+              const view = profileView.current;
+              await action(
+                'code',
+                'Не удалось закрыть вход.',
+                async () => {
+                  const result = confirmedClassroomResult(
+                    await api.revokeClassroomJoinCode(classroomId),
+                    'Не удалось закрыть вход.',
+                  );
+                  if (!loadScope.current.active || profileView.current.classroomId !== classroomId)
+                    return;
+                  confirmClassroom(result.classroom);
+                  if (profileView.current !== view || shareIdentity.current !== identity) return;
+                  setNotice('Вход по коду закрыт.');
+                },
+                false,
+                true,
+              );
             }}
-            onClose={() => setSharing(false)}
+            onClose={closeSharing}
           />
         ) : null}
 
@@ -1741,7 +1824,7 @@ function ClassroomPageContent({
           key={editing.id}
           student={editing}
           onClose={() => setEditing(null)}
-          onSaved={(input) => updateStudent({ ...editing, ...input })}
+          onSaved={(input) => updateStudent({ ...editing, ...input }, true)}
         />
       ) : null}
       {accessCardIds !== null ? (
@@ -1809,7 +1892,7 @@ function ClassroomPageContent({
               students.find((student) => student.id === openStudent)?.loginMethod ===
               'student_code',
             canOpenCard: Boolean(classroom.joinCode),
-            error: actionError,
+            error: null,
             onSettings: () => {
               const student = students.find((entry) => entry.id === openStudent);
               if (student && !archived && !busy && student.status !== 'suspended')
@@ -1848,7 +1931,7 @@ function ClassroomPageContent({
               const student = students.find((entry) => entry.id === openStudent);
               if (!student || archived || busy || student.status === 'suspended')
                 return 'Изменения недоступны.';
-              return updateStudent({ ...student, safeMode });
+              return updateStudent({ ...student, safeMode }, true);
             },
           }}
           onNavigateStudent={openStudentProfile}
