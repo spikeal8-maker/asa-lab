@@ -18947,12 +18947,17 @@ parallel_lanes:
           - 'Reuse branch: exactly one active Account link with disabled_at null points to an active learner of
             exact T/school. Reuse only that learner for the missing target Seat link; do not select or merge another
             identity.'
-          negative_evidence: Exclude relevant inactive/disabled link or learner, rolled-back batch, conflicting
-            lineage and known M0 deterministic learner/tombstone for S or A. Exclude retained identity artifacts
-            and learner-bound attempts for S and audience operations with source_seat_id S; in the fresh Account
-            branch also exclude prior identity artifacts or other retained identity evidence for A in this school.
-            Any such trace means skip/report, never an orphan/replacement identity. Another school alone is not
-            a veto.
+          negative_evidence: Exclude relevant inactive/disabled links or learners, rolled-back
+            batches and conflicting lineage. For target Seat S, always exclude retained identity
+            history, any known M0 learner/tombstone, retained identity artifacts, learner-bound
+            attempts and audience operations with source_seat_id S. In the fresh Account branch
+            also exclude any prior M0 or other retained identity evidence for A in this school,
+            including identity artifacts and known deterministic learner/tombstone. In the
+            reuse branch, a qualified coherent active Account link and active learner of exact
+            T/school are not excluded solely because that learner originated in M0; all target-Seat
+            and relevant inactive/disabled, rolled-back or conflicting-lineage vetoes still
+            apply. Any disqualifying trace means skip/report, never an orphan/replacement
+            identity. Another school alone is not a veto.
           transaction: Lock the relevant admission/Seat and shared Account-school identity boundary in a consistent
             order, reread the predicate under lock, then invoke existing owner-only learning_audience_ensure_seat_identity.
             Before commit verify coherent active Seat and Account links to one learner and Account principal in
