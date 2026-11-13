@@ -72,7 +72,11 @@ async function prepareNestedSave(page: Page, surface: NestedSurface) {
       : surface === 'network' ? 'Сохранить сетевой режим' : 'Сохранить рейтинг';
   const button = group.getByRole('button', { name, exact: true });
   await expect(button).toBeVisible();
-  if (surface === 'ai') await group.getByLabel('Правило класса', { exact: true }).selectOption('allow');
+  if (surface === 'ai') {
+    const rule = group.getByLabel('Правило класса');
+    await expect(rule).toHaveCount(1);
+    await rule.selectOption('allow');
+  }
   else if (surface === 'games') await group.getByLabel('Доступ к играм', { exact: true }).selectOption('deny');
   else if (surface === 'network') await group.getByLabel('Разрешить сетевую игру', { exact: true }).check();
   else await group.getByLabel('Период рейтинга', { exact: true }).selectOption('7');

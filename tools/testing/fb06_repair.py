@@ -205,21 +205,29 @@ def verify(evidence: Path) -> None:
         names = ['classroom-assignment-lifetime', 'classroom-assignment-context', 'classroom-average-rating', 'classroom-profile-completion', 'classroom-student-profile', 'system-feedback', 'system-toast-viewport', 'use-classroom-feedback']
         run('focused-components', ['pnpm', 'exec', 'vitest', 'run', *['apps/web/src/components/testing/' + name + '.spec.ts' for name in names]], evidence)
         run('chromium', ['pnpm', 'exec', 'playwright', 'install', '--with-deps', 'chromium'], evidence)
-        browser_command = ['pnpm', 'exec', 'playwright', 'test', '--config', 'playwright.config.ts', 'e2e/classroom-feedback.spec.ts', 'e2e/classroom-nested-feedback.spec.ts', 'e2e/classroom-student-profile.spec.ts', 'e2e/ai-student-access.spec.ts', '--workers=1', '--retries=0']
-        os.environ['PLAYWRIGHT_JSON_OUTPUT_FILE'] = str(evidence / 'browser-discovery.json')
-        run('browser-discovery', browser_command + ['--list', '--reporter=json'], evidence, 120)
-        discovery = json.loads((evidence / 'browser-discovery.json').read_text(encoding='utf-8'))
-        def test_count(node: dict) -> int:
-            return sum(len(spec.get('tests', [])) for spec in node.get('specs', [])) + sum(test_count(suite) for suite in node.get('suites', []))
-        expected = test_count(discovery)
-        require(expected >= 82 and not discovery.get('errors'), 'Expected base, expanded nested, profile and AI cases not discovered')
-        receipt['browser_discovered'] = expected
-        os.environ['PLAYWRIGHT_JSON_OUTPUT_FILE'] = str(evidence / 'browser.json')
-        run('built-browser', browser_command + ['--reporter=list,json'], evidence)
-        report = json.loads((evidence / 'browser.json').read_text(encoding='utf-8'))
-        stats = report['stats']
-        require(stats.get('expected') == expected and not any(stats.get(k) for k in ['unexpected', 'flaky', 'skipped']) and not report.get('errors'), 'Not all discovered real browser cases executed successfully')
-        receipt['browser_stats'] = stats
+        browser_command = ['pnpm', 'exec', 'playwright', 'test', '--config', 'playwright.config.ts', 'e2e/classroom-feedback.spec.ts', 'e2e/classroom-nested-feedback.spec.ts', 'e2e/classroom-student-profile.spec.ts', '--workers=1', '--retries=0']
+        def checked_browser(name: str, command: list[str], count: int) -> dict:
+            os.environ['PLAYWRIGHT_JSON_OUTPUT_FILE'] = str(evidence / (name + '-discovery.json'))
+            run(name + '-discovery', command + ['--list', '--reporter=json'], evidence, 120)
+            discovery = json.loads((evidence / (name + '-discovery.json')).read_text(encoding='utf-8'))
+            def test_count(node: dict) -> int:
+                return sum(len(spec.get('tests', [])) for spec in node.get('specs', [])) + sum(test_count(suite) for suite in node.get('suites', []))
+            require(test_count(discovery) == count and not discovery.get('errors'), 'Unexpected discovered cases for ' + name)
+            os.environ['PLAYWRIGHT_JSON_OUTPUT_FILE'] = str(evidence / (name + '.json'))
+            run(name, command + ['--reporter=list,json'], evidence)
+            report = json.loads((evidence / (name + '.json')).read_text(encoding='utf-8'))
+            stats = report['stats']
+            require(stats.get('expected') == count and not any(stats.get(k) for k in ['unexpected', 'flaky', 'skipped']) and not report.get('errors'), 'Not all ' + name + ' cases executed successfully')
+            return stats
+        receipt['browser_stats'] = checked_browser('built-browser', browser_command, 76)
+        # These existing AI fixtures deliberately remove static route interception.
+        # Their unchanged repository config owns a short-lived Vite test server,
+        # distinct from the serverless production-bundle fixtures above.
+        os.environ.pop('ASA_E2E_EXTERNAL', None)
+        ai_command = ['pnpm', 'exec', 'playwright', 'test', '--config', 'playwright.ai-chat.config.ts', 'e2e/ai-student-access.spec.ts', '--workers=1', '--retries=0']
+        receipt['ai_browser_stats'] = checked_browser('focused-ai-browser', ai_command, 16)
+        receipt['ai_browser_kind'] = 'repository focused Vite server with mocked API; no external provider or database'
+        receipt['browser_discovered'] = 92
         require(not git('status', '--porcelain'), 'Checks changed source checkout')
         run('bundle', ['git', 'bundle', 'create', str(evidence / 'candidate.bundle'), 'HEAD', '^' + BASE], evidence, 90)
         receipt['bundle_sha256'] = hashlib.sha256((evidence / 'candidate.bundle').read_bytes()).hexdigest()
