@@ -165,9 +165,15 @@ describe('Robotics account projects through the real API and RLS role', () => {
       revision: 1,
       document: createInitialRoboticsProject(),
     });
+    // The new project factory uses a 5 × 5 m arena, with the robot precisely
+    // at the centre of its 30 × 30 cm starting zone.
+    expect(opened.json().draft.document.world).toMatchObject({
+      field: { widthMeters: 5, heightMeters: 5 },
+      initialPose: { xMeters: 2.5, yMeters: 2.5, headingRadians: 0 },
+    });
     expect(opened.json().project.preview.descriptor).toMatchObject({
       kind: 'scene',
-      figure: { viewBox: { width: 180, height: 180 } },
+      figure: { viewBox: { width: 500, height: 500 } },
     });
     const document = editedProject();
     const saved = await inject(app, {

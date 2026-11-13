@@ -12,7 +12,13 @@ import { createRoboticsRuntime } from '../domain/world-runtime.js';
 const rpm = (speed: number) => (speed * 60) / (2 * Math.PI * 0.0325);
 const clear = () => {
   const world = createRoboticsWorldV3Document();
-  return { ...world, field: { ...world.field, obstacles: [] } };
+  // These contact-force fixtures intentionally use their historical test
+  // geometry; production starters now place the robot at field center.
+  return {
+    ...world,
+    initialPose: { xMeters: 0.25, yMeters: 0.9, headingRadians: 0 },
+    field: { ...world.field, obstacles: [] },
+  };
 };
 describe('persistent versioned Robotics mechanics', () => {
   it('keeps the legacy numerical path exact', () => {
@@ -106,6 +112,7 @@ describe('persistent versioned Robotics mechanics', () => {
       const world = createRoboticsWorldV3Document('practice', 'educational');
       const runtime = createRoboticsRuntime({
         ...world,
+        initialPose: { xMeters: 0.25, yMeters: 0.9, headingRadians: 0 },
         physics: { ...world.physics, accuracy },
         field: {
           ...world.field,

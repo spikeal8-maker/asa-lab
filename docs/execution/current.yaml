@@ -81,6 +81,66 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-recovery-hygiene
+    parent_lane: electronics
+    worktree_id: electronics-recovery-hygiene-1111
+    owned_paths:
+      - docs/product/electronics/evidence/hygiene-checkpoint-stabilization-007.yaml
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+      head_sha: null
+      observed_at: '2026-11-12T22:56:35Z'
+      main:
+        branch: main
+        sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+      observation_note: Read-only controller snapshot for the mandatory documentation dependency; fresh fetch main and exact-source CI remain required before authoring or acceptance.
+    task:
+      id: TASK-ELECTRONICS-GOVERNANCE-015
+      issue: 1115
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: plan/governance
+      checkpoint: checkpoint007_independently_approved_and_controller_accepted_for_r10
+      owner_acceptance: pending
+      full_hygiene_checkpoint: true
+      previous_full_checkpoint_issue: 556
+      counted_accepted_production_issues_minimum:
+      - 553
+      - 569
+      - 570
+      - 571
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-015.md
+      - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
+      - docs/product/electronics/evidence/hygiene-baseline.yaml
+      owner_authorization: Owner directs controller preparation and canonical task selection needed for bounded R00
+        then R10 under1111. This documentation-only prerequisite resolves the mandatory existing hygiene cadence before
+        any R10 product write; no additional product, catalogue or installation work.
+      scope: Only compact seven-category checkpoint007 on actual accepted source; preserve all existing sizes, thresholds,
+        legacy conditions, historical evidence and foreign state. No product or test edit and no repeated runtime measurements.
+      next_action: STOP. The reviewed checkpoint007 blob is accepted by the controller and accompanies the R00-to-R10
+        canonical transition. It does not authorize cleanup, baseline changes, product writes before accepted main,
+        deployment or owner acceptance.
+      technical_acceptance: accepted_source_with_required_combined_ci_before_main_integration
+      accepted_candidate_sha: 0c14fe32e842dcdf9755e503439ac51c0b81b351
+      accepted_candidate_tree: 1a20ec7e32a479dcc76981ef9ae5502a9882bd9b
+      independent_review: APPROVE
+      independent_reviewer: /root/hygiene_reviewer
+      accepted_evidence_sha256: 1b96809c518eb9446200e7381e7c2d745cc8c5d05c40488af50adf3a65e4fd15
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-GOVERNANCE-015
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: classroom-visual-20261111
     worktree_id: classroom-visual-20261111
     owned_paths:
@@ -4587,6 +4647,72 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
+  - id: crm-acquisition-ci-baseline
+    parent_lane: admin-auth
+    worktree_id: crm-acquisition-fixture-isolation
+    owned_paths:
+      - docs/execution/CRM_ACQUISITION_FIXTURE_ISOLATION.md
+    task:
+      id: TASK-CRM-ACQUISITION-FIXTURE-ISOLATION-001
+      issue: 1110
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      kind: repair
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: controller_registration_before_one_file_fixture_repair
+      owner_acceptance: pending
+      classification: C_independent_baseline
+      related_issues: [808, 1090]
+      context_hints:
+        - docs/execution/CRM_ACQUISITION_FIXTURE_ISOLATION.md
+      scope: Isolate the existing platform-catalog assertion to the target Account in tests/admin/crm-acquisition.pg.spec.ts. Preserve every existing case and lineage assertion; no production or database contract changes.
+      planned_paths:
+        - tests/admin/crm-acquisition.pg.spec.ts
+      path_coordination: Preserve existing admin-auth tests/admin/** ownership. This lane owns only its task note for compatibility; its explicit one-file source plan above remains the full repair scope under AGENTS direct_main. Before source writes, preflight that exact test path and verify actual worktree overlap; no other checkout or task is transferred.
+      owner_authorization: On 2026-11-12 the programme controller selected this separate Class C prerequisite under the owner's instruction to fix the programme and integrate reviewed results into main. This controller registration preserves the active student-progress SP03 selection and every existing task; it grants no deployment or live database authority.
+      activation_condition: This proposal has no source execution authority while present only on the registration branch. Begin the one-file fixture repair only after this registration is accepted on main with required checks and independent review. Product branches inherit the accepted selection and must not select themselves.
+      constraints:
+        - Resolve the target Account row before the platform query, strictly guard its nonempty unique fixture email, call catalog(owner.principal_id, 'platform', null, {}, row.email), and assert the exact returned Account identity while retaining private-account visibility coverage.
+        - Preserve all five cases, the 5000ms deadline, organization/class positive and negative lineage assertions, private-account visibility, scalar CSV facts, registration-source semantics, teacher 403, wrong-class 403 and archived-class 403.
+        - No SQL, migration, production API/frontend, test configuration, workflow, dependency, lockfile, timeout, retry, skip or other-test changes. Keep this separate from student-progress source and do not select its next stage.
+        - Require independent exact-source review and fresh natural General/ASA required with all five CRM cases, full Data and actually executed standalone RLS before source integration. Classify any other failure without expanding scope or blindly rerunning unchanged code.
+      evidence_snapshot:
+        observed_at_utc: '2026-11-12T22:28:59Z'
+        source_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+        general_run_id: 43313764162
+        data_job_id: 131521411013
+        ci_result: General FAILURE; the case at tests/admin/crm-acquisition.pg.spec.ts:154 timed out at 5007ms against 5000ms. CRM has 4 PASS and 1 FAIL; full Data has 10876 PASS, 1 FAIL and 22 SKIP. Standalone test:rls was NOT_RUN.
+        source_boundary: Independent read-only diagnosis found identical CRM test, configuration and helper blobs on accepted cb15 and green source 4dc1de45b13cb8f7e1d78cabccb080bf84710bda, where this case passed in 943ms. Historical query phase, JIT, locks and infrastructure cause were not measured.
+        fixture_dependency: The existing unfiltered catalog(owner.principal_id) depends on shared platform fixture population while the assertion needs one newly created target Account. A filtered target query is the bounded isolation repair; its runtime result remains unverified.
+        historical_boundary: Issue808 reports an earlier timeout in the same case; no common historical cause or resolution is claimed.
+        detailed_evidence: https://github.com/spikeal8-maker/asa-lab/issues/1110
+      gate_boundary: Registration requires the complete two-file metadata plan, preservation of all prior state, full governance, independent review and required GitHub checks before main. Registration acceptance is not repair completion; keep Issue1110 active for the later source repair and its actual evidence.
+      source_implementation: not_started
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+      head_sha: null
+      observed_at: '2026-11-12T22:28:59Z'
+      main:
+        branch: main
+        sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+      observation_note: Dated controller registration proposal only, not fixture implementation or acceptance. Fetch main and inspect exact task, branch, CI and overlaps before writes. Preserve every previous lane, blocker, history and gate, including active SP03 and completed geometry baseline. Issue808 remains historical context with unknown root cause.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:data
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
   - id: admin-auth
     worktree_id: admin-auth-main
     owned_paths:
@@ -5501,25 +5627,134 @@ parallel_lanes:
     owned_paths:
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-GOVERNANCE-014
-      issue: 929
+      id: TASK-ELECTRONICS-RECOVERY-R10-001
+      issue: 1111
       branch: main
       base_branch: main
       pr: null
-      status: done
-      kind: maintenance
-      checkpoint: accepted_static_split_routes_repaired_114_regressions_PASS
+      status: in_progress
+      kind: repair
+      checkpoint: controller_selected_first_async_stopped_preflight_after_accepted_r00_and_checkpoint007
       owner_acceptance: pending
+      programme_issue: 452
+      registry_issue: 703
       context_hints:
-        - docs/product/electronics/components/arduino-peripherals.yaml
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-RECOVERY-R10-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      - docs/product/electronics/components/engine-worker-clock.yaml
+      - docs/product/electronics/evidence/recovery-r00-20261113.md
+      owner_authorization: Owner explicitly directs the controller to prepare and canonically select cards for the bounded
+        R00 then R10 programme, delegate each slice to a real chat author and independent reviewer, publish tested candidates
+        and demonstrate before/after in permitted browser CI. No production update, new permanent installation, R11
+        or bulk branch closure.
+      selection_authority: Programme controller accepts independently reviewed R00 and GOV015 sources and selects only
+        R10. This transition becomes authoritative on accepted main; neither the R00 author nor a feature branch selects
+        product work. A NEW author starts only after fresh main preflight and required integration CI.
+      scope: Only share one correct asynchronous stopped preflight between diagnostics and LED preparation; remove synchronous
+        render solving and confirmed Worker duplicate, key all Arduino programs/model identities/project session, reject
+        stale responses, retain running source-only update semantics and stopped persisted projection. Repeat frozen
+        S3/S4 before and after in full editor.
+      next_action: After this controller transition is integrated on main, assign a new author one R10 slice. Require
+        exact final source independent review, applicable gates and paired full-editor measurements/recordings. Controller
+        publishes the bounded result and stops; no R11, deployment, live-data operation or new permanent installation.
+      source_baseline_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+      measurement_delivery: Isolated GitHub Actions full SchematicEditor fixture with real Worker and assets; instrumented
+        candidate video and raw evidence, not asa-lab.ru deployment.
+      original_project_policy: Read-only; absent export permits explicitly attributed audit reconstruction, never an
+        invented original sketch.
+      accepted_preparations:
+      - task_id: TASK-ELECTRONICS-RECOVERY-R00-001
+        status: technical_accepted
+        candidate_sha: 8ee433f41503fc47ea64bfaa61f5e63ded9c14d5
+        candidate_tree: d26afd4566fbc27deceb5caca85fc10f89d6d8e5
+        independent_reviewer: /root/r00_reviewer
+        independent_verdict: PASS_final_source_raw_video_sufficient_R00
+        performance_run: 43331196377
+        performance_conclusion: success
+        general_run: 43331205419
+        general_conclusion: success
+        artifact_id: 13996708646
+        artifact_sha256: 7c80998d3bd9564d7711c0d7eb428eac7ed91180175efbb4014f865fe761b795
+        raw_samples: 1440
+        actual_measured_main_analyses: 2880
+        actual_measured_worker_analyses: 0
+        product_source_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+        integration_note: Reviewed R00 files are included unchanged except this controller evidence update in the single
+          final main convergence. Fresh required CI must pass before merge; the original measured harness and product
+          identities remain immutable.
+        owner_acceptance: pending
+      - task_id: TASK-ELECTRONICS-GOVERNANCE-015
+        status: technical_accepted
+        candidate_sha: 0c14fe32e842dcdf9755e503439ac51c0b81b351
+        candidate_tree: 1a20ec7e32a479dcc76981ef9ae5502a9882bd9b
+        independent_reviewer: /root/hygiene_reviewer
+        independent_verdict: APPROVE_exact_source_seven_categories
+        evidence: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-007.yaml
+        sha256: 1b96809c518eb9446200e7381e7c2d745cc8c5d05c40488af50adf3a65e4fd15
+        integration_note: Exact approved checkpoint blob included in this controller transition; required CI and accepted
+          main remain prerequisites before product writes. Baseline sizes, thresholds, historical debt and protected
+          data preserved.
+        owner_acceptance: pending
+      baseline_verification:
+        requested_suites: live-simulation, live-simulation-worker-controller, simulation-input-digest
+        result: 135_tests_passed_fresh_before_R10
+        product_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+        r4_run: 43331205321
+        r4_s1: failure_1_realtime_phase_duration_122_passed
+        r4_s2: failure_5_running_optical_8_passed
+        classification: C_relative_to_test_only_R00_diff_with_identical_runtime_and_test_blobs; preserve for candidate
+          regression assessment, no broad R4 PASS or scope expansion
+      accepted_previous_task:
+        id: TASK-ELECTRONICS-RECOVERY-R00-001
+        issue: 1111
+        branch: main
+        base_branch: main
+        pr: null
+        status: in_progress
+        kind: analysis/inventory
+        checkpoint: owner_selected_r00_reproducible_full_editor_baseline
+        owner_acceptance: pending
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-RECOVERY-R00-001.md
         - docs/product/electronics/components/ui-assets-persistence.yaml
-        - docs/product/electronics/evidence/hygiene-baseline.yaml
-      scope: Documentation-only existing Electronics source-route and stale-large-source repair after accepted6e0; no product source, thresholds or foreign-state changes.
-      owner_authorization: Owner asks to repair Electronics errors and publish verified source while preserving foreign changes; current accepted static block split invalidates four routing checks.
-      next_action: STOP; documentation-only baseline repaired. Resume independently checked caption integration and separately selected desktop layout task.
-      routing_result: PASS_30components167cards_114regressiontests_control_plane_require_github_PASS
-      actual_arduino_blocks_bytes: 34881
-      self_review: PASS_documentation_only_all_accepted_product_blobs_and_limits_unchanged
+        scope: R00 only; saved S3 and reconstructed S4, original reconstruction sketch, hashes, frozen source/build
+          provenance, full-editor Stop measurements and two confirmed preflight call sites. Product source is read-only.
+        owner_authorization: Owner explicitly directs the controller to prepare and canonically select cards for the
+          bounded R00 then R10 programme, delegate each slice to a real chat author and independent reviewer, publish
+          tested candidates and demonstrate before/after in permitted browser CI. No production update, new permanent
+          installation, R11 or bulk branch closure.
+        next_action: Author completes only R00 and stops; controller independently accepts sufficient baseline then
+          canonically selects bounded R10. R00 alone does not finish the owner assignment.
+        programme_issue: 452
+        registry_issue: 703
+        source_baseline_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+        measurement_delivery: Isolated GitHub Actions full SchematicEditor fixture with real Worker and assets; instrumented
+          candidate video and raw evidence, not asa-lab.ru deployment.
+        original_project_policy: Read-only; absent export permits explicitly attributed audit reconstruction, never
+          an invented original sketch.
+        accepted_previous_task:
+          id: TASK-ELECTRONICS-GOVERNANCE-014
+          issue: 929
+          branch: main
+          base_branch: main
+          pr: null
+          status: done
+          kind: maintenance
+          checkpoint: accepted_static_split_routes_repaired_114_regressions_PASS
+          owner_acceptance: pending
+          context_hints:
+          - docs/product/electronics/components/arduino-peripherals.yaml
+          - docs/product/electronics/components/ui-assets-persistence.yaml
+          - docs/product/electronics/evidence/hygiene-baseline.yaml
+          scope: Documentation-only existing Electronics source-route and stale-large-source repair after accepted6e0;
+            no product source, thresholds or foreign-state changes.
+          owner_authorization: Owner asks to repair Electronics errors and publish verified source while preserving
+            foreign changes; current accepted static block split invalidates four routing checks.
+          next_action: STOP; documentation-only baseline repaired. Resume independently checked caption integration
+            and separately selected desktop layout task.
+          routing_result: PASS_30components167cards_114regressiontests_control_plane_require_github_PASS
+          actual_arduino_blocks_bytes: 34881
+          self_review: PASS_documentation_only_all_accepted_product_blobs_and_limits_unchanged
     suspended_slices:
     - task_id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
       accepted_task_snapshot:
@@ -17353,6 +17588,90 @@ parallel_lanes:
           - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-RUNTIME-RESPONSIBILITY-001
           - pnpm control-plane:check
 
+  - id: electronics-robotics-toolbar-fit
+    parent_lane: electronics
+    worktree_id: electronics-robotics-toolbar-fit
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TOOLBAR-FIT-001.md
+    task:
+      id: TASK-ELECTRONICS-ROBOTICS-TOOLBAR-FIT-001
+      issue: 1122
+      parent_issue: 1071
+      camera_dependency_issue: 1096
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: bounded_b_toolbar_fit_repair_selected
+      owner_acceptance: pending
+      profile: UI_ONLY
+      planned_paths:
+        - apps/web/src/electronics/workbench.css
+      owner_authorization: >-
+        The owner explicitly authorized ordinary main integration of the existing
+        PR1044 dependency and FIELD-CAMERA-001. Under that unchanged authority,
+        the controller selected this review-found B dependency of robotics-camera:
+        https://github.com/spikeal8-maker/asa-lab/pull/1098#issuecomment-6841862586
+        and https://github.com/spikeal8-maker/asa-lab/issues/1071#issuecomment-6841862818.
+        This selection becomes executable only after its registration is accepted
+        on main and a separate exact-path runtime preflight succeeds.
+      scope: >-
+        Presentation-only, non-semantic correction of compact desktop Electronics
+        breadboard toolbar fit after the preserved shared Duplicate control was
+        added. Change only workbench.css: within the existing 981-1459px media
+        query, narrowly size the direct Electronics breadboard tool buttons so
+        the running simulation clock does not cover Mirror. The Robotics native
+        tools wrapper and its existing button dimensions remain unchanged.
+      constraints:
+        - One bounded B repair of the existing integration; no new Electronics or Robotics feature,
+          milestone, physics acceptance or E1 completion.
+        - Preserve all 17/8/6 control counts, exactly one Duplicate, full captions, hit ownership,
+          icon/text/clipping/native-menu assertions, test budgets and timeouts.
+        - Preserve global header, Save/avatar, right controls, inspector, catalogue and mobile layout.
+        - No Worker, clock authority, engine, model, program, persistence, schema, API or asset changes.
+        - No production/test/generated/workflow edits during registration; runtime CSS is a later
+          separately assigned author slice followed by independent exact-SHA review.
+        - No D2-R2 checkout/index/ref/runtime writes, protected dirty test or 148 evidence-file writes;
+          no new server, database, Docker restart or deployment claim.
+        - Do not chase unrelated main movement or resolve integration conflicts automatically.
+      context_hints:
+        - docs/product/electronics/START_HERE.md
+        - docs/product/electronics/COMPONENT_MAP.yaml
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TOOLBAR-FIT-001.md
+      gate_boundary: >-
+        Exact-path preflight and plan verification, Electronics selected-task
+        validation, applicable CSS formatting and source identity checks; complete
+        all four existing compact desktop/blocks scenarios and their later width,
+        running/stopped and native-menu observations in the exact-candidate
+        Electronics R4-M1 s3 browser gate. Required integration CI and independent
+        review remain mandatory; registration and green unrelated gates are not
+        runtime acceptance or deployment.
+      deployment: none
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 7dc9f693755347340be1efff079f1f0c866854a8
+      head_sha: null
+      observed_at: '2026-11-13T02:28:15.084Z'
+      main:
+        branch: main
+        sha: 7dc9f693755347340be1efff079f1f0c866854a8
+      observation_note: >-
+        Dated registration snapshot only. PR1098 source
+        9851288759d3637af20a822fd494ce2ae90efd9b remains frozen; this record
+        does not claim runtime convergence, new UI evidence or D2-R2 verification.
+        Fetch main, source refs and exact-SHA checks before the later repair.
+    gates:
+      focused:
+        workflow: Electronics R4-M1
+        commands:
+          - pnpm gate:electronics-m1:browser --shard=3/4 --workers=1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: robotics-camera
     parent_lane: robotics
     worktree_id: field-camera-001
@@ -17435,9 +17754,12 @@ parallel_lanes:
         UI-01/UI-02 only: finite cursor-anchored zoom, mouse and two-touch pan,
         pinch, fit/focus, one world/screen transform and gesture cleanup.
         Source integration additionally preserves the existing PR1044 dependency
-        without adding features. The only new composition repair is removal of
+        without adding features. The initial composition repair is removal of
         the duplicate arduino-stable-loop.ts entry from
         tools/public-electronics-worker-modules.json, preserving the admitted set.
+        The separately selected electronics-robotics-toolbar-fit B dependency
+        permits only the compact desktop toolbar CSS fit correction under its
+        accepted task card; all other product and unfinished E1 boundaries remain.
       constraints:
         - E1 remains selected in the robotics lane with all its unfinished evidence and blockers.
         - No new physics engine, electrical, schema, motor, sensor or program edits beyond preserving the frozen existing PR1044 dependency; no new engine experiments.
@@ -17678,6 +18000,7 @@ parallel_lanes:
         - apps/web/src/App.tsx
         - apps/web/src/pages/CreatorHomePage.tsx
         - apps/web/src/pages/LearningPage.tsx
+        - apps/web/src/pages/AttendedClassesPage.tsx
         - apps/web/src/creator-portal/PersonalProgress.tsx
         - apps/web/src/creator-portal/personal-progress.ts
         - apps/web/src/creator-portal/personal-progress.css
@@ -17686,13 +18009,15 @@ parallel_lanes:
         - apps/web/src/pages/testing/CreatorHomePage.spec.ts
         - apps/web/src/pages/testing/LearningPage.spec.ts
         - e2e/public-projects.spec.ts
+        - e2e/student-project-policy.spec.ts
       constraints:
-        - Inherit this selection from accepted main. The product author must not edit current.yaml, select its own task, expand these 11 paths or begin before the activation condition is met.
+        - Inherit this selection from accepted main. The product author must not edit current.yaml, select its own task, expand these 13 paths or begin before the activation condition is met.
         - Recheck the exact accepted SP-02 DTO exports and endpoint semantics before implementation. Import the accepted DTO through the local adapter; do not duplicate a wire contract, invent counters or aggregate a partially loaded catalogue.
         - 'App passes only an own presentation descriptor: Account kind/accountId/displayName, or Seat kind/seatId/classroomId/displayName/avatarKey. Preserve RawApp ClassroomStudentSession.student.avatarKey through studentSessionPayload. The descriptor is neither a wire DTO nor authorization proof.'
         - Account avatars retain existing api.accountAvatar, event and fallback behavior. Seat avatars use seatAvatar(rawSeatId, avatarKey) and never invoke the Account avatar API for a Seat.
         - The local hook clears, aborts and generation-checks by actor, scope, workspace/class and session continuity. Logout/relogin with the same ID, revocation and late responses must not restore stale counters or groups.
         - Preserve PresentationProvider, QuickProjectCreator, LearningContext and quiz drafts. Do not edit QuickProjectCreator, the shared PublicProjectCard, PortalHeader or workflows.
+        - Limit AttendedClassesPage.tsx to the existing QuizResponsePlayer for an expanded modern Direct quiz with its exact run; retain the collapsed Открыть тест action. Preserve load/onChanged/registerFileGuard wiring, exclude .quiz-player from row-toggle handling, and exclude quiz activities from generic project Start. Add regression only in the already selected LearningPage.spec.ts and e2e/public-projects.spec.ts. No backend, API, auth, new player implementation, dependency or workflow changes.
         - Home shows at most two own groups; Все группы uses the existing Learning navigation. Learning uses bounded pagination. No period selector, polling, per-profile loads, peer feed or unbounded group requests.
         - 'Render canonical group score/rank/period faithfully: unknown or null is not zero, fractional values remain valid, ambiguous own membership is unavailable. Global rating remains not_enabled and that state alone is not partial; no invented global score or new scoring formula.'
         - Use the agreed compact own-avatar presentation with overlaid place and rating badges and no denominator. Keep the established serious shared shell and separate loading, empty, partial, error, disabled and long-content states.
@@ -17702,9 +18027,30 @@ parallel_lanes:
         - Use existing actionable state for one next learning action; do not create fictional assignments or promise a precise score increase. No new rating ledger, access thresholds, teacher controls, peers or backend work.
         - Component tests cover the accepted data states and session lifecycle in the three planned executed .spec.ts files. The existing home-workspace.spec.ts is not an executed CI test and must not be cited as coverage.
         - 'Add real browser evidence to existing e2e/public-projects.spec.ts, which Publication executes: Seat, Account with at least three groups, independent Account, third-group Learning access, empty and module failures, error/null/zero/fractional/ambiguous data, avatar fallback, auth switches and idempotent creation.'
+        - Limit e2e/student-project-policy.spec.ts to one permanent shell-capture case in its existing executed Publication partition with workers 1 and retries 0. Use actual Account and Seat fixtures with the existing educator/classroom/Seat UI join, Home and Learning at 1440/1024/390/320, explicit scrollTo(0, 0) and scrollY=0 assertion, controlled focus, header/sidebar/focus rectangles, menu state and PNGs with explicit mobile closed/open states. First qualify a test-only source from accepted pre-UI main for before evidence, then include the same case in final SP03 for after evidence. Bind both runs to their actual sources; no mocked DTO/HTML, unverified baseline, new workflow/dependency or local runtime.
         - Verify Home and Learning at 1440/1024/390/320 with independent actual-image review. Compare header/sidebar before and after at confirmed scrollY=0 and verify viewport/focus rectangles; preserve primary actions and keyboard/touch/wheel interaction.
         - Required General, real Publication PostgreSQL/browser, applicable existing workflow routes and independent source/runtime/image review must bind to the actual final SP-03 source. Source-only or cached results do not grant visual acceptance.
         - No new migrations, dependencies, workflow changes, local server stacks, deployment, live database operations, owner acceptance or changes to unrelated lanes/blockers. The programme remains sequential; SP-04 requires its own controller selection.
+      controller_scope_amendment:
+        proposed_at_utc: '2026-11-12T23:43:03.582Z'
+        decision: Genuine programme-controller amendment under the existing owner instruction to fix and integrate the programme into main, separate from the product authors. Preserve the original eleven paths and add only the two paths listed here; no SP04 selection or CRM source repair is included.
+        accepted_main_sha: aea927fcedf66b9f3bec7bae436508e80f043ffa
+        previous_planned_path_count: 11
+        proposed_planned_path_count: 13
+        added_paths:
+          - apps/web/src/pages/AttendedClassesPage.tsx
+          - e2e/student-project-policy.spec.ts
+        activation_condition: The original eleven accepted SP03 paths remain authorized. The two additional paths become writable only after this exact combined controller proposal receives required exact-source CI and independent review and is accepted on main. This branch does not authorize its own product execution; product authors remain stopped on the additional paths until canonical acceptance.
+        account_quiz_reason: The existing Account modern Direct quiz route needs the existing QuizResponsePlayer and exact-run interaction in AttendedClassesPage; the bounded constraint above preserves the shared player and existing learning lifecycle rather than creating another player or project start path.
+        shell_evidence_reason: Independent inspection of authentic cb15 artifact13987108786 found Home captures after scrollIntoView without confirmed scrollY=0 or focus receipts, and no Learning shell baseline. Those images remain partial historical references, not mandatory before/after acceptance.
+        inspected_baseline_source: cb15c700253f26bf276ad69d5e45ca27c2306787
+        inspected_baseline_artifact: 13987108786
+        inspected_baseline_archive_sha256: 1610eea00210974c55aa8eff7646a284fa224861c48bca897ca7f2b5fe0476d4
+        historical_registration_evidence: Exact8f435ce9be1cb4251aedd145e0b07856a38705a3 passed General43322475699, ASArequired131563087301, CLA43322475462 and ScratchDocs43322475493 after independent registration approval. These results belong only to that earlier source and do not qualify this new combined candidate or the CRM repair.
+        combined_source_ci: pending_NOT_RUN_at_proposal_time
+        independent_composition_review: pending_for_frozen_candidate
+        new_before_after_shell_evidence: NOT_RUN
+        owner_acceptance: pending
       context_hints:
         - docs/product/student-progress/README.md
         - docs/product/student-progress/tasks/SP-03-PERSONAL-HOME.md
