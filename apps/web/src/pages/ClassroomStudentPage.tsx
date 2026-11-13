@@ -253,6 +253,19 @@ export function ClassroomStudentPage({
       document.removeEventListener('keydown', escape);
     };
   }, [classroomId, learnerPickerOpen, learnerRosterRetry, closeLearnerPicker]);
+  useEffect(() => {
+    if (!learnerPickerOpen || learnerSearch.trim()) return;
+    const current = learnerPicker.current?.querySelector<HTMLButtonElement>(
+      'button[aria-current="page"]',
+    );
+    const list = current?.closest('ul');
+    if (!current || !list) return;
+    const itemBounds = current.getBoundingClientRect();
+    const listBounds = list.getBoundingClientRect();
+    if (itemBounds.top < listBounds.top) list.scrollTop += itemBounds.top - listBounds.top;
+    else if (itemBounds.bottom > listBounds.bottom)
+      list.scrollTop += itemBounds.bottom - listBounds.bottom;
+  }, [learnerPickerOpen, learnerRoster, learnerSearch, seatId]);
   const load = useCallback(async () => {
     if (sessionEnded.current || scope.current !== `${classroomId}:${seatId}`) return;
     const token = ++profileGeneration.current;
