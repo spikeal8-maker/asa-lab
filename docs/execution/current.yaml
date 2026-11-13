@@ -17863,11 +17863,19 @@ parallel_lanes:
           camera/editor source changes into E1.
         - Focused self-review is not independent review. No physical precision, weak-school-PC
           performance or deployment acceptance without corresponding evidence.
+        - Spec v1.2 requires the same real assembled circuit, shared Arduino/solver/mechanics/clock in
+          simple and advanced editing modes. D02 is prerequisite for product rollout of both modes;
+          E1 stays TEST_ONLY, without mode integration or a newly selected product task.
+        - Historical replay resolves recorded spec version/hash via archived v1.1 or its immutable
+          base commit/path in spec section 20.4. Preserve frozen fixtures/raw/hash manifests. A hardcoded
+          canonical-path mismatch is specification-resolution compatibility, not physical FAIL; use a
+          separate bounded adapter and do not restart the active experiment for this docs update.
       context_hints:
         - docs/product/robotics/FIELD_CORE_START.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
         - docs/product/robotics/FIELD_CORE_SPEC.md
         - docs/product/robotics/FIELD_CORE_SPEC_REVIEW.md
+        - docs/product/robotics/FIELD_CORE_SPEC_1_2_CHANGELOG.md
         - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
       gate_boundary: "Registration: scoped preflight, exact doc/trace hashes, control-plane and
         governance, applicable protected CI. E1: reproduce exact qualification commands and raw
@@ -17967,6 +17975,92 @@ parallel_lanes:
       preserved_source_pr: 1044
       preserved_source_sha: 47ac27e9cca6cb1e28b99637453cc935cba071b5
 
+  - id: robotics-field-dock
+    parent_lane: robotics
+    worktree_id: robotics-field-dock-001
+    owned_paths:
+    - e2e/robotics-field-dock.spec.ts
+    task:
+      id: TASK-ROBOTICS-FIELD-DOCK-001
+      owner_task: ROBOTICS-FIELD-DOCK-001
+      issue: 1138
+      parent_issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      checkpoint: ui_only_e4_dock_registration_accepted
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E4
+      profile: UI_ONLY
+      owner_authorization: 'The owner explicitly assigned ROBOTICS-FIELD-DOCK-DELIVERY-001 on 2026-11-13: after accepting
+        specification v1.2 and camera integration, replace only the floating field object inspector with a right dock
+        using existing properties, tools and validation. Use author/reviewer/integrator in sequence, real isolated
+        project API evidence and ordinary protected merge to main. Owner permits no physics, electronics, API/database,
+        deployment or unrelated UI rewrite. Existing protected D2-R2 checkout may not be reset/cleaned.'
+      planned_paths:
+      - apps/web/src/robotics/RobotFieldEditor.tsx
+      - apps/web/src/robotics/robotics.css
+      - apps/web/src/robotics/testing/robotics-field-dock.spec.ts
+      - e2e/robotics-field-dock.spec.ts
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/Projects/asa-lab-field-dock-001
+          branch: codex/robotics-field-dock-001
+        peer:
+          worktree: C:/Users/spike/Projects/asa-lab-robotics-fast-dev-001
+          branch: codex/robotics-fast-dev-001
+          head: d4ed560647e9f7f38724f202168d88a6ad29ec42
+          path_sha256:
+            apps/web/src/robotics/RobotFieldEditor.tsx: f62b4d97bd0573667aeec8bd0c3fb829b59ed113cf318bb94f01aee0cf5a77f8
+            apps/web/src/robotics/robotics.css: de066252f3bbdff0ebe5df9fc3bb7aa13020e48f64f63c131b72fb15d75d38c3
+        paths:
+        - apps/web/src/robotics/RobotFieldEditor.tsx
+        - apps/web/src/robotics/robotics.css
+      scope: 'UI_ONLY E4 dock of existing Robotics field object inspector: single right panel 300 CSS px with Objects/Properties/Field
+        tabs; on selection show existing RobotObjectInspector; reuse current field settings/catalog and onCommit/Undo/Redo,
+        keep camera pan/zoom unchanged. At widths below 1280 use a controlled drawer, never a second permanent column;
+        under 1024 drawer is mandatory. No new physics or programming modes.'
+      constraints:
+      - Keep current E1/D01/D02 selected and blocked; do not claim physics or rollout.
+      - Preserve original D2-R2:4630 checkout, dirty e2e/robotics-projects.spec.ts and 148 evidence files.
+      - Do not run reset --hard, clean -fd, force-push or restart Docker/PostgreSQL.
+      - No change to engine, Arduino, netlist, Worker, time, schema, API, DB, global header or publications.
+      - Existing validation/history/persistence must remain, with no duplicated inspector state.
+      - Panel never overlays selected object on >=1280 desktops; at smaller sizes the drawer has a visible close action.
+      - Run browser checks with real isolated API, screenshots and independent final-SHA review before merge.
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      gate_boundary: Scoped preflight exact planned paths, unit/typing/format, real Web/API browser UI/Save/reopen,
+        independent source and runtime review, mandatory required CI on final SHA; ordinary merge and post-merge check.
+      deployment: existing_4630_ui_hmr_only
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: ae26ce4fd20a37d16f3c4f52bc5b2854f2107311
+      head_sha: null
+      observed_at: '2026-11-13T21:42:08.153Z'
+      main:
+        branch: main
+        sha: ae26ce4fd20a37d16f3c4f52bc5b2854f2107311
+      observation_note: Dated registration snapshot; fetch main freshly before any product writes and recheck HEAD, paths, and peer hashes. Not
+        physics acceptance.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm test:robotics
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+
   - id: student-progress
     worktree_id: student-progress-1090
     owned_paths:
@@ -18011,6 +18105,11 @@ parallel_lanes:
         - apps/web/src/pages/testing/LearningPage.spec.ts
         - e2e/public-projects.spec.ts
         - docs/product/student-progress/tasks/SP-04-GROUP-RATING.md
+        - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
+        - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+        - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+        - tests/portal/personal-progress.pg.spec.ts
+        - tests/portal/personal-progress.http.pg.spec.ts
       constraints:
         - 'Use existing classroom_participant_metrics as the only scoring formula; preserve rank semantics and 7/30/90-day periods. Rounded equal scores share places.'
         - 'Authorise using authenticated Account/Seat context, recheck membership and tenant at restricted PostgreSQL role, and never expose teacher roster, names, student codes, grades or peer private IDs.'
@@ -18033,6 +18132,15 @@ parallel_lanes:
       database_actions: isolated_tests_only
       next_eligible_step: SP-04
       next_step_selected: true
+      controller_test_path_amendment_2026_11_14:
+        kind: test_scope_only
+        parent_programme: SP04-FULL-DELIVERY-001
+        original_path_count: 14
+        updated_path_count: 19
+        source_main: cbaab42ebb68d90ee7e0fec3ca5d48475fab55a7
+        reason: 'New forward-only migration 0322 legitimately extends versioned full-plan fixtures. Update explicit expected migration suffixes only; preserve negative upgrade/retained-data checks and add real limited-role SQL/HTTP group rating fixtures.'
+        constraints: 'No test deletions, skips, threshold relaxations, changes to old migrations, production DB or unrelated modules. Product branch inherits the accepted amendment from main.'
+        activation: 'Use these five additional paths only after this controller amendment is accepted in main with required CI and separate read-only review.'
     sp03_accepted_task_snapshot_2026_11_13:
       id: TASK-STUDENT-PROGRESS-HOME-001
       issue: 1090

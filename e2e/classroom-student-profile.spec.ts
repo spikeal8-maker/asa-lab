@@ -1885,7 +1885,14 @@ test('UI-04: games policy is lazy, Seat-bound, and guards unsaved edits', async 
   await expect(access).toHaveValue('deny');
 
   await region.getByRole('button', { name: 'Сохранить доступ' }).click();
-  await expect(region.getByRole('status')).toContainText('Доступ к играм сохранён.');
+  const gamesFeedback = page.locator('.system-feedback-ribbon.system-feedback-success');
+  await expect(gamesFeedback).toHaveCount(1);
+  await expect(gamesFeedback).toBeVisible();
+  await expect(gamesFeedback).toContainText('Доступ к играм сохранён.');
+  const gamesAnnouncement = page.locator('.system-feedback-announcement[role="status"]');
+  await expect(gamesAnnouncement).toHaveCount(1);
+  await expect(gamesAnnouncement).toContainText('Доступ к играм сохранён.');
+  await expect(region.getByText('Доступ к играм сохранён.', { exact: true })).toHaveCount(0);
   expect(writes).toEqual([{ seat: 'seat-0', override: 'deny', expectedVersion: 1 }]);
   await openTeacherTab(page, 'activity');
   await expect(region).toHaveCount(0);

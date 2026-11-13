@@ -13,6 +13,7 @@ import { ClassroomMetrics, useClassroomMetrics } from '../components/ClassroomMe
 import { StudentCodeButton } from '../components/StudentCodeButton';
 import { useClassroomFeedback } from '../components/useClassroomFeedback';
 import { SystemToastViewport } from '../components/SystemToastViewport';
+import { ClassroomActionFeedbackProvider } from '../components/ClassroomActionFeedback';
 import { ClassroomStudentProjects } from '../components/ClassroomStudentProjects';
 import { ClassroomStudentHistory } from '../components/ClassroomStudentHistory';
 import { ClassroomLearning } from '../components/ClassroomLearning';
@@ -824,7 +825,7 @@ function ClassroomPageContent({
   const archived = classroom.status === 'archived';
 
   return (
-    <>
+    <ClassroomActionFeedbackProvider value={feedback}>
       <SystemToastViewport scopeKey={feedback.scopeKey} />
       <main
         id={openStudent === null ? 'main-content' : undefined}
@@ -1945,7 +1946,7 @@ function ClassroomPageContent({
           onOpenProject={(projectId, moduleKey) => onOpenProject(projectId, moduleKey, openStudent)}
         />
       ) : null}
-    </>
+    </ClassroomActionFeedbackProvider>
   );
 }
 import { ClassroomJoinRequests } from '../components/ClassroomJoinRequests';
