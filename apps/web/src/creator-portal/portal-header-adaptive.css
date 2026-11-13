@@ -57,6 +57,8 @@
   min-height: 44px;
   padding: 0 clamp(5px, 0.6vw, 13px);
   gap: 7px;
+  font-size: 16px;
+  font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
 }
