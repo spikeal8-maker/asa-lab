@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { PersonalProgressSummaryV1, OwnProgressGroupV1 } from '@asa-lab/contracts';
+import type {
+  PersonalProgressSummaryV1,
+  OwnProgressGroupV1,
+  GroupRatingPageV1,
+  GroupRatingAvatarBatchV1,
+  GroupRatingPeerV1,
+} from '@asa-lab/contracts';
 import { api, type ApiResult, type LearnerQuiz, type SeatAssignment } from '../api';
 import { call } from '../api-call';
 import { abortable, lifecycleCancellation } from '../auth-request';
@@ -249,6 +255,325 @@ export function usePersonalProgress(actor: OwnProgressActor) {
     moreError: visible?.error === true,
     loadMore,
   };
+}
+
+const GROUP_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** At most two group reads run concurrently, even with 20 visible groups.
+ * Queued work is removed immediately if the owner/session cancels. */
+let activeGroupReads = 0;
+const queuedGroupReads: Array<() => void> = [];
+function limitedGroupRead<T>(signal: AbortSignal, read: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let started = false;
+    const onAbort = () => {
+      if (started) return;
+      const index = queuedGroupReads.indexOf(start);
+      if (index >= 0) queuedGroupReads.splice(index, 1);
+      signal.removeEventListener('abort', onAbort);
+      reject(lifecycleCancellation());
+    };
+    const start = () => {
+      signal.removeEventListener('abort', onAbort);
+      if (signal.aborted) {
+        reject(lifecycleCancellation());
+        return;
+      }
+      started = true;
+      activeGroupReads += 1;
+      void read()
+        .then(resolve, reject)
+        .finally(() => {
+          activeGroupReads -= 1;
+          queuedGroupReads.shift()?.();
+        });
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (activeGroupReads < 2) start();
+    else queuedGroupReads.push(start);
+  });
+}
+
+export function groupRatingPreviewLimit(width: number): number {
+  if (width <= 380) return 2;
+  if (width <= 520) return 3;
+  return 5;
+}
+
+function groupRatingPath(actor: OwnProgressActor, groupId: string): string {
+  const base =
+    actor.kind === 'account' ? '/api/progress/groups' : '/api/class-join/progress/groups';
+  return base + '/' + encodeURIComponent(groupId);
+}
+
+export function readGroupRating(
+  actor: OwnProgressActor,
+  groupId: string,
+  signal: AbortSignal,
+  view: 'preview' | 'all',
+  options: { readonly limit?: number; readonly cursor?: string } = {},
+): Promise<ApiResult<GroupRatingPageV1>> {
+  const params = new URLSearchParams({ view });
+  if (view === 'preview') params.set('limit', String(options.limit ?? 5));
+  if (view === 'all' && options.cursor) params.set('cursor', options.cursor);
+  const url = groupRatingPath(actor, groupId) + '/rating?' + params.toString();
+  return limitedGroupRead(signal, async () => {
+    const result = await call<GroupRatingPageV1>(url, { signal });
+    if (
+      result.ok &&
+      (result.data.groupId.toLowerCase() !== groupId.toLowerCase() ||
+        !Array.isArray(result.data.peers) ||
+        result.data.peers.some((peer) => peer.isSelf !== false) ||
+        !['7', '30', '90'].includes(String(result.data.periodDays)))
+    )
+      return {
+        ok: false,
+        status: 0,
+        error: { code: 'progress_scope_mismatch', message: 'Контекст рейтинга изменился.' },
+      };
+    return result;
+  });
+}
+
+export function readGroupRatingAvatars(
+  actor: OwnProgressActor,
+  groupId: string,
+  signal: AbortSignal,
+  tickets: readonly string[],
+): Promise<ApiResult<GroupRatingAvatarBatchV1>> {
+  if (tickets.length === 0) return Promise.resolve({ ok: true, status: 200, data: { items: [] } });
+  const url = groupRatingPath(actor, groupId) + '/avatars';
+  return limitedGroupRead(signal, () =>
+    call<GroupRatingAvatarBatchV1>(url, {
+      signal,
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tickets }),
+    }),
+  );
+}
+
+export function useGroupRatingPreview(
+  actor: OwnProgressActor,
+  lifetime: ProgressLifetime,
+  groupId: string,
+  limit: number,
+) {
+  const valid = GROUP_ID.test(groupId);
+  const key = lifetime.key && valid ? lifetime.key + ':group:' + groupId : null;
+  const current = useCallback(() => {
+    const now = lifetime.current();
+    return now && valid ? now + ':group:' + groupId : null;
+  }, [lifetime.current, groupId, valid]);
+  const ratingLifetime = useMemo(() => ({ key, current }), [key, current]);
+  const kind = actor.kind;
+  const accountId = actor.kind === 'account' ? actor.accountId : undefined;
+  const seatId = actor.kind === 'seat' ? actor.seatId : undefined;
+  const read = useCallback(
+    (signal: AbortSignal) => readGroupRating(actor, groupId, signal, 'preview', { limit }),
+    [kind, accountId, seatId, groupId, limit],
+  );
+  const rating = usePersonalRead(ratingLifetime, read, limit);
+  const version = rating.data?.version;
+  const tickets =
+    rating.data?.peers.flatMap((peer) => (peer.avatarTicket ? [peer.avatarTicket] : [])) ?? [];
+  const ticketsKey = tickets.join('|');
+  const avatarKey =
+    key && version && tickets.length > 0 ? key + ':avatars:' + version + ':' + ticketsKey : null;
+  const avatarCurrent = useCallback(() => {
+    const now = current();
+    return now && version && tickets.length > 0
+      ? now + ':avatars:' + version + ':' + ticketsKey
+      : null;
+  }, [current, version, ticketsKey, tickets.length]);
+  const avatarLifetime = useMemo(
+    () => ({ key: avatarKey, current: avatarCurrent }),
+    [avatarKey, avatarCurrent],
+  );
+  const readAvatars = useCallback(
+    (signal: AbortSignal) => readGroupRatingAvatars(actor, groupId, signal, tickets),
+    [kind, accountId, seatId, groupId, ticketsKey],
+  );
+  const avatars = usePersonalRead(avatarLifetime, readAvatars);
+  const imageMap = useMemo(
+    () =>
+      new Map(
+        avatars.data?.items
+          .filter(
+            (item) =>
+              tickets.includes(item.ticket) &&
+              /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(item.dataUrl),
+          )
+          .map((item) => [item.ticket, item.dataUrl] as const) ?? [],
+      ),
+    [avatars.data, ticketsKey],
+  );
+  return { rating, avatars, imageMap };
+}
+
+interface GroupRatingFullState {
+  readonly key: string;
+  readonly groupId: string;
+  readonly page: GroupRatingPageV1 | null;
+  readonly peers: readonly GroupRatingPeerV1[];
+  readonly images: Readonly<Record<string, string>>;
+  readonly nextCursor: string | null;
+  readonly loading: boolean;
+  readonly error: string | null;
+  readonly restarted: boolean;
+}
+
+export function useGroupRatingFull(
+  actor: OwnProgressActor,
+  lifetime: ProgressLifetime,
+  groupId: string,
+) {
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [state, setState] = useState<GroupRatingFullState | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const pending = useRef<AbortController | null>(null);
+  const kind = actor.kind;
+  const accountId = actor.kind === 'account' ? actor.accountId : undefined;
+  const seatId = actor.kind === 'seat' ? actor.seatId : undefined;
+  const active = Boolean(
+    openKey && openKey === lifetime.key && lifetime.current() === openKey && GROUP_ID.test(groupId),
+  );
+  const visible = active && state?.key === openKey && state.groupId === groupId ? state : null;
+  const readPage = useCallback(
+    async (cursor: string | null, fresh: boolean, ownerKey: string) => {
+      if (pending.current || lifetime.current() !== ownerKey) return;
+      const controller = new AbortController();
+      pending.current = controller;
+      setState((old) => ({
+        key: ownerKey,
+        groupId,
+        page: fresh ? null : (old?.page ?? null),
+        peers: fresh ? [] : (old?.peers ?? []),
+        images: fresh ? {} : (old?.images ?? {}),
+        nextCursor: fresh ? null : (old?.nextCursor ?? null),
+        loading: true,
+        error: null,
+        restarted: fresh && cursor !== null,
+      }));
+      try {
+        let result = await readGroupRating(actor, groupId, controller.signal, 'all', {
+          ...(cursor ? { cursor } : {}),
+        });
+        if (cursor && !result.ok && result.status === 409) {
+          fresh = true;
+          setState({
+            key: ownerKey,
+            groupId,
+            page: null,
+            peers: [],
+            images: {},
+            nextCursor: null,
+            loading: true,
+            error: null,
+            restarted: true,
+          });
+          result = await readGroupRating(actor, groupId, controller.signal, 'all');
+        }
+        if (controller.signal.aborted || lifetime.current() !== ownerKey) return;
+        if (!result.ok) {
+          setState((old) =>
+            old?.key === ownerKey
+              ? { ...old, loading: false, error: 'Не удалось загрузить рейтинг группы.' }
+              : old,
+          );
+          return;
+        }
+        const next = result.data;
+        const tickets = next.peers.flatMap((peer) =>
+          peer.avatarTicket ? [peer.avatarTicket] : [],
+        );
+        const avatarResult = await readGroupRatingAvatars(
+          actor,
+          groupId,
+          controller.signal,
+          tickets,
+        );
+        if (controller.signal.aborted || lifetime.current() !== ownerKey) return;
+        const images = avatarResult.ok
+          ? Object.fromEntries(
+              avatarResult.data.items
+                .filter(
+                  (item) =>
+                    tickets.includes(item.ticket) &&
+                    /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(item.dataUrl),
+                )
+                .map((item) => [item.ticket, item.dataUrl]),
+            )
+          : {};
+        setState((old) => {
+          if (old?.key !== ownerKey || old.groupId !== groupId) return old;
+          if (!fresh && old.page?.version !== next.version)
+            return { ...old, loading: false, error: 'Рейтинг обновился. Повторите загрузку.' };
+          const prior = fresh ? [] : old.peers;
+          const used = new Set(prior.map((peer) => peer.peerKey));
+          if (next.peers.some((peer) => used.has(peer.peerKey)))
+            return { ...old, loading: false, error: 'Рейтинг изменился. Начните заново.' };
+          return {
+            key: ownerKey,
+            groupId,
+            page: next,
+            peers: [...prior, ...next.peers],
+            images: { ...(fresh ? {} : old.images), ...images },
+            nextCursor: next.nextCursor,
+            loading: false,
+            error: avatarResult.ok ? null : 'Некоторые аватары недоступны.',
+            restarted: fresh && cursor !== null,
+          };
+        });
+      } catch {
+        if (!controller.signal.aborted && lifetime.current() === ownerKey)
+          setState((old) =>
+            old?.key === ownerKey
+              ? { ...old, loading: false, error: 'Не удалось загрузить рейтинг группы.' }
+              : old,
+          );
+      } finally {
+        if (pending.current === controller) pending.current = null;
+      }
+    },
+    [kind, accountId, seatId, groupId, lifetime.current],
+  );
+
+  useEffect(() => {
+    if (!active || !openKey) return;
+    void readPage(null, true, openKey);
+    return () => {
+      pending.current?.abort(lifecycleCancellation());
+      pending.current = null;
+    };
+  }, [active, openKey, attempt, readPage]);
+
+  const open = () => {
+    const now = lifetime.key;
+    if (now && lifetime.current() === now && GROUP_ID.test(groupId)) {
+      setState(null);
+      setOpenKey(now);
+      setAttempt((n) => n + 1);
+    }
+  };
+  const close = () => {
+    pending.current?.abort(lifecycleCancellation());
+    pending.current = null;
+    setOpenKey(null);
+    setState(null);
+  };
+  const loadMore = () => {
+    if (visible && !visible.loading && visible.nextCursor && openKey)
+      void readPage(visible.nextCursor, false, openKey);
+  };
+  const retry = () => {
+    if (active) {
+      pending.current?.abort(lifecycleCancellation());
+      pending.current = null;
+      setAttempt((n) => n + 1);
+    }
+  };
+  return { opened: active, state: visible, open, close, loadMore, retry };
 }
 
 export function useOwnAvatar(actor: OwnProgressActor, lifetime: ProgressLifetime) {

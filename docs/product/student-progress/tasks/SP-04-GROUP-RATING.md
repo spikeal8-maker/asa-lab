@@ -26,3 +26,41 @@ Own слева крупнее, тонкий разделитель; peers по s
 ## Выход
 
 Лента подключена к главной и обучению; реальный ученический API даёт только разрешённые поля. Выдача всего staff DTO с последующим скрытием имён CSS не принимается.
+
+
+## SP-04 — реализуемые API-контракты и границы проверки
+
+Сервер использует новые отдельные learner-safe маршруты, а не преподавательский roster:
+
+- `GET /api/progress/groups/:groupId/rating?view=preview&limit=1..5` — Account.
+- `GET /api/class-join/progress/groups/:groupId/rating?view=preview&limit=1..5` — StudentSeat.
+- Оба GET с `view=all` и `cursor` — постраничная выдача до 20 peers.
+- `POST /api/progress/groups/:groupId/avatars` и `POST /api/class-join/progress/groups/:groupId/avatars`, тело `{"tickets":[...]}` — авторизованная пакетная выдача изображений, не более 20 элементов.
+- Все ответы `Cache-Control: private, no-store`. Ни одна сессия не передаётся через URL.
+
+Публичная DTO `GroupRatingPageV1` содержит только `groupId`, `periodDays`, `asOf`, `version`,
+`own`, до 20 `peers` (opaque `peerKey`, `avatarSrc`, encrypted `avatarTicket`,
+`score`, `rank`, `isSelf:false`), `hasMore`, `nextCursor`. Внешний DTO не содержит
+`seatId`, `avatarId`, имён, Student Code, ведомости, персональных оценок,
+teacher roster, чужих проектов и идентификаторов tenant/Account.
+
+Приватный SQL `personal_progress_group_rating` переиспользует
+`classroom_participant_metrics` из 0209, серверную нормализацию score
+и ранжирование SQL `rank()`. SQL возвращает ограниченный внутренний срез
+с seat UUID только серверу; публичная DTO явно конструируется API.
+`personal_progress_group_member` проверяет действующую сессию и актуальное
+связанное членство для каждого запроса. Защищённое изображение возвращается
+только через POST с аутентифицированным зашифрованным билетом;
+фактические пиксели повторно проверяются с SQL application role.
+
+Курсор является AEAD-билетом сессии и содержит группу, версию расчёта,
+позицию и вторичный seat UUID исключительно в зашифрованном виде. При
+несовместимой версии API возвращает `409 progress_rating_stale`, клиент
+сбрасывает старые страницы и повторно начинает выдачу. Лента Home/Learning
+использует `ProgressLifetime`, abort и ограничение двух параллельных
+групповых чтений, не загружая весь roster. На узких экранах серверный
+`limit` уменьшает сам объём данных, а не скрывает их CSS.
+
+Эта запись определяет реализуемый контракт, а не факт окончательной
+приёмки. Итоговые SQL/RLS, реальные браузерные скриншоты, независимое
+заключение и exact-SHA CI должны пройти прежде, чем SP-04 получит `done`.

@@ -309,3 +309,204 @@
     gap: 0 10px;
   }
 }
+
+/* SP-04: one learner-safe compact ranking strip; no full roster hidden by CSS. */
+.personal-progress-group > header {
+  align-items: center;
+}
+.personal-progress-group > header > h3 {
+  flex: 1 1 0;
+}
+.personal-progress-all {
+  flex: 0 0 auto;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--asa-cyan-700, #0877b3);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+.personal-progress-all:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.personal-progress-group-retry {
+  justify-self: start;
+  min-height: 44px;
+}
+.personal-progress-peer-divider {
+  flex: 0 0 1px;
+  min-height: 52px;
+  align-self: center;
+  background: var(--asa-slate-200, #dce5eb);
+}
+.personal-progress-peers {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  min-width: 0;
+}
+.personal-progress-peer {
+  display: grid;
+  flex: 0 0 70px;
+  width: 70px;
+  min-width: 0;
+  justify-items: center;
+  padding: 7px 1px 4px;
+}
+.personal-progress-peer-avatar {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--asa-slate-100, #eef3f6);
+}
+.personal-progress-peer-avatar img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.personal-progress-rating-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1600;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  background: rgb(5 21 33 / 65%);
+}
+.personal-progress-rating-dialog {
+  display: grid;
+  gap: 10px;
+  width: min(800px, 100%);
+  max-width: 100%;
+  max-height: min(90vh, 850px);
+  min-width: 0;
+  overflow: hidden;
+  padding: 14px 16px;
+  border: 1px solid var(--asa-slate-200, #dce5eb);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--text, #1e3545);
+  box-shadow: 0 16px 45px rgb(0 0 0 / 22%);
+}
+.personal-progress-rating-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.personal-progress-rating-title h3 {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+.personal-progress-rating-title > span {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--ink-muted, #526779);
+}
+.personal-progress-rating-title button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid var(--asa-slate-200, #dce5eb);
+  background: var(--surface, #fff);
+  color: inherit;
+  cursor: pointer;
+}
+.personal-progress-rating-body {
+  display: flex;
+  gap: 15px;
+  min-width: 0;
+  overflow: hidden;
+}
+.personal-progress-rating-pinned {
+  display: flex;
+  flex: 0 0 94px;
+  align-items: start;
+  justify-content: center;
+  border-right: 1px solid var(--asa-slate-200, #dce5eb);
+}
+.personal-progress-rating-scroll {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 60vh;
+  padding: 5px;
+}
+.personal-progress-rating-scroll p {
+  margin: 6px 0;
+  font-size: 13px;
+}
+.personal-progress-rating-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.personal-progress-rating-next,
+.personal-progress-rating-scroll [role='alert'] button {
+  margin-top: 8px;
+  min-height: 44px;
+}
+@container (max-width: 520px) {
+  .personal-progress-peer {
+    flex-basis: 57px;
+    width: 57px;
+    padding: 8px 1px 4px;
+  }
+  .personal-progress-peer-avatar {
+    width: 36px;
+    height: 36px;
+  }
+  .personal-progress-peer-divider {
+    min-height: 42px;
+  }
+  .personal-progress-peers {
+    gap: 4px;
+  }
+  .personal-progress-rating-pinned {
+    flex-basis: 77px;
+  }
+}
+@container (max-width: 380px) {
+  .personal-progress-peer {
+    flex-basis: 55px;
+    width: 55px;
+  }
+  .personal-progress-peer-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .personal-progress-peers {
+    gap: 2px;
+  }
+  .personal-progress-peer-divider {
+    min-height: 36px;
+  }
+  .personal-progress-rating-title {
+    flex-wrap: wrap;
+  }
+  .personal-progress-rating-pinned {
+    flex-basis: 64px;
+  }
+}
