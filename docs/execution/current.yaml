@@ -4632,6 +4632,72 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
+  - id: crm-acquisition-ci-baseline
+    parent_lane: admin-auth
+    worktree_id: crm-acquisition-fixture-isolation
+    owned_paths:
+      - docs/execution/CRM_ACQUISITION_FIXTURE_ISOLATION.md
+    task:
+      id: TASK-CRM-ACQUISITION-FIXTURE-ISOLATION-001
+      issue: 1110
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      kind: repair
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: controller_registration_before_one_file_fixture_repair
+      owner_acceptance: pending
+      classification: C_independent_baseline
+      related_issues: [808, 1090]
+      context_hints:
+        - docs/execution/CRM_ACQUISITION_FIXTURE_ISOLATION.md
+      scope: Isolate the existing platform-catalog assertion to the target Account in tests/admin/crm-acquisition.pg.spec.ts. Preserve every existing case and lineage assertion; no production or database contract changes.
+      planned_paths:
+        - tests/admin/crm-acquisition.pg.spec.ts
+      path_coordination: Preserve existing admin-auth tests/admin/** ownership. This lane owns only its task note for compatibility; its explicit one-file source plan above remains the full repair scope under AGENTS direct_main. Before source writes, preflight that exact test path and verify actual worktree overlap; no other checkout or task is transferred.
+      owner_authorization: On 2026-11-12 the programme controller selected this separate Class C prerequisite under the owner's instruction to fix the programme and integrate reviewed results into main. This controller registration preserves the active student-progress SP03 selection and every existing task; it grants no deployment or live database authority.
+      activation_condition: This proposal has no source execution authority while present only on the registration branch. Begin the one-file fixture repair only after this registration is accepted on main with required checks and independent review. Product branches inherit the accepted selection and must not select themselves.
+      constraints:
+        - Resolve the target Account row before the platform query, strictly guard its nonempty unique fixture email, call catalog(owner.principal_id, 'platform', null, {}, row.email), and assert the exact returned Account identity while retaining private-account visibility coverage.
+        - Preserve all five cases, the 5000ms deadline, organization/class positive and negative lineage assertions, private-account visibility, scalar CSV facts, registration-source semantics, teacher 403, wrong-class 403 and archived-class 403.
+        - No SQL, migration, production API/frontend, test configuration, workflow, dependency, lockfile, timeout, retry, skip or other-test changes. Keep this separate from student-progress source and do not select its next stage.
+        - Require independent exact-source review and fresh natural General/ASA required with all five CRM cases, full Data and actually executed standalone RLS before source integration. Classify any other failure without expanding scope or blindly rerunning unchanged code.
+      evidence_snapshot:
+        observed_at_utc: '2026-11-12T22:28:59Z'
+        source_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+        general_run_id: 43313764162
+        data_job_id: 131521411013
+        ci_result: General FAILURE; the case at tests/admin/crm-acquisition.pg.spec.ts:154 timed out at 5007ms against 5000ms. CRM has 4 PASS and 1 FAIL; full Data has 10876 PASS, 1 FAIL and 22 SKIP. Standalone test:rls was NOT_RUN.
+        source_boundary: Independent read-only diagnosis found identical CRM test, configuration and helper blobs on accepted cb15 and green source 4dc1de45b13cb8f7e1d78cabccb080bf84710bda, where this case passed in 943ms. Historical query phase, JIT, locks and infrastructure cause were not measured.
+        fixture_dependency: The existing unfiltered catalog(owner.principal_id) depends on shared platform fixture population while the assertion needs one newly created target Account. A filtered target query is the bounded isolation repair; its runtime result remains unverified.
+        historical_boundary: Issue808 reports an earlier timeout in the same case; no common historical cause or resolution is claimed.
+        detailed_evidence: https://github.com/spikeal8-maker/asa-lab/issues/1110
+      gate_boundary: Registration requires the complete two-file metadata plan, preservation of all prior state, full governance, independent review and required GitHub checks before main. Registration acceptance is not repair completion; keep Issue1110 active for the later source repair and its actual evidence.
+      source_implementation: not_started
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+      head_sha: null
+      observed_at: '2026-11-12T22:28:59Z'
+      main:
+        branch: main
+        sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+      observation_note: Dated controller registration proposal only, not fixture implementation or acceptance. Fetch main and inspect exact task, branch, CI and overlaps before writes. Preserve every previous lane, blocker, history and gate, including active SP03 and completed geometry baseline. Issue808 remains historical context with unknown root cause.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:data
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
   - id: admin-auth
     worktree_id: admin-auth-main
     owned_paths:
@@ -17744,6 +17810,7 @@ parallel_lanes:
         - apps/web/src/App.tsx
         - apps/web/src/pages/CreatorHomePage.tsx
         - apps/web/src/pages/LearningPage.tsx
+        - apps/web/src/pages/AttendedClassesPage.tsx
         - apps/web/src/creator-portal/PersonalProgress.tsx
         - apps/web/src/creator-portal/personal-progress.ts
         - apps/web/src/creator-portal/personal-progress.css
@@ -17752,13 +17819,15 @@ parallel_lanes:
         - apps/web/src/pages/testing/CreatorHomePage.spec.ts
         - apps/web/src/pages/testing/LearningPage.spec.ts
         - e2e/public-projects.spec.ts
+        - e2e/student-project-policy.spec.ts
       constraints:
-        - Inherit this selection from accepted main. The product author must not edit current.yaml, select its own task, expand these 11 paths or begin before the activation condition is met.
+        - Inherit this selection from accepted main. The product author must not edit current.yaml, select its own task, expand these 13 paths or begin before the activation condition is met.
         - Recheck the exact accepted SP-02 DTO exports and endpoint semantics before implementation. Import the accepted DTO through the local adapter; do not duplicate a wire contract, invent counters or aggregate a partially loaded catalogue.
         - 'App passes only an own presentation descriptor: Account kind/accountId/displayName, or Seat kind/seatId/classroomId/displayName/avatarKey. Preserve RawApp ClassroomStudentSession.student.avatarKey through studentSessionPayload. The descriptor is neither a wire DTO nor authorization proof.'
         - Account avatars retain existing api.accountAvatar, event and fallback behavior. Seat avatars use seatAvatar(rawSeatId, avatarKey) and never invoke the Account avatar API for a Seat.
         - The local hook clears, aborts and generation-checks by actor, scope, workspace/class and session continuity. Logout/relogin with the same ID, revocation and late responses must not restore stale counters or groups.
         - Preserve PresentationProvider, QuickProjectCreator, LearningContext and quiz drafts. Do not edit QuickProjectCreator, the shared PublicProjectCard, PortalHeader or workflows.
+        - Limit AttendedClassesPage.tsx to the existing QuizResponsePlayer for an expanded modern Direct quiz with its exact run; retain the collapsed Открыть тест action. Preserve load/onChanged/registerFileGuard wiring, exclude .quiz-player from row-toggle handling, and exclude quiz activities from generic project Start. Add regression only in the already selected LearningPage.spec.ts and e2e/public-projects.spec.ts. No backend, API, auth, new player implementation, dependency or workflow changes.
         - Home shows at most two own groups; Все группы uses the existing Learning navigation. Learning uses bounded pagination. No period selector, polling, per-profile loads, peer feed or unbounded group requests.
         - 'Render canonical group score/rank/period faithfully: unknown or null is not zero, fractional values remain valid, ambiguous own membership is unavailable. Global rating remains not_enabled and that state alone is not partial; no invented global score or new scoring formula.'
         - Use the agreed compact own-avatar presentation with overlaid place and rating badges and no denominator. Keep the established serious shared shell and separate loading, empty, partial, error, disabled and long-content states.
@@ -17768,9 +17837,30 @@ parallel_lanes:
         - Use existing actionable state for one next learning action; do not create fictional assignments or promise a precise score increase. No new rating ledger, access thresholds, teacher controls, peers or backend work.
         - Component tests cover the accepted data states and session lifecycle in the three planned executed .spec.ts files. The existing home-workspace.spec.ts is not an executed CI test and must not be cited as coverage.
         - 'Add real browser evidence to existing e2e/public-projects.spec.ts, which Publication executes: Seat, Account with at least three groups, independent Account, third-group Learning access, empty and module failures, error/null/zero/fractional/ambiguous data, avatar fallback, auth switches and idempotent creation.'
+        - Limit e2e/student-project-policy.spec.ts to one permanent shell-capture case in its existing executed Publication partition with workers 1 and retries 0. Use actual Account and Seat fixtures with the existing educator/classroom/Seat UI join, Home and Learning at 1440/1024/390/320, explicit scrollTo(0, 0) and scrollY=0 assertion, controlled focus, header/sidebar/focus rectangles, menu state and PNGs with explicit mobile closed/open states. First qualify a test-only source from accepted pre-UI main for before evidence, then include the same case in final SP03 for after evidence. Bind both runs to their actual sources; no mocked DTO/HTML, unverified baseline, new workflow/dependency or local runtime.
         - Verify Home and Learning at 1440/1024/390/320 with independent actual-image review. Compare header/sidebar before and after at confirmed scrollY=0 and verify viewport/focus rectangles; preserve primary actions and keyboard/touch/wheel interaction.
         - Required General, real Publication PostgreSQL/browser, applicable existing workflow routes and independent source/runtime/image review must bind to the actual final SP-03 source. Source-only or cached results do not grant visual acceptance.
         - No new migrations, dependencies, workflow changes, local server stacks, deployment, live database operations, owner acceptance or changes to unrelated lanes/blockers. The programme remains sequential; SP-04 requires its own controller selection.
+      controller_scope_amendment:
+        proposed_at_utc: '2026-11-12T23:43:03.582Z'
+        decision: Genuine programme-controller amendment under the existing owner instruction to fix and integrate the programme into main, separate from the product authors. Preserve the original eleven paths and add only the two paths listed here; no SP04 selection or CRM source repair is included.
+        accepted_main_sha: aea927fcedf66b9f3bec7bae436508e80f043ffa
+        previous_planned_path_count: 11
+        proposed_planned_path_count: 13
+        added_paths:
+          - apps/web/src/pages/AttendedClassesPage.tsx
+          - e2e/student-project-policy.spec.ts
+        activation_condition: The original eleven accepted SP03 paths remain authorized. The two additional paths become writable only after this exact combined controller proposal receives required exact-source CI and independent review and is accepted on main. This branch does not authorize its own product execution; product authors remain stopped on the additional paths until canonical acceptance.
+        account_quiz_reason: The existing Account modern Direct quiz route needs the existing QuizResponsePlayer and exact-run interaction in AttendedClassesPage; the bounded constraint above preserves the shared player and existing learning lifecycle rather than creating another player or project start path.
+        shell_evidence_reason: Independent inspection of authentic cb15 artifact13987108786 found Home captures after scrollIntoView without confirmed scrollY=0 or focus receipts, and no Learning shell baseline. Those images remain partial historical references, not mandatory before/after acceptance.
+        inspected_baseline_source: cb15c700253f26bf276ad69d5e45ca27c2306787
+        inspected_baseline_artifact: 13987108786
+        inspected_baseline_archive_sha256: 1610eea00210974c55aa8eff7646a284fa224861c48bca897ca7f2b5fe0476d4
+        historical_registration_evidence: Exact8f435ce9be1cb4251aedd145e0b07856a38705a3 passed General43322475699, ASArequired131563087301, CLA43322475462 and ScratchDocs43322475493 after independent registration approval. These results belong only to that earlier source and do not qualify this new combined candidate or the CRM repair.
+        combined_source_ci: pending_NOT_RUN_at_proposal_time
+        independent_composition_review: pending_for_frozen_candidate
+        new_before_after_shell_evidence: NOT_RUN
+        owner_acceptance: pending
       context_hints:
         - docs/product/student-progress/README.md
         - docs/product/student-progress/tasks/SP-03-PERSONAL-HOME.md
