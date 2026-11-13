@@ -283,3 +283,21 @@ production deployment or bulk old-branch cleanup. Existing accepted repairs and
 other work remain intact. This is one production-changing slice after checkpoint
 007. Author reports one final candidate and STOP; controller arranges independent
 review/integration and the requested six-section owner report, then stops the programme.
+
+## Controller final-convergence boundary
+
+Immutable A `8cb82d223f8077d7ecdec22e0e8cf3f4e825c294` received independent
+source and paired full-editor evidence PASS in run43356831692. Exact measurements,
+including slower asynchronous diagnostic arrival and retained outliers, are in
+`evidence/recovery-r10-20261113.md` and its raw-artifact index. Overall acceptance
+remains pending the classified R4 checks and the final candidate.
+
+Accepted main `c76b51e38af94a308b6fe9080d776d6ee6ada4b4` introduces four shared
+compiled UI changes from foreign PR1098. The controller's one final R10 convergence
+preserves them and the foreign toolbar assertions; the hook and fault-test hunks
+merge without conflict. Re-run the addressed/M1 checks and existing CI on the
+immutable combined source. Repeat the same paired protocol with c76 before that
+source, because the A recording cannot stand in for changed compiled UI. No
+new task, runtime redesign, tolerance change or production action is selected.
+After the required evidence and independent final review, publish/integrate the
+bounded result and STOP. R11 remains unselected.

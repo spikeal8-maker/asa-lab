@@ -5377,12 +5377,15 @@ for (const { mode, segment, widths } of compactControlSegments) {
         }
         expect(observation.headerControls).toHaveLength(
           observation.view.includes('breadboard')
-            ? 16
+            ? 17
             : observation.view.includes('schematic')
               ? 8
               : 6,
         );
         if (observation.view.includes('breadboard')) {
+          expect(
+            observation.headerControls.filter((control) => control.ariaLabel === 'Дублировать'),
+          ).toHaveLength(1);
           expect(
             observation.headerControls.filter(
               (control) => control.ariaLabel === 'Добавить текст на схему',

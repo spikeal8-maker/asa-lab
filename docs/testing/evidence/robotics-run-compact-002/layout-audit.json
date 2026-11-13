@@ -1,0 +1,186 @@
+[
+  {
+    "viewport": 1440,
+    "document": 1440,
+    "header": {
+      "left": 0,
+      "right": 1440,
+      "top": 0,
+      "bottom": 48
+    },
+    "bar": {
+      "left": 1160,
+      "right": 1424,
+      "top": 54,
+      "bottom": 88
+    },
+    "main": {
+      "left": 16,
+      "right": 1112,
+      "top": 54,
+      "bottom": 856
+    },
+    "observation": {
+      "left": 1124,
+      "right": 1424,
+      "top": 97,
+      "bottom": 640
+    },
+    "workspace": {
+      "left": 16,
+      "right": 1424,
+      "top": 54,
+      "bottom": 856
+    },
+    "clock": {
+      "left": 1160,
+      "right": 1248,
+      "top": 55,
+      "bottom": 87
+    },
+    "controls": {
+      "left": 1252,
+      "right": 1424,
+      "top": 55,
+      "bottom": 87
+    }
+  },
+  {
+    "viewport": 1024,
+    "document": 1024,
+    "header": {
+      "left": 0,
+      "right": 1024,
+      "top": 0,
+      "bottom": 48
+    },
+    "bar": {
+      "left": 748,
+      "right": 1012,
+      "top": 54,
+      "bottom": 88
+    },
+    "main": {
+      "left": 12,
+      "right": 742,
+      "top": 54,
+      "bottom": 856
+    },
+    "observation": {
+      "left": 752,
+      "right": 1012,
+      "top": 97,
+      "bottom": 674
+    },
+    "workspace": {
+      "left": 12,
+      "right": 1012,
+      "top": 54,
+      "bottom": 856
+    },
+    "clock": {
+      "left": 748,
+      "right": 836,
+      "top": 55,
+      "bottom": 87
+    },
+    "controls": {
+      "left": 840,
+      "right": 1012,
+      "top": 55,
+      "bottom": 87
+    }
+  },
+  {
+    "viewport": 390,
+    "document": 390,
+    "header": {
+      "left": 0,
+      "right": 390,
+      "top": 0,
+      "bottom": 48
+    },
+    "bar": {
+      "left": 133,
+      "right": 378,
+      "top": 54,
+      "bottom": 86
+    },
+    "main": {
+      "left": 12,
+      "right": 378,
+      "top": 92,
+      "bottom": 666
+    },
+    "observation": {
+      "left": 12,
+      "right": 191,
+      "top": 674,
+      "bottom": 806
+    },
+    "workspace": {
+      "left": 12,
+      "right": 378,
+      "top": 92,
+      "bottom": 806
+    },
+    "clock": {
+      "left": 133,
+      "right": 215,
+      "top": 54,
+      "bottom": 86
+    },
+    "controls": {
+      "left": 219,
+      "right": 378,
+      "top": 54,
+      "bottom": 86
+    }
+  },
+  {
+    "viewport": 320,
+    "document": 320,
+    "header": {
+      "left": 0,
+      "right": 320,
+      "top": 0,
+      "bottom": 48
+    },
+    "bar": {
+      "left": 67,
+      "right": 312,
+      "top": 54,
+      "bottom": 86
+    },
+    "main": {
+      "left": 8,
+      "right": 312,
+      "top": 92,
+      "bottom": 682
+    },
+    "observation": {
+      "left": 8,
+      "right": 156,
+      "top": 690,
+      "bottom": 806
+    },
+    "workspace": {
+      "left": 8,
+      "right": 312,
+      "top": 92,
+      "bottom": 806
+    },
+    "clock": {
+      "left": 67,
+      "right": 149,
+      "top": 54,
+      "bottom": 86
+    },
+    "controls": {
+      "left": 153,
+      "right": 312,
+      "top": 54,
+      "bottom": 86
+    }
+  }
+]

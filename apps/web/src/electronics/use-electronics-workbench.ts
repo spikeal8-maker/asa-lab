@@ -3506,26 +3506,36 @@ export function useElectronicsWorkbenchHost(
     });
   }
 
+  function fitSceneScaled(scale: number): void {
+    const fitted =
+      !document || (document.components.length === 0 && !document.annotations?.length)
+        ? emptyInitialViewport()
+        : (() => {
+            const bounds = sceneBounds(document, true);
+            const rect = stageRef.current?.getBoundingClientRect();
+            return bounds && rect
+              ? fitViewportToScreen(
+                  bounds,
+                  rect,
+                  STAGE_WIDTH,
+                  STAGE_HEIGHT,
+                  MIN_ZOOM,
+                  MAX_ZOOM,
+                  compactWorkbench() ? { left: 64, right: 28, top: 28, bottom: 28 } : 28,
+                )
+              : DEFAULT_VIEWPORT;
+          })();
+    const factor = Number.isFinite(scale) ? clamp(scale, 0.1, 1) : 1;
+    const zoom = clamp(fitted.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+    // Preserve the fitted scene center while reducing apparent component size.
+    applyViewport({
+      zoom,
+      x: fitted.x + STAGE_WIDTH / (2 * fitted.zoom) - STAGE_WIDTH / (2 * zoom),
+      y: fitted.y + STAGE_HEIGHT / (2 * fitted.zoom) - STAGE_HEIGHT / (2 * zoom),
+    });
+  }
   function fitScene(): void {
-    if (!document || (document.components.length === 0 && !document.annotations?.length)) {
-      applyViewport(emptyInitialViewport());
-      return;
-    }
-    const bounds = sceneBounds(document, true);
-    const rect = stageRef.current?.getBoundingClientRect();
-    applyViewport(
-      bounds && rect
-        ? fitViewportToScreen(
-            bounds,
-            rect,
-            STAGE_WIDTH,
-            STAGE_HEIGHT,
-            MIN_ZOOM,
-            MAX_ZOOM,
-            compactWorkbench() ? { left: 64, right: 28, top: 28, bottom: 28 } : 28,
-          )
-        : DEFAULT_VIEWPORT,
-    );
+    fitSceneScaled(1);
   }
 
   function nudgeSelection(dx: number, dy: number): void {
@@ -3920,6 +3930,7 @@ export function useElectronicsWorkbenchHost(
     handleWheel,
     zoomBy,
     fitScene,
+    fitSceneScaled,
     placeCatalogComponent,
     saveNow,
     toggleSimulation: toggleSimulationWithAudio,

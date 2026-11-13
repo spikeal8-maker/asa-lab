@@ -1,23 +1,2337 @@
 {
-  "format": "asa-electronics-recovery-r10-evidence-v1",
+  "format": "asa-electronics-recovery-r10-evidence-index-v2",
   "task": "TASK-ELECTRONICS-RECOVERY-R10-001",
-  "implementationBase": "b318656e9d80ea8ddb40b06159f7c1352c799c7c",
-  "measurementStatus": "NOT_RUN",
-  "demonstrationStatus": "DEMONSTRATION_PENDING",
-  "measurementBoundary": "Implementation handoff only. Exact published candidate and paired full-editor CI evidence are required before a performance claim.",
+  "measurementStatus": "PASS_FOR_IMMUTABLE_A; FINAL_CONVERGENCE_PAIR_PENDING",
+  "demonstrationStatus": "A_FULL_EDITOR_DEMONSTRATED; FINAL_CONVERGENCE_PENDING",
+  "containsAllTrialRows": false,
+  "rawBoundary": "This versioned index contains receipts and exact profile summaries. All 2880 original measured rows remain in the referenced original artifact reports and in the owner-delivery archive; no row is filtered.",
   "beforeProduct": "cb15c700253f26bf276ad69d5e45ca27c2306787",
-  "sceneProvenance": "tests/electronics/recovery/provenance.json",
-  "numericProtocol": {
-    "scenes": ["S3", "S4"],
-    "codeOpen": [false, true],
-    "gestures": ["add", "move", "nominal", "source"],
-    "passesPerProfile": 3,
-    "fixedSlotsPerPass": 30,
-    "slotMilliseconds": 1000,
-    "simulation": "Stop"
+  "afterProduct": "8cb82d223f8077d7ecdec22e0e8cf3f4e825c294",
+  "pairedRun": 43356831692,
+  "pairedRunAttempt": 1,
+  "pairedRunConclusion": "success",
+  "sourceArtifact": {
+    "artifactId": 14009426837,
+    "artifactUrl": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43356831692/artifacts/14009426837",
+    "originalDownloadedZipBytes": 160131547,
+    "originalDownloadedZipSha256": "e5429fe2e78b26ad2c90f9b87f8d275bc86f2f960d722a7eb4fded184c68e3fe",
+    "repository": "spikeal8-maker/asa-lab",
+    "runAndArtifactIdentitySuppliedByController": true,
+    "workflowRunId": 43356831692,
+    "workflowRunUrl": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43356831692"
   },
-  "pairedRun": null,
-  "afterProduct": null,
-  "rawProfiles": [],
-  "independentFinalReview": "PENDING"
+  "rawReports": {
+    "after": {
+      "bytes": 10786487,
+      "path": "after/report.json",
+      "sha256": "6bc202e59c9f0a038085d8ba0dc12626074a1163e1ce745c77f91d8d6741b3ca"
+    },
+    "before": {
+      "bytes": 11945743,
+      "path": "before/report.json",
+      "sha256": "f2fd138f94e928bfafecb5cbf69807934242beed2c757e3fa1f81b3a214a0cd3"
+    }
+  },
+  "ownerDeliveryArchive": {
+    "bytes": 83464462,
+    "entries": 203,
+    "filename": "ASA_Electronics_R10_Paired_43356831692.zip",
+    "sha256": "883faa0312f56776e2489815a04a6501bbdd46e72fc42f6d39dac730fbe2b3af"
+  },
+  "ownerDeliveryRaw": {
+    "path": "recovery-r10-raw.json",
+    "bytes": 13461382,
+    "sha256": "2d31c4004203512c3947511b342b3aec4e273929afc38dc983d50f9b84ef37fa",
+    "measuredRows": 2880
+  },
+  "receipts": {
+    "before": {
+      "format": "asa-electronics-recovery-build-v1",
+      "sourceSha": "cb15c700253f26bf276ad69d5e45ca27c2306787",
+      "requestedSourceSha": "cb15c700253f26bf276ad69d5e45ca27c2306787",
+      "sourceDirty": false,
+      "harnessSha256": "a8db179db352f8d8436e51d60ddb5789f8efb9fa4bc38b0f6a2a397f6d8bd62a",
+      "runtime": "Actual full SchematicEditor and dedicated Worker; esbuild production mode, fixture API, observational instrumentation",
+      "artifacts": {
+        "uiSha256": "63ff3d16644d1dcb175f965cb31788ae5f9b6dd8f0cc6abac73dc8edfb339703",
+        "workerSha256": "981a9d4f329a76c68ce9f871874a7af6659d1d9edeff3d8e9010d69483da1b80",
+        "cssSha256": "6eed09470bf0ae4acca8623ae30b0cf797535a30a43cd0c27524f31707e11d16"
+      },
+      "transforms": {
+        "apps/web/src/electronics/live-simulation.ts": {
+          "originalSha256": "654493156576099dbeedd8d6eb697920b4830a9fd4a313d664c07fe8fe8eac48",
+          "transformedSha256": "586bc9e24ac421e1aafa3cb3f9ffaa0ccbd4de5e5add89012effe604eb8751e0"
+        },
+        "contexts/electronics/domain/simulation.ts": {
+          "originalSha256": "7eedb1d9eb06ce6e1e488300f61098aa0ead4e78fd9f4d5142b4bdb83eefce92",
+          "transformedSha256": "afb5c729ee653fafb423d6815d46b7820d6c1651853f19c0b8fc7a5ef5b23703"
+        },
+        "apps/web/src/pages/SchematicEditor.tsx": {
+          "originalSha256": "5360b438c2c93663209444033c570a905f2adcc778f809bfadb052be7634e392",
+          "transformedSha256": "fad837016efba619bdaeca255b2b1ae583aaafb4939750074c619421f2b19c20"
+        },
+        "apps/web/src/electronics/use-electronics-workbench.ts": {
+          "originalSha256": "185825a0924c67559051108cdffadcf83af8b388f3903131225c52f2239cc679",
+          "transformedSha256": "144a24a5f6364cf1e69e33087d7d9c598d7706e30e791c84782332959235a4cd"
+        }
+      },
+      "fixtureHashes": {
+        "S3": "43d6bae8421baf88cc5c291f145aec4cbbb9e5dfcbacd8d61771fda228e86145",
+        "S4": "32a680a113ef9590c12ea344eab3e29aa8ed1fda7c1b512b6be64e07b6307fa1"
+      },
+      "catalogueSha256": "d90a3155d4e4f409f239b48ebd6f0b54d3e09e4d4ef7d2566fec5ad67c31ef20",
+      "modelRegistrySha256": "c999b9d097296f571bf2b45b3638c8a8e83d523d525a708a4e2052fd68381491",
+      "sketchSha256": "40727bee963f76362d5cf484d7023ee4c3d0dc0f7e2bfd844da1ab0d0dfad7b2",
+      "platform": {
+        "os": "linux",
+        "release": "7.0.0-1017-azure",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "logicalCpus": 4,
+        "ramBytes": 16760344576,
+        "node": "v22.23.4"
+      }
+    },
+    "after": {
+      "format": "asa-electronics-recovery-build-v1",
+      "sourceSha": "8cb82d223f8077d7ecdec22e0e8cf3f4e825c294",
+      "requestedSourceSha": "8cb82d223f8077d7ecdec22e0e8cf3f4e825c294",
+      "sourceDirty": false,
+      "harnessSha256": "a8db179db352f8d8436e51d60ddb5789f8efb9fa4bc38b0f6a2a397f6d8bd62a",
+      "runtime": "Actual full SchematicEditor and dedicated Worker; esbuild production mode, fixture API, observational instrumentation",
+      "artifacts": {
+        "uiSha256": "62b89dce754c1b9539c32e6296559b1d81038e5f249c8eab4bf6d8b16891c799",
+        "workerSha256": "32ecc3ced35bc8e2d698156c80b7eab09453e543febc3bf006f3870b62a05061",
+        "cssSha256": "6eed09470bf0ae4acca8623ae30b0cf797535a30a43cd0c27524f31707e11d16"
+      },
+      "transforms": {
+        "apps/web/src/electronics/live-simulation.ts": {
+          "originalSha256": "654493156576099dbeedd8d6eb697920b4830a9fd4a313d664c07fe8fe8eac48",
+          "transformedSha256": "586bc9e24ac421e1aafa3cb3f9ffaa0ccbd4de5e5add89012effe604eb8751e0"
+        },
+        "contexts/electronics/domain/simulation.ts": {
+          "originalSha256": "7eedb1d9eb06ce6e1e488300f61098aa0ead4e78fd9f4d5142b4bdb83eefce92",
+          "transformedSha256": "afb5c729ee653fafb423d6815d46b7820d6c1651853f19c0b8fc7a5ef5b23703"
+        },
+        "apps/web/src/pages/SchematicEditor.tsx": {
+          "originalSha256": "5360b438c2c93663209444033c570a905f2adcc778f809bfadb052be7634e392",
+          "transformedSha256": "fad837016efba619bdaeca255b2b1ae583aaafb4939750074c619421f2b19c20"
+        },
+        "apps/web/src/electronics/use-electronics-workbench.ts": {
+          "originalSha256": "ce6787cbea7e640141f92757f2a6e6d3bc7c26bb9c34a10cfcd1e9fb9f7f1cdc",
+          "transformedSha256": "a901c7a150b8be16a60e0cafdc862b695dd9ce83e1c1f2a4eb8d06aba867ba43"
+        }
+      },
+      "fixtureHashes": {
+        "S3": "43d6bae8421baf88cc5c291f145aec4cbbb9e5dfcbacd8d61771fda228e86145",
+        "S4": "32a680a113ef9590c12ea344eab3e29aa8ed1fda7c1b512b6be64e07b6307fa1"
+      },
+      "catalogueSha256": "d90a3155d4e4f409f239b48ebd6f0b54d3e09e4d4ef7d2566fec5ad67c31ef20",
+      "modelRegistrySha256": "c999b9d097296f571bf2b45b3638c8a8e83d523d525a708a4e2052fd68381491",
+      "sketchSha256": "40727bee963f76362d5cf484d7023ee4c3d0dc0f7e2bfd844da1ab0d0dfad7b2",
+      "platform": {
+        "os": "linux",
+        "release": "7.0.0-1017-azure",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "logicalCpus": 4,
+        "ramBytes": 16760344576,
+        "node": "v22.23.4"
+      }
+    }
+  },
+  "environment": {
+    "os": "linux",
+    "release": "7.0.0-1017-azure",
+    "cpu": "AMD EPYC 7763 64-Core Processor",
+    "logicalCpus": 4,
+    "ramBytes": 16760344576,
+    "node": "v22.23.4",
+    "browser": "140.0.7339.186",
+    "headless": true,
+    "displayHz": "not_applicable: CI virtual display",
+    "power": "not_applicable: GitHub hosted VM",
+    "cache": "warm per context, assets and editor ready before measurements"
+  },
+  "protocol": {
+    "passes": 3,
+    "samplesPerPass": 30,
+    "slotMs": 1000,
+    "settlementMs": 300,
+    "gestures": [
+      "add",
+      "move",
+      "nominal",
+      "source"
+    ],
+    "numericViewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "smokeNotAcceptance": false
+  },
+  "sceneProvenance": "tests/electronics/recovery/provenance.json",
+  "comparison": [
+    {
+      "actionLabel": "Добавление прогретого компонента",
+      "actualPassElapsedMsAfter": [
+        29826,
+        29798,
+        29814
+      ],
+      "actualPassElapsedMsBefore": [
+        29816,
+        29813,
+        29815
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 27,
+          "n": 90,
+          "p50": 11.299999999813735,
+          "p95": 15.600000000093132
+        },
+        "diagnosticLatencyMs": {
+          "max": 85.80000000004657,
+          "n": 90,
+          "p50": 31.100000000093132,
+          "p95": 44.10000000009313
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 32.800000000046566,
+              "n": 90,
+              "p50": 10.699999999953434,
+              "p95": 16.200000000186265
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 46.70000000001164,
+          "n": 90,
+          "p50": 18,
+          "p95": 26.79999999998836
+        },
+        "diagnosticLatencyMs": {
+          "max": 49.59999999997672,
+          "n": 90,
+          "p50": 19.70000000001164,
+          "p95": 28.5
+        },
+        "longTasks": {
+          "count": 1,
+          "durationMs": {
+            "max": 52,
+            "n": 1,
+            "p50": 52,
+            "p95": 52
+          },
+          "totalMs": 52
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 18.199999999953434,
+              "n": 180,
+              "p50": 7.7000000000116415,
+              "p95": 9.900000000023283
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "add",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Перемещение: отпускание → DOM commit",
+      "actualPassElapsedMsAfter": [
+        29532,
+        29526,
+        29513
+      ],
+      "actualPassElapsedMsBefore": [
+        29533,
+        29522,
+        29539
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 50.299999999813735,
+          "n": 90,
+          "p50": 32.1999999997206,
+          "p95": 37.89999999990687
+        },
+        "diagnosticLatencyMs": {
+          "max": 52.39999999990687,
+          "n": 90,
+          "p50": 33.90000000037253,
+          "p95": 39.5
+        },
+        "longTasks": {
+          "count": 1,
+          "durationMs": {
+            "max": 54,
+            "n": 1,
+            "p50": 54,
+            "p95": 54
+          },
+          "totalMs": 54
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 52,
+          "n": 90,
+          "p50": 37.300000000046566,
+          "p95": 43.70000000006985
+        },
+        "diagnosticLatencyMs": {
+          "max": 55.600000000034925,
+          "n": 90,
+          "p50": 39,
+          "p95": 46.300000000046566
+        },
+        "longTasks": {
+          "count": 4,
+          "durationMs": {
+            "max": 57,
+            "n": 4,
+            "p50": 50,
+            "p95": 57
+          },
+          "totalMs": 213
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 16.400000000023283,
+              "n": 180,
+              "p50": 8.099999999976717,
+              "p95": 12.900000000023283
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "move",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Undo/Redo 220↔330 Ω; оба входа прогреты",
+      "actualPassElapsedMsAfter": [
+        29371,
+        29363,
+        29358
+      ],
+      "actualPassElapsedMsBefore": [
+        29369,
+        29368,
+        29364
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 16,
+          "n": 90,
+          "p50": 11.099999999627471,
+          "p95": 13.300000000279397
+        },
+        "diagnosticLatencyMs": {
+          "max": 20.899999999906868,
+          "n": 90,
+          "p50": 14.400000000372529,
+          "p95": 17.100000000093132
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 33.800000000046566,
+          "n": 90,
+          "p50": 17.099999999976717,
+          "p95": 21.800000000046566
+        },
+        "diagnosticLatencyMs": {
+          "max": 35.800000000046566,
+          "n": 90,
+          "p50": 19,
+          "p95": 24.400000000023283
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 16.099999999976717,
+              "n": 180,
+              "p50": 7.900000000023283,
+              "p95": 10.400000000023283
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "nominal",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Изменение программы Arduino",
+      "actualPassElapsedMsAfter": [
+        29960,
+        29947,
+        29944
+      ],
+      "actualPassElapsedMsBefore": [
+        29945,
+        29946,
+        29947
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 19.600000000093132,
+          "n": 90,
+          "p50": 9.399999999906868,
+          "p95": 11.800000000279397
+        },
+        "diagnosticLatencyMs": {
+          "max": 66.20000000018626,
+          "n": 90,
+          "p50": 29.799999999813735,
+          "p95": 41.60000000009313
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 32.5,
+              "n": 90,
+              "p50": 11.399999999906868,
+              "p95": 17.899999999906868
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 22.899999999906868,
+          "n": 90,
+          "p50": 15,
+          "p95": 19.199999999953434
+        },
+        "diagnosticLatencyMs": {
+          "max": 26,
+          "n": 90,
+          "p50": 16.699999999953434,
+          "p95": 21.70000000006985
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 16,
+              "n": 180,
+              "p50": 7.900000000023283,
+              "p95": 11.5
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 49,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "source",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Добавление прогретого компонента",
+      "actualPassElapsedMsAfter": [
+        40325,
+        40072,
+        39976
+      ],
+      "actualPassElapsedMsBefore": [
+        40209,
+        40087,
+        39991
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 20.399999999906868,
+          "n": 90,
+          "p50": 11.699999999720603,
+          "p95": 14.599999999627471
+        },
+        "diagnosticLatencyMs": {
+          "max": 58.700000000186265,
+          "n": 90,
+          "p50": 33.10000000009313,
+          "p95": 43.39999999990687
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 24.100000000093132,
+              "n": 90,
+              "p50": 10.100000000093132,
+              "p95": 17.299999999813735
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 35.199999999953434,
+          "n": 90,
+          "p50": 18.099999999976717,
+          "p95": 22.20000000006985
+        },
+        "diagnosticLatencyMs": {
+          "max": 38,
+          "n": 90,
+          "p50": 20,
+          "p95": 24.100000000093132
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 18,
+              "n": 180,
+              "p50": 7.800000000046566,
+              "p95": 9.800000000046566
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 80,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 10016,
+          "n": 90,
+          "p50": 4935,
+          "p95": 9427
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 80,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 9877,
+          "n": 90,
+          "p50": 4833,
+          "p95": 9401
+        }
+      },
+      "gesture": "add",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Перемещение: отпускание → DOM commit",
+      "actualPassElapsedMsAfter": [
+        29576,
+        29534,
+        29518
+      ],
+      "actualPassElapsedMsBefore": [
+        29532,
+        29531,
+        29530
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 44.5,
+          "n": 90,
+          "p50": 31.800000000279397,
+          "p95": 37.5
+        },
+        "diagnosticLatencyMs": {
+          "max": 47.39999999990687,
+          "n": 90,
+          "p50": 33.5,
+          "p95": 40.10000000009313
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 56.5,
+          "n": 90,
+          "p50": 37.09999999997672,
+          "p95": 43.70000000006985
+        },
+        "diagnosticLatencyMs": {
+          "max": 59.199999999953434,
+          "n": 90,
+          "p50": 38.70000000006985,
+          "p95": 45.70000000006985
+        },
+        "longTasks": {
+          "count": 4,
+          "durationMs": {
+            "max": 60,
+            "n": 4,
+            "p50": 50,
+            "p95": 60
+          },
+          "totalMs": 212
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 16,
+              "n": 180,
+              "p50": 8.20000000006985,
+              "p95": 14.099999999976717
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "move",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Undo/Redo 220↔330 Ω; оба входа прогреты",
+      "actualPassElapsedMsAfter": [
+        29370,
+        29364,
+        29366
+      ],
+      "actualPassElapsedMsBefore": [
+        29365,
+        29370,
+        29367
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 16,
+          "n": 90,
+          "p50": 11.100000000093132,
+          "p95": 13.100000000093132
+        },
+        "diagnosticLatencyMs": {
+          "max": 19.100000000093132,
+          "n": 90,
+          "p50": 14.399999999906868,
+          "p95": 17.100000000093132
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 36.0999999998603,
+          "n": 90,
+          "p50": 17,
+          "p95": 23.900000000023283
+        },
+        "diagnosticLatencyMs": {
+          "max": 38.0999999998603,
+          "n": 90,
+          "p50": 19,
+          "p95": 25.70000000006985
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 16,
+              "n": 180,
+              "p50": 7.899999999906868,
+              "p95": 10.699999999953434
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "nominal",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Изменение программы Arduino",
+      "actualPassElapsedMsAfter": [
+        29441,
+        29461,
+        29432
+      ],
+      "actualPassElapsedMsBefore": [
+        29438,
+        29465,
+        29429
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 18,
+          "n": 90,
+          "p50": 9.399999999906868,
+          "p95": 12.299999999813735
+        },
+        "diagnosticLatencyMs": {
+          "max": 50.8000000002794,
+          "n": 90,
+          "p50": 28.200000000186265,
+          "p95": 41.10000000009313
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 24.899999999906868,
+              "n": 90,
+              "p50": 10.600000000093132,
+              "p95": 16.200000000186265
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 21.5,
+          "n": 90,
+          "p50": 15.300000000046566,
+          "p95": 20.5999999998603
+        },
+        "diagnosticLatencyMs": {
+          "max": 23.199999999953434,
+          "n": 90,
+          "p50": 17,
+          "p95": 22.199999999953434
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 17.100000000093132,
+              "n": 180,
+              "p50": 8.100000000093132,
+              "p95": 10.700000000186265
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "source",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Добавление прогретого компонента",
+      "actualPassElapsedMsAfter": [
+        29849,
+        29844,
+        29842
+      ],
+      "actualPassElapsedMsBefore": [
+        29851,
+        29851,
+        29834
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 24.5,
+          "n": 90,
+          "p50": 14.5,
+          "p95": 18.600000000093132
+        },
+        "diagnosticLatencyMs": {
+          "max": 64.89999999990687,
+          "n": 90,
+          "p50": 39,
+          "p95": 48.6999999997206
+        },
+        "longTasks": {
+          "count": 1,
+          "durationMs": {
+            "max": 68,
+            "n": 1,
+            "p50": 68,
+            "p95": 68
+          },
+          "totalMs": 68
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 22,
+              "n": 90,
+              "p50": 13.199999999720603,
+              "p95": 19.200000000186265
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 34.5,
+          "n": 90,
+          "p50": 21.4000000001397,
+          "p95": 28.800000000046566
+        },
+        "diagnosticLatencyMs": {
+          "max": 38,
+          "n": 90,
+          "p50": 23.700000000186265,
+          "p95": 31
+        },
+        "longTasks": {
+          "count": 1,
+          "durationMs": {
+            "max": 59,
+            "n": 1,
+            "p50": 59,
+            "p95": 59
+          },
+          "totalMs": 59
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 17.899999999906868,
+              "n": 180,
+              "p50": 9,
+              "p95": 12.599999999860302
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "add",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Перемещение: отпускание → DOM commit",
+      "actualPassElapsedMsAfter": [
+        29633,
+        29626,
+        29679
+      ],
+      "actualPassElapsedMsBefore": [
+        29638,
+        29613,
+        29611
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 59.60000000009313,
+          "n": 90,
+          "p50": 45.700000000186265,
+          "p95": 52.89999999990687
+        },
+        "diagnosticLatencyMs": {
+          "max": 62.39999999990687,
+          "n": 90,
+          "p50": 48.1999999997206,
+          "p95": 56.200000000186265
+        },
+        "longTasks": {
+          "count": 37,
+          "durationMs": {
+            "max": 68,
+            "n": 37,
+            "p50": 51,
+            "p95": 64
+          },
+          "totalMs": 1975
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 64.9000000001397,
+          "n": 90,
+          "p50": 51.4000000001397,
+          "p95": 60.300000000046566
+        },
+        "diagnosticLatencyMs": {
+          "max": 67.9000000001397,
+          "n": 90,
+          "p50": 53.60000000009313,
+          "p95": 62.39999999990687
+        },
+        "longTasks": {
+          "count": 62,
+          "durationMs": {
+            "max": 69,
+            "n": 62,
+            "p50": 56,
+            "p95": 65
+          },
+          "totalMs": 3555
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 23.0999999998603,
+              "n": 180,
+              "p50": 9.900000000139698,
+              "p95": 17.199999999953434
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "move",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Undo/Redo 220↔330 Ω; оба входа прогреты",
+      "actualPassElapsedMsAfter": [
+        29379,
+        29384,
+        29386
+      ],
+      "actualPassElapsedMsBefore": [
+        29399,
+        29392,
+        29381
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 24.300000000279397,
+          "n": 90,
+          "p50": 14.399999999906868,
+          "p95": 18.399999999906868
+        },
+        "diagnosticLatencyMs": {
+          "max": 34.200000000186265,
+          "n": 90,
+          "p50": 19.40000000037253,
+          "p95": 25.899999999906868
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 32.39999999990687,
+          "n": 90,
+          "p50": 20.699999999953434,
+          "p95": 26.899999999906868
+        },
+        "diagnosticLatencyMs": {
+          "max": 37,
+          "n": 90,
+          "p50": 23,
+          "p95": 29.600000000093132
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 16.600000000093132,
+              "n": 180,
+              "p50": 9,
+              "p95": 12.300000000046566
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "nominal",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Изменение программы Arduino",
+      "actualPassElapsedMsAfter": [
+        29994,
+        29980,
+        29981
+      ],
+      "actualPassElapsedMsBefore": [
+        29962,
+        29963,
+        29966
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 23.200000000186265,
+          "n": 90,
+          "p50": 12.400000000372529,
+          "p95": 17.199999999720603
+        },
+        "diagnosticLatencyMs": {
+          "max": 104,
+          "n": 90,
+          "p50": 38.40000000037253,
+          "p95": 56.299999999813735
+        },
+        "longTasks": {
+          "count": 1,
+          "durationMs": {
+            "max": 65,
+            "n": 1,
+            "p50": 65,
+            "p95": 65
+          },
+          "totalMs": 65
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 25.799999999813735,
+              "n": 90,
+              "p50": 13.600000000093132,
+              "p95": 23.799999999813735
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 27.600000000093132,
+          "n": 90,
+          "p50": 18.800000000046566,
+          "p95": 24.800000000046566
+        },
+        "diagnosticLatencyMs": {
+          "max": 32.300000000046566,
+          "n": 90,
+          "p50": 20.899999999906868,
+          "p95": 28
+        },
+        "longTasks": {
+          "count": 1,
+          "durationMs": {
+            "max": 57,
+            "n": 1,
+            "p50": 57,
+            "p95": 57
+          },
+          "totalMs": 57
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 16.0999999998603,
+              "n": 180,
+              "p50": 9.599999999860302,
+              "p95": 13.099999999860302
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 109,
+          "n": 90,
+          "p50": 1,
+          "p95": 96
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 31,
+          "n": 90,
+          "p50": 0,
+          "p95": 2
+        }
+      },
+      "gesture": "source",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Добавление прогретого компонента",
+      "actualPassElapsedMsAfter": [
+        41402,
+        41081,
+        41290
+      ],
+      "actualPassElapsedMsBefore": [
+        41221,
+        41226,
+        41155
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 27.200000000186265,
+          "n": 90,
+          "p50": 14.899999999906868,
+          "p95": 19.800000000279397
+        },
+        "diagnosticLatencyMs": {
+          "max": 79.1999999997206,
+          "n": 90,
+          "p50": 40.60000000009313,
+          "p95": 54.89999999990687
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 24.5,
+              "n": 90,
+              "p50": 12.600000000093132,
+              "p95": 19.5
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 37.0999999998603,
+          "n": 90,
+          "p50": 22.699999999953434,
+          "p95": 28.9000000001397
+        },
+        "diagnosticLatencyMs": {
+          "max": 40.5999999998603,
+          "n": 90,
+          "p50": 25.4000000001397,
+          "p95": 31
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 18,
+              "n": 180,
+              "p50": 9.100000000093132,
+              "p95": 13.399999999906868
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 81,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 11036,
+          "n": 90,
+          "p50": 5440,
+          "p95": 10558
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 81,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 10858,
+          "n": 90,
+          "p50": 5337,
+          "p95": 10474
+        }
+      },
+      "gesture": "add",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Перемещение: отпускание → DOM commit",
+      "actualPassElapsedMsAfter": [
+        29629,
+        29624,
+        29633
+      ],
+      "actualPassElapsedMsBefore": [
+        29682,
+        29623,
+        29646
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 73.09999999962747,
+          "n": 90,
+          "p50": 44.39999999990687,
+          "p95": 53.200000000186265
+        },
+        "diagnosticLatencyMs": {
+          "max": 78.39999999990687,
+          "n": 90,
+          "p50": 47.299999999813735,
+          "p95": 59.8000000002794
+        },
+        "longTasks": {
+          "count": 34,
+          "durationMs": {
+            "max": 81,
+            "n": 34,
+            "p50": 51,
+            "p95": 70
+          },
+          "totalMs": 1830
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 68,
+          "n": 90,
+          "p50": 52.200000000186265,
+          "p95": 60.300000000046566
+        },
+        "diagnosticLatencyMs": {
+          "max": 70.39999999990687,
+          "n": 90,
+          "p50": 54.39999999990687,
+          "p95": 63.200000000186265
+        },
+        "longTasks": {
+          "count": 63,
+          "durationMs": {
+            "max": 72,
+            "n": 63,
+            "p50": 57,
+            "p95": 64
+          },
+          "totalMs": 3657
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 21.399999999906868,
+              "n": 180,
+              "p50": 10,
+              "p95": 16.699999999953434
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "move",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Undo/Redo 220↔330 Ω; оба входа прогреты",
+      "actualPassElapsedMsAfter": [
+        29380,
+        29381,
+        29392
+      ],
+      "actualPassElapsedMsBefore": [
+        29382,
+        29395,
+        29383
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 22.199999999720603,
+          "n": 90,
+          "p50": 14.800000000279397,
+          "p95": 18.399999999906868
+        },
+        "diagnosticLatencyMs": {
+          "max": 29.5,
+          "n": 90,
+          "p50": 19.899999999906868,
+          "p95": 27.100000000093132
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 29.700000000186265,
+          "n": 90,
+          "p50": 21.399999999906868,
+          "p95": 27.300000000046566
+        },
+        "diagnosticLatencyMs": {
+          "max": 32.699999999953434,
+          "n": 90,
+          "p50": 23.600000000093132,
+          "p95": 29.899999999906868
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 20.799999999813735,
+              "n": 180,
+              "p50": 9.300000000046566,
+              "p95": 11.899999999906868
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "nominal",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Изменение программы Arduino",
+      "actualPassElapsedMsAfter": [
+        29497,
+        29471,
+        29464
+      ],
+      "actualPassElapsedMsBefore": [
+        29459,
+        29463,
+        29442
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 28.100000000093132,
+          "n": 90,
+          "p50": 12.300000000279397,
+          "p95": 16.699999999720603
+        },
+        "diagnosticLatencyMs": {
+          "max": 62.5,
+          "n": 90,
+          "p50": 37.299999999813735,
+          "p95": 48.299999999813735
+        },
+        "longTasks": {
+          "count": 2,
+          "durationMs": {
+            "max": 69,
+            "n": 2,
+            "p50": 51,
+            "p95": 69
+          },
+          "totalMs": 120
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 23,
+              "n": 90,
+              "p50": 13.899999999906868,
+              "p95": 20.600000000093132
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 28.600000000093132,
+          "n": 90,
+          "p50": 19.0999999998603,
+          "p95": 26.0999999998603
+        },
+        "diagnosticLatencyMs": {
+          "max": 32.4000000001397,
+          "n": 90,
+          "p50": 21.200000000186265,
+          "p95": 28.800000000046566
+        },
+        "longTasks": {
+          "count": 1,
+          "durationMs": {
+            "max": 62,
+            "n": 1,
+            "p50": 62,
+            "p95": 62
+          },
+          "totalMs": 62
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 17.0999999998603,
+              "n": 180,
+              "p50": 9.599999999860302,
+              "p95": 13.600000000093132
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "source",
+      "scene": "S4"
+    }
+  ],
+  "totals": {
+    "after": {
+      "deadline": {
+        "atLeastOneSlotCount": 161,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 11036,
+          "n": 1440,
+          "p50": 0,
+          "p95": 6227
+        }
+      },
+      "latenciesNotPooledAcrossProfiles": true,
+      "longTaskDurationMaxMs": 81,
+      "longTaskDurationTotalMs": 4112,
+      "longTaskRecordsInActionWindows": 76,
+      "mainActualAnalyses": 0,
+      "mainPreflightApiCalls": 0,
+      "samples": 1440,
+      "workerActualAnalyses": 720,
+      "workerPreflightApiCalls": 720
+    },
+    "before": {
+      "deadline": {
+        "atLeastOneSlotCount": 161,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 10858,
+          "n": 1440,
+          "p50": 0,
+          "p95": 6198
+        }
+      },
+      "latenciesNotPooledAcrossProfiles": true,
+      "longTaskDurationMaxMs": 72,
+      "longTaskDurationTotalMs": 7867,
+      "longTaskRecordsInActionWindows": 137,
+      "mainActualAnalyses": 2880,
+      "mainPreflightApiCalls": 2880,
+      "samples": 1440,
+      "workerActualAnalyses": 0,
+      "workerPreflightApiCalls": 0
+    }
+  },
+  "qualifications": [
+    "Instrumented full SchematicEditor in isolated GitHub CI; candidate, not a production deployment.",
+    "S4 is the attributed 17-component/14-wire audit reconstruction, not an export of the original user project.",
+    "Commit latency means native input to a matching committed document/DOM; it is not a measurement of physical paint.",
+    "Move latency starts at pointer release, not at the beginning of the complete drag gesture.",
+    "The nominal profile is native Undo/Redo between 220 and 330 ohms after both inputs were warmed; it is not first uncached nominal-entry latency.",
+    "For the code-closed source profile, opening the panel occurs before the measured native input and is excluded from that latency.",
+    "Numeric passes and visual replay are separate. RAF fields are scheduling evidence, not proof of paint.",
+    "All 2880 measured rows and every deadline overrun are retained. No latency percentiles are pooled across unlike profiles.",
+    "Paired initialDiagnostic equality is distinct from the separate full direct/Worker parity test fixtures.",
+    "Package validation does not decide numerical performance benefit, independent final review, General/R4 CI qualification, cold load, or the full R10–R12 budget."
+  ],
+  "independentReview": {
+    "reviewer": "/root/r10_final_reviewer",
+    "source": "8cb82d223f8077d7ecdec22e0e8cf3f4e825c294",
+    "sourceVerdict": "PASS",
+    "pairedRawAndVisualVerdict": "PASS_WITH_EXPLICIT_METHOD_BOUNDARY",
+    "overallAcceptance": "PENDING_FINAL_CONVERGENCE_AND_R4_RISK"
+  },
+  "supportingControl": {
+    "source": "27b1492fdf0910a3615a6c620fd6cf40c54b7db8",
+    "ciGuardReview": "PASS",
+    "faultFixtureReview": "APPROVE_SOURCE",
+    "causalRun": 43364039512,
+    "causalConclusion": "PENDING"
+  },
+  "finalConvergence": {
+    "acceptedMain": "c76b51e38af94a308b6fe9080d776d6ee6ada4b4",
+    "reason": "Accepted foreign PR1098 changes four actual compiled editor inputs; A measurements cannot be relabelled as the converged build. Repeat the same paired protocol with c76 before the final candidate.",
+    "measuredInputsChanged": [
+      "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "apps/web/src/electronics/WorkbenchHeader.tsx",
+      "apps/web/src/electronics/use-electronics-workbench.ts",
+      "apps/web/src/electronics/workbench.css"
+    ],
+    "status": "PENDING_FINAL_SOURCE_CI_AND_NEW_PAIR"
+  },
+  "productionDeployment": "NOT_RUN",
+  "nextProductTask": "NONE; STOP_AFTER_FIRST_R10"
 }
