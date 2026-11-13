@@ -1,0 +1,23 @@
+{
+  "format": "asa-electronics-recovery-r10-evidence-v1",
+  "task": "TASK-ELECTRONICS-RECOVERY-R10-001",
+  "implementationBase": "b318656e9d80ea8ddb40b06159f7c1352c799c7c",
+  "measurementStatus": "NOT_RUN",
+  "demonstrationStatus": "DEMONSTRATION_PENDING",
+  "measurementBoundary": "Implementation handoff only. Exact published candidate and paired full-editor CI evidence are required before a performance claim.",
+  "beforeProduct": "cb15c700253f26bf276ad69d5e45ca27c2306787",
+  "sceneProvenance": "tests/electronics/recovery/provenance.json",
+  "numericProtocol": {
+    "scenes": ["S3", "S4"],
+    "codeOpen": [false, true],
+    "gestures": ["add", "move", "nominal", "source"],
+    "passesPerProfile": 3,
+    "fixedSlotsPerPass": 30,
+    "slotMilliseconds": 1000,
+    "simulation": "Stop"
+  },
+  "pairedRun": null,
+  "afterProduct": null,
+  "rawProfiles": [],
+  "independentFinalReview": "PENDING"
+}

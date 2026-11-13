@@ -119,7 +119,8 @@ import {
   type TerminalRef,
   type VertexDrag,
 } from './workbench-model';
-import { calculateLiveSimulation, calculateSimulationPreflight } from './live-simulation';
+import { calculateLiveSimulation } from './live-simulation';
+import { useStoppedSimulationPreflight } from './stopped-simulation-preflight';
 import type {
   ElectronicsLiveSimulationWorkerController,
   LiveSimulationInputBudget,
@@ -1363,22 +1364,28 @@ export function useElectronicsWorkbenchHost(
   );
   usePiezoAudio(runtimeDocument, nativeOpticalPresentation, simulationRunning);
 
+  const stoppedPreflight = useStoppedSimulationPreflight(
+    projectId,
+    document,
+    !simulationRunning && status === 'ready',
+  );
+
   useEffect(() => {
     if (!document || simulationRunning || status !== 'ready') return;
+    const leds = document.components.flatMap((component) => {
+      if (component.kind !== 'led') return [];
+      const entry = catalogEntry(component);
+      return entry ? [{ component, entry }] : [];
+    });
+    if (leds.length === 0 || !stoppedPreflight.result) return;
+    const preview = stoppedPreflight.result;
     const timer = window.setTimeout(() => {
-      const runningDocument = {
-        ...document,
-        simulation: { ...document.simulation, running: true },
-      };
-      const preview = calculateSimulationPreflight(runningDocument);
       const previewByComponent = new Map(
         preview.components.map((componentResult) => [componentResult.componentId, componentResult]),
       );
-      for (const component of document.components) {
-        if (component.kind !== 'led') continue;
-        const entry = catalogEntry(component);
+      for (const { component, entry } of leds) {
         const componentResult = previewByComponent.get(component.id);
-        if (!entry || !componentResult) continue;
+        if (!componentResult) continue;
         const state = ordinaryLedVisualState(componentResult);
         const visualComponent = {
           ...component,
@@ -1391,7 +1398,7 @@ export function useElectronicsWorkbenchHost(
       }
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [document, simulationRunning, status]);
+  }, [document, simulationRunning, status, stoppedPreflight.result]);
 
   async function toggleSimulationWithAudio(): Promise<void> {
     if (!simulationRunning) {
@@ -3626,14 +3633,7 @@ export function useElectronicsWorkbenchHost(
     for (const item of result?.components ?? []) map.set(item.componentId, item);
     return map;
   }, [result]);
-  const staticPreflightResult = useMemo(() => {
-    if (!document || simulationRunning) return null;
-    return calculateSimulationPreflight({
-      ...document,
-      simulation: { ...document.simulation, running: true },
-    });
-  }, [document, simulationRunning]);
-  const diagnosticResult = simulationRunning ? result : (staticPreflightResult ?? result);
+  const diagnosticResult = simulationRunning ? result : stoppedPreflight.result;
   const runtimePresentationResultByComponent = useMemo(
     () => (simulationRunning ? resultByComponent : new Map<string, ComponentResult>()),
     [resultByComponent, simulationRunning],
@@ -3845,7 +3845,10 @@ export function useElectronicsWorkbenchHost(
       return nativeOpticalPresentation.readClock() / 1000;
     },
     simulationStatus: simulationRunning && generationPending ? 'starting' : simulationStatus,
-    simulationMessage,
+    simulationMessage:
+      !simulationRunning && stoppedPreflight.error
+        ? simulationFailureMessage(stoppedPreflight.error)
+        : simulationMessage,
     libraryOpen,
     setLibraryOpen,
     libraryQuery,

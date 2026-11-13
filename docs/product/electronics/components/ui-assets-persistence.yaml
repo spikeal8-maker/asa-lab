@@ -53,6 +53,7 @@ components:
     - docs/product/electronics/README.md#8-провода-и-breadboard
     sources:
     - apps/web/src/electronics/use-electronics-workbench.ts
+    - apps/web/src/electronics/stopped-simulation-preflight.ts
     - apps/web/src/electronics/workbench-shortcuts.ts
     - apps/web/src/pages/SchematicEditor.tsx
     - apps/web/src/electronics/WorkbenchStage.tsx
@@ -78,6 +79,7 @@ components:
     - apps/web/src/electronics/testing/workbench-annotations.spec.ts
     - apps/web/src/electronics/testing/canvas-annotations.browser.mjs
     - apps/web/src/electronics/testing/stopped-preflight.browser.mjs
+    - apps/web/src/electronics/testing/stopped-simulation-preflight.spec.ts
     - apps/web/src/electronics/testing/workbench-shortcuts.spec.ts
     - apps/web/src/electronics/testing/workbench-keyboard-ui.browser.mjs
     - apps/web/src/electronics/testing/reverse-led-colour.browser.mjs
@@ -114,6 +116,7 @@ components:
     notes: UI renders committed engine results; it must not compute electrical truth itself. Read only the selected task's exact sources, not every mapped file.
     symbols:
     - useElectronicsWorkbench
+    - useStoppedSimulationPreflight
     - WorkbenchStage
     - ProductionComponentVisual
     - preloadComponentHitMask

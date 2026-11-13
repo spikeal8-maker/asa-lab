@@ -1,11 +1,11 @@
 import {
   advanceElectronicsToHorizon,
   createElectronicsAdvanceSession,
-  analyseElectronicsSnapshot,
   prepareElectronicsSnapshot,
   projectElectronicsArduinoSerial,
   type ElectronicsTimedAdvanceResult,
 } from '@asa-lab/electronics/engine';
+import { simulationInputDigest, simulationModelSetDigest } from '@asa-lab/electronics/simulation';
 import type { SchematicDocument, SolveResult } from '../api';
 import { calculateSimulationPreflight } from './live-simulation';
 import {
@@ -113,16 +113,16 @@ export function evaluateSimulationWorkerRequest(
   const startedAt = globalThis.performance.now();
   try {
     if (request.kind === 'preflight') {
-      const stableSnapshot = analyseElectronicsSnapshot(request.document);
+      const prepared = prepareElectronicsSnapshot(request.document);
       const result = calculateSimulationPreflight(request.document, 0);
       if (!result.simulationInputDigest || !result.topologySignature) {
         return failure(request, 'internal', 'Electronics solver omitted required result metadata.');
       }
       if (
-        stableSnapshot.solverRevision !== result.solverRevision ||
-        stableSnapshot.modelSetDigest !== result.modelSetDigest ||
-        stableSnapshot.topologySignature !== result.topologySignature ||
-        stableSnapshot.simulationInputDigest !== result.simulationInputDigest
+        ELECTRONICS_SIMULATION_ENGINE_REVISION !== result.solverRevision ||
+        simulationModelSetDigest() !== result.modelSetDigest ||
+        prepared.topologySignature !== result.topologySignature ||
+        simulationInputDigest(request.document, 0) !== result.simulationInputDigest
       ) {
         return failure(
           request,

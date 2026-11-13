@@ -81,6 +81,7 @@ Direct supporting tests and routes:
 - `apps/web/src/electronics/testing/stopped-simulation-preflight.spec.ts`
 - `apps/web/src/electronics/testing/simulation-worker.spec.ts`
 - `apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts`
+- `apps/web/src/electronics/testing/workbench-presentation.spec.ts`
 - `docs/product/electronics/components/engine-worker-clock.yaml`
 - `docs/product/electronics/components/ui-assets-persistence.yaml`
 - `apps/web/src/electronics/testing/stopped-preflight.browser.mjs`
@@ -90,11 +91,26 @@ Direct supporting tests and routes:
 
 The explicit exception to two focused test files is necessary: cache/generation,
 actual Worker solver count/parity, and actual React session/pending lifecycle are
-three distinct failure boundaries. The already selected full-editor harness is
+three distinct failure boundaries. The fourth test file updates the existing
+presentation contract that literally required the removed duplicate preflight:
+require the shared stopped hook and reject a direct preflight call instead,
+preserving its other assertions. The controller coordinated this exact addition
+after the first M1 run passed 1274 web tests and exposed only that obsolete
+assertion; the path was clean in all four cloud worktrees and the read-only
+D2-R2 checkout at the b318656e9d80ea8ddb40b06159f7c1352c799c7c main baseline.
+The already selected full-editor harness is
 needed for the owner's measured demonstration. Its measurement protocol and
 fixtures remain frozen; only bounded R10 checks and paired comparison delivery
 may be added. No test-only reimplementation of production lifecycle qualifies.
 Controller owns current.yaml and this card.
+
+The actual solver-count test may use one documented test-only per-line
+`@nx/enforce-module-boundaries` exception for the source-domain spy import in
+`simulation-worker.spec.ts`. A public-facade spy was verified not to observe the
+engine-to-domain call; the source-module spy must retain a positive-control call
+proving that coverage before the Worker assertion. This exception adds no
+production import, new public API, dependency, global lint change or relaxed
+result assertion.
 
 The engine subsystem card must add the existing public facade
 `contexts/electronics/simulation.ts` to `electronics.engine.public-api.sources`,
@@ -140,7 +156,7 @@ Start with the existing requested baseline tests, then new regression cases:
 ```bash
 corepack pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-RECOVERY-R10-001
 NX_SKIP_NX_CACHE=true corepack pnpm exec vitest run apps/web/src/electronics/testing/live-simulation.spec.ts apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts contexts/electronics/testing/simulation-input-digest.spec.ts --maxWorkers=1
-NX_SKIP_NX_CACHE=true corepack pnpm exec vitest run apps/web/src/electronics/testing/stopped-simulation-preflight.spec.ts apps/web/src/electronics/testing/simulation-worker.spec.ts apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts --maxWorkers=1
+NX_SKIP_NX_CACHE=true corepack pnpm exec vitest run apps/web/src/electronics/testing/stopped-simulation-preflight.spec.ts apps/web/src/electronics/testing/simulation-worker.spec.ts apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts apps/web/src/electronics/testing/workbench-presentation.spec.ts --maxWorkers=1
 NX_SKIP_NX_CACHE=true corepack pnpm gate:electronics-m1
 NX_SKIP_NX_CACHE=true corepack pnpm gate:governance
 ```
