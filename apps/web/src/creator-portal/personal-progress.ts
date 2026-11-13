@@ -263,33 +263,59 @@ const GROUP_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0
  * Queued work is removed immediately if the owner/session cancels. */
 let activeGroupReads = 0;
 const queuedGroupReads: Array<() => void> = [];
-function limitedGroupRead<T>(signal: AbortSignal, read: () => Promise<T>): Promise<T> {
+export function limitedGroupRead<T>(signal: AbortSignal, read: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     let started = false;
+    let finished = false;
+    let released = false;
+    // A cancelled network operation must release its client-side slot immediately.
+    // The underlying fetch may never settle, even after its owner logs out.
+    const release = () => {
+      if (!started || released) return;
+      released = true;
+      activeGroupReads -= 1;
+      queuedGroupReads.shift()?.();
+    };
     const onAbort = () => {
-      if (started) return;
-      const index = queuedGroupReads.indexOf(start);
-      if (index >= 0) queuedGroupReads.splice(index, 1);
+      if (finished) return;
+      finished = true;
       signal.removeEventListener('abort', onAbort);
+      if (started) release();
+      else {
+        const index = queuedGroupReads.indexOf(start);
+        if (index >= 0) queuedGroupReads.splice(index, 1);
+      }
       reject(lifecycleCancellation());
     };
-    const start = () => {
+    const finish = (settle: () => void) => {
+      if (finished) return;
+      finished = true;
       signal.removeEventListener('abort', onAbort);
-      if (signal.aborted) {
-        reject(lifecycleCancellation());
-        // Advance the queue when a cancelled entry is dequeued.
+      settle();
+      release();
+    };
+    const start = () => {
+      if (finished || signal.aborted) {
+        if (!finished) onAbort();
+        // A cancelled entry must not strand the rest of the queue.
         queuedGroupReads.shift()?.();
         return;
       }
       started = true;
       activeGroupReads += 1;
-      void read()
-        .then(resolve, reject)
-        .finally(() => {
-          activeGroupReads -= 1;
-          queuedGroupReads.shift()?.();
-        });
+      try {
+        void Promise.resolve(read()).then(
+          (result) => finish(() => resolve(result)),
+          (error: unknown) => finish(() => reject(error)),
+        );
+      } catch (error) {
+        finish(() => reject(error));
+      }
     };
+    if (signal.aborted) {
+      reject(lifecycleCancellation());
+      return;
+    }
     signal.addEventListener('abort', onAbort, { once: true });
     if (activeGroupReads < 2) start();
     else queuedGroupReads.push(start);

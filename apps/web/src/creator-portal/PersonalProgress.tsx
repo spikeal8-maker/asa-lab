@@ -144,9 +144,17 @@ function GroupRatingDialog({
           }
           if (event.key === 'Tab') {
             const available = [
-              ...(dialog.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ??
-                []),
-            ];
+              ...(dialog.current?.querySelectorAll<HTMLElement>(
+                'a[href],area[href],button:not(:disabled),input:not(:disabled):not([type="hidden"]),select:not(:disabled),textarea:not(:disabled),summary,[tabindex]:not([tabindex="-1"])',
+              ) ?? []),
+            ].filter(
+              (node) =>
+                node.tabIndex >= 0 &&
+                node.getAttribute('aria-disabled') !== 'true' &&
+                !node.closest('[hidden],[inert]') &&
+                getComputedStyle(node).visibility !== 'hidden' &&
+                getComputedStyle(node).display !== 'none',
+            );
             if (available.length === 0) return;
             const first = available[0]!;
             const last = available[available.length - 1]!;

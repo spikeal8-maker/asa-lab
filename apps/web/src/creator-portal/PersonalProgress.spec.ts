@@ -20,6 +20,7 @@ import * as apiCall from '../api-call';
 import { setTelemetryContext } from '../telemetry-context';
 import { PersonalProgress } from './PersonalProgress';
 import {
+  limitedGroupRead,
   nextLearningAction,
   readPersonalProgress,
   usePersonalProgress,
@@ -892,5 +893,83 @@ describe('SP-04 unavailable group privacy fallback', () => {
     await render();
     expect(host.textContent).toContain('Рейтинг выключен');
     expect(host.querySelectorAll('.personal-progress-peer')).toHaveLength(0);
+  });
+});
+
+describe('SP-04 aborted group-read quota and modal accessibility', () => {
+  it('releases a cancelled active slot without waiting for an abandoned fetch and skips cancelled queued work', async () => {
+    const first = new AbortController();
+    const second = new AbortController();
+    const queued = new AbortController();
+    const fresh = new AbortController();
+    const neverSettles = new Promise<string>(() => undefined);
+    const started: string[] = [];
+    const oldOne = limitedGroupRead(first.signal, () => {
+      started.push('old-one');
+      return neverSettles;
+    }).catch(() => 'aborted');
+    const oldTwo = limitedGroupRead(second.signal, () => {
+      started.push('old-two');
+      return neverSettles;
+    }).catch(() => 'aborted');
+    const cancelledQueue = limitedGroupRead(queued.signal, async () => {
+      started.push('must-not-start');
+      return 'cancelled';
+    }).catch(() => 'aborted');
+    const newAccount = limitedGroupRead(fresh.signal, async () => {
+      started.push('new-account');
+      return 'ready';
+    });
+    expect(started).toEqual(['old-one', 'old-two']);
+    queued.abort();
+    expect(await cancelledQueue).toBe('aborted');
+    first.abort();
+    await expect(newAccount).resolves.toBe('ready');
+    expect(started).toEqual(['old-one', 'old-two', 'new-account']);
+    second.abort();
+    expect(await oldOne).toBe('aborted');
+    expect(await oldTwo).toBe('aborted');
+  });
+
+  it('traps keyboard focus on future links as well as buttons in the expanded modal', async () => {
+    vi.spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([group(SP04_TEST_GROUP, 68.25, 101)])))
+      .mockResolvedValueOnce(success(sp04Page([])))
+      .mockResolvedValueOnce(success(sp04Page([])));
+    await render();
+    await click('Все');
+    const dialog = host.querySelector<HTMLElement>('[role="dialog"]');
+    const close = dialog?.querySelector<HTMLButtonElement>('button');
+    expect(dialog).not.toBeNull();
+    expect(close).not.toBeNull();
+    const link = document.createElement('a');
+    link.href = '/#/learning';
+    link.textContent = 'Keyboard test route';
+    dialog!.append(link);
+    await act(async () => {
+      link.focus();
+      link.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Tab',
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(document.activeElement).toBe(close);
+    await act(async () => {
+      close!.focus();
+      close!.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Tab',
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(document.activeElement).toBe(link);
+    await click('Закрыть');
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
   });
 });
