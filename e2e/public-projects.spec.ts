@@ -2865,6 +2865,11 @@ async function sp03HoldOldSummary(page: Page) {
   // Subsequent requests remain real and unblocked, including the new actor's.
   const cdp = await page.context().newCDPSession(page);
   let held: { id: string; networkId: string | undefined; status: number | undefined } | null = null;
+  // Read the genuine paused response immediately: polling before getResponseBody
+  // lets an already-aborted UI request invalidate Chromium's interception ID.
+  let heldBody: Promise<
+    { ok: true; data: PersonalProgressSummaryV1 } | { ok: false; error: unknown }
+  > | null = null;
   const terminal = new Map<string, 'delivered' | 'transport_aborted'>();
   const errors: string[] = [];
   const continuationFailures: { networkId: string | undefined; message: string }[] = [];
@@ -2881,6 +2886,21 @@ async function sp03HoldOldSummary(page: Page) {
         networkId: event.networkId,
         status: event.responseStatusCode,
       };
+      heldBody = cdp.send('Fetch.getResponseBody', { requestId: event.requestId }).then(
+        (body) => {
+          try {
+            return {
+              ok: true as const,
+              data: JSON.parse(
+                body.base64Encoded ? Buffer.from(body.body, 'base64').toString('utf8') : body.body,
+              ) as PersonalProgressSummaryV1,
+            };
+          } catch (error) {
+            return { ok: false as const, error };
+          }
+        },
+        (error: unknown) => ({ ok: false as const, error }),
+      );
     } else {
       const continuation = cdp.send('Fetch.continueResponse', { requestId: event.requestId }).then(
         () => undefined,
@@ -2901,10 +2921,10 @@ async function sp03HoldOldSummary(page: Page) {
       const response = held!;
       expect(response.status).toBe(200);
       expect(response.networkId).toBeTruthy();
-      const body = await cdp.send('Fetch.getResponseBody', { requestId: response.id });
-      return JSON.parse(
-        body.base64Encoded ? Buffer.from(body.body, 'base64').toString('utf8') : body.body,
-      ) as PersonalProgressSummaryV1;
+      if (!heldBody) throw new Error('The intercepted response body read was not started');
+      const body = await heldBody;
+      if (!body.ok) throw body.error;
+      return body.data;
     },
     release: async () => {
       try {
