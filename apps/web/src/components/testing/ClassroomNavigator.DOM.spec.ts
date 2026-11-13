@@ -128,12 +128,30 @@ afterEach(async () => {
 
 it('preserves the full heading and fetches once across callback changes', async () => {
   await render();
-  expect(host.querySelector('h1')?.textContent).toBe('4Б Робототехника⌄');
-  expect(opener().querySelector('[aria-hidden="true"]')?.textContent).toBe('⌄');
+  expect(host.querySelector('h1')?.textContent).toBe('4Б Робототехника');
+  expect(opener().querySelector('.classroom-nav-chevron')?.getAttribute('aria-hidden')).toBe(
+    'true',
+  );
+  expect(opener().querySelector('.classroom-nav-chevron')?.textContent).toBe('');
   expect(host.querySelector('button')?.getAttribute('aria-label')).toBe('Предыдущий класс: 3А');
   navigate = vi.fn<(id: string, title: string) => void>();
   await render();
   expect(mocks.list).toHaveBeenCalledTimes(1);
+});
+
+it('preserves an exact heading and keeps previous class title out of visible body text', async () => {
+  const previousTitle = 'Класс A с отдельными данными';
+  mocks.list.mockResolvedValueOnce(
+    response(row('a', previousTitle), row('b', 'Класс B после перехода')),
+  );
+  await render('b', 'Класс B после перехода');
+  expect(host.querySelector('h1')?.textContent).toBe('Класс B после перехода');
+  const previous = host.querySelector<HTMLButtonElement>('.classroom-nav-neighbor')!;
+  expect(previous.textContent).toContain('Класс A');
+  expect(previous.textContent).not.toContain(previousTitle);
+  expect(previous.getAttribute('title')).toBe(previousTitle);
+  expect(previous.getAttribute('aria-label')).toBe(`Предыдущий класс: ${previousTitle}`);
+  expect(host.textContent).not.toContain(previousTitle);
 });
 
 it('restores focus immediately, calls navigation once and commits closure after the click', async () => {

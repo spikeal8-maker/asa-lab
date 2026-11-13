@@ -23,6 +23,15 @@ type LoadState = {
   readonly navigation: ClassNavigation | null;
 };
 
+/** A neighbor preview must be compact; the full title remains in aria-label/title. */
+function compactNeighborTitle(title: string): string {
+  const characters = Array.from(title.trim());
+  if (characters.length <= 20) return title;
+  const prefix = characters.slice(0, 20).join('');
+  const wordBoundary = prefix.lastIndexOf(' ');
+  return `${(wordBoundary >= 6 ? prefix.slice(0, wordBoundary) : prefix).trimEnd()}…`;
+}
+
 type Opening = { readonly context: string };
 type Placement = {
   readonly opening: Opening | null;
@@ -233,7 +242,7 @@ export function ClassroomNavigator({
         }}
       >
         {direction === 'previous' ? <span aria-hidden="true">‹</span> : null}
-        <span className="classroom-nav-name">{item?.title ?? ''}</span>
+        <span className="classroom-nav-name">{item ? compactNeighborTitle(item.title) : ''}</span>
         {direction === 'next' ? <span aria-hidden="true">›</span> : null}
       </button>
     );
@@ -264,9 +273,7 @@ export function ClassroomNavigator({
           }}
         >
           <span className="classroom-nav-name">{title}</span>
-          <span aria-hidden="true" className="classroom-nav-chevron">
-            ⌄
-          </span>
+          <span aria-hidden="true" className="classroom-nav-chevron" />
         </button>
       </h1>
       {neighbor(navigation?.next ?? null, 'next')}
