@@ -5092,12 +5092,21 @@ for (const width of [1440, 1024, 390, 320])
     await page.goto('/#/home');
     const main = page.getByRole('main', { name: 'Главная', exact: true });
     await expect(main).toBeVisible();
-    await expect(main.locator('.creator-module-section')).toHaveCount(3);
+    // SP-03 keeps all four module directions visible; an unavailable module is disabled.
+    await expect(main.locator('.creator-module-section')).toHaveCount(4);
     await expect(main.getByRole('heading', { name: 'Главная', exact: true })).toHaveCount(0);
     await expect(
       main.locator('.home-mobile-create,.home-empty-create,.portal-quick-create'),
     ).toHaveCount(0);
-    await expect(main.locator('.home-create-button')).toHaveCount(3);
+    await expect(main.locator('.home-create-button')).toHaveCount(4);
+    await expect(
+      main.locator('.creator-module-section[data-module="robotics"] .home-create-button'),
+    ).toBeDisabled();
+    for (const module of ['three-d', 'electronics', 'blocks']) {
+      await expect(
+        main.locator(`.creator-module-section[data-module="${module}"] .home-create-button`),
+      ).toBeEnabled();
+    }
     const actionGeometry = async () => {
       const boxes = await main.locator('.home-create-button').evaluateAll((buttons) =>
         buttons.map((button) => {
@@ -5125,7 +5134,7 @@ for (const width of [1440, 1024, 390, 320])
     };
     const normalGeometry = await actionGeometry();
 
-    await expect(main.locator('.home-module-empty')).toHaveCount(3);
+    await expect(main.locator('.home-module-empty')).toHaveCount(4);
     await expect(page.locator('.portal-header .portal-quick-create > summary')).toBeVisible();
     await expect(main.getByRole('link', { name: 'Открыть знания', exact: true })).toBeVisible();
     await assertShellGeometry(page, width);
@@ -5330,16 +5339,20 @@ test('R2 Home module creation preserves server projection, busy and idempotent r
   await page.goto('/#/home');
   const button = page.getByRole('button', { name: 'Создать цепь', exact: true });
   await expect(button).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Создать модель', exact: true })).toHaveCount(0);
+  // The Home contract keeps unavailable directions visible, but forbids creation.
+  const unavailableModel = page.getByRole('button', { name: 'Создать модель', exact: true });
+  await expect(unavailableModel).toBeVisible();
+  await expect(unavailableModel).toBeDisabled();
+  await expect(page.locator('.creator-module-section[data-module="three-d"]')).toContainText(
+    'Сейчас недоступно',
+  );
   await button.click();
   await expect(button).toBeDisabled();
   release();
-  await expect(page.getByRole('alert')).toContainText('Создание временно недоступно');
+  const createAlert = page.locator('.portal-create-notice[role="alert"]');
+  await expect(createAlert).toContainText('Создание временно недоступно');
   await expect(button).toBeEnabled();
-  await page
-    .getByRole('alert')
-    .getByRole('button', { name: 'Продолжить создание', exact: true })
-    .click();
+  await createAlert.getByRole('button', { name: 'Продолжить создание', exact: true }).click();
   await expect.poll(() => keys.length).toBe(2);
   expect(keys[0]).toBe(keys[1]);
   expect(bodies[0]).toEqual(bodies[1]);
