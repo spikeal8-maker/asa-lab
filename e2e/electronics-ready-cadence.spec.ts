@@ -6719,7 +6719,26 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
     const clip = { x: clipX, y: clipY, width: clipRight - clipX, height: clipBottom - clipY };
     if (clip.width <= 0 || clip.height <= 0)
       throw new Error('native screenshot clip is outside the editor viewport');
-    const bytes = await page.screenshot({ path, clip });
+    // Chromium compositor capture avoids Playwright's full screenshot stabilization
+    // wait. It is still one genuine screenshot of the mounted page, not a
+    // reconstructed image from Worker, React or a detached canvas.
+    const captureStartedAt = performance.now();
+    const cdp = await page.context().newCDPSession(page);
+    const bytes = await (async () => {
+      try {
+        const captured = await cdp.send('Page.captureScreenshot', {
+          format: 'png',
+          fromSurface: true,
+          captureBeyondViewport: false,
+          clip: { ...clip, scale: 1 },
+        });
+        return Buffer.from(captured.data, 'base64');
+      } finally {
+        await cdp.detach();
+      }
+    })();
+    const captureMs = performance.now() - captureStartedAt;
+    writeFileSync(path, bytes);
     const during = JSON.parse(
       await page.evaluate((from) => {
         const probe = window as D2Window;
@@ -6808,6 +6827,8 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
       requestedVector: vector,
       observedVector,
       nativeCapture: {
+        method: 'Chromium Page.captureScreenshot / actual compositor PNG',
+        captureMs,
         clip,
         pixelOffset: capturedOffset,
         pngSize: { width: png.width, height: png.height },
