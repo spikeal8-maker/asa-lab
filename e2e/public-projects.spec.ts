@@ -2176,7 +2176,7 @@ async function sp03Directions(page: Page) {
   for (const module of SP03_MODULES) {
     const section = page.locator(`.creator-module-section[data-module="${module}"]`);
     await expect(section).toBeVisible();
-    await expect(section.getByRole('heading', { level: 2 })).toBeVisible();
+    await expect(section.locator(`h2#creator-module-${module}`)).toBeVisible();
     await expect(section.locator('.home-create-button')).toBeVisible();
   }
 }
@@ -2867,6 +2867,8 @@ async function sp03HoldOldSummary(page: Page) {
   let held: { id: string; networkId: string | undefined; status: number | undefined } | null = null;
   const terminal = new Map<string, 'delivered' | 'transport_aborted'>();
   const errors: string[] = [];
+  const continuationFailures: { networkId: string | undefined; message: string }[] = [];
+  const pendingContinuations: Promise<void>[] = [];
   cdp.on('Network.loadingFinished', (event) => terminal.set(event.requestId, 'delivered'));
   cdp.on('Network.loadingFailed', (event) => {
     if (event.canceled || event.errorText === 'net::ERR_ABORTED')
@@ -2880,9 +2882,13 @@ async function sp03HoldOldSummary(page: Page) {
         status: event.responseStatusCode,
       };
     } else {
-      void cdp
-        .send('Fetch.continueResponse', { requestId: event.requestId })
-        .catch((error: unknown) => errors.push(String(error)));
+      const continuation = cdp.send('Fetch.continueResponse', { requestId: event.requestId }).then(
+        () => undefined,
+        (error: unknown) => {
+          continuationFailures.push({ networkId: event.networkId, message: String(error) });
+        },
+      );
+      pendingContinuations.push(continuation);
     }
   });
   await cdp.send('Network.enable');
@@ -2918,6 +2924,19 @@ async function sp03HoldOldSummary(page: Page) {
           await expect.poll(() => terminal.get(response.networkId!)).toBe('transport_aborted');
         }
         await expect.poll(() => terminal.has(response.networkId!)).toBe(true);
+        await Promise.all(pendingContinuations);
+        for (const failure of continuationFailures) {
+          if (
+            failure.message.match(
+              /Invalid InterceptionId|Invalid interception|Invalid requestId|No resource with given identifier/i,
+            ) &&
+            failure.networkId
+          ) {
+            await expect.poll(() => terminal.get(failure.networkId!)).toBe('transport_aborted');
+          } else {
+            errors.push(failure.message);
+          }
+        }
         expect(errors).toEqual([]);
         return terminal.get(response.networkId!)!;
       } finally {

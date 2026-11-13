@@ -158,7 +158,6 @@ import {
 } from './creator-portal/portal-navigation-guard';
 import './creator-portal/creator-portal.css';
 import './creator-portal/portal-workspace.css';
-import './creator-portal/home-workspace.css';
 import './creator-portal/portal-header-adaptive.css';
 import './projects-public/public-projects.css';
 

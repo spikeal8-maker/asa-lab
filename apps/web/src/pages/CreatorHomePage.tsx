@@ -1,3 +1,4 @@
+import '../creator-portal/home-workspace.css';
 import { useCallback, useState } from 'react';
 import { api, type SessionPayload } from '../api';
 import { PortalLink } from '../components/PortalLink';
