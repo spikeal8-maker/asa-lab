@@ -49,6 +49,16 @@ export function RobotFieldSettings({
       item.widthMeters === world.field.widthMeters &&
       item.heightMeters === world.field.heightMeters,
   );
+  function centeredStart(next: RoboticsWorldDocument): RoboticsWorldDocument {
+    return {
+      ...next,
+      initialPose: {
+        ...next.initialPose,
+        xMeters: next.field.widthMeters / 2,
+        yMeters: next.field.heightMeters / 2,
+      },
+    };
+  }
   function attempt(make: () => RoboticsWorldDocument) {
     try {
       return onCommit(make());
@@ -101,14 +111,35 @@ export function RobotFieldSettings({
               {...ROBOTICS_FIELD_LIMITS[property]}
               disabled={running}
               onValidationReset={() => onError('')}
-              onCommit={(value) =>
-                onCommit({ ...world, field: { ...world.field, [property]: value } })
-              }
+              onCommit={(value) => {
+                const next = { ...world, field: { ...world.field, [property]: value } };
+                return onCommit(property === 'gridMeters' ? next : centeredStart(next));
+              }}
             />
           ))}
         </div>
+        <div className="robotics-field-center-action">
+          <span>
+            Старт робота: {world.initialPose.xMeters.toLocaleString('ru-RU')} м ×{' '}
+            {world.initialPose.yMeters.toLocaleString('ru-RU')} м
+          </span>
+          <button
+            type="button"
+            className="robotics-button"
+            aria-label="Поместить робота в центр поля"
+            disabled={
+              running ||
+              (Math.abs(world.initialPose.xMeters - world.field.widthMeters / 2) < 1e-8 &&
+                Math.abs(world.initialPose.yMeters - world.field.heightMeters / 2) < 1e-8)
+            }
+            onClick={() => onCommit(centeredStart(world))}
+          >
+            По центру
+          </button>
+        </div>
         <p className="robotics-help">
-          Размеры — в метрах. Сетка помогает размещать предметы и не меняет физику.
+          Размеры — в метрах. При изменении поля старт робота пересчитывается в центр. Ранее
+          сохранённый проект можно центрировать отдельной кнопкой.
         </p>
       </details>
       {!extended || sourceSchemaVersion === 2 ? (
@@ -214,7 +245,9 @@ export function RobotFieldSettings({
               type="button"
               className="robotics-button"
               disabled={running || !Object.values(tileInputsValid).every(Boolean)}
-              onClick={() => attempt(() => resizeRoboticsTileField(world, columns, rows))}
+              onClick={() =>
+                attempt(() => centeredStart(resizeRoboticsTileField(world, columns, rows)))
+              }
             >
               Применить размер по плиткам
             </button>

@@ -1213,6 +1213,18 @@ export interface ArduinoCodePanelHandle {
   revealProgramStart: () => void;
 }
 
+function ArduinoToolbarOverflow({
+  active,
+  children,
+}: {
+  active: boolean;
+  children: ReactNode;
+}): JSX.Element {
+  // Standalone Electronics keeps its original direct toolbar DOM/CSS selectors.
+  // Only Robotics with a trailing simulation controller needs a scrollable group.
+  return active ? <div className="arduino-code-toolbar-scroll">{children}</div> : <>{children}</>;
+}
+
 export function ArduinoCodePanel({
   controller: c,
   open,
@@ -1222,6 +1234,8 @@ export function ArduinoCodePanel({
   onMobileHeightChange,
   onClose,
   programHandleRef,
+  toolbarActions,
+  toolbarAccessory,
 }: {
   controller: ElectronicsWorkbenchController;
   open: boolean;
@@ -1231,6 +1245,8 @@ export function ArduinoCodePanel({
   onMobileHeightChange: (value: number) => void;
   onClose: () => void;
   programHandleRef?: Ref<ArduinoCodePanelHandle>;
+  toolbarActions?: ReactNode;
+  toolbarAccessory?: ReactNode;
 }): JSX.Element {
   const boards = useMemo(
     () => c.document?.components.filter(isArduino) ?? [],
@@ -1533,6 +1549,7 @@ export function ArduinoCodePanel({
         onClose={onClose}
       />
       <header className={`arduino-code-toolbar mode-${program.mode}`}>
+        {/* Keep this popover outside the scrolling tools so its menu is not clipped. */}
         <details className="arduino-mode-menu" ref={modeMenuRef}>
           <summary>
             <span>{MODE_LABELS[program.mode]}</span>
@@ -1555,87 +1572,95 @@ export function ArduinoCodePanel({
             </button>
           </div>
         </details>
-        {program.mode !== 'blocks' ? (
-          <button
-            type="button"
-            className="arduino-toolbar-button arduino-check-button"
-            onClick={checkProgram}
-            title="Проверить совместимость кода с симулятором (не компиляция)"
-          >
-            <CheckIcon />
-            <span>Проверить код</span>
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className="arduino-square-button arduino-download-button"
-          onClick={downloadSource}
-          title="Скачать .ino"
-        >
-          <DownloadIcon />
-        </button>
-        {program.mode !== 'blocks' ? (
-          <button
-            type="button"
-            className={`arduino-toolbar-button arduino-commands-button${commandReferenceOpen ? ' active' : ''}`}
-            title="Справочник команд Arduino"
-            aria-expanded={commandReferenceOpen}
-            onClick={() => setCommandReferenceOpen((current) => !current)}
-          >
-            <CommandsIcon />
-            <span>Команды</span>
-          </button>
-        ) : null}
-        {program.mode === 'text' ? (
-          <button
-            type="button"
-            className={`arduino-toolbar-button arduino-autocomplete-button${autocompleteEnabled ? ' active' : ''}`}
-            title={autocompleteEnabled ? 'Отключить автодополнение' : 'Включить автодополнение'}
-            aria-label={
-              autocompleteEnabled ? 'Отключить автодополнение' : 'Включить автодополнение'
-            }
-            aria-pressed={autocompleteEnabled}
-            onClick={() => setAutocompleteEnabled((current) => !current)}
-          >
-            <AutocompleteIcon />
-            <span>Авто</span>
-          </button>
-        ) : null}
-        {program.mode !== 'blocks' ? (
-          <label className="arduino-font-size-select" title="Размер текста">
-            <span aria-hidden="true">Aa</span>
-            <select
-              value={fontSize}
-              onChange={(event) => setFontSize(Number(event.target.value))}
-              aria-label="Размер текста Arduino"
+        <ArduinoToolbarOverflow active={Boolean(toolbarActions)}>
+          {program.mode !== 'blocks' ? (
+            <button
+              type="button"
+              className="arduino-toolbar-button arduino-check-button"
+              onClick={checkProgram}
+              title="Проверить совместимость кода с симулятором (не компиляция)"
             >
-              {ARDUINO_FONT_SIZES.map((size) => (
-                <option key={size} value={size}>
-                  {size} px
-                </option>
-              ))}
-            </select>
-          </label>
+              <CheckIcon />
+              <span>Проверить код</span>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="arduino-square-button arduino-download-button"
+            onClick={downloadSource}
+            title="Скачать .ino"
+          >
+            <DownloadIcon />
+          </button>
+          {program.mode !== 'blocks' ? (
+            <button
+              type="button"
+              className={`arduino-toolbar-button arduino-commands-button${commandReferenceOpen ? ' active' : ''}`}
+              title="Справочник команд Arduino"
+              aria-expanded={commandReferenceOpen}
+              onClick={() => setCommandReferenceOpen((current) => !current)}
+            >
+              <CommandsIcon />
+              <span>Команды</span>
+            </button>
+          ) : null}
+          {program.mode === 'text' ? (
+            <button
+              type="button"
+              className={`arduino-toolbar-button arduino-autocomplete-button${autocompleteEnabled ? ' active' : ''}`}
+              title={autocompleteEnabled ? 'Отключить автодополнение' : 'Включить автодополнение'}
+              aria-label={
+                autocompleteEnabled ? 'Отключить автодополнение' : 'Включить автодополнение'
+              }
+              aria-pressed={autocompleteEnabled}
+              onClick={() => setAutocompleteEnabled((current) => !current)}
+            >
+              <AutocompleteIcon />
+              <span>Авто</span>
+            </button>
+          ) : null}
+          {program.mode !== 'blocks' ? (
+            <label className="arduino-font-size-select" title="Размер текста">
+              <span aria-hidden="true">Aa</span>
+              <select
+                value={fontSize}
+                onChange={(event) => setFontSize(Number(event.target.value))}
+                aria-label="Размер текста Arduino"
+              >
+                {ARDUINO_FONT_SIZES.map((size) => (
+                  <option key={size} value={size}>
+                    {size} px
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <span className="arduino-code-toolbar-spacer" />
+          <select
+            className="arduino-board-select"
+            value={selectedBoard.id}
+            aria-label="Программируемая плата"
+            title={`Активная плата: ${selectedBoard.name?.trim() || 'Arduino Uno R3'}`}
+            onChange={(event) => {
+              const nextBoard = boards.find((board) => board.id === event.target.value);
+              if (!nextBoard) return;
+              activateBoard(nextBoard);
+              c.selectComponent(nextBoard.id, false);
+            }}
+          >
+            {boards.map((board, index) => (
+              <option key={board.id} value={board.id}>
+                {index + 1} ({board.name?.trim() || 'Arduino Uno R3'})
+              </option>
+            ))}
+          </select>
+        </ArduinoToolbarOverflow>
+        {toolbarAccessory ? (
+          <div className="arduino-code-toolbar-accessory">{toolbarAccessory}</div>
         ) : null}
-        <span className="arduino-code-toolbar-spacer" />
-        <select
-          className="arduino-board-select"
-          value={selectedBoard.id}
-          aria-label="Программируемая плата"
-          title={`Активная плата: ${selectedBoard.name?.trim() || 'Arduino Uno R3'}`}
-          onChange={(event) => {
-            const nextBoard = boards.find((board) => board.id === event.target.value);
-            if (!nextBoard) return;
-            activateBoard(nextBoard);
-            c.selectComponent(nextBoard.id, false);
-          }}
-        >
-          {boards.map((board, index) => (
-            <option key={board.id} value={board.id}>
-              {index + 1} ({board.name?.trim() || 'Arduino Uno R3'})
-            </option>
-          ))}
-        </select>
+        {toolbarActions ? (
+          <div className="arduino-code-toolbar-actions">{toolbarActions}</div>
+        ) : null}
       </header>
       <div
         className={`arduino-code-body mode-${program.mode}${program.mode !== 'blocks' && commandReferenceOpen ? ' commands-open' : ''}`}

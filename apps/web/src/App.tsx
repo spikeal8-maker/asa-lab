@@ -200,9 +200,6 @@ function publicViewFromHash(): PublicView {
 export function App(): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
   const portalScope = portalSessionKey(session);
-  usePortalGameNotifications(
-    session.kind === 'authenticated' || session.kind === 'student' ? portalScope : '',
-  );
   usePresentationSessionLifetime(
     session.kind === 'checking'
       ? undefined
@@ -291,6 +288,14 @@ export function App(): JSX.Element {
 
   const [view, setViewState] = useState<CreatorPortalView>(() =>
     creatorViewFromLocation(window.location),
+  );
+  // Robotics runs locally; polling unrelated game invitations inside its editor
+  // creates needless 5-second requests and wastes shared server capacity.
+  usePortalGameNotifications(
+    (session.kind === 'authenticated' || session.kind === 'student') &&
+      !(view.kind === 'editor' && view.moduleKey === 'robotics')
+      ? portalScope
+      : '',
   );
   const actor = telemetryActor(session);
   const actorIdentity =

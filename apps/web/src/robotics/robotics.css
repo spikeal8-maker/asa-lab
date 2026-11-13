@@ -10,6 +10,10 @@
 .robotics-portal-editor .robotics-lab {
   grid-template-rows: 48px 48px auto minmax(0, 1fr) 30px;
 }
+.robotics-portal-editor > .robotics-lab {
+  /* Keep editor tool/menu layers below sibling account project dialogs. */
+  isolation: isolate;
+}
 .robotics-project-snapshot {
   position: fixed;
   left: -10000px;
@@ -1284,23 +1288,30 @@
 }
 .robotics-field-scroll {
   display: block;
-  overflow: auto;
+  position: relative;
+  overflow: hidden;
   padding: 0;
   overscroll-behavior: contain;
   background: #f3f6f8;
 }
-.robotics-field-zoom-surface {
-  min-width: 100%;
-  min-height: 100%;
-  padding: 10px;
-  box-sizing: border-box;
+.robotics-field-camera-surface {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
 }
-.robotics-field-zoom-surface .robotics-field {
+.robotics-field-camera-surface .robotics-field {
   display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
 }
 .robotics-field-scroll[data-pan='true'] .robotics-field {
-  touch-action: pan-x pan-y;
   cursor: grab;
+}
+.robotics-field-scroll[data-camera-gesturing='true'] .robotics-field {
+  cursor: grabbing;
 }
 .robotics-stamp-tools {
   display: flex;
@@ -1468,243 +1479,239 @@
   }
 }
 
-/* ROBOTICS-HEADER-001: reuse the live Electronics workbench shell and mode pills. */
+/* ROBOTICS-HEADER-UI-002: one compact workbench row and equal-width segments. */
 .robotics-lab .robotics-unified-header {
+  display: flex;
+  align-items: center;
+  width: calc(100% + 32px);
   height: 48px;
   min-height: 48px;
-  width: calc(100% + 32px);
   margin: 0 -16px;
+  padding: 0 10px 0 0;
+  gap: 12px;
   border-radius: 0;
   overflow: visible;
-  gap: 0;
   z-index: 30;
 }
 .robotics-header-brand-zone {
+  flex: 0 1 auto;
   gap: 8px;
+  min-width: 0;
 }
 .robotics-header-module-icon {
-  flex: 0 0 22px;
   display: grid;
   place-items: center;
+  flex: 0 0 22px;
   width: 22px;
   height: 22px;
 }
 .robotics-header-title-input {
-  width: clamp(130px, 18vw, 250px);
+  flex: 0 1 auto;
   min-width: 0;
+  width: clamp(130px, 19vw, 290px);
+  margin-left: 0;
 }
 .robotics-header-status {
-  min-width: 0;
-  padding: 0 8px;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
   overflow: hidden;
-  text-align: center;
+  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  color: #526979;
+  border: 0;
 }
-.robotics-header-status.is-saved {
-  color: #24745c;
-}
-.robotics-header-status.is-error {
-  color: #ad342f;
-}
-.robotics-header-controls,
-.robotics-header-navigation {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  gap: 6px;
-}
-.robotics-header-controls {
-  height: 100%;
-  margin-left: auto;
-  padding-right: 8px;
-}
-.robotics-header-navigation button,
-.robotics-header-publish,
-.robotics-header-open,
 .robotics-header-save {
-  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
   gap: 7px;
-  height: 38px;
+  min-width: 112px;
+  height: 34px;
   padding: 0 12px;
-  border: 1.5px solid transparent;
-  border-radius: 19px;
-  background: #fff;
-  color: #385267;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
+  border: 1px solid #1399b9;
+  border-radius: 9px;
+  background: #0a98ba;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-}
-.robotics-header-navigation button:hover:not(:disabled),
-.robotics-header-publish:hover:not(:disabled),
-.robotics-header-open:hover:not(:disabled),
-.robotics-header-save:hover:not(:disabled) {
-  background: #f2f5f7;
-}
-.robotics-header-save {
-  border-color: #1494c9;
-  color: #147ca5;
-  margin-left: 2px;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 }
 .robotics-header-save svg {
-  width: 20px;
-  height: 20px;
+  width: 17px;
+  height: 17px;
 }
-.robotics-header-publish {
-  border-color: #0a91b6;
-  background: #0a91b6;
-  color: #fff;
+.robotics-header-save.is-dirty:hover:not(:disabled) {
+  background: #087e9b;
+  border-color: #087e9b;
 }
-.robotics-header-publish:hover:not(:disabled) {
-  border-color: #067999;
-  background: #067999;
+.robotics-header-save.is-saved {
+  background: #f0f4f7;
+  color: #80939f;
+  border-color: #dce5eb;
 }
-.robotics-header-navigation button:disabled,
-.robotics-header-publish:disabled,
-.robotics-header-open:disabled,
+.robotics-header-save.is-saved:hover:not(:disabled) {
+  background: #e7eff4;
+  color: #617c8b;
+}
+.robotics-header-save.is-error {
+  background: #fff0ee;
+  color: #a44338;
+  border-color: #dca39b;
+}
+.robotics-header-save.is-saving,
 .robotics-header-save:disabled {
-  opacity: 0.38;
-  cursor: not-allowed;
+  background: #f2f5f7;
+  color: #698795;
+  border-color: #dae4e9;
+  cursor: progress;
+}
+.robotics-header-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-left: auto;
+  height: 100%;
+  gap: 10px;
+  min-width: 0;
 }
 .robotics-unified-header .robotics-tabs {
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-  max-width: none;
-  height: 100%;
-  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  flex: 0 0 488px;
+  gap: 2px;
+  width: 488px;
+  height: 38px;
   margin: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  gap: 4px;
+  padding: 3px;
+  border: 1px solid #d3e0e8;
+  border-radius: 11px;
+  background: #edf3f7;
 }
 .robotics-unified-header .robotics-tabs > button {
-  display: inline-flex;
-  flex: 0 0 auto;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  width: 100%;
   min-width: 0;
-  height: 38px;
-  padding: 0 12px;
-  border: 1.5px solid transparent;
-  border-radius: 19px;
-  background: #fff;
-  color: #385267;
-  font-size: 14px;
+  height: 30px;
+  gap: 6px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #4a6374;
+  font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
   box-shadow: none;
 }
 .robotics-unified-header .robotics-tabs > button.active,
 .robotics-unified-header .robotics-tabs > button[aria-selected='true'] {
-  border-color: #1494c9;
-  color: #1494c9;
   background: #fff;
+  color: #086d91;
+  border-color: #c5e3ed;
+  box-shadow: 0 1px 3px #0b355813;
 }
-.robotics-unified-header .robotics-tabs > button:hover {
-  background: #f2f5f7;
+.robotics-unified-header .robotics-tabs > button:hover:not(.active) {
+  background: #e0ebf1;
 }
 .robotics-unified-header .robotics-tabs > button svg {
-  width: 22px;
-  height: 22px;
-  flex: 0 0 22px;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
 }
-.robotics-header-avatar {
-  width: 36px;
+.robotics-header-profile {
+  display: block;
+  position: relative;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+}
+.robotics-header-profile > summary {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  list-style: none;
+  cursor: pointer;
+}
+.robotics-header-profile > summary::-webkit-details-marker {
+  display: none;
+}
+.robotics-header-profile > summary:hover,
+.robotics-header-profile[open] > summary {
+  border-color: #90cddd;
+}
+.robotics-header-avatar,
+.robotics-unified-header .robotics-header-avatar {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  margin: 0;
+}
+.robotics-header-menu-panel {
+  display: grid;
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 120;
+  width: 185px;
+  max-width: calc(100vw - 10px);
+  padding: 6px;
+  gap: 2px;
+  border: 1px solid #d3e0e8;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 28px #0b35582a;
+}
+.robotics-header-menu-panel button,
+.robotics-header-menu-panel .robotics-header-publish {
+  display: block;
+  width: 100%;
   height: 36px;
-  margin: 0 2px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  color: #294b61;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.robotics-header-menu-panel button:hover:not(:disabled) {
+  background: #edf6fa;
+  color: #086d91;
+}
+.robotics-header-menu-panel button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.robotics-header-open {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d3e0e8;
+  border-radius: 9px;
+  background: #fff;
+  color: #385267;
 }
 .robotics-unified-header button:focus-visible,
 .robotics-unified-header summary:focus-visible,
 .robotics-unified-header input:focus-visible {
-  outline: 3px solid rgba(20, 148, 201, 0.42);
-  outline-offset: 1px;
-}
-.robotics-header-menu {
-  display: none;
-  position: relative;
-  flex: 0 0 auto;
-}
-.robotics-header-menu > summary {
-  display: grid;
-  place-items: center;
-  box-sizing: border-box;
-  list-style: none;
-  cursor: pointer;
-  width: 36px;
-  height: 38px;
-  border: 1.5px solid #d4d9df;
-  border-radius: 19px;
-  color: #385267;
-  background: #fff;
-}
-.robotics-header-menu > summary::-webkit-details-marker {
-  display: none;
-}
-.robotics-header-menu > summary:hover {
-  background: #f2f5f7;
-}
-.robotics-header-menu > summary svg {
-  width: 20px;
-  height: 20px;
-}
-.robotics-header-menu-panel {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 100;
-  display: grid;
-  gap: 4px;
-  width: max-content;
-  min-width: 158px;
-  max-width: calc(100vw - 12px);
-  padding: 6px;
-  border: 1px solid #d4d9df;
-  border-radius: 8px;
-  box-shadow: 0 5px 20px #1c2b3629;
-  background: #fff;
-}
-.robotics-header-menu-panel button {
-  border: 0;
-  border-radius: 5px;
-  padding: 9px 12px;
-  text-align: left;
-  background: transparent;
-  color: #304352;
-  cursor: pointer;
-}
-.robotics-header-menu-panel button:hover:not(:disabled) {
-  background: #f2f5f7;
-}
-.robotics-header-menu-panel button:disabled {
-  opacity: 0.38;
-}
-@media (max-width: 1500px) {
-  .robotics-header-navigation,
-  .robotics-header-publish,
-  .robotics-header-avatar {
-    display: none;
-  }
-  .robotics-header-menu {
-    display: block;
-  }
-}
-@media (max-width: 1120px) {
-  .robotics-header-status {
-    display: none;
-  }
-  .robotics-lab .robotics-unified-header {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
+  outline: 3px solid #0aa4c866;
+  outline-offset: 2px;
 }
 @media (max-width: 1180px) {
   .robotics-lab .robotics-unified-header {
@@ -1712,92 +1719,2363 @@
     margin-inline: -12px;
   }
 }
-@media (max-width: 720px) {
-  .robotics-header-open {
+@media (max-width: 1160px) {
+  .robotics-lab .robotics-unified-header {
+    gap: 8px;
+  }
+  .robotics-unified-header .robotics-tabs {
+    flex-basis: 420px;
+    width: 420px;
+  }
+  .robotics-header-title-input {
+    width: clamp(100px, 17vw, 220px);
+  }
+}
+@media (max-width: 920px) {
+  .robotics-unified-header .robotics-tabs {
+    flex-basis: 150px;
+    width: 150px;
+  }
+  .robotics-unified-header .robotics-tabs > button span {
     display: none;
+  }
+  .robotics-unified-header .robotics-tabs > button {
+    padding: 0;
+  }
+  .robotics-header-save {
+    min-width: 38px;
+    width: 38px;
+    padding: 0;
+  }
+  .robotics-header-save > span {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .robotics-lab .robotics-unified-header {
+    width: calc(100% + 24px);
+    margin-inline: -12px;
+    padding-right: 5px;
+    gap: 5px;
   }
   .robotics-unified-header .workbench-brand-name {
     display: none;
   }
   .robotics-unified-header .workbench-brand {
-    padding: 0 4px;
+    padding: 0 5px;
   }
   .robotics-unified-header .workbench-brand-mark {
     width: 25px;
     height: 25px;
   }
   .robotics-header-brand-zone {
-    gap: 5px;
+    gap: 4px;
   }
   .robotics-header-module-icon {
-    width: 19px;
     flex-basis: 19px;
+    width: 19px;
   }
   .robotics-header-module-icon svg {
     width: 19px;
     height: 19px;
   }
   .robotics-header-title-input {
-    width: clamp(55px, 19vw, 126px);
-    padding: 5px 7px;
-    font-size: 12px;
+    width: clamp(48px, 18vw, 100px);
+    padding: 5px 6px;
+    font-size: 11px;
   }
   .robotics-header-controls {
-    gap: 2px;
-    padding-right: 3px;
+    gap: 5px;
   }
   .robotics-unified-header .robotics-tabs {
-    gap: 2px;
+    flex-basis: 138px;
+    width: 138px;
+    height: 36px;
+    padding: 2px;
+    gap: 1px;
   }
   .robotics-unified-header .robotics-tabs > button {
-    width: 33px;
-    height: 34px;
-    padding: 0;
-    gap: 0;
-  }
-  .robotics-unified-header .robotics-tabs > button span {
-    display: none;
-  }
-  .robotics-unified-header .robotics-tabs > button svg {
-    width: 20px;
-    height: 20px;
-    flex-basis: 20px;
-  }
-  .robotics-header-menu > summary {
-    width: 32px;
-    height: 34px;
+    height: 30px;
   }
   .robotics-header-save {
-    width: 34px;
+    min-width: 33px;
+    width: 33px;
     height: 34px;
-    margin-left: 0;
-    padding: 0;
   }
-  .robotics-header-save span {
+  .robotics-header-profile {
+    flex-basis: 36px;
+    width: 36px;
+    height: 36px;
+  }
+  .robotics-header-profile > summary {
+    width: 36px;
+    height: 36px;
+  }
+  .robotics-header-avatar,
+  .robotics-unified-header .robotics-header-avatar {
+    flex-basis: 32px;
+    width: 32px;
+    height: 32px;
+  }
+  .robotics-header-open {
     display: none;
   }
 }
 @media (max-width: 390px) {
+  .robotics-lab .robotics-unified-header {
+    gap: 4px;
+  }
   .robotics-header-brand-zone {
     gap: 3px;
   }
   .robotics-header-title-input {
-    width: 51px;
-    padding-inline: 5px;
+    width: 53px;
+    padding-inline: 4px;
   }
-  .robotics-unified-header .robotics-tabs > button {
-    width: 30px;
+  .robotics-unified-header .robotics-tabs {
+    flex-basis: 130px;
+    width: 130px;
   }
-  .robotics-header-save {
-    width: 32px;
-  }
-  .robotics-header-menu > summary {
-    width: 30px;
+  .robotics-header-controls {
+    gap: 4px;
   }
 }
 @media (max-width: 360px) {
   .robotics-lab .robotics-unified-header {
     width: calc(100% + 16px);
     margin-inline: -8px;
+    padding-right: 3px;
+    gap: 3px;
+  }
+  .robotics-header-title-input {
+    width: 42px;
+    padding-inline: 3px;
+  }
+  .robotics-unified-header .robotics-tabs {
+    flex-basis: 117px;
+    width: 117px;
+  }
+  .robotics-header-controls {
+    gap: 3px;
+  }
+  .robotics-header-save {
+    min-width: 30px;
+    width: 30px;
+  }
+  .robotics-header-profile,
+  .robotics-header-profile > summary {
+    flex-basis: 32px;
+    width: 32px;
+    height: 32px;
+  }
+  .robotics-header-avatar,
+  .robotics-unified-header .robotics-header-avatar {
+    flex-basis: 28px;
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* ROBOTICS-RUN-COMPACT-002: the right-hand controls float over the top of the
+   side column; the actual editor begins directly under the main header. */
+.robotics-lab,
+.robotics-portal-editor .robotics-lab {
+  position: relative;
+  grid-template-rows: 48px minmax(0, 1fr) 30px;
+}
+.robotics-lab > .robotics-workspace {
+  grid-row: 2;
+}
+.robotics-lab > .robotics-footer {
+  grid-row: 3;
+}
+.robotics-lab > .robotics-run-bar {
+  position: absolute;
+  top: 0;
+  right: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  min-height: 34px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.robotics-lab > .robotics-workspace > .robotics-observation {
+  margin-top: 43px;
+}
+.robotics-run-readout {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  font-size: 12px;
+  color: #3f6376;
+}
+.robotics-run-bar .workbench-simulation-clock-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 7px;
+  border: 1px solid #d0dfe8;
+  border-radius: 8px;
+  background: #fff;
+  color: #31566a;
+}
+.robotics-run-bar .workbench-simulation-clock-button:hover,
+.robotics-run-bar .workbench-simulation-clock-button[aria-expanded='true'] {
+  background: #e9f5f9;
+  border-color: #73b5c8;
+}
+.robotics-run-bar .workbench-simulation-pace .workbench-simulation-rate {
+  min-width: 22px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #087d9b;
+}
+.robotics-run-bar .workbench-simulation-time {
+  display: inline-block;
+  width: auto;
+  min-width: 45px;
+  height: auto;
+  padding: 0;
+  white-space: nowrap;
+  color: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.robotics-run-bar .robotics-run-readout output {
+  min-width: 45px;
+  text-align: center;
+}
+.robotics-run-bar .robotics-run-buttons {
+  gap: 4px;
+}
+.robotics-run-bar .robotics-run-buttons .robotics-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 33px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  gap: 5px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.robotics-run-bar .robotics-run-buttons .robotics-button.primary {
+  width: auto;
+  min-width: 98px;
+  padding: 0 9px;
+}
+.robotics-run-bar .robotics-run-buttons .robotics-button.primary.is-running {
+  color: #9c3d35;
+  border-color: #e5b0a8;
+  background: #fff1ef;
+}
+.robotics-run-bar .robotics-run-buttons .robotics-button.primary.is-running:hover:not(:disabled) {
+  color: #852a23;
+  border-color: #d58e84;
+  background: #ffe6e2;
+}
+.robotics-run-bar .robotics-run-buttons .robotics-button:disabled {
+  opacity: 0.42;
+}
+.robotics-run-bar .robotics-icon {
+  width: 15px;
+  height: 15px;
+  flex-basis: 15px;
+}
+.robotics-header-notice:not([hidden]) {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 26px;
+  max-width: 300px;
+  height: 34px;
+}
+.robotics-header-notice-details {
+  width: 100%;
+  min-width: 0;
+  position: relative;
+}
+.robotics-header-notice-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #fff7e9;
+  color: #745116;
+  cursor: pointer;
+  list-style: none;
+}
+.robotics-header-notice-details > summary::-webkit-details-marker {
+  display: none;
+}
+.robotics-header-notice-icon {
+  display: grid;
+  flex: 0 0 18px;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #e4a23d;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+.robotics-header-notice-caption {
+  display: block;
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+}
+.robotics-header-notice-panel {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 100;
+  width: min(350px, calc(100vw - 16px));
+  padding: 10px 12px;
+  border: 1px solid #e8c994;
+  border-radius: 8px;
+  background: #fff9ed;
+  color: #654e29;
+  box-shadow: 0 8px 24px #0b355829;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.robotics-header-notice-panel p + p {
+  margin-top: 8px;
+}
+@media (max-width: 1180px) {
+  .robotics-lab > .robotics-run-bar {
+    right: 12px;
+  }
+}
+@media (max-width: 760px) {
+  .robotics-lab,
+  .robotics-portal-editor .robotics-lab {
+    grid-template-rows: 48px 36px minmax(0, 1fr) 28px;
+  }
+  .robotics-lab > .robotics-run-bar {
+    position: relative;
+    top: auto;
+    right: auto;
+    grid-row: 2;
+    justify-self: end;
+    align-self: center;
+    min-height: 32px;
+    max-width: 100%;
+  }
+  .robotics-lab > .robotics-workspace {
+    grid-row: 3;
+  }
+  .robotics-lab > .robotics-footer {
+    grid-row: 4;
+  }
+  .robotics-lab > .robotics-workspace > .robotics-observation {
+    margin-top: 0;
+  }
+  .robotics-run-bar .robotics-run-buttons .robotics-button.primary {
+    min-width: 90px;
+  }
+  .robotics-header-notice:not([hidden]) {
+    flex: 0 0 23px;
+    width: 23px;
+    max-width: 23px;
+    height: 28px;
+  }
+  .robotics-header-notice-details > summary {
+    padding: 3px;
+  }
+  .robotics-header-notice-caption {
+    display: none;
+  }
+  .robotics-header-notice-panel {
+    left: auto;
+    right: -125px;
+  }
+}
+@media (max-width: 390px) {
+  .robotics-run-bar .robotics-run-buttons .robotics-button.primary {
+    min-width: 86px;
+    padding: 0 6px;
+    font-size: 11px;
+  }
+  .robotics-run-bar .workbench-simulation-clock-button {
+    padding: 0 4px;
+  }
+  .robotics-run-bar .robotics-run-buttons {
+    gap: 3px;
+  }
+}
+
+/* ROBOTICS-FIELD-ELECTRONICS-003 — no redundant title/footer rows.
+   Keep all tools connected to the existing field and electronics controllers. */
+.robotics-lab,
+.robotics-portal-editor .robotics-lab {
+  grid-template-rows: 48px minmax(0, 1fr);
+}
+.robotics-lab > .robotics-workspace {
+  grid-row: 2;
+}
+.robotics-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.robotics-field-tools {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  gap: 4px;
+}
+.robotics-field-tools > button {
+  min-height: 32px;
+  padding: 4px 8px;
+}
+.robotics-field-view-tools {
+  min-width: 0;
+  gap: 4px 8px;
+}
+.robotics-field-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding-left: 8px;
+  border-left: 1px solid #dce7ee;
+}
+.robotics-field-history > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  color: #355d74;
+}
+.robotics-field-history > button:disabled {
+  opacity: 0.42;
+}
+.robotics-field-history > button > span:first-child {
+  font-size: 17px;
+  line-height: 1;
+}
+.robotics-field-elapsed {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #eff5f9;
+  color: #4b687b;
+  white-space: nowrap;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.robotics-electronics-toolbar {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  padding: 4px 6px;
+  min-height: 44px;
+  border-bottom: 1px solid #dde9ee;
+  background: #f8fafc;
+}
+.robotics-electronics-tools {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scroll-padding-inline: 10px;
+}
+.robotics-electronics-tools-group {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  padding-right: 6px;
+  margin-right: 1px;
+  border-right: 1px solid #d6e3eb;
+}
+.robotics-electronics-tools-group:last-child {
+  border-right: 0;
+  margin-right: 0;
+  padding-right: 0;
+}
+.robotics-electronics-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 5px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 7px;
+  border: 1px solid #d3e0e8;
+  border-radius: 7px;
+  background: white;
+  color: #36566c;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.robotics-electronics-tool svg {
+  display: block;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+}
+.robotics-electronics-text-icon {
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 800;
+}
+.robotics-electronics-tool:hover:not(:disabled),
+.robotics-electronics-tool[aria-pressed='true'] {
+  background: #e6f5f9;
+  border-color: #80bfd2;
+  color: #066f90;
+}
+.robotics-electronics-tool:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+.robotics-electronics-wire-colors {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 3px;
+  padding: 0 2px;
+}
+.robotics-electronics-wire-swatch {
+  display: inline-block;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 2px solid #e4eaf0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.robotics-electronics-wire-swatch[aria-pressed='true'] {
+  outline: 2px solid #0a96bc;
+  outline-offset: 1px;
+}
+.robotics-electronics-wire-swatch:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.robotics-electronics-panel .robotics-edit-hint {
+  flex: 0 0 auto;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+@media (max-width: 1100px) {
+  .robotics-electronics-tool-label {
+    display: none;
+  }
+  .robotics-electronics-tool {
+    width: 34px;
+    padding: 0;
+  }
+}
+@media (max-width: 760px) {
+  .robotics-lab,
+  .robotics-portal-editor .robotics-lab {
+    grid-template-rows: 48px 36px minmax(0, 1fr);
+  }
+  .robotics-lab > .robotics-run-bar {
+    grid-row: 2;
+  }
+  .robotics-lab > .robotics-workspace {
+    grid-row: 3;
+  }
+  .robotics-field-tools {
+    padding: 4px 5px;
+  }
+  .robotics-field-view-tools {
+    padding: 3px 5px;
+    gap: 3px 5px;
+  }
+  .robotics-field-history {
+    padding-left: 4px;
+  }
+  .robotics-field-history > button {
+    padding-inline: 5px;
+  }
+  .robotics-field-elapsed {
+    padding-inline: 4px;
+  }
+  .robotics-electronics-toolbar {
+    padding: 3px 5px;
+    min-height: 40px;
+  }
+  .robotics-electronics-tool {
+    flex: 0 0 34px;
+    height: 34px;
+    min-height: 34px;
+  }
+}
+@media (max-width: 360px) {
+  .robotics-field-history > button > span:last-child {
+    display: none;
+  }
+  .robotics-field-history > button {
+    width: 30px;
+    justify-content: center;
+  }
+}
+
+/* Fit the complete electronics action set at standard desktop widths. */
+@media (max-width: 1500px) {
+  .robotics-electronics-tools-group:not(:first-child) .robotics-electronics-tool-label {
+    display: none;
+  }
+  .robotics-electronics-tools-group:not(:first-child) .robotics-electronics-tool {
+    width: 34px;
+    padding: 0;
+  }
+}
+
+/* ROBOTICS-ELECTRONICS-NATIVE-004 — shared native toolbar, borderless panels,
+ * compact component catalog, single Arduino editor in drawer or fullscreen. */
+.robotics-lab,
+.robotics-portal-editor .robotics-lab {
+  padding: 0;
+  gap: 0;
+}
+.robotics-lab .robotics-unified-header {
+  width: 100%;
+  margin: 0;
+  padding: 0 10px;
+}
+.robotics-lab > .robotics-run-bar {
+  right: 8px;
+  top: 0;
+}
+.robotics-lab .robotics-workspace {
+  position: relative;
+  gap: 0;
+  grid-template-columns: minmax(0, 1fr) 250px;
+}
+.robotics-lab .robotics-panel,
+.robotics-lab .robotics-observation,
+.robotics-lab .robotics-schematic {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.robotics-lab .robotics-observation {
+  border-left: 1px solid #e2eaf0;
+}
+.robotics-lab .robotics-schematic.preview {
+  border-top: 1px solid #e2eaf0;
+}
+.robotics-lab .robotics-electronics-panel {
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+}
+.robotics-lab .robotics-electronics-toolbar {
+  height: 39px;
+  min-height: 39px;
+  padding: 0;
+  border: 0;
+  background: #fff;
+}
+.robotics-lab .robotics-electronics-tools.workbench-toolbar {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  width: 100%;
+  height: 38px;
+  min-height: 38px;
+  min-width: 0;
+  padding: 0;
+  gap: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  border-bottom: 1px solid #dbe5ec;
+  border-radius: 0;
+  background: #fff;
+}
+.robotics-lab .robotics-electronics-native-tools {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+}
+.robotics-lab .robotics-electronics-native-tools .workbench-breadboard-tools {
+  flex: 0 0 auto;
+  display: inline-flex;
+}
+.robotics-lab .robotics-electronics-tools .workbench-tool,
+.robotics-lab .robotics-electronics-tools .workbench-wire-style,
+.robotics-lab .robotics-electronics-tools .workbench-wire-color > summary {
+  display: grid;
+  flex: 0 0 36px;
+  place-items: center;
+  width: 36px;
+  min-width: 36px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid #e6edf2;
+  border-radius: 0;
+  color: #4b6375;
+  background: transparent;
+}
+.robotics-lab .robotics-electronics-tools .workbench-tool svg,
+.robotics-lab .robotics-electronics-tools .workbench-wire-style svg {
+  width: 18px;
+  height: 18px;
+}
+.robotics-lab .robotics-electronics-tools .workbench-tool:hover:not(:disabled),
+.robotics-lab .robotics-electronics-tools .workbench-tool.active {
+  color: #0b82aa;
+  background: #e8f5f9;
+}
+.robotics-lab .robotics-electronics-tools .workbench-toolbar-divider {
+  height: 24px;
+  align-self: center;
+  flex: 0 0 1px;
+  width: 1px;
+  margin: 0 2px;
+  background: #d7e4ed;
+}
+.robotics-lab .robotics-electronics-tools .workbench-toolbar-gap {
+  flex: 0 0 4px;
+  width: 4px;
+  margin: 0;
+}
+.robotics-lab .robotics-electronics-tools .robotics-electronics-catalog,
+.robotics-lab .robotics-electronics-tools .robotics-electronics-code {
+  flex-shrink: 0;
+  background: #fff;
+}
+.robotics-lab .robotics-electronics-tools .robotics-electronics-code {
+  position: relative;
+  left: auto;
+  right: auto;
+  margin-left: 0;
+}
+.robotics-lab[data-section='electronics'] .robotics-workspace {
+  grid-template-columns: minmax(0, 1fr) 250px;
+  grid-template-rows: 39px minmax(0, 1fr);
+  grid-template-areas: 'toolbar observation' 'main observation';
+}
+.robotics-lab[data-section='electronics'] .robotics-schematic.editing {
+  margin: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.robotics-lab .robotics-workbench.workbench-shell {
+  --wb-library-width: 216px;
+  --wb-inspector-width: 220px;
+  border-radius: 0;
+}
+.robotics-lab .robotics-schematic.editing .workbench-library:not(.collapsed) {
+  width: min(216px, calc(100vw - 20px)) !important;
+  max-width: min(216px, calc(100vw - 20px));
+  font-size: 11px;
+}
+.robotics-lab .robotics-workbench .workbench-library-heading {
+  min-height: 39px;
+  padding: 4px 6px;
+}
+.robotics-lab .robotics-workbench .workbench-library-heading span,
+.robotics-lab .robotics-workbench .workbench-catalog-name {
+  font-size: 10px;
+  line-height: 1.22;
+}
+.robotics-lab .robotics-workbench .workbench-library-search input {
+  min-height: 32px;
+  font-size: 12px;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-grid,
+.robotics-lab .robotics-workbench .workbench-catalog-grid.list-view {
+  gap: 5px;
+  padding: 4px 5px;
+  grid-auto-columns: 66px;
+  grid-template-rows: 79px;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-card,
+.robotics-lab .robotics-workbench .workbench-catalog-grid.list-view .workbench-catalog-card {
+  width: 66px;
+  height: 79px;
+  min-height: 79px;
+  border-radius: 5px;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-add,
+.robotics-lab .robotics-workbench .workbench-catalog-grid.list-view .workbench-catalog-add {
+  grid-template-rows: 52px 22px;
+  gap: 2px;
+  padding: 2px;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-art {
+  height: 51px;
+}
+.robotics-lab .robotics-workbench .workbench-component-preview {
+  max-width: 53px;
+  max-height: 49px;
+}
+.robotics-lab .robotics-program-panel[data-drawer-open='true'] {
+  position: absolute;
+  z-index: 45;
+  top: 39px;
+  right: 0;
+  bottom: 0;
+  width: clamp(430px, 62%, 940px);
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  background: #fff;
+  border-left: 1px solid #cbdde8;
+  box-shadow: -10px 0 28px #163d582b;
+}
+.robotics-lab .robotics-program-panel[data-drawer-open='true'] .robotics-panel-toolbar {
+  min-height: 38px;
+  padding: 4px 8px;
+}
+.robotics-lab .robotics-program-panel[data-drawer-open='true'] .robotics-program-shell {
+  min-height: 0;
+}
+.robotics-lab[data-section='program'] .robotics-workspace {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: 'main';
+  gap: 0;
+}
+.robotics-lab[data-section='program'] .robotics-observation,
+.robotics-lab[data-section='program'] .robotics-schematic {
+  display: none;
+}
+.robotics-lab[data-section='program'] .robotics-program-panel {
+  grid-area: main;
+  min-height: 0;
+  border: 0;
+}
+.robotics-lab[data-section='program'] .robotics-program-shell {
+  border-radius: 0;
+}
+@media (max-width: 1180px) {
+  .robotics-lab .robotics-workspace,
+  .robotics-lab[data-section='electronics'] .robotics-workspace {
+    grid-template-columns: minmax(0, 1fr) 230px;
+  }
+  .robotics-lab .robotics-workbench.workbench-shell {
+    --wb-library-width: 192px;
+    --wb-inspector-width: 200px;
+  }
+  .robotics-lab .robotics-schematic.editing .workbench-library:not(.collapsed) {
+    width: min(192px, calc(100vw - 20px)) !important;
+    max-width: min(192px, calc(100vw - 20px));
+  }
+}
+@media (max-width: 760px) {
+  .robotics-lab,
+  .robotics-portal-editor .robotics-lab {
+    grid-template-rows: 48px 36px minmax(0, 1fr);
+  }
+  .robotics-lab .robotics-unified-header {
+    padding: 0 5px;
+  }
+  .robotics-lab .robotics-workspace,
+  .robotics-lab[data-section='electronics'] .robotics-workspace {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr) 132px;
+    grid-template-areas: 'main main' 'observation scheme';
+    gap: 3px;
+  }
+  .robotics-lab[data-section='electronics'] .robotics-workspace {
+    grid-template-rows: 39px minmax(0, 1fr) 125px;
+    grid-template-areas: 'toolbar toolbar' 'main main' 'observation observation';
+  }
+  .robotics-lab .robotics-workbench.workbench-shell {
+    --wb-library-width: 188px;
+    --wb-inspector-width: 198px;
+    --wb-library-open-height: 165px;
+  }
+  .robotics-lab[data-section='program'] .robotics-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: 'main';
+  }
+  .robotics-lab .robotics-program-panel[data-drawer-open='true'] {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: min(72%, 600px);
+    border: 1px solid #cedfe9;
+    border-bottom: 0;
+    box-shadow: 0 -12px 30px #143d5836;
+  }
+}
+
+/* Keep the native Electronics wire-colour popup usable beyond the compact toolbar. */
+@media (min-width: 761px) {
+  .robotics-lab .robotics-electronics-tools.workbench-toolbar {
+    overflow: visible;
+  }
+}
+@media (max-width: 760px) {
+  .robotics-lab .robotics-electronics-tools .workbench-wire-color-menu {
+    position: fixed;
+    z-index: 1300;
+    top: 92px;
+    left: 10px;
+    right: auto;
+  }
+}
+
+/* ROBOTICS-LEFT-RAIL-005
+ * Resize the ONE observation rail, not the project, electronics solver or Arduino stage.
+ * Desktop: observation/preview left, active editor right. The run controls occupy
+ * their own 36px upper row and never cover the Electronics toolbar.
+ */
+.robotics-lab,
+.robotics-portal-editor .robotics-lab {
+  grid-template-rows: 48px 38px minmax(0, 1fr);
+  gap: 0;
+}
+.robotics-lab > .robotics-run-bar {
+  position: relative;
+  inset: auto;
+  grid-row: 2;
+  align-self: center;
+  justify-self: end;
+  z-index: 24;
+  width: max-content;
+  max-width: calc(100% - 12px);
+  height: 34px;
+  min-height: 34px;
+  margin: 0 8px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.robotics-lab > .robotics-workspace {
+  grid-row: 3;
+  min-height: 0;
+}
+.robotics-lab .robotics-workspace {
+  display: grid;
+  position: relative;
+  grid-template-columns: minmax(180px, var(--robotics-side-width, 240px)) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(120px, 24%);
+  grid-template-areas: 'observation main' 'scheme main';
+  column-gap: 0;
+  row-gap: 0;
+  min-width: 0;
+  min-height: 0;
+}
+.robotics-lab .robotics-workspace > .robotics-panel:not([hidden]) {
+  grid-area: main;
+  min-width: 0;
+  min-height: 0;
+}
+.robotics-lab .robotics-workspace > .robotics-observation {
+  grid-area: observation;
+  align-self: stretch;
+  display: block;
+  overflow: auto;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  border-left: 0;
+  border-right: 1px solid #e0e9ef;
+}
+.robotics-lab .robotics-workspace > .robotics-schematic.preview {
+  grid-area: scheme;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  border-left: 0;
+  border-right: 1px solid #e0e9ef;
+  border-top: 1px solid #e0e9ef;
+  overflow: hidden;
+}
+.robotics-lab .robotics-workspace > .robotics-schematic.editing {
+  grid-area: main;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.robotics-lab .robotics-workspace > .robotics-side-resizer {
+  position: absolute;
+  z-index: 38;
+  left: calc(var(--robotics-side-width, 240px) - 4px);
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+.robotics-side-resizer::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #c6d6e0;
+  opacity: 0.85;
+}
+.robotics-side-resizer:hover::before,
+.robotics-side-resizer:focus-visible::before {
+  left: 2px;
+  width: 4px;
+  background: #099cc3;
+  opacity: 1;
+}
+.robotics-side-resizer:focus-visible {
+  outline: 2px solid #0a9cc2;
+  outline-offset: -2px;
+}
+.robotics-lab[data-section='electronics'] .robotics-workspace {
+  grid-template-columns: minmax(180px, var(--robotics-side-width, 240px)) minmax(0, 1fr);
+  grid-template-rows: 38px minmax(0, 1fr);
+  grid-template-areas: 'observation toolbar' 'observation main';
+}
+.robotics-lab[data-section='electronics'] .robotics-workspace > .robotics-electronics-panel {
+  grid-area: toolbar;
+  min-width: 0;
+  max-width: 100%;
+  height: 38px;
+  align-self: stretch;
+}
+.robotics-lab[data-section='electronics'] .robotics-workspace > .robotics-observation {
+  grid-area: observation;
+  grid-row: 1 / 3;
+}
+.robotics-lab[data-section='electronics'] .robotics-workspace > .robotics-schematic.editing {
+  grid-area: main;
+  margin: 0;
+  border: 0;
+}
+.robotics-lab[data-section='program'] .robotics-workspace {
+  grid-template-columns: minmax(180px, var(--robotics-side-width, 240px)) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(120px, 24%);
+  grid-template-areas: 'observation main' 'scheme main';
+}
+.robotics-lab[data-section='program'] .robotics-workspace > .robotics-program-panel {
+  grid-area: main;
+  min-width: 0;
+  min-height: 0;
+}
+.robotics-lab[data-section='program'] .robotics-workspace > .robotics-observation {
+  display: block;
+  grid-area: observation;
+}
+.robotics-lab[data-section='program'] .robotics-workspace > .robotics-schematic.preview {
+  display: flex;
+  grid-area: scheme;
+}
+.robotics-lab .robotics-workspace > .robotics-observation .robotics-mini-field {
+  min-width: 0;
+  max-width: 100%;
+}
+.robotics-lab .robotics-workspace > .robotics-observation .robotics-mini-field .robotics-field {
+  min-width: 0;
+  max-width: 100%;
+}
+.robotics-lab .robotics-workspace > .robotics-program-panel[data-drawer-open='true'] {
+  /* The Arduino drawer occupies part of the editor, leaving the left rail readable. */
+  top: 38px;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  max-width: calc(100% - var(--robotics-side-width, 240px));
+}
+.robotics-lab .robotics-electronics-tools .workbench-wire-color > summary,
+.robotics-lab .robotics-electronics-tools .workbench-wire-style {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 0 0 43px;
+  width: 43px;
+  min-width: 43px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 3px;
+  vertical-align: middle;
+}
+.robotics-lab .robotics-electronics-tools .workbench-wire-color > summary > span {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+}
+.robotics-lab .robotics-electronics-tools .workbench-wire-color > summary > svg,
+.robotics-lab .robotics-electronics-tools .workbench-wire-style > svg:last-child {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+}
+.robotics-lab .robotics-electronics-tools .workbench-wire-style > svg:first-child {
+  flex: 0 0 17px;
+  width: 17px;
+  height: 17px;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-grid:not(.list-view) {
+  grid-auto-columns: 66px;
+  grid-template-rows: 78px;
+  gap: 5px;
+  padding: 5px;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-card,
+.robotics-lab .robotics-workbench .workbench-catalog-grid.list-view .workbench-catalog-card {
+  height: 78px;
+  min-height: 78px;
+  overflow: hidden;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-add,
+.robotics-lab .robotics-workbench .workbench-catalog-grid.list-view .workbench-catalog-add {
+  grid-template-rows: 43px minmax(28px, auto);
+  gap: 2px;
+  padding: 3px 2px;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-art {
+  display: grid;
+  place-items: center;
+  height: 42px;
+  min-height: 0;
+  overflow: hidden;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-art .workbench-component-preview,
+.robotics-lab .robotics-workbench .workbench-catalog-art .workbench-component-vector-preview {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 40px;
+  max-height: 38px;
+  object-fit: contain;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-name {
+  display: -webkit-box;
+  min-height: 0;
+  max-height: 28px;
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+@media (max-width: 760px) {
+  .robotics-lab,
+  .robotics-portal-editor .robotics-lab {
+    grid-template-rows: 48px 36px minmax(0, 1fr);
+  }
+  .robotics-lab > .robotics-run-bar {
+    grid-row: 2;
+    justify-self: end;
+    height: 32px;
+    min-height: 32px;
+  }
+  .robotics-lab > .robotics-workspace {
+    grid-row: 3;
+  }
+  .robotics-lab .robotics-workspace {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr) 132px;
+    grid-template-areas: 'main main' 'observation scheme';
+    gap: 3px;
+  }
+  .robotics-lab .robotics-workspace > .robotics-side-resizer {
+    display: none;
+  }
+  .robotics-lab[data-section='electronics'] .robotics-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 38px minmax(0, 1fr) 125px;
+    grid-template-areas: 'toolbar' 'main' 'observation';
+  }
+  .robotics-lab[data-section='electronics'] .robotics-workspace > .robotics-observation {
+    grid-area: observation;
+    grid-row: 3;
+    display: block;
+    margin: 0;
+  }
+  .robotics-lab[data-section='program'] .robotics-workspace {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr) 132px;
+    grid-template-areas: 'main main' 'observation scheme';
+  }
+  .robotics-lab[data-section='program'] .robotics-workspace > .robotics-observation {
+    grid-area: observation;
+    display: block;
+  }
+  .robotics-lab[data-section='program'] .robotics-workspace > .robotics-schematic.preview {
+    grid-area: scheme;
+    display: flex;
+  }
+  .robotics-lab .robotics-workspace > .robotics-program-panel[data-drawer-open='true'] {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: 100%;
+  }
+}
+
+/* ROBOTICS-TOOLS-ONE-ROW-006
+ * Shared simulator controls live INSIDE each active tab toolbar. All toolbars
+ * use the same 38px line; no stand-alone simulator row above the workspace. */
+.robotics-lab,
+.robotics-portal-editor .robotics-lab {
+  grid-template-rows: 48px minmax(0, 1fr);
+}
+.robotics-lab > .robotics-workspace {
+  grid-row: 2;
+}
+.robotics-lab .robotics-run-bar {
+  display: flex;
+  position: relative;
+  inset: auto;
+  grid-row: auto;
+  z-index: 4;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  gap: 4px;
+  height: 38px;
+  min-height: 38px;
+  width: max-content;
+  max-width: 100%;
+  padding: 2px 5px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+.robotics-lab .robotics-run-buttons {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+.robotics-lab .robotics-run-readout {
+  flex: 0 0 auto;
+}
+.robotics-lab .robotics-run-bar .workbench-simulation-clock-button {
+  height: 32px;
+  min-height: 32px;
+}
+.robotics-lab .robotics-run-bar .robotics-run-buttons .robotics-button {
+  height: 32px;
+  min-height: 32px;
+}
+.robotics-lab .robotics-field-toolbar,
+.robotics-lab .robotics-robot-toolbar,
+.robotics-lab .robotics-electronics-toolbar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  flex: 0 0 38px;
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  min-width: 0;
+  width: 100%;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid #dae5ec;
+  border-radius: 0;
+  flex-wrap: nowrap;
+  overflow: visible;
+  background: #fff;
+}
+.robotics-lab .robotics-field-toolbar-scroll {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  height: 38px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #c7dce6 transparent;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  height: 37px;
+  min-height: 37px;
+  width: max-content;
+  gap: 3px;
+  padding: 2px 4px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-tools > button {
+  height: 32px;
+  min-height: 32px;
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  white-space: nowrap;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-view-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  align-self: stretch;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  width: max-content;
+  height: 37px;
+  min-height: 37px;
+  gap: 5px;
+  padding: 1px 5px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  white-space: nowrap;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-view-tools > *,
+.robotics-lab .robotics-field-toolbar .robotics-field-zoom > * {
+  flex: 0 0 auto;
+  margin-block: 0;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-view-tools > button {
+  min-height: 30px;
+  height: 30px;
+}
+.robotics-lab .robotics-field-toolbar .robotics-grid-toggle {
+  min-height: 30px;
+  height: 30px;
+}
+.robotics-lab .robotics-robot-toolbar-tools {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 37px;
+  gap: 7px;
+  padding: 0 8px;
+}
+.robotics-lab .robotics-robot-toolbar-tools .robotics-button {
+  min-height: 32px;
+  height: 32px;
+  white-space: nowrap;
+}
+.robotics-lab .robotics-robot-toolbar-tools h2 {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.robotics-lab .robotics-electronics-toolbar .robotics-electronics-tools.workbench-toolbar {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  height: 37px;
+  min-height: 37px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  align-self: center;
+}
+.robotics-lab .robotics-electronics-toolbar > .robotics-toolbar-run-slot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  height: 38px;
+  min-height: 38px;
+  background: #fff;
+}
+.robotics-lab .robotics-program-panel {
+  min-width: 0;
+}
+.arduino-code-toolbar-scroll {
+  display: contents;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar:has(> .arduino-code-toolbar-actions) {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  width: 100%;
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  padding: 0;
+  overflow: visible;
+}
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  > .arduino-code-toolbar-scroll {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 5px;
+  width: auto;
+  min-width: 0;
+  height: 38px;
+  padding: 2px 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar-scroll > * {
+  flex-shrink: 0;
+}
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  .arduino-board-select {
+  order: -1;
+  flex: 0 0 142px;
+  width: 142px;
+  min-width: 120px;
+  height: 31px;
+  font-size: 11px;
+}
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  .arduino-code-toolbar-spacer {
+  display: none;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  height: 38px;
+  min-height: 38px;
+  background: #fff;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar-accessory {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 38px;
+  background: #fff;
+}
+.robotics-code-extras {
+  position: relative;
+  z-index: 50;
+  width: 34px;
+}
+.robotics-code-extras > summary {
+  display: grid;
+  place-items: center;
+  height: 32px;
+  width: 34px;
+  border: 1px solid #d5e1e9;
+  border-radius: 6px;
+  background: #f7fafb;
+  color: #395d72;
+  font-size: 21px;
+  line-height: 1;
+  list-style: none;
+  cursor: pointer;
+}
+.robotics-code-extras > summary::-webkit-details-marker {
+  display: none;
+}
+.robotics-code-extras[open] > summary,
+.robotics-code-extras > summary:hover {
+  background: #e7f4f8;
+  border-color: #8bc5d6;
+}
+.robotics-code-extras-menu {
+  position: absolute;
+  top: calc(100% + 3px);
+  right: -25px;
+  display: grid;
+  gap: 8px;
+  width: 295px;
+  max-width: calc(100vw - 14px);
+  padding: 10px;
+  border: 1px solid #d4e1e9;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 8px 28px #0b355829;
+  color: #294b61;
+  font-size: 12px;
+  white-space: normal;
+}
+.robotics-code-extras-menu > p {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #607587;
+}
+.robotics-code-extras-menu > label {
+  display: grid;
+  gap: 3px;
+}
+.robotics-code-extras-menu select,
+.robotics-code-extras-menu button {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid #d4e1e9;
+  border-radius: 6px;
+  background: #fff;
+  color: #2d5165;
+  font-size: 12px;
+}
+@media (min-width: 1101px) {
+  .robotics-lab .robotics-electronics-toolbar .robotics-electronics-tools.workbench-toolbar {
+    overflow-x: visible;
+    overflow-y: visible;
+  }
+}
+@media (max-width: 900px) {
+  .robotics-lab .robotics-field-toolbar .robotics-field-tools > button {
+    padding-inline: 4px;
+    min-height: 30px;
+  }
+  .robotics-lab .robotics-robot-toolbar-tools h2 {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .robotics-lab,
+  .robotics-portal-editor .robotics-lab {
+    grid-template-rows: 48px minmax(0, 1fr);
+  }
+  .robotics-lab > .robotics-workspace {
+    grid-row: 2;
+  }
+  .robotics-lab .robotics-run-bar {
+    padding: 2px 2px;
+    gap: 3px;
+  }
+  .robotics-lab .robotics-field-toolbar .robotics-field-tools {
+    display: flex;
+    grid-template-columns: none;
+  }
+  .robotics-lab .robotics-field-toolbar .robotics-field-tools button span {
+    display: inline;
+  }
+  .robotics-lab .robotics-field-toolbar .robotics-field-view-tools,
+  .robotics-lab .robotics-field-toolbar .robotics-field-view-tools > button,
+  .robotics-lab .robotics-field-toolbar .robotics-field-view-tools .robotics-grid-toggle {
+    min-height: 30px;
+    height: 30px;
+  }
+  .robotics-lab .robotics-robot-toolbar-tools .robotics-button {
+    padding: 2px 6px;
+    font-size: 10px;
+    width: 36px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-indent: -9999px;
+    position: relative;
+  }
+  .robotics-lab .robotics-robot-toolbar-tools .robotics-button::before {
+    content: '+';
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    text-indent: 0;
+    font-size: 18px;
+  }
+  .robotics-lab
+    .robotics-program-shell
+    .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+    .arduino-board-select {
+    flex-basis: 115px;
+    width: 115px;
+    min-width: 110px;
+  }
+  .robotics-code-extras-menu {
+    right: -130px;
+  }
+}
+
+/* The profile menu is a global editor navigation surface. It must stack above
+   the Arduino drawer, every tool row and simulation controls in all tabs. */
+.robotics-lab .robotics-unified-header {
+  position: relative;
+  z-index: 2000;
+  overflow: visible;
+}
+
+/* Keep Arduino selection at the beginning of Code's toolbar, not pushed right
+   by the standalone Electronics editor's auto margin. */
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  .arduino-board-select {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+@media (max-width: 760px) {
+  /* Optional teaching examples open as a readable viewport popup, not clipped
+     by the scrollable one-line Arduino toolbar. */
+  .robotics-lab .robotics-code-extras-menu {
+    position: fixed;
+    top: 87px;
+    left: 8px;
+    right: auto;
+    width: calc(100vw - 16px);
+    max-width: 380px;
+    z-index: 3500;
+  }
+}
+
+/* ROBOTICS-FIELD-PALETTE-007
+ * All four toolbars are 46px tall. The right-hand field palette owns the
+ * field objects; construction does not create a second header or server calls. */
+.robotics-lab .robotics-field-toolbar,
+.robotics-lab .robotics-robot-toolbar,
+.robotics-lab .robotics-electronics-toolbar {
+  flex: 0 0 46px;
+  height: 46px;
+  min-height: 46px;
+  max-height: 46px;
+}
+.robotics-lab .robotics-run-bar,
+.robotics-lab .robotics-toolbar-run-slot,
+.robotics-lab .robotics-run-bar .robotics-run-buttons,
+.robotics-lab .robotics-run-readout {
+  height: 46px;
+  min-height: 46px;
+  max-height: 46px;
+  align-items: center;
+}
+.robotics-lab .robotics-run-bar .workbench-simulation-clock-button,
+.robotics-lab .robotics-run-bar .robotics-run-buttons .robotics-button {
+  height: 36px;
+  min-height: 36px;
+}
+.robotics-lab .robotics-field-toolbar-scroll,
+.robotics-lab .robotics-field-toolbar .robotics-field-view-tools,
+.robotics-lab .robotics-robot-toolbar-tools,
+.robotics-lab .robotics-electronics-toolbar .robotics-electronics-tools.workbench-toolbar {
+  height: 45px;
+  min-height: 45px;
+  max-height: 45px;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-view-tools {
+  display: flex;
+  gap: 6px;
+  width: max-content;
+  justify-content: flex-start;
+  padding-left: 8px;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-catalog-toggle {
+  display: none;
+  flex: 0 0 auto;
+  gap: 5px;
+  align-items: center;
+  height: 34px;
+  min-height: 34px;
+  margin: auto 5px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-history {
+  flex: 0 0 auto;
+  padding-left: 7px;
+}
+.robotics-lab .robotics-field-toolbar .robotics-field-zoom {
+  margin: 0;
+}
+.robotics-lab[data-section='electronics'] .robotics-workspace {
+  grid-template-rows: 46px minmax(0, 1fr);
+}
+.robotics-lab .robotics-electronics-toolbar .robotics-electronics-tools.workbench-toolbar,
+.robotics-lab .robotics-electronics-toolbar .robotics-electronics-tools .workbench-tool,
+.robotics-lab .robotics-electronics-toolbar .robotics-electronics-tools .workbench-wire-style,
+.robotics-lab
+  .robotics-electronics-toolbar
+  .robotics-electronics-tools
+  .workbench-wire-color
+  > summary {
+  height: 45px;
+  min-height: 45px;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar:has(> .arduino-code-toolbar-actions),
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  > .arduino-code-toolbar-scroll,
+.robotics-lab .robotics-program-shell .arduino-code-toolbar-actions,
+.robotics-lab .robotics-program-shell .arduino-code-toolbar-accessory {
+  height: 46px;
+  min-height: 46px;
+  max-height: 46px;
+}
+.robotics-lab .robotics-scene-inspector {
+  padding: 8px;
+  background: #fff;
+  border-left: 1px solid #e0e8ed;
+}
+.robotics-field-palette-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 7px;
+  gap: 8px;
+}
+.robotics-field-palette-heading strong {
+  color: #1d4861;
+  font-size: 12px;
+  font-weight: 750;
+}
+.robotics-field-palette-close {
+  display: none;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 5px;
+  background: #edf3f7;
+  color: #345c71;
+  font-size: 19px;
+  line-height: 1;
+}
+.robotics-field-palette {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.robotics-field-palette-section {
+  min-width: 0;
+}
+.robotics-field-palette-section h3 {
+  margin: 0 0 5px;
+  padding: 0 0 4px;
+  color: #688092;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  border-bottom: 1px solid #e6edf1;
+}
+.robotics-field-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.robotics-field-palette-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 76px;
+  min-height: 76px;
+  padding: 4px 3px 5px;
+  gap: 3px;
+  border: 1px solid #dfe7ed;
+  border-radius: 8px;
+  color: #35566d;
+  background: #f9fbfd;
+  cursor: grab;
+  user-select: none;
+  touch-action: manipulation;
+}
+.robotics-field-palette-card:hover:not(:disabled),
+.robotics-field-palette-card[aria-pressed='true'] {
+  border-color: #75b5ca;
+  color: #086b8d;
+  background: #eaf7fb;
+  box-shadow: 0 0 0 1px #8bc9d94d inset;
+}
+.robotics-field-palette-card:active:not(:disabled) {
+  cursor: grabbing;
+}
+.robotics-field-palette-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+.robotics-field-palette-art {
+  display: grid;
+  place-items: center;
+  flex: 0 0 43px;
+  width: 100%;
+  height: 43px;
+  overflow: hidden;
+}
+.robotics-field-palette-art svg {
+  display: block;
+  width: 56px;
+  max-width: 100%;
+  height: 36px;
+}
+.robotics-field-palette-name {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  line-height: 1.15;
+  font-weight: 650;
+}
+.robotics-field-palette-action,
+.robotics-field-stamp-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px;
+  border-radius: 6px;
+  background: #f1f7fa;
+  font-size: 10px;
+  color: #4e6878;
+}
+.robotics-field-palette-action > span {
+  min-width: 0;
+}
+.robotics-field-palette-action button,
+.robotics-field-stamp-controls button,
+.robotics-field-stamp-controls select {
+  flex: 0 0 auto;
+  min-height: 27px;
+  padding: 3px 6px;
+  border: 1px solid #bcd8e3;
+  border-radius: 5px;
+  background: #fff;
+  color: #28627e;
+  font-size: 10px;
+}
+.robotics-field-stamp-controls select {
+  min-width: 0;
+  width: 130px;
+  max-width: 100%;
+}
+.robotics-field-settings-sheet {
+  margin-top: 10px;
+  border-top: 1px solid #e4ebef;
+}
+.robotics-field-settings-sheet > summary {
+  min-height: 33px;
+  padding: 9px 4px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #426477;
+  cursor: pointer;
+}
+.robotics-field-settings-sheet[open] {
+  padding-bottom: 3px;
+  border-bottom: 1px solid #e4ebef;
+}
+.robotics-field-settings-sheet > .robotics-settings-group {
+  margin-top: 7px;
+}
+.robotics-scene-inspector .robotics-settings-group > :is(h3, summary) {
+  font-size: 11px;
+  line-height: 1.3;
+  margin-bottom: 6px;
+}
+.robotics-scene-inspector .robotics-settings-group .robotics-help {
+  font-size: 10px;
+  line-height: 1.35;
+}
+.robotics-scene-inspector .robotics-form-grid {
+  gap: 6px;
+}
+.robotics-scene-inspector .robotics-number-field,
+.robotics-scene-inspector .robotics-select-field {
+  gap: 3px;
+  font-size: 10px;
+}
+.robotics-scene-inspector .robotics-object-list-heading {
+  margin: 9px 0 5px;
+  padding-top: 7px;
+  border-top: 1px solid #e4ebef;
+  font-size: 11px;
+}
+.robotics-scene-inspector .robotics-object-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 74px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 1px 3px;
+}
+.robotics-scene-inspector .robotics-object-list > button {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  text-align: left;
+}
+.robotics-field-canvas[data-drop-hover='true'] {
+  outline: 3px solid #0ca0c9;
+  outline-offset: -4px;
+  background: #eaf8fc;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-card,
+.robotics-lab .robotics-workbench .workbench-catalog-grid.list-view .workbench-catalog-card {
+  overflow: hidden;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-add,
+.robotics-lab .robotics-workbench .workbench-catalog-grid.list-view .workbench-catalog-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 42px minmax(25px, 1fr);
+  align-items: stretch;
+  justify-items: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  padding: 3px 2px;
+  overflow: hidden;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-art {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: 100%;
+  height: 42px;
+  min-height: 0;
+  overflow: hidden;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-art :is(svg, img),
+.robotics-lab .robotics-workbench .workbench-catalog-art .workbench-component-preview,
+.robotics-lab .robotics-workbench .workbench-catalog-art .workbench-component-vector-preview {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 44px;
+  max-height: 39px;
+  object-fit: contain;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-copy {
+  display: block;
+  align-self: stretch;
+  min-width: 0;
+  width: 100%;
+  min-height: 0;
+  max-height: 27px;
+  padding: 0 1px;
+  overflow: hidden;
+  text-align: center;
+}
+.robotics-lab .robotics-workbench .workbench-catalog-name {
+  display: -webkit-box;
+  max-height: 25px;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 9.5px;
+  line-height: 1.25;
+}
+@media (max-width: 760px) {
+  .robotics-lab .robotics-field-toolbar,
+  .robotics-lab .robotics-robot-toolbar,
+  .robotics-lab .robotics-electronics-toolbar,
+  .robotics-lab .robotics-run-bar,
+  .robotics-lab .robotics-toolbar-run-slot {
+    height: 46px;
+    min-height: 46px;
+    max-height: 46px;
+  }
+  .robotics-lab[data-section='electronics'] .robotics-workspace {
+    grid-template-rows: 46px minmax(0, 1fr) 125px;
+  }
+  .robotics-lab .robotics-field-toolbar .robotics-field-catalog-toggle {
+    display: inline-flex;
+  }
+  .robotics-lab .robotics-field-toolbar .robotics-field-view-tools {
+    padding-left: 3px;
+  }
+  .robotics-field-palette-close {
+    display: inline-grid;
+    place-items: center;
+  }
+  .robotics-lab .robotics-scene-inspector {
+    padding: 8px;
+    background: #fff;
+  }
+}
+
+/* Keep the outer grid track shrinkable; toolbars may scroll internally but
+   must never enlarge the complete Robotics editor beyond the viewport. */
+.robotics-lab,
+.robotics-portal-editor .robotics-lab {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+.robotics-lab > .robotics-workspace {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* The Electronics wrapper previously retained a stronger 38px rule. */
+.robotics-lab .robotics-electronics-toolbar > .robotics-toolbar-run-slot {
+  height: 46px;
+  min-height: 46px;
+  max-height: 46px;
+}
+
+/* Context editing is anchored to the selected object, never embedded in the catalog. */
+.robotics-lab .robotics-field-editor-body {
+  position: relative;
+  min-width: 0;
+}
+.robotics-field-object-flyout {
+  position: absolute;
+  z-index: 80;
+  width: min(300px, calc(100% - 16px));
+  max-height: min(70vh, 440px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 10px 12px;
+  border: 1px solid #b6d0dc;
+  border-radius: 9px;
+  box-shadow: 0 12px 36px #0c35583d;
+  background: #fff;
+  color: #29475d;
+  overscroll-behavior: contain;
+  font-size: 11px;
+}
+.robotics-field-object-flyout .robotics-object-flyout-header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 35px;
+  min-height: 35px;
+  margin: 0 -10px 8px;
+  padding: 0 9px 0 12px;
+  border-bottom: 1px solid #e0eaf0;
+  background: #f2f8fa;
+  font-size: 12px;
+}
+.robotics-field-object-flyout .robotics-object-flyout-header button {
+  display: grid;
+  flex: 0 0 25px;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 0;
+  border-radius: 5px;
+  color: #56758b;
+  background: transparent;
+  font-size: 19px;
+}
+.robotics-field-object-flyout .robotics-object-flyout-header button:hover {
+  color: #087aa2;
+  background: #dceef4;
+}
+.robotics-field-object-flyout .robotics-settings-group {
+  margin-bottom: 9px;
+}
+.robotics-field-object-flyout .robotics-settings-group > h3 {
+  display: none;
+}
+.robotics-field-object-flyout .robotics-form-grid {
+  gap: 6px;
+}
+.robotics-field-object-flyout .robotics-help {
+  font-size: 10px;
+  line-height: 1.35;
+}
+.robotics-field-object-flyout .robotics-number-field,
+.robotics-field-object-flyout .robotics-select-field {
+  font-size: 10px;
+  gap: 3px;
+}
+@media (max-width: 760px) {
+  .robotics-lab .robotics-field-object-flyout {
+    position: fixed;
+    top: 100px !important;
+    right: 8px;
+    left: auto !important;
+    width: min(300px, calc(100vw - 16px));
+    max-height: min(65vh, 480px);
+    z-index: 1400;
+  }
+  .robotics-lab .robotics-scene-inspector {
+    z-index: 9;
+  }
+}
+
+/* ROBOTICS-FIELD-VECTOR-008 — compact field graphics, imports, and vector drawing. */
+.robotics-field-palette .robotics-field-palette-section h3 {
+  font-size: 10px;
+  color: #607b90;
+}
+.robotics-field-palette-card {
+  cursor: grab;
+}
+.robotics-field-import-section {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid #e2ebf0;
+}
+.robotics-field-file-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.robotics-field-file-actions button {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  min-width: 0;
+  min-height: 45px;
+  padding: 4px 2px;
+  border: 1px solid #d6e4ec;
+  border-radius: 7px;
+  background: #f8fcfe;
+  color: #3b6177;
+  font-size: 10px;
+  cursor: pointer;
+}
+.robotics-field-file-actions button:last-child {
+  grid-column: span 2;
+  min-height: 32px;
+  grid-template-columns: 20px auto;
+  gap: 3px;
+  align-items: center;
+  justify-content: center;
+}
+.robotics-field-file-actions button > span:first-child {
+  color: #0b8cb2;
+  font-size: 17px;
+  line-height: 1.2;
+}
+.robotics-field-file-actions button:hover:not(:disabled) {
+  border-color: #7eb9cb;
+  background: #eaf6fa;
+}
+.robotics-field-file-actions button:disabled {
+  opacity: 0.44;
+  cursor: not-allowed;
+}
+.robotics-object-preset {
+  margin: 4px 0 9px;
+  padding: 7px 8px;
+  border: 1px solid #d5e4ea;
+  border-radius: 6px;
+  background: #f4f9fb;
+}
+.robotics-object-preset-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 6px;
+  margin: 4px 0 9px;
+  padding: 7px 8px;
+  border: 1px solid #d5e4ea;
+  border-radius: 6px;
+  background: #f4f9fb;
+}
+.robotics-object-preset-row select {
+  min-width: 0;
+  width: 100%;
+  font-size: 10px;
+}
+.robotics-visual-text {
+  grid-column: 1 / -1;
+}
+.robotics-draft-stroke {
+  filter: drop-shadow(0 0 9px #0ca1c54a);
+}
+.robotics-field-canvas[data-drawing='true'] .robotics-field {
+  cursor: crosshair;
+}
+.robotics-scene-inspector .robotics-field-palette-action {
+  display: grid;
+  gap: 5px;
+  font-size: 10px;
+}
+.robotics-scene-inspector .robotics-field-palette-action > span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.robotics-scene-inspector .robotics-field-palette-action > button {
+  justify-self: start;
+}
+@media (max-width: 760px) {
+  .robotics-field-file-actions button {
+    min-height: 38px;
+  }
+  .robotics-field-object-flyout {
+    max-height: min(70vh, 480px);
+  }
+}
+
+/* A compact contextual inspector leaves drag handles visible beside the selected object. */
+.robotics-field-object-flyout {
+  max-height: min(60vh, 320px);
+}
+@media (max-width: 760px) {
+  .robotics-field-object-flyout {
+    max-height: min(62vh, 410px);
+  }
+}
+
+/* Field size changes preserve the authored objects but recenter the robot start. */
+.robotics-field-center-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 8px 0 6px;
+  padding: 6px 7px;
+  border: 1px solid #d7e5ec;
+  border-radius: 6px;
+  color: #43677a;
+  background: #f3f9fb;
+  font-size: 10px;
+}
+.robotics-field-center-action > span {
+  min-width: 0;
+}
+.robotics-field-center-action .robotics-button {
+  flex: 0 0 auto;
+  min-height: 27px;
+  padding: 2px 7px;
+  font-size: 10px;
+}
+.robotics-field-center-action .robotics-button:disabled {
+  opacity: 0.5;
+}
+
+/* Arduino mode menu lives outside the scrolling tool region. Its dropdown
+ * must remain clickable on desktop and mobile while the Uno selector stays left. */
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  > .arduino-code-toolbar-scroll {
+  order: 0;
+}
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  > .arduino-mode-menu {
+  order: 1;
+  z-index: 60;
+  align-self: center;
+}
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  > .arduino-code-toolbar-accessory {
+  order: 2;
+}
+.robotics-lab
+  .robotics-program-shell
+  .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+  > .arduino-code-toolbar-actions {
+  order: 3;
+}
+@media (max-width: 760px) {
+  .robotics-lab
+    .robotics-program-shell
+    .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+    > .arduino-mode-menu {
+    flex: 0 0 76px;
+    width: 76px;
+  }
+  .robotics-lab
+    .robotics-program-shell
+    .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+    > .arduino-mode-menu
+    > summary {
+    padding-inline: 6px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 760px) {
+  .robotics-lab
+    .robotics-program-shell
+    .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+    > .arduino-code-toolbar-accessory {
+    flex: 0 0 28px;
+    width: 28px;
+  }
+  .robotics-lab .robotics-program-shell .robotics-code-extras,
+  .robotics-lab .robotics-program-shell .robotics-code-extras > summary {
+    width: 27px;
+  }
+  .robotics-lab
+    .robotics-program-shell
+    .arduino-code-toolbar
+    > .arduino-mode-menu
+    > summary
+    > span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 360px) {
+  .robotics-lab .robotics-run-bar .robotics-run-buttons .robotics-button.primary {
+    flex: 0 0 36px;
+    width: 36px;
+    min-width: 36px;
+    padding-inline: 0;
+    gap: 0;
+    justify-content: center;
+  }
+  .robotics-lab .robotics-run-bar .robotics-run-buttons .robotics-button.primary > span {
+    display: none;
+  }
+  .robotics-lab
+    .robotics-program-shell
+    .arduino-code-toolbar:has(> .arduino-code-toolbar-actions)
+    > .arduino-mode-menu {
+    flex: 0 0 66px;
+    width: 66px;
   }
 }
