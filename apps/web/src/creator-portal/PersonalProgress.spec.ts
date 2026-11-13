@@ -3,7 +3,12 @@
 import { act, createElement, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { OwnProgressGroupV1, PersonalProgressSummaryV1 } from '@asa-lab/contracts';
+import type {
+  OwnProgressGroupV1,
+  PersonalProgressSummaryV1,
+  GroupRatingPeerV1,
+  GroupRatingPageV1,
+} from '@asa-lab/contracts';
 import {
   api,
   type ApiResult,
@@ -740,4 +745,152 @@ describe('Bounded Direct quiz proof', () => {
       expect(currentDirect.settled).toBe(true);
     },
   );
+});
+
+const SP04_TEST_GROUP = '88888888-8888-4888-8888-888888888888';
+
+function sp04Peer(index: number): GroupRatingPeerV1 {
+  return {
+    peerKey: 'opaque-peer-' + index,
+    avatarSrc: '/assets/avatars/default/avatar-09.webp',
+    avatarTicket: null,
+    score: index < 2 ? 83.46 : 68.25,
+    rank: index < 2 ? 1 : 3,
+    isSelf: false,
+  };
+}
+
+function sp04Page(
+  peers: readonly GroupRatingPeerV1[],
+  nextCursor: string | null = null,
+): GroupRatingPageV1 {
+  return {
+    groupId: SP04_TEST_GROUP,
+    periodDays: 30,
+    version: 'a'.repeat(32),
+    asOf: '2026-11-14T00:00:00Z',
+    own: { availability: 'available', score: 68.25, rank: 101, isSelf: true },
+    peers,
+    hasMore: nextCursor !== null,
+    nextCursor,
+  };
+}
+
+describe('SP-04 compact learner-safe group ratings', () => {
+  it('shows only five anonymous peers, keeps own place 101 and opens bounded full pages', async () => {
+    const first = Array.from({ length: 5 }, (_, i) => sp04Peer(i));
+    const full = Array.from({ length: 20 }, (_, i) => sp04Peer(i));
+    const last = Array.from({ length: 3 }, (_, i) => sp04Peer(i + 20));
+    const reads = vi
+      .spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([group(SP04_TEST_GROUP, 68.25, 101)])))
+      .mockResolvedValueOnce(success(sp04Page(first)))
+      .mockResolvedValueOnce(success(sp04Page(full, 'opaque-page-2')))
+      .mockResolvedValueOnce(success(sp04Page(last)));
+    await render(account, 'home');
+    expect(host.querySelectorAll('[data-testid="own-progress-group"]')).toHaveLength(1);
+    expect(host.querySelector('[data-testid="own-progress-rank"]')?.textContent).toBe('101');
+    expect(host.querySelector('[data-testid="own-progress-score"]')?.textContent).toBe('68,25');
+    expect(host.querySelectorAll('.personal-progress-peers .personal-progress-peer')).toHaveLength(
+      5,
+    );
+    const preview = host.querySelector('.personal-progress-peers')!;
+    expect(preview.textContent).toContain('83,46');
+    expect(preview.textContent).not.toContain('opaque-peer');
+    expect(preview.querySelector('[alt=""]')).toBeTruthy();
+    expect(preview.querySelector('[aria-label*="Место"]')).toBeTruthy();
+    expect(preview.outerHTML).not.toMatch(/(?:studentCode|seatId|lastActiveAt|displayName)/);
+    expect(reads.mock.calls[1]?.[0]).toContain(
+      '/api/progress/groups/' + SP04_TEST_GROUP + '/rating?',
+    );
+    await click('Все');
+    const dialog = host.querySelector('[role="dialog"]');
+    expect(dialog).toBeTruthy();
+    expect(
+      dialog?.querySelectorAll('.personal-progress-rating-items .personal-progress-peer'),
+    ).toHaveLength(20);
+    expect(dialog?.querySelector('.personal-progress-rating-pinned')?.textContent).toContain('101');
+    await click('Показать ещё');
+    expect(
+      dialog?.querySelectorAll('.personal-progress-rating-items .personal-progress-peer'),
+    ).toHaveLength(23);
+    expect(reads.mock.calls[3]?.[0]).toContain('cursor=opaque-page-2');
+    await click('Закрыть');
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('uses the Seat-specific group endpoint with a true zero and no Account authority', async () => {
+    const student: OwnProgressActor = {
+      kind: 'seat',
+      seatId: '77777777-7777-4777-8777-777777777777',
+      classroomId: SP04_TEST_GROUP,
+      displayName: 'StudentSeat test identity',
+      avatarKey: 'asa-avatar-07',
+    };
+    ready(student);
+    const seatPage = {
+      ...sp04Page([]),
+      own: { availability: 'available' as const, score: 0, rank: 1, isSelf: true as const },
+    };
+    const reads = vi
+      .spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([group(SP04_TEST_GROUP, 0, 1)], student)))
+      .mockResolvedValueOnce(success(seatPage));
+    await render(student);
+    expect(api.accountAvatar).not.toHaveBeenCalled();
+    expect(reads.mock.calls[0]?.[0]).toBe('/api/class-join/progress/summary');
+    expect(reads.mock.calls[1]?.[0]).toContain('/api/class-join/progress/groups/');
+    expect(reads.mock.calls.every(([path]) => !path.startsWith('/api/progress/groups'))).toBe(true);
+    expect(host.querySelector('[data-testid="own-progress-rank"]')?.textContent).toBe('1');
+    expect(host.querySelector('[data-testid="own-progress-score"]')?.textContent).toBe('0');
+    expect(host.querySelectorAll('.personal-progress-peers .personal-progress-peer')).toHaveLength(
+      0,
+    );
+  });
+});
+
+describe('SP-04 unavailable group privacy fallback', () => {
+  it('preserves SP-03 ambiguous Account explanation when the peer endpoint rejects 403', async () => {
+    const ambiguous: OwnProgressGroupV1 = {
+      ...group(SP04_TEST_GROUP, null, null),
+      own: {
+        availability: 'unavailable',
+        score: null,
+        rank: null,
+        reason: 'ambiguous_self_participant',
+      },
+    };
+    vi.spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([ambiguous])))
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        error: { code: 'group_forbidden', message: 'Недоступна учебная группа.' },
+      });
+    await render();
+    expect(host.textContent).toContain('Учебный профиль нужно уточнить у преподавателя.');
+    expect(host.textContent).not.toContain('Не удалось загрузить участников.');
+    expect(host.querySelector('.personal-progress-group-retry')).toBeNull();
+    expect(host.querySelectorAll('.personal-progress-peer')).toHaveLength(0);
+  });
+
+  it('hides peer presentation for a disabled rating even if a stale page arrived', async () => {
+    const disabled: OwnProgressGroupV1 = group(SP04_TEST_GROUP, null, null);
+    const page = {
+      ...sp04Page([sp04Peer(0)]),
+      own: {
+        availability: 'unavailable' as const,
+        score: null,
+        rank: null,
+        isSelf: true as const,
+        reason: 'rating_disabled' as const,
+      },
+    };
+    vi.spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([disabled])))
+      .mockResolvedValueOnce(success(page));
+    await render();
+    expect(host.textContent).toContain('Рейтинг выключен');
+    expect(host.querySelectorAll('.personal-progress-peer')).toHaveLength(0);
+  });
 });

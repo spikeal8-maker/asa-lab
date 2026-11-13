@@ -363,15 +363,16 @@ function OwnGroup({
           </>
         ) : (
           <p className="personal-progress-group-note">
-            {preview.rating.error
-              ? 'Не удалось загрузить участников.'
-              : preview.rating.loading
-                ? 'Загружаем участников…'
-                : (unavailable ?? 'Ваш результат за период')}
+            {unavailable ??
+              (preview.rating.error
+                ? 'Не удалось загрузить участников.'
+                : preview.rating.loading
+                  ? 'Загружаем участников…'
+                  : 'Ваш результат за период')}
           </p>
         )}
       </div>
-      {preview.rating.error && !preview.rating.loading ? (
+      {preview.rating.error && !preview.rating.loading && !unavailable ? (
         <button
           className="btn-secondary personal-progress-group-retry"
           type="button"

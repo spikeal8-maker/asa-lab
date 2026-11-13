@@ -2510,6 +2510,13 @@ test('SP-03 ordinary Account joins three real groups and sees canonical own rank
             (await page.locator('.personal-progress-group-avatar').first().boundingBox())?.width,
         )
         .toBe(width <= 380 ? 44 : width <= 520 ? 54 : 68);
+      // A real container breakpoint changes the server request limit; CSS
+      // must not conceal additional participant rows in the DOM.
+      await expect(
+        page.locator(
+          `[data-testid="own-progress-group"][data-group-id="${fractionalGroup.id}"] .personal-progress-peers .personal-progress-peer`,
+        ),
+      ).toHaveCount(width <= 380 ? 2 : width <= 520 ? 3 : 5);
       await sp03Geometry(page);
       await page
         .getByTestId('personal-progress')
@@ -2857,14 +2864,20 @@ test('SP-03 StudentSeat code login shows only Seat progress and preserves existi
     expect(seatRating.groupId).toBe(group.id);
     expect(seatRating.periodDays).toBe(7);
     expect(seatRating.own).toEqual({
-      availability: 'available', score: 0, rank: 1, isSelf: true,
+      availability: 'available',
+      score: 0,
+      rank: 1,
+      isSelf: true,
     });
     expect(seatRating.peers).toEqual([]);
-    expect((await page.request.get(`/api/progress/groups/${group.id}/rating`)).status())
-      .toBe(401);
-    expect((await page.request.get(
-      `/api/class-join/progress/groups/${randomUUID()}/rating?view=preview`,
-    )).status()).toBe(403);
+    expect((await page.request.get(`/api/progress/groups/${group.id}/rating`)).status()).toBe(401);
+    expect(
+      (
+        await page.request.get(
+          `/api/class-join/progress/groups/${randomUUID()}/rating?view=preview`,
+        )
+      ).status(),
+    ).toBe(403);
     for (const name of ['everPublishedWorks', 'currentLikes', 'createdCopies'] as const)
       expect(summary.metrics[name]).toEqual({ availability: 'available', value: 0 });
     for (const width of SP03_WIDTHS) {

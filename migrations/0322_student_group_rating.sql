@@ -180,22 +180,25 @@ BEGIN
   metrics AS MATERIALIZED (
     SELECT (item->>'seatId')::uuid seat_id,
       (item->>'score')::numeric score,
-      (item->>'rank')::integer place
+      (item->>'rank')::integer place,
+      item->>'avatarUrl' avatar_url
     FROM public.classroom_participant_metrics(p_class)
   ),
   members AS MATERIALIZED (
     SELECT metric.seat_id,metric.score,metric.place,seat.avatar_key,
-      choice.avatar_id
+      -- The canonical metric already verified custom-avatar availability.
+      -- Reuse that exact decision rather than recalculating its guard for
+      -- every learner a second time in SP-04.
+      CASE WHEN image.id IS NOT NULL AND metric.avatar_url =
+        '/api/classrooms/'||p_class||'/participants/'||seat.id||'/avatars/'||image.id||'/image'
+        THEN image.id ELSE NULL END avatar_id
     FROM metrics metric
     JOIN public.classroom_student_seats seat ON seat.id=metric.seat_id
       AND seat.classroom_id=p_class AND seat.status<>'removed'
-    LEFT JOIN LATERAL (
-      SELECT chosen.avatar_id FROM public.classroom_custom_avatar_choices chosen
-      JOIN public.classroom_custom_avatars image
-        ON image.id=chosen.avatar_id AND image.classroom_id=p_class
-      WHERE chosen.seat_id=seat.id
-        AND public.classroom_participant_avatar_available(seat.id,image.id)
-    ) choice ON true
+    -- Set joins instead of a correlated per-peer avatar query (SQL N+1).
+    LEFT JOIN public.classroom_custom_avatar_choices chosen ON chosen.seat_id=seat.id
+    LEFT JOIN public.classroom_custom_avatars image
+      ON image.id=chosen.avatar_id AND image.classroom_id=p_class
   ),
   fingerprint AS MATERIALIZED (
     SELECT md5(
@@ -211,6 +214,9 @@ BEGIN
   ),
   peer_lookahead AS MATERIALIZED (
     SELECT m.* FROM members m WHERE m.seat_id<>v_self
+      -- A disabled rating must never become a silent avatar/participant roster.
+      AND EXISTS(SELECT 1 FROM jsonb_each((SELECT value->'factors' FROM settings)) factor
+        WHERE factor.value='true'::jsonb)
       AND (
         p_after_seat IS NULL OR
         (p_after_score IS NULL AND m.score IS NULL AND m.seat_id>p_after_seat) OR
@@ -303,7 +309,15 @@ BEGIN
   JOIN public.classroom_custom_avatar_choices chosen ON chosen.seat_id=seat.id
   JOIN public.classroom_custom_avatars image
     ON image.id=chosen.avatar_id AND image.classroom_id=p_class
-  WHERE public.classroom_participant_avatar_available(seat.id,image.id);
+  -- A ticket issued earlier must not survive removal of the peer's learner
+  -- identity, even if the Seat row and custom avatar choice still exist.
+  WHERE EXISTS(SELECT 1 FROM public.classroom_participant_principals(seat.id))
+    -- Turning a classroom rating OFF must invalidate previously issued
+    -- encrypted peer-image tickets as well as the rating page itself.
+    AND EXISTS(SELECT 1 FROM jsonb_each(
+      public.classroom_participant_settings_json(p_class)->'factors') factor
+      WHERE factor.value='true'::jsonb)
+    AND public.classroom_participant_avatar_available(seat.id,image.id);
   RETURN v_result;
 END;
 $$;
