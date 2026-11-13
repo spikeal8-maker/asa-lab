@@ -18105,6 +18105,11 @@ parallel_lanes:
         - apps/web/src/pages/testing/LearningPage.spec.ts
         - e2e/public-projects.spec.ts
         - docs/product/student-progress/tasks/SP-04-GROUP-RATING.md
+        - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
+        - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+        - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+        - tests/portal/personal-progress.pg.spec.ts
+        - tests/portal/personal-progress.http.pg.spec.ts
       constraints:
         - 'Use existing classroom_participant_metrics as the only scoring formula; preserve rank semantics and 7/30/90-day periods. Rounded equal scores share places.'
         - 'Authorise using authenticated Account/Seat context, recheck membership and tenant at restricted PostgreSQL role, and never expose teacher roster, names, student codes, grades or peer private IDs.'
@@ -18127,6 +18132,15 @@ parallel_lanes:
       database_actions: isolated_tests_only
       next_eligible_step: SP-04
       next_step_selected: true
+      controller_test_path_amendment_2026_11_14:
+        kind: test_scope_only
+        parent_programme: SP04-FULL-DELIVERY-001
+        original_path_count: 14
+        updated_path_count: 19
+        source_main: cbaab42ebb68d90ee7e0fec3ca5d48475fab55a7
+        reason: 'New forward-only migration 0322 legitimately extends versioned full-plan fixtures. Update explicit expected migration suffixes only; preserve negative upgrade/retained-data checks and add real limited-role SQL/HTTP group rating fixtures.'
+        constraints: 'No test deletions, skips, threshold relaxations, changes to old migrations, production DB or unrelated modules. Product branch inherits the accepted amendment from main.'
+        activation: 'Use these five additional paths only after this controller amendment is accepted in main with required CI and separate read-only review.'
     sp03_accepted_task_snapshot_2026_11_13:
       id: TASK-STUDENT-PROGRESS-HOME-001
       issue: 1090
