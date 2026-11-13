@@ -95,6 +95,11 @@
   max-width: 44px;
 }
 
+.portal-shell .portal-header .portal-account > summary {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .portal-shell .portal-header .portal-menu-toggle {
   display: none;
 }

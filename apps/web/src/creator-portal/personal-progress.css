@@ -177,7 +177,7 @@
   min-width: 21px;
   width: max-content;
   min-height: 21px;
-  aspect-ratio: 1;
+  height: 21px;
   padding: 0 4px;
   border: 1px solid var(--asa-slate-200, #dce5eb);
   border-radius: 999px;
@@ -266,6 +266,7 @@
   .personal-progress-rank {
     min-width: 19px;
     min-height: 19px;
+    height: 19px;
   }
   .personal-progress-score {
     height: 19px;
