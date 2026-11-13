@@ -83,6 +83,7 @@ Direct supporting tests and routes:
 - `apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts`
 - `apps/web/src/electronics/testing/workbench-presentation.spec.ts`
 - `e2e/electronics-simulation.spec.ts`
+- `docs/product/electronics/generated/component-coverage.json`
 - `docs/product/electronics/components/engine-worker-clock.yaml`
 - `docs/product/electronics/components/ui-assets-persistence.yaml`
 - `apps/web/src/electronics/testing/stopped-preflight.browser.mjs`
@@ -301,3 +302,21 @@ source, because the A recording cannot stand in for changed compiled UI. No
 new task, runtime redesign, tolerance change or production action is selected.
 After the required evidence and independent final review, publish/integrate the
 bounded result and STOP. R11 remains unselected.
+
+## Exact generated browser-evidence fingerprint follow-up
+
+On converged B `dfea2026d6dd2a1d5b2d0d2db43af97f4ddd5cf2`, R4 core
+job131689214251 stopped before tests because the generated coverage evidence
+retained the browser-test fingerprint from accepted main. The already reviewed
+running-fault fixture changes that test source. The controller accepts the
+author's read-only generator output and authorizes exactly one generated value:
+`generatedFrom.browserEvidenceSha256`, from
+`0ffeaa5ed1f22fabea3dd5c2fd23ac3425d7c455f398827e44ba7da08d6cc657` to
+`be3c0fbdde904d7ba4b16061e1ee2fa3ca0ec20375cdc86fdd6c06ab3f32acdd`.
+All 44 component rows, other fingerprints, summary and zero fatal contradictions
+remain unchanged. This is a category-B evidence dependency, with no catalogue
+review, model or runtime change. Fresh two-path preflight had zero overlaps and
+blockers; the owner checkout path check was empty. Repeat the applicable gates
+on the corrected exact source and independently verify B's compiled input
+identity. The running c76-to-B measurement remains valid for its immutable source
+and is not restarted for a generated test-evidence fingerprint.
