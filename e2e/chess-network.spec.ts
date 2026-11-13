@@ -495,7 +495,16 @@ test('real two-pupil Chess, teacher controls, reconnect/history and all opponent
     await network.getByLabel('Разрешить сетевую игру', { exact: true }).check();
     await network.getByLabel('Круг соперников', { exact: true }).selectOption('classroom');
     await network.getByRole('button', { name: 'Сохранить сетевой режим', exact: true }).click();
-    await expect(network.getByRole('status')).toHaveText('Настройки сетевой игры сохранены.');
+    const networkFeedback = page.locator('.system-feedback-ribbon.system-feedback-success');
+    await expect(networkFeedback).toHaveCount(1);
+    await expect(networkFeedback).toBeVisible();
+    await expect(networkFeedback).toHaveText(/Настройки сетевой игры сохранены\./);
+    const networkAnnouncement = page.locator('.system-feedback-announcement[role="status"]');
+    await expect(networkAnnouncement).toHaveCount(1);
+    await expect(networkAnnouncement).toContainText('Настройки сетевой игры сохранены.');
+    await expect(
+      network.getByText('Настройки сетевой игры сохранены.', { exact: true }),
+    ).toHaveCount(0);
     for (const width of [1440, 1024, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(

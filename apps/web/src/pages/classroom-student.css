@@ -1516,6 +1516,17 @@
   .classroom-student .project-card-grid .project-card-frame {
     aspect-ratio: 16 / 9;
   }
+  /* Keep the intended mobile work preview independent of shared square cards. */
+  .classroom-student .project-card-grid:not(.list) .project-card:not(.is-learning) {
+    aspect-ratio: auto;
+  }
+  .classroom-student
+    .project-card-grid:not(.list)
+    .project-card:not(.is-learning)
+    .project-card-frame {
+    flex: 0 0 auto;
+    aspect-ratio: 16 / 9;
+  }
   .classroom-student .project-card-grid .project-card-body {
     padding: 8px 10px;
   }

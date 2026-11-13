@@ -178,6 +178,15 @@ jobs:
         run: |
           pnpm exec vitest run apps/web/src/components/testing/system-feedback.spec.ts apps/web/src/components/testing/system-toast-viewport.spec.ts apps/web/src/components/testing/use-classroom-feedback.spec.ts
           pnpm exec playwright test --config playwright.config.ts e2e/classroom-feedback.spec.ts --workers=1 --reporter=list,json
+      - name: Nested classroom feedback and assignment context regressions
+        env:
+          ASA_E2E_EXTERNAL: 'true'
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/reports/playwright/classroom-nested-feedback-summary.json
+        run: |
+          mkdir -p reports/checks
+          set -o pipefail
+          pnpm exec vitest run apps/web/src/components/testing/classroom-assignment-lifetime.spec.ts apps/web/src/components/testing/classroom-assignment-context.spec.ts 2>&1 | tee reports/checks/classroom-nested-feedback-unit.log
+          pnpm exec playwright test --config playwright.config.ts e2e/classroom-nested-feedback.spec.ts --workers=1 --reporter=list,json
       - name: Preserve all-screen visual evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -187,6 +196,9 @@ jobs:
             e2e/artifacts/owner-preview/classroom-layout-final
             e2e/artifacts/owner-preview/classroom-feedback
             reports/playwright/classroom-feedback-summary.json
+            reports/playwright/classroom-nested-feedback-summary.json
+            reports/checks/classroom-nested-feedback-unit.log
+            e2e/artifacts/owner-preview/classroom-nested-feedback
             e2e/artifacts/owner-preview/teacher-dashboard-redesign
             e2e/artifacts/owner-preview/teacher-ultrawide
             reports/playwright/classroom-layout-summary.json
