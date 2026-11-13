@@ -102,20 +102,35 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: plan/governance
-      checkpoint: selected_compact_mandatory_hygiene_007_before_recovery_r10
+      checkpoint: checkpoint007_independently_approved_and_controller_accepted_for_r10
       owner_acceptance: pending
       full_hygiene_checkpoint: true
       previous_full_checkpoint_issue: 556
-      counted_accepted_production_issues_minimum: [553, 569, 570, 571]
+      counted_accepted_production_issues_minimum:
+      - 553
+      - 569
+      - 570
+      - 571
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-015.md
-        - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
-        - docs/product/electronics/evidence/hygiene-baseline.yaml
-      owner_authorization: Owner directs controller preparation and canonical task selection needed for bounded R00 then R10 under1111. This documentation-only prerequisite resolves the mandatory existing hygiene cadence before any R10 product write; no additional product, catalogue or installation work.
-      scope: Only compact seven-category checkpoint007 on actual accepted source; preserve all existing sizes, thresholds, legacy conditions, historical evidence and foreign state. No product or test edit and no repeated runtime measurements.
-      next_action: Author publishes only checkpoint007 evidence and stops; independent reviewer checks final SHA; controller accepts dependency on main before selecting R10. R00 preparation may proceed independently.
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-015.md
+      - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
+      - docs/product/electronics/evidence/hygiene-baseline.yaml
+      owner_authorization: Owner directs controller preparation and canonical task selection needed for bounded R00
+        then R10 under1111. This documentation-only prerequisite resolves the mandatory existing hygiene cadence before
+        any R10 product write; no additional product, catalogue or installation work.
+      scope: Only compact seven-category checkpoint007 on actual accepted source; preserve all existing sizes, thresholds,
+        legacy conditions, historical evidence and foreign state. No product or test edit and no repeated runtime measurements.
+      next_action: STOP. The reviewed checkpoint007 blob is accepted by the controller and accompanies the R00-to-R10
+        canonical transition. It does not authorize cleanup, baseline changes, product writes before accepted main,
+        deployment or owner acceptance.
+      technical_acceptance: accepted_source_with_required_combined_ci_before_main_integration
+      accepted_candidate_sha: 0c14fe32e842dcdf9755e503439ac51c0b81b351
+      accepted_candidate_tree: 1a20ec7e32a479dcc76981ef9ae5502a9882bd9b
+      independent_review: APPROVE
+      independent_reviewer: /root/hygiene_reviewer
+      accepted_evidence_sha256: 1b96809c518eb9446200e7381e7c2d745cc8c5d05c40488af50adf3a65e4fd15
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -5612,46 +5627,134 @@ parallel_lanes:
     owned_paths:
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-RECOVERY-R00-001
+      id: TASK-ELECTRONICS-RECOVERY-R10-001
       issue: 1111
       branch: main
       base_branch: main
       pr: null
       status: in_progress
-      kind: analysis/inventory
-      checkpoint: owner_selected_r00_reproducible_full_editor_baseline
+      kind: repair
+      checkpoint: controller_selected_first_async_stopped_preflight_after_accepted_r00_and_checkpoint007
       owner_acceptance: pending
-      context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-RECOVERY-R00-001.md
-        - docs/product/electronics/components/ui-assets-persistence.yaml
-      scope: R00 only; saved S3 and reconstructed S4, original reconstruction sketch, hashes, frozen source/build provenance, full-editor Stop measurements and two confirmed preflight call sites. Product source is read-only.
-      owner_authorization: Owner explicitly directs the controller to prepare and canonically select cards for the bounded R00 then R10 programme, delegate each slice to a real chat author and independent reviewer, publish tested candidates and demonstrate before/after in permitted browser CI. No production update, new permanent installation, R11 or bulk branch closure.
-      next_action: Author completes only R00 and stops; controller independently accepts sufficient baseline then canonically selects bounded R10. R00 alone does not finish the owner assignment.
       programme_issue: 452
       registry_issue: 703
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-RECOVERY-R10-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      - docs/product/electronics/components/engine-worker-clock.yaml
+      - docs/product/electronics/evidence/recovery-r00-20261113.md
+      owner_authorization: Owner explicitly directs the controller to prepare and canonically select cards for the bounded
+        R00 then R10 programme, delegate each slice to a real chat author and independent reviewer, publish tested candidates
+        and demonstrate before/after in permitted browser CI. No production update, new permanent installation, R11
+        or bulk branch closure.
+      selection_authority: Programme controller accepts independently reviewed R00 and GOV015 sources and selects only
+        R10. This transition becomes authoritative on accepted main; neither the R00 author nor a feature branch selects
+        product work. A NEW author starts only after fresh main preflight and required integration CI.
+      scope: Only share one correct asynchronous stopped preflight between diagnostics and LED preparation; remove synchronous
+        render solving and confirmed Worker duplicate, key all Arduino programs/model identities/project session, reject
+        stale responses, retain running source-only update semantics and stopped persisted projection. Repeat frozen
+        S3/S4 before and after in full editor.
+      next_action: After this controller transition is integrated on main, assign a new author one R10 slice. Require
+        exact final source independent review, applicable gates and paired full-editor measurements/recordings. Controller
+        publishes the bounded result and stops; no R11, deployment, live-data operation or new permanent installation.
       source_baseline_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
-      measurement_delivery: Isolated GitHub Actions full SchematicEditor fixture with real Worker and assets; instrumented candidate video and raw evidence, not asa-lab.ru deployment.
-      original_project_policy: Read-only; absent export permits explicitly attributed audit reconstruction, never an invented original sketch.
+      measurement_delivery: Isolated GitHub Actions full SchematicEditor fixture with real Worker and assets; instrumented
+        candidate video and raw evidence, not asa-lab.ru deployment.
+      original_project_policy: Read-only; absent export permits explicitly attributed audit reconstruction, never an
+        invented original sketch.
+      accepted_preparations:
+      - task_id: TASK-ELECTRONICS-RECOVERY-R00-001
+        status: technical_accepted
+        candidate_sha: 8ee433f41503fc47ea64bfaa61f5e63ded9c14d5
+        candidate_tree: d26afd4566fbc27deceb5caca85fc10f89d6d8e5
+        independent_reviewer: /root/r00_reviewer
+        independent_verdict: PASS_final_source_raw_video_sufficient_R00
+        performance_run: 43331196377
+        performance_conclusion: success
+        general_run: 43331205419
+        general_conclusion: success
+        artifact_id: 13996708646
+        artifact_sha256: 7c80998d3bd9564d7711c0d7eb428eac7ed91180175efbb4014f865fe761b795
+        raw_samples: 1440
+        actual_measured_main_analyses: 2880
+        actual_measured_worker_analyses: 0
+        product_source_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+        integration_note: Reviewed R00 files are included unchanged except this controller evidence update in the single
+          final main convergence. Fresh required CI must pass before merge; the original measured harness and product
+          identities remain immutable.
+        owner_acceptance: pending
+      - task_id: TASK-ELECTRONICS-GOVERNANCE-015
+        status: technical_accepted
+        candidate_sha: 0c14fe32e842dcdf9755e503439ac51c0b81b351
+        candidate_tree: 1a20ec7e32a479dcc76981ef9ae5502a9882bd9b
+        independent_reviewer: /root/hygiene_reviewer
+        independent_verdict: APPROVE_exact_source_seven_categories
+        evidence: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-007.yaml
+        sha256: 1b96809c518eb9446200e7381e7c2d745cc8c5d05c40488af50adf3a65e4fd15
+        integration_note: Exact approved checkpoint blob included in this controller transition; required CI and accepted
+          main remain prerequisites before product writes. Baseline sizes, thresholds, historical debt and protected
+          data preserved.
+        owner_acceptance: pending
+      baseline_verification:
+        requested_suites: live-simulation, live-simulation-worker-controller, simulation-input-digest
+        result: 135_tests_passed_fresh_before_R10
+        product_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+        r4_run: 43331205321
+        r4_s1: failure_1_realtime_phase_duration_122_passed
+        r4_s2: failure_5_running_optical_8_passed
+        classification: C_relative_to_test_only_R00_diff_with_identical_runtime_and_test_blobs; preserve for candidate
+          regression assessment, no broad R4 PASS or scope expansion
       accepted_previous_task:
-        id: TASK-ELECTRONICS-GOVERNANCE-014
-        issue: 929
+        id: TASK-ELECTRONICS-RECOVERY-R00-001
+        issue: 1111
         branch: main
         base_branch: main
         pr: null
-        status: done
-        kind: maintenance
-        checkpoint: accepted_static_split_routes_repaired_114_regressions_PASS
+        status: in_progress
+        kind: analysis/inventory
+        checkpoint: owner_selected_r00_reproducible_full_editor_baseline
         owner_acceptance: pending
         context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-RECOVERY-R00-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        scope: R00 only; saved S3 and reconstructed S4, original reconstruction sketch, hashes, frozen source/build
+          provenance, full-editor Stop measurements and two confirmed preflight call sites. Product source is read-only.
+        owner_authorization: Owner explicitly directs the controller to prepare and canonically select cards for the
+          bounded R00 then R10 programme, delegate each slice to a real chat author and independent reviewer, publish
+          tested candidates and demonstrate before/after in permitted browser CI. No production update, new permanent
+          installation, R11 or bulk branch closure.
+        next_action: Author completes only R00 and stops; controller independently accepts sufficient baseline then
+          canonically selects bounded R10. R00 alone does not finish the owner assignment.
+        programme_issue: 452
+        registry_issue: 703
+        source_baseline_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
+        measurement_delivery: Isolated GitHub Actions full SchematicEditor fixture with real Worker and assets; instrumented
+          candidate video and raw evidence, not asa-lab.ru deployment.
+        original_project_policy: Read-only; absent export permits explicitly attributed audit reconstruction, never
+          an invented original sketch.
+        accepted_previous_task:
+          id: TASK-ELECTRONICS-GOVERNANCE-014
+          issue: 929
+          branch: main
+          base_branch: main
+          pr: null
+          status: done
+          kind: maintenance
+          checkpoint: accepted_static_split_routes_repaired_114_regressions_PASS
+          owner_acceptance: pending
+          context_hints:
           - docs/product/electronics/components/arduino-peripherals.yaml
           - docs/product/electronics/components/ui-assets-persistence.yaml
           - docs/product/electronics/evidence/hygiene-baseline.yaml
-        scope: Documentation-only existing Electronics source-route and stale-large-source repair after accepted6e0; no product source, thresholds or foreign-state changes.
-        owner_authorization: Owner asks to repair Electronics errors and publish verified source while preserving foreign changes; current accepted static block split invalidates four routing checks.
-        next_action: STOP; documentation-only baseline repaired. Resume independently checked caption integration and separately selected desktop layout task.
-        routing_result: PASS_30components167cards_114regressiontests_control_plane_require_github_PASS
-        actual_arduino_blocks_bytes: 34881
-        self_review: PASS_documentation_only_all_accepted_product_blobs_and_limits_unchanged
+          scope: Documentation-only existing Electronics source-route and stale-large-source repair after accepted6e0;
+            no product source, thresholds or foreign-state changes.
+          owner_authorization: Owner asks to repair Electronics errors and publish verified source while preserving
+            foreign changes; current accepted static block split invalidates four routing checks.
+          next_action: STOP; documentation-only baseline repaired. Resume independently checked caption integration
+            and separately selected desktop layout task.
+          routing_result: PASS_30components167cards_114regressiontests_control_plane_require_github_PASS
+          actual_arduino_blocks_bytes: 34881
+          self_review: PASS_documentation_only_all_accepted_product_blobs_and_limits_unchanged
     suspended_slices:
     - task_id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
       accepted_task_snapshot:
@@ -17485,6 +17588,90 @@ parallel_lanes:
           - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-RUNTIME-RESPONSIBILITY-001
           - pnpm control-plane:check
 
+  - id: electronics-robotics-toolbar-fit
+    parent_lane: electronics
+    worktree_id: electronics-robotics-toolbar-fit
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TOOLBAR-FIT-001.md
+    task:
+      id: TASK-ELECTRONICS-ROBOTICS-TOOLBAR-FIT-001
+      issue: 1122
+      parent_issue: 1071
+      camera_dependency_issue: 1096
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: bounded_b_toolbar_fit_repair_selected
+      owner_acceptance: pending
+      profile: UI_ONLY
+      planned_paths:
+        - apps/web/src/electronics/workbench.css
+      owner_authorization: >-
+        The owner explicitly authorized ordinary main integration of the existing
+        PR1044 dependency and FIELD-CAMERA-001. Under that unchanged authority,
+        the controller selected this review-found B dependency of robotics-camera:
+        https://github.com/spikeal8-maker/asa-lab/pull/1098#issuecomment-6841862586
+        and https://github.com/spikeal8-maker/asa-lab/issues/1071#issuecomment-6841862818.
+        This selection becomes executable only after its registration is accepted
+        on main and a separate exact-path runtime preflight succeeds.
+      scope: >-
+        Presentation-only, non-semantic correction of compact desktop Electronics
+        breadboard toolbar fit after the preserved shared Duplicate control was
+        added. Change only workbench.css: within the existing 981-1459px media
+        query, narrowly size the direct Electronics breadboard tool buttons so
+        the running simulation clock does not cover Mirror. The Robotics native
+        tools wrapper and its existing button dimensions remain unchanged.
+      constraints:
+        - One bounded B repair of the existing integration; no new Electronics or Robotics feature,
+          milestone, physics acceptance or E1 completion.
+        - Preserve all 17/8/6 control counts, exactly one Duplicate, full captions, hit ownership,
+          icon/text/clipping/native-menu assertions, test budgets and timeouts.
+        - Preserve global header, Save/avatar, right controls, inspector, catalogue and mobile layout.
+        - No Worker, clock authority, engine, model, program, persistence, schema, API or asset changes.
+        - No production/test/generated/workflow edits during registration; runtime CSS is a later
+          separately assigned author slice followed by independent exact-SHA review.
+        - No D2-R2 checkout/index/ref/runtime writes, protected dirty test or 148 evidence-file writes;
+          no new server, database, Docker restart or deployment claim.
+        - Do not chase unrelated main movement or resolve integration conflicts automatically.
+      context_hints:
+        - docs/product/electronics/START_HERE.md
+        - docs/product/electronics/COMPONENT_MAP.yaml
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TOOLBAR-FIT-001.md
+      gate_boundary: >-
+        Exact-path preflight and plan verification, Electronics selected-task
+        validation, applicable CSS formatting and source identity checks; complete
+        all four existing compact desktop/blocks scenarios and their later width,
+        running/stopped and native-menu observations in the exact-candidate
+        Electronics R4-M1 s3 browser gate. Required integration CI and independent
+        review remain mandatory; registration and green unrelated gates are not
+        runtime acceptance or deployment.
+      deployment: none
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 7dc9f693755347340be1efff079f1f0c866854a8
+      head_sha: null
+      observed_at: '2026-11-13T02:28:15.084Z'
+      main:
+        branch: main
+        sha: 7dc9f693755347340be1efff079f1f0c866854a8
+      observation_note: >-
+        Dated registration snapshot only. PR1098 source
+        9851288759d3637af20a822fd494ce2ae90efd9b remains frozen; this record
+        does not claim runtime convergence, new UI evidence or D2-R2 verification.
+        Fetch main, source refs and exact-SHA checks before the later repair.
+    gates:
+      focused:
+        workflow: Electronics R4-M1
+        commands:
+          - pnpm gate:electronics-m1:browser --shard=3/4 --workers=1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: robotics-camera
     parent_lane: robotics
     worktree_id: field-camera-001
@@ -17567,9 +17754,12 @@ parallel_lanes:
         UI-01/UI-02 only: finite cursor-anchored zoom, mouse and two-touch pan,
         pinch, fit/focus, one world/screen transform and gesture cleanup.
         Source integration additionally preserves the existing PR1044 dependency
-        without adding features. The only new composition repair is removal of
+        without adding features. The initial composition repair is removal of
         the duplicate arduino-stable-loop.ts entry from
         tools/public-electronics-worker-modules.json, preserving the admitted set.
+        The separately selected electronics-robotics-toolbar-fit B dependency
+        permits only the compact desktop toolbar CSS fit correction under its
+        accepted task card; all other product and unfinished E1 boundaries remain.
       constraints:
         - E1 remains selected in the robotics lane with all its unfinished evidence and blockers.
         - No new physics engine, electrical, schema, motor, sensor or program edits beyond preserving the frozen existing PR1044 dependency; no new engine experiments.

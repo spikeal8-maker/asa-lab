@@ -1,0 +1,125 @@
+name: Electronics recovery performance
+run-name: R00–R10 full editor · ${{ github.event_name }} · ${{ github.sha }}
+on:
+  push:
+    branches:
+      - codex/electronics-recovery-r00-1111
+    paths:
+      - apps/web/src/electronics/testing/stopped-preflight.browser.mjs
+      - tests/electronics/recovery/**
+      - .github/workflows/electronics-recovery-performance.yml
+  workflow_dispatch:
+    inputs:
+      before_revision:
+        description: Immutable full SHA for the unchanged product baseline
+        type: string
+        required: true
+        default: cb15c700253f26bf276ad69d5e45ca27c2306787
+      after_revision:
+        description: Immutable full SHA for the authorized R10 candidate; empty runs baseline only
+        type: string
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: electronics-recovery-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  full-editor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      BEFORE_REVISION: ${{ inputs.before_revision || 'cb15c700253f26bf276ad69d5e45ca27c2306787' }}
+      AFTER_REVISION: ${{ inputs.after_revision }}
+    steps:
+      - name: Checkout fixed measurement source and scenes
+        uses: actions/checkout@v4
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate exact source revisions
+        shell: bash
+        run: |
+          [[ "$BEFORE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          if [[ -n "$AFTER_REVISION" ]]; then
+            [[ "$AFTER_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          fi
+      - name: Checkout exact before source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BEFORE_REVISION }}
+          path: before
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install frozen before dependencies
+        working-directory: before
+        run: |
+          corepack enable
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm exec playwright install --with-deps chromium
+      - name: Smoke complete editor and all measured gestures — not acceptance
+        run: >-
+          node control/apps/web/src/electronics/testing/stopped-preflight.browser.mjs
+          --source-root=before --expected-source-sha="$BEFORE_REVISION" --phase=before --smoke --output=reports/smoke
+      - name: Baseline — three fixed 30-slot passes and separate visual replay
+        run: >-
+          node control/apps/web/src/electronics/testing/stopped-preflight.browser.mjs
+          --source-root=before --expected-source-sha="$BEFORE_REVISION" --phase=before --output=reports/before
+      - name: Checkout exact after source
+        if: env.AFTER_REVISION != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.AFTER_REVISION }}
+          path: after
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install identical dependency versions for after source
+        if: env.AFTER_REVISION != ''
+        working-directory: after
+        run: |
+          cmp ../before/pnpm-lock.yaml pnpm-lock.yaml
+          corepack pnpm install --frozen-lockfile
+      - name: After — same runner, scenes, machine, browser and action schedule
+        if: env.AFTER_REVISION != ''
+        run: >-
+          node control/apps/web/src/electronics/testing/stopped-preflight.browser.mjs
+          --source-root=after --expected-source-sha="$AFTER_REVISION" --phase=after --output=reports/after
+      - name: Verify paired conditions and unchanged numerical results
+        if: env.AFTER_REVISION != ''
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {readFile,writeFile} from 'node:fs/promises';
+          const before=JSON.parse(await readFile('reports/before/report.json','utf8'));
+          const after=JSON.parse(await readFile('reports/after/report.json','utf8'));
+          for(const field of ['harnessSha256','fixtureHashes','catalogueSha256','modelRegistrySha256','sketchSha256'])
+            assert.deepEqual(before.receipt[field],after.receipt[field],field);
+          assert.deepEqual(before.protocol,after.protocol);
+          for(const field of ['os','release','cpu','logicalCpus','ramBytes','node','browser'])
+            assert.deepEqual(before.environment[field],after.environment[field],field);
+          assert.equal(before.profiles.length,after.profiles.length);
+          const comparison=before.profiles.map((b,index)=>{
+            const a=after.profiles[index];
+            for(const field of ['scene','codeOpen','gesture','nominalMode','nominalPanelWidthPx'])assert.deepEqual(b[field],a[field],field);
+            assert.deepEqual(b.observed,a.observed,'same viewport, zoom, GPU and Stop');
+            assert.deepEqual(b.initialDiagnostic,a.initialDiagnostic,'unchanged numerical diagnostic result');
+            assert.equal(b.summary.samples,90);assert.equal(a.summary.samples,90);
+            return {scene:b.scene,codeOpen:b.codeOpen,gesture:b.gesture,before:b.summary,after:a.summary};
+          });
+          await writeFile('reports/comparison.json',JSON.stringify({before:before.receipt.sourceSha,after:after.receipt.sourceSha,conditions:'PASS',numericalResults:'PASS',comparison},null,2)+'\n');
+          JS
+      - name: Upload source receipts, raw samples, screenshots, traces and videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-recovery-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports
+          if-no-files-found: error
+          retention-days: 90
