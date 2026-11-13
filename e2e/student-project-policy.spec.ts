@@ -16,6 +16,20 @@ async function capture(page: Page, name: string) {
 function randomKey() {
   return `publication-policy-${crypto.randomUUID()}`;
 }
+async function expectProjectPermissionSaved(
+  page: Page,
+  section: import('@playwright/test').Locator,
+) {
+  const ribbon = page.locator('.system-feedback-ribbon.system-feedback-success');
+  await expect(ribbon).toHaveCount(1);
+  await expect(ribbon).toContainText('Разрешения проектов сохранены.');
+  const announcement = page.locator('.system-feedback-announcement[role="status"]');
+  await expect(announcement).toHaveCount(1);
+  await expect(announcement).toContainText('Разрешения проектов сохранены.');
+  const inlineSuccess = section.getByText('Разрешения проектов сохранены.', { exact: true });
+  await expect(inlineSuccess).toHaveCount(0);
+}
+
 test('teacher policy explicitly permits own Seat publication and preserves public read after disabling', async ({
   page,
   browser,
@@ -129,7 +143,7 @@ test('teacher policy explicitly permits own Seat publication and preserves publi
     await expect(controls.getByLabel('Скачивание проектов', { exact: true })).not.toBeChecked();
     await controls.getByLabel('Публикация проектов', { exact: true }).check();
     await controls.getByRole('button', { name: 'Сохранить разрешения', exact: true }).click();
-    await expect(controls.getByRole('status')).toHaveText('Разрешения проектов сохранены.');
+    await expectProjectPermissionSaved(page, controls);
     await capture(page, 'teacher-class');
     await learner.reload();
     const card = learner.getByTestId('project-card').filter({ hasText: 'Публикация ученика' });
@@ -150,7 +164,7 @@ test('teacher policy explicitly permits own Seat publication and preserves publi
     const publicationId = (await state.json()).publication.publicationId as string;
     await controls.getByLabel('Публикация проектов', { exact: true }).uncheck();
     await controls.getByRole('button', { name: 'Сохранить разрешения', exact: true }).click();
-    await expect(controls.getByRole('status')).toHaveText('Разрешения проектов сохранены.');
+    await expectProjectPermissionSaved(page, controls);
     expect((await learner.request.post(endpoint, { headers: { origin }, data: {} })).status()).toBe(
       403,
     );
@@ -166,7 +180,7 @@ test('teacher policy explicitly permits own Seat publication and preserves publi
     await individual.getByLabel('Публикация проектов', { exact: true }).selectOption('allow');
     await individual.getByLabel('Скачивание проектов', { exact: true }).selectOption('deny');
     await individual.getByRole('button', { name: 'Сохранить разрешения', exact: true }).click();
-    await expect(individual.getByRole('status')).toHaveText('Разрешения проектов сохранены.');
+    await expectProjectPermissionSaved(page, individual);
     await capture(page, 'teacher-seat');
     expect((await learner.request.post(endpoint, { headers: { origin }, data: {} })).status()).toBe(
       200,

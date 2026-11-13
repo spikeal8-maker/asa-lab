@@ -17973,6 +17973,67 @@ parallel_lanes:
       - docs/product/student-progress/**
       - docs/agent/contracts/student-progress.yaml
     task:
+      id: TASK-STUDENT-PROGRESS-GROUP-RATING-001
+      issue: 1090
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: true
+      status: in_progress
+      checkpoint: sp04_controller_selected_in_main_product_pending
+      owner_acceptance: pending
+      program: ASA-STUDENT-PROGRESS-001
+      selected_step: SP-04
+      owner_authorization: 'Owner explicitly authorized full SP-04 implementation, independent security and visual review, protected merge to main, and final exact-SHA CI on 2026-11-13. No production deployment or live DB changes.'
+      activation_condition: 'This controller selection becomes authoritative only when the registration commit is accepted in main. Product branch inherits this exact main; product authors do not select their own task.'
+      scope: 'SP-04 only: learner-safe group avatar/rank/score projection and protected image access; stable paged peers on the existing Home and Learning SP-03 group blocks; Account and StudentSeat rights; isolated SQL/API/browser testing.'
+      normative_refs:
+        - document: STUDENT-PROGRESS-MASTER-V1
+          revision: '1.0'
+        - document: STUDENT-PROGRESS-PLAN-V1
+          revision: '1.0'
+        - document: STUDENT-PROGRESS-UI-V1
+          revision: '1.0'
+        - document: STUDENT-PROGRESS-DATA-V1
+          revision: '1.0'
+      planned_paths:
+        - migrations/0322_student_group_rating.sql
+        - apps/api/src/personal-progress.controller.ts
+        - apps/api/src/personal-progress.controller.spec.ts
+        - apps/api/src/personal-progress.controller.pg.spec.ts
+        - packages/contracts/src/personal-progress.ts
+        - packages/contracts/src/index.ts
+        - apps/web/src/creator-portal/PersonalProgress.tsx
+        - apps/web/src/creator-portal/personal-progress.ts
+        - apps/web/src/creator-portal/personal-progress.css
+        - apps/web/src/creator-portal/PersonalProgress.spec.ts
+        - apps/web/src/pages/testing/CreatorHomePage.spec.ts
+        - apps/web/src/pages/testing/LearningPage.spec.ts
+        - e2e/public-projects.spec.ts
+        - docs/product/student-progress/tasks/SP-04-GROUP-RATING.md
+      constraints:
+        - 'Use existing classroom_participant_metrics as the only scoring formula; preserve rank semantics and 7/30/90-day periods. Rounded equal scores share places.'
+        - 'Authorise using authenticated Account/Seat context, recheck membership and tenant at restricted PostgreSQL role, and never expose teacher roster, names, student codes, grades or peer private IDs.'
+        - 'Protect custom avatar pixels against unauthorized and revoked subjects; default public avatars remain public. Never put tokens in URLs.'
+        - 'Opaque paginated cursor bound to actor/session/class/version; stable secondary order, server page cap, restart after stale version, no own duplicate.'
+        - 'Reuse SP-03 components, ProgressLifetime, cancellation, and existing Home/Learning navigation; no extra global shell or independent progress screen.'
+        - 'Keep initial peers at most five and less on narrow components, preserve exact numeric labels, keyboard/touch accessibility and no page scroll overflow.'
+        - 'Test Seat, Account, independent classes, revocation, cross-tenant, avatar denial, stale requests, null/zero, ties, all target viewports in real Postgres and built browser.'
+        - 'No changes to existing migration files, scoring factors, other lanes, deployments, production DB, CI gate suppression, or Codex execution.'
+      controller_plan:
+        registration: 'R0 controller registration, governance and independent review in main first'
+        server: 'R1 secure SQL projection and authorized avatar delivery; R2 stable keyset pagination'
+        interface: 'R3 group row and all-peers view; R4 state/error/identity lifecycle'
+        verification: 'R5 before/after load metrics; R6 isolated PostgreSQL and built-browser E2E'
+        acceptance: 'R7 independent exact-source review of SQL/API/DOM/screenshots; R8 required CI, protected merge and post-merge CI'
+        reviewer: independent_read_only_reviewer_required
+        acceptance_gates: 'General/Governance; PostgreSQL/RLS; Access A; Learning; Classroom; Publication; Browser; independent review; post-merge ASA / required'
+        candidate_branch_source: accepted_current_main
+      deployment: not_requested
+      database_actions: isolated_tests_only
+      next_eligible_step: SP-04
+      next_step_selected: true
+    sp03_accepted_task_snapshot_2026_11_13:
       id: TASK-STUDENT-PROGRESS-HOME-001
       issue: 1090
       branch: main
