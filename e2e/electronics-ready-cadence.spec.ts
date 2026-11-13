@@ -6514,10 +6514,18 @@ async function d2NativeReferences(
     { geometry, width, height, basis },
   );
 }
-function d2ClassifyNativePng(png: D2Png, references: D2NativeReferences) {
+function d2ClassifyNativePng(
+  png: D2Png,
+  references: D2NativeReferences,
+  capturedOffset: { readonly x: number; readonly y: number },
+) {
   const classify = (points: D2NativePixelReference[]) => {
     const actual = points.map(({ x, y }) => {
-      const index = (y * png.width + x) * 4;
+      const pixelX = x - capturedOffset.x;
+      const pixelY = y - capturedOffset.y;
+      if (pixelX < 0 || pixelY < 0 || pixelX >= png.width || pixelY >= png.height)
+        throw new Error('native crop omitted an independent LED/L pixel sample');
+      const index = (pixelY * png.width + pixelX) * 4;
       return [...png.data.subarray(index, index + 4)];
     });
     const score = (key: 'low' | 'high') => {
@@ -6680,7 +6688,28 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
     ) as { paint: PaintReceipt; l: D2LReceipt };
     const name = `d2-d4-native-${index}-${vector}`;
     const path = resolve(artifactRoot, name + '.png');
-    const bytes = await page.screenshot({ path });
+    // The original full-viewport screenshot takes longer than a complete LED
+    // phase on loaded CI. Crop only the actual three LED bodies and D13 L while
+    // retaining every original independent native pixel sample and assertion.
+    const viewport = page.viewportSize();
+    const regions = [...beforeShot.paint.images.map((image) => image.rect), beforeShot.l.rect];
+    if (!viewport || regions.some((rect) => rect == null))
+      throw new Error('native screenshot requires all four actual visible geometries');
+    const actualRegions = regions as Array<NonNullable<D2NativeImageWitness['rect']>>;
+    const clipX = Math.max(0, Math.floor(Math.min(...actualRegions.map((r) => r.x)) - 12));
+    const clipY = Math.max(0, Math.floor(Math.min(...actualRegions.map((r) => r.y)) - 12));
+    const clipRight = Math.min(
+      viewport.width,
+      Math.ceil(Math.max(...actualRegions.map((r) => r.x + r.width)) + 12),
+    );
+    const clipBottom = Math.min(
+      viewport.height,
+      Math.ceil(Math.max(...actualRegions.map((r) => r.y + r.height)) + 12),
+    );
+    const clip = { x: clipX, y: clipY, width: clipRight - clipX, height: clipBottom - clipY };
+    if (clip.width <= 0 || clip.height <= 0)
+      throw new Error('native screenshot clip is outside the editor viewport');
+    const bytes = await page.screenshot({ path, clip });
     const during = JSON.parse(
       await page.evaluate((from) => {
         const probe = window as D2Window;
@@ -6692,6 +6721,14 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
       }, beforeShot.paint.at),
     ) as { paint: PaintReceipt[]; l: D2LReceipt[]; at: number };
     const png = PNG.sync.read(bytes);
+    // Build the same full-viewport canonical references as before, then
+    // translate their pixel positions into the unscaled captured PNG region.
+    const fullWidth = Math.round((png.width / clip.width) * viewport.width);
+    const fullHeight = Math.round((png.height / clip.height) * viewport.height);
+    const capturedOffset = {
+      x: Math.round((clip.x * png.width) / clip.width),
+      y: Math.round((clip.y * png.height) / clip.height),
+    };
     const references = await Promise.all(
       bases.map((basis, led) =>
         d2NativeReferences(
@@ -6704,13 +6741,15 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
             board: { href: beforeShot.l.boardHref, rect: beforeShot.l.boardRect },
             lRect: beforeShot.l.rect,
           },
-          png.width,
-          png.height,
+          fullWidth,
+          fullHeight,
           basis,
         ),
       ),
     );
-    const pixels = references.map((reference) => d2ClassifyNativePng(png, reference));
+    const pixels = references.map((reference) =>
+      d2ClassifyNativePng(png, reference, capturedOffset),
+    );
     const observedVector = pixels
       .map((pixel) => (pixel.led.state === 'HIGH' ? '1' : pixel.led.state === 'LOW' ? '0' : '?'))
       .join('');
@@ -6758,6 +6797,11 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
       path,
       requestedVector: vector,
       observedVector,
+      nativeCapture: {
+        clip,
+        pixelOffset: capturedOffset,
+        pngSize: { width: png.width, height: png.height },
+      },
       generationId,
       sourceSha256: createHash('sha256').update(stage.source).digest('hex'),
       beforeShot,
