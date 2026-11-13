@@ -146,7 +146,8 @@ export function createDefaultRoboticsProject(program?: RoboticsPresetProgram): R
       to: { componentId: toId, terminal: toTerminal },
     })),
   };
-  const world = createRoboticsWorldV3Document();
+  // New projects start at 5 × 5 metres; existing projects are never resized.
+  const world = createRoboticsWorldV3Document('arena');
   const project = withRoboticsWorld(
     { schemaVersion: 3, title: 'Первый робот ASA Lab', circuit, world },
     world,
