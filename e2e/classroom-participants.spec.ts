@@ -106,7 +106,14 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       await rating.getByLabel(factor, { exact: true }).uncheck();
     await rating.getByLabel('Проекты', { exact: true }).check();
     await rating.getByRole('button', { name: 'Сохранить рейтинг' }).click();
-    await expect(rating.getByText('Рейтинг сохранён')).toBeVisible();
+    const ratingFeedback = page.locator('.system-feedback-ribbon.system-feedback-success');
+    await expect(ratingFeedback).toHaveCount(1);
+    await expect(ratingFeedback).toBeVisible();
+    await expect(ratingFeedback).toContainText('Рейтинг сохранён');
+    const ratingAnnouncement = page.locator('.system-feedback-announcement[role="status"]');
+    await expect(ratingAnnouncement).toHaveCount(1);
+    await expect(ratingAnnouncement).toContainText('Рейтинг сохранён');
+    await expect(rating.getByText('Рейтинг сохранён', { exact: true })).toHaveCount(0);
     await page.reload();
     await expect(row.getByLabel('Рейтинг: Анна Участница')).toContainText('20');
     await page.getByRole('button', { name: 'Настройки', exact: true }).click();

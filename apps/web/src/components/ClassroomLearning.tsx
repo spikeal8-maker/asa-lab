@@ -1,16 +1,34 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLearningDestination } from '../learning/use-learning-destination';
+import { onSessionLoggedOut } from '../session-fetch';
 import { AuthoredMaterialsPage } from '../pages/AuthoredMaterialsPage';
 import { AssignLearningActivityDialog } from './AssignLearningActivityDialog';
+import {
+  useClassroomActionFeedback,
+  useClassroomFeedbackPublisher,
+} from './ClassroomActionFeedback';
 import { ClassroomAssignments } from './ClassroomAssignments';
 import { ClassroomCourses } from './ClassroomCourses';
 import { ClassroomQuizzes } from './ClassroomQuizzes';
 import { CourseEditorDialog } from './CourseEditorDialog';
+import {
+  createAssignmentLifetime,
+  type AssignmentFocusTicket,
+  type AssignmentScope,
+  type AssignmentStageToken,
+} from './classroom-assignment-lifetime';
 
-type AssignmentFlow =
+type AssignmentStep =
   | { kind: 'pick'; prepared?: { draftId: string; versionId: string } }
   | { kind: 'edit'; draftId?: string };
+
+type AssignmentFlow = AssignmentStep & {
+  readonly owner: object;
+  readonly scope: AssignmentScope;
+  readonly stage: AssignmentStageToken;
+  readonly publish: (message: string | null) => void;
+};
 
 export function ClassroomLearning({
   classroomId,
@@ -23,15 +41,51 @@ export function ClassroomLearning({
 }): JSX.Element {
   const [tab, setTab] = useState<'courses' | 'assignments' | 'quizzes'>('courses');
   const [flow, setFlow] = useState<AssignmentFlow | null>(null);
-  const [notice, setNotice] = useState('');
   const [assignmentRefresh, setAssignmentRefresh] = useState(0);
   const issueButton = useRef<HTMLButtonElement>(null);
   const editorLeaveGuard = useRef<(() => boolean) | null>(null);
-  const issuing = flow !== null && !archived;
+  const focusFrame = useRef<number | null>(null);
+  const [lifetime] = useState(createAssignmentLifetime);
+  const publisher = useClassroomFeedbackPublisher();
+  const owner = useMemo(
+    () => ({ classroomId, archived, publisher }),
+    [classroomId, archived, publisher],
+  );
+  const binding = useRef<{ owner: object; scope: AssignmentScope } | null>(null);
+  const { notice, setNotice } = useClassroomActionFeedback(
+    JSON.stringify(['assignment', classroomId, archived]),
+  );
+  const currentFlow = flow?.owner === owner && !archived ? flow : null;
+  const issuing = currentFlow !== null;
   const destination = useLearningDestination();
+
   useEffect(() => {
     if (destination.courseRun && !destination.assignment) setTab('courses');
   }, [destination.courseRun, destination.assignment]);
+
+  useLayoutEffect(() => {
+    const scope = lifetime.activate();
+    binding.current = { owner, scope };
+    setFlow(null);
+    editorLeaveGuard.current = null;
+    const unsubscribe = onSessionLoggedOut(() => {
+      scope.dispose();
+      if (binding.current?.scope === scope) binding.current = null;
+      if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+      focusFrame.current = null;
+      editorLeaveGuard.current = null;
+      setFlow(null);
+    });
+    return () => {
+      unsubscribe();
+      scope.dispose();
+      if (binding.current?.scope === scope) binding.current = null;
+      if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+      focusFrame.current = null;
+      editorLeaveGuard.current = null;
+    };
+  }, [lifetime, owner]);
+
   useLayoutEffect(() => {
     if (!issuing) return;
     // The preview opens image overlays on body, alongside the editor.
@@ -46,16 +100,57 @@ export function ClassroomLearning({
     };
   }, [issuing]);
 
-  function closeFlow() {
-    setFlow(null);
-    requestAnimationFrame(() => issueButton.current?.focus());
+  function restoreFocus(source: AssignmentFlow, ticket: AssignmentFocusTicket) {
+    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+    const scheduled = requestAnimationFrame(() => {
+      if (focusFrame.current !== scheduled) return;
+      focusFrame.current = null;
+      if (binding.current?.owner === source.owner && source.scope.canRestoreFocus(ticket)) {
+        issueButton.current?.focus();
+      }
+    });
+    focusFrame.current = scheduled;
   }
 
-  function finishAssignment(message: string) {
-    setNotice(message);
+  function startFlow() {
+    const current = binding.current;
+    if (!current || current.owner !== owner || archived) return;
+    const stage = current.scope.start();
+    if (!stage) return;
+    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+    focusFrame.current = null;
+    editorLeaveGuard.current = null;
+    setNotice(null);
+    setFlow({ kind: 'pick', owner, scope: current.scope, stage, publish: setNotice });
+  }
+
+  function changeStep(source: AssignmentFlow, next: AssignmentStep) {
+    const stage = source.scope.advance(source.stage);
+    if (!stage) return;
+    editorLeaveGuard.current = null;
+    source.publish(null);
+    setFlow({ ...next, owner: source.owner, scope: source.scope, stage, publish: source.publish });
+  }
+
+  function closeFlow(source: AssignmentFlow) {
+    const ticket = source.scope.finish(source.stage);
+    if (!ticket) return;
+    setFlow(null);
+    editorLeaveGuard.current = null;
+    restoreFocus(source, ticket);
+  }
+
+  function finishAssignment(source: AssignmentFlow, message: string) {
+    const ticket = source.scope.finish(source.stage);
+    if (!ticket) return;
+    // onAssigned is the dialog's confirmed API-success boundary. An obsolete
+    // scope or stage reaches none of these UI mutations or the publisher.
+    source.publish(message);
     setTab('assignments');
     setAssignmentRefresh((value) => value + 1);
-    closeFlow();
+    setFlow(null);
+    editorLeaveGuard.current = null;
+    restoreFocus(source, ticket);
   }
 
   return (
@@ -66,7 +161,7 @@ export function ClassroomLearning({
             ref={issueButton}
             type="button"
             className="portal-create-button"
-            onClick={() => setFlow({ kind: 'pick' })}
+            onClick={startFlow}
           >
             Выдать задание
           </button>
@@ -116,21 +211,26 @@ export function ClassroomLearning({
       ) : (
         <ClassroomQuizzes classroomId={classroomId} archived={archived} />
       )}
-      {flow?.kind === 'pick' && !archived
+      {currentFlow?.kind === 'pick'
         ? createPortal(
             <AssignLearningActivityDialog
+              key={currentFlow.stage.sequence}
               classroomId={classroomId}
-              preparedVersionId={flow.prepared?.versionId ?? null}
+              preparedVersionId={currentFlow.prepared?.versionId ?? null}
               onClose={() => {
-                if (flow.prepared) setFlow({ kind: 'edit', draftId: flow.prepared.draftId });
-                else closeFlow();
+                if (currentFlow.prepared) {
+                  changeStep(currentFlow, {
+                    kind: 'edit',
+                    draftId: currentFlow.prepared.draftId,
+                  });
+                } else closeFlow(currentFlow);
               }}
               onCreate={(draftId) => {
-                setNotice('');
-                setFlow(draftId ? { kind: 'edit', draftId } : { kind: 'edit' });
+                changeStep(currentFlow, draftId ? { kind: 'edit', draftId } : { kind: 'edit' });
               }}
               onAssigned={(title, count, wholeClass) =>
                 finishAssignment(
+                  currentFlow,
                   `Задание «${title}» выдано${wholeClass ? ' всему классу' : ''}. Получателей: ${count}.`,
                 )
               }
@@ -138,30 +238,41 @@ export function ClassroomLearning({
             document.body,
           )
         : null}
-      {flow?.kind === 'edit' && !archived
+      {currentFlow?.kind === 'edit'
         ? createPortal(
             <div className="classroom-assignment-editor-backdrop">
               <CourseEditorDialog
                 open
                 screen
                 showHeader={false}
-                title={flow.draftId ? 'Редактор задания класса' : 'Новое задание класса'}
+                title={currentFlow.draftId ? 'Редактор задания класса' : 'Новое задание класса'}
                 closeLabel="Вернуться к классу"
                 className="classroom-assignment-editor"
                 onClose={() => {
-                  if (editorLeaveGuard.current?.()) closeFlow();
+                  if (
+                    currentFlow.scope.isCurrent(currentFlow.stage) &&
+                    editorLeaveGuard.current?.()
+                  ) {
+                    closeFlow(currentFlow);
+                  }
                 }}
               >
                 <AuthoredMaterialsPage
+                  key={currentFlow.stage.sequence}
                   embedded
                   onRegisterLeaveGuard={(guard) => {
-                    editorLeaveGuard.current = guard;
+                    if (currentFlow.scope.isCurrent(currentFlow.stage)) {
+                      editorLeaveGuard.current = guard;
+                    }
                   }}
                   classroomCreation={{
-                    draftId: flow.draftId ?? null,
-                    onClose: closeFlow,
+                    draftId: currentFlow.draftId ?? null,
+                    onClose: () => closeFlow(currentFlow),
                     onPublished: async (draftId, versionId) => {
-                      setFlow({ kind: 'pick', prepared: { draftId, versionId } });
+                      changeStep(currentFlow, {
+                        kind: 'pick',
+                        prepared: { draftId, versionId },
+                      });
                     },
                   }}
                 />
