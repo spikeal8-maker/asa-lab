@@ -1,4 +1,4 @@
-"""R10 diagnostic v1: two unchanged R4 cases, once per immutable source.
+"""R10 diagnostic v2: the 12 original failing R4 cases, each once per pinned source.
 
 This is not a full R4 qualification. Docker is available only in the genuine
 existing R4/browser workflow_dispatch job. Every image proof invokes that
@@ -24,12 +24,42 @@ import time
 PROFILE = "r10-paired-regression"
 WORKFLOW = ".github/workflows/electronics-r4-m1-focused.yml"
 PROOF = "tools/test_ci_image_transport.py"
-SPEC = "e2e/electronics-ready-cadence.spec.ts"
+BASE_REVISION = "8406be4761006246749aff10d65cc1a0377fce7b"
+CANDIDATE_REVISION = "ff1ce1b7c95598324643a3c8dcf8edd477209301"
+SPEC_NATIVE = "e2e/electronics-interactions.spec.ts"
+SPEC_OWNER = "e2e/electronics-ready-cadence.spec.ts"
+SPECS = (SPEC_NATIVE, SPEC_OWNER)
 TITLES = (
+    "short20: strict real time and acknowledged native evidence",
+    "short30: strict real time and acknowledged native evidence",
+    "short50: strict real time and acknowledged native evidence",
+    "short100: strict real time and acknowledged native evidence",
+    "long1000: strict real time and acknowledged native evidence",
+    "long20000: strict real time and acknowledged native evidence",
+    "Owner Arduino execution: no-delay realtime, production frames and painted LEDs",
+    "Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light and cookies-only reopen",
+    "Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness",
     "Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases",
+    "Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history",
     "Classroom D2-D4: ordered joint LEDs, five delays, Reset and cookies-only saved reopen",
 )
+EXPECTED_SPEC = {title: (SPEC_NATIVE if title.startswith(("short", "long")) else SPEC_OWNER)
+                 for title in TITLES}
 GREP = "(?:" + "|".join(re.escape(title) for title in TITLES) + ")$"
+# The baseline predates the opt-in helper and carries the original CI proof;
+# the candidate extends both. These exact source blobs are pinned, not assumed equal.
+PINNED_TEST_INFRA = {
+    BASE_REVISION: {
+        WORKFLOW: "7e0a148880f21c806b6852c49ae7f23f1aba937d",
+        PROOF: "65ec60200b10a367e95bc9740a98e04581379dae",
+    },
+    CANDIDATE_REVISION: {
+        WORKFLOW: "51de2173d1f2f6d6c8683f67644cea84a6f5bd03",
+        PROOF: "ce5209accaedc1f89069767b7223c94c17f9d60b",
+    },
+}
+# R10 changes an unrelated e2e test. Every other e2e blob must be identical.
+EXCLUDED_UNRELATED_E2E = "e2e/electronics-simulation.spec.ts"
 BUILD_ARGS = (
     "NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
     "CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83",
@@ -38,10 +68,10 @@ BUILD_ARGS = (
 # Trees cover unchanged test helpers and every referenced owner asset. The
 # product trees deliberately differ: each phase builds its own complete source.
 EQUAL_INPUTS = (
-    "e2e", SPEC, "pnpm-lock.yaml", "pnpm-workspace.yaml", "package.json", ".npmrc",
+    *SPECS, "pnpm-lock.yaml", "pnpm-workspace.yaml", "package.json", ".npmrc",
     ".dockerignore", "Dockerfile.api", "Dockerfile.web", "docker/web/Caddyfile",
     "compose.yaml", "compose.test.yaml", ".github/compose.registry-ci.yaml",
-    "playwright.config.ts", PROOF, "tools/electronics-failure-reporter.mjs", WORKFLOW,
+    "playwright.config.ts", "tools/electronics-failure-reporter.mjs",
     "docs/product/electronics/evidence/ci-image-transport-545-receipt.json",
     "docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json",
     "docs/product/projects/evidence/ci-node-transport-429-receipt.json",
@@ -110,9 +140,19 @@ def source_receipt(root, expected):
     require(actual == revision(expected), "Actual Git HEAD differs from requested immutable source")
     require(not git(root, "status", "--porcelain=v1", "--untracked-files=all"),
             "Source checkout must be clean before building")
+    pinned = PINNED_TEST_INFRA.get(expected)
+    require(pinned is not None, "Only the reviewed immutable 8406/Q pair is permitted")
+    for path, blob in pinned.items():
+        require(git(root, "rev-parse", "HEAD:" + path) == blob,
+                "BLOCKED: pinned test-infrastructure revision changed: " + path)
     objects = {path: git(root, "rev-parse", "HEAD:" + path) for path in EQUAL_INPUTS}
+    e2e_paths = git(root, "ls-tree", "-r", "--name-only", "HEAD", "--", "e2e").splitlines()
+    require(EXCLUDED_UNRELATED_E2E in e2e_paths,
+            "BLOCKED: expected unrelated R10 test is missing from e2e tree")
+    objects.update({path: git(root, "rev-parse", "HEAD:" + path)
+                    for path in e2e_paths if path != EXCLUDED_UNRELATED_E2E})
     hashes = {path: hashlib.sha256((root / path).read_bytes()).hexdigest()
-              for path in (SPEC, "pnpm-lock.yaml")}
+              for path in (*SPECS, "pnpm-lock.yaml")}
     workflow = (root / WORKFLOW).read_text(encoding="utf-8")
     require(all(argument in workflow for argument in BUILD_ARGS),
             "Original R4 pinned build arguments differ from diagnostic v1")
@@ -197,10 +237,11 @@ def read_journal(path, expected_sha, exit_code):
     require(len(starts) == len(begins) == len(ends) == 1
             and starts[0].get("expectedSourceSha") == expected_sha
             and starts[0].get("qualificationProfile") == "strict-real-time"
-            and begins[0].get("expectedTestCount") == 2 and len(tests) == 2,
-            "BLOCKED: incomplete run or not exactly two original test attempts")
+            and begins[0].get("expectedTestCount") == len(TITLES) and len(tests) == len(TITLES),
+            "BLOCKED: incomplete run or not exactly the 12 original test attempts")
     require(sorted(row.get("titlePath", [""])[-1] for row in tests) == sorted(TITLES)
-            and all(row.get("location", {}).get("file") == SPEC
+            and all(row.get("location", {}).get("file") ==
+                    EXPECTED_SPEC.get(row.get("titlePath", [""])[-1])
                     and row.get("retry") == 0 and row.get("expectedStatus") == "passed"
                     and row.get("status") in ("passed", "failed", "timedOut") for row in tests),
             "BLOCKED: skipped, retried, interrupted or different test cases")
@@ -210,7 +251,7 @@ def read_journal(path, expected_sha, exit_code):
             and not any(row.get("event") in ("runnerError", "capacityReached") for row in rows),
             "BLOCKED: runner/setup error or incomplete journal")
     observed = end.get("observedAttemptCounts", {})
-    require(sum(observed.values()) == 2
+    require(sum(observed.values()) == len(TITLES)
             and all(observed.get(state, 0) == sum(row["status"] == state for row in tests)
                     for state in ("passed", "failed", "timedOut", "skipped", "interrupted", "unknown")),
             "BLOCKED: journal attempt counts disagree")
@@ -218,8 +259,8 @@ def read_journal(path, expected_sha, exit_code):
     require((passed and exit_code == 0 and end.get("status") == "passed")
             or (not passed and exit_code == 1 and end.get("status") in ("failed", "timedout")),
             "BLOCKED: process exit and original test outcomes disagree")
-    return {"status": "PASS" if passed else "FAIL", "expectedTestCount": 2,
-            "actualTestCount": 2, "attemptsPerTest": 1, "tests": tests,
+    return {"status": "PASS" if passed else "FAIL", "expectedTestCount": len(TITLES),
+            "actualTestCount": len(TITLES), "attemptsPerTest": 1, "tests": tests,
             "journalSha256": hashlib.sha256(path.read_bytes()).hexdigest(), "end": end}
 
 
@@ -272,12 +313,12 @@ def run_phase(phase, root, sha, temporary, project, output, source):
         commands.run("start-editor", [*compose, "up", "-d", "--wait", "--wait-timeout", "240",
                                       "--no-deps", "api", "web"], timeout=300)
         # No alternate config, assertion, timeout, test fixture or reporter. The
-        # grep selects the two existing titles; their original journal proves
-        # actual execution. max-failures=0 preserves the second case after FAIL.
+        # grep selects exactly the 12 original failing titles; the original
+        # journal proves actual execution. max-failures=0 preserves all failures.
         test_command = [*compose, "run", "--rm", "--no-deps", "-e", "NX_SKIP_NX_CACHE=true",
                         "-e", "ASA_ELECTRONICS_EXPECTED_SHA", "-e", "ASA_ELECTRONICS_QUALIFICATION_PROFILE",
                         "-e", "ASA_ELECTRONICS_FAILURE_REPORT", "test-runner", "corepack", "pnpm", "exec",
-                        "playwright", "test", SPEC, "--workers=1", "--retries=0", "--max-failures=0",
+                        "playwright", "test", *SPECS, "--workers=1", "--retries=0", "--max-failures=0",
                         "--grep", GREP]
         test_run = commands.run("original-tests", test_command, timeout=1200, check=False)
         receipt["testExitCode"] = test_run["exitCode"]
@@ -401,11 +442,12 @@ def self_test():
     require(calls == ["before"] and results[1]["status"] == "BLOCKED", "Failed cleanup allowed shared runner reuse")
     count += 1
     started = {"event": "started", "expectedSourceSha": "a" * 40, "qualificationProfile": "strict-real-time"}
-    tests = [{"event": "testEnd", "titlePath": [SPEC, title], "location": {"file": SPEC},
+    tests = [{"event": "testEnd", "titlePath": [EXPECTED_SPEC[title], title],
+              "location": {"file": EXPECTED_SPEC[title]},
               "retry": 0, "expectedStatus": "passed", "status": "passed"} for title in TITLES]
     ended = {"event": "end", "status": "passed", "runnerErrorCount": 0, "dataEventsOmitted": 0,
-             "evidenceLimited": False, "observedAttemptCounts": {"passed": 2}}
-    valid = [started, {"event": "begin", "expectedTestCount": 2}, *tests, ended]
+             "evidenceLimited": False, "observedAttemptCounts": {"passed": len(TITLES)}}
+    valid = [started, {"event": "begin", "expectedTestCount": len(TITLES)}, *tests, ended]
     with TemporaryDirectory(prefix="asa-r10-diagnostic-static-") as directory:
         path = Path(directory) / "failure.ndjson"
         root = Path(directory)
@@ -420,12 +462,12 @@ def self_test():
             path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
             return read_journal(path, "a" * 40, exit_code)
 
-        require(check(valid)["actualTestCount"] == 2, "Valid two-test journal rejected")
+        require(check(valid)["actualTestCount"] == len(TITLES), "Valid 12-test journal rejected")
         count += 1
         for label, mutate in (
             ("source mismatch", lambda rows: rows[0].update(expectedSourceSha="b" * 40)),
             ("different profile", lambda rows: rows[0].update(qualificationProfile="classroom-d13-v2")),
-            ("all skipped", lambda rows: [row.update(status="skipped") for row in rows[2:4]]),
+            ("all skipped", lambda rows: [row.update(status="skipped") for row in rows[2:2 + len(TITLES)]]),
             ("retry", lambda rows: rows[2].update(retry=1)),
             ("wrong test", lambda rows: rows[2].update(titlePath=["different test"])),
             ("wrong count", lambda rows: rows[1].update(expectedTestCount=1)),
@@ -438,7 +480,7 @@ def self_test():
             rejected(lambda changed=changed: check(changed), label)
         failed = deepcopy(valid)
         failed[2]["status"] = "failed"
-        failed[-1].update(status="failed", observedAttemptCounts={"passed": 1, "failed": 1})
+        failed[-1].update(status="failed", observedAttemptCounts={"passed": len(TITLES) - 1, "failed": 1})
         require(check(failed, 1)["status"] == "FAIL", "Original assertion failure was hidden")
         count += 1
         rejected(lambda: check(failed, 0), "swallowed process failure")
@@ -458,7 +500,8 @@ def main():
         self_test()
         return 0
     before, after = revision(options.before_revision), revision(options.after_revision)
-    require(before != after, "Before and after must identify two distinct immutable sources")
+    require(before == BASE_REVISION and after == CANDIDATE_REVISION,
+            "BLOCKED: diagnostic v2 is restricted to the reviewed exact 8406/Q pair")
     if options.check_revisions:
         print(json.dumps({"beforeRevision": before, "afterRevision": after, "immutableRevisions": "PASS"}))
         return 0
