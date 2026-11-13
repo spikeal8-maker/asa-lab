@@ -32,6 +32,7 @@ import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal
 import { ClassroomGradingScheme } from '../components/ClassroomGradingScheme';
 import { sortClassroomRoster, type ClassroomRosterSort } from '../components/classroom-roster-sort';
 import { classroomStudentNavigation } from '../components/classroom-student-navigation';
+import { ClassroomNavigator } from '../components/ClassroomNavigator';
 import '../modules/classroom-owner-layout.css';
 import '../modules/classroom-mobile.css';
 import '../modules/classroom-usability.css';
@@ -401,6 +402,7 @@ type ClassroomPageProps = {
   /** Opens straight into one learner: how a teacher returns from their work. */
   openSeatId?: string;
   onBack: () => void;
+  onNavigateClassroom?: (id: string, title: string) => void;
   onOpenProjects: (classroomTitle: string) => void;
   onOpenProject: (projectId: string, moduleKey: string, seatId?: string) => void;
 };
@@ -415,6 +417,7 @@ function ClassroomPageContent({
   classroomId,
   openSeatId,
   onBack,
+  onNavigateClassroom,
   onOpenProject,
 }: ClassroomPageProps): JSX.Element {
   const [page, setPage] = useState<PageState>({ kind: 'loading' });
@@ -842,7 +845,14 @@ function ClassroomPageContent({
               ← Мои классы
             </button>
             <div className="classroom-head-title">
-              <h1>{classroom.title}</h1>
+              {onNavigateClassroom ? (
+                <ClassroomNavigator
+                  classroom={classroom}
+                  onNavigateClassroom={onNavigateClassroom}
+                />
+              ) : (
+                <h1>{classroom.title}</h1>
+              )}
             </div>
           </div>
           <div className="teacher-class-status">

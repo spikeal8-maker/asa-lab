@@ -1,0 +1,144 @@
+.teacher-open-compact .teacher-class-identity > .classroom-head-title:has(> .classroom-nav) {
+  flex: 0 1 480px;
+  width: 480px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.teacher-open-compact .classroom-nav {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 72px;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 480px;
+  min-width: 0;
+}
+
+.teacher-open-compact .classroom-nav > h1 {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.teacher-open-compact .classroom-nav button {
+  box-sizing: border-box;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.teacher-open-compact .classroom-nav .classroom-nav-neighbor,
+.teacher-open-compact .classroom-nav .classroom-nav-opener {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  border: 1px solid #dce8ee;
+  border-radius: 7px;
+  padding: 4px 6px;
+  background: transparent;
+}
+
+.teacher-open-compact .classroom-nav .classroom-nav-neighbor {
+  width: 72px;
+  font-size: 12px;
+  color: #0a709d;
+}
+
+.teacher-open-compact .classroom-nav .classroom-nav-opener {
+  width: 100%;
+  border-color: transparent;
+  text-align: left;
+  font-weight: inherit;
+}
+
+.teacher-open-compact .classroom-nav-name {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-open-compact .classroom-nav-chevron {
+  flex: 0 0 auto;
+  font-size: 14px;
+}
+
+.teacher-open-compact .classroom-nav button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.teacher-open-compact .classroom-nav button:focus-visible,
+.teacher-open-compact .classroom-nav-menu:focus-visible {
+  outline: 2px solid #0878ab;
+  outline-offset: 2px;
+}
+
+.teacher-open-compact .classroom-nav-menu {
+  position: fixed;
+  z-index: 100;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 5px;
+  border: 1px solid #dce8ee;
+  border-radius: 9px;
+  background: #fff;
+  color: #274456;
+  box-shadow: 0 8px 24px #14354b26;
+}
+
+.teacher-open-compact .classroom-nav-menu > button {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.teacher-open-compact .classroom-nav-menu > button:hover,
+.teacher-open-compact .classroom-nav-menu > button[aria-current='true'] {
+  background: #e9f3f8;
+}
+
+.teacher-open-compact .classroom-nav-menu > p {
+  margin: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+@container classroom (max-width: 679px) {
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .teacher-class-identity:has(.classroom-nav) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    max-width: 100%;
+    gap: 3px;
+  }
+
+  .teacher-open-compact .teacher-class-identity > .classroom-head-title:has(> .classroom-nav) {
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .teacher-open-compact .classroom-nav {
+    grid-template-columns: 64px minmax(0, 1fr) 64px;
+    gap: 4px;
+  }
+
+  .teacher-open-compact .classroom-nav .classroom-nav-neighbor {
+    width: 64px;
+  }
+}
