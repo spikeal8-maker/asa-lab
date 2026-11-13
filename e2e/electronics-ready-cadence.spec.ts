@@ -6713,6 +6713,10 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
   }> = [];
   let previousShotAt: number | null = null;
   let previousRequested: string | null = null;
+  // Open CDP once, before searching for the first live phase. Per-frame session
+  // handshakes/detach previously consumed the narrow optical capture window.
+  // The owning test's browser-context finally disposes this session on failure.
+  const cdp = await page.context().newCDPSession(page);
   let seekFrom = await page.evaluate(() => performance.now());
   for (let index = 0; index < requested.length; index++) {
     const vector = requested[index]!;
@@ -6778,24 +6782,17 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
     // wait. It is still one genuine screenshot of the mounted page, not a
     // reconstructed image from Worker, React or a detached canvas.
     const captureStartedAt = performance.now();
-    const cdp = await page.context().newCDPSession(page);
-    // Browser monotonic timestamps bracket the entire real compositor operation.
-    // Node's performance.now() is a different clock and is used only for duration.
+    // Browser monotonic timestamps bracket the actual compositor operation;
+    // no CDP session creation or detach occurs inside a live LED phase.
     const captureFrom = await page.evaluate(() => performance.now());
-    const bytes = await (async () => {
-      try {
-        const captured = await cdp.send('Page.captureScreenshot', {
-          format: 'png',
-          fromSurface: true,
-          captureBeyondViewport: false,
-          clip: { ...clip, scale: 1 },
-        });
-        return Buffer.from(captured.data, 'base64');
-      } finally {
-        await cdp.detach();
-      }
-    })();
+    const captured = await cdp.send('Page.captureScreenshot', {
+      format: 'png',
+      fromSurface: true,
+      captureBeyondViewport: false,
+      clip: { ...clip, scale: 1 },
+    });
     const captureTo = await page.evaluate(() => performance.now());
+    const bytes = Buffer.from(captured.data, 'base64');
     const captureMs = performance.now() - captureStartedAt;
     writeFileSync(path, bytes);
     const during = JSON.parse(
@@ -6988,6 +6985,7 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
     // and processing the resulting PNG/JSON.
     seekFrom = captureTo;
   }
+  await cdp.detach();
   const completedAt = await page.evaluate(() => performance.now());
   // Only compact shot boundaries are retained here. Complete native causality,
   // source/generation and adjacency checks run on the single durable full archive.
