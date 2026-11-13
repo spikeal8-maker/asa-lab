@@ -1106,6 +1106,9 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
     await page.goto(`/#/${route}`);
     const card = page.getByTestId('project-card').filter({ hasText: title });
     await expect(card).toBeVisible();
+    // A hash navigation may mount the next card beneath the existing cursor;
+    // leave it first so this hover necessarily generates a real pointerenter.
+    await page.mouse.move(0, 0);
     await card.hover();
     await expect(card.locator('.three-d-hover-live')).toHaveClass(/is-ready/);
     const canvas = card.locator('.three-d-hover-live canvas');
