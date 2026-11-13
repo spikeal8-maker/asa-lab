@@ -46,6 +46,7 @@ const schoolPendingFiles = [
   '0318_admin_operational_overview.sql',
   '0319_canonical_read_boundaries_jit.sql',
   '0320_personal_progress_summary.sql',
+  '0321_account_join_learner_identity.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
@@ -195,7 +196,7 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
       try {
         // Prove a forward upgrade from the actual school schema, not only an empty DB.
         const migrations = planMigrations('migrations');
-        expect(migrations.at(-1)?.version).toBe('0320');
+        expect(migrations.at(-1)?.version).toBe('0321');
         await applyPlan(
           client,
           migrations.filter((m: { version: string }) => m.version <= '0286'),

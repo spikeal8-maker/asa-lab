@@ -90,7 +90,8 @@ function OpenedRoboticsEditor({
     setActionPending(true);
     try {
       if (!(await controller.saveAll()) || !active.current) return;
-      // Commit the just-saved source SVG before capturing its revision receipt.
+      // Manual Save makes exactly one source request when source is dirty.
+      // Explicit actions capture that saved revision without a background timer.
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (!active.current) return;
       const sourceRevision = controller.getSavedRevision();
@@ -139,12 +140,13 @@ function OpenedRoboticsEditor({
       <RoboticsWorkspace
         project={controller}
         projectId={projectId}
-        header={(tabs) => (
+        header={(tabs, notices) => (
           <RoboticsHeader
             tabs={tabs}
+            notices={notices}
             title={host.projectTitle}
             onTitleChange={host.setProjectTitle}
-            onTitleCommit={host.renameProject}
+            onTitleCommit={() => undefined}
             onTitleCancel={controller.cancelTitleEdit}
             statusKind={host.saveStatus}
             statusLabel={saveLabel}
@@ -170,7 +172,7 @@ function OpenedRoboticsEditor({
                   }
                 : {}),
             }}
-            avatar={{ label: `Аккаунт: ${user.displayName}`, text: avatar.text }}
+            avatar={avatar}
           />
         )}
       />

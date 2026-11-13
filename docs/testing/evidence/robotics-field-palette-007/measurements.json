@@ -1,0 +1,596 @@
+{
+  "field": [
+    {
+      "width": 1728,
+      "scrollWidth": 1728,
+      "toolbar": {
+        "x": 240,
+        "right": 1728,
+        "top": 48,
+        "bottom": 94,
+        "width": 1488,
+        "height": 46
+      },
+      "runbar": {
+        "x": 1456,
+        "right": 1728,
+        "top": 48,
+        "bottom": 94,
+        "width": 272,
+        "height": 46
+      },
+      "palette": {
+        "x": 1489,
+        "right": 1720,
+        "top": 125,
+        "bottom": 495,
+        "width": 231,
+        "height": 370
+      },
+      "canvas": {
+        "x": 240,
+        "right": 1480,
+        "top": 94,
+        "bottom": 900,
+        "width": 1240,
+        "height": 806
+      },
+      "workspace": {
+        "x": 0,
+        "right": 1728,
+        "top": 48,
+        "bottom": 900,
+        "width": 1728,
+        "height": 852
+      },
+      "panel": {
+        "x": 240,
+        "right": 1728,
+        "top": 48,
+        "bottom": 900,
+        "width": 1488,
+        "height": 852
+      },
+      "body": {
+        "x": 240,
+        "right": 1728,
+        "top": 94,
+        "bottom": 900,
+        "width": 1488,
+        "height": 806
+      },
+      "scroll": {
+        "x": 240,
+        "right": 1456,
+        "top": 48,
+        "bottom": 93,
+        "width": 1216,
+        "height": 45
+      },
+      "scrollActual": 1216,
+      "gridTracks": "240px 1488px",
+      "cards": [
+        {
+          "artBottom": 198.171875,
+          "labelTop": 201.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 198.171875,
+          "labelTop": 201.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 280.171875,
+          "labelTop": 283.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 280.171875,
+          "labelTop": 283.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 388.171875,
+          "labelTop": 391.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 388.171875,
+          "labelTop": 391.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 470.171875,
+          "labelTop": 473.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 470.171875,
+          "labelTop": 473.171875,
+          "cardWidth": 112.5
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "toolbar": {
+        "x": 240,
+        "right": 1440,
+        "top": 48,
+        "bottom": 94,
+        "width": 1200,
+        "height": 46
+      },
+      "runbar": {
+        "x": 1168,
+        "right": 1440,
+        "top": 48,
+        "bottom": 94,
+        "width": 272,
+        "height": 46
+      },
+      "palette": {
+        "x": 1201,
+        "right": 1432,
+        "top": 125,
+        "bottom": 495,
+        "width": 231,
+        "height": 370
+      },
+      "canvas": {
+        "x": 240,
+        "right": 1192,
+        "top": 94,
+        "bottom": 900,
+        "width": 952,
+        "height": 806
+      },
+      "workspace": {
+        "x": 0,
+        "right": 1440,
+        "top": 48,
+        "bottom": 900,
+        "width": 1440,
+        "height": 852
+      },
+      "panel": {
+        "x": 240,
+        "right": 1440,
+        "top": 48,
+        "bottom": 900,
+        "width": 1200,
+        "height": 852
+      },
+      "body": {
+        "x": 240,
+        "right": 1440,
+        "top": 94,
+        "bottom": 900,
+        "width": 1200,
+        "height": 806
+      },
+      "scroll": {
+        "x": 240,
+        "right": 1168,
+        "top": 48,
+        "bottom": 93,
+        "width": 928,
+        "height": 45
+      },
+      "scrollActual": 928,
+      "gridTracks": "240px 1200px",
+      "cards": [
+        {
+          "artBottom": 198.171875,
+          "labelTop": 201.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 198.171875,
+          "labelTop": 201.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 280.171875,
+          "labelTop": 283.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 280.171875,
+          "labelTop": 283.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 388.171875,
+          "labelTop": 391.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 388.171875,
+          "labelTop": 391.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 470.171875,
+          "labelTop": 473.171875,
+          "cardWidth": 112.5
+        },
+        {
+          "artBottom": 470.171875,
+          "labelTop": 473.171875,
+          "cardWidth": 112.5
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "scrollWidth": 1024,
+      "toolbar": {
+        "x": 240,
+        "right": 1024,
+        "top": 48,
+        "bottom": 94,
+        "width": 784,
+        "height": 46
+      },
+      "runbar": {
+        "x": 752,
+        "right": 1024,
+        "top": 48,
+        "bottom": 94,
+        "width": 272,
+        "height": 46
+      },
+      "palette": {
+        "x": 813,
+        "right": 1016,
+        "top": 125,
+        "bottom": 495,
+        "width": 203,
+        "height": 370
+      },
+      "canvas": {
+        "x": 240,
+        "right": 804,
+        "top": 94,
+        "bottom": 900,
+        "width": 564,
+        "height": 806
+      },
+      "workspace": {
+        "x": 0,
+        "right": 1024,
+        "top": 48,
+        "bottom": 900,
+        "width": 1024,
+        "height": 852
+      },
+      "panel": {
+        "x": 240,
+        "right": 1024,
+        "top": 48,
+        "bottom": 900,
+        "width": 784,
+        "height": 852
+      },
+      "body": {
+        "x": 240,
+        "right": 1024,
+        "top": 94,
+        "bottom": 900,
+        "width": 784,
+        "height": 806
+      },
+      "scroll": {
+        "x": 240,
+        "right": 752,
+        "top": 48,
+        "bottom": 93,
+        "width": 512,
+        "height": 45
+      },
+      "scrollActual": 512,
+      "gridTracks": "240px 784px",
+      "cards": [
+        {
+          "artBottom": 198.171875,
+          "labelTop": 201.171875,
+          "cardWidth": 98.5
+        },
+        {
+          "artBottom": 198.171875,
+          "labelTop": 201.171875,
+          "cardWidth": 98.5
+        },
+        {
+          "artBottom": 280.171875,
+          "labelTop": 283.171875,
+          "cardWidth": 98.5
+        },
+        {
+          "artBottom": 280.171875,
+          "labelTop": 283.171875,
+          "cardWidth": 98.5
+        },
+        {
+          "artBottom": 388.171875,
+          "labelTop": 391.171875,
+          "cardWidth": 98.5
+        },
+        {
+          "artBottom": 388.171875,
+          "labelTop": 391.171875,
+          "cardWidth": 98.5
+        },
+        {
+          "artBottom": 470.171875,
+          "labelTop": 473.171875,
+          "cardWidth": 98.5
+        },
+        {
+          "artBottom": 470.171875,
+          "labelTop": 473.171875,
+          "cardWidth": 98.5
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390,
+      "toolbar": {
+        "x": 0,
+        "right": 390,
+        "top": 48,
+        "bottom": 94,
+        "width": 390,
+        "height": 46
+      },
+      "runbar": {
+        "x": 141.984375,
+        "right": 390,
+        "top": 48,
+        "bottom": 94,
+        "width": 248.015625,
+        "height": 46
+      },
+      "palette": {
+        "x": 9,
+        "right": 381,
+        "top": 136,
+        "bottom": 506,
+        "width": 372,
+        "height": 370
+      },
+      "canvas": {
+        "x": 0,
+        "right": 390,
+        "top": 94,
+        "bottom": 709,
+        "width": 390,
+        "height": 615
+      },
+      "workspace": {
+        "x": 0,
+        "right": 390,
+        "top": 48,
+        "bottom": 844,
+        "width": 390,
+        "height": 796
+      },
+      "panel": {
+        "x": 0,
+        "right": 390,
+        "top": 48,
+        "bottom": 709,
+        "width": 390,
+        "height": 661
+      },
+      "body": {
+        "x": 0,
+        "right": 390,
+        "top": 94,
+        "bottom": 709,
+        "width": 390,
+        "height": 615
+      },
+      "scroll": {
+        "x": 0,
+        "right": 141.984375,
+        "top": 48,
+        "bottom": 93,
+        "width": 141.984375,
+        "height": 45
+      },
+      "scrollActual": 611,
+      "gridTracks": "193.5px 193.5px",
+      "cards": [
+        {
+          "artBottom": 209.171875,
+          "labelTop": 212.171875,
+          "cardWidth": 183
+        },
+        {
+          "artBottom": 209.171875,
+          "labelTop": 212.171875,
+          "cardWidth": 183
+        },
+        {
+          "artBottom": 291.171875,
+          "labelTop": 294.171875,
+          "cardWidth": 183
+        },
+        {
+          "artBottom": 291.171875,
+          "labelTop": 294.171875,
+          "cardWidth": 183
+        },
+        {
+          "artBottom": 399.171875,
+          "labelTop": 402.171875,
+          "cardWidth": 183
+        },
+        {
+          "artBottom": 399.171875,
+          "labelTop": 402.171875,
+          "cardWidth": 183
+        },
+        {
+          "artBottom": 481.171875,
+          "labelTop": 484.171875,
+          "cardWidth": 183
+        },
+        {
+          "artBottom": 481.171875,
+          "labelTop": 484.171875,
+          "cardWidth": 183
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "scrollWidth": 320,
+      "toolbar": {
+        "x": 0,
+        "right": 320,
+        "top": 48,
+        "bottom": 94,
+        "width": 320,
+        "height": 46
+      },
+      "runbar": {
+        "x": 71.984375,
+        "right": 320,
+        "top": 48,
+        "bottom": 94,
+        "width": 248.015625,
+        "height": 46
+      },
+      "palette": {
+        "x": 9,
+        "right": 311,
+        "top": 136,
+        "bottom": 506,
+        "width": 302,
+        "height": 370
+      },
+      "canvas": {
+        "x": 0,
+        "right": 320,
+        "top": 94,
+        "bottom": 709,
+        "width": 320,
+        "height": 615
+      },
+      "workspace": {
+        "x": 0,
+        "right": 320,
+        "top": 48,
+        "bottom": 844,
+        "width": 320,
+        "height": 796
+      },
+      "panel": {
+        "x": 0,
+        "right": 320,
+        "top": 48,
+        "bottom": 709,
+        "width": 320,
+        "height": 661
+      },
+      "body": {
+        "x": 0,
+        "right": 320,
+        "top": 94,
+        "bottom": 709,
+        "width": 320,
+        "height": 615
+      },
+      "scroll": {
+        "x": 0,
+        "right": 71.984375,
+        "top": 48,
+        "bottom": 93,
+        "width": 71.984375,
+        "height": 45
+      },
+      "scrollActual": 546,
+      "gridTracks": "158.5px 158.5px",
+      "cards": [
+        {
+          "artBottom": 209.171875,
+          "labelTop": 212.171875,
+          "cardWidth": 148
+        },
+        {
+          "artBottom": 209.171875,
+          "labelTop": 212.171875,
+          "cardWidth": 148
+        },
+        {
+          "artBottom": 291.171875,
+          "labelTop": 294.171875,
+          "cardWidth": 148
+        },
+        {
+          "artBottom": 291.171875,
+          "labelTop": 294.171875,
+          "cardWidth": 148
+        },
+        {
+          "artBottom": 399.171875,
+          "labelTop": 402.171875,
+          "cardWidth": 148
+        },
+        {
+          "artBottom": 399.171875,
+          "labelTop": 402.171875,
+          "cardWidth": 148
+        },
+        {
+          "artBottom": 481.171875,
+          "labelTop": 484.171875,
+          "cardWidth": 148
+        },
+        {
+          "artBottom": 481.171875,
+          "labelTop": 484.171875,
+          "cardWidth": 148
+        }
+      ]
+    }
+  ],
+  "electronics": {
+    "picture": {
+      "x": 1232,
+      "y": 213.1875,
+      "width": 62,
+      "height": 42,
+      "top": 213.1875,
+      "right": 1294,
+      "bottom": 255.1875,
+      "left": 1232
+    },
+    "label": {
+      "x": 1233,
+      "y": 257.1875,
+      "width": 60,
+      "height": 11.875,
+      "top": 257.1875,
+      "right": 1293,
+      "bottom": 269.0625,
+      "left": 1233
+    },
+    "content": {
+      "x": 1258.71875,
+      "y": 214.6875,
+      "width": 8.546875,
+      "height": 39,
+      "top": 214.6875,
+      "right": 1267.265625,
+      "bottom": 253.6875,
+      "left": 1258.71875
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { SchematicDocument } from '../api';
 import { RobotField } from './RobotField';
 import { RoboticsNumberField } from './RobotFieldEditor';
@@ -29,11 +29,13 @@ export function RobotAssemblyPanel({
   running,
   onCommit,
   onOpenElectronics,
+  simulationControls,
 }: {
   project: RoboticsProject;
   running: boolean;
   onCommit: (world: RoboticsWorldDocument) => boolean;
   onOpenElectronics: () => void;
+  simulationControls?: ReactNode;
 }) {
   const world = project.world;
   const [error, setError] = useState<string | null>(null);
@@ -59,11 +61,14 @@ export function RobotAssemblyPanel({
     component.name ? `${component.name} · ${component.id}` : component.id;
   return (
     <>
-      <div className="robotics-panel-toolbar">
-        <h2>Двухколёсная тележка</h2>
-        <button type="button" className="robotics-button" onClick={onOpenElectronics}>
-          Добавить компонент
-        </button>
+      <div className="robotics-panel-toolbar robotics-robot-toolbar">
+        <div className="robotics-robot-toolbar-tools">
+          <h2>Робот</h2>
+          <button type="button" className="robotics-button" onClick={onOpenElectronics}>
+            Добавить компонент
+          </button>
+        </div>
+        {simulationControls}
       </div>
       {running ? (
         <p className="robotics-edit-hint">
