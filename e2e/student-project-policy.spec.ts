@@ -16,7 +16,10 @@ async function capture(page: Page, name: string) {
 function randomKey() {
   return `publication-policy-${crypto.randomUUID()}`;
 }
-async function expectProjectPermissionSaved(page: Page, section: import('@playwright/test').Locator) {
+async function expectProjectPermissionSaved(
+  page: Page,
+  section: import('@playwright/test').Locator,
+) {
   const ribbon = page.locator('.system-feedback-ribbon.system-feedback-success');
   await expect(ribbon).toHaveCount(1);
   await expect(ribbon).toContainText('Разрешения проектов сохранены.');
