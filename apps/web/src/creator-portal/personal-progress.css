@@ -1,0 +1,310 @@
+.personal-progress {
+  container-type: inline-size;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  color: var(--text, #1e3545);
+}
+.personal-progress-hero {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--asa-slate-200, #dce5eb);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+.personal-progress-hero-avatar {
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: var(--asa-slate-100, #eef3f6);
+}
+.personal-progress img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.personal-progress-hero-copy {
+  min-width: 0;
+}
+.personal-progress h1 {
+  margin: 0;
+  font-size: 23px;
+  line-height: 1.25;
+}
+.personal-progress-person {
+  margin: 5px 0 10px;
+  color: var(--ink-muted, #526779);
+  overflow-wrap: anywhere;
+}
+.personal-progress-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 0;
+}
+.personal-progress-metrics > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.personal-progress-metrics dt {
+  display: flex;
+  color: var(--asa-cyan-700, #0877b3);
+}
+.personal-progress-metrics dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.personal-progress-explanation {
+  padding: 0 4px;
+  color: var(--ink-muted, #526779);
+  font-size: 13px;
+}
+.personal-progress-explanation summary {
+  width: fit-content;
+  padding: 9px 0;
+  cursor: pointer;
+}
+.personal-progress-explanation p {
+  max-width: 70ch;
+  margin: 6px 0;
+  line-height: 1.5;
+}
+.personal-progress-groups {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.personal-progress-groups-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.personal-progress h2 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.35;
+}
+.personal-progress-groups-heading a {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--asa-cyan-700, #0877b3);
+  font-size: 13px;
+}
+.personal-progress-group-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.personal-progress-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--asa-slate-200, #dce5eb);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+.personal-progress-group > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.personal-progress-group h3 {
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.personal-progress-group > header > span {
+  flex: 0 0 auto;
+  color: var(--ink-muted, #526779);
+  font-size: 12px;
+}
+.personal-progress-group-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.personal-progress-self {
+  flex: 0 0 auto;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 4px 9px 0;
+}
+.personal-progress-group-avatar {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  border: 2px solid #0877b3;
+  outline: 2px solid var(--surface, #fff);
+  box-shadow: 0 0 0 3px #0877b3;
+  border-radius: 50%;
+}
+.personal-progress-rank,
+.personal-progress-score {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.personal-progress-rank {
+  top: -5px;
+  left: -8px;
+  min-width: 21px;
+  width: max-content;
+  min-height: 21px;
+  aspect-ratio: 1;
+  padding: 0 4px;
+  border: 1px solid var(--asa-slate-200, #dce5eb);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--text, #1e3545);
+}
+.personal-progress-score {
+  right: -9px;
+  bottom: -2px;
+  min-width: 27px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 7px;
+  background: #0877b3;
+  color: #fff;
+}
+.personal-progress-you {
+  color: var(--ink-muted, #526779);
+  font-size: 11px;
+  line-height: 1.2;
+}
+.personal-progress-group-note {
+  margin: 0;
+  min-width: 0;
+  color: var(--ink-muted, #526779);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.personal-progress-state,
+.personal-progress-more {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0;
+  padding: 8px 0;
+  font-size: 14px;
+}
+.personal-progress-pending {
+  min-height: 130px;
+  align-content: center;
+}
+.personal-progress-next {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 14px 16px;
+  border-left: 3px solid #0877b3;
+  border-radius: 4px 10px 10px 4px;
+  background: var(--surface, #fff);
+  min-width: 0;
+}
+.personal-progress-next p {
+  margin: 0;
+  min-width: 0;
+}
+.personal-progress-next a {
+  overflow-wrap: anywhere;
+  color: var(--asa-cyan-700, #0877b3);
+}
+.personal-progress :is(a, button, summary):focus-visible {
+  outline: 2px solid #0877b3;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+@container (max-width: 520px) {
+  .personal-progress-hero {
+    gap: 16px;
+    padding: 16px;
+  }
+  .personal-progress h1 {
+    font-size: 21px;
+  }
+  .personal-progress-metrics {
+    gap: 9px 16px;
+  }
+  .personal-progress-group {
+    padding: 11px;
+  }
+  .personal-progress-group-avatar {
+    width: 54px;
+    height: 54px;
+  }
+  .personal-progress-rank {
+    min-width: 19px;
+    min-height: 19px;
+  }
+  .personal-progress-score {
+    height: 19px;
+  }
+  .personal-progress-group-body {
+    gap: 12px;
+  }
+}
+@container (max-width: 380px) {
+  .personal-progress-hero {
+    gap: 14px;
+    padding: 14px 10px;
+  }
+  .personal-progress-hero-avatar {
+    flex-basis: 84px;
+    width: 84px;
+    height: 84px;
+  }
+  .personal-progress h1 {
+    font-size: 20px;
+  }
+  .personal-progress-metrics {
+    gap: 8px 12px;
+  }
+  .personal-progress-metrics dd {
+    font-size: 14px;
+  }
+  .personal-progress-group {
+    padding: 10px;
+  }
+  .personal-progress-group-avatar {
+    width: 44px;
+    height: 44px;
+  }
+  .personal-progress-group-body {
+    gap: 8px;
+  }
+  .personal-progress-groups-heading {
+    flex-wrap: wrap;
+    gap: 0 10px;
+  }
+}

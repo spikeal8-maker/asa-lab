@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { api, type Project, type SessionPayload } from '../api';
+import { useCallback, useState } from 'react';
+import { api, type SessionPayload } from '../api';
 import { PortalLink } from '../components/PortalLink';
 import {
   HOME_MODULES,
@@ -10,61 +10,77 @@ import {
 } from '../creator-portal/QuickProjectCreation';
 import { HomeShelf } from '../creator-portal/HomeShelf';
 import { HomePublicShelves } from '../creator-portal/HomePublicShelves';
+import { PersonalProgress } from '../creator-portal/PersonalProgress';
+import {
+  useNextLearningAction,
+  usePersonalProgress,
+  usePersonalRead,
+  useProgressLifetime,
+  type OwnProgressActor,
+  type ProgressLifetime,
+} from '../creator-portal/personal-progress';
 import { creatorViewToHref, type CreatorPortalSection } from '../creator-portal/navigation';
-import { ModuleGlyph } from '../modules/ModuleGlyph';
 import { ProjectModuleIcon } from '../modules/ProjectModuleIcon';
 import { ProjectCard } from '../modules/ProjectCard';
 import { useHomeProjectActions } from '../modules/useHomeProjectActions';
 
 const PROJECTS_PER_MODULE = 10;
-const ORDER: readonly HomeModule[] = HOME_MODULES;
+interface HomeProps {
+  readonly session: SessionPayload;
+  readonly actor: OwnProgressActor;
+  readonly onNavigate: (section: CreatorPortalSection) => void;
+  readonly onOpenProject: (projectId: string, moduleKey: string) => void;
+  readonly onAllProjects: (module?: string) => void;
+  readonly onOpenWork: (id: string) => void;
+  readonly onOpenCourse: (id: string) => void;
+}
 
-export function CreatorHomePage({
-  session,
+function useModuleProjects(module: HomeModule, lifetime: ProgressLifetime, revision: number) {
+  const read = useCallback(
+    () => api.listProjects({ scope: 'personal', module, limit: PROJECTS_PER_MODULE }),
+    [module],
+  );
+  return usePersonalRead(lifetime, read, revision);
+}
+
+export function CreatorHomePage(props: HomeProps): JSX.Element {
+  const lifetime = useProgressLifetime(props.actor);
+  // Retire private cards and action dialogs in the same render as a session handoff.
+  return <HomeContent key={lifetime.key ?? 'checking'} {...props} lifetime={lifetime} />;
+}
+
+function HomeContent({
+  actor,
+  lifetime,
   onNavigate,
   onOpenProject,
   onAllProjects,
   onOpenWork,
   onOpenCourse,
-}: {
-  session: SessionPayload;
-  onNavigate: (section: CreatorPortalSection) => void;
-  onOpenProject: (projectId: string, moduleKey: string) => void;
-  onAllProjects: (module?: string) => void;
-  onOpenWork: (id: string) => void;
-  onOpenCourse: (id: string) => void;
-}): JSX.Element {
-  const { modules, create, busy } = useQuickProjectCreation();
-  const [projects, setProjects] = useState<Project[] | null>(null);
-  const [error, setError] = useState(false);
-  const [reload, setReload] = useState(0);
-  const projectActions = useHomeProjectActions(() => setReload((n) => n + 1));
-  const sequence = useRef(0);
-  useEffect(() => {
-    const request = ++sequence.current;
-    setProjects(null);
-    setError(false);
-    void Promise.all(
-      HOME_MODULES.map((module) =>
-        api.listProjects({ scope: 'personal', module, limit: PROJECTS_PER_MODULE }),
-      ),
-    ).then((results) => {
-      if (request !== sequence.current) return;
-      if (results.some((result) => !result.ok)) {
-        setError(true);
-        return;
-      }
-      setProjects(
-        results.flatMap((result) =>
-          result.ok ? result.data.items.slice(0, PROJECTS_PER_MODULE) : [],
-        ),
-      );
-    });
-    return () => {
-      sequence.current += 1;
-    };
-  }, [session.user.id, session.activeWorkspace.workspaceId, reload]);
-  const rememberScroll = useProjectScroll(projects !== null);
+}: HomeProps & { readonly lifetime: ProgressLifetime }): JSX.Element {
+  const { modules, modulesError, create, busy } = useQuickProjectCreation();
+  const [revision, setRevision] = useState(0);
+  const projectActions = useHomeProjectActions(() => setRevision((value) => value + 1));
+  const lists = {
+    'three-d': useModuleProjects('three-d', lifetime, revision),
+    electronics: useModuleProjects('electronics', lifetime, revision),
+    blocks: useModuleProjects('blocks', lifetime, revision),
+    robotics: useModuleProjects('robotics', lifetime, revision),
+  };
+  const progress = usePersonalProgress(actor);
+  const next = useNextLearningAction(actor, lifetime);
+  const settled =
+    Object.values(lists).every((list) => list.settled) &&
+    progress.summary.settled &&
+    next.settled &&
+    (modules !== null || modulesError);
+  // Restoring earlier would clamp the saved position against a still-short page.
+  const rememberScroll = useProjectScroll(lifetime.key !== null && settled);
+  const empty = Object.values(lists).every((list) => list.data?.items.length === 0);
+  const openLearning = () => {
+    rememberScroll();
+    onNavigate('learning');
+  };
   return (
     <main
       className="portal-content creator-home"
@@ -72,7 +88,35 @@ export function CreatorHomePage({
       aria-label="Главная"
       tabIndex={-1}
     >
-      {projects?.length === 0 ? (
+      <PersonalProgress actor={actor} progress={progress} onLearning={openLearning} />
+      {lifetime.key ? (
+        <section className="personal-progress-next" aria-label="Продолжить обучение">
+          {next.action ? (
+            <p>
+              <a href={next.action.href} onClick={rememberScroll}>
+                {next.action.label}: {next.action.title}
+              </a>
+            </p>
+          ) : !next.settled ? (
+            <p role="status">Ищем доступные задания…</p>
+          ) : (
+            <p>
+              <PortalLink href="/#/learning" onNavigate={openLearning}>
+                Открыть обучение
+              </PortalLink>
+            </p>
+          )}
+          {next.error ? (
+            <>
+              <p role="alert">Часть заданий сейчас не загрузилась.</p>
+              <button className="btn-secondary" type="button" onClick={next.reload}>
+                Повторить загрузку заданий
+              </button>
+            </>
+          ) : null}
+        </section>
+      ) : null}
+      {empty ? (
         <section className="access-personal-start" aria-label="Начать работу">
           <PortalLink
             href={creatorViewToHref({ kind: 'knowledge' })}
@@ -83,116 +127,123 @@ export function CreatorHomePage({
           </PortalLink>
         </section>
       ) : null}
-      {error ? (
-        <section className="creator-dashboard-state" role="alert">
-          <strong>Проекты сейчас не загрузились</strong>
-          <button type="button" className="btn-secondary" onClick={() => setReload((n) => n + 1)}>
-            Повторить
-          </button>
-        </section>
-      ) : null}
-      {!error && projects === null ? (
-        <section className="creator-dashboard-loading" aria-label="Загрузка проектов">
-          <div />
-          <div />
-        </section>
-      ) : null}
-      {projects !== null ? (
-        <div className="creator-module-feed" data-testid="creator-recent-projects">
-          {ORDER.map((key) => {
-            const module = modules?.find(
-              (item) => item.moduleKey === key && item.availability === 'active' && item.creatable,
-            );
-            if (!module) return null;
-            const items = projects.filter((item) => item.moduleKey === key);
-            const title = homeModuleTitle(key);
-            return (
-              <section
-                className="creator-module-section"
-                aria-labelledby={`creator-module-${key}`}
-                key={key}
-              >
-                <div className="creator-module-heading">
-                  <h2 id={`creator-module-${key}`} aria-label={title}>
-                    <button
-                      type="button"
-                      className="home-module-all"
-                      aria-label={
-                        key === 'three-d'
-                          ? 'Все модели'
-                          : key === 'electronics'
-                            ? 'Все схемы'
-                            : 'Все программы'
-                      }
-                      onClick={() => {
-                        rememberScroll();
-                        onAllProjects(key);
-                      }}
-                    >
-                      <span className="home-module-icon" aria-hidden="true">
-                        <ModuleGlyph module={module} size={24} />
-                      </span>
-                      {title} <span aria-hidden="true">›</span>
-                    </button>
-                  </h2>
+      <div className="creator-module-feed" data-testid="creator-recent-projects">
+        {HOME_MODULES.map((key) => {
+          const module = modules?.find(
+            (item) => item.moduleKey === key && item.availability === 'active' && item.creatable,
+          );
+          const list = lists[key];
+          const items = list.data?.items.slice(0, PROJECTS_PER_MODULE) ?? [];
+          const title = homeModuleTitle(key);
+          return (
+            <section
+              className="creator-module-section"
+              aria-labelledby={`creator-module-${key}`}
+              key={key}
+              data-module={key}
+            >
+              <div className="creator-module-heading">
+                <h2 id={`creator-module-${key}`} aria-label={title}>
                   <button
                     type="button"
-                    className="home-create-button"
-                    disabled={busy}
-                    onClick={() => create(key)}
-                  >
-                    <ProjectModuleIcon moduleKey={key} size={28} />
-                    <span>
-                      {key === 'three-d'
-                        ? 'Создать модель'
+                    className="home-module-all"
+                    aria-label={
+                      key === 'three-d'
+                        ? 'Все модели'
                         : key === 'electronics'
-                          ? 'Создать цепь'
-                          : 'Создать программу'}
+                          ? 'Все схемы'
+                          : 'Все программы'
+                    }
+                    onClick={() => {
+                      rememberScroll();
+                      onAllProjects(key);
+                    }}
+                  >
+                    <span className="home-module-icon" aria-hidden="true">
+                      <ProjectModuleIcon moduleKey={key} size={24} />
                     </span>
+                    {title} <span aria-hidden="true">›</span>
+                  </button>
+                </h2>
+                <button
+                  type="button"
+                  className="home-create-button"
+                  disabled={busy || !module || !lifetime.key}
+                  onClick={() => create(key)}
+                >
+                  <ProjectModuleIcon moduleKey={key} size={28} />
+                  <span>
+                    {key === 'three-d'
+                      ? 'Создать модель'
+                      : key === 'electronics'
+                        ? 'Создать цепь'
+                        : 'Создать программу'}
+                  </span>
+                </button>
+              </div>
+              {!module ? (
+                <p className="home-module-availability">
+                  {modulesError
+                    ? 'Не удалось проверить доступность среды.'
+                    : modules !== null
+                      ? 'Сейчас недоступно'
+                      : 'Проверяем доступность среды…'}
+                </p>
+              ) : null}
+              {list.loading ? (
+                <p role="status" className="home-module-empty">
+                  Загружаем проекты…
+                </p>
+              ) : null}
+              {list.error ? (
+                <div className="home-module-error" role="alert">
+                  <p>Проекты этой среды сейчас не загрузились.</p>
+                  <button className="btn-secondary" type="button" onClick={list.reload}>
+                    Повторить загрузку {title.toLocaleLowerCase('ru-RU')}
                   </button>
                 </div>
-                {items.length ? (
-                  <HomeShelf label={title}>
-                    {items.map((project) => (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        module={{ ...module, displayName: title }}
-                        timeLabel={new Date(project.updatedAt).toLocaleDateString('ru-RU', {
-                          day: 'numeric',
-                          month: 'short',
-                        })}
-                        footerLabel=""
-                        menuItems={projectActions.menuItems(project)}
-                        open={{
-                          href: creatorViewToHref({
-                            kind: 'editor',
-                            projectId: project.id,
-                            moduleKey: project.moduleKey,
-                            returnTo: { kind: 'home' },
-                          }),
-                          onNavigate: () => {
-                            rememberScroll();
-                            onOpenProject(project.id, project.moduleKey);
-                          },
-                        }}
-                      />
-                    ))}
-                  </HomeShelf>
-                ) : (
-                  <p className="home-module-empty">
-                    {key === 'three-d'
-                      ? 'Пока нет моделей'
-                      : key === 'electronics'
-                        ? 'Пока нет схем'
-                        : 'Пока нет программ'}
-                  </p>
-                )}
-              </section>
-            );
-          })}
-        </div>
-      ) : null}
+              ) : null}
+              {items.length ? (
+                <HomeShelf label={title}>
+                  {items.map((project) => (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      module={module ? { ...module, displayName: title } : undefined}
+                      timeLabel={new Date(project.updatedAt).toLocaleDateString('ru-RU', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                      footerLabel=""
+                      menuItems={projectActions.menuItems(project)}
+                      open={{
+                        href: creatorViewToHref({
+                          kind: 'editor',
+                          projectId: project.id,
+                          moduleKey: project.moduleKey,
+                          returnTo: { kind: 'home' },
+                        }),
+                        onNavigate: () => {
+                          rememberScroll();
+                          onOpenProject(project.id, project.moduleKey);
+                        },
+                      }}
+                    />
+                  ))}
+                </HomeShelf>
+              ) : list.data ? (
+                <p className="home-module-empty">
+                  {key === 'three-d'
+                    ? 'Пока нет моделей'
+                    : key === 'electronics'
+                      ? 'Пока нет схем'
+                      : 'Пока нет программ'}
+                </p>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
       <PortalLink
         className="home-all-projects"
         href="/#/projects"
@@ -204,13 +255,15 @@ export function CreatorHomePage({
         Все мои проекты <span aria-hidden="true">›</span>
       </PortalLink>
       {projectActions.dialogs}
-      <HomePublicShelves
-        key={`${session.user.id}:${session.activeWorkspace.workspaceId}`}
-        onGallery={() => onNavigate('gallery')}
-        onWork={onOpenWork}
-        onKnowledge={() => onNavigate('knowledge')}
-        onCourse={onOpenCourse}
-      />
+      {lifetime.key ? (
+        <HomePublicShelves
+          key={lifetime.key}
+          onGallery={() => onNavigate('gallery')}
+          onWork={onOpenWork}
+          onKnowledge={() => onNavigate('knowledge')}
+          onCourse={onOpenCourse}
+        />
+      ) : null}
     </main>
   );
 }

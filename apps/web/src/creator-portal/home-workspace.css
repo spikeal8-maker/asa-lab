@@ -567,6 +567,58 @@
   font-size: 14px;
 }
 
+/* Own project rails keep the full title and copy provenance readable. */
+.creator-home .creator-module-feed .home-shelf-track {
+  grid-auto-columns: clamp(220px, 24%, 320px);
+  align-items: stretch;
+}
+.creator-home .creator-module-feed .project-card-body {
+  min-width: 0;
+  height: auto;
+  padding: 10px;
+}
+.creator-home .creator-module-feed .project-card-title,
+.creator-home .creator-module-feed .project-card-title a,
+.creator-home .creator-module-feed .project-card-origin {
+  display: block;
+  min-width: 0;
+  height: auto;
+  max-height: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+  -webkit-line-clamp: unset;
+}
+.creator-home .creator-module-feed .project-card-title {
+  font-size: 14px;
+  line-height: 1.4;
+}
+.creator-home .creator-module-feed .home-module-availability {
+  margin: 0 0 4px;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.creator-home .creator-module-feed .home-module-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 0;
+}
+.creator-home .creator-module-feed .home-module-error p {
+  margin: 0;
+}
+.creator-home .creator-module-feed .home-create-button:disabled {
+  cursor: default;
+}
+@media (max-width: 820px) {
+  .creator-home .creator-module-feed .home-shelf-track {
+    grid-auto-columns: clamp(220px, 76%, 300px);
+  }
+}
+
 .creator-home .creator-module-heading .home-module-all,
 .creator-home .creator-module-heading .home-create-button {
   max-width: 100%;

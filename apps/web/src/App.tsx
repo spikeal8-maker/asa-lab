@@ -35,6 +35,7 @@ const OrganizationLoginPage = lazy(() =>
 );
 import { JoinClassPage } from './pages/JoinClassPage';
 import { studentSessionPayload } from './creator-portal/student-session';
+import type { OwnProgressActor } from './creator-portal/personal-progress';
 import type { PublicIntent } from './pages/PublicEntryPage';
 const PublicEntryPage = lazy(() =>
   import('./pages/PublicEntryPage').then((module) => ({ default: module.PublicEntryPage })),
@@ -1089,6 +1090,20 @@ export function App(): JSX.Element {
   // What a seat cannot do is expressed as capabilities it does not hold, so
   // nothing below this line has to ask which kind of person is signed in.
   const isSeatLearner = session.kind === 'student';
+  const progressActor: OwnProgressActor =
+    session.kind === 'student'
+      ? {
+          kind: 'seat',
+          seatId: session.session.student.seatId,
+          classroomId: session.session.classroom.id,
+          displayName: session.session.student.displayName,
+          avatarKey: session.session.student.avatarKey,
+        }
+      : {
+          kind: 'account',
+          accountId: session.session.account.id,
+          displayName: session.session.account.displayName,
+        };
   const portalSession: SessionPayload =
     session.kind === 'student' ? studentSessionPayload(session.session) : session.session;
 
@@ -1316,6 +1331,7 @@ export function App(): JSX.Element {
                   >
                     <CreatorHomePage
                       session={portalSession}
+                      actor={progressActor}
                       onNavigate={navigate}
                       onAllProjects={(module) =>
                         setView({ kind: 'my-projects', ...(module ? { module } : {}) })
@@ -1394,6 +1410,7 @@ export function App(): JSX.Element {
                 {view.kind === 'learning' ? (
                   <LearningPage
                     seat={session.kind === 'student' ? session.session : null}
+                    actor={progressActor}
                     onOpenProject={(projectId, moduleKey) =>
                       setView({
                         kind: 'editor',
