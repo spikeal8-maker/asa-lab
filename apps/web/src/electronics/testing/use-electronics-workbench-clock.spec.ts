@@ -471,6 +471,7 @@ afterEach(async () => {
   host.remove();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.useRealTimers();
 });
 
@@ -1206,6 +1207,89 @@ describe('mounted workbench host demand clock', () => {
     expect(workbench.result).toBe(next.result);
     expect(workbench.simulationTimeMs).toBe(100);
     expect(api.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['standard', undefined, 5_000],
+    ['school', 'school', 10_000],
+  ] as const)(
+    'enforces the %s cold-start budget before the first accepted Worker result',
+    async (_label, profile, budgetMs) => {
+      vi.stubEnv('VITE_ASA_ELECTRONICS_STARTUP_PROFILE', profile);
+      const loading = deferredController();
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      await frame();
+      expect(workbench.simulationStatus).toBe('starting');
+      expect(workbench.simulationTimeMs).toBe(0);
+      await tick(budgetMs - 1);
+      expect(workbench.simulationRunning).toBe(true);
+      expect(workbench.simulationStatus).toBe('starting');
+      await tick(1);
+      expect(workbench.simulationRunning).toBe(false);
+      expect(workbench.simulationMessage?.code).toBe('startup-timeout');
+      expect(workbench.simulationMessage?.text).toContain(`${budgetMs / 1000} секунд`);
+      expect(workbench.simulationTimeMs).toBe(0);
+      // A late dynamic import cannot resurrect the timed-out generation.
+      await act(async () => loading.resolve());
+      expect(transport.instances).toHaveLength(0);
+    },
+  );
+
+  it('cancels the cold-start deadline on first accepted H0 and never charges it to model time', async () => {
+    transport.autoReady = false;
+    const loading = deferredController();
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    await frame();
+    await tick(4_999);
+    await act(async () => loading.resolve());
+    const instance = worker();
+    await act(async () => {
+      instance.callbacks!.onInitialReady?.(0);
+      instance.callbacks!.onCommittedHorizon?.(0);
+      instance.callbacks!.onResult(ready, undefined, 'dc-inputs-v1');
+    });
+    expect(workbench.simulationRunning).toBe(true);
+    expect(workbench.simulationStatus).not.toBe('starting');
+    expect(workbench.simulationTimeMs).toBe(0);
+    await tick(200);
+    expect(workbench.simulationMessage?.code).not.toBe('startup-timeout');
+    expect(workbench.simulationRunning).toBe(true);
+  });
+
+  it('cancels the cold-start deadline on Stop before a lazy Worker import resolves', async () => {
+    const loading = deferredController();
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    await frame();
+    await act(async () => workbench.toggleSimulation());
+    await tick(6_000);
+    expect(workbench.simulationRunning).toBe(false);
+    expect(workbench.simulationMessage?.code).not.toBe('startup-timeout');
+    await act(async () => loading.resolve());
+    expect(transport.instances).toHaveLength(0);
+  });
+
+  it('gives a restarted Arduino generation a fresh preparation budget', async () => {
+    transport.autoReady = false;
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    const instance = worker();
+    await act(async () => {
+      instance.callbacks!.onInitialReady?.(0);
+      instance.callbacks!.onCommittedHorizon?.(0);
+      instance.callbacks!.onResult(ready, undefined, 'dc-inputs-v1');
+    });
+    await tick(3_000);
+    await act(async () => workbench.resetArduinoRuntime('uno'));
+    expect(instance.restart).toHaveBeenCalledTimes(1);
+    expect(workbench.simulationStatus).toBe('starting');
+    await tick(4_999);
+    expect(workbench.simulationRunning).toBe(true);
+    await tick(1);
+    expect(workbench.simulationRunning).toBe(false);
+    expect(workbench.simulationMessage?.code).toBe('startup-timeout');
   });
 
   it('loads only after Start and preserves every pending committed input in order before H0', async () => {

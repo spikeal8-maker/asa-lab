@@ -99,6 +99,7 @@ const expectedPending = [
   '0318', // Operational overview with aligned Moscow intervals and measured activity.
   '0319', // Function-local JIT at the measured canonical read boundaries.
   '0320', // Authorized own progress summary; no identity or score writes.
+  '0321', // Qualified ordinary Account admission identity, preserving retained history.
 ];
 
 interface Identity {

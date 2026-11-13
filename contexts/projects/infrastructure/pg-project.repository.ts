@@ -817,6 +817,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       });
       const found = await client.query(
         `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
+                p.copied_from_project_id,p.copied_from_author,p.copied_from_title,p.copied_at,
                 d.document_json,d.revision,d.updated_at,d.preview_json,d.preview_digest
            FROM projects p
            JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id

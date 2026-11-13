@@ -35,7 +35,7 @@ documents:
   - id: STUDENT-PROGRESS-MASTER-V1
     path: docs/product/student-progress/MASTER_SPEC.md
     scope: student-progress
-    lanes: [student-progress, student-progress-rating-rules]
+    lanes: [student-progress, personal-progress-baseline-repair, student-progress-rating-rules]
     kind: implementation_spec
     status: canonical
     authority: owner_student_progress_programme
