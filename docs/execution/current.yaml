@@ -17863,11 +17863,19 @@ parallel_lanes:
           camera/editor source changes into E1.
         - Focused self-review is not independent review. No physical precision, weak-school-PC
           performance or deployment acceptance without corresponding evidence.
+        - Spec v1.2 requires the same real assembled circuit, shared Arduino/solver/mechanics/clock in
+          simple and advanced editing modes. D02 is prerequisite for product rollout of both modes;
+          E1 stays TEST_ONLY, without mode integration or a newly selected product task.
+        - Historical replay resolves recorded spec version/hash via archived v1.1 or its immutable
+          base commit/path in spec section 20.4. Preserve frozen fixtures/raw/hash manifests. A hardcoded
+          canonical-path mismatch is specification-resolution compatibility, not physical FAIL; use a
+          separate bounded adapter and do not restart the active experiment for this docs update.
       context_hints:
         - docs/product/robotics/FIELD_CORE_START.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
         - docs/product/robotics/FIELD_CORE_SPEC.md
         - docs/product/robotics/FIELD_CORE_SPEC_REVIEW.md
+        - docs/product/robotics/FIELD_CORE_SPEC_1_2_CHANGELOG.md
         - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
       gate_boundary: "Registration: scoped preflight, exact doc/trace hashes, control-plane and
         governance, applicable protected CI. E1: reproduce exact qualification commands and raw
