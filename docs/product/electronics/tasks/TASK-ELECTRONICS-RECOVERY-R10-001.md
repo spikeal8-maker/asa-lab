@@ -357,8 +357,12 @@ calls decrease 2,880→0 and Worker calls 0→720; DOM p95 improves in all sixte
 profiles. Current-diagnostic p95 for add/source is slower; exact maxima, long
 tasks and deadline overruns remain in the evidence. The shown B SHA is never
 relabeled as C or a later documentation/test commit. Actual B compiled inputs,
-assets, fixtures and locked support files are identical to C; final review must
-confirm the five R10 non-product paths and accepted metadata-only main convergence.
+assets, fixtures and locked support files are identical to C. Historical C→P
+review confirmed five R10 non-product paths plus accepted metadata-only main
+convergence, six changed paths in total. The later owner-authorized continuation
+preserves fourteen accepted classroom files and updates four controller documents:
+eighteen changed paths from P, twenty from C. Final review must bind that complete
+composition and the unchanged 164 measured inputs to the published source.
 
 C's actual s3 passed 119 cases, including the targeted technical Worker fault and
 all five compact-controls variants. Full C R4 remains FAIL: s1 six failures and
@@ -394,3 +398,31 @@ and final independent review. This consumes the remaining convergence allowance.
 B's immutable timing/recordings remain labelled B. No runtime, model, harness,
 fixture or dependency changes justify a new measurement. If another main move
 again resets acceptance, request an integration window instead of another sync.
+
+## Owner-authorized additional integration cycle
+
+Published P `c645095e613c4165ce8073ffa46dc5223dfaa363` received exact-tree
+independent source/evidence approval. General43377334026 then failed before
+product checks: its event base was46, while the actual merge candidate had
+parents8406/P and a different tree. The existing immutable General contract also
+requires the merge tree to equal the tested source tree. Its Code, Data/RLS and
+Access jobs were skipped; governance passed. This is not a passing repository
+gate, and refreshing only the event cannot satisfy the separate tree condition.
+
+After the controller explained the exhausted repeat and need for an integration
+window in the current chat, the owner replied **«продолжай»**. This is a new owner
+decision authorizing one additional bounded integration cycle, not an automatic
+extension of the exhausted allowance. Fresh main is
+`8406be4761006246749aff10d65cc1a0377fce7b`; its fourteen classroom-feedback paths
+do not intersect R10 or the measured compiled inputs. AGENTS, the router,
+canonical R10 selection, shared current/registry, dependency lock and General
+guards are unchanged. Fresh scoped preflight is SAFE_TO_START with no overlap
+or applicable blocker.
+
+Preserve P and accepted8406 by a normal conflict-free merge, retain every foreign
+blob, prove the same 164 measured source/asset/fixture/support objects, and obtain
+fresh exact-source required General and mapped browser results plus independent
+review. Record P's failed General unchanged. No dummy commit, weakened guard,
+retry-until-green, new runtime change, task selection, R11 or deployment is
+authorized. Further acceptance-resetting movement requires another owner
+decision; this continuation does not authorize an endless synchronization loop.

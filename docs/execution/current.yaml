@@ -5681,6 +5681,14 @@ parallel_lanes:
       controlled_final_convergence_main: 46e67cc25c8517f455f6766d32c128678383c9db
       controlled_final_convergence_reason: preserve_accepted_shared_current_and_registry_without_runtime_changes
       further_convergence_policy: request_integration_window_if_main_movement_again_resets_acceptance
+      owner_authorized_additional_convergence_cycles: 1
+      owner_integration_continuation_input: продолжай
+      owner_authorized_convergence_main: 8406be4761006246749aff10d65cc1a0377fce7b
+      owner_additional_cycle_reason: explicit_continuation_after_reported_General_equal_tree_block_and_exhausted_repeat
+      owner_additional_cycle_boundary: one_bounded_cycle_then_exact_required_CI_review_and_normal_merge_no_R11_or_deployment
+      previous_final_source_sha: c645095e613c4165ce8073ffa46dc5223dfaa363
+      previous_final_general_run: 43377334026
+      previous_final_general_result: failure_before_product_checks_due_event_merge_binding_and_source_tree_difference
       source_baseline_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
       measurement_delivery: Isolated GitHub Actions full SchematicEditor fixture with real Worker and assets; instrumented
         candidate video and raw evidence, not asa-lab.ru deployment.

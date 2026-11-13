@@ -3392,7 +3392,7 @@
         }
       ]
     },
-    "boundary": "Shown build retains B identity. Five R10 follow-up paths plus the accepted main document registry/foreign current.yaml records remain outside measured inputs; final composed Git diff and all foreign state are independently checked on PR1126."
+    "boundary": "Shown build retains B identity. Historical C-to-P has six changed paths. The owner-authorized additional composition has eighteen changed paths from P (fourteen exact accepted classroom files and four controller documents), twenty from C. All are outside the 164 measured objects; final composition and foreign state are independently checked on PR1126."
   },
   "videoCopies": [
     {
@@ -3922,10 +3922,56 @@
       "measurementReusedOnlyAfterInputIdentityProof": true,
       "allowanceExhausted": true,
       "futurePolicy": "No further automatic convergence. Request an integration window if main movement again resets acceptance."
+    },
+    "ownerAuthorizedAdditionalCycle": {
+      "ordinal": 1,
+      "recordedAtUtc": "2026-11-13T06:26:28.734460+00:00",
+      "ownerInput": "продолжай",
+      "context": "Owner replied after the controller explained General equal-tree blocking, the exhausted controlled repeat and the need for an integration window.",
+      "scope": "One additional bounded integration cycle; no indefinite convergence, new product task or deployment.",
+      "acceptedMain": "8406be4761006246749aff10d65cc1a0377fce7b",
+      "priorPublishedSource": "c645095e613c4165ce8073ffa46dc5223dfaa363",
+      "acceptedForeignChangedPaths": 14,
+      "normalGitMerge": "NO_CONFLICTS",
+      "measuredElectronicsInputChanges": 0,
+      "requiredAfterPublication": [
+        "fresh exact-source General",
+        "mapped browser Worker regression",
+        "independent final review",
+        "normal merge"
+      ],
+      "futurePolicy": "Another acceptance-resetting main movement requires a new owner decision.",
+      "changedPathsFromP": 18,
+      "changedPathsFromC": 20
     }
   },
   "publication": "https://github.com/spikeal8-maker/asa-lab/pull/1126",
   "productionDeployment": "NOT_RUN",
   "ownerAcceptance": "PENDING",
-  "nextProductTask": "NONE; STOP_AFTER_FIRST_R10"
+  "nextProductTask": "NONE; STOP_AFTER_FIRST_R10",
+  "observedPGeneral": {
+    "source": "c645095e613c4165ce8073ffa46dc5223dfaa363",
+    "run": 43377334026,
+    "attempt": 1,
+    "conclusion": "failure",
+    "governance": "success",
+    "applicability": "failure",
+    "code": "skipped",
+    "dataRls": "skipped",
+    "access": "skipped",
+    "required": "failure",
+    "eventBase": "46e67cc25c8517f455f6766d32c128678383c9db",
+    "mergeCandidate": "ec61abb0c1395c8e934e6852a389ef5416e02f68",
+    "actualMergeParents": [
+      "8406be4761006246749aff10d65cc1a0377fce7b",
+      "c645095e613c4165ce8073ffa46dc5223dfaa363"
+    ],
+    "actualMergeTree": "8e50e329f1d861be7a5e527a870daf22b2fb7a94",
+    "sourceTree": "66f21e73c3e9490010559cf1cc03d6588be6a0f0",
+    "bindingError": "Event merge parents do not bind the exact base and source",
+    "additionalIndependentCondition": "Merge tree must equal tested source tree; event refresh alone cannot satisfy it.",
+    "classification": "integration_source_binding_block_before_product_tests",
+    "guardChanged": false,
+    "retried": false
+  }
 }
