@@ -67,6 +67,27 @@ async function request(path: string, cookies: Record<string, string> = {}) {
   return { status: response.status, headers: response.headers, body, text };
 }
 
+async function post(path: string, body: unknown, cookies: Record<string, string> = {}) {
+  const response = await fetch(baseUrl + path, {
+    method: 'POST',
+    headers: {
+      origin: WEB_ORIGIN,
+      'content-type': 'application/json',
+      cookie: Object.entries(cookies)
+        .map(([name, value]) => `${name}=${value}`)
+        .join('; '),
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  return {
+    status: response.status,
+    headers: response.headers,
+    body: JSON.parse(text) as unknown,
+    text,
+  };
+}
+
 function successful(result: Awaited<ReturnType<typeof request>>): PersonalProgressSummaryV1 {
   expect(result.status, result.text).toBe(200);
   expect(result.headers.get('cache-control')).toBe('private, no-store');
@@ -341,6 +362,157 @@ async function addOwnGroups(owner: Identity, count: number) {
 }
 
 describe('personal progress genuine HTTP with restricted PostgreSQL', () => {
+  it('shows an ordinary Account group only after authorized approval in a class without an audience', async () => {
+    const owner = await identity();
+    const foreignTeacher = await identity();
+    const unique = randomUUID().replaceAll('-', '');
+    const registered = await post('/api/auth/register', {
+      email: `progress-join-${unique}@isolated.test`,
+      username: `progress_${unique.slice(0, 20)}`,
+      displayName: 'Обычный участник',
+      password: `Progress-${unique}-Password`,
+      birthDate: '1990-01-01',
+      country: 'RU',
+    });
+    expect(registered.status, registered.text).toBe(201);
+    const sessionCookie = registered.headers
+      .getSetCookie()
+      .find((value) => value.startsWith('asa_session='));
+    const sessionToken = sessionCookie?.match(/^asa_session=([^;]+)/)?.[1];
+    if (!sessionToken) throw new Error('Ordinary registration returned no Account session');
+    const cookies = { asa_session: decodeURIComponent(sessionToken) };
+    const account = (
+      await admin.query<{ account_id: string; principal_id: string; workspace_kind: string }>(
+        `SELECT principal.account_id,principal.id principal_id,workspace.kind workspace_kind
+         FROM sessions_v2 session JOIN principals principal ON principal.id=session.principal_id
+         JOIN workspaces workspace ON workspace.id=session.active_workspace_id
+         WHERE session.token_hash=$1`,
+        [hashSessionToken(cookies.asa_session)],
+      )
+    ).rows[0]!;
+    expect(account.workspace_kind).toBe('personal');
+    const classrooms: { id: string; code: string }[] = [];
+    for (const title of ['Approved empty group', 'Rejected empty group']) {
+      const id = randomUUID();
+      await admin.query(
+        `INSERT INTO classrooms(id,tenant_id,school_id,academic_period_id,title,created_by)
+         VALUES($1,$2,$3,$4,$5,$6)`,
+        [
+          id,
+          owner.teacher.tenantId,
+          owner.teacher.schoolId,
+          owner.teacher.periodId,
+          title,
+          owner.teacher.teacherId,
+        ],
+      );
+      await admin.query(
+        `INSERT INTO classroom_memberships(tenant_id,classroom_id,user_id,account_id,member_role)
+         VALUES($1,$2,$3,$4,'owner')`,
+        [owner.teacher.tenantId, id, owner.teacher.teacherId, owner.accountId],
+      );
+      const rotated = await post(`/api/classrooms/${id}/join-code/rotate`, {}, owner.modern);
+      expect(rotated.status, rotated.text).toBe(201);
+      const code = (rotated.body as { classroom: { joinCode: string } }).classroom.joinCode;
+      expect(code).toBeTypeOf('string');
+      expect(code.length).toBeGreaterThan(0);
+      classrooms.push({ id, code });
+    }
+    expect(
+      (
+        await admin.query(
+          'SELECT id FROM learning_audience_definitions WHERE classroom_id=ANY($1::uuid[])',
+          [classrooms.map((row) => row.id)],
+        )
+      ).rows,
+    ).toEqual([]);
+    expect(successful(await request(ACCOUNT_ROUTE, cookies)).groups.items).toEqual([]);
+
+    const acceptedGroup = classrooms[0]!;
+    const pending = await post('/api/class-join/account', { code: acceptedGroup.code }, cookies);
+    expect(pending.status, pending.text).toBe(200);
+    const pendingBody = pending.body as {
+      status: string;
+      requestId: string;
+      seatId: string | null;
+    };
+    expect(pendingBody).toMatchObject({ status: 'pending', seatId: null });
+    const decisionRoute = `/api/class-join/requests/${acceptedGroup.id}/${pendingBody.requestId}/decision`;
+    for (const unauthorized of [cookies, foreignTeacher.modern]) {
+      expect((await post(decisionRoute, { decision: 'approved' }, unauthorized)).status).toBe(409);
+    }
+    expect(successful(await request(ACCOUNT_ROUTE, cookies)).groups.items).toEqual([]);
+    expect(
+      (
+        await admin.query(
+          'SELECT status,seat_id FROM classroom_account_join_requests WHERE id=$1',
+          [pendingBody.requestId],
+        )
+      ).rows,
+    ).toEqual([{ status: 'pending', seat_id: null }]);
+    expect(
+      (
+        await admin.query('SELECT id FROM classroom_student_seats WHERE account_id=$1', [
+          account.account_id,
+        ])
+      ).rows,
+    ).toEqual([]);
+
+    const approved = await post(decisionRoute, { decision: 'approved' }, owner.modern);
+    expect(approved.status, approved.text).toBe(201);
+    const summary = successful(await request(ACCOUNT_ROUTE, cookies));
+    expect(summary.groups.items?.map((row) => row.groupId)).toEqual([acceptedGroup.id]);
+    const seat = (
+      await admin.query<{ id: string }>(
+        "SELECT id FROM classroom_student_seats WHERE classroom_id=$1 AND account_id=$2 AND status='active'",
+        [acceptedGroup.id, account.account_id],
+      )
+    ).rows[0]!;
+    expect(
+      (await admin.query('SELECT id FROM classroom_participant_principals($1)', [seat.id])).rows,
+    ).toContainEqual({ id: account.principal_id });
+    expect(
+      (
+        await admin.query(
+          'SELECT id FROM classroom_memberships WHERE classroom_id=$1 AND account_id=$2',
+          [acceptedGroup.id, account.account_id],
+        )
+      ).rows,
+    ).toEqual([]);
+    expect((await post(decisionRoute, { decision: 'approved' }, owner.modern)).status).toBe(201);
+    expect(
+      (
+        await admin.query(
+          "SELECT id FROM audit_events WHERE entity_id=$1 AND action='classroom.join.decided'",
+          [pendingBody.requestId],
+        )
+      ).rows,
+    ).toHaveLength(1);
+
+    const rejectedGroup = classrooms[1]!;
+    const otherPending = await post(
+      '/api/class-join/account',
+      { code: rejectedGroup.code },
+      cookies,
+    );
+    expect(otherPending.status, otherPending.text).toBe(200);
+    const otherRequest = (otherPending.body as { requestId: string }).requestId;
+    const rejectRoute = `/api/class-join/requests/${rejectedGroup.id}/${otherRequest}/decision`;
+    expect((await post(rejectRoute, { decision: 'rejected' }, owner.modern)).status).toBe(201);
+    expect((await post(rejectRoute, { decision: 'approved' }, owner.modern)).status).toBe(409);
+    expect(
+      successful(await request(ACCOUNT_ROUTE, cookies)).groups.items?.map((row) => row.groupId),
+    ).toEqual([acceptedGroup.id]);
+    expect(
+      (
+        await admin.query(
+          'SELECT id FROM classroom_student_seats WHERE classroom_id=$1 AND account_id=$2',
+          [rejectedGroup.id, account.account_id],
+        )
+      ).rows,
+    ).toEqual([]);
+  }, 30_000);
+
   it('accepts persisted modern and verified legacy Account sessions, with honest zero/coverage and real query observations', async () => {
     const owner = await identity();
     const measured = await measuredRead(ACCOUNT_ROUTE, owner.modern, 'modern empty Account');
