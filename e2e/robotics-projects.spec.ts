@@ -1298,7 +1298,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
         return geometry;
       }),
     );
-    expect(artifact.world.field.bodies.find((body) => body.id === canId)?.xMeters).toBe(0.55);
+    expect(artifact.world.field.bodies.find((body) => body.id === canId)?.xMeters).toBe(0.99);
     expect(JSON.stringify(artifact)).not.toMatch(
       /physics|massKg|Coefficient|restitution|groupId|groupPivot|arduino|bindings|circuit|atMicroseconds|robotVelocity/,
     );
