@@ -17588,6 +17588,90 @@ parallel_lanes:
           - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-RUNTIME-RESPONSIBILITY-001
           - pnpm control-plane:check
 
+  - id: electronics-robotics-toolbar-fit
+    parent_lane: electronics
+    worktree_id: electronics-robotics-toolbar-fit
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TOOLBAR-FIT-001.md
+    task:
+      id: TASK-ELECTRONICS-ROBOTICS-TOOLBAR-FIT-001
+      issue: 1122
+      parent_issue: 1071
+      camera_dependency_issue: 1096
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: bounded_b_toolbar_fit_repair_selected
+      owner_acceptance: pending
+      profile: UI_ONLY
+      planned_paths:
+        - apps/web/src/electronics/workbench.css
+      owner_authorization: >-
+        The owner explicitly authorized ordinary main integration of the existing
+        PR1044 dependency and FIELD-CAMERA-001. Under that unchanged authority,
+        the controller selected this review-found B dependency of robotics-camera:
+        https://github.com/spikeal8-maker/asa-lab/pull/1098#issuecomment-6841862586
+        and https://github.com/spikeal8-maker/asa-lab/issues/1071#issuecomment-6841862818.
+        This selection becomes executable only after its registration is accepted
+        on main and a separate exact-path runtime preflight succeeds.
+      scope: >-
+        Presentation-only, non-semantic correction of compact desktop Electronics
+        breadboard toolbar fit after the preserved shared Duplicate control was
+        added. Change only workbench.css: within the existing 981-1459px media
+        query, narrowly size the direct Electronics breadboard tool buttons so
+        the running simulation clock does not cover Mirror. The Robotics native
+        tools wrapper and its existing button dimensions remain unchanged.
+      constraints:
+        - One bounded B repair of the existing integration; no new Electronics or Robotics feature,
+          milestone, physics acceptance or E1 completion.
+        - Preserve all 17/8/6 control counts, exactly one Duplicate, full captions, hit ownership,
+          icon/text/clipping/native-menu assertions, test budgets and timeouts.
+        - Preserve global header, Save/avatar, right controls, inspector, catalogue and mobile layout.
+        - No Worker, clock authority, engine, model, program, persistence, schema, API or asset changes.
+        - No production/test/generated/workflow edits during registration; runtime CSS is a later
+          separately assigned author slice followed by independent exact-SHA review.
+        - No D2-R2 checkout/index/ref/runtime writes, protected dirty test or 148 evidence-file writes;
+          no new server, database, Docker restart or deployment claim.
+        - Do not chase unrelated main movement or resolve integration conflicts automatically.
+      context_hints:
+        - docs/product/electronics/START_HERE.md
+        - docs/product/electronics/COMPONENT_MAP.yaml
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TOOLBAR-FIT-001.md
+      gate_boundary: >-
+        Exact-path preflight and plan verification, Electronics selected-task
+        validation, applicable CSS formatting and source identity checks; complete
+        all four existing compact desktop/blocks scenarios and their later width,
+        running/stopped and native-menu observations in the exact-candidate
+        Electronics R4-M1 s3 browser gate. Required integration CI and independent
+        review remain mandatory; registration and green unrelated gates are not
+        runtime acceptance or deployment.
+      deployment: none
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 7dc9f693755347340be1efff079f1f0c866854a8
+      head_sha: null
+      observed_at: '2026-11-13T02:28:15.084Z'
+      main:
+        branch: main
+        sha: 7dc9f693755347340be1efff079f1f0c866854a8
+      observation_note: >-
+        Dated registration snapshot only. PR1098 source
+        9851288759d3637af20a822fd494ce2ae90efd9b remains frozen; this record
+        does not claim runtime convergence, new UI evidence or D2-R2 verification.
+        Fetch main, source refs and exact-SHA checks before the later repair.
+    gates:
+      focused:
+        workflow: Electronics R4-M1
+        commands:
+          - pnpm gate:electronics-m1:browser --shard=3/4 --workers=1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: robotics-camera
     parent_lane: robotics
     worktree_id: field-camera-001
@@ -17670,9 +17754,12 @@ parallel_lanes:
         UI-01/UI-02 only: finite cursor-anchored zoom, mouse and two-touch pan,
         pinch, fit/focus, one world/screen transform and gesture cleanup.
         Source integration additionally preserves the existing PR1044 dependency
-        without adding features. The only new composition repair is removal of
+        without adding features. The initial composition repair is removal of
         the duplicate arduino-stable-loop.ts entry from
         tools/public-electronics-worker-modules.json, preserving the admitted set.
+        The separately selected electronics-robotics-toolbar-fit B dependency
+        permits only the compact desktop toolbar CSS fit correction under its
+        accepted task card; all other product and unfinished E1 boundaries remain.
       constraints:
         - E1 remains selected in the robotics lane with all its unfinished evidence and blockers.
         - No new physics engine, electrical, schema, motor, sensor or program edits beyond preserving the frozen existing PR1044 dependency; no new engine experiments.
