@@ -277,6 +277,8 @@ function limitedGroupRead<T>(signal: AbortSignal, read: () => Promise<T>): Promi
       signal.removeEventListener('abort', onAbort);
       if (signal.aborted) {
         reject(lifecycleCancellation());
+        // Advance the queue when a cancelled entry is dequeued.
+        queuedGroupReads.shift()?.();
         return;
       }
       started = true;

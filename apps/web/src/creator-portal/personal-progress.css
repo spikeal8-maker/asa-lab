@@ -378,6 +378,10 @@
   object-fit: cover;
   border-radius: 50%;
 }
+.personal-progress-peer .personal-progress-rank {
+  /* On a 32 px peer image this keeps the top badge clear of the score badge. */
+  top: -8px;
+}
 .personal-progress-rating-backdrop {
   position: fixed;
   inset: 0;

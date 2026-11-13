@@ -284,7 +284,9 @@ function OwnGroup({
     own.availability === 'unavailable'
       ? 'reason' in own && own.reason === 'ambiguous_self_participant'
         ? 'Учебный профиль нужно уточнить у преподавателя.'
-        : 'Рейтинг сейчас недоступен.'
+        : 'reason' in own && own.reason === 'rating_disabled'
+          ? 'Рейтинг выключен'
+          : 'Рейтинг сейчас недоступен.'
       : own.score === null && own.rank === null
         ? 'Рейтинг выключен'
         : null;
@@ -344,7 +346,7 @@ function OwnGroup({
             Вы
           </span>
         </div>
-        {preview.rating.data ? (
+        {preview.rating.data && !unavailable ? (
           <>
             <div className="personal-progress-peer-divider" aria-hidden="true" />
             <div className="personal-progress-peers" aria-label="Места других участников">
