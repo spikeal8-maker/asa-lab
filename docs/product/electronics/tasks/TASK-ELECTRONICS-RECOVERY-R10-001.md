@@ -82,10 +82,14 @@ Direct supporting tests and routes:
 - `apps/web/src/electronics/testing/simulation-worker.spec.ts`
 - `apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts`
 - `apps/web/src/electronics/testing/workbench-presentation.spec.ts`
+- `e2e/electronics-simulation.spec.ts`
 - `docs/product/electronics/components/engine-worker-clock.yaml`
 - `docs/product/electronics/components/ui-assets-persistence.yaml`
 - `apps/web/src/electronics/testing/stopped-preflight.browser.mjs`
 - `.github/workflows/electronics-recovery-performance.yml`
+- `.github/workflows/electronics-r4-m1-focused.yml`
+- `tools/electronics_r10_paired_diagnostic.py`
+- `tools/test_ci_image_transport.py`
 - `docs/product/electronics/evidence/recovery-r10-20261113.md`
 - `docs/product/electronics/evidence/recovery-r10-raw.json`
 
@@ -111,6 +115,60 @@ engine-to-domain call; the source-module spy must retain a positive-control call
 proving that coverage before the Worker assertion. This exception adds no
 production import, new public API, dependency, global lint change or relaxed
 result assertion.
+
+## Bounded follow-up for an observed R4 risk
+
+Candidate 8cb82d223f8077d7ecdec22e0e8cf3f4e825c294 produced two different R4
+assertion failures in run 43356810979, shard s2: the millis paint-duty bound and
+joint D2-D4 pre-H0 visibility. Independent raw review found correct physical
+edges and loaded, dark LED assets; the joint observation involved residual
+horizontal scrolling after code fill/close. Comparison with earlier runs did
+not establish that these exact failures are independent of R10. They must not be
+labelled a proven baseline defect or a passing browser qualification.
+
+The controller therefore authorizes one narrow same-runner diagnostic in the
+existing R4 workflow and its genuine `browser` job. The helper above is CI
+orchestration, not product runtime. An opt-in `r10-paired-regression` dispatch
+runs the two original named tests
+from `e2e/electronics-ready-cadence.spec.ts` once on each exact before/after SHA,
+using the existing R4 image-only Docker/PostgreSQL contract. Both phases must be
+retained after a test assertion failure; setup/infrastructure failure is reported
+separately. Assertions, tolerances, test source, build inputs and numeric stopped
+measurement protocol remain unchanged. Record actual test counts, raw traces,
+source/image/environment receipts and failures; a diagnostic does not replace
+the strict R4 gate. No retry-until-green, local browser stack, production action
+or new permanent installation is authorized. The ordinary strict qualification
+and all previously registered profiles retain their required gates, defaults,
+permissions and assertions.
+
+The recovery workflow is not an authorized Docker proof context and remains
+unchanged by this follow-up. Preserve `require_ci_amd64`,
+`require_electronics_job`, their workflow/job allowlist and the original image,
+revision and PostgreSQL proof. Do not replace those guards with a new guard,
+spoof GitHub context or call unguarded helpers around the original CLI. The only
+permitted change in `test_ci_image_transport.py` is an exact semantic-wiring
+overlay and adversarial offline checks for the new opt-in scheduling. Existing
+mandatory execution, unknown profiles, security drift and changed immutable
+receipts must continue to fail validation.
+
+This supporting addition closes a concrete regression question within the same
+selected R10. It does not select R11 or another product repair. Fresh preflight
+for the workflow/helper/card paths passed with no overlap or execution blocker;
+accepted main b2e0e93a4ae31cce1b9cf286fe14eb62efdd9627 preserved the selected
+R10 and added only the separate Robotics task. Independent review is required
+before the controller dispatches the diagnostic control revision.
+
+The same R4 run also exposed one directly related test-fixture defect in shard
+s3, job 131661845482: the technical-fault test injected its one transport failure
+into the first preflight of any Worker. The new stopped Worker legitimately
+consumes that injection before Start. The controller authorizes a narrow change
+to that test's injection targeting: arm and verify one failure of the running
+Start preflight, retain the actual failed Worker for the stale-response check,
+and preserve every technical-error, unsaved-document, restart and stale-response
+assertion. Do not change product error handling or make the test pass without an
+observed running fault. The full applicable browser gate must verify the repaired
+test on the final candidate. This is a category-B fixture repair within R10, not
+a waiver of a product failure or an extension into model-time work.
 
 The engine subsystem card must add the existing public facade
 `contexts/electronics/simulation.ts` to `electronics.engine.public-api.sources`,

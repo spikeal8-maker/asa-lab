@@ -4830,11 +4830,16 @@ test('simulation fault semantics: technical Worker error stops, then current doc
   );
   await page.addInitScript(() => {
     const NativeWorker = window.Worker;
-    let failFirstPreflight = true;
-    let firstWorker: Worker | null = null;
+    let failNextRunningPreflight = false;
+    let runningPreflightFaultCount = 0;
+    let failedRunningWorker: Worker | null = null;
     Object.assign(window, {
+      __armRunningSimulationPreflightFault: () => {
+        failNextRunningPreflight = true;
+      },
+      __readRunningSimulationPreflightFaultCount: () => runningPreflightFaultCount,
       __dispatchOldSimulationReply: () => {
-        firstWorker?.dispatchEvent(
+        failedRunningWorker?.dispatchEvent(
           new MessageEvent('message', {
             data: { ok: false, requestId: 'old-generation', code: 'internal', message: 'stale' },
           }),
@@ -4848,9 +4853,16 @@ test('simulation fault semantics: technical Worker error stops, then current doc
           return worker;
         const originalPost = worker.postMessage.bind(worker);
         worker.postMessage = ((message: { kind?: string }) => {
-          if (failFirstPreflight && message.kind === 'preflight') {
-            failFirstPreflight = false;
-            firstWorker = worker;
+          // Start commits aria-pressed before its passive effect sends preflight.
+          // Status may still be "starting" until H0; stopped work must not consume this fault.
+          if (
+            failNextRunningPreflight &&
+            message.kind === 'preflight' &&
+            document.querySelector('.workbench-pill.simulate[aria-pressed="true"]')
+          ) {
+            failNextRunningPreflight = false;
+            runningPreflightFaultCount += 1;
+            failedRunningWorker = worker;
             throw new Error('Injected Worker transport fault');
           }
           originalPost(message);
@@ -4880,6 +4892,18 @@ test('simulation fault semantics: technical Worker error stops, then current doc
   const componentIds = await page
     .locator('[data-testid="schematic-component"]')
     .evaluateAll((entries) => entries.map((entry) => entry.getAttribute('data-component-id')));
+  const readRunningPreflightFaultCount = () =>
+    page.evaluate(() =>
+      (
+        window as Window & { __readRunningSimulationPreflightFaultCount: () => number }
+      ).__readRunningSimulationPreflightFaultCount(),
+    );
+  expect(await readRunningPreflightFaultCount()).toBe(0);
+  await page.evaluate(() =>
+    (
+      window as Window & { __armRunningSimulationPreflightFault: () => void }
+    ).__armRunningSimulationPreflightFault(),
+  );
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
 
   await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
@@ -4900,6 +4924,7 @@ test('simulation fault semantics: technical Worker error stops, then current doc
     'data-simulation-status',
     'stopped',
   );
+  expect(await readRunningPreflightFaultCount()).toBe(1);
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
   await expect(unsavedName).toHaveValue('R1 несохранённый');
   expect(
@@ -4929,6 +4954,7 @@ test('simulation fault semantics: technical Worker error stops, then current doc
       .locator('[data-testid="schematic-component"]')
       .evaluateAll((entries) => entries.map((entry) => entry.getAttribute('data-component-id'))),
   ).toEqual(componentIds);
+  expect(await readRunningPreflightFaultCount()).toBe(1);
 });
 
 test.afterEach(async ({ page }) => {
