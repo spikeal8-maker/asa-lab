@@ -6548,10 +6548,20 @@ function d2ClassifyNativePng(
     const meanSeparation = separation.reduce((sum, value) => sum + value, 0) / separation.length;
     const valid =
       points.length >= 4 &&
-      png.width === references.width &&
-      png.height === references.height &&
+      png.width > 0 &&
+      png.height > 0 &&
+      Number.isInteger(capturedOffset.x) &&
+      Number.isInteger(capturedOffset.y) &&
+      capturedOffset.x >= 0 &&
+      capturedOffset.y >= 0 &&
+      capturedOffset.x + png.width <= references.width &&
+      capturedOffset.y + png.height <= references.height &&
       points.every(
-        (point) => point.x >= 0 && point.y >= 0 && point.x < png.width && point.y < png.height,
+        (point) =>
+          point.x >= capturedOffset.x &&
+          point.y >= capturedOffset.y &&
+          point.x < capturedOffset.x + png.width &&
+          point.y < capturedOffset.y + png.height,
       ) &&
       actual.every((pixel) => pixel.length === 4 && pixel[3] === 255) &&
       meanSeparation >= 30;
