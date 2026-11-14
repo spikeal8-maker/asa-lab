@@ -4,6 +4,13 @@ import { ClassroomAssignmentIssuer } from './ClassroomAssignmentIssuer';
 import { ClassroomAssignments } from './ClassroomAssignments';
 import { ClassroomCourses } from './ClassroomCourses';
 import { ClassroomQuizzes } from './ClassroomQuizzes';
+import { SystemTabs } from './SystemTabs';
+
+const LEARNING_TABS = [
+  { id: 'courses', label: 'Курсы' },
+  { id: 'assignments', label: 'Отдельные задания' },
+  { id: 'quizzes', label: 'Тесты' },
+] as const;
 
 export function ClassroomLearning({
   classroomId,
@@ -32,29 +39,13 @@ export function ClassroomLearning({
           setAssignmentRefresh((value) => value + 1);
         }}
       />
-      <nav className="classroom-learning-tabs" aria-label="Материалы класса">
-        <button
-          type="button"
-          className={tab === 'courses' ? 'active' : undefined}
-          onClick={() => setTab('courses')}
-        >
-          Курсы
-        </button>
-        <button
-          type="button"
-          className={tab === 'assignments' ? 'active' : undefined}
-          onClick={() => setTab('assignments')}
-        >
-          Отдельные задания
-        </button>
-        <button
-          type="button"
-          className={tab === 'quizzes' ? 'active' : undefined}
-          onClick={() => setTab('quizzes')}
-        >
-          Тесты
-        </button>
-      </nav>
+      <SystemTabs
+        items={LEARNING_TABS}
+        active={tab}
+        onChange={setTab}
+        label="Материалы класса"
+        className="classroom-learning-tabs"
+      />
       {tab === 'courses' ? (
         <ClassroomCourses
           classroomId={classroomId}

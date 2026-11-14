@@ -1181,7 +1181,7 @@ export function AuthoredMaterialsPage({
             </label>
 
             <div
-              className="authored-assignment-filter-group"
+              className="authored-assignment-filter-group asa-system-tabs"
               role="group"
               aria-label="Фильтр по статусу"
             >
