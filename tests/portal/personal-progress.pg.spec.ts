@@ -729,7 +729,8 @@ describe('authorized own progress on real application-role PostgreSQL', () => {
             [owner.account, owner.principal, owner.hash],
           )
         ).rows[0]!.result;
-        expect(inside.metrics.createdCopies.value).toBe(4);
+        // A raw Project INSERT with inherited origin is not a new public acquisition.
+        expect(inside.metrics.createdCopies.value).toBe(3);
         expect((await read(owner)).metrics.createdCopies.value).toBe(3);
         await transaction.query('ROLLBACK');
       } finally {

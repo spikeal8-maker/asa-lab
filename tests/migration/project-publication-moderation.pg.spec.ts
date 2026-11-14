@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { planMigrations } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 import { seedTeacher } from '../portal/helpers';
-import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 
 describe('0236 additive publication moderation upgrade', () => {
   it('preserves all 0235 publication/original bytes and restricts runtime privileges', async () => {
@@ -41,26 +40,40 @@ describe('0236 additive publication moderation upgrade', () => {
         )
       ).rows[0];
       const actor = { userId: teacher.teacherId, principalId: identity.principal_id as string };
-      const repo = new PgProjectRepository(pool);
-      const created = await repo.createWithDraft({
-        tenantId: teacher.tenantId,
-        scope: 'personal',
-        classroomId: null,
-        actor,
-        moduleKey: 'electronics',
-        title: 'Preserve private original',
-        idempotencyKey: randomUUID(),
-        requestFingerprint: randomUUID().replaceAll('-', '').repeat(2),
-        initialDocument: {
-          schemaVersion: 1,
-          components: [],
-          connections: [],
-          privateMarker: randomUUID(),
-        },
-        initialPreview: null,
-      });
-      if (created.kind !== 'created') throw new Error('Fixture not created');
-      const projectId = created.project.id;
+      // Frozen 0235 writer: preserve the old schema and original source evidence.
+      const projectId = randomUUID();
+      await pool.query(
+        `INSERT INTO projects
+          (id,tenant_id,project_scope,module_key,title,created_by,owner_principal_id,
+           idempotency_key,request_fingerprint,license)
+         VALUES ($1,$2,'personal','electronics',$3,$4,$5,$6,$7,'reserved')`,
+        [
+          projectId,
+          teacher.tenantId,
+          'Preserve private original',
+          actor.userId,
+          actor.principalId,
+          randomUUID(),
+          randomUUID().replaceAll('-', '').repeat(2),
+        ],
+      );
+      await pool.query(
+        `INSERT INTO project_drafts
+          (project_id,tenant_id,document_json,updated_by,updated_by_principal_id)
+         VALUES ($1,$2,$3::jsonb,$4,$5)`,
+        [
+          projectId,
+          teacher.tenantId,
+          JSON.stringify({
+            schemaVersion: 1,
+            components: [],
+            connections: [],
+            privateMarker: randomUUID(),
+          }),
+          actor.userId,
+          actor.principalId,
+        ],
+      );
       await repo.saveSnapshot({
         tenantId: teacher.tenantId,
         actor,

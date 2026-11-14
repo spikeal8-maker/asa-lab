@@ -487,6 +487,8 @@ const upgradeArtifacts = [
   [
     '0322',
     '0322_student_group_rating.sql',
+    '0323',
+    '0323_project_duplicate_origin.sql',
     '429e0f332b86e9e134496f7a72c715aec2ad4cc70179bab2be0776331488a19a',
   ],
 ] as const;

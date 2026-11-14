@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { planMigrations } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 import { seedTeacher } from '../portal/helpers';
-import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 
 describe('0259 additive public-project reports on disposable PostgreSQL', () => {
   it('preserves prior migration history, enforces privileges and records exact reports', async () => {
@@ -57,21 +56,41 @@ describe('0259 additive public-project reports on disposable PostgreSQL', () => 
           [other.tenantId, other.teacherId],
         )
       ).rows[0].principal_id as string;
-      const repo = new PgProjectRepository(pool);
       async function makePublication(index: number) {
-        const createdProject = await repo.createWithDraft({
-          tenantId: teacher.tenantId,
-          scope: 'personal',
-          classroomId: null,
-          actor: { userId: teacher.teacherId, principalId: principal },
-          moduleKey: 'electronics',
-          title: 'Report fixture ' + index,
-          idempotencyKey: randomUUID(),
-          requestFingerprint: randomUUID().replaceAll('-', '').repeat(2),
-          initialDocument: { schemaVersion: 1, components: [], connections: [] },
-          initialPreview: null,
-        });
-        if (createdProject.kind !== 'created') throw new Error('Cannot create fixture Project');
+        // Preserve the 0259-era historical writer, not latest repository SQL.
+        const legacyProjectId = randomUUID();
+        await pool!.query(
+          `INSERT INTO projects
+            (id,tenant_id,project_scope,module_key,title,created_by,owner_principal_id,
+             idempotency_key,request_fingerprint,license)
+           VALUES ($1,$2,'personal','electronics',$3,$4,$5,$6,$7,'reserved')`,
+          [
+            legacyProjectId,
+            teacher.tenantId,
+            'Report fixture ' + index,
+            teacher.teacherId,
+            principal,
+            randomUUID(),
+            randomUUID().replaceAll('-', '').repeat(2),
+          ],
+        );
+        await pool!.query(
+          `INSERT INTO project_drafts
+            (project_id,tenant_id,document_json,updated_by,updated_by_principal_id)
+           VALUES ($1,$2,$3::jsonb,$4,$5)`,
+          [
+            legacyProjectId,
+            teacher.tenantId,
+            JSON.stringify({
+              schemaVersion: 1,
+              components: [],
+              connections: [],
+            }),
+            teacher.teacherId,
+            principal,
+          ],
+        );
+        const createdProject = { project: { id: legacyProjectId } };
         await repo.saveSnapshot({
           tenantId: teacher.tenantId,
           actor: { userId: teacher.teacherId, principalId: principal },

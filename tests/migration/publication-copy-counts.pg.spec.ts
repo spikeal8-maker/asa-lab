@@ -4,7 +4,6 @@ import { expect, it } from 'vitest';
 import { planMigrations } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 import { seedTeacher } from '../portal/helpers';
-import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 
 it('backfills only provable successful copies from286 without rewriting projects or revisions', async () => {
   const source = process.env.TEST_DATABASE_URL,
@@ -44,7 +43,6 @@ it('backfills only provable successful copies from286 without rewriting projects
         )
       ).rows[0];
       const actor = { principalId: identity.principal_id as string, userId: teacher.teacherId };
-      const repo = new PgProjectRepository(runtime);
       const base = {
         tenantId: teacher.tenantId,
         scope: 'personal' as const,
@@ -57,7 +55,79 @@ it('backfills only provable successful copies from286 without rewriting projects
         initialDocument: { schemaVersion: 1, components: [], connections: [] },
         initialPreview: null,
       };
-      const project = await repo.createWithDraft(base);
+      // This deliberately exercises the historical 0286/0287 Project writer.
+      // The current repository requires forward 0323 and must not be used
+      // against a frozen prefix (or hidden behind a production fallback).
+      type LegacyInput = typeof base & {
+        publicationCopyOrigin?: {
+          projectId: string;
+          publicationId: string;
+          revisionId: string;
+          versionId: string;
+          title: string;
+          author: string;
+          license: 'public-domain';
+        };
+      };
+      const legacyCreate = async (input: LegacyInput) => {
+        const copyOrigin = input.publicationCopyOrigin;
+        const inserted = await admin!.query<{ id: string }>(
+          `INSERT INTO projects
+            (id,tenant_id,project_scope,classroom_id,module_key,title,
+             created_by,owner_principal_id,idempotency_key,request_fingerprint,
+             copied_from_project_id,copied_from_author,copied_from_title,copied_at,
+             copied_from_publication_id,copied_from_revision_id,copied_from_version_id,
+             copied_from_license,license)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+                   CASE WHEN $11::uuid IS NULL THEN NULL ELSE now() END,
+                   $14,$15,$16,$17,COALESCE($17::varchar,'reserved'::varchar))
+           ON CONFLICT (tenant_id,created_by,idempotency_key)
+             WHERE idempotency_key IS NOT NULL DO NOTHING
+           RETURNING id`,
+          [
+            randomUUID(),
+            input.tenantId,
+            input.scope,
+            input.classroomId,
+            input.moduleKey,
+            input.title,
+            input.actor.userId,
+            input.actor.principalId,
+            input.idempotencyKey,
+            input.requestFingerprint,
+            copyOrigin?.projectId ?? null,
+            copyOrigin?.author ?? null,
+            copyOrigin?.title ?? null,
+            copyOrigin?.publicationId ?? null,
+            copyOrigin?.revisionId ?? null,
+            copyOrigin?.versionId ?? null,
+            copyOrigin?.license ?? null,
+          ],
+        );
+        if (inserted.rows.length === 0) {
+          const existing = await admin!.query<{ id: string }>(
+            'SELECT id FROM projects WHERE tenant_id=$1 AND created_by=$2 AND idempotency_key=$3',
+            [input.tenantId, input.actor.userId, input.idempotencyKey],
+          );
+          if (existing.rows.length !== 1) throw new Error('Legacy writer did not find replay');
+          return { kind: 'existing' as const, project: { id: existing.rows[0].id } };
+        }
+        const id = inserted.rows[0].id;
+        await admin!.query(
+          `INSERT INTO project_drafts
+              (project_id,tenant_id,document_json,updated_by,updated_by_principal_id)
+            VALUES ($1,$2,$3::jsonb,$4,$5)`,
+          [
+            id,
+            input.tenantId,
+            JSON.stringify(input.initialDocument),
+            input.actor.userId,
+            input.actor.principalId,
+          ],
+        );
+        return { kind: 'created' as const, project: { id } };
+      };
+      const project = await legacyCreate(base);
       if (project.kind !== 'created') throw Error('Source fixture not created');
       await repo.saveSnapshot({
         tenantId: teacher.tenantId,
@@ -98,7 +168,7 @@ it('backfills only provable successful copies from286 without rewriting projects
           license: 'public-domain' as const,
         },
       };
-      const oldCopy = await repo.createWithDraft(copyInput);
+      const oldCopy = await legacyCreate(copyInput);
       if (oldCopy.kind !== 'created') throw Error('Old copy fixture not created');
       const frozen = async () =>
         (
@@ -121,9 +191,9 @@ it('backfills only provable successful copies from286 without rewriting projects
         );
       expect(await total()).toBe(1);
       const newInput = { ...copyInput, idempotencyKey: randomUUID() };
-      expect((await repo.createWithDraft(newInput)).kind).toBe('created');
+      expect((await legacyCreate(newInput)).kind).toBe('created');
       expect(await total()).toBe(2);
-      expect((await repo.createWithDraft(newInput)).kind).toBe('existing');
+      expect((await legacyCreate(newInput)).kind).toBe('existing');
       expect(await total()).toBe(2);
       expect(
         (

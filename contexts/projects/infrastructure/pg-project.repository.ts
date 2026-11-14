@@ -385,6 +385,18 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   }
 
   async createWithDraft(input: CreateProjectInput): Promise<CreateProjectResult> {
+    return this.createWithDraftInternal(input, null);
+  }
+
+  // The origin of an ordinary duplicate is resolved only from its locked
+  // source Project. No controller/HTTP port can provide this internal branch.
+  private async createWithDraftInternal(
+    input: CreateProjectInput,
+    inheritedProjectId: string | null,
+  ): Promise<CreateProjectResult> {
+    if (inheritedProjectId !== null && input.publicationCopyOrigin) {
+      throw new Error('ordinary duplicate cannot create a new public acquisition');
+    }
     const { principalId, userId } = input.actor;
     let projectTenantId = input.tenantId;
     let projectUserId = userId;
@@ -450,10 +462,23 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             created_by, owner_principal_id, idempotency_key, request_fingerprint,
             copied_from_project_id, copied_from_author, copied_from_title, copied_at,
             copied_from_publication_id, copied_from_revision_id, copied_from_version_id,
-            copied_from_license, license)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
-                 CASE WHEN $10::uuid IS NULL THEN NULL ELSE now() END,
-                 $13,$14,$15,$16::varchar,COALESCE($16::varchar,'reserved'::varchar))
+            copied_from_license, license, writer_lineage_coverage)
+         SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,
+                CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_project_id ELSE $10::uuid END,
+                CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_author ELSE $11::varchar END,
+                CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_title ELSE $12::varchar END,
+                CASE WHEN $17::uuid IS NOT NULL THEN source.copied_at
+                     WHEN $10::uuid IS NULL THEN NULL ELSE now() END,
+                CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_publication_id ELSE $13::uuid END,
+                CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_revision_id ELSE $14::uuid END,
+                CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_version_id ELSE $15::uuid END,
+                CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_license ELSE $16::varchar END,
+                COALESCE($16::varchar,'reserved'::varchar),
+                CASE WHEN $17::uuid IS NOT NULL THEN source.writer_lineage_coverage
+                     WHEN $10::uuid IS NULL THEN 'v1'::varchar ELSE 'unknown'::varchar END
+           FROM (SELECT 1) AS one_insert
+           LEFT JOIN projects source ON source.tenant_id=$1::uuid AND source.id=$17::uuid
+          WHERE $17::uuid IS NULL OR source.id IS NOT NULL
          ON CONFLICT ${conflictTarget} DO NOTHING
          RETURNING id, project_scope, classroom_id, module_key, title, status, created_at,
                    copied_from_project_id, copied_from_author, copied_from_title, copied_at, license`,
@@ -474,6 +499,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           input.publicationCopyOrigin?.revisionId ?? null,
           input.publicationCopyOrigin?.versionId ?? null,
           input.publicationCopyOrigin?.license ?? null,
+          inheritedProjectId,
         ],
       );
       if (inserted.rows.length === 0) {
@@ -512,6 +538,19 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           input.initialPreview?.digest ?? null,
         ],
       );
+      // Only this newly created public acquisition issues a durable receipt.
+      // Inherited ordinary duplicates and idempotent replays never reach it.
+      if (input.publicationCopyOrigin) {
+        await client.query(
+          'SELECT public.record_publication_copy_acquisition($1::uuid,$2::uuid,$3::uuid,$4::uuid)',
+          [
+            principalId,
+            project.id,
+            input.publicationCopyOrigin.publicationId,
+            input.publicationCopyOrigin.revisionId,
+          ],
+        );
+      }
       await client.query(
         `INSERT INTO audit_events
            (tenant_id, actor_user_id, entity_type, entity_id, action, payload_json)
@@ -570,19 +609,22 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         [input.actor.principalId, input.projectId],
       );
       if (!policy.rows[0]?.allowed) return { kind: 'learning_work_protected' };
-      return this.inTransaction(client).createWithDraft({
-        tenantId: access.tenantId,
-        scope: source.project_scope,
-        classroomId: source.classroom_id,
-        actor: input.actor,
-        moduleKey: source.module_key,
-        title: input.title,
-        idempotencyKey: input.idempotencyKey,
-        requestFingerprint: input.requestFingerprint,
-        initialDocument: source.document_json,
-        // A copy of the same document is the same picture.
-        initialPreview: toPreview(source),
-      });
+      return this.inTransaction(client).createWithDraftInternal(
+        {
+          tenantId: access.tenantId,
+          scope: source.project_scope,
+          classroomId: source.classroom_id,
+          actor: input.actor,
+          moduleKey: source.module_key,
+          title: input.title,
+          idempotencyKey: input.idempotencyKey,
+          requestFingerprint: input.requestFingerprint,
+          initialDocument: source.document_json,
+          // A copy of the same document is the same picture.
+          initialPreview: toPreview(source),
+        },
+        source.id,
+      );
     });
   }
 
