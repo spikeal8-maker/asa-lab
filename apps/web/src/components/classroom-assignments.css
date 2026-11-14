@@ -569,8 +569,8 @@
   top: 0;
 }
 
-/* Keep all four class actions in the first toolbar row on narrow screens. */
-@container classroom (max-width: 550px) {
+/* Keep a single row on phones and reuse the stacked layout at extreme zoom. */
+@container classroom (280px < width <= 550px) {
   .teacher-open-compact.classroom-owner-workspace.classroom-workspace
     .classroom-tabbar
     .classroom-roster-actions:has(.classroom-roster-issue) {
