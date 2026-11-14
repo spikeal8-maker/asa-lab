@@ -3,7 +3,9 @@ from copy import deepcopy
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
+import sys
 import tempfile
 import unittest
 import electronics_supplemental_ci as guard
@@ -12,6 +14,8 @@ ROOT=Path(__file__).resolve().parents[1]
 NEW_FILES=[guard.WORKFLOW,'tools/electronics_supplemental_ci.py',guard.RUNNER,guard.ENVELOPE,
     'tools/test_electronics_supplemental_ci.py','tools/test-electronics-supplemental-native.mjs',
     'docs/product/electronics/evidence/supplemental-native-qualification/README.md']
+TRACKED_EVIDENCE=['reports/docker-backup-restore.json','reports/docker-health.json','reports/docker-persistence.json',
+    'e2e/artifacts/synthetic.png','e2e/artifacts/synthetic/receipt.json']
 
 def put(root,path,data):
     target=root/path;target.parent.mkdir(parents=True,exist_ok=True)
@@ -25,10 +29,11 @@ class Transport(unittest.TestCase):
         def git(where,*args):return subprocess.check_output(['git','-C',str(where),*args],stderr=subprocess.PIPE).decode().strip()
         git(control,'init','-q');git(control,'config','user.name','Offline fixture');git(control,'config','user.email','fixture@example.invalid')
         git(control,'config','core.autocrlf','false');git(control,'config','commit.gpgsign','false')
+        if os.name=='posix':git(control,'config','core.filemode','true')
         (control/'.git/no-hooks').mkdir();git(control,'config','core.hooksPath',str(control/'.git/no-hooks'))
         for path in [*guard.COMPATIBILITY,*guard.FILES]:put(control,path,(ROOT/path).read_bytes())
         if incompatible:put(control,'compose.test.yaml',(ROOT/'compose.test.yaml').read_bytes()+b'\n# different historical transport\n')
-        for path in guard.MODE_REPORTS:put(control,path,'{}\n')
+        for path in TRACKED_EVIDENCE:put(control,path,b'\x89PNG\r\n\x1a\n' if path.endswith('.png') else '{}\n')
         put(control,'migrations/0300_synthetic.sql','-- no database execution\n');put(control,'product.txt','preserved\n')
         git(control,'add','.');git(control,'commit','-qm','accepted product fixture');candidate_sha=git(control,'rev-parse','HEAD')
         if incompatible:put(control,'compose.test.yaml',(ROOT/'compose.test.yaml').read_bytes())
@@ -39,6 +44,7 @@ class Transport(unittest.TestCase):
         candidate=root/'candidate'
         subprocess.run(['git','clone','--no-hardlinks','--quiet',str(control),str(candidate)],check=True,capture_output=True)
         git(candidate,'checkout','--detach',candidate_sha);git(candidate,'remote','set-url','origin','https://github.com/'+guard.REPOSITORY+'.git')
+        if os.name=='posix':git(candidate,'config','core.filemode','true')
         env=dict(GITHUB_REPOSITORY=guard.REPOSITORY,GITHUB_EVENT_NAME='workflow_dispatch',GITHUB_JOB='browser',
             GITHUB_REF='refs/heads/main',GITHUB_WORKFLOW_REF=guard.REPOSITORY+'/'+guard.WORKFLOW+'@refs/heads/main',
             GITHUB_SHA=workflow_sha,GITHUB_WORKFLOW_SHA=workflow_sha,ASA_SUPPLEMENTAL_WORKFLOW_REVISION=workflow_sha,
@@ -90,14 +96,20 @@ class Transport(unittest.TestCase):
             guard.authorize(control,{**env,'GITHUB_SHA':changed,'GITHUB_WORKFLOW_SHA':changed,'ASA_SUPPLEMENTAL_WORKFLOW_REVISION':changed})
 
     def test_models_and_built_identity_enforce_original_content_not_only_labels(self):
-        original={'services':{'postgres':{'image':'postgres:17.7-bookworm'},'api':{'read_only':True}}}
-        reference='mirror/postgres@sha256:'+'a'*64
+        baseline=guard.json.loads(guard.approved.RECEIPT.read_text())
+        guard.approved.check_identities(baseline)
+        baseline_reference=baseline['images']['postgres']['reference']
+        original={'services':{'postgres':{'image':baseline_reference},'api':{'read_only':True}}}
+        reference=guard.receipts()['images']['postgres']['reference']
         transported=deepcopy(original);transported['services']['postgres']['image']=reference
-        guard.validate_models(deepcopy(original),deepcopy(transported),reference)
+        guard.validate_models(deepcopy(original),deepcopy(transported),baseline_reference,reference)
         for mutate in [lambda x:x['services']['api'].update(read_only=False),lambda x:x['services']['api'].update(privileged=True),
                        lambda x:x['services'].update(foreign={}),lambda x:x['services']['postgres'].update(image='postgres:latest')]:
             changed=deepcopy(transported);mutate(changed)
-            with self.assertRaises(ValueError):guard.validate_models(deepcopy(original),changed,reference)
+            with self.assertRaises(ValueError):guard.validate_models(deepcopy(original),changed,baseline_reference,reference)
+        wrong_baseline=deepcopy(original);wrong_baseline['services']['postgres']['image']='postgres:17.7-bookworm'
+        with self.assertRaisesRegex(ValueError,'POSTGRES_IMAGE_CHANGED'):
+            guard.validate_models(wrong_baseline,deepcopy(transported),baseline_reference,reference)
         digest='sha256:'+'a'*64;source={'candidateRevision':'b'*40,'images':{n:{'rootfs_diff_ids':[digest]} for n in ['node','caddy']}}
         images=[dict(Architecture='amd64',Os='linux',Id=digest,RootFS={'Layers':[digest]},Config={'Labels':{'org.opencontainers.image.revision':'b'*40}}) for _ in range(3)]
         guard.validate_images(images,source)
@@ -110,11 +122,140 @@ class Transport(unittest.TestCase):
         text=(ROOT/guard.WORKFLOW).read_text()
         self.assertIn('ref: ${{ github.workflow_sha }}',text);self.assertIn('ref: ${{ inputs.candidate_revision }}',text)
         self.assertLess(text.index('electronic'+'s_supplemental_ci.py authorize'),text.index('ref: ${{ inputs.candidate_revision }}'))
-        self.assertLess(text.index('electronic'+'s_supplemental_ci.py prepare'),text.index('chmod -R 0777'))
+        self.assertLess(text.index('electronic'+'s_supplemental_ci.py prepare'),text.index('chmod 0777 '+guard.OUTPUT))
+        self.assertNotIn('chmod -R',text)
+        self.assertNotIn('mkdir -p e2e/artifacts',text)
         self.assertEqual(text.count('uses: actions/upload-artifact@v4'),1)
         self.assertIn('path: ${{ runner.temp }}/asa-electronics-supplemental.encrypted.json',text)
         self.assertIn('timeout-minutes: 50',text);self.assertNotIn('secrets.',text)
         self.assertNotIn('test_ci_image_transport.py --',text)
         self.assertIn(':/workspace/tools/run-electronics-supplemental-native.mjs:ro',text)
+
+    def test_model_commands_share_the_registry_overlay_and_only_add_the_validated_override(self):
+        overlay=Path('/synthetic-runner-temp/asa-electronics-postgres.yaml')
+        original,transported=guard.model_arguments(overlay)
+        base=['compose','-f','compose.yaml','-f','compose.test.yaml','-f','.github/compose.registry-ci.yaml']
+        tail=['--profile','test','config','--format','json']
+        self.assertEqual(original,base+tail)
+        self.assertEqual(transported,base+['-f',str(overlay)]+tail)
+        # The real source receipt chain proves this shared overlay changes only PostgreSQL image.
+        effective=guard.receipts()
+        baseline=json.loads(guard.approved.RECEIPT.read_text())
+        self.assertEqual(set(effective['images']),set(baseline['images']))
+        self.assertEqual(guard.approved.read(guard.approved.OVERLAY),
+            'services:\n  postgres:\n    image: '+baseline['images']['postgres']['reference']+'\n')
+
+    def test_prepared_candidate_cannot_change_tracked_evidence_or_other_source_bytes(self):
+        root,control,candidate,env,_=self.fixture()
+        temporary=root/'runner-temp';temporary.mkdir()
+        guard.prepare(control,candidate,{**env,'RUNNER_TEMP':str(temporary),'GITHUB_ENV':str(put(root,'github-env',''))})
+        for name in [*TRACKED_EVIDENCE,'product.txt','compose.yaml']:
+            with self.subTest(path=name):
+                path=candidate/name;original=path.read_bytes();path.write_bytes(original+b'changed')
+                with self.assertRaisesRegex(ValueError,'CANDIDATE_SOURCE_DIRTY'):
+                    guard.candidate_source(control,candidate,env,prepared=True)
+                path.write_bytes(original)
+        guard.candidate_source(control,candidate,env,prepared=True)
+
+    @unittest.skipUnless(os.name=='posix','real executable-bit prefix requires POSIX; no platform or CI spoof')
+    def test_real_git_old_recursive_prefix_fails_and_actual_fresh_directory_prefix_stays_clean(self):
+        root,control,candidate,env,git=self.fixture()
+        temporary=root/'runner-temp';temporary.mkdir()
+        guard.prepare(control,candidate,{**env,'RUNNER_TEMP':str(temporary),'GITHUB_ENV':str(put(root,'github-env',''))})
+        self.assertEqual(git(candidate,'config','core.filemode'),'true')
+        before={name:(candidate/name).read_bytes() for name in TRACKED_EVIDENCE}
+        old_proof=candidate/guard.OUTPUT/'source.json'
+        proof_bytes=old_proof.read_bytes()
+        self.assertEqual(old_proof.stat().st_mode&0o777,0o644)
+        subprocess.run(['chmod','-R','0777','e2e/artifacts','reports'],cwd=candidate,check=True,capture_output=True)
+        self.assertTrue(set(TRACKED_EVIDENCE)<=set(git(candidate,'diff','--name-only').splitlines()))
+        self.assertEqual(before,{name:(candidate/name).read_bytes() for name in TRACKED_EVIDENCE})
+        self.assertEqual(old_proof.stat().st_mode&0o777,0o777)
+        self.assertEqual(old_proof.read_bytes(),proof_bytes)
+        with self.assertRaisesRegex(ValueError,'CANDIDATE_SOURCE_DIRTY'):
+            guard.candidate_source(control,candidate,env,prepared=True)
+        # The negative prefix also chmods the UNTRACKED source proof. Do not reuse
+        # that contaminated tree as the independent fresh positive fixture.
+        old_candidate=candidate
+        root,control,candidate,env,git=self.fixture()
+        self.assertNotEqual(candidate,old_candidate)
+        temporary=root/'runner-temp';temporary.mkdir()
+        guard.prepare(control,candidate,{**env,'RUNNER_TEMP':str(temporary),'GITHUB_ENV':str(put(root,'github-env',''))})
+        fresh_proof=candidate/guard.OUTPUT/'source.json'
+        fresh_bytes=fresh_proof.read_bytes()
+        self.assertEqual(fresh_proof.stat().st_mode&0o777,0o644)
+        self.assertEqual(git(candidate,'diff','--name-only'),'')
+        text=(ROOT/guard.WORKFLOW).read_text()
+        commands=re.findall(r'^        run: (chmod[^\n]+)$',text,re.M)
+        self.assertEqual(commands,['chmod 0777 '+guard.OUTPUT])
+        subprocess.run(commands[0].split(),cwd=candidate,check=True,capture_output=True)
+        self.assertEqual((candidate/guard.OUTPUT).stat().st_mode&0o777,0o777)
+        self.assertEqual(fresh_proof.stat().st_mode&0o777,0o644)
+        self.assertEqual(fresh_proof.read_bytes(),fresh_bytes)
+        self.assertEqual(git(candidate,'diff','--name-only'),'')
+        guard.candidate_source(control,candidate,env,prepared=True)
+        for name in [*TRACKED_EVIDENCE,'product.txt','compose.yaml']:
+            with self.subTest(wrong_mode=name):
+                path=candidate/name;path.chmod(0o755)
+                with self.assertRaisesRegex(ValueError,'CANDIDATE_SOURCE_DIRTY'):
+                    guard.candidate_source(control,candidate,env,prepared=True)
+                path.chmod(0o644)
+        guard.candidate_source(control,candidate,env,prepared=True)
+
+    @unittest.skipUnless(sys.platform=='linux' and os.geteuid()==0,
+        'actual root-to-UID1000 readability requires Linux root; no sudo or identity spoof')
+    def test_actual_fresh_root_owned_proof_is_readable_by_distinct_numeric_uid1000(self):
+        root,control,candidate,env,git=self.fixture()
+        temporary=root/'runner-temp';temporary.mkdir()
+        guard.prepare(control,candidate,{**env,'RUNNER_TEMP':str(temporary),'GITHUB_ENV':str(put(root,'github-env',''))})
+        report=candidate/guard.OUTPUT;proof=report/'source.json';before=proof.read_bytes()
+        self.assertEqual(proof.stat().st_uid,0)
+        self.assertEqual(proof.stat().st_mode&0o777,0o644)
+        # Traverse only this newly created public synthetic fixture, never the staged source.
+        for directory in [root,candidate,candidate/'reports']:directory.chmod(0o755)
+        commands=re.findall(r'^        run: (chmod[^\n]+)$',(ROOT/guard.WORKFLOW).read_text(),re.M)
+        self.assertEqual(commands,['chmod 0777 '+guard.OUTPUT])
+        subprocess.run(commands[0].split(),cwd=candidate,check=True,capture_output=True)
+        code=('import os,sys,json,hashlib; from pathlib import Path; p=Path(sys.argv[1]); '
+            'b=p.read_bytes(); '
+            'receipt={"uid":os.getuid(),"gid":os.getgid(),"mode":p.stat().st_mode&0o777,'
+            '"sha256":hashlib.sha256(b).hexdigest()}; '
+            'f=(p.parent/"uid1000-synthetic.json").open("x"); json.dump(receipt,f); f.close(); '
+            'print(json.dumps(receipt))')
+        child=subprocess.run([sys.executable,'-B','-c',code,str(proof)],cwd=root,
+            user=1000,group=1000,extra_groups=[],check=True,capture_output=True,text=True)
+        self.assertEqual(json.loads(child.stdout),{'uid':1000,'gid':1000,'mode':0o644,'sha256':guard.sha(before)})
+        self.assertEqual(proof.read_bytes(),before)
+        self.assertEqual(proof.stat().st_mode&0o777,0o644)
+        self.assertEqual((report/'uid1000-synthetic.json').stat().st_uid,1000)
+        self.assertEqual(git(candidate,'diff','--name-only'),'')
+        guard.candidate_source(control,candidate,env,prepared=True)
+
+    @unittest.skipUnless(os.name=='posix','descriptor permission contract requires POSIX')
+    def test_fresh_proof_readability_is_explicit_even_with_private_child_umask(self):
+        with tempfile.TemporaryDirectory(prefix='asa-supplemental-proof-mode-') as temporary:
+            path=Path(temporary)/'proof.json'
+            code=('import os,sys; from pathlib import Path; import electronics_supplemental_ci as g; '
+                'os.umask(0o077); g.write(Path(sys.argv[1]),{"synthetic":True})')
+            # Child-only umask, no CI/platform/environment spoof or nonfixture file access.
+            subprocess.run([sys.executable,'-B','-c',code,str(path)],cwd=ROOT/'tools',check=True,capture_output=True)
+            self.assertEqual(path.stat().st_mode&0o777,0o644)
+            self.assertEqual(json.loads(path.read_text()),{'synthetic':True})
+
+    def test_public_diagnostics_are_closed_phase_and_code_without_exception_payloads(self):
+        sentinel='private-cookie-secret/raw/path?token=never-public'
+        cases=[(ValueError('CANDIDATE_SOURCE_DIRTY'),'CANDIDATE_SOURCE_DIRTY'),
+            (ValueError(sentinel),'INTERNAL_FAILURE'),(KeyError(sentinel),'PROOF_STRUCTURE_INVALID'),
+            (json.JSONDecodeError(sentinel,sentinel,0),'PROOF_JSON_INVALID'),
+            (OSError(sentinel),'IO_FAILED'),
+            (subprocess.CalledProcessError(1,[sentinel],output=sentinel,stderr=sentinel),'COMMAND_FAILED')]
+        class Unprintable(Exception):
+            def __str__(self):raise AssertionError('exception payload must never be stringified')
+        cases.append((Unprintable(sentinel),'INTERNAL_FAILURE'))
+        for error,code in cases:
+            with self.subTest(code=code):
+                message=guard.blocked_message('models',error)
+                self.assertIn('phase=models code='+code+';',message);self.assertNotIn(sentinel,message)
+        self.assertIn('phase=unknown',guard.blocked_message(sentinel,ValueError(sentinel)))
 
 if __name__=='__main__':unittest.main()
