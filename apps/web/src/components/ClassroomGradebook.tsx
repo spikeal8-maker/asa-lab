@@ -456,6 +456,7 @@ function AssignedClassroomGradebook({
   const [course, setCourse] = useState('');
   const [showQueue, setShowQueue] = useState(false);
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const openedFrom = useRef<HTMLButtonElement | null>(null);
   const destination = useLearningDestination();
   const openedDestination = useRef('');
   useEffect(() => {
@@ -533,19 +534,34 @@ function AssignedClassroomGradebook({
         item.displayLabel.toLowerCase().includes(search.toLowerCase()) &&
         (!course || (course === 'direct' ? !item.courseRunId : item.courseRunId === course)),
     )
-    .sort((left, right) => (left.submittedAt ?? '').localeCompare(right.submittedAt ?? ''));
+    .sort((left, right) => {
+      if (!left.submittedAt) return right.submittedAt ? 1 : 0;
+      if (!right.submittedAt) return -1;
+      return left.submittedAt.localeCompare(right.submittedAt);
+    });
 
-  function openWork(item: GradebookEntry) {
+  function openWork(item: GradebookEntry, trigger: HTMLButtonElement) {
+    openedFrom.current = trigger;
     setOpened(item);
     setDetailEpoch((value) => value + 1);
     void reload();
+  }
+
+  function closeWork() {
+    setOpened(null);
+    if (openedFrom.current?.isConnected) openedFrom.current.focus();
+    openedFrom.current = null;
   }
   return (
     <section className="classroom-tab-panel gradebook-panel">
       <header className="gradebook-heading">
         <div>
           <h2>Журнал</h2>
-          <p>Строки — ученики, столбцы — назначенные работы.</p>
+          <p>
+            {showQueue
+              ? 'Сданные работы, ожидающие проверки.'
+              : 'Строки — ученики, столбцы — назначенные работы.'}
+          </p>
         </div>
         <button
           type="button"
@@ -629,7 +645,7 @@ function AssignedClassroomGradebook({
                     type="button"
                     className="btn-secondary"
                     aria-label={`Проверить: ${item.assignmentTitle} · ${item.displayLabel}`}
-                    onClick={() => openWork(item)}
+                    onClick={(event) => openWork(item, event.currentTarget)}
                   >
                     Проверить
                   </button>
@@ -690,7 +706,7 @@ function AssignedClassroomGradebook({
                             className="gradebook-cell"
                             aria-label={`${label} · ${title} · ${stateLabel(item)}`}
                             disabled={item.state === 'not_applicable'}
-                            onClick={() => openWork(item)}
+                            onClick={(event) => openWork(item, event.currentTarget)}
                           >
                             <strong>
                               {score(item) ?? (item.state === 'completed' ? 'Без оценки' : '—')}
@@ -724,7 +740,7 @@ function AssignedClassroomGradebook({
             classroomId={classroomId}
             item={opened}
             onChanged={reload}
-            onClose={() => setOpened(null)}
+            onClose={closeWork}
           />
         ) : (
           <LegacyLearningReview
@@ -732,7 +748,7 @@ function AssignedClassroomGradebook({
             classroomId={classroomId}
             item={opened}
             onChanged={reload}
-            onClose={() => setOpened(null)}
+            onClose={closeWork}
           />
         )
       ) : null}
