@@ -264,6 +264,7 @@ function validateFixture(data) {
           'projectId',
           'authorPrincipal',
           'origin',
+          'writerOperation',
           'state',
           'firstPublishOrder',
           'proof',
@@ -278,6 +279,12 @@ function validateFixture(data) {
       requireTrue(
         ['covered_native', 'known_copy', 'unknown'].includes(a.origin),
         'invalid provenance',
+      );
+      requireTrue(
+        ['native', 'ordinary_duplicate', 'public_acquisition', 'unknown'].includes(
+          a.writerOperation,
+        ),
+        'invalid writer operation',
       );
       requireTrue(['active', 'hidden', 'withdrawn'].includes(a.state), 'invalid publication state');
       requireTrue(['server_verified', 'unverified'].includes(a.proof), 'invalid publication proof');
@@ -358,6 +365,7 @@ function score(fixture, config) {
     if (
       identities.get(publication.authorPrincipal) !== personId ||
       publication.origin !== 'covered_native' ||
+      publication.writerOperation !== 'native' ||
       publication.state !== 'active' ||
       publication.proof !== 'server_verified'
     )
@@ -440,6 +448,32 @@ function check(dir) {
       Array.isArray(mapping.sources) &&
       mapping.sources.length === 6,
     'source mapping insufficient',
+  );
+  // Synthetic "covered_native" represents only verified C3 coverage=v1
+  // with all eight copied_from_* fields absent. Operation is independent:
+  // inherited coverage on an ordinary duplicate never grants social credit.
+  const provenance = mapping.provenance;
+  requireTrue(
+    provenance &&
+      provenance.c3Issue === 1127 &&
+      provenance.eligibleWriterOperation === 'native' &&
+      provenance.eligibleWriterLineageCoverage === 'v1' &&
+      provenance.rejectAnyCopiedFromField === true &&
+      provenance.inheritedCoverageDoesNotCreateIndependentCredit === true &&
+      provenance.unknownMarkerMeansNoCredit === true &&
+      Array.isArray(provenance.requiredFields) &&
+      [
+        'copied_from_project_id',
+        'copied_from_author',
+        'copied_from_title',
+        'copied_at',
+        'copied_from_publication_id',
+        'copied_from_revision_id',
+        'copied_from_version_id',
+        'copied_from_license',
+      ].every((field) => provenance.requiredFields.includes(field)) &&
+      provenance.requiredFields.length === 8,
+    'source mapping must fail closed on native C3 writer evidence',
   );
   const fixtures = json(dir, 'fixtures.json');
   validateFixture(fixtures);

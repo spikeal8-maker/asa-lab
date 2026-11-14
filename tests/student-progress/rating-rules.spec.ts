@@ -11,6 +11,36 @@ const rulesDir = resolve(repoRoot, 'docs/product/student-progress/rating-rules')
 const created: string[] = [];
 
 type ConfigMutation = (ruleDir: string) => void;
+type RatingCandidate = {
+  schemaVersion: number;
+  weights: { publicCopy: number; canonicalLearningCompletion: number | string };
+  social: { perPublicationMaxPoints: number };
+  debug?: boolean;
+};
+type RatingFixture = {
+  id: string;
+  identityLinks: Array<{ principal: string; personId: string; verified: boolean }>;
+  publications: Array<{ publicationId: string; projectId: string; writerOperation?: string }>;
+  reactions: Array<{ state: string }>;
+};
+type RatingFiles = {
+  'candidate-a.json': RatingCandidate;
+  'candidate-b.json': RatingCandidate;
+  'candidate-c.json': RatingCandidate;
+  'expected-totals.json': {
+    schemaVersion: number;
+    candidateVersions: Record<string, string>;
+    totals: Array<{ id: string; A: number; B: number; C: number }>;
+  };
+  'selected-rule.json': {
+    checksum: string;
+    version: string;
+    selected: string | string[];
+    approvalState: string;
+  };
+  'fixtures.json': { cases: RatingFixture[] };
+  'source-mapping.json': { provenance: { eligibleWriterOperation: string } };
+};
 
 function invoke(directory = rulesDir) {
   return spawnSync(process.execPath, [cli, '--check', '--dir', directory], {
@@ -28,9 +58,13 @@ function invalidFixture(mutate: ConfigMutation) {
   mutate(temporary);
   return invoke(temporary);
 }
-function updateJson(relativeDir: string, name: string, mutate: (data: any) => void) {
+function updateJson<K extends keyof RatingFiles>(
+  relativeDir: string,
+  name: K,
+  mutate: (data: RatingFiles[K]) => void,
+) {
   const target = resolve(relativeDir, name);
-  const data = JSON.parse(readFileSync(target, 'utf8'));
+  const data = JSON.parse(readFileSync(target, 'utf8')) as RatingFiles[K];
   mutate(data);
   writeFileSync(target, JSON.stringify(data, null, 2) + '\n');
 }
@@ -66,6 +100,31 @@ describe('SP-05 rating calibration: real CLI execution and fixed independent ora
       basis: 'synthetic_only',
       sourceAcceptance: 'BLOCKED_C3',
     });
+  });
+  it('excludes inherited-v1 ordinary duplicates with verified external reactions', () => {
+    const input = JSON.parse(readFileSync(resolve(rulesDir, 'fixtures.json'), 'utf8'));
+    const fixture = input.cases.find((row: { id: string }) => row.id === 'technical_duplicates');
+    const duplicate = fixture.publications.find(
+      (row: { projectId: string }) => row.projectId === 'technical-duplicate-from-native',
+    );
+    expect(duplicate).toMatchObject({
+      origin: 'covered_native',
+      writerOperation: 'ordinary_duplicate',
+      proof: 'server_verified',
+      state: 'active',
+    });
+    expect(
+      new Set(
+        fixture.reactions
+          .filter((row: { publicationId: string }) => row.publicationId === duplicate.publicationId)
+          .map((row: { actorPrincipal: string }) => row.actorPrincipal),
+      ).size,
+    ).toBe(6);
+    const totals = JSON.parse(readFileSync(resolve(rulesDir, 'expected-totals.json'), 'utf8'));
+    expect(totals.totals.find((row: { id: string }) => row.id === fixture.id).B).toBe(108);
+    const executed = invoke();
+    expect(executed.status, executed.stderr).toBe(0);
+    expect(executed.stdout).toContain('SP05_CHECK_PASS ');
   });
   it.each([
     [
@@ -196,6 +255,60 @@ describe('SP-05 rating calibration: real CLI execution and fixed independent ora
           item.totals.find((row: { id: string }) => row.id === 'known_copy_chain').B = 20;
         }),
       'wrong total',
+    ],
+    [
+      'ordinary duplicate promoted to native despite inherited v1',
+      (root: string) =>
+        updateJson(root, 'fixtures.json', (item) => {
+          const fixture = item.cases.find(
+            (row: { id: string }) => row.id === 'technical_duplicates',
+          );
+          fixture.publications.find(
+            (row: { projectId: string }) => row.projectId === 'technical-duplicate-from-native',
+          ).writerOperation = 'native';
+        }),
+      'wrong total technical_duplicates',
+    ],
+    [
+      'missing writer operation evidence',
+      (root: string) =>
+        updateJson(root, 'fixtures.json', (item) => {
+          const fixture = item.cases.find(
+            (row: { id: string }) => row.id === 'one_substantive_work',
+          );
+          delete fixture.publications[0].writerOperation;
+        }),
+      'invalid keys',
+    ],
+    [
+      'unknown operation does not qualify a covered native publication',
+      (root: string) =>
+        updateJson(root, 'fixtures.json', (item) => {
+          const fixture = item.cases.find(
+            (row: { id: string }) => row.id === 'adult_without_school',
+          );
+          fixture.publications[0].writerOperation = 'unknown';
+        }),
+      'wrong total adult_without_school',
+    ],
+    [
+      'unrecognized writer operation rejected',
+      (root: string) =>
+        updateJson(root, 'fixtures.json', (item) => {
+          const fixture = item.cases.find(
+            (row: { id: string }) => row.id === 'adult_without_school',
+          );
+          fixture.publications[0].writerOperation = 'pretend_native';
+        }),
+      'invalid writer operation',
+    ],
+    [
+      'source mapping cannot permit copied operation',
+      (root: string) =>
+        updateJson(root, 'source-mapping.json', (item) => {
+          item.provenance.eligibleWriterOperation = 'ordinary_duplicate';
+        }),
+      'source mapping must fail closed',
     ],
     [
       'unexpected extra config',

@@ -26,7 +26,7 @@
         "public.publication_reaction_same_identity"
       ],
       "key": "publication_id plus verified responder identity",
-      "qualification": "current active reaction from proven distinct actor, independently qualified project origin",
+      "qualification": "current active verified external unique reactor, qualified independently authored native project only (writer_operation=native and coverage=v1), never inherited ordinary_duplicate/public_acquisition/unknown",
       "withdrawal": "remove means zero; readd counts only once",
       "history": "current reaction rows only; no inferred earlier intervals"
     },
@@ -39,7 +39,7 @@
         "issue #1127"
       ],
       "key": "first qualifying publication per original project",
-      "qualification": "requires positive platform writer coverage and no known copy chain",
+      "qualification": "weight 0; future eligibility requires server writer_operation=native, coverage=v1, no known copied chain, never inherited coverage alone",
       "withdrawal": "hidden or revoked contributes zero",
       "history": "disabled in v1; no evidence for historical unknown"
     },
@@ -91,8 +91,13 @@
       "copied_from_version_id",
       "copied_from_license"
     ],
-    "qualify": "covered_native only after trusted platform writer coverage and absence of known copied origin",
+    "qualify": "verified writer operation=native plus platform writer coverage=v1, with no known copied origin; an ordinary_duplicate inheriting v1 is NEVER independently eligible for social/reaction credit",
     "unknown": "fail closed: historical unknown cannot receive publication reaction points",
-    "c3Issue": 1127
+    "c3Issue": 1127,
+    "eligibleWriterOperation": "native",
+    "eligibleWriterLineageCoverage": "v1",
+    "rejectAnyCopiedFromField": true,
+    "inheritedCoverageDoesNotCreateIndependentCredit": true,
+    "unknownMarkerMeansNoCredit": true
   }
 }
