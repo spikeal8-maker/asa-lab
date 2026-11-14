@@ -1,0 +1,91 @@
+name: Learning mutation budget diagnostic
+
+on:
+  # The controller opens the candidate PR only after independent source review.
+  # No push trigger: publishing the frozen source cannot start this experiment.
+  pull_request:
+    paths:
+      - '.github/workflows/learning-mutation-budget-diagnostic.yml'
+      - 'tools/learning-mutation-diagnostic/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: learning-mutation-evidence-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CI: 'true'
+  NX_SKIP_NX_CACHE: 'true'
+  NX_DAEMON: 'false'
+
+jobs:
+  mutation-evidence:
+    name: Pinned Learning traffic with private capture
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: asa_learning_e1_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: learning-e1-ci-isolated-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_learning_e1_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:learning-e1-ci-isolated-test@127.0.0.1:5432/asa_learning_e1_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:learning-e1-ci-isolated-test@127.0.0.1:5432/asa_learning_e1_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:learning-e1-ci-isolated-test@127.0.0.1:5432/asa_learning_e1_test
+      MIGRATION_EXPECT_DATABASE: asa_learning_e1_test
+      MIGRATION_CONFIRM: APPLY:asa_learning_e1_test
+      NODE_ENV: test
+      ASA_SEED_DEMO: 'false'
+      ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4613
+      ASA_BLOCKS_RUNTIME_SIGNING_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      VITE_ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4613
+    steps:
+      - name: Checkout reviewed diagnostic head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: diagnostic
+          persist-credentials: false
+      - name: Checkout exact tested analytics product
+        uses: actions/checkout@v4
+        with:
+          ref: 4343b88b788f02a279fd18df3789582994cb6b9e
+          path: source
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: source/pnpm-lock.yaml
+      - name: Run original setup and complete first batch through private pipes
+        env:
+          DIAGNOSTIC_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: >-
+          node diagnostic/tools/learning-mutation-diagnostic/runner.mjs
+          --source "$GITHUB_WORKSPACE/source"
+          --diagnostic "$GITHUB_WORKSPACE/diagnostic"
+          --diagnostic-sha "$DIAGNOSTIC_HEAD"
+          --output "$GITHUB_WORKSPACE/sanitized-learning-mutation"
+      - name: Preserve only sanitized request and matrix evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: learning-mutation-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            sanitized-learning-mutation/http.jsonl
+            sanitized-learning-mutation/metadata.json
+          if-no-files-found: error
+          retention-days: 7
