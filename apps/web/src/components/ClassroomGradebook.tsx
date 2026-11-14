@@ -453,6 +453,7 @@ function AssignedClassroomGradebook({
   const [detailEpoch, setDetailEpoch] = useState(0);
   const [search, setSearch] = useState('');
   const [course, setCourse] = useState('');
+  const [showQueue, setShowQueue] = useState(false);
   const destination = useLearningDestination();
   const openedDestination = useRef('');
   useEffect(() => {
@@ -522,7 +523,20 @@ function AssignedClassroomGradebook({
     (item) =>
       !item.canonicalState?.flags.includes('legacy_unresolved') &&
       ['submitted', 'waiting_review', 'evaluating'].includes(item.state),
-  ).length;
+  );
+  const queue = awaiting
+    .filter(
+      (item) =>
+        item.displayLabel.toLowerCase().includes(search.toLowerCase()) &&
+        (!course || (course === 'direct' ? !item.courseRunId : item.courseRunId === course)),
+    )
+    .sort((left, right) => (left.submittedAt ?? '').localeCompare(right.submittedAt ?? ''));
+
+  function openWork(item: GradebookEntry) {
+    setOpened(item);
+    setDetailEpoch((value) => value + 1);
+    void reload();
+  }
   return (
     <section className="classroom-tab-panel gradebook-panel">
       <header className="gradebook-heading">
@@ -530,7 +544,15 @@ function AssignedClassroomGradebook({
           <h2>Журнал</h2>
           <p>Строки — ученики, столбцы — назначенные работы.</p>
         </div>
-        <span>Ждут проверки: {awaiting}</span>
+        <button
+          type="button"
+          className="btn-secondary"
+          aria-pressed={showQueue}
+          disabled={items === null}
+          onClick={() => setShowQueue((value) => !value)}
+        >
+          {showQueue ? 'К таблице оценок' : `Ждут проверки: ${awaiting.length}`}
+        </button>
       </header>
       {error ? (
         <p role="alert">
@@ -556,6 +578,34 @@ function AssignedClassroomGradebook({
       </label>
       {!items ? (
         <p>Загружаем журнал…</p>
+      ) : showQueue ? (
+        <section aria-label="Работы на проверку">
+          {queue.length ? (
+            <ul className="gradebook-review-queue">
+              {queue.map((item) => (
+                <li key={`${item.seatId}:${item.assignmentId}`}>
+                  <div>
+                    <strong>{item.assignmentTitle}</strong>
+                    <span>
+                      {item.displayLabel}
+                      {item.courseTitle ? ` · ${item.courseTitle}` : ''}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    aria-label={`Проверить: ${item.assignmentTitle} · ${item.displayLabel}`}
+                    onClick={() => openWork(item)}
+                  >
+                    Проверить
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>{awaiting.length ? 'По выбранным фильтрам работ нет.' : 'Работ на проверку нет.'}</p>
+          )}
+        </section>
       ) : !items.length ? (
         <p>
           Здесь появятся работы и оценки. Чтобы дать первое задание, откройте «Обучение» и нажмите
@@ -606,11 +656,7 @@ function AssignedClassroomGradebook({
                             className="gradebook-cell"
                             aria-label={`${label} · ${title} · ${stateLabel(item)}`}
                             disabled={item.state === 'not_applicable'}
-                            onClick={() => {
-                              setOpened(item);
-                              setDetailEpoch((value) => value + 1);
-                              void reload();
-                            }}
+                            onClick={() => openWork(item)}
                           >
                             <strong>
                               {score(item) ?? (item.state === 'completed' ? 'Без оценки' : '—')}
