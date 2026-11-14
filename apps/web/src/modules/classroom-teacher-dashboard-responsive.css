@@ -129,6 +129,55 @@
   .classroom-owner-list .classroom-rating-help {
     font-size: 11px;
   }
+  @media (hover: hover) and (pointer: fine) and (max-width: 1920px) {
+    .classroom-owner-list .classroom-list:not(.loading) {
+      gap: 0;
+      border: 1px solid #d9e4e9;
+      border-radius: 6px;
+      overflow: visible;
+    }
+    .classroom-owner-list .classroom-list-head,
+    .classroom-owner-list .classroom-list-row {
+      box-sizing: border-box;
+      grid-template-rows: minmax(27px, auto);
+      min-height: 28px;
+      padding: 0 6px;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      overflow: visible;
+    }
+    .classroom-owner-list .classroom-list-head {
+      background: #f7fafb;
+      border-radius: 5px 5px 0 0;
+    }
+    .classroom-owner-list .classroom-list-row {
+      border-top: 1px solid #e3ebef;
+      background: #fff;
+    }
+    .classroom-owner-list .classroom-list-row:last-child {
+      border-radius: 0 0 5px 5px;
+    }
+    .classroom-owner-list .classroom-list-row:hover,
+    .classroom-owner-list .classroom-list-row:focus-within {
+      background: #f5f9fb;
+      box-shadow: inset 2px 0 #b5d9e9;
+    }
+    .classroom-owner-list .classroom-list-row .classroom-row-title {
+      min-height: 27px;
+      height: auto;
+      padding: 0;
+      font-size: 16px;
+      line-height: 1.18;
+    }
+    .classroom-owner-list .classroom-row-menu > summary {
+      min-height: 27px;
+      height: 27px;
+    }
+    .classroom-owner-list .classroom-column-sort {
+      min-height: 27px;
+    }
+  }
 }
 @container classroom (min-width: 551px) and (max-width: 1050px) {
   .classroom-owner-list .classroom-role-label-full {
