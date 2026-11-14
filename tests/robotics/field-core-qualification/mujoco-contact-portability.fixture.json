@@ -1,0 +1,59 @@
+{
+  "id": "E1-MUJOCO-R3-RAMP-CONTACT-PORTABILITY-01",
+  "scope": "TEST_ONLY",
+  "sourceBase": "9a51aff78065244910a82b0f948fe0862e1fdf68",
+  "engine": {
+    "version": "4.0.0",
+    "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de",
+    "enableFlags": 32
+  },
+  "archive": {
+    "bytes": 6076628,
+    "frames": 1380,
+    "sha256": "f4adb0b0556c3d2f85dc7881c1e9f1264350cf6cfd8e5637deede85427349cb8",
+    "rollingFixtureSha256": "69e5baa432bcdbe581eeb12262801162240f314eb9d6627bdd4764daef4fd77b"
+  },
+  "profiles": [
+    { "name": "archived-native-ccd", "disableFlags": 65536 },
+    { "name": "LEGACY_CCD_MULTI5", "disableFlags": 196608 }
+  ],
+  "cases": [
+    {
+      "world": "ramp-positive-15-500-r1",
+      "initializationFrame": 104,
+      "xmlSha256": "8349d687194348337fb142710d9eb6a7dfc4e51552c35746a2387aa8ec78b06a",
+      "poses": [
+        { "name": "flat", "frame": 148, "tick": 4001 },
+        { "name": "toe", "frame": 156, "tick": 4747 },
+        { "name": "steady-ramp", "frame": 212, "tick": 10001 }
+      ]
+    },
+    {
+      "world": "ramp-traction-negative-15-500-r1",
+      "initializationFrame": 1373,
+      "xmlSha256": "a9be318559898f065091dac7f55baa0ad7d548e0c99244bee421095b35b7f3bc",
+      "poses": [{ "name": "negative-gap", "frame": 1374, "tick": 2 }],
+      "failureFrame": 1377,
+      "independentEndpointFrame": 1376
+    }
+  ],
+  "rollingGeometry": {
+    "slopeDegrees": 15,
+    "wedgeHorizontalLengthM": 4,
+    "wedgeHalfWidthM": 0.5,
+    "flatMinXM": -2,
+    "flatMaxXM": 4,
+    "frameTolerance": 1e-12,
+    "maxPenetrationM": 0.001,
+    "planeWitnessAllowanceM": 0.000001,
+    "shapeWitnessAllowanceM": 0.001,
+    "interiorMarginM": 0.01
+  },
+  "limits": { "positionCalls": 8, "models": 4, "contactsPerPair": 5, "receiptBytes": 1048576 },
+  "registration": {
+    "nativeBoundary": "Only mj_fwdPosition on four frozen archived poses under each case-global profile. No velocity, force or time-advance calls, including the historical cylinder/rolling runners. Restore qpos and time only; assert their bit words and the untouched velocity before/after each call.",
+    "control": "Same native profile must reproduce archived nonempty raw contact identity, frames, points, distances and row assignment. Negative input is the preceding endpoint at 500 us, cross-checked against the archived prefix. The failing interval's AFTER state is ineligible even though retained.",
+    "candidate": "Alter only nativeccd enable to disable in archived XML. Preserve per-wheel terrain-pair coverage, finite orthonormal frames, correctly oriented reference plane normals within the existing frame tolerance, registered material, three constraint rows for each contact with no orphan rows, and R3 positive support-domain bounds. Toe-entry preserves mixed contacts as a topology witness where full support is not expected. The negative pose requires positive analytic separation at all wheels and zero native contacts/rows.",
+    "interpretation": "Geometry portability diagnostic for one archived ramp, operating margin only. No dynamic traction, slip, support force, cylinder PASS, rate/timestep convergence or correction of the archived R3 failure is implied."
+  }
+}
