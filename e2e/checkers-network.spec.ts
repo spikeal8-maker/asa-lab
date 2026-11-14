@@ -146,7 +146,15 @@ test('real two-pupil Checkers, teacher controls, reconnect/history and all oppon
     await network.getByLabel('Разрешить сетевую игру', { exact: true }).check();
     await network.getByLabel('Круг соперников', { exact: true }).selectOption('classroom');
     await network.getByRole('button', { name: 'Сохранить сетевой режим', exact: true }).click();
-    await expect(network.getByRole('status')).toHaveText('Настройки сетевой игры сохранены.');
+    const ribbon = page.locator('.system-feedback-ribbon.system-feedback-success');
+    await expect(ribbon).toHaveCount(1);
+    await expect(ribbon).toBeVisible();
+    await expect(ribbon).toContainText('Настройки сетевой игры сохранены.');
+    const announcement = page.locator('.system-feedback-announcement[role="status"]');
+    await expect(announcement).toHaveCount(1);
+    await expect(announcement).toContainText('Настройки сетевой игры сохранены.');
+    const inlineSuccess = network.getByText('Настройки сетевой игры сохранены.', { exact: true });
+    await expect(inlineSuccess).toHaveCount(0);
     for (const width of [1440, 1024, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(
