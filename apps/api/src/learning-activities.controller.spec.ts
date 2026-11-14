@@ -601,11 +601,9 @@ describe('canonical learning activity API', () => {
       ],
     ] as const) {
       const api = target();
-      api.query
-        .mockResolvedValueOnce({ rows: [{ draft_revision: 1 }] })
-        .mockResolvedValueOnce({
-          rows: [{ result_code: 'ok', draft_revision: 2, content_hash: 'c'.repeat(64) }],
-        });
+      api.query.mockResolvedValueOnce({ rows: [{ draft_revision: 1 }] }).mockResolvedValueOnce({
+        rows: [{ result_code: 'ok', draft_revision: 2, content_hash: 'c'.repeat(64) }],
+      });
       const upload = {
         ...request(),
         headers: {
