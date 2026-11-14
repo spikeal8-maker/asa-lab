@@ -584,6 +584,42 @@ describe('Electronics canonical Worker controller', () => {
     await flush();
     expect(controller.committedHorizonMicroseconds).toBe(1_000);
     expect(onNextArduinoWake).toHaveBeenLastCalledWith(30_004);
+
+    controller.update(serialCircuit, 27_000);
+    const nearDeadline = executor.advances[2]!;
+    // Existing 25ms complete-observation partition remains in force.
+    expect(nearDeadline.requestedHorizonMicroseconds).toBe(26_000);
+    const next = timedAdvance('ready', 26_000, 26_000);
+    nearDeadline.deferred.resolve({
+      ...next,
+      state: {
+        ...next.state,
+        continuation: {
+          ...next.state.continuation!,
+          clockProfileId: 'electrothermal-events-v2',
+          serializedState: JSON.stringify({
+            boards: [
+              {
+                componentId: 'uno',
+                runtime: { programFingerprint: 'run-program', resumeAtMs: 30.004 },
+              },
+            ],
+          }),
+        },
+      },
+      ledTemporal: {
+        profile: 'ordinary-led-held-v1',
+        fromMicroseconds: 1_000,
+        toMicroseconds: 26_000,
+        components: [],
+        arduinoIndicators: [],
+      },
+    });
+    await flush();
+    // Do not cancel a previously scheduled physical wake merely because a
+    // new completed Worker ACK is within 5ms of that same waking instruction.
+    expect(controller.committedHorizonMicroseconds).toBe(26_000);
+    expect(onNextArduinoWake).toHaveBeenLastCalledWith(30_004);
     controller.stop();
     expect(onNextArduinoWake).toHaveBeenLastCalledWith(null);
   });

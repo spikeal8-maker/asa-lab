@@ -2717,7 +2717,10 @@ describe('mounted workbench LED temporal display', () => {
     await act(async () => wake!(due));
     await tick(10);
     await tick(10);
-    await tick(5);
+    await tick(2);
+    // A subsequent ACK inside the final 5ms must preserve the same due timer.
+    await act(async () => wake!(due));
+    await tick(3);
     const beforeDeadline = worker().update.mock.calls.length;
     await tick(1);
     expect(worker().update.mock.calls.length).toBe(beforeDeadline + 1);

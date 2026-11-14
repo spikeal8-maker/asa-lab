@@ -783,11 +783,12 @@ export class ElectronicsLiveSimulationWorkerController {
         const wakeMs = board.runtime?.resumeAtMs;
         if (typeof wakeMs !== 'number' || !Number.isFinite(wakeMs)) continue;
         const due = Math.ceil(wakeMs * 1000);
-        // Only schedule sleeping, fully known MCU instructions; a busy 1ms
-        // loop keeps the original 10ms host polling path without extra timers.
+        // Report an actual future MCU instruction even when its deadline is near:
+        // a later ACK must not cancel an already scheduled same-wake host timer.
+        // The host suppresses *new* timers inside the 5ms busy-loop window.
         if (
           !Number.isSafeInteger(due) ||
-          due <= advance.committedHorizonMicroseconds + 5_000 ||
+          due <= advance.committedHorizonMicroseconds ||
           due > advance.committedHorizonMicroseconds + 25_000_000
         )
           continue;

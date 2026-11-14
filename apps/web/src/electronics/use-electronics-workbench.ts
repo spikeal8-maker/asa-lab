@@ -842,7 +842,9 @@ export function useElectronicsWorkbenchHost(
       const dueWall =
         startedAt + (dueMicroseconds - simulationHostOffsetMicrosecondsRef.current) / 1000;
       const remainingMs = dueWall - window.performance.now();
-      if (!Number.isFinite(remainingMs) || remainingMs < 2 || remainingMs > 25_000) return;
+      // Once the same exact wake has been queued it survives late acknowledgements.
+      // Never create a new extra timer for a busy 1–4ms Arduino loop.
+      if (!Number.isFinite(remainingMs) || remainingMs < 5 || remainingMs > 25_000) return;
       const timeout = window.setTimeout(
         () => {
           if (scheduledArduinoWake?.timeout !== timeout) return;
