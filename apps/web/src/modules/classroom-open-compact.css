@@ -1731,3 +1731,53 @@
     height: 44px;
   }
 }
+
+/* 320 physical px at 150% zoom leaves about 213 CSS px. Three inline action
+   captions cannot fit that width: stack real buttons without truncating text. */
+@container classroom (max-width: 280px) {
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .classroom-tabbar
+    > .classroom-roster-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .classroom-tabbar
+    .classroom-roster-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .classroom-roster-actions
+    > button {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+    min-height: 44px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    justify-content: center;
+  }
+
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .classroom-tabbar
+    > .classroom-roster-toolbar
+    > .classroom-mobile-code-toggle,
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .classroom-tabbar
+    .classroom-roster-search,
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .classroom-tabbar
+    .classroom-mobile-sort {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+  }
+}

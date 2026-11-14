@@ -671,3 +671,37 @@ for (const width of [320, 390, 1024] as const) {
     expect(state.mutations).toEqual([]);
   });
 }
+
+test('extreme browser zoom keeps roster action captions inside their buttons at 213 CSS px', async ({
+  page,
+}, info) => {
+  const width = 213; // 320 physical pixels at 150% browser zoom.
+  await page.setViewportSize({ width, height: 480 });
+  const state = await fixture(page, 24, { classes: 24, sidebar: 'expanded' });
+  await page.goto(`/#/classrooms/${classId}`, { waitUntil: 'domcontentloaded' });
+  await expect(page.locator(rosterSelector)).toHaveCount(24);
+  const actions = page.locator('.classroom-roster-actions > button');
+  await expect(actions).toHaveCount(3);
+  const geometry = await actions.evaluateAll((items) =>
+    items.map((element) => {
+      const button = element.getBoundingClientRect();
+      const caption = element.querySelector('.classroom-mobile-label')!.getBoundingClientRect();
+      return {
+        label: element.getAttribute('aria-label'),
+        button: { x: button.x, right: button.right, width: button.width },
+        caption: { x: caption.x, right: caption.right, width: caption.width },
+      };
+    }),
+  );
+  for (const entry of geometry) {
+    expect(entry.caption.x, entry.label ?? '').toBeGreaterThanOrEqual(entry.button.x - 0.5);
+    expect(entry.caption.right, entry.label ?? '').toBeLessThanOrEqual(entry.button.right + 0.5);
+  }
+  await hitVisible(page.getByRole('button', { name: 'Карточки доступа', exact: true }));
+  await hitVisible(page.getByRole('button', { name: 'Показать все коды учеников' }));
+  await expect(page.locator('.classroom-mobile-sort select')).toBeVisible();
+  await noOverflow(page, width);
+  await evidence(page, info, 'roster-actions-320-at-150-percent', { width, geometry });
+  expect(state.errors).toEqual([]);
+  expect(state.mutations).toEqual([]);
+});
