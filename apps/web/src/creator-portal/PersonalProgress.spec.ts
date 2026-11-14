@@ -1059,3 +1059,28 @@ describe('SP-04 single-flight active rating request', () => {
     });
   });
 });
+
+describe('SP-04 actual custom-avatar image consumer', () => {
+  it('shows only the granted batch PNG and falls back to the safe default after image failure', async () => {
+    const ticket = 'opaque-batch-ticket';
+    const dataUrl =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/S0gAAAAASUVORK5CYII=';
+    const peer: GroupRatingPeerV1 = { ...sp04Peer(0), avatarTicket: ticket };
+    const reads = vi
+      .spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([group(SP04_TEST_GROUP, 68.25, 101)])))
+      .mockResolvedValueOnce(success(sp04Page([peer])))
+      .mockResolvedValueOnce(success({ items: [{ ticket, dataUrl }] }));
+    await render();
+    const image = host.querySelector<HTMLImageElement>('.personal-progress-peer-avatar img');
+    expect(image).not.toBeNull();
+    expect(image?.getAttribute('src')).toBe(dataUrl);
+    expect(reads.mock.calls[2]?.[0]).toBe('/api/progress/groups/' + SP04_TEST_GROUP + '/avatars');
+    const options = reads.mock.calls[2]?.[1];
+    expect(options?.method).toBe('POST');
+    expect(JSON.parse(String(options?.body))).toEqual({ tickets: [ticket] });
+    expect(reads.mock.calls.every(([url]) => !url.includes(ticket))).toBe(true);
+    await act(async () => image!.dispatchEvent(new Event('error')));
+    expect(image?.getAttribute('src')).toBe(peer.avatarSrc);
+  });
+});
