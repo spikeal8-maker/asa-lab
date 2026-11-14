@@ -5417,7 +5417,17 @@ for (const { mode, segment, widths } of compactControlSegments) {
     if (mode === 'text') {
       for (const width of widths) {
         const desktop = width > 980;
+        const maximum = Math.max(460, width - 420);
+        const minimum = Math.min(620, maximum);
+        const handle = page.getByRole('separator', {
+          name: desktop ? 'Изменить ширину редактора кода' : 'Изменить высоту редактора кода',
+          exact: true,
+        });
         await page.setViewportSize({ width, height: 900 });
+        if (desktop && minimum === maximum) {
+          // The viewport updates before React commits the drawer's resize clamp.
+          await expect(handle).toHaveAttribute('aria-valuenow', String(maximum));
+        }
         await record(`${width}-stopped`, desktop, false);
         if (width === 981) {
           const nativeMenu = page.locator('.workbench-wire-color');
@@ -5444,15 +5454,9 @@ for (const { mode, segment, widths } of compactControlSegments) {
         await run.click();
         await expect(run).toHaveAttribute('aria-pressed', 'false');
 
-        const handle = page.getByRole('separator', {
-          name: desktop ? 'Изменить ширину редактора кода' : 'Изменить высоту редактора кода',
-          exact: true,
-        });
         const beforeBox = await drawer.boundingBox();
         const handleBox = await handle.boundingBox();
         if (!beforeBox || !handleBox) throw new Error('Code drawer resize geometry is missing');
-        const maximum = Math.max(460, width - 420);
-        const minimum = Math.min(620, maximum);
         // Ordinary drag changes width whenever the canonical interval has room.
         // At the minimum, drag outward instead of pretending a clamped input failed.
         const horizontalDelta = beforeBox.width - minimum > 16 ? 32 : -32;
