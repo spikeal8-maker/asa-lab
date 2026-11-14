@@ -11,7 +11,7 @@ import {
 } from '../../../tools/robotics-field-core/phy01.mjs';
 import fixture from './phy05.fixture.json';
 
-const FIXTURE_SHA256 = 'f952e2dec347d52ff2b5c8ce4b2c8f9d98412505149ef79b6d759ab43856f1fe';
+const FIXTURE_SHA256 = 'b70a650580c8c953a7f652dc5f2d116d7838d8d0697443e6d2d6caf95550964f';
 const fixtureUrl = new URL('./phy05.fixture.json', import.meta.url);
 const specificationUrl = new URL('../../../' + fixture.specification.path, import.meta.url);
 const artifactVerifierUrl = new URL(
@@ -415,7 +415,7 @@ it('PHY-05 executes nominal Rapier contact and an exact same-process replay', as
   expect(R.version()).toBe(provenance.version);
 
   const results = Array.from({ length: fixture.identicalWorlds }, () =>
-    runNominalWorld(R, artifactFixture.solver),
+    runNominalWorld(R, { ...artifactFixture.solver, ...fixture.solverOverride }),
   );
   const assessments = results.map(({ steps }) => assessMotion(steps));
   const preserveNumbers = (_key: string, value: unknown) =>

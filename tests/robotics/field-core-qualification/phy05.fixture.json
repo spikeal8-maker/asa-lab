@@ -1,5 +1,5 @@
 {
-  "id": "PHY-05-RAPIER-NOMINAL-01",
+  "id": "PHY-05-RAPIER-ALLOWED-LINEAR-ERROR-ZERO-02",
   "scope": "TEST_ONLY",
   "specification": {
     "path": "docs/product/robotics/FIELD_CORE_SPEC.md",
@@ -13,6 +13,14 @@
     "sha256": "e92ff0c35d7eac3ed0b90d636146dbea9a33a133ef0b7bc81c6630fd7c9b45e5",
     "version": "0.19.3",
     "wasmSha256": "1ce1c8c4036b4dcd3bde86c6efdb0f270cf5e274979b1de6ab8052947ef166c5"
+  },
+  "priorAttempt": {
+    "fixtureId": "PHY-05-RAPIER-NOMINAL-01",
+    "fixtureSha256": "f952e2dec347d52ff2b5c8ce4b2c8f9d98412505149ef79b6d759ab43856f1fe",
+    "rawSha256": "41bb9e2a4c1bc9d284315729098c68d8a31486a571cf68402665d6456009a529"
+  },
+  "solverOverride": {
+    "normalizedAllowedLinearError": 0
   },
   "gravityMps2": 9.81,
   "slopeDegrees": 10,
@@ -41,7 +49,7 @@
   },
   "registration": {
     "geometry": "Z-up. Static cuboid rotated about +Y by 10 degrees. Its top plane passes through origin and descends +X. Sphere released from rest at exact tangency, with no separate rigid-body mass or imposed rotation.",
-    "solver": "Use the frozen PHY-01 solver/integration profile, including CCD. Nominal 5 ms macros with four 1250 us native steps. No UI, wall-clock input, randomization, settling pose reset or timestep adaptation.",
+    "solver": "Use the frozen PHY-01 solver/integration profile, including CCD, with normalizedAllowedLinearError set to zero. Nominal 5 ms macros with four 1250 us native steps. No UI, wall-clock input, randomization, settling pose reset or timestep adaptation.",
     "observation": "Retain all native post-step states and public manifold observations. Require supporting solver contacts and positive cached normal impulse in the predeclared 0.4–1.0 s window, compatible plane normal, bounded signed geometric clearance and normal velocity. Public cached impulses are a support witness at observation time, not a per-substep force history.",
     "noSlip": "For every native endpoint in the analysis window bound the tangent length of v_COM + omega cross (-r*n); n is the fixed plane normal. This geometric contact patch check does not use the solver's averaged contact point. 1 mm/s is a predata operational threshold for this isolated witness.",
     "oracle": "Require the support and no-slip gates first. Compare each adjacent pair of observed time samples' downhill and +Y angular acceleration to g*sin(theta)/(1+I/(m*r^2)) and a/r, using analytic homogeneous-sphere I=2*m*r^2/5. Each error is bounded by 5% of its analytic reference.",
