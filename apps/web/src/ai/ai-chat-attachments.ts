@@ -2,7 +2,7 @@ import { createAiScopeCall, aiScopeHeaders } from './ai-scope-api';
 import { fetchWithSessionRefresh } from '../session-fetch';
 
 export const AI_CHAT_FILE_ACCEPT =
-  '.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp,.txt,.md,.markdown,.js,.jsx,.ts,.tsx,.py,.c,.cpp,.h,.hpp,.ino,.json,.css,.html,.xml,.yaml,.yml,.sql,.sh,.java,.rs,.go';
+  '.pdf,.docx,.xlsx,.csv,.png,.jpg,.jpeg,.webp,.txt,.md,.markdown,.js,.jsx,.ts,.tsx,.py,.c,.cpp,.h,.hpp,.ino,.json,.css,.html,.xml,.yaml,.yml,.sql,.sh,.java,.rs,.go';
 
 export interface AiChatFileDraft {
   readonly uploadId: string;
@@ -36,7 +36,7 @@ export function checkAiChatFiles(files: readonly File[]): string | null {
       return 'Имя файла не подходит для безопасной загрузки.';
     const extension = file.name.split('.').at(-1)?.toLowerCase() ?? '';
     if (!otherExtensions.has(extension))
-      return 'Этот формат пока не поддерживается. Выберите PDF, DOCX, XLSX, изображение, текст или код.';
+      return 'Этот формат пока не поддерживается. Выберите PDF, DOCX, XLSX, CSV, изображение, текст или код.';
     if (
       file.size >
       (imageExtensions.has(extension) || ['pdf', 'docx', 'xlsx'].includes(extension)

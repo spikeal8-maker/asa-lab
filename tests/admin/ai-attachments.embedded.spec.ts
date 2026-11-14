@@ -1,9 +1,11 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import type pg from 'pg';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
 import { aiAttachmentsContract } from '../ai-attachments/contract';
+import { validateAiAttachment } from '../../apps/api/src/ai-attachments/validation';
+import { PgAiAttachmentStore } from '../../apps/api/src/ai-attachments/store';
 import { aiTextFixture } from './ai-text-history.contract';
 
 let db: PGlite, admin: pg.Pool, runtime: pg.Pool;
@@ -60,6 +62,7 @@ beforeAll(async () => {
     },
   } as unknown as pg.Pool;
   const plan = planMigrations('migrations');
+  const csvMigration = plan.find(({ file }) => file === '0324_ai_csv_attachments.sql')!;
   await applyPlan(
     adapter,
     plan.filter((migration) => migration.version < '0229'),
@@ -127,7 +130,33 @@ beforeAll(async () => {
       )
     ).rows,
   };
+  const priorPlan = plan.filter(({ version }) => version < csvMigration.version);
+  await applyPlan(adapter, priorPlan);
+  const store = new PgAiAttachmentStore(runtime);
+  const owner = prior.owner;
+  const legacy = await store.reserve(
+    owner,
+    { uploadId: randomUUID(), fileName: 'notes.txt', sha256: '0'.repeat(64), sizeBytes: 4 },
+    { kind: 'text', extension: 'txt', mediaType: 'text/plain', maxBytes: 524288 },
+  );
+  const invalidCsv = {
+    uploadId: randomUUID(),
+    fileName: 'scores.csv',
+    sha256: '1'.repeat(64),
+    sizeBytes: 4,
+  };
+  const expectedCsv = {
+    kind: 'text',
+    extension: 'csv',
+    mediaType: 'text/csv',
+    maxBytes: 524288,
+  } as const;
+  await expect(store.reserve(owner, invalidCsv, expectedCsv)).rejects.toMatchObject({
+    code: 'ai_attachment_unavailable',
+    status: 503,
+  });
   await applyPlan(adapter, plan);
+  expect(await store.get(owner, legacy.uploadId)).toEqual(legacy);
   const seeded = (
     await runtime.query<{
       value: { customized: boolean; allowedModels: string[]; defaultModel: string };
@@ -199,3 +228,36 @@ it('0229 upgrades 005 without changing messages, archived variants, original sou
 });
 
 aiAttachmentsContract(() => ({ admin, runtime }));
+
+it('0324 stores a CSV extraction under the existing attachment owner and receipt rules', async () => {
+  const store = new PgAiAttachmentStore(runtime);
+  const bytes = Buffer.from('Ученик,Код\nИрина,0007');
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  const validated = validateAiAttachment(bytes, 'scores.csv');
+  const descriptor = {
+    uploadId: randomUUID(),
+    fileName: 'scores.csv',
+    sizeBytes: bytes.length,
+    sha256: digest,
+  };
+  const receipt = await store.reserve(prior.owner, descriptor, {
+    kind: 'text',
+    extension: 'csv',
+    mediaType: 'text/csv',
+    maxBytes: 524288,
+  });
+  expect(receipt).toMatchObject({ state: 'reserved', sha256: digest, mediaType: 'text/csv' });
+  const attempt = randomUUID();
+  expect(await store.begin(prior.owner, receipt.uploadId, attempt, validated)).toMatchObject({
+    state: 'uploading',
+    text: expect.stringContaining('Строка 2: ["Ирина","0007"]'),
+  });
+  expect(await store.finish(prior.owner, receipt.uploadId, attempt, 'persisted')).toMatchObject({
+    state: 'ready',
+  });
+  const other = await aiTextFixture(admin, runtime, false);
+  await expect(store.get(other.owner.principal_id, receipt.uploadId)).rejects.toMatchObject({
+    code: 'ai_attachment_not_found',
+    status: 404,
+  });
+});
