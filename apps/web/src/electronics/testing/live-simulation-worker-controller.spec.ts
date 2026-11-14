@@ -553,6 +553,7 @@ describe('dispatch around an accepted Arduino wake', () => {
   async function start(
     onPaceRead?: (controller: ElectronicsLiveSimulationWorkerController) => void,
     stressState?: 'warning',
+    finalCheckpoint = 92_000,
   ) {
     const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
@@ -617,7 +618,7 @@ describe('dispatch around an accepted Arduino wake', () => {
       });
       await flush();
     };
-    for (const [index, at] of [1000, 25_000, 50_000, 75_000, 80_000].entries()) {
+    for (const [index, at] of [1000, 25_000, 50_000, 75_000, finalCheckpoint].entries()) {
       update(at);
       await acceptSleeping(index + 1);
     }
@@ -654,6 +655,18 @@ describe('dispatch around an accepted Arduino wake', () => {
     }
   });
 
+  it('takes a short checkpoint before withholding an observation for the wake', async () => {
+    vi.useFakeTimers();
+    try {
+      const { executor, controller, update } = await start(undefined, undefined, 84_000);
+      update(94_000);
+      expect(executor.advances[6]!.requestedHorizonMicroseconds).toBe(94_000);
+      expect(vi.getTimerCount()).toBe(0);
+      controller.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it('continues ordinary observations while components report overload', async () => {
     const { executor, controller, update } = await start(undefined, 'warning');
     update(99_300);

@@ -112,6 +112,7 @@ const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = LED_PRESENTATION_PHASE_LIMIT_MI
 // waking includes the next millisecond of ordinary execution at most.
 const MIN_ARDUINO_SLEEP_MS = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS / 1000;
 const ARDUINO_WAKE_OBSERVATION_MICROSECONDS = 1000;
+const ARDUINO_WAKE_CHECKPOINT_MICROSECONDS = 10_000;
 
 function boundedInputObservationHorizon(
   eventAtMicroseconds: number,
@@ -753,9 +754,15 @@ export class ElectronicsLiveSimulationWorkerController {
       wake.at > committed &&
       wakeObservation <= committed + this.observationWindowMicroseconds;
     const dispatchedHostHorizon = wakeWithinWindow ? currentHostHorizon : null;
-    if (dispatchedHostHorizon !== null && wake && dispatchedHostHorizon < wake.at) {
+    if (
+      dispatchedHostHorizon !== null &&
+      wake &&
+      dispatchedHostHorizon < wake.at &&
+      wake.at - committed <= ARDUINO_WAKE_CHECKPOINT_MICROSECONDS
+    ) {
       // Waiting briefly avoids occupying the sole Worker slot with a request
-      // that will stop just before the accepted wake. Keep the full host demand.
+      // that will stop just before the accepted wake. Keep an earlier checkpoint
+      // so the crossing request does not have to do a full window of physics.
       this.reserveForWake(generationId, wake, dispatchedHostHorizon);
       return;
     }
