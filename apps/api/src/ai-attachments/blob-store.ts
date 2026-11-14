@@ -190,6 +190,16 @@ export class S3AiAttachmentBlobStore implements AiAttachmentBlobStore {
     if (statSync(input.sourcePath).size !== input.sizeBytes)
       throw new AiAttachmentStorageError('not_written');
     const body = createReadStream(input.sourcePath);
+    // An early rejection can leave the SDK without a body error listener.
+    // Keep the source alive until the pending open/read and close have settled.
+    const observeBodyError = () => undefined;
+    const bodyClosed = new Promise<void>((resolve) => {
+      body.on('error', observeBodyError);
+      body.once('close', () => {
+        body.off('error', observeBodyError);
+        resolve();
+      });
+    });
     try {
       await this.client.send(
         new PutObjectCommand({
@@ -226,6 +236,7 @@ export class S3AiAttachmentBlobStore implements AiAttachmentBlobStore {
       throw new AiAttachmentStorageError('unknown');
     } finally {
       body.destroy();
+      await bodyClosed;
     }
     try {
       if (!(await this.verify(input))) throw new AiAttachmentStorageError('unknown');
