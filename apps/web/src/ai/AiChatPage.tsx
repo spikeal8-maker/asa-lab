@@ -2023,8 +2023,8 @@ export function AiChatPage({
                           ) : null}
                           {message.generationKind !== 'image' &&
                           !message.generatedImages?.length ? (
-                            <div className="chat-message-actions">
-                              <AiCopyButton text={message.content} />
+                            <div className="chat-message-actions chat-answer-actions">
+                              <AiCopyButton text={message.content} size={18} />
                               {message.generationKind !== 'image' &&
                               !message.generatedImages?.length &&
                               sourceFor(message) ? (
@@ -2034,11 +2034,10 @@ export function AiChatPage({
                                     interactionBusy || archived || !status?.enabled || !historyReady
                                   }
                                   onClick={() => void regenerate(message)}
-                                  data-ai-tooltip="Новый запрос к модели расходует лимит. Вопрос и все прежние ответы останутся в истории."
+                                  data-ai-tooltip="Новый вариант расходует лимит"
                                   aria-label="Новый вариант ответа"
                                 >
                                   <AiChatIcon name="refresh" size={18} />
-                                  <span>Попробовать снова</span>
                                 </button>
                               ) : null}
                               <AiAnswerDownloads content={message.content} />
