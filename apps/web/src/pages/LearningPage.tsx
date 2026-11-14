@@ -186,7 +186,7 @@ function LearningWorkspace({
     };
   }, [assignment, lookupKey, lookupRetry, seat]);
   const navigation = (
-    <nav aria-label="Разделы моего обучения" className="learning-workspace-nav">
+    <nav aria-label="Разделы моего обучения" className="learning-workspace-nav asa-system-tabs">
       {sections.map(([id, title]) => (
         <a key={id} href={sectionHref(id)} aria-current={tab === id ? 'page' : undefined}>
           {title}

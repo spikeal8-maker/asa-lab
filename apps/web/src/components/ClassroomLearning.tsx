@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLearningDestination } from '../learning/use-learning-destination';
+import { SystemTabs } from './SystemTabs';
 import { onSessionLoggedOut } from '../session-fetch';
 import { AuthoredMaterialsPage } from '../pages/AuthoredMaterialsPage';
 import { AssignLearningActivityDialog } from './AssignLearningActivityDialog';
@@ -18,6 +19,12 @@ import {
   type AssignmentScope,
   type AssignmentStageToken,
 } from './classroom-assignment-lifetime';
+
+const LEARNING_TABS = [
+  { id: 'courses', label: 'Курсы' },
+  { id: 'assignments', label: 'Отдельные задания' },
+  { id: 'quizzes', label: 'Тесты' },
+] as const;
 
 type AssignmentStep =
   | { kind: 'pick'; prepared?: { draftId: string; versionId: string } }
@@ -172,29 +179,13 @@ export function ClassroomLearning({
           {notice}
         </p>
       ) : null}
-      <nav className="classroom-learning-tabs" aria-label="Материалы класса">
-        <button
-          type="button"
-          className={tab === 'courses' ? 'active' : undefined}
-          onClick={() => setTab('courses')}
-        >
-          Курсы
-        </button>
-        <button
-          type="button"
-          className={tab === 'assignments' ? 'active' : undefined}
-          onClick={() => setTab('assignments')}
-        >
-          Отдельные задания
-        </button>
-        <button
-          type="button"
-          className={tab === 'quizzes' ? 'active' : undefined}
-          onClick={() => setTab('quizzes')}
-        >
-          Тесты
-        </button>
-      </nav>
+      <SystemTabs
+        items={LEARNING_TABS}
+        active={tab}
+        onChange={setTab}
+        label="Материалы класса"
+        className="classroom-learning-tabs"
+      />
       {tab === 'courses' ? (
         <ClassroomCourses
           classroomId={classroomId}
