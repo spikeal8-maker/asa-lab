@@ -1385,7 +1385,6 @@ export function AuthoredMaterialsPage({
                     busy ||
                     !draft.title.trim() ||
                     !canAssignDraftModule ||
-                    (!courseCreation && isEssay) ||
                     (draft.resultMode === 'graded' && !draft.maxPoints && !isQuiz)
                   }
                   onClick={() => void (inlineCreation ? publish(true) : openAssignFlow())}
@@ -1466,7 +1465,7 @@ export function AuthoredMaterialsPage({
                   }}
                 >
                   <option value="project">Проектная практика</option>
-                  {!inlineCreation || courseCreation?.allowEssay ? (
+                  {!courseCreation || courseCreation.allowEssay ? (
                     <option value="essay">Письменный ответ</option>
                   ) : null}
                   <option value="quiz">Тест</option>

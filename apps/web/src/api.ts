@@ -927,7 +927,7 @@ export interface LearningAssignableActivity {
   versionId: string;
   title: string;
   instructions: string | null;
-  kind: 'project' | 'quiz' | 'file';
+  kind: 'project' | 'quiz' | 'file' | 'essay';
   moduleKey: string | null;
 }
 
@@ -1114,6 +1114,7 @@ export interface LearnerResult {
 
 /** The same assignment as the learner sees it: theirs, and where they are. */
 export interface SeatAssignment {
+  activityVersionId?: string;
   activityKind?: 'project' | 'essay' | 'quiz' | 'file';
   id: string;
   /** Exact Direct or lesson-level Course ActivityRun for atomic Start. */
