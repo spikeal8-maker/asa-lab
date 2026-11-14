@@ -1,0 +1,50 @@
+{
+  "id": "PHY-05-RAPIER-NOMINAL-01",
+  "scope": "TEST_ONLY",
+  "specification": {
+    "path": "docs/product/robotics/FIELD_CORE_SPEC.md",
+    "version": "1.2",
+    "sha256": "0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3",
+    "sections": ["16.2", "19.7"],
+    "requirements": ["REQ-PHY-04", "REQ-VERIFY-02"]
+  },
+  "engineArtifactFixture": {
+    "id": "PHY-01-v1",
+    "sha256": "e92ff0c35d7eac3ed0b90d636146dbea9a33a133ef0b7bc81c6630fd7c9b45e5",
+    "version": "0.19.3",
+    "wasmSha256": "1ce1c8c4036b4dcd3bde86c6efdb0f270cf5e274979b1de6ab8052947ef166c5"
+  },
+  "gravityMps2": 9.81,
+  "slopeDegrees": 10,
+  "sphereRadiusM": 0.05,
+  "sphereMassKg": 0.1,
+  "planeHalfExtentsM": [1, 0.25, 0.025],
+  "friction": 0.5,
+  "linearDamping": 0,
+  "angularDamping": 0,
+  "restitution": 0,
+  "canSleep": false,
+  "ccdEnabled": true,
+  "macroStepUs": 5000,
+  "substeps": 4,
+  "durationUs": 1000000,
+  "analysisTimesUs": [400000, 600000, 800000, 1000000],
+  "maxStepsPerWorld": 800,
+  "identicalWorlds": 2,
+  "tolerance": {
+    "relativeAcceleration": 0.05,
+    "tangentialSlipMps": 0.001,
+    "supportGapM": 0.001,
+    "normalVelocityMps": 0.001,
+    "supportNormalDistance": 0.00003,
+    "artifactReadbackRelative": 0.000001
+  },
+  "registration": {
+    "geometry": "Z-up. Static cuboid rotated about +Y by 10 degrees. Its top plane passes through origin and descends +X. Sphere released from rest at exact tangency, with no separate rigid-body mass or imposed rotation.",
+    "solver": "Use the frozen PHY-01 solver/integration profile, including CCD. Nominal 5 ms macros with four 1250 us native steps. No UI, wall-clock input, randomization, settling pose reset or timestep adaptation.",
+    "observation": "Retain all native post-step states and public manifold observations. Require supporting solver contacts and positive cached normal impulse in the predeclared 0.4–1.0 s window, compatible plane normal, bounded signed geometric clearance and normal velocity. Public cached impulses are a support witness at observation time, not a per-substep force history.",
+    "noSlip": "For every native endpoint in the analysis window bound the tangent length of v_COM + omega cross (-r*n); n is the fixed plane normal. This geometric contact patch check does not use the solver's averaged contact point. 1 mm/s is a predata operational threshold for this isolated witness.",
+    "oracle": "Require the support and no-slip gates first. Compare each adjacent pair of observed time samples' downhill and +Y angular acceleration to g*sin(theta)/(1+I/(m*r^2)) and a/r, using analytic homogeneous-sphere I=2*m*r^2/5. Each error is bounded by 5% of its analytic reference.",
+    "repeatability": "Run two independently created identical nominal worlds from the same frozen source. Compare complete observed state/contact streams exactly in the same host process. This witness does not qualify convergence, cross-runtime replay, or either production physics engine."
+  }
+}
