@@ -16,6 +16,9 @@ export const TYPED_TABLE_LANGUAGE = 'asa-table';
 const MAX_ROWS = 10_000;
 const MAX_COLUMNS = 256;
 const MAX_CELLS = 50_000;
+// Excel's documented limits for numeric cell values.
+const EXCEL_MIN_MAGNITUDE = 2.2251e-308;
+const EXCEL_MAX_MAGNITUDE = 9.99999999999999e307;
 
 function isCalendarDate(date: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/u.test(date) || date < '1900-01-01') return false;
@@ -28,7 +31,13 @@ function validCell(cell: unknown): cell is TableCell {
   if (typeof cell === 'boolean') return true;
   if (typeof cell === 'number') {
     // Excel's numeric precision is 15 significant digits. Preserve larger IDs as strings.
-    return Number.isFinite(cell) && Number(cell.toPrecision(15)) === cell;
+    const magnitude = Math.abs(cell);
+    return (
+      cell === 0 ||
+      (magnitude >= EXCEL_MIN_MAGNITUDE &&
+        magnitude <= EXCEL_MAX_MAGNITUDE &&
+        Number(cell.toPrecision(15)) === cell)
+    );
   }
   if (!cell || typeof cell !== 'object' || !('date' in cell)) return false;
   return (
@@ -49,6 +58,7 @@ export function parseTypedTable(content: string): MarkdownTable | null {
   const rows: unknown = value.rows;
   if (!Array.isArray(rows) || !rows.length || rows.length > MAX_ROWS || !Array.isArray(rows[0]))
     return null;
+  if (!rows[0].every((header) => typeof header === 'string')) return null;
   const columns = rows[0].length;
   if (!columns || columns > MAX_COLUMNS || columns * rows.length > MAX_CELLS) return null;
   if (!rows.every((row) => Array.isArray(row) && row.length === columns && row.every(validCell)))

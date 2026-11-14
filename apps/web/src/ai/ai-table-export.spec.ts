@@ -51,13 +51,24 @@ describe('tabular downloads', () => {
       '{"date":"2026-01-01","formula":true}',
       '{"formula":"1+2"}',
       '1e999',
+      '1e308',
+      '-1e308',
+      '2.225e-308',
+      '-2.225e-308',
+      '5e-324',
       '12345678901234567',
       'null',
       '[]',
     ]) {
-      expect(parseTypedTable('{"rows":[[' + cell + ']]}')).toBeNull();
+      expect(parseTypedTable('{"rows":[["Значение"],[' + cell + ']]}')).toBeNull();
     }
-    expect(parseTypedTable('{"rows":[[1,2],[1]]}')).toBeNull();
+    expect(parseTypedTable('{"rows":[[1,2],[1,2]]}')).toBeNull();
+    expect(parseTypedTable('{"rows":[["A","B"],[1]]}')).toBeNull();
+    expect(
+      parseTypedTable(
+        '{"rows":[["Число"],[0],[2.2251e-308],[-2.2251e-308],[9.99999999999999e307],[-9.99999999999999e307]]}',
+      ),
+    ).toHaveLength(6);
     const workbook = await exportXlsx([table!]);
     const zip = unzipSync(new Uint8Array(await workbook.arrayBuffer()));
     const contents = strFromU8(zip['xl/worksheets/sheet1.xml']!);

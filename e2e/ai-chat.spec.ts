@@ -436,6 +436,7 @@ test('AI downloads code and complete answers as real local files', async ({ page
       .getByRole('button', { name: 'Копировать', exact: true }),
   ).toHaveAttribute('aria-label', 'Копировать');
   const excelTable = page.getByRole('region', { name: 'Таблица Excel' });
+  await expect(excelTable.getByRole('columnheader', { name: 'Артикул' })).toBeVisible();
   await expect(excelTable.getByRole('cell', { name: '0007' })).toBeVisible();
   await expect(excelTable.getByRole('cell', { name: '2026-11-14' })).toBeVisible();
   const retry = page.getByRole('button', { name: 'Новый вариант ответа', exact: true });

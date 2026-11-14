@@ -80,8 +80,17 @@ function CodePre({ children }: { children?: ReactNode }): JSX.Element {
     return (
       <div className="asa-ai-table-scroll" role="region" aria-label="Таблица Excel" tabIndex={0}>
         <table>
+          <thead>
+            <tr>
+              {table[0]!.map((header, column) => (
+                <th key={column} scope="col">
+                  {String(header)}
+                </th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
-            {table.map((row, position) => (
+            {table.slice(1).map((row, position) => (
               <tr key={position}>
                 {row.map((cell, column) => (
                   <td key={column}>{typeof cell === 'object' ? cell.date : String(cell)}</td>
