@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HttpException } from '@nestjs/common';
+import { createDecipheriv, createHash } from 'node:crypto';
 import type pg from 'pg';
 import type { FastifyRequest } from 'fastify';
 import { hashSessionToken, type ActiveContextUseCase } from '@asa-lab/identity';
@@ -325,4 +326,287 @@ describe('own progress authorization and explicit transport', () => {
     await expect(fixture(data).controller.account(REQUEST)).rejects.toMatchObject({ status: 503 });
     await expect(fixture(null).controller.account(REQUEST)).rejects.toMatchObject({ status: 503 });
   });
+});
+
+describe('SP-04 learner-only group rating API', () => {
+  const peer = '55555555-5555-4555-8555-555555555555';
+  const second = '66666666-6666-4666-8666-666666666666';
+  const page = () => ({
+    groupId: CLASS,
+    periodDays: 30,
+    version: 'a'.repeat(32),
+    asOf: '2026-11-13T21:00:00Z',
+    own: { availability: 'available', score: 68.25, rank: 101 },
+    peers: [
+      { seatId: peer, score: 83.46, rank: 2, avatarKey: 'asa-avatar-09', avatarId: null },
+      { seatId: second, score: 83.46, rank: 2, avatarKey: null, avatarId: peer },
+    ],
+    hasMore: false,
+    afterSeat: null,
+    afterScore: null,
+  });
+  const avatarDataUrl = 'data:image/png;base64,' + Buffer.from('PNG').toString('base64');
+
+  it('uses the real session context and exposes no peer ID, name, secret or teacher roster', async () => {
+    const raw = page();
+    const f = fixture(raw);
+    const result = await f.controller.accountRating(REQUEST, CLASS);
+    expect(f.query).toHaveBeenCalledExactlyOnceWith(
+      'SELECT public.personal_progress_group_rating($1,$2,$3,$4,$5,$6,$7,$8) AS result',
+      ['account', ACCOUNT, PRINCIPAL, hashSessionToken('account-token'), CLASS, null, null, 5],
+    );
+    expect(result.peers.map((x) => [x.score, x.rank])).toEqual([
+      [83.46, 2],
+      [83.46, 2],
+    ]);
+    expect(result.own).toEqual({
+      availability: 'available',
+      score: 68.25,
+      rank: 101,
+      isSelf: true,
+    });
+    expect(result.peers[0]!.avatarSrc).toBe('/assets/avatars/default/avatar-09.webp');
+    expect(result.peers[1]!.avatarTicket).toMatch(/^[a-zA-Z0-9_-]+$/);
+    expect(result.peers[0]!.isSelf).toBe(false);
+    const json = JSON.stringify(result);
+    for (const forbidden of [
+      peer,
+      second,
+      'seatId',
+      'avatarId',
+      'avatarKey',
+      'principalId',
+      'displayName',
+      'lastActiveAt',
+      'studentCode',
+      'grades',
+      'factors',
+      'teacherRoster',
+      'totalWorks',
+      'sources',
+      'email',
+    ]) {
+      expect(json).not.toContain(forbidden);
+    }
+  });
+
+  it('bounds preview pages and rejects arbitrary roster parameters before database read', async () => {
+    const f = fixture({ ...page(), peers: [page().peers[0]] });
+    await f.controller.accountRating(REQUEST, CLASS, { limit: '1', view: 'preview' });
+    expect(f.query.mock.calls[0]?.[1]?.at(-1)).toBe(1);
+    for (const query of [
+      { limit: '200' },
+      { limit: '0' },
+      { limit: ['1'] },
+      { view: 'all', limit: '5' },
+      { classroomId: CLASS },
+      { view: 'preview', cursor: 'old' },
+    ]) {
+      await expect(f.controller.accountRating(REQUEST, CLASS, query)).rejects.toMatchObject({
+        status: 400,
+      });
+    }
+    expect(f.query).toHaveBeenCalledTimes(1);
+  });
+
+  it('binds pagination to the exact session and rejects a changed calculation version', async () => {
+    const first = {
+      ...page(),
+      peers: [
+        ...Array.from({ length: 19 }, (_, i) => ({
+          seatId: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+          score: 83.46,
+          rank: 2,
+          avatarKey: null,
+          avatarId: null,
+        })),
+        page().peers[0],
+      ],
+      hasMore: true,
+      afterSeat: peer,
+      afterScore: 83.46,
+    };
+    const f = fixture(first);
+    const result = await f.controller.accountRating(REQUEST, CLASS, { view: 'all' });
+    expect(result.nextCursor).toBeTypeOf('string');
+    expect(Buffer.from(result.nextCursor!, 'base64url').toString('utf8')).not.toContain(peer);
+    f.query.mockResolvedValue({ rows: [{ result: { ...page(), version: 'b'.repeat(32) } }] });
+    await expect(
+      f.controller.accountRating(REQUEST, CLASS, {
+        view: 'all',
+        cursor: result.nextCursor!,
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: { error: { code: 'progress_rating_stale' } },
+    });
+    expect(f.query.mock.calls.at(-1)?.[1]?.slice(5, 7)).toEqual([83.46, peer]);
+    const otherSession = {
+      cookies: { asa_session: 'other-token', asa_student_session: 'seat-token' },
+    } as unknown as FastifyRequest;
+    await expect(
+      f.controller.accountRating(otherSession, CLASS, {
+        view: 'all',
+        cursor: result.nextCursor!,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('requires an independent server secret, not just the actor-readable session cookie, for cursor and image ticket encryption', async () => {
+    const raw = page();
+    const last = {
+      ...raw.peers[1]!,
+      avatarId: peer,
+    };
+    const peers = [
+      ...Array.from({ length: 19 }, (_, i) => ({
+        seatId: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+        score: 83.46,
+        rank: 2,
+        avatarKey: null,
+        avatarId: null,
+      })),
+      last,
+    ];
+    const f = fixture({
+      ...raw,
+      peers,
+      hasMore: true,
+      afterSeat: second,
+      afterScore: 83.46,
+    });
+    const result = await f.controller.accountRating(REQUEST, CLASS, { view: 'all' });
+    expect(result.nextCursor).toBeTypeOf('string');
+    expect(result.peers[19]!.avatarTicket).toBeTypeOf('string');
+    // A learner can inspect their own HTTP-only cookie via browser tooling.
+    // Such a cookie must not be sufficient to derive a key that reveals
+    // somebody else's private Seat UUID from an encrypted cursor or ticket.
+    const actorDerivableKey = createHash('sha256')
+      .update('asa:sp04:ticket:v1:' + hashSessionToken('account-token'))
+      .digest();
+    for (const ticket of [result.nextCursor!, result.peers[19]!.avatarTicket!]) {
+      const bytes = Buffer.from(ticket, 'base64url');
+      expect(bytes.length).toBeGreaterThan(28);
+      expect(() => {
+        const decrypt = createDecipheriv('aes-256-gcm', actorDerivableKey, bytes.subarray(0, 12));
+        decrypt.setAuthTag(bytes.subarray(12, 28));
+        return Buffer.concat([decrypt.update(bytes.subarray(28)), decrypt.final()]);
+      }).toThrow();
+    }
+  });
+
+  it.each(['hex', 'base64url'] as const)(
+    'reopens encrypted peer image tickets after an API module restart using existing %s settings key',
+    async (format) => {
+      const originalKey = Buffer.from('b3'.repeat(32), 'hex');
+      const settingsKey =
+        format === 'hex' ? originalKey.toString('hex') : originalKey.toString('base64url');
+      vi.stubEnv('ASA_SETTINGS_ENCRYPTION_KEY', settingsKey);
+      vi.stubEnv('ASA_SP04_TICKET_SECRET', '');
+      const newController = (Controller: typeof PersonalProgressController, data: unknown) => {
+        const query = vi.fn(async () => ({ rows: [{ result: data }] }));
+        const resolve = vi.fn(async () => ({ accountId: ACCOUNT, principalId: PRINCIPAL }));
+        const resolveExistingState = vi.fn();
+        return {
+          query,
+          controller: new Controller(
+            { query } as unknown as pg.Pool,
+            { resolve } as unknown as ActiveContextUseCase,
+            { resolveExistingState } as unknown as SeatContextUseCase,
+          ),
+        };
+      };
+      try {
+        vi.resetModules();
+        const firstModule = await import('./personal-progress.controller.js');
+        const first = newController(firstModule.PersonalProgressController, page());
+        const firstPage = await first.controller.accountRating(REQUEST, CLASS);
+        const imageTicket = firstPage.peers[1]!.avatarTicket!;
+        expect(imageTicket).toMatch(/^[A-Za-z0-9_-]+$/);
+        expect(imageTicket).not.toContain(second);
+        vi.resetModules();
+        const secondModule = await import('./personal-progress.controller.js');
+        const secondController = newController(secondModule.PersonalProgressController, [
+          { seatId: second, dataUrl: avatarDataUrl },
+        ]);
+        const images = await secondController.controller.accountRatingAvatars(REQUEST, CLASS, {
+          tickets: [imageTicket],
+        });
+        expect(images).toEqual({
+          items: [{ ticket: imageTicket, dataUrl: avatarDataUrl }],
+        });
+        expect(secondController.query).toHaveBeenCalledTimes(1);
+        // The same cookie with a rotated server-held settings key cannot
+        // decrypt a ticket issued by the old replica/process.
+        vi.stubEnv('ASA_SETTINGS_ENCRYPTION_KEY', 'c4'.repeat(32));
+        vi.resetModules();
+        const rotatedModule = await import('./personal-progress.controller.js');
+        const rotated = newController(rotatedModule.PersonalProgressController, []);
+        await expect(
+          rotated.controller.accountRatingAvatars(REQUEST, CLASS, {
+            tickets: [imageTicket],
+          }),
+        ).rejects.toMatchObject({ status: 400 });
+        expect(rotated.query).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+      }
+    },
+  );
+
+  it('does not expose custom avatar pixels except through an encrypted session ticket', async () => {
+    const f = fixture(page());
+    const rating = await f.controller.accountRating(REQUEST, CLASS);
+    const ticket = rating.peers[1]!.avatarTicket!;
+    f.query.mockResolvedValue({ rows: [{ result: [{ seatId: second, dataUrl: avatarDataUrl }] }] });
+    const image = await f.controller.accountRatingAvatars(REQUEST, CLASS, { tickets: [ticket] });
+    expect(image).toEqual({ items: [{ ticket, dataUrl: avatarDataUrl }] });
+    expect(f.query.mock.calls.at(-1)?.[1]?.slice(4)).toEqual([CLASS, [second]]);
+    await expect(
+      f.controller.accountRatingAvatars(REQUEST, CLASS, {
+        tickets: [Buffer.from(JSON.stringify([1, 'image', CLASS, second])).toString('base64url')],
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      f.controller.accountRatingAvatars(REQUEST, CLASS, {
+        tickets: Array(21).fill(ticket),
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      f.controller.accountRatingAvatars(REQUEST, CLASS, {
+        tickets: [ticket, ticket],
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    const otherSession = { cookies: { asa_session: 'new-session' } } as unknown as FastifyRequest;
+    await expect(
+      f.controller.accountRatingAvatars(otherSession, CLASS, { tickets: [ticket] }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('checks Seat-only authority and does not fall back to Account session', async () => {
+    const f = fixture(page());
+    const result = await f.controller.seatRating(REQUEST, CLASS);
+    expect(result.peers).toHaveLength(2);
+    expect(f.resolve).not.toHaveBeenCalled();
+    expect(f.resolveExistingState).toHaveBeenCalledWith('seat-token');
+    expect(f.query.mock.calls[0]?.[1]?.slice(0, 5)).toEqual([
+      'seat',
+      SEAT,
+      PRINCIPAL,
+      hashSessionToken('seat-token'),
+      CLASS,
+    ]);
+  });
+
+  it.each(['P6S01', 'P6S02', 'P6S03'])(
+    'translates database %s without revealing internal access details',
+    async (code) => {
+      const f = fixture(page());
+      f.query.mockRejectedValue({ code, message: 'PRIVATE info about somebody else' });
+      await expect(f.controller.accountRating(REQUEST, CLASS)).rejects.toMatchObject({
+        status: code === 'P6S01' ? 401 : code === 'P6S02' ? 403 : 400,
+      });
+    },
+  );
 });

@@ -934,3 +934,223 @@ describe('personal progress genuine HTTP with restricted PostgreSQL', () => {
     }
   });
 });
+
+describe('SP-04 real HTTP learner-safe group rating and image authorisation', () => {
+  const accountRating = (id: string, suffix = 'view=preview&limit=5') =>
+    `/api/progress/groups/${id}/rating?${suffix}`;
+  const accountAvatars = (id: string) => `/api/progress/groups/${id}/avatars`;
+  const seatRating = (id: string) =>
+    `/api/class-join/progress/groups/${id}/rating?view=preview&limit=5`;
+
+  async function addPeer(owner: Identity, groupId: string) {
+    const loginHandle = randomUUID().replaceAll('-', '').slice(0, 8);
+    const result = await admin.query<{ id: string }>(
+      `INSERT INTO classroom_student_seats
+       (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+         safe_mode,status,created_by)
+       VALUES($1,$2,'SP04 never visible teacher roster',$3,$3,true,'active',$4)
+       RETURNING id`,
+      [owner.teacher.tenantId, groupId, loginHandle, owner.teacher.teacherId],
+    );
+    const seatId = result.rows[0]!.id;
+    const learner = await admin.query<{ learner: string }>(
+      'SELECT learning_audience_ensure_seat_identity($1) AS learner',
+      [seatId],
+    );
+    expect(learner.rows[0]!.learner).toBeTypeOf('string');
+    expect(
+      (await admin.query('SELECT principal_id FROM student_seat_principal($1)', [seatId])).rows,
+    ).toHaveLength(1);
+    return seatId;
+  }
+
+  it('denies unauthenticated and foreign Account/Seat reads, preserves own null and true zero', async () => {
+    const owner = await identity();
+    const foreign = await identity();
+    const groupId = (await addOwnGroups(owner, 1))[0]!;
+    const valid = await request(accountRating(groupId), owner.modern);
+    expect(valid.status, valid.text).toBe(200);
+    expect(valid.headers.get('cache-control')).toBe('private, no-store');
+    const data = valid.body as {
+      groupId: string;
+      periodDays: number;
+      own: { isSelf: boolean; availability: string; score: number | null; rank: number | null };
+      peers: unknown[];
+      version: string;
+      hasMore: boolean;
+      nextCursor: string | null;
+    };
+    expect(Object.keys(data).sort()).toEqual(
+      ['groupId', 'periodDays', 'own', 'peers', 'version', 'asOf', 'hasMore', 'nextCursor'].sort(),
+    );
+    expect(data).toMatchObject({
+      groupId,
+      periodDays: 30,
+      own: { availability: 'available', isSelf: true },
+      peers: [],
+      hasMore: false,
+      nextCursor: null,
+    });
+    expect(data.own.rank).toBe(1);
+    expect(data.own.score).toBe(0);
+    expect(valid.text).not.toMatch(
+      /"(?:seatId|avatarId|accountId|principalId|tenantId|studentCode|displayName|displayLabel|loginHandle|lastActiveAt|grades|sources|teacherRoster)"\s*:/,
+    );
+    expect((await request(accountRating(groupId))).status).toBe(401);
+    expect((await request(accountRating(groupId), foreign.modern)).status).toBe(403);
+    expect(
+      (await request(accountRating(groupId, 'view=preview&limit=40'), owner.modern)).status,
+    ).toBe(400);
+    expect((await request(accountRating(groupId, 'view=all&limit=10'), owner.modern)).status).toBe(
+      400,
+    );
+    expect(
+      (await request(accountRating(groupId, 'principalId=' + foreign.principalId), owner.modern))
+        .status,
+    ).toBe(400);
+
+    const seat = await seatIdentity();
+    const validSeat = await request(seatRating(seat.classroomId), seat.cookies);
+    expect(validSeat.status, validSeat.text).toBe(200);
+    expect(validSeat.headers.get('cache-control')).toBe('private, no-store');
+    expect(validSeat.body).toMatchObject({
+      groupId: seat.classroomId,
+      own: { availability: 'available', score: 0, rank: 1, isSelf: true },
+      peers: [],
+      nextCursor: null,
+    });
+    expect((await request(seatRating(seat.classroomId), owner.modern)).status).toBe(401);
+    await admin.query(
+      'UPDATE classroom_student_sessions SET revoked_at=now() WHERE token_hash=$1',
+      [seat.hash],
+    );
+    expect((await request(seatRating(seat.classroomId), seat.cookies)).status).toBe(401);
+  });
+
+  it('serves only granted PNG through encrypted tickets and invalidates them on revocation or rating OFF', async () => {
+    const owner = await identity();
+    const groupId = (await addOwnGroups(owner, 1))[0]!;
+    const seatId = await addPeer(owner, groupId);
+    const image = (
+      await admin.query<{ id: string }>(
+        `INSERT INTO classroom_custom_avatars(classroom_id,title,data_url,secret,created_by)
+       VALUES($1,'SP04 protected test image',$2,true,$3) RETURNING id`,
+        [groupId, 'data:image/png;base64,' + preview.toString('base64'), owner.principalId],
+      )
+    ).rows[0]!.id;
+    await admin.query(
+      'INSERT INTO classroom_custom_avatar_choices(seat_id,avatar_id) VALUES($1,$2)',
+      [seatId, image],
+    );
+    const initial = await request(accountRating(groupId), owner.modern);
+    expect(initial.status, initial.text).toBe(200);
+    const first = initial.body as {
+      version: string;
+      peers: Array<{ avatarTicket: string | null }>;
+    };
+    expect(first.peers).toHaveLength(1);
+    expect(first.peers[0]!.avatarTicket).toBeNull();
+    await admin.query(
+      'INSERT INTO classroom_custom_avatar_grants(seat_id,avatar_id) VALUES($1,$2)',
+      [seatId, image],
+    );
+    const allowed = await request(accountRating(groupId), owner.modern);
+    expect(allowed.status, allowed.text).toBe(200);
+    const page = allowed.body as { version: string; peers: Array<{ avatarTicket: string | null }> };
+    expect(page.version).not.toBe(first.version);
+    const ticket = page.peers[0]!.avatarTicket;
+    expect(ticket).toMatch(/^[A-Za-z0-9_-]+$/);
+    if (!ticket) throw new Error('No authorised opaque avatar ticket');
+    expect(ticket).not.toContain(seatId);
+    const payload = { tickets: [ticket] };
+    const pixels = await post(accountAvatars(groupId), payload, owner.modern);
+    expect(pixels.status, pixels.text).toBe(201);
+    expect(pixels.headers.get('cache-control')).toBe('private, no-store');
+    expect(pixels.body).toEqual({
+      items: [{ ticket, dataUrl: 'data:image/png;base64,' + preview.toString('base64') }],
+    });
+    expect(pixels.text).not.toContain(seatId);
+    const forgery = await post(accountAvatars(groupId), { tickets: ['Zm9yZ2Vk'] }, owner.modern);
+    expect(forgery.status).toBe(400);
+    const crossSession = await post(accountAvatars(groupId), payload, (await identity()).modern);
+    expect(crossSession.status).toBe(400);
+    await admin.query(
+      'DELETE FROM classroom_custom_avatar_grants WHERE seat_id=$1 AND avatar_id=$2',
+      [seatId, image],
+    );
+    const revoked = await post(accountAvatars(groupId), payload, owner.modern);
+    expect(revoked.status, revoked.text).toBe(201);
+    expect(revoked.body).toEqual({ items: [] });
+    await admin.query(
+      'INSERT INTO classroom_custom_avatar_grants(seat_id,avatar_id) VALUES($1,$2)',
+      [seatId, image],
+    );
+    await admin.query(
+      `INSERT INTO classroom_participant_settings(classroom_id,period_days,factors,revision)
+       VALUES($1,30,$2::jsonb,1)
+       ON CONFLICT(classroom_id) DO UPDATE SET factors=EXCLUDED.factors,
+         revision=classroom_participant_settings.revision+1`,
+      [
+        groupId,
+        JSON.stringify({ projects: false, logins: false, days: false, time: false, grades: false }),
+      ],
+    );
+    const disabled = await request(accountRating(groupId), owner.modern);
+    expect(disabled.status, disabled.text).toBe(200);
+    expect(disabled.body).toMatchObject({
+      own: {
+        availability: 'unavailable',
+        score: null,
+        rank: null,
+        reason: 'rating_disabled',
+        isSelf: true,
+      },
+      peers: [],
+    });
+    const blockedPixels = await post(accountAvatars(groupId), payload, owner.modern);
+    expect(blockedPixels.status, blockedPixels.text).toBe(201);
+    expect(blockedPixels.body).toEqual({ items: [] });
+    await admin.query('UPDATE sessions_v2 SET revoked_at=now() WHERE token_hash=$1', [
+      owner.modernHash,
+    ]);
+    expect((await post(accountAvatars(groupId), payload, owner.modern)).status).toBe(401);
+  });
+
+  it('paginates tied scores without duplicate peers and rejects a stale or cross-session cursor', async () => {
+    const owner = await identity();
+    const foreign = await identity();
+    const groupId = (await addOwnGroups(owner, 1))[0]!;
+    for (let index = 0; index < 23; index++) await addPeer(owner, groupId);
+    const firstRead = await request(accountRating(groupId, 'view=all'), owner.modern);
+    expect(firstRead.status, firstRead.text).toBe(200);
+    const first = firstRead.body as {
+      version: string;
+      peers: Array<{ peerKey: string; score: number | null; rank: number | null }>;
+      hasMore: boolean;
+      nextCursor: string | null;
+    };
+    expect(first.peers).toHaveLength(20);
+    expect(first.hasMore).toBe(true);
+    expect(first.peers.every((peer) => peer.score === 0 && peer.rank === 1)).toBe(true);
+    expect(first.nextCursor).toMatch(/^[A-Za-z0-9_-]+$/);
+    if (!first.nextCursor) throw new Error('Missing 20-peer page continuation');
+    const path = accountRating(groupId, 'view=all&cursor=' + encodeURIComponent(first.nextCursor));
+    const secondRead = await request(path, owner.modern);
+    expect(secondRead.status, secondRead.text).toBe(200);
+    const second = secondRead.body as {
+      version: string;
+      peers: Array<{ peerKey: string }>;
+      hasMore: boolean;
+      nextCursor: string | null;
+    };
+    expect(second.peers).toHaveLength(3);
+    expect(second.version).toBe(first.version);
+    expect(second.hasMore).toBe(false);
+    expect(new Set([...first.peers, ...second.peers].map((peer) => peer.peerKey)).size).toBe(23);
+    expect((await request(path, foreign.modern)).status).toBe(400);
+    await addPeer(owner, groupId);
+    const stale = await request(path, owner.modern);
+    expect(stale.status, stale.text).toBe(409);
+    expect(stale.body).toMatchObject({ error: { code: 'progress_rating_stale' } });
+  });
+});
