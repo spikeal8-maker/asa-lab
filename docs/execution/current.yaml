@@ -16645,14 +16645,25 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: done
+      status: ready
       kind: implementation
       risk: medium
       semantic_change: 'no'
-      checkpoint: independently_verified_copy_only_notes_and_blockers_General_success
+      checkpoint: r23_optional_notes_and_visible_blockers_selected
       owner_acceptance: pending
       execution_role: new_bounded_message_executor_then_new_independent_review
-      owner_authorization: Ownerexplicitclear_non_educational_command_help_and_completeprogramme_easiest_first. Rootpoint7readonlyinventoryfoundno_autodelay_policy_and_realoldprojectcompatibility_issue; foundsmallerstale_checkProgram_model_limits_phrase. Onlycopy_and_presentation_no_support_reclassification_or_runtimefeatures. Source862integrated858ec30d_after84f65General41009745129_all4SUCCESS_independent222tests4native_canonical2556tests71freshNx_one_unchanged_retry. No_server_foreignchanges_refactor_or_capraise.
+      owner_authorization: >-
+        Owner selected ELECTRONICS-R23-DELIVERY-001 on 2026-11-14 and authorized this
+        independent #863 UI slice and protected integration after fresh checks and
+        independent review. The copy-only delivery dc2e1fc8 is already in main;
+        the remaining scope is to keep advice collapsed for runnable sketches and
+        reveal blockers with the existing source navigation. Preserve diagnostic
+        structures, admission, generated C++, persistence, Worker, timing, R4 and
+        bundle limits. Formal R23/AC-04 acceptance retains the R10-R12 prerequisite.
+        Owner priority: https://github.com/spikeal8-maker/asa-lab/issues/863#issuecomment-6883661838.
+      implementation_files:
+        - apps/web/src/electronics/ArduinoCodePanel.tsx
+        - apps/web/src/electronics/testing/arduino-check-messages.browser.mjs
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-CHECK-MESSAGES-001.md
       deployment: prohibited_by_owner
@@ -16670,11 +16681,14 @@ parallel_lanes:
       kind: observed_snapshot
       main:
         branch: main
-        sha: 858ec30d9ed8eb9b4648e1b68141a115a21ba45d
-      convergence_baseline_sha: 858ec30d9ed8eb9b4648e1b68141a115a21ba45d
+        sha: ccd7d2c4976dcd3b54529b5edcff9870a892fdac
+      convergence_baseline_sha: ccd7d2c4976dcd3b54529b5edcff9870a892fdac
       head_sha: null
-      observed_at: '2026-10-30T06:33:07Z'
-      observation_note: Fresh fetch main before edits. Rootcleanexceptownnewcard_and_catalogue_speed21_stale_status_correction. Main858General41012801030_inprogress_notPASSclaim; 5kernel_sourceblobs_match_approved84f65_all4GeneralSUCCESS. Point7inventoryreadonlycomplete_no_new_policy_or_code_started. Newauthorrecords_before_diagnostics_structures_then_copyonly_preserve_status_codes_ranges_and_execution; actualrawcapsfirst_Arduino1999981of2000000. No oldCI_task_resume.
+      observed_at: '2026-11-14T20:30:25Z'
+      observation_note: >-
+        Fresh fetch main before writes. The historical source review below covers only the October
+        candidate. Fresh before/after desktop and mobile evidence, focused and
+        General gates, bundle checks and independent review are required for R23.
 
     source_review_evidence:
       source_candidate_sha: 097f2dba6b376130244c3fbbb3bdc1f65520dc6a
