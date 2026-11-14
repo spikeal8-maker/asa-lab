@@ -55,8 +55,24 @@ class BackupLongPathTests(unittest.TestCase):
             runtime = {"revision": "a" * 40, "schema": 304}
             records = {name: {"id": name, "image": "image-" + name, "running": True}
                        for name in ("postgres", "minio", "api", "web")}
+            records["api"]["mounts"] = [
+                {"Destination": "/var/lib/asa-logs", "Source": "/fixture/logs"},
+                {"Destination": "/var/lib/asa-application-logs", "Name": "fixture_application_logs"},
+            ]
             commands = []
             streamed_dumps = []
+            reads = 0
+            replace_mount = False
+
+            def identity():
+                nonlocal reads
+                reads += 1
+                if reads % 2 == 1:
+                    return records
+                mounts = records["api"]["mounts"][::-1]
+                if replace_mount:
+                    mounts[0] = {**mounts[0], "Name": "unexpected_application_logs"}
+                return {**records, "api": {**records["api"], "mounts": mounts}}
 
             def compose(*args, **kwargs):
                 commands.append(args)
@@ -85,12 +101,17 @@ class BackupLongPathTests(unittest.TestCase):
                 env={"ASA_OBJECT_STORAGE_ENDPOINT": "http://minio:9000",
                      "POSTGRES_DB": "fixture", "POSTGRES_USER": "fixture_admin"},
                 project="asa-lab-backup-fixture", profile="production",
-                identity=lambda: records, readiness=lambda: runtime, compose=compose,
+                identity=identity, readiness=lambda: runtime, compose=compose,
                 wait_ready=lambda *args: None)
             with (patch.object(backup, "run", docker),
                   patch.object(backup, "copy_online_objects", copy_objects),
                   patch.object(backup, "privileges", return_value=[])):
                 completed = backup._export_backup(install, str(destination))
+                replace_mount = True
+                with self.assertRaises(Blocked) as changed:
+                    backup._export_backup(install, str(destination))
+                self.assertEqual(changed.exception.code, "BACKUP_RUNTIME_CHANGED")
+                self.assertEqual(list(completed.parent.iterdir()), [completed])
 
             # Simulate a later CLI invocation with an ordinary unprefixed path.
             plain = str(completed)

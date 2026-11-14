@@ -353,8 +353,17 @@ def copy_online_objects(install, record, partial):
             run(["docker", "rm", "-f", "-v", stage], capture=True)
 
 
+def backup_runtime_identity(records):
+    # Docker can return the same mount records in a different order on every
+    # inspect. The mounted paths, volumes and all other fields still must match.
+    return {service: {**record, "mounts": sorted(record.get("mounts", []),
+                                                key=lambda mount: mount["Destination"])}
+            for service, record in records.items()}
+
+
 def _export_backup(install, destination=None):
     records = install.identity()
+    expected_identity = backup_runtime_identity(records)
     require(all(records.get(name, {}).get("running") for name in ("postgres", "minio")),
             "BACKUP_SERVICES", "Running PostgreSQL and local MinIO are required for a complete export.")
     require(install.env.get("ASA_OBJECT_STORAGE_ENDPOINT") == "http://minio:9000",
@@ -391,7 +400,8 @@ def _export_backup(install, destination=None):
         images = {}
         for name, record in records.items():
             images[name] = {"reference": record["image"], "imageId": run(["docker", "inspect", "--format", "{{.Image}}", record["id"]], capture=True)}
-        require(install.identity() == records, "BACKUP_RUNTIME_CHANGED", "Installation changed during the backup.")
+        require(backup_runtime_identity(install.identity()) == expected_identity,
+                "BACKUP_RUNTIME_CHANGED", "Installation changed during the backup.")
         install.wait_ready(runtime["revision"], runtime["schema"])
         manifest = {"format": "asa-backup-v1", "captureMode": "online-postgres-minio",
                     "complete": True, "createdAt": stamp,
