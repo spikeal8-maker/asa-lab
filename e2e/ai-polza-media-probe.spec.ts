@@ -47,7 +47,38 @@ test('real microphone MediaRecorder bytes pass ffprobe and reach only mocked Pol
   const cipher = createCipheriv('aes-256-gcm', Buffer.from(encryptionKey, 'hex'), iv);
   const ciphertext = Buffer.concat([cipher.update('test-key-no-network', 'utf8'), cipher.final()]);
   let admissions = 0;
+  const savedModel = 'openai/whisper-1';
+  const transaction: string[] = [];
+  const client = {
+    query: async (sql: string) => {
+      if (sql.includes('ai_polza_stt_admit')) {
+        admissions++;
+        transaction.push('admit');
+        return { rows: [{ value: 20 }] };
+      }
+      if (sql.includes('ai_polza_catalog_runtime')) {
+        transaction.push('catalog');
+        return {
+          rows: [
+            {
+              value: {
+                credentialCurrent: true,
+                items: [{ kind: 'stt', active: true, selected: true, upstream: savedModel }],
+              },
+            },
+          ],
+        };
+      }
+      if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) {
+        transaction.push(sql);
+        return { rows: [] };
+      }
+      throw new Error('Unexpected transaction SQL');
+    },
+    release: () => transaction.push('release'),
+  };
   const pool = {
+    connect: async () => client,
     query: async (sql: string) => {
       if (sql.includes('ai_polza_runtime'))
         return {
@@ -65,10 +96,6 @@ test('real microphone MediaRecorder bytes pass ffprobe and reach only mocked Pol
             },
           ],
         };
-      if (sql.includes('ai_polza_stt_admit')) {
-        admissions++;
-        return { rows: [{ value: 20 }] };
-      }
       throw new Error('Unexpected SQL');
     },
   } as unknown as pg.Pool;
@@ -78,7 +105,8 @@ test('real microphone MediaRecorder bytes pass ffprobe and reach only mocked Pol
     fetchImpl: async (_url, init) => {
       providerCalls++;
       const body = init?.body as FormData;
-      expect(body.get('model')).toBe('ai-sage/gigaam-v3');
+      expect(body.get('model')).toBe(savedModel);
+      expect(transaction).toEqual(['BEGIN', 'admit', 'catalog', 'COMMIT', 'release']);
       expect(body.get('language')).toBe('ru');
       const file = body.get('file') as File;
       expect(Buffer.from(await file.arrayBuffer())).toEqual(bytes);
@@ -92,6 +120,7 @@ test('real microphone MediaRecorder bytes pass ffprobe and reach only mocked Pol
     durationSeconds: measured,
   });
   expect(result.text).toBe('Тестовая расшифровка');
+  expect(result.model).toBe(savedModel);
   expect(admissions).toBe(1);
   expect(providerCalls).toBe(1);
 });
