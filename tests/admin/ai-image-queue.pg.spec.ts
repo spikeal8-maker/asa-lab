@@ -48,6 +48,7 @@ const schoolPendingFiles = [
   '0320_personal_progress_summary.sql',
   '0321_account_join_learner_identity.sql',
   '0322_student_group_rating.sql',
+  '0324_classroom_merit_history.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
@@ -79,6 +80,7 @@ const canonicalSqlDigests = {
   '0316': '4e63b37b20a09b4e0b2eba6e96140de1b2372febae7490cbf21ee505c7ec78c9',
   '0317': 'c7efd322f7acf5567b85f1035b2e55a27842134fa3d487ff20be2d06ad90b99e',
   '0318': 'e834b0e84327aaf2d53951bc54e2fb0a628abc31cc332af9926f2d0c966c3d5d',
+  '0324': 'da2b0a93303b3511d1f1ed0affeb7c9c5bea688948c9783a9d60231aad43c447',
 };
 const beginSql = 'SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,$6,$7,$8) AS value';
 const transport = {
