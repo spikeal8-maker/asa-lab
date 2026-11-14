@@ -18136,8 +18136,8 @@ parallel_lanes:
       deployment: not_requested
       database_actions: isolated_tests_only
       next_eligible_step: SP-05
-      next_step_selected: false
-      next_dependency: 'SP-05 rating calibration issue #1128 with outstanding copy provenance issue #1127; separate controller selection and acceptance required; do not start SP-06.'
+      next_step_selected: true
+      next_dependency: 'SP-05 numeric calibration selected by controller on 2026-11-14; C3 issue #1127 remains blocking source integration; do not start SP-06.'
       final_acceptance_2026_11_14:
         status: accepted_on_main_after_product_postmerge_ci_success
         product_pr: 1139
@@ -19118,10 +19118,29 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: conditional_c3_proposal_pending_baseline_ci_review_and_main_acceptance
+      checkpoint: c3_controller_reselected_20261114_after_c1c2_and_sp04_main
       owner_acceptance: pending
       program: ASA-STUDENT-PROGRESS-001
       selected_step: C3
+      controller_selection_2026_11_14:
+        selection: conditional_c3_elevated_to_ready_after_accepted_baseline
+        accepted_main_at_selection: 7cb29cdeb309338af2bfc5f78fb1881db094cf38
+        last_released_migration: 0322_student_group_rating.sql
+        selected_future_migration: 0323_project_duplicate_origin.sql
+        exact_source_paths: 13
+        previous_proposed_0322_migration: historical_only_invalid_after_sp04
+        predecessor_c1_c2_pr: 1130
+        predecessor_c1_c2_merge: 5a0d96e1945fe38b6e3f1eb46fb3474cbf7b833f
+        sp04_product_pr: 1139
+        sp04_closeout_pr: 1148
+        owner_authorization: 'SP05-FULL-DELIVERY-001 authorizes the complete separately-reviewed C3 fix and protected integration; no Codex, no deployment and no live DB mutation.'
+        source_authoring: authorized_after_this_registration_is_accepted_on_main_and_full_thirteen_path_preflight
+        independent_security_review: required_on_final_c3_source_sha
+        checks: real_isolated_postgresql_application_role_and_negative_security_tests_plus_general_data_http_upgrade
+        scope_boundary: existing_thirteen_source_paths_only_with_forward_migration_0323_and_no_released_migration_edits
+        production_deployment: not_authorized
+        production_database_actions: not_authorized
+        other_execution_lanes: unchanged
       classification: C_independent_baseline
       related_issues:
       - 1090
@@ -19145,7 +19164,7 @@ parallel_lanes:
       planned_paths:
       - contexts/projects/infrastructure/pg-project.repository.ts
       - tests/portal/public-project-copy.pg.spec.ts
-      - migrations/0322_project_duplicate_origin.sql
+      - migrations/0323_project_duplicate_origin.sql
       - tests/migration/project-duplicate-origin-upgrade.pg.spec.ts
       - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
       - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
@@ -19164,7 +19183,7 @@ parallel_lanes:
       activation_condition: Do not author C3 while this selection exists only on the local or PR branch. First require
         the exact combined C1/C2 product and this registration accepted on main after applicable exact-source CI, independent
         source/security/runtime review and root integration authorization. Then read actual main and accepted C1/C2 evidence,
-        confirm migration frontier0321 and availability of proposed0322, classify worktree/path overlaps and scoped blockers,
+        confirm migration frontier0322 and availability of selected0323, classify worktree/path overlaps and scoped blockers,
         obtain actual SAFE_TO_START for all thirteen paths and a separate root C3 author assignment. A changed frontier
         or required additional path returns to the controller before writes; no author self-selection, automatic renumbering
         or automatic next-task execution.
@@ -19733,10 +19752,24 @@ parallel_lanes:
       kind: implementation
       risk: medium
       semantic_change: 'yes'
-      checkpoint: controller_selected_sp05_calibration_pending_canonical_registration
+      checkpoint: sp05_controller_reselected_after_sp04_main_20261114_c3_acceptance_blocked
       owner_acceptance: pending
       program: ASA-STUDENT-PROGRESS-001
       selected_step: SP-05
+      controller_selection_2026_11_14:
+        selection: active_numerical_calibration_only
+        accepted_main_at_selection: 7cb29cdeb309338af2bfc5f78fb1881db094cf38
+        accepted_sp02_pr: 1104
+        accepted_sp04_pr: 1139
+        accepted_sp04_closeout_pr: 1148
+        original_registration_pr: 1125
+        author_scope: the_exact_original_ten_new_files
+        source_qualification_dependency: issue_1127_c3_must_merge_before_sp05_source_integration
+        independent_numerical_review: required_on_final_sp05_source_sha
+        owner_authorization: 'SP05-FULL-DELIVERY-001 authorizes numeric authoring, independent review, and protected integration only after separately accepted C3; no Codex, no live DB changes and no deployment.'
+        production_deployment: not_authorized
+        production_database_actions: not_authorized
+        next_eligible_after_completion: SP-06_requires_separate_selection
       normative_refs:
       - document: STUDENT-PROGRESS-MASTER-V1
         revision: '1.0'
