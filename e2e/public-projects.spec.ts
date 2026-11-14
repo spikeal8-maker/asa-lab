@@ -12,6 +12,7 @@ import type pg from 'pg';
 import type {
   OwnProgressGroupV1,
   PersonalProgressSummaryV1,
+  GroupRatingPageV1,
 } from '../packages/contracts/src/personal-progress';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
@@ -2323,6 +2324,88 @@ test('SP-03 ordinary Account joins three real groups and sees canonical own rank
       expect(grade.value).toMatchObject({ value: 100, revision: 1 });
     const summary = await sp03Summary(page);
     const items = summary.groups.items!;
+
+    // SP-04: one genuine SQL rating for the same authenticated Account/group;
+    // do not assert against mocked JSON, hidden roster or teacher projection.
+    const ratingUrl = `/api/progress/groups/${fractionalGroup.id}/rating`;
+    const bounded = await page.request.get(`${ratingUrl}?view=preview&limit=5`);
+    await ok(bounded);
+    expect(bounded.headers()['cache-control']).toContain('no-store');
+    const previewRating = (await bounded.json()) as GroupRatingPageV1;
+    expect(previewRating.groupId).toBe(fractionalGroup.id);
+    expect(previewRating.own).toEqual({
+      availability: 'available',
+      score: 68.25,
+      rank: 101,
+      isSelf: true,
+    });
+    expect(previewRating.periodDays).toBe(90);
+    expect(previewRating.peers).toHaveLength(5);
+    expect(previewRating.peers.every((peer) => peer.score === 100 && peer.rank === 1)).toBe(true);
+    for (const peer of previewRating.peers) {
+      expect(Object.keys(peer).sort()).toEqual(
+        ['peerKey', 'avatarSrc', 'avatarTicket', 'score', 'rank', 'isSelf'].sort(),
+      );
+      expect(peer.isSelf).toBe(false);
+      expect(peer.peerKey.length).toBe(27);
+      expect(peer.avatarSrc).toMatch(/^\/assets\/avatars\/default\/avatar-\d{2}\.webp$/);
+    }
+    const serialized = JSON.stringify(previewRating);
+    for (const row of peers.rows) expect(serialized).not.toContain(row.id);
+    expect(serialized).not.toMatch(
+      /"(?:displayName|displayLabel|studentCode|email|lastActiveAt|grades|factors|sources|seatId|tenantId|teacherRoster|totalWorks)"\s*:/,
+    );
+    let cursor: string | null = null;
+    const seenPeers = new Set<string>();
+    let pages = 0;
+    let firstFull: GroupRatingPageV1 | null = null;
+    do {
+      const url = `${ratingUrl}?view=all${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const response = await page.request.get(url);
+      await ok(response);
+      expect(response.headers()['cache-control']).toContain('no-store');
+      const next = (await response.json()) as GroupRatingPageV1;
+      firstFull ??= next;
+      expect(next.version).toBe(previewRating.version);
+      expect(next.own.rank).toBe(101);
+      expect(next.peers.length).toBeGreaterThan(0);
+      expect(next.peers.length).toBeLessThanOrEqual(20);
+      for (const peer of next.peers) {
+        expect(seenPeers.has(peer.peerKey)).toBe(false);
+        seenPeers.add(peer.peerKey);
+      }
+      cursor = next.nextCursor;
+      expect(next.hasMore).toBe(cursor !== null);
+      if (cursor) {
+        expect(cursor).toMatch(/^[A-Za-z0-9_-]+$/);
+        expect(Buffer.from(cursor, 'base64url').toString('utf8')).not.toContain(peers.rows[0]!.id);
+      }
+      pages += 1;
+      expect(pages).toBeLessThanOrEqual(6);
+    } while (cursor);
+    expect(pages).toBe(5);
+    expect(seenPeers.size).toBe(100);
+    expect(firstFull!.peers.map((peer) => peer.peerKey).slice(0, 5)).toEqual(
+      previewRating.peers.map((peer) => peer.peerKey),
+    );
+    const foreignGroup = await page.request.get(
+      `/api/progress/groups/${randomUUID()}/rating?view=preview`,
+    );
+    expect(foreignGroup.status()).toBe(403);
+    const badTicket = await page.request.post(
+      `/api/progress/groups/${fractionalGroup.id}/avatars`,
+      {
+        headers: { origin: origin(page) },
+        data: { tickets: [Buffer.from(peers.rows[0]!.id).toString('base64url')] },
+      },
+    );
+    expect(badTicket.status()).toBe(400);
+    const anonymous = await browser.newContext({ baseURL: origin(page) });
+    try {
+      expect((await anonymous.request.get(`${ratingUrl}?view=preview`)).status()).toBe(401);
+    } finally {
+      await anonymous.close();
+    }
     expect(items[0]!.own).toEqual({ availability: 'available', score: 68.25, rank: 101 });
     expect(sp03Number(items[0]!.own.score!)).toBe('68,25');
     expect(items[1]!.own).toEqual({ availability: 'available', score: 0, rank: 1 });
@@ -2346,6 +2429,42 @@ test('SP-03 ordinary Account joins three real groups and sees canonical own rank
         'Скрытое имя одногруппника',
       );
       await sp03Geometry(page);
+      // SP-04: the initial DOM contains exactly the server-bounded peer slice,
+      // never a hidden 100-person roster or peer names in alt/ARIA/tooltips.
+      const firstGroup = page.locator(
+        `[data-testid="own-progress-group"][data-group-id="${fractionalGroup.id}"]`,
+      );
+      const groupWidth = await firstGroup.evaluate(
+        (element) => element.getBoundingClientRect().width,
+      );
+      const expectedLimit = groupWidth <= 380 ? 2 : groupWidth <= 520 ? 3 : 5;
+      await expect(firstGroup.locator('.personal-progress-peer')).toHaveCount(expectedLimit);
+      await expect(firstGroup.getByTestId('own-progress-rank')).toHaveText('101');
+      await expect(firstGroup.getByTestId('own-progress-score')).toHaveText('68,25');
+      const peerDom = await firstGroup
+        .locator('.personal-progress-peers')
+        .evaluate((element) => element.outerHTML);
+      expect(peerDom).not.toMatch(
+        /displayName|displayLabel|studentCode|lastActiveAt|seatId|teacherRoster/,
+      );
+      for (const row of peers.rows) expect(peerDom).not.toContain(row.id);
+      await page.screenshot({ path: `${EVIDENCE}/sp04-account-home-${width}.png`, fullPage: true });
+      const allButton = firstGroup.getByRole('button', { name: 'Все', exact: true });
+      await allButton.focus();
+      await page.keyboard.press('Enter');
+      const ratingDialog = page.getByRole('dialog', { name: new RegExp('Рейтинг группы') });
+      await expect(ratingDialog).toBeVisible();
+      await expect(
+        ratingDialog.locator('.personal-progress-rating-items .personal-progress-peer'),
+      ).toHaveCount(20);
+      await expect(ratingDialog.locator('.personal-progress-rating-pinned')).toContainText('101');
+      await expect(ratingDialog).not.toContainText('sp03peer');
+      await ratingDialog.screenshot({ path: `${EVIDENCE}/sp04-account-all-${width}.png` });
+      const closedByKeyboard = width === 320;
+      if (closedByKeyboard) await page.keyboard.press('Escape');
+      else await ratingDialog.getByRole('button', { name: 'Закрыть' }).click();
+      await expect(ratingDialog).toHaveCount(0);
+      await expect(allButton).toBeFocused();
       const shell = await sp03Shell(page);
       const allGroups = page
         .getByTestId('personal-progress')
@@ -2391,6 +2510,13 @@ test('SP-03 ordinary Account joins three real groups and sees canonical own rank
             (await page.locator('.personal-progress-group-avatar').first().boundingBox())?.width,
         )
         .toBe(width <= 380 ? 44 : width <= 520 ? 54 : 68);
+      // A real container breakpoint changes the server request limit; CSS
+      // must not conceal additional participant rows in the DOM.
+      await expect(
+        page.locator(
+          `[data-testid="own-progress-group"][data-group-id="${fractionalGroup.id}"] .personal-progress-peers .personal-progress-peer`,
+        ),
+      ).toHaveCount(width <= 380 ? 2 : width <= 520 ? 3 : 5);
       await sp03Geometry(page);
       await page
         .getByTestId('personal-progress')
@@ -2727,6 +2853,31 @@ test('SP-03 StudentSeat code login shows only Seat progress and preserves existi
     expect(summary.scope).toEqual({ kind: 'seat', seatId, classroomId: group.id });
     expect(summary.groups.items).toHaveLength(1);
     expect(summary.groups.items![0]!.own).toEqual({ availability: 'available', score: 0, rank: 1 });
+    // SP-04: StudentSeat has its own authenticated route and never adopts
+    // linked Account privileges even if the Account owns private publications.
+    const seatRatingResponse = await page.request.get(
+      `/api/class-join/progress/groups/${group.id}/rating?view=preview&limit=5`,
+    );
+    await ok(seatRatingResponse);
+    expect(seatRatingResponse.headers()['cache-control']).toContain('no-store');
+    const seatRating = (await seatRatingResponse.json()) as GroupRatingPageV1;
+    expect(seatRating.groupId).toBe(group.id);
+    expect(seatRating.periodDays).toBe(7);
+    expect(seatRating.own).toEqual({
+      availability: 'available',
+      score: 0,
+      rank: 1,
+      isSelf: true,
+    });
+    expect(seatRating.peers).toEqual([]);
+    expect((await page.request.get(`/api/progress/groups/${group.id}/rating`)).status()).toBe(401);
+    expect(
+      (
+        await page.request.get(
+          `/api/class-join/progress/groups/${randomUUID()}/rating?view=preview`,
+        )
+      ).status(),
+    ).toBe(403);
     for (const name of ['everPublishedWorks', 'currentLikes', 'createdCopies'] as const)
       expect(summary.metrics[name]).toEqual({ availability: 'available', value: 0 });
     for (const width of SP03_WIDTHS) {

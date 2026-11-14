@@ -109,13 +109,71 @@ async function saved(page: Page, projectId: string) {
   return result;
 }
 
+/** Restore access to the existing dock on narrow screens before switching modes.
+ * This is test navigation only; do not bypass a hidden or broken user control.
+ */
+async function ensureFieldDockVisible(page: Page): Promise<void> {
+  const dock = page.locator('#robotics-field-catalog');
+  const visibleInViewport = await dock.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      rect.right > 0 &&
+      rect.bottom > 0 &&
+      rect.left < innerWidth &&
+      rect.top < innerHeight &&
+      style.display !== 'none' &&
+      style.visibility !== 'hidden'
+    );
+  });
+  if (visibleInViewport) return;
+  const toggle = page.locator('.robotics-field-toolbar .robotics-field-catalog-toggle');
+  await expect(toggle).toBeVisible();
+  // A panel left expanded outside the current narrow viewport must be closed
+  // through the real control before reopening at the new viewport geometry.
+  if ((await toggle.getAttribute('aria-expanded')) === 'true') await toggle.click();
+  await toggle.click();
+  await expect(dock).toBeInViewport();
+}
+
 async function openFieldSettings(page: Page): Promise<void> {
+  // The profile menu remains open after invoking Publication. Close the actual
+  // native details before interacting with the right-hand field dock underneath.
+  const profileMenu = page.locator('.robotics-unified-header .robotics-header-profile');
+  if ((await profileMenu.count()) && (await profileMenu.getAttribute('open')) !== null) {
+    await profileMenu.locator(':scope > summary').click();
+    await expect(profileMenu).not.toHaveAttribute('open', '');
+  }
   const toggle = page.getByRole('button', { name: 'Элементы поля', exact: true });
   if ((await toggle.isVisible()) && (await toggle.getAttribute('aria-expanded')) !== 'true')
     await toggle.click();
+  await ensureFieldDockVisible(page);
+  const fieldTab = page
+    .locator('#robotics-field-catalog')
+    .getByRole('tab', { name: 'Настройки поля', exact: true });
+  if ((await fieldTab.count()) && (await fieldTab.getAttribute('aria-selected')) !== 'true')
+    await fieldTab.click();
   const settings = page.locator('.robotics-field-settings-sheet');
   if ((await settings.isVisible()) && (await settings.getAttribute('open')) === null)
     await settings.locator(':scope > summary').click();
+}
+
+/** Switch the E4 dock to its object catalogue before selecting a new tool.
+ * The old test assumed palette and selected properties were visible together;
+ * do not weaken any test, timer, world assertion or publication gate.
+ */
+async function showObjectCatalog(page: Page): Promise<void> {
+  const toggle = page.getByRole('button', { name: 'Элементы поля', exact: true });
+  if ((await toggle.isVisible()) && (await toggle.getAttribute('aria-expanded')) !== 'true')
+    await toggle.click();
+  await ensureFieldDockVisible(page);
+  const tab = page
+    .locator('#robotics-field-catalog')
+    .getByRole('tab', { name: 'Объекты', exact: true });
+  await tab.click();
+  await expect(page.getByTestId('robotics-field-palette')).toBeVisible();
 }
 
 /** Select the real scene object, not the removed right-hand object list.
@@ -447,6 +505,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
   await numberField(page, 'Ширина поля', 0.8);
   await numberField(page, 'Шаг сетки', 0.2);
   for (const tool of ['Стена', 'Мяч', 'Зона']) {
+    await showObjectCatalog(page);
     await page
       .getByTestId('robotics-field-palette')
       .getByRole('button', { name: tool, exact: true })
@@ -803,6 +862,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
   );
   await selectFieldObject(page, 'wall:barrier');
   await page.getByRole('button', { name: 'Удалить предмет', exact: true }).click();
+  await openFieldSettings(page);
   await page
     .locator('summary')
     .filter({ hasText: /^Плитки и размер поля$/ })
@@ -836,6 +896,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
   await page.getByRole('combobox', { name: 'Покрытие поля', exact: true }).selectOption('wood');
 
   const add = async (label: string) => {
+    await showObjectCatalog(page);
     await page
       .getByTestId('robotics-field-palette')
       .getByRole('button', { name: label, exact: true })
@@ -934,6 +995,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
     ['turn', 0.45, 0.15],
     ['t-junction', 0.75, 0.15],
   ] as const) {
+    await showObjectCatalog(page);
     await page
       .getByTestId('robotics-field-palette')
       .getByRole('button', { name: 'Трасса', exact: true })
@@ -944,6 +1006,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
     await numberField(page, 'Центр штампа Y', y);
   }
   const beforeCross = await saved(page, projectId);
+  await showObjectCatalog(page);
   await page
     .getByTestId('robotics-field-palette')
     .getByRole('button', { name: 'Трасса', exact: true })
@@ -1099,6 +1162,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
   // Sampling after real UI work verifies an acknowledged pause, with no synthetic clock advance.
   expect((await saved(page, projectId)).draft.document).toEqual(source);
   expect(await observePhysics()).toEqual(paused);
+  await showObjectCatalog(page);
   await expect(
     page.getByTestId('robotics-field-palette').getByRole('button', { name: 'Банка', exact: true }),
   ).toBeDisabled();
@@ -1127,6 +1191,7 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
     if (await properties.isVisible()) {
       if ((await properties.getAttribute('aria-expanded')) !== 'true') await properties.click();
     }
+    await showObjectCatalog(page);
     await noOverflow(page);
     for (const label of ['Мяч', 'Банка', 'Брусок', 'Кривая', 'Трасса'])
       await visibleControl(

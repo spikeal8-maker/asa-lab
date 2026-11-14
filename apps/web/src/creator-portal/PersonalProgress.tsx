@@ -1,10 +1,18 @@
-import { useState } from 'react';
-import type { OwnProgressGroupV1, ProgressMetricNameV1 } from '@asa-lab/contracts';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type {
+  OwnProgressGroupV1,
+  ProgressMetricNameV1,
+  GroupRatingPeerV1,
+} from '@asa-lab/contracts';
 import { PortalLink } from '../components/PortalLink';
 import {
   progressNumber,
+  groupRatingPreviewLimit,
+  useGroupRatingPreview,
+  useGroupRatingFull,
   useOwnAvatar,
   type OwnProgressActor,
+  type ProgressLifetime,
   type usePersonalProgress,
 } from './personal-progress';
 import './personal-progress.css';
@@ -58,14 +66,219 @@ function OwnAvatar({
   return <img src={displayed} alt="" width="88" height="88" onError={() => setFailed(src)} />;
 }
 
+function PeerAvatar({
+  peer,
+  image,
+}: {
+  readonly peer: GroupRatingPeerV1;
+  readonly image: string | null;
+}): JSX.Element {
+  const chosen = image ?? peer.avatarSrc;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const src = failedSrc === chosen ? peer.avatarSrc : chosen;
+  const rank = peer.rank === null ? null : progressNumber(peer.rank);
+  const score = peer.score === null ? null : progressNumber(peer.score);
+  const description = [
+    rank === null ? 'Место неизвестно' : `Место ${rank}`,
+    score === null ? 'балл недоступен' : `балл ${score}`,
+  ].join(', ');
+  return (
+    <div className="personal-progress-peer" role="img" aria-label={description}>
+      <div className="personal-progress-peer-avatar">
+        <img src={src} alt="" width="52" height="52" onError={() => setFailedSrc(chosen)} />
+        {rank !== null ? (
+          <span className="personal-progress-rank" aria-hidden="true">
+            {rank}
+          </span>
+        ) : null}
+        {score !== null ? (
+          <span className="personal-progress-score" aria-hidden="true">
+            {score}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function GroupRatingDialog({
+  title,
+  full,
+  ownAvatar,
+  onClose,
+}: {
+  readonly title: string;
+  readonly full: ReturnType<typeof useGroupRatingFull>;
+  readonly ownAvatar: { readonly src: string; readonly fallback: string };
+  readonly onClose: () => void;
+}): JSX.Element | null {
+  const dialog = useRef<HTMLDivElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (full.opened) closeButton.current?.focus();
+  }, [full.opened]);
+  if (!full.opened) return null;
+  const state = full.state;
+  const own = state?.page?.own;
+  const ownRank = own?.rank === null || own?.rank === undefined ? null : progressNumber(own.rank);
+  const ownScore =
+    own?.score === null || own?.score === undefined ? null : progressNumber(own.score);
+  return (
+    <div
+      className="personal-progress-rating-backdrop"
+      onMouseDown={(event) => {
+        if (event.currentTarget === event.target) onClose();
+      }}
+    >
+      <div
+        ref={dialog}
+        className="personal-progress-rating-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Рейтинг группы ${title}`}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            onClose();
+            return;
+          }
+          if (event.key === 'Tab') {
+            const available = [
+              ...(dialog.current?.querySelectorAll<HTMLElement>(
+                'a[href],area[href],button:not(:disabled),input:not(:disabled):not([type="hidden"]),select:not(:disabled),textarea:not(:disabled),summary,[tabindex]:not([tabindex="-1"])',
+              ) ?? []),
+            ].filter(
+              (node) =>
+                node.tabIndex >= 0 &&
+                node.getAttribute('aria-disabled') !== 'true' &&
+                !node.closest('[hidden],[inert]') &&
+                getComputedStyle(node).visibility !== 'hidden' &&
+                getComputedStyle(node).display !== 'none',
+            );
+            if (available.length === 0) return;
+            const first = available[0]!;
+            const last = available[available.length - 1]!;
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first.focus();
+            }
+          }
+        }}
+      >
+        <header className="personal-progress-rating-title">
+          <h3>{title}</h3>
+          <span>{state?.page?.periodDays ?? '—'} дней</span>
+          <button ref={closeButton} type="button" onClick={onClose}>
+            Закрыть
+          </button>
+        </header>
+        <div className="personal-progress-rating-body">
+          <div className="personal-progress-rating-pinned">
+            <div
+              className="personal-progress-self"
+              role="img"
+              aria-label={[
+                'Вы',
+                ownRank === null ? 'место недоступно' : `место ${ownRank}`,
+                ownScore === null ? 'балл недоступен' : `балл ${ownScore}`,
+              ].join(', ')}
+            >
+              <div className="personal-progress-group-avatar">
+                <OwnAvatar {...ownAvatar} />
+                {ownRank !== null ? (
+                  <span className="personal-progress-rank" aria-hidden="true">
+                    {ownRank}
+                  </span>
+                ) : null}
+                {ownScore !== null ? (
+                  <span className="personal-progress-score" aria-hidden="true">
+                    {ownScore}
+                  </span>
+                ) : null}
+              </div>
+              <span className="personal-progress-you" aria-hidden="true">
+                Вы
+              </span>
+            </div>
+          </div>
+          <div className="personal-progress-rating-scroll">
+            {state?.restarted ? (
+              <p role="status">Рейтинг обновился. Показана новая последовательная выдача.</p>
+            ) : null}
+            <div className="personal-progress-rating-items" aria-label="Участники группы по местам">
+              {state?.peers.map((peer) => (
+                <PeerAvatar
+                  key={peer.peerKey}
+                  peer={peer}
+                  image={peer.avatarTicket ? (state.images[peer.avatarTicket] ?? null) : null}
+                />
+              ))}
+            </div>
+            {state?.loading ? <p role="status">Загружаем рейтинг…</p> : null}
+            {state && !state.loading && state.peers.length === 0 && !state.error ? (
+              <p>Других участников нет.</p>
+            ) : null}
+            {state?.error ? (
+              <p role="alert">
+                {state.error}{' '}
+                <button type="button" onClick={full.retry}>
+                  Повторить
+                </button>
+              </p>
+            ) : null}
+            {state?.nextCursor ? (
+              <button
+                type="button"
+                className="btn-secondary personal-progress-rating-next"
+                disabled={state.loading}
+                onClick={full.loadMore}
+              >
+                Показать ещё
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OwnGroup({
   group,
   avatar,
+  actor,
+  lifetime,
 }: {
   readonly group: OwnProgressGroupV1;
   readonly avatar: { readonly src: string; readonly fallback: string };
+  readonly actor: OwnProgressActor;
+  readonly lifetime: ProgressLifetime;
 }): JSX.Element {
-  const { own } = group;
+  const article = useRef<HTMLElement>(null);
+  const opener = useRef<HTMLButtonElement>(null);
+  const [limit, setLimit] = useState(() =>
+    typeof window === 'undefined' ? 2 : groupRatingPreviewLimit(window.innerWidth),
+  );
+  useLayoutEffect(() => {
+    const update = () => {
+      const width = article.current?.getBoundingClientRect().width || window.innerWidth;
+      setLimit(groupRatingPreviewLimit(width));
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update);
+      return () => window.removeEventListener('resize', update);
+    }
+    const observer = new ResizeObserver(update);
+    if (article.current) observer.observe(article.current);
+    return () => observer.disconnect();
+  }, []);
+  const preview = useGroupRatingPreview(actor, lifetime, group.groupId, limit);
+  const full = useGroupRatingFull(actor, lifetime, group.groupId);
+  const own = preview.rating.data?.own ?? group.own;
   const score = own.score === null ? null : progressNumber(own.score);
   const rank = own.rank === null ? null : progressNumber(own.rank);
   const description = [
@@ -77,14 +290,22 @@ function OwnGroup({
     .join(', ');
   const unavailable =
     own.availability === 'unavailable'
-      ? own.reason === 'ambiguous_self_participant'
+      ? 'reason' in own && own.reason === 'ambiguous_self_participant'
         ? 'Учебный профиль нужно уточнить у преподавателя.'
-        : 'Рейтинг сейчас недоступен.'
+        : 'reason' in own && own.reason === 'rating_disabled'
+          ? 'Рейтинг выключен'
+          : 'Рейтинг сейчас недоступен.'
       : own.score === null && own.rank === null
         ? 'Рейтинг выключен'
         : null;
+  const peers = preview.rating.data?.peers ?? [];
+  const close = () => {
+    full.close();
+    if (lifetime.key && lifetime.current() === lifetime.key) opener.current?.focus();
+  };
   return (
     <article
+      ref={article}
       className="personal-progress-group"
       data-testid="own-progress-group"
       data-group-id={group.groupId}
@@ -92,6 +313,19 @@ function OwnGroup({
       <header>
         <h3>{group.title}</h3>
         <span>{group.periodDays} дней</span>
+        <button
+          ref={opener}
+          type="button"
+          className="personal-progress-all"
+          onClick={full.open}
+          disabled={
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+              group.groupId,
+            )
+          }
+        >
+          Все
+        </button>
       </header>
       <div className="personal-progress-group-body">
         <div className="personal-progress-self" role="img" aria-label={description}>
@@ -120,8 +354,45 @@ function OwnGroup({
             Вы
           </span>
         </div>
-        <p className="personal-progress-group-note">{unavailable ?? 'Ваш результат за период'}</p>
+        {preview.rating.data && !unavailable ? (
+          <>
+            <div className="personal-progress-peer-divider" aria-hidden="true" />
+            <div className="personal-progress-peers" aria-label="Места других участников">
+              {peers.map((peer) => (
+                <PeerAvatar
+                  key={peer.peerKey}
+                  peer={peer}
+                  image={
+                    peer.avatarTicket ? (preview.imageMap.get(peer.avatarTicket) ?? null) : null
+                  }
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="personal-progress-group-note">
+            {unavailable ??
+              (preview.rating.error
+                ? 'Не удалось загрузить участников.'
+                : preview.rating.loading
+                  ? 'Загружаем участников…'
+                  : 'Ваш результат за период')}
+          </p>
+        )}
       </div>
+      {preview.rating.error && !preview.rating.loading && !unavailable ? (
+        <button
+          className="btn-secondary personal-progress-group-retry"
+          type="button"
+          onClick={preview.rating.reload}
+        >
+          Повторить загрузку участников
+        </button>
+      ) : null}
+      {preview.avatars.error ? (
+        <p className="personal-progress-group-note">Некоторые аватары недоступны.</p>
+      ) : null}
+      <GroupRatingDialog title={group.title} full={full} ownAvatar={avatar} onClose={close} />
     </article>
   );
 }
@@ -257,7 +528,13 @@ export function PersonalProgress({
           </div>
           <div className="personal-progress-group-list">
             {groups.map((group) => (
-              <OwnGroup key={group.groupId} group={group} avatar={avatar} />
+              <OwnGroup
+                key={group.groupId}
+                group={group}
+                avatar={avatar}
+                actor={actor}
+                lifetime={progress.lifetime}
+              />
             ))}
           </div>
           {mode === 'learning' && progress.hasMore ? (
