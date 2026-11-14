@@ -1159,7 +1159,7 @@ function ArduinoSourceEditor({
           </span>
           <strong>Проверка кода</strong>
           <span className={`arduino-code-check-count${unsupportedCount > 0 ? ' active' : ''}`}>
-            Блокирующих: {unsupportedCount}
+            {unsupportedCount > 0 ? <>Блокирующих: {unsupportedCount}</> : 'Можно запускать'}
           </span>
           <span className="arduino-code-check-count">Примечаний: {limitedCount}</span>
           <span className="arduino-code-check-summary" id="arduino-source-editor-status">
@@ -1167,7 +1167,7 @@ function ArduinoSourceEditor({
               ? 'Enter — строка · Tab — вставить · Esc — закрыть'
               : unsupportedCount > 0
                 ? 'Моделирование заблокировано'
-                : 'Можно запускать'}
+                : null}
           </span>
           <ChevronDown />
         </button>

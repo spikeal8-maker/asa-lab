@@ -126,6 +126,10 @@ try {
           assert.equal(await page.locator('.arduino-code-check-body').count(), 0);
           assert.equal(await header.locator('.arduino-code-check-icon').textContent(), '✓');
           assert.equal(await header.locator('.arduino-code-check-count.active').count(), 0);
+          const ready = header.getByText('Можно запускать', { exact: true });
+          assert.ok(await ready.isVisible());
+          const readyBox = await ready.boundingBox();
+          assert.ok(readyBox && readyBox.x >= 0 && readyBox.x + readyBox.width <= width);
         }
       }
       await page.screenshot({ path: resolve(output, `check-${name}-${width}.png`) });
@@ -175,7 +179,7 @@ try {
       if (phase === 'after') {
         const blockers = diagnostics.filter((item) => item.status === 'unsupported').length;
         const notes = diagnostics.length - blockers;
-        assert.ok(expanded.includes(`Блокирующих: ${blockers}`));
+        if (blockers) assert.ok(expanded.includes(`Блокирующих: ${blockers}`));
         assert.ok(expanded.includes(`Примечаний: ${notes}`));
         assert.ok(!/упрощённо|ограничениями модели|Ограничений:/.test(expanded + notice));
         if (blockers) {
