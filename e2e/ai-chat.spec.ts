@@ -422,7 +422,8 @@ test('AI downloads code and complete answers as real local files', async ({ page
   const answer =
     '# Игра «Змейка»\n\nСохраните страницу и откройте её в браузере.\n\n```html\n' +
     html +
-    '\n```\n\n| Клавиша | Действие |\n| --- | --- |\n| Стрелка | Движение |';
+    '\n```\n\n| Клавиша | Действие |\n| --- | --- |\n| Стрелка | Движение |' +
+    '\n\nОтдельная таблица\n\n| Артикул | Значение |\n| --- | --- |\n| 0007 | =1+2 |';
   const fake = await fixture(page, answer);
   fake.release();
   await page.setViewportSize({ width: 390, height: 850 });
@@ -507,6 +508,25 @@ test('AI downloads code and complete answers as real local files', async ({ page
   await composer.click();
   await expect(formats).toHaveCount(0);
   await expect(composer).toBeFocused();
+  for (const [label, filename] of [
+    ['XLSX', 'asa-table.xlsx'],
+    ['CSV', 'asa-table.csv'],
+    ['CSV Excel', 'asa-table-excel.csv'],
+  ]) {
+    await download.click();
+    pending = page.waitForEvent('download');
+    await formats.getByRole('button', { name: label, exact: true }).click();
+    downloaded = await pending;
+    expect(downloaded.suggestedFilename()).toBe(filename);
+    const bytes = readFileSync((await downloaded.path())!);
+    if (label === 'XLSX') expect(bytes.subarray(0, 2).toString()).toBe('PK');
+    else
+      expect(bytes.toString('utf8')).toContain(
+        label === 'CSV' ? '"Клавиша","Действие"' : '"Клавиша";"Действие"',
+      );
+    await downloaded.saveAs(test.info().outputPath(filename!));
+    await expect(formats).toHaveCount(0);
+  }
   expect(fake.requests).toHaveLength(1);
 });
 
