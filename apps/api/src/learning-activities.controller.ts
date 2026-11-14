@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import {
   Body,
   Controller,
@@ -20,6 +21,12 @@ import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '
 import { effectiveAccountActions } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
+import {
+  LEARNING_FILE_CONTENT_TYPE,
+  describeLearningFile,
+  readExactLearningFile,
+  validateLearningFile,
+} from './learning-file-transport.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const KINDS = new Set(['quiz', 'project', 'essay', 'file', 'manual']);
@@ -700,20 +707,103 @@ export class LearningActivitiesController {
       Number(revision) > 2147483647
     )
       throw new HttpException(error('validation_error', 'Проверьте PDF и редакцию.'), 400);
-    const bytes = decodeTaskPdf(shape.body['fileDataUrl']);
+    return this.saveDraftTaskPdf(
+      context,
+      activityId,
+      Number(revision),
+      name,
+      decodeTaskPdf(shape.body['fileDataUrl']),
+    );
+  }
+
+  private activeTaskPdfUploads = 0;
+
+  @Put(':activityId/draft-task-pdf/:revision')
+  async putLargeDraftTaskPdf(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Param('revision') rawRevision: string,
+    @Body() body: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    const revision = Number(rawRevision);
+    if (!/^[1-9]\d{0,9}$/u.test(rawRevision) || revision >= 2147483647) {
+      throw new HttpException(error('validation_error', 'Проверьте редакцию задания.'), 400);
+    }
+    if (
+      request.headers['content-type'] !== LEARNING_FILE_CONTENT_TYPE ||
+      !(body instanceof Readable)
+    ) {
+      throw new HttpException(error('invalid_media', 'Подойдёт PDF.'), 415);
+    }
+    const file = describeLearningFile(request.headers['x-asa-file-name']);
+    if (file.extension !== 'pdf' || file.name.length > 160)
+      throw new HttpException(error('invalid_media', 'Проверьте имя PDF файла.'), 415);
+    const rawLength = request.headers['content-length'];
+    if (typeof rawLength !== 'string' || !/^[1-9]\d*$/u.test(rawLength))
+      throw new HttpException(
+        error('file_length_required', 'Не удалось определить размер PDF.'),
+        411,
+      );
+    const length = Number(rawLength);
+    if (length > file.maxBytes)
+      throw new HttpException(error('file_too_large', 'PDF должен быть до 25 МБ.'), 413);
+
+    if (this.activeTaskPdfUploads >= 4)
+      throw new HttpException(
+        error('upload_busy', 'Слишком много загрузок. Повторите через несколько секунд.'),
+        429,
+      );
+    this.activeTaskPdfUploads += 1;
+    try {
+      const allowed = await this.requirePool().query(
+        `SELECT draft_revision FROM learning_activity_get($1,$2,$3) WHERE archived_at IS NULL`,
+        [context.principalId, context.tenantId, activityId],
+      );
+      const current = allowed.rows[0]?.['draft_revision'];
+      if (current == null) throw this.draftSampleError('activity_not_found');
+      if (Number(current) !== revision) throw this.draftSampleError('revision_conflict');
+      let bytes: Buffer;
+      try {
+        bytes = await readExactLearningFile(body, length, AbortSignal.timeout(30_000));
+      } catch {
+        throw new HttpException(
+          error('file_upload_incomplete', 'Загрузка PDF прервана. Повторите.'),
+          400,
+        );
+      }
+      try {
+        await validateLearningFile(bytes, file);
+      } catch {
+        throw new HttpException(
+          error('invalid_media', 'Не удалось прочитать PDF. Проверьте файл.'),
+          415,
+        );
+      }
+      return await this.saveDraftTaskPdf(context, activityId, revision, file.name, bytes);
+    } finally {
+      this.activeTaskPdfUploads -= 1;
+    }
+  }
+
+  private async saveDraftTaskPdf(
+    context: ActiveContext,
+    activityId: string,
+    revision: number,
+    name: string,
+    bytes: Buffer,
+  ) {
     const result = await this.requirePool().query(
       `SELECT result_code,draft_revision,content_hash
          FROM learning_activity_draft_task_file_set($1,$2,$3,$4,$5,$6)`,
-      [context.principalId, context.tenantId, activityId, Number(revision), bytes, name],
+      [context.principalId, context.tenantId, activityId, revision, bytes, name],
     );
     const row = result.rows[0];
     if (!row || row['result_code'] !== 'ok' || !row['content_hash']) {
       const code = row?.['result_code'] as string | undefined;
       if (code === 'invalid_media' || code === 'invalid_draft') {
-        throw new HttpException(
-          error(code, 'Подойдёт PDF до 400 КБ; проверьте блоки задания.'),
-          400,
-        );
+        throw new HttpException(error(code, 'Проверьте PDF и блоки задания.'), 400);
       }
       throw this.draftSampleError(code);
     }

@@ -35,7 +35,7 @@ function checkDraftImage(file: File): string | null {
 function checkTaskPdf(file: File): string | null {
   if (file.type !== 'application/pdf' || !file.name.toLowerCase().endsWith('.pdf'))
     return 'Подойдёт файл PDF.';
-  if (file.size < 5 || file.size > 400_000) return 'PDF должен быть до 400 КБ.';
+  if (file.size < 5 || file.size > 25_000_000) return 'PDF должен быть до 25 МБ.';
   if (
     file.name.length > 160 ||
     file.name.includes('/') ||
@@ -148,10 +148,12 @@ interface AssignmentAttempt {
   requestIds: Map<string, string>;
 }
 
-interface PendingTaskMedia {
-  role: 'image' | 'file';
-  name: string;
-  dataUrl: string;
+type PendingTaskMedia =
+  { role: 'image'; name: string; dataUrl: string } | { role: 'file'; name: string; file: File };
+
+async function saveTaskPdf(id: string, revision: number, file: File) {
+  if (file.size > 400_000) return api.uploadLargeAuthoredActivityTaskPdf(id, revision, file);
+  return api.saveAuthoredActivityTaskFile(id, revision, file.name, await readDraftImage(file));
 }
 
 function newAssignmentAttempt(): AssignmentAttempt {
@@ -644,12 +646,11 @@ export function AuthoredMaterialsPage({
       const mediaResult: Awaited<ReturnType<typeof api.saveAuthoredActivityTaskImage>> =
         media.role === 'image'
           ? await api.saveAuthoredActivityTaskImage(saved.id, saved.revision, media.dataUrl)
-          : await api.saveAuthoredActivityTaskFile(
-              saved.id,
-              saved.revision,
-              media.name,
-              media.dataUrl,
-            );
+          : await saveTaskPdf(saved.id, saved.revision, media.file).catch(() => ({
+              ok: false as const,
+              status: 400,
+              error: { code: 'invalid_media', message: 'Не удалось прочитать PDF.' },
+            }));
       if (!mediaResult.ok) {
         setError(
           mediaResult.error.code === 'revision_conflict'
@@ -791,17 +792,12 @@ export function AuthoredMaterialsPage({
       return;
     }
     if (!opened) {
-      try {
-        const dataUrl = await readDraftImage(file);
-        setPendingTaskMedia((current) => [
-          ...current.filter((item) => item.role !== 'file'),
-          { role: 'file', name: file.name, dataUrl },
-        ]);
-        setError(null);
-        setNotice(null);
-      } catch (readError) {
-        setError(readError instanceof Error ? readError.message : 'Не удалось прочитать PDF.');
-      }
+      setPendingTaskMedia((current) => [
+        ...current.filter((item) => item.role !== 'file'),
+        { role: 'file', name: file.name, file },
+      ]);
+      setError(null);
+      setNotice(null);
       return;
     }
     const saved = await save();
@@ -810,13 +806,7 @@ export function AuthoredMaterialsPage({
     setError(null);
     setNotice(null);
     try {
-      const fileDataUrl = await readDraftImage(file);
-      const result = await api.saveAuthoredActivityTaskFile(
-        saved.id,
-        saved.revision,
-        file.name,
-        fileDataUrl,
-      );
+      const result = await saveTaskPdf(saved.id, saved.revision, file);
       if (!result.ok) {
         setError(
           result.error.code === 'revision_conflict'

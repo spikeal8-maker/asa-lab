@@ -1,8 +1,10 @@
+import { Readable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContextUseCase } from '@asa-lab/identity';
 import { createApiModuleRegistry } from './module-registry.js';
+import { LEARNING_FILE_CONTENT_TYPE } from './learning-file-transport.js';
 import { LearningActivitiesController } from './learning-activities.controller.js';
 
 const PRINCIPAL_ID = '123e4567-e89b-42d3-a456-426614174001';
@@ -546,6 +548,42 @@ describe('canonical learning activity API', () => {
       }),
     ).rejects.toMatchObject({ status: 403 });
     expect(outsider.query).not.toHaveBeenCalled();
+  });
+
+  it('accepts a PDF above the legacy ceiling through the bounded binary route', async () => {
+    const api = target();
+    api.query.mockResolvedValueOnce({ rows: [{ draft_revision: 1 }] }).mockResolvedValueOnce({
+      rows: [{ result_code: 'ok', draft_revision: 2, content_hash: 'c'.repeat(64) }],
+    });
+    const header = Buffer.from('%PDF-1.4\n');
+    const padding = Buffer.from('% ' + 'x'.repeat(410_000) + '\n');
+    const tail = Buffer.from(
+      'xref\n0 1\n0000000000 65535 f \ntrailer\n<< /Size 1 >>\nstartxref\n' +
+        (header.length + padding.length) +
+        '\n%%EOF\n',
+    );
+    const pdf = Buffer.concat([header, padding, tail]);
+    const upload = {
+      ...request(),
+      headers: {
+        'content-type': LEARNING_FILE_CONTENT_TYPE,
+        'content-length': String(pdf.length),
+        'x-asa-file-name': encodeURIComponent('Руководство.pdf'),
+      },
+    } as FastifyRequest;
+    await expect(
+      api.value.putLargeDraftTaskPdf(upload, ACTIVITY_ID, '1', Readable.from([pdf])),
+    ).resolves.toMatchObject({ draftRevision: 2 });
+    expect(api.query).toHaveBeenLastCalledWith(
+      expect.stringContaining('learning_activity_draft_task_file_set'),
+      [PRINCIPAL_ID, TENANT_ID, ACTIVITY_ID, 1, pdf, 'Руководство.pdf'],
+    );
+
+    const tooLarge = { ...upload, headers: { ...upload.headers, 'content-length': '25000001' } };
+    await expect(
+      api.value.putLargeDraftTaskPdf(tooLarge, ACTIVITY_ID, '1', Readable.from([])),
+    ).rejects.toMatchObject({ status: 413 });
+    expect(api.query).toHaveBeenCalledTimes(2);
   });
 
   it('accepts a bounded PDF block and rejects oversized or unsafe file payloads', async () => {

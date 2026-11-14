@@ -6,6 +6,8 @@ import { validateAttachmentImageStructure } from './ai-attachments/validation.js
 
 export const LEARNING_FILE_CONTENT_TYPE = 'application/vnd.asa.learning-file';
 export const LEARNING_FILE_MAX_BYTES = 50_000_000;
+export const LEARNING_TASK_PDF_UPLOAD_ROUTE =
+  '/api/learning/activities/:activityId/draft-task-pdf/:revision';
 const UPLOAD_ROUTE =
   '/api/learning/file/runs/:activityRunId/draft/:attemptId/:expectedRevision/:requestId';
 const FORMATS = {
@@ -46,7 +48,8 @@ export function registerLearningFileTransport(fastify: FastifyInstance): void {
     const encoding = request.headers['content-encoding'];
     if (
       request.method !== 'PUT' ||
-      request.routeOptions.url !== UPLOAD_ROUTE ||
+      (request.routeOptions.url !== UPLOAD_ROUTE &&
+        request.routeOptions.url !== LEARNING_TASK_PDF_UPLOAD_ROUTE) ||
       request.headers['content-type'] !== LEARNING_FILE_CONTENT_TYPE ||
       (encoding !== undefined && encoding !== 'identity')
     ) {
