@@ -39,9 +39,9 @@ function checkTaskImage(file: File): string | null {
   return null;
 }
 
-async function saveTaskImage(id: string, revision: number, file: File) {
+async function saveTaskImage(id: string, revision: number, file: File, dataUrl?: string) {
   if (file.size <= 400_000)
-    return api.saveAuthoredActivityTaskImage(id, revision, await readDraftImage(file));
+    return api.saveAuthoredActivityTaskImage(id, revision, dataUrl ?? (await readDraftImage(file)));
   const extension = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[file.type];
   if (!extension) throw new Error('Подойдёт PNG, JPEG или WebP.');
   return api.uploadAuthoredActivityTaskAttachment(
@@ -163,13 +163,23 @@ interface AssignmentAttempt {
   requestIds: Map<string, string>;
 }
 
-type PendingTaskMedia = { role: 'image' | 'file'; name: string; file: File };
+type PendingTaskMedia = {
+  role: 'image' | 'file';
+  name: string;
+  file: File;
+  dataUrl?: string;
+};
 
-async function saveTaskPdf(id: string, revision: number, file: File) {
+async function saveTaskPdf(id: string, revision: number, file: File, dataUrl?: string) {
   if (!file.name.toLowerCase().endsWith('.pdf'))
     return api.uploadAuthoredActivityTaskAttachment(id, revision, file);
   if (file.size > 400_000) return api.uploadLargeAuthoredActivityTaskPdf(id, revision, file);
-  return api.saveAuthoredActivityTaskFile(id, revision, file.name, await readDraftImage(file));
+  return api.saveAuthoredActivityTaskFile(
+    id,
+    revision,
+    file.name,
+    dataUrl ?? (await readDraftImage(file)),
+  );
 }
 
 function newAssignmentAttempt(): AssignmentAttempt {
@@ -661,8 +671,8 @@ export function AuthoredMaterialsPage({
     for (const media of pendingTaskMedia) {
       const mediaResult: Awaited<ReturnType<typeof api.saveAuthoredActivityTaskImage>> = await (
         media.role === 'image'
-          ? saveTaskImage(saved.id, saved.revision, media.file)
-          : saveTaskPdf(saved.id, saved.revision, media.file)
+          ? saveTaskImage(saved.id, saved.revision, media.file, media.dataUrl)
+          : saveTaskPdf(saved.id, saved.revision, media.file, media.dataUrl)
       ).catch(() => ({
         ok: false as const,
         status: 400,
@@ -737,12 +747,17 @@ export function AuthoredMaterialsPage({
       return;
     }
     if (!opened) {
-      setPendingTaskMedia((current) => [
-        ...current.filter((item) => item.role !== 'image'),
-        { role: 'image', name: file.name, file },
-      ]);
-      setError(null);
-      setNotice(null);
+      try {
+        const dataUrl = file.size <= 400_000 ? await readDraftImage(file) : undefined;
+        setPendingTaskMedia((current) => [
+          ...current.filter((item) => item.role !== 'image'),
+          { role: 'image', name: file.name, file, ...(dataUrl === undefined ? {} : { dataUrl }) },
+        ]);
+        setError(null);
+        setNotice(null);
+      } catch {
+        setError('Не удалось прочитать вложение.');
+      }
       return;
     }
     const saved = await save();
@@ -797,12 +812,20 @@ export function AuthoredMaterialsPage({
       return;
     }
     if (!opened) {
-      setPendingTaskMedia((current) => [
-        ...current.filter((item) => item.role !== 'file'),
-        { role: 'file', name: file.name, file },
-      ]);
-      setError(null);
-      setNotice(null);
+      try {
+        const dataUrl =
+          file.size <= 400_000 && file.name.toLowerCase().endsWith('.pdf')
+            ? await readDraftImage(file)
+            : undefined;
+        setPendingTaskMedia((current) => [
+          ...current.filter((item) => item.role !== 'file'),
+          { role: 'file', name: file.name, file, ...(dataUrl === undefined ? {} : { dataUrl }) },
+        ]);
+        setError(null);
+        setNotice(null);
+      } catch {
+        setError('Не удалось прочитать вложение.');
+      }
       return;
     }
     const saved = await save();
