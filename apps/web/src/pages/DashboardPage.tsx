@@ -17,6 +17,10 @@ import { useSchoolTime } from '../components/school-time';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 import { ClassroomMetrics, useClassroomMetrics } from '../components/ClassroomMetrics';
 import { classroomAverageRatingPresentation } from '../components/classroom-average-rating';
+import {
+  classroomRatingLeaders,
+  classroomRatingLeaderLabel,
+} from '../components/classroom-rating-leaders';
 
 type ListState =
   { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; items: Classroom[] };
@@ -209,6 +213,10 @@ export function DashboardPage({
   const rowMetrics = useMemo(
     () => new Map(summary.data?.items.map((item) => [item.classroomId, item])),
     [summary.data],
+  );
+  const ratingLeaders = useMemo(
+    () => classroomRatingLeaders(roleItems, rowMetrics),
+    [roleItems, rowMetrics],
   );
   const visibleItems = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('ru-RU');
@@ -587,6 +595,9 @@ export function DashboardPage({
           </li>
           {visibleItems.map((classroom, index) => {
             const metric = rowMetrics.get(classroom.id);
+            const leader = ratingLeaders.get(classroom.id);
+            const leaderLabel = leader ? classroomRatingLeaderLabel(leader) : undefined;
+            const leaderDescriptionId = `classroom-rating-leader-${classroom.id}`;
             const rating = classroomAverageRatingPresentation(
               metric?.averageRating,
               metric?.ratingParticipants,
@@ -605,12 +616,30 @@ export function DashboardPage({
                 <button
                   type="button"
                   className="classroom-row-title"
+                  aria-label={classroom.title}
+                  aria-describedby={leader ? leaderDescriptionId : undefined}
                   title={classroom.title}
                   onClick={() => onOpenProjects(classroom.id, classroom.title)}
                 >
-                  <span className="classroom-row-index" aria-hidden="true">
-                    {index + 1}.
+                  <span
+                    className={`classroom-row-index${leader ? ` classroom-row-medal classroom-row-medal-${leader.rank}` : ''}`}
+                    aria-hidden="true"
+                    title={leaderLabel}
+                  >
+                    {leader ? (
+                      <>
+                        <span className="classroom-medal-mark">◆</span>
+                        {leader.rank}
+                      </>
+                    ) : (
+                      `${index + 1}.`
+                    )}
                   </span>
+                  {leader ? (
+                    <span id={leaderDescriptionId} className="sr-only" aria-hidden="true">
+                      {leaderLabel}
+                    </span>
+                  ) : null}
                   <span className="classroom-row-title-text">{classroom.title}</span>
                   {classroom.status === 'archived' ? (
                     <em className="classroom-row-archived">в архиве</em>

@@ -1489,6 +1489,9 @@ export function App(): JSX.Element {
                   <ClassroomPage
                     classroomId={view.classroomId}
                     onBack={() => setView({ kind: 'classrooms' })}
+                    onNavigateClassroom={(classroomId, classroomTitle) =>
+                      setView({ kind: 'classroom', classroomId, classroomTitle })
+                    }
                     onOpenProjects={(classroomTitle) =>
                       setView({
                         kind: 'classroom-projects',

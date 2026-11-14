@@ -216,12 +216,43 @@
   text-align: left;
 }
 .classroom-owner-list .classroom-row-index {
-  flex: 0 0 auto;
+  display: inline-flex;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 20px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   color: #7b92a1;
   font-weight: 550;
   font-size: 11px;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.classroom-owner-list .classroom-row-medal {
+  border-radius: 10px;
+  font-weight: 750;
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+.classroom-owner-list .classroom-medal-mark {
+  display: inline-block;
+  width: 8px;
+  font-size: 8px;
+  text-align: center;
+}
+.classroom-owner-list .classroom-row-medal-1 {
+  color: #806019;
+  background: #faf5e8;
+}
+.classroom-owner-list .classroom-row-medal-2 {
+  color: #526373;
+  background: #f1f4f6;
+}
+.classroom-owner-list .classroom-row-medal-3 {
+  color: #885735;
+  background: #f8f0e9;
 }
 .classroom-owner-list .classroom-row-title-text {
   display: block;
