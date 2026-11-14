@@ -434,9 +434,13 @@ test('AI downloads code and complete answers as real local files', async ({ page
       .locator('.chat-turn-assistant .chat-message-actions')
       .getByRole('button', { name: 'Копировать', exact: true }),
   ).toHaveAttribute('aria-label', 'Копировать');
-  await expect(page.getByRole('button', { name: 'Новый вариант ответа', exact: true })).toHaveText(
-    'Попробовать снова',
-  );
+  const retry = page.getByRole('button', { name: 'Новый вариант ответа', exact: true });
+  await expect(retry).toBeVisible();
+  await expect(retry).toHaveText('');
+  await expect(retry).toHaveAccessibleDescription('Новый вариант расходует лимит');
+  const download = page.getByRole('button', { name: 'Скачать ответ', exact: true });
+  const formats = page.getByRole('group', { name: 'Формат ответа' });
+  const pdfFormat = formats.getByRole('button', { name: 'PDF', exact: true });
   let pending = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Скачать код: index.html', exact: true }).click();
   let downloaded = await pending;
@@ -444,7 +448,7 @@ test('AI downloads code and complete answers as real local files', async ({ page
   expect(readFileSync((await downloaded.path())!, 'utf8')).toBe(html);
   await expect(page.getByRole('heading', { name: 'Змейка', exact: true })).toHaveCount(0);
   for (const format of ['PDF', 'DOCX', 'MD', 'TXT']) {
-    await page.getByText('Скачать ответ', { exact: true }).click();
+    await download.click();
     pending = page.waitForEvent('download');
     await page.getByRole('button', { name: format, exact: true }).click();
     downloaded = await pending;
@@ -456,16 +460,53 @@ test('AI downloads code and complete answers as real local files', async ({ page
     if (format === 'MD') expect(bytes.toString('utf8')).toBe(answer);
     if (format === 'TXT') expect(bytes.toString('utf8')).toContain('Игра «Змейка»');
     await downloaded.saveAs(test.info().outputPath('asa-answer.' + format.toLowerCase()));
+    await expect(download).toBeFocused();
+    await expect(formats).toHaveCount(0);
   }
   await expectChatFits(page);
-  for (const width of [1440, 1024, 390, 320]) {
-    await page.setViewportSize({ width, height: 850 });
-    await page.getByText('Скачать ответ', { exact: true }).click();
-    await expect(page.getByRole('button', { name: 'PDF', exact: true })).toBeVisible();
-    await expectChatFits(page);
-    await page.screenshot({ path: test.info().outputPath(`ai-answer-downloads-${width}.png`) });
-    await page.getByText('Скачать ответ', { exact: true }).click();
+  for (const theme of ['light', 'dark'] as const) {
+    if (theme === 'dark') await page.getByRole('button', { name: 'Тёмная тема чата' }).click();
+    await expect(page.locator('.asa-ai-layout')).toHaveAttribute('data-chat-theme', theme);
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: width <= 390 ? 640 : 850 });
+      await download.focus();
+      await download.press('Enter');
+      await expect(pdfFormat).toBeFocused();
+      await expect(pdfFormat).toHaveAccessibleDescription('Документ для просмотра и печати');
+      await expectChatFits(page);
+      const menu = (await formats.boundingBox())!;
+      const trigger = (await download.boundingBox())!;
+      const composer = (await page.getByRole('textbox', { name: 'Сообщение ИИ' }).boundingBox())!;
+      expect(trigger.width).toBeGreaterThanOrEqual(44);
+      expect(trigger.height).toBeGreaterThanOrEqual(44);
+      const formatButton = (await pdfFormat.boundingBox())!;
+      expect(formatButton.height).toBeGreaterThanOrEqual(44);
+      expect(menu.x).toBeGreaterThanOrEqual(0);
+      expect(menu.x + menu.width).toBeLessThanOrEqual(width);
+      expect(menu.y).toBeGreaterThanOrEqual(0);
+      expect(menu.y + menu.height).toBeLessThanOrEqual(composer.y);
+      await page.screenshot({
+        path: test.info().outputPath(`ai-answer-downloads-${theme}-${width}.png`),
+      });
+      await pdfFormat.press('Escape');
+      await expect(formats).toHaveCount(0);
+      await expect(download).toBeFocused();
+    }
   }
+  await download.click();
+  await expect(pdfFormat).toBeFocused();
+  const history = page.locator('.chat-scroll');
+  await history.evaluate((scroll) => {
+    scroll.scrollTop = 0;
+  });
+  await expect(formats).toHaveCount(0);
+  await expect(download).toBeFocused();
+  await expect.poll(() => history.evaluate((scroll) => scroll.scrollTop)).toBe(0);
+  await download.click();
+  const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await composer.click();
+  await expect(formats).toHaveCount(0);
+  await expect(composer).toBeFocused();
   expect(fake.requests).toHaveLength(1);
 });
 
