@@ -113,6 +113,7 @@ const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = LED_PRESENTATION_PHASE_LIMIT_MI
 const MIN_ARDUINO_SLEEP_MS = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS / 1000;
 const ARDUINO_WAKE_OBSERVATION_MICROSECONDS = 1000;
 const ARDUINO_WAKE_CHECKPOINT_MICROSECONDS = 10_000;
+const ARDUINO_WAKE_RESERVATION_MICROSECONDS = 2_000;
 
 function boundedInputObservationHorizon(
   eventAtMicroseconds: number,
@@ -758,11 +759,11 @@ export class ElectronicsLiveSimulationWorkerController {
       dispatchedHostHorizon !== null &&
       wake &&
       dispatchedHostHorizon < wake.at &&
-      wake.at - committed <= ARDUINO_WAKE_CHECKPOINT_MICROSECONDS
+      (wake.at - committed <= ARDUINO_WAKE_CHECKPOINT_MICROSECONDS ||
+        wake.at - dispatchedHostHorizon <= ARDUINO_WAKE_RESERVATION_MICROSECONDS)
     ) {
-      // Waiting briefly avoids occupying the sole Worker slot with a request
-      // that will stop just before the accepted wake. Keep an earlier checkpoint
-      // so the crossing request does not have to do a full window of physics.
+      // Keep an earlier checkpoint, but reserve the Worker if the request would
+      // end just before the accepted wake and leave the crossing queued.
       this.reserveForWake(generationId, wake, dispatchedHostHorizon);
       return;
     }

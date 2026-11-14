@@ -667,6 +667,23 @@ describe('dispatch around an accepted Arduino wake', () => {
       vi.useRealTimers();
     }
   });
+  it('keeps the Worker available when current host demand is already close to the wake', async () => {
+    vi.useFakeTimers();
+    try {
+      const { executor, controller, update, setHost } = await start(undefined, undefined, 89_300);
+      update(99_300);
+      expect(executor.advances).toHaveLength(6);
+      expect(vi.getTimerCount()).toBe(1);
+      setHost(102_000);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(executor.advances[6]!.requestedHorizonMicroseconds).toBe(101_004);
+      expect(executor.advances[6]!.inputEvents).toEqual([]);
+      controller.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('continues ordinary observations while components report overload', async () => {
     const { executor, controller, update } = await start(undefined, 'warning');
     update(99_300);
