@@ -637,3 +637,37 @@ for (const width of [390, 1920] as const) {
     }
   });
 }
+
+for (const width of [320, 390, 1024] as const) {
+  test(`class navigation does not overlap the back action at ${width}px`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    const state = await fixture(page, 24, { classes: 24, sidebar: 'expanded' });
+    await page.goto(`/#/classrooms/${classId}`, { waitUntil: 'domcontentloaded' });
+    const back = page.locator('.teacher-class-identity > .classroom-back');
+    const navigation = page.locator('.teacher-class-identity .classroom-nav');
+    const opener = navigation.locator('.classroom-nav-opener');
+    await expect(back).toBeVisible();
+    await expect(opener).toBeVisible();
+    await settle(page);
+    const backBox = await back.boundingBox();
+    const navBox = await navigation.boundingBox();
+    expect(backBox).not.toBeNull();
+    expect(navBox).not.toBeNull();
+    const overlaps = (a: Box, b: Box): boolean =>
+      a.x < b.x + b.width - 0.5 &&
+      b.x < a.x + a.width - 0.5 &&
+      a.y < b.y + b.height - 0.5 &&
+      b.y < a.y + a.height - 0.5;
+    expect(overlaps(backBox!, navBox!), 'Back must not sit underneath class navigation').toBe(
+      false,
+    );
+    await hitVisible(back);
+    await hitVisible(opener);
+    await noOverflow(page, width);
+    await evidence(page, info, `class-nav-no-overlap-${width}`, { backBox, navBox });
+    expect(state.errors).toEqual([]);
+    expect(state.mutations).toEqual([]);
+  });
+}
