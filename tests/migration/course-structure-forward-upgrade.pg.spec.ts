@@ -192,6 +192,9 @@ describe('Course Builder structure forward upgrade', () => {
         '0320', // Authorized own progress summary; no identity or score writes.
         '0321', // Qualified ordinary Account admission identity, preserving retained history.
         '0322', // Learner-only group rating projection, retained Course history unchanged.
+        '0323', // Direct written assignments reuse the academic submission chain.
+        '0324', // Allow large PDF task attachments.
+        '0325', // Expand supported task attachment formats.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -543,6 +546,9 @@ describe('Course Builder structure forward upgrade', () => {
           '0320', // Authorized own progress summary; no identity or score writes.
           '0321', // Qualified ordinary Account admission identity, preserving retained history.
           '0322', // Authorized learner-only group pages; retained Course history unchanged.
+          '0323', // Direct written assignments reuse the academic submission chain.
+          '0324', // Allow large PDF task attachments.
+          '0325', // Expand supported task attachment formats.
         ]);
         expect(
           await applyIsolatedTestPlan(
