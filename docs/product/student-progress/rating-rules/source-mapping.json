@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "calibration": "synthetic_only",
+  "status": "requires_real_source_qualification_after_C3",
+  "sources": [
+    {
+      "source": "canonical_learning_completion",
+      "weight": "configured",
+      "authority": [
+        "migrations/0320_personal_progress_summary.sql",
+        "public.learner_identity_links",
+        "Learning canonical completion/result contract"
+      ],
+      "key": "verified stable completion/obligation identifier",
+      "qualification": "confirmed canonical outcome and active verified Account/Seat identity; no group duplicate",
+      "withdrawal": "latest authoritative correction or revocation",
+      "history": "only verifiable canonical results, not group scores"
+    },
+    {
+      "source": "external_publication_reaction",
+      "weight": "configured",
+      "authority": [
+        "migrations/0283_publication_likes.sql",
+        "public.project_reactions",
+        "public.project_publication_state",
+        "public.publication_reaction_same_identity"
+      ],
+      "key": "publication_id plus verified responder identity",
+      "qualification": "current active reaction from proven distinct actor, independently qualified project origin",
+      "withdrawal": "remove means zero; readd counts only once",
+      "history": "current reaction rows only; no inferred earlier intervals"
+    },
+    {
+      "source": "first_publication",
+      "weight": 0,
+      "authority": [
+        "migrations/0139_project_publication_revisions.sql",
+        "migrations/0235_public_project_copy.sql",
+        "issue #1127"
+      ],
+      "key": "first qualifying publication per original project",
+      "qualification": "requires positive platform writer coverage and no known copy chain",
+      "withdrawal": "hidden or revoked contributes zero",
+      "history": "disabled in v1; no evidence for historical unknown"
+    },
+    {
+      "source": "copy_receipt",
+      "weight": 0,
+      "authority": [
+        "migrations/0287_publication_copy_counts.sql",
+        "public.publication_copy_events"
+      ],
+      "key": "destination_project_id",
+      "qualification": "statistic, not authorship; ordinary duplicate adds no receipt",
+      "withdrawal": "durable receipt persists",
+      "history": "no invented deleted copies"
+    },
+    {
+      "source": "custom_merit",
+      "weight": 0,
+      "authority": [],
+      "key": "none",
+      "qualification": "no approved common objective test",
+      "withdrawal": "not applicable",
+      "history": "disabled"
+    },
+    {
+      "source": "login_time_click_save_comment",
+      "weight": 0,
+      "authority": [],
+      "key": "none",
+      "qualification": "activity counts are not canonical outcomes",
+      "withdrawal": "not applicable",
+      "history": "disabled"
+    }
+  ],
+  "identity": {
+    "verified": "active checked canonical Account/Seat link, scoped to matching tenant and school",
+    "unverified": "never infer from name/email/avatar/username",
+    "merge": "verified union before stable-key deduplication",
+    "sybil": "independent unrelated accounts not solved"
+  },
+  "provenance": {
+    "requiredFields": [
+      "copied_from_project_id",
+      "copied_from_author",
+      "copied_from_title",
+      "copied_at",
+      "copied_from_publication_id",
+      "copied_from_revision_id",
+      "copied_from_version_id",
+      "copied_from_license"
+    ],
+    "qualify": "covered_native only after trusted platform writer coverage and absence of known copied origin",
+    "unknown": "fail closed: historical unknown cannot receive publication reaction points",
+    "c3Issue": 1127
+  }
+}
