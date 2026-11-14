@@ -205,9 +205,12 @@ it('projects independent Account/Seat observations only within exact organizatio
     classId: f.classroomId,
   });
   expect(seats.analytics.acquisition?.sources).toEqual({ 'class-seat': 1 });
-  const all = await catalog(owner.principal_id);
-  expect(all.analytics.acquisition?.sources['private-account']).toBeGreaterThanOrEqual(1);
   const row = page.items.find((i) => i.kind === 'account' && i.id === target.account_id)!;
+  // Keep the platform observation check scoped to this fixture Account.
+  expect(row.email).toMatch(/^ai-access-[a-f0-9]{32}@example\.test$/);
+  const all = await catalog(owner.principal_id, 'platform', null, {}, row.email);
+  expect(all.items).toEqual([expect.objectContaining({ kind: 'account', id: target.account_id })]);
+  expect(all.analytics.acquisition?.sources['private-account']).toBeGreaterThanOrEqual(1);
   expect(catalogCsv([row])).toContain('organization');
   expect(catalogCsv([row])).toContain('не источник регистрации');
   expect(page.analytics.registrationSource).toBe('not_stored');

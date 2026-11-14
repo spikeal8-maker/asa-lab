@@ -15,6 +15,67 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/progress/summary:
+    get:
+      operationId: accountPersonalProgressSummaryV1
+      summary: Read own Account publication history and bounded own learning groups
+      description: >-
+        Resolves the existing modern or verified legacy asa_session. Revalidates the exact
+        actor and session in one consistent read snapshot. Does not accept an owner,
+        principal, group selector or period override. Group cursor never grants access.
+        Archived authorized publication history is independent of active group pagination.
+        No personal score, peers, avatar, permissions or client polling are introduced.
+      parameters:
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string, maxLength: 256 }
+          description: Opaque continuation from this actor and scope; at most 20 own groups per response.
+      responses:
+        '200':
+          description: Authorized own progress; coverage is independent of source availability.
+          headers:
+            Cache-Control: { schema: { type: string, const: 'private, no-store' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonalProgressSummaryV1' }
+        '400': { description: Invalid cursor, wrong cursor scope or unsupported query field }
+        '401': { description: Missing, expired, revoked or invalid Account session }
+        '403': { description: Existing Account verification policy requires confirmation }
+        '409':
+          { description: Existing session_conflict when both nonempty session cookies are present }
+        '503':
+          { description: database_unavailable or progress_unavailable; never a successful zero }
+  /api/class-join/progress/summary:
+    get:
+      operationId: seatPersonalProgressSummaryV1
+      summary: Read only the current StudentSeat's publication history and own group result
+      description: >-
+        Resolves only asa_student_session with resolveExistingState. Never creates a
+        principal or Account and never expands the Seat to linked Account history or
+        other groups. Existing credential version, idle expiry and revocation apply.
+        A valid session without a usable existing owner returns progress_owner_unavailable,
+        distinct from invalid_session; there is no Account fallback.
+      parameters:
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string, maxLength: 256 }
+          description: Opaque continuation, bound to this exact Seat and classroom.
+      responses:
+        '200':
+          description: Authorized current Seat scope; no linked Account or peer data.
+          headers:
+            Cache-Control: { schema: { type: string, const: 'private, no-store' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonalProgressSummaryV1' }
+        '400': { description: Invalid cursor, wrong cursor scope or unsupported query field }
+        '401': { description: Missing, expired, revoked or invalid Seat session }
+        '403': { description: progress_owner_unavailable; no materialization or Account refresh }
+        '409':
+          { description: Existing session_conflict when both nonempty session cookies are present }
+        '503': { description: database_unavailable before resolver or progress_unavailable }
   /api/learning/questions:
     get:
       operationId: listCanonicalQuestionContent
@@ -8463,6 +8524,145 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    ProgressScopeV1:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [kind, accountId]
+          properties:
+            kind: { type: string, const: account }
+            accountId: { type: string, format: uuid }
+        - type: object
+          additionalProperties: false
+          required: [kind, seatId, classroomId]
+          properties:
+            kind: { type: string, const: seat }
+            seatId: { type: string, format: uuid }
+            classroomId: { type: string, format: uuid }
+    ProgressCounterV1:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [availability, value]
+          properties:
+            availability: { type: string, const: available }
+            value: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        - type: object
+          additionalProperties: false
+          required: [availability, value, reason]
+          properties:
+            availability: { type: string, const: unavailable }
+            value: { type: 'null' }
+            reason: { type: string, const: source_unavailable }
+    ProgressCoverageV1:
+      type: object
+      additionalProperties: false
+      required: [basis, completeness, knownSince, limitations]
+      description: >-
+        Completeness is relative to the stated canonical basis, not all time since
+        registration. unknown historical coverage does not make a successful read
+        unavailable. knownSince is null unless a trustworthy boundary is proved;
+        the earliest surviving row is not such proof.
+      properties:
+        basis:
+          type: string
+          enum:
+            [
+              confirmed_publication_revisions,
+              current_publication_likes,
+              durable_publication_copy_receipts,
+              current_catalog_visibility,
+            ]
+        completeness: { type: string, enum: [complete, partial, unknown] }
+        knownSince: { type: [string, 'null'], format: date-time }
+        limitations:
+          type: array
+          maxItems: 2
+          items:
+            type: string
+            enum: [history_before_canonical_records_unknown, copies_not_supported_by_all_modules]
+    OwnGroupResultV1:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [availability, score, rank]
+          description: Canonical null score/rank remains available; zero and fractional scores are preserved.
+          properties:
+            availability: { type: string, const: available }
+            score: { type: [number, 'null'], minimum: 0, maximum: 100 }
+            rank: { type: [integer, 'null'], minimum: 1 }
+        - type: object
+          additionalProperties: false
+          required: [availability, score, rank, reason]
+          properties:
+            availability: { type: string, const: unavailable }
+            score: { type: 'null' }
+            rank: { type: 'null' }
+            reason: { type: string, enum: [ambiguous_self_participant, source_unavailable] }
+    OwnProgressGroupV1:
+      type: object
+      additionalProperties: false
+      required: [groupId, title, periodDays, own]
+      properties:
+        groupId: { type: string, format: uuid }
+        title: { type: string, maxLength: 255 }
+        periodDays: { type: integer, enum: [7, 30, 90] }
+        own: { $ref: '#/components/schemas/OwnGroupResultV1' }
+    PersonalProgressSummaryV1:
+      type: object
+      additionalProperties: false
+      required: [scope, asOf, availability, metrics, coverage, personalRating, groups]
+      properties:
+        scope: { $ref: '#/components/schemas/ProgressScopeV1' }
+        asOf: { type: [string, 'null'], format: date-time }
+        availability: { type: string, enum: [available, partial, unavailable] }
+        metrics:
+          type: object
+          additionalProperties: false
+          required: [everPublishedWorks, currentLikes, createdCopies, activePublicWorks]
+          properties:
+            everPublishedWorks:
+              allOf: [{ $ref: '#/components/schemas/ProgressCounterV1' }]
+              description: Unique stable publications with a confirmed immutable published revision; revisions, withdrawal and hiding do not reset history.
+            currentLikes:
+              allOf: [{ $ref: '#/components/schemas/ProgressCounterV1' }]
+              description: Current canonical reactions over authorized own publication history; decreases on removal, not unique physical people.
+            createdCopies:
+              allOf: [{ $ref: '#/components/schemas/ProgressCounterV1' }]
+              description: Durable successful copy-creation receipts; survives destination deletion, not downloads, unique recipients or rating points.
+            activePublicWorks:
+              allOf: [{ $ref: '#/components/schemas/ProgressCounterV1' }]
+              description: Detail-only count using current actual public catalogue eligibility.
+        coverage:
+          type: object
+          additionalProperties: false
+          required: [everPublishedWorks, currentLikes, createdCopies, activePublicWorks]
+          properties:
+            everPublishedWorks: { $ref: '#/components/schemas/ProgressCoverageV1' }
+            currentLikes: { $ref: '#/components/schemas/ProgressCoverageV1' }
+            createdCopies: { $ref: '#/components/schemas/ProgressCoverageV1' }
+            activePublicWorks: { $ref: '#/components/schemas/ProgressCoverageV1' }
+        personalRating:
+          type: object
+          additionalProperties: false
+          required: [availability, value]
+          description: Not enabled in SP02; does not by itself make the summary partial.
+          properties:
+            availability: { type: string, const: not_enabled }
+            value: { type: 'null' }
+        groups:
+          type: object
+          additionalProperties: false
+          required: [availability, items, hasMore, nextCursor]
+          description: Own groups only, stable ID order, no member counts or peers; ambiguous own Seats make the result partial without choosing a score.
+          properties:
+            availability: { type: string, enum: [available, partial, unavailable] }
+            items:
+              type: [array, 'null']
+              maxItems: 20
+              items: { $ref: '#/components/schemas/OwnProgressGroupV1' }
+            hasMore: { type: [boolean, 'null'] }
+            nextCursor: { type: [string, 'null'], maxLength: 256 }
     LearningContentCommand:
       type: object
       additionalProperties: false

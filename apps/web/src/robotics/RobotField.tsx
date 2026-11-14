@@ -1,10 +1,15 @@
-import { useId, type PointerEventHandler } from 'react';
+import { useId, type MouseEventHandler, type PointerEventHandler } from 'react';
+import { fieldCameraViewBox, type FieldCamera, type FieldViewport } from './field-camera';
 import type {
   RoboticsDistanceMeasurement,
   RoboticsWorldDocument,
   RoboticsWorldState,
 } from './world';
-import type { RoboticsBody, RoboticsObjectKey } from '@asa-lab/robotics/world-document';
+import type {
+  RoboticsBody,
+  RoboticsObjectKey,
+  RoboticsPoint,
+} from '@asa-lab/robotics/world-document';
 
 export type { RoboticsObjectKey } from '@asa-lab/robotics/world-document';
 
@@ -42,8 +47,12 @@ export function RobotField({
   onPointerUp,
   onPointerCancel,
   onLostPointerCapture,
+  onContextMenu,
+  draftStroke,
+  projection,
 }: {
   world: RoboticsFieldGeometry;
+  projection?: { camera: FieldCamera; viewport: FieldViewport } | undefined;
   state?: RoboticsWorldState;
   distance?: RoboticsDistanceMeasurement;
   showGrid: boolean;
@@ -56,6 +65,12 @@ export function RobotField({
   onPointerUp?: PointerEventHandler<SVGSVGElement>;
   onPointerCancel?: PointerEventHandler<SVGSVGElement>;
   onLostPointerCapture?: PointerEventHandler<SVGSVGElement>;
+  onContextMenu?: MouseEventHandler<SVGSVGElement>;
+  draftStroke?: {
+    kind: 'line' | 'curve';
+    points: readonly RoboticsPoint[];
+    cursor: RoboticsPoint | null;
+  } | null;
 }) {
   const id = useId().replaceAll(':', '');
   const width = world.field.widthMeters * 1000;
@@ -83,9 +98,51 @@ export function RobotField({
       halfTrack * 2 + wheelWidth,
     ) * 0.8;
   const viewBox =
-    view === 'robot'
-      ? `${pose.xMeters * 1000 - robotViewRadius} ${height - pose.yMeters * 1000 - robotViewRadius} ${robotViewRadius * 2} ${robotViewRadius * 2}`
-      : `-65 -65 ${width + 130} ${height + 130}`;
+    projection && view === 'field'
+      ? fieldCameraViewBox(projection.camera, projection.viewport, world.field.heightMeters)
+      : view === 'robot'
+        ? `${pose.xMeters * 1000 - robotViewRadius} ${height - pose.yMeters * 1000 - robotViewRadius} ${robotViewRadius * 2} ${robotViewRadius * 2}`
+        : `-65 -65 ${width + 130} ${height + 130}`;
+
+  const vectorHandle = (
+    kind: 'mark' | 'wall' | 'ball' | 'body' | 'decoration',
+    itemId: string,
+    which: 'start' | 'end' | 'control' | 'radius',
+    sceneKey: string,
+    point: RoboticsPoint,
+  ) => (
+    <circle
+      key={kind + ':' + itemId + ':' + which}
+      className="robotics-vector-handle"
+      data-vector-kind={kind}
+      data-vector-id={itemId}
+      data-vector-handle={which}
+      data-scene-key={sceneKey}
+      aria-label={'Изменить ' + which + ': ' + kind}
+      cx={point.xMeters * 1000}
+      cy={height - point.yMeters * 1000}
+      r={projection ? 7_000 / projection.camera.pixelsPerMeter : 16}
+      stroke="#066c90"
+      strokeWidth={projection ? 2_000 / projection.camera.pixelsPerMeter : 6}
+      fill="#ffffff"
+      role="presentation"
+    />
+  );
+  const rectHandles = (
+    kind: 'wall' | 'decoration',
+    itemId: string,
+    sceneKey: string,
+    left: number,
+    bottom: number,
+    widthMeters: number,
+    heightMeters: number,
+  ) => [
+    vectorHandle(kind, itemId, 'start', sceneKey, { xMeters: left, yMeters: bottom }),
+    vectorHandle(kind, itemId, 'end', sceneKey, {
+      xMeters: left + widthMeters,
+      yMeters: bottom + heightMeters,
+    }),
+  ];
 
   return (
     <svg
@@ -97,10 +154,11 @@ export function RobotField({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onLostPointerCapture={onLostPointerCapture}
+      onContextMenu={onContextMenu}
       role="img"
       aria-labelledby={`robotics-field-title-${id} robotics-field-description-${id}`}
       viewBox={viewBox}
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio={projection ? 'none' : 'xMidYMid meet'}
     >
       <title id={`robotics-field-title-${id}`}>
         {view === 'robot' ? 'Шасси и крепление датчика, вид сверху' : 'Поле робота, вид сверху'}
@@ -245,17 +303,251 @@ export function RobotField({
               );
             })}
           </g>
-          <g aria-hidden="true" className="robotics-start-marker">
-            <circle
-              cx={world.initialPose.xMeters * 1000}
-              cy={height - world.initialPose.yMeters * 1000}
-              r={bodyWidth / 2}
-              fill="none"
-              stroke="#a7bbc9"
-              strokeWidth="3"
-              strokeDasharray="10 10"
-            />
+          <g clipPath={'url(#robotics-floor-clip-' + id + ')'}>
+            {(world.field.visuals ?? []).map((visual) => {
+              const x = visual.xMeters * 1000;
+              const y = height - (visual.yMeters + visual.heightMeters) * 1000;
+              const w = visual.widthMeters * 1000;
+              const h = visual.heightMeters * 1000;
+              const isSelected = selection === 'decoration:' + visual.id;
+              return (
+                <g
+                  key={visual.id}
+                  data-scene-key={'decoration:' + visual.id}
+                  data-object-kind={visual.kind}
+                  data-decoration-id={visual.id}
+                  transform={
+                    'rotate(' +
+                    -((visual.rotationRadians ?? 0) * 180) / Math.PI +
+                    ' ' +
+                    (x + w / 2) +
+                    ' ' +
+                    (y + h / 2) +
+                    ')'
+                  }
+                >
+                  <title>{visual.label ?? visual.kind}</title>
+                  {visual.kind === 'rectangle' ? (
+                    <rect
+                      x={x}
+                      y={y}
+                      width={w}
+                      height={h}
+                      stroke={isSelected ? '#087d9b' : visual.strokeColor}
+                      fill={visual.fillEnabled ? visual.fillColor : 'none'}
+                      strokeWidth={isSelected ? 7 : 4}
+                    />
+                  ) : visual.kind === 'circle' ? (
+                    <circle
+                      cx={x + w / 2}
+                      cy={y + h / 2}
+                      r={w / 2}
+                      stroke={isSelected ? '#087d9b' : visual.strokeColor}
+                      fill={visual.fillEnabled ? visual.fillColor : 'none'}
+                      strokeWidth={isSelected ? 7 : 4}
+                    />
+                  ) : visual.kind === 'text' ? (
+                    <>
+                      <rect
+                        x={x}
+                        y={y}
+                        width={w}
+                        height={h}
+                        fill="transparent"
+                        stroke={isSelected ? '#087d9b' : 'none'}
+                        strokeDasharray="8 6"
+                        strokeWidth="3"
+                      />
+                      <text
+                        x={x + 7}
+                        y={y + Math.min(h * 0.78, 120)}
+                        fontSize={Math.min(h * 0.73, 110)}
+                        fontFamily="Arial, sans-serif"
+                        fontWeight="700"
+                        fill={visual.strokeColor}
+                        textLength={Math.max(8, w - 14)}
+                        lengthAdjust="spacingAndGlyphs"
+                        pointerEvents="none"
+                      >
+                        {visual.text}
+                      </text>
+                    </>
+                  ) : (
+                    <>
+                      <image
+                        x={x}
+                        y={y}
+                        width={w}
+                        height={h}
+                        href={visual.imageData}
+                        preserveAspectRatio="none"
+                      />
+                      <rect
+                        x={x}
+                        y={y}
+                        width={w}
+                        height={h}
+                        fill="transparent"
+                        stroke={isSelected ? '#087d9b' : '#9db3be'}
+                        strokeWidth={isSelected ? 7 : 3}
+                      />
+                    </>
+                  )}
+                </g>
+              );
+            })}
+            {selection && editable ? (
+              <g className="robotics-field-selection-handles">
+                {world.field.floorMarks.flatMap((mark) => {
+                  const key = mark.groupId ? 'mark-group:' + mark.groupId : 'mark:' + mark.id;
+                  if (selection !== key) return [];
+                  return mark.kind === 'area'
+                    ? [
+                        vectorHandle('mark', mark.id, 'start', key, mark),
+                        vectorHandle('mark', mark.id, 'end', key, {
+                          xMeters: mark.xMeters + mark.widthMeters,
+                          yMeters: mark.yMeters + mark.heightMeters,
+                        }),
+                      ]
+                    : [
+                        vectorHandle('mark', mark.id, 'start', key, mark.start),
+                        ...(mark.kind === 'curve'
+                          ? [vectorHandle('mark', mark.id, 'control', key, mark.control)]
+                          : []),
+                        vectorHandle('mark', mark.id, 'end', key, mark.end),
+                      ];
+                })}
+                {world.field.obstacles.flatMap((wall) =>
+                  selection === 'wall:' + wall.id
+                    ? rectHandles(
+                        'wall',
+                        wall.id,
+                        'wall:' + wall.id,
+                        wall.xMeters,
+                        wall.yMeters,
+                        wall.widthMeters,
+                        wall.heightMeters,
+                      )
+                    : [],
+                )}
+                {world.field.balls.flatMap((ball) =>
+                  selection === 'ball:' + ball.id
+                    ? [
+                        vectorHandle('ball', ball.id, 'radius', 'ball:' + ball.id, {
+                          xMeters: ball.xMeters + ball.radiusMeters,
+                          yMeters: ball.yMeters,
+                        }),
+                      ]
+                    : [],
+                )}
+                {(world.field.bodies ?? []).flatMap((body) =>
+                  selection === 'body:' + body.id
+                    ? [
+                        vectorHandle('body', body.id, 'radius', 'body:' + body.id, {
+                          xMeters:
+                            body.xMeters +
+                            (body.kind === 'can' ? body.radiusMeters : body.widthMeters / 2),
+                          yMeters: body.yMeters + (body.kind === 'can' ? 0 : body.depthMeters / 2),
+                        }),
+                      ]
+                    : [],
+                )}
+                {(world.field.visuals ?? []).flatMap((visual) =>
+                  selection === 'decoration:' + visual.id
+                    ? rectHandles(
+                        'decoration',
+                        visual.id,
+                        'decoration:' + visual.id,
+                        visual.xMeters,
+                        visual.yMeters,
+                        visual.widthMeters,
+                        visual.heightMeters,
+                      )
+                    : [],
+                )}
+              </g>
+            ) : null}
+            {draftStroke && draftStroke.points.length > 0 ? (
+              <>
+                <path
+                  className="robotics-draft-stroke"
+                  d={(() => {
+                    const points = [
+                      ...draftStroke.points,
+                      ...(draftStroke.cursor ? [draftStroke.cursor] : []),
+                    ];
+                    const point = (p: RoboticsPoint) =>
+                      p.xMeters * 1000 + ' ' + (height - p.yMeters * 1000);
+                    if (points.length < 2) return '';
+                    if (draftStroke.kind === 'curve' && points.length > 2)
+                      return (
+                        'M ' +
+                        point(points[0]!) +
+                        ' Q ' +
+                        point(points[1]!) +
+                        ' ' +
+                        point(points[2]!)
+                      );
+                    return 'M ' + points.map(point).join(' L ');
+                  })()}
+                  fill="none"
+                  stroke="#0aa4c8"
+                  strokeWidth="13"
+                  strokeDasharray="24 14"
+                  strokeLinecap="round"
+                  pointerEvents="none"
+                />
+                {draftStroke.points.map((point, index) => (
+                  <circle
+                    key={index}
+                    cx={point.xMeters * 1000}
+                    cy={height - point.yMeters * 1000}
+                    r="16"
+                    stroke="#0b83a4"
+                    strokeWidth="5"
+                    fill="#fff"
+                    pointerEvents="none"
+                  />
+                ))}
+              </>
+            ) : null}
           </g>
+          {view === 'field' ? (
+            <g
+              className="robotics-start-zone"
+              data-testid={`${testIdPrefix}-start-zone`}
+              data-zone-size-meters="0.3"
+              data-center-x-meters={world.initialPose.xMeters}
+              data-center-y-meters={world.initialPose.yMeters}
+              pointerEvents="none"
+              aria-label="Стартовая зона 30 на 30 сантиметров"
+            >
+              <title>Стартовая зона 30 × 30 см</title>
+              <rect
+                x={world.initialPose.xMeters * 1000 - 150}
+                y={height - world.initialPose.yMeters * 1000 - 150}
+                width="300"
+                height="300"
+                rx="8"
+                fill="#0aa4c8"
+                fillOpacity="0.12"
+                stroke="#0a86aa"
+                strokeWidth="5"
+                strokeDasharray="18 10"
+              />
+              <text
+                x={world.initialPose.xMeters * 1000}
+                y={height - world.initialPose.yMeters * 1000 - 107}
+                textAnchor="middle"
+                fontSize="32"
+                fontFamily="Arial, sans-serif"
+                fontWeight="700"
+                fill="#066d90"
+              >
+                СТАРТ
+              </text>
+            </g>
+          ) : null}
           {world.field.obstacles.map((obstacle) => (
             <rect
               key={obstacle.id}

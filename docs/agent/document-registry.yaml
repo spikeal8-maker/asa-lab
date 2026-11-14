@@ -1,7 +1,7 @@
 schema_version: 1.1.0
 coverage: partial
 unregistered_documents_allowed: true
-strict_task_scopes: [admin-auth, learning]
+strict_task_scopes: [admin-auth, learning, personal-progress-baseline-repair, student-progress-rating-rules]
 
 status_values:
   - canonical
@@ -35,7 +35,7 @@ documents:
   - id: STUDENT-PROGRESS-MASTER-V1
     path: docs/product/student-progress/MASTER_SPEC.md
     scope: student-progress
-    lanes: [student-progress]
+    lanes: [student-progress, personal-progress-baseline-repair, student-progress-rating-rules]
     kind: implementation_spec
     status: canonical
     authority: owner_student_progress_programme
@@ -46,7 +46,7 @@ documents:
   - id: STUDENT-PROGRESS-ROUTER
     path: docs/product/student-progress/README.md
     scope: student-progress
-    lanes: [student-progress]
+    lanes: [student-progress, student-progress-rating-rules]
     kind: router
     status: supporting
     authority: none
@@ -67,7 +67,7 @@ documents:
   - id: STUDENT-PROGRESS-DATA-V1
     path: docs/product/student-progress/DATA_AND_RATING_CONTRACT.md
     scope: student-progress
-    lanes: [student-progress]
+    lanes: [student-progress, personal-progress-baseline-repair, student-progress-rating-rules]
     kind: data_contract
     status: canonical
     authority: student_progress_qualified_contributions
@@ -89,7 +89,7 @@ documents:
   - id: STUDENT-PROGRESS-ACCEPTANCE-V1
     path: docs/product/student-progress/ACCEPTANCE.md
     scope: student-progress
-    lanes: [student-progress]
+    lanes: [student-progress, personal-progress-baseline-repair, student-progress-rating-rules]
     kind: acceptance_contract
     status: canonical
     authority: student_progress_acceptance_scenarios
@@ -100,7 +100,7 @@ documents:
   - id: STUDENT-PROGRESS-PLAN-V1
     path: docs/product/student-progress/IMPLEMENTATION_PLAN.md
     scope: student-progress
-    lanes: [student-progress]
+    lanes: [student-progress, personal-progress-baseline-repair, student-progress-rating-rules]
     kind: implementation_plan
     status: canonical
     authority: student_progress_dependency_plan
@@ -445,6 +445,7 @@ documents:
     - admin-auth
     - classroom-access-budget
     - learning
+    - personal-progress-baseline-repair
     kind: target
     status: canonical
     authority: users_access_settings
@@ -569,6 +570,7 @@ documents:
     scope: learning
     lanes:
     - learning
+    - personal-progress-baseline-repair
     kind: domain_master
     status: canonical
     authority: learning_semantics
@@ -641,7 +643,7 @@ documents:
   - id: ADR-LEARNER-IDENTITY-001
     path: docs/architecture/ADR-LEARNER-IDENTITY-001.md
     scope: learning
-    lanes: [learning]
+    lanes: [learning, personal-progress-baseline-repair]
     kind: adr
     status: canonical
     authority: learner_identity_architecture
@@ -905,3 +907,27 @@ documents:
     authority: projects_ui_ux_target
     context_role: escalation
     read_when: [project_collection_picker_ui]
+
+  - id: PROJECT-PUBLISHED-COPY-BASELINE-CONTEXT
+    path: docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
+    scope: projects
+    lanes:
+    - personal-progress-baseline-repair
+    kind: task
+    status: supporting
+    authority: none
+    context_role: task
+    read_when:
+    - private_project_copy_provenance_repair
+
+  - id: STUDENT-PROGRESS-RATING-RULES-TASK
+    path: docs/product/student-progress/tasks/SP-05-RATING-RULES.md
+    scope: student-progress
+    lanes:
+    - student-progress-rating-rules
+    kind: task
+    status: supporting
+    authority: none
+    context_role: task
+    read_when:
+    - student_progress_rating_rule_calibration

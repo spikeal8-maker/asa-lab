@@ -374,7 +374,7 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
         f.seatId,
       ]);
       await expect(f.access.owner(f.principalId, null)).rejects.toMatchObject({ status: 403 });
-    });
+    }, 20_000); // Real PostgreSQL rating projections can exceed Vitest's 5s default on CI.
 
     it('keeps the same school owner after canonical Account link and rechecks unlink on every request', async () => {
       const f = await fixture();

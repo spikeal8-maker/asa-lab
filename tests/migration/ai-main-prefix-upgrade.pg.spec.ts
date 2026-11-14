@@ -98,6 +98,9 @@ const expectedPending = [
   '0317', // Event-based admin attendance and Moscow calendar day.
   '0318', // Operational overview with aligned Moscow intervals and measured activity.
   '0319', // Function-local JIT at the measured canonical read boundaries.
+  '0320', // Authorized own progress summary; no identity or score writes.
+  '0321', // Qualified ordinary Account admission identity, preserving retained history.
+  '0322', // Authorized learner-safe group rank and avatar pages, no scoring rewrite.
 ];
 
 interface Identity {

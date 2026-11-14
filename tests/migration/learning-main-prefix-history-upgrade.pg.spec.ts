@@ -474,6 +474,21 @@ const upgradeArtifacts = [
     '0319_canonical_read_boundaries_jit.sql',
     '6b11096babc26c47d0b408c956e1d98ecd47b89d441b1a58e66d180ae0bce571',
   ],
+  [
+    '0320',
+    '0320_personal_progress_summary.sql',
+    '8618e796e57a7baf38b94129b09c9574ad8eed3844e9c131cdd7ec93fb345e2a',
+  ],
+  [
+    '0321',
+    '0321_account_join_learner_identity.sql',
+    '82aed3222255d8d8c67bea4525ed4465694511d91c052563198f50df1605d6a5',
+  ],
+  [
+    '0322',
+    '0322_student_group_rating.sql',
+    '429e0f332b86e9e134496f7a72c715aec2ad4cc70179bab2be0776331488a19a',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { call } from '../api-call';
+import { useClassroomActionFeedback } from './ClassroomActionFeedback';
 import './classroom-games-settings.css';
 type Override = 'inherit' | 'allow' | 'deny';
 interface Policy {
@@ -26,7 +27,9 @@ export function ClassroomProjectSettings({
   const [draft, setDraft] = useState<Policy | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { notice, setNotice } = useClassroomActionFeedback(
+    JSON.stringify(['projects', classroomId, seatId ?? null, readOnly]),
+  );
   const [attempt, setAttempt] = useState(0);
   const generation = useRef(0);
   const path = `/api/project-distribution/classrooms/${encodeURIComponent(classroomId)}/${seatId ? `seats/${encodeURIComponent(seatId)}` : 'policy'}`;
@@ -40,7 +43,6 @@ export function ClassroomProjectSettings({
     setPolicy(null);
     setDraft(null);
     setError(null);
-    setNotice(null);
     setBusy(false);
     void call<Policy>(path, { cache: 'no-store' })
       .then((result) => {

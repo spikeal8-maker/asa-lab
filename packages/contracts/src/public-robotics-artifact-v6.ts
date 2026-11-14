@@ -290,8 +290,10 @@ export function validatePublicRoboticsArtifactV6(
           ],
           ['label'],
         );
-        number(item.widthMeters, 0.04, 0.6);
-        number(item.depthMeters, 0.04, 0.6);
+        // Small educational cubes can be 3 × 3 cm; v6 accepts the same
+        // minimum as Robotics source validation without relaxing the v5 schema.
+        number(item.widthMeters, 0.02, 0.6);
+        number(item.depthMeters, 0.02, 0.6);
       } else throw Error();
     }
     const robot = record(world.robot, PUBLIC_ROBOTICS_ROBOT_FIELDS);

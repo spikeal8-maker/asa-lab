@@ -10,6 +10,8 @@ import { api, type Classroom, type ClassroomStatus } from '../api';
 import { CreateClassroomModal } from '../components/CreateClassroomModal';
 import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal';
 import { ageBandLabel } from '../components/ClassroomFields';
+import { useClassroomFeedback } from '../components/useClassroomFeedback';
+import { SystemToastViewport } from '../components/SystemToastViewport';
 import { Dropdown } from '../components/Dropdown';
 import { useSchoolTime } from '../components/school-time';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
@@ -124,7 +126,8 @@ export function DashboardPage({
 }): JSX.Element {
   const [list, setList] = useState<ListState>({ kind: 'loading' });
   const [modalOpen, setModalOpen] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const feedback = useClassroomFeedback('dashboard');
+  const setNotice = feedback.success;
   const [roleView, setRoleView] = useState<ClassroomRoleView>('teaching');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [selectionMode, setSelectionMode] = useState(false);
@@ -256,7 +259,8 @@ export function DashboardPage({
     const failed = targets.length - changed;
     const verb =
       status === 'archived' ? 'В архиве' : status === 'active' ? 'Возвращено из архива' : 'Удалено';
-    setNotice(
+    const notify = changed === 0 ? feedback.info : failed > 0 ? feedback.warning : feedback.success;
+    notify(
       changed === 0
         ? 'Ничего не изменилось.'
         : `${verb}: ${changed}${failed > 0 ? `. Не удалось: ${failed}.` : '.'}`,
@@ -284,6 +288,7 @@ export function DashboardPage({
       tabIndex={-1}
       aria-busy={list.kind === 'loading'}
     >
+      <SystemToastViewport scopeKey={feedback.scopeKey} />
       <section className="classroom-hub-heading" aria-labelledby="classroom-hub-title">
         <div className="classroom-title-row">
           <div className="classroom-title-and-link">
@@ -501,12 +506,6 @@ export function DashboardPage({
           </section>
         </div>
       </section>
-
-      {notice ? (
-        <p className="notice-success" role="status" aria-live="polite">
-          {notice}
-        </p>
-      ) : null}
 
       {list.kind === 'ready' &&
       search.trim() &&

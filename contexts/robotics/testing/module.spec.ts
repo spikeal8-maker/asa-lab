@@ -131,16 +131,20 @@ describe('Robotics Project Core provider', () => {
     const preview = provider.createPreview(project);
     expect(preview).toMatchObject({
       kind: 'scene',
-      figure: { viewBox: { width: 180, height: 180 } },
+      figure: { viewBox: { width: 500, height: 500 } },
     });
-    expect(preview.figure?.shapes).toContainEqual({
+    const ballFigure = preview.figure?.shapes.find(
+      (shape) => shape.shape === 'circle' && shape.cx === 80,
+    );
+    expect(ballFigure).toMatchObject({
       shape: 'circle',
       cx: 80,
-      cy: 140,
       r: 6,
       fill: '#f59e0b',
       stroke: '#b45309',
     });
+    if (!ballFigure || ballFigure.shape !== 'circle') throw new Error('Превью мяча отсутствует.');
+    expect(ballFigure.cy).toBeCloseTo(460, 10);
     const changedProgram: RoboticsProject = {
       ...project,
       title: 'Приватное название',

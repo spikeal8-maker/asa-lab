@@ -130,6 +130,105 @@ afterEach(() => {
 });
 
 describe('account robotics whole-document project host', () => {
+  it('saves a renamed project on the minute without an early PATCH or redundant draft PUT', async () => {
+    mount();
+    act(() => host.host.setProjectTitle('Название без лишних запросов'));
+    expect(host.host.saveStatus).toBe('dirty');
+    expect(
+      localStorage.getItem(`asa-lab:robotics:pending-title:account:${owner}:${id}`),
+    ).not.toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(59_999));
+    expect(api.renameProject).not.toHaveBeenCalled();
+    expect(saves).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(api.renameProject).toHaveBeenCalledTimes(1);
+    expect(saves).not.toHaveBeenCalled();
+    expect(host.host.saveStatus).toBe('saved');
+    expect(
+      localStorage.getItem(`asa-lab:robotics:pending-title:account:${owner}:${id}`),
+    ).toBeNull();
+  });
+
+  it('restores a title edited only in the browser cache without contacting the server', () => {
+    mount();
+    act(() => host.host.setProjectTitle('Восстановленное локальное название'));
+    unmount();
+    mount();
+    expect(host.host.projectTitle).toBe('Восстановленное локальное название');
+    expect(host.host.saveStatus).toBe('dirty');
+    expect(api.renameProject).not.toHaveBeenCalled();
+    expect(saves).not.toHaveBeenCalled();
+  });
+  it('waits a full minute from the first edit, even during continuous editing', async () => {
+    mount();
+    act(() => editField());
+    await act(async () => vi.advanceTimersByTimeAsync(30_000));
+    expect(saves).not.toHaveBeenCalled();
+
+    act(() => editCode('void setup(){} void loop(){delay(1001);}'));
+    await act(async () => vi.advanceTimersByTimeAsync(29_999));
+    expect(saves).not.toHaveBeenCalled();
+    expect(host.host.saveStatus).toBe('dirty');
+
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(saves).toHaveBeenCalledTimes(1);
+    expect(saves.mock.calls[0]![1]).toEqual(host.getCurrentProject());
+    expect(host.host.saveStatus).toBe('saved');
+
+    act(() => editCode('void setup(){} void loop(){delay(1003);}'));
+    await act(async () => vi.advanceTimersByTimeAsync(59_999));
+    expect(saves).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(saves).toHaveBeenCalledTimes(2);
+  });
+
+  it('saves only one snapshot per automatic tick while more edits arrive in flight', async () => {
+    mount();
+    const first = deferred<SaveReply>();
+    saves.mockImplementationOnce(() => first.promise);
+    act(() => editCode('void setup(){} void loop(){delay(1002);}'));
+    await act(async () => vi.advanceTimersByTimeAsync(60_000));
+    expect(saves).toHaveBeenCalledTimes(1);
+    const sent = structuredClone(host.getCurrentProject());
+
+    act(() => editField());
+    await act(async () => {
+      first.resolve(acknowledged(sent, 2));
+      await Promise.resolve();
+    });
+    expect(saves).toHaveBeenCalledTimes(1);
+    expect(host.host.saveStatus).toBe('dirty');
+    await act(async () => vi.advanceTimersByTimeAsync(59_999));
+    expect(saves).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(saves).toHaveBeenCalledTimes(2);
+    expect(saves.mock.calls[1]![1]).toEqual(host.getCurrentProject());
+  });
+
+  it('caches dirty edits locally without sending extra writes when hidden or unloaded', async () => {
+    mount();
+    act(() => editField());
+    expect(readLocalProjectDraft(localStorage, id, 'robotics', owner, 'account')).not.toBeNull();
+
+    act(() => window.dispatchEvent(new Event('pagehide')));
+    expect(saves).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(59_999));
+    expect(saves).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(saves).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows an explicit Save immediately and cancels the pending minute', async () => {
+    mount();
+    act(() => editField());
+    await act(async () => {
+      expect(await host.saveAll()).toBe(true);
+    });
+    expect(saves).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(saves).toHaveBeenCalledTimes(1);
+  });
+
   it('accepts a semantically equal JSONB acknowledgement with reordered nested object keys', async () => {
     const reverseKeys = (value: unknown): unknown =>
       Array.isArray(value)

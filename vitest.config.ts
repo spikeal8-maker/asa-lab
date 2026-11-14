@@ -87,6 +87,9 @@ const allSpecs = [
 ];
 const excludedSpecs = ['**/node_modules/**', '**/dist/**', 'e2e/**'];
 const timedOwnershipSpecs = ['contexts/electronics/testing/engine-timed-api.spec.ts'];
+// The synchronous owner geometry regressions keep their original deadlines.
+// Give them a separate group so other test files do not compete for CPU.
+const ownerGeometrySpecs = ['apps/web/src/three-d/testing/owner-geometry-regressions.spec.ts'];
 const sharedDdlSpecs = [
   'tests/courses/activity-participations.pg.spec.ts',
   'tests/courses/learning-direct-project-attempts.pg.spec.ts',
@@ -115,7 +118,12 @@ export default defineConfig({
           globals: false,
           environment: 'node',
           include: allSpecs,
-          exclude: [...excludedSpecs, ...sharedDdlSpecs, ...timedOwnershipSpecs],
+          exclude: [
+            ...excludedSpecs,
+            ...sharedDdlSpecs,
+            ...timedOwnershipSpecs,
+            ...ownerGeometrySpecs,
+          ],
           sequence: { groupOrder: 0 },
         },
       },
@@ -141,6 +149,19 @@ export default defineConfig({
           exclude: excludedSpecs,
           fileParallelism: false,
           sequence: { groupOrder: 2 },
+        },
+      },
+      {
+        resolve: { alias: sharedAliases },
+        test: {
+          name: 'serialized-owner-geometry',
+          globals: false,
+          environment: 'node',
+          include: ownerGeometrySpecs,
+          exclude: excludedSpecs,
+          fileParallelism: false,
+          maxWorkers: 1,
+          sequence: { groupOrder: 3 },
         },
       },
     ],

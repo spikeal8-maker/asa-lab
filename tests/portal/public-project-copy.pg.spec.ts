@@ -208,6 +208,7 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
   it('copies exact V1, atomically deduplicates concurrent requests and preserves independent editable ownership and lineage', async () => {
     const source = await fixture();
     const before = await open(source.owner, source.id);
+    expect(before.project.copiedFrom).toBeNull();
     const versions = await frozen(source.id);
     const detail = await inject(app, {
       method: 'GET',
@@ -262,7 +263,7 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
     const lineage = await admin.query(
       `SELECT p.copied_from_publication_id,p.copied_from_revision_id,p.copied_from_version_id,
               p.copied_from_license,p.license,p.copied_from_project_id,p.copied_from_author,p.copied_from_title,r.publication_id,r.project_id,r.project_version_id,
-              v.document_json,v.version_no
+              p.copied_at,v.document_json,v.version_no
          FROM projects p
          JOIN project_publication_revisions r ON r.id=p.copied_from_revision_id
          JOIN project_versions v ON v.id=r.project_version_id
@@ -285,6 +286,14 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
       version_no: source.publication.versionNo,
       document_json: source.v1,
     });
+    expect(lineage.rows[0].copied_at).toBeInstanceOf(Date);
+    const copiedFrom = {
+      projectId: source.id,
+      author: detail.json().publication.authorLabel,
+      title: detail.json().publication.title,
+      at: lineage.rows[0].copied_at.toISOString(),
+    };
+    expect(target.project.copiedFrom).toEqual(copiedFrom);
     const ownership = await admin.query(
       `SELECT id,tenant_id,owner_principal_id,project_scope AS scope,classroom_id FROM projects WHERE id=ANY($1::uuid[])`,
       [[source.id, id]],
@@ -309,6 +318,10 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
     const changed = scene(61);
     await save(source.reader, id, changed, target.draft.revision);
     expect((await open(source.reader, id)).draft.document).toEqual(changed);
+    const replay = await copy(source, key);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toMatchObject({ projectId: id, moduleKey: 'three-d', created: false });
+    expect((await open(source.reader, id)).project.copiedFrom).toEqual(copiedFrom);
     expect((await open(source.owner, source.id)).draft).toEqual(before.draft);
     expect(await frozen(source.id)).toEqual(versions);
     expect((await copy(source, key, { title: 'Different fingerprint' })).statusCode).toBe(409);

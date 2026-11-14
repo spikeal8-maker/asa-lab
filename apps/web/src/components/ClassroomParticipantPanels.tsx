@@ -17,6 +17,7 @@ import { ParticipantAssignmentsList } from './ParticipantAssignmentsList';
 import { avatarFileError, createAvatarDataUrl } from '../creator-portal/avatar-file';
 import { SEAT_AWARDS, SeatAwardRow } from './SeatAwards';
 import { useSchoolTime } from './school-time';
+import { useClassroomActionFeedback } from './ClassroomActionFeedback';
 import './classroom-participants.css';
 
 export const FACTOR_LABELS = {
@@ -77,7 +78,9 @@ export function ClassroomRatingSettings({
   const [settings, setSettings] = useState<ParticipantSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
+  const { notice, setNotice } = useClassroomActionFeedback(
+    JSON.stringify(['rating', classroomId, readOnly]),
+  );
   const receipt = useRef<{ payload: string; id: string } | null>(null);
   const generation = useRef(0);
   const load = useCallback(async () => {
@@ -91,7 +94,6 @@ export function ClassroomRatingSettings({
   }, [classroomId]);
   useEffect(() => {
     setBusy(false);
-    setNotice('');
     receipt.current = null;
     void load();
     return () => {

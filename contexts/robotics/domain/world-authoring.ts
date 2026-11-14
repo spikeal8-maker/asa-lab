@@ -51,6 +51,7 @@ function assertKey(world: RoboticsWorldDocument, input: RoboticsObjectKey): Robo
     world.field.obstacles.some((item) => key === `wall:${item.id}`) ||
     world.field.balls.some((item) => key === `ball:${item.id}`) ||
     world.field.bodies?.some((item) => key === `body:${item.id}`) ||
+    world.field.visuals?.some((item) => key === `decoration:${item.id}`) ||
     world.field.floorMarks.some((item) => markMatches(item, key))
   )
     return key;
@@ -103,6 +104,13 @@ export function translateRoboticsObject(
       floorMarks: world.field.floorMarks.map((mark) =>
         markMatches(mark, key) ? transformMark(mark, transform) : mark,
       ),
+      ...(world.field.visuals
+        ? {
+            visuals: world.field.visuals.map((item) =>
+              key === `decoration:${item.id}` ? { ...item, ...transform(item) } : item,
+            ),
+          }
+        : {}),
     },
   });
 }
@@ -158,6 +166,15 @@ export function rotateRoboticsObject(
             }
           : mark,
       ),
+      ...(world.field.visuals
+        ? {
+            visuals: world.field.visuals.map((item) =>
+              key === `decoration:${item.id}`
+                ? { ...item, rotationRadians: angle((item.rotationRadians ?? 0) + deltaRadians) }
+                : item,
+            ),
+          }
+        : {}),
     },
   });
 }
@@ -177,6 +194,11 @@ export function removeRoboticsObject(
         ? { bodies: world.field.bodies.filter((item) => key !== `body:${item.id}`) }
         : {}),
       floorMarks: world.field.floorMarks.filter((mark) => !markMatches(mark, key)),
+      ...(world.field.visuals
+        ? {
+            visuals: world.field.visuals.filter((item) => key !== `decoration:${item.id}`),
+          }
+        : {}),
     },
   });
 }
@@ -202,6 +224,17 @@ export function duplicateRoboticsObject(
     const id = nextRoboticsObjectId(world, 'ball');
     next = { ...world, field: { ...world.field, balls: [...world.field.balls, { ...item, id }] } };
     newKey = `ball:${id}`;
+  } else if (key.startsWith('decoration:')) {
+    const item = world.field.visuals!.find((item) => key === `decoration:${item.id}`)!;
+    const id = nextRoboticsObjectId(world, 'visual');
+    next = {
+      ...world,
+      field: {
+        ...world.field,
+        visuals: [...world.field.visuals!, { ...item, id }],
+      },
+    };
+    newKey = `decoration:${id}`;
   } else if (key.startsWith('body:')) {
     const item = world.field.bodies!.find((item) => key === `body:${item.id}`)!;
     const id = nextRoboticsObjectId(world, item.kind);
@@ -285,12 +318,22 @@ export function resizeRoboticsTileField(
     )
   )
     throw new Error('Число плиток должно быть целым от 1 до 60.');
+  const widthMeters = metres(columns * world.field.tiles.sizeMeters);
+  const heightMeters = metres(rows * world.field.tiles.sizeMeters);
+  // Recenter BEFORE validating the reduced field. A 5m starting pose
+  // cannot be validated inside a 1.2m tile field and must never cause
+  // an otherwise valid resize to be silently discarded.
   return checked({
     ...world,
+    initialPose: {
+      ...world.initialPose,
+      xMeters: widthMeters / 2,
+      yMeters: heightMeters / 2,
+    },
     field: {
       ...world.field,
-      widthMeters: metres(columns * world.field.tiles.sizeMeters),
-      heightMeters: metres(rows * world.field.tiles.sizeMeters),
+      widthMeters,
+      heightMeters,
     },
   });
 }
