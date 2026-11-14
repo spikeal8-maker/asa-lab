@@ -130,6 +130,8 @@ async function setup(
     long?: boolean;
     account?: boolean;
     populated?: boolean;
+    meritTitle?: string;
+    meritDescription?: string;
     named?: boolean;
     moreWorks?: number;
     firstWorkAwaiting?: boolean;
@@ -269,8 +271,8 @@ async function setup(
           ? [
               {
                 id: 'merit',
-                title: 'Исследователь',
-                description: 'За аккуратный эксперимент',
+                title: options.meritTitle ?? 'Исследователь',
+                description: options.meritDescription ?? 'За аккуратный эксперимент',
                 granted: true,
                 grantedAt: '2026-10-10T10:00:00Z',
               },
@@ -485,6 +487,98 @@ async function assertPupilHistory(page: Page) {
   await details.getByRole('button', { name: 'История результата', exact: true }).first().click();
   await expect(details.locator('.participant-history')).toContainText('Полный подробный отзыв');
 }
+
+test('Legacy merit editing retries with one receipt, restores after navigation, and reads history', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const options = {
+    long: false,
+    populated: true,
+    manual: 0,
+    results: 0,
+    meritTitle: 'Исследователь',
+    meritDescription: 'За аккуратный эксперимент',
+  };
+  const state = await setup(page, options);
+  const requests: Array<{ id: string; title: string; description: string; requestId: string }> = [];
+  let rejectFirst = true;
+  await page.route(
+    `**/api/classrooms/${classId}/participants/actions/merit_update`,
+    async (route) => {
+      const body = route.request().postDataJSON() as {
+        id: string;
+        title: string;
+        description: string;
+        requestId: string;
+      };
+      expect(route.request().method()).toBe('POST');
+      requests.push(body);
+      if (rejectFirst) {
+        rejectFirst = false;
+        return route.fulfill({
+          status: 503,
+          json: { error: { code: 'temporary', message: 'Сервис временно недоступен' } },
+        });
+      }
+      expect(body.id).toBe('merit');
+      options.meritTitle = body.title;
+      options.meritDescription = body.description;
+      return route.fulfill({ json: { saved: true, id: body.id } });
+    },
+  );
+  await page.route(`**/api/classrooms/${classId}/participants/seat-0/merit-history*`, (route) =>
+    route.fulfill({
+      json: {
+        offset: 0,
+        hasMore: false,
+        items: [
+          {
+            eventId: 41,
+            meritId: 'merit',
+            title: options.meritTitle,
+            granted: false,
+            at: '2026-11-14T17:00:00Z',
+          },
+        ],
+      },
+    }),
+  );
+
+  await state.open();
+  await openTeacherTab(page, 'merits');
+  const recognition = page.locator('.participant-recognition');
+  await expect(recognition.getByText('Исследователь', { exact: true })).toBeVisible();
+  await recognition.getByRole('button', { name: 'Редактировать награду: Исследователь' }).click();
+  const editForm = recognition.locator('.participant-merit-edit');
+  await editForm.getByLabel('Название', { exact: true }).fill('Мастер измерений');
+  await editForm.getByLabel('Описание награды', { exact: true }).fill('За точные измерения');
+  await editForm.getByRole('button', { name: 'Сохранить изменения награды' }).click();
+  await expect(recognition.getByRole('alert')).toContainText('Сервис временно недоступен');
+  await expect(editForm.getByLabel('Название', { exact: true })).toHaveValue('Мастер измерений');
+  await editForm.getByRole('button', { name: 'Сохранить изменения награды' }).click();
+  await expect(recognition.getByText('Мастер измерений', { exact: true })).toBeVisible();
+  await expect(editForm).toHaveCount(0);
+  expect(requests).toHaveLength(2);
+  expect(requests[0]!.requestId).toBe(requests[1]!.requestId);
+  expect(requests[0]!.title).toBe('Мастер измерений');
+  expect(requests[1]!.description).toBe('За точные измерения');
+  await recognition.getByRole('button', { name: 'Показать историю наград' }).click();
+  await expect(recognition.getByText('Отозвана: Мастер измерений')).toBeVisible();
+  await noOverflow(page);
+
+  await page.reload();
+  await expect(page.locator('.classroom-roster-row')).toHaveCount(3);
+  if (!(await page.locator('.classroom-student-picker-name').isVisible())) {
+    await page.locator('.classroom-student-name').filter({ hasText: 'Ученик 01' }).click();
+  }
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText('Ученик 01');
+  await openTeacherTab(page, 'merits');
+  await expect(
+    page.locator('.participant-recognition').getByText('Мастер измерений'),
+  ).toBeVisible();
+  expect(state.errors).toEqual([]);
+});
 
 for (const width of [1440, 1024, 390, 320]) {
   test(`UI-05 B2 avatar batch preserves visible metadata and exact replay at ${width}px`, async ({

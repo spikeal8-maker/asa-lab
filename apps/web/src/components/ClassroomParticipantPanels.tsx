@@ -412,6 +412,8 @@ export function ParticipantMeritsAndAvatars({
       if (await mutate(kind, input)) {
         historyRequest.current++;
         setMeritHistory(null);
+        setHistoryBusy(false);
+        setHistoryError(null);
         await onChanged();
       }
     } finally {
@@ -429,6 +431,8 @@ export function ParticipantMeritsAndAvatars({
       setMeritDraft(null);
       historyRequest.current++;
       setMeritHistory(null);
+      setHistoryBusy(false);
+      setHistoryError(null);
       await onChanged();
     } finally {
       if (token === scope.current) setBusy(false);

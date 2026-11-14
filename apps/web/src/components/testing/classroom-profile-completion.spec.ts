@@ -1232,6 +1232,69 @@ describe('participant completion DOM behavior', () => {
     expect(host.textContent).not.toContain('Отозвана: Первая награда');
     expect(host.textContent).toContain('Показать историю наград');
   });
+  it('releases pending history controls when a merit grant invalidates an older read', async () => {
+    const data = profile();
+    data.merits = [
+      {
+        id: 'merit-1',
+        title: 'Награда за проект',
+        description: 'Завершённый проект',
+        granted: true,
+        grantedAt: null,
+      },
+    ];
+    let resolveHistory!: (value: Awaited<ReturnType<typeof participantsApi.meritHistory>>) => void;
+    const pendingHistory = new Promise<Awaited<ReturnType<typeof participantsApi.meritHistory>>>(
+      (resolve) => {
+        resolveHistory = resolve;
+      },
+    );
+    vi.spyOn(participantsApi, 'meritHistory').mockReturnValue(pendingHistory);
+    const mutate = vi.spyOn(participantsApi, 'mutate').mockResolvedValue(ok({ saved: true }));
+    const changed = vi.fn().mockResolvedValue(undefined);
+    await render(
+      createElement(ParticipantMeritsAndAvatars, {
+        classroomId: 'class',
+        seatId: 'seat-a',
+        profile: data,
+        onChanged: changed,
+      }),
+    );
+    await click('Показать историю наград');
+    expect(host.textContent).toContain('Загрузка истории наград');
+    await click('Отозвать');
+    expect(mutate).toHaveBeenCalledWith(
+      'class',
+      'merit_grant',
+      { seatId: 'seat-a', id: 'merit-1', granted: false },
+      expect.any(String),
+    );
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(host.textContent).not.toContain('Загрузка истории наград');
+    const historyToggle = [...host.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Показать историю наград',
+    );
+    expect(historyToggle?.disabled).toBe(false);
+    await act(async () => {
+      resolveHistory(
+        ok({
+          offset: 0,
+          hasMore: false,
+          items: [
+            {
+              eventId: 42,
+              meritId: 'merit-1',
+              title: 'Награда за проект',
+              granted: true,
+              at: '2026-11-14T17:00:00Z',
+            },
+          ],
+        }),
+      );
+    });
+    expect(host.textContent).not.toContain('Выдана: Награда за проект');
+    expect(host.querySelector('.participant-merit-history')).toBeNull();
+  });
   it('presents learner recognition without teacher/API language and preserves selecting an available secret avatar', async () => {
     const data = profile('helper');
     data.merits = [
