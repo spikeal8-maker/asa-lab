@@ -40,6 +40,16 @@ describe('tabular downloads', () => {
     expect(Object.keys(archive).some((path) => /externalLinks|vbaProject/.test(path))).toBe(false);
   });
 
+  it('preserves whole negative decimal cells while guarding formula-like text', async () => {
+    const table = [['-2', '-0.5', '-0,5', '-001', '-1+2', ' -1', '-1e2', '-1\n']];
+    const csv = exportCsv(table, 'csv');
+    expect(await csv.text()).toBe(
+      ['-2', '-0.5', '-0,5', "'-001", "'-1+2", "' -1", "'-1e2", "'-1\n"]
+        .map((cell) => '"' + cell + '"')
+        .join(',') + '\r\n',
+    );
+  });
+
   it('writes CSV profiles with escaped quotes, embedded newlines and protected formulas', async () => {
     const table = [
       ['Текст', 'Код', 'Сумма'],

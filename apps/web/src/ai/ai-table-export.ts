@@ -8,8 +8,10 @@ const SHEET = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 
 function quoteCsv(cell: string): string {
   const leading = cell.trimStart().normalize('NFKC');
+  const negativeDecimal = /^-(?:0|[1-9][0-9]*)(?:[.,][0-9]+)?$/u.test(cell);
   const protectedText =
-    /^[=+@-]/u.test(leading) || ['\t', '\r', '\n'].some((prefix) => cell.startsWith(prefix))
+    (!negativeDecimal && /^[=+@-]/u.test(leading)) ||
+    ['\t', '\r', '\n'].some((prefix) => cell.startsWith(prefix))
       ? "'" + cell
       : cell;
   return '"' + protectedText.replaceAll('"', '""') + '"';

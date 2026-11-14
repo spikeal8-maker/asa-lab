@@ -480,6 +480,14 @@ test('AI downloads code and complete answers as real local files', async ({ page
       const composer = (await page.getByRole('textbox', { name: 'Сообщение ИИ' }).boundingBox())!;
       expect(trigger.width).toBeGreaterThanOrEqual(44);
       expect(trigger.height).toBeGreaterThanOrEqual(44);
+      const excelLabel = formats.getByRole('button', { name: 'CSV Excel' }).locator('strong');
+      expect(
+        await excelLabel.evaluate((node) => {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          return range.getClientRects().length;
+        }),
+      ).toBe(1);
       const formatButton = (await pdfFormat.boundingBox())!;
       expect(formatButton.height).toBeGreaterThanOrEqual(44);
       expect(menu.x).toBeGreaterThanOrEqual(0);
