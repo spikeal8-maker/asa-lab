@@ -6514,10 +6514,18 @@ async function d2NativeReferences(
     { geometry, width, height, basis },
   );
 }
-function d2ClassifyNativePng(png: D2Png, references: D2NativeReferences) {
+function d2ClassifyNativePng(
+  png: D2Png,
+  references: D2NativeReferences,
+  capturedOffset: { readonly x: number; readonly y: number },
+) {
   const classify = (points: D2NativePixelReference[]) => {
     const actual = points.map(({ x, y }) => {
-      const index = (y * png.width + x) * 4;
+      const pixelX = x - capturedOffset.x;
+      const pixelY = y - capturedOffset.y;
+      if (pixelX < 0 || pixelY < 0 || pixelX >= png.width || pixelY >= png.height)
+        throw new Error('native crop omitted an independent LED/L pixel sample');
+      const index = (pixelY * png.width + pixelX) * 4;
       return [...png.data.subarray(index, index + 4)];
     });
     const score = (key: 'low' | 'high') => {
@@ -6540,10 +6548,20 @@ function d2ClassifyNativePng(png: D2Png, references: D2NativeReferences) {
     const meanSeparation = separation.reduce((sum, value) => sum + value, 0) / separation.length;
     const valid =
       points.length >= 4 &&
-      png.width === references.width &&
-      png.height === references.height &&
+      png.width > 0 &&
+      png.height > 0 &&
+      Number.isInteger(capturedOffset.x) &&
+      Number.isInteger(capturedOffset.y) &&
+      capturedOffset.x >= 0 &&
+      capturedOffset.y >= 0 &&
+      capturedOffset.x + png.width <= references.width &&
+      capturedOffset.y + png.height <= references.height &&
       points.every(
-        (point) => point.x >= 0 && point.y >= 0 && point.x < png.width && point.y < png.height,
+        (point) =>
+          point.x >= capturedOffset.x &&
+          point.y >= capturedOffset.y &&
+          point.x < capturedOffset.x + png.width &&
+          point.y < capturedOffset.y + png.height,
       ) &&
       actual.every((pixel) => pixel.length === 4 && pixel[3] === 255) &&
       meanSeparation >= 30;
@@ -6630,15 +6648,89 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
   const generationId = physical.epoch;
   const bases = D2_IDS.map((id) => d2NativeAssetBasis(physical, id));
   const { PNG } = await import('pngjs');
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error('native screenshot requires a fixed viewport');
+  // Reference SVG assets and their detached-canvas colours are independent of the
+  // blink phase. Prepare the actual mounting geometry ONCE before collecting the
+  // ordered screenshots, not between two short optical phases.
+  await page.waitForFunction(
+    () => {
+      const probe = window as D2Window;
+      const paint = probe.__ownerPaint!.at(-1);
+      const l = probe.__d2L!.at(-1);
+      return (
+        !!paint &&
+        paint.images.length === 3 &&
+        paint.images.every(
+          (image) =>
+            image.rect !== null &&
+            image.decoded &&
+            image.visible &&
+            image.unoccluded &&
+            image.opacity === 1,
+        ) &&
+        !!l &&
+        l.visible &&
+        l.rect !== null &&
+        l.boardRect !== null
+      );
+    },
+    undefined,
+    { timeout: D2_WAIT_MS },
+  );
+  const nativeGeometry = JSON.parse(
+    await page.evaluate(() => {
+      const probe = window as D2Window;
+      return JSON.stringify({ paint: probe.__ownerPaint!.at(-1)!, l: probe.__d2L!.at(-1)! });
+    }),
+  ) as { paint: PaintReceipt; l: D2LReceipt };
+  const nativeReferences = await Promise.all(
+    bases.map((basis, led) =>
+      d2NativeReferences(
+        page,
+        {
+          led: {
+            href: nativeGeometry.paint.images[led]!.href,
+            rect: nativeGeometry.paint.images[led]!.rect,
+          },
+          board: { href: nativeGeometry.l.boardHref, rect: nativeGeometry.l.boardRect },
+          lRect: nativeGeometry.l.rect,
+        },
+        viewport.width,
+        viewport.height,
+        basis,
+      ),
+    ),
+  );
   const requested = ['100', '000', '010', '000', '001', '000', '100'];
   const nativeWindows: Array<{
     previousShotAt: number | null;
     previousRequested: string | null;
     shotAt: number;
     vector: string;
+    captureFrom: number;
+    captureTo: number;
+  }> = [];
+  // Acquire each requested real compositor PNG before decoding or attaching any
+  // of them. The previous per-frame JSON/PNG work consumed most of the next
+  // naturally occurring 300 ms Arduino phase on the shared CI runner.
+  const acquisitions: Array<{
+    name: string;
+    path: string;
+    vector: string;
+    captureFrom: number;
+    captureTo: number;
+    captureMs: number;
+    bytes: Buffer;
+    clip: { x: number; y: number; width: number; height: number };
+    beforeShot: { paint: PaintReceipt; l: D2LReceipt };
   }> = [];
   let previousShotAt: number | null = null;
   let previousRequested: string | null = null;
+  // Open CDP once, before searching for the first live phase. Per-frame session
+  // handshakes/detach previously consumed the narrow optical capture window.
+  // The owning test's browser-context finally disposes this session on failure.
+  const cdp = await page.context().newCDPSession(page);
   let seekFrom = await page.evaluate(() => performance.now());
   for (let index = 0; index < requested.length; index++) {
     const vector = requested[index]!;
@@ -6680,37 +6772,141 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
     ) as { paint: PaintReceipt; l: D2LReceipt };
     const name = `d2-d4-native-${index}-${vector}`;
     const path = resolve(artifactRoot, name + '.png');
-    const bytes = await page.screenshot({ path });
-    const during = JSON.parse(
-      await page.evaluate((from) => {
-        const probe = window as D2Window;
-        return JSON.stringify({
-          paint: probe.__ownerPaint!.filter((row) => row.at >= from),
-          l: probe.__d2L!.filter((row) => row.at >= from),
-          at: performance.now(),
-        });
-      }, beforeShot.paint.at),
-    ) as { paint: PaintReceipt[]; l: D2LReceipt[]; at: number };
-    const png = PNG.sync.read(bytes);
-    const references = await Promise.all(
-      bases.map((basis, led) =>
-        d2NativeReferences(
-          page,
-          {
-            led: {
-              href: beforeShot.paint.images[led]!.href,
-              rect: beforeShot.paint.images[led]!.rect,
-            },
-            board: { href: beforeShot.l.boardHref, rect: beforeShot.l.boardRect },
-            lRect: beforeShot.l.rect,
-          },
-          png.width,
-          png.height,
-          basis,
-        ),
-      ),
+    // The original full-viewport screenshot takes longer than a complete LED
+    // phase on loaded CI. Crop only the actual three LED bodies and D13 L while
+    // retaining every original independent native pixel sample and assertion.
+    const regions = [...beforeShot.paint.images.map((image) => image.rect), beforeShot.l.rect];
+    if (regions.some((rect) => rect == null))
+      throw new Error('native screenshot requires all four actual visible geometries');
+    const actualRegions = regions as Array<NonNullable<D2NativeImageWitness['rect']>>;
+    const clipX = Math.max(0, Math.floor(Math.min(...actualRegions.map((r) => r.x)) - 12));
+    const clipY = Math.max(0, Math.floor(Math.min(...actualRegions.map((r) => r.y)) - 12));
+    const clipRight = Math.min(
+      viewport.width,
+      Math.ceil(Math.max(...actualRegions.map((r) => r.x + r.width)) + 12),
     );
-    const pixels = references.map((reference) => d2ClassifyNativePng(png, reference));
+    const clipBottom = Math.min(
+      viewport.height,
+      Math.ceil(Math.max(...actualRegions.map((r) => r.y + r.height)) + 12),
+    );
+    const clip = { x: clipX, y: clipY, width: clipRight - clipX, height: clipBottom - clipY };
+    if (clip.width <= 0 || clip.height <= 0)
+      throw new Error('native screenshot clip is outside the editor viewport');
+    // Chromium compositor capture avoids Playwright's full screenshot stabilization
+    // wait. It is still one genuine screenshot of the mounted page, not a
+    // reconstructed image from Worker, React or a detached canvas.
+    const captureStartedAt = performance.now();
+    // Browser monotonic timestamps bracket the actual compositor operation;
+    // no CDP session creation or detach occurs inside a live LED phase.
+    const captureFrom = await page.evaluate(() => performance.now());
+    const captured = await cdp.send('Page.captureScreenshot', {
+      format: 'png',
+      fromSurface: true,
+      captureBeyondViewport: false,
+      clip: { ...clip, scale: 1 },
+    });
+    const captureTo = await page.evaluate(() => performance.now());
+    const bytes = Buffer.from(captured.data, 'base64');
+    const captureMs = performance.now() - captureStartedAt;
+    // Persist each original screenshot immediately, even if a later
+    // scheduled phase cannot be acquired. Never retry a mismatching PNG.
+    writeFileSync(path, bytes);
+    acquisitions.push({
+      name,
+      path,
+      vector,
+      captureFrom,
+      captureTo,
+      captureMs,
+      bytes,
+      clip,
+      beforeShot,
+    });
+    seekFrom = captureTo;
+  }
+  const completedAt = await page.evaluate(() => performance.now());
+  await cdp.detach();
+  const nativeChecks: Array<{
+    vector: string;
+    observedVector: string;
+    fixedGeometry: boolean;
+    coherentWitness: boolean;
+    lOff: boolean;
+  }> = [];
+  // Inspect all seven captured images afterwards. This cannot affect the
+  // natural live phase at which any original Chromium PNG was obtained.
+  for (const {
+    name,
+    path,
+    vector,
+    captureFrom,
+    captureTo,
+    captureMs,
+    bytes,
+    clip,
+    beforeShot,
+  } of acquisitions) {
+    const during = JSON.parse(
+      await page.evaluate(
+        ({ from, to, source }) => {
+          const probe = window as D2Window;
+          const at = to;
+          return JSON.stringify({
+            paint: probe.__ownerPaint!.filter((row) => row.at >= from && row.at <= at),
+            l: probe.__d2L!.filter((row) => row.at >= from && row.at <= at),
+            // Retain real Worker receipts near this particular compositor window.
+            // The full archive later checks their model-time causal relationship.
+            frames: probe
+              .__ownerTemporal!.frames.filter((row) => row.at >= from - 50 && row.at <= at)
+              .map((row) => ({
+                at: row.at,
+                requestId: row.requestId,
+                sourceMatches: row.source === source,
+                generationId: row.generationId,
+                responseGenerationId: row.responseGenerationId,
+                committedHorizonMicroseconds: row.committedHorizonMicroseconds,
+                executionStatus: row.executionStatus,
+                brightness: ['led0', 'led1', 'led2'].map(
+                  (id) =>
+                    row.components.find((component) => component.componentId === id)?.brightness ??
+                    null,
+                ),
+              })),
+            at,
+          });
+        },
+        { from: beforeShot.paint.at, to: captureTo, source: stage.source },
+      ),
+    ) as {
+      paint: PaintReceipt[];
+      l: D2LReceipt[];
+      frames: Array<{
+        at: number;
+        requestId: string;
+        sourceMatches: boolean;
+        generationId: number | null;
+        responseGenerationId: number;
+        committedHorizonMicroseconds: number;
+        executionStatus: TemporalFrame['executionStatus'];
+        brightness: Array<number | null>;
+      }>;
+      at: number;
+    };
+    const png = PNG.sync.read(bytes);
+    // Build the same full-viewport canonical references as before, then
+    // translate their pixel positions into the unscaled captured PNG region.
+    const fullWidth = Math.round((png.width / clip.width) * viewport.width);
+    const fullHeight = Math.round((png.height / clip.height) * viewport.height);
+    const capturedOffset = {
+      x: Math.round((clip.x * png.width) / clip.width),
+      y: Math.round((clip.y * png.height) / clip.height),
+    };
+    if (fullWidth !== viewport.width || fullHeight !== viewport.height)
+      throw new Error('native screenshot scaled unexpectedly relative to canonical references');
+    const references = nativeReferences;
+    const pixels = references.map((reference) =>
+      d2ClassifyNativePng(png, reference, capturedOffset),
+    );
     const observedVector = pixels
       .map((pixel) => (pixel.led.state === 'HIGH' ? '1' : pixel.led.state === 'LOW' ? '0' : '?'))
       .join('');
@@ -6724,6 +6920,15 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
         (key) => Math.abs(actual[key] - expected[key]) <= 0.25,
       );
     const fixedGeometry =
+      beforeShot.paint.images.length === references.length &&
+      beforeShot.paint.images.every(
+        (image, led) =>
+          (image.href === references[led]!.lowHref || image.href === references[led]!.highHref) &&
+          sameRect(image.rect, nativeGeometry.paint.images[led]!.rect),
+      ) &&
+      references.every((reference) => reference.boardHref === beforeShot.l.boardHref) &&
+      sameRect(beforeShot.l.rect, nativeGeometry.l.rect) &&
+      sameRect(beforeShot.l.boardRect, nativeGeometry.l.boardRect) &&
       during.paint.length >= 2 &&
       during.l.length >= 2 &&
       during.paint.every(
@@ -6736,20 +6941,43 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
       during.l.every(
         (l) => sameRect(l.rect, beforeShot.l.rect) && sameRect(l.boardRect, beforeShot.l.boardRect),
       );
-    const coherentWitness = during.paint.some(
-      (paint) =>
-        paint.stablePreviousFrame &&
-        paint.images.length === 3 &&
-        paint.images.every(
-          (image, led) =>
-            image.decoded &&
-            image.visible &&
-            image.unoccluded &&
-            image.opacity === 1 &&
-            image.lit === paint.brightness[led]! > 0,
-        ) &&
-        d2Vector(paint.brightness) === vector,
-    );
+    // A matching frame somewhere in the history is insufficient: the entire
+    // bracket containing the compositor capture must keep the same phase.
+    const capturePaint = during.paint.filter((row) => row.at <= captureTo);
+    const captureL = during.l.filter((row) => row.at <= captureTo);
+    const capturePhaseStable =
+      beforeShot.paint.at <= captureFrom &&
+      captureFrom <= captureTo &&
+      captureTo <= during.at &&
+      d2Vector(beforeShot.paint.brightness) === vector &&
+      capturePaint.some((row) => row.at >= captureFrom && row.stablePreviousFrame) &&
+      capturePaint.every((row) => d2Vector(row.brightness) === vector) &&
+      during.frames.every(
+        (row) =>
+          row.sourceMatches &&
+          row.generationId === generationId &&
+          row.responseGenerationId === generationId &&
+          row.executionStatus === 'ready',
+      ) &&
+      captureL.some((row) => row.at >= captureFrom) &&
+      captureL.every((row) => row.activeAttribute === 'false' && row.opacity === 0 && row.visible);
+    const coherentWitness =
+      capturePhaseStable &&
+      during.paint.some(
+        (paint) =>
+          paint.at <= captureTo &&
+          paint.stablePreviousFrame &&
+          paint.images.length === 3 &&
+          paint.images.every(
+            (image, led) =>
+              image.decoded &&
+              image.visible &&
+              image.unoccluded &&
+              image.opacity === 1 &&
+              image.lit === paint.brightness[led]! > 0,
+          ) &&
+          d2Vector(paint.brightness) === vector,
+      );
     const lOff =
       pixels.every((pixel) => pixel.l.state === 'LOW') &&
       during.l.every((l) => l.activeAttribute === 'false' && l.opacity === 0 && l.visible);
@@ -6758,31 +6986,58 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
       path,
       requestedVector: vector,
       observedVector,
+      nativeCapture: {
+        method: 'Chromium Page.captureScreenshot / actual compositor PNG',
+        captureMs,
+        browserWindow: { from: captureFrom, to: captureTo },
+        paintVectorsInWindow: capturePaint.map((row) => ({
+          at: row.at,
+          vector: d2Vector(row.brightness),
+          stablePreviousFrame: row.stablePreviousFrame,
+        })),
+        clip,
+        pixelOffset: capturedOffset,
+        pngSize: { width: png.width, height: png.height },
+      },
       generationId,
       sourceSha256: createHash('sha256').update(stage.source).digest('hex'),
       beforeShot,
       during,
+      electricalReceiptsNearCapture: during.frames,
       references,
       pixels,
       fixedGeometry,
+      capturePhaseStable,
       coherentWitness,
       lOff,
       interpretation:
         'The actual screenshot pixels determine each LED state and D13 L. Labels, requested states and filenames cannot satisfy this check.',
     };
     d2Ledger!.native.push(evidence);
-    writeFileSync(resolve(artifactRoot, name + '.json'), JSON.stringify(evidence, null, 2) + '\n');
+    const rawPath = resolve(artifactRoot, name + '.json');
+    writeFileSync(rawPath, JSON.stringify(evidence, null, 2) + '\n');
     await test.info().attach(name + '-native', { path, contentType: 'image/png' });
+    await test.info().attach(name + '-raw', { path: rawPath, contentType: 'application/json' });
+    nativeChecks.push({ vector, observedVector, fixedGeometry, coherentWitness, lOff });
+    nativeWindows.push({
+      previousShotAt,
+      previousRequested,
+      shotAt: beforeShot.paint.at,
+      vector,
+      captureFrom,
+      captureTo,
+    });
+    previousShotAt = beforeShot.paint.at;
+    previousRequested = vector;
+  }
+  // Every requested PNG is retained and classified before a negative verdict.
+  // The original strict assertions remain unchanged and fail on any ambiguity.
+  for (const { vector, observedVector, fixedGeometry, coherentWitness, lOff } of nativeChecks) {
     expect(fixedGeometry, 'stable actual LED/board/L geometry during PNG capture').toBe(true);
     expect(coherentWitness, 'mounted loaded image witness during native PNG capture').toBe(true);
     expect(observedVector, 'independently classified three-channel PNG').toBe(vector);
     expect(lOff, 'D13 L actual PNG and complete capture window remain dark').toBe(true);
-    nativeWindows.push({ previousShotAt, previousRequested, shotAt: beforeShot.paint.at, vector });
-    previousShotAt = beforeShot.paint.at;
-    previousRequested = vector;
-    seekFrom = during.at;
   }
-  const completedAt = await page.evaluate(() => performance.now());
   // Only compact shot boundaries are retained here. Complete native causality,
   // source/generation and adjacency checks run on the single durable full archive.
   d2NativePending = { actionAt, completedAt, generationId, nativeWindows };
@@ -6798,6 +7053,8 @@ let d2NativePending:
         previousRequested: string | null;
         shotAt: number;
         vector: string;
+        captureFrom: number;
+        captureTo: number;
       }>;
     }
   | undefined;
@@ -6834,19 +7091,42 @@ function d2CheckNative(full: D2Raw, boundary: D2Boundary) {
     actionAt,
     completedAt,
   );
+  // Tie EACH real PNG's bounded Chromium capture to electrical witnesses from
+  // the same source/generation, not just to a matching phase elsewhere in Run.
+  const nativeCorrelation = nativeWindows.map(({ vector, captureFrom, captureTo }) => {
+    const physicalWitnesses = causal.witnesses.filter(
+      (row) => row.at >= captureFrom && row.at <= captureTo,
+    );
+    return {
+      vector,
+      captureFrom,
+      captureTo,
+      physicalWitnesses,
+      timeCoherent:
+        physicalWitnesses.length > 0 &&
+        physicalWitnesses.every(
+          (row) => row.generationId === generationId && d2Vector(row.brightness) === vector,
+        ),
+    };
+  });
+  writeFileSync(
+    resolve(artifactRoot, 'd2-d4-native-causality.json'),
+    JSON.stringify({ ...causal, nativeCorrelation }, null, 2) + '\n',
+  );
   expect(
     causal.violations,
     'native captures remain within the same-source same-generation physical timeline',
   ).toEqual([]);
+  for (const correlation of nativeCorrelation)
+    expect(
+      correlation.timeCoherent,
+      'actual PNG capture must have same-phase, same-generation electrical witnesses',
+    ).toBe(true);
   expect(
     full.l
       .filter((row) => row.at >= actionAt && row.at <= completedAt)
       .every((row) => row.activeAttribute === 'false' && row.opacity === 0 && row.visible),
   ).toBe(true);
-  writeFileSync(
-    resolve(artifactRoot, 'd2-d4-native-causality.json'),
-    JSON.stringify(causal, null, 2) + '\n',
-  );
 }
 
 async function retainD2Ledger(info: import('@playwright/test').TestInfo): Promise<void> {
