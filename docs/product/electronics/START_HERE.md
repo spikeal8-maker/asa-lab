@@ -3,11 +3,15 @@
 Compact router for Electronics/Arduino work. Product behaviour lives in `README.md`;
 do not preload that full specification or the Electronics source/test trees.
 
+> **Текущие требования владельца:** [ТЗ из 20 пунктов](OWNER_REMAINING_PLAN_20.md) задаёт нумерацию и критерии приёмки. Списки из [23](OWNER_23_EXECUTION_QUEUE.md) и [45 пунктов](OWNER_CONSOLIDATED_PLAN_45.md) сохраняют исходные замечания и соответствие номеров.
+>
+> **Восстановление электроники:** [ТЗ v1.1](https://github.com/spikeal8-maker/asa-lab/pull/1109) описывает отдельную программу. Границы предварительного расчёта при остановленной симуляции заданы в [карточке R10](tasks/TASK-ELECTRONICS-RECOVERY-R10-001.md). Выбранный срез и его статус смотри в [current.yaml](../../execution/current.yaml).
+
 > **Classroom stabilization 2.1:** owner programme [#452](https://github.com/spikeal8-maker/asa-lab/issues/452) is governed by [ASA_ELECTRONICS_STABILIZATION_SPEC_V2.md](ASA_ELECTRONICS_STABILIZATION_SPEC_V2.md). Weekly-log evidence is in [evidence/stabilization-20261001-weekly-log-findings.md](evidence/stabilization-20261001-weekly-log-findings.md). Prepared owner decisions include the 60-second autosave task [#459](https://github.com/spikeal8-maker/asa-lab/issues/459); classroom FRP/session/save load is tracked in [#460](https://github.com/spikeal8-maker/asa-lab/issues/460). These links do not override the active task in `current.yaml`.
 
 > **Owner priority update 3.0 (08.10.2026):** [E01–E35 / K0–K8](ASA_ELECTRONICS_OWNER_REPAIR_PRIORITY_20261008.md) refines the existing programme #452. P0 E01 save recovery precedes visual work; K0 version/backup verification is read-only and parallel. The [save-recovery card](tasks/TASK-ELECTRONICS-SAVE-RECOVERY-001.md) defines E01; concrete task selection lives only in current.yaml, including separately selected dependencies. Suspended525 and accepted results remain preserved. This owner input grants no school deployment or live data operation.
 
-> **23 пользовательских замечания (23.10.2026):** [исполнительное ТЗ и очередь «от простого к сложному»](OWNER_23_EXECUTION_QUEUE.md) → [единый реестр #703](https://github.com/spikeal8-maker/asa-lab/issues/703) → конкретная активная task card. Этот порядок не меняет `docs/execution/current.yaml` и не разрешает трогать чужие lanes.
+> **История 23 пользовательских замечаний (23.10.2026):** [исполнительное ТЗ и очередь «от простого к сложному»](OWNER_23_EXECUTION_QUEUE.md) → [единый реестр #703](https://github.com/spikeal8-maker/asa-lab/issues/703) → конкретная активная task card. Этот порядок не меняет `docs/execution/current.yaml` и не разрешает трогать чужие lanes.
 
 ## 1. Confirm the selected task
 
