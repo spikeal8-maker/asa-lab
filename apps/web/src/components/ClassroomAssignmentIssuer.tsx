@@ -30,10 +30,12 @@ export function ClassroomAssignmentIssuer({
   classroomId,
   archived,
   onAssigned,
+  compact = false,
 }: {
   readonly classroomId: string;
   readonly archived: boolean;
-  readonly onAssigned: () => void;
+  readonly onAssigned?: () => void;
+  readonly compact?: boolean;
 }): JSX.Element {
   const [flow, setFlow] = useState<AssignmentFlow | null>(null);
   const issueButton = useRef<HTMLButtonElement>(null);
@@ -135,7 +137,7 @@ export function ClassroomAssignmentIssuer({
     // onAssigned is the dialog's confirmed API-success boundary. An obsolete
     // scope or stage reaches none of these UI mutations or the publisher.
     source.publish(message);
-    onAssigned();
+    onAssigned?.();
     setFlow(null);
     editorLeaveGuard.current = null;
     restoreFocus(source, ticket);
@@ -143,7 +145,18 @@ export function ClassroomAssignmentIssuer({
 
   return (
     <>
-      {!archived ? (
+      {!archived && compact ? (
+        <button
+          ref={issueButton}
+          type="button"
+          className="portal-create-button classroom-roster-issue"
+          aria-label="Выдать задание"
+          onClick={startFlow}
+        >
+          <span className="classroom-desktop-label">Выдать задание</span>
+          <span className="classroom-mobile-label">Задание</span>
+        </button>
+      ) : !archived ? (
         <div className="classroom-assignment-issue">
           <button
             ref={issueButton}

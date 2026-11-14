@@ -29,7 +29,7 @@ async function openLearnerLearning(page: import('@playwright/test').Page): Promi
     .click();
 }
 
-test('teacher creates and issues the first assignment from the journal on a small screen', async ({
+test('teacher issues the first assignment from the class on a small screen and finds it in the journal', async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -52,12 +52,9 @@ test('teacher creates and issues the first assignment from the journal on a smal
   await seat.getByRole('button', { name: 'Добавить', exact: true }).click();
   await expect(seat).toBeHidden();
 
-  await page.getByRole('button', { name: 'Журнал', exact: true }).click();
-  await page.getByRole('button', { name: 'Задания', exact: true }).click();
-  await expect(page.getByText('Здесь появятся работы и оценки.', { exact: true })).toBeVisible();
   const issue = page.getByRole('button', { name: 'Выдать задание', exact: true });
   await expect(issue).toBeVisible();
-  await page.screenshot({ path: evidenceDir + '/issue-from-journal-desktop.png' });
+  await page.screenshot({ path: evidenceDir + '/issue-from-class-desktop.png' });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await issue.click();
@@ -71,11 +68,14 @@ test('teacher creates and issues the first assignment from the journal on a smal
   await editor.getByRole('button', { name: 'К выдаче', exact: true }).click();
   await expect(picker.getByText(title, { exact: true })).toBeVisible();
   await expect(picker.getByLabel('Весь класс')).toBeChecked();
-  await picker.screenshot({ path: evidenceDir + '/issue-from-journal-mobile.png' });
+  await picker.screenshot({ path: evidenceDir + '/issue-from-class-mobile.png' });
   await picker.getByRole('button', { name: 'Назначить', exact: true }).click();
 
   await expect(picker).toBeHidden();
   await expect(issue).toBeFocused();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole('button', { name: 'Журнал', exact: true }).click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
   const table = page.getByRole('table', { name: 'Журнал работ класса' });
   await expect(table.getByRole('columnheader', { name: title })).toBeVisible();
   await expect(table.getByRole('rowheader', { name: 'Анна' })).toBeVisible();

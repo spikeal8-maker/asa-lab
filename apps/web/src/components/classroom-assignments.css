@@ -568,3 +568,12 @@
 .classroom-assignment-editor .assignment-document-topbar {
   top: 0;
 }
+
+/* Keep all four class actions in the first toolbar row on narrow screens. */
+@container classroom (max-width: 550px) {
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .classroom-tabbar
+    .classroom-roster-actions:has(.classroom-roster-issue) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
